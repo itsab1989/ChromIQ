@@ -6460,7 +6460,7 @@ What *does* transfer:
 
 ### Confirmed behaviour — three limits: a verification's own row, and 20 for a chart made from a profile (beta 11)
 
-**Confirmed by:** Knut, 2026-10-04, #182 [5983470377](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983470377), answers 1 and 2 to the questions of [5983075893](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983075893). Only these two points; they amend 10.1 and point 1 of 10.8.
+**Confirmed by:** Knut, 2026-10-04, #182 [5983470377](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983470377), answers 1 and 2 to the questions of [5983075893](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983075893), for points 1 and 2, which amend 10.1 and point 1 of 10.8; Knut, 2026-10-04, [5983733592](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983733592), for point 3, whose RULING (what the help must explain) is his and whose WORDS are ours and have not been put to him.
 
 1. **A verification judged against its profile has its own limit** (answer 1:
    *"yes, 10, and own threshold row for this in Preferences --> Measurements
@@ -6493,7 +6493,10 @@ What *does* transfer:
    because the expected colours are close to what the printer should print.
    One paragraph (`LIMITS_PURPOSE_HELP`), the same in Preferences ▸
    Measurement and the Measure tab's hover help. The ruling is Knut's; the
-   words are ours.
+   words are ours. It names the strip check by its checkbox's own words,
+   and the "other check" is the neighbour check of the beta-11 branch
+   `fix/4.3.3-beta11-neighbours`: the paragraph is only true in a build
+   that has both.
 
 ### ⏳ Awaiting confirmation — two limits, and the yellow outline
 

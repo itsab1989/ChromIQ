@@ -105,3 +105,27 @@ def test_the_limits_say_what_they_are_for_in_both_places():
         assert d in text
     assert "\u2014" not in text
     assert "tr(LIMITS_PURPOSE_HELP)" in inspect.getsource(tm)
+
+
+_STRIP_CHECK_LABEL = "Only flag a patch that stands out from its own strip"
+
+
+def test_the_help_quotes_the_strip_check_as_its_checkbox_reads():
+    """The help names the strip check by quoting its Preferences checkbox, so
+    the quote must be the checkbox's own words, in every language (review of
+    beta 11: it quoted "only flag a patch that ALSO stands out", which no
+    checkbox says, and each catalogue its own paraphrase of that)."""
+    import glob
+    import inspect
+    import json
+    from ui.dialogs import settings_dialog as sd
+    assert f"tr(\"{_STRIP_CHECK_LABEL}\")" in inspect.getsource(sd)
+    assert f"“{_STRIP_CHECK_LABEL}”" in sd.LIMITS_PURPOSE_HELP
+    root = os.path.join(os.path.dirname(__file__), "..", "data", "i18n")
+    files = sorted(glob.glob(os.path.join(root, "*.json")))
+    assert len(files) >= 13
+    for f in files:
+        with open(f, encoding="utf-8") as fh:
+            cat = json.load(fh)
+        label = cat[_STRIP_CHECK_LABEL]
+        assert label in cat[sd.LIMITS_PURPOSE_HELP], os.path.basename(f)
