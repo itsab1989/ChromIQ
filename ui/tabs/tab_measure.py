@@ -15774,8 +15774,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             elif (flag == FLAG_CONFIRMED
                   and getattr(verdicts.get(loc), "prev_de", None) is not None):
                 kept.append(loc)
-        return {"red": red, "kept": kept, "checked": nc.checked_count(),
-                "total": len(nc)}
+        # In chart order, so the list reads the same live and from disk.
+        from workflow.patch_flags import sorted_locs
+        return {"red": sorted_locs(red), "kept": sorted_locs(kept),
+                "checked": nc.checked_count(), "total": len(nc)}
 
     # ---- #182 K4: the confirmed patches, kept with the measurement ---------
     #
