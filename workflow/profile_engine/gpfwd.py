@@ -309,7 +309,7 @@ def joint_weights(p01, grid, n):
 
 
 def project_to_table(gp, base_model, base_lam, seed=2929, max_nodes=150_000,
-                     fine=False):
+                     fine=False, anchor_rel=0.0, solver="pcg"):
     """Nodes of ``base_model``'s lattice (its curves kept) that best
     reproduce the GP under the CMMs' kernels. Above ``max_nodes`` the grid
     is reduced by 2 per step (6 inks: 9 -> 7; 7 inks: 7 -> 5): a 6-ink
@@ -339,8 +339,18 @@ def project_to_table(gp, base_model, base_lam, seed=2929, max_nodes=150_000,
     w, cols = joint_weights(base_model.shape_device(xs), grid, n)
     # Agent 8 (wave 2): Jacobi-preconditioned CG run to convergence; the
     # plain CG stopped at 400 iterations up to 318 LSB from the solution.
-    nodes = _cg_solve(w, cols, ys, grid, n, 1e-4 * base_lam, 400, nodes,
-                      rtol=1e-16, precond=True)
+    mu = 0.0
+    if anchor_rel > 0.0:
+        diag = np.bincount(cols.reshape(-1), (w * w).reshape(-1),
+                           minlength=grid ** n)
+        mu = anchor_rel * float(np.median(diag))
+    if solver == "pcg":
+        nodes = _cg_solve(w, cols, ys, grid, n, 1e-4 * base_lam, 400, nodes,
+                          rtol=1e-16, precond=True, anchor=nodes, mu=mu)
+    else:   # research only: plain CG, 400 iterations, from ``solver`` start
+        x0 = np.zeros_like(nodes) if solver == "cg-zero" else nodes
+        nodes = _cg_solve(w, cols, ys, grid, n, 1e-4 * base_lam, 400, x0,
+                          rtol=1e-12, anchor=nodes, mu=mu)
     return ForwardModel(grid=grid, n_channels=n, nodes=nodes,
                         curves=curves)
 
@@ -361,7 +371,7 @@ def _curv_diag(grid, n):
 
 
 def _cg_solve(w, cols, y, grid, n, lam, iters, x0, rtol=1e-12,
-              precond=False):
+              precond=False, anchor=None, mu=0.0):
     """forward_model._grid_solve's normal equations and CG, with
     np.bincount for W'r (np.add.at made a 6-ink projection take an hour)."""
     ng = grid ** n
@@ -410,10 +420,18 @@ def _cg_solve(w, cols, y, grid, n, lam, iters, x0, rtol=1e-12,
         return o.reshape(ng, -1)
 
     def amul(x):
-        return wtmul(wmul(x)) + lam * curv(x) + 1e-7 * x
+        return wtmul(wmul(x)) + lam * curv(x) + (1e-7 + mu) * x
 
     global _LAST_ITERS
     b = wtmul(y)
+    if anchor is not None and mu > 0.0:
+        # Agent 3: a weak pull of every node toward the GP's own value at
+        # the node. Makes the normal equations strictly positive definite,
+        # so the near-null modes the two CMM kernels cannot see (6-7 inks,
+        # agent 8 wave 2: 46,215 of 72,646 in-limit X5 nodes solver-
+        # dependent by up to 25,000 LSB) take the GP's value instead of
+        # wherever the solver stops.
+        b = b + mu * anchor
     x = x0.copy()
     r = b - amul(x)
     if precond:
@@ -423,7 +441,7 @@ def _cg_solve(w, cols, y, grid, n, lam, iters, x0, rtol=1e-12,
         # determined nodes (S3: 129 nodes up to 318 LSB off the converged
         # answer), this reaches the converged answer in ~75 iterations.
         dinv = 1.0 / (np.bincount(fc, (w * w).reshape(-1), minlength=ng)
-                      + lam * _curv_diag(grid, n) + 1e-7)[:, None]
+                      + lam * _curv_diag(grid, n) + 1e-7 + mu)[:, None]
         z = r * dinv
         p = z.copy()
         rz = (r * z).sum()
