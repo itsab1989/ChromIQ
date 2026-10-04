@@ -228,9 +228,9 @@ def test_knuts_case_update_run1s_one_date_report_from_run2s_window(
     after = _tree(Path(proj.root))
     changed = sorted(k for k in set(before) | set(after)
                      if before.get(k) != after.get(k))
-    rel_own = str(own[0].relative_to(proj.root))
+    rel_own = own[0].relative_to(proj.root).as_posix()
     rel_old = [k for k in changed if k.startswith(
-        str((target.dir / "reports" / "old").relative_to(proj.root)))]
+        (target.dir / "reports" / "old").relative_to(proj.root).as_posix())]
     assert rel_own in changed, "run1's report of one date was not rewritten"
     assert set(changed) == {rel_own, *rel_old}, (
         f"the Update wrote outside run1's report: {changed}")

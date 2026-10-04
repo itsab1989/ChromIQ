@@ -5134,7 +5134,9 @@ def _main(argv=None) -> int:
               f"({n} projects expected)")
         return 2 if gaps else 0
 
-    if not (ARGYLL / "targen").exists() or not SRGB.exists():
+    # "targen.exe" on Windows (the tools are found by that name there).
+    if not any((ARGYLL / t).exists() for t in ("targen", "targen.exe")) \
+            or not SRGB.exists():
         print(f"ArgyllCMS with ref/sRGB.icm is required ({ARGYLL}).")
         return 2
 

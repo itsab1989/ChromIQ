@@ -121,6 +121,13 @@ def test_run_emits_started_when_a_tool_actually_launches(qapp, tmp_path):
     r.started.connect(lambda: started.append(True))
     r.run("targen", ["-v"], pathlib.Path(tmp_path), on_finish=finished.append)
     _pump(qapp, 1500)
+    # A slow machine (the Windows ARM runner) can take longer than that to
+    # report the exit; give the finish up to 10 s more, it is not what is
+    # measured here.
+    for _ in range(20):
+        if finished:
+            break
+        _pump(qapp, 500)
 
     assert started == [True], (
         "run() did not emit `started`, so nothing can react to a tool actually "
