@@ -14956,7 +14956,45 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 return
         except Exception:      # noqa: BLE001 — a repaint is never worth a crash
             return
+        loads = getattr(self, "_memory_loads", 0)
         self._repaint_overlay_from_disk()
+        # Only when this repaint read the memory and judged the whole file
+        # again: otherwise the judge on hand may be another chart's, or empty.
+        if getattr(self, "_memory_loads", 0) != loads:
+            self._rewrite_memory_after_repaint()
+
+    def _rewrite_memory_after_repaint(self) -> None:
+        """Bring the memory file into line with the outlines just judged again.
+
+        Check & Refine leaves out the patches that file calls confirmed
+        (``confirmed_locations``), and its ``peer`` entries were worked out at
+        the limit of the session that wrote it. After a limit change the
+        preview shows other patches confirmed by similar patches, and Check &
+        Refine would offer for re-measuring patches the card says to keep (or
+        leave out ones the preview no longer confirms). Rewritten only for the
+        measurement the memory on hand describes, only when it changed, and
+        never during a session (k22 review)."""
+        if getattr(self, "_session_live", False):
+            return
+        ti3 = getattr(self, "_memory_for", None)
+        if ti3 is None or not Path(ti3).is_file():
+            return
+        try:
+            exported = self._flag_judge().export()
+        except Exception:      # noqa: BLE001 — a memory is never worth a crash
+            return
+        # Against the FILE, not `_memory_written`: that is what the judge took
+        # back from it, which never holds the peers.
+        try:
+            from workflow import confirmed_patches as cp
+            on_disk = (cp.load(ti3) or {}).get("patches") or {}
+        except Exception:      # noqa: BLE001
+            on_disk = {}
+        if exported == on_disk:
+            return
+        self._save_confirmed_memory(
+            ti3, getattr(self, "_memory_mode", None)
+            or self._selected_memory_mode())
 
     def _unread_patch_count(self) -> "int | None":
         """How many patches of this chart still have no reading, or ``None``
@@ -15490,6 +15528,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             pass
         judge = self._reset_flag_judge()
         self._memory_written = None
+        #: How many times a memory was read back (refresh_patch_flags asks).
+        self._memory_loads = getattr(self, "_memory_loads", 0) + 1
         #: Which measurement the memory now describes.
         self._memory_for = Path(ti3) if ti3 is not None else None
         if ti3 is None:

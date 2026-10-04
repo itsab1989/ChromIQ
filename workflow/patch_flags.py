@@ -110,6 +110,7 @@ report; the earlier thresholds: ``AF_impl_flag_limits/flag_rule_knut_data.py``):
 """
 from __future__ import annotations
 
+import functools
 import math
 import re
 from dataclasses import dataclass
@@ -387,6 +388,7 @@ def chart_device_ranges(chart: "str | Path | None") -> "dict[str, str] | None":
             for loc, rgb in values}
 
 
+@functools.lru_cache(maxsize=8192)
 def _loc_key(loc: str):
     """A natural sort key for a chart location: A9 before A10, Z before AA."""
     m = re.match(r"^([A-Za-z]*)(\d*)(.*)$", str(loc))
@@ -443,6 +445,14 @@ def _norm(v) -> float:
     return math.sqrt(sum(x * x for x in v))
 
 
+def _cube(lab) -> tuple:
+    """The PEER_EXPECTED_DE-wide cube an expected colour falls in: two colours
+    less than PEER_EXPECTED_DE apart are always in the same or touching cubes."""
+    if PEER_EXPECTED_DE <= 0.0:
+        return (0, 0, 0)       # peers switched off: _are_peers refuses them all
+    return tuple(math.floor(float(v) / PEER_EXPECTED_DE) for v in lab[:3])
+
+
 def _are_peers(a: _Reading, b: _Reading) -> bool:
     """Do these two FLAGGED readings confirm each other (Knut 5979886227)?
     Different strips, expected colours less than PEER_EXPECTED_DE apart, and
@@ -497,6 +507,7 @@ class FlagJudge:
         if white:
             self._white = tuple(float(v) for v in white[:3])
             self._ranges = {}
+            self._range_index = None
             self._refs_changed()
 
     def set_device_ranges(self, device_ranges) -> None:
@@ -506,6 +517,7 @@ class FlagJudge:
                                else {str(k): str(v)
                                      for k, v in device_ranges.items()})
         self._ranges = {}
+        self._range_index = None
         self._refs_changed()
 
     def reset(self, white=None, device_ranges=_KEEP) -> None:
@@ -526,6 +538,14 @@ class FlagJudge:
         #: (loc -> partner locs), kept up to date reading by reading.
         self._flagged: "set[str]" = set()
         self._peers: "dict[str, set]" = {}
+        #: The flagged patches by expected colour, in cubes PEER_EXPECTED_DE
+        #: wide, so a reading is tested only against the 27 cubes around it
+        #: rather than every flagged patch (thousands, at a low limit).
+        self._cubes: "dict[tuple, set]" = {}
+        self._cube_of: "dict[str, tuple]" = {}
+        #: range -> its flagged patches (None: built again when next asked).
+        self._range_index: "dict[str, set] | None" = None
+        self._indexed_as: "dict[str, str]" = {}
 
     @property
     def confirmed(self) -> "list[str]":
@@ -537,28 +557,67 @@ class FlagJudge:
         return sorted_locs(self._peers.get(str(loc), ()))
 
     # ---- the readings and their peers ----------------------------------------
-    def _set_reading(self, loc: str, rd: _Reading) -> None:
+    def _set_reading(self, loc: str, rd: _Reading,
+                     was_range: "str | None" = None) -> None:
         """Remember *rd* as the last reading of *loc* and bring the peers up to
-        date: O(flagged patches), so a whole chart repainted stays cheap."""
+        date, testing only the flagged patches of nearly the same expected
+        colour, so a whole chart repainted at a low limit stays cheap.
+
+        Only the colour ranges this reading can change are counted again:
+        *loc*'s (before and now) and those of the patches it stops or starts
+        confirming (*was_range*: *loc*'s range before this reading)."""
         self._last[loc] = rd
+        touched = {loc} | self._peers.get(loc, set())
         for other in self._peers.pop(loc, set()):
             partners = self._peers.get(other)
             if partners is not None:
                 partners.discard(loc)
                 if not partners:
                     del self._peers[other]
-        self._flagged.discard(loc)
+        if loc in self._flagged:
+            self._flagged.discard(loc)
+            cube = self._cube_of.pop(loc, None)
+            if cube is not None:
+                members = self._cubes.get(cube)
+                if members is not None:
+                    members.discard(loc)
+                    if not members:
+                        del self._cubes[cube]
         if rd.flagged:
             self._flagged.add(loc)
+            cube = _cube(rd.exp_lab)
+            self._cube_of[loc] = cube
+            self._cubes.setdefault(cube, set()).add(loc)
             if rd.strip:
                 mine = set()
-                for other in self._flagged:
-                    if other != loc and _are_peers(rd, self._last[other]):
-                        mine.add(other)
-                        self._peers.setdefault(other, set()).add(loc)
+                c0, c1, c2 = cube
+                for d0 in (-1, 0, 1):
+                    for d1 in (-1, 0, 1):
+                        for d2 in (-1, 0, 1):
+                            for other in self._cubes.get(
+                                    (c0 + d0, c1 + d1, c2 + d2), ()):
+                                if other != loc and _are_peers(
+                                        rd, self._last[other]):
+                                    mine.add(other)
+                                    self._peers.setdefault(other, set()).add(loc)
                 if mine:
                     self._peers[loc] = mine
-        self._refs_changed()
+                    touched |= mine
+        if self._range_index is not None:
+            old_rng = self._indexed_as.pop(loc, None)
+            if old_rng is not None:
+                self._range_index.get(old_rng, set()).discard(loc)
+            if rd.flagged:
+                rng_now = self.range_of(loc, rd.exp_lab)
+                self._indexed_as[loc] = rng_now
+                self._range_index.setdefault(rng_now, set()).add(loc)
+        stale = {was_range} if was_range else set()
+        for other in touched:
+            o = self._last.get(other)
+            if o is not None:
+                stale.add(self.range_of(other, o.exp_lab))
+        for rng in stale:
+            self._status_cache.pop(rng, None)
 
     def _active_ref(self, loc: str) -> "_Reference | None":
         """*loc*'s re-read reference, while its last reading is flagged: a
@@ -589,11 +648,15 @@ class FlagJudge:
         """Every confirmed patch of range *rng*, in reading order: its re-read
         references (shown at this limit) and its peer-confirmed patches, the
         latter made afresh from their readings."""
+        if self._range_index is None:
+            self._range_index, self._indexed_as = {}, {}
+            for loc in self._flagged:
+                r = self.range_of(loc, self._last[loc].exp_lab)
+                self._indexed_as[loc] = r
+                self._range_index.setdefault(r, set()).add(loc)
         out = []
-        for loc in self._flagged:
+        for loc in self._range_index.get(rng, ()):
             rd = self._last[loc]
-            if self.range_of(loc, rd.exp_lab) != rng:
-                continue
             ref = self._active_ref(loc)
             if ref is None and loc in self._peers:
                 ref = _Reference(loc=loc, exp_lab=rd.exp_lab,
@@ -609,9 +672,18 @@ class FlagJudge:
         hit = self._status_cache.get(rng)
         if hit is None:
             refs = self._range_refs(rng)
+            # Each reference's error length and direction, worked out once per
+            # change rather than once per patch judged against it: with every
+            # peer a reference, a chart of thousands of flagged patches made
+            # _like the whole cost of a repaint (k22 review, measured).
+            axes = []
+            for r in refs:
+                n = _norm(r.shift)
+                if n > 0.0:
+                    axes.append((r, n, tuple(v / n for v in r.shift)))
             hit = self._status_cache[rng] = (
                 min(len(refs), RANGE_CONFIRMATIONS),
-                tuple(r.loc for r in refs), refs)
+                tuple(r.loc for r in refs), refs, axes)
         return hit
 
     def range_status(self, rng: str) -> "tuple[int, tuple]":
@@ -620,7 +692,7 @@ class FlagJudge:
         confirmed patch in it, in reading order."""
         if not rng:
             return 0, ()                  # no range: never learns, never teaches
-        k, locs, _refs = self._range_entry(rng)
+        k, locs, _refs, _axes = self._range_entry(rng)
         return k, locs
 
     def range_learned(self, rng: str) -> bool:
@@ -680,8 +752,9 @@ class FlagJudge:
                 loc=loc, exp_lab=exp_lab, meas_lab=meas_lab,
                 shift=_sub(meas_lab, exp_lab), de=de, prev_de=prev,
                 standout=so)
-            self._ranges.pop(loc, None)
-            self._set_reading(loc, _Reading(meas_lab, de, True, exp_lab, so))
+            was = self._ranges.pop(loc, None)
+            self._set_reading(loc, _Reading(meas_lab, de, True, exp_lab, so),
+                              was)
             n += 1
         self._refs_changed()
         return n
@@ -692,21 +765,27 @@ class FlagJudge:
         the closest by expected colour (ΔE*ab, D50), ties by location."""
         best = None
         best_key = None
-        for ref in (self._range_entry(rng)[2] if rng else ()):
-            n = _norm(ref.shift)
-            if n <= 0.0:
+        s0, s1, s2 = shift[0], shift[1], shift[2]
+        e0, e1, e2 = exp_lab[0], exp_lab[1], exp_lab[2]
+        for ref, n, u in (self._range_entry(rng)[3] if rng else ()):
+            along = s0 * u[0] + s1 * u[1] + s2 * u[2]
+            if along < n - SHIFT_TOLERANCE_DE:
                 continue
-            u = tuple(v / n for v in ref.shift)
-            along = sum(a * b for a, b in zip(shift, u))
-            side = _norm(tuple(s - along * v for s, v in zip(shift, u)))
-            if side > SHIFT_TOLERANCE_DE or along < n - SHIFT_TOLERANCE_DE:
+            side = math.sqrt((s0 - along * u[0]) ** 2 + (s1 - along * u[1]) ** 2
+                             + (s2 - along * u[2]) ** 2)
+            if side > SHIFT_TOLERANCE_DE:
                 continue
             if (standout is not None and ref.standout is not None
                     and standout > ref.standout + STANDOUT_MARGIN_DE):
                 continue
-            key = (_norm(_sub(exp_lab, ref.exp_lab)), _loc_key(ref.loc))
-            if best_key is None or key < best_key:
-                best, best_key = ref, key
+            x = ref.exp_lab
+            dist = math.sqrt((e0 - x[0]) ** 2 + (e1 - x[1]) ** 2
+                             + (e2 - x[2]) ** 2)
+            # The location only breaks a tie, so it is only worked out for one.
+            if (best_key is None or dist < best_key[0]
+                    or (dist == best_key[0]
+                        and _loc_key(ref.loc) < _loc_key(best.loc))):
+                best, best_key = ref, (dist,)
         return best
 
     def _verdict(self, loc: str, rd: _Reading) -> Verdict:
@@ -756,8 +835,8 @@ class FlagJudge:
         rd = _Reading(meas_lab, de, bool(flagged), exp_lab,
                       None if standout is None else float(standout),
                       None if strip is None else str(strip))
-        self._ranges.pop(loc, None)      # classified from this expected colour
-        self._set_reading(loc, rd)
+        was = self._ranges.pop(loc, None)   # classified from this expected colour
+        self._set_reading(loc, rd, was)
         own = self._refs.get(loc)
         if not flagged:
             # Read clean now, LIVE: whatever was confirmed about it no longer

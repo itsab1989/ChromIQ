@@ -309,3 +309,48 @@ def test_a_preferences_change_repaints_knuts_strips(qapp, tmp_path):
     tab.refresh_patch_flags()
     assert {k: v for k, v in _flags(tab).items() if v} == {
         k: v for k, v in at95.items() if v}
+
+
+def test_check_and_refine_reads_the_peers_of_the_current_limit(qapp, tmp_path):
+    """k22 review: Check & Refine leaves out what the memory file calls
+    confirmed, and its peers were worked out at the session's limit. After a
+    limit change the file follows the preview, so Check & Refine never offers
+    a patch the card says to keep, nor leaves out one it no longer confirms."""
+    from tests.test_k182_k3_k4_overlay_and_memory import (
+        _flags, _tab, _write_ti3)
+    tab = _tab(tmp_path)
+    ti3 = _write_ti3(tmp_path)
+    cb = tab._overlay_cb if tab._current_mode() == "guided" else tab._m_overlay_cb
+    cb.blockSignals(True)
+    cb.setChecked(True)
+    cb.blockSignals(False)
+
+    def peers_on_screen():
+        j = tab._flag_judge()
+        return {loc for loc, v in _flags(tab).items()
+                if pf.is_yellow(v) and j.peers_of(loc)}
+
+    tab.refresh_patch_flags()
+    ti3 = getattr(tab, "_memory_for", None) or ti3
+    at95 = peers_on_screen()
+    assert at95 and at95 <= cp.confirmed_locations(ti3)
+    # A higher limit than any patch's error: nothing flagged, so nothing is
+    # confirmed by similar patches, on screen or in the file.
+    tab._settings.set(pf.ESTIMATED_KEY, 500.0)
+    tab.refresh_patch_flags()
+    assert peers_on_screen() == set()
+    assert not (at95 & cp.confirmed_locations(ti3))
+    # And back: the file follows again.
+    tab._settings.set(pf.ESTIMATED_KEY, 95.0)
+    tab.refresh_patch_flags()
+    assert peers_on_screen() == at95
+    assert at95 <= cp.confirmed_locations(ti3)
+
+
+def test_refresh_rewrites_the_memory_only_after_reading_it_back():
+    """The judge on hand may be another chart's, or empty, when the overlay
+    was not painted: then nothing is written over the file."""
+    src = inspect.getsource(
+        __import__("ui.tabs.tab_measure", fromlist=["TabMeasure"])
+        .TabMeasure.refresh_patch_flags)
+    assert '"_memory_loads", 0) != loads' in src

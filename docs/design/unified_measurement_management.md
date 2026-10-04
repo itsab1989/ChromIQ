@@ -6641,7 +6641,12 @@ it, it teaches its range nothing; lowering the limit shows it again.
 patches are written as `peer`, with the patches they agree with
 (`{"kind": "peer", "with": [..]}`), as the session judged them. They are
 never loaded back as references; they are worked out again from the readings.
-Re-read confirmations are written whether the limit shows them or not.
+Re-read confirmations are written whether the limit shows them or not. When
+the outlines are judged again from disk on Preferences OK or on showing the
+Measure tab (10.4b), the file is rewritten if it changed, so the `peer`
+entries Check & Refine reads follow the CURRENT limit, never the limit of the
+session that wrote them (k22 review: otherwise a lowered limit showed patches
+as "keep it" that Check & Refine still offered for re-measuring).
 
 **10.5a · Check & Refine.** It leaves out patches confirmed by a re-read and,
 now, patches confirmed by similar patches (the file's `peer` entries), so a
