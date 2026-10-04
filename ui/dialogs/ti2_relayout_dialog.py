@@ -2808,9 +2808,11 @@ class _NewChartDialog(QDialog):
             "less often.\n\n"
             "Professional expanded-gamut charts (FOGRA55, the ECG charts) "
             "are built this way: most of their patches have three or four "
-            "inks, under one in ten has five or more. Without this tick the "
-            "fill spreads patches evenly over all inks at once, where a "
-            "separation rarely goes."))
+            "inks, under one in ten has five or more. A few such patches are "
+            "kept here too, for the deepest dark colours, and some patches "
+            "sit right at the ink limit, where the shadows are. Without this "
+            "tick the fill spreads patches evenly over all inks at once, "
+            "where a separation rarely goes."))
         self._gen_fill_sparse.toggled.connect(self._update_gen_counts)
         _fill_row.addWidget(self._gen_fill_sparse)
         _fill_row.addStretch()
@@ -3004,12 +3006,13 @@ class _NewChartDialog(QDialog):
         self._nch_pairs_grid.setChecked(False)
         self._nch_pairs_grid.setToolTip(tr(
             "Samples every ink pair as a small grid, both inks stepped on "
-            "their own (for 3: each ink at 33, 67 and 100 %, nine patches "
+            "their own (for 3: each ink at 19, 54 and 100 %, nine patches "
             "per pair), instead of both inks at the same value. A grid "
             "shows the profile the colours between the two inks, such as "
-            "full magenta with a little orange. Inks on opposite sides of "
-            "the colour circle get a 2 x 2 grid, a light ink with its own "
-            "dark ink one step more."))
+            "full magenta with a little orange. Cyan, magenta and yellow "
+            "with each other get two more steps, inks on opposite sides of "
+            "the colour circle a 2 x 2 grid, and a light ink with its own "
+            "dark ink a grid of the hand-over from light to dark."))
         self._nch_pairs_grid.toggled.connect(self._update_gen_counts)
         gg.addWidget(self._nch_pairs_grid, 2, 3, 1, 4)
         self._nch_gen_widgets.append(self._nch_pairs_grid)
