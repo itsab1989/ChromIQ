@@ -697,8 +697,14 @@ class _PatchInfoTile(QWidget):
             if info.get("fenced"):
                 rows.append((None, tr("and stands out from its strip")))
             if nb:
+                # RED FOR BOTH REASONS: the neighbour check needs a re-read
+                # (Knut, #182 5984174575), so the card says so instead of
+                # what similar patches or its colour range would have said.
                 nb_lines(_mm._CARD_NB_1_ALSO)
-            if rng in _mm.RANGE_NAMES:
+                rows.append((None, ""))
+                rows.append((None, tr(_mm._CARD_NB_REREAD_1)))
+                rows.append((None, tr(_mm._CARD_NB_REREAD_2)))
+            elif rng in _mm.RANGE_NAMES:
                 rows.append((None, ""))
                 add_range_line()
                 if range_k >= 3:
@@ -754,6 +760,10 @@ class _PatchInfoTile(QWidget):
             rows.append((None, ""))
             rows.append((None, tr(_mm._CARD_NB_5)))
             rows.append((None, tr(_mm._CARD_RED_READ_AGAIN)))
+            # Knut, #182 5984174575: "The neighbour check needs a re-read
+            # to confirm."
+            rows.append((None, tr(_mm._CARD_NB_REREAD_1)))
+            rows.append((None, tr(_mm._CARD_NB_REREAD_2)))
             rows.append((None, ""))
             rows.append((None, tr("Same value after a re-read:")))
             rows.append((None, tr("it is real, keep it for the profile.")))

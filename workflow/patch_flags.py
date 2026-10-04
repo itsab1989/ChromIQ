@@ -468,6 +468,11 @@ class _Reading:
     #: The strip it was read in; None or "" when unknown (a loaded memory),
     #: which can never make a peer.
     strip: "str | None" = None
+    #: Red by the neighbour check (Knut, #182 5984174575: "The neighbour
+    #: check needs a re-read to confirm"): only its own re-read with the same
+    #: value turns it yellow; it is never a similar patch and never judged
+    #: like a learned range.
+    reread_only: bool = False
 
 
 @dataclass
@@ -526,6 +531,10 @@ class Verdict:
     #: LEARNED only by the size test's waiver (LANDING_DE): its error is
     #: shorter than its like_loc's, but its reading landed where theirs did.
     landed: bool = False
+    #: RED that only a re-read can clear: the neighbour check suspects it
+    #: (Knut 5984174575), so similar patches and a learned range were not
+    #: asked.
+    reread_only: bool = False
 
 
 def _sub(a, b):
@@ -551,6 +560,8 @@ def _are_peers(a: _Reading, b: _Reading) -> bool:
     if not (a.flagged and b.flagged and a.strip and b.strip
             and a.strip != b.strip):
         return False
+    if a.reread_only or b.reread_only:
+        return False           # a neighbour suspect: re-read only (5984174575)
     if _norm(_sub(a.exp_lab, b.exp_lab)) >= PEER_EXPECTED_DE:
         return False
     return _norm(_sub(_sub(a.meas_lab, a.exp_lab),
@@ -985,6 +996,11 @@ class FlagJudge:
         rng = self.range_of(loc, rd.exp_lab)
         k, locs = self.range_status(rng)
         own = self._active_ref(loc)
+        if own is None and rd.reread_only:
+            # A neighbour suspect: only its own re-read clears it (Knut,
+            # #182 5984174575), whatever similar patches or its range say.
+            return Verdict(FLAG_RED, colour_range=rng, range_k=k,
+                           range_locs=locs, reread_only=True)
         peers = tuple(self.peers_of(loc)) if own is None else ()
         if own is not None or peers:
             # Confirmed stays yellow, whether its range has learned or not.
@@ -1010,7 +1026,8 @@ class FlagJudge:
 
     def judge(self, loc: str, exp_lab, meas_lab, de: float, flagged: bool,
               *, standout: "float | None" = None, live: bool = True,
-              strip: "str | None" = None) -> Verdict:
+              strip: "str | None" = None,
+              reread_only: bool = False) -> Verdict:
         """The outline for this reading of *loc*, as things stand now.
 
         *flagged* is the red rule's answer (past the limit and, reading strips
@@ -1022,6 +1039,9 @@ class FlagJudge:
         a re-read confirmation away (a repaint at a higher limit only hides
         it). *strip* names the strip the patch was read in (the caller's
         ``_strip_of``): patches of different strips can confirm each other.
+        *reread_only*: the neighbour check suspects it (Knut, #182
+        5984174575), so only its own re-read with the same value turns it
+        yellow; similar patches and a learned range apply only to the limit.
 
         A confirmation (or the loss of one) can change OTHER patches' verdicts
         too; the caller asks :meth:`rejudge` once the whole batch is judged.
@@ -1033,7 +1053,8 @@ class FlagJudge:
         prev = self._last.get(loc)
         rd = _Reading(meas_lab, de, bool(flagged), exp_lab,
                       None if standout is None else float(standout),
-                      None if strip is None else str(strip))
+                      None if strip is None else str(strip),
+                      bool(reread_only and flagged))
         was = self._ranges.pop(loc, None)   # classified from this expected colour
         self._set_reading(loc, rd, was)
         own = self._refs.get(loc)

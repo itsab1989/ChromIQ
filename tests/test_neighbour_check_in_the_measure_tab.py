@@ -211,10 +211,21 @@ def test_painted_from_disk_it_is_the_same(qapp, tmp_path):
     assert _red(tab) == ["D6"]
 
 
-@pytest.mark.parametrize("case", ["verification", "calibration", "accurate"])
+def test_a_chart_made_with_a_pre_conditioning_profile_is_checked(
+        qapp, tmp_path):
+    """Knut, #182 5984174575: the check also runs on a profiling chart made
+    with a pre-conditioning profile (ACCURATE_EXPECTED_VALUES)."""
+    tab = _tab(tmp_path / "run2", accurate=True)
+    assert tab._chart_expected_is_accurate()
+    _read_all(tab, {"D6": 0.55})
+    assert _red(tab) == ["D6"]
+    assert tab.neighbour_summary_facts()["red"] == ["D6"]
+
+
+@pytest.mark.parametrize("case", ["verification", "calibration"])
 def test_not_on_these_charts(qapp, tmp_path, monkeypatch, case):
     folder = tmp_path / ("cal" if case == "calibration" else "run1")
-    tab = _tab(folder, accurate=(case == "accurate"))
+    tab = _tab(folder)
     if case == "verification":
         monkeypatch.setattr(type(tab), "_is_verification_run", lambda self: True)
     _read_all(tab, {"D6": 0.55})
@@ -262,18 +273,25 @@ def test_the_completion_summary_puts_it_under_the_reading_times(qapp,
     assert text[1] == M._SUM_NB_RED_ONE.format(locs="D6")
 
 
-def test_suspects_off_alike_in_other_strips_confirm_each_other(qapp,
-                                                              tmp_path):
-    """A suspect is a red patch like any other (10.9): two of them, of
-    different strips, expected nearly the same colour and off in the same
-    way, confirm each other as similar patches (Knut 5979886227)."""
+def test_suspects_off_alike_in_other_strips_do_not_confirm_each_other(
+        qapp, tmp_path):
+    """Knut, #182 5984174575: "The neighbour check needs a re-read to
+    confirm." Two suspects of different strips, expected nearly the same
+    colour and off in the same way, would be similar patches under the
+    limit's rule; here both stay red until each is read again."""
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55, "B3": 0.5})
-    assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED
-    assert _flags(tab)["B3"] == pf.FLAG_CONFIRMED
+    assert _flags(tab)["D6"] is pf.FLAG_RED
+    assert _flags(tab)["B3"] is pf.FLAG_RED
     lines = _card(_info(tab, "D6"))
-    assert M._CARD_PEER_1 in lines and M._CARD_NB_YELLOW in lines
-    assert tab.neighbour_summary_facts()["red"] == []
+    assert M._CARD_PEER_1 not in lines
+    assert M._CARD_NB_REREAD_1 in lines and M._CARD_NB_REREAD_2 in lines
+    assert tab.neighbour_summary_facts()["red"] == ["B3", "D6"]
+    tab._on_strip_measured(_strip("D", {"D6": 0.55}))      # its own re-read
+    assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED
+    assert _flags(tab)["B3"] is pf.FLAG_RED
+    facts = tab.neighbour_summary_facts()
+    assert facts["red"] == ["B3"] and facts["kept"] == ["D6"]
 
 
 # ---- review of beta 11 ------------------------------------------------------
@@ -374,3 +392,49 @@ def test_a_reading_set_aside_leaves_the_neighbour_check_at_once(
     assert not any(tab._nb_check.is_suspect(x) for x in e_locs)
     assert not set(_red(tab)) & set(e_locs) or all(
         _info(tab, x)["neighbour"] is None for x in e_locs)
+
+
+# ---- Knut 5984174575: a neighbour suspect needs its own re-read ------------
+
+def _judge_with_a_learned_range(reread_only):
+    """Three patches of one colour range confirmed by re-reads, then a fourth
+    of the same range, in another strip, off in the same way."""
+    j = pf.FlagJudge()
+    exp = (50.0, -40.0, 30.0)                        # a green
+    shift = (-12.0, 6.0, -4.0)
+    for i, strip in enumerate("ABC"):
+        e = (exp[0] + i, exp[1], exp[2] + i)
+        m = tuple(a + b for a, b in zip(e, shift))
+        for live in (True, True):
+            j.judge(f"{strip}1", e, m, 99.0, True, live=live, strip=strip)
+    e = (exp[0] + 0.5, exp[1], exp[2] + 0.5)
+    m = tuple(a + b for a, b in zip(e, shift))
+    return j.judge("D1", e, m, 99.0, True, strip="D", reread_only=reread_only)
+
+
+def test_similar_patches_and_a_learned_range_do_not_clear_a_neighbour_suspect():
+    """Under the limit's rule the fourth is yellow (similar patches, its
+    range learned); as a neighbour suspect it stays red."""
+    assert pf.is_yellow(_judge_with_a_learned_range(False).flag)
+    v = _judge_with_a_learned_range(True)
+    assert v.flag is pf.FLAG_RED and v.reread_only and not v.misfit
+
+
+def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
+        qapp, tmp_path):
+    """Over the limit AND a neighbour suspect: red until its own re-read; the
+    card is the limit's red card, then the neighbour lines and the re-read
+    lines in place of what its colour range would have said."""
+    tab = _tab(tmp_path, settings={"patch_read_warn_de_estimated": 15.0,
+                                   "patch_warn_outlier_fence": False})
+    _read_all(tab, {"D6": 0.55})
+    info = _info(tab, "D6")
+    assert info["warn"] and info["neighbour"] and info["reread_only"]
+    assert _flags(tab)["D6"] is pf.FLAG_RED
+    lines = _card(info)
+    assert "Red outline: a large difference" in lines
+    i = lines.index(M._CARD_NB_1_ALSO.format(n=info["neighbour"]["n"]))
+    assert lines[i + 5:i + 7] == [M._CARD_NB_REREAD_1, M._CARD_NB_REREAD_2]
+    assert M._CARD_RANGE_RED_LEARNED_1 not in lines
+    tab._on_strip_measured(_strip("D", {"D6": 0.55}))
+    assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED

@@ -2020,11 +2020,18 @@ _CARD_NB_5 = "Probably a misread."
 #: learned range) of a patch the limit did not flag: instead of "ΔE*ab ...
 #: reached your limit ...".
 _CARD_NB_YELLOW = "Red before: it did not fit its neighbours"
+#: Knut, #182 5984174575: "The neighbour check needs a re-read to confirm";
+#: similar patches and a learned colour range apply only to the limit. On
+#: the card of a neighbour suspect, and of a patch red for both reasons
+#: instead of its colour range's lines.
+_CARD_NB_REREAD_1 = "Only its own re-read can turn it yellow,"
+_CARD_NB_REREAD_2 = "not similar patches or its colour range."
 M_PATCH_NEIGHBOUR = _m(
     "M-PATCH-NEIGHBOUR",
     _CARD_NB_RED,
     "\n".join((_CARD_NB_1, _CARD_NB_1_ALSO, _CARD_NB_2, _CARD_NB_3,
-               _CARD_NB_4, _CARD_NB_5, _CARD_NB_YELLOW)),
+               _CARD_NB_4, _CARD_NB_5, _CARD_NB_YELLOW, _CARD_NB_REREAD_1,
+               _CARD_NB_REREAD_2)),
     approved=False)
 
 # --- PROPOSED: the misread summary in the window that closes a measurement --

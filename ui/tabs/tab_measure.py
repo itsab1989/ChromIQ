@@ -15582,7 +15582,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                               getattr(self, "_live_expected", None))
 
     def _judge_patch(self, loc, exp_lab, meas_lab, de, flagged, *,
-                     standout=None, live=True) -> "tuple[object, dict]":
+                     standout=None, live=True,
+                     reread_only=False) -> "tuple[object, dict]":
         """The outline for one patch and the hover card's extra facts.
 
         Returns ``(flag, extra)``: *flag* is what the preview draws (no
@@ -15612,7 +15613,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 strip = None
             v = self._flag_judge().judge(loc, exp_lab, meas_lab, de,
                                          bool(flagged), standout=standout,
-                                         live=live, strip=strip)
+                                         live=live, strip=strip,
+                                         reread_only=bool(reread_only))
         except Exception:          # noqa: BLE001 — never lose the red outline
             log.debug("could not judge patch %s", loc, exc_info=True)
             return bool(flagged), extra
@@ -15639,6 +15641,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "range_locs": list(v.range_locs),
                 # Learned only by the size test's waiver (Knut 5982600086).
                 "landed": bool(getattr(v, "landed", False)),
+                # Red until its own re-read: a neighbour suspect (Knut,
+                # #182 5984174575).
+                "reread_only": bool(getattr(v, "reread_only", False)),
                 # Red in a learned range: why (Knut, #182 5982206917).
                 "misfit": [{"test": m.test, "own": tuple(m.own),
                             "ref": tuple(m.ref), "count": m.count,
@@ -15676,12 +15681,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     # A patch whose reading does not fit the patches nearest to it in
     # expected colour (read in other strips) is drawn red with its own reason
     # on the card, even below the limit (workflow/neighbour_check.py). It is
-    # one more reason for the red rule's "flagged": the yellow rule then
-    # treats it as any red patch, so a re-read that gives the same colour
-    # turns it yellow. Judged again after every strip and patch and when a
-    # measurement is painted from disk. Profiling charts with estimated
-    # expected colours only: never a verification, a calibration chart or a
-    # chart made from a profile (ANALYSIS.md section C).
+    # one more reason for the red rule's "flagged", and only its own re-read
+    # with the same colour turns it yellow: similar patches and a learned
+    # colour range apply to the limit alone (Knut, #182 5984174575; the
+    # judge's *reread_only*). Judged again after every strip and patch and
+    # when a measurement is painted from disk. Profiling charts, estimated or
+    # made with a pre-conditioning profile (5984174575): never a
+    # verification or a calibration chart.
 
     def _neighbour_reset(self) -> None:
         """Forget every reading the neighbour check holds."""
@@ -15700,16 +15706,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _neighbour_check_applies(self) -> bool:
         """Is the chart on screen one the neighbour check judges? A profiling
-        chart with estimated expected colours: not a verification (nor any
-        chart judged against a profile's prediction), not a calibration
-        chart, not a chart made from a profile."""
+        chart, with estimated expected colours or made with a pre-conditioning
+        profile (Knut, #182 5984174575: "If so, yes"): not a verification (nor
+        any chart judged against a profile's prediction), not a calibration
+        chart."""
         try:
             ti1 = getattr(self, "_ti1_path", None)
             if ti1 is None or Path(ti1).parent.name == "cal":
                 return False
-            if self._is_verification_run() or self._expected_is_predicted():
-                return False
-            return not self._chart_expected_is_accurate()
+            return not (self._is_verification_run()
+                        or self._expected_is_predicted())
         except Exception:      # noqa: BLE001 — a preview is never worth a crash
             log.debug("could not tell whether the neighbour check applies",
                       exc_info=True)
@@ -15809,7 +15815,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                 standout)
         flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de,
                                         bool(warn) or f is not None,
-                                        standout=standout, live=live)
+                                        standout=standout, live=live,
+                                        reread_only=f is not None)
         extra.update(self._neighbour_extra(f))
         return flag, extra
 
@@ -15827,7 +15834,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             exp_lab, meas_lab, de, warn, standout = inputs[loc]
             flag, extra = self._judge_patch(
                 loc, exp_lab, meas_lab, de, warn or f.suspect,
-                standout=standout, live=False)
+                standout=standout, live=False, reread_only=f.suspect)
             extra.update(self._neighbour_extra(f if f.suspect else None))
             page, box = self._locate_patch(loc)
             if page < 0 or box is None:
