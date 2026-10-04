@@ -320,8 +320,13 @@ def test_the_judge_confirms_only_a_live_second_reading_of_the_same_colour():
     assert v.flag == pf.FLAG_CONFIRMED and v.prev_de == 47.0
     # a third reading clearly different is not confirmed any more
     assert j.judge("A1", e, (60.0, 55.0, -20.0), 51.0, True).flag is pf.FLAG_RED
-    # read clean: no outline at all
-    assert j.judge("A1", e, e, 0.0, False).flag is pf.FLAG_NONE
+    # read clean, live, after a red reading: green, a corrected misread
+    # (Knut, #182 5984277558); repainted clean it stays green
+    v = j.judge("A1", e, e, 0.0, False)
+    assert v.flag == pf.FLAG_CORRECTED and v.prev_de == 51.0
+    assert j.judge("A1", e, e, 0.0, False, live=False).flag == pf.FLAG_CORRECTED
+    # a patch never red, read clean: no outline at all
+    assert j.judge("B1", e, e, 0.0, False).flag is pf.FLAG_NONE
     j.reset()
     assert j.confirmed == []
 

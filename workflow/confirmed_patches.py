@@ -31,7 +31,12 @@ Schema 1::
                 "exp_lab": [..], "meas_lab": [..], "shift": [..],
                 "standout": 61.0 | null},
         "F4":  {"kind": "learned", "like": "A23"},
-        "C7":  {"kind": "peer", "with": ["K2", "R9"]}}}
+        "C7":  {"kind": "peer", "with": ["K2", "R9"]},
+        "D2":  {"kind": "corrected", "de": 58.1, "by": "neighbour"}}}
+
+``corrected`` (Knut, #182 5984277558): a patch that was red and whose live
+re-read fits now, drawn green; the first reading's ΔE and the rule that
+flagged it ("neighbour" or "limit"). Never loaded as a reference.
 
 Only ``confirmed`` entries are references (a re-read agreed with the reading
 before it). ``learned`` entries are kept for the preview and for anyone reading
@@ -58,6 +63,9 @@ SUFFIX = ".confirmed.json"
 KIND_CONFIRMED = "confirmed"
 KIND_LEARNED = "learned"
 KIND_PEER = "peer"
+#: A misread a re-read corrected (green, Knut #182 5984277558): the first
+#: reading's ΔE and the rule that flagged it. Never a reference.
+KIND_CORRECTED = "corrected"
 
 MODE_STRIP = "strip"
 MODE_PATCH = "patch"
@@ -94,6 +102,15 @@ def _clean_entry(entry: dict) -> "dict | None":
         if not isinstance(with_, (list, tuple)):
             return None
         return {"kind": KIND_PEER, "with": [str(v) for v in with_]}
+    if kind == KIND_CORRECTED:
+        try:
+            de = float(entry.get("de", 0.0))
+        except (TypeError, ValueError):
+            return None
+        if de != de or de in (float("inf"), float("-inf")):
+            return None
+        by = "neighbour" if entry.get("by") == "neighbour" else "limit"
+        return {"kind": KIND_CORRECTED, "de": round(de, 2), "by": by}
     if kind != KIND_CONFIRMED:
         return None
 
