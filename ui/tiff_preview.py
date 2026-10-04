@@ -562,10 +562,18 @@ class _PatchInfoTile(QWidget):
         # there, not a colour the printer cannot reach, and nothing in a
         # verification is kept "for the profile".
         verify = info.get("expected_source") == "prediction"
+        # A VERIFICATION whose profile was made after the sheet was printed:
+        # compared with the chart's estimate, and the card says why (Knut,
+        # #182 5983480953).
+        later = info.get("expected_source") == "estimate_profile_newer"
 
         def add_real_lines() -> None:
             """A yellow card's "it is real" sentence and "no need" line."""
-            if verify:
+            if later:
+                rows.append((None, tr(_mm._CARD_LATER_PROFILE_YELLOW_1)))
+                rows.append((None, tr(_mm._CARD_LATER_PROFILE_YELLOW_2)))
+                rows.append((None, ""))
+            elif verify:
                 for t in (_mm._CARD_VERIFY_YELLOW_1, _mm._CARD_VERIFY_YELLOW_2,
                           _mm._CARD_VERIFY_YELLOW_3, _mm._CARD_VERIFY_YELLOW_4):
                     rows.append((None, tr(t)))
@@ -706,17 +714,28 @@ class _PatchInfoTile(QWidget):
                         k=range_k)))
                     add_confirmed_list()
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
-            if verify:
+            if later:
+                # Knut's own sentence, approved in 5983480953; it ends with
+                # its own "read it again".
+                for t in (_mm._CARD_LATER_PROFILE_1, _mm._CARD_LATER_PROFILE_2,
+                          _mm._CARD_LATER_PROFILE_3, _mm._CARD_LATER_PROFILE_4,
+                          _mm._CARD_LATER_PROFILE_5, _mm._CARD_LATER_PROFILE_6):
+                    rows.append((None, tr(t)))
+            elif verify:
                 for t in (_mm._CARD_VERIFY_RED_1, _mm._CARD_VERIFY_RED_2,
                           _mm._CARD_VERIFY_RED_3):
                     rows.append((None, tr(t)))
             else:
                 rows.append((None, tr("Either a misread, or a colour")))
                 rows.append((None, tr("this printer and paper cannot reach.")))
-            rows.append((None, tr(_mm._CARD_RED_READ_AGAIN)))   # Knut 5980576263
+            if not later:
+                rows.append((None, tr(_mm._CARD_RED_READ_AGAIN)))   # Knut 5980576263
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Same value after a re-read:")))
-            if verify:
+            if later:
+                rows.append((None, tr(_mm._CARD_LATER_PROFILE_SAME_1)))
+                rows.append((None, tr(_mm._CARD_LATER_PROFILE_SAME_2)))
+            elif verify:
                 rows.append((None, tr(_mm._CARD_VERIFY_SAME_1)))
                 rows.append((None, tr(_mm._CARD_VERIFY_SAME_2)))
             else:

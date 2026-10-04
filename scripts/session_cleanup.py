@@ -222,6 +222,21 @@ def remove(path: Path, why: str) -> bool:
     return not path.exists()
 
 
+def _stdin_has_data(timeout: float = 0.5) -> bool:
+    """True when something is waiting on stdin (a hook's JSON).
+
+    A non-terminal stdin is not always a hook: run from an agent's shell it is
+    an open socket that never ends, and reading it waited for ever, so a dry
+    run looked hung (twice on 2026-10-04). Read only what is already there.
+    """
+    try:
+        import select
+        ready, _, _ = select.select([sys.stdin], [], [], timeout)
+        return bool(ready)
+    except (OSError, ValueError):        # no select on this stream (Windows)
+        return False
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--yes", action="store_true", help="really delete (default: dry run)")
@@ -231,7 +246,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     session_id = args.session_id
-    if not session_id and not sys.stdin.isatty():
+    if not session_id and not sys.stdin.isatty() and _stdin_has_data():
         try:                             # a hook passes its input on stdin
             session_id = json.loads(sys.stdin.read() or "{}").get("session_id", "")
         except ValueError:

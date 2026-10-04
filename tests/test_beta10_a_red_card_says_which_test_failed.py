@@ -38,7 +38,7 @@ def _meas(exp, shift):
 def _learned_judge(standout=None):
     """A judge whose 'purple' range has learned from three re-read patches,
     each off by SHIFT (and standing *standout* above its strip)."""
-    j = PF.FlagJudge(device_ranges={k: "purple" for k in
+    j = PF.FlagJudge(device_ranges={k: "blue" for k in
                                     list(EXP) + ["O7", "J25", "W1"]})
     de = PF._norm(SHIFT)
     for loc, exp in EXP.items():
@@ -46,7 +46,7 @@ def _learned_judge(standout=None):
             v = j.judge(loc, exp, _meas(exp, SHIFT), de, True,
                         standout=standout, strip=loc[0])
         assert v.flag == PF.FLAG_CONFIRMED
-    assert j.range_learned("purple")
+    assert j.range_learned("blue")
     return j
 
 
@@ -107,7 +107,7 @@ def test_the_fewest_tests_that_cover_every_confirmed_patch():
     """One confirmed patch ruled out sideways only, two by size only: both
     tests are named, size first (it rules out more), and each says how many
     of the confirmed patches it ruled out."""
-    j = PF.FlagJudge(device_ranges={k: "purple" for k in
+    j = PF.FlagJudge(device_ranges={k: "blue" for k in
                                     ["A1", "B1", "C1", "D1"]})
     long_ = (0.0, -60.0, 60.0)
     other = (0.0, 10.0, 10.0)                  # short, at right angles
@@ -137,7 +137,7 @@ def test_reporting_never_changes_an_outline():
         exp = (PROBE[0] + rnd.uniform(-3, 3), PROBE[1], PROBE[2])
         v = j.judge("O7", exp, _meas(exp, shift), PF._norm(shift), True,
                     standout=so, strip="O")
-        like = j._like("purple", exp, shift, so)
+        like = j._like("blue", exp, shift, so)
         assert (v.flag == PF.FLAG_LEARNED) is (like is not None)
         assert bool(v.misfit) is (like is None)
 
@@ -168,7 +168,7 @@ def _card(qapp, misfit):
     tile.set_content({"loc": "O7", "exp_rgb": (90, 30, 200),
                       "meas_rgb": (90, 80, 120), "exp_lab": (35, 60, -80),
                       "meas_lab": (40, 20, -25), "de": 64.5, "warn": True,
-                      "warn_de": 60.0, "colour_range": "purple", "range_k": 3,
+                      "warn_de": 60.0, "colour_range": "blue", "range_k": 3,
                       "range_locs": ["F17", "K23", "V7"], "flag": "",
                       "misfit": misfit}, "both")
     return [t for _sw, t in tile._rows]

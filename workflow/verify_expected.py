@@ -6,7 +6,9 @@ Approved by Knut on #182 (questions of 5963902307, answered in 5964173774 and
 1. A verification chart ChromIQ printed is judged, patch by patch while it is
    read, against **the run profile's own prediction** of the ink values that
    were really sent to the printer (forward table, absolute colorimetric), at
-   the "chart made from a profile" limit (ΔE 30 by default). Today's sRGB
+   its own limit, "a verification judged against its profile" (ΔE 10 by
+   default since beta 11, Knut 5983470377; before, the "chart made from a
+   profile" limit, ΔE 30). Today's sRGB
    estimate at the other limit (ΔE 95) stays the fallback.
 2. The fallback is also taken for a profile built under another light: an
    illuminant other than D50 (colprof ``-i``), another observer (``-o``) or
@@ -101,6 +103,10 @@ class LiveExpected:
     reason: str
     by_loc: Mapping[str, tuple] = field(default_factory=dict)
     route: str = ""            # "raw" or "through-profile", for the log
+    #: The estimate because the run's profile was made (or changed) after
+    #: the sheet was printed. The hover card then says so instead of the
+    #: profiling card's "keep it for the profile" (Knut, #182 5983480953).
+    profile_newer: bool = False
 
     @property
     def is_prediction(self) -> bool:
@@ -112,9 +118,9 @@ class LiveExpected:
         return self.by_loc.get(str(loc))
 
 
-def estimate(reason: str) -> LiveExpected:
+def estimate(reason: str, *, profile_newer: bool = False) -> LiveExpected:
     """Today's rule: the chart's own expected colour, at the estimated limit."""
-    return LiveExpected(SOURCE_ESTIMATE, reason)
+    return LiveExpected(SOURCE_ESTIMATE, reason, profile_newer=profile_newer)
 
 
 # ---------------------------------------------------------------------------
@@ -394,8 +400,8 @@ def live_expected(ti2: "str | Path", record_ti3: "str | Path", run, *,
         result = estimate(f"the prediction failed: {exc}")
     if result.is_prediction:
         log.info("verification expected colours: the profile's prediction "
-                 "(%s; %d patches, limit for a chart made from a profile, "
-                 "strip outlier test off) for %s", result.reason,
+                 "(%s; %d patches, limit for a verification judged against its "
+                 "profile, strip outlier test off) for %s", result.reason,
                  len(result.by_loc), Path(ti2).name)
     else:
         log.info("verification expected colours: the chart's sRGB estimate "
@@ -434,13 +440,21 @@ def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
                             f"the run's profile is now {profile.name}")
         if str(rec.get("profile_mtime") or "") != _mtime_iso(profile):
             return estimate("the profile has changed since the sheet was "
-                            "printed (its modification time differs)")
+                            "printed (its modification time differs)",
+                            profile_newer=True)
     else:
         printed = _parse_iso(rec.get("printed_at"))
         built = _parse_iso(_mtime_iso(profile))
-        if printed is None or built is None or built > printed:
+        if printed is None or built is None:
+            # Not known to be newer: the card must not say "the profile was
+            # made after this sheet was printed" (review of beta 11).
+            return estimate("the print or the profile has no readable date, "
+                            "so the profile cannot be shown to predate the "
+                            "print")
+        if built > printed:
             return estimate("the profile has changed since the sheet was "
-                            "printed (it is newer than the print)")
+                            "printed (it is newer than the print)",
+                            profile_newer=True)
     try:
         settings = getattr(run.load_meta(), "profile_settings", None)
     except Exception:      # noqa: BLE001
