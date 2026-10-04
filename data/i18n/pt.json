@@ -4058,7 +4058,6 @@
  "Strip recognition": "Leitura de tiras",
  "Strip recognition:": "Leitura de tiras:",
  "Strip {strip}": "Tira {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "A tira {strip} é muito parecida com a tira {like}, que já mediu. Leu a tira {like} outra vez?\n\n•  Reler a tira {strip}: a posição de leitura volta à tira {strip}. Leia-a novamente e a nova leitura substitui esta.\n\n•  Manter, é a tira {strip}: esta leitura fica como tira {strip}, e a medição continua.",
  "Strip-indicator gap": "Espaço do indicador de tira",
  "Strip-indicator gap:": "Espaço do indicador de tira:",
  "Strips (columns)": "Tiras (colunas)",
@@ -6608,5 +6607,10 @@
  "“{pattern}” in “{field}” makes only {labels}, and this chart has {needed}.": "«{pattern}» em «{field}» só dá {labels}, e esta carta tem {needed}.",
  "“{loc}”, the first location, is not a label they make": "«{loc}», a primeira posição, não é uma etiqueta que eles produzam",
  "“{loc}” is printed where they would place another patch": "«{loc}» está impressa onde eles colocariam outra amostra",
- "“{a}” and “{b}” would be read as the same patch": "«{a}» e «{b}» seriam lidas como a mesma amostra"
+ "“{a}” and “{b}” would be read as the same patch": "«{a}» e «{b}» seriam lidas como a mesma amostra",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "A tira {strip} é muito parecida com a tira {like}, que já mediu. Leu a tira {like} outra vez?\n\n•  Reler a tira {strip}: a posição de leitura volta à tira {strip}. Leia-a novamente e a nova leitura substitui esta.\n\n•  Li a tira {like}: o leitor passa para a tira {like}. Leia-a de novo nesse sítio e depois leia a tira {strip}, que ainda falta medir.\n\n•  Manter, é a tira {strip}: esta leitura fica como tira {strip}, e a medição continua.",
+ "I read strip {like}": "Li a tira {like}",
+ "Patches closer than ΔE 6 in colour": "Amostras a menos de ΔE 6 de cor",
+ "count as one confirmation, so the": "contam como uma confirmação, por isso",
+ "range needs more different colours.": "a gama precisa de cores mais diferentes."
 }

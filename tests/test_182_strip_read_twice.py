@@ -357,6 +357,57 @@ def test_the_unread_question_comes_after_the_read_twice_question(tmp_path):
     assert unread == [(PER, "strip")]
 
 
+# ---- beta 8: Knut's sequence (#182 5969949735) ---------------------------------
+def test_knuts_sequence_never_asks_again_after_the_reread_of_b(tmp_path):
+    """Reader on A, strip B swiped: filed as A, the window asks (A like B).
+    "Re-read strip A"; Knut moved the reader to B instead and read B there.
+    Beta 7 compared that B with the reading still filed as A (which WAS B)
+    and asked "Strip B looks very like strip A", on every re-read of B."""
+    m, r, asked, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    _feed(m, _sread("A", like="B"))
+    assert asked == [("A", "B")]
+    m.answer_read_twice("reread")
+    assert _gotos(r) == ["A"]
+    m.goto_strip("B")                                 # the user's own click
+    _feed(m, _sready("B"), _sread("B"))
+    _feed(m, _sready("B"), _sread("B"))               # and once more
+    assert asked == [("A", "B")], "B on B was taken for A again"
+
+
+def test_the_set_aside_strip_counts_as_unread_until_it_is_read(tmp_path):
+    """A holds B's colours after the answer: it must be read before the chart
+    is complete, and reading it there clears that."""
+    m, _r, _a, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    assert m.unread_patch_count() == 0
+    _feed(m, _sread("A", like="B"))
+    m.answer_read_twice("reread")
+    assert m.unread_patch_count() == PER
+    _feed(m, _sready("A"), _sread("A"))
+    assert m.unread_patch_count() == 0
+
+
+def test_i_read_the_other_strip_sends_the_reader_there(tmp_path):
+    """The third answer: "I read strip B" goes to B, A waits to be read, and
+    B read on B asks nothing."""
+    m, r, asked, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    _feed(m, _sread("A", like="B"))
+    m.answer_read_twice("was_like")
+    assert _gotos(r) == ["B"]
+    assert m.unread_patch_count() == PER
+    _feed(m, _sready("B"), _sread("B"))
+    assert asked == [("A", "B")]
+
+
+def test_keep_still_compares_with_the_kept_reading(tmp_path):
+    """Keep says the reading IS strip A, so it is compared with as before."""
+    m, _r, asked, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    _feed(m, _sread("A", like="B"))
+    m.answer_read_twice("keep")
+    assert m.unread_patch_count() == 0
+    _feed(m, _sready("B"), _sread("B"))
+    assert asked == [("A", "B"), ("B", "A")]
+
+
 # ---- the tab: the window and its order ----------------------------------------
 
 class _Settings:
@@ -403,7 +454,7 @@ def _sent_gotos(sent):
     return _gotos(r)
 
 
-@pytest.mark.parametrize("button, expected", [(0, ["D"]), (1, [])])
+@pytest.mark.parametrize("button, expected", [(0, ["D"]), (1, ["C"]), (2, [])])
 def test_the_window_asks_in_knuts_words_and_acts_on_the_answer(
         tab, qapp, monkeypatch, button, expected):
     from PyQt6.QtWidgets import QDialog, QLabel, QPushButton
@@ -426,7 +477,7 @@ def test_the_window_asks_in_knuts_words_and_acts_on_the_answer(
     assert ("Strip D looks very like strip C, which you already measured. "
             "Did you read strip C again?") in text
     assert [b.text() for b in dlg.findChildren(QPushButton)] == \
-        ["Re-read strip D", "Keep, it is strip D"]
+        ["Re-read strip D", "I read strip C", "Keep, it is strip D"]
     assert cues == ["INSTRUMENT_ERROR"]
     assert _sent_gotos(tab._sent) == expected
     assert tab._manager.read_twice_pending() is None

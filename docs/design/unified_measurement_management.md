@@ -3942,16 +3942,25 @@ With more than one file, the headline is **ChromIQ repaired these measurement fi
 > This range has learned, but this
 > one is off in a different way.
 > This range has learned.
+> Patches closer than ΔE 6 in colour
+> count as one confirmation, so the
+> range needs more different colours.
+
+*Beta 8 (2026-10-04, Knut [5969949735](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5969949735) and [5973177088](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5973177088)): three yellow blue patches said "2 of 3" and four magenta ones "1 of 3", correctly by the rule, because confirmed patches of nearly the same colour count once. A confirmed or red card whose range has not learned now also shows line 2 (the confirmed patches), and, when more patches are confirmed than are counted, lines 10 to 12. Those three lines are new and wait here.*
 
 ### M-STRIP-READ-TWICE · PROPOSED · a strip's readings match a strip already measured — Measure tab, ChromIQ engine, strip mode
 
 *New 2026-10-03. The check and its question were approved by Knut, #182 [5963903650](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963903650) Q5 ("Yes."), on the wording shown in [5963737221](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963737221): "Strip D looks very like strip C, which you already measured. Did you read strip C again?" with the buttons **Re-read strip D** (default) and **Keep, it is strip D**. Those words are kept verbatim; the two lines saying what each button does are ours, which is why the message waits here. Shown before approval on Sebastian's ruling of 2026-10-02 that a proposed window protecting the measurement may show. `{strip}` is the strip the engine filed the reading under, `{like}` the already-measured strip it matches. When it is asked, and when it is not: §11b.*
+
+*Beta 8 (2026-10-04, Knut [5969949735](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5969949735): he read strip B on purpose with the reader on A, and the window offered no way to say so). A third button, **I read strip {like}**, between the two, and the line above that explains it, are new and wait here. The engine cannot move a reading to another strip, so that answer sends the reader to {like} to be read again there; "Re-read" and "I read strip {like}" both set the reading filed under {strip} aside: it is never compared with again, and {strip} counts as unread until it is read.*
 
 > **Was a strip read twice?**
 >
 > Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?
 >
 > •  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.
+>
+> •  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.
 >
 > •  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.
 

@@ -4058,7 +4058,6 @@
  "Strip recognition": "色条识别",
  "Strip recognition:": "色条识别:",
  "Strip {strip}": "色条 {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "色条 {strip} 与你已测过的色条 {like} 非常相似。你是否又读了一次色条 {like}？\n\n•  重读色条 {strip}：读取位置回到色条 {strip}。再读一次，新的读数将替换这次的读数。\n\n•  保留，这是色条 {strip}：这次读数保留为色条 {strip}，测量继续。",
  "Strip-indicator gap": "色条标记间距",
  "Strip-indicator gap:": "色条标记间距:",
  "Strips (columns)": "色条（列）",
@@ -6608,5 +6607,10 @@
  "“{pattern}” in “{field}” makes only {labels}, and this chart has {needed}.": "「{field}」中的「{pattern}」只能生成 {labels}，而这张色卡有 {needed}。",
  "“{loc}”, the first location, is not a label they make": "「{loc}」是第一个位置，却不是它们会生成的标签",
  "“{loc}” is printed where they would place another patch": "「{loc}」印在它们本应放置另一个色块的地方",
- "“{a}” and “{b}” would be read as the same patch": "「{a}」和「{b}」会被读成同一个色块"
+ "“{a}” and “{b}” would be read as the same patch": "「{a}」和「{b}」会被读成同一个色块",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "色条 {strip} 与你已测过的色条 {like} 非常相似。你是否又读了一次色条 {like}？\n\n•  重读色条 {strip}：读取位置回到色条 {strip}。再读一次，新的读数将替换这次的读数。\n\n•  我读的是色条 {like}：读取位置移到色条 {like}。请在那里重新读取，然后再读取仍需测量的色条 {strip}。\n\n•  保留，这是色条 {strip}：这次读数保留为色条 {strip}，测量继续。",
+ "I read strip {like}": "我读的是色条 {like}",
+ "Patches closer than ΔE 6 in colour": "色差小于 ΔE 6 的色块",
+ "count as one confirmation, so the": "只算作一次确认，因此",
+ "range needs more different colours.": "该范围需要更多不同的颜色。"
 }

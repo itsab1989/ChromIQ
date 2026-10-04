@@ -4058,7 +4058,6 @@
  "Strip recognition": "Распознавание полос",
  "Strip recognition:": "Чтение полос:",
  "Strip {strip}": "Полоса {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Полоса {strip} очень похожа на полосу {like}, которую вы уже измерили. Вы прочитали полосу {like} ещё раз?\n\n•  Перечитать полосу {strip}: позиция чтения возвращается к полосе {strip}. Прочитайте её ещё раз, и новое чтение заменит это.\n\n•  Оставить, это полоса {strip}: это чтение остаётся полосой {strip}, и измерение продолжается.",
  "Strip-indicator gap": "Зазор указателя полосы",
  "Strip-indicator gap:": "Зазор указателя полосы:",
  "Strips (columns)": "Полосы (столбцы)",
@@ -6608,5 +6607,10 @@
  "“{pattern}” in “{field}” makes only {labels}, and this chart has {needed}.": "«{pattern}» в «{field}» даёт слишком мало меток для этой мишени ({labels}; в мишени {needed}).",
  "“{loc}”, the first location, is not a label they make": "«{loc}», первая позиция, не является меткой, которую они дают",
  "“{loc}” is printed where they would place another patch": "«{loc}» напечатана там, где они поставили бы другой патч",
- "“{a}” and “{b}” would be read as the same patch": "«{a}» и «{b}» были бы прочитаны как один и тот же патч"
+ "“{a}” and “{b}” would be read as the same patch": "«{a}» и «{b}» были бы прочитаны как один и тот же патч",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Полоса {strip} очень похожа на полосу {like}, которую вы уже измерили. Вы прочитали полосу {like} ещё раз?\n\n•  Перечитать полосу {strip}: позиция чтения возвращается к полосе {strip}. Прочитайте её ещё раз, и новое чтение заменит это.\n\n•  Я прочитал полосу {like}: считыватель переходит к полосе {like}. Прочитайте её там ещё раз, а затем полосу {strip}, которую ещё нужно измерить.\n\n•  Оставить, это полоса {strip}: это чтение остаётся полосой {strip}, и измерение продолжается.",
+ "I read strip {like}": "Я прочитал полосу {like}",
+ "Patches closer than ΔE 6 in colour": "Патчи, отличающиеся меньше чем на ΔE 6,",
+ "count as one confirmation, so the": "считаются одним подтверждением, поэтому",
+ "range needs more different colours.": "диапазону нужны более разные цвета."
 }

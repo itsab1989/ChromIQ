@@ -7762,7 +7762,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _strip_read_twice_window(self, strip: str, like: str) -> "str | None":
         """§M's M-STRIP-READ-TWICE, in the measurement frame.
 
-        Returns ``"reread"``, ``"keep"``, or None when the window was closed
+        Returns ``"reread"``, ``"was_like"`` (beta 8: the user read strip
+        *like* on purpose), ``"keep"``, or None when the window was closed
         without an answer (the X, Escape, or the session ending under it),
         which keeps the reading as "Keep" does.
         """
@@ -7792,14 +7793,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         chosen: "list[str | None]" = [None]
         reread_btn = QPushButton(
             tr(M._READ_TWICE_REREAD).format(strip=strip), dlg)
+        was_btn = QPushButton(tr(M._READ_TWICE_WAS).format(like=like), dlg)
+        was_btn.setObjectName("strip_read_twice_was_like")
         keep_btn = QPushButton(tr(M._READ_TWICE_KEEP).format(strip=strip), dlg)
         reread_btn.setObjectName("primary")
         reread_btn.setDefault(True)
-        for b in (reread_btn, keep_btn):
+        for b in (reread_btn, was_btn, keep_btn):
             b.setFixedHeight(32)
 
         def _reread():
             chosen[0] = "reread"
+            dlg.accept()
+
+        def _was_like():
+            chosen[0] = "was_like"
             dlg.accept()
 
         def _keep():
@@ -7807,10 +7814,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             dlg.accept()
 
         reread_btn.clicked.connect(_reread)
+        was_btn.clicked.connect(_was_like)
         keep_btn.clicked.connect(_keep)
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(reread_btn)
+        row.addWidget(was_btn)
         row.addWidget(keep_btn)
         row.addStretch()
         layout.addLayout(row)
@@ -11408,6 +11417,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         try:
             self._update_resume_availability()
             self._adopt_overlay_after_first_measurement()
+            # THE PROGRESS FIGURE FOLLOWS THE FILE TO ITS DATE (Knut, #182
+            # 5973177088: "after measurement was completed the progress still
+            # showed 0%"). `_on_measure_done` counted the bar from the files
+            # BEFORE this filing, when the readings had already left the
+            # working copy and had not yet reached the dated folder the bar
+            # selects, so it read nothing and stayed at 0 %. Counted again now
+            # the measurement is where the selection points, and the settled
+            # selection re-based so a later settle does not count it a change.
+            self._settled_selection = self._selection_key()
+            self._refresh_progress_from_files()
         except Exception:      # noqa: BLE001 — never break filing a result
             log.warning("could not refresh the options after filing the "
                         "verification", exc_info=True)
