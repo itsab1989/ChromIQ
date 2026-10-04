@@ -291,6 +291,13 @@ def cmd_seal(args) -> int:
     t0 = time.time()
     man = generate(seed, out)
     man["sealed_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    import subprocess
+    man["generator_commit"] = subprocess.run(
+        ["git", "-C", str(HERE), "rev-parse", "HEAD"], capture_output=True, text=True,
+        timeout=60).stdout.strip()
+    man["generator_dirty"] = bool(subprocess.run(
+        ["git", "-C", str(HERE), "status", "--porcelain", "--", "."], capture_output=True,
+        text=True, timeout=60).stdout.strip())
     # plausibility, pass/fail only (no numbers, no parameters)
     fails = []
     for slot in SLOTS:
