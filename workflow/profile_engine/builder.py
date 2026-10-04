@@ -650,7 +650,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # saturation tables (build_mapped_b2a below). Costs ink: section 6.
     k_prior_col = None if accurate else anchor
     if (accurate and not meas.is_additive and n >= 4
-            and "a9-nramp" in candidates and "K" in meas.channel_letters):
+            and ("a9-nramp" in candidates or "a9-nramps" in candidates)
+            and "K" in meas.channel_letters):
         # Research agent9-01 6.2: colprof's default black rule (-kr ramp,
         # engine port) as the K target for the NEUTRALS only, faded out with
         # chroma; chromatic colours keep the late-GCR locus. The deep neutral
@@ -662,6 +663,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                    and settings.k_curve_params else
                    b2a_mod.K_RULE_PARAMS.get(settings.k_rule or "r",
                                              b2a_mod.K_RULE_PARAMS["r"]))
+        if "a9-nramps" in candidates and not settings.k_rule:
+            # shadow-only ramp: no K above 40 % of the way to the black
+            # (light greys stay K-free, as the locus has them), full K at
+            # the black (colprof -kp 0 0.4 1 1 1).
+            _params = (0.0, 0.4, 1.0, 1.0, 1.0)
         k_prior_col = {"l_axis": _ls, "k_curve": b2a_mod.argyll_k_curve(
             _ls, params=_params,
             l_min=max(float(black_l), 2.0) if black_l is not None else 5.0),
