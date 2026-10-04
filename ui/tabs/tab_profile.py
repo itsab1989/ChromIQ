@@ -50,7 +50,8 @@ from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
 from ui.spectrum_progress import SpectrumSegmentsBar
 from workflow.engine_builder import (EngineProfileBuilder, engine_support,
                                      is_multi_ink)
-from workflow.profile_builder import ProfileBuilder, ProfileParams
+from workflow.profile_builder import (COLPROF_DARK_EMPHASIS_MAX, ProfileBuilder,
+                                      ProfileParams)
 from workflow.ti3_merge import merge_preconditioning, Ti3MergeError
 from workflow.printcal_runner import PrintcalRunner, PrintcalParams, ChannelTarget
 from workflow.applycal_runner import ApplycalRunner
@@ -105,13 +106,55 @@ _ILLUMINANTS = [
     ("Default (D50)", ""),
     ("D50M2 (D50 with UV filter)", "D50M2"),
     ("D65 (daylight 6500 K)", "D65"),
-    ("D65M2 (D65 with UV filter)", "D65M2"),
     ("A (tungsten / incandescent)", "A"),
     ("C (daylight sim., older)", "C"),
     ("F5 (fluorescent CWF)", "F5"),
     ("F8 (fluorescent D50 sim.)", "F8"),
     ("F10 (fluorescent Ultralume)", "F10"),
 ]
+
+#: ONLY WHAT STOCK colprof ACCEPTS (D-10, Basti 2026-10-04: *"don't show
+#: d65m2 for stock colprof ... the spinner should only allow values that
+#: colprof accepts"*). ArgyllCMS 3.5.0 colprof takes -i and -f from "A, C, D50,
+#: D50M2, D65, F5, F8, F10 or file.sp" (-f also M0, M1, M2, left out until Knut
+#: decides) and stops with its usage text on "D65M2", so no profile was built.
+#: D65M2 is gone from _ILLUMINANTS; a value stored before (settings, presets,
+#: a target's settings) is read as its nearest valid choice, D65, and says so.
+_RETIRED_ILLUMINANTS = {"D65M2": "D65"}
+#: colprof -V accepts 1.0 to 3.0 (colprof.c 3.5.0, lines 519-524: a usage
+#: error outside it). The spinners allowed 4.0, targen's -V range.
+DARK_EMPHASIS_MAX = COLPROF_DARK_EMPHASIS_MAX
+
+
+class _IlluminantCombo(NoScrollComboBox):
+    """An illuminant list that reads a retired stored value as its nearest
+    valid choice. Every restore path (settings, presets, a target's settings)
+    asks ``findData``, so this is the one place that sees them all."""
+
+    def findData(self, data, *args, **kwargs):  # noqa: N802 - Qt's name
+        repl = _RETIRED_ILLUMINANTS.get(data) if isinstance(data, str) else None
+        if repl is not None:
+            log.info("Illuminant %s is not accepted by ArgyllCMS colprof; "
+                     "using %s instead", data, repl)
+            data = repl
+        return super().findData(data, *args, **kwargs)
+
+
+class _DarkEmphasisSpin(NoScrollDoubleSpinBox):
+    """colprof's -V range, 1.0 to 3.0. A stored value above it (the spinner
+    allowed 4.0 before beta 10) is clamped to 3.0 and logged."""
+
+    def setValue(self, value):  # noqa: N802 - Qt's name
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            v = 1.0
+        if v > DARK_EMPHASIS_MAX:
+            log.info("Dark region emphasis -V %.1f is above ArgyllCMS "
+                     "colprof's limit; using %.1f", v, DARK_EMPHASIS_MAX)
+            v = DARK_EMPHASIS_MAX
+        super().setValue(v)
+
 
 _INTENTS = [
     ("Default", ""),
@@ -2898,8 +2941,8 @@ class TabProfile(QWidget):
 
         dark_row = QHBoxLayout()
         dark_row.addWidget(QLabel(tr("Dark Region Emphasis (-V):"), grp))
-        self._m_dark_spin = NoScrollDoubleSpinBox(grp)
-        self._m_dark_spin.setRange(1.0, 4.0)
+        self._m_dark_spin = _DarkEmphasisSpin(grp)
+        self._m_dark_spin.setRange(1.0, DARK_EMPHASIS_MAX)
         self._m_dark_spin.setSingleStep(0.1)
         self._m_dark_spin.setDecimals(1)
         self._m_dark_spin.setValue(1.0)
@@ -2926,7 +2969,7 @@ class TabProfile(QWidget):
 
         illum_row = QHBoxLayout()
         illum_row.addWidget(QLabel(tr("Illuminant (-i):"), grp))
-        self._m_illum_combo = NoScrollComboBox(grp)
+        self._m_illum_combo = _IlluminantCombo(grp)
         for label, val in _ILLUMINANTS:
             self._m_illum_combo.addItem(label, val)
         self._m_illum_combo.setObjectName("compact_input")
@@ -2981,7 +3024,7 @@ class TabProfile(QWidget):
 
         fwa_row = QHBoxLayout()
         self._m_fwa_check = QCheckBox(tr("FWA Compensation (-f):"), grp)
-        self._m_fwa_illum_combo = NoScrollComboBox(grp)
+        self._m_fwa_illum_combo = _IlluminantCombo(grp)
         self._m_fwa_illum_combo.addItem(tr("Same as illuminant (-i)"), "")
         for label, val in _ILLUMINANTS[1:]:
             self._m_fwa_illum_combo.addItem(label, val)
@@ -3941,8 +3984,8 @@ class TabProfile(QWidget):
 
         dark_row = QHBoxLayout()
         dark_row.addWidget(QLabel(tr("Dark Region Emphasis (-V):"), grp))
-        self._dark_spin = NoScrollDoubleSpinBox(grp)
-        self._dark_spin.setRange(1.0, 4.0)
+        self._dark_spin = _DarkEmphasisSpin(grp)
+        self._dark_spin.setRange(1.0, DARK_EMPHASIS_MAX)
         self._dark_spin.setSingleStep(0.1)
         self._dark_spin.setDecimals(1)
         self._dark_spin.setValue(1.0)
@@ -3971,7 +4014,7 @@ class TabProfile(QWidget):
 
         illum_row = QHBoxLayout()
         illum_row.addWidget(QLabel(tr("Illuminant (-i):"), _adv))
-        self._illum_combo = NoScrollComboBox(_adv)
+        self._illum_combo = _IlluminantCombo(_adv)
         for label, val in _ILLUMINANTS:
             self._illum_combo.addItem(label, val)
         illum_row.addWidget(self._illum_combo, stretch=1)
@@ -4020,7 +4063,7 @@ class TabProfile(QWidget):
 
         fwa_row = QHBoxLayout()
         self._fwa_check = QCheckBox(tr("FWA Compensation (-f):"), _adv)
-        self._fwa_illum_combo = NoScrollComboBox(_adv)
+        self._fwa_illum_combo = _IlluminantCombo(_adv)
         self._fwa_illum_combo.addItem(tr("Same as illuminant (-i)"), "")
         for label, val in _ILLUMINANTS[1:]:
             self._fwa_illum_combo.addItem(label, val)

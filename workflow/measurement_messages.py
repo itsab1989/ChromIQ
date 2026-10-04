@@ -1842,6 +1842,31 @@ _CARD_RANGE_LEARNED_4 = "so it is taken as real too."
 _CARD_RANGE_RED_LEARNED_1 = "This range has learned, but this"
 _CARD_RANGE_RED_LEARNED_2 = "one is off in a different way."
 _CARD_RANGE_CONFIRMED_LEARNED = "This range has learned."
+#: Beta 10 (Knut, #182 5982206917, answer 1 of 5982058944): a red patch of a
+#: LEARNED range says WHICH test ruled it out against the confirmed patches of
+#: its range, with the numbers, instead of "one is off in a different way"
+#: (kept only for a card that has no numbers to show). The first reason
+#: finishes _CARD_RANGE_RED_LEARNED_1's sentence ("...but this one's error is
+#: smaller:"); a further reason, when one test does not rule out every
+#: confirmed patch, starts a sentence of its own. {own} and {ref} are ΔE
+#: values or _CARD_DE_SPAN; "some of" is said when that test ruled out only
+#: some of the confirmed patches (another reason on the card rules out the
+#: rest). The "smaller" lines go if Knut drops that test
+#: (workflow.patch_flags.PATCH_SIZE_TEST).
+_CARD_MISFIT_SMALLER = "one's error is smaller: ΔE {own} here,"
+_CARD_MISFIT_SMALLER_NEXT = "Its error is also smaller: ΔE {own} here,"
+_CARD_MISFIT_SMALLER_LIMIT = "(at most ΔE {tol} smaller allowed)."
+_CARD_MISFIT_SIDEWAYS = "one's error points another way:"
+_CARD_MISFIT_SIDEWAYS_NEXT = "Its error also points another way:"
+_CARD_MISFIT_SIDEWAYS_DE = "ΔE {own} sideways"
+_CARD_MISFIT_SIDEWAYS_LIMIT = "(at most ΔE {tol} allowed)."
+_CARD_MISFIT_STANDOUT = "one stands out from its strip more:"
+_CARD_MISFIT_STANDOUT_NEXT = "It also stands out from its strip more:"
+_CARD_MISFIT_STANDOUT_DE = "ΔE {own} above its strip,"
+_CARD_MISFIT_STANDOUT_LIMIT = "(at most ΔE {tol} more allowed)."
+_CARD_MISFIT_REFS = "ΔE {ref} on its confirmed patches"
+_CARD_MISFIT_REFS_SOME = "ΔE {ref} on some of its confirmed patches"
+_CARD_DE_SPAN = "{lo} to {hi}"
 #: Beta 9 (Knut, #182 5979886227): a flagged patch confirmed by flagged
 #: patches of other strips that were expected nearly the same colour and are
 #: off in the same way. The card's counterpart of "Yellow outline: confirmed
@@ -1885,7 +1910,14 @@ M_PATCH_COLOUR_RANGE = _m(
                _CARD_RANGE_LEARNED_3, _CARD_RANGE_LEARNED_4,
                _CARD_RANGE_RED_LEARNED_1, _CARD_RANGE_RED_LEARNED_2,
                _CARD_RANGE_CONFIRMED_LEARNED, _CARD_PEER_1, _CARD_PEER_2,
-               _CARD_RED_READ_AGAIN, _CARD_YELLOW_NO_NEED)),
+               _CARD_RED_READ_AGAIN, _CARD_YELLOW_NO_NEED,
+               _CARD_MISFIT_SMALLER, _CARD_MISFIT_SMALLER_NEXT,
+               _CARD_MISFIT_SMALLER_LIMIT, _CARD_MISFIT_SIDEWAYS,
+               _CARD_MISFIT_SIDEWAYS_NEXT, _CARD_MISFIT_SIDEWAYS_DE,
+               _CARD_MISFIT_SIDEWAYS_LIMIT,
+               _CARD_MISFIT_STANDOUT, _CARD_MISFIT_STANDOUT_NEXT,
+               _CARD_MISFIT_STANDOUT_DE, _CARD_MISFIT_STANDOUT_LIMIT,
+               _CARD_MISFIT_REFS, _CARD_MISFIT_REFS_SOME, _CARD_DE_SPAN)),
     approved=False)
 
 # --- PROPOSED: the expected colour is the profile's prediction --------------
