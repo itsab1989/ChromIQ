@@ -350,12 +350,72 @@ REAL_SOURCES = {
                              "owner: Canon PRO-300 on Epson Premium SG, 924 patches RGB, i1Studio"),
     "R-Knut-printer": ("owner", "Knut-Scanner/runs/run1/Knut-Scanner.ti3", "ti3",
                        "owner/Knut: 315-patch RGB printer chart, ColorMunki-class"),
+    # Agent 14 (2026-10-04): the first real N-colour set. Public, free of
+    # charge, no login (fogra.org, Ref_FOGRA55.zip v4.0, sha256 of FOGRA55.txt
+    # 3c1546db...); read in place, never copied into the repository.
+    "R-FOGRA55": ("literature", "a14-fogra55/Ref_FOGRA55/FOGRA55.txt", "cgats-lab",
+                  "FOGRA55 (Fogra with GMG, 2021): CMYKOGV ECG reference characterisation, "
+                  "4884 patches (ECG-7C test form), Lab M1 D50/2, TAC 300; a designed exchange "
+                  "data set (CMYK = FOGRA51), not one press run; noise-free averaged data"),
 }
+
+# Commercial reference profiles made from a real set (in-sample for them),
+# and the proxy printer for sets colprof cannot profile (5+ inks).
+REFERENCE_ICC = {
+    "R-FOGRA55": "a14-fogra55/Ref_FOGRA55/Ref-ECG-CMYKOGV_FOGRA55_TAC300.icc",
+}
+LITERATURE = Path.home() / "develop" / "ProfileEngineResearch" / "Literature" / "web"
+LITERATURE_ENV = "CHROMIQ_RESEARCH_LITERATURE"
+
+
+def literature_root() -> Path:
+    return Path(os.environ.get(LITERATURE_ENV) or LITERATURE).expanduser()
+
+
+def reference_icc(name: str) -> Path | None:
+    rel = REFERENCE_ICC.get(name)
+    return literature_root() / rel if rel else None
+
+
+_PC_INK = {"cyan": "C", "magenta": "M", "yellow": "Y", "black": "K", "orange": "O",
+           "green": "G", "violet": "V", "red": "R", "blue": "B"}
+
+
+def cgats_lab_to_ti3(src: Path, out: Path) -> dict:
+    """ISO 28178 / CGATS characterisation data with PCn_i device fields and
+    LAB_L/A/B (D50/2) -> Argyll .ti3 (XYZ from Lab). Ink letters from the
+    LGOMCCHANNELnn InkName keywords (FOGRA55 style)."""
+    text = Path(src).read_text(errors="replace", encoding="utf-8")
+    fmt = re.search(r"BEGIN_DATA_FORMAT\s+(.*?)\s+END_DATA_FORMAT", text, re.S).group(1).split()
+    rows = re.search(r"BEGIN_DATA\s+(.*?)\s+END_DATA", text, re.S).group(1).splitlines()
+    rows = [r.split() for r in rows if r.strip()]
+    dcols = [i for i, f in enumerate(fmt) if re.match(r"PC\d+_\d+$", f)]
+    names = dict(re.findall(r'LGOMCCHANNEL(\d+)\s+"InkName\s*=\s*\'([^\']+)\'', text))
+    letters = [_PC_INK[names[f"{k + 1:02d}"].lower()] for k in range(len(dcols))]
+    rep = "".join(letters)
+    lab = np.array([[float(r[fmt.index(k)]) for k in ("LAB_L", "LAB_A", "LAB_B")] for r in rows])
+    dev = np.array([[float(r[i]) for i in dcols] for r in rows])
+    xyz = colour.lab_to_xyz(lab)
+    m = re.search(r"TAC\s*(\d+)", Path(src).parent.name + " " + text[:4000])
+    fields = [f"{rep}_{c}" for c in letters] + ["XYZ_X", "XYZ_Y", "XYZ_Z"]
+    lines = ["CTI3", 'DESCRIPTOR "converted by benchmarks.research (read-only source)"',
+             'ORIGINATOR "ChromIQ benchmarks.research"', 'DEVICE_CLASS "OUTPUT"',
+             f'COLOR_REP "{rep}_XYZ"', f"NUMBER_OF_FIELDS {1 + len(fields)}",
+             "BEGIN_DATA_FORMAT", "SAMPLE_ID " + " ".join(fields), "END_DATA_FORMAT",
+             f"NUMBER_OF_SETS {len(dev)}", "BEGIN_DATA"]
+    for i in range(len(dev)):
+        lines.append(" ".join([str(i + 1)] + [f"{v:.4f}" for v in dev[i]]
+                              + [f"{v:.5f}" for v in xyz[i]]))
+    lines.append("END_DATA")
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"patches": len(dev), "rep": rep + "_XYZ", "data": "Lab only (D50/2, M1)",
+            "tac_max_in_data": float(dev.sum(1).max())}
 
 
 def real_source(name: str) -> tuple[Path, str, str]:
     root, rel, kind, note = REAL_SOURCES[name]
-    return (xrite_root() if root == "xrite" else OWNER) / rel, kind, note
+    base = {"xrite": xrite_root, "literature": literature_root}.get(root, lambda: OWNER)()
+    return base / rel, kind, note
 
 
 def real(name: str, work: Path) -> Dataset:
@@ -371,4 +431,11 @@ def real(name: str, work: Path) -> Dataset:
         conv = work / f"{name}-converted.ti3"
         info.update(mxf_to_ti3(src, conv))
         src = conv
+    elif kind == "cgats-lab":
+        conv = work / f"{name}-converted.ti3"
+        info.update(cgats_lab_to_ti3(src, conv))
+        src = conv
+    ref = reference_icc(name)
+    if ref is not None and ref.exists():
+        info["reference_icc"] = str(ref)
     return real_split(name, src, work, info=info)

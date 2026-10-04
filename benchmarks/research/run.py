@@ -78,7 +78,8 @@ REAL_BASE = list(dsm.REAL_SOURCES)
 # Ink limits for the real CMYK sets (percent). FOGRA39 and GRACoL 2006 use
 # their published TAC (330 / 320); the X-Rite sample chart has no stamp.
 REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
-            "R-CMYK-default-i1Pro": 300.0, "R-CMYK-default-i1iSis": 300.0}
+            "R-CMYK-default-i1Pro": 300.0, "R-CMYK-default-i1iSis": 300.0,
+            "R-FOGRA55": 300.0}
 
 
 def sh(cmd, **kw) -> str:
@@ -317,7 +318,7 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         jobs.append(dict(base, engine="accurate", tree=str(trees["f00"]),
                          out=str(profdir / f"{tag}-accurate-37357e92parent.icc"),
                          role="f00-parent"))
-    if ds.kind == "real":
+    if ds.kind == "real" and ds.n_channels <= 4:
         jobs.append(dict(base, engine="colprof", quality="h", source_gamut=None,
                          ti3=str(ds.full_ti3), tree=str(trees["branch"]),
                          out=str(profdir / f"{tag}-PROXY-colprof-qh-full.icc"),
@@ -459,7 +460,11 @@ def main(argv=None) -> int:
             mine = [b for b in builds if b["job"].get("spec_index") == i]
             proxy = next((b for b in mine if b["job"]["role"] == "proxy" and b.get("ok")), None)
             if ds.kind == "real":
-                truth = metrics.Truth(proxy_icc=proxy["job"]["out"]) if proxy else None
+                # 5+ inks: colprof cannot build the proxy; the set's own
+                # published reference profile (FOGRA55: ColorLogic CoPrA)
+                # stands in, labelled in results.json (agent 14)
+                pxy = proxy["job"]["out"] if proxy else ds.info.get("reference_icc")
+                truth = metrics.Truth(proxy_icc=pxy) if pxy else None
             else:
                 truth = metrics.Truth(printer=ds.printer, illuminant=ds.illuminant or "D50")
             for b in mine:
