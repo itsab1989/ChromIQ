@@ -355,11 +355,59 @@ def nc5_gradients(prof, printer, reader, intent="r", cloud=None, n_pairs: int = 
             "tac_max": float(dev.sum(2).max() * 100)}
 
 
+class ProxyPrinter:
+    """A stand-in printer for real data (no truth printer): device -> media-
+    relative Lab through an independent model, either an Argyll MPP
+    (``mpp:PATH``, mpplu, media-relative to its own white) or an ICC A2B1
+    (``icc:PATH``, Argyll icclu). Labelled "proxy" in every result: an
+    estimate of the print, not the print."""
+
+    is_additive = False
+
+    def __init__(self, spec: str, letters: list[str], tac: float | None):
+        self.kind, path = spec.split(":", 1)
+        self.path = Path(path)
+        self._letters = list(letters)
+        self.tac = tac
+        self.n = len(letters)
+        self.id = f"proxy-{self.kind}"
+        self._white = None
+
+    @property
+    def letters(self):
+        return self._letters
+
+    def _mpp_xyz(self, dev):
+        import subprocess
+        inp = "\n".join(" ".join(f"{v:.6f}" for v in r) for r in dev) + "\n"
+        out = subprocess.run(["/Applications/Argyll/bin/mpplu", "-px", str(self.path)],
+                             input=inp, capture_output=True, text=True, timeout=3600,
+                             check=True).stdout
+        rows = [[float(x) for x in ln.split("->")[1].split("[")[0].split()[:3]]
+                for ln in out.splitlines() if "->" in ln]
+        return np.array(rows) * 100.0
+
+    def lab_rel(self, device, illuminant: str = "D50"):
+        dev = np.clip(np.atleast_2d(np.asarray(device, float)), 0, 1)
+        if self.kind == "icc":
+            return cmm.a2b(self.path, dev, "argyll")
+        if self._white is None:
+            self._white = self._mpp_xyz(np.zeros((1, self.n)))[0]
+        return colour.media_relative_lab(self._mpp_xyz(dev), self._white)
+
+
 def evaluate(profile, printer_id: str, reader: str = "argyll", intent: str = "r",
-             tests: str = "1,2,3,4,5", cloud_cache: Path | None = None) -> dict:
-    printer = build_printers()[printer_id]
+             tests: str = "1,2,3,4,5", cloud_cache: Path | None = None,
+             proxy: str | None = None, letters: str | None = None,
+             tac: float | None = None) -> dict:
+    if proxy:
+        from benchmarks.research.printers import split_letters
+        printer = ProxyPrinter(proxy, split_letters(letters), tac)
+    else:
+        printer = build_printers()[printer_id]
     cloud = gmq.truth_cloud(printer, cache=cloud_cache)
-    out = {"profile": str(profile), "printer": printer_id, "reader": reader,
+    out = {"profile": str(profile), "printer": printer_id if not proxy else f"{printer_id} via {proxy}",
+           "truth": "proxy" if proxy else "printer", "reader": reader,
            "intent": intent, "letters": printer.letters, "tac": printer.tac}
     t = set(tests.split(","))
     if "1" in t:
@@ -427,8 +475,12 @@ def main(argv=None) -> None:
     ap.add_argument("--intent", default="r")
     ap.add_argument("--tests", default="1,2,3,4,5")
     ap.add_argument("--out")
+    ap.add_argument("--proxy", help="mpp:PATH or icc:PATH (real data: no truth printer)")
+    ap.add_argument("--letters", help="ink letters for --proxy, e.g. CMYKOGV")
+    ap.add_argument("--tac", type=float)
     a = ap.parse_args(argv)
-    r = evaluate(a.profile, a.printer, a.reader, a.intent, a.tests)
+    r = evaluate(a.profile, a.printer, a.reader, a.intent, a.tests, proxy=a.proxy,
+                 letters=a.letters, tac=a.tac)
     r["headline"] = headline(r)
     txt = json.dumps(r, indent=1)
     if a.out:
