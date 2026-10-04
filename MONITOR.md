@@ -7,7 +7,7 @@ marked  << EDIT >>  and leave the rest as-is.
 
 ------------------------------------------------------------------------
 << EDIT >>  ISSUES TO WATCH  (repo itsab1989/ChromIQ):
-    #182, #202   (Basti, 2026-10-01: only these two; earlier #130/#131/#133 retired)
+    #182, #202, #203   (Basti, 2026-10-01: only #182/#202; 2026-10-04: + Knut's new #203; earlier #130/#131/#133 retired)
 
 << EDIT >>  USERS TO LISTEN TO  (GitHub usernames):
     - soul-traveller   (Knut)          -> always act on their comments
