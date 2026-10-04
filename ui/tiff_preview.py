@@ -557,6 +557,26 @@ class _PatchInfoTile(QWidget):
         def misfit_lines(misfit) -> "list[str]":
             return card_misfit_lines(misfit)
 
+        # A VERIFICATION judged against the profile's prediction (Knut, #203
+        # 5982702169): a real difference means the profile is inaccurate
+        # there, not a colour the printer cannot reach, and nothing in a
+        # verification is kept "for the profile".
+        verify = info.get("expected_source") == "prediction"
+
+        def add_real_lines() -> None:
+            """A yellow card's "it is real" sentence and "no need" line."""
+            if verify:
+                for t in (_mm._CARD_VERIFY_YELLOW_1, _mm._CARD_VERIFY_YELLOW_2,
+                          _mm._CARD_VERIFY_YELLOW_3, _mm._CARD_VERIFY_YELLOW_4):
+                    rows.append((None, tr(t)))
+                rows.append((None, ""))
+            else:
+                rows.append((None, tr("A real difference this printer and")))
+                rows.append((None, tr("paper cannot reach, not a misread.")))
+                rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
+                rows.append((None, tr("Keep it for the profile.")))
+            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
+
         peer_locs = [str(v) for v in (info.get("peer_locs") or ())]
         if info.get("warn") and flag == "confirmed" and peer_locs:
             # YELLOW, CONFIRMED BY SIMILAR PATCHES (Knut, #182 5979886227):
@@ -570,11 +590,7 @@ class _PatchInfoTile(QWidget):
                                   ).format(de=float(info.get("de", 0.0)),
                                            limit=float(info.get("warn_de", 0.0)))))
             rows.append((None, ""))
-            rows.append((None, tr("A real difference this printer and")))
-            rows.append((None, tr("paper cannot reach, not a misread.")))
-            rows.append((None, ""))
-            rows.append((None, tr("Keep it for the profile.")))
-            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
+            add_real_lines()
             if rng in _mm.RANGE_NAMES:
                 rows.append((None, ""))
                 add_range_line()
@@ -591,11 +607,7 @@ class _PatchInfoTile(QWidget):
                                   ).format(de=float(info.get("de", 0.0)),
                                            prev=float(info.get("prev_de") or 0.0))))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
-            rows.append((None, tr("A real difference this printer and")))
-            rows.append((None, tr("paper cannot reach, not a misread.")))
-            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
-            rows.append((None, tr("Keep it for the profile.")))
-            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
+            add_real_lines()
             if rng in _mm.RANGE_NAMES:
                 # A confirmed patch stays yellow whether its range has
                 # learned or not; the card says how far the range has got.
@@ -622,7 +634,12 @@ class _PatchInfoTile(QWidget):
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_1)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_2)))
-            rows.append((None, tr(_mm._CARD_RANGE_LEARNED_3)))
+            if info.get("landed"):
+                # Like it only by the size test's waiver (Knut 5982600086).
+                rows.append((None, tr(_mm._CARD_RANGE_LANDED_1)))
+                rows.append((None, tr(_mm._CARD_RANGE_LANDED_2)))
+            rows.append((None, tr(_mm._CARD_VERIFY_LEARNED if verify
+                                  else _mm._CARD_RANGE_LEARNED_3)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_4)))
             rows.append((None, ""))
             rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
@@ -666,12 +683,21 @@ class _PatchInfoTile(QWidget):
                         k=range_k)))
                     add_confirmed_list()
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
-            rows.append((None, tr("Either a misread, or a colour")))
-            rows.append((None, tr("this printer and paper cannot reach.")))
+            if verify:
+                for t in (_mm._CARD_VERIFY_RED_1, _mm._CARD_VERIFY_RED_2,
+                          _mm._CARD_VERIFY_RED_3):
+                    rows.append((None, tr(t)))
+            else:
+                rows.append((None, tr("Either a misread, or a colour")))
+                rows.append((None, tr("this printer and paper cannot reach.")))
             rows.append((None, tr(_mm._CARD_RED_READ_AGAIN)))   # Knut 5980576263
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Same value after a re-read:")))
-            rows.append((None, tr("it is real, keep it for the profile.")))
+            if verify:
+                rows.append((None, tr(_mm._CARD_VERIFY_SAME_1)))
+                rows.append((None, tr(_mm._CARD_VERIFY_SAME_2)))
+            else:
+                rows.append((None, tr("it is real, keep it for the profile.")))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("(Preferences ▸ Measurement, “Flag a patch…”)")))
 
@@ -5460,7 +5486,8 @@ def card_misfit_lines(misfit) -> "list[str]":
     has learned, but this" (Knut, #182 5982206917): each test that ruled it
     out against the range's confirmed patches, with its numbers. *misfit* is
     ``Verdict.misfit`` as ``TabMeasure._verdict_extra`` passes it: dicts with
-    ``test``, ``own`` / ``ref`` (lowest, highest), ``count`` and ``total``.
+    ``test``, ``own`` / ``ref`` / ``land`` (lowest, highest), ``count`` and
+    ``total``.
 
     Whole ΔE numbers, as the example Knut approved; one decimal when the test
     failed by less than ΔE 1 somewhere (``gap``), where whole numbers could
@@ -5485,6 +5512,13 @@ def card_misfit_lines(misfit) -> "list[str]":
             lines.append(tr(refs_line).format(ref=_de_text(ref_lo, ref_hi, d)))
             lines.append(tr(_mm._CARD_MISFIT_SMALLER_LIMIT).format(
                 tol=f"{tol:.0f}"))
+            # ...and it did not land where they did, or the size test would
+            # have been waived (Knut 5982600086).
+            land_lo, land_hi = (float(v) for v in m.get("land", (0.0, 0.0)))
+            lines.append(tr(_mm._CARD_MISFIT_LANDED))
+            lines.append(tr(_mm._CARD_MISFIT_LANDED_DE).format(
+                own=_de_text(land_lo, land_hi, d),
+                tol=f"{pf.LANDING_DE:.0f}"))
         elif test == pf.MISFIT_SIDEWAYS:
             lines.append(tr(_mm._CARD_MISFIT_SIDEWAYS if first
                             else _mm._CARD_MISFIT_SIDEWAYS_NEXT))
