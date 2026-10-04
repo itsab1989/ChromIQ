@@ -65,6 +65,7 @@ def fit_forward_model_accurate(
         gp: bool = False,
         row_weights: np.ndarray | None = None,
         positioning: bool = False,
+        additive: bool = False,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
 
@@ -141,7 +142,10 @@ def fit_forward_model_accurate(
         # around the axis predict it); one it disagrees with by more than
         # 3 robust sigmas (and at least 2 dE00) is replaced by that
         # prediction for the curves only.
-        inked = device > 1e-6
+        # RGB (agent 3, token "rgbpos"): paper is device 1,1,1, a channel's
+        # "ink" is 1 - value; the curves are mirrored back below.
+        dev_pos = 1.0 - device if additive else device
+        inked = dev_pos > 1e-6
         ramp = inked.sum(1) <= 1
         lab_for_curves = np.array(lab_orig, float, copy=True)
         replaced = np.zeros(len(device), bool)
@@ -168,8 +172,8 @@ def fit_forward_model_accurate(
         pos = fit_forward_model(device, lab, grid=grid, lam=4.0 * base_lam,
                                 curve_rounds=0, cg_iters=350,
                                 cg_rtol=_CG_RTOL, weights=rw,
-                                init_curves=ramp_positioning_curves(
-                                    device, lab_for_curves))
+                                init_curves=_mirror(ramp_positioning_curves(
+                                    dev_pos, lab_for_curves), additive))
         pred_all = pos.predict(device)
         if space is not None:
             pred_all = space.ucs_to_lab(pred_all)
@@ -178,7 +182,8 @@ def fit_forward_model_accurate(
         bad_all = ramp & ~replaced & (r_all > max(2.0, float(np.median(r_all))
                                                   + 3.0 * mad_a))
         lab_for_curves[bad_all] = pred_all[bad_all]
-        init = ramp_positioning_curves(device, lab_for_curves)
+        init = _mirror(ramp_positioning_curves(dev_pos, lab_for_curves),
+                       additive)
 
     if sigma is not None:
         # Whitening by measurement noise alone is wrong statistics where
@@ -454,3 +459,8 @@ def fit_forward_model_accurate_challenged(
         curve_rounds=curve_rounds, ucs=ucs, gp=win, progress=progress,
         row_weights=row_weights, positioning=positioning)
     return model, outliers, lam, ("noise" if win else "standard")
+
+
+def _mirror(curves: np.ndarray, additive: bool) -> np.ndarray:
+    """Ramp curves computed on 1 - device (RGB) -> curves on the device."""
+    return 1.0 - curves[:, ::-1] if additive else curves

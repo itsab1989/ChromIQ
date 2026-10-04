@@ -342,10 +342,15 @@ def _seed_nearest(model: ForwardModel, target: np.ndarray, seed_res: int,
     mesh = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, n)
     mesh_lab = model.predict(mesh)
     out = np.empty((len(target), n))
+    # Chunked distance search, the chunk sized to the mesh: a fixed 4096
+    # targets against the 5**7 = 78,125-point mesh of a 7-ink device made a
+    # 7.7 GB temporary (14.3 GB peak RSS per build; agent9-01 6.4). Each row
+    # is computed by the same expression whatever the chunk (D-06).
+    step = max(1, min(4096, int(4.0e6 // max(len(mesh), 1))))
 
     def block(a: int, b: int) -> None:
-        for lo in range(a, b, 4096):            # chunked distance search
-            hi = min(lo + 4096, b)
+        for lo in range(a, b, step):
+            hi = min(lo + step, b)
             chunk = target[lo:hi]
             d2 = ((mesh_lab[None, :, :] - chunk[:, None, :]) ** 2).sum(2)
             out[lo:hi] = mesh[np.argmin(d2, 1)]
