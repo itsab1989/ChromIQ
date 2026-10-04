@@ -86,7 +86,22 @@ def test_the_help_names_three_limits_and_the_new_defaults():
     import inspect
     from ui.dialogs import settings_dialog
     src = inspect.getsource(settings_dialog)
-    assert "THREE LIMITS, FOR THREE KINDS OF CHART" in src
-    assert "TWO LIMITS" not in src
+    assert "TWO LIMITS" not in src and "THREE LIMITS" not in src
+    assert "tr(LIMITS_PURPOSE_HELP)" in src
     assert ("20 ΔE for a chart made \"\n            \"from a profile, 10 ΔE for a "
             "verification") in src
+
+
+def test_the_limits_say_what_they_are_for_in_both_places():
+    """Knut, #182 5983733592: the help explains the purpose: misreads, not
+    colours the printer cannot reach; one paragraph in both places."""
+    import inspect
+    from ui.dialogs import settings_dialog as sd
+    from ui.tabs import tab_measure as tm
+    assert sd.LIMITS_PURPOSE_HELP == tm.LIMITS_PURPOSE_HELP
+    text = sd.LIMITS_PURPOSE_HELP
+    assert "catch misreads" in text and "not a mark for colours" in text
+    for d in ("default ΔE 95", "default ΔE 20", "default ΔE 10"):
+        assert d in text
+    assert "\u2014" not in text
+    assert "tr(LIMITS_PURPOSE_HELP)" in inspect.getsource(tm)

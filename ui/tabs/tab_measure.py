@@ -1112,6 +1112,40 @@ _OVERLAY_TIP_BODY = (
     "layout), open it in Tools ▸ Inspect a measurement to see the numbers "
     "instead.")
 
+#: WHAT THE LIMITS ARE FOR (Knut, #182 5983733592, after 5983725218): the red
+#: outline catches misreads; yellow, not red, answers a colour the printer
+#: cannot reach. One paragraph, the same in Preferences ▸ Measurement and in
+#: the Measure tab's hover help (one translation; a test keeps them equal).
+LIMITS_PURPOSE_HELP = (
+    "WHAT THE LIMITS ARE FOR\n"
+    "The red outline is there to catch misreads while you measure, so"
+    " that you read the patch again at once. It is not a mark for "
+    "colours your printer cannot reproduce: when a re-read gives the "
+    "same colour, or similar patches agree, the outline turns yellow,"
+    " and yellow is the answer for such a colour. How low a limit can"
+    " go depends on how close the chart's expected colours are to "
+    "what your printer really prints:\n"
+    "  • A chart with estimated colours (most charts), default ΔE 95:"
+    " the expected colours are only ArgyllCMS's estimate, made "
+    "without a profile of your printer, and lie far from any real "
+    "print, so even a good patch can be 30 to 50 ΔE off. The limit is"
+    " as high as in ArgyllCMS's own chartread and catches only gross "
+    "misreads; the strip check (“only flag a patch that also stands "
+    "out from its own strip”) and another check, which compares each "
+    "patch with its neighbours, do most of the misread hunting on "
+    "these charts.\n"
+    "  • A chart made from a profile, default ΔE 20: ArgyllCMS marks "
+    "a chart made with a pre-conditioning profile "
+    "(ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
+    " what the printer should print, and a much smaller difference is"
+    " already suspicious.\n"
+    "  • A verification judged against its profile, default ΔE 10: a "
+    "verification chart ChromIQ printed is compared with what the "
+    "run's profile predicts for it, so its expected colours are the "
+    "closest of all. The strip check does not apply to it.\n"
+    "The chart decides which limit applies when you measure, so you "
+    "never have to choose.")
+
 #: Knut, #182 5980576263: the overlay's help tells red and yellow apart, says
 #: what the limits do, and that Check & Refine judges on its own. The same
 #: words as the hover help's (one translation each).
@@ -3233,6 +3267,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "you read its strip again, the reading is right: keep it and build "
             "the profile from it. The profile needs to know how far your "
             "printer falls short of such colours.")
+            # What the limits are for (Knut, #182 5983733592): the same
+            # paragraph as Preferences ▸ Measurement's help.
+            + "\n\n" + tr(LIMITS_PURPOSE_HELP)
             # #182 B/B2 (Sebastian 5956560815, Knut 5956831467): the yellow
             # outline, in its own paragraph so the one above keeps its
             # translations.
