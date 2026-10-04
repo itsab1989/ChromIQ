@@ -15493,7 +15493,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return {"flag": kind, "prev_de": v.prev_de, "like_loc": v.like_loc,
                 "peer_locs": list(getattr(v, "peer_locs", ()) or ()),
                 "colour_range": v.colour_range, "range_k": int(v.range_k),
-                "range_locs": list(v.range_locs)}
+                "range_locs": list(v.range_locs),
+                # Red in a learned range: why (Knut, #182 5982206917).
+                "misfit": [{"test": m.test, "own": tuple(m.own),
+                            "ref": tuple(m.ref), "count": m.count,
+                            "total": m.total, "gap": m.gap}
+                           for m in (getattr(v, "misfit", ()) or ())]}
 
     def _apply_flag_rejudge(self, *, live: bool = True) -> None:
         """After a batch of patches (a strip, a patch, a repaint): judge every

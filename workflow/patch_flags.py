@@ -74,7 +74,10 @@ posted in 5961078418, confirmed by Knut 5961180259 and by Sebastian).
      first condition is the rule.
 
    The verdict names the closest such confirmed patch by expected colour, ties
-   by location. :meth:`FlagJudge.rejudge`, asked once per batch, judges every
+   by location. A patch that is like none of them stays red, and its verdict
+   carries WHICH test ruled it out and the numbers (``Verdict.misfit``, for
+   the hover card; Knut 5982206917). ``PATCH_SIZE_TEST`` switches the "as
+   large or larger" half off, should Knut drop it (5982217410). :meth:`FlagJudge.rejudge`, asked once per batch, judges every
    flagged patch again, so a range that learns turns its earlier red patches
    yellow and one that loses a confirmation turns them red again. A confirmed
    patch stays yellow either way.
@@ -131,6 +134,18 @@ SAME_READING_DE = 3.0
 #: The learning rule's "off in the same way" numbers; see the module text.
 SHIFT_TOLERANCE_DE = 10.0
 STANDOUT_MARGIN_DE = 10.0
+#: The "as large or larger" half of "the same kind of error" (no more than
+#: SHIFT_TOLERANCE_DE shorter along the confirmed patch's error). Knut is
+#: asked whether to drop it (#182 5982217410, awaiting his answer). Setting
+#: this False is the whole change: the rule stops applying it, and the hover
+#: card's "smaller" reason (Verdict.misfit) can no longer come up.
+PATCH_SIZE_TEST = True
+
+#: Verdict.misfit's test names: why a red patch of a LEARNED range is not like
+#: its confirmed patches (Knut 5982206917, answer 1 of 5982058944).
+MISFIT_SIDEWAYS = "sideways"     # its error points another way
+MISFIT_SMALLER = "smaller"       # its error is shorter (PATCH_SIZE_TEST)
+MISFIT_STANDOUT = "standout"     # it stands out from its strip more
 
 #: THE COLOUR RANGES (#182 5961078418, confirmed by Knut 5961180259 and by
 #: Sebastian). A patch's EXPECTED colour, classified against the chart's own
@@ -426,6 +441,31 @@ class _Reference:
     standout: "float | None"
 
 
+@dataclass(frozen=True)
+class Misfit:
+    """One test that ruled a red patch of a learned range out against some of
+    its range's confirmed patches, with the numbers the card shows. Each pair
+    is (lowest, highest) over the confirmed patches this test ruled out.
+
+    * ``sideways``: *own* is how far this patch's error strays sideways from
+      each one's error (more than SHIFT_TOLERANCE_DE); *ref* is unused.
+    * ``smaller``: *own* is this patch's error measured along each one's
+      error, *ref* their errors (ΔE*ab): it is more than SHIFT_TOLERANCE_DE
+      shorter.
+    * ``standout``: *own* is this patch's ΔE above its strip's median (one
+      value), *ref* theirs: it is more than STANDOUT_MARGIN_DE higher.
+    """
+    test: str
+    own: tuple = (0.0, 0.0)
+    ref: tuple = (0.0, 0.0)
+    count: int = 0               # how many confirmed patches it ruled out
+    total: int = 0               # of how many with an error to compare
+    #: The narrowest margin by which this test failed against one of them
+    #: (ΔE past its threshold): under 1, whole numbers could make the card
+    #: read as a pass, so it shows one decimal.
+    gap: float = 0.0
+
+
 @dataclass
 class Verdict:
     flag: object                  # FLAG_NONE / FLAG_RED / FLAG_CONFIRMED / FLAG_LEARNED
@@ -435,6 +475,10 @@ class Verdict:
     colour_range: str = ""           # flagged: the patch's colour range (RANGES)
     range_k: int = 0                 # flagged: confirmed patches in it, 0..3
     range_locs: tuple = ()           # flagged: the confirmed patches in it, sorted
+    #: RED in a LEARNED range: the tests that ruled it out against its
+    #: confirmed patches (Misfit, fewest that cover every one of them). The
+    #: card names them; nothing else reads them.
+    misfit: tuple = ()
 
 
 def _sub(a, b):
@@ -761,6 +805,26 @@ class FlagJudge:
         return n
 
     # ---- the rule ------------------------------------------------------------
+    @staticmethod
+    def _tests(ref, n, u, exp_lab, shift, standout):
+        """The three "off in the same way" tests of one patch against one
+        confirmed patch *ref* (its error length *n*, direction *u*):
+        ``(side, along, failed)``, *failed* a tuple of MISFIT_* names, empty
+        when this patch is like it."""
+        s0, s1, s2 = shift[0], shift[1], shift[2]
+        along = s0 * u[0] + s1 * u[1] + s2 * u[2]
+        side = math.sqrt((s0 - along * u[0]) ** 2 + (s1 - along * u[1]) ** 2
+                         + (s2 - along * u[2]) ** 2)
+        failed = []
+        if side > SHIFT_TOLERANCE_DE:
+            failed.append(MISFIT_SIDEWAYS)
+        if PATCH_SIZE_TEST and along < n - SHIFT_TOLERANCE_DE:
+            failed.append(MISFIT_SMALLER)
+        if (standout is not None and ref.standout is not None
+                and standout > ref.standout + STANDOUT_MARGIN_DE):
+            failed.append(MISFIT_STANDOUT)
+        return side, along, tuple(failed)
+
     def _like(self, rng, exp_lab, shift, standout) -> "_Reference | None":
         """The confirmed patch of range *rng* whose error this one is like:
         the closest by expected colour (ΔE*ab, D50), ties by location."""
@@ -770,7 +834,7 @@ class FlagJudge:
         e0, e1, e2 = exp_lab[0], exp_lab[1], exp_lab[2]
         for ref, n, u in (self._range_entry(rng)[3] if rng else ()):
             along = s0 * u[0] + s1 * u[1] + s2 * u[2]
-            if along < n - SHIFT_TOLERANCE_DE:
+            if PATCH_SIZE_TEST and along < n - SHIFT_TOLERANCE_DE:
                 continue
             side = math.sqrt((s0 - along * u[0]) ** 2 + (s1 - along * u[1]) ** 2
                              + (s2 - along * u[2]) ** 2)
@@ -788,6 +852,58 @@ class FlagJudge:
                         and _loc_key(ref.loc) < _loc_key(best.loc))):
                 best, best_key = ref, (dist,)
         return best
+
+    def _misfit(self, rng, exp_lab, shift, standout) -> tuple:
+        """Why a patch :meth:`_like` found like none of range *rng*'s
+        confirmed patches is red (Knut 5982206917): the fewest tests that
+        between them rule out every confirmed patch, each with its numbers.
+
+        Usually one test rules them all out. When it takes more, the test
+        that rules out the most comes first; a tie goes to a test the closest
+        confirmed patch (by expected colour, then location) failed, then to
+        the order sideways, smaller, standout. Reporting only, never a
+        verdict: :meth:`_like` alone decides the outline."""
+        rows = []     # (dist, loc key, ref, side, along, n, failed)
+        for ref, n, u in (self._range_entry(rng)[3] if rng else ()):
+            side, along, failed = self._tests(ref, n, u, exp_lab, shift,
+                                              standout)
+            if not failed:
+                return ()                 # it is like this one: not red here
+            dist = _norm(_sub(exp_lab, ref.exp_lab))
+            rows.append((dist, _loc_key(ref.loc), ref, side, along, n, failed))
+        if not rows:
+            return ()
+        rows.sort(key=lambda r: (r[0], r[1]))
+        closest = rows[0][6]
+        order = (MISFIT_SIDEWAYS, MISFIT_SMALLER, MISFIT_STANDOUT)
+        left = list(range(len(rows)))
+        chosen = []
+        while left:
+            def score(t):
+                return (-sum(1 for i in left if t in rows[i][6]),
+                        0 if t in closest else 1, order.index(t))
+            best = min((t for t in order
+                        if any(t in rows[i][6] for i in left)), key=score)
+            chosen.append(best)
+            left = [i for i in left if best not in rows[i][6]]
+        out = []
+        for t in chosen:
+            hit = [r for r in rows if t in r[6]]
+            if t == MISFIT_SIDEWAYS:
+                own = [r[3] for r in hit]
+                ref = [0.0]
+                gap = min(r[3] - SHIFT_TOLERANCE_DE for r in hit)
+            elif t == MISFIT_SMALLER:
+                own = [r[4] for r in hit]
+                ref = [r[5] for r in hit]
+                gap = min(r[5] - SHIFT_TOLERANCE_DE - r[4] for r in hit)
+            else:
+                own = [float(standout)]
+                ref = [float(r[2].standout) for r in hit]
+                gap = min(float(standout) - STANDOUT_MARGIN_DE - v for v in ref)
+            out.append(Misfit(t, (min(own), max(own)), (min(ref), max(ref)),
+                              len(hit), len(rows), gap))
+        return tuple(out)
 
     def _verdict(self, loc: str, rd: _Reading) -> Verdict:
         """The verdict for a FLAGGED reading, as the references stand now."""
@@ -808,6 +924,11 @@ class FlagJudge:
             if ref is not None:
                 return Verdict(FLAG_LEARNED, like_loc=ref.loc,
                                colour_range=rng, range_k=k, range_locs=locs)
+            return Verdict(FLAG_RED, colour_range=rng, range_k=k,
+                           range_locs=locs,
+                           misfit=self._misfit(
+                               rng, rd.exp_lab, _sub(rd.meas_lab, rd.exp_lab),
+                               rd.standout))
         return Verdict(FLAG_RED, colour_range=rng, range_k=k, range_locs=locs)
 
     def judge(self, loc: str, exp_lab, meas_lab, de: float, flagged: bool,

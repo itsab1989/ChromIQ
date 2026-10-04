@@ -18,8 +18,10 @@ panel and every parser see the same thing:
   line and the count: at most one per ``SUMMARY_EVERY`` seconds while the burst
   goes on, so the flood is capped at a line every few seconds and the panel is
   never silent long enough for the keystroke watchdog to think the tool hung;
-  and a last one when the burst ends (another line, quiet, or the end of the
-  run);
+  and a last one when the burst ends (another line, ``BURST_GAP`` of quiet
+  via :meth:`RepeatGate.idle`, or the end of the run). The summary quotes
+  the line in an inert form no parser matches (:data:`INERT`), and a single
+  hidden repeat is passed on as itself rather than as "1 more time";
 * a burst is identical lines less than ``BURST_GAP`` seconds apart. A line that
   comes back after a pause (a prompt asked again after the user pressed a key)
   starts a new burst and is always shown;
@@ -52,9 +54,36 @@ def is_engine_event(line: str) -> bool:
     return line.lstrip("\x07 \t").startswith("{")
 
 
+#: Put between every two characters of the line a summary quotes (U+2060
+#: WORD JOINER: zero width, invisible, no line break). The summary must not
+#: match what the line itself matches: every parser of tool output searches
+#: the lines it is handed (``measure_manager._USB_ERROR_RE`` looks for
+#: "ReadPipeAsync failed" anywhere in a line), so a summary quoting the line
+#: as it was counted as one more of it (beta-10 review). Joined like this, it
+#: reads the same on screen and no pattern of two characters or more finds
+#: it; ``plain_text`` gives the line back.
+INERT = "\u2060"
+#: Every summary starts with this.
+SUMMARY_MARK = "[ChromIQ: the line \""
+
+
+def inert(line: str) -> str:
+    return INERT.join(line)
+
+
+def plain_text(summary: str) -> str:
+    return summary.replace(INERT, "")
+
+
+def is_summary(line: str) -> bool:
+    return line.startswith(SUMMARY_MARK)
+
+
 def summary_line(line: str, count: int) -> str:
-    times = "time" if count == 1 else "times"
-    return f"[ChromIQ: the line \"{line}\" came {count} more {times}, not shown]"
+    """The line that stands for *count* (two or more) hidden repeats. A
+    single hidden repeat is passed on as the line itself instead (beta-10
+    review: "came 1 more time" was the first thing a flood showed)."""
+    return f"{SUMMARY_MARK}{inert(line)}\" came {count} more times, not shown]"
 
 
 class _Burst:
@@ -80,7 +109,9 @@ class RepeatGate:
         for line in lines:
             b = self._bursts.get(line)
             if b is not None and b.hidden:
-                out.append(summary_line(line, b.hidden))
+                # One hidden repeat is cheaper said as itself, and exact.
+                out.append(line if b.hidden == 1
+                           else summary_line(line, b.hidden))
                 b.hidden = 0
         return out
 
@@ -128,6 +159,11 @@ class RepeatGate:
         if b.seen <= SHOW:
             out.append(line)
             return out
+        if b.hidden == 0 and not any(o.hidden for o in self._bursts.values()):
+            # Counting starts now: the first summary of it is SUMMARY_EVERY
+            # away, not due at once because the run was quiet for a while
+            # (the "came 1 more time" just before "came 109996 more times").
+            self._last_summary = max(self._last_summary, now)
         b.hidden += 1
         self.hidden_total += 1
         if now - self._last_summary >= SUMMARY_EVERY:
@@ -146,6 +182,17 @@ class RepeatGate:
             return False
         return any(b.seen > SHOW and ln.startswith(fragment)
                    for ln, b in self._bursts.items())
+
+    def pending(self) -> bool:
+        """Is any repeat counted and not yet reported?"""
+        return any(b.hidden for b in self._bursts.values())
+
+    def idle(self) -> "list[str]":
+        """The tool has printed nothing for a while: report every burst that
+        has been quiet longer than ``BURST_GAP``, so a flood that ends because
+        the tool goes quiet is summed up then, not when the next line (maybe
+        minutes later) arrives. Readers call it when a read times out."""
+        return self._expire(self._clock(), None)
 
     def flush(self) -> "list[str]":
         """The run ended: report whatever is still being counted."""

@@ -375,6 +375,7 @@ class ArgyllRunner(QObject):
         self._run_tool      = tool      # for the failed-to-start message
 
         self._partial_json = b""
+        self._stop_flood_quiet()
         self._line_gate = RepeatGate()
         self._process.readyReadStandardOutput.connect(self._on_ready_read)
         self._process.finished.connect(self._on_finished)
@@ -805,6 +806,11 @@ class ArgyllRunner(QObject):
                     buf = b""
                     if line:
                         _emit(line)
+                # A flood that ended in silence is summed up now, not when
+                # the next line arrives (core/line_flood.py, RepeatGate.idle).
+                for out in gate.idle():
+                    log.debug("[argyll-pty] %s", out)
+                    self.line_received.emit(out)
 
             # Safety net for a hung fd (e.g. a grandchild keeping the slave
             # side open): only stop on child exit once nothing is readable,
@@ -882,6 +888,9 @@ class ArgyllRunner(QObject):
                     buf = b""
                     if line:
                         _emit(line)
+                for out in gate.idle():       # a flood that ended in silence
+                    log.debug("[argyll-pipe] %s", out)
+                    self.line_received.emit(out)
                 continue
 
             if byte is None:
@@ -1012,6 +1021,40 @@ class ArgyllRunner(QObject):
             # "argyll_runner.py, line 817 in _on_ready_read").
             if not self._process:
                 return
+        self._arm_flood_quiet()
+
+    def _arm_flood_quiet(self) -> None:
+        """While repeats are counted, wake once the tool has been quiet for
+        longer than a burst gap, so a flood that ends in silence is summed up
+        then (core/line_flood.py, RepeatGate.idle). A bound method on a timer
+        the runner owns, never a lambda (CLAUDE.md)."""
+        if not self._gate().pending():
+            return
+        from PyQt6.QtCore import QTimer
+        from core.line_flood import BURST_GAP
+        timer = self.__dict__.get("_flood_quiet_timer")
+        if timer is None:
+            # Held by the runner, not parented: a runner a test built with
+            # __new__ has no QObject to parent it to.
+            timer = self._flood_quiet_timer = QTimer()
+            timer.setSingleShot(True)
+            timer.timeout.connect(self._on_flood_quiet)
+        timer.start(int((BURST_GAP + 0.25) * 1000))
+
+    def _stop_flood_quiet(self) -> None:
+        timer = self.__dict__.get("_flood_quiet_timer")
+        if timer is not None:
+            timer.stop()
+
+    def _on_flood_quiet(self) -> None:
+        if not self._process:
+            return                  # the run ended: _on_finished flushed it
+        for line in self._gate().idle():
+            log.debug("[argyll] %s", line)
+            self.line_received.emit(line)
+            if not self._process:
+                return
+        self._arm_flood_quiet()     # still counting a burst that goes on
 
     def _on_process_started(self) -> None:
         """The program really began — not merely that `start()` was called."""
@@ -1045,6 +1088,7 @@ class ArgyllRunner(QObject):
         # Qt does not guarantee all readyReadStandardOutput events arrive before
         # finished(), so the last chunk of output (e.g. profcheck per-patch lines)
         # can be silently lost without this flush.
+        self._stop_flood_quiet()
         if self._process:
             remaining = (getattr(self, "_partial_json", b"")
                          + self._process.readAllStandardOutput().data())
