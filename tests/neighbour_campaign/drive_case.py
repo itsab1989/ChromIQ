@@ -189,6 +189,13 @@ def script(d):
     d.goto_tab("measure")
     yield 2500
     t = tab()
+    # Tick "Show patch values on hover" as a user does (the setting alone is
+    # read only when the tab is built).
+    for name in ("_g_patch_tile", "_m_patch_tile"):
+        box = getattr(t, name, None)
+        if box is not None and not box.isChecked():
+            d.later(lambda b=box: b.setChecked(True))
+    yield 600
     d.note(f"case {PLAN['case']}; limit {t._patch_warn_limit()}; neighbour "
            f"check applies {t._neighbour_check_applies()}")
     d.later(t._start_btn.click)
