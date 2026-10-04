@@ -6610,7 +6610,7 @@
  "“{a}” and “{b}” would be read as the same patch": "„{a}“ und „{b}“ würden als dasselbe Messfeld gelesen",
  "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Streifen {strip} sieht Streifen {like} sehr ähnlich, den du schon gemessen hast. Hast du Streifen {like} noch einmal gelesen?\n\n•  Streifen {strip} neu lesen: Die Leseposition springt zurück zu Streifen {strip}. Lies ihn noch einmal, und die neue Messung ersetzt diese.\n\n•  Ich habe Streifen {like} gelesen: Die Leseposition springt zu Streifen {like}. Lies ihn dort noch einmal und danach Streifen {strip}, der noch gemessen werden muss.\n\n•  Behalten, es ist Streifen {strip}: Diese Messung bleibt Streifen {strip}, und es wird weitergemessen.",
  "I read strip {like}": "Ich habe Streifen {like} gelesen",
- "Patches closer than ΔE 6 in colour": "Felder mit weniger als ΔE 6 Farbabstand",
+ "Patches closer than ΔE 6 in colour": "Messfelder mit weniger als ΔE 6 Farbabstand",
  "count as one confirmation, so the": "zählen als eine Bestätigung, daher",
- "range needs more different colours.": "braucht der Bereich andere Farben."
+ "range needs more different colours.": "braucht der Bereich mehr verschiedene Farben."
 }
