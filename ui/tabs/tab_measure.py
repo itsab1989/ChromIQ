@@ -7848,6 +7848,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — a summary never blocks a read
             pass
         mgr.answer_read_twice(choice)
+        # A reading set aside holds another strip's colours: the neighbour
+        # check forgets it now, not when the strip is next read (review of
+        # beta 11), so it is neither a suspect in the closing window nor a
+        # comparison for the patches of other strips.
+        self._neighbour_forget(self._set_aside_locs())
 
     def _strip_read_twice_window(self, strip: str, like: str) -> "str | None":
         """§M's M-STRIP-READ-TWICE, in the measurement frame.
@@ -14628,7 +14633,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
                 def listed(locs) -> str:
                     return ", ".join(locs[:10]) + ("…" if len(locs) > 10 else "")
-                if not red:
+                if not red and not kept and not facts["checked"]:
+                    # Nothing found because nothing could be looked at.
+                    lines.append(tr(M._SUM_NB_NONE_CHECKED).format(
+                        total=facts["total"]))
+                elif not red:
                     lines.append(tr(M._SUM_NB_NONE))
                 elif len(red) == 1:
                     lines.append(tr(M._SUM_NB_RED_ONE).format(locs=red[0]))
@@ -14639,7 +14648,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     lines.append(tr(M._SUM_NB_KEPT_ONE))
                 elif kept:
                     lines.append(tr(M._SUM_NB_KEPT).format(n=len(kept)))
-                if facts["checked"] < facts["total"]:
+                if 0 < facts["checked"] < facts["total"]:
                     lines.append(tr(M._SUM_NB_PARTLY).format(
                         checked=facts["checked"], total=facts["total"]))
             if self._read_twice_was_active():
@@ -15708,7 +15717,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _neighbour_feed(self, patches) -> dict:
         """Give the check a batch of readings and judge again; returns
-        ``{loc: finding}`` for each patch whose suspect verdict changed."""
+        ``{loc: finding}`` for each patch to judge and draw again
+        (:meth:`_neighbour_redraw_set`)."""
         if not self._neighbour_check_applies():
             return {}
         try:
@@ -15732,10 +15742,38 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     strip = ""
                 nc.set_reading(loc, p.get("exyz", [0, 0, 0]),
                                p.get("xyz", [0, 0, 0]), strip)
-            return nc.evaluate()
+            return self._neighbour_redraw_set(nc)
         except Exception:      # noqa: BLE001 — never lose the outlines
             log.debug("the neighbour check failed", exc_info=True)
             return {}
+
+    @staticmethod
+    def _neighbour_redraw_set(nc) -> dict:
+        """Evaluate, and return the patches to judge and draw again: every
+        one whose verdict changed, and every suspect whose comparisons or
+        figures changed, since its card shows them (review of beta 11: a
+        card kept the figures of the strip that first made it red)."""
+        changed = nc.evaluate()
+        for loc, f in nc.updated().items():
+            if f.suspect:
+                changed.setdefault(loc, f)
+        return changed
+
+    def _neighbour_forget(self, locs) -> None:
+        """These patches have no reading any more (set aside by "Was a strip
+        read twice?"): forget them and redraw the patches whose verdict that
+        changes, the forgotten ones included."""
+        nc = getattr(self, "_nb_check", None)
+        locs = [str(x) for x in (locs or ()) if x]
+        if nc is None or not locs or not self._neighbour_check_applies():
+            return
+        try:
+            for loc in locs:
+                nc.forget(loc)
+            self._neighbour_rejudge(self._neighbour_redraw_set(nc), set())
+            self._apply_flag_rejudge(live=False)
+        except Exception:      # noqa: BLE001 — never lose the outlines
+            log.debug("could not forget the set-aside readings", exc_info=True)
 
     def _neighbour_suspect(self, loc):
         """*loc*'s finding when the neighbour check suspects it, else None."""
@@ -15745,13 +15783,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         f = nc.finding(str(loc))
         return f if f is not None and f.suspect else None
 
-    @staticmethod
-    def _neighbour_extra(f) -> dict:
-        """The hover card's facts about a neighbour suspect (None: not one)."""
+    def _neighbour_extra(self, f) -> dict:
+        """The hover card's facts about a neighbour suspect (None: not one),
+        with the buffer it was judged against."""
         if f is None:
             return {"neighbour": None}
+        nc = getattr(self, "_nb_check", None)
+        from workflow.neighbour_check import BUFFER_DE
         return {"neighbour": {"n": len(f.compared), "locs": list(f.compared),
                               "excess": float(f.excess),
+                              "buffer": float(getattr(nc, "buffer", BUFFER_DE)),
                               "expected": float(f.expected_de),
                               "measured": float(f.measured_de)}}
 

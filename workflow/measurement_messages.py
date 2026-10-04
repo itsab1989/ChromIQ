@@ -2002,15 +2002,19 @@ M_PATCH_EXPECTED_PREDICTED = _m(
 #: (workflow/neighbour_check.py). The words are ours and wait here. The card
 #: breaks its lines by hand, so each line is one line on the card. {n} is 3 or
 #: 4 (never fewer: a patch with fewer comparisons is not judged), so no
-#: language needs a singular form. {expected} is the median distance between
-#: its expected colour and theirs, {measured} between its reading and theirs,
-#: whole numbers (ΔE*ab).
+#: language needs a singular form. {excess} is the median of how much further
+#: its reading is from each of theirs than its expected colour is from theirs,
+#: the very figure the buffer is compared with, and {buffer} the user's buffer
+#: (ΔE*ab, one decimal each). The review of beta 11 replaced "they should read
+#: within ΔE {expected} of it, / but it reads ΔE {measured} away from them.":
+#: two separate medians, whose difference was not over the buffer on 180 of
+#: 466 suspects of the real sheets, so the card seemed to contradict itself.
 _CARD_NB_RED = "Red outline: it does not fit its neighbours"
 _CARD_NB_1 = "Its reading does not fit the {n} patches"
 _CARD_NB_1_ALSO = "It also does not fit the {n} patches"
 _CARD_NB_2 = "nearest in colour, read in other strips:"
-_CARD_NB_3 = "they should read within ΔE {expected} of it,"
-_CARD_NB_4 = "but it reads ΔE {measured} away from them."
+_CARD_NB_3 = "it is ΔE {excess} further from their readings"
+_CARD_NB_4 = "than the expected colours are (your limit {buffer})."
 _CARD_NB_5 = "Probably a misread."
 #: A yellow card (a re-read gave the same colour, similar patches, or a
 #: learned range) of a patch the limit did not flag: instead of "ΔE*ab ...
@@ -2033,7 +2037,7 @@ M_PATCH_NEIGHBOUR = _m(
 #: lines only where the check applies (a profiling chart with estimated
 #: expected colours); the strip lines only when "Was a strip read twice?" ran
 #: (strips read with ChromIQ's engine, outside guided refinement). {locs}:
-#: the patches in reading order, the first ten and then "…". {list}: the
+#: the patches in chart order, the first ten and then "…". {list}: the
 #: strips, each with its item line.
 #: The headline names the block in the model; the window shows its lines
 #: under the reading-time summary without it.
@@ -2043,10 +2047,15 @@ _SUM_NB_RED_ONE = ("Neighbour check: 1 suspected misread, patch {locs}. "
                    "Read it again before you build the profile.")
 _SUM_NB_RED = ("Neighbour check: {n} suspected misreads, patches {locs}. "
                "Read them again before you build the profile.")
-_SUM_NB_KEPT_ONE = ("1 more patch was read again with the same result, so "
-                    "it is taken as real.")
-_SUM_NB_KEPT = ("{n} more patches were read again with the same result, so "
-                "they are taken as real.")
+_SUM_NB_KEPT_ONE = ("1 patch it flagged was read again with the same "
+                    "result, so it is taken as real.")
+_SUM_NB_KEPT = ("{n} patches it flagged were read again with the same "
+                "result, so they are taken as real.")
+#: Instead of "no suspected misreads" when not one patch could be checked (a
+#: small chart, or one read only in part): nothing was found because nothing
+#: could be looked at (review of beta 11).
+_SUM_NB_NONE_CHECKED = ("Neighbour check: none of the {total} patches had "
+                        "enough patches near in colour to be checked.")
 _SUM_NB_PARTLY = ("{checked} of {total} patches had enough patches near in "
                   "colour to be checked.")
 _SUM_TWICE_NONE = "Strip read twice: none found."
@@ -2059,7 +2068,7 @@ M_MEASURED_SUSPECTS = _m(
     "M-MEASURED-SUSPECTS",
     _SUM_HEADLINE,
     "\n".join((_SUM_NB_NONE, _SUM_NB_RED_ONE, _SUM_NB_RED, _SUM_NB_KEPT_ONE, _SUM_NB_KEPT,
-               _SUM_NB_PARTLY, _SUM_TWICE_NONE, _SUM_TWICE_ONE, _SUM_TWICE,
+               _SUM_NB_PARTLY, _SUM_NB_NONE_CHECKED, _SUM_TWICE_NONE, _SUM_TWICE_ONE, _SUM_TWICE,
                _SUM_TWICE_REREAD, _SUM_TWICE_WAS_LIKE, _SUM_TWICE_KEPT)),
     approved=False)
 

@@ -146,8 +146,12 @@ def test_a_misread_below_the_limit_is_red_with_its_own_card(qapp, tmp_path):
     lines = _card(info)
     assert M._CARD_NB_RED in lines
     assert M._CARD_NB_5 in lines and M._CARD_RED_READ_AGAIN in lines
-    assert any(l.startswith("they should read within ΔE ") for l in lines)
-    assert any(l.startswith("but it reads ΔE ") for l in lines)
+    # Exact (review of beta 11): the very figure the buffer is compared
+    # with, and the buffer, so the card cannot seem to contradict itself.
+    f = tab._nb_check.finding("D6")
+    assert f.excess > 10.0
+    assert M._CARD_NB_3.format(excess=f"{f.excess:.1f}") in lines
+    assert M._CARD_NB_4.format(buffer="10.0") in lines
     assert not any("reached your limit" in l for l in lines)
 
 
@@ -270,3 +274,103 @@ def test_suspects_off_alike_in_other_strips_confirm_each_other(qapp,
     lines = _card(_info(tab, "D6"))
     assert M._CARD_PEER_1 in lines and M._CARD_NB_YELLOW in lines
     assert tab.neighbour_summary_facts()["red"] == []
+
+
+# ---- review of beta 11 ------------------------------------------------------
+
+def test_the_card_follows_its_comparisons_after_later_strips(qapp, tmp_path):
+    """D6 turns red after strip E; strip F changes its comparisons and its
+    figure without changing the verdict. The card shows the figures of now,
+    not those of strip E (review of beta 11)."""
+    tab = _tab(tmp_path)
+    seen = []
+    for c in STRIPS:
+        tab._on_strip_measured(_strip(c, {"D6": 0.55}))
+        f = tab._nb_check.finding("D6")
+        if f is not None and f.suspect:
+            seen.append(round(f.excess, 1))
+            nb = _info(tab, "D6")["neighbour"]
+            assert nb["locs"] == list(f.compared)
+            assert nb["excess"] == pytest.approx(f.excess)
+    assert len(set(seen)) > 1          # the figure did change on the way
+
+
+def test_the_card_shows_the_users_buffer(qapp, tmp_path):
+    tab = _tab(tmp_path, settings={"patch_neighbour_buffer_de": 7.5})
+    _read_all(tab, {"D6": 0.55})
+    lines = _card(_info(tab, "D6"))
+    assert M._CARD_NB_4.format(buffer="7.5") in lines
+
+
+def test_nothing_checked_is_not_called_no_misreads(qapp, tmp_path):
+    """One strip read: no patch has a comparison in another strip, so the
+    closing window says nothing could be checked, not "no suspected
+    misreads"."""
+    tab = _tab(tmp_path)
+    tab._on_strip_measured(_strip("A"))
+    facts = tab.neighbour_summary_facts()
+    assert facts["checked"] == 0 and facts["total"] == PER
+    lines = tab._misread_summary().splitlines()
+    assert lines == [M._SUM_NB_NONE_CHECKED.format(total=PER)]
+
+
+def test_kept_without_red_does_not_say_more(qapp, tmp_path):
+    tab = _tab(tmp_path)
+    _read_all(tab, {"D6": 0.55})
+    tab._on_strip_measured(_strip("D", {"D6": 0.55}))
+    lines = tab._misread_summary().splitlines()
+    assert lines[:2] == [M._SUM_NB_NONE, M._SUM_NB_KEPT_ONE]
+    assert "more" not in M._SUM_NB_KEPT_ONE and "more" not in M._SUM_NB_KEPT
+
+
+class _AsideManager:
+    """The manager's side of "Was a strip read twice?" for one question."""
+
+    def __init__(self, strip, like, locs):
+        self.pending = [(strip, like)]
+        self.aside = set()
+        self.locs = set(locs)
+        self.engine_active = True
+
+    def read_twice_pending(self):
+        return self.pending[0] if self.pending else None
+
+    def answer_read_twice(self, choice):
+        self.pending.pop(0)
+        if choice in ("reread", "was_like"):
+            self.aside = set(self.locs)
+
+    def set_aside_locs(self):
+        return set(self.aside)
+
+
+@pytest.mark.parametrize("choice", ["reread", "was_like"])
+def test_a_reading_set_aside_leaves_the_neighbour_check_at_once(
+        qapp, tmp_path, monkeypatch, choice):
+    """Strip E was read where strip D's colours are (the reader on the wrong
+    strip): its readings are misfits. Answered "read again" or "it was
+    strip D", they are set aside: the neighbour check forgets them at once
+    (review of beta 11), so they are no suspects in the closing window and
+    compare with nothing, before E is read again."""
+    tab = _tab(tmp_path)
+    for c in STRIPS:
+        ev = _strip(c)
+        if c == "E":
+            for p, q in zip(ev["patches"], _strip("A")["patches"]):
+                p["xyz"] = q["xyz"]
+        tab._on_strip_measured(ev)
+    e_locs = [f"E{n}" for n in range(1, PER + 1)]
+    assert set(tab.neighbour_summary_facts()["red"]) & set(e_locs)
+    mgr = _AsideManager("E", "A", e_locs)
+    tab._manager = mgr
+    tab._session_live = True
+    monkeypatch.setattr(type(tab), "_a_question_is_open", lambda self: False)
+    monkeypatch.setattr(type(tab), "_strip_read_twice_window",
+                        lambda self, strip, like: choice)
+    tab._ask_read_twice()
+    facts = tab.neighbour_summary_facts()
+    assert not set(facts["red"]) & set(e_locs)
+    assert facts["total"] == (len(STRIPS) - 1) * PER
+    assert not any(tab._nb_check.is_suspect(x) for x in e_locs)
+    assert not set(_red(tab)) & set(e_locs) or all(
+        _info(tab, x)["neighbour"] is None for x in e_locs)

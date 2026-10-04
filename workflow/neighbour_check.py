@@ -293,6 +293,7 @@ class NeighbourCheck:
                     for user in self._users.get(x, ()):
                         if user in pos:
                             todo.add(pos[user])
+        old = {locs[i]: self._findings.get(locs[i]) for i in todo}
         if n and todo:
             self._judge_rows(locs, pos, exp, meas, np.array(sorted(todo)))
         changed = {}
@@ -300,7 +301,18 @@ class NeighbourCheck:
             now = self._findings.get(loc, NeighbourFinding(loc))
             if before.get(loc, False) != now.suspect:
                 changed[loc] = now
+        #: Every finding this evaluation changed in any way (its comparisons
+        #: or its figures, not only its verdict): a suspect's card shows
+        #: them (review of beta 11, :meth:`updated`).
+        self._updated = {loc: self._findings[loc] for loc, f in old.items()
+                         if loc in self._findings and self._findings[loc] != f}
+        self._updated.update(changed)
         return changed
+
+    def updated(self) -> "dict[str, NeighbourFinding]":
+        """``{loc: finding}`` for every patch whose finding the last
+        evaluation changed in any way, verdict or not."""
+        return dict(getattr(self, "_updated", {}))
 
     def _set_list(self, loc: str, new: tuple) -> None:
         """*loc* now compares with *new* (locations, nearest first)."""

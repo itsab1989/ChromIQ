@@ -596,10 +596,12 @@ class _PatchInfoTile(QWidget):
         def nb_lines(first: str) -> None:
             rows.append((None, tr(first).format(n=int(nb.get("n", 0)))))
             rows.append((None, tr(_mm._CARD_NB_2)))
+            # The very figure the buffer is compared with, and the buffer
+            # (review of beta 11: two separate medians did not add up).
             rows.append((None, tr(_mm._CARD_NB_3).format(
-                expected=f"{float(nb.get('expected', 0.0)):.0f}")))
+                excess=f"{float(nb.get('excess', 0.0)):.1f}")))
             rows.append((None, tr(_mm._CARD_NB_4).format(
-                measured=f"{float(nb.get('measured', 0.0)):.0f}")))
+                buffer=f"{float(nb.get('buffer', 0.0)):.1f}")))
 
         def limit_line() -> None:
             """"ΔE ... reached your limit", or, for a patch only the
