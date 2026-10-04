@@ -502,6 +502,11 @@ def test_the_seed_is_clamped_to_the_box(qapp, tmp_path, monkeypatch):
     if tab._manual_auto_patches_check is not None:
         tab._manual_auto_patches_check.setChecked(False)
     assert tab._gamut_manual_colour_count() is None, "no chart, no default"
+    # The untick above queues the debounced command preview, which reads far
+    # more of the chart than this stand-in carries. Put the real one back
+    # before that timer can fire at teardown (gate 2 of beta 8: an
+    # AttributeError on 'P'.device_type, one run in two).
+    monkeypatch.undo()
 
 
 def test_auto_fill_the_pages_is_untouched(qapp, tmp_path, monkeypatch):
