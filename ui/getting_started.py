@@ -107,7 +107,10 @@ def _steps() -> "list[tuple[str, str]]":
          # Knut, #202 5952802491: when to start sliding, on every card that
          # walks through measuring.
          + " " + tr("With an instrument that reads strips, start sliding when "
-                    "you hear the beep, not at the press of its button.")),
+                    "you hear the beep, not at the press of its button.")
+         # Knut, #182 5980576263: red and yellow, in one sentence each.
+         + " " + tr("A patch outlined in red may be a misread: read it again. One "
+                    "outlined in yellow is confirmed as real: keep it.")),
         (tr("4. Build Profile"),
          tr("Turn the measurements into an ICC profile with “Build Profile”, "
             "then install it if you want to use it straight away.")),

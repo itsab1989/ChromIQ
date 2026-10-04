@@ -60,8 +60,7 @@ def _run2_like_result():
 
 def _plan(res, thr=2.0):
     from workflow.refine_plan import build_plan, parse_patches
-    return build_plan(parse_patches("", res.patch_errors), thr, frozenset(),
-                      "ΔE00")
+    return build_plan(parse_patches("", res.patch_errors), thr, "ΔE00")
 
 
 def test_the_start_over_note_is_translated_and_has_no_em_dash(german):

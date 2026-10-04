@@ -35,7 +35,7 @@ def _knut(name: str, thr: float):
     m = _SUMMARY_RE.search(text)
     res = ProfcheckResult(avg_de=float(m.group(2)), peak_de=float(m.group(1)),
                           raw_log=text)
-    return res, build_plan(parse_patches(text), thr, frozenset(),
+    return res, build_plan(parse_patches(text), thr,
                            de_name_for(text, "-k"))
 
 
@@ -114,6 +114,16 @@ def _clipped(dlg) -> list[str]:
                 bad.append(f"button {b.text()!r} overlaps {other_text!r}")
         rects.append((b.text(), rect))
     return bad
+
+
+@pytest.fixture(autouse=True)
+def _a_screen_with_room(monkeypatch):
+    """These tests prove that nothing is clipped when the screen has room for
+    the whole text (offscreen's own screen is 800x600). The small-screen case,
+    where the lists scroll, is test_check_refine_result_window_fits_the_screen."""
+    from PyQt6.QtCore import QRect
+    import ui.tabs.tab_check_refine as cr
+    monkeypatch.setattr(cr, "_screen_room", lambda _w: QRect(0, 0, 4000, 4000))
 
 
 @pytest.fixture(params=["en", "de"])

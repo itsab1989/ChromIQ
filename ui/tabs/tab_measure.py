@@ -1111,6 +1111,35 @@ _OVERLAY_TIP_BODY = (
     "layout), open it in Tools ▸ Inspect a measurement to see the numbers "
     "instead.")
 
+#: Knut, #182 5980576263: the overlay's help tells red and yellow apart, says
+#: what the limits do, and that Check & Refine judges on its own. The same
+#: words as the hover help's (one translation each).
+_OVERLAY_TIP_COLOURS = (
+    "A red outline marks a patch whose reading is far from the colour "
+    "the chart expects. It may be a misread, so read it again. A "
+    "yellow outline marks a large difference that is known to be real: "
+    "a re-read gave the same colour, similar patches in other strips "
+    "are off in the same way, or its colour range has learned that the "
+    "printer struggles there. Keep it, and do not read it again. Turn "
+    "on “Show patch values on hover” and point at a patch to see "
+    "which, and why.")
+_OVERLAY_TIP_LIMITS = (
+    "The outlines follow your limits in Preferences ▸ Measurement and "
+    "are worked out again whenever something could change them: after "
+    "every strip or patch you read, when a measurement ends, when you "
+    "come back to the Measure tab, and when you change the limits and "
+    "press OK. A lower limit outlines more patches, and can let "
+    "similar patches confirm each other; a higher limit outlines "
+    "fewer. A patch a re-read confirmed is never forgotten: it is "
+    "yellow again whenever the limit outlines it. The outlines never "
+    "change your measurements.\n"
+    "\n"
+    "Check & Refine judges on its own and ignores these outlines. It "
+    "checks every patch through the profile built from the "
+    "measurement, and every large error it finds counts towards what "
+    "it recommends re-measuring, whether it is outlined red, yellow or "
+    "not at all here.")
+
 #: Which chartread options the GUIDED module offers. Everything else is Manual
 #: only, and Guided keeps a good fixed default for it (#160).
 #:
@@ -2945,7 +2974,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         overlay_row.addStretch()
         self._overlay_tip = TooltipButton(
             tr("Show overlay from existing measurement"),
-            tr(_OVERLAY_TIP_BODY), left)
+            tr(_OVERLAY_TIP_BODY) + "\n\n" + tr(_OVERLAY_TIP_COLOURS)
+            + "\n\n" + tr(_OVERLAY_TIP_LIMITS), left)
         self._overlay_tip.setVisible(False)
         overlay_row.addWidget(self._overlay_tip)
         cg.addLayout(overlay_row)
@@ -3113,13 +3143,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "readings. (Screen colours are approximate; the numbers in your "
             "file are exact.)")
             # Knut, #182 5956210745: both help texts cover the red outline.
-            + "\n\n" + tr(
-            "A red outline around a patch marks a large difference between "
-            "the colour the chart asked for and the colour that was measured. "
-            "It is a reason to look, not proof of a mistake: it can be a "
-            "misread, or a design colour your printer, ink and paper cannot "
-            "reach. Turn on “Show patch values on hover” and point at the "
-            "patch to see which, and its help explains what to do."),
+            # Knut, #182 5980576263: red and yellow told apart.
+            + "\n\n" + tr(_OVERLAY_TIP_COLOURS),
             row))
         show_row.addStretch(1)
         v.addLayout(show_row)
@@ -3209,18 +3234,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # outline, in its own paragraph so the one above keeps its
             # translations.
             + "\n\n" + tr(
-            "A yellow outline means the large difference is known to be real. "
-            "Either the patch was read again and gave the same colour (within "
-            "ΔE 3), or its colour range has learned: three patches of that "
-            "range (greys by lightness, other colours by hue), at least ΔE 6 "
-            "apart, were each read again and gave the same colour, and this "
-            "one is off in the same way, as much or more. It is not a "
-            "misread and does not need reading again; the card says which of "
-            "the two it is, and on a red patch how far its range has got. "
-            "Which patches were confirmed is kept with the "
-            "measurement, so they stay yellow after it ends and when you "
-            "resume it; a completely new read starts without yellow "
-            "patches."),
+            "A yellow outline means the large difference is real, not a "
+            "misread: keep it for the profile, and there is no need to read it "
+            "again. A patch turns yellow in one of three ways, and its card "
+            "says which:\n"
+            "  • confirmed by a re-read: it was read again and gave the same "
+            "colour (within ΔE 3);\n"
+            "  • confirmed by similar patches: patches in other strips that "
+            "should have nearly the same colour (less than ΔE 6 apart) were "
+            "read off in the same way, which is as good as reading it twice;\n"
+            "  • learned from its colour range: three patches of its range "
+            "(greys by lightness, other colours by hue) were confirmed, so the "
+            "range has learned that the printer struggles there, and this "
+            "patch is off in the same way, as much or more.\n"
+            "Which patches were confirmed is kept with the measurement, so "
+            "they stay yellow after it ends and when you resume it; a "
+            "completely new read starts without yellow patches.")
+            # Knut, #182 5980576263: what the limits do, and Check & Refine.
+            + "\n\n" + tr(_OVERLAY_TIP_LIMITS),
             row)
         om_row.add_group(tile, tile_tip)
         v.addWidget(om_row)
@@ -3538,7 +3569,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         m_overlay_row.addStretch()
         self._m_overlay_tip = TooltipButton(
             tr("Show overlay from existing measurement"),
-            tr(_OVERLAY_TIP_BODY), left)
+            tr(_OVERLAY_TIP_BODY) + "\n\n" + tr(_OVERLAY_TIP_COLOURS)
+            + "\n\n" + tr(_OVERLAY_TIP_LIMITS), left)
         self._m_overlay_tip.setVisible(False)
         m_overlay_row.addWidget(self._m_overlay_tip)
         mcg.addLayout(m_overlay_row)
@@ -14966,14 +14998,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _rewrite_memory_after_repaint(self) -> None:
         """Bring the memory file into line with the outlines just judged again.
 
-        Check & Refine leaves out the patches that file calls confirmed
-        (``confirmed_locations``), and its ``peer`` entries were worked out at
-        the limit of the session that wrote it. After a limit change the
-        preview shows other patches confirmed by similar patches, and Check &
-        Refine would offer for re-measuring patches the card says to keep (or
-        leave out ones the preview no longer confirms). Rewritten only for the
-        measurement the memory on hand describes, only when it changed, and
-        never during a session (k22 review)."""
+        Its ``peer`` entries were worked out at the limit of the session that
+        wrote it; after a limit change the preview shows other patches
+        confirmed by similar patches, and the record would name ones the
+        preview no longer confirms. (Check & Refine never reads this file,
+        Knut #182 5980560281.) Rewritten only for the measurement the memory
+        on hand describes, only when it changed, and never during a session
+        (k22 review)."""
         if getattr(self, "_session_live", False):
             return
         ti3 = getattr(self, "_memory_for", None)

@@ -571,6 +571,7 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("paper cannot reach, not a misread.")))
             rows.append((None, ""))
             rows.append((None, tr("Keep it for the profile.")))
+            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
             if rng in _mm.RANGE_NAMES:
                 rows.append((None, ""))
                 add_range_line()
@@ -591,6 +592,7 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("paper cannot reach, not a misread.")))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Keep it for the profile.")))
+            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
             if rng in _mm.RANGE_NAMES:
                 # A confirmed patch stays yellow whether its range has
                 # learned or not; the card says how far the range has got.
@@ -619,6 +621,8 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_2)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_3)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_4)))
+            rows.append((None, ""))
+            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
         elif info.get("warn"):
             rows.append((None, "─" * 30))
             # Not "likely misread" alone (Knut, #182 5956210745): a large
@@ -655,6 +659,7 @@ class _PatchInfoTile(QWidget):
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Either a misread, or a colour")))
             rows.append((None, tr("this printer and paper cannot reach.")))
+            rows.append((None, tr(_mm._CARD_RED_READ_AGAIN)))   # Knut 5980576263
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Same value after a re-read:")))
             rows.append((None, tr("it is real, keep it for the profile.")))
