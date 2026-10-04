@@ -92,6 +92,9 @@ if PLAN.get("kind") == "verification":
     for ext in (".ti1", ".ti2", ".cht", ".ps", ".channels.json"):
         if (run / f"{P}{ext}").exists():
             shutil.copy2(run / f"{P}{ext}", vd / f"{P}-verify{ext}")
+    # The chart's page images (the preview and the measurement need them).
+    for tif in run.glob(f"{P}*.tif"):
+        shutil.copy2(tif, vd / (f"{P}-verify" + tif.name[len(P):]))
     from datetime import datetime as _dt
     (vd / f"{P}-verify.print.json").write_text(json.dumps({
         "printed_at": _dt.now().isoformat(timespec="seconds"),
@@ -238,7 +241,10 @@ def script(d):
     yield from windows(3)
     labels = [s["strip"] for s in t._manager._session_strips]
     d.note(f"session started; {len(labels)} strips (plan: "
-           f"{len({s['strip'] for s in PLAN['steps']})})")
+           f"{len({s['strip'] for s in PLAN['steps']})}); now: limit "
+           f"{t._patch_warn_limit()}, neighbour check "
+           f"{t._neighbour_check_applies()}, fence {t._use_outlier_fence()}, "
+           f"predicted {t._expected_is_predicted()}")
     photos = {}
     for ph in PLAN["photos"]:
         photos.setdefault(ph["after_step"], []).append(ph)

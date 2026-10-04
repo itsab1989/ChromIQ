@@ -186,7 +186,9 @@ def run_case(chart_name, printer, fault, seed=1, *, buffer=10.0) -> dict:
         o = after.get(l, "")
         res = ("green" if o == "green" else "still_red" if o == "red"
                else "yellow" if o.startswith("yellow") else "none")
-        grp = ("untouched" if l not in aff else
+        # A patch "Was a strip read twice?" already had re-read holds its
+        # true colour now: no longer a misread.
+        grp = ("untouched" if l not in aff or l in by_twice else
                "misread" if case.target == "reading" else "print")
         fate[grp][res] += 1
         if grp == "print" and res == "green":
@@ -209,6 +211,15 @@ def run_case(chart_name, printer, fault, seed=1, *, buffer=10.0) -> dict:
         "flagged": len(hit) if case.target == "print" else None,
         "false_red": len(false_red),
         "false_red_locs": sorted(false_red)[:20],
+        # Red at some moment of the pass on a patch the fault did not touch,
+        # but no longer red at its end (judged early with few comparisons, or
+        # turned yellow by a confirmation): a red the user sees for a while.
+        "transient_false": len([l for l in first_red
+                                if l not in aff and l not in red_set]),
+        "transient_false_by": {k: sum(1 for l, why in first_reason.items()
+                                      if l not in aff and l not in red_set
+                                      and why == k)
+                               for k in ("limit", "neighbour", "both")},
         "hit_by": dict(hit_by), "false_by": dict(false_by),
         "first_red_by": dict(first_by),
         "fence_hid": len(emu.fence_hid), "fence_hid_affected": len(emu.fence_hid & set(aff)),

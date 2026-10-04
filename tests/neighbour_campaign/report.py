@@ -108,8 +108,9 @@ def tables(rows: list) -> str:
         L.append(f"| {ch} | {kind} | " + " | ".join(cells) + f" | {fr:.2f} |")
     # clean, by printer and kind, by rule
     L += ["", "## Clean measurements (fault `none`): red per case by rule", "",
-          "| kind | printer | cases | red per case | by limit | by neighbour | both | max | patches checked |",
-          "|---|---|---|---|---|---|---|---|---|"]
+          "| kind | printer | cases | red per case | by limit | by neighbour | both | max "
+          "| red for a while, gone by the end (limit / neighbour) | patches checked |",
+          "|---|---|---|---|---|---|---|---|---|---|"]
     for kind in kinds:
         for pr in sorted({r["printer"] for r in ok}):
             rs = [r for r in ok if r["printer"] == pr and r["fault"] == "none"
@@ -122,7 +123,10 @@ def tables(rows: list) -> str:
             tot = sum((r["summary_end"] or {}).get("total", 0) for r in rs)
             L.append(f"| {kind} | {pr} | {len(rs)} | {np.mean(reds):.2f} | "
                      f"{fb['limit']:.2f} | {fb['neighbour']:.2f} | {fb['both']:.2f} | "
-                     f"{max(reds)} | {_pct(chk, tot)} |")
+                     f"{max(reds)} | "
+                     f"{_sum(rs, 'transient_false_by', 'limit') / len(rs):.2f} / "
+                     f"{(_sum(rs, 'transient_false_by', 'neighbour') + _sum(rs, 'transient_false_by', 'both')) / len(rs):.2f} | "
+                     f"{_pct(chk, tot)} |")
     # timing
     L += ["", "## When a misread turns red (strips after its own; i1Pro charts)", "",
           "| fault | size | caught | own strip | 1-5 later | 6-20 later | >20 later | median place in the pass |",
