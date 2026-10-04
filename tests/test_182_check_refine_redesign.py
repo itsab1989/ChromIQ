@@ -180,7 +180,11 @@ def test_a_small_mix_is_not_called_a_blend():
     assert rp.blend_partner(by["K3"], by) == ""
 
 
-@pytest.mark.parametrize("text, thr", [(RUN2, 2.0), (RUN2, 3.0), (RUN3, 2.0)])
+# Named ids: the default id is the whole profcheck text, which pytest puts in
+# PYTEST_CURRENT_TEST, and Windows refuses an environment variable over 32767
+# characters (the first CI run there errored at setup and teardown).
+@pytest.mark.parametrize("text, thr", [(RUN2, 2.0), (RUN2, 3.0), (RUN3, 2.0)],
+                         ids=["run2-2.0", "run2-3.0", "run3-2.0"])
 def test_no_false_blend_on_knuts_real_runs(text, thr):
     """His full re-read of run2 confirms every patch was read correctly."""
     plan = _plan(text, thr)

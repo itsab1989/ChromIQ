@@ -37,9 +37,20 @@ import contextlib
 import os
 import subprocess
 import sys
-import termios
 import time
-import tty
+
+import pytest
+
+if sys.platform == "win32":
+    # The real thing under these tests is the PTY branch of
+    # `ArgyllRunner.write_stdin`, which Windows does not have (chartread runs
+    # behind a pipe there, `core/argyll_runner.py`). Skipping is the honest
+    # answer: there is no pty on Windows to put under the tab.
+    pytest.skip("drives a real pty (termios/tty), which Windows does not have",
+                allow_module_level=True)
+
+import termios  # noqa: E402
+import tty      # noqa: E402
 
 #: A child that is alive and does not read its stdin, so every byte ChromIQ
 #: writes stays in the pty for this process to read. `is_running` only asks

@@ -250,6 +250,15 @@ class ReplaySession:
     def finish(self, timeout: float = 10.0) -> int:
         try:
             return self.proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            # SAY what it was doing. The first Linux CI run had ~60 of these
+            # as a bare TimeoutExpired and nothing to go on (CLAUDE.md: a
+            # timeout says "did not finish", not a crash).
+            with self._lock:
+                tail = self.raw_lines[-15:]
+            raise AssertionError(
+                f"the helper did not exit within {timeout}s of being told to "
+                f"finish; its last output:\n" + "\n".join(tail)) from None
         finally:
             if self.proc.poll() is None:
                 self.proc.kill()

@@ -98,7 +98,11 @@ def _floor(lang, out_dir):
             # own labels, and Russian, Japanese and Chinese do not survive a
             # guess (tests/test_encoding_is_named.py).
             encoding="utf-8", timeout=PROBE_TIMEOUT,
-            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
+            # The probe's stdout/stderr in UTF-8 on every system: on Windows
+            # it is the ANSI code page otherwise, and an em dash in a log line
+            # came back as an undecodable 0x97 (first CI run).
+            env={**os.environ, "QT_QPA_PLATFORM": "offscreen",
+                 "PYTHONIOENCODING": "utf-8"})
     except subprocess.TimeoutExpired:
         pytest.fail(f"the floor probe for {lang!r} did not finish within "
                     f"{PROBE_TIMEOUT}s — that is a hang, not a failed check")
@@ -149,7 +153,8 @@ def _assert_fits(res):
     assert not grew, f"{lang}: opening Advanced widens the window — " + "; ".join(grew)
     assert res["worst"] <= SMALLEST_SCREEN - HEADROOM, (
         f"{lang} needs {res['worst']}px ({res['worst_state']}) — under "
-        f"{HEADROOM}px of headroom on a {SMALLEST_SCREEN}px screen")
+        f"{HEADROOM}px of headroom on a {SMALLEST_SCREEN}px screen"
+        f"; widest: {res.get('widest_widgets')}")
     # …AND THE OTHER DIMENSION, which this sweep did not ask about when the
     # window became two panels. It came out with a floor of 675 logical pixels
     # on a Windows 11 VM and 716 measured here, against the 672 a 1920x1080

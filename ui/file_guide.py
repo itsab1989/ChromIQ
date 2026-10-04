@@ -65,7 +65,12 @@ _TREE_GAP = "   "        # a level that has already ended
 
 #: The families the tree column asks for, most-wanted first. Every one of them
 #: draws all four connector pieces at the same width; the UI font does not.
-_MONO = "Menlo,Monaco,'Courier New',monospace"
+#: DejaVu Sans Mono and Liberation Mono are for Linux, which has neither the
+#: Mac's faces nor Courier New: Qt's rich text does not resolve the generic
+#: `monospace`, so without them the diagram was drawn crooked there (first
+#: Linux CI run, 2026-10-04).
+_MONO = ("Menlo,Monaco,'Courier New','DejaVu Sans Mono','Liberation Mono',"
+         "monospace")
 
 
 def _structure():

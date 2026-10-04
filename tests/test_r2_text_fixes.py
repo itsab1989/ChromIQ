@@ -40,6 +40,7 @@ def _three_runs(tmp_path):
     return make(tmp_path)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="a folder cannot be made unwritable with chmod on Windows (it only sets the read-only attribute, which folders ignore)")
 def test_r2_1_the_refusal_is_a_message_with_a_headline(tmp_path):
     """MUTATION, proven red: raise the refusal with `reason=` only (as it
     was) and `message` is None."""

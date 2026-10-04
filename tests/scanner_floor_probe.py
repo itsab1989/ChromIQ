@@ -449,6 +449,20 @@ def measure(app, lang, out_dir):
 
     worst_state, worst = max(((s[0], s[3]) for s in states),
                              key=lambda sw: sw[1])
+    # WHO asks for the width, when the answer is absurd. The first Windows CI
+    # run reported a floor of ~101,000 px in every language and nothing else
+    # to go on; the widest minimums by widget name are what to look at next.
+    widest = []
+    if worst > 5000:
+        from PyQt6.QtWidgets import QWidget
+        for w in dlg.findChildren(QWidget):
+            m = max(w.minimumWidth(), w.minimumSizeHint().width())
+            if m > 2000:
+                widest.append((m, type(w).__name__, w.objectName(),
+                               getattr(w, "text", lambda: "")()
+                               if callable(getattr(w, "text", None)) else ""))
+        widest.sort(reverse=True)
+        widest = [list(map(str, x))[:3] + [str(x[3])[:80]] for x in widest[:8]]
     worst_h_state, worst_h = max(((s[0], s[4]) for s in states),
                                  key=lambda sh: sh[1])
 
@@ -505,6 +519,7 @@ def measure(app, lang, out_dir):
         "language_applied": current_language(),
         "worst": worst,
         "worst_state": worst_state,
+        "widest_widgets": widest,
         "floors": {s[0]: s[3] for s in states},
         "worst_h": worst_h,
         "worst_h_state": worst_h_state,

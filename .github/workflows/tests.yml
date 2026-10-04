@@ -138,7 +138,8 @@ jobs:
             libcups2-dev libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 \
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xkb1 \
-            libdbus-1-3 libfontconfig1 libxrender1 cmake build-essential unzip
+            libdbus-1-3 libfontconfig1 libxrender1 cmake build-essential unzip \
+            fonts-dejavu-core
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             sudo apt-get install -y --no-install-recommends jam \
               libx11-dev libxdmcp-dev libxext-dev libxxf86vm-dev \
@@ -224,7 +225,20 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # The offscreen platform on Windows measures text with a FreeType font
+      # database of its own, which is empty unless told where the fonts are
+      # (tests/_fontcheck.py). The app on Windows uses the system's fonts, so
+      # the suite is pointed at them; without this every width, height and
+      # wrap the suite asserts on was measured against a stand-in face.
+      QT_QPA_FONTDIR: 'C:\Windows\Fonts'
     steps:
+      # Byte-for-byte checkout. The runner's git converts LF to CRLF by
+      # default, which broke every test that reads a shipped data file as
+      # bytes (the .cht assets, Knut's preset files) on the first run.
+      - name: Check out without line-ending conversion
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7

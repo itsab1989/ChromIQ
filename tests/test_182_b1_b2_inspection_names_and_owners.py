@@ -167,7 +167,10 @@ def test_measurement_inspection_is_named_and_titled_as_itself(
     assert not list(want.glob("*.pdf"))
 
 
-@pytest.mark.parametrize("unwritable", ["reports folder", "file itself"])
+@pytest.mark.parametrize("unwritable", [
+    pytest.param("reports folder", marks=pytest.mark.skipif(
+        os.name == "nt", reason="a folder cannot be made unwritable with chmod on Windows (it only sets the read-only attribute, which folders ignore)")),
+    "file itself"])
 def test_a_failed_save_keeps_the_inspection_on_screen(tmp_path, qapp,
                                                       monkeypatch, unwritable):
     """R182-1: the save error is shown; the inspection is not thrown away and
@@ -281,6 +284,7 @@ def test_profile_inspection_keeps_a_same_named_file(tmp_path, qapp,
     assert first.read_text(encoding="utf-8").startswith("Profile inspection")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="a folder cannot be made unwritable with chmod on Windows (it only sets the read-only attribute, which folders ignore)")
 def test_profile_inspection_save_error_is_not_a_read_error(tmp_path, qapp,
                                                            monkeypatch):
     import ui.dialogs.profile_info_dialog as mod

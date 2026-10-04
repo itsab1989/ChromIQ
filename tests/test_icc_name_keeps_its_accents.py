@@ -461,6 +461,10 @@ def test_a_failed_name_fix_never_costs_the_profile(tmp_path, dies_at):
             fh = real_open(path, *a, **k)
             if str(path).endswith(".name-fix"):
                 fh.write(b"HALF")          # some of it lands, then the disk dies
+                # Closed as the real `with` would close it after a failed
+                # write. Left open, Windows refuses the cleanup's unlink of a
+                # file this MOCK still holds, which is not what is under test.
+                fh.close()
                 raise boom
             return fh
         patch = mock.patch("builtins.open", _die)

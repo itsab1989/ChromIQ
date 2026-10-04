@@ -161,6 +161,11 @@ def test_what_the_store_does_not_hold_opens_on_the_isis_defaults(qapp, store):
         assert _state(t)[:4] == ("isis", "329x483", True, True)
     finally:
         _close(qapp, t)
+    if os.name == "nt":
+        # QSettings keys are case-insensitive on Windows, so `-P_l` IS
+        # `-p_l` there and this store (written on a Mac) cannot exist. That
+        # collision is why the app writes `-P` under `_u`.
+        return
     store.set("manual_printtarg_-p_l", "A4")
     store.set("manual_printtarg_-n_l", False)
     store.set("manual_printtarg_-P_l", False)        # the round's key

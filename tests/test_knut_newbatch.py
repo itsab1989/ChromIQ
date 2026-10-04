@@ -18,6 +18,8 @@ import pytest
 
 from ui.tooltip_button import InfoDialog
 
+_REPO = Path(__file__).resolve().parents[1]
+
 @pytest.fixture
 def settings(tmp_path):
     """A sandboxed AppSettings, pointed at a scratch working folder.
@@ -235,7 +237,7 @@ def test_g2_no_shortcut_is_hand_typed_into_a_translatable_string():
     """
     import ast
     bad = []
-    for p in sorted(Path("/Users/Basti/develop/ChromIQ/ui").rglob("*.py")):
+    for p in sorted((_REPO / "ui").rglob("*.py")):
         if p.name in _SHORTCUT_TEXT_ALLOWED:
             continue
         tree = ast.parse(p.read_text(encoding="utf-8"))
@@ -271,14 +273,14 @@ def test_g3_create_chart_help_does_not_send_you_to_the_reveal_folder_button(qapp
     in the header (top right)" for Open Project. That button moved to the
     masthead top LEFT in #130 — and a magenta folder button really is still in
     the Create Chart header top right: Reveal Folder."""
-    src = Path("/Users/Basti/develop/ChromIQ/ui/tabs/tab_chart.py").read_text(encoding="utf-8")
+    src = (_REPO / "ui" / "tabs" / "tab_chart.py").read_text(encoding="utf-8")
     assert "magenta folder button" not in src
     assert "use the folder icon to\n" not in src and \
            "use the folder icon to " not in src
 
 
 def test_g3_the_gear_is_not_at_the_top_left():
-    src = Path("/Users/Basti/develop/ChromIQ/ui/tabs/tab_profile.py").read_text(encoding="utf-8")
+    src = (_REPO / "ui" / "tabs" / "tab_profile.py").read_text(encoding="utf-8")
     assert "the gear at the top left" not in src, \
         "the settings gear is a top-RIGHT masthead child (masthead_header.py:96)"
 
