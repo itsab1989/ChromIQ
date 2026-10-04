@@ -43,6 +43,15 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
     steps:
+      # The runner's git converts LF to CRLF on checkout (core.autocrlf=true
+      # on Windows images), so every text asset in the Windows bundle (the
+      # .cht charts, Knut's preset files, the i18n catalogues) shipped with
+      # different bytes from the macOS and Linux bundles. Check out exactly
+      # what is in the repository (CI finding RB-4, 2026-10-04).
+      - name: Check out without line-ending conversion
+        shell: bash
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.dry_run && github.sha || inputs.tag || github.ref_name }}
