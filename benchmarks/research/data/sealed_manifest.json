@@ -1,0 +1,408 @@
+{
+ "generator_commit": "b1938f4e2ea9dd04266999ebcdf3c8352ae960f3",
+ "generator_dirty": false,
+ "generator_sha256": {
+  "charts.py": "d0beff648c72b8f6ecb5a34ea0fb13ce0c8bdeb9cbd5a30df701e1f20c5f8739",
+  "colour.py": "9a401711e83d37289d0e0f50d5788707a755eda2ed230db077ff32074c030835",
+  "datasets.py": "0c4a87a3aded5f528d2959dba6b991a16fce8e8a36c44bf6eb06d5d542a3d53c",
+  "noise.py": "aa1ac6683a1eea3f940c424ec4c6a0b8bcbe72b1b039d0ebafc682a3f8d6398b",
+  "printers.py": "67424a2b96049a986c656d8d4423500c84024b77ce38f3ceef317310a3bfcc55",
+  "sealed.py": "c8a8650bc5c4fcc613e9b1d757abc84f21663ef0d2f7f6221e0f896ab5e1811a",
+  "zfamily.py": "4a7675b2de923497d4573b94abbd429e3341a9246922e3c507fb774cdc70d5b7"
+ },
+ "numpy": "2.4.4",
+ "plausibility": {
+  "checked": 12,
+  "failed": 0
+ },
+ "sealed_at": "2026-10-04 23:53:33",
+ "seed_commitment": "fae286cc9bfe1189921c866fae21687164db5284783ed40eeb6d3da7e3afc0e4",
+ "slots": [
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z01-targen900",
+     "patches": 900,
+     "ti3": "Z01-targen900-typical.ti3",
+     "ti3_sha256": "3dcea0d7a085eef2ed1af3d5518c3bd829dc01b72effbd5c13de504d26fc9c7b"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z01-targen900",
+     "patches": 900,
+     "ti3": "Z01-targen900-pessimistic.ti3",
+     "ti3_sha256": "fa4a5fef5470a508712abd2d79877c3c3edcf7dc9db369eff85db44d78a18961"
+    },
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z01-targen400",
+     "patches": 400,
+     "ti3": "Z01-targen400-typical.ti3",
+     "ti3_sha256": "6cb2ce99148d4012e95cb7e3bfcce00bc5d46ed3eeb9329678928302a3c35b04"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z01-targen400",
+     "patches": 400,
+     "ti3": "Z01-targen400-pessimistic.ti3",
+     "ti3_sha256": "3fac054011bcba75d1a8b843f457c9bb6bceb0ab00fbd2992793dad533c516be"
+    }
+   ],
+   "device_rep": "RGB",
+   "id": "Z01",
+   "paper": "glossy",
+   "params_sha256": "bef8c9a3051ee1bb6166ffb2f36f37d5251b351233a47423cbb1662801708305"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z02-targen900",
+     "patches": 900,
+     "ti3": "Z02-targen900-typical.ti3",
+     "ti3_sha256": "7caebea660ca84909ad180ab8cd60640af7a5231b0e2eac8c915e7188317e923"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z02-targen900",
+     "patches": 900,
+     "ti3": "Z02-targen900-pessimistic.ti3",
+     "ti3_sha256": "32550123758156bd386cdd124d06154ed160371ddc46c2cac49d6c0eab5e5703"
+    }
+   ],
+   "device_rep": "RGB",
+   "id": "Z02",
+   "paper": "matte",
+   "params_sha256": "487c799b5274b0a14869659c40c7c39755da0b8fc5878233fd8489947f97c654"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z03-targen900",
+     "patches": 900,
+     "ti3": "Z03-targen900-typical.ti3",
+     "ti3_sha256": "7b5798d5e303d3b18fa7a7170481cc81f40c53f106305ea55aae7de45555c51b"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z03-targen900",
+     "patches": 900,
+     "ti3": "Z03-targen900-pessimistic.ti3",
+     "ti3_sha256": "da5f32397f79ff30a06a36174d59db2c0c2cf78546eee56956ea5c0f977498b9"
+    }
+   ],
+   "device_rep": "CMY",
+   "id": "Z03",
+   "paper": "any",
+   "params_sha256": "00750ddd34bd89c37f9e5f00ae04758d7896177d9bfd03c5797ce1686529a246"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z04-targen900",
+     "patches": 900,
+     "ti3": "Z04-targen900-typical.ti3",
+     "ti3_sha256": "93f89f5f2eb283968abe70478a8b8def7a090a3bd562e46bf5c73cb6e1170421"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z04-targen900",
+     "patches": 900,
+     "ti3": "Z04-targen900-pessimistic.ti3",
+     "ti3_sha256": "d3a00065487672f5e3b97e53fc5248481406153022b1be7be9f8a67369009db6"
+    },
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z04-targen400",
+     "patches": 400,
+     "ti3": "Z04-targen400-typical.ti3",
+     "ti3_sha256": "bb3d742be57dfe2ead8b8f614ab4a6372035a9211d4b54994a61aceb58e38f71"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z04-targen400",
+     "patches": 400,
+     "ti3": "Z04-targen400-pessimistic.ti3",
+     "ti3_sha256": "38a4b8d702d09d7a16139cfd7598b81e3a00ec506aba52fb275df4ebc3ddeb49"
+    }
+   ],
+   "device_rep": "CMYK",
+   "id": "Z04",
+   "paper": "glossy",
+   "params_sha256": "7231fbab4cdcf90437107623da2d4920c130302dc2327e6c4e09851ba833f90a"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z05-targen900",
+     "patches": 900,
+     "ti3": "Z05-targen900-typical.ti3",
+     "ti3_sha256": "72c8efa6fe4908fa27bb1de7182d2e0397424648640e11b281e3401c75d0d258"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z05-targen900",
+     "patches": 900,
+     "ti3": "Z05-targen900-pessimistic.ti3",
+     "ti3_sha256": "53f3d1e7b90ce1a4b54a0e518e5b224dd3c1ba44d9ab796dfd6856b0011c220a"
+    }
+   ],
+   "device_rep": "CMYK",
+   "id": "Z05",
+   "paper": "matte",
+   "params_sha256": "11461c2ab55ab9f1d249a3dba1c77c8a266e8fa3e09642b44cc86f8cc4c47208"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z06-targen1617",
+     "patches": 1617,
+     "ti3": "Z06-targen1617-typical.ti3",
+     "ti3_sha256": "48524b2651bb4c1ad8085a12ed5a6007b122b429bee88727259a47e3f93523b2"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z06-targen1617",
+     "patches": 1617,
+     "ti3": "Z06-targen1617-pessimistic.ti3",
+     "ti3_sha256": "96aaf635aaae7d18446389a45497e2a19070e0c9d3d855c7edc9dd2c43aa534f"
+    }
+   ],
+   "device_rep": "CMYK",
+   "id": "Z06",
+   "paper": "any",
+   "params_sha256": "30b07e0ea7a3017b41ac15af7148b2afd83e89e6774385c098aa5722ab0ee47e"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z07-targen1120",
+     "patches": 1120,
+     "ti3": "Z07-targen1120-typical.ti3",
+     "ti3_sha256": "a9abb45257be60349693c0ea8c73f46666b2ceac4286fff326c3f870bdd57ea8"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z07-targen1120",
+     "patches": 1120,
+     "ti3": "Z07-targen1120-pessimistic.ti3",
+     "ti3_sha256": "8f78da6697cd20ea3c5269fa7042c03c391fd1b669b72f1cc6d753c883ac2f05"
+    }
+   ],
+   "device_rep": "CMYKcm",
+   "id": "Z07",
+   "paper": "any",
+   "params_sha256": "4fa01ed337baaf87d25d9f1f69813ab5927d43ba16c75d6be555d31e4b04c1eb"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z08-targen1617",
+     "patches": 1617,
+     "ti3": "Z08-targen1617-typical.ti3",
+     "ti3_sha256": "0d3001971f6387570fdbb4d61391cbf95b91b5f9ba4b7fd16b4314493f65beec"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z08-targen1617",
+     "patches": 1617,
+     "ti3": "Z08-targen1617-pessimistic.ti3",
+     "ti3_sha256": "ab804da2968b5c0189fe99c288f5c66559f7753c1ece7822ae4970ee24801643"
+    }
+   ],
+   "device_rep": "CMYKcmk",
+   "id": "Z08",
+   "paper": "any",
+   "params_sha256": "0571829a3e1f09284b8d1a16346a51f80b960c0aa8ef211dce258e7f13c61d30"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z09-targen1120",
+     "patches": 1120,
+     "ti3": "Z09-targen1120-typical.ti3",
+     "ti3_sha256": "83d9486348611865ce0ac8546a42c7297c7a67e1e6cb7586f9627c949b54c84a"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z09-targen1120",
+     "patches": 1120,
+     "ti3": "Z09-targen1120-pessimistic.ti3",
+     "ti3_sha256": "39631a8b6e1339d01d12cf252a7341d08d028319c7cb5ee6ab20d36a4c1d397e"
+    },
+    {
+     "chart": "ecg",
+     "level": "typical",
+     "name": "Z09-ecg1120",
+     "patches": 1120,
+     "ti3": "Z09-ecg1120-typical.ti3",
+     "ti3_sha256": "fcf34a309ec7bdd1cc1a835d7d56311a22b66043da47ed2c296c26bb4ce70c88"
+    },
+    {
+     "chart": "ecg",
+     "level": "pessimistic",
+     "name": "Z09-ecg1120",
+     "patches": 1120,
+     "ti3": "Z09-ecg1120-pessimistic.ti3",
+     "ti3_sha256": "42010bcb546ae93b87bb15034caee47f817533c69ea59a82884cb8ea9cc3829e"
+    }
+   ],
+   "device_rep": "CMYKO",
+   "id": "Z09",
+   "paper": "any",
+   "params_sha256": "7541e6b17849c1c6347cd2616a43b9afc2ab8c97bd8036ddca423d781807bb46"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z10-targen1617",
+     "patches": 1617,
+     "ti3": "Z10-targen1617-typical.ti3",
+     "ti3_sha256": "df14d17211f51e9630f6bf1550503eb41a4b69a8e27455921b7b24320072a8bf"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z10-targen1617",
+     "patches": 1617,
+     "ti3": "Z10-targen1617-pessimistic.ti3",
+     "ti3_sha256": "8025bd32448d38719e00075d02c3af20c6397e98402295b93da9e6c764d4c9f5"
+    },
+    {
+     "chart": "ecg",
+     "level": "typical",
+     "name": "Z10-ecg1617",
+     "patches": 1617,
+     "ti3": "Z10-ecg1617-typical.ti3",
+     "ti3_sha256": "3616a4e97763f356d0b42933f4d7fc5b5cd75d5724dd861d8c1360fdefd06bc6"
+    },
+    {
+     "chart": "ecg",
+     "level": "pessimistic",
+     "name": "Z10-ecg1617",
+     "patches": 1617,
+     "ti3": "Z10-ecg1617-pessimistic.ti3",
+     "ti3_sha256": "c1ec150569ad85c64ef58477db8bdce52d64c334bcc22d4efb0793157adf2bd9"
+    }
+   ],
+   "device_rep": "CMYKOG",
+   "id": "Z10",
+   "paper": "any",
+   "params_sha256": "6a63c19446ab3df0a64ac1bda2fd46808a96084546d4c02e787796588b1300cb"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z11-targen1617",
+     "patches": 1617,
+     "ti3": "Z11-targen1617-typical.ti3",
+     "ti3_sha256": "2b2f13f2fcb0da4b605f27f995c348e270d904bc86e3b9f30839b680035a9586"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z11-targen1617",
+     "patches": 1617,
+     "ti3": "Z11-targen1617-pessimistic.ti3",
+     "ti3_sha256": "0e364b7e2e6b85b9fecf7675437ace21067e4883b704ecf1a06d79f4d3e6701e"
+    },
+    {
+     "chart": "ecg",
+     "level": "typical",
+     "name": "Z11-ecg1617",
+     "patches": 1617,
+     "ti3": "Z11-ecg1617-typical.ti3",
+     "ti3_sha256": "fda1dd07db7f22eba0633942b1a8f2363c1eb8d81d3a8f5bd6137541eeb9b7a7"
+    },
+    {
+     "chart": "ecg",
+     "level": "pessimistic",
+     "name": "Z11-ecg1617",
+     "patches": 1617,
+     "ti3": "Z11-ecg1617-pessimistic.ti3",
+     "ti3_sha256": "ef78beb9c29bd230bf98aa924b376315d294220702a7e5be96c0cbb691805bac"
+    }
+   ],
+   "device_rep": "CMYKOGV",
+   "id": "Z11",
+   "paper": "any",
+   "params_sha256": "b27d1704873b5445d0a3f93c9c5bb7b4618538e67b7d19fa90ac3b6b545bce23"
+  },
+  {
+   "datasets": [
+    {
+     "chart": "targen",
+     "level": "typical",
+     "name": "Z12-targen1617",
+     "patches": 1617,
+     "ti3": "Z12-targen1617-typical.ti3",
+     "ti3_sha256": "dc4665482cc89085866f2ae55f5a08ec7bd1d42d34206748569195411b3291cc"
+    },
+    {
+     "chart": "targen",
+     "level": "pessimistic",
+     "name": "Z12-targen1617",
+     "patches": 1617,
+     "ti3": "Z12-targen1617-pessimistic.ti3",
+     "ti3_sha256": "e54ddf7c7d3a71ce2d4c59f9065f295b57676df211a502cf8c78a7a92a1a18c0"
+    },
+    {
+     "chart": "ecg",
+     "level": "typical",
+     "name": "Z12-ecg1617",
+     "patches": 1617,
+     "ti3": "Z12-ecg1617-typical.ti3",
+     "ti3_sha256": "b5ce8b9988a0ca466e5acf164ca3a7daee7b7ca0a8911869de8136113eed54df"
+    },
+    {
+     "chart": "ecg",
+     "level": "pessimistic",
+     "name": "Z12-ecg1617",
+     "patches": 1617,
+     "ti3": "Z12-ecg1617-pessimistic.ti3",
+     "ti3_sha256": "d83cc5fdb497e5db2417ab821348268c970c959d7a9e53f3b9df4105f8ad2692"
+    }
+   ],
+   "device_rep": "CMYKRGB",
+   "id": "Z12",
+   "paper": "any",
+   "params_sha256": "fdb6364485e1ebdb514f17a87a8621f4caeadc6c6a2518340c714f7299935f15"
+  }
+ ],
+ "version": "sealed-v1",
+ "zfamily": "z1"
+}
