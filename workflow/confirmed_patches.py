@@ -29,12 +29,16 @@ Schema 1::
         "A23": {"kind": "confirmed", "de": 103.2, "prev_de": 102.9,
                 "exp_lab": [..], "meas_lab": [..], "shift": [..],
                 "standout": 61.0 | null},
-        "F4":  {"kind": "learned", "like": "A23"}}}
+        "F4":  {"kind": "learned", "like": "A23"},
+        "C7":  {"kind": "peer", "with": ["K2", "R9"]}}}
 
 Only ``confirmed`` entries are references (a re-read agreed with the reading
 before it). ``learned`` entries are kept for the preview and for anyone reading
 the file; they are judged again from the references every time, so they are
-never loaded back as references.
+never loaded back as references. ``peer`` entries (Knut, #182 5979886227) are
+patches that similar patches of other strips confirmed, as the session judged
+them: written for the record and for Check & Refine, and never loaded back
+either, because they are worked out again from the readings and the limit.
 """
 from __future__ import annotations
 
@@ -46,6 +50,14 @@ SCHEMA = 1
 SUFFIX = ".confirmed.json"
 KIND_CONFIRMED = "confirmed"
 KIND_LEARNED = "learned"
+KIND_PEER = "peer"
+
+#: CHECK & REFINE LEAVES OUT PATCHES CONFIRMED BY SIMILAR PATCHES too, not only
+#: the ones a re-read confirmed (recommended with Knut 5979886227, *"without
+#: being forced to re-measure all the strips"*; his question is still open,
+#: his earlier 5963903650 said "re-read"). THE ONE SWITCH: set it to False to
+#: go back to re-read confirmations only.
+CHECK_REFINE_LEAVES_OUT_PEERS = True
 MODE_STRIP = "strip"
 MODE_PATCH = "patch"
 
@@ -76,6 +88,11 @@ def _clean_entry(entry: dict) -> "dict | None":
     kind = entry.get("kind")
     if kind == KIND_LEARNED:
         return {"kind": KIND_LEARNED, "like": str(entry.get("like", ""))}
+    if kind == KIND_PEER:
+        with_ = entry.get("with", [])
+        if not isinstance(with_, (list, tuple)):
+            return None
+        return {"kind": KIND_PEER, "with": [str(v) for v in with_]}
     if kind != KIND_CONFIRMED:
         return None
 
@@ -172,18 +189,21 @@ def load(ti3_path: "str | Path") -> "dict | None":
 
 
 def confirmed_locations(ti3_path: "str | Path") -> "set[str]":
-    """The patch locations a re-read CONFIRMED for this measurement.
+    """The patch locations CONFIRMED for this measurement: by a re-read, and
+    by similar patches while ``CHECK_REFINE_LEAVES_OUT_PEERS`` is on.
 
     Validated against the file's hash: an empty set when there is no memory or
-    it belongs to a different version of the ``.ti3``. Only confirmed patches,
-    never learned ones: Check & Refine may leave out what a re-read proved, not
-    what a rule guessed.
+    it belongs to a different version of the ``.ti3``. Never learned ones:
+    Check & Refine may leave out what two readings proved, not what a rule
+    guessed.
     """
     data = load(ti3_path)
     if not data:
         return set()
+    kinds = ({KIND_CONFIRMED, KIND_PEER} if CHECK_REFINE_LEAVES_OUT_PEERS
+             else {KIND_CONFIRMED})
     return {loc for loc, e in data["patches"].items()
-            if e.get("kind") == KIND_CONFIRMED}
+            if e.get("kind") in kinds}
 
 
 def carry(src_ti3: "str | Path", before_sha: "str | None",

@@ -2592,6 +2592,10 @@ class MainWindow(QMainWindow):
         # pushed here simply never arrives.
         if hasattr(self._tab_measure, "refresh_progress_setting"):
             self._tab_measure.refresh_progress_setting()
+        # The patch-reading limits may have changed: the outlines on the
+        # preview follow at once (Knut, #182 5979886227).
+        if hasattr(self._tab_measure, "refresh_patch_flags"):
+            self._tab_measure.refresh_patch_flags()
         # Engine-only Manual rows (#123) follow the engine beta + accuracy
         # mode — the Build Profile tab stays visible while Settings is
         # open, so its showEvent alone would miss the change.

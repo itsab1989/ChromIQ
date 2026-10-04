@@ -12,9 +12,14 @@ the approved rule (k10: three confirmed patches pairwise at least ΔE 6 apart):
 * 1944 patches, magenta: F13, AV17, BA13, BM13 confirmed, all within ΔE 4.7
   of each other (the same corner colour, repeated on the chart), so one.
 
-What was missing is the card saying so: it now lists the confirmed patches
-and, when some of them count as one, says why. Knut asked for tests over
-every colour range and every card message; these are they.
+What was missing is the card saying so: it now lists the confirmed patches.
+Knut asked for tests over every colour range and every card message; these
+are they.
+
+BETA 9 (Knut 5979886227): "the four magenta patches ... count as one" was the
+wrong behaviour. The ΔE 6 spacing is gone, so run 4's blue holds three and
+learns, and the four magenta corner patches hold four. The beta-8 card lines
+explaining the spacing ("Patches closer than ΔE 6 ...") are gone with it.
 """
 from __future__ import annotations
 
@@ -126,27 +131,35 @@ def test_each_range_is_reachable_through_device_rgb():
         assert _far(fine, spacing=6.5) is not None, rng
 
 
-def test_close_confirmations_count_once_knuts_run4_blue():
-    """Knut's run 4 (#182 5969949735): A6, E1, L1, blue; A6-L1 ΔE 2.85."""
+def test_close_confirmations_each_count_knuts_run4_blue():
+    """Knut's run 4 (#182 5969949735): A6, E1, L1, blue; A6-L1 ΔE 2.85. Beta
+    9 (5979886227): all three count, the range learns."""
     exp = {"A6": (35.7, 74.0, -120.7), "E1": (39.5, 76.4, -114.3),
            "L1": (34.3, 73.3, -123.0)}
     judge = PF.FlagJudge(device_ranges={k: "blue" for k in exp})
     for loc, lab in exp.items():
         _confirm(judge, loc, lab)
     k, locs = judge.range_status("blue")
-    assert (k, locs) == (2, ("A6", "E1", "L1"))
+    assert (k, locs) == (3, ("A6", "E1", "L1"))
+    assert judge.range_learned("blue")
 
 
-def test_close_confirmations_count_once_knuts_magenta():
+def test_close_confirmations_each_count_knuts_magenta():
     """Knut's 1944-patch run (5973177088): four magenta confirmations of the
-    same corner colour count as one."""
+    same corner colour. Beta 8 counted them as one; Knut 5979886227 called
+    that wrong, so they count as four (capped at three) and the range learns."""
     exp = {"F13": (61.0, 94.3, -78.5), "AV17": (61.2, 93.6, -78.1),
            "BA13": (58.9, 92.4, -81.9), "BM13": (61.1, 94.0, -78.3)}
     judge = PF.FlagJudge(device_ranges={k: "magenta" for k in exp})
+    de = PF._norm(SHIFT)
     for loc, lab in exp.items():
-        _confirm(judge, loc, lab)
-    assert judge.range_status("magenta")[0] == 1
-    assert not judge.range_learned("magenta")
+        # the fourth is learned on its first reading (the range has learned),
+        # and confirmed by its re-read like the others
+        judge.judge(loc, lab, _meas(lab), de, True)
+        v = judge.judge(loc, lab, _meas(lab), de, True)
+        assert v.flag == PF.FLAG_CONFIRMED, loc
+    assert judge.range_status("magenta") == (3, ("F13", "AV17", "BA13", "BM13"))
+    assert judge.range_learned("magenta")
 
 
 # ---- the card: every message ---------------------------------------------------
@@ -167,46 +180,51 @@ def _card(qapp, **info):
     return [t for _sw, t in tile._rows]
 
 
-CONF = "Re-read and the same: {locs}"
+GONE = ["spaced", "Patches closer than ΔE 6 in colour",
+        "count as one confirmation, so the", "range needs more different colours.",
+        "Re-read and the same"]
 
 
-@pytest.mark.parametrize("flag, k, locs, expect, absent", [
-    # confirmed, range not learned, three confirmed of which two count
-    ("confirmed", 2, ("A6", "E1", "L1"),
+@pytest.mark.parametrize("flag, k, locs, peers, expect, absent", [
+    # confirmed by a re-read, range not learned
+    ("confirmed", 2, ("A6", "E1"), (),
      ["Yellow outline: confirmed by a re-read", "Colour range: blue",
-      "2 of 3 spaced confirmations so far", "Re-read and the same: A6, E1, L1",
-      "Patches closer than ΔE 6 in colour"], ["This range has learned."]),
-    # confirmed, every confirmation counts: no "count as one" lines
-    ("confirmed", 2, ("A6", "E1"),
-     ["2 of 3 spaced confirmations so far", "Re-read and the same: A6, E1"],
-     ["Patches closer than ΔE 6 in colour"]),
-    # confirmed, learned
-    ("confirmed", 3, ("A6", "E1", "L1", "P2"),
-     ["This range has learned."], ["spaced confirmations so far",
-                                   "Patches closer than ΔE 6 in colour"]),
+      "2 of 3 confirmations so far", "Confirmed: A6, E1"],
+     ["This range has learned.", "similar patches"] + GONE),
+    # confirmed by a re-read, learned
+    ("confirmed", 3, ("A6", "E1", "L1", "P2"), (),
+     ["This range has learned."], ["confirmations so far"] + GONE),
+    # confirmed by similar patches (beta 9, Knut 5979886227)
+    ("confirmed", 2, ("A6", "E1"), ("E1",),
+     ["Yellow outline: confirmed by similar patches",
+      "Read alike in other strips: E1", "ΔE*ab 103.0 reached your limit 80.0",
+      "A real difference this printer and", "Keep it for the profile.",
+      "Colour range: blue", "2 of 3 confirmations so far",
+      "Confirmed: A6, E1"],
+     ["confirmed by a re-read", "the reading before"] + GONE),
+    ("confirmed", 3, ("A6", "E1", "L1", "P2"), ("E1", "L1", "P2", "Q9"),
+     ["Read alike in other strips: E1, L1, P2…", "This range has learned."],
+     ["confirmations so far"] + GONE),
     # learned
-    ("learned", 3, ("F17", "K23", "V7", "AE4"),
+    ("learned", 3, ("F17", "K23", "V7", "AE4"), (),
      ["Yellow outline: judged like patch AE4", "Colour range: blue",
-      "Re-read and the same: F17, K23, V7…", "Its range has learned: three patches",
-      "so it is taken as real too."], ["spaced confirmations so far"]),
+      "Confirmed: F17, K23, V7…", "Its range has learned: three patches",
+      "of it were confirmed.", "so it is taken as real too."], GONE),
     # red, nothing confirmed in its range yet
-    ("", 0, (), ["Red outline: a large difference", "Colour range: blue"],
-     ["spaced confirmations so far", "Re-read and the same"]),
-    # red, one of three; four close ones
-    ("", 1, ("F13", "AV17", "BA13", "BM13"),
-     ["1 of 3 spaced confirmations so far",
-      "Re-read and the same: F13, AV17, BA13…",
-      "Patches closer than ΔE 6 in colour",
-      "count as one confirmation, so the",
-      "range needs more different colours."], []),
+    ("", 0, (), (), ["Red outline: a large difference", "Colour range: blue"],
+     ["confirmations so far", "Confirmed:"] + GONE),
+    # red, one of three
+    ("", 1, ("F13",), (),
+     ["1 of 3 confirmations so far", "Confirmed: F13"], GONE),
     # red, its range learned, off in another way
-    ("", 3, ("A6", "E1", "L1"),
+    ("", 3, ("A6", "E1", "L1"), (),
      ["This range has learned, but this", "one is off in a different way."],
-     ["spaced confirmations so far"]),
+     ["confirmations so far"] + GONE),
 ])
-def test_every_card_message(qapp, flag, k, locs, expect, absent):
+def test_every_card_message(qapp, flag, k, locs, peers, expect, absent):
     rows = _card(qapp, flag=flag, colour_range="blue", range_k=k,
-                 range_locs=locs, like_loc="AE4", prev_de=103.0)
+                 range_locs=locs, like_loc="AE4", prev_de=103.0,
+                 peer_locs=peers)
     text = "\n".join(rows)
     for line in expect:
         assert line in text, f"missing {line!r} in:\n{text}"

@@ -41,6 +41,16 @@ from tests.test_k182_two_limits_and_the_yellow_outline import (  # noqa: E402
     KNUT, _Settings, _strip)
 
 
+
+@pytest.fixture(autouse=True)
+def _reread_route_only(monkeypatch):
+    """These tests are about the RE-READ confirmation on Knut's own strips.
+    His blues are similar patches of different strips, which confirm each
+    other since beta 9 (Knut 5979886227, tests/test_k22_peer_confirmation.py);
+    here that route is switched off so each test still measures the re-read."""
+    from workflow import patch_flags as _pf
+    monkeypatch.setattr(_pf, "PEER_EXPECTED_DE", 0.0)
+
 @pytest.fixture(autouse=True)
 def _qapp():
     return QApplication.instance() or QApplication([])

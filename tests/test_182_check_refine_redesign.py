@@ -247,14 +247,16 @@ def test_a_confirmed_patch_is_not_offered_and_is_named():
     assert not strips & {"I", "C", "L"}, "strips whose only patch was confirmed"
     assert plan.confirmed_skipped == ["C1", "I27", "L26"]
     t = rp.plan_text(plan, 0.67, 4.34)
-    assert t.confirmed == ("Not offered again, because a re-read already "
-                           "confirmed them: C1, I27, L26.")
+    # Beta 9: "confirmed as real" covers a re-read and similar patches
+    # (Knut 5979886227; workflow.confirmed_patches.CHECK_REFINE_LEAVES_OUT_PEERS).
+    assert t.confirmed == ("Not offered again, because they are already "
+                           "confirmed as real: C1, I27, L26.")
 
 
 def test_the_confirmed_line_has_a_real_singular():
     plan = _plan(RUN3, 2.0, confirmed={"I27"})
     assert rp.plan_text(plan, 0.67, 4.34).confirmed.endswith(
-        "confirmed it: I27.")
+        "because it is already confirmed as real: I27.")
 
 
 def test_a_strip_keeps_its_other_patches_when_one_is_confirmed():
