@@ -229,3 +229,37 @@ def test_the_new_lines_are_proposed_short_and_dashless():
         assert line in msg.body.split("\n")
         assert len(line) <= 44 and "—" not in line
     assert PF.LANDING_DE == 15.0
+
+
+def test_after_a_reload_the_landing_uses_the_memory_files_reading():
+    """Reopening the run: the confirmed patches come back from the memory
+    file (``export``/``load``), and the landing is measured against the
+    reading each was CONFIRMED with, which the file holds, not against what
+    a repaint from the file (``live=False``) later shows at that patch: only
+    a live re-read may change a confirmation (review, beta 10)."""
+    stored = _judge_with_refs().export()
+    assert all(stored[k]["kind"] == "confirmed" for k in REFS)
+
+    j = PF.FlagJudge(device_ranges={k: "purple" for k in
+                                    list(REFS) + ["O7", "J25"]})
+    assert j.load(stored) == len(REFS)
+    for loc, exp in REFS.items():
+        m = _printed(exp)
+        moved = (m[0] + 20.0, m[1], m[2])      # ΔE 20 from the confirmed reading
+        j.judge(loc, exp, moved, math.dist(exp, moved), True, live=False,
+                strip=loc[0])
+    assert j.range_learned("purple")
+
+    exp = _exp(80.0)
+    meas = _printed(exp)
+    v = j.judge("O7", exp, meas, math.dist(exp, meas), True, live=False,
+                strip="O")
+    assert v.flag == PF.FLAG_LEARNED and v.landed is True
+
+    half = tuple(e + 0.5 * (p - e) for e, p in zip(exp, meas))
+    v = j.judge("J25", exp, half, math.dist(exp, half), True, live=False,
+                strip="J")
+    assert v.flag is PF.FLAG_RED
+    want = [math.dist(half, _printed(e)) for e in REFS.values()]
+    assert v.misfit[0].land == (pytest.approx(min(want)),
+                                pytest.approx(max(want)))
