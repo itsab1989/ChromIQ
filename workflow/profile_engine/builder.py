@@ -574,8 +574,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
                                        row_weights=meas.row_weights,
                                        ref_pred=model.predict(meas.device))
+            # anchor_rel 0.1: every node weakly pulled to the GP's own value
+            # there, so the projection has ONE solution the solver reaches
+            # (X5: without it 26,374 nodes moved > 1 LSB between solvers,
+            # up to 12,200 LSB; with it <= 0.4 LSB; accuracy unchanged,
+            # agent 3 P1-projection-stability*.txt).
             model = gpfwd.project_to_table(gpm, model, lam,
-                                           fine="a2bfine" in candidates)
+                                           fine="a2bfine" in candidates,
+                                           anchor_rel=0.1)
             a2b_grid = model.grid
         if len(outliers):
             # Name the patches the way the SHEET names them (SAMPLE_LOC):
