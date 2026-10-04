@@ -108,7 +108,7 @@ def _two_run_project(tmp_path):
 
 def _tree(root: Path) -> dict:
     """{relative path: bytes} of every file under *root*."""
-    return {str(p.relative_to(root)): p.read_bytes()
+    return {p.relative_to(root).as_posix(): p.read_bytes()
             for p in sorted(Path(root).rglob("*")) if p.is_file()}
 
 

@@ -31,6 +31,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from tests.test_a_report_in_the_chromiq_folder_follows_a_rename import (  # noqa: E402
     _delete, _project, _report_across)
+from tests.helpers.paths import slashed                            # noqa: E402
 from tests.test_beta38_challenge_fixes import _Settings           # noqa: E402
 from tests.test_g7_reports_across_places import _read, _snapshot  # noqa: E402
 
@@ -105,12 +106,12 @@ def test_a_run_delete_in_a_sub_folder_renumbers_every_other_projects_report(
     old = str(moved["old_q"])
     for f, own in (("beside", moved["r"]), ("rec_r", moved["r"])):
         assert _dirs(moved[f]) == [str(own / "runs" / "run1"),
-                                   old + "/runs/run1.deleted",
-                                   old + "/runs/run1"], f
+                                   os.path.join(old, "runs", "run1.deleted"),
+                                   os.path.join(old, "runs", "run1")], f
     for f, own in (("across", moved["p"]), ("rec_p", moved["p"])):
         assert _dirs(moved[f]) == [str(own / "runs" / "run1"),
-                                   old + "/runs/run1.deleted",
-                                   old + "/runs/run2"], f
+                                   os.path.join(old, "runs", "run1.deleted"),
+                                   os.path.join(old, "runs", "run2")], f
 
 
 def test_after_the_delete_no_other_report_loads_the_former_run_2(moved):
@@ -142,10 +143,12 @@ def test_a_rename_in_a_sub_folder_rewrites_every_other_projects_report(
     assert q2 == moved["chromiq"] / "Group" / "Q2"
     for f in ("beside", "across", "rec_r", "rec_p"):
         rec = _read(moved[f])["document"]["measurements"]
-        assert "/Q2/runs/" in rec[1]["dir"] and "/Q2/runs/" in rec[2]["dir"], (
+        assert ("/Q2/runs/" in slashed(rec[1]["dir"])
+                and "/Q2/runs/" in slashed(rec[2]["dir"])), (
             f, rec)
         assert rec[1]["ti3"] == "Q2.ti3", (f, rec[1])
-        assert not rec[0]["dir"].split("/runs/")[0].endswith("/Q"), (f, rec)
+        assert not slashed(rec[0]["dir"]).split("/runs/")[0].endswith("/Q"), (
+            f, rec)
 
 
 def test_a_fresh_project_of_the_old_name_captures_nothing_after_a_rename(
@@ -175,7 +178,7 @@ def test_a_fresh_project_of_the_old_name_captures_nothing_after_a_rename(
         assert got == q2 / "runs" / "run1", (f, got)
     _delete(q2, "run1")
     for f in ("beside", "across", "rec_r", "rec_p"):
-        assert _dirs(moved[f])[1].endswith("/Q2/runs/run1.deleted"), f
+        assert slashed(_dirs(moved[f])[1]).endswith("/Q2/runs/run1.deleted"), f
     assert _snapshot(fresh.root) == before_fresh
     assert own.read_bytes() == before_own
 
@@ -217,7 +220,7 @@ def test_each_file_is_searched_once_and_archives_never(moved):
     files = report_files_referring(moved["q"])
     real = [os.path.realpath(str(f)) for f in files]
     assert len(real) == len(set(real)), files
-    assert not any("/old/" in f for f in real), files
+    assert not any("/old/" in slashed(f) for f in real), files
     for f in ("beside", "across", "rec_r", "rec_p"):
         assert os.path.realpath(str(moved[f])) in real, f
 

@@ -140,7 +140,7 @@ def test_the_sentence_lives_in_exactly_one_module():
     root = pathlib.Path(__file__).resolve().parent.parent
     needle = "on the 0 to 1 scale"
     holders = sorted(
-        str(p.relative_to(root))
+        p.relative_to(root).as_posix()
         for d in ("ui", "workflow", "core")
         for p in (root / d).rglob("*.py")
         if needle in p.read_text(encoding="utf-8", errors="replace"))
