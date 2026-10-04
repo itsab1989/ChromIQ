@@ -484,8 +484,7 @@ def _repair(ti3: Path, ti2: "Path | None",
     try:
         tmp.write_bytes(new_text.encode("latin-1"))
         shutil.copymode(dest, tmp)
-        from core.file_manager import replace_read_only_too
-        replace_read_only_too(tmp, dest)
+        os.replace(tmp, dest)
     except OSError:
         log.warning("could not write the repaired %s; the original is "
                     "unchanged and kept in %s", ti3.name, archive.parent,

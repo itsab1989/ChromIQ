@@ -9,10 +9,8 @@
 # include <windows.h>
 # include <process.h>
 #else
-# include <errno.h>
 # include <pthread.h>
 # include <time.h>
-# include <unistd.h>
 #endif
 
 #include "chromiq_ext.h"
@@ -336,46 +334,19 @@ static void cq_handle_line(const char *line) {
 
 #ifdef NT
 static unsigned __stdcall cq_reader(void *arg) {
+#else
+static void *cq_reader(void *arg) {
+#endif
 	char line[256];
 	(void)arg;
 	while (fgets(line, sizeof(line), stdin) != NULL)
 		cq_handle_line(line);
+#ifdef NT
 	return 0;
-}
 #else
-/* RAW read(2), NOT fgets(stdin). This thread spends its life blocked inside
- * a read of stdin; through stdio that means HOLDING stdin's FILE lock the
- * whole time. glibc's exit() walks every FILE and takes its lock to unbuffer
- * it, so on Linux the helper deadlocked in exit() after every session, saved
- * or fatal, until its stdin was closed (first Linux CI run, 2026-10-04: ~65
- * tests timed out in `finish()`, and an unknown instrument "should have
- * exited"). macOS libc does not take that lock, which is why it never showed
- * here. Same line semantics as fgets: up to 255 bytes, newline included. */
-static void *cq_reader(void *arg) {
-	char line[256];
-	size_t n = 0;
-	char c;
-	(void)arg;
-	for (;;) {
-		ssize_t r = read(0, &c, 1);
-		if (r < 0 && errno == EINTR)
-			continue;
-		if (r <= 0)
-			break;
-		line[n++] = c;
-		if (c == '\n' || n == sizeof(line) - 1) {
-			line[n] = '\0';
-			cq_handle_line(line);
-			n = 0;
-		}
-	}
-	if (n > 0) {
-		line[n] = '\0';
-		cq_handle_line(line);
-	}
 	return NULL;
-}
 #endif
+}
 
 void cq_cmd_start(void) {
 #ifdef NT

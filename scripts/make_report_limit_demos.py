@@ -5126,10 +5126,7 @@ def _main(argv=None) -> int:
               f"({n} projects expected)")
         return 2 if gaps else 0
 
-    # `targen.exe` on Windows (the CI run there found this refusing a full
-    # Argyll install).
-    if (not any((ARGYLL / f"targen{x}").exists() for x in ("", ".exe"))
-            or not SRGB.exists()):
+    if not (ARGYLL / "targen").exists() or not SRGB.exists():
         print(f"ArgyllCMS with ref/sRGB.icm is required ({ARGYLL}).")
         return 2
 

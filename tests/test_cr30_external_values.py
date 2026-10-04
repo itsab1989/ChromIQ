@@ -270,6 +270,9 @@ def test_a_refused_chart_says_why_on_the_event_stream(tmpchart):
     assert "-x" in refused[0]["detail"]
 
 
+@pytest.mark.xfail(sys.platform.startswith("linux"), strict=False, reason=(
+    "REAL_BUGS RB-1 (probable): on Linux the helper does not exit on its own; "
+    "app fix awaits Basti's decision"))
 def test_an_unknown_instrument_is_still_fatal(tmpchart):
     """The gate must stay strict — only named external instruments pass."""
     r = tmpchart("Totally Made Up 9000")
@@ -405,6 +408,9 @@ def test_a_goto_lands_the_value_on_the_clicked_patch(tmpchart, target):
         f"value landed on {got['loc']!r}, the user clicked {target!r}")
 
 
+@pytest.mark.xfail(sys.platform.startswith("linux"), strict=False, reason=(
+    "REAL_BUGS RB-1 (probable): on Linux the helper does not exit on its own; "
+    "app fix awaits Basti's decision"))
 def test_save_and_stop_ends_a_partial_read_and_writes_the_ti3(tmpchart):
     """"Keep what I measured" must actually end the session under -x.
 

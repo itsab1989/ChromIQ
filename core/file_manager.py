@@ -701,30 +701,6 @@ def _unlock_scratch_file(tmp: Path) -> None:
         log.debug("could not unlock the scratch file %s", tmp, exc_info=True)
 
 
-def replace_read_only_too(tmp: Path, dest: Path) -> None:
-    """``os.replace(tmp, dest)``, which on Windows also works over a READ-ONLY
-    *dest*, as it always has on macOS and Linux.
-
-    POSIX asks for write permission on the folder only, so a profile or a
-    measurement the user made read-only is still swapped for its repaired
-    copy, and *tmp* (``copystat``/``copymode`` already gave it the 0444) keeps
-    it read-only afterwards. Windows refuses to replace a file whose read-only
-    attribute is set (WinError 5, found by the first CI run there), so the
-    repair was silently skipped. The attribute is cleared just for the swap
-    and put back if the swap fails.
-    """
-    if os.name == "nt" and dest.exists() and not os.access(dest, os.W_OK):
-        mode = _stat_module.S_IMODE(os.stat(dest).st_mode)
-        os.chmod(dest, mode | _stat_module.S_IWRITE)
-        try:
-            os.replace(tmp, dest)
-        except OSError:
-            os.chmod(dest, mode)
-            raise
-        return
-    os.replace(tmp, dest)
-
-
 def write_json_atomically(path: Path, payload: dict) -> None:
     """Write *payload* to *path* so a crash can never leave it half-written.
 
