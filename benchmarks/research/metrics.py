@@ -250,21 +250,23 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
     rt = cmm.a2b(prof, ink, reader)
     sink["roundtrip"] = colour.de2000(rt, lab_t)
     out["roundtrip"] = stats(sink["roundtrip"])
-    if light:
-        return out
-    # white and black
-    wd = cmm.b2a(prof, np.array([[100.0, 0, 0]]), reader)[0]
-    white_ink = (1.0 - wd) if additive else wd
-    out["white"] = {"max_ink_pct": float(white_ink.max() * 100),
-                    "a2b_white_de": float(colour.de2000(
-                        cmm.a2b(prof, np.full((1, n), 1.0 if additive else 0.0), reader),
-                        np.array([[100.0, 0, 0]]))[0])}
+    # black and the neutral ramp (E5, E6) are scored in light mode too:
+    # protocol v2.1 decides ramp rows across noise seeds, so the seeds suite
+    # must keep the ramp arrays (agent 6b, 2026-10-03)
     bd = cmm.b2a(prof, np.array([[0.0, 0, 0]]), reader)
     blab = truth.lab(bd)[0]
     out["black"] = {"printed_L": float(blab[0]), "printed_ab": [float(blab[1]), float(blab[2])],
                     "tac_pct": float(bd.sum() * 100) if not additive else None}
     out["neutral"] = neutral_axis(prof, reader, truth, float(blab[0]), n, additive,
                                   sink=sink)
+    if light:
+        return out
+    wd = cmm.b2a(prof, np.array([[100.0, 0, 0]]), reader)[0]
+    white_ink = (1.0 - wd) if additive else wd
+    out["white"] = {"max_ink_pct": float(white_ink.max() * 100),
+                    "a2b_white_de": float(colour.de2000(
+                        cmm.a2b(prof, np.full((1, n), 1.0 if additive else 0.0), reader),
+                        np.array([[100.0, 0, 0]]))[0])}
     if not additive:
         out["ramps"] = ramps(prof, reader, truth, n, additive)
     return out
