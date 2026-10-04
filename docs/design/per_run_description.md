@@ -197,6 +197,21 @@ Description>` and follows it as it changes, and takes its own override.
 **T4b.5 (I)** The store is the same one §2a names: the run, or the calibration,
 never both.
 
+### Confirmed behaviour — one Profile Description in Guided and Manual (4.3.3 beta 8)
+
+**Confirmed by:** Knut, 2026-10-04, #182 [5979780372](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5979780372)
+(*"all are ok"*, answering question 2 of
+[5979436912](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5979436912):
+*"Profile Description, manufacturer, model and copyright are now the same in
+Guided and Manual: change one and the other changes too. Is that what you
+want?"*). Built for his report in 5973177088.
+
+* Guided and Manual show ONE Profile Description: a change in either mode is
+  the change in both, and emptying it in either mode gives the automatic name
+  back in both (D3 above, now for both modes at once).
+* The manufacturer, model and copyright fields, and their switches, are
+  shared between the two modes the same way.
+
 ---
 
 ## 5. Run lifecycle

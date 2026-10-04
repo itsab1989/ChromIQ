@@ -527,8 +527,9 @@ class _PatchInfoTile(QWidget):
         flag = str(info.get("flag", "") or "")
         # THE COLOUR RANGE (#182 k10, Knut 5961180259): a yellow learned from
         # other patches is learned from the patch's own range, once that range
-        # has three confirmed patches spaced apart; each card says which range
-        # and how far it has got. Lines are M-PATCH-COLOUR-RANGE's.
+        # has three confirmed patches (by a re-read or by similar patches,
+        # Knut 5979886227); each card says which range and how far it has
+        # got. Lines are M-PATCH-COLOUR-RANGE's.
         from workflow import measurement_messages as _mm
         rng = str(info.get("colour_range", "") or "")
         range_k = int(info.get("range_k", 0) or 0)
@@ -540,20 +541,44 @@ class _PatchInfoTile(QWidget):
 
         range_locs = [str(v) for v in (info.get("range_locs") or ())]
 
+        def first_three(locs) -> str:
+            """The first three, then "…": a list, never a counted phrase."""
+            locs = [str(v) for v in locs]
+            return ", ".join(locs[:3]) + ("…" if len(locs) > 3 else "")
+
         def add_confirmed_list() -> None:
-            """Which patches the range counts, and, when some of them count
-            as one, why (beta 8, Knut #182 5969949735 / 5973177088)."""
+            """Which patches the range counts (beta 8, Knut #182 5969949735 /
+            5973177088), while it has not learned."""
             if not range_locs or range_k >= 3:
                 return
-            shown = (", ".join(range_locs[:3])
-                     + ("…" if len(range_locs) > 3 else ""))
-            rows.append((None, tr(_mm._CARD_RANGE_SAME).format(locs=shown)))
-            if len(range_locs) > range_k:
-                rows.append((None, tr(_mm._CARD_RANGE_CLOSE_1)))
-                rows.append((None, tr(_mm._CARD_RANGE_CLOSE_2)))
-                rows.append((None, tr(_mm._CARD_RANGE_CLOSE_3)))
+            rows.append((None, tr(_mm._CARD_RANGE_SAME).format(
+                locs=first_three(range_locs))))
 
-        if info.get("warn") and flag == "confirmed":
+        peer_locs = [str(v) for v in (info.get("peer_locs") or ())]
+        if info.get("warn") and flag == "confirmed" and peer_locs:
+            # YELLOW, CONFIRMED BY SIMILAR PATCHES (Knut, #182 5979886227):
+            # patches of other strips, expected nearly the same colour, are
+            # off in the same way. Set apart like the re-read card.
+            rows.append((None, "─" * 30))
+            rows.append((None, tr(_mm._CARD_PEER_1)))
+            rows.append((None, tr(_mm._CARD_PEER_2).format(
+                locs=first_three(peer_locs))))
+            rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
+                                  ).format(de=float(info.get("de", 0.0)),
+                                           limit=float(info.get("warn_de", 0.0)))))
+            rows.append((None, ""))
+            rows.append((None, tr("A real difference this printer and")))
+            rows.append((None, tr("paper cannot reach, not a misread.")))
+            rows.append((None, ""))
+            rows.append((None, tr("Keep it for the profile.")))
+            if rng in _mm.RANGE_NAMES:
+                rows.append((None, ""))
+                add_range_line()
+                rows.append((None, tr(_mm._CARD_RANGE_CONFIRMED_LEARNED)
+                             if range_k >= 3 else
+                             tr(_mm._CARD_RANGE_SO_FAR).format(k=range_k)))
+                add_confirmed_list()
+        elif info.get("warn") and flag == "confirmed":
             # YELLOW, CONFIRMED (#182 B, Sebastian 5956560815): read twice,
             # the same colour twice. Set apart at the bottom like the red text.
             rows.append((None, "─" * 30))
@@ -586,11 +611,9 @@ class _PatchInfoTile(QWidget):
                                            limit=float(info.get("warn_de", 0.0)))))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             add_range_line()
-            locs = [str(v) for v in (info.get("range_locs") or ())]
-            if locs:
-                # The first three, then "…": a list, never a counted phrase.
-                shown = ", ".join(locs[:3]) + ("…" if len(locs) > 3 else "")
-                rows.append((None, tr(_mm._CARD_RANGE_SAME).format(locs=shown)))
+            if range_locs:
+                rows.append((None, tr(_mm._CARD_RANGE_SAME).format(
+                    locs=first_three(range_locs))))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_1)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_2)))

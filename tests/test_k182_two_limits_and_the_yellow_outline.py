@@ -33,6 +33,16 @@ from workflow import patch_flags as pf  # noqa: E402
 from workflow.icc_info import xyz_to_lab  # noqa: E402
 
 #: (loc, expected XYZ from the .ti2, measured XYZ from the .ti3), Y = 100 scale.
+
+@pytest.fixture(autouse=True)
+def _reread_route_only(monkeypatch):
+    """These tests are about the RE-READ confirmation on Knut's own strips.
+    His blues are similar patches of different strips, which confirm each
+    other since beta 9 (Knut 5979886227, tests/test_k22_peer_confirmation.py);
+    here that route is switched off so each test still measures the re-read."""
+    from workflow import patch_flags as _pf
+    monkeypatch.setattr(_pf, "PEER_EXPECTED_DE", 0.0)
+
 KNUT = [
     ("A1", (51.7861, 56.9365, 50.9639), (47.3953, 49.9001, 40.7323)),
     ("A2", (21.4997, 23.5995, 22.4715), (18.6359, 19.4010, 16.7082)),
@@ -439,29 +449,30 @@ def _confirm_blues(j, *, standout=None):
     assert j.range_status("blue")[0] == 3
 
 
-def test_two_close_confirmations_do_not_teach_knuts_blues(qapp, tmp_path):
-    """Knut's own strips: A17 and A23 confirmed are two blues 3 ΔE apart, so
-    the blue range has one spaced confirmation of three, and F4, a blue off
-    the same way, stays red. Its card says how far the range has got."""
+def test_two_close_confirmations_count_as_two_knuts_blues(qapp, tmp_path):
+    """Knut's own strips: A17 and A23 confirmed are two blues 3 ΔE apart. They
+    count as two since beta 9 (no ΔE 6 spacing, Knut 5979886227), which is
+    still short of three, so F4, a blue off the same way, stays red (peers are
+    off in this file). Its card says how far the range has got."""
     tab = _tab(tmp_path)
     tab._on_strip_measured(_strip("A"))
     tab._on_strip_measured(_strip("A"))          # A17 and A23 confirmed
     tab._on_strip_measured(_strip("F"))
     assert _flags(tab)["F4"] is True
     info = _info(tab, "F4")
-    assert info["colour_range"] == "blue" and info["range_k"] == 1
+    assert info["colour_range"] == "blue" and info["range_k"] == 2
     rows = _card(qapp, info)
     assert "Colour range: blue" in rows
-    assert "1 of 3 spaced confirmations so far" in rows
+    assert "2 of 3 confirmations so far" in rows
     # O9 (hue 311°) is blue at the 315° edge (Knut 5963411325; it was purple
-    # at 310°): the same range, still one spaced confirmation of three.
+    # at 310°): the same range, still two confirmations of three.
     tab._on_strip_measured(_strip("O"))
     assert _flags(tab)["O9"] is True
     o9 = _info(tab, "O9")
-    assert o9["colour_range"] == "blue" and o9["range_k"] == 1
+    assert o9["colour_range"] == "blue" and o9["range_k"] == 2
     rows = _card(qapp, o9)
     assert "Colour range: blue" in rows
-    assert "1 of 3 spaced confirmations so far" in rows
+    assert "2 of 3 confirmations so far" in rows
 
 
 def test_nothing_is_learned_before_a_confirmation(tmp_path):

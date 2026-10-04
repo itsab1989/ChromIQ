@@ -329,7 +329,8 @@ def test_the_none_variant_says_nothing_untrue():
     assert "replied" not in body and "Faster" not in body
     assert "—" not in title + body
     assert "Start again" in body
-    assert "M-NO-INSTRUMENT-NONE" in M.PROPOSED
+    # approved by Knut, #182 5979780372 ("all are ok")
+    assert M.CATALOGUE["M-NO-INSTRUMENT-NONE"].approved
 
 
 def test_a_refused_start_records_the_port(qapp, monkeypatch):

@@ -115,11 +115,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-VERIFY-SOLIDS-REASON (beta 44 challenge 8, C5, B8-1373) left this set on
 # 2026-09-26: Knut, #182 5848287278, "Regarding 'For your approval
 # (M-VERIFY-SOLIDS-REASON)' Answer: Approved."
+# M-NO-INSTRUMENT-NONE (beta 8) left this set on 2026-10-04: Knut, #182
+# 5979780372, "all are ok" (question 1 of 5979436912, its wording).
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
-                                 # #182 5969949735 (beta 8): no instrument is
-                                 # connected at all; Knut ruled it must be
-                                 # reworded, the words are ours.
-                                 "M-NO-INSTRUMENT-NONE",
                                  # #159, 2026-08-30. The magnet guard used to
                                  # recognise ONE unit's stored white-tile value
                                  # because it was hard-coded from that unit, so

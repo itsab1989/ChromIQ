@@ -1823,7 +1823,9 @@ M_VIEW_RGB_ONLY = _m(
 # --- PROPOSED: the colour range on a flagged patch's card (#182 k10) --------
 #: The rule was approved (Knut 5961180259, Sebastian, on 5961078418): a red
 #: patch may only turn yellow from confirmed patches of its own colour range,
-#: once that range has three of them spaced at least ΔE 6 apart. The post
+#: once that range has three of them. Beta 9 (Knut 5979886227, awaiting
+#: confirmation): similar patches read in other strips confirm each other too,
+#: and the ΔE 6 spacing between the three is gone. The post
 #: gave one line of card text ("Blue: 2 of 3 spaced confirmations so far");
 #: the lines below are that line split so the range name stands on its own
 #: (a nominative line, which every language can say), plus the sentences the
@@ -1831,22 +1833,22 @@ M_VIEW_RGB_ONLY = _m(
 #: no language needs plural forms. The card (ui/tiff_preview.py) breaks its
 #: lines by hand, which is why each is a line of its own.
 _CARD_RANGE = "Colour range: {range}"
-_CARD_RANGE_SO_FAR = "{k} of 3 spaced confirmations so far"
-_CARD_RANGE_SAME = "Re-read and the same: {locs}"
+_CARD_RANGE_SO_FAR = "{k} of 3 confirmations so far"
+_CARD_RANGE_SAME = "Confirmed: {locs}"
 _CARD_RANGE_LEARNED_1 = "Its range has learned: three patches"
-_CARD_RANGE_LEARNED_2 = "of it, spaced apart, were confirmed."
+_CARD_RANGE_LEARNED_2 = "of it were confirmed."
 _CARD_RANGE_LEARNED_3 = "This one is off in the same way,"
 _CARD_RANGE_LEARNED_4 = "so it is taken as real too."
 _CARD_RANGE_RED_LEARNED_1 = "This range has learned, but this"
 _CARD_RANGE_RED_LEARNED_2 = "one is off in a different way."
 _CARD_RANGE_CONFIRMED_LEARNED = "This range has learned."
-#: Beta 8 (Knut, #182 5969949735 and 5973177088): three yellow blue patches
-#: showed "2 of 3", and four magenta ones "1 of 3", because confirmed patches
-#: of nearly the same colour count once (the approved spacing of ΔE 6). The
-#: card now lists them and says why, when some of them count as one.
-_CARD_RANGE_CLOSE_1 = "Patches closer than ΔE 6 in colour"
-_CARD_RANGE_CLOSE_2 = "count as one confirmation, so the"
-_CARD_RANGE_CLOSE_3 = "range needs more different colours."
+#: Beta 9 (Knut, #182 5979886227): a flagged patch confirmed by flagged
+#: patches of other strips that were expected nearly the same colour and are
+#: off in the same way. The card's counterpart of "Yellow outline: confirmed
+#: by a re-read". (Beta 8's three "Patches closer than ΔE 6 ..." lines are
+#: gone with the spacing they explained.)
+_CARD_PEER_1 = "Yellow outline: confirmed by similar patches"
+_CARD_PEER_2 = "Read alike in other strips: {locs}"
 #: The thirteen ranges' names, as the post named them.
 _RANGE_GREY_DARK = "dark grey"
 _RANGE_GREY_MID = "mid grey"
@@ -1877,7 +1879,7 @@ M_PATCH_COLOUR_RANGE = _m(
                _CARD_RANGE_LEARNED_1, _CARD_RANGE_LEARNED_2,
                _CARD_RANGE_LEARNED_3, _CARD_RANGE_LEARNED_4,
                _CARD_RANGE_RED_LEARNED_1, _CARD_RANGE_RED_LEARNED_2,
-               _CARD_RANGE_CONFIRMED_LEARNED)),
+               _CARD_RANGE_CONFIRMED_LEARNED, _CARD_PEER_1, _CARD_PEER_2)),
     approved=False)
 
 # --- PROPOSED: the expected colour is the profile's prediction --------------
@@ -2018,10 +2020,10 @@ _CR_REST_HEAD_ONE = (
 _CR_REST_HEAD_MANY = (
     "<b>{n} strips have patches above {de} {limit:.1f}</b> "
     "(worst first; worst patch, and how many are above):")
-_CR_CONFIRMED_ONE = ("Not offered again, because a re-read already confirmed "
-                     "it: {patches}.")
-_CR_CONFIRMED_MANY = ("Not offered again, because a re-read already confirmed "
-                      "them: {patches}.")
+_CR_CONFIRMED_ONE = ("Not offered again, because it is already confirmed as "
+                     "real: {patches}.")
+_CR_CONFIRMED_MANY = ("Not offered again, because they are already confirmed "
+                      "as real: {patches}.")
 _CR_CHOICE_FIRST_ONE = "Re-measure the strip listed first"
 _CR_CHOICE_FIRST_MANY = "Re-measure the {n} strips listed first"
 _CR_CHOICE_ALL = "Re-measure all {n} strips above your limit"
@@ -2271,7 +2273,9 @@ M_NO_INSTRUMENT_NONE = _m(
     "to recognise it, and press Start again.\n\n"
     "Nothing has been lost: any measurement you already had is kept exactly "
     "as it was.",
-    approved=False)
+    # Approved in full by Knut, #182 5979780372 ("all are ok", question 1 of
+    # 5979436912).
+    approved=True)
 
 M_NO_INSTRUMENT_FAST = _m(
     "M-NO-INSTRUMENT-FAST",

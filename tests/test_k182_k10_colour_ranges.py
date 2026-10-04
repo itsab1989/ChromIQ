@@ -4,8 +4,10 @@ The rule, posted in 5961078418 and confirmed by Knut (5961180259) and by
 Sebastian: 13 colour ranges (greys split by lightness, then hue sectors),
 classified from each patch's EXPECTED colour against the chart's own white
 (on an RGB chart from its RGB numbers read as sRGB, Knut 5963411325); a
-range learns once three of its confirmed patches lie pairwise at least ΔE 6
-apart; then a red patch of that range that is off the same way turns yellow.
+range learns once three of its patches are confirmed (beta 9, Knut
+5979886227: no ΔE 6 spacing any more, and similar patches of other strips
+confirm each other, tests/test_k22_peer_confirmation.py); then a red patch of
+that range that is off the same way turns yellow.
 
 Each part has a test that fails without it:
 
@@ -13,8 +15,8 @@ Each part has a test that fails without it:
 * the chart's white:              test_greys_are_greys_against_the_charts_own_white,
                                   test_the_white_comes_from_the_chart
 * the white is sticky:            test_a_reset_never_falls_back_to_d50
-* k is exact, not greedy:         test_the_spacing_count_is_exact_not_greedy
-* three to learn, only own range: test_a_range_learns_at_three_spaced_confirmations,
+* no spacing any more:            test_there_is_no_spacing_count_any_more
+* three to learn, only own range: test_a_range_learns_at_three_confirmations,
                                   test_another_range_never_learns_from_this_one
 * both directions (rejudge):      test_an_earlier_red_turns_yellow_and_back
 * closest, ties by location:      test_the_closest_confirmed_patch_is_named
@@ -138,17 +140,13 @@ def test_a_reset_never_falls_back_to_d50():
     assert j.white == pf.D50_WHITE
 
 
-# ---- k: the spaced confirmations ---------------------------------------------
-def test_the_spacing_count_is_exact_not_greedy():
-    """A greedy pick in this order takes P first, which is within 6 of both A
-    and B, and ends at 2; A, B and C are pairwise at least 6 apart."""
-    P, A, B, C = (5, 0, 0), (0, 0, 0), (10, 0, 0), (0, 8, 0)
-    assert pf.spaced_count([P, A, B, C]) == 3
-    assert pf.spaced_count([P, A]) == 1
-    assert pf.spaced_count([A, (6.0, 0, 0)]) == 2       # exactly 6 counts
-    assert pf.spaced_count([A, (5.99, 0, 0)]) == 1
-    assert pf.spaced_count([]) == 0
-    assert pf.spaced_count([A, B, C, (20, 0, 0), (0, 20, 0)]) == 3   # capped
+# ---- k: the confirmations (beta 9: no spacing, Knut 5979886227) -----------------
+def test_there_is_no_spacing_count_any_more():
+    """The ΔE 6 spacing between a range's three confirmations is gone, with
+    its constant and its counter; the count of three stays."""
+    assert not hasattr(pf, "spaced_count")
+    assert not hasattr(pf, "RANGE_SPACING_DE")
+    assert pf.RANGE_CONFIRMATIONS == 3
 
 
 #: Blues (D50, hue about 288°) pairwise ΔE 7 apart, and how each falls short.
@@ -167,7 +165,7 @@ def _confirm(j, loc, e, shift=SHORT, standout=None):
     return v
 
 
-def test_a_range_learns_at_three_spaced_confirmations():
+def test_a_range_learns_at_three_confirmations():
     j = pf.FlagJudge()
     probe = (33.0, 21.0, -61.0)
     for n, e in enumerate(BLUES, 1):
@@ -178,12 +176,13 @@ def test_a_range_learns_at_three_spaced_confirmations():
     v = j.judge("P9", probe, _m(probe), 32.4, True)
     assert v.flag == pf.FLAG_LEARNED and v.range_k == 3
     assert v.range_locs == ("X1", "X2", "X3")
-    # three CLOSE confirmations are not three spaced ones
+    # three CLOSE confirmations count as three now (Knut 5979886227: the
+    # four magenta patches within ΔE 4.7 must not count as one)
     j2 = pf.FlagJudge()
     for n in range(3):
         _confirm(j2, f"X{n}", (30.0 + n, 20.0, -60.0))
-    assert j2.range_status("blue")[0] == 1
-    assert j2.judge("P1", probe, _m(probe), 32.4, True).flag is pf.FLAG_RED
+    assert j2.range_status("blue")[0] == 3
+    assert j2.judge("P1", probe, _m(probe), 32.4, True).flag == pf.FLAG_LEARNED
 
 
 def test_a_learned_patch_never_counts_and_a_confirmed_one_stays_yellow():
@@ -289,7 +288,11 @@ def _small_tab(tmp_path):
 def test_the_preview_flips_an_earlier_patch_both_ways(qapp, tmp_path):
     tab = _small_tab(tmp_path)
     probe = (33.0, 21.0, -61.0)
-    tab._on_strip_measured(_event("F", [("F1", probe, _m(probe))]))
+    # Off the same way as the blues but half as far again: like them (no upper
+    # bound, 5963044182), yet not a similar patch (errors 16 apart, > 10), so
+    # it is learned, never confirmed by them (Knut 5979886227).
+    LONG = tuple(1.5 * v for v in SHORT)
+    tab._on_strip_measured(_event("F", [("F1", probe, _m(probe, LONG))]))
     assert _flags(tab)["F1"] is True
     blues = [(f"A{i}", e, _m(e)) for i, e in enumerate(BLUES, 1)]
     tab._on_strip_measured(_event("A", blues))
@@ -303,14 +306,14 @@ def test_the_preview_flips_an_earlier_patch_both_ways(qapp, tmp_path):
     rows = _card(qapp, info)
     assert f"Yellow outline: judged like patch {info['like_loc']}" in rows
     assert "Colour range: blue" in rows
-    assert "Re-read and the same: A1, A2, A3" in rows
+    assert "Confirmed: A1, A2, A3" in rows
     # A3 read again, clean: the range has two now, and F1 is red again
     clean = blues[:2] + [("A3", BLUES[2], BLUES[2])]
     tab._on_strip_measured(_event("A", clean))
     assert _flags(tab)["F1"] is True
     info = _info(tab, "F1")
     assert info["flag"] == "" and info["range_k"] == 2
-    assert "2 of 3 spaced confirmations so far" in _card(qapp, info)
+    assert "2 of 3 confirmations so far" in _card(qapp, info)
 
 
 def test_update_patch_flags_changes_only_the_named_patches(qapp, tmp_path):
@@ -361,11 +364,12 @@ def test_the_card_lines_are_the_proposed_messages():
              mm._CARD_RANGE_LEARNED_1, mm._CARD_RANGE_LEARNED_2,
              mm._CARD_RANGE_LEARNED_3, mm._CARD_RANGE_LEARNED_4,
              mm._CARD_RANGE_RED_LEARNED_1, mm._CARD_RANGE_RED_LEARNED_2,
-             mm._CARD_RANGE_CONFIRMED_LEARNED]
+             mm._CARD_RANGE_CONFIRMED_LEARNED, mm._CARD_PEER_1,
+             mm._CARD_PEER_2]
     assert msg.body.split("\n") == lines
     assert msg.title == mm._CARD_RANGE
     for line in lines + [msg.title]:
-        assert len(line) <= 38, line
+        assert len(line) <= 44, line
         assert "—" not in line
     assert set(mm.RANGE_NAMES) == set(pf.RANGES)
 

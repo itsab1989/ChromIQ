@@ -4262,6 +4262,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Arriving at the tab is the moment to look again — the same reasoning
         # that puts the existing-measurement offer here.
         self._update_resume_availability()
+        # THE OUTLINES, JUDGED AGAIN ON ARRIVAL (Knut, #182 5979886227): a
+        # limit changed elsewhere, or readings changed under the tab, show
+        # here at once. Deferred like the offer below, so the tab is painted
+        # first; a bound method, never a lambda (CLAUDE.md).
+        QTimer.singleShot(0, self.refresh_patch_flags)
         self._pending_overlay_offer = False
         # NOT here and now. Opening a modal window from inside showEvent blocks
         # before the tab has finished being painted, so the window comes up over
@@ -14930,6 +14935,67 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.debug("could not apply the progress-bar preference",
                       exc_info=True)
 
+    def refresh_patch_flags(self) -> None:
+        """Judge the outlines on the preview again, from the measurement on
+        disk and the CURRENT limit (Knut, #182 5979886227: *"lowering the
+        thresholds in the preferences --> measurements would change which
+        patches are highlighted red or yellow"*).
+
+        Called by the main window when Preferences closes with OK, and
+        (deferred) whenever this tab is shown. Only when the overlay box is
+        ticked and no session is running: during a session every strip is
+        judged again as it arrives, and at its end the overlay is repainted
+        anyway. Red, yellow by a re-read, yellow by similar patches and
+        learned are all worked out again from the readings.
+        """
+        if getattr(self, "_session_live", False) or getattr(
+                self, "_loading_measure_settings", False):
+            return
+        try:
+            if self._existing_ti3_for_chart() is None:
+                return
+        except Exception:      # noqa: BLE001 — a repaint is never worth a crash
+            return
+        loads = getattr(self, "_memory_loads", 0)
+        self._repaint_overlay_from_disk()
+        # Only when this repaint read the memory and judged the whole file
+        # again: otherwise the judge on hand may be another chart's, or empty.
+        if getattr(self, "_memory_loads", 0) != loads:
+            self._rewrite_memory_after_repaint()
+
+    def _rewrite_memory_after_repaint(self) -> None:
+        """Bring the memory file into line with the outlines just judged again.
+
+        Check & Refine leaves out the patches that file calls confirmed
+        (``confirmed_locations``), and its ``peer`` entries were worked out at
+        the limit of the session that wrote it. After a limit change the
+        preview shows other patches confirmed by similar patches, and Check &
+        Refine would offer for re-measuring patches the card says to keep (or
+        leave out ones the preview no longer confirms). Rewritten only for the
+        measurement the memory on hand describes, only when it changed, and
+        never during a session (k22 review)."""
+        if getattr(self, "_session_live", False):
+            return
+        ti3 = getattr(self, "_memory_for", None)
+        if ti3 is None or not Path(ti3).is_file():
+            return
+        try:
+            exported = self._flag_judge().export()
+        except Exception:      # noqa: BLE001 — a memory is never worth a crash
+            return
+        # Against the FILE, not `_memory_written`: that is what the judge took
+        # back from it, which never holds the peers.
+        try:
+            from workflow import confirmed_patches as cp
+            on_disk = (cp.load(ti3) or {}).get("patches") or {}
+        except Exception:      # noqa: BLE001
+            on_disk = {}
+        if exported == on_disk:
+            return
+        self._save_confirmed_memory(
+            ti3, getattr(self, "_memory_mode", None)
+            or self._selected_memory_mode())
+
     def _unread_patch_count(self) -> "int | None":
         """How many patches of this chart still have no reading, or ``None``
         when that cannot be established (#156).
@@ -15359,9 +15425,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # 5964173774, answer 4).
             extra["expected_source"] = "prediction"
         try:
+            # THE STRIP, so patches read in different strips can confirm
+            # each other (Knut, #182 5979886227). The same labels in every
+            # mode: patch by patch and a whole chart read at once too.
+            try:
+                strip = self._strip_of(str(loc))
+            except Exception:      # noqa: BLE001 — no strip: no peers, nothing else
+                strip = None
             v = self._flag_judge().judge(loc, exp_lab, meas_lab, de,
                                          bool(flagged), standout=standout,
-                                         live=live)
+                                         live=live, strip=strip)
         except Exception:          # noqa: BLE001 — never lose the red outline
             log.debug("could not judge patch %s", loc, exc_info=True)
             return bool(flagged), extra
@@ -15374,7 +15447,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _verdict_extra(v) -> dict:
         """The hover card's facts about one verdict of the yellow rule: which
         yellow (if any), what it agreed with or was judged like, and its
-        colour range with how many spaced confirmations it has (#182 k10)."""
+        colour range with how many confirmations it has (#182 k10), and the
+        similar patches that confirm it (Knut, #182 5979886227)."""
         from workflow.patch_flags import FLAG_CONFIRMED, FLAG_LEARNED, is_yellow
         kind = ""
         if is_yellow(v.flag) and v.flag == FLAG_CONFIRMED:
@@ -15382,6 +15456,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         elif is_yellow(v.flag) and v.flag == FLAG_LEARNED:
             kind = "learned"
         return {"flag": kind, "prev_de": v.prev_de, "like_loc": v.like_loc,
+                "peer_locs": list(getattr(v, "peer_locs", ()) or ()),
                 "colour_range": v.colour_range, "range_k": int(v.range_k),
                 "range_locs": list(v.range_locs)}
 
@@ -15453,6 +15528,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             pass
         judge = self._reset_flag_judge()
         self._memory_written = None
+        #: How many times a memory was read back (refresh_patch_flags asks).
+        self._memory_loads = getattr(self, "_memory_loads", 0) + 1
         #: Which measurement the memory now describes.
         self._memory_for = Path(ti3) if ti3 is not None else None
         if ti3 is None:
