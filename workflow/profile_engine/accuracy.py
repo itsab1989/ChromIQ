@@ -236,12 +236,31 @@ def fit_forward_model_accurate(
                 r = r / sigma[ho]      # whitened: a true z-score criterion
             return float(np.median(r))
 
+        # D-06 (agent 8): every (factor, split) of the search is its own
+        # fit through cv_err, which reads only inputs fixed by now; in a
+        # Maximum accuracy build they run side by side on pool threads and
+        # are read back in the serial order. Whatever cv_err does (a
+        # candidate may change it), each call is the same computation, so
+        # the same bits. The noise-model hill-climb below stays serial.
+        from workflow.profile_engine import parallel
+        pre = None
+        if parallel.worker_count() > 1:
+            keys = [(f, k) for f in _LAMBDA_FACTORS
+                    for k in range(len(splits))]
+            vals = parallel.run_tasks(
+                [(lambda f=f, k=k: cv_err(base_lam * f, *splits[k]))
+                 for f, k in keys])
+            pre = dict(zip(keys, vals))
         errs: dict[float, list[float]] = {}
         for ci, f in enumerate(_LAMBDA_FACTORS):
             if progress is not None:
                 progress(f"Fitting the printer model: smoothing search "
                          f"{ci + 1}/{len(_LAMBDA_FACTORS)}…")
-            errs[f] = [cv_err(base_lam * f, ho, trn) for ho, trn in splits]
+            if pre is not None:
+                errs[f] = [pre[(f, k)] for k in range(len(splits))]
+            else:
+                errs[f] = [cv_err(base_lam * f, ho, trn)
+                           for ho, trn in splits]
         mean = {f: float(np.mean(v)) for f, v in errs.items()}
         std_at_1 = float(np.std(errs[1.0])) if folds > 1 else 0.0
         noise = max(_CV_MARGIN_FRACTION * mean[1.0], std_at_1)

@@ -47,7 +47,24 @@ class ForwardModel:
         return out
 
     def predict(self, dev: np.ndarray) -> np.ndarray:
-        """(N, n) device 0..1 → (N, 3) Lab."""
+        """(N, n) device 0..1 → (N, 3) Lab.
+
+        Every row is interpolated on its own, so in a Maximum accuracy
+        build a large batch is split into row blocks on pool threads with
+        the same bits (D-06); elsewhere it is one serial call."""
+        from workflow.profile_engine import parallel
+        if len(dev) >= 16384 and parallel.in_accurate_scope() \
+                and parallel.worker_count() > 1:
+            out = np.empty((len(dev), 3))
+
+            def block(lo: int, hi: int) -> None:
+                out[lo:hi] = self._predict_rows(dev[lo:hi])
+            parallel.run_chunks(block, parallel.chunk_bounds(
+                len(dev), parallel.worker_count(), min_rows=8192))
+            return out
+        return self._predict_rows(dev)
+
+    def _predict_rows(self, dev: np.ndarray) -> np.ndarray:
         w, cols = _interp_weights(self.shape_device(dev), self.grid,
                                   self.n_channels)
         return (w[:, :, None] * self.nodes[cols]).sum(1)
@@ -94,10 +111,14 @@ def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
         return (w[:, :, None] * x[cols]).sum(1)
 
     def wtmul(r: np.ndarray) -> np.ndarray:
-        o = np.zeros((ng, r.shape[1]))
-        np.add.at(o, cols.reshape(-1),
-                  (w[:, :, None] * r[:, None, :]).reshape(-1, r.shape[1]))
-        return o
+        # np.bincount accumulates in input order exactly like np.add.at
+        # (same products, same sequence of additions from 0.0, so the same
+        # bits; Experiments/agent8 addat_vs_bincount.py and
+        # tests/test_engine_parallel_identity.py) at a fraction of the cost.
+        fc = cols.reshape(-1)
+        return np.stack([np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),
+                                     minlength=ng)
+                         for c in range(r.shape[1])], 1)
 
     def curvature(x: np.ndarray) -> np.ndarray:
         """Σ_axis D₂ᵀD₂ x — second-difference penalty, interior rows only.
@@ -124,8 +145,29 @@ def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
             mid[ax] = lo[ax] = hi[ax] = slice(None)
         return o.reshape(ng, -1)
 
+    # D-06 (agent 8): in a Maximum accuracy build with a large lattice
+    # (5+ inks: 9^6 = 531,441 nodes, two thirds of the fit's CPU) the
+    # curvature runs one Lab column per pool thread. The operator is purely
+    # element-wise per column, so each column's numbers are the same bits
+    # as in the (grid..., 3) array; Fast and Bit-exact never take this path.
+    from workflow.profile_engine import parallel as _par
+    col_threads = (ng >= 100_000 and _par.in_accurate_scope()
+                   and _par.worker_count() > 1)
+
+    def curvature_cols(x: np.ndarray) -> np.ndarray:
+        out = np.empty_like(x)
+
+        def one(c: int):
+            def run():
+                out[:, c] = curvature(np.ascontiguousarray(x[:, c:c + 1]))[:, 0]
+            return run
+        _par.run_tasks([one(c) for c in range(x.shape[1])])
+        return out
+
+    curv = curvature_cols if col_threads else curvature
+
     def amul(x: np.ndarray) -> np.ndarray:
-        return wtmul(wmul(x)) + lam * curvature(x) + 1e-7 * x
+        return wtmul(wmul(x)) + lam * curv(x) + 1e-7 * x
 
     b = wtmul(y)
     x = np.zeros((ng, y.shape[1])) if x0 is None else x0.copy()
