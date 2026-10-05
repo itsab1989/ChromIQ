@@ -551,7 +551,8 @@ def interaction3(x: np.ndarray, grid: int, n: int) -> np.ndarray:
 
 def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
                                iters=400, order: int = 3,
-                               local: tuple | None = None):
+                               local: tuple | None = None,
+                               ink_gate: tuple | None = None):
     """``local`` = (near, ramp) in lattice cells: the penalty acts only away
     from the chart (weight 0 within ``near`` cells of the nearest patch,
     1 beyond ``near + ramp``), so the region the data pin, paper white and
@@ -575,6 +576,15 @@ def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
             np.asarray(device, float)))
         node_w = np.clip((dist - local[0]) / max(local[1], 1e-9), 0.0, 1.0)
         node_w = node_w * node_w * (3.0 - 2.0 * node_w)
+    if ink_gate is not None:
+        # and only where the node carries real ink (total over the lattice
+        # coordinates): the light end, where the B2A refit's near-white
+        # samples live, keeps the plain fit
+        tot = grid_coords(grid, n).sum(1)
+        g = np.clip((tot - ink_gate[0]) / max(ink_gate[1] - ink_gate[0], 1e-9),
+                    0.0, 1.0)
+        g = g * g * (3.0 - 2.0 * g)
+        node_w = g if node_w is None else node_w * g
 
     def wt(r):
         return np.stack([np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),

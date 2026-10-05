@@ -405,7 +405,12 @@ def fit_forward_model_accurate(
             # only away from the chart: the region the patches pin (paper
             # white and its light neighbourhood included) keeps the plain
             # fit (global penalty: X7 near-white B2A jumps, NC5 0 -> 15)
-            local=(0.5, 1.0))
+            local=(0.5, 1.0),
+            # and only where the node carries real ink (total lattice
+            # coordinate 0.5 -> 1.5): the local gate alone still left 15
+            # near-white X7 jumps; the light end the B2A refit samples
+            # keeps the plain fit
+            ink_gate=(0.5, 1.5))
         res = dist(model.predict(device), lab)
         res_w = res / sigma if sigma is not None else res
 
