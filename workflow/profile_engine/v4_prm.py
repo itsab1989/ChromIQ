@@ -26,9 +26,10 @@ What the v4 container gets instead (v2 file untouched, byte for byte):
 * B2A0 / B2A2 that were MAPPED (bytes of their own, zero-black convention):
   re-sampled through the spec's equation inverted, so the PRM black reaches
   the table where it used to receive L* 0.
-* B2A0 / B2A2 that alias the colorimetric B2A1: re-sampled through the
-  inverse of the A2B0 scaling (PRM black -> device black), so A2B0 and
-  B2A0 are inverses of each other as A2B1 and B2A1 are.
+* B2A0 / B2A2 that alias the colorimetric B2A1: re-sampled so the PRM
+  black reaches the table's L* 0 corner, which the engine pins to the
+  device black (D-19 amendment: "PRM black -> device black Lab" lifted
+  the black, because the B2A1 does not print its own black Lab as black).
 
 Re-sampling evaluates the original lut16 at the transformed PCS value of
 every grid node: input tables, trilinear CLUT interpolation, the CLUT value
@@ -263,8 +264,13 @@ def v4_luts(luts: dict, pcs: bytes, device_black_lab: np.ndarray) -> dict:
             out[tag] = made[src]
             continue
         if src == "B2A1":
-            # colorimetric alias: PRM black -> device black
-            out[tag] = b2a_resampled(luts["B2A1"], pcs, PRM_BLACK, bd)
+            # colorimetric alias (no source gamut): PRM black -> Lab 0.
+            # D-19 / Validation/f09-decision.md amendment 1: the engine pins
+            # the B2A1 L* 0 corner to the device black, while its own black
+            # Lab does NOT print as the black (X1: 7.91 prints 10.64), so
+            # "PRM black -> device black" lifted the black in every CMM.
+            out[tag] = b2a_resampled(luts["B2A1"], pcs, PRM_BLACK,
+                                     np.zeros(3))
         else:
             # mapped, zero-black convention: PRM black -> 0
             out[tag] = b2a_resampled(luts[src], pcs, PRM_BLACK,

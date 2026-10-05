@@ -92,20 +92,20 @@ def _s3(tmp_path_factory):
     return write_ti3(td / "c.ti3", p, chart, xyz, refl)
 
 
-def _srgb_black_L(prof_path, lab_reader_path, intent):
+def _srgb_black_L(prof_path, lab_reader_path, intent, dev_mode="CMYK"):
     """sRGB black through ``prof_path`` (lcms, PIL), then the device value
     read back to Lab through the v2 file's colorimetric A2B1."""
     from PIL import Image, ImageCms
     srgb = ImageCms.createProfile("sRGB")
     prof = ImageCms.getOpenProfile(str(prof_path))
-    t = ImageCms.buildTransform(srgb, prof, "RGB", "CMYK",
+    t = ImageCms.buildTransform(srgb, prof, "RGB", dev_mode,
                                 renderingIntent=intent)
     img = Image.new("RGB", (1, 1), (0, 0, 0))
-    cmyk = ImageCms.applyTransform(img, t)
+    dev = ImageCms.applyTransform(img, t)
     back = ImageCms.buildTransform(ImageCms.getOpenProfile(str(lab_reader_path)),
-                                   ImageCms.createProfile("LAB"), "CMYK", "LAB",
+                                   ImageCms.createProfile("LAB"), dev_mode, "LAB",
                                    renderingIntent=1)
-    lab = ImageCms.applyTransform(cmyk, back).getpixel((0, 0))
+    lab = ImageCms.applyTransform(dev, back).getpixel((0, 0))
     return lab[0] / 255.0 * 100.0
 
 
@@ -116,10 +116,7 @@ def test_v4_twin_prints_srgb_black_like_the_v2_file(_s3, tmp_path):
     build_profile(_s3, out, BuildSettings(
         quality="l", gammap_mode=mode, icc_version="both",
         source_gamut="assets/profiles/ClayRGB1998.icm",
-        argyll_bin=_argyll(),
-        # Integration 2: F-09 is behind the research token "v4prm", OFF by
-        # default (its ColorSync trade-off is decided separately).
-        engine_candidates=("v4prm",)))
+        argyll_bin=_argyll()))          # "v4prm" is a default (D-19)
     twin = tmp_path / f"{mode}-v4.icc"
     from benchmarks.iccread import IccProfile
     p2, p4 = IccProfile(out), IccProfile(twin)
@@ -132,14 +129,33 @@ def test_v4_twin_prints_srgb_black_like_the_v2_file(_s3, tmp_path):
 
 
 @pytest.mark.slow
-def test_without_the_token_the_v4_twin_keeps_the_v2_tables(_s3, tmp_path):
-    """Integration 2: "v4prm" is OFF by default, so a default Maximum
-    accuracy build writes the same intent 0/2 tables into both containers."""
+def test_v4_twin_without_a_source_gamut_keeps_the_v2_black(tmp_path):
+    """D-19 amendment 1 (Validation/f09-decision.md): with no source gamut
+    the B2A0/B2A2 alias B2A1 and the PRM black must reach Lab 0 (the L* 0
+    corner the engine pins to the device black). "PRM black -> device black
+    Lab" printed X1's black at L* 10.6 instead of 7.9 through lcms."""
+    from benchmarks.research import datasets as dsm
+    ds = dsm.synthetic("X1", tmp_path, 400)
+    out = tmp_path / "x1.icc"
+    build_profile(ds.ti3, out, BuildSettings(
+        quality="l", gammap_mode="accurate", icc_version="both",
+        argyll_bin=_argyll()))
+    twin = tmp_path / "x1-v4.icc"
+    for intent in (0, 2):
+        l2 = _srgb_black_L(out, out, intent, "RGB")
+        l4 = _srgb_black_L(twin, out, intent, "RGB")
+        assert abs(l4 - l2) <= 0.1, (intent, l2, l4)
+
+
+@pytest.mark.slow
+def test_no_v4prm_keeps_the_v2_tables_in_the_twin(_s3, tmp_path):
+    """The research off-switch "no-v4prm" writes the same intent 0/2 tables
+    into both containers (the pre-F-09 twin)."""
     out = tmp_path / "accurate.icc"
     build_profile(_s3, out, BuildSettings(
         quality="l", gammap_mode="accurate", icc_version="both",
         source_gamut="assets/profiles/ClayRGB1998.icm",
-        argyll_bin=_argyll()))
+        argyll_bin=_argyll(), engine_candidates=("no-v4prm",)))
     from benchmarks.iccread import IccProfile
     p2 = IccProfile(out)
     p4 = IccProfile(tmp_path / "accurate-v4.icc")

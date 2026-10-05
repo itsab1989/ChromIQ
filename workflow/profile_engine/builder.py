@@ -76,7 +76,7 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
-     "no-b2a33s", "no-rgbpos",
+     "no-b2a33s", "no-rgbpos", "no-v4prm",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
      "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
      # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
@@ -95,7 +95,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # builds, beyond the ink limit A2B p95 went from 2.4 to 11-25 dE00, and its
 # highlight results depended on the chart. Fast and Bit-exact never read
 # candidates.
-ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos"})
+# Integration 2 (D-19, 2026-10-05): "v4prm" ON too: the v4 container's
+# perceptual/saturation tables follow ICC.1:2022 Table 16 (F-09); the v2
+# file is untouched. "no-v4prm" switches it off for research.
+ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "v4prm"})
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer
@@ -1188,10 +1191,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # it; the v2 file keeps its bytes (research agent17-01 item 2, F-09).
         # Maximum accuracy only (D-15): Fast and Bit-exact stay frozen
         # comparison columns, their v4 container keeps the v2 tables.
-        # Integration 2: behind the research token "v4prm", OFF by default
-        # (RESUME 13): through ColorSync and Argyll, which do no PRM black
-        # handling, the fixed twin merges sRGB 0-0.04 into the black; that
-        # trade-off is being decided separately.
+        # Integration 2: token "v4prm", ON by default (D-19, after
+        # Validation/f09-decision.md): ColorSync and Argyll do no PRM black
+        # handling and merge the darkest sRGB levels into black, as they do
+        # for every X-Rite v4 profile; Mac users are pointed at the v2 file.
         from workflow.profile_engine.v4_prm import v4_luts
         luts_v4 = v4_luts(luts, codec.signature,
                           model.predict(device_black[None, :])[0])
