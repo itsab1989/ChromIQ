@@ -228,6 +228,15 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
                     specs.append({"ds": dsm.synthetic(pid, work, n_patches, seed=23 + k,
                                                       chart_seed=11 + k, printers=printers),
                                   "variant": f"seed{k}"})
+    elif suite == "a19seeds":
+        # agent 19: ramp-row confirmation (protocol v2.1 A4, k >= 10) for
+        # a19-extrap on the printers whose single build flagged E5/E6
+        for pid in ["X6", "X7", "X8"]:
+            for k in range(10):
+                if keep(pid):
+                    specs.append({"ds": dsm.synthetic(pid, work, n_patches, seed=23 + k,
+                                                      chart_seed=11 + k, printers=printers),
+                                  "variant": f"seed{k}"})
     elif suite == "noise":
         for pid in ["S3", "X3", "X1", "X5"]:
             for lvl in ["none", "battery", "reread", "typical", "pessimistic"]:
@@ -295,7 +304,7 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
     suite = spec["suite"]
     q = spec.get("quality", args.quality)
     engines = list(args.engines)
-    if suite in ("seeds", "noise", "spectral"):
+    if suite in ("seeds", "noise", "spectral", "a19seeds"):
         engines = [e for e in engines if e in ("colprof", "fast", "accurate")]
     if suite == "b2agrid":
         engines = [e for e in engines if e in ("colprof", "accurate")]
