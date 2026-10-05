@@ -89,7 +89,12 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # builds, beyond the ink limit A2B p95 went from 2.4 to 11-25 dE00, and its
 # highlight results depended on the chart. Fast and Bit-exact never read
 # candidates.
-ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos"})
+# Research F-13 (Agent 20, 2026-10-05, Findings/agent20-01): "rgbcol" holds
+# an RGB printer's neutral column below the device black AT the black
+# through the B2A refit (the grey ramp no longer turns lighter in the deep
+# shadows; battery v3 816 + 960 rows TIE, 0 WORSE). "no-rgbcol" for
+# ablations.
+ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "rgbcol"})
 
 
 def accurate_candidates(tokens) -> frozenset:
