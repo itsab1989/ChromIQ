@@ -92,3 +92,37 @@ def field_prior(field: np.ndarray, grid: int, to01, weight: float = 1.0):
         ww = np.maximum(prior_w, weight)
         return np.where(prior_w > weight, prior, p), ww
     return f
+
+
+def blend_black(model, axis: dict, *, span: float = 10.0, ink_limit=None,
+                channel_max=None, weight: float = 1.0) -> dict:
+    """Agent 21 D4 ("a21-blendblack"): the dark end of the neutral axis as a
+    colour-exact projection of the STRAIGHT device line from the axis at
+    L*_black + span to the neutral black. A straight line is monotone in every
+    ink, so the CMY-for-spot-ink swap the walk makes in the last few L* (the
+    S5/S6 TV excess of agent9-01 6.2) turns into one monotone hand-over, and
+    the black itself (depth and device value) is kept exactly."""
+    if axis.get("black") is None or axis.get("l_black") is None:
+        return axis
+    ls, dev, ok = np.asarray(axis["l"]), np.array(axis["dev"], float), np.asarray(axis["ok"], bool)
+    lb = float(axis["l_black"])
+    join = lb + span
+    cand = np.flatnonzero(ok & (ls >= join))
+    if not len(cand):
+        return axis
+    j0 = int(cand[np.argmin(ls[cand])])
+    seg = np.flatnonzero((ls < ls[j0]) & (ls > lb))
+    if not len(seg):
+        return axis
+    t = (ls[j0] - ls[seg]) / max(ls[j0] - lb, 1e-9)
+    p = (1.0 - t)[:, None] * dev[j0][None, :] + t[:, None] * np.asarray(axis["black"])[None, :]
+    tgt = np.stack([ls[seg], np.zeros(len(seg)), np.zeros(len(seg))], 1)
+    w = np.full_like(p, weight)
+    d_new, good = b2a_mod.project_metamers(model, tgt, p, p, w, ink_limit=ink_limit,
+                                           channel_max=channel_max, iters=10)
+    out = dict(axis)
+    nd = dev.copy()
+    nd[seg[good]] = d_new[good]
+    out["dev"] = nd
+    out["a21_blend"] = {"join_L": float(ls[j0]), "replaced": int(good.sum()), "of": int(len(seg))}
+    return out

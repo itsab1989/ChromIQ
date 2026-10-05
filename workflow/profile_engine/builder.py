@@ -994,6 +994,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_max=channel_max)
         if "a9-monoblack" in candidates:
             axis = b2a_mod.monotone_black(model, axis)
+        if "a21-blendblack" in candidates:
+            from workflow.profile_engine import a21_smooth
+            axis = a21_smooth.blend_black(
+                model, axis, ink_limit=None if ink_limit is None else ink_limit / 100.0,
+                channel_max=channel_max)
+            if axis.get("a21_blend"):
+                _emit(settings, f"Agent 21 blend to the black: {axis['a21_blend']}.")
         if axis.get("deep_black") and "K" in meas.channel_letters:
             ki = meas.channel_letters.index("K")
             okx = np.asarray(axis["ok"], bool)
