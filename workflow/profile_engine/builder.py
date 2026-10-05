@@ -77,7 +77,7 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
-     "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark"})
+     "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp"})
 
 
 def candidates_from_env(env_value: str | None) -> frozenset:
@@ -665,7 +665,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             if gpm is not None:
                 model = gpfwd.project_to_table(
                     gpm, model, lam, fine="a2bfine" in candidates,
-                    anchor_rel=0.1, keep_curves="gpkeep" in candidates)
+                    anchor_rel=0.1, keep_curves="gpkeep" in candidates,
+                    shaped_samples="gpsamp" in candidates)
                 a2b_grid = model.grid
         if len(outliers):
             # Name the patches the way the SHEET names them (SAMPLE_LOC):
