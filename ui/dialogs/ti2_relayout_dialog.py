@@ -2815,11 +2815,12 @@ class _NewChartDialog(QDialog):
         self._gen_fill_sparse.setChecked(False)
         self._gen_fill_sparse.setToolTip(tr(
             "Multi-ink printers only. Fills the chart with patches of three "
-            "or four inks, in the ink combinations a separation really "
-            "prints: CMYK first, then each extra ink with the process inks "
-            "beside it, and inks on opposite sides of the colour circle "
-            "(cyan with orange, magenta with green, yellow with violet) "
-            "less often.\n\n"
+            "or four inks, the way a separation prints a colour. Inks on "
+            "opposite sides of the colour circle are put together less "
+            "often: with a pre-conditioning profile ChromIQ reads where each "
+            "ink really prints, otherwise it goes by the ink's name (cyan "
+            "with orange, magenta with green, yellow with violet). A light "
+            "ink counts together with its dark ink.\n\n"
             "Professional expanded-gamut charts (FOGRA55, the ECG charts) "
             "are built this way: most of their patches have three or four "
             "inks, under one in ten has five or more. A few such patches are "
