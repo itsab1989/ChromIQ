@@ -60,6 +60,8 @@ PARAMS: dict = {
     "pass2": False,
     "descent": True,       # monotone (backtracking) weighted Gauss-Newton
     "propagate": 0,        # rounds of neighbour propagation on a node lattice
+    "blend_light": 0.0,    # extra width of the blend band near paper white
+    "blend_light_from": 90.0,  # (target L*, smoothstep to 100)
     "neutral_fade": False,  # every weight fades to 1 (the plain nearest clip
                             # in CIELAB) as the target's chroma goes to 0
     "de00": False,         # CIEDE2000 tolerances S_L, S_C, S_H at the target
@@ -524,6 +526,13 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         best[ok] = d2[ok]
     # Continuous hand-over to the nearest clip near the surface.
     lo, hi = p["blend_lo"], p["blend_hi"]
+    if p.get("blend_light"):
+        # Near paper white the B2A cells mix in-gamut and clipped nodes for
+        # every pale colour; there the clip hands over to the nearest clip
+        # over a wider band (in-gamut pale accuracy, battery X1 pale p95).
+        u = np.clip((t_lab[:, 0] - p["blend_light_from"])
+                    / max(100.0 - p["blend_light_from"], 1e-9), 0.0, 1.0)
+        hi = hi + p["blend_light"] * u * u * (3.0 - 2.0 * u)
     bf = np.clip((residual[sel] - lo) / (hi - lo), 0.0, 1.0)
     bf = bf * bf * (3.0 - 2.0 * bf)
     out[sel] = (1.0 - bf)[:, None] * d_near[sel] + bf[:, None] * best
