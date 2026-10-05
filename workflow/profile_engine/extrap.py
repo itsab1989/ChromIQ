@@ -359,7 +359,7 @@ def lightening_patches(patch_dev: np.ndarray, patch_xyz: np.ndarray,
 def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
                   margin: float = 3.0, floor_l: float = 2.5,
                   use_measured: bool = True, near: float = 0.5,
-                  slack: float = 0.0,
+                  slack: float = 0.0, envelope: bool = True,
                   ramp: float = 1.0, info: dict | None = None):
     """Lift every node that is darker, in any XYZ channel, than (a) a
     measured patch carrying at least as much of every ink, or (b) the
@@ -385,7 +385,8 @@ def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
     # patch reads L* 18.3, lighter than several 400-500 % patches; trapping
     # fails) or a patch is misread light, the bound drops to what the chart
     # shows with less ink instead of trusting the lighter reading.
-    pxyz = monotone_envelope(pdev, pxyz)
+    if envelope:
+        pxyz = monotone_envelope(pdev, pxyz)
     ok = np.ones(len(pdev), bool)
     lb = monotone_lower_bounds(dev_axes, pdev, pxyz, tol=max(slack, 1e-6))
     # floor: ``floor_l`` L* below the darkest patch as the robust fit sees

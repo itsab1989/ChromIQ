@@ -134,3 +134,52 @@ def test_a_measured_node_is_not_moved_even_if_its_neighbour_is_lighter():
     nodes, moved = extrap.bound_by_data(m, dev, lab_p)
     assert not moved[k]
     assert np.array_equal(nodes[k], lab[k])
+
+
+def _s6_chart(tmp_path, n_patches=500):
+    from benchmarks.synthetic import PRINTERS, make_chart, measure, write_ti3
+    p = PRINTERS["S6"]                  # 5 inks (CMYKV), YNSN truth
+    chart = make_chart(p, n_patches)
+    xyz, refl, _ = measure(p, chart)
+    return p, write_ti3(tmp_path / "s6.ti3", p, chart, xyz, refl)
+
+
+def _build(ti3, out, tokens):
+    from workflow.profile_engine.builder import BuildSettings, build_profile
+    from datetime import datetime
+    s = BuildSettings(quality="l", gammap_mode="accurate",
+                      timestamp=datetime(2026, 1, 1))
+    s.engine_candidates = frozenset(tokens)
+    return build_profile(ti3, out, s)
+
+
+@pytest.mark.slow
+def test_max_accuracy_build_with_the_token_bounds_every_corner(tmp_path):
+    """F-12 at builder level: a 5-ink chart with no two-ink solid; with the
+    token no corner of the A2B model is darker than the chart's black - 3,
+    and the extrapolated corners are closer to the truth on average."""
+    p, ti3 = _s6_chart(tmp_path)
+    off = _build(ti3, tmp_path / "off.icc", ())
+    on = _build(ti3, tmp_path / "on.icc", ("a19-extrap",))
+    c = _corners(5)
+    black = float(np.sort(on.measurement.lab_relative[:, 0])[1])
+    l_on = on.model.predict(c)[:, 0]
+    assert l_on.min() >= black - 3.0
+    from workflow.profile_engine.metrics import delta_e_2000
+    truth = p.lab_relative_true(c)
+    d_off = delta_e_2000(off.model.predict(c), truth)
+    d_on = delta_e_2000(on.model.predict(c), truth)
+    assert np.median(d_on) <= np.median(d_off) + 0.05
+
+
+@pytest.mark.slow
+def test_token_changes_no_byte_on_an_rgb_chart(tmp_path):
+    """Additive devices are left alone: same bytes with and without."""
+    from benchmarks.synthetic import PRINTERS, make_chart, measure, write_ti3
+    pr = PRINTERS["S1"]                 # RGB
+    chart = make_chart(pr, 300)
+    xyz, refl, _ = measure(pr, chart)
+    ti3 = write_ti3(tmp_path / "rgb.ti3", pr, chart, xyz, refl)
+    _build(ti3, tmp_path / "off.icc", ())
+    _build(ti3, tmp_path / "on.icc", ("a19-extrap",))
+    assert (tmp_path / "off.icc").read_bytes() == (tmp_path / "on.icc").read_bytes()
