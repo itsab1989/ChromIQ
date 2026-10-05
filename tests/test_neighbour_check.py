@@ -222,9 +222,17 @@ def test_four_thousand_patches_are_judged_in_well_under_a_second():
         for p in range(42):
             exp = (rng.uniform(5, 95), rng.uniform(-80, 80), rng.uniform(-80, 80))
             nc.set_reading_lab(f"{letter}-{p}", exp, exp, letter)
-    t = time.perf_counter()
+    # CPU TIME, NOT WALL TIME: the gate saturates every core, and a wall clock
+    # then measures the scheduler. It failed once at 2.48 s wall in a loaded
+    # everyday run and passed alone. Measured 2026-10-05 at load ~90: 0.39 to
+    # 0.48 s CPU against 0.72 to 1.07 s wall for this very call, so 2.0 s of
+    # CPU still names a judgement that has turned several times dearer, which
+    # is what this guards, while a busy machine no longer turns it red.
+    # (No threaded BLAS in neighbour_check, so process time is this thread's.)
+    t = time.process_time()
     nc.evaluate()
-    assert time.perf_counter() - t < 2.0
+    spent = time.process_time() - t
+    assert spent < 2.0, f"judging 4,200 patches took {spent:.2f} s of CPU"
     assert nc.suspects() == []
 
 
