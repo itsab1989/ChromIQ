@@ -1204,6 +1204,20 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             # construction, so no target needs a re-clip.
             mapped = model.predict(np.clip(mapper.node_dev, 0.0, 1.0))
         _cands = getattr(settings, "engine_candidates", frozenset())
+        _neutral_col = None
+        if accurate and "a25-oracle-neutral" in _cands and getattr(
+                mapper, "node_dev", None) is not None:
+            # Research (Agent 25): perceptual maps the neutral axis onto the
+            # neutral axis. The source-neutral column's target keeps the L*
+            # colprof's table prints (engine model) but is made neutral, and
+            # is re-inverted; integration 2's inversion was neutral there
+            # (X1 grey C* 1.1) and colprof's own table is not (1.8).
+            _neutral_col = np.flatnonzero(
+                np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+            mapped = mapped.copy()
+            mapped[_neutral_col] = model.predict(
+                np.clip(mapper.node_dev[_neutral_col], 0.0, 1.0))
+            mapped[_neutral_col, 1:] = 0.0
         _odev = (np.clip(mapper.node_dev, 0.0, 1.0)
                  if accurate and getattr(mapper, "node_dev", None) is not None
                  and ({"a25-oracle-dev", "a25-oracle-seed"} & set(_cands))
@@ -1223,9 +1237,21 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         if _odev is not None and "a25-oracle-dev" in _cands:
             # Research (Agent 25): colprof's own perceptual device values at
             # the nodes, no re-inversion (what colprof's table prints).
-            dev = _odev
+            dev = _odev.copy()
             if channel_max is not None:
                 dev = np.minimum(dev, channel_max[None, :])
+            if _neutral_col is not None and len(_neutral_col):
+                dev[_neutral_col] = b2a_mod.invert_to_device(
+                    model, mapped[_neutral_col],
+                    channel_letters=channel_letters, is_additive=is_additive,
+                    ink_limit=ink_limit, accurate=accurate,
+                    extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                    channel_max=channel_max, seed=_odev[_neutral_col])[0]
+            if ink_limit is not None and not is_additive:
+                # the engine's ink limit, exactly (xicclu's 4-decimal device
+                # values and colprof's own limit handling overshoot it by up
+                # to 1 %: FOGRA39 333 % for a 330 % limit)
+                dev = b2a_mod.project_tac(dev, ink_limit / 100.0)
         else:
           dev, _residual = b2a_mod.invert_to_device(
             model, mapped, channel_letters=channel_letters,
