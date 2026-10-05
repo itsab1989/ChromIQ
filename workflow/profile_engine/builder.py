@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 
 import contextlib
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -89,7 +90,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix",
      "a25-oog", "a25-clip", "a25-space-ucs", "a25-space-lab",
      "a25-space-oklab", "a25-space-ipt", "a25-oracle-model",
-     "a25-oracle-dev", "a25-oracle-seed", "a25-oracle-neutral"})
+     "a25-oracle-dev", "a25-oracle-seed", "a25-oracle-neutral",
+     # Agent 24 (F-05, 5+ ink mapped-intent black; acts only on >= 5 inks)
+     "a24-f05", "a24-f05walk", "a24-f05min", "a24-f05pin", "a24-f05nopin",
+     # Agent 24 (C-L1, ColorSync-readable A2B L* encoding; C-S1 spectral)
+     "a24-l1", "a24-l1scale", "a24-s1", "a24-s1sprague"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -122,7 +127,7 @@ GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
 GP_FIN3_DEFAULT_ON = True
 
 
-def _a21_cached_fit(fn):
+def _a24_cached_fit(fn):
     import hashlib
     import pickle
     from pathlib import Path as _P
@@ -134,7 +139,7 @@ def _a21_cached_fit(fn):
                 h.update(np.ascontiguousarray(a, float).tobytes())
         h.update(repr(sorted((k, v) for k, v in kw.items()
                              if k not in ("progress", "row_weights"))).encode())
-        d = _P(os.environ["CHROMIQ_A21_FIT_CACHE"])
+        d = _P(os.environ["CHROMIQ_A24_FIT_CACHE"])
         d.mkdir(parents=True, exist_ok=True)
         f = d / f"fit-{h.hexdigest()[:32]}.pkl"
         if f.exists():
@@ -615,7 +620,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, "Computing colorimetry from the spectral data…")
         apply_spectral(meas, illuminant=settings.illuminant,
                        observer=settings.observer, fwa=settings.fwa,
-                       fwa_illum=settings.fwa_illum)
+                       fwa_illum=settings.fwa_illum,
+                       method=_spectral_method(settings))
 
     if settings.clip_primaries:
         # colprof -R: white Y restricted to ≤ 1.0, values clipped positive.
@@ -718,11 +724,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 positioning=not meas.is_additive and curve_rounds > 0)
     elif accurate:
         from workflow.profile_engine.accuracy import fit_forward_model_accurate
-        if os.environ.get("CHROMIQ_A21_FIT_CACHE"):
-            # Research only (agent 21): an on-disk cache of this exact fit, so
-            # two battery arms that differ only in B2A tokens fit once. The
-            # pickle round trip returns the same arrays bit for bit.
-            fit_forward_model_accurate = _a21_cached_fit(fit_forward_model_accurate)
+        if os.environ.get("CHROMIQ_A24_FIT_CACHE"):
+            # Research only (agent 24, after agent 21's cache): battery arms
+            # that differ only in B2A tokens fit once; the pickle round trip
+            # returns the same arrays bit for bit. Inert when unset.
+            fit_forward_model_accurate = _a24_cached_fit(
+                fit_forward_model_accurate)
         model, outliers, _lam_used = fit_forward_model_accurate(
             meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
@@ -882,8 +889,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # background build would not have it and would quietly recompute or skip
     # it, so with that token the mapped tables are built afterwards, as on
     # the branch where the token was measured (integration 1 decision).
+    # Research F-05 (Agent 24): the a24-f05* tokens on 5+ inks need the
+    # colorimetric table's black too, so they build afterwards as well.
+    _f05_after = (n >= 5 and not meas.is_additive
+                  and any(t.startswith("a24-f05") for t in candidates))
     if (accurate and settings.source_gamut is not None
-            and "a9-ownmap" not in candidates):
+            and "a9-ownmap" not in candidates and not _f05_after):
         import threading
         from workflow.profile_engine import parallel
         if parallel.worker_count() > 1:
@@ -1248,6 +1259,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         from workflow.profile_engine.v4_prm import v4_luts
         luts_v4 = v4_luts(luts, codec.signature,
                           model.predict(device_black[None, :])[0])
+    if accurate and {"a24-l1", "a24-l1scale"} & candidates \
+            and codec.signature == b"Lab ":
+        # Research C-L1 (Agent 24, D-01 closing section): the A2B L* output
+        # encoding that ColorSync reads right and every spec CMM reads as
+        # before (workflow/profile_engine/lab_l1.py). A2B tags only.
+        from workflow.profile_engine.lab_l1 import apply_l1
+        same = luts_v4 is luts
+        l1v = "scale" if "a24-l1scale" in candidates else "b"
+        luts = apply_l1(luts, l1v)
+        luts_v4 = luts if same else apply_l1(luts_v4, l1v)
     if str(settings.icc_version) == "4":
         from dataclasses import replace
         spec = replace(spec, wtpt=v4_wtpt)
@@ -1332,6 +1353,20 @@ def _sanity_gates(meas: Ti3Measurement, settings: BuildSettings) -> None:
             f"before building a profile.")
 
 
+def _spectral_method(settings: BuildSettings) -> str:
+    """Research C-S1 (Agent 24): Maximum accuracy with token "a24-s1" (spline)
+    or "a24-s1sprague" integrates F-series illuminants at 1 nm; everything
+    else (other modes, smooth illuminants) keeps the band sum and its bytes."""
+    from workflow.profile_engine.spectral import needs_fine_integration
+    if settings.gammap_mode != "accurate" \
+            or not needs_fine_integration(settings.illuminant):
+        return ""
+    cands = accurate_candidates(settings.engine_candidates)
+    if "a24-s1sprague" in cands:
+        return "sprague"
+    return "spline" if "a24-s1" in cands else ""
+
+
 def _v4_adaptation(meas: Ti3Measurement, settings: BuildSettings,
                    wtpt_abs: np.ndarray):
     """ICC v4 needs ``chad`` and a D50-adapted ``wtpt`` when the measurement
@@ -1346,7 +1381,8 @@ def _v4_adaptation(meas: Ti3Measurement, settings: BuildSettings,
     from workflow.profile_engine.ti3_data import D50_XYZ100
     ill = spectra_to_xyz(np.ones((1, len(meas.wavelengths))),
                          meas.wavelengths,
-                         illuminant=settings.illuminant)[0]
+                         illuminant=settings.illuminant,
+                         method=_spectral_method(settings))[0]
     cone_ill = BRADFORD @ (ill / 100.0)
     cone_d50 = BRADFORD @ (D50_XYZ100 / 100.0)
     m = np.linalg.inv(BRADFORD) @ np.diag(cone_d50 / cone_ill) @ BRADFORD

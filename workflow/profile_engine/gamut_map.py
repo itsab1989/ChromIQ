@@ -975,6 +975,34 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
         return {"l_axis": ls, "neutral_lab": neutral, "k_curve": k_curve}
 
 
+F05_TOKENS = {"a24-f05": "f05", "a24-f05walk": "walk",
+              "a24-f05min": "min", "a24-f05pin": "pin",
+              "a24-f05nopin": "nopin"}
+
+
+def f05_variant(settings, model, *, is_additive: bool,
+                accurate: bool) -> str | None:
+    """The research F-05 variant a Maximum accuracy build of a 5+ ink device
+    runs with (None: unchanged). First listed token wins."""
+    if not accurate or is_additive or model is None \
+            or getattr(model, "n_channels", 0) < 5:
+        return None
+    cands = getattr(settings, "engine_candidates", frozenset())
+    for tok, var in F05_TOKENS.items():
+        if tok in cands:
+            return var
+    return None
+
+
+def darkest_neutral_of_cloud(cloud_lab: np.ndarray) -> np.ndarray:
+    """F-05's minimal fix: the darkest NEAR-NEUTRAL colour of the destination
+    shell cloud (model surface under the ink limit plus measured patches)."""
+    c = np.hypot(cloud_lab[:, 1], cloud_lab[:, 2])
+    near = c < max(3.0, float(np.percentile(c, 1)))
+    pts = cloud_lab[near]
+    return pts[int(np.argmin(pts[:, 0]))].astype(float)
+
+
 def _neutral_black_lab(model: ForwardModel, *, is_additive: bool,
                        ink_limit: float | None, channel_letters,
                        channel_max, neutral_black_dev, meas) -> np.ndarray:
@@ -1102,6 +1130,27 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             model, is_additive=is_additive, ink_limit=ink_limit,
             channel_letters=channel_letters, channel_max=channel_max,
             neutral_black_dev=neutral_black_dev, meas=meas)
+    # Research F-05 (agent24-01 s1): on 5+ ink devices the mapper's black
+    # is the model at ALL inks 100 % (500-700 % ink, far outside every
+    # patch); Argyll's perceptual/saturation intents align the whole grey
+    # axis to it, so greys take its colour. a24-f05* hand the mapper a black
+    # the printer can make instead. <= 4 inks and RGB are never touched.
+    f05 = f05_variant(settings, model, is_additive=is_additive,
+                      accurate=accurate)
+    f05_pin = False
+    if f05 is not None and not ownmap:
+        f05_pin = f05 in ("f05", "walk", "pin")
+        if f05 in ("f05", "nopin") and black_dev_shaped is not None:
+            dev_b = model.unshape_device(
+                np.asarray(black_dev_shaped, float)[None, :])
+            dst_black_lab = model.predict(dev_b)[0]
+        elif f05 == "walk":
+            dst_black_lab = _neutral_black_lab(
+                model, is_additive=is_additive, ink_limit=ink_limit,
+                channel_letters=channel_letters, channel_max=channel_max,
+                neutral_black_dev=neutral_black_dev, meas=meas)
+        elif f05 == "min":
+            dst_black_lab = darkest_neutral_of_cloud(dst)
     # #123 W5 (candidate "render2"): the bijective CAM16-UCS radial
     # mapper replaces the Argyll-matched rendering for the DEFAULT
     # perceptual/saturation intents — explicit -t/-T selections keep the
@@ -1126,7 +1175,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                 model, meas, source_gamut, settings,
                 getattr(settings, "argyll_bin", None), progress,
                 is_additive=is_additive, ink_limit=ink_limit,
-                **({"dst_black_lab": dst_black_lab} if ownmap else {}))
+                **({"dst_black_lab": dst_black_lab}
+                   if ownmap or dst_black_lab is not None else {}))
         except Exception as exc:                      # noqa: BLE001
             if progress:
                 progress(f"Ported gammap unavailable ({exc}) — "
@@ -1271,8 +1321,9 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         # (source white → destination white); the inversion of the mapped
         # target lands a fitted value there, so pin it (b2a.pin_white_node).
         shaped = b2a_mod.pin_white_node(shaped, node_lab, is_additive)
-        if ownmap and black_dev_shaped is not None and "a9-blackpin" in \
-                getattr(settings, "engine_candidates", frozenset()):
+        if black_dev_shaped is not None and (f05_pin or (
+                ownmap and "a9-blackpin" in
+                getattr(settings, "engine_candidates", frozenset()))):
             # Research agent9-01 6.3: source black -> the SAME device black
             # as the colorimetric table (the neutral black under the limits),
             # as B2A1's pin_black_node does; the gamut map's own black lands
