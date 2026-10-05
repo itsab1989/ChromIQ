@@ -410,7 +410,10 @@ def fit_forward_model_accurate(
             # coordinate 0.5 -> 1.5): the local gate alone still left 15
             # near-white X7 jumps; the light end the B2A refit samples
             # keeps the plain fit
-            ink_gate=(0.5, 1.5))
+            ink_gate=(0.5, 1.5),
+            # the CHANGE is solved, not the whole lattice again: a full
+            # re-solve from the fit drifted the unpenalised region
+            delta=True)
         res = dist(model.predict(device), lab)
         res_w = res / sigma if sigma is not None else res
 

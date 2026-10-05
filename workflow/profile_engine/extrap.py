@@ -552,7 +552,8 @@ def interaction3(x: np.ndarray, grid: int, n: int) -> np.ndarray:
 def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
                                iters=400, order: int = 3,
                                local: tuple | None = None,
-                               ink_gate: tuple | None = None):
+                               ink_gate: tuple | None = None,
+                               delta: bool = False):
     """``local`` = (near, ramp) in lattice cells: the penalty acts only away
     from the chart (weight 0 within ``near`` cells of the nearest patch,
     1 beyond ``near + ramp``), so the region the data pin, paper white and
@@ -594,8 +595,20 @@ def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
         return (wt((w[:, :, None] * x[cols]).sum(1)) + lam * _curvature(x, grid, n)
                 + mu * interaction(x, grid, n, order, node_w) + 1e-7 * x)
 
-    b = wt(y)
-    x = np.array(model.nodes, float, copy=True)
+    x0 = np.array(model.nodes, float, copy=True)
+    if delta:
+        # Solve for the CHANGE only: (A + mu P) d = -mu P x0, taking x0 as the
+        # converged plain fit. Where the penalty is gated off, P x0 = 0 and
+        # d stays ~0 even if CG stops early; re-solving the whole system
+        # from x0 instead drifted the unpenalised lattice (X7 near white,
+        # the "mu = 0" re-solve differed from the fit: ramps max 2.4 -> 11.4)
+        if mu == 0.0:
+            return x0
+        b = -mu * interaction(x0, grid, n, order, node_w)
+        x = np.zeros_like(x0)
+    else:
+        b = wt(y)
+        x = x0.copy()
     r = b - amul(x)
     p = r.copy()
     rs = float((r * r).sum())
@@ -610,4 +623,4 @@ def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
             break
         p = r + (rs2 / rs) * p
         rs = rs2
-    return x
+    return x0 + x if delta else x
