@@ -81,15 +81,7 @@ def complementary_pairs(printer, min_angle: float = 150.0, min_chroma: float = 2
     nothing their parent does not."""
     h, c = solid_hues(printer)
     out = []
-    # two PROCESS inks are never "complementary": every separation mixes
-    # them (S5-S7 put C and Y 153 deg apart, which counted C+Y; agent 18 /
-    # challenge B1). Light inks (lower case) follow their parent.
-    fam = [l.upper() for l in printer.letters]
     for i, j in itertools.combinations(range(printer.n), 2):
-        if fam[i] in "CMY" and fam[j] in "CMY":
-            continue
-        if fam[i] == fam[j] or "K" in (fam[i], fam[j]):
-            continue
         if c[i] < min_chroma or c[j] < min_chroma:
             continue
         d = abs((h[i] - h[j] + 180.0) % 360.0 - 180.0)
@@ -407,7 +399,8 @@ class ProxyPrinter:
         import subprocess
         inp = "\n".join(" ".join(f"{v:.6f}" for v in r) for r in dev) + "\n"
         out = subprocess.run(["/Applications/Argyll/bin/mpplu", "-px", str(self.path)],
-                             input=inp, capture_output=True, text=True, timeout=3600,
+                             input=inp, capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", timeout=3600,
                              check=True).stdout
         rows = [[float(x) for x in ln.split("->")[1].split("[")[0].split()[:3]]
                 for ln in out.splitlines() if "->" in ln]
@@ -511,7 +504,7 @@ def main(argv=None) -> None:
     r["headline"] = headline(r)
     txt = json.dumps(r, indent=1)
     if a.out:
-        Path(a.out).write_text(txt)
+        Path(a.out).write_text(txt, encoding="utf-8")
     print(json.dumps(r["headline"], indent=1))
 
 

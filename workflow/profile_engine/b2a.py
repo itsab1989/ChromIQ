@@ -26,6 +26,7 @@ import numpy as np
 
 from workflow.profile_engine.forward_model import ForwardModel
 from workflow.profile_engine.icc_writer import lab_grid_axes
+from workflow.profile_engine import oog_clip as _oog
 
 # Lab hue anchors for extra inks, keyed by COLOR_REP letter. Measured hues of
 # the EXTRA_INK display anchors used across ChromIQ (ui.tiff_preview).
@@ -459,12 +460,25 @@ def ink_priors(target: np.ndarray, n: int, *,
     prior = np.zeros((len(target), n))
     prior_w = np.zeros((len(target), n))
     neutral_k = None
+    neutral_dev = None
     if k_prior is not None and k_prior.get("neutral_only"):
         # Research agent9-01 6.2 ("a9-monok"): a K curve that applies to
         # the NEUTRALS only (blended in with the accurate neutral weight
         # below); chromatic colours keep the engine's own locus.
         neutral_k = np.interp(target[:, 0], k_prior["l_axis"],
                               k_prior["k_curve"])
+        if k_prior.get("dev_curve") is not None:
+            # Research agent17-01 item 1: the re-routed neutral axis of a
+            # printer whose dark end lightens. There K alone does not pick
+            # the branch (XKB, L* 22: K 0.70 with C/M/Y 1.0/0.63/0.62 at
+            # 295 % prints the same as K 0.73 with 0.37/0.35/0.35 at 179 %),
+            # so near-neutral targets are pulled toward the axis's whole
+            # separation; the colour terms still dominate wherever the
+            # model has slope, the prior only picks among metamers.
+            dc = np.asarray(k_prior["dev_curve"], float)
+            neutral_dev = np.stack([np.interp(target[:, 0],
+                                              k_prior["l_axis"], dc[:, c])
+                                    for c in range(dc.shape[1])], 1)
         k_prior = None
     if k_prior is not None:
         # colprof-calibrated K behaviour (CMYK proxy oracle) — a firmer
@@ -511,10 +525,57 @@ def ink_priors(target: np.ndarray, n: int, *,
             target, channel_letters[ch],
             hue_override=hues.get(channel_letters[ch]))
         prior_w[:, ch] = 0.05
+    if accurate and ECG_SEPARATION.get("on"):
+        _ecg_separation_priors(target, prior, prior_w, channel_letters, hues)
+    if accurate and neutral_dev is not None and neutral_dev.shape[1] == n:
+        nw = np.exp(-(np.hypot(target[:, 1], target[:, 2]) / 25.0) ** 2)
+        prior = nw[:, None] * neutral_dev + (1.0 - nw[:, None]) * prior
+        prior_w = np.maximum(prior_w, 2.0 * nw[:, None])
     return prior, prior_w
 
 
 HUE_CLIP_GUARD: dict = {"on": False}   # agent 19, set per build by the builder
+
+
+# Research token "a14-ecgsep" (agent14-01, Validation/ncolour-excellence.md):
+# the professional ECG separation rule that an extra ink never prints with
+# the process ink on the far side of the hue circle (CMYKOGV: O with C, G
+# with M, V with Y; Fogra/IDEAlliance ECG practice, Tzeng-Berns, Deshpande's
+# 4-ink sectors). Where an extra ink's hue gate is open, the complementary
+# process ink gets a soft prior towards 0, weighted by that gate; elsewhere
+# nothing changes. Set by the builder per build (one build per process).
+ECG_SEPARATION: dict = {"on": False, "sector": False, "weight": 0.5, "cmy_hues": None}
+_CMY_HUE_DEFAULT = {"C": 235.0, "M": 355.0, "Y": 95.0}
+
+
+def _ecg_separation_priors(target, prior, prior_w, letters, extra_hues):
+    cmy = ECG_SEPARATION.get("cmy_hues") or _CMY_HUE_DEFAULT
+    w = float(ECG_SEPARATION.get("weight", 0.5))
+    for ch in range(4, len(letters)):
+        hue = extra_hues.get(letters[ch], _EXTRA_INK_HUE.get(letters[ch]))
+        if hue is None or letters[ch] in ("c", "m", "y", "k"):
+            continue                       # light inks have no complement
+        far = max((abs((hue - h + 180.0) % 360.0 - 180.0), i)
+                  for i, h in ((letters.index(l), cmy[l]) for l in "CMY" if l in letters))
+        if far[0] < 120.0:
+            continue
+        comp = far[1]
+        gate = extra_ink_amount(target, letters[ch], power=1.0, hue_override=hue)
+        wt = w * np.clip(gate * 2.0, 0.0, 1.0)
+        # target 0 for the complement where the gate is open (the strongest
+        # gate wins when two extra inks want the same process ink out)
+        take = wt > prior_w[:, comp]
+        prior[take, comp] = 0.0
+        prior_w[take, comp] = wt[take]
+        if ECG_SEPARATION.get("sector"):
+            # a14-ecgsep2: the extra ink itself stays out of the hue sectors
+            # it does not belong to (measured with a14-ecgsep alone: O moved
+            # into the green-cyan sector on X5, so C+O reappeared there)
+            out = w * np.clip(1.0 - 2.0 * gate, 0.0, 1.0) * np.clip(
+                np.hypot(target[:, 1], target[:, 2]) / 15.0, 0.0, 1.0)
+            more = out > prior_w[:, ch]
+            prior[more, ch] = 0.0
+            prior_w[more, ch] = out[more]
 
 
 def invert_to_device(model: ForwardModel, target: np.ndarray, *,
@@ -618,7 +679,15 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         d[idx] = d_retry[better]
         residual[idx] = res_retry[better]
 
-    if accurate:
+    if accurate and _oog.PARAMS.get("on"):
+        # Research (Agent 25, tokens a25-*): one continuous weighted
+        # nearest-point clip in a hue-linear space, no accept/reject switch
+        # (oog_clip module docstring; Findings agent25-01).
+        d = _oog.clip_nodes(
+            model, target, d, residual, free=free, limit=limit,
+            channel_max=channel_max, prior=prior, prior_w=prior_w,
+            gn_kw=gn_kw, damping=damping, progress_label=progress_label)
+    elif accurate:
         # Hue-preserving clip: nodes that stay out of gamut are re-clipped
         # under a norm that punishes hue errors hardest — a clipped
         # saturated colour loses chroma instead of changing colour family.
@@ -655,7 +724,24 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
                 gained = (np.hypot(lab_pol[:, 1], lab_pol[:, 2])
                           > np.hypot(t_sub[:, 1], t_sub[:, 2]) + 3.0)
                 keep = (dh <= 10.0) & ~gained
-                d_pol[~keep] = seeds_h[found][~keep]
+                if CLIP_FIX.get("on"):
+                    # Agent 21 / F-15 (token a21-clipfix, ported by Agent 25
+                    # from research/pe-nink-research a2e64114): a hue angle is
+                    # meaningless at low chroma, and a rejected polish must
+                    # not write the RAW cloud seed: fall back to the plain
+                    # nearest clip already in d, unless the seed is closer.
+                    c_pol = np.hypot(lab_pol[:, 1], lab_pol[:, 2])
+                    c_t = np.hypot(t_sub[:, 1], t_sub[:, 2])
+                    keep = (((dh <= 10.0) | (np.minimum(c_pol, c_t) < 5.0))
+                            & ~gained)
+                    near = d[sub_idx]
+                    e_near = np.linalg.norm(model.predict(near) - t_sub, axis=1)
+                    e_seed = np.linalg.norm(lab_seed - t_sub, axis=1)
+                    fb = np.where((e_near <= e_seed)[:, None], near,
+                                  seeds_h[found])
+                    d_pol[~keep] = fb[~keep]
+                else:
+                    d_pol[~keep] = seeds_h[found][~keep]
                 if HUE_CLIP_GUARD.get("on"):
                     # Research token "a19-extrap" (agent 19): the hue-
                     # preserving clip may not trade lightness for hue
@@ -677,7 +763,7 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
 
 
 def neutral_axis(model: ForwardModel, *, step: float = 0.5,
-                 **inv_kw) -> dict:
+                 deep_black: bool = True, **inv_kw) -> dict:
     """The neutral axis of an ink device, solved once by continuation.
 
     Walks a* = b* = 0 from paper white (device 0) down in ``step`` L*
@@ -711,8 +797,168 @@ def neutral_axis(model: ForwardModel, *, step: float = 0.5,
         return {"l": ls, "dev": dev, "ok": ok, "l_black": None,
                 "black": None}
     last = int(np.flatnonzero(ok)[-1])
-    return {"l": ls, "dev": dev, "ok": ok, "l_black": float(lab[last, 0]),
+    axis = {"l": ls, "dev": dev, "ok": ok, "l_black": float(lab[last, 0]),
             "black": dev[last].copy()}
+    if deep_black:
+        axis = _deepen_neutral_black(model, axis, step=step, kw=kw)
+    return axis
+
+
+# Research agent17-01 item 1: the walk from paper white is a CONTINUATION
+# under the ink policy, whose K prior on neutrals (the late-GCR locus, weight
+# 2.0, full K only at the darkest MEASURED patch) is firm. On a printer whose
+# dark end lightens (bronzing, over-inked matte media: L* rises again above
+# some total coverage) that branch loads C, M and Y into the lightening zone
+# and stops at the ink-limit face: agent 13's XKB walks to L* 22.1 at 295 %
+# ink while the model itself prints a neutral L* 7.5 at 205 % (K 1.0,
+# C/M/Y 0.35). The black is therefore also searched WITHOUT the policy (a
+# constrained minimum of L* over the model, many seeds), and when it is
+# clearly deeper the dark end of the axis is re-walked from a join point on
+# the forward walk down to it, with the neutral K prior blended linearly
+# from the walk's K at the join to the deep black's K: K enters earlier,
+# the separation stays continuous at the join, and C/M/Y stay out of the
+# lightening zone. Printers on which the walk already finds the deepest
+# neutral are untouched (the walk's axis is returned as is).
+_DEEP_BLACK_MARGIN = 1.0      # L*: below this gain the walk's black stays
+_DEEP_BLACK_SEEDS = 12
+_DEEP_BLACK_JOIN_STEP = 2.0   # L*: spacing of the join points tried
+_DEEP_BLACK_JOIN_TOP = 60.0   # L*: lightest join tried (K starts near here)
+# CMYK only for now: on the battery's 6-ink S7 (walk 12.8, global 8.7) the
+# re-route gave a 3.2 L* deeper neutral black and a better B2A (median
+# 0.882 -> 0.828, p95 1.990 -> 1.600) but C/M/Y rise and fall along the
+# grey ramp (P7 TV excess 0.05 -> 0.25) and the L* 14-30 neutral median
+# went 0.61 -> 0.74. 5+ inks wait for an N-ink-aware blend (agent17-01 1.6).
+_DEEP_BLACK_MAX_INKS = 4
+
+
+def _neutral_ok(model: ForwardModel, d: np.ndarray, r: np.ndarray):
+    lab = model.predict(d)
+    return (r < 0.5) & (np.hypot(lab[:, 1], lab[:, 2]) < 1.0), lab
+
+
+def deepest_neutral(model: ForwardModel, *, step: float = 0.5,
+                    kw: dict) -> tuple[float, np.ndarray] | None:
+    """The darkest neutral the MODEL prints under the build's limits,
+    whatever the ink policy says.
+
+    Seeds: the darkest near-neutral points (model C* < 4) of the
+    limit-respecting device cloud the inversion's retries use, chosen
+    greedily so no two seeds are within 0.15 of each other in device space
+    (different branches of the metamer family). From each seed the axis is
+    walked DOWN in ``step`` L* by plain damped Gauss-Newton on the colour
+    alone (no priors; same TAC projection, channel ceilings and
+    boundary-aware Jacobian as the inversion), accepting a step by the
+    walk's own rule (residual < 0.5 ΔE76, model C* < 1) and stopping after
+    two failures in a row. Returns ``(model L*, device)`` of the darkest
+    accepted point, or None. Deterministic (fixed cloud seed, stable sort)."""
+    n = model.n_channels
+    ink_limit = kw.get("ink_limit")
+    limit = (None if ink_limit is None or kw.get("is_additive")
+             else ink_limit / 100.0)
+    cmax = kw.get("channel_max")
+    cloud, lab = _cloud_and_lab(model, model, n, limit, cmax, 2718,
+                                memo=True)
+    chroma = np.hypot(lab[:, 1], lab[:, 2])
+    cand = np.flatnonzero(chroma < 4.0)
+    if not len(cand):
+        return None
+    cand = cand[np.argsort(lab[cand, 0], kind="stable")]
+    seeds: list[int] = []
+    for i in cand:
+        if all(np.max(np.abs(cloud[i] - cloud[j])) > 0.15 for j in seeds):
+            seeds.append(int(i))
+            if len(seeds) >= _DEEP_BLACK_SEEDS:
+                break
+    free = np.arange(n)
+    best = None
+    for i in seeds:
+        cur = cloud[i][None, :].copy()
+        lv = np.ceil(lab[i, 0] / step) * step
+        fails = 0
+        while lv >= -1e-9 and fails < 2:
+            t = np.array([[lv, 0.0, 0.0]])
+            d = _gauss_newton_rows(model, t, cur, free, iters=12,
+                                   damping=0.05, ink_limit=limit,
+                                   boundary_fd=True, tac_projection=True,
+                                   channel_max=cmax)
+            r = np.linalg.norm(model.predict(d) - t, axis=1)
+            okv, labd = _neutral_ok(model, d, r)
+            if okv[0]:
+                fails = 0
+                cur = d
+                if best is None or labd[0, 0] < best[0] - 1e-9:
+                    best = (float(labd[0, 0]), d[0].copy())
+            else:
+                fails += 1
+            lv -= step
+    return best
+
+
+def _deepen_neutral_black(model: ForwardModel, axis: dict, *, step: float,
+                          kw: dict) -> dict:
+    """Re-walk the dark end of the axis to a deeper neutral black when one
+    exists (see the comment above). Join points on the forward walk are
+    tried every ``_DEEP_BLACK_JOIN_STEP`` L* from its black up to
+    ``_DEEP_BLACK_JOIN_TOP``; from each, the blended-K walk must stay
+    accepted all the way down to the deep black. Of the joins that work the
+    one with the least ink total variation along the whole axis wins (the
+    grey ramp then neither rises and falls in any ink nor detours through
+    the ink-limit face), the darker join on a tie. Needs a K channel (the
+    blend is a K prior); with none, or when no join works, the walk's axis
+    is returned unchanged."""
+    letters = kw.get("channel_letters") or []
+    if "K" not in letters or model.n_channels > _DEEP_BLACK_MAX_INKS:
+        return axis
+    found = deepest_neutral(model, step=step, kw=kw)
+    if found is None or found[0] > axis["l_black"] - _DEEP_BLACK_MARGIN:
+        return axis
+    l_deep, black = found
+    ki = letters.index("K")
+    ls = np.asarray(axis["l"])
+    dev_f = np.asarray(axis["dev"], float)
+    ok_f = np.asarray(axis["ok"], bool)
+    seg_kw = {k: v for k, v in kw.items() if k != "k_prior"}
+    joins = [int(j) for j in np.flatnonzero(
+        ok_f & (ls >= axis["l_black"] - 1e-9) & (ls <= _DEEP_BLACK_JOIN_TOP)
+        & (np.abs(np.round((ls - axis["l_black"]) / _DEEP_BLACK_JOIN_STEP)
+                  * _DEEP_BLACK_JOIN_STEP - (ls - axis["l_black"])) < step / 2
+           ))]
+    best = None
+    for j in sorted(joins, reverse=True):        # darkest join first
+        k_curve = {"l_axis": np.array([l_deep, ls[j]]),
+                   "k_curve": np.array([black[ki], dev_f[j, ki]]),
+                   "neutral_only": True}
+        dev_s = dev_f.copy()
+        ok_s = ok_f.copy()
+        cur = dev_f[j][None, :].copy()
+        i = j + 1
+        good = True
+        while i < len(ls) and ls[i] >= l_deep - 1e-9:
+            d, r = invert_to_device(model, np.array([[ls[i], 0.0, 0.0]]),
+                                    seed=cur.copy(), k_prior=k_curve,
+                                    **seg_kw)
+            okv, _ = _neutral_ok(model, d, r)
+            if not okv[0]:
+                good = False
+                break
+            dev_s[i], ok_s[i] = d[0], True
+            cur = d
+            i += 1
+        if not good:
+            continue
+        last = i - 1
+        tv = float(np.abs(np.diff(dev_s[:last + 1], axis=0)).sum())
+        if best is None or tv < best[0] - 1e-9:
+            ok_s[last + 1:] = False
+            best = (tv, j, last, dev_s, ok_s, k_curve)
+    if best is None:
+        return axis
+    tv, j, last, dev_s, ok_s, k_curve = best
+    lab_last = model.predict(dev_s[last][None, :])[0]
+    return {"l": ls, "dev": dev_s, "ok": ok_s, "l_black": float(lab_last[0]),
+            "black": dev_s[last].copy(), "deep_black": True,
+            "walk_l_black": axis["l_black"], "join_l": float(ls[j]),
+            "axis_tv": tv}
 
 
 def monotone_black(model: ForwardModel, axis: dict,
@@ -1076,6 +1322,7 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
     h.update(np.ascontiguousarray(model.nodes).tobytes())
     h.update(np.ascontiguousarray(model.curves).tobytes())
     key = (h.hexdigest(), type(view).__name__, n, limit,
+           bool(LIGHT_CLOUD.get("on")),
            None if channel_max is None else tuple(np.asarray(channel_max,
                                                              float)), seed)
     with _CLOUD_LOCK:
@@ -1083,6 +1330,9 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
     if hit is not None:
         return hit
     cloud = _device_cloud(n, limit, channel_max, np.random.default_rng(seed))
+    if LIGHT_CLOUD.get("on"):
+        cloud = np.vstack([cloud, _light_cloud(
+            n, limit, channel_max, np.random.default_rng(seed + 7))])
     val = (cloud, view.predict(cloud))
     for a in val:                    # shared: nobody may write into them
         a.flags.writeable = False
@@ -1091,6 +1341,57 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
             _CLOUD_CACHE.pop(next(iter(_CLOUD_CACHE)))
         _CLOUD_CACHE[key] = val
     return val
+
+
+# Agent 21 (Findings/agent21-01 s3.1, token "a21-lightcloud", Maximum
+# accuracy; ported by Agent 25 from research/pe-nink-research c6b75dea /
+# 9ed806ab): the retry and clip clouds are uniform in the N-cube, which on
+# 5-7 inks under a 300 % limit holds no light colour at all, so pale nodes
+# were seeded from dark colours (F-14). Light and sparse points are added.
+LIGHT_CLOUD: dict = {"on": False}
+CLIP_FIX: dict = {"on": False}      # agent 21 / F-15, token "a21-clipfix"
+
+
+def set_research_tokens(tokens, *, is_additive) -> None:
+    """Module switches for one build (research tokens a21-*, a25-*).
+    Called by the builder before the first inversion and with an empty set
+    afterwards; Fast and Bit-exact never reach the code they switch."""
+    from workflow.profile_engine import oog_clip
+    t = frozenset(tokens or ())
+    LIGHT_CLOUD["on"] = bool(("a21-lightcloud" in t and is_additive is False)
+                             or "a21-lightcloud-all" in t
+                             or "a25-oog" in t and is_additive is False)
+    CLIP_FIX["on"] = "a21-clipfix" in t
+    p = oog_clip.PARAMS
+    p.clear()
+    p.update(oog_clip.DEFAULTS)
+    p["on"] = "a25-oog" in t or "a25-clip" in t
+    for tok in t:
+        if tok.startswith("a25-space-"):
+            p["space"] = tok[len("a25-space-"):]
+        elif tok.startswith("a25-p-") and "=" in tok:
+            k, v = tok[len("a25-p-"):].split("=", 1)
+            p[k] = type(oog_clip.DEFAULTS[k])(v) if not isinstance(
+                oog_clip.DEFAULTS[k], bool) else v in ("1", "true", "on")
+
+
+def _light_cloud(n: int, limit, channel_max, rng: np.random.Generator) -> np.ndarray:
+    m = min(40000, 6000 * n)
+    a = rng.uniform(0.0, 1.0, (m // 2, n)) * rng.uniform(0.0, 1.0, (m // 2, 1)) ** 2
+    sp = np.zeros((m // 2, n))
+    for k in (1, 2, 3):
+        rows = np.arange(k - 1, m // 2, 3)
+        for i in rows:
+            sp[i, rng.choice(n, k, replace=False)] = 1.0
+    sp *= rng.uniform(0.0, 1.0, sp.shape) ** 2
+    c = np.vstack([a, sp])
+    if channel_max is not None:
+        c *= channel_max[None, :]
+    if limit is not None:
+        total = c.sum(1)
+        over = total > limit
+        c[over] *= (limit / total[over])[:, None]
+    return c
 
 
 def _device_cloud(n: int, limit: float | None,

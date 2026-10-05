@@ -169,6 +169,7 @@ class Dataset:
     misread_rows: np.ndarray = field(default_factory=lambda: np.array([], int))
     holdout_device: np.ndarray | None = None      # real only
     holdout_lab: np.ndarray | None = None         # real only (media-relative)
+    holdout_xyz: np.ndarray | None = None         # real only (absolute, mean of readings; v3)
     full_ti3: Path | None = None                  # real only (all patches)
     illuminant: str = ""                   # "" = the file's XYZ (D50)
     info: dict = field(default_factory=dict)
@@ -212,6 +213,37 @@ def synthetic(pid: str, work: Path, n_patches: int = 900, level: str = "typical"
                          "strip_misreads": len(detail.get("strips", [])),
                          "noise_scale": detail.get("noise_scale"),
                          "role": role_of(name)})
+
+
+def role_v3(name: str) -> str:
+    """Protocol v3 (Agent 16): every printer and real set anyone has looked
+    at is DEVELOPMENT; only the sealed Z family confirms."""
+    return "sealed" if name.split("@")[0].startswith("Z") else "development"
+
+
+def synthetic_chart(pid: str, work: Path, kind: str, n_patches: int,
+                    level: str = "typical", seed: int = 23, chart_seed: int = 11,
+                    printers: dict | None = None, variant_prefix: str = "") -> Dataset:
+    """Battery v3: a synthetic dataset on a chart of composition ``kind``
+    (``charts.CHART_KINDS``: targen at ChromIQ's defaults, ecg, september)."""
+    from benchmarks.research import charts
+    printers = printers or build_printers()
+    p = printers[pid]
+    chart = charts.chart_for(p, kind, n_patches, chart_seed)
+    detail: dict = {}
+    xyz, spec, mis = measure(p, chart, level=level, seed=seed, detail=detail)
+    tag = f"{pid}-{level}-s{seed}-{kind}{n_patches}" + (f"-c{chart_seed}" if kind != "targen" else "")
+    ti3 = write_ti3(Path(work) / f"{tag}.ti3", p, chart, xyz, spec)
+    return Dataset(name=pid, kind="synthetic", ti3=ti3, n_channels=p.n,
+                   color_rep=p.color_rep, ink_limit=p.tac, printer=p,
+                   misread_rows=mis,
+                   info={"family": p.family, "noise": level, "seed": seed,
+                         "chart": kind, "chart_seed": chart_seed if kind != "targen" else None,
+                         "patches": int(len(chart)), "misreads": int(len(mis)),
+                         "strip_misreads": len(detail.get("strips", [])),
+                         "noise_scale": detail.get("noise_scale"),
+                         "composition": charts.composition(chart, p.is_additive),
+                         "role": role_v3(pid)})
 
 
 # ---------------------------------------------------------------------------
@@ -379,7 +411,7 @@ def real_split(name: str, src_ti3: Path, work: Path, holdout_frac: float = 0.10,
         tac = float(np.round(dev.sum(1).max() * 100.0 + 0.5))
     d = Dataset(name=name, kind="real", ti3=train, n_channels=dev.shape[1],
                 color_rep=rep, ink_limit=tac, holdout_device=hold_dev,
-                holdout_lab=lab, full_ti3=full,
+                holdout_lab=lab, holdout_xyz=hold_xyz, full_ti3=full,
                 info=dict(info or {}, patches=len(dev), device_values=ng,
                           duplicate_groups=int((sizes > 1).sum()),
                           rows_in_duplicate_groups=int(sizes[sizes > 1].sum()),
@@ -403,6 +435,13 @@ REAL_SOURCES = {
                    "FOGRA39 characterization data (offset, coated), IT8.7/4 1617 patches, M0; averaged reference data"),
     "R-GRACoL2006": ("xrite", "ColorSpaceCMYK/Measurements/GRACoL2006_Coated1_TC1617.mxf", "mxf",
                      "IDEAlliance GRACoL 2006 Coated 1, 1617 patches, M1; averaged reference data"),
+    # battery v3 (Agent 16; Agent 11 used them for the commercial reference):
+    # SWOP 2006 Grade 3 and 5, the data Adobe's WebCoatedSWOP2006 profiles
+    # are built from
+    "R-SWOP2006C3": ("xrite", "ColorSpaceCMYK/Measurements/SWOP 2006 Coated 3.mxf", "mxf",
+                     "IDEAlliance SWOP 2006 Coated 3 (web offset, grade 3), averaged reference data"),
+    "R-SWOP2006C5": ("xrite", "ColorSpaceCMYK/Measurements/SWOP 2006 Coated 5.mxf", "mxf",
+                     "IDEAlliance SWOP 2006 Coated 5 (web offset, grade 5), averaged reference data"),
     "R-RGB-default-i1Pro": ("xrite", "ColorSpaceRGB/Measurements/RGB_default-i1Pro.mxf", "mxf",
                             "X-Rite i1Profiler sample RGB chart, i1Pro; printer unknown"),
     "R-Pro300-CanonSG": ("owner", "Canon-Pro300-CanonSG-i1Pro/Canon-Pro300-CanonSG-i1Pro.ti3", "ti3",

@@ -22,6 +22,8 @@ renaming the output file (the stem is embedded in the bytes).
 from __future__ import annotations
 
 import hashlib
+import platform
+import sys
 from datetime import datetime, timezone
 
 import numpy as np
@@ -193,8 +195,19 @@ def print_hashes(out_dir=None):          # re-pin helper, see above
         print(pid, _build_fast_ql(pid, out_dir))
 
 
+# The pins are the bytes of ONE machine class (macOS arm64, numpy on
+# Accelerate). D-07 point 4: other BLAS builds are not byte-identical by
+# design (CI run 37251847063: S5 differs on Linux, Windows arm64 and macOS
+# Intel); they are held to one lut16 LSB per table node instead, by
+# tests/test_engine_profiles_match_macos_reference_nodes.py.
+_PINNED_ON = sys.platform == "darwin" and platform.machine() == "arm64"
+
+
 @pytest.mark.parametrize("pid", sorted(_FAST_QL_SHA256))
 def test_cmyk_and_spot_ink_profiles_are_byte_identical(pid, tmp_path):
+    if not _PINNED_ON:
+        pytest.skip("sha256 pins macOS-arm64 bytes; D-07 pt 4 compares other "
+                    "platforms by tolerance, not bytes")
     got = _build_fast_ql(pid, tmp_path)
     assert got == _FAST_QL_SHA256[pid], (
         f"{pid} ({PRINTERS[pid].device_rep}) Fast -ql bytes changed: the "

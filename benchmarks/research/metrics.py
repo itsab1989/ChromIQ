@@ -141,6 +141,7 @@ def neutral_axis(prof, reader: str, truth: Truth, black_l: float, n_ch: int,
     dL = np.diff(P[:, 0])
     d2 = np.linalg.norm(np.diff(P, 2, axis=0), axis=1)
     out = {"from_L": float(Lp[0]), "de": stats(E), "chroma_max": float(chroma.max()),
+           "chroma_mean": float(chroma.mean()),
            "chroma_median": float(np.median(chroma)),
            "a_range": [float(P[:, 1].min()), float(P[:, 1].max())],
            "b_range": [float(P[:, 2].min()), float(P[:, 2].max())],
@@ -167,8 +168,10 @@ def neutral_axis(prof, reader: str, truth: Truth, black_l: float, n_ch: int,
     return out
 
 
-def ramps(prof, reader: str, truth: Truth, n_ch: int, additive: bool) -> dict:
-    """Paper -> solid -> black straight Lab ramps, separation smoothness."""
+def ramps(prof, reader: str, truth: Truth, n_ch: int, additive: bool,
+          fwd: bool = True) -> dict:
+    """Paper -> solid -> black straight Lab ramps, separation smoothness.
+    ``fwd`` False (a B2A-only reader): the black end is the truth's black."""
     white_dev = np.full((1, n_ch), 1.0 if additive else 0.0)
     solids = []
     for i in range(n_ch):
@@ -176,8 +179,8 @@ def ramps(prof, reader: str, truth: Truth, n_ch: int, additive: bool) -> dict:
         d[0, i] = 0.0 if additive else 1.0
         solids.append(d[0])
     solid_lab = truth.lab(np.array(solids))
-    black_lab = cmm.a2b(prof, np.full((1, n_ch), 0.0) if additive else
-                        _black_dev(n_ch), reader)[0]
+    bdev = np.full((1, n_ch), 0.0) if additive else _black_dev(n_ch)
+    black_lab = (cmm.a2b(prof, bdev, reader) if fwd else truth.lab(bdev))[0]
     worst = {"max_step": 0.0, "max_rate_per_L": 0.0, "tv_excess": 0.0}
     per = {}
     t = np.linspace(0, 1, 121)[:, None]
@@ -207,21 +210,28 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
     sink = sink if sink is not None else {}
     n = dataset.n_channels
     additive = dataset.color_rep.startswith(("iRGB", "RGB"))
+    # v3: B2A-only readers (a RIP: Ghostscript) score the inverse endpoints
+    # only; A2B, the round trip and the white's A2B are not theirs to read
+    fwd = cmm.supports(reader, "a2b")
     out: dict = {"reader": reader, "truth": "proxy" if truth.is_proxy else "printer"}
+    if not fwd:
+        out["a2b_unsupported"] = True
     if dataset.kind == "real":
-        pred = cmm.a2b(prof, dataset.holdout_device, reader)
-        de = colour.de2000(pred, dataset.holdout_lab)
-        sink["a2b"] = de
-        out["a2b_heldout"] = _subsets(dataset.holdout_lab, de,
-                                      colour.de_itp(pred, dataset.holdout_lab))
+        if fwd:
+            pred = cmm.a2b(prof, dataset.holdout_device, reader)
+            de = colour.de2000(pred, dataset.holdout_lab)
+            sink["a2b"] = de
+            out["a2b_heldout"] = _subsets(dataset.holdout_lab, de,
+                                          colour.de_itp(pred, dataset.holdout_lab))
         dev = eval_device(n, additive, dataset.ink_limit, n_eval // 4)
     else:
         dev = eval_device(n, additive, dataset.ink_limit, n_eval)
-        lab_t = truth.lab(dev)
-        pred = cmm.a2b(prof, dev, reader)
-        de = colour.de2000(pred, lab_t)
-        sink["a2b"] = de
-        out["a2b"] = _subsets(lab_t, de, colour.de_itp(pred, lab_t))
+        if fwd:
+            lab_t = truth.lab(dev)
+            pred = cmm.a2b(prof, dev, reader)
+            de = colour.de2000(pred, lab_t)
+            sink["a2b"] = de
+            out["a2b"] = _subsets(lab_t, de, colour.de_itp(pred, lab_t))
     lab_t = truth.lab(dev)
     ink = cmm.b2a(prof, lab_t, reader)
     printed = truth.lab(ink)
@@ -240,7 +250,7 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
     if len(hlab):
         hp = truth.lab(cmm.b2a(prof, hlab, reader))
         out["b2a"]["highlight_sample"] = stats(colour.de2000(hp, hlab))
-        if dataset.kind != "real":
+        if dataset.kind != "real" and fwd:
             out["a2b"]["highlight_sample"] = stats(
                 colour.de2000(cmm.a2b(prof, hdev, reader), hlab))
     if not additive:
@@ -249,9 +259,14 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
         if dataset.ink_limit:
             out["b2a"]["over_limit_frac"] = float(
                 np.mean(tac > dataset.ink_limit + 1.0))
-    rt = cmm.a2b(prof, ink, reader)
-    sink["roundtrip"] = colour.de2000(rt, lab_t)
-    out["roundtrip"] = stats(sink["roundtrip"])
+    if fwd:
+        rt = cmm.a2b(prof, ink, reader)
+        sink["roundtrip"] = colour.de2000(rt, lab_t)
+        out["roundtrip"] = stats(sink["roundtrip"])
+        # v3 (targets v2): ICC WP27 states its round-trip limit in dE*ab;
+        # dE00 can read a near-neutral a* error 1.5x LARGER, so it is not a
+        # conservative stand-in (Agent 13 7.3). Both are kept.
+        out["roundtrip_ab"] = stats(np.linalg.norm(rt - lab_t, axis=1))
     # black and the neutral ramp (E5, E6) are scored in light mode too:
     # protocol v2.1 decides ramp rows across noise seeds, so the seeds suite
     # must keep the ramp arrays (agent 6b, 2026-10-03)
@@ -259,19 +274,76 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
     blab = truth.lab(bd)[0]
     out["black"] = {"printed_L": float(blab[0]), "printed_ab": [float(blab[1]), float(blab[2])],
                     "tac_pct": float(bd.sum() * 100) if not additive else None}
+    # v3 (targets v2, black row): the darkest neutral the TRUTH can print
+    # inside the ink limit, so the black is judged against what is
+    # reachable, not against the best builder (Agent 13 7.4)
+    if not truth.is_proxy:
+        out["black"]["reachable_L"] = reachable_black(truth, n, additive, dataset.ink_limit)
     out["neutral"] = neutral_axis(prof, reader, truth, float(blab[0]), n, additive,
                                   sink=sink)
     if light:
         return out
     wd = cmm.b2a(prof, np.array([[100.0, 0, 0]]), reader)[0]
     white_ink = (1.0 - wd) if additive else wd
-    out["white"] = {"max_ink_pct": float(white_ink.max() * 100),
-                    "a2b_white_de": float(colour.de2000(
-                        cmm.a2b(prof, np.full((1, n), 1.0 if additive else 0.0), reader),
-                        np.array([[100.0, 0, 0]]))[0])}
+    out["white"] = {"max_ink_pct": float(white_ink.max() * 100)}
+    if fwd:
+        out["white"]["a2b_white_de"] = float(colour.de2000(
+            cmm.a2b(prof, np.full((1, n), 1.0 if additive else 0.0), reader),
+            np.array([[100.0, 0, 0]]))[0])
     if not additive:
-        out["ramps"] = ramps(prof, reader, truth, n, additive)
+        out["ramps"] = ramps(prof, reader, truth, n, additive, fwd=fwd)
     return out
+
+
+def reachable_black(truth, n: int, additive: bool, ink_limit, samples: int = 6000,
+                    chroma_max: float = 2.0) -> dict:
+    """The darkest colour the truth prints inside the ink limit, and the
+    darkest NEAR-NEUTRAL one (C* <= ``chroma_max``): a quasi-random search
+    over the in-limit ink space, dark-weighted (cached per truth)."""
+    key = (n, additive, ink_limit, samples)
+    cache = getattr(truth, "_reach_cache", None)
+    if cache is None:
+        cache = truth._reach_cache = {}
+    if key in cache:
+        return cache[key]
+    from benchmarks.synthetic import halton
+    pts = halton(samples, n, 29)
+    if additive:
+        pts = pts * 0.35                      # dark RGB device values
+    else:
+        pts = 0.4 + 0.6 * pts
+        if ink_limit:
+            from workflow.profile_engine.b2a import project_tac
+            pts = project_tac(pts, ink_limit / 100.0)
+    lab = truth.lab(pts)
+    c = np.hypot(lab[:, 1], lab[:, 2])
+
+    def cost(L, C):
+        return L + 4.0 * np.clip(C - chroma_max, 0.0, None)
+    # refine the best few by a shrinking random pattern search inside the limit
+    rng = np.random.default_rng(31)
+    best = pts[np.argsort(cost(lab[:, 0], c))[:8]].copy()
+    step = 0.08
+    for _ in range(40):
+        cand = np.clip(best[:, None, :] + rng.normal(0, step, (len(best), 12, n)), 0, 1)
+        cand = cand.reshape(-1, n)
+        if ink_limit and not additive:
+            from workflow.profile_engine.b2a import project_tac
+            cand = project_tac(cand, ink_limit / 100.0)
+        allp = np.vstack([best, cand])
+        al = truth.lab(allp)
+        k = np.argsort(cost(al[:, 0], np.hypot(al[:, 1], al[:, 2])))[:8]
+        best = allp[k]
+        step *= 0.92
+    bl = truth.lab(best)
+    bc = np.hypot(bl[:, 1], bl[:, 2])
+    neu = bc <= chroma_max + 1e-9
+    res = {"darkest_L": float(lab[:, 0].min()),
+           "darkest_neutral_L": float(bl[neu, 0].min()) if neu.any() else None,
+           "darkest_neutral_ink_pct": float(best[neu][np.argmin(bl[neu, 0])].sum() * 100)
+           if neu.any() else None}
+    cache[key] = res
+    return res
 
 
 def raw_neutral_column(icc_path) -> dict | None:

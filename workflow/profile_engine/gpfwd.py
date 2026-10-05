@@ -309,7 +309,8 @@ def joint_weights(p01, grid, n):
 
 
 def project_to_table(gp, base_model, base_lam, seed=2929, max_nodes=150_000,
-                     fine=False, anchor_rel=0.0, solver="pcg"):
+                     fine=False, anchor_rel=0.0, solver="pcg",
+                     keep_curves=False, shaped_samples=False):
     """Nodes of ``base_model``'s lattice (its curves kept) that best
     reproduce the GP under the CMMs' kernels. Above ``max_nodes`` the grid
     is reduced by 2 per step (6 inks: 9 -> 7; 7 inks: 7 -> 5): a 6-ink
@@ -324,7 +325,11 @@ def project_to_table(gp, base_model, base_lam, seed=2929, max_nodes=150_000,
         # nodes worse than even spacing at every grid; the 9^4 lut16 alone
         # costs 0.10/0.31 dE00 at its source, 17^4 0.027/0.09).
         grid = 17
-        curves = np.tile(np.linspace(0.0, 1.0, curves.shape[1]), (n, 1))
+        if not keep_curves:
+            curves = np.tile(np.linspace(0.0, 1.0, curves.shape[1]), (n, 1))
+        # Agent 15 "gpkeep": keep the stiff fit's shaper curves, so the
+        # 17-node lattice sits in the coordinates where the printer is
+        # smooth (ramp highlights, light-ink hand-offs)
     while grid ** n > max_nodes and grid > 3:
         grid -= 2
     base_model = ForwardModel(grid=grid, n_channels=n,
@@ -335,6 +340,12 @@ def project_to_table(gp, base_model, base_lam, seed=2929, max_nodes=150_000,
     rng = np.random.default_rng(seed)
     ns = int(min(max(8 * grid ** n, 40000), 600_000))
     xs = rng.uniform(0.0, 1.0, (ns, n))
+    if shaped_samples:
+        # Agent 15 "gpsamp": uniform in the lattice's own (shaper)
+        # coordinates, so every cell gets samples; device-uniform samples
+        # leave the near-paper cells of a shaped lattice almost empty
+        # (max ink <= 5 % on 4 inks: ~4 of 600,000 samples)
+        xs = base_model.unshape_device(xs)
     ys = gp.predict(xs)
     w, cols = joint_weights(base_model.shape_device(xs), grid, n)
     # Agent 8 (wave 2): Jacobi-preconditioned CG run to convergence; the

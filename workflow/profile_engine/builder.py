@@ -76,8 +76,19 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
-     "no-b2a33s", "no-rgbpos", "a19-extrap",
-     "a19-order", "a19-bounds"})
+     "no-b2a33s", "no-rgbpos", "no-v4prm",
+     # Agent 15 (D-14 repair), read only together with "gpfwd":
+     "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
+     # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
+     "a17-colpin", "v4prm",
+     # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
+     "fin3", "no-fin3",
+     # Agent 21 (F-14/F-15) and Agent 25 (F-15/F-17), research only:
+     "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix",
+     "a25-oog", "a25-clip", "a25-space-ucs", "a25-space-lab",
+     "a25-space-oklab", "a25-space-ipt", "a25-oracle-model",
+     "a25-oracle-dev", "a25-oracle-seed",
+     "a19-extrap", "a19-order", "a19-bounds"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -90,7 +101,24 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # builds, beyond the ink limit A2B p95 went from 2.4 to 11-25 dE00, and its
 # highlight results depended on the chart. Fast and Bit-exact never read
 # candidates.
-ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos"})
+# Integration 2 (D-19, 2026-10-05): "v4prm" ON too: the v4 container's
+# perceptual/saturation tables follow ICC.1:2022 Table 16 (F-09); the v2
+# file is untouched. "no-v4prm" switches it off for research.
+ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "v4prm"})
+
+
+# Research integration 2 (2026-10-05): Agent 15's repaired GP layer
+# (Findings/agent15-01 s11, "fin3"). It acts ONLY through the gpfwd branch,
+# which gp_forward_applies() opens for ink devices of at most
+# GP_FORWARD_MAX_INKS (4) inks with >= 75 patches per ink; on RGB and on
+# 5+ inks every one of these tokens is inert. "fin3" asks for the whole set,
+# "no-fin3" removes it. GP_FIN3_DEFAULT_ON: True since the safety-row
+# verification (Validation/fin3-neutral-chroma-10seed.md: 80/80 builds, all
+# 60 grey-axis rows TIE over 10 paired seeds, every non-zero difference in
+# fin3's favour, no reversal) cleared D-17 2c. Still <= 4 inks only.
+GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
+                            "gpdark", "a2bfine", "gpkeep"})
+GP_FIN3_DEFAULT_ON = True
 
 # a19-extrap: weight of the interaction-order penalty relative to the fit's
 # lambda (agent 19; X5 and X7 re-solves: about lambda / 3 wins every
@@ -100,11 +128,29 @@ A19_ORDER_MU = 0.3
 
 def accurate_candidates(tokens) -> frozenset:
     """The candidate set a Maximum accuracy build runs with: the requested
-    tokens plus ACCURATE_DEFAULT_TOKENS, minus every "no-<token>"."""
+    tokens plus ACCURATE_DEFAULT_TOKENS (plus GP_FIN3_TOKENS when "fin3" is
+    asked for or GP_FIN3_DEFAULT_ON), minus every "no-<token>"."""
     tokens = frozenset(tokens or ())
     off = {t[3:] for t in tokens if t.startswith("no-")}
-    return frozenset(t for t in tokens | ACCURATE_DEFAULT_TOKENS
-                     if not t.startswith("no-") and t not in off)
+    on = tokens | ACCURATE_DEFAULT_TOKENS
+    if ("fin3" in tokens or GP_FIN3_DEFAULT_ON) and "fin3" not in off:
+        on = on | GP_FIN3_TOKENS
+    return frozenset(t for t in on
+                     if not t.startswith("no-") and t != "fin3"
+                     and t not in off)
+
+
+def _process_ink_hues(meas) -> dict:
+    """Measured hue of the C, M, Y solids (research token a14-ecgsep)."""
+    out = {}
+    lab = meas.lab_relative
+    for i, letter in enumerate(meas.channel_letters[:3]):
+        others = np.delete(meas.device, i, axis=1)
+        solid = (meas.device[:, i] >= 0.85) & (others.max(1) <= 0.05)
+        if solid.any():
+            a, b = lab[solid, 1].mean(), lab[solid, 2].mean()
+            out[letter] = float(np.degrees(np.arctan2(b, a)) % 360.0)
+    return out or None
 
 
 def candidates_from_env(env_value: str | None) -> frozenset:
@@ -113,6 +159,71 @@ def candidates_from_env(env_value: str | None) -> frozenset:
         return frozenset()
     return frozenset(t.strip() for t in env_value.split(",")
                      if t.strip() in ENGINE_CANDIDATE_TOKENS)
+
+
+# Agent 3's GP forward model ("gpfwd", and "a2bfine", which only acts inside
+# its projection) is for ink devices of AT MOST 4 inks (integration 1,
+# 2026-10-04). On 5-7 inks it degrades the single-ink ramps (Agent 14
+# interim: X5 ramp A2B median 1.2-1.8 dE00 against 0.1-0.4 with the shipped
+# forward fit; the battery's multi-ink charts are 71-89 % all-inks-on patches,
+# so E1 did not see it), and on 7 inks its 5^7 lattice adds nothing to the
+# A2B and hurts the B2A (agent3-01 section 14). 5+ inks keep the shipped
+# forward fit; "b2a33s" does not depend on the GP and still applies.
+GP_FORWARD_MAX_INKS = 4
+
+
+def gp_forward_applies(candidates, *, is_additive: bool, n_channels: int,
+                       n_patches: int) -> bool:
+    """True when the "gpfwd" candidate replaces the forward fit: an ink
+    device (not RGB) of at most GP_FORWARD_MAX_INKS inks, with at least 75
+    patches per ink."""
+    return ("gpfwd" in candidates and not is_additive
+            and 0 < n_channels <= GP_FORWARD_MAX_INKS
+            and n_patches >= 75 * n_channels)
+
+
+def _agent15_gp(meas, model, candidates, settings, lam, curve_rounds,
+                use_ucs, de_fn):
+    """Agent 15 (D-14 repair). "gpwarp" alone: the GP in the stiff fit's
+    shaper coordinates. "gpsel": a held-out choice between the stiff fit
+    (returns None: the table stays the stiff fit's), the raw GP, the warped
+    GP and (with "gpres") a residual GP."""
+    from workflow.profile_engine import gpsel
+    from workflow.profile_engine.accuracy import fit_forward_model_accurate
+    dev, lab, rw = meas.device, meas.lab_relative, meas.row_weights
+    if "gpsel" not in candidates:
+        return gpsel.fit_kind("warp", dev, lab, model, de_fn, rw)[0]
+    # Agent 15 B1: the raw GP is not a contender (the held-out patches
+    # cannot see its highlight-neutral failure on charts without light
+    # patches, Agent 13 blocker 3); the choice is stiff vs warped GP
+    # (+ the residual GP with "gpres").
+    kinds = ("warp",) + (("res",) if "gpres" in candidates else ())
+    full = {kd: gpsel.fit_kind(kd, dev, lab, model, de_fn, rw)
+            for kd in kinds}
+
+    def fit_stiff(d, l, w):
+        return fit_forward_model_accurate(
+            d, l, grid=model.grid, base_lam=lam, curve_rounds=curve_rounds,
+            ucs=use_ucs, row_weights=w, positioning=curve_rounds > 0,
+            additive=False)[0]
+
+    winner, rep = gpsel.select(dev, lab, model, fit_stiff, de_fn, rw,
+                               kinds=kinds,
+                               full_hyper={kd: full[kd][1] for kd in kinds},
+                               progress=lambda m: _emit(settings, m))
+    parts = []
+    for kd in ("stiff",) + kinds:
+        r = rep[kd]
+        parts.append(f"{kd} {r['mean']:.3f}/{r['p95']:.3f}"
+                     + ("" if kd == "stiff" else
+                        (" ok" if r["accepted"] else " no")))
+    _emit(settings, "Printer model chosen on held-out patches of this chart "
+                    f"({rep['n_heldout']} patches, mean/p95 dE00): "
+                    + ", ".join(parts) + f" -> {winner}.")
+    settings_log = getattr(settings, "_agent15_report", None)
+    if isinstance(settings_log, dict):
+        settings_log.update(rep)
+    return None if winner == "stiff" else full[winner][0]
 
 
 def _fit_lambda(grid: int) -> float:
@@ -416,6 +527,8 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
             return _build_profile_impl(ti3_path, out_path, settings, started)
     finally:
         settings.progress = orig_progress
+        from workflow.profile_engine import b2a as _b2a
+        _b2a.set_research_tokens((), is_additive=None)
         for run in started:
             run.close()
 
@@ -524,6 +637,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # patches (after the -R/-u mutations above), measured extra-ink hues.
         meas.average_endpoints()
     extra_hues = meas.extra_ink_hues() if accurate else None
+    # Research tokens a21-lightcloud / a21-clipfix (Agent 21, F-14/F-15) and
+    # a25-* (Agent 25, F-15/F-17 out-of-gamut clip); off by default, reset
+    # by build_profile when the build ends.
+    b2a_mod.set_research_tokens(candidates, is_additive=meas.is_additive)
+    b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
+    b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
+    if b2a_mod.ECG_SEPARATION["on"]:
+        b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
     # Measured black L* anchors the GCR locus in accurate mode (shadow-
     # banding fix) and any explicit -k/-K curve (Argyll normalises its
     # inking curve over the profile's own L range); None keeps the parity
@@ -562,13 +683,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     if candidates:
         _emit(settings, "Candidate pipeline active: "
                         f"{', '.join(sorted(candidates))}.")
+    _noise_winner = None
     if accurate and settings.noise_model and "gp" not in candidates:
         # #123 user option: noise-aware fitting behind a held-out exam —
         # only used when it clearly beats the standard fit on THIS chart
         # (the env token "gp" still forces it, for the benchmark harness).
         from workflow.profile_engine.accuracy import \
             fit_forward_model_accurate_challenged
-        model, outliers, _lam_used, _winner = \
+        model, outliers, _lam_used, _noise_winner = \
             fit_forward_model_accurate_challenged(
                 meas.device, meas.lab_relative, grid=a2b_grid,
                 base_lam=lam, curve_rounds=curve_rounds, ucs=use_ucs,
@@ -614,30 +736,6 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                 f"{len(_moved)} colour-table nodes the chart "
                                 f"does not reach held to the measured "
                                 f"darkness bounds.")
-        if ("gpfwd" in candidates and not meas.is_additive
-                and len(meas.device) >= 75 * n):
-            # Not below 75 patches per ink: at 150 patches on 4 inks the
-            # marginal likelihood picks a near-interpolating optimum on 1 of
-            # 3 S3 charts (p95 10.9 dE00 vs the grid's 2.4; agent 3, F0g/F0h,
-            # development set); at 300 it never did.
-            # Agent 3 candidate: GP forward model (ARD Matern 5/2, marginal
-            # likelihood, Huber), projected onto the same lattice and curves
-            # under the CMMs' kernels. Outlier naming stays the grid fit's.
-            from workflow.profile_engine import gpfwd
-            from workflow.profile_engine.metrics import delta_e_2000 as _de
-            _emit(settings, "Fitting the printer model: Gaussian process…")
-            gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
-                                       row_weights=meas.row_weights,
-                                       ref_pred=model.predict(meas.device))
-            # anchor_rel 0.1: every node weakly pulled to the GP's own value
-            # there, so the projection has ONE solution the solver reaches
-            # (X5: without it 26,374 nodes moved > 1 LSB between solvers,
-            # up to 12,200 LSB; with it <= 0.4 LSB; accuracy unchanged,
-            # agent 3 P1-projection-stability*.txt).
-            model = gpfwd.project_to_table(gpm, model, lam,
-                                           fine="a2bfine" in candidates,
-                                           anchor_rel=0.1)
-            a2b_grid = model.grid
         if len(outliers):
             # Name the patches the way the SHEET names them (SAMPLE_LOC):
             # "rows 757, 811" only coincided with the printed IDs on a
@@ -653,6 +751,55 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         model = fit_forward_model(meas.device, meas.lab_relative,
                                   grid=a2b_grid, lam=lam,
                                   curve_rounds=curve_rounds)
+    # Integration 2: the GP layer (fin3, default for <= 4 inks) follows the
+    # forward fit whichever way it was made, unless the noise-aware fit WON
+    # on this chart. Before, it sat inside the standard-fit branch, so
+    # switching the noise option on silently dropped the GP even where the
+    # noise handling stood aside (test_noise_option_stands_aside_on_clean_chart:
+    # a clean chart must build identically with and without the option).
+    if accurate and _noise_winner != "noise":
+        if ("gpfwd" in candidates and not meas.is_additive and n > 4):
+            _emit(settings, "Gaussian process forward model: not used for "
+                            "5 or more inks (the forward fit is kept).")
+        if gp_forward_applies(candidates, is_additive=meas.is_additive,
+                              n_channels=n, n_patches=len(meas.device)):
+            # Not below 75 patches per ink: at 150 patches on 4 inks the
+            # marginal likelihood picks a near-interpolating optimum on 1 of
+            # 3 S3 charts (p95 10.9 dE00 vs the grid's 2.4; agent 3, F0g/F0h,
+            # development set); at 300 it never did.
+            # Agent 3 candidate: GP forward model (ARD Matern 5/2, marginal
+            # likelihood, Huber), projected onto the same lattice and curves
+            # under the CMMs' kernels. Outlier naming stays the grid fit's.
+            from workflow.profile_engine import gpfwd
+            from workflow.profile_engine.metrics import delta_e_2000 as _de
+            _emit(settings, "Fitting the printer model: Gaussian process…")
+            if not ({"gpwarp", "gpsel"} & candidates):
+                gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
+                                           row_weights=meas.row_weights,
+                                           ref_pred=model.predict(meas.device))
+            else:
+                gpm = _agent15_gp(meas, model, candidates, settings, lam,
+                                  curve_rounds, use_ucs, _de)
+            if gpm is not None and "gpclip" in candidates:
+                from workflow.profile_engine import gpsel
+                gpm = gpsel.Tapered(
+                    gpm, model, float(meas.device.sum(1).max()),
+                    light=(gpsel.light_scale(meas.device)
+                           * (2.0 if "gplight2" in candidates else 1.0)
+                           if {"gplight", "gplight2"} & candidates
+                           else None),
+                    dark=(15.0, 30.0) if "gpdark" in candidates else None)
+            # anchor_rel 0.1: every node weakly pulled to the GP's own value
+            # there, so the projection has ONE solution the solver reaches
+            # (X5: without it 26,374 nodes moved > 1 LSB between solvers,
+            # up to 12,200 LSB; with it <= 0.4 LSB; accuracy unchanged,
+            # agent 3 P1-projection-stability*.txt).
+            if gpm is not None:
+                model = gpfwd.project_to_table(
+                    gpm, model, lam, fine="a2bfine" in candidates,
+                    anchor_rel=0.1, keep_curves="gpkeep" in candidates,
+                    shaped_samples="gpsamp" in candidates)
+                a2b_grid = model.grid
     if "spectral" in candidates or (accurate and settings.spectral_physics):
         # #123 W4: challenge the grid with the YNSN physics hybrid — the
         # standard model stays unless the physics wins on held-out
@@ -861,20 +1008,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _k[_l < mono_axis["l_black"]] = mono_axis["black"][ki]
             k_prior_col = {"l_axis": _l, "k_curve": _k,
                            "neutral_only": True}
-    dev_clut, residual = b2a_mod.build_b2a_clut(
-        model, b2a_grid, channel_letters=meas.channel_letters,
-        is_additive=meas.is_additive, ink_limit=ink_limit,
-        node_lab=node_lab, k_prior=k_prior_col, accurate=accurate,
-        extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
-        ucs=use_ucs, channel_max=channel_max,
-        progress=lambda m: _emit(settings, m))
-    fixed_nodes = None
     axis = None
     if accurate and not meas.is_additive and n >= 4:
         # The neutral axis solved once by continuation from paper white,
         # put on the B2A neutral column, with everything darker than the
         # neutral black clipped along the axis (research agent5-03 item 5:
         # a neutral black, monotone neutral ramp, for any channel count).
+        # Solved BEFORE the per-node inversion (it does not depend on it):
+        # when the walk had to be re-routed to reach a deeper neutral black
+        # (research agent17-01 item 1, a printer whose dark end lightens),
+        # the near-neutral nodes must follow the same K, so the axis's K
+        # curve becomes their neutral K prior.
         _emit(settings, "Inverting the model: following the neutral axis…")
         axis = mono_axis if mono_axis is not None else b2a_mod.neutral_axis(
             model, channel_letters=meas.channel_letters,
@@ -884,6 +1028,29 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_max=channel_max)
         if "a9-monoblack" in candidates:
             axis = b2a_mod.monotone_black(model, axis)
+        if axis.get("deep_black") and "K" in meas.channel_letters:
+            ki = meas.channel_letters.index("K")
+            okx = np.asarray(axis["ok"], bool)
+            _l = np.asarray(axis["l"])[okx][::-1]
+            _k = np.asarray(axis["dev"])[okx][::-1, ki].copy()
+            _d = np.asarray(axis["dev"])[okx][::-1]
+            _l = np.concatenate([[0.0], _l])
+            _k = np.concatenate([[axis["black"][ki]], _k])
+            _d = np.vstack([np.asarray(axis["black"])[None, :], _d])
+            k_prior_col = {"l_axis": _l, "k_curve": _k, "dev_curve": _d,
+                           "neutral_only": True}
+            _emit(settings, f"The deepest neutral black needs black ink "
+                            f"earlier (L* {axis['walk_l_black']:.1f} -> "
+                            f"{axis['l_black']:.1f}).")
+    dev_clut, residual = b2a_mod.build_b2a_clut(
+        model, b2a_grid, channel_letters=meas.channel_letters,
+        is_additive=meas.is_additive, ink_limit=ink_limit,
+        node_lab=node_lab, k_prior=k_prior_col, accurate=accurate,
+        extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+        ucs=use_ucs, channel_max=channel_max,
+        progress=lambda m: _emit(settings, m))
+    fixed_nodes = None
+    if axis is not None:
         fixed_nodes = b2a_mod.apply_neutral_axis(
             dev_clut, node_lab, axis, model,
             channel_letters=meas.channel_letters,
@@ -931,6 +1098,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # the n>3 path had 10,000 samples for 35,937 nodes).
             **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
                if "b2a33s" in candidates else {}))
+    if ("a17-colpin" in candidates and fixed_nodes is not None
+            and len(fixed_nodes)):
+        # Research agent17-01 section 3 (token, not default): the smoothing
+        # refit holds the neutral column only by a weight-4 anchor, and
+        # next to the black it gives way: X3, node L* 6.25 moved from the
+        # axis's K 0.94 to 0.85 and prints L* 7.5-7.8 instead of 6.25, so
+        # every CMM with black point compensation (Ghostscript's default)
+        # prints the source black 1.9 L* light. Put the column back exactly.
+        dev_clut_shaped = dev_clut_shaped.copy()
+        dev_clut_shaped[fixed_nodes] = model.shape_device(
+            dev_clut[fixed_nodes])
     if channel_max is not None:
         # The smooth refit is a least-squares field over samples that all
         # respect the ceiling; between them it can overshoot (measured: K
@@ -1059,24 +1237,40 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         version=(4, 4) if str(settings.icc_version) == "4" else (2, 2),
     )
     v4_extra, v4_wtpt = _v4_adaptation(meas, settings, wtpt_abs)
+    luts_v4 = luts
+    if (accurate and "v4prm" in candidates
+            and str(settings.icc_version) in ("4", "both")):
+        # ICC.1:2022 6.3.4.3 / Table 16: a v4 CMM takes the perceptual (and,
+        # in lcms, the saturation) PCS black to be the perceptual reference
+        # medium's, so the v4 container's intent 0/2 tables are referred to
+        # it; the v2 file keeps its bytes (research agent17-01 item 2, F-09).
+        # Maximum accuracy only (D-15): Fast and Bit-exact stay frozen
+        # comparison columns, their v4 container keeps the v2 tables.
+        # Integration 2: token "v4prm", ON by default (D-19, after
+        # Validation/f09-decision.md): ColorSync and Argyll do no PRM black
+        # handling and merge the darkest sRGB levels into black, as they do
+        # for every X-Rite v4 profile; Mac users are pointed at the v2 file.
+        from workflow.profile_engine.v4_prm import v4_luts
+        luts_v4 = v4_luts(luts, codec.signature,
+                          model.predict(device_black[None, :])[0])
     if str(settings.icc_version) == "4":
         from dataclasses import replace
         spec = replace(spec, wtpt=v4_wtpt)
-        icw.write_profile(out, spec, luts, extra_tags=v4_extra)
+        icw.write_profile(out, spec, luts_v4, extra_tags=v4_extra)
     else:
         icw.write_profile(out, spec, luts)
     if str(settings.icc_version) == "both":
         # One build, two containers: the main path stays v2 (what the
         # rest of the workflow installs), the v4 twin lands alongside it
-        # with a self-explaining name. Same LUT bytes in both — only the
-        # header and metadata types differ.
+        # with a self-explaining name. Same colorimetric LUT bytes in both;
+        # the perceptual and saturation tables are PRM-referred in the twin.
         from dataclasses import replace
         twin = out.with_name(out.stem + "-v4.icc")
         # Its own name: two entries called the same thing in a profile
         # menu cannot be told apart (critic N12).
         icw.write_profile(twin, replace(spec, version=(4, 4), wtpt=v4_wtpt,
                                         description=spec.description + " (v4)"),
-                          luts, extra_tags=v4_extra)
+                          luts_v4, extra_tags=v4_extra)
         _emit(settings, f"Also wrote the ICC v4 twin: {twin.name}")
 
     gam_res = residual[in_gamut]
