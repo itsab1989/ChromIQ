@@ -88,6 +88,16 @@ def highlight_device(n_channels: int, additive: bool, n: int, seed: int = 13
     return 1.0 - pts if additive else pts
 
 
+def pale_device(n_channels: int, additive: bool, n: int, seed: int = 17) -> np.ndarray:
+    """Agent 21: 1-2 channels at 0.5-8 % coverage (deterministic)."""
+    rng = np.random.default_rng(seed)
+    d = np.zeros((n, n_channels))
+    for i in range(n):
+        k = rng.choice(n_channels, int(rng.integers(1, 3)), replace=False)
+        d[i, k] = rng.uniform(0.005, 0.08, len(k))
+    return 1.0 - d if additive else d
+
+
 class Truth:
     """Uniform access: a synthetic printer, or a proxy profile for real data."""
 
@@ -253,6 +263,20 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
         if dataset.kind != "real" and fwd:
             out["a2b"]["highlight_sample"] = stats(
                 colour.de2000(cmm.a2b(prof, hdev, reader), hlab))
+    # Agent 21 (F-14, protocol v3 proposal E10): PALE in-gamut colours, the
+    # region the highlight sample above barely reaches: 1-2 inks (channels)
+    # at 0.5-8 % coverage, kept where the truth prints L* > 90. Every target
+    # is printable by construction. The Maximum accuracy B2A printed these
+    # 10-40 L* too dark on 5-7 inks (CMYK p95 5-7 dE00 vs Fast 2.6).
+    pdev = pale_device(n, additive, 1500)
+    plab = truth.lab(pdev)
+    pk = plab[:, 0] > 90.0
+    if pk.any():
+        pp = truth.lab(cmm.b2a(prof, plab[pk], reader))
+        de_p = colour.de2000(pp, plab[pk])
+        sink["pale"] = de_p
+        out["b2a"]["pale_sample"] = stats(de_p)
+        out["b2a"]["pale_sample"]["share_gt2"] = float(np.mean(de_p > 2.0))
     if not additive:
         tac = ink.sum(1) * 100.0
         out["b2a"]["tac_max"] = float(tac.max())

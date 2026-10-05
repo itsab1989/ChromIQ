@@ -50,7 +50,9 @@ ENDPOINTS = [("a2b", "median"), ("a2b", "mean"), ("a2b", "p95"),
              ("neutral_hi", "mean"),
              # protocol v3 N (Agent 14's v2.2 N2): 5+ inks only
              ("e7", "median"), ("e7", "p95"), ("e7b", "median"), ("e8", "median"),
-             ("e8", "p95"), ("e9", "median"), ("e9", "mean"), ("e9", "p95")]
+             ("e8", "p95"), ("e9", "median"), ("e9", "mean"), ("e9", "p95"),
+             # Agent 21 (F-14) proposal E10: pale in-gamut colours through the B2A
+             ("pale", "median"), ("pale", "p95")]
 RAMP_KEYS = ("neutral_de", "neutral_hi")
 READER_GROUPS = {"argyll": "cmm", "lcms": "cmm", "colorsync": "cmm",
                  "lcms-app": "app", "ghostscript": "app",
