@@ -459,12 +459,25 @@ def ink_priors(target: np.ndarray, n: int, *,
     prior = np.zeros((len(target), n))
     prior_w = np.zeros((len(target), n))
     neutral_k = None
+    neutral_dev = None
     if k_prior is not None and k_prior.get("neutral_only"):
         # Research agent9-01 6.2 ("a9-monok"): a K curve that applies to
         # the NEUTRALS only (blended in with the accurate neutral weight
         # below); chromatic colours keep the engine's own locus.
         neutral_k = np.interp(target[:, 0], k_prior["l_axis"],
                               k_prior["k_curve"])
+        if k_prior.get("dev_curve") is not None:
+            # Research agent17-01 item 1: the re-routed neutral axis of a
+            # printer whose dark end lightens. There K alone does not pick
+            # the branch (XKB, L* 22: K 0.70 with C/M/Y 1.0/0.63/0.62 at
+            # 295 % prints the same as K 0.73 with 0.37/0.35/0.35 at 179 %),
+            # so near-neutral targets are pulled toward the axis's whole
+            # separation; the colour terms still dominate wherever the
+            # model has slope, the prior only picks among metamers.
+            dc = np.asarray(k_prior["dev_curve"], float)
+            neutral_dev = np.stack([np.interp(target[:, 0],
+                                              k_prior["l_axis"], dc[:, c])
+                                    for c in range(dc.shape[1])], 1)
         k_prior = None
     if k_prior is not None:
         # colprof-calibrated K behaviour (CMYK proxy oracle) — a firmer
@@ -513,6 +526,10 @@ def ink_priors(target: np.ndarray, n: int, *,
         prior_w[:, ch] = 0.05
     if accurate and ECG_SEPARATION.get("on"):
         _ecg_separation_priors(target, prior, prior_w, channel_letters, hues)
+    if accurate and neutral_dev is not None and neutral_dev.shape[1] == n:
+        nw = np.exp(-(np.hypot(target[:, 1], target[:, 2]) / 25.0) ** 2)
+        prior = nw[:, None] * neutral_dev + (1.0 - nw[:, None]) * prior
+        prior_w = np.maximum(prior_w, 2.0 * nw[:, None])
     return prior, prior_w
 
 
@@ -701,7 +718,7 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
 
 
 def neutral_axis(model: ForwardModel, *, step: float = 0.5,
-                 **inv_kw) -> dict:
+                 deep_black: bool = True, **inv_kw) -> dict:
     """The neutral axis of an ink device, solved once by continuation.
 
     Walks a* = b* = 0 from paper white (device 0) down in ``step`` L*
@@ -735,8 +752,168 @@ def neutral_axis(model: ForwardModel, *, step: float = 0.5,
         return {"l": ls, "dev": dev, "ok": ok, "l_black": None,
                 "black": None}
     last = int(np.flatnonzero(ok)[-1])
-    return {"l": ls, "dev": dev, "ok": ok, "l_black": float(lab[last, 0]),
+    axis = {"l": ls, "dev": dev, "ok": ok, "l_black": float(lab[last, 0]),
             "black": dev[last].copy()}
+    if deep_black:
+        axis = _deepen_neutral_black(model, axis, step=step, kw=kw)
+    return axis
+
+
+# Research agent17-01 item 1: the walk from paper white is a CONTINUATION
+# under the ink policy, whose K prior on neutrals (the late-GCR locus, weight
+# 2.0, full K only at the darkest MEASURED patch) is firm. On a printer whose
+# dark end lightens (bronzing, over-inked matte media: L* rises again above
+# some total coverage) that branch loads C, M and Y into the lightening zone
+# and stops at the ink-limit face: agent 13's XKB walks to L* 22.1 at 295 %
+# ink while the model itself prints a neutral L* 7.5 at 205 % (K 1.0,
+# C/M/Y 0.35). The black is therefore also searched WITHOUT the policy (a
+# constrained minimum of L* over the model, many seeds), and when it is
+# clearly deeper the dark end of the axis is re-walked from a join point on
+# the forward walk down to it, with the neutral K prior blended linearly
+# from the walk's K at the join to the deep black's K: K enters earlier,
+# the separation stays continuous at the join, and C/M/Y stay out of the
+# lightening zone. Printers on which the walk already finds the deepest
+# neutral are untouched (the walk's axis is returned as is).
+_DEEP_BLACK_MARGIN = 1.0      # L*: below this gain the walk's black stays
+_DEEP_BLACK_SEEDS = 12
+_DEEP_BLACK_JOIN_STEP = 2.0   # L*: spacing of the join points tried
+_DEEP_BLACK_JOIN_TOP = 60.0   # L*: lightest join tried (K starts near here)
+# CMYK only for now: on the battery's 6-ink S7 (walk 12.8, global 8.7) the
+# re-route gave a 3.2 L* deeper neutral black and a better B2A (median
+# 0.882 -> 0.828, p95 1.990 -> 1.600) but C/M/Y rise and fall along the
+# grey ramp (P7 TV excess 0.05 -> 0.25) and the L* 14-30 neutral median
+# went 0.61 -> 0.74. 5+ inks wait for an N-ink-aware blend (agent17-01 1.6).
+_DEEP_BLACK_MAX_INKS = 4
+
+
+def _neutral_ok(model: ForwardModel, d: np.ndarray, r: np.ndarray):
+    lab = model.predict(d)
+    return (r < 0.5) & (np.hypot(lab[:, 1], lab[:, 2]) < 1.0), lab
+
+
+def deepest_neutral(model: ForwardModel, *, step: float = 0.5,
+                    kw: dict) -> tuple[float, np.ndarray] | None:
+    """The darkest neutral the MODEL prints under the build's limits,
+    whatever the ink policy says.
+
+    Seeds: the darkest near-neutral points (model C* < 4) of the
+    limit-respecting device cloud the inversion's retries use, chosen
+    greedily so no two seeds are within 0.15 of each other in device space
+    (different branches of the metamer family). From each seed the axis is
+    walked DOWN in ``step`` L* by plain damped Gauss-Newton on the colour
+    alone (no priors; same TAC projection, channel ceilings and
+    boundary-aware Jacobian as the inversion), accepting a step by the
+    walk's own rule (residual < 0.5 ΔE76, model C* < 1) and stopping after
+    two failures in a row. Returns ``(model L*, device)`` of the darkest
+    accepted point, or None. Deterministic (fixed cloud seed, stable sort)."""
+    n = model.n_channels
+    ink_limit = kw.get("ink_limit")
+    limit = (None if ink_limit is None or kw.get("is_additive")
+             else ink_limit / 100.0)
+    cmax = kw.get("channel_max")
+    cloud, lab = _cloud_and_lab(model, model, n, limit, cmax, 2718,
+                                memo=True)
+    chroma = np.hypot(lab[:, 1], lab[:, 2])
+    cand = np.flatnonzero(chroma < 4.0)
+    if not len(cand):
+        return None
+    cand = cand[np.argsort(lab[cand, 0], kind="stable")]
+    seeds: list[int] = []
+    for i in cand:
+        if all(np.max(np.abs(cloud[i] - cloud[j])) > 0.15 for j in seeds):
+            seeds.append(int(i))
+            if len(seeds) >= _DEEP_BLACK_SEEDS:
+                break
+    free = np.arange(n)
+    best = None
+    for i in seeds:
+        cur = cloud[i][None, :].copy()
+        lv = np.ceil(lab[i, 0] / step) * step
+        fails = 0
+        while lv >= -1e-9 and fails < 2:
+            t = np.array([[lv, 0.0, 0.0]])
+            d = _gauss_newton_rows(model, t, cur, free, iters=12,
+                                   damping=0.05, ink_limit=limit,
+                                   boundary_fd=True, tac_projection=True,
+                                   channel_max=cmax)
+            r = np.linalg.norm(model.predict(d) - t, axis=1)
+            okv, labd = _neutral_ok(model, d, r)
+            if okv[0]:
+                fails = 0
+                cur = d
+                if best is None or labd[0, 0] < best[0] - 1e-9:
+                    best = (float(labd[0, 0]), d[0].copy())
+            else:
+                fails += 1
+            lv -= step
+    return best
+
+
+def _deepen_neutral_black(model: ForwardModel, axis: dict, *, step: float,
+                          kw: dict) -> dict:
+    """Re-walk the dark end of the axis to a deeper neutral black when one
+    exists (see the comment above). Join points on the forward walk are
+    tried every ``_DEEP_BLACK_JOIN_STEP`` L* from its black up to
+    ``_DEEP_BLACK_JOIN_TOP``; from each, the blended-K walk must stay
+    accepted all the way down to the deep black. Of the joins that work the
+    one with the least ink total variation along the whole axis wins (the
+    grey ramp then neither rises and falls in any ink nor detours through
+    the ink-limit face), the darker join on a tie. Needs a K channel (the
+    blend is a K prior); with none, or when no join works, the walk's axis
+    is returned unchanged."""
+    letters = kw.get("channel_letters") or []
+    if "K" not in letters or model.n_channels > _DEEP_BLACK_MAX_INKS:
+        return axis
+    found = deepest_neutral(model, step=step, kw=kw)
+    if found is None or found[0] > axis["l_black"] - _DEEP_BLACK_MARGIN:
+        return axis
+    l_deep, black = found
+    ki = letters.index("K")
+    ls = np.asarray(axis["l"])
+    dev_f = np.asarray(axis["dev"], float)
+    ok_f = np.asarray(axis["ok"], bool)
+    seg_kw = {k: v for k, v in kw.items() if k != "k_prior"}
+    joins = [int(j) for j in np.flatnonzero(
+        ok_f & (ls >= axis["l_black"] - 1e-9) & (ls <= _DEEP_BLACK_JOIN_TOP)
+        & (np.abs(np.round((ls - axis["l_black"]) / _DEEP_BLACK_JOIN_STEP)
+                  * _DEEP_BLACK_JOIN_STEP - (ls - axis["l_black"])) < step / 2
+           ))]
+    best = None
+    for j in sorted(joins, reverse=True):        # darkest join first
+        k_curve = {"l_axis": np.array([l_deep, ls[j]]),
+                   "k_curve": np.array([black[ki], dev_f[j, ki]]),
+                   "neutral_only": True}
+        dev_s = dev_f.copy()
+        ok_s = ok_f.copy()
+        cur = dev_f[j][None, :].copy()
+        i = j + 1
+        good = True
+        while i < len(ls) and ls[i] >= l_deep - 1e-9:
+            d, r = invert_to_device(model, np.array([[ls[i], 0.0, 0.0]]),
+                                    seed=cur.copy(), k_prior=k_curve,
+                                    **seg_kw)
+            okv, _ = _neutral_ok(model, d, r)
+            if not okv[0]:
+                good = False
+                break
+            dev_s[i], ok_s[i] = d[0], True
+            cur = d
+            i += 1
+        if not good:
+            continue
+        last = i - 1
+        tv = float(np.abs(np.diff(dev_s[:last + 1], axis=0)).sum())
+        if best is None or tv < best[0] - 1e-9:
+            ok_s[last + 1:] = False
+            best = (tv, j, last, dev_s, ok_s, k_curve)
+    if best is None:
+        return axis
+    tv, j, last, dev_s, ok_s, k_curve = best
+    lab_last = model.predict(dev_s[last][None, :])[0]
+    return {"l": ls, "dev": dev_s, "ok": ok_s, "l_black": float(lab_last[0]),
+            "black": dev_s[last].copy(), "deep_black": True,
+            "walk_l_black": axis["l_black"], "join_l": float(ls[j]),
+            "axis_tv": tv}
 
 
 def monotone_black(model: ForwardModel, axis: dict,

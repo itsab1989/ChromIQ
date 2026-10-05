@@ -78,7 +78,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
      "no-b2a33s", "no-rgbpos",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
-     "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp"})
+     "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
+     # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
+     "a17-colpin", "v4prm"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -928,20 +930,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _k[_l < mono_axis["l_black"]] = mono_axis["black"][ki]
             k_prior_col = {"l_axis": _l, "k_curve": _k,
                            "neutral_only": True}
-    dev_clut, residual = b2a_mod.build_b2a_clut(
-        model, b2a_grid, channel_letters=meas.channel_letters,
-        is_additive=meas.is_additive, ink_limit=ink_limit,
-        node_lab=node_lab, k_prior=k_prior_col, accurate=accurate,
-        extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
-        ucs=use_ucs, channel_max=channel_max,
-        progress=lambda m: _emit(settings, m))
-    fixed_nodes = None
     axis = None
     if accurate and not meas.is_additive and n >= 4:
         # The neutral axis solved once by continuation from paper white,
         # put on the B2A neutral column, with everything darker than the
         # neutral black clipped along the axis (research agent5-03 item 5:
         # a neutral black, monotone neutral ramp, for any channel count).
+        # Solved BEFORE the per-node inversion (it does not depend on it):
+        # when the walk had to be re-routed to reach a deeper neutral black
+        # (research agent17-01 item 1, a printer whose dark end lightens),
+        # the near-neutral nodes must follow the same K, so the axis's K
+        # curve becomes their neutral K prior.
         _emit(settings, "Inverting the model: following the neutral axis…")
         axis = mono_axis if mono_axis is not None else b2a_mod.neutral_axis(
             model, channel_letters=meas.channel_letters,
@@ -951,6 +950,29 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_max=channel_max)
         if "a9-monoblack" in candidates:
             axis = b2a_mod.monotone_black(model, axis)
+        if axis.get("deep_black") and "K" in meas.channel_letters:
+            ki = meas.channel_letters.index("K")
+            okx = np.asarray(axis["ok"], bool)
+            _l = np.asarray(axis["l"])[okx][::-1]
+            _k = np.asarray(axis["dev"])[okx][::-1, ki].copy()
+            _d = np.asarray(axis["dev"])[okx][::-1]
+            _l = np.concatenate([[0.0], _l])
+            _k = np.concatenate([[axis["black"][ki]], _k])
+            _d = np.vstack([np.asarray(axis["black"])[None, :], _d])
+            k_prior_col = {"l_axis": _l, "k_curve": _k, "dev_curve": _d,
+                           "neutral_only": True}
+            _emit(settings, f"The deepest neutral black needs black ink "
+                            f"earlier (L* {axis['walk_l_black']:.1f} -> "
+                            f"{axis['l_black']:.1f}).")
+    dev_clut, residual = b2a_mod.build_b2a_clut(
+        model, b2a_grid, channel_letters=meas.channel_letters,
+        is_additive=meas.is_additive, ink_limit=ink_limit,
+        node_lab=node_lab, k_prior=k_prior_col, accurate=accurate,
+        extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+        ucs=use_ucs, channel_max=channel_max,
+        progress=lambda m: _emit(settings, m))
+    fixed_nodes = None
+    if axis is not None:
         fixed_nodes = b2a_mod.apply_neutral_axis(
             dev_clut, node_lab, axis, model,
             channel_letters=meas.channel_letters,
@@ -998,6 +1020,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # the n>3 path had 10,000 samples for 35,937 nodes).
             **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
                if "b2a33s" in candidates else {}))
+    if ("a17-colpin" in candidates and fixed_nodes is not None
+            and len(fixed_nodes)):
+        # Research agent17-01 section 3 (token, not default): the smoothing
+        # refit holds the neutral column only by a weight-4 anchor, and
+        # next to the black it gives way: X3, node L* 6.25 moved from the
+        # axis's K 0.94 to 0.85 and prints L* 7.5-7.8 instead of 6.25, so
+        # every CMM with black point compensation (Ghostscript's default)
+        # prints the source black 1.9 L* light. Put the column back exactly.
+        dev_clut_shaped = dev_clut_shaped.copy()
+        dev_clut_shaped[fixed_nodes] = model.shape_device(
+            dev_clut[fixed_nodes])
     if channel_max is not None:
         # The smooth refit is a least-squares field over samples that all
         # respect the ceiling; between them it can overshoot (measured: K
@@ -1126,24 +1159,40 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         version=(4, 4) if str(settings.icc_version) == "4" else (2, 2),
     )
     v4_extra, v4_wtpt = _v4_adaptation(meas, settings, wtpt_abs)
+    luts_v4 = luts
+    if (accurate and "v4prm" in candidates
+            and str(settings.icc_version) in ("4", "both")):
+        # ICC.1:2022 6.3.4.3 / Table 16: a v4 CMM takes the perceptual (and,
+        # in lcms, the saturation) PCS black to be the perceptual reference
+        # medium's, so the v4 container's intent 0/2 tables are referred to
+        # it; the v2 file keeps its bytes (research agent17-01 item 2, F-09).
+        # Maximum accuracy only (D-15): Fast and Bit-exact stay frozen
+        # comparison columns, their v4 container keeps the v2 tables.
+        # Integration 2: behind the research token "v4prm", OFF by default
+        # (RESUME 13): through ColorSync and Argyll, which do no PRM black
+        # handling, the fixed twin merges sRGB 0-0.04 into the black; that
+        # trade-off is being decided separately.
+        from workflow.profile_engine.v4_prm import v4_luts
+        luts_v4 = v4_luts(luts, codec.signature,
+                          model.predict(device_black[None, :])[0])
     if str(settings.icc_version) == "4":
         from dataclasses import replace
         spec = replace(spec, wtpt=v4_wtpt)
-        icw.write_profile(out, spec, luts, extra_tags=v4_extra)
+        icw.write_profile(out, spec, luts_v4, extra_tags=v4_extra)
     else:
         icw.write_profile(out, spec, luts)
     if str(settings.icc_version) == "both":
         # One build, two containers: the main path stays v2 (what the
         # rest of the workflow installs), the v4 twin lands alongside it
-        # with a self-explaining name. Same LUT bytes in both — only the
-        # header and metadata types differ.
+        # with a self-explaining name. Same colorimetric LUT bytes in both;
+        # the perceptual and saturation tables are PRM-referred in the twin.
         from dataclasses import replace
         twin = out.with_name(out.stem + "-v4.icc")
         # Its own name: two entries called the same thing in a profile
         # menu cannot be told apart (critic N12).
         icw.write_profile(twin, replace(spec, version=(4, 4), wtpt=v4_wtpt,
                                         description=spec.description + " (v4)"),
-                          luts, extra_tags=v4_extra)
+                          luts_v4, extra_tags=v4_extra)
         _emit(settings, f"Also wrote the ICC v4 twin: {twin.name}")
 
     gam_res = residual[in_gamut]
