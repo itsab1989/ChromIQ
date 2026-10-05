@@ -801,6 +801,19 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
             chunk = sub[lo:lo + 2048]
             d2 = cl2[None, :] - 2.0 * chunk @ cloud_lab.T
             seeds2[lo:lo + 2048] = cloud[np.argmin(d2, 1)]
+        lmin = LIGHT_CLOUD.get("l_min")
+        if lmin is not None and accurate:
+            # agent 21 "a21-lightcloud60": light seeds only for light targets;
+            # dark targets keep exactly the seeds they had (no change below L* lmin)
+            lt = np.flatnonzero(target[retry][:, 0] >= lmin)
+            if len(lt):
+                lc_, lcl_ = _cloud_and_lab(gn_model, model, n, limit, channel_max,
+                                           1234, memo=True, light=True)
+                c2 = (lcl_ ** 2).sum(1)
+                for lo in range(0, len(lt), 2048):
+                    ix = lt[lo:lo + 2048]
+                    d2 = c2[None, :] - 2.0 * sub[ix] @ lcl_.T
+                    seeds2[ix] = lc_[np.argmin(d2, 1)]
         d_retry = _gauss_newton(
             gn_model, sub, seeds2, free, iters=iters, damping=damping,
             ink_limit=limit,
@@ -852,6 +865,15 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
             cloud2, cloud2_lab = _cloud_and_lab(model, model, n, limit,
                                                 channel_max, 4321, memo=True)
             seeds_h, found = _hue_gated_seeds(target[oog], cloud2, cloud2_lab)
+            lmin = LIGHT_CLOUD.get("l_min")
+            if lmin is not None:
+                lt = np.flatnonzero(target[oog][:, 0] >= lmin)
+                if len(lt):
+                    lc_, lcl_ = _cloud_and_lab(model, model, n, limit, channel_max,
+                                               4321, memo=True, light=True)
+                    sh2, f2 = _hue_gated_seeds(target[oog][lt], lc_, lcl_)
+                    seeds_h[lt] = sh2
+                    found[lt] = f2
             sub_idx = np.flatnonzero(oog)[found]
             if len(sub_idx):
                 wm = _ucs_hue_weight_matrices(gn_target[sub_idx]) if ucs \
@@ -1435,7 +1457,7 @@ _CLOUD_LOCK = __import__("threading").Lock()
 
 def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
                    channel_max: np.ndarray | None, seed: int,
-                   memo: bool = True):
+                   memo: bool = True, light: bool | None = None):
     """The retry / hue-clip device cloud and its predicted colours.
 
     Every call rebuilt both from a fresh ``default_rng(seed)``: the same
@@ -1452,7 +1474,8 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
     h = hashlib.blake2b(digest_size=16)
     h.update(np.ascontiguousarray(model.nodes).tobytes())
     h.update(np.ascontiguousarray(model.curves).tobytes())
-    key = (h.hexdigest(), type(view).__name__, n, limit, bool(LIGHT_CLOUD.get("on")),
+    use_light = bool(LIGHT_CLOUD.get("on")) if light is None else bool(light)
+    key = (h.hexdigest(), type(view).__name__, n, limit, use_light,
            None if channel_max is None else tuple(np.asarray(channel_max,
                                                              float)), seed)
     with _CLOUD_LOCK:
@@ -1460,7 +1483,7 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
     if hit is not None:
         return hit
     cloud = _device_cloud(n, limit, channel_max, np.random.default_rng(seed))
-    if LIGHT_CLOUD.get("on"):
+    if use_light:
         cloud = np.vstack([cloud, _light_cloud(n, limit, channel_max,
                                                np.random.default_rng(seed + 7))])
     val = (cloud, view.predict(cloud))
@@ -1480,7 +1503,7 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
 # from a DARK colour of the same hue and the white-corner cells of the B2A
 # interpolate that darkness into pale in-gamut colours. Add light and sparse
 # points (Agent 5 used the same coverage scaling for the refit probes).
-LIGHT_CLOUD: dict = {"on": False}
+LIGHT_CLOUD: dict = {"on": False, "l_min": None}
 CLIP_FIX: dict = {"on": False}      # agent 21 / F-15, token "a21-clipfix"
 
 

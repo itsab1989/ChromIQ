@@ -669,6 +669,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     b2a_mod.LIGHT_CLOUD["on"] = (("a21-lightcloud" in candidates and not meas.is_additive)
                                  or "a21-lightcloud-all" in candidates)
     b2a_mod.CLIP_FIX["on"] = "a21-clipfix" in candidates
+    # "a21-lightcloud60": the light seeds only where the defect lives (targets
+    # with L* >= 60, retry and OOG clip); darker nodes keep their old seeds
+    # (the dark neutral rows the plain token moved: XKB, real CMYK sets)
+    b2a_mod.LIGHT_CLOUD["l_min"] = (60.0 if "a21-lightcloud60" in candidates
+                                    and not meas.is_additive else None)
     b2a_mod.HARD_COLOUR["stats"] = []
     if ((b2a_mod.HARD_COLOUR["firm"] or b2a_mod.HARD_COLOUR["pair_firm"])
             and not b2a_mod.ECG_SEPARATION["on"]):
