@@ -26,6 +26,7 @@ builds:
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -115,6 +116,29 @@ ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "v4prm"})
 GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
                             "gpdark", "a2bfine", "gpkeep"})
 GP_FIN3_DEFAULT_ON = True
+
+
+def _a24_cached_fit(fn):
+    import hashlib
+    import pickle
+    from pathlib import Path as _P
+
+    def wrapped(device, lab, **kw):
+        h = hashlib.sha256()
+        for a in (device, lab, kw.get("row_weights")):
+            if a is not None:
+                h.update(np.ascontiguousarray(a, float).tobytes())
+        h.update(repr(sorted((k, v) for k, v in kw.items()
+                             if k not in ("progress", "row_weights"))).encode())
+        d = _P(os.environ["CHROMIQ_A24_FIT_CACHE"])
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / f"fit-{h.hexdigest()[:32]}.pkl"
+        if f.exists():
+            return pickle.loads(f.read_bytes())
+        out = fn(device, lab, **kw)
+        f.write_bytes(pickle.dumps(out))
+        return out
+    return wrapped
 
 
 def accurate_candidates(tokens) -> frozenset:
@@ -684,6 +708,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 positioning=not meas.is_additive and curve_rounds > 0)
     elif accurate:
         from workflow.profile_engine.accuracy import fit_forward_model_accurate
+        if os.environ.get("CHROMIQ_A24_FIT_CACHE"):
+            # Research only (agent 24, after agent 21's cache): battery arms
+            # that differ only in B2A tokens fit once; the pickle round trip
+            # returns the same arrays bit for bit. Inert when unset.
+            fit_forward_model_accurate = _a24_cached_fit(
+                fit_forward_model_accurate)
         model, outliers, _lam_used = fit_forward_model_accurate(
             meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
