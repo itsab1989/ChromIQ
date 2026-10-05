@@ -75,7 +75,30 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Issue #123 candidate tokens (dark-launched maximum-accuracy successors).
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
-    {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos"})
+    {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
+     "no-b2a33s", "no-rgbpos"})
+
+# Research integration 1 (2026-10-04, orchestrator after Agent 13's design
+# challenge, Validation/agent13-01): Maximum accuracy builds with these two
+# of Agent 3's candidates ON by default. "b2a33s" = the B2A table at grid 33
+# or finer with the refit samples scaled to it (held up in Agent 13's uneven
+# printers, Ghostscript and lcms); "rgbpos" = mirrored ramp positioning
+# curves for RGB devices. "no-b2a33s" / "no-rgbpos" switch one off again for
+# research ablations. "gpfwd" and "a2bfine" (the GP layer) stay OFF: on
+# uneven printers the GP made the B2A worse than b2a33s alone on 6/6
+# builds, beyond the ink limit A2B p95 went from 2.4 to 11-25 dE00, and its
+# highlight results depended on the chart. Fast and Bit-exact never read
+# candidates.
+ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos"})
+
+
+def accurate_candidates(tokens) -> frozenset:
+    """The candidate set a Maximum accuracy build runs with: the requested
+    tokens plus ACCURATE_DEFAULT_TOKENS, minus every "no-<token>"."""
+    tokens = frozenset(tokens or ())
+    off = {t[3:] for t in tokens if t.startswith("no-")}
+    return frozenset(t for t in tokens | ACCURATE_DEFAULT_TOKENS
+                     if not t.startswith("no-") and t not in off)
 
 
 def _process_ink_hues(meas) -> dict:
@@ -437,7 +460,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     q = _QUALITY_INDEX[settings.quality]
     qb = _QUALITY_INDEX.get(settings.b2a_quality, q)
     if (settings.gammap_mode == "accurate"
-            and ({"b2a33", "b2a33s"} & set(settings.engine_candidates))):
+            and ({"b2a33", "b2a33s"}
+                 & accurate_candidates(settings.engine_candidates))):
         # Agent 3 candidate: the B2A table resolution, not the inversion,
         # sets most of the B2A error (B1/bh-*: S3 B2A median 0.394 at grid
         # 17 -> 0.171 at grid 33, same build otherwise). At least grid 33.
@@ -500,8 +524,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"Averaged {groups} repeated patch(es) "
                             f"({removed} extra readings) before the fit.")
     # #123 candidates only ever modify the maximum-accuracy pipeline.
-    candidates = frozenset(settings.engine_candidates) if accurate \
-        else frozenset()
+    candidates = accurate_candidates(settings.engine_candidates) \
+        if accurate else frozenset()
     if accurate:
         # Maximum-accuracy mode: unbiased media white/black from duplicate
         # patches (after the -R/-u mutations above), measured extra-ink hues.

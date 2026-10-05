@@ -16,7 +16,7 @@ out, eng, tmpl = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 pids, variants = sys.argv[4].split(","), sys.argv[5].split(",")
 (out / "points").mkdir(parents=True, exist_ok=True)
 resf = out / "results.json"
-res = json.loads(resf.read_text()) if resf.exists() else {"datasets": []}
+res = json.loads(resf.read_text(encoding="utf-8")) if resf.exists() else {"datasets": []}
 have = {(d["name"], d["variant"]) for d in res["datasets"]}
 pr = build_printers(); work = here / "gm" / "work"; work.mkdir(parents=True, exist_ok=True)
 for pid in pids:
@@ -42,5 +42,5 @@ for pid in pids:
             res["datasets"].append({"name": pid, "variant": v, "kind": "synthetic",
                                     "role": dsm.role_of(pid), "suite": suite})
             have.add((pid, v))
-        resf.write_text(json.dumps(res, indent=1))
+        resf.write_text(json.dumps(res, indent=1), encoding="utf-8")
         print("scored", pid, v, eng, flush=True)

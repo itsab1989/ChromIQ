@@ -3969,8 +3969,11 @@ double *nin		/* Normalised center relative point */
 		gtri **tpp;		/* Pointer to list of triangles */
 		int i, j;
 
+		gtri *t1;		/* The single triangle, read as a gtri * (not through &np) */
+
 		if (np->tag == 2) {			/* It's a triangle */
-			tpp = (gtri **)&np;
+			t1 = (gtri *)np;
+			tpp = &t1;
 			nt = 1;
 		} else if (np->tag == 3) {	/* It's a triangle list */
 			gbspl *n = (gbspl *)np;
@@ -5213,8 +5216,11 @@ int   *lu		/* Number used in list */
 		gtri **tpp;		/* Pointer to list of triangles */
 		int i, j;
 
+		gtri *t1;		/* The single triangle, read as a gtri * (not through &np) */
+
 		if (np->tag == 2) {			/* It's a triangle */
-			tpp = (gtri **)&np;
+			t1 = (gtri *)np;
+			tpp = &t1;
 			nt = 1;
 		} else if (np->tag == 3) {	/* It's a triangle list */
 			gbspl *n = (gbspl *)np;

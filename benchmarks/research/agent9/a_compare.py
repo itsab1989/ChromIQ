@@ -23,7 +23,7 @@ for pid in pids:
         if not fa.with_suffix(".json").exists() or not fb.with_suffix(".json").exists():
             continue
         za, zb = np.load(fa.with_suffix(".npz")), np.load(fb.with_suffix(".npz"))
-        ja, jb = json.loads(fa.with_suffix(".json").read_text()), json.loads(fb.with_suffix(".json").read_text())
+        ja, jb = json.loads(fa.with_suffix(".json").read_text(encoding="utf-8")), json.loads(fb.with_suffix(".json").read_text(encoding="utf-8"))
         for key in ("E1", "E2", "E3", "E4", "E5", "E6"):
             if key == "E5":
                 lo = max(float(za["neutral_black_L"]), float(zb["neutral_black_L"])) + 1.0
