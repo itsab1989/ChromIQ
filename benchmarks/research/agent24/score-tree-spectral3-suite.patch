@@ -1,0 +1,38 @@
+diff --git a/benchmarks/research/run.py b/benchmarks/research/run.py
+index 5a3f2d05..0e35f615 100644
+--- a/benchmarks/research/run.py
++++ b/benchmarks/research/run.py
+@@ -289,6 +289,24 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
+                 specs.append({"ds": dsm.synthetic(pid, work, n_patches, illuminant="F8",
+                                                   printers=printers),
+                               "variant": "F8"})
++    elif suite == "spectral3":
++        # agent 24 (C-S1): F-illuminant builds on battery v3 charts (targen at ChromIQ's
++        # defaults), seeds as seeds3 names them, so seedspread3 / stats3 read them
++        import os as _os
++        ill = _os.environ.get("A24_ILLUM", "F8")
++        plan = {"typical": int(_os.environ.get("A24_K_TYP", "6")),
++                "pessimistic": int(_os.environ.get("A24_K_PES", "3"))}
++        for pid in _os.environ.get("A24_PIDS", "S3,X3,X1").split(","):
++            if not keep(pid):
++                continue
++            for lvl, kk in plan.items():
++                for k in range(kk):
++                    d = dsm.synthetic_chart(pid, work, "targen", 900, level=lvl, seed=23 + k,
++                                            printers=printers)
++                    d.illuminant = ill
++                    d.name = f"{pid}@{ill}"
++                    specs.append({"ds": d, "variant": f"seed{k}-{lvl}-targen900",
++                                  "role": "development"})
+     elif suite == "f00":
+         for pid in ["S3", "S4", "X3", "X3m"]:
+             for q in ("l", "m"):
+@@ -496,7 +514,7 @@ def main(argv=None) -> int:
+     if args.i1profiler_data:
+         os.environ[dsm.XRITE_ENV] = str(Path(args.i1profiler_data).expanduser())
+     args.engines = [e for e in args.engines.split(",") if e]
+-    v3 = any(x in args.suite for x in ("v3", "seeds3", "sealed"))
++    v3 = any(x in args.suite for x in ("v3", "seeds3", "sealed", "spectral3"))
+     readers = [r for r in (args.readers or (V3_READERS if v3 else
+                                             "argyll,lcms,colorsync,multilinear")).split(",") if r]
+     out = Path(args.out).resolve()
