@@ -302,9 +302,23 @@ FROZEN = {
 }
 
 
+#: The two rows whose ratio depends on how Pillow lays the row labels out
+#: (tests/helpers/text_layout.py): with its BASIC engine, on a machine without
+#: FriBiDi, the labels measure whole pixels and these come out 0.01 mm apart.
+#: Measured on the Mac FROZEN was taken on with BASIC forced, and equal to
+#: what the macOS, Windows runners reported. Every other row is the same.
+FROZEN_PILLOW_BASIC_LAYOUT = {
+    ("CR30", False, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.09, 12.33, 21, 21, 441),
+    ("SS", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (10.97, 9.5, 15, 29, 435),
+}
+
+
 @pytest.mark.parametrize("key,want", sorted(FROZEN.items(),
                                             key=lambda kv: str(kv[0])))
 def test_the_chart_that_came_out_before_still_comes_out(key, want):
+    from tests.helpers.text_layout import pillow_lays_out_with_raqm
+    if not pillow_lays_out_with_raqm():
+        want = FROZEN_PILLOW_BASIC_LAYOUT.get(key, want)
     inst, hexed, method, cols, rows, ratio, min_w, paper = key
     got = _chart(instrument=inst, paper=paper, hflag=hexed,
                  area_method=method, area_cols=cols, area_rows=rows,

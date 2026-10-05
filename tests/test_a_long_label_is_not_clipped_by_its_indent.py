@@ -136,6 +136,11 @@ def test_the_stamp_tick_box_shows_its_whole_label(qapp, lang, tmp_path):
         qapp.processEvents()
 
 
+@pytest.mark.skipif(__import__("sys").platform != "darwin", reason=(
+    "the control is calibrated to the language whose label is widest with "
+    "macOS CoreText metrics (_WIDEST_LANG); with FreeType metrics another "
+    "language is widest and the pinned one clips by 0 px. The guard above "
+    "still runs in every language"))
 def test_this_file_can_see_the_bug_it_guards(qapp, tmp_path):
     """Control. Pin the indent back to a fixed width and the longest language
     must be clipped again — otherwise the assertions above would hold against

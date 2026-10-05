@@ -674,6 +674,14 @@ def build_profile(run_dir: Path, stem: str, paper_lab=PAPER_LAB) -> None:
     ti3.write_text(ti3.read_text(encoding="utf-8").replace(
         'DEVICE_CLASS "DISPLAY"', 'DEVICE_CLASS "OUTPUT"'), encoding="utf-8")
     run([ARGYLL / "colprof", "-v0", "-ql", stem], run_dir, TIMEOUT_COLPROF)
+    # ArgyllCMS names its output <stem>.icm on Windows and <stem>.icc
+    # elsewhere; the pack (and Run.profile_icc) spells it .icc, as
+    # make_demo_projects.py already canonicalises. Without this a pack built
+    # on Windows died at the first run that reads its own profile ("the
+    # profile file is missing", CI round 2). A no-op where colprof wrote .icc.
+    icc, icm = run_dir / f"{stem}.icc", run_dir / f"{stem}.icm"
+    if not icc.is_file() and icm.is_file():
+        icm.replace(icc)
 
 
 # ---------------------------------------------------------------------------
@@ -5126,7 +5134,9 @@ def _main(argv=None) -> int:
               f"({n} projects expected)")
         return 2 if gaps else 0
 
-    if not (ARGYLL / "targen").exists() or not SRGB.exists():
+    # "targen.exe" on Windows (the tools are found by that name there).
+    if not any((ARGYLL / t).exists() for t in ("targen", "targen.exe")) \
+            or not SRGB.exists():
         print(f"ArgyllCMS with ref/sRGB.icm is required ({ARGYLL}).")
         return 2
 

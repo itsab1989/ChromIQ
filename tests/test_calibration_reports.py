@@ -32,6 +32,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest                                                  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QWidget              # noqa: E402
 
+from tests.helpers.paths import slashed                         # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -253,7 +255,7 @@ def test_a_calibration_window_lists_counts_and_writes_its_own_reports(
         qapp.processEvents()
         after = _files(tmp_path)
         new = sorted(set(after) - set(before))
-        assert len(new) == 1 and new[0].startswith("P/cal/reports/"), new
+        assert len(new) == 1 and slashed(new[0]).startswith("P/cal/reports/"), new
         assert not (tmp_path / "reports").exists()
         assert not (p.root / "reports").exists()
         rep = json.loads((tmp_path / new[0]).read_text(encoding="utf-8"))

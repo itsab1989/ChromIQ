@@ -25,7 +25,11 @@ import pytest
 from workflow import gamut_target, xicclu_runner as X
 
 
-_XICCLU = "xicclu"
+from core.resource_path import argyll_binary
+
+#: The stub is named as the app looks the tool up on this system
+#: ("xicclu.exe" on Windows, "xicclu" elsewhere).
+_XICCLU = argyll_binary("xicclu")
 
 
 class _Spy:

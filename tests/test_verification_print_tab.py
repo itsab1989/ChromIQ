@@ -41,6 +41,20 @@ def _env(tmp_path):
     # The lp path is the deterministic one for tests; the native dialog would
     # open a real window (and its failure path a real modal) offscreen.
     s.set("use_native_print_dialog", False)
+    if os.name == "nt":
+        # `AppSettings.get` answers True for this key on Windows whatever is
+        # stored (there is no lp there, core/settings.py), so the lp path these
+        # tests drive was never reached and the radio stub saw nothing. The
+        # stored value is honoured for THIS store only, so the conversion and
+        # the record behind the radio are checked on Windows too.
+        _get = s.get
+
+        def _honour_the_stored_route(key, default=None):
+            if key == "use_native_print_dialog":
+                return str(s._qs.value(key, False)).lower() in ("true", "1")
+            return _get(key, default)
+
+        s.get = _honour_the_stored_route
     fm = FileManager(s)
     Project.create(tmp_path / "P", "P").current_run().ensure_dir()
     fm.set_target_name("P")

@@ -68,7 +68,7 @@ def test_no_shipped_file_points_at_the_research_folder(phrase):
         except OSError:
             continue
         for n, line in enumerate(text.splitlines(), 1):
-            rel = str(f.relative_to(ROOT))
+            rel = f.relative_to(ROOT).as_posix()
             if phrase.lower() in line.lower() and (rel, phrase) not in ALLOWED:
                 hits.append(f"{rel}:{n}: {line.strip()}")
     assert not hits, (

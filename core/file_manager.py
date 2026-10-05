@@ -2900,6 +2900,20 @@ def same_entry(a: "Path | str", b: "Path | str") -> bool:
         return False
 
 
+def same_spelling(a: "Path | str", b: "Path | str") -> bool:
+    """Whether *a* and *b* are spelled the same, letter for letter.
+
+    **ON WINDOWS ``Path ==`` IGNORES CASE.** ``WindowsPath`` compares paths
+    case-folded, so "Demo-Proj" and "demo-proj" are EQUAL there, while on
+    macOS and Linux (``PosixPath``) they are not. A rename that asks
+    ``new_root == old_root`` to mean "the user typed the same name" took a
+    case-only rename for no rename at all on Windows only: the folder kept
+    its old case. This compares the spelling on every platform, which is
+    what ``==`` already does on POSIX, so macOS and Linux are unchanged.
+    """
+    return str(a) == str(b)
+
+
 class ProjectRenameRefused(OSError):
     """A rename refused BEFORE anything was touched, or undone after a step
     failed (#182 beta 38, F1).
@@ -4409,7 +4423,7 @@ class FileManager:
         new_root = old_root.parent / self._sanitise(cleaned)
         if not (old_root / Project.MANIFEST).exists():
             raise FileNotFoundError(old_root)
-        if new_root == old_root:
+        if same_spelling(new_root, old_root):
             # **THE FOLDER ALREADY HAS THE NAME; ITS FILES MAY NOT (#182
             # K26).** A project duplicated or renamed outside ChromIQ ("X
             # copy", or "X-2") is opened from a folder whose name is not

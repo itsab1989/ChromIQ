@@ -26,6 +26,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from tests.helpers.paths import slashed                            # noqa: E402
 from tests.test_beta38_challenge_fixes import _Settings           # noqa: E402
 from tests.test_challenge_c_report_files import _Target           # noqa: E402
 from tests.test_g7_reports_across_places import _read, _snapshot  # noqa: E402
@@ -199,7 +200,7 @@ def test_an_unrelated_projects_report_in_the_chromiq_folder_is_untouched(
     assert other.read_bytes() == before
     FileManager(_Settings(chromiq)).rename_existing_project(q.root, "Q2")
     assert other.read_bytes() == before
-    assert "/elsewhere/Q2/runs/" in _dirs(across)[1]
+    assert "/elsewhere/Q2/runs/" in slashed(_dirs(across)[1])
 
 
 def test_a_vanished_namesake_outside_is_not_taken_for_a_rename(
@@ -227,7 +228,7 @@ def test_a_vanished_namesake_outside_is_not_taken_for_a_rename(
     assert other.read_bytes() == before
     FileManager(_Settings(chromiq)).rename_existing_project(q.root, "Q2")
     assert other.read_bytes() == before
-    assert "/elsewhere/Q2/runs/" in _dirs(across)[1]
+    assert "/elsewhere/Q2/runs/" in slashed(_dirs(across)[1])
 
 
 def test_nothing_under_the_chromiq_folders_old_is_rewritten(two_places):
@@ -241,5 +242,5 @@ def test_nothing_under_the_chromiq_folders_old_is_rewritten(two_places):
     before = _snapshot(chromiq / "old")
     FileManager(_Settings(chromiq)).rename_existing_project(q.root, "Q2")
     assert _snapshot(chromiq / "old") == before
-    assert json.loads(kept.read_text(encoding="utf-8"))["document"]["measurements"][1][
-        "dir"].endswith("/elsewhere/Q/runs/run1")
+    assert slashed(json.loads(kept.read_text(encoding="utf-8"))["document"][
+        "measurements"][1]["dir"]).endswith("/elsewhere/Q/runs/run1")
