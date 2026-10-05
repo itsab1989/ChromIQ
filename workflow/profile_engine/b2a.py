@@ -26,6 +26,7 @@ import numpy as np
 
 from workflow.profile_engine.forward_model import ForwardModel
 from workflow.profile_engine.icc_writer import lab_grid_axes
+from workflow.profile_engine import oog_clip as _oog
 
 # Lab hue anchors for extra inks, keyed by COLOR_REP letter. Measured hues of
 # the EXTRA_INK display anchors used across ChromIQ (ui.tiff_preview).
@@ -675,7 +676,15 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         d[idx] = d_retry[better]
         residual[idx] = res_retry[better]
 
-    if accurate:
+    if accurate and _oog.PARAMS.get("on"):
+        # Research (Agent 25, tokens a25-*): one continuous weighted
+        # nearest-point clip in a hue-linear space, no accept/reject switch
+        # (oog_clip module docstring; Findings agent25-01).
+        d = _oog.clip_nodes(
+            model, target, d, residual, free=free, limit=limit,
+            channel_max=channel_max, prior=prior, prior_w=prior_w,
+            gn_kw=gn_kw, damping=damping, progress_label=progress_label)
+    elif accurate:
         # Hue-preserving clip: nodes that stay out of gamut are re-clipped
         # under a norm that punishes hue errors hardest — a clipped
         # saturated colour loses chroma instead of changing colour family.
@@ -712,7 +721,24 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
                 gained = (np.hypot(lab_pol[:, 1], lab_pol[:, 2])
                           > np.hypot(t_sub[:, 1], t_sub[:, 2]) + 3.0)
                 keep = (dh <= 10.0) & ~gained
-                d_pol[~keep] = seeds_h[found][~keep]
+                if CLIP_FIX.get("on"):
+                    # Agent 21 / F-15 (token a21-clipfix, ported by Agent 25
+                    # from research/pe-nink-research a2e64114): a hue angle is
+                    # meaningless at low chroma, and a rejected polish must
+                    # not write the RAW cloud seed: fall back to the plain
+                    # nearest clip already in d, unless the seed is closer.
+                    c_pol = np.hypot(lab_pol[:, 1], lab_pol[:, 2])
+                    c_t = np.hypot(t_sub[:, 1], t_sub[:, 2])
+                    keep = (((dh <= 10.0) | (np.minimum(c_pol, c_t) < 5.0))
+                            & ~gained)
+                    near = d[sub_idx]
+                    e_near = np.linalg.norm(model.predict(near) - t_sub, axis=1)
+                    e_seed = np.linalg.norm(lab_seed - t_sub, axis=1)
+                    fb = np.where((e_near <= e_seed)[:, None], near,
+                                  seeds_h[found])
+                    d_pol[~keep] = fb[~keep]
+                else:
+                    d_pol[~keep] = seeds_h[found][~keep]
                 d[sub_idx] = d_pol
     return d, residual
 
@@ -1277,6 +1303,7 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
     h.update(np.ascontiguousarray(model.nodes).tobytes())
     h.update(np.ascontiguousarray(model.curves).tobytes())
     key = (h.hexdigest(), type(view).__name__, n, limit,
+           bool(LIGHT_CLOUD.get("on")),
            None if channel_max is None else tuple(np.asarray(channel_max,
                                                              float)), seed)
     with _CLOUD_LOCK:
@@ -1284,6 +1311,9 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
     if hit is not None:
         return hit
     cloud = _device_cloud(n, limit, channel_max, np.random.default_rng(seed))
+    if LIGHT_CLOUD.get("on"):
+        cloud = np.vstack([cloud, _light_cloud(
+            n, limit, channel_max, np.random.default_rng(seed + 7))])
     val = (cloud, view.predict(cloud))
     for a in val:                    # shared: nobody may write into them
         a.flags.writeable = False
@@ -1292,6 +1322,57 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
             _CLOUD_CACHE.pop(next(iter(_CLOUD_CACHE)))
         _CLOUD_CACHE[key] = val
     return val
+
+
+# Agent 21 (Findings/agent21-01 s3.1, token "a21-lightcloud", Maximum
+# accuracy; ported by Agent 25 from research/pe-nink-research c6b75dea /
+# 9ed806ab): the retry and clip clouds are uniform in the N-cube, which on
+# 5-7 inks under a 300 % limit holds no light colour at all, so pale nodes
+# were seeded from dark colours (F-14). Light and sparse points are added.
+LIGHT_CLOUD: dict = {"on": False}
+CLIP_FIX: dict = {"on": False}      # agent 21 / F-15, token "a21-clipfix"
+
+
+def set_research_tokens(tokens, *, is_additive) -> None:
+    """Module switches for one build (research tokens a21-*, a25-*).
+    Called by the builder before the first inversion and with an empty set
+    afterwards; Fast and Bit-exact never reach the code they switch."""
+    from workflow.profile_engine import oog_clip
+    t = frozenset(tokens or ())
+    LIGHT_CLOUD["on"] = bool(("a21-lightcloud" in t and is_additive is False)
+                             or "a21-lightcloud-all" in t
+                             or "a25-oog" in t and is_additive is False)
+    CLIP_FIX["on"] = "a21-clipfix" in t
+    p = oog_clip.PARAMS
+    p.clear()
+    p.update(oog_clip.DEFAULTS)
+    p["on"] = "a25-oog" in t or "a25-clip" in t
+    for tok in t:
+        if tok.startswith("a25-space-"):
+            p["space"] = tok[len("a25-space-"):]
+        elif tok.startswith("a25-p-") and "=" in tok:
+            k, v = tok[len("a25-p-"):].split("=", 1)
+            p[k] = type(oog_clip.DEFAULTS[k])(v) if not isinstance(
+                oog_clip.DEFAULTS[k], bool) else v in ("1", "true", "on")
+
+
+def _light_cloud(n: int, limit, channel_max, rng: np.random.Generator) -> np.ndarray:
+    m = min(40000, 6000 * n)
+    a = rng.uniform(0.0, 1.0, (m // 2, n)) * rng.uniform(0.0, 1.0, (m // 2, 1)) ** 2
+    sp = np.zeros((m // 2, n))
+    for k in (1, 2, 3):
+        rows = np.arange(k - 1, m // 2, 3)
+        for i in rows:
+            sp[i, rng.choice(n, k, replace=False)] = 1.0
+    sp *= rng.uniform(0.0, 1.0, sp.shape) ** 2
+    c = np.vstack([a, sp])
+    if channel_max is not None:
+        c *= channel_max[None, :]
+    if limit is not None:
+        total = c.sum(1)
+        over = total > limit
+        c[over] *= (limit / total[over])[:, None]
+    return c
 
 
 def _device_cloud(n: int, limit: float | None,

@@ -82,7 +82,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
      "a17-colpin", "v4prm",
      # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
-     "fin3", "no-fin3"})
+     "fin3", "no-fin3",
+     # Agent 21 (F-14/F-15) and Agent 25 (F-15/F-17), research only:
+     "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix",
+     "a25-oog", "a25-clip", "a25-space-ucs", "a25-space-lab",
+     "a25-space-oklab", "a25-space-ipt"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -516,6 +520,8 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
             return _build_profile_impl(ti3_path, out_path, settings, started)
     finally:
         settings.progress = orig_progress
+        from workflow.profile_engine import b2a as _b2a
+        _b2a.set_research_tokens((), is_additive=None)
         for run in started:
             run.close()
 
@@ -624,6 +630,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # patches (after the -R/-u mutations above), measured extra-ink hues.
         meas.average_endpoints()
     extra_hues = meas.extra_ink_hues() if accurate else None
+    # Research tokens a21-lightcloud / a21-clipfix (Agent 21, F-14/F-15) and
+    # a25-* (Agent 25, F-15/F-17 out-of-gamut clip); off by default, reset
+    # by build_profile when the build ends.
+    b2a_mod.set_research_tokens(candidates, is_additive=meas.is_additive)
     b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
     b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
     if b2a_mod.ECG_SEPARATION["on"]:
