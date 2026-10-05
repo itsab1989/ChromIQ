@@ -503,17 +503,33 @@ def _fdiff_t(y: np.ndarray, ax: int) -> np.ndarray:
     return yp[tuple(sl0)] - yp[tuple(sl1)]
 
 
-def interaction(x: np.ndarray, grid: int, n: int, order: int = 3) -> np.ndarray:
+def _favg(w: np.ndarray, ax: int) -> np.ndarray:
+    """Mean of neighbouring entries along ``ax`` (length shrinks by 1)."""
+    sl0 = [slice(None)] * w.ndim
+    sl1 = [slice(None)] * w.ndim
+    sl0[ax] = slice(0, -1)
+    sl1[ax] = slice(1, None)
+    return 0.5 * (w[tuple(sl0)] + w[tuple(sl1)])
+
+
+def interaction(x: np.ndarray, grid: int, n: int, order: int = 3,
+                node_w: np.ndarray | None = None) -> np.ndarray:
     """Sum over ink subsets of size ``order`` of (D..)^T (D..) x. order 2 =
     the torsion regulariser of Gupta et al. 2016 (JMLR 17:109), which also
     penalises PAIRWISE (bilinear) interactions; order 3 leaves them free."""
     import itertools
     x3 = x.reshape((grid,) * n + (-1,))
     o = np.zeros_like(x3)
+    w3 = None if node_w is None else node_w.reshape((grid,) * n + (1,))
     for sub in itertools.combinations(range(n), order):
         d = x3
         for a in sub:
             d = _fdiff(d, a)
+        if w3 is not None:
+            wd = w3
+            for a in sub:
+                wd = _favg(wd, a)
+            d = d * wd
         for a in reversed(sub):
             d = _fdiff_t(d, a)
         o += d
@@ -534,7 +550,12 @@ def interaction3(x: np.ndarray, grid: int, n: int) -> np.ndarray:
 
 
 def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
-                               iters=400, order: int = 3):
+                               iters=400, order: int = 3,
+                               local: tuple | None = None):
+    """``local`` = (near, ramp) in lattice cells: the penalty acts only away
+    from the chart (weight 0 within ``near`` cells of the nearest patch,
+    1 beyond ``near + ramp``), so the region the data pin, paper white and
+    its light neighbourhood included, keeps the plain fit's structure."""
     """Re-solve the lattice (fixed curves) with the curvature penalty plus
     ``mu`` x interaction3; from the current nodes."""
     from workflow.profile_engine.forward_model import _interp_weights
@@ -548,6 +569,12 @@ def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
         w = w * sw[:, None]
         y = y * sw[:, None]
     fc = cols.reshape(-1)
+    node_w = None
+    if local is not None:
+        dist = nearest_patch_cells(grid, n, model.shape_device(
+            np.asarray(device, float)))
+        node_w = np.clip((dist - local[0]) / max(local[1], 1e-9), 0.0, 1.0)
+        node_w = node_w * node_w * (3.0 - 2.0 * node_w)
 
     def wt(r):
         return np.stack([np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),
@@ -555,7 +582,7 @@ def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
 
     def amul(x):
         return (wt((w[:, :, None] * x[cols]).sum(1)) + lam * _curvature(x, grid, n)
-                + mu * interaction(x, grid, n, order) + 1e-7 * x)
+                + mu * interaction(x, grid, n, order, node_w) + 1e-7 * x)
 
     b = wt(y)
     x = np.array(model.nodes, float, copy=True)

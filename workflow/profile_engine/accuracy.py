@@ -401,7 +401,11 @@ def fit_forward_model_accurate(
         model.nodes = extrap.resolve_with_order_penalty(
             model, device, lab, lam, order_mu * lam,
             weights=wf if ((wf < 0.999).any() or w_noise is not None
-                           or rw is not None) else None)
+                           or rw is not None) else None,
+            # only away from the chart: the region the patches pin (paper
+            # white and its light neighbourhood included) keeps the plain
+            # fit (global penalty: X7 near-white B2A jumps, NC5 0 -> 15)
+            local=(0.5, 1.0))
         res = dist(model.predict(device), lab)
         res_w = res / sigma if sigma is not None else res
 
