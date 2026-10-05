@@ -343,8 +343,9 @@ def lightening_patches(patch_dev: np.ndarray, patch_xyz: np.ndarray,
 
 
 def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
-                  margin: float = 1.5, floor_frac: float = 0.5,
-                  use_measured: bool = True, info: dict | None = None):
+                  margin: float = 3.0, floor_frac: float = 0.5,
+                  use_measured: bool = True, near: float = 0.5,
+                  ramp: float = 1.0, info: dict | None = None):
     """Lift every node that is darker, in any XYZ channel, than (a) a
     measured patch carrying at least as much of every ink (minus ``margin``
     relative, for noise) or (b) ``floor_frac`` of the darkest measured patch.
@@ -376,11 +377,72 @@ def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
     lbf = cb(np.clip(lb, 0.0, None)) - m116
     low = (cb(xyz) < lbf) & np.isfinite(lb)
     moved = low.any(1)
+    # Only where the chart leaves the lattice to extrapolation: a node at or
+    # next to a patch is what the data say (real presses break channel
+    # monotonicity by a few L* through trapping: X5's C+K is bluer, Z
+    # higher, than K alone in the truth too). Weight 0 within ``near``
+    # cells of a patch, 1 from ``near + ramp`` cells, smoothstep between.
+    if moved.any():
+        dist = nearest_patch_cells(grid, n, model.shape_device(pdev))
+        w = np.clip((dist - near) / max(ramp, 1e-9), 0.0, 1.0)
+        w = w * w * (3.0 - 2.0 * w)
+        moved &= w > 0
     out = np.array(model.nodes, float, copy=True)
     if moved.any():
         tgt = np.where(low, np.clip(lbf, 0.0, None) ** 3, xyz)
-        out[moved] = xyz_to_lab(tgt[moved] * D50_XYZ100)
+        lifted = xyz_to_lab(tgt[moved] * D50_XYZ100)
+        out[moved] = out[moved] + w[moved, None] * (lifted - out[moved])
     if info is not None:
         info.update(moved=int(moved.sum()), nodes=int(len(out)),
                     lightening_patches=int((~ok).sum()))
     return out, moved
+
+
+def smooth_correction(delta: np.ndarray, moved: np.ndarray, grid: int,
+                      n: int, lam: float = 1.0, keep: float = 1.0,
+                      iters: int = 300) -> np.ndarray:
+    """Spread a node correction so it does not leave a kink: minimise
+    sum_moved |d - delta|^2 + keep * sum_other |d|^2 + lam |L d|^2."""
+    a = np.where(moved, 1.0, keep)[:, None]
+
+    def amul(x):
+        return a * x + lam * _curvature(x, grid, n)
+
+    b = a * np.where(moved[:, None], delta, 0.0)
+    x = b / a
+    r = b - amul(x)
+    p = r.copy()
+    rs = float((r * r).sum())
+    stop = 1e-14 * max(float((b * b).sum()), 1e-30)
+    for _ in range(iters):
+        ap = amul(p)
+        al = rs / max(float((p * ap).sum()), 1e-30)
+        x += al * p
+        r -= al * ap
+        rs2 = float((r * r).sum())
+        if rs2 < stop:
+            break
+        p = r + (rs2 / rs) * p
+        rs = rs2
+    return x
+
+
+def nearest_patch_cells(grid: int, n: int, shaped: np.ndarray,
+                        chunk_axes: int = 2) -> np.ndarray:
+    """L-infinity distance, in lattice cells, from every node to the nearest
+    patch (shaped coordinates). 0 on a measured patch's own node."""
+    g = np.linspace(0.0, 1.0, grid)
+    P = len(shaped)
+    d = [np.abs(g[:, None] - shaped[None, :, i]) * (grid - 1)
+         for i in range(n)]                            # (grid, P)
+    tail = np.zeros((1, P))
+    for i in range(chunk_axes, n):
+        tail = np.maximum(tail[:, None, :], d[i][None, :, :]).reshape(-1, P)
+    out = np.empty((grid,) * chunk_axes + (len(tail),))
+    for h in range(grid ** chunk_axes):
+        idx = np.unravel_index(h, (grid,) * chunk_axes)
+        head = np.zeros(P)
+        for k, j in enumerate(idx):
+            head = np.maximum(head, d[k][j])
+        out[idx] = np.maximum(tail, head[None, :]).min(1)
+    return out.reshape(-1)
