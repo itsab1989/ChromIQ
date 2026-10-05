@@ -75,7 +75,9 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Issue #123 candidate tokens (dark-launched maximum-accuracy successors).
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
-    {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos"})
+    {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
+     # Agent 15 (D-14 repair), read only together with "gpfwd":
+     "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark"})
 
 
 def candidates_from_env(env_value: str | None) -> frozenset:
@@ -105,6 +107,50 @@ def gp_forward_applies(candidates, *, is_additive: bool, n_channels: int,
     return ("gpfwd" in candidates and not is_additive
             and 0 < n_channels <= GP_FORWARD_MAX_INKS
             and n_patches >= 75 * n_channels)
+
+
+def _agent15_gp(meas, model, candidates, settings, lam, curve_rounds,
+                use_ucs, de_fn):
+    """Agent 15 (D-14 repair). "gpwarp" alone: the GP in the stiff fit's
+    shaper coordinates. "gpsel": a held-out choice between the stiff fit
+    (returns None: the table stays the stiff fit's), the raw GP, the warped
+    GP and (with "gpres") a residual GP."""
+    from workflow.profile_engine import gpsel
+    from workflow.profile_engine.accuracy import fit_forward_model_accurate
+    dev, lab, rw = meas.device, meas.lab_relative, meas.row_weights
+    if "gpsel" not in candidates:
+        return gpsel.fit_kind("warp", dev, lab, model, de_fn, rw)[0]
+    # Agent 15 B1: the raw GP is not a contender (the held-out patches
+    # cannot see its highlight-neutral failure on charts without light
+    # patches, Agent 13 blocker 3); the choice is stiff vs warped GP
+    # (+ the residual GP with "gpres").
+    kinds = ("warp",) + (("res",) if "gpres" in candidates else ())
+    full = {kd: gpsel.fit_kind(kd, dev, lab, model, de_fn, rw)
+            for kd in kinds}
+
+    def fit_stiff(d, l, w):
+        return fit_forward_model_accurate(
+            d, l, grid=model.grid, base_lam=lam, curve_rounds=curve_rounds,
+            ucs=use_ucs, row_weights=w, positioning=curve_rounds > 0,
+            additive=False)[0]
+
+    winner, rep = gpsel.select(dev, lab, model, fit_stiff, de_fn, rw,
+                               kinds=kinds,
+                               full_hyper={kd: full[kd][1] for kd in kinds},
+                               progress=lambda m: _emit(settings, m))
+    parts = []
+    for kd in ("stiff",) + kinds:
+        r = rep[kd]
+        parts.append(f"{kd} {r['mean']:.3f}/{r['p95']:.3f}"
+                     + ("" if kd == "stiff" else
+                        (" ok" if r["accepted"] else " no")))
+    _emit(settings, "Printer model chosen on held-out patches of this chart "
+                    f"({rep['n_heldout']} patches, mean/p95 dE00): "
+                    + ", ".join(parts) + f" -> {winner}.")
+    settings_log = getattr(settings, "_agent15_report", None)
+    if isinstance(settings_log, dict):
+        settings_log.update(rep)
+    return None if winner == "stiff" else full[winner][0]
 
 
 def _fit_lambda(grid: int) -> float:
@@ -595,18 +641,32 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             from workflow.profile_engine import gpfwd
             from workflow.profile_engine.metrics import delta_e_2000 as _de
             _emit(settings, "Fitting the printer model: Gaussian process…")
-            gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
-                                       row_weights=meas.row_weights,
-                                       ref_pred=model.predict(meas.device))
+            if not ({"gpwarp", "gpsel"} & candidates):
+                gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
+                                           row_weights=meas.row_weights,
+                                           ref_pred=model.predict(meas.device))
+            else:
+                gpm = _agent15_gp(meas, model, candidates, settings, lam,
+                                  curve_rounds, use_ucs, _de)
+            if gpm is not None and "gpclip" in candidates:
+                from workflow.profile_engine import gpsel
+                gpm = gpsel.Tapered(
+                    gpm, model, float(meas.device.sum(1).max()),
+                    light=(gpsel.light_scale(meas.device)
+                           * (2.0 if "gplight2" in candidates else 1.0)
+                           if {"gplight", "gplight2"} & candidates
+                           else None),
+                    dark=(15.0, 30.0) if "gpdark" in candidates else None)
             # anchor_rel 0.1: every node weakly pulled to the GP's own value
             # there, so the projection has ONE solution the solver reaches
             # (X5: without it 26,374 nodes moved > 1 LSB between solvers,
             # up to 12,200 LSB; with it <= 0.4 LSB; accuracy unchanged,
             # agent 3 P1-projection-stability*.txt).
-            model = gpfwd.project_to_table(gpm, model, lam,
-                                           fine="a2bfine" in candidates,
-                                           anchor_rel=0.1)
-            a2b_grid = model.grid
+            if gpm is not None:
+                model = gpfwd.project_to_table(
+                    gpm, model, lam, fine="a2bfine" in candidates,
+                    anchor_rel=0.1, keep_curves="gpkeep" in candidates)
+                a2b_grid = model.grid
         if len(outliers):
             # Name the patches the way the SHEET names them (SAMPLE_LOC):
             # "rows 757, 811" only coincided with the printed IDs on a
