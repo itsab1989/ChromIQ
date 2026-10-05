@@ -66,7 +66,7 @@ MIN_STRIP = 4         # shorter strips are not judged
 MAX_SHARE = 0.25      # never drop more than this share of the chart
 MAX_ROUNDS = 4
 
-SHIFT_TEST = True
+SHIFT_TEST = False   # off: see Findings agent22-01 s5 (false positives on clean ordered ramps)
 SHIFT_MIN_DE = 1.0    # an out-of-step strip must be off by this much as read
 SHIFT_RATIO = 0.5     # ... and fit at least twice as well shifted by one
 MAX_LEAVE_OUT = 8     # strips per round judged on a fit without them
@@ -165,10 +165,7 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
             if SHIFT_TEST:
                 as_read, shifted = _shifted(pred, lab, rows)
                 if as_read > med + 2.0 * s:
-                    if shifted < SHIFT_RATIO * as_read:
-                        new.add(g)
-                    else:
-                        loo.append((as_read, g))
+                    loo.append((as_read, g))
         loo.sort(reverse=True)
         for _, g in loo[:MAX_LEAVE_OUT]:
             rows = order[g]
@@ -179,7 +176,12 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
             # only the shift decides here: a CLEAN ordered ramp left out is
             # extrapolated badly too (X1 seed 0, grey ramp: 4.1 dE00 left
             # out) but does not fit better shifted (4.4)
-            if as_read > SHIFT_MIN_DE and shifted < SHIFT_RATIO * as_read:
+            # ... and an out-of-step pass leaves one END patch grossly wrong
+            # (it reads the gap, the paper or the next patch along), which a
+            # clean ramp with a biased model under it never has
+            end = max(float(res[rows[0]]), float(res[rows[-1]]))
+            if (as_read > SHIFT_MIN_DE and shifted < SHIFT_RATIO * as_read
+                    and end > thr):
                 new.add(g)
         if new == suspects:
             break
