@@ -11,7 +11,7 @@ import pytest
 
 from workflow.profile_engine import builder
 from workflow.profile_engine import icc_writer as icw
-from workflow.profile_engine.lab_l1 import apply_l1, encode_a2b_l1
+from workflow.profile_engine.lab_l1 import apply_l1, encode_a2b_l1, encode_a2b_l1b
 
 
 def _rgb_a2b(grid=5, top_l=100.0, out_entries=256):
@@ -67,14 +67,16 @@ def test_only_a2b_tags_with_own_bytes_change():
     luts = {"A2B1": blob, "A2B0": "A2B1", "B2A1": b"mft2-b2a", "gamt": b"g"}
     out = apply_l1(luts)
     assert out["A2B0"] == "A2B1" and out["B2A1"] == luts["B2A1"] and out["gamt"] == b"g"
-    assert out["A2B1"] == encode_a2b_l1(blob)
+    assert out["A2B1"] == encode_a2b_l1b(blob)
+    assert apply_l1(luts, "scale")["A2B1"] == encode_a2b_l1(blob)
 
 
 def test_the_builder_applies_it_only_for_maximum_accuracy_with_the_token():
     src = inspect.getsource(builder._build_profile_impl)
     i = src.index("apply_l1(")
     gate = src.rfind("\n    if ", 0, i)
-    assert 'accurate and "a24-l1" in candidates' in src[gate:i]
+    assert '"a24-l1", "a24-l1scale"} & candidates' in src[gate:i]
+    assert "accurate and" in src[gate:i]
     assert "a24-l1" in builder.ENGINE_CANDIDATE_TOKENS
 
 
@@ -83,7 +85,7 @@ def test_colorsync_reads_paper_white_as_100(tmp_path):
     from benchmarks.research import cmm
     blob, _ = _rgb_a2b()
     res = {}
-    for name, tag in (("L0", blob), ("L1", encode_a2b_l1(blob))):
+    for name, tag in (("L0", blob), ("L1", encode_a2b_l1(blob)), ("L1b", encode_a2b_l1b(blob))):
         p = tmp_path / f"{name}.icc"
         spec = icw.ProfileSpec(n_channels=3, color_rep="RGB_LAB", description=name,
                                wtpt=tuple(np.array(icw.D50_XYZ, float)))
@@ -92,3 +94,26 @@ def test_colorsync_reads_paper_white_as_100(tmp_path):
         res[name] = cmm.a2b(p, np.ones((1, 3)), "colorsync")[0]
     assert res["L0"][0] < 99.8           # the misreading this candidate removes
     assert abs(res["L1"][0] - 100.0) < 0.05
+    assert abs(res["L1b"][0] - 100.0) < 0.05
+
+
+def test_l1b_changes_nothing_a_spec_cmm_reads_below_the_top_cell():
+    blob, _ = _rgb_a2b(out_entries=256)
+    b = encode_a2b_l1b(blob)
+    assert len(b) == len(blob) and sum(x != y for x, y in zip(b, blob)) <= 2
+    lab0, lab1 = _decode_nodes(blob), _decode_nodes(b)
+    top = lab0[:, 0] > 100.0 * 65280 / 65535 * 255 / 256      # inside the last L table cell
+    assert np.array_equal(lab0[~top], lab1[~top])
+    assert np.abs(lab0 - lab1).max() <= 100.0 / 65280 + 1e-9
+
+
+def test_l1b_keeps_l_above_100():
+    blob, _ = _rgb_a2b(top_l=100.3)
+    b = encode_a2b_l1b(blob)
+    assert b != blob and _decode_nodes(b)[:, 0].max() > 100.29
+
+
+def test_l1b_leaves_a_non_identity_l_table_alone():
+    blob, _ = _rgb_a2b()
+    once = encode_a2b_l1b(blob)
+    assert encode_a2b_l1b(once) == once

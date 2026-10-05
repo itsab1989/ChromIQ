@@ -45,7 +45,30 @@ def encode_a2b_l1(blob: bytes) -> bytes:
             + new_out.astype(">u2").tobytes() + blob[o_out + 2 * n_out * n_ot:])
 
 
-def apply_l1(luts: dict) -> dict:
-    """C-L1 on every A2B tag that holds its own bytes (aliases follow their target)."""
-    return {k: (encode_a2b_l1(v) if k.startswith("A2B") and isinstance(v, bytes) else v)
+def encode_a2b_l1b(blob: bytes) -> bytes:
+    """C-L1b: the smallest change ColorSync reacts to (measured, Findings/agent24-01 s3.3).
+
+    ColorSync drops an IDENTITY lut16 output table and then decodes the CLUT's L* as if
+    0xFFFF were 100; any non-identity L table is applied and decoded per the specification.
+    So the L table stays the identity except its LAST entry, one code lower: every L* up to
+    the last table cell (99.6 for 256 entries) reads exactly as before in a spec CMM, the top
+    cell by at most one code (0.0015 L*), and nothing is clipped (L* above 100 stays)."""
+    if blob[:4] != b"mft2" or blob[9] != 3:
+        return blob
+    n_in, grid = blob[8], blob[10]
+    n_it, n_ot = struct.unpack(">HH", blob[48:52])
+    o_out = 52 + 2 * n_in * n_it + 2 * grid ** n_in * 3
+    out = np.frombuffer(blob, ">u2", 3 * n_ot, o_out).reshape(3, n_ot).astype(np.int64)
+    ident = np.round(np.linspace(0, 0xFFFF, n_ot)).astype(np.int64)
+    if not np.array_equal(out[0], ident):
+        return blob                       # already applied by ColorSync as it is
+    out[0, -1] -= 1
+    return blob[:o_out] + out.astype(">u2").tobytes() + blob[o_out + 6 * n_ot:]
+
+
+def apply_l1(luts: dict, variant: str = "b") -> dict:
+    """C-L1 on every A2B tag that holds its own bytes (aliases follow their target).
+    variant "b" = :func:`encode_a2b_l1b` (default), "scale" = :func:`encode_a2b_l1`."""
+    fn = encode_a2b_l1b if variant == "b" else encode_a2b_l1
+    return {k: (fn(v) if k.startswith("A2B") and isinstance(v, bytes) else v)
             for k, v in luts.items()}
