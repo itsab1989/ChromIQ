@@ -618,7 +618,8 @@ def project_metamers(model: ForwardModel, target: np.ndarray, d: np.ndarray,
             rr = r - np.einsum("nij,nj->ni", jac, sf)
             def solve(rows, rhs):
                 a = np.einsum("nik,nk,njk->nij", rows, winv, rows)
-                a += 1e-9 * np.eye(a.shape[1])[None]
+                tr = np.trace(a, axis1=1, axis2=2)
+                a += (1e-9 * tr + 1e-9)[:, None, None] * np.eye(a.shape[1])[None]
                 if a.shape[1] == 4:   # rows without a limit row: identity there
                     a[:, 3, 3] += np.where(np.abs(rows[:, 3]).sum(1) > 0, 0.0, 1.0)
                 lam = np.linalg.solve(
