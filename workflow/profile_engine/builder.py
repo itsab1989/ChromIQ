@@ -82,7 +82,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
      "a17-colpin", "v4prm",
      # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
-     "fin3", "no-fin3"})
+     "fin3", "no-fin3",
+     # Agent 24 (F-05, 5+ ink mapped-intent black; acts only on >= 5 inks)
+     "a24-f05", "a24-f05walk", "a24-f05min", "a24-f05pin", "a24-f05nopin"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -841,8 +843,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # background build would not have it and would quietly recompute or skip
     # it, so with that token the mapped tables are built afterwards, as on
     # the branch where the token was measured (integration 1 decision).
+    # Research F-05 (Agent 24): the a24-f05* tokens on 5+ inks need the
+    # colorimetric table's black too, so they build afterwards as well.
+    _f05_after = (n >= 5 and not meas.is_additive
+                  and any(t.startswith("a24-f05") for t in candidates))
     if (accurate and settings.source_gamut is not None
-            and "a9-ownmap" not in candidates):
+            and "a9-ownmap" not in candidates and not _f05_after):
         import threading
         from workflow.profile_engine import parallel
         if parallel.worker_count() > 1:
