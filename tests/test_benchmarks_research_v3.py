@@ -507,3 +507,65 @@ def test_the_commercial_table_states_in_and_out_of_sample_and_gives_intervals(tm
     assert d["mean"]["ci95"][0] <= 0.0 <= d["mean"]["ci95"][1]
     md = commercial.table([r])
     assert "in-sample" in md and "OUT-of-sample" in md and "95 % CI" in md
+
+
+# ---------------------------------------------------------------------------
+# D-17: the weighed adoption rule
+# ---------------------------------------------------------------------------
+
+def _decided(rows):
+    from benchmarks.research import stats3
+    return stats3.decide(rows, "colprof", "accurate", None)
+
+
+def test_d17_adopts_big_wins_with_one_tiny_loss_but_strict_test_still_reports_it():
+    from benchmarks.research import stats3
+    wins = [_row(dataset=f"X{i}", diff=-0.3) for i in range(9)]
+    loss = [_row(dataset="X9", endpoint="a2b.median", a=0.5, b=0.53, diff=0.03, rel=0.06,
+                 ci95=[0.02, 0.04])]
+    rows = _decided(wins + loss)
+    for r in rows:                       # force the small loss past the minimum effect
+        if r["dataset"] == "X9":
+            r["verdict_per_printer_endpoint"] = "WORSE"
+    assert not stats3.no_regression(rows)["pass"]           # the strict table still fails
+    w = stats3.weighed_adoption(rows)
+    assert w["pass"] and w["wins"] == 9 and w["losses"] == 1
+    assert w["all_losses"][0]["small"]
+
+
+def test_d17_blocks_a_loss_above_tolerance_a_safety_row_or_no_net_benefit():
+    from benchmarks.research import stats3
+    wins = [_row(dataset=f"X{i}", diff=-0.3) for i in range(9)]
+    big = _decided(wins + [_row(dataset="X9", diff=0.3, b=1.3, ci95=[0.2, 0.4], rel=0.3)])
+    assert not stats3.weighed_adoption(big)["pass"]
+    grey = _decided(wins + [_row(dataset="X9", endpoint="neutral_de.median", diff=0.04,
+                                 rel=0.05, a=0.8, b=0.84, ci95=[0.03, 0.05])])
+    for r in grey:
+        if r["dataset"] == "X9":
+            r["verdict_per_printer_endpoint"] = "WORSE"
+    w = stats3.weighed_adoption(grey)
+    assert not w["pass"] and w["safety_losses"]
+    few = _decided([_row(dataset="X0", diff=-0.3)] +
+                   [_row(dataset="X9", endpoint="a2b.median", diff=0.03, rel=0.06, a=0.5,
+                         b=0.53, ci95=[0.02, 0.04])])
+    for r in few:
+        if r["dataset"] == "X9":
+            r["verdict_per_printer_endpoint"] = "WORSE"
+    assert not stats3.weighed_adoption(few)["pass"]           # 1 win vs 1 loss: no net benefit
+    assert not stats3.weighed_adoption(_decided(wins), safety=[{"row": "X3", "check": "black depth L*"}])["pass"]
+
+
+def test_d17_safety_property_checks_have_zero_tolerance():
+    from benchmarks.research import stats3
+
+    def res(eng_scores):
+        return {"datasets": [{"name": "X3", "variant": "typical-targen900", "profiles": {
+            e: {"ok": True, "scores": {"argyll": s}} for e, s in eng_scores.items()}}]}
+    base = {"black": {"printed_L": 7.0, "printed_ab": [0.2, 0.2]}, "white": {"max_ink_pct": 0.0},
+            "b2a": {"over_limit_frac": 0.0}, "neutral": {"L_reversals": 0, "banding_max_d2": 0.3}}
+    worse = json.loads(json.dumps(base))
+    worse["black"]["printed_L"] = 9.0
+    worse["white"]["max_ink_pct"] = 0.5
+    s = stats3.safety_rows(res({"colprof": base, "accurate": worse}), None, "colprof", "accurate")
+    assert {x["check"] for x in s} == {"black depth L*", "paper-white ink %"}
+    assert stats3.safety_rows(res({"colprof": base, "accurate": base}), None, "colprof", "accurate") == []

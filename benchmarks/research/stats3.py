@@ -272,6 +272,128 @@ def no_regression(rows: list[dict], ramp_seeds: list[dict] | None = None,
             "open_ramp_rows": open_, "cleared_ramp_rows": cleared}
 
 
+# ---------------------------------------------------------------------------
+# D-17: the weighed adoption rule (Basti, 2026-10-05)
+# ---------------------------------------------------------------------------
+
+SMALL_LOSS = {"median": 0.05, "mean": 0.05, "p95": 0.15, "max": 0.15}
+SMALL_LOSS_REL = 0.10
+REREAD_FLOOR = {"median": 0.19, "mean": 0.19, "p95": 0.5, "max": 0.5}   # Agent 6, per reading
+# grey axis rows of the decision table are SAFETY rows (D-17 2c): zero tolerance
+SAFETY_ENDPOINT_KEYS = ("neutral_de", "neutral_hi")
+
+
+def _cell(r):
+    return (r["dataset"], r["chart"], r["endpoint"])
+
+
+def small_loss(r: dict) -> bool:
+    st = r["endpoint"].split(".")[-1]
+    d = abs(r["diff"])
+    return (d <= SMALL_LOSS[st] and abs(r.get("rel", 0.0)) <= SMALL_LOSS_REL
+            and d < REREAD_FLOOR[st])
+
+
+def safety_rows(results_a: dict, results_b: dict | None, engine_a: str, engine_b: str,
+                reader: str = "argyll") -> list[dict]:
+    """D-17 2c property checks, zero tolerance: B may not be worse than A on
+    black depth (0.5 L*) or black chroma (0.5), ink in paper white (0.05 %),
+    ink-limit compliance, L* reversals or banding on the neutral ramp (5 %,
+    at least 0.05), and B's build must succeed wherever A's did."""
+    results_b = results_b or results_a
+    by_b = {(d["name"], d["variant"]): d for d in results_b["datasets"]}
+    out = []
+    for d in results_a["datasets"]:
+        db = by_b.get((d["name"], d["variant"]))
+        if db is None:
+            continue
+        pa, pb = d["profiles"].get(engine_a), db["profiles"].get(engine_b)
+        if not pa or not pb:
+            continue
+        tag = f"{d['name']} {d['variant']}"
+        if pa.get("ok") and not pb.get("ok"):
+            out.append({"row": tag, "check": "build", "a": "ok", "b": "FAILED"})
+            continue
+        sa = (pa.get("scores") or {}).get(reader) or {}
+        sb = (pb.get("scores") or {}).get(reader) or {}
+        if "black" not in sa or "black" not in sb:
+            continue
+
+        def g(s, *path):
+            x = s
+            for k in path:
+                x = x.get(k) if isinstance(x, dict) else None
+            return x
+        checks = [("black depth L*", g(sa, "black", "printed_L"), g(sb, "black", "printed_L"), 0.5),
+                  ("black chroma", float(np.hypot(*sa["black"]["printed_ab"])),
+                   float(np.hypot(*sb["black"]["printed_ab"])), 0.5),
+                  ("paper-white ink %", g(sa, "white", "max_ink_pct"), g(sb, "white", "max_ink_pct"), 0.05),
+                  ("over ink limit", g(sa, "b2a", "over_limit_frac"), g(sb, "b2a", "over_limit_frac"), 0.0),
+                  ("neutral L* reversals", g(sa, "neutral", "L_reversals"), g(sb, "neutral", "L_reversals"), 0),
+                  ("neutral banding d2", g(sa, "neutral", "banding_max_d2"),
+                   g(sb, "neutral", "banding_max_d2"), None)]
+        for name, a, b, tol in checks:
+            if a is None or b is None:
+                continue
+            t = max(0.05, 0.05 * abs(a)) if tol is None else tol
+            if b > a + t:
+                out.append({"row": tag, "check": name, "a": a, "b": b, "tolerance": t})
+    return out
+
+
+def weighed_adoption(rows: list[dict], safety: list[dict] | None = None,
+                     ramp_seeds: list[dict] | None = None,
+                     reader_groups=("cmm", "app")) -> dict:
+    """D-17: may B be adopted although it is not strictly never worse?
+    Cells = printer x chart x endpoint over the decision reader groups. A
+    cell is a LOSS if any row is WORSE (or WORSE* not cleared over seeds),
+    else a WIN if any row is BETTER (or a ramp row confirmed BETTER). PASS
+    needs (a) clearly more wins than losses (at least 2 to 1) and a larger
+    total win than total loss, (b) every loss small (<= 0.05 median/mean,
+    <= 0.15 p95/max, <= 10 % relative, below the reread floor), (c) no loss
+    on a safety row (grey axis ramps, and ``safety`` property checks)."""
+    seeds = {(g["dataset"], g["level"], g["chart"], g["reader"], g["endpoint"]): g
+             for g in (ramp_seeds or [])}
+    cells: dict = defaultdict(lambda: {"win": [], "loss": []})
+    for r in rows:
+        if r["reader_group"] not in reader_groups:
+            continue
+        v = r["verdict_per_printer_endpoint"]
+        key = (r["dataset"], r["level"], r["chart"], r["reader"], r["endpoint"])
+        if v == "WORSE*":
+            g = seeds.get(key)
+            v = "WORSE" if g is None or g["verdict"] == "WORSE" else (
+                "BETTER" if g["verdict"] == "BETTER" else "TIE")
+        elif v == "BETTER*":
+            g = seeds.get(key)
+            v = "BETTER" if g is not None and g["verdict"] == "BETTER" else "TIE"
+        if v == "WORSE":
+            cells[_cell(r)]["loss"].append(r)
+        elif v == "BETTER":
+            cells[_cell(r)]["win"].append(r)
+    wins = {c: v["win"] for c, v in cells.items() if v["win"] and not v["loss"]}
+    losses = {c: v["loss"] for c, v in cells.items() if v["loss"]}
+    win_size = sum(max(abs(r["diff"]) for r in rr) for rr in wins.values())
+    loss_size = sum(max(abs(r["diff"]) for r in rr) for rr in losses.values())
+    listed, big, unsafe = [], [], []
+    for c, rr in losses.items():
+        worst = max(rr, key=lambda r: abs(r["diff"]))
+        item = {"cell": " ".join(str(x) for x in c), "diff": worst["diff"], "rel": worst["rel"],
+                "reader": worst["reader"], "level": worst["level"], "small": small_loss(worst),
+                "safety": c[2].split(".")[0] in SAFETY_ENDPOINT_KEYS}
+        listed.append(item)
+        if item["safety"]:
+            unsafe.append(item)
+        elif not item["small"]:
+            big.append(item)
+    safety = safety or []
+    net_ok = len(wins) >= 2 * len(losses) and win_size > loss_size
+    ok = net_ok and not big and not unsafe and not safety
+    return {"pass": ok, "rule": "D-17 weighed adoption", "wins": len(wins), "losses": len(losses),
+            "win_size": win_size, "loss_size": loss_size, "net_benefit": net_ok,
+            "large_losses": big, "safety_losses": unsafe + safety, "all_losses": listed}
+
+
 def breakdown(rows: list[dict], engine_a: str, engine_b: str,
               results_a: dict | None = None) -> dict:
     """Verdict counts per ink class (per printer x endpoint column), and
@@ -321,6 +443,9 @@ def main(argv=None) -> None:
     ap.add_argument("--seed-sd", default="")
     ap.add_argument("--out", default="")
     ap.add_argument("--no-regression", action="store_true")
+    ap.add_argument("--weighed", action="store_true",
+                    help="also the D-17 weighed adoption rule (net benefit, small-loss "
+                         "tolerance, zero-tolerance safety rows); exit 1 if it fails")
     args = ap.parse_args(argv)
     table = json.loads(Path(args.seed_sd).read_text(encoding="utf-8")) if args.seed_sd else None
     res = compare(Path(args.dir_a), Path(args.dir_b), args.engine_a, args.engine_b,
@@ -344,8 +469,26 @@ def main(argv=None) -> None:
         res["no_regression"] = nr
         print(f"\nNO-REGRESSION (v3 family): {'PASS' if nr['pass'] else 'FAIL'}; "
               f"{len(nr['worse'])} WORSE, {len(nr['open_ramp_rows'])} open ramp rows")
+    if args.weighed:
+        ra = json.loads((Path(args.dir_a) / "results.json").read_text(encoding="utf-8"))
+        rb = json.loads((Path(args.dir_b) / "results.json").read_text(encoding="utf-8"))
+        w = weighed_adoption(res["rows"], safety_rows(ra, rb, args.engine_a, args.engine_b),
+                             res["ramp_seeds"])
+        res["weighed"] = w
+        print(f"\nD-17 WEIGHED ADOPTION: {'PASS' if w['pass'] else 'FAIL'}; {w['wins']} winning "
+              f"cells ({w['win_size']:.3f}) vs {w['losses']} losing ({w['loss_size']:.3f}); "
+              f"{len(w['large_losses'])} losses above tolerance, {len(w['safety_losses'])} safety losses")
+        for x in w["all_losses"]:
+            print(f"  loss {x['cell']} {x['reader']} {x['level']}: {x['diff']:+.3f} "
+                  f"({x['rel'] * 100:+.1f} %){' SAFETY' if x['safety'] else ''}"
+                  f"{'' if x['small'] else ' ABOVE TOLERANCE'}")
+        for x in w["safety_losses"]:
+            if "check" in x:
+                print(f"  safety {x['row']}: {x['check']} {x['a']} -> {x['b']}")
     if args.out:
         Path(args.out).write_text(json.dumps(res, indent=1, default=str), encoding="utf-8")
+    if args.weighed and not res["weighed"]["pass"]:
+        raise SystemExit(1)
     if args.no_regression and not res["no_regression"]["pass"]:
         raise SystemExit(1)
 
