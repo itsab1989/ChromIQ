@@ -852,6 +852,7 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     ucs: bool = False,
                     channel_max: np.ndarray | None = None,
                     fixed_nodes: np.ndarray | None = None,
+                    oog_heavy: float | None = None,
                     progress=None) -> np.ndarray:
     """Refit the B2A CLUT as one smooth field over exact inverse samples.
 
@@ -938,6 +939,10 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
     # out of gamut (their clamp IS the answer there), light anchors elsewhere
     # (keep the fit stable where samples are sparse, let data win).
     anchor_w = np.where(residual > deep_oog, 4.0, 0.05)
+    if oog_heavy is not None:
+        # Research F-13 design B ("rgboog", Argyll-like): every node outside
+        # the gamut keeps its own nearest clip, as colprof's per-node fill.
+        anchor_w = np.where(residual > oog_heavy, 4.0, anchor_w)
     if fixed_nodes is not None and len(fixed_nodes):
         anchor_w[fixed_nodes] = 4.0
     if node_lab is None:
@@ -1030,6 +1035,35 @@ def pin_black_node(dev_clut: np.ndarray, node_lab: np.ndarray,
         return dev_clut
     out = dev_clut.copy()
     out[hit] = np.asarray(device_black, float)[None, :]
+    return out
+
+
+def below_black_column(node_lab: np.ndarray, black_l: float,
+                       chroma_tol: float = 1.0) -> np.ndarray:
+    """Indices of the B2A neutral-column nodes (C* < ``chroma_tol``) whose
+    target L* lies below ``black_l``, the L* of the device black.
+
+    Research F-13 (agent20-01): on an RGB printer whose black is well above
+    L* 0 these nodes are only a few dE76 outside the gamut, so the smoothing
+    refit (:func:`refine_b2a_clut`) gave them the weak anchor and set them
+    from their heavy-anchored chromatic neighbours: lighter than the black
+    and lighter than the next node up (X1: sRGB grey 7.86 -> 10.99 -> 9.90
+    L* through lcms and ColorSync). colprof clips each node on its own
+    (nearest, LCh-weighted, xicc/xlut.c), so its column is flat at the
+    black until the ramp enters the gamut; this is the same answer."""
+    chroma = np.hypot(node_lab[:, 1], node_lab[:, 2])
+    return np.flatnonzero((chroma < chroma_tol)
+                          & (node_lab[:, 0] < float(black_l)))
+
+
+def pin_nodes(dev_clut: np.ndarray, nodes: np.ndarray,
+              value: np.ndarray) -> np.ndarray:
+    """Set ``nodes`` of a CLUT to one device value (same space as the
+    table). The column generalisation of :func:`pin_black_node`."""
+    if nodes is None or not len(nodes):
+        return dev_clut
+    out = dev_clut.copy()
+    out[np.asarray(nodes, int)] = np.asarray(value, float)[None, :]
     return out
 
 

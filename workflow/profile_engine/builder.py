@@ -76,7 +76,7 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
-     "no-b2a33s", "no-rgbpos"})
+     "rgbcol", "rgboog", "no-b2a33s", "no-rgbpos", "no-rgbcol"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -859,6 +859,21 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if axis.get("l_black") is not None:
             _emit(settings, f"Neutral black under the ink limits: "
                             f"L* {axis['l_black']:.1f}.")
+    rgb_col = None
+    if accurate and meas.is_additive and n == 3 and "rgbcol" in candidates:
+        # Research F-13 (agent20-01 s3, design A): the neutral column below
+        # the device black is the device black, held through the refit and
+        # pinned after it, so the grey ramp cannot turn lighter than the
+        # black before it enters the gamut (X1: 7.86 -> 10.99 -> 9.90 L*).
+        _black_l = float(model.predict(np.zeros((1, n)))[0, 0])
+        rgb_col = b2a_mod.below_black_column(node_lab, _black_l)
+        # Only the L* 0 corner below the black: pin_black_node already sets
+        # it and nothing reverses, so the table stays byte-identical.
+        if not (np.linalg.norm(node_lab[rgb_col], axis=1) > 1.0).any():
+            rgb_col = rgb_col[:0]
+        if len(rgb_col):
+            dev_clut[rgb_col] = 0.0
+            fixed_nodes = rgb_col
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
@@ -890,6 +905,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
             k_gen=k_gen, ucs=use_ucs, channel_max=channel_max,
             fixed_nodes=fixed_nodes,
+            oog_heavy=(1.0 if accurate and meas.is_additive and n == 3
+                       and "rgboog" in candidates else None),
             progress=lambda m: _emit(settings, m),
             # Agent 3 "b2a33s": keep the refit's exact inverse samples per
             # B2A node constant (30,000 were sized for grid 17; at grid 33
@@ -921,6 +938,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     dev_clut_shaped = b2a_mod.pin_black_node(
         dev_clut_shaped, node_lab,
         model.shape_device(device_black[None, :])[0])
+    if rgb_col is not None and len(rgb_col):
+        dev_clut_shaped = b2a_mod.pin_nodes(
+            dev_clut_shaped, rgb_col,
+            model.shape_device(device_black[None, :])[0])
     in_gamut = residual <= 1.0
 
     _emit(settings, "Writing the profile…")
