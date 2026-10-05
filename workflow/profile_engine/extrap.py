@@ -327,17 +327,31 @@ def monotone_lower_bounds(dev_axes: list, patch_dev: np.ndarray,
     return out.reshape(-1, 3)
 
 
+def monotone_envelope(patch_dev: np.ndarray, patch_xyz: np.ndarray
+                      ) -> np.ndarray:
+    """Per patch and channel: the minimum over itself and every patch that
+    carries no more of any ink."""
+    out = patch_xyz.copy()
+    for k in range(len(patch_dev)):
+        le = np.all(patch_dev <= patch_dev[k] + 1e-6, axis=1)
+        out[k] = patch_xyz[le].min(0)
+    return out
+
+
 def lightening_patches(patch_dev: np.ndarray, patch_xyz: np.ndarray,
-                       rel: float = 0.05) -> np.ndarray:
-    """Patches that are LIGHTER (Y) than some patch carrying no more of any
-    ink, beyond ``rel``: bronzing / gloss / a misread. Not used as bounds."""
+                       dl: float = 2.0) -> np.ndarray:
+    """Patches LIGHTER, by more than ``dl`` L*, than some patch carrying no
+    more of any ink: bronzing, gloss, a saturated press, a misread. They are
+    not used as bounds. (A relative-Y rule of 5 % flagged 325 of APTEC's
+    2972 patches, among them the very 600 % patch that bounds its 500 %
+    held-out colours.)"""
     p = patch_dev
-    y = patch_xyz[:, 1]
+    l_star = 116.0 * np.cbrt(np.clip(patch_xyz[:, 1], 0.0, None)) - 16.0
     bad = np.zeros(len(p), bool)
     for k in range(len(p)):
         le = np.all(p <= p[k] + 1e-6, axis=1)
         le[k] = False
-        if le.any() and y[k] > y[le].min() * (1.0 + rel) + 1e-3:
+        if le.any() and l_star[k] > l_star[le].min() + dl:
             bad[k] = True
     return bad
 
@@ -365,8 +379,15 @@ def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
     fitted = lab_to_xyz(model.predict(pdev)) / D50_XYZ100
     measured = lab_to_xyz(np.asarray(lab, float)) / D50_XYZ100
     pxyz = np.minimum(fitted, measured) if use_measured else fitted
-    ok = ~lightening_patches(pdev, pxyz)
-    lb = monotone_lower_bounds(dev_axes, pdev[ok], pxyz[ok], tol=max(slack, 1e-6))
+    # Each patch bounds with its MONOTONE ENVELOPE: the darkest of itself and
+    # every patch carrying no more of any ink. On monotone data that is the
+    # patch itself; where a press lightens with more ink (APTEC: the 700 %
+    # patch reads L* 18.3, lighter than several 400-500 % patches; trapping
+    # fails) or a patch is misread light, the bound drops to what the chart
+    # shows with less ink instead of trusting the lighter reading.
+    pxyz = monotone_envelope(pdev, pxyz)
+    ok = np.ones(len(pdev), bool)
+    lb = monotone_lower_bounds(dev_axes, pdev, pxyz, tol=max(slack, 1e-6))
     # floor: ``floor_l`` L* below the darkest patch as the robust fit sees
     # it (a single misread or noisy black read at L* 0, as on the typical-
     # noise X5 chart, must not set it). Truth over the battery: no device
@@ -411,8 +432,7 @@ def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
         tgt[:, 1:] *= k[:, None]
         out[moved] = nodes[moved] + w[moved, None] * (tgt - nodes[moved])
     if info is not None:
-        info.update(moved=int(moved.sum()), nodes=int(len(out)),
-                    lightening_patches=int((~ok).sum()))
+        info.update(moved=int(moved.sum()), nodes=int(len(out)))
     return out, moved
 
 

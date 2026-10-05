@@ -67,6 +67,7 @@ def fit_forward_model_accurate(
         positioning: bool = False,
         additive: bool = False,
         fit_space=None,
+        order_mu: float = 0.0,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
 
@@ -382,6 +383,27 @@ def fit_forward_model_accurate(
         res = dist(model.predict(device), lab)
         res_w = res / sigma if sigma is not None else res
         w_rob = w2_rob
+
+    if order_mu > 0.0:
+        # Research token "a19-extrap" (agent 19, F-12): one more solve of the
+        # final lattice (same curves, same robust weights, warm start) with
+        # a penalty on every interaction of three or more inks, weight
+        # order_mu x lambda. The per-axis curvature penalty leaves every
+        # multilinear function free, so a corner no patch reaches took the
+        # Lab-additive continuation of its inks (two dark inks -> L* < 0);
+        # with the order penalty it takes the additive + pairwise structure
+        # the chart measured elsewhere (functional ANOVA of order 2).
+        from workflow.profile_engine import extrap
+        if progress is not None:
+            progress("Fitting the printer model: limiting unmeasured "
+                     "many-ink interactions…")
+        wf = _total(w_rob)
+        model.nodes = extrap.resolve_with_order_penalty(
+            model, device, lab, lam, order_mu * lam,
+            weights=wf if ((wf < 0.999).any() or w_noise is not None
+                           or rw is not None) else None)
+        res = dist(model.predict(device), lab)
+        res_w = res / sigma if sigma is not None else res
 
     # Report likely misreads: everything rejected outright, plus whatever
     # still sits clearly above the bulk after the refit. With the noise
