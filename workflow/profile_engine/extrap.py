@@ -343,13 +343,17 @@ def lightening_patches(patch_dev: np.ndarray, patch_xyz: np.ndarray,
 
 
 def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
-                  margin: float = 3.0, floor_frac: float = 0.5,
+                  margin: float = 3.0, floor_l: float = 2.5,
                   use_measured: bool = True, near: float = 0.5,
+                  slack: float = 0.0,
                   ramp: float = 1.0, info: dict | None = None):
     """Lift every node that is darker, in any XYZ channel, than (a) a
-    measured patch carrying at least as much of every ink (minus ``margin``
-    relative, for noise) or (b) ``floor_frac`` of the darkest measured patch.
-    Returns (bounded Lab nodes, moved mask); nodes that obey are untouched."""
+    measured patch carrying at least as much of every ink, or (b) the
+    darkest patches by more than ``floor_l`` L*-units; both compared in the
+    CIELAB cube-root scale per XYZ channel with a ``margin`` (L*-units).
+    Applied only where the lattice is extrapolated (``near``/``ramp`` cells
+    from the nearest patch). Returns (Lab nodes, moved mask); nodes that
+    obey are untouched and an unchanged model gives the same bytes."""
     grid, n = model.grid, model.n_channels
     ax = np.linspace(0.0, 1.0, grid)
     dev_axes = [model.unshape_device(np.tile(ax[:, None], (1, n)))[:, i]
@@ -362,21 +366,24 @@ def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
     measured = lab_to_xyz(np.asarray(lab, float)) / D50_XYZ100
     pxyz = np.minimum(fitted, measured) if use_measured else fitted
     ok = ~lightening_patches(pdev, pxyz)
-    lb = monotone_lower_bounds(dev_axes, pdev[ok], pxyz[ok])
-    # the darkest patches, robustly (a single misread or noisy black read
-    # at L* 0 must not set the floor): median of the five darkest per channel
-    srt = np.sort(np.clip(measured[ok], 1e-6, None), axis=0)
-    floor = floor_frac * np.median(srt[:5], axis=0)
-    lb = np.maximum(lb, floor[None, :])
+    lb = monotone_lower_bounds(dev_axes, pdev[ok], pxyz[ok], tol=max(slack, 1e-6))
+    # floor: ``floor_l`` L* below the darkest patch as the robust fit sees
+    # it (a single misread or noisy black read at L* 0, as on the typical-
+    # noise X5 chart, must not set it). Truth over the battery: no device
+    # corner is more than 1.93 L* darker than the chart's darkest patch.
+    l_floor = float(model.predict(pdev[ok])[:, 0].min()) - floor_l
     # Compared in the CIELAB cube-root scale with an absolute margin of
     # ``margin`` L* units per channel: a dark node within noise of its bound
     # is left alone (relative XYZ noise near black is large).
-    cb = np.cbrt
-    xyz = lab_to_xyz(np.asarray(model.nodes, float)) / D50_XYZ100
-    m116 = margin / 116.0
-    lbf = cb(np.clip(lb, 0.0, None)) - m116
-    low = (cb(xyz) < lbf) & np.isfinite(lb)
-    moved = low.any(1)
+    # Lightness only (the Y channel, compared in the cube-root scale with an
+    # absolute ``margin`` in L*-units: relative XYZ noise near black is
+    # large). Lifting X and Z as well pushed lifted nodes to neutral and
+    # threw away a plausible hue (X5 K+O: dE00 4.97 -> 8.79).
+    nodes = np.asarray(model.nodes, float)
+    l_lb = 116.0 * np.cbrt(np.clip(lb[:, 1], 0.0, None)) - 16.0 - margin
+    l_lb = np.where(np.isfinite(lb[:, 1]), l_lb, -np.inf)
+    l_lb = np.maximum(l_lb, l_floor)
+    moved = nodes[:, 0] < l_lb
     # Only where the chart leaves the lattice to extrapolation: a node at or
     # next to a patch is what the data say (real presses break channel
     # monotonicity by a few L* through trapping: X5's C+K is bluer, Z
@@ -387,11 +394,22 @@ def bound_by_data(model, device: np.ndarray, lab: np.ndarray, *,
         w = np.clip((dist - near) / max(ramp, 1e-9), 0.0, 1.0)
         w = w * w * (3.0 - 2.0 * w)
         moved &= w > 0
-    out = np.array(model.nodes, float, copy=True)
+    out = nodes.copy()
     if moved.any():
-        tgt = np.where(low, np.clip(lbf, 0.0, None) ** 3, xyz)
-        lifted = xyz_to_lab(tgt[moved] * D50_XYZ100)
-        out[moved] = out[moved] + w[moved, None] * (lifted - out[moved])
+        tgt = nodes[moved].copy()
+        tgt[:, 0] = l_lb[moved]
+        # chroma no larger than the chart shows at that lightness or darker
+        # (+25 % and 2 units): an extrapolated L* 0 node carried a* -72 (X7)
+        lab_m = np.asarray(lab, float)[ok]
+        cm = np.hypot(lab_m[:, 1], lab_m[:, 2])
+        order = np.argsort(lab_m[:, 0])
+        env = np.maximum.accumulate(cm[order])
+        pos = np.searchsorted(lab_m[order, 0], tgt[:, 0] + 5.0, side="right")
+        cmax = np.where(pos > 0, env[np.maximum(pos - 1, 0)], 0.0) * 1.25 + 2.0
+        c = np.hypot(tgt[:, 1], tgt[:, 2])
+        k = np.where(c > cmax, cmax / np.maximum(c, 1e-9), 1.0)
+        tgt[:, 1:] *= k[:, None]
+        out[moved] = nodes[moved] + w[moved, None] * (tgt - nodes[moved])
     if info is not None:
         info.update(moved=int(moved.sum()), nodes=int(len(out)),
                     lightening_patches=int((~ok).sum()))
@@ -446,3 +464,75 @@ def nearest_patch_cells(grid: int, n: int, shaped: np.ndarray,
             head = np.maximum(head, d[k][j])
         out[idx] = np.maximum(tail, head[None, :]).min(1)
     return out.reshape(-1)
+
+
+def _fdiff(x: np.ndarray, ax: int) -> np.ndarray:
+    return np.diff(x, axis=ax)
+
+
+def _fdiff_t(y: np.ndarray, ax: int) -> np.ndarray:
+    """Adjoint of the forward difference along ``ax`` (length grows by 1)."""
+    pad = [(0, 0)] * y.ndim
+    pad[ax] = (1, 1)
+    yp = np.pad(y, pad)
+    sl0 = [slice(None)] * y.ndim
+    sl1 = [slice(None)] * y.ndim
+    sl0[ax] = slice(0, -1)
+    sl1[ax] = slice(1, None)
+    return yp[tuple(sl0)] - yp[tuple(sl1)]
+
+
+def interaction3(x: np.ndarray, grid: int, n: int) -> np.ndarray:
+    """Sum over ink triples of (Di Dj Dk)^T (Di Dj Dk) x: penalises every
+    interaction of three or more inks; additive and pairwise (bilinear)
+    structure costs nothing (functional-ANOVA order 2; cf. additive GPs)."""
+    import itertools
+    x3 = x.reshape((grid,) * n + (-1,))
+    o = np.zeros_like(x3)
+    for i, j, k in itertools.combinations(range(n), 3):
+        d = _fdiff(_fdiff(_fdiff(x3, i), j), k)
+        o += _fdiff_t(_fdiff_t(_fdiff_t(d, k), j), i)
+    return o.reshape(x.shape)
+
+
+def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
+                               iters=400):
+    """Re-solve the lattice (fixed curves) with the curvature penalty plus
+    ``mu`` x interaction3; from the current nodes."""
+    from workflow.profile_engine.forward_model import _interp_weights
+    grid, n = model.grid, model.n_channels
+    ng = grid ** n
+    w, cols = _interp_weights(model.shape_device(np.asarray(device, float)),
+                              grid, n)
+    y = np.asarray(lab, float)
+    if weights is not None:
+        sw = np.sqrt(np.asarray(weights, float))
+        w = w * sw[:, None]
+        y = y * sw[:, None]
+    fc = cols.reshape(-1)
+
+    def wt(r):
+        return np.stack([np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),
+                                     minlength=ng) for c in range(r.shape[1])], 1)
+
+    def amul(x):
+        return (wt((w[:, :, None] * x[cols]).sum(1)) + lam * _curvature(x, grid, n)
+                + mu * interaction3(x, grid, n) + 1e-7 * x)
+
+    b = wt(y)
+    x = np.array(model.nodes, float, copy=True)
+    r = b - amul(x)
+    p = r.copy()
+    rs = float((r * r).sum())
+    stop = 1e-12 * rs
+    for _ in range(iters):
+        ap = amul(p)
+        a = rs / max(float((p * ap).sum()), 1e-30)
+        x += a * p
+        r -= a * ap
+        rs2 = float((r * r).sum())
+        if rs2 < stop:
+            break
+        p = r + (rs2 / rs) * p
+        rs = rs2
+    return x
