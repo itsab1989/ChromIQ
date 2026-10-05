@@ -62,11 +62,17 @@ def colorimetric_b2a(cap: dict, tokens=()) -> tuple[np.ndarray, np.ndarray]:
     node_lab = kw["node_lab"]
     dev_clut, residual = b2a.build_b2a_clut(model, grid, **kw)
     fixed = None
+    if kw["is_additive"] and "a25-rgbcol" in tokens:
+        fixed = b2a.additive_column_nodes(node_lab, residual)
     if "axis" in cap:
         fixed = b2a.apply_neutral_axis(dev_clut, node_lab, cap["axis"], model,
                                        **cap["axis_kw"])
     shaped = b2a.refine_b2a_clut(model, dev_clut, residual, grid,
                                  fixed_nodes=fixed, **cap["refine_kw"])
+    if kw["is_additive"] and "a25-rgbcol" in tokens and fixed is not None \
+            and len(fixed):
+        shaped = shaped.copy()
+        shaped[fixed] = model.shape_device(dev_clut[fixed])
     channel_max = kw.get("channel_max")
     if channel_max is not None:
         top = model.shape_device(channel_max[None, :])

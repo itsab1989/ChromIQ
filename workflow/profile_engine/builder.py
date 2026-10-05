@@ -86,10 +86,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
      "fin3", "no-fin3",
      # Agent 21 (F-14/F-15) and Agent 25 (F-15/F-17), research only:
-     "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix",
+     "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix", "a21-lightcloud60",
      "a25-oog", "a25-clip", "a25-space-ucs", "a25-space-lab",
      "a25-space-oklab", "a25-space-ipt", "a25-oracle-model",
-     "a25-oracle-dev", "a25-oracle-seed", "a25-oracle-neutral"})
+     "a25-oracle-dev", "a25-oracle-seed", "a25-oracle-neutral", "a25-rgbcol"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1045,6 +1045,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         ucs=use_ucs, channel_max=channel_max,
         progress=lambda m: _emit(settings, m))
     fixed_nodes = None
+    if accurate and meas.is_additive and "a25-rgbcol" in candidates:
+        fixed_nodes = b2a_mod.additive_column_nodes(node_lab, residual)
     if axis is not None:
         fixed_nodes = b2a_mod.apply_neutral_axis(
             dev_clut, node_lab, axis, model,
@@ -1093,6 +1095,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # the n>3 path had 10,000 samples for 35,937 nodes).
             **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
                if "b2a33s" in candidates else {}))
+    if (accurate and meas.is_additive and "a25-rgbcol" in candidates
+            and fixed_nodes is not None and len(fixed_nodes)):
+        # Research (Agent 25): the in-gamut neutral column of an RGB table
+        # keeps its exact inversion (the refit's anchor alone gives way).
+        dev_clut_shaped = dev_clut_shaped.copy()
+        dev_clut_shaped[fixed_nodes] = model.shape_device(
+            dev_clut[fixed_nodes])
     if ("a17-colpin" in candidates and fixed_nodes is not None
             and len(fixed_nodes)):
         # Research agent17-01 section 3 (token, not default): the smoothing

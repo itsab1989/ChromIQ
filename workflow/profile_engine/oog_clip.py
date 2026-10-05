@@ -60,6 +60,8 @@ PARAMS: dict = {
     "pass2": False,
     "descent": True,       # monotone (backtracking) weighted Gauss-Newton
     "propagate": 0,        # rounds of neighbour propagation on a node lattice
+    "neutral_fade": False,  # every weight fades to 1 (the plain nearest clip
+                            # in CIELAB) as the target's chroma goes to 0
     "de00": False,         # CIEDE2000 tolerances S_L, S_C, S_H at the target
                            # (space lab only): chroma differences of very
                            # saturated colours count less, as they are seen
@@ -250,9 +252,17 @@ def weights(target_s: np.ndarray, p: dict = PARAMS,
     lt = np.clip((target_s[:, 0] - p["light_from"])
                  / max(100.0 - p["light_from"], 1e-9), 0.0, 1.0)
     lt = lt * lt * (3.0 - 2.0 * lt)
-    sj = np.sqrt(p["wj"] * (1.0 + (p["wj_light"] - 1.0) * lt))
-    sc = np.sqrt(p["wc"]) * np.ones(n)
-    shh = np.sqrt(p["wc"] + (p["wh"] - p["wc"]) * s)
+    wj = p["wj"] * (1.0 + (p["wj_light"] - 1.0) * lt)
+    wc = p["wc"] * np.ones(n)
+    wh = p["wc"] + (p["wh"] - p["wc"]) * s
+    if p.get("neutral_fade"):
+        # a neutral target is clipped to the nearest colour, as integration 2
+        # did below C* 5: a lightness-keeping metric would accept a tint on
+        # the grey axis (battery S2 neutral highlight +0.17-0.34 dE00)
+        wj = 1.0 + (wj - 1.0) * s
+        wc = 1.0 + (wc - 1.0) * s
+        wh = 1.0 + (wh - 1.0) * s
+    sj, sc, shh = np.sqrt(wj), np.sqrt(wc), np.sqrt(wh)
     if p.get("de00"):
         from workflow.profile_engine.metrics import de00_scale_factors
         s_l, s_c, s_h = de00_scale_factors(target_s)

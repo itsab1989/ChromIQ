@@ -55,16 +55,17 @@ def _invert(model, lab, tokens):
 
 def test_tokens_off_leave_the_switches_off():
     b2a.set_research_tokens(("a25-oog",), is_additive=False)
-    assert oog_clip.PARAMS["on"] and b2a.LIGHT_CLOUD["on"]
+    assert oog_clip.PARAMS["on"] and b2a.LIGHT_CLOUD["l_min"] == 60.0
     b2a.set_research_tokens((), is_additive=False)
     assert not oog_clip.PARAMS["on"]
     assert not b2a.LIGHT_CLOUD["on"] and not b2a.CLIP_FIX["on"]
+    assert b2a.LIGHT_CLOUD["l_min"] is None
     assert oog_clip.PARAMS == oog_clip.DEFAULTS
 
 
 def test_rgb_keeps_its_light_cloud_off_unless_asked():
     b2a.set_research_tokens(("a25-oog",), is_additive=True)
-    assert not b2a.LIGHT_CLOUD["on"]
+    assert not b2a.LIGHT_CLOUD["on"] and b2a.LIGHT_CLOUD["l_min"] is None
 
 
 def test_in_gamut_nodes_keep_their_values():
