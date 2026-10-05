@@ -277,6 +277,12 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
         sink["pale"] = de_p
         out["b2a"]["pale_sample"] = stats(de_p)
         out["b2a"]["pale_sample"]["share_gt2"] = float(np.mean(de_p > 2.0))
+        # v3.1 (F-14): the LIGHTNESS error of the same pale colours, |dL*|,
+        # and the signed mean (positive = printed darker than asked)
+        dl = plab[pk][:, 0] - pp[:, 0]
+        sink["pale_dl"] = np.abs(dl)
+        out["b2a"]["pale_sample"]["dl_abs"] = stats(np.abs(dl))
+        out["b2a"]["pale_sample"]["dl_signed_mean"] = float(dl.mean())
     if not additive:
         tac = ink.sum(1) * 100.0
         out["b2a"]["tac_max"] = float(tac.max())
