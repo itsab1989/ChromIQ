@@ -16,7 +16,7 @@ from pathlib import Path
 
 # (regex on the flattened key, direction (+1 = larger is worse), margin)
 RULES = [
-    (r"\.l_rev$", +1, 0.5), (r"\.l_rev_max$", +1, 0.3), (r"\.l_swing$", +1, 0.3),
+    (r"ripple_(max|median)$", +1, 0.3), (r"a2b_l_rev$", +1, 2), (r"a2b_l_rev_max$", +1, 0.3), (r"share_dL_over_5$", +1, 0.01), (r"dL_(p99|max)$", +1, 2.0), (r"\.l_rev$", +1, 0.5), (r"\.l_rev_max$", +1, 0.3), (r"\.l_swing$", +1, 0.3),
     (r"\.d2_excess_max$", +1, 0.5), (r"\.jump_ratio$", +1, 1.0),
     (r"\.dev_d2_max$", +1, 0.05), (r"chroma_max$", +1, 0.5), (r"chroma_mean$", +1, 0.3),
     (r"white_ink(_pct)?$", +1, 0.3), (r"shadow_codes_lost$", +1, 4),
@@ -25,7 +25,7 @@ RULES = [
     (r"ingamut_de_(p95|max|mean|p99)$", +1, 0.75), (r"\.de00$", +1, 1.0),
     (r"ipt_hue_shift$", +2, 3.0), (r"new_edges$", +1, 20), (r"new_edge_max$", +1, 0.75),
     (r"contrast_ratio_p05$", -1, 0.1), (r"(p95|max)$", +1, 0.75),
-    (r"over_tac_share$", +1, 0.001), (r"oog_clip_hue_(p95|max)$", +1, 5),
+    (r"over_tac_share$", +1, 0.001), (r"oog_clip_hue_(p95|max)$", +1, 5), (r"oog_clip_ipt_hue_(p95|max)$", +1, 3), (r"oog_clip_ipt_hue_blue_mean$", +2, 3),
     (r"black_L$", +1, 1.0), (r"black_C$", +1, 1.0), (r"gamt_agree$", -1, 0.03),
     (r"gamt_says_\w+$", +1, 0.03), (r"abs_paper_ink_pct$", +1, 0.3),
     (r"wtpt_de00$", +1, 0.3), (r"abs_b2a_(median|p95)$", +1, 0.5),

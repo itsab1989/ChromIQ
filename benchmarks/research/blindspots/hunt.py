@@ -487,6 +487,18 @@ def h8_extremes(ctx: Ctx) -> dict:
                 r["oog_clip_hue_p95"] = float(np.percentile(dh, 95))
                 r["oog_clip_hue_max"] = float(dh.max())
                 r["oog_clip_hue_worst_rgb"] = [round(float(v) * 255) for v in surf[ok][np.argmax(dh)]]
+                # the same in IPT (CIELAB hue is not perceived hue in the blues:
+                # holding CIELAB hue turns sRGB blue purple, F-17)
+                ips, ipp = gmq.lab_to_ipt(slab[ok]), gmq.lab_to_ipt(pr[ok])
+                dhi = dhue(np.degrees(np.arctan2(ips[:, 2], ips[:, 1])),
+                           np.degrees(np.arctan2(ipp[:, 2], ipp[:, 1])))
+                r["oog_clip_ipt_hue_p95"] = float(np.percentile(np.abs(dhi), 95))
+                r["oog_clip_ipt_hue_max"] = float(np.abs(dhi).max())
+                r["oog_clip_ipt_hue_worst_rgb"] = [round(float(v) * 255) for v in
+                                                   surf[ok][np.argmax(np.abs(dhi))]]
+                blue = (hs[ok, 2] > 270) & (hs[ok, 2] < 320)
+                if blue.any():
+                    r["oog_clip_ipt_hue_blue_mean"] = float(dhi[blue].mean())
                 # lightness order kept: brighter sources must not print darker
                 # than darker sources of the same hue sector (sampled pairs)
         out[intent] = r
@@ -617,9 +629,77 @@ def h10_tags(ctx: Ctx) -> dict:
     return out
 
 
+# --- H11 pale content -------------------------------------------------------------------------
+def h11_pale(ctx: Ctx) -> dict:
+    """sRGB 200..255 cube (1,728 pale colours, mostly highlights and pastel
+    tints, many just outside a printer's gamut): printed L* drop below the
+    source, per intent (F-15)."""
+    v = np.arange(200, 256, 5) / 255
+    rgb = np.stack(np.meshgrid(v, v, v, indexing="ij"), -1).reshape(-1, 3)
+    src = xf.srgb_to_lab(rgb)
+    out = {}
+    for it, bpc in (("r", False), ("r", True), ("p", False), ("s", False)):
+        dev = ctx.rgb2dev("srgb", rgb, it, bpc=bpc)
+        ctx.note_ink("H11", dev)
+        pr = ctx.truth_lab(dev)
+        dl = src[:, 0] - pr[:, 0]
+        k = int(np.argmax(dl))
+        out[it + ("+bpc" if bpc else "")] = {
+            "share_dL_over_5": float(np.mean(dl > 5)), "dL_p99": float(np.percentile(dl, 99)),
+            "dL_max": float(dl.max()), "dL_max_rgb": [round(float(x) * 255) for x in rgb[k]],
+            "de00_p95": float(np.percentile(colour.de2000(pr, src), 95))}
+    return out
+
+
+# --- H12 A2B ripple and monotonicity ---------------------------------------------------------
+def h12_a2b_ripple(ctx: Ctx) -> dict:
+    """The forward table along device lines (what soft-proofing and every
+    round trip read): single-channel ramps from several bases, 129 steps.
+    Ripple = the profile's printed-Lab 2nd difference minus the TRUTH's on
+    the same line (a profile may curve where the printer curves, not more);
+    monotonicity: L* must not rise when one ink is added (falls for RGB)."""
+    n = ctx.n
+    t = np.linspace(0, 1, 129)[:, None]
+    rng = np.random.default_rng(12)
+    bases = [np.full(n, 1.0 if ctx.additive else 0.0)]
+    for _ in range(11):
+        b = rng.uniform(0, 1, n)
+        if ctx.tac and not ctx.additive and b.sum() > ctx.tac / 100 - 1:
+            b *= (ctx.tac / 100 - 1) / b.sum()
+        bases.append(b)
+    worst_rip, worst_where, rev, rev_max = 0.0, None, 0, 0.0
+    rips = []
+    for bi, b in enumerate(bases):
+        for c in range(n):
+            dev = np.repeat(b[None], len(t), 0)
+            dev[:, c] = t[:, 0]
+            if ctx.tac and not ctx.additive and (dev.sum(1) > ctx.tac / 100 + 1e-9).any():
+                dev = dev[dev.sum(1) <= ctx.tac / 100 + 1e-9]
+                if len(dev) < 10:
+                    continue
+            a = xf.lcms(ctx.icc, "lab", dev, "r")
+            tr = ctx.truth_lab(dev)
+            d2a = np.linalg.norm(np.diff(a, 2, axis=0), axis=1)
+            d2t = np.linalg.norm(np.diff(tr, 2, axis=0), axis=1)
+            ex = d2a - d2t
+            rips.append(float(ex.max()))
+            if ex.max() > worst_rip:
+                worst_rip = float(ex.max())
+                worst_where = {"base": [round(float(x), 2) for x in b], "channel": c,
+                               "at": round(float(dev[np.argmax(ex) + 1, c]), 3)}
+            dl = np.diff(a[:, 0]) * (-1 if ctx.additive else 1)
+            dlt = np.diff(tr[:, 0]) * (-1 if ctx.additive else 1)
+            bad = (dl > 0.1) & (dlt <= 0.05)      # profile says lighter, truth does not
+            rev += int(bad.sum())
+            if bad.any():
+                rev_max = max(rev_max, float(dl[bad].max()))
+    return {"ripple_max": worst_rip, "ripple_median": float(np.median(rips)) if rips else 0.0,
+            "ripple_worst": worst_where, "a2b_l_rev": rev, "a2b_l_rev_max": rev_max}
+
+
 TESTS = {"H1": h1_grey, "H2": h2_colour_ramps, "H3": h3_hue_circles, "H4": h4_tinted,
          "H5": h5_memory, "H6": h6_image, "H7": h7_roundtrip, "H8": h8_extremes,
-         "H10": h10_tags}
+         "H10": h10_tags, "H11": h11_pale, "H12": h12_a2b_ripple}
 
 
 def run_all(ctx: Ctx, v4=None, only=None) -> dict:
