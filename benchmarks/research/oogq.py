@@ -89,6 +89,20 @@ for _i in ("p", "s"):
         KEYS[f"gmq_{_i}_{_k}"] = (_sg, _fl, False, "gmq", f"Agent 9 {_k}, intent {_i}")
 
 
+# Absolute limits for rows with NO comparator (5-7 inks: colprof cannot build
+# them, D-21 drops Fast): what the F-files propose, PROPOSED (not confirmed by
+# anyone), read on a single build. A row above its limit is reported as
+# "above the absolute limit", never as a pass.
+ABSOLUTE = {"grey_swing_p": 0.5, "grey_swing_s": 0.5, "grey_swing_r": 0.5,
+            "below_black_swing_r": 0.5, "grey_shadow_swing_p": 0.5, "grey_shadow_swing_s": 0.5,
+            "black_gap_p": 3.0, "black_gap_s": 3.0, "black_C_p": 3.0, "black_C_s": 3.0,
+            "grey_chroma_max_p": 3.0, "grey_chroma_max_s": 3.0,
+            "pale_oog_dL_max_r": 5.0, "pale_oog_dL_max_p": 5.0, "pale_oog_dL_max_s": 5.0,
+            "blue_ipt_abs_r": 5.0, "abs_white_de": 0.5,
+            # the CMYK colprof level on the same tests (Agent 23 s4) as the yardstick
+            "oog_ramp_rev_r": 30, "ramp_rev_p": 16, "ramp_rev_s": 16, "image_contours_r": 5}
+
+
 def key_info(key: str) -> tuple[int, float, bool, str, str]:
     """(sign, floor, safety, finding, what) for a q-key; ncq headline keys
     (5+ inks) are scored with the floors of protocol v2.2 N4 elsewhere."""
