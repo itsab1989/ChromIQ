@@ -30,3 +30,31 @@ def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-rgbpos", "no-b2a33s"}) == frozenset()
     assert "no-b2a33s" in ENGINE_CANDIDATE_TOKENS
     assert candidates_from_env("no-rgbpos,bogus") == {"no-rgbpos"}
+
+
+# Research integration 2 (2026-10-05): the fin3 GP set is wired as one
+# switch, gated to <= 4 inks (test_research_gpfwd_only_up_to_four_inks), and
+# OFF by default until Validation/fin3-neutral-chroma-10seed.md says TIE or
+# BETTER. F-09 ("v4prm") and "a17-colpin" are OFF research tokens.
+
+def test_fin3_is_off_by_default_until_its_safety_rows_are_verified():
+    from workflow.profile_engine.builder import (GP_FIN3_DEFAULT_ON,
+                                                 GP_FIN3_TOKENS)
+    assert GP_FIN3_DEFAULT_ON is False
+    assert GP_FIN3_TOKENS == {"gpfwd", "gpsel", "gpwarp", "gpclip",
+                              "gplight2", "gpdark", "a2bfine", "gpkeep"}
+    assert not GP_FIN3_TOKENS & accurate_candidates(frozenset())
+
+
+def test_fin3_asks_for_the_whole_set_and_no_fin3_removes_it():
+    from workflow.profile_engine.builder import GP_FIN3_TOKENS
+    assert accurate_candidates({"fin3"}) == GP_FIN3_TOKENS | {"b2a33s",
+                                                              "rgbpos"}
+    assert accurate_candidates({"fin3", "no-fin3"}) == {"b2a33s", "rgbpos"}
+    assert "gpkeep" not in accurate_candidates({"fin3", "no-gpkeep"})
+    assert candidates_from_env("fin3") == {"fin3"}
+
+
+def test_f09_and_colpin_are_off_by_default():
+    assert not {"v4prm", "a17-colpin"} & accurate_candidates(frozenset())
+    assert "v4prm" in candidates_from_env("v4prm")

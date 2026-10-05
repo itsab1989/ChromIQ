@@ -80,7 +80,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 15 (D-14 repair), read only together with "gpfwd":
      "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
      # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
-     "a17-colpin", "v4prm"})
+     "a17-colpin", "v4prm",
+     # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
+     "fin3", "no-fin3"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -96,13 +98,31 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos"})
 
 
+# Research integration 2 (2026-10-05): Agent 15's repaired GP layer
+# (Findings/agent15-01 s11, "fin3"). It acts ONLY through the gpfwd branch,
+# which gp_forward_applies() opens for ink devices of at most
+# GP_FORWARD_MAX_INKS (4) inks with >= 75 patches per ink; on RGB and on
+# 5+ inks every one of these tokens is inert. "fin3" asks for the whole set,
+# "no-fin3" removes it. GP_FIN3_DEFAULT_ON is False until the safety-row
+# verification (Validation/fin3-neutral-chroma-10seed.md, grey-axis chroma
+# over 10 seeds, D-17 2c) comes back TIE or BETTER.
+GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
+                            "gpdark", "a2bfine", "gpkeep"})
+GP_FIN3_DEFAULT_ON = False
+
+
 def accurate_candidates(tokens) -> frozenset:
     """The candidate set a Maximum accuracy build runs with: the requested
-    tokens plus ACCURATE_DEFAULT_TOKENS, minus every "no-<token>"."""
+    tokens plus ACCURATE_DEFAULT_TOKENS (plus GP_FIN3_TOKENS when "fin3" is
+    asked for or GP_FIN3_DEFAULT_ON), minus every "no-<token>"."""
     tokens = frozenset(tokens or ())
     off = {t[3:] for t in tokens if t.startswith("no-")}
-    return frozenset(t for t in tokens | ACCURATE_DEFAULT_TOKENS
-                     if not t.startswith("no-") and t not in off)
+    on = tokens | ACCURATE_DEFAULT_TOKENS
+    if ("fin3" in tokens or GP_FIN3_DEFAULT_ON) and "fin3" not in off:
+        on = on | GP_FIN3_TOKENS
+    return frozenset(t for t in on
+                     if not t.startswith("no-") and t != "fin3"
+                     and t not in off)
 
 
 def _process_ink_hues(meas) -> dict:
