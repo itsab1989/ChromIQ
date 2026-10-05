@@ -106,12 +106,13 @@ ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "v4prm"})
 # which gp_forward_applies() opens for ink devices of at most
 # GP_FORWARD_MAX_INKS (4) inks with >= 75 patches per ink; on RGB and on
 # 5+ inks every one of these tokens is inert. "fin3" asks for the whole set,
-# "no-fin3" removes it. GP_FIN3_DEFAULT_ON is False until the safety-row
-# verification (Validation/fin3-neutral-chroma-10seed.md, grey-axis chroma
-# over 10 seeds, D-17 2c) comes back TIE or BETTER.
+# "no-fin3" removes it. GP_FIN3_DEFAULT_ON: True since the safety-row
+# verification (Validation/fin3-neutral-chroma-10seed.md: 80/80 builds, all
+# 60 grey-axis rows TIE over 10 paired seeds, every non-zero difference in
+# fin3's favour, no reversal) cleared D-17 2c. Still <= 4 inks only.
 GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
                             "gpdark", "a2bfine", "gpkeep"})
-GP_FIN3_DEFAULT_ON = False
+GP_FIN3_DEFAULT_ON = True
 
 
 def accurate_candidates(tokens) -> frozenset:
