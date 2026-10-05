@@ -416,6 +416,20 @@ def _difference(a: Path, b: Path) -> float:
     return diff / n if n else 0.0
 
 
+def _is_in_a_modal_loop(win) -> bool:
+    """True when hiding ``win`` could end a modal ``exec()``: the window is a
+    modal dialog itself, or any modal window is running right now (hiding
+    its parent or a sibling is no safer)."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QApplication
+    try:
+        if win.isModal() or win.windowModality() != Qt.WindowModality.NonModal:
+            return True
+    except Exception:            # noqa: BLE001 - not a QWidget: be careful
+        return True
+    return QApplication.activeModalWidget() is not None
+
+
 def capture_window(win, path: Path, settle: float = 0.6,
                    min_difference: float = 0.25,
                    allow_hide: bool = True) -> tuple[bool, str]:
@@ -486,6 +500,14 @@ def capture_window(win, path: Path, settle: float = 0.6,
                 return True, ""
             path.unlink(missing_ok=True)
 
+    if allow_hide and _is_in_a_modal_loop(win):
+        # F-11 (agent 18, 2026-10-05): the fallback below hides the window and
+        # raises it. A driver photographed the modal "New patch set" window
+        # with the default allow_hide=True: hiding it ended its exec() as
+        # Rejected, the window came back as a stray non-modal window on
+        # Basti's screen, and the driver waited for ever. A modal dialog, or
+        # any window while a modal loop runs, is never hidden here.
+        allow_hide = False
     if not allow_hide:
         # The rectangle fallback proves itself by HIDING the window, and hiding
         # a dialog that is inside exec() ends that exec() as Rejected: the
