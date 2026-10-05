@@ -57,7 +57,14 @@ PARAMS: dict = {
                            # the radial direction in the clip space follows
                            # that space's constant-hue line (hue-linearised)
     "chord": 0.5,          # chroma fraction of the hue-line point (pass 1)
-    "pass2": False,        # re-aim the frame at the pass-1 result's chroma    # also start from the integration-2 hue-gated seed
+    "pass2": False,
+    "descent": True,       # monotone (backtracking) weighted Gauss-Newton
+    "propagate": 0,        # rounds of neighbour propagation on a node lattice
+    "two_stage": False,    # choose the clip COLOUR without the ink priors,
+                           # then separate that colour with them
+    "wj_light": 1.0,       # lightness weight multiplier reached at L 100,
+    "light_from": 70.0,    # faded in (smoothstep) from this target L
+        # re-aim the frame at the pass-1 result's chroma    # also start from the integration-2 hue-gated seed
 }
 
 DEFAULTS = dict(PARAMS)
@@ -206,7 +213,11 @@ def weights(target_s: np.ndarray, p: dict = PARAMS,
     ch, sh = np.cos(h), np.sin(h)
     s = np.clip(c / p["c_fade"], 0.0, 1.0)
     s = s * s * (3.0 - 2.0 * s)
-    sj, sc = np.sqrt(p["wj"]), np.sqrt(p["wc"])
+    lt = np.clip((target_s[:, 0] - p["light_from"])
+                 / max(100.0 - p["light_from"], 1e-9), 0.0, 1.0)
+    lt = lt * lt * (3.0 - 2.0 * lt)
+    sj = np.sqrt(p["wj"] * (1.0 + (p["wj_light"] - 1.0) * lt))
+    sc = np.sqrt(p["wc"])
     shh = np.sqrt(p["wc"] + (p["wh"] - p["wc"]) * s)
     w = np.zeros((n, 3, 3))
     w[:, 0, 0] = sj
@@ -274,6 +285,69 @@ def clip_cloud(n: int, limit, channel_max, rng, *, light: bool, faces: bool):
     return c
 
 
+def _lattice_neighbours(target_lab: np.ndarray):
+    """(N, 6) indices of the +-1 neighbours along each axis when the targets
+    are a full C-order lattice (the B2A node grid), -1 at the borders; None
+    for any other target set (mapped targets, samples)."""
+    axes = [np.unique(target_lab[:, c]) for c in range(3)]
+    shape = tuple(len(a) for a in axes)
+    n = len(target_lab)
+    if int(np.prod(shape)) != n:
+        return None
+    grid = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
+    if not np.array_equal(grid, target_lab):
+        return None
+    idx = np.arange(n).reshape(shape)
+    out = np.full((n, 6), -1)
+    col = 0
+    for ax in range(3):
+        for step in (-1, 1):
+            sh = np.full(shape, -1)
+            src = [slice(None)] * 3
+            dst = [slice(None)] * 3
+            if step == 1:
+                dst[ax] = slice(0, shape[ax] - 1)
+                src[ax] = slice(1, shape[ax])
+            else:
+                dst[ax] = slice(1, shape[ax])
+                src[ax] = slice(0, shape[ax] - 1)
+            sh[tuple(dst)] = idx[tuple(src)]
+            out[:, col] = sh.reshape(-1)
+            col += 1
+    return out
+
+
+def _descend(b2a, view, t_s, d0, w, *, free, iters, damping, limit, prior,
+             prior_w, gn_kw, label):
+    """Weighted Gauss-Newton that never accepts a step raising the weighted
+    colour cost (backtracking by halving; the box and the ink limit are
+    convex, so every halved step stays printable). Plain GN overshoots on
+    targets 30-80 dE outside the gamut and lands on arbitrary cube corners
+    (measured on Knut's RGB printer: red (51, 76, 66) -> (98, -3, 26))."""
+    d = d0.copy()
+    c = cost(view.predict(d), t_s, w)
+    for it in range(iters):
+        d_try = b2a._gauss_newton(view, t_s, d.copy(), free, iters=1,
+                                  damping=damping, ink_limit=limit,
+                                  err_weights=w, prior=prior, prior_w=prior_w,
+                                  progress_label=f"{label} {it + 1}/{iters}"
+                                  if it == 0 else "", **gn_kw)
+        step = d_try - d
+        acc = np.zeros(len(d), bool)
+        for k in range(5):
+            cand = d + step * (0.5 ** k)
+            cc = cost(view.predict(cand), t_s, w)
+            good = (cc < c) & ~acc
+            d[good] = cand[good]
+            c[good] = cc[good]
+            acc |= good
+            if acc.all():
+                break
+        if not acc.any():
+            break
+    return d, c
+
+
 def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
                channel_max, prior, prior_w, gn_kw, damping, hue_seeds=None,
                progress_label="") -> np.ndarray:
@@ -310,21 +384,68 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         starts.append(hs)
     pr = None if prior is None else prior[sel]
     pw = None if prior_w is None else prior_w[sel]
+    pr_clip, pw_clip = (None, None) if p.get("two_stage") else (pr, pw)
     best = None
     best_cost = None
     for k, s0 in enumerate(starts):
-        d = b2a._gauss_newton(view, t_s, s0.copy(), free, iters=p["iters"],
-                              damping=damping, ink_limit=limit, err_weights=w,
-                              prior=pr, prior_w=pw,
-                              progress_label=f"{progress_label}: weighted clip "
-                                             f"{k + 1}/{len(starts)}", **gn_kw)
-        cst = cost(view.predict(d), t_s, w)
+        if p.get("descent", True):
+            d, cst = _descend(b2a, view, t_s, s0, w, free=free,
+                              iters=p["iters"], damping=damping, limit=limit,
+                              prior=pr_clip, prior_w=pw_clip, gn_kw=gn_kw,
+                              label=f"{progress_label}: weighted clip "
+                                    f"{k + 1}/{len(starts)}")
+        else:
+            d = b2a._gauss_newton(view, t_s, s0.copy(), free, iters=p["iters"],
+                                  damping=damping, ink_limit=limit, err_weights=w,
+                                  prior=pr_clip, prior_w=pw_clip,
+                                  progress_label=f"{progress_label}: weighted clip "
+                                                 f"{k + 1}/{len(starts)}", **gn_kw)
+            cst = cost(view.predict(d), t_s, w)
         if best is None:
             best, best_cost = d, cst
         else:
             better = cst < best_cost
             best[better] = d[better]
             best_cost[better] = cst[better]
+    rounds = int(p.get("propagate", 0))
+    nb = _lattice_neighbours(target_lab) if rounds else None
+    if nb is not None:
+        # Neighbour propagation (PatchMatch-like): a node whose lattice
+        # neighbour found a cheaper basin starts again from that answer.
+        # Every decision is still "lower cost wins", so it only removes
+        # places where the search missed the minimum; it makes the field
+        # agree with itself where two basins compete (Findings s4.3).
+        pos = np.full(len(target_lab), -1)
+        pos[sel] = np.arange(len(sel))
+        for r in range(rounds):
+            cand_best = best.copy()
+            cand_cost = best_cost.copy()
+            for col in range(nb.shape[1]):
+                j = nb[sel, col]
+                okj = j >= 0
+                okj[okj] = pos[j[okj]] >= 0
+                if not okj.any():
+                    continue
+                rows = np.flatnonzero(okj)
+                src = best[pos[j[okj]]]
+                c = cost(view.predict(src), t_s[rows], w[rows])
+                better = c < cand_cost[rows]
+                cand_best[rows[better]] = src[better]
+                cand_cost[rows[better]] = c[better]
+            moved = np.flatnonzero(cand_cost < best_cost - 1e-9)
+            if not len(moved):
+                break
+            d, c = _descend(
+                b2a, view, t_s[moved], cand_best[moved], w[moved], free=free,
+                iters=p["iters"], damping=damping, limit=limit,
+                prior=None if pr_clip is None else pr_clip[moved],
+                prior_w=None if pw_clip is None else pw_clip[moved],
+                gn_kw=gn_kw, label=f"{progress_label}: weighted clip, "
+                                   f"neighbours {r + 1}")
+            use = c < cand_cost[moved]
+            cand_best[moved[use]] = d[use]
+            cand_cost[moved[use]] = c[use]
+            best, best_cost = cand_best, cand_cost
     if hue_from and p.get("pass2"):
         # Re-aim the hue frame at the chroma the first pass reached (the
         # constant-hue line is curved; the chord to the answer is its
@@ -341,6 +462,17 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
                               progress_label=f"{progress_label}: weighted clip "
                                              f"(re-aimed)", **gn_kw)
         best = d
+    if p.get("two_stage") and pr is not None:
+        # Stage 2: the chosen colour is printable; separate it under the ink
+        # policy (an in-gamut inversion, residual ~0), seeded at stage 1.
+        y = model.predict(best)
+        d2 = b2a._gauss_newton(model, y, best.copy(), free, iters=p["iters"],
+                               damping=damping, ink_limit=limit, prior=pr,
+                               prior_w=pw, progress_label=f"{progress_label}: "
+                               "separating the clipped colours", **gn_kw)
+        e1 = np.linalg.norm(model.predict(d2) - y, axis=1)
+        ok = e1 < 0.5
+        best[ok] = d2[ok]
     # Continuous hand-over to the nearest clip near the surface.
     lo, hi = p["blend_lo"], p["blend_hi"]
     bf = np.clip((residual[sel] - lo) / (hi - lo), 0.0, 1.0)
