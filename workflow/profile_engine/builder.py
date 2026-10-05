@@ -76,7 +76,8 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
-     "no-b2a33s", "no-rgbpos", "a19-extrap"})
+     "no-b2a33s", "no-rgbpos", "a19-extrap",
+     "a19-order", "a19-bounds"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -590,10 +591,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             additive=meas.is_additive,
             # Research token "a19-extrap" (agent 19, F-12): penalise the
             # 3+-ink interactions no chart identifies, 5+ ink devices only.
-            order_mu=(A19_ORDER_MU if ("a19-extrap" in candidates
+            order_mu=(A19_ORDER_MU if (({"a19-extrap", "a19-order"}
+                                        & candidates)
                                        and not meas.is_additive and n >= 5)
                       else 0.0))
-        if "a19-extrap" in candidates and not meas.is_additive:
+        if ({"a19-extrap", "a19-bounds"} & candidates
+                and not meas.is_additive):
             # Research token (agent 19, F-12): physical lower bounds on the
             # lattice where the chart leaves it to extrapolation. A node may
             # not be darker, in any XYZ channel, than a measured patch that
