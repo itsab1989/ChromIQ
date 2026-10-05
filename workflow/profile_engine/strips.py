@@ -35,6 +35,12 @@ misread rows at full weight.
    half of the strip is grossly off at once. An isolated misread or a hard
    colour region never moves a strip's median; a random layout puts a
    strip's patches all over colour space.
+3b. OUT OF STEP (chartread's own off-by-one check, with the model in place
+   of the expected values): a strip whose median residual is merely raised
+   is judged on a fit that has NOT seen it, and is suspect when its
+   readings fit at least twice as well shifted one patch early or late. An
+   ordered strip (a ramp; printtarg -r) is the only data in its region, so
+   a fit that saw it follows it.
 4. The suspects are left out, the stiff fit is made again, and EVERY strip
    is judged again against the new fit: a strip that now fits is taken back
    (add-back), a strip the first fit had masked is found. Repeated until
@@ -158,7 +164,7 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
             # its region, so a fit that saw it follows it (masking).
             if SHIFT_TEST:
                 as_read, shifted = _shifted(pred, lab, rows)
-                if as_read > max(SHIFT_MIN_DE, med + 2.0 * s):
+                if as_read > med + 2.0 * s:
                     if shifted < SHIFT_RATIO * as_read:
                         new.add(g)
                     else:
@@ -170,9 +176,10 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
             k2[rows] = False
             p2 = _predict(device, lab, k2, grid, lam)
             as_read, shifted = _shifted(p2, lab, rows)
-            if (float(np.median(delta_e_2000(p2[rows], lab[rows]))) > thr
-                    or (as_read > SHIFT_MIN_DE
-                        and shifted < SHIFT_RATIO * as_read)):
+            # only the shift decides here: a CLEAN ordered ramp left out is
+            # extrapolated badly too (X1 seed 0, grey ramp: 4.1 dE00 left
+            # out) but does not fit better shifted (4.4)
+            if as_read > SHIFT_MIN_DE and shifted < SHIFT_RATIO * as_read:
                 new.add(g)
         if new == suspects:
             break
