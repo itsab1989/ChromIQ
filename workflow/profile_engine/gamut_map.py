@@ -775,9 +775,14 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
         # inversion (-nI) and off-node queries.
         if node_lab is not None:
             for tag, intent in (("B2A0", "p"), ("B2A2", "s")):
-                out[tag] = _ExactNodeMapper(node_lab, _realized_at(
-                    xicclu, icc, node_lab, intent, meas.n_channels),
-                    out[tag])
+                _lab_at, _dev_at = _realized_at(
+                    xicclu, icc, node_lab, intent, meas.n_channels,
+                    with_device=True)
+                out[tag] = _ExactNodeMapper(node_lab, _lab_at, out[tag])
+                # Research (Agent 25, F-16/F-18, token a25-oracle-model):
+                # colprof's own device values at the nodes, so the target
+                # can be re-expressed through the ENGINE's model.
+                out[tag].node_dev = _dev_at
         if cache_key is not None:
             while len(_ORACLE_CACHE) >= _ORACLE_CACHE_MAX:
                 _ORACLE_CACHE.pop(next(iter(_ORACLE_CACHE)))
@@ -789,7 +794,7 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
 
 def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
-                 n_channels: int) -> np.ndarray:
+                 n_channels: int, with_device: bool = False):
     import subprocess
     inp = "\n".join(f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c in lab)
     r1 = _run_argyll([str(xicclu), "-fb", f"-i{intent}", "-pl", str(icc)],
@@ -802,6 +807,8 @@ def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
                     for ln in r2.stdout.splitlines() if "->" in ln])
     if len(out) != len(lab):
         raise OracleUnavailable("node sampling failed")
+    if with_device:
+        return out, np.array([[float(v) for v in ln.split()] for ln in dev])
     return out
 
 
@@ -829,6 +836,8 @@ class _LazyWarp:
 class _ExactNodeMapper:
     """colprof's realized mapping sampled exactly at the CLUT nodes; the
     fitted warp answers everything off-node (the -nI inverse, probes)."""
+
+    node_dev = None     # colprof's device values at the nodes (Agent 25)
 
     def __init__(self, node_lab: np.ndarray, node_mapped: np.ndarray,
                  warp: WarpMapper) -> None:
@@ -1185,6 +1194,15 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      f"({'1' if tag == 'B2A0' else '2'}/2, Argyll's "
                      f"mapper)…")
         mapped = mapper.map_lab(node_lab)
+        if accurate and "a25-oracle-model" in getattr(
+                settings, "engine_candidates", frozenset()) and getattr(
+                mapper, "node_dev", None) is not None:
+            # Research (Agent 25, F-16/F-18): the oracle target is what
+            # colprof's TABLE prints, by the engine's model, instead of what
+            # colprof's own A2B claims it prints (that A2B is 8-12 L* wrong
+            # in places; Findings F-16, F-18). In the engine's gamut by
+            # construction, so no target needs a re-clip.
+            mapped = model.predict(np.clip(mapper.node_dev, 0.0, 1.0))
         if ownmap and "a9-warp" in getattr(settings, "engine_candidates",
                                            frozenset()):
             # Research a9-warp: colprof's realized map is smooth because it

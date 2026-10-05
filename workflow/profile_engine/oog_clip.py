@@ -51,7 +51,13 @@ PARAMS: dict = {
     "faces": True,         # device-cube faces in the clip cloud
     "ab_scale": 1.0,       # scale of the opponent axes (Oklab ab are ~3x
                            # compressed against L relative to dE units)
-    "hue_start": False,    # also start from the integration-2 hue-gated seed
+    "l_scale": 1.0,        # scale of the lightness axis
+    "hue_start": False,
+    "hue_from": "",        # "" = the space's own hue; else oklab | ipt | ucs:
+                           # the radial direction in the clip space follows
+                           # that space's constant-hue line (hue-linearised)
+    "chord": 0.5,          # chroma fraction of the hue-line point (pass 1)
+    "pass2": False,        # re-aim the frame at the pass-1 result's chroma    # also start from the integration-2 hue-gated seed
 }
 
 DEFAULTS = dict(PARAMS)
@@ -102,11 +108,61 @@ def lab_to_ipt(lab):
     return 100.0 * (_IPT_IPT @ lmsp.T).T
 
 
+def _lab_from_xyz65(xyz65_1):
+    from workflow.profile_engine.ti3_data import xyz_to_lab
+    xyz50 = (np.linalg.inv(_D50_TO_D65) @ (np.asarray(xyz65_1) * 100.0).T).T
+    return xyz_to_lab(xyz50)
+
+
+def oklab_to_lab(ok):
+    lmsp = (np.linalg.inv(_OK_M2) @ (np.asarray(ok) / 100.0).T).T
+    return _lab_from_xyz65((np.linalg.inv(_OK_M1) @ (lmsp ** 3).T).T)
+
+
+def ipt_to_lab(ipt):
+    lmsp = (np.linalg.inv(_IPT_IPT) @ (np.asarray(ipt) / 100.0).T).T
+    lms = np.sign(lmsp) * np.abs(lmsp) ** (1.0 / 0.43)
+    return _lab_from_xyz65((np.linalg.inv(_IPT_LMS) @ lms.T).T)
+
+
+def _pair(space: str):
+    if space == "oklab":
+        return lab_to_oklab, oklab_to_lab
+    if space == "ipt":
+        return lab_to_ipt, ipt_to_lab
+    if space == "ucs":
+        from workflow.profile_engine.ucs import print_ucs
+        u = print_ucs()
+        return u.lab_to_ucs, u.ucs_to_lab
+    raise ValueError(space)
+
+
+def hue_line_angle(t_lab: np.ndarray, space: str, k) -> np.ndarray:
+    """Lab angle of the direction from each target toward the point of the
+    SAME hue in ``space`` (hue-linear) at chroma fraction ``k`` (scalar or
+    per row) and the same lightness there: the radial direction of a
+    hue-linearised CIELAB frame (Braun, Ebner, Fairchild 1998)."""
+    fwd, inv = _pair(space)
+    s = fwd(t_lab)
+    s2 = s.copy()
+    kk = np.broadcast_to(np.asarray(k, float), (len(s),))
+    s2[:, 1] *= kk
+    s2[:, 2] *= kk
+    back = inv(s2)
+    d = t_lab[:, 1:] - back[:, 1:]
+    own = np.arctan2(t_lab[:, 2], t_lab[:, 1])
+    small = np.hypot(d[:, 0], d[:, 1]) < 1e-6
+    ang = np.arctan2(d[:, 1], d[:, 0])
+    ang[small] = own[small]
+    return ang
+
+
 def space_fn(space: str):
     k = float(PARAMS.get("ab_scale", 1.0))
-    if k != 1.0:
+    kl = float(PARAMS.get("l_scale", 1.0))
+    if k != 1.0 or kl != 1.0:
         base = _space_fn(space)
-        sc = np.array([1.0, k, k])
+        sc = np.array([kl, k, k])
         return lambda lab: base(lab) * sc[None, :]
     return _space_fn(space)
 
@@ -139,13 +195,14 @@ class SpaceView:
 
 
 # --- the metric -------------------------------------------------------------
-def weights(target_s: np.ndarray, p: dict = PARAMS) -> np.ndarray:
+def weights(target_s: np.ndarray, p: dict = PARAMS,
+            angle: np.ndarray | None = None) -> np.ndarray:
     """(N,3,3) W with |W (y - t)|^2 = wJ dJ^2 + wC dRad^2 + wH(C) dTan^2 in
     the target's hue frame; wH fades from wC (no hue at C = 0) to wH by
     C = c_fade (smoothstep), so the metric is continuous in the target."""
     n = len(target_s)
     c = np.hypot(target_s[:, 1], target_s[:, 2])
-    h = np.arctan2(target_s[:, 2], target_s[:, 1])
+    h = np.arctan2(target_s[:, 2], target_s[:, 1]) if angle is None else angle
     ch, sh = np.cos(h), np.sin(h)
     s = np.clip(c / p["c_fade"], 0.0, 1.0)
     s = s * s * (3.0 - 2.0 * s)
@@ -234,7 +291,11 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
     view = SpaceView(model, fn)
     t_lab = target_lab[sel]
     t_s = fn(t_lab)
-    w = weights(t_s, p)
+    hue_from = p.get("hue_from") or ""
+    if hue_from and p["space"] != "lab":
+        raise ValueError("hue_from needs space 'lab'")
+    w = weights(t_s, p, hue_line_angle(t_lab, hue_from, p["chord"])
+                if hue_from else None)
     n = model.n_channels
     cloud = clip_cloud(n, limit, channel_max, np.random.default_rng(2525),
                        light=True, faces=p["faces"])
@@ -264,6 +325,22 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
             better = cst < best_cost
             best[better] = d[better]
             best_cost[better] = cst[better]
+    if hue_from and p.get("pass2"):
+        # Re-aim the hue frame at the chroma the first pass reached (the
+        # constant-hue line is curved; the chord to the answer is its
+        # direction there), then polish once more from the answer.
+        got = model.predict(best)
+        fwd, _ = _pair(hue_from)
+        cs_t = np.hypot(*fwd(t_lab)[:, 1:].T)
+        cs_g = np.hypot(*fwd(got)[:, 1:].T)
+        k = np.clip(cs_g / np.maximum(cs_t, 1e-9), 0.05, 1.0)
+        w = weights(t_s, p, hue_line_angle(t_lab, hue_from, k))
+        d = b2a._gauss_newton(view, t_s, best.copy(), free, iters=p["iters"],
+                              damping=damping, ink_limit=limit, err_weights=w,
+                              prior=pr, prior_w=pw,
+                              progress_label=f"{progress_label}: weighted clip "
+                                             f"(re-aimed)", **gn_kw)
+        best = d
     # Continuous hand-over to the nearest clip near the surface.
     lo, hi = p["blend_lo"], p["blend_hi"]
     bf = np.clip((residual[sel] - lo) / (hi - lo), 0.0, 1.0)
