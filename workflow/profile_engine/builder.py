@@ -76,7 +76,7 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
-     "no-b2a33s", "no-rgbpos"})
+     "no-b2a33s", "no-rgbpos", "a19-extrap"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -583,6 +583,24 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             positioning=((not meas.is_additive or "rgbpos" in candidates)
                          and curve_rounds > 0),
             additive=meas.is_additive)
+        if "a19-extrap" in candidates and not meas.is_additive:
+            # Research token (agent 19, F-12): physical lower bounds on the
+            # lattice where the chart leaves it to extrapolation. A node may
+            # not be darker, in any XYZ channel, than a measured patch that
+            # carries at least as much of every ink, nor than half the
+            # darkest patches; nodes that obey are untouched (no node moved
+            # = the same bytes). Before the GP block, so its taper and
+            # projection see the bounded stiff fit.
+            from workflow.profile_engine import extrap
+            _xinfo: dict = {}
+            bounded, _moved = extrap.bound_by_data(
+                model, meas.device, meas.lab_relative, info=_xinfo)
+            if _moved.any():
+                model.nodes = bounded
+                _emit(settings, f"Printer model: {int(_moved.sum())} of "
+                                f"{len(_moved)} colour-table nodes the chart "
+                                f"does not reach held to the measured "
+                                f"darkness bounds.")
         if ("gpfwd" in candidates and not meas.is_additive
                 and len(meas.device) >= 75 * n):
             # Not below 75 patches per ink: at 150 patches on 4 inks the

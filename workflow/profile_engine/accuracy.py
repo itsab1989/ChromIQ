@@ -66,6 +66,7 @@ def fit_forward_model_accurate(
         row_weights: np.ndarray | None = None,
         positioning: bool = False,
         additive: bool = False,
+        fit_space=None,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
 
@@ -102,10 +103,17 @@ def fit_forward_model_accurate(
         from workflow.profile_engine.ucs import print_ucs
         space = print_ucs()
         lab = space.lab_to_ucs(lab)
+    elif fit_space is not None:
+        # research (agent 19, ablation): fit in another space with the same
+        # lab_to_ucs / ucs_to_lab interface; every distance stays dE00.
+        space = fit_space
+        lab = space.lab_to_ucs(lab)
 
     def dist(pred: np.ndarray, ref: np.ndarray) -> np.ndarray:
         if ucs:
             return np.linalg.norm(pred - ref, axis=1)
+        if fit_space is not None:
+            return delta_e_2000(space.ucs_to_lab(pred), space.ucs_to_lab(ref))
         return delta_e_2000(pred, ref)
 
     sigma = None
