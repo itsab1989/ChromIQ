@@ -852,7 +852,6 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     ucs: bool = False,
                     channel_max: np.ndarray | None = None,
                     fixed_nodes: np.ndarray | None = None,
-                    oog_heavy: float | None = None,
                     progress=None) -> np.ndarray:
     """Refit the B2A CLUT as one smooth field over exact inverse samples.
 
@@ -939,10 +938,6 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
     # out of gamut (their clamp IS the answer there), light anchors elsewhere
     # (keep the fit stable where samples are sparse, let data win).
     anchor_w = np.where(residual > deep_oog, 4.0, 0.05)
-    if oog_heavy is not None:
-        # Research F-13 design B ("rgboog", Argyll-like): every node outside
-        # the gamut keeps its own nearest clip, as colprof's per-node fill.
-        anchor_w = np.where(residual > oog_heavy, 4.0, anchor_w)
     if fixed_nodes is not None and len(fixed_nodes):
         anchor_w[fixed_nodes] = 4.0
     if node_lab is None:
@@ -1067,11 +1062,11 @@ def rgb_neutral_black(model: ForwardModel, black_l: float, *,
     C* < 1, the test :func:`neutral_axis` uses) or
     no neutral is reached within ``span`` L*.
 
-    Research F-13 design A2 (agent20-01 s5.2): below the black the B2A
-    neutral column is clipped ALONG the axis to this point, as Agent 5's
-    :func:`apply_neutral_axis` does for ink devices; on a chromatic black
-    (battery S2: C* 3.0) clipping to RGB 0 instead put a colour cast into
-    the first L* above the black."""
+    Research F-13 (agent20-01 s5.2, s6.2): the B2A neutral column is held
+    below this point (design A3). Design A2 clipped the column TO it, as
+    Agent 5's :func:`apply_neutral_axis` does for ink devices, which kept
+    the grey axis neutral above a chromatic black (battery S2: C* 3.0) but
+    cost dark-colour accuracy."""
     n = model.n_channels
     zero = np.zeros((1, n))
     lab0 = model.predict(zero)[0]
@@ -1087,6 +1082,27 @@ def rgb_neutral_black(model: ForwardModel, black_l: float, *,
         return float(black_l), zero[0]
     i = int(ok[0])
     return float(ls[i]), np.clip(dev[i], 0.0, 1.0)
+
+
+def monotone_column(model: ForwardModel, values: np.ndarray,
+                    target_l: np.ndarray) -> np.ndarray:
+    """Column device values made monotone in the model's L*: walking from
+    the lightest target down, a node whose value would print lighter than
+    the node above it takes that node's value. Research F-13 (design A3):
+    the per-node nearest clips below the black are monotone on every
+    printer measured, this makes it a guarantee."""
+    values = np.asarray(values, float).copy()
+    if not len(values):
+        return values
+    order = np.argsort(-np.asarray(target_l, float))       # light to dark
+    vals = values[order]
+    lp = model.predict(vals)[:, 0]
+    for i in range(1, len(vals)):
+        if lp[i] > lp[i - 1]:
+            vals[i], lp[i] = vals[i - 1], lp[i - 1]
+    out = np.empty_like(vals)
+    out[order] = vals
+    return out
 
 
 def pin_nodes(dev_clut: np.ndarray, nodes: np.ndarray,

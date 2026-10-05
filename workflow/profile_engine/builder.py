@@ -76,7 +76,7 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
-     "rgbcol", "rgboog", "rgbshadow", "no-b2a33s", "no-rgbpos", "no-rgbcol"})
+     "rgbcol", "rgbshadow", "no-b2a33s", "no-rgbpos", "no-rgbcol"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -866,15 +866,20 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                             f"L* {axis['l_black']:.1f}.")
     rgb_col = None
     if accurate and meas.is_additive and n == 3 and "rgbcol" in candidates:
-        # Research F-13 (agent20-01 s3 and s5.2, design A2): the neutral
-        # column below the NEUTRAL black is that neutral black (the L* 0
-        # corner stays RGB 0, the deepest black), held through the refit
-        # and pinned after it, so the grey ramp cannot turn lighter before
-        # it enters the gamut (X1: 7.86 -> 10.99 -> 9.90 L*) and a
-        # chromatic black does not tint the first L* above it (S2).
+        # Research F-13 (Findings/agent20-01 s6.2, design A3). An RGB
+        # printer's B2A neutral column below the black: the smoothing refit
+        # gave these nodes a weak anchor and set them from their lighter,
+        # chromatic neighbours, so the grey ramp turned lighter in the deep
+        # shadows (X1: sRGB 7.86 -> 10.99 -> 9.90 L* through lcms and
+        # ColorSync). Each column node below the NEUTRAL black keeps its own
+        # per-node (nearest-clip) inversion, as colprof fills its table node
+        # by node, held through the refit and pinned after it; walking down,
+        # a node never prints lighter than the one above it; the L* 0
+        # corner stays RGB 0 (the deepest black). Clipping to RGB 0 instead
+        # (v1) tinted the grey axis above a chromatic black (S2 C* 3), and
+        # clipping to the neutral black (A2) cost dark-colour accuracy.
         _black_l = float(model.predict(np.zeros((1, n)))[0, 0])
-        _nb_l, _nb_dev = b2a_mod.rgb_neutral_black(model, _black_l,
-                                                   ucs=use_ucs)
+        _nb_l, _ = b2a_mod.rgb_neutral_black(model, _black_l, ucs=use_ucs)
         rgb_col = b2a_mod.below_black_column(node_lab, _nb_l)
         _corner = np.linalg.norm(node_lab[rgb_col], axis=1) <= 1.0
         # Only the L* 0 corner below the black: pin_black_node already sets
@@ -882,12 +887,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if _corner.all():
             rgb_col = rgb_col[:0]
             _corner = _corner[:0]
-        rgb_col_val = np.where(_corner[:, None], 0.0, _nb_dev[None, :])
+        rgb_col_val = b2a_mod.monotone_column(model, dev_clut[rgb_col],
+                                              node_lab[rgb_col, 0])
+        rgb_col_val[_corner] = 0.0
         if len(rgb_col):
             dev_clut[rgb_col] = rgb_col_val
             fixed_nodes = rgb_col
-            _emit(settings, f"Neutral black: L* {_nb_l:.1f} "
-                            f"(device black L* {_black_l:.1f}).")
         if len(rgb_col) and "rgbshadow" in candidates:
             # Research F-13 design C: the near-neutral shadow nodes below the
             # black are clipped ALONG L* first (re-inverted at the black's
@@ -936,8 +941,6 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
             k_gen=k_gen, ucs=use_ucs, channel_max=channel_max,
             fixed_nodes=fixed_nodes,
-            oog_heavy=(1.0 if accurate and meas.is_additive and n == 3
-                       and "rgboog" in candidates else None),
             progress=lambda m: _emit(settings, m),
             # Agent 3 "b2a33s": keep the refit's exact inverse samples per
             # B2A node constant (30,000 were sized for grid 17; at grid 33
