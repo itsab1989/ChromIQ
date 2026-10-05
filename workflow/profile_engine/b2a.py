@@ -1404,7 +1404,7 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
     h = hashlib.blake2b(digest_size=16)
     h.update(np.ascontiguousarray(model.nodes).tobytes())
     h.update(np.ascontiguousarray(model.curves).tobytes())
-    key = (h.hexdigest(), type(view).__name__, n, limit,
+    key = (h.hexdigest(), type(view).__name__, n, limit, bool(LIGHT_CLOUD.get("on")),
            None if channel_max is None else tuple(np.asarray(channel_max,
                                                              float)), seed)
     with _CLOUD_LOCK:
@@ -1412,6 +1412,9 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
     if hit is not None:
         return hit
     cloud = _device_cloud(n, limit, channel_max, np.random.default_rng(seed))
+    if LIGHT_CLOUD.get("on"):
+        cloud = np.vstack([cloud, _light_cloud(n, limit, channel_max,
+                                               np.random.default_rng(seed + 7))])
     val = (cloud, view.predict(cloud))
     for a in val:                    # shared: nobody may write into them
         a.flags.writeable = False
@@ -1420,6 +1423,35 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
             _CLOUD_CACHE.pop(next(iter(_CLOUD_CACHE)))
         _CLOUD_CACHE[key] = val
     return val
+
+
+# Agent 21 (Findings/agent21-01 s3.1, token "a21-lightcloud", Maximum accuracy
+# only, off by default): the retry / hue-clip cloud is uniform in the N-cube; at
+# 6-7 inks under a 300 % limit it holds no light colour at all, so every
+# out-of-gamut node near paper white (L* ~100 with a little chroma) is seeded
+# from a DARK colour of the same hue and the white-corner cells of the B2A
+# interpolate that darkness into pale in-gamut colours. Add light and sparse
+# points (Agent 5 used the same coverage scaling for the refit probes).
+LIGHT_CLOUD: dict = {"on": False}
+
+
+def _light_cloud(n: int, limit, channel_max, rng: np.random.Generator) -> np.ndarray:
+    m = min(40000, 6000 * n)
+    a = rng.uniform(0.0, 1.0, (m // 2, n)) * rng.uniform(0.0, 1.0, (m // 2, 1)) ** 2
+    sp = np.zeros((m // 2, n))
+    for k in (1, 2, 3):
+        rows = np.arange(k - 1, m // 2, 3)
+        for i in rows:
+            sp[i, rng.choice(n, k, replace=False)] = 1.0
+    sp *= rng.uniform(0.0, 1.0, sp.shape) ** 2
+    c = np.vstack([a, sp])
+    if channel_max is not None:
+        c *= channel_max[None, :]
+    if limit is not None:
+        total = c.sum(1)
+        over = total > limit
+        c[over] *= (limit / total[over])[:, None]
+    return c
 
 
 def _device_cloud(n: int, limit: float | None,

@@ -634,6 +634,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     b2a_mod.HARD_COLOUR["grey_firm"] = 2.0 if ("a21-greyfirm" in candidates
                                                or "a21-ecgfirm" in candidates) else 0.0
     b2a_mod.HARD_COLOUR["smooth_p"] = None
+    b2a_mod.LIGHT_CLOUD["on"] = "a21-lightcloud" in candidates
     b2a_mod.HARD_COLOUR["stats"] = []
     if b2a_mod.HARD_COLOUR["firm"] and not b2a_mod.ECG_SEPARATION["on"]:
         b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
@@ -1026,6 +1027,22 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if axis.get("l_black") is not None:
             _emit(settings, f"Neutral black under the ink limits: "
                             f"L* {axis['l_black']:.1f}.")
+    if n > 3 and accurate and "a21-smooth" in candidates:
+        # Agent 21 D2: smooth-then-reproject, colour exact on in-gamut nodes;
+        # the refit's inverse samples follow the same smoothed field.
+        from workflow.profile_engine import a21_smooth
+        _pr, _pw = b2a_mod.ink_priors(
+            node_lab, n, channel_letters=meas.channel_letters,
+            k_prior=k_prior_col, k_gen=k_gen, accurate=accurate,
+            extra_hues=extra_hues, black_l=black_l)
+        b2a_mod._firm_policy(node_lab, _pr, _pw, meas.channel_letters, extra_hues)
+        _lim = None if (ink_limit is None or meas.is_additive) else ink_limit / 100.0
+        dev_clut, _field = a21_smooth.smooth_reproject(
+            model, node_lab, dev_clut, residual, b2a_grid, prior=_pr, prior_w=_pw,
+            ink_limit=_lim, channel_max=channel_max, fixed_nodes=fixed_nodes,
+            progress=lambda m: _emit(settings, m))
+        b2a_mod.HARD_COLOUR["smooth_p"] = a21_smooth.field_prior(
+            _field, b2a_grid, codec.lab_to01)
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
