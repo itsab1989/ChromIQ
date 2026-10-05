@@ -146,6 +146,35 @@ jobs:
               libxinerama-dev libxrandr-dev libxss-dev
           fi
 
+      # Greyscale antialiasing, as the macOS and Windows jobs draw text. Qt's
+      # fontconfig database on Linux took the runner's sub-pixel (LCD) setting,
+      # so every glyph edge came out in coloured fringes: the Neutral
+      # appearance's no-hue checks then counted the TEXT as hues (the busy
+      # bar's "BUILDING" label, the tab bar, a pictogram's caption) and the
+      # contrast checks found no single ink colour among the fringes (0.00:1).
+      # Full hinting as well: with the runner's "slight" hinting, greyscale
+      # glyphs had no solid core at 13 px (no single ink colour owned 6 % of
+      # the text, so the contrast checks read 0.00:1, CI round 2); Qt's
+      # FreeType database on the Windows job hints fully and passes them.
+      # What a Linux user's desktop does with sub-pixel text is its own
+      # setting; these tests are about the colours the app paints.
+      - name: Draw text in greyscale
+        run: |
+          mkdir -p "$HOME/.config/fontconfig"
+          cat > "$HOME/.config/fontconfig/fonts.conf" <<'EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <match target="font">
+              <edit name="rgba" mode="assign"><const>none</const></edit>
+              <edit name="lcdfilter" mode="assign"><const>lcdnone</const></edit>
+              <edit name="hinting" mode="assign"><bool>true</bool></edit>
+              <edit name="hintstyle" mode="assign"><const>hintfull</const></edit>
+            </match>
+          </fontconfig>
+          EOF
+          fc-match -v sans-serif | grep -E 'rgba|lcdfilter|hint' || true
+
       # ArgyllCMS 3.5.0, not the distribution's older package. argyllcms.com
       # ships Linux binaries for x86_64 only, so on ARM it is built from the
       # official 3.5.0 source with its own build system (doc/Compiling.html).

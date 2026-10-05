@@ -16,6 +16,8 @@ import subprocess
 import time
 from pathlib import Path
 
+import os
+
 import pytest
 
 pytest.importorskip("PyQt6")
@@ -228,6 +230,9 @@ def test_an_answer_for_a_chart_no_longer_shown_is_dropped(qapp, tmp_path):
     tab.deleteLater()
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "the stand-in for a targen that is still running is a '#!/bin/sh' "
+    "script, which Windows cannot launch"))
 def test_a_new_chart_cancels_the_question_still_out(qapp, tmp_path,
                                                     monkeypatch):
     """Showing another chart kills the old question and frees Generate."""

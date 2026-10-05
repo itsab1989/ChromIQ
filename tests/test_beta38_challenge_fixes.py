@@ -61,7 +61,9 @@ def _listing(root: Path) -> list:
     for dirpath, dirnames, filenames in os.walk(root):
         rel = os.path.relpath(dirpath, root)
         for n in dirnames + filenames:
-            out.append(os.path.normpath(os.path.join(rel, n)))
+            # "/"-separated on every platform, as the assertions spell them
+            # (a no-op where os.sep is already "/").
+            out.append(os.path.normpath(os.path.join(rel, n)).replace(os.sep, "/"))
     return sorted(out)
 
 
@@ -210,6 +212,9 @@ def test_a_rename_that_fails_part_way_is_undone(tmp_path, monkeypatch):
     assert (tmp_path / "Alpha" / "project.json").read_text(encoding="utf-8") == manifest
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "a folder cannot be made unwritable with chmod on Windows (it only sets "
+    "the read-only attribute, which folders ignore)"))
 def test_a_rename_that_cannot_finish_is_refused_before_anything_moves(
         tmp_path):
     """A folder of the project ChromIQ may not write in: refused with a

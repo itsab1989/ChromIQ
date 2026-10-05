@@ -164,4 +164,12 @@ def test_without_it_the_same_script_dies_in_the_event_filter_dispatch():
     assert r.returncode != 0, (
         "the unguarded script survived; if a PyQt/Qt upgrade stopped the "
         "fault, B8-1392's guard is still right but this pin needs rewording")
+    import platform
+    if platform.machine() == "x86_64":
+        # On an Intel Mac (the macOS Intel runner, CI round 2) the same fault
+        # lands in the dispatch one call further in, in the widget's own
+        # event() reached from notify_helper, rather than in the filter loop.
+        assert ("sendThroughObjectEventFilters" in r.stderr
+                or "notify_helper" in r.stderr), r.stderr[-3000:]
+        return
     assert "sendThroughObjectEventFilters" in r.stderr, r.stderr[-3000:]

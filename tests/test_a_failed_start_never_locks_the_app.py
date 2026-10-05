@@ -9,6 +9,7 @@ also greys the masthead — Open Project, Open Chart File, Tools AND Preferences
 and Preferences is the one place a wrong ArgyllCMS path can be corrected. A
 mistyped path therefore locked the user out of the only fix, until restart.
 """
+import os
 import pathlib
 import tempfile
 
@@ -98,9 +99,19 @@ def test_run_emits_started_when_a_tool_actually_launches(qapp, tmp_path):
     # A tool that certainly exists and exits immediately: this interpreter.
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    tool = fake_bin / "targen"
-    tool.write_text(f"#!/bin/sh\nexec {sys.executable} -c 'pass'\n", encoding="utf-8")
-    tool.chmod(0o755)
+    if os.name == "nt":
+        # Windows launches no "#!" script. A copy of a stock console program
+        # under the name the app looks for: where.exe exits at once on "-v"
+        # (an unknown option) without reading stdin, and it has started.
+        import shutil
+        shutil.copy(os.path.join(os.environ.get("SystemRoot", r"C:\Windows"),
+                                 "System32", "where.exe"),
+                    fake_bin / "targen.exe")
+    else:
+        tool = fake_bin / "targen"
+        tool.write_text(f"#!/bin/sh\nexec {sys.executable} -c 'pass'\n",
+                        encoding="utf-8")
+        tool.chmod(0o755)
 
     s = AppSettings()
     s.set("argyll_bin_path", str(fake_bin))
@@ -110,6 +121,13 @@ def test_run_emits_started_when_a_tool_actually_launches(qapp, tmp_path):
     r.started.connect(lambda: started.append(True))
     r.run("targen", ["-v"], pathlib.Path(tmp_path), on_finish=finished.append)
     _pump(qapp, 1500)
+    # A slow machine (the Windows ARM runner) can take longer than that to
+    # report the exit; give the finish up to 10 s more, it is not what is
+    # measured here.
+    for _ in range(20):
+        if finished:
+            break
+        _pump(qapp, 500)
 
     assert started == [True], (
         "run() did not emit `started`, so nothing can react to a tool actually "

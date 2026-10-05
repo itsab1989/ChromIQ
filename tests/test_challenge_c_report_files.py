@@ -35,6 +35,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest                                                  # noqa: E402
 from PyQt6.QtWidgets import QApplication                       # noqa: E402
 
+from tests.helpers.paths import CHMOD_CANNOT_LOCK_A_FOLDER, slashed  # noqa: E402
 from tests.test_calibration_reports import _settings, _window  # noqa: E402
 from tests.test_g7_reports_across_places import (              # noqa: E402
     _new_report_of_everything, _press, _project, _read, _reports, _snapshot)
@@ -146,7 +147,7 @@ def test_a_measurement_gone_from_disk_is_left_out_only_when_the_user_agrees(
             for f in tmp_path.rglob("report_*.json") if "old" not in f.parts]
     mine = [d for d in docs if (d.get("document") or {}).get("updated")]
     assert mine, "the agreed Update wrote nothing"
-    dirs = [m["dir"] for m in mine[0]["document"]["measurements"]]
+    dirs = [slashed(m["dir"]) for m in mine[0]["document"]["measurements"]]
     assert all("/Q/" not in d for d in dirs), dirs
     assert list(tmp_path.rglob("old/*/report_*.json")), "nothing archived"
 
@@ -171,20 +172,20 @@ def test_a_rename_rewrites_every_report_that_names_the_project(tmp_path, qapp):
     FileManager(_Settings(tmp_path)).rename_existing_project(q.root, "Q New")
     new = tmp_path / "Q-New"
     assert new.is_dir()
-    dirs = [m["dir"] for m in _read(doc)["document"]["measurements"]]
+    dirs = [slashed(m["dir"]) for m in _read(doc)["document"]["measurements"]]
     assert any("/Q-New/runs/run1/verifications/" in d for d in dirs), dirs
     assert not any("/Q/" in d for d in dirs), dirs
-    keys = [m["key"] for m in _read(doc)["document"]["measurements"]]
+    keys = [slashed(m["key"]) for m in _read(doc)["document"]["measurements"]]
     assert all(k.startswith(m) for k, m in zip(keys, dirs)), keys
     for f in new.rglob("report_*.json"):
         text = f.read_text(encoding="utf-8")
-        assert '"/Q/' not in text.replace(str(tmp_path), ""), f
+        assert '"/Q/' not in slashed(text).replace(slashed(tmp_path), ""), f
         rep = json.loads(text)
         if rep.get("ti3"):
             assert rep["ti3"].startswith("Q-New"), rep["ti3"]
     assert not list(tmp_path.rglob("old")), "a rename archived something"
     assert _snapshot(p.root) == p_before or all(
-        "/Q-New/" in v.decode() for k, v in _snapshot(p.root).items()
+        "/Q-New/" in slashed(v.decode()) for k, v in _snapshot(p.root).items()
         if p_before.get(k) != v)
 
 
@@ -207,7 +208,7 @@ def test_a_duplicates_original_is_not_rewritten(tmp_path, qapp):
     copy_reports = list((tmp_path / "Q-copy").rglob("report_*.json"))
     assert copy_reports
     for f in copy_reports:
-        assert '/Q/runs' not in f.read_text(encoding="utf-8"), f
+        assert '/Q/runs' not in slashed(f.read_text(encoding="utf-8")), f
 
 
 def test_a_renamed_project_is_found_by_its_former_name(tmp_path, qapp):
@@ -321,9 +322,10 @@ def test_deleting_a_run_renumbers_the_reports_that_name_runs(tmp_path):
     assert _run_dirs(across[0]) == ["run1", "run2.deleted", "run2"], \
         _run_dirs(across[0])
     keys = [m["key"] for m in _read(across[0])["document"]["measurements"]]
-    assert "/runs/run2.deleted|" in keys[1], keys
+    assert "/runs/run2.deleted|" in slashed(keys[1]), keys
 
 
+@pytest.mark.skipif(os.name == "nt", reason=CHMOD_CANNOT_LOCK_A_FOLDER)
 def test_a_run_delete_whose_reports_cannot_follow_deletes_nothing(tmp_path):
     """A report that must be renumbered is read-only: the delete is refused
     BEFORE anything moves, and says why.
@@ -359,6 +361,7 @@ class _Target:
 # --------------------------------------------------------------------------
 # #7 and #8: read-only folders
 # --------------------------------------------------------------------------
+@pytest.mark.skipif(os.name == "nt", reason=CHMOD_CANNOT_LOCK_A_FOLDER)
 def test_moving_report_files_is_all_or_nothing(tmp_path):
     """Two files, the second in a read-only folder: NEITHER moves, no old/
     folder is left behind, and the folder that stopped it is named.
@@ -388,6 +391,7 @@ def test_moving_report_files_is_all_or_nothing(tmp_path):
     assert not (a / "report_x.json").exists()
 
 
+@pytest.mark.skipif(os.name == "nt", reason=CHMOD_CANNOT_LOCK_A_FOLDER)
 def test_delete_in_a_read_only_folder_moves_nothing_and_says_why(
         tmp_path, qapp, said):
     """#7, the tester's steps: a report across dates in a read-only
@@ -419,6 +423,7 @@ def test_delete_in_a_read_only_folder_moves_nothing_and_says_why(
     assert not any("Errno" in x for _k, _t, x in said), said
 
 
+@pytest.mark.skipif(os.name == "nt", reason=CHMOD_CANNOT_LOCK_A_FOLDER)
 def test_an_update_in_a_read_only_folder_names_the_folder(tmp_path, qapp,
                                                           said):
     """#8: Update in a read-only folder writes nothing (as before) and the
