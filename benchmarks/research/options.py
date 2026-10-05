@@ -52,7 +52,6 @@ DATASETS = {
     "S3": ("S3", "targen", 400, "typical"),
     "X3m": ("X3m", "targen", 400, "typical"),
     "X5": ("X5", "targen", 900, "typical"),
-    "X1p": ("X1", "targen", 400, "pessimistic"),
     "X3p": ("X3", "targen", 400, "pessimistic"),
 }
 HEAVY = {"X5"}
@@ -71,6 +70,9 @@ def _j(block, ds, label, params=None, settings=None, colprof=True, engine=True,
 
 
 def matrix() -> list[dict]:
+    """First pass, trimmed 2026-10-05 14:20 to the coordinator's 4-process
+    budget (2 build lanes): each option once on the printer class where it
+    matters, colprof twins where a comparison carries the verdict."""
     m: list[dict] = []
     for ds in DATASETS:
         m.append(_j("base", ds, "base"))
@@ -80,99 +82,95 @@ def matrix() -> list[dict]:
             "model": "Model 9", "copyright": "© 2026 Test Druck",
             "z_surface": "m", "z_media_type": "t", "z_polarity": "n",
             "z_color_mode": "b", "z_default_intent": "p", "no_embedded_data": True}
-    for ds in ("X1", "X3"):
-        m.append(_j("M1", ds, "meta-all", meta))
-    for z in ("s", "a", "r"):
-        m.append(_j("M1", "X3", f"Z{z}", {"z_default_intent": z}))
+    m.append(_j("M1", "X1", "meta-all", meta, colprof=False))
+    m.append(_j("M1", "X3", "meta-all", meta))
+    m.append(_j("M1", "X3", "Zs", {"z_default_intent": "s"}, colprof=False))
     # P2-A1 algorithm
     for ds in ("X1", "X3", "X5"):
         m.append(_j("A1", ds, "ax", {"algorithm": "x"}))
     # P2-Q1 quality
-    for ds in ("X1", "X3"):
-        for q in ("l", "h", "u"):
-            m.append(_j("Q1", ds, f"q{q}", {"quality": q}))
+    for q in ("l", "h"):
+        m.append(_j("Q1", "X1", f"q{q}", {"quality": q}))
+    for q in ("l", "h", "u"):
+        m.append(_j("Q1", "X3", f"q{q}", {"quality": q}))
     m.append(_j("Q1", "X5", "ql", {"quality": "l"}))
     # P2-Q2 B2A quality
-    for ds in ("X1", "X3"):
-        for b in ("l", "m", "h", "u", "n"):
-            m.append(_j("Q2", ds, f"b{b}", {"b2a_quality": b}))
     for b in ("h", "n"):
-        m.append(_j("Q2", "X5", f"b{b}", {"b2a_quality": b}))
+        m.append(_j("Q2", "X1", f"b{b}", {"b2a_quality": b}))
+    for b in ("l", "h", "u", "n"):
+        m.append(_j("Q2", "X3", f"b{b}", {"b2a_quality": b}))
+    m.append(_j("Q2", "X5", "bn", {"b2a_quality": "n"}))
     # P2-R1 smoothing
-    for ds in ("X1", "X3", "X3p"):
-        for r in (0.25, 1.0, 2.0, 4.0):
-            m.append(_j("R1", ds, f"r{r:g}", {"smoothing": r}))
-    m.append(_j("R1", "X5", "r2", {"smoothing": 2.0}))
+    for r in (0.25, 4.0):
+        m.append(_j("R1", "X1", f"r{r:g}", {"smoothing": r}, colprof=False))
+    for r in (0.25, 1.0, 4.0):
+        m.append(_j("R1", "X3", f"r{r:g}", {"smoothing": r}))
+    m.append(_j("R1", "X3p", "r2", {"smoothing": 2.0}, colprof=False))
     # P2-V1 dark emphasis
-    for ds in ("X1", "X3"):
-        m.append(_j("V1", ds, "V2", {"dark_emphasis": 2.0}))
+    m.append(_j("V1", "X1", "V2", {"dark_emphasis": 2.0}, colprof=False))
+    m.append(_j("V1", "X3", "V2", {"dark_emphasis": 2.0}))
     m.append(_j("V1", "X3", "V3.5", {"dark_emphasis": 3.5}))
     # P2-S1 illuminant (SPEC data), S2 observer, S3 FWA
-    for ds in ("S3", "X3", "X1"):
+    for ds in ("S3", "X3"):
         for il in ("D50", "D65", "A", "F8", "D50M2", "D65M2"):
             m.append(_j("S1", ds, f"i{il}", {"illuminant": il}))
-    for ds in ("S3", "X1"):
-        for ob in ("1931_2", "1964_10", "2015_2", "2015_10"):
-            m.append(_j("S2", ds, f"o{ob}", {"observer": ob}))
+    for ob in ("1931_2", "1964_10", "2015_2", "2015_10"):
+        m.append(_j("S2", "S3", f"o{ob}", {"observer": ob}))
     m.append(_j("S3", "X3", "f", {"fwa_enabled": True}))
-    m.append(_j("S3", "X3", "fD50", {"fwa_enabled": True, "fwa_illum": "D50"}))
+    m.append(_j("S3", "X3", "fD50", {"fwa_enabled": True, "fwa_illum": "D50"}, colprof=False))
     # P2-K1 black generation, K2 locus
-    for ds in ("X3", "X3m"):
-        for k in ("z", "h", "x", "r"):
-            m.append(_j("K1", ds, f"k{k}", {"k_rule": k}))
-        m.append(_j("K1", ds, "kp", dict(KP)))
-    for k in ("r", "x"):
-        m.append(_j("K1", "X5", f"k{k}", {"k_rule": k}))
-    m.append(_j("K1", "X1", "kx", {"k_rule": "x"}))
+    for k in ("z", "h", "x", "r"):
+        m.append(_j("K1", "X3", f"k{k}", {"k_rule": k}))
+    m.append(_j("K1", "X3", "kp", dict(KP)))
+    for k in ("x", "r"):
+        m.append(_j("K1", "X3m", f"k{k}", {"k_rule": k}, colprof=False))
+    m.append(_j("K1", "X5", "kx", {"k_rule": "x"}))
+    m.append(_j("K1", "X1", "kx", {"k_rule": "x"}, colprof=False))
     for k in ("r", "x"):
         m.append(_j("K2", "X3", f"K{k}", {"k_rule": k, "k_locus": True}))
     m.append(_j("K2", "X3", "Kp", dict(KP, k_locus=True)))
-    m.append(_j("K2", "X5", "Kx", {"k_rule": "x", "k_locus": True}))
     # P2-L1/L2 ink limits from the chart stamp (no tab control)
     m.append(_j("L", "X3", "stampL70", ti3_variant="L70"))
     m.append(_j("L", "X3", "stampl240", ti3_variant="l240"))
     m.append(_j("L", "X5", "stampL70", ti3_variant="L70"))
     # P2-G1 gamut source
-    for ds in ("X1", "X3", "X5"):
+    for ds in ("X1", "X3"):
         m.append(_j("G1", ds, "gnone", {"gamut_sat_src": ""}))
         m.append(_j("G1", ds, "gs-clay", {"gamut_sat_src": "", "gamut_src": CLAY}))
-    for ds in ("X1", "X3"):
-        m.append(_j("G1", ds, "gS-srgb", {"gamut_sat_src": SRGB}))
+    m.append(_j("G1", "X3", "gS-srgb", {"gamut_sat_src": SRGB}))
+    m.append(_j("G1", "X5", "gnone", {"gamut_sat_src": ""}))
     # P2-G2 intents
-    for t in ("p", "pa", "lp", "ms", "r", "a"):
+    for t in ("pa", "lp", "ms", "r"):
         m.append(_j("G2", "X3", f"t{t}", {"perc_intent": t}))
-    for t in ("s", "ms", "r"):
+    for t in ("ms", "r"):
         m.append(_j("G2", "X3", f"T{t}", {"sat_intent": t}))
     m.append(_j("G2", "X5", "tpa", {"perc_intent": "pa"}))
     m.append(_j("G2", "X5", "Tms", {"sat_intent": "ms"}))
     # P2-G3 viewing conditions
-    for c, d in (("mt", "pp"), ("md", "pc"), ("pe", "pe")):
+    for c, d in (("mt", "pp"), ("pe", "pe")):
         m.append(_j("G3", "X3", f"c{c}-d{d}", {"src_viewing_cond": c,
                                                "dst_viewing_cond": d}))
     m.append(_j("G3", "X5", "cmt-dpp", {"src_viewing_cond": "mt", "dst_viewing_cond": "pp"}))
     # P2-G4 colorimetric source tables
-    for lab, kw in (("nP", {"no_perc_gamut": True}), ("nS", {"no_sat_gamut": True}),
-                    ("nPnS", {"no_perc_gamut": True, "no_sat_gamut": True})):
-        m.append(_j("G4", "X3", f"clay-{lab}", kw))
-        m.append(_j("G4", "X3", f"cmyk-{lab}", dict(kw, gamut_sat_src=CMYK_SRC)))
+    m.append(_j("G4", "X3", "clay-nP", {"no_perc_gamut": True}))
     m.append(_j("G4", "X3", "cmyk-base", {"gamut_sat_src": CMYK_SRC}))
-    m.append(_j("G4", "X5", "clay-nP", {"no_perc_gamut": True}))
+    m.append(_j("G4", "X3", "cmyk-nP", {"no_perc_gamut": True, "gamut_sat_src": CMYK_SRC}))
+    m.append(_j("G4", "X3", "cmyk-nS", {"no_sat_gamut": True, "gamut_sat_src": CMYK_SRC}))
     # P2-G5 inverse gamut mapping into A2B0/A2B2
     m.append(_j("G5", "X3", "nI", {"inv_gamut_map": True}))
     m.append(_j("G5", "X5", "nI", {"inv_gamut_map": True}))
     # P2-N1 curve flags
-    for ds in ("X1", "X3"):
-        m.append(_j("N1", ds, "ni", {"no_input_shaper": True}))
-        m.append(_j("N1", ds, "np", {"no_grid_pos": True}))
-        m.append(_j("N1", ds, "no", {"no_output_shaper": True}))
-        m.append(_j("N1", ds, "ni-np", {"no_input_shaper": True, "no_grid_pos": True}))
+    for lab, kw in (("ni", {"no_input_shaper": True}), ("no", {"no_output_shaper": True})):
+        m.append(_j("N1", "X1", lab, kw, colprof=False))
+    m.append(_j("N1", "X3", "ni", {"no_input_shaper": True}))
+    m.append(_j("N1", "X3", "np", {"no_grid_pos": True}))
+    m.append(_j("N1", "X3", "no", {"no_output_shaper": True}))
+    m.append(_j("N1", "X3", "ni-np", {"no_input_shaper": True, "no_grid_pos": True}))
     # P2-E1..E4 engine-only options
-    for ds in ("S3", "X3"):
-        m.append(_j("E1", ds, "physics", {"spectral_physics": True}, colprof=False))
-    for ds in ("X1", "X3"):
-        for v in ("4", "both"):
-            m.append(_j("E2", ds, f"v{v}", {"icc_version": v}, colprof=False))
-    for ds in ("X1", "X3", "S3", "X1p", "X3p", "X5"):
+    m.append(_j("E1", "X3", "physics", {"spectral_physics": True}, colprof=False))
+    for v in ("4", "both"):
+        m.append(_j("E2", "X3", f"v{v}", {"icc_version": v}, colprof=False))
+    for ds in ("X1", "X3", "X3p"):
         m.append(_j("E3", ds, "noise", {"noise_model": True}, colprof=False))
     for ds in ("X3", "X5"):
         m.append(_j("E4", ds, "bijective", {"render_style": "bijective"}, colprof=False))
@@ -292,15 +290,47 @@ def cmd_build(args) -> int:
     todo = [j for j in js if j["out"] not in done]
     print(f"{len(js)} jobs, {len(todo)} to build, {args.parallel} at a time", flush=True)
     t0 = time.time()
-    with ThreadPoolExecutor(max_workers=args.parallel) as ex:
-        for res in ex.map(run_one, todo):
-            builds = [b for b in builds if b["job"]["out"] != res["job"]["out"]] + [res]
-            bpath.write_text(json.dumps(builds, indent=1), encoding="utf-8")
+    lock = __import__("threading").Lock()
+    state = {"builds": builds}
+
+    limit_file = out / "lanes.txt"           # live lane cap: edit to shrink/grow
+    active = {"n": 0}
+
+    def one(j):
+        while True:
+            try:
+                cap = int(limit_file.read_text().split()[0])
+            except Exception:  # noqa: BLE001
+                cap = args.parallel
+            with lock:
+                if active["n"] < cap:
+                    active["n"] += 1
+                    break
+            time.sleep(5)
+        try:
+            res = run_one(j)
+        finally:
+            with lock:
+                active["n"] -= 1
+        with lock:
+            state["builds"] = [b for b in state["builds"]
+                               if b["job"]["out"] != res["job"]["out"]] + [res]
+            bpath.write_text(json.dumps(state["builds"], indent=1), encoding="utf-8")
             v = res["verified"]
             print(f"[{time.time() - t0:6.0f}s] {Path(res['job']['out']).name}: "
                   f"{'ok' if res.get('ok') else 'FAILED'} verified={v['ok']} "
                   f"{res.get('seconds', 0):.0f}s "
                   f"{'' if res.get('ok') else str(res.get('error', ''))[:160]}", flush=True)
+    # two pools: the 6-ink engine builds (tens of minutes each) on their own
+    # lanes, so the short builds stream in and can be analysed meanwhile
+    heavy = [j for j in todo if j["heavy"]]
+    light = [j for j in todo if not j["heavy"]]
+    nh = min(args.heavy_lanes, len(heavy)) if heavy else 0
+    with ThreadPoolExecutor(max_workers=max(1, nh)) as exh, \
+            ThreadPoolExecutor(max_workers=max(1, args.parallel - nh)) as exl:
+        futs = [exh.submit(one, j) for j in heavy] + [exl.submit(one, j) for j in light]
+        for f in futs:
+            f.result()
     return 0
 
 
@@ -566,6 +596,7 @@ def main(argv=None) -> int:
     ap.add_argument("--blocks", default="")
     ap.add_argument("--datasets", default="")
     ap.add_argument("--retry-failed", action="store_true")
+    ap.add_argument("--heavy-lanes", type=int, default=2)
     args = ap.parse_args(argv)
     if args.cmd == "list":
         m = matrix()
