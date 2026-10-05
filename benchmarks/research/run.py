@@ -78,7 +78,48 @@ REAL_BASE = list(dsm.REAL_SOURCES)
 # Ink limits for the real CMYK sets (percent). FOGRA39 and GRACoL 2006 use
 # their published TAC (330 / 320); the X-Rite sample chart has no stamp.
 REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
-            "R-CMYK-default-i1Pro": 300.0, "R-CMYK-default-i1iSis": 300.0}
+            "R-CMYK-default-i1Pro": 300.0, "R-CMYK-default-i1iSis": 300.0,
+            "R-FOGRA55": 300.0, "R-APTEC7C": 300.0,
+            "R-SWOP2006C3": 300.0, "R-SWOP2006C5": 300.0}
+
+
+# battery v3 (Agent 16): development printers (every known printer; the
+# sealed Z family is the only confirmatory set), their charts, the seeds
+V3_SYNTH = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "X1", "X3", "X3m", "X5", "X6",
+            "X7", "X8", "XKH", "XKB"]
+V3_SPARSE = ("S1", "S3", "X1", "X3", "XKH", "XKB")   # also targen 400 (one sheet or less)
+# Fast/Bit-exact identity re-builds (hard rule 1) on these typical targen-900
+# sets and every real set; Integrator 3's hash battery covers the rest
+V3_IDENTITY = ("X3",)
+V3_IDENTITY_REAL = ("R-FOGRA39L", "R-Pro300-CanonSG")
+# the 7-ink real sets (4884 / 3534 patches) are Agent 14's; not in this freeze
+V3_REAL_SKIP = ("R-FOGRA55", "R-APTEC7C")
+SEEDS3_PRINTERS = ["X1", "X3", "X5"]
+SEEDS3_LEVELS = {"X1": ("typical",), "X5": ("typical",)}
+# seeds per printer and level: 10 where ramp rows must be confirmable (v2.1
+# A4), 6 elsewhere (SD only). Cut on 2026-10-05 01:05 to 3 build processes
+# (coordinator: machine 2x oversubscribed); classes without a measured SD
+# take the documented fallback (stats3.seed_sd)
+SEEDS3_K = {("X1", "typical"): 10, ("X3", "typical"): 10, ("X3", "pessimistic"): 6,
+            ("X5", "typical"): 6}
+LEVELS_V3 = [list(BENCH_LEVELS)]
+N_SEEDS3 = 10
+SEEDS_N = [N_SEEDS3]
+SEALED_DIR = [None]
+NO_REAL = [False]
+V3_READERS = "argyll,lcms,colorsync,lcms-app,ghostscript,ghostscript-bpc"
+
+
+NO_SEPT = [False]
+
+
+def v3_charts(p) -> list[tuple[str, int]]:
+    out = [("targen", 900)] + ([] if NO_SEPT[0] else [("september", 900)])
+    if p.id in V3_SPARSE:
+        out.append(("targen", 400))
+    if p.n >= 5:
+        out.append(("ecg", 900))
+    return out
 
 
 def sh(cmd, **kw) -> str:
@@ -259,6 +300,59 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
             if keep(pid):
                 specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
                               "variant": "physics"})
+    elif suite == "ecgchart":
+        # agent 14: the same printers and noise, charts composed like a
+        # professional ECG chart (datasets.make_chart_ecg), 900 and 600 patches
+        for pid, npat in (("X5", 900), ("X8", 900), ("X7", 900), ("X7", 600)):
+                if keep(pid):
+                    specs.append({"ds": dsm.synthetic(pid, work, npat, printers=printers,
+                                                      chart="ecg"),
+                                  "variant": f"ecg{npat}"})
+    elif suite == "ncsep":
+        # agent 14: separation-policy candidates on the multi-ink printers
+        # (typical noise, September chart and the ECG chart)
+        for pid in ["X5", "X6"]:
+            if keep(pid):
+                specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
+                              "variant": "typical"})
+                specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers,
+                                                  chart="ecg"),
+                              "variant": "ecg900"})
+    elif suite == "v3":
+        # battery v3 frozen baseline (protocol v3): every development printer
+        # on the charts ChromIQ produces (targen at its defaults), the
+        # robustness chart (september) and, for 5+ inks, the ECG chart; both
+        # noise levels; plus every real held-out set
+        for lvl in LEVELS_V3[0]:
+            for pid in V3_SYNTH:
+                if not keep(pid):
+                    continue
+                for kind, n in v3_charts(printers[pid]):
+                    specs.append({"ds": dsm.synthetic_chart(pid, work, kind, n, level=lvl,
+                                                            printers=printers),
+                                  "variant": f"{lvl}-{kind}{n}", "role": "development"})
+        for name in ([] if NO_REAL[0] else [r for r in REAL_BASE if r not in V3_REAL_SKIP]):
+            if keep(name):
+                d = dsm.real(name, work / name)
+                if name in REAL_TAC:
+                    d.ink_limit = REAL_TAC[name]
+                specs.append({"ds": d, "variant": "base", "role": "development"})
+    elif suite == "seeds3":
+        # protocol v3 B1: k noise seeds on the ChromIQ-default chart, both
+        # levels, every engine: the measured between-seed SD per engine
+        for pid in SEEDS3_PRINTERS:
+            if not keep(pid):
+                continue
+            for lvl in SEEDS3_LEVELS.get(pid, BENCH_LEVELS):
+                for k in range(min(SEEDS_N[0], SEEDS3_K.get((pid, lvl), SEEDS_N[0]))):
+                    specs.append({"ds": dsm.synthetic_chart(pid, work, "targen", 900, level=lvl,
+                                                            seed=23 + k, printers=printers),
+                                  "variant": f"seed{k}-{lvl}-targen900", "role": "development"})
+    elif suite == "sealed":
+        from benchmarks.research import sealed as sealed_mod
+        for lvl, d in sealed_mod.load_datasets(SEALED_DIR[0], work, only=only):
+            specs.append({"ds": d, "variant": f"{lvl}-{d.info['chart']}{d.info['patches']}",
+                          "role": "sealed"})
     elif suite == "repeat":
         for pid in ["S3", "X5"]:
             if keep(pid):
@@ -280,6 +374,10 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         engines = [e for e in engines if e in ("colprof", "fast", "accurate")]
     if suite == "b2agrid":
         engines = [e for e in engines if e in ("colprof", "accurate")]
+    if suite == "v3" and "-ecg" in spec["variant"]:
+        # 5+ ink ECG charts: Bit-exact left out of this freeze (3-process
+        # cap; 20-30 min per multi-ink build); Fast is the comparator there
+        engines = [e for e in engines if e != "argyll"]
     if suite == "repeat":
         engines = ["accurate", "fast"]
     if suite == "physics":
@@ -300,7 +398,9 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         jobs.append(j)
         if suite == "repeat":
             jobs.append(dict(j, out=str(profdir / f"{tag}-{e}-again.icc"), role="repeat"))
-    if suite == "baseline" and spec["variant"] in ("typical", "base"):
+    if (suite == "baseline" and spec["variant"] in ("typical", "base")) or \
+            (suite == "v3" and ((spec["variant"] == "base" and ds.name in V3_IDENTITY_REAL) or (
+                spec["variant"] == "typical-targen900" and ds.name in V3_IDENTITY))):
         for role in ("identity", "upstream"):
             if not trees.get(role):
                 continue
@@ -317,7 +417,7 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         jobs.append(dict(base, engine="accurate", tree=str(trees["f00"]),
                          out=str(profdir / f"{tag}-accurate-37357e92parent.icc"),
                          role="f00-parent"))
-    if ds.kind == "real":
+    if ds.kind == "real" and ds.n_channels <= 4:
         jobs.append(dict(base, engine="colprof", quality="h", source_gamut=None,
                          ti3=str(ds.full_ti3), tree=str(trees["branch"]),
                          out=str(profdir / f"{tag}-PROXY-colprof-qh-full.icc"),
@@ -336,7 +436,8 @@ def main(argv=None) -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--datasets", default="", help="subset of dataset names")
     ap.add_argument("--engines", default="colprof,fast,argyll,accurate")
-    ap.add_argument("--readers", default="argyll,lcms,colorsync,multilinear")
+    ap.add_argument("--readers", default="",
+                    help="default: argyll,lcms,colorsync,multilinear; v3 suites: " + V3_READERS)
     ap.add_argument("--quality", default="m")
     ap.add_argument("--patches", type=int, default=900)
     ap.add_argument("--eval", type=int, default=20000)
@@ -365,11 +466,36 @@ def main(argv=None) -> int:
                          "on 5+ inks fail again), then score everything")
     ap.add_argument("--score-only", action="store_true",
                     help="re-score the builds recorded in <out>/builds.json")
+    ap.add_argument("--resume", action="store_true",
+                    help="v3: keep every ok build of <out>/builds.json whose profile "
+                         "exists, build the rest, then score (reuses <out>/scores/)")
+    ap.add_argument("--engine-ref", default="",
+                    help="v3: build every engine from a detached checkout of this ref "
+                         "(e.g. research-integration-1), the benchmark code from this tree")
+    ap.add_argument("--sealed-dir", default="",
+                    help="v3 --suite sealed: the UNSEALED sealed directory")
+    ap.add_argument("--seeds", type=int, default=N_SEEDS3,
+                    help="seeds3: number of noise seeds (protocol v3: 10)")
+    ap.add_argument("--levels", default="", help="v3: noise levels (default both)")
+    ap.add_argument("--no-real", action="store_true", help="v3: synthetic sets only")
+    ap.add_argument("--no-september", action="store_true",
+                    help="v3: leave out the robustness chart")
+    ap.add_argument("--score-parallel", type=int, default=0,
+                    help="scoring processes (default = --parallel)")
     args = ap.parse_args(argv)
+    if args.sealed_dir:
+        SEALED_DIR[0] = Path(args.sealed_dir).expanduser()
+    SEEDS_N[0] = args.seeds
+    NO_REAL[0] = args.no_real
+    NO_SEPT[0] = args.no_september
+    if args.levels:
+        LEVELS_V3[0] = args.levels.split(",")
     if args.i1profiler_data:
         os.environ[dsm.XRITE_ENV] = str(Path(args.i1profiler_data).expanduser())
     args.engines = [e for e in args.engines.split(",") if e]
-    readers = [r for r in args.readers.split(",") if r]
+    v3 = any(x in args.suite for x in ("v3", "seeds3", "sealed"))
+    readers = [r for r in (args.readers or (V3_READERS if v3 else
+                                            "argyll,lcms,colorsync,multilinear")).split(",") if r]
     out = Path(args.out).resolve()
     work, profdir = out / "work", out / "profiles"
     for d in (work, profdir):
@@ -385,7 +511,15 @@ def main(argv=None) -> int:
              "accurate": Path(args.accurate_tree).resolve() if args.accurate_tree else TREE}
     made = []
     try:
-        if "baseline" in suites:
+        if args.engine_ref:
+            eng = scratch / "engine"
+            if not (eng / ".git").exists():
+                worktree(args.engine_ref, eng)
+                made.append(eng)
+            trees["branch"] = eng
+            if not args.accurate_tree:
+                trees["accurate"] = eng
+        if "baseline" in suites or "v3" in suites:
             for role, ref in (("identity", args.identity_ref),
                               ("upstream", args.upstream_ref)):
                 if ref:
@@ -429,6 +563,26 @@ def main(argv=None) -> int:
                     builds_path.write_text(json.dumps(builds, indent=1), encoding="utf-8")
         elif args.score_only and builds_path.exists():
             builds = json.loads(builds_path.read_text(encoding="utf-8"))
+        elif args.resume and builds_path.exists():
+            old = {b["job"]["out"]: b for b in json.loads(builds_path.read_text(encoding="utf-8"))
+                   if b.get("ok") and Path(b["job"]["out"]).exists()}
+            todo = [j for j in jobs if j["out"] not in old]
+            print(f"resume: {len(jobs) - len(todo)} builds kept, {len(todo)} to build", flush=True)
+            builds = []
+            for j in jobs:
+                if j["out"] in old:
+                    b = old[j["out"]]
+                    b["job"] = dict(b["job"], spec_index=j["spec_index"])
+                    builds.append(b)
+            t0 = time.time()
+            with ThreadPoolExecutor(max_workers=args.parallel) as ex:
+                for res in ex.map(run_build, todo):
+                    builds.append(res)
+                    j = res["job"]
+                    print(f"[{time.time() - t0:6.0f}s] {Path(j['out']).name}: "
+                          f"{'ok' if res.get('ok') else 'FAILED'} {res.get('seconds', 0):.0f}s "
+                          f"{'' if res.get('ok') else res.get('error', '')[:200]}", flush=True)
+                    builds_path.write_text(json.dumps(builds, indent=1), encoding="utf-8")
         else:
             t0 = time.time()
             builds = []
@@ -449,19 +603,17 @@ def main(argv=None) -> int:
         # --- scoring ------------------------------------------------------------
         results = {"env": env, "identity": ident, "upstream": upstream, "gates": gates,
                    "datasets": [], "builds": builds}
+        tasks, entries = [], []
         for i, s in enumerate(specs):
             ds = s["ds"]
             entry = {"name": ds.name, "suite": s["suite"], "variant": s["variant"],
-                     "role": dsm.role_of(ds.name),
+                     "role": s.get("role") or dsm.role_of(ds.name),
                      "kind": ds.kind, "n_channels": ds.n_channels,
                      "color_rep": ds.color_rep, "ink_limit": ds.ink_limit,
                      "info": ds.info, "profiles": {}}
+            entries.append(entry)
             mine = [b for b in builds if b["job"].get("spec_index") == i]
             proxy = next((b for b in mine if b["job"]["role"] == "proxy" and b.get("ok")), None)
-            if ds.kind == "real":
-                truth = metrics.Truth(proxy_icc=proxy["job"]["out"]) if proxy else None
-            else:
-                truth = metrics.Truth(printer=ds.printer, illuminant=ds.illuminant or "D50")
             for b in mine:
                 j = b["job"]
                 if j["role"] in ("proxy", "identity", "repeat"):
@@ -469,37 +621,27 @@ def main(argv=None) -> int:
                 key = j["engine"] if j["role"] == "branch" else f"{j['engine']}@{j['role']}"
                 stem = Path(j["out"]).stem if j["role"] == "branch" else \
                     f"{Path(j['out']).stem}@{j['role']}"
-                rec = {k: b.get(k) for k in ("ok", "seconds", "sha256", "v4_sha256",
-                                               "error", "outlier_rows", "fit_median_de00")}
-                if b.get("ok") and truth is not None:
-                    rec["raw_neutral_column"] = metrics.raw_neutral_column(j["out"])
-                    rec["scores"] = {}
-                    for r in readers:
-                        sink: dict = {}
-                        try:
-                            rec["scores"][r] = metrics.score(
-                                j["out"], ds, r, truth, n_eval=args.eval,
-                                light=s["suite"] in ("seeds", "noise"), sink=sink)
-                        except Exception as exc:
-                            rec["scores"][r] = {"error": f"{type(exc).__name__}: {exc}"}
-                        if sink:
-                            (out / "points").mkdir(exist_ok=True)
-                            np.savez_compressed(
-                                out / "points" / f"{stem}-{r}.npz",
-                                **{k: np.asarray(v) for k, v in sink.items()})
-                    if ds.kind == "synthetic" and j["engine"] != "colprof":
-                        flagged = set(b.get("outlier_rows") or [])
-                        true = set(int(x) for x in ds.misread_rows)
-                        tp = len(flagged & true)
-                        rec["outliers"] = {"flagged": len(flagged), "true": len(true),
-                                           "true_positive": tp,
-                                           "false_positive": len(flagged - true),
-                                           "recall": tp / len(true) if true else None,
-                                           "precision": tp / len(flagged) if flagged else None}
-                entry["profiles"][key] = rec
-                print(f"scored {ds.name} {s['variant']} {key}", flush=True)
-            results["datasets"].append(entry)
-            (out / "results.json").write_text(json.dumps(results, indent=1, default=_js), encoding="utf-8")
+                tasks.append({"i": i, "key": key, "stem": stem, "build": b, "ds": ds,
+                              "proxy": proxy["job"]["out"] if proxy else None,
+                              "readers": readers, "n_eval": args.eval,
+                              "light": s["suite"] in ("seeds", "noise", "seeds3"),
+                              "out": str(out), "reuse": args.resume or args.score_only})
+        sp = args.score_parallel or args.parallel
+        print(f"scoring {len(tasks)} profiles, {sp} processes", flush=True)
+        import multiprocessing as mp
+        from concurrent.futures import ProcessPoolExecutor
+        done = 0
+        with ProcessPoolExecutor(max_workers=sp, mp_context=mp.get_context("spawn")) as ex:
+            for i, key, rec in ex.map(score_task, tasks):
+                entries[i]["profiles"][key] = rec
+                done += 1
+                print(f"scored {entries[i]['name']} {entries[i]['variant']} {key} "
+                      f"({done}/{len(tasks)})", flush=True)
+                if done % 20 == 0 or done == len(tasks):
+                    results["datasets"] = entries
+                    (out / "results.json").write_text(json.dumps(results, indent=1, default=_js),
+                                                      encoding="utf-8")
+        results["datasets"] = entries
         env["loadavg_end"] = os.getloadavg()
         (out / "results.json").write_text(json.dumps(results, indent=1, default=_js), encoding="utf-8")
         from benchmarks.research.summary import write_summary
@@ -518,6 +660,84 @@ def main(argv=None) -> int:
     finally:
         for t in made:
             drop_worktree(t)
+
+
+def _truth_for(ds, proxy_out):
+    if ds.kind == "real":
+        # 5+ inks: colprof cannot build the proxy; the set's own published
+        # reference profile (FOGRA55: ColorLogic CoPrA) stands in, labelled
+        # in results.json (agent 14)
+        pxy = proxy_out or ds.info.get("reference_icc")
+        if not pxy:
+            return None
+        vers = Path(pxy).read_bytes()[8]
+        return metrics.Truth(proxy_icc=pxy, proxy_reader="lcms" if vers >= 4 and not proxy_out
+                             else "argyll")
+    return metrics.Truth(printer=ds.printer, illuminant=ds.illuminant or "D50")
+
+
+def score_task(t: dict):
+    """Score one profile under every reader (runs in a spawned process).
+    Per-profile scores are cached in <out>/scores/<stem>.json so a killed
+    run resumes without re-scoring (``--resume`` / ``--score-only``)."""
+    import os as _os
+    for k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+        _os.environ.setdefault(k, "1")
+    b, ds, out = t["build"], t["ds"], Path(t["out"])
+    j = b["job"]
+    cache = out / "scores" / f"{t['stem']}.json"
+    if t.get("reuse") and cache.exists():
+        rec = json.loads(cache.read_text(encoding="utf-8"))
+        stale = ds.kind == "synthetic" and ds.n_channels >= 5 and not t["light"] \
+            and "ncq" not in rec
+        if rec.get("sha256") == b.get("sha256") and not stale:
+            return t["i"], t["key"], rec
+    rec = {k: b.get(k) for k in ("ok", "seconds", "sha256", "v4_sha256",
+                                   "error", "outlier_rows", "fit_median_de00")}
+    truth = _truth_for(ds, t["proxy"])
+    if b.get("ok") and truth is not None:
+        rec["raw_neutral_column"] = metrics.raw_neutral_column(j["out"])
+        rec["scores"] = {}
+        for r in t["readers"]:
+            if not cmm.supports(r, "b2a", j["out"]):
+                rec["scores"][r] = {"unsupported": f"{r} cannot read this profile "
+                                                   f"({ds.color_rep}, {ds.n_channels} channels)"}
+                continue
+            sink: dict = {}
+            t0 = time.time()
+            try:
+                rec["scores"][r] = metrics.score(j["out"], ds, r, truth, n_eval=t["n_eval"],
+                                                 light=t["light"], sink=sink)
+                # protocol v3 N (Agent 14's v2.2): N-colour point endpoints
+                # E7-E9 and the F-12 gross-extrapolation fact, 5+ inks
+                if (ds.kind == "synthetic" and ds.n_channels >= 5
+                        and r in ("argyll", "lcms") and not t["light"]):
+                    from benchmarks.research import ncpoints
+                    rec["scores"][r]["nc"] = ncpoints.evaluate(j["out"], ds.printer, r, sink)
+                rec["scores"][r]["seconds"] = time.time() - t0
+            except Exception as exc:
+                rec["scores"][r] = {"error": f"{type(exc).__name__}: {exc}"}
+            if sink:
+                (out / "points").mkdir(exist_ok=True)
+                np.savez_compressed(out / "points" / f"{t['stem']}-{r}.npz",
+                                    **{k: np.asarray(v) for k, v in sink.items()})
+        if ds.kind == "synthetic" and ds.n_channels >= 5 and not t["light"]:
+            try:
+                from benchmarks.research import ncpoints
+                rec["ncq"] = ncpoints.referee(j["out"], ds.printer, "argyll")
+            except Exception as exc:
+                rec["ncq"] = {"error": f"{type(exc).__name__}: {exc}"}
+        if ds.kind == "synthetic" and j["engine"] != "colprof":
+            flagged = set(b.get("outlier_rows") or [])
+            true = set(int(x) for x in ds.misread_rows)
+            tp = len(flagged & true)
+            rec["outliers"] = {"flagged": len(flagged), "true": len(true),
+                               "true_positive": tp, "false_positive": len(flagged - true),
+                               "recall": tp / len(true) if true else None,
+                               "precision": tp / len(flagged) if flagged else None}
+    cache.parent.mkdir(exist_ok=True)
+    cache.write_text(json.dumps(rec, default=_js), encoding="utf-8")
+    return t["i"], t["key"], rec
 
 
 def _js(o):

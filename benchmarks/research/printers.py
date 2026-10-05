@@ -301,6 +301,64 @@ class ClapperYuleTruth(TruthPrinter):
         return r + self.flare * paper[None, :]
 
 
+# ---------------------------------------------------------------------------
+# Agent 13's uneven CMYK printers (K1, 2026-10-04): DEVELOPMENT sets since
+# battery v3 (they are known; the sealed Z family is the confirmatory test).
+# Definitions copied unchanged from Experiments/agent13/K1_kink_stress.py so
+# his numbers reproduce.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class HandoffTruth(TruthPrinter):
+    """XKH: a CMYK device whose C and M channels a driver splits into a light
+    and a dark ink (X8's inks, 30 % dilution): the light ink rises to full
+    at device 0.40 and falls to 0.25 at 1.0, the dark ink starts at 0.30."""
+    id: str = "XKH"
+    device_rep: str = "CMYK"
+    tac: float | None = 300.0
+    family: str = field(default="clapper-yule-kinked", compare=False)
+
+    @staticmethod
+    def split(v):
+        light = np.where(v < 0.40, v / 0.40, 1.0 - (v - 0.40) / 0.60 * 0.75)
+        dark = np.clip((v - 0.30) / 0.70, 0.0, 1.0)
+        return np.clip(light, 0, 1), dark
+
+    def reflectance(self, device, lam):
+        d = np.clip(np.atleast_2d(np.asarray(device, float)), 0, 1)
+        lc, c = self.split(d[:, 0])
+        lm, m = self.split(d[:, 1])
+        six = np.stack([c, m, d[:, 2], d[:, 3], lc, lm], 1)   # CMYKcm
+        return _X8.reflectance(six, lam)
+
+
+@dataclass(frozen=True)
+class KinkBronzeTruth(TruthPrinter):
+    """XKB: X3 behind a piecewise-linear linearisation (slope 0.75 below 50 %,
+    1.25 above) plus a reddish bronzing sheen that switches on between 230 %
+    and 250 % total ink: the darkest neutral is L* 7.2 near 226 %, the
+    stack at 260-300 % prints lighter (a dark end that LIGHTENS)."""
+    id: str = "XKB"
+    device_rep: str = "CMYK"
+    tac: float | None = 300.0
+    family: str = field(default="clapper-yule-kinked", compare=False)
+
+    def reflectance(self, device, lam):
+        d = np.clip(np.atleast_2d(np.asarray(device, float)), 0, 1)
+        lin = np.where(d < 0.5, 0.75 * d, 0.375 + 1.25 * (d - 0.5))
+        r = _X3.reflectance(lin, lam)
+        tot = d.sum(1)
+        s = np.clip((tot - 2.3) / 0.2, 0.0, 1.0)
+        s = s * s * (3 - 2 * s)                       # smoothstep, 20 % band
+        sheen = 0.035 * (0.3 + 0.7 * d[:, 0]) * s
+        spec = 1.0 / (1.0 + np.exp(-(np.asarray(lam) - 600.0) / 25.0))
+        return r + sheen[:, None] * (0.3 + 0.7 * spec)[None, :]
+
+
+_X3 = ClapperYuleTruth("X3", "CMYK", tac=300.0)
+_X8 = ClapperYuleTruth("X8", "CMYKcm", tac=320.0, light_inks=(("c", 0.30), ("m", 0.30)))
+
+
 def build_printers() -> dict[str, TruthPrinter]:
     from benchmarks.synthetic import PRINTERS
     out: dict[str, TruthPrinter] = {k: YnsnTruth(v) for k, v in PRINTERS.items()}
@@ -316,4 +374,6 @@ def build_printers() -> dict[str, TruthPrinter]:
                          light_inks=(("c", 0.30), ("m", 0.30))),
     ]
     out.update({p.id: p for p in x})
+    # battery v3: Agent 13's uneven printers, development
+    out.update({"XKH": HandoffTruth(), "XKB": KinkBronzeTruth()})
     return out

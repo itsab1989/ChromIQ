@@ -101,6 +101,19 @@ def accurate_candidates(tokens) -> frozenset:
                      if not t.startswith("no-") and t not in off)
 
 
+def _process_ink_hues(meas) -> dict:
+    """Measured hue of the C, M, Y solids (research token a14-ecgsep)."""
+    out = {}
+    lab = meas.lab_relative
+    for i, letter in enumerate(meas.channel_letters[:3]):
+        others = np.delete(meas.device, i, axis=1)
+        solid = (meas.device[:, i] >= 0.85) & (others.max(1) <= 0.05)
+        if solid.any():
+            a, b = lab[solid, 1].mean(), lab[solid, 2].mean()
+            out[letter] = float(np.degrees(np.arctan2(b, a)) % 360.0)
+    return out or None
+
+
 def candidates_from_env(env_value: str | None) -> frozenset:
     """Parse ``CHROMIQ_ENGINE_NEXT`` (comma-separated candidate tokens)."""
     if not env_value:
@@ -518,6 +531,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # patches (after the -R/-u mutations above), measured extra-ink hues.
         meas.average_endpoints()
     extra_hues = meas.extra_ink_hues() if accurate else None
+    b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
+    b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
+    if b2a_mod.ECG_SEPARATION["on"]:
+        b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
     # Measured black L* anchors the GCR locus in accurate mode (shadow-
     # banding fix) and any explicit -k/-K curve (Argyll normalises its
     # inking curve over the profile's own L range); None keeps the parity

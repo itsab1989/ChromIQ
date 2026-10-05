@@ -511,7 +511,50 @@ def ink_priors(target: np.ndarray, n: int, *,
             target, channel_letters[ch],
             hue_override=hues.get(channel_letters[ch]))
         prior_w[:, ch] = 0.05
+    if accurate and ECG_SEPARATION.get("on"):
+        _ecg_separation_priors(target, prior, prior_w, channel_letters, hues)
     return prior, prior_w
+
+
+# Research token "a14-ecgsep" (agent14-01, Validation/ncolour-excellence.md):
+# the professional ECG separation rule that an extra ink never prints with
+# the process ink on the far side of the hue circle (CMYKOGV: O with C, G
+# with M, V with Y; Fogra/IDEAlliance ECG practice, Tzeng-Berns, Deshpande's
+# 4-ink sectors). Where an extra ink's hue gate is open, the complementary
+# process ink gets a soft prior towards 0, weighted by that gate; elsewhere
+# nothing changes. Set by the builder per build (one build per process).
+ECG_SEPARATION: dict = {"on": False, "sector": False, "weight": 0.5, "cmy_hues": None}
+_CMY_HUE_DEFAULT = {"C": 235.0, "M": 355.0, "Y": 95.0}
+
+
+def _ecg_separation_priors(target, prior, prior_w, letters, extra_hues):
+    cmy = ECG_SEPARATION.get("cmy_hues") or _CMY_HUE_DEFAULT
+    w = float(ECG_SEPARATION.get("weight", 0.5))
+    for ch in range(4, len(letters)):
+        hue = extra_hues.get(letters[ch], _EXTRA_INK_HUE.get(letters[ch]))
+        if hue is None or letters[ch] in ("c", "m", "y", "k"):
+            continue                       # light inks have no complement
+        far = max((abs((hue - h + 180.0) % 360.0 - 180.0), i)
+                  for i, h in ((letters.index(l), cmy[l]) for l in "CMY" if l in letters))
+        if far[0] < 120.0:
+            continue
+        comp = far[1]
+        gate = extra_ink_amount(target, letters[ch], power=1.0, hue_override=hue)
+        wt = w * np.clip(gate * 2.0, 0.0, 1.0)
+        # target 0 for the complement where the gate is open (the strongest
+        # gate wins when two extra inks want the same process ink out)
+        take = wt > prior_w[:, comp]
+        prior[take, comp] = 0.0
+        prior_w[take, comp] = wt[take]
+        if ECG_SEPARATION.get("sector"):
+            # a14-ecgsep2: the extra ink itself stays out of the hue sectors
+            # it does not belong to (measured with a14-ecgsep alone: O moved
+            # into the green-cyan sector on X5, so C+O reappeared there)
+            out = w * np.clip(1.0 - 2.0 * gate, 0.0, 1.0) * np.clip(
+                np.hypot(target[:, 1], target[:, 2]) / 15.0, 0.0, 1.0)
+            more = out > prior_w[:, ch]
+            prior[more, ch] = 0.0
+            prior_w[more, ch] = out[more]
 
 
 def invert_to_device(model: ForwardModel, target: np.ndarray, *,
