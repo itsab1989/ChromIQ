@@ -579,7 +579,7 @@ def _ecg_separation_priors(target, prior, prior_w, letters, extra_hues):
 # "on": the colour-exact ink policy (D1, "a21-hardcol"); "firm": the ECG rules as
 # firm priors (only meaningful with "on"); "smooth_p": an override prior field
 # (callable target -> (prior, prior_w)) used by the smooth-then-reproject pass (D2).
-HARD_COLOUR: dict = {"on": False, "firm": 0.0, "grey_firm": 0.0, "eps": 1e-3,
+HARD_COLOUR: dict = {"on": False, "firm": 0.0, "grey_firm": 0.0, "pair_firm": 0.0, "eps": 1e-3,
                      "tol": 0.05, "iters": 8, "smooth_p": None}
 
 
@@ -672,6 +672,38 @@ def _firm_policy(target, prior, prior_w, letters, extra_hues):
             ECG_SEPARATION["sector"] = sec
         finally:
             ECG_SEPARATION["weight"] = saved
+    pfirm = float(HARD_COLOUR.get("pair_firm") or 0.0)
+    if pfirm > 0:
+        # Agent 21 "a21-pairfirm": an Equinox-like sector partition. For every
+        # complementary pair (an extra ink and the process ink >= 120 deg away)
+        # the ink whose measured hue is FARTHER from the target hue is pushed
+        # to 0, with a 20-degree blend band at the border; at most K + 3
+        # chromatic inks then print together. Low chroma is left to the grey rule.
+        cmy = ECG_SEPARATION.get("cmy_hues") or _CMY_HUE_DEFAULT
+        th = np.degrees(np.arctan2(target[:, 2], target[:, 1])) % 360.0
+        ch = np.hypot(target[:, 1], target[:, 2])
+        cgate = np.clip((ch - 5.0) / 10.0, 0.0, 1.0)
+        hues = extra_hues or {}
+        for e in range(4, len(letters)):
+            he = hues.get(letters[e], _EXTRA_INK_HUE.get(letters[e]))
+            if he is None or letters[e] in ("c", "m", "y", "k"):
+                continue
+            for pc in "CMY":
+                if pc not in letters or pc not in cmy:
+                    continue
+                hp = cmy[pc]
+                if abs((he - hp + 180.0) % 360.0 - 180.0) < 120.0:
+                    continue
+                i = letters.index(pc)
+                de_ = np.abs((th - he + 180.0) % 360.0 - 180.0)
+                dp_ = np.abs((th - hp + 180.0) % 360.0 - 180.0)
+                # > 0: the target is nearer the process ink -> extra ink out
+                x = np.clip((de_ - dp_) / 20.0 + 0.5, 0.0, 1.0)
+                for ch_i, wgt in ((e, x), (i, 1.0 - x)):
+                    ww = pfirm * wgt * cgate
+                    more = ww > prior_w[:, ch_i]
+                    prior[more, ch_i] = 0.0
+                    prior_w[more, ch_i] = ww[more]
     if gfirm > 0:
         nw = np.exp(-(np.hypot(target[:, 1], target[:, 2]) / 12.0) ** 2)
         for ch in range(4, len(letters)):
