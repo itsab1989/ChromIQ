@@ -641,7 +641,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     b2a_mod.HARD_COLOUR["grey_firm"] = 2.0 if ("a21-greyfirm" in candidates
                                                or "a21-ecgfirm" in candidates) else 0.0
     b2a_mod.HARD_COLOUR["smooth_p"] = None
-    b2a_mod.LIGHT_CLOUD["on"] = "a21-lightcloud" in candidates
+    b2a_mod.LIGHT_CLOUD["on"] = ("a21-lightcloud" in candidates and not meas.is_additive)
     b2a_mod.HARD_COLOUR["stats"] = []
     if ((b2a_mod.HARD_COLOUR["firm"] or b2a_mod.HARD_COLOUR["pair_firm"])
             and not b2a_mod.ECG_SEPARATION["on"]):
