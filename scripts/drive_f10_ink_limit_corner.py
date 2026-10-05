@@ -67,6 +67,14 @@ def script(d):
         lim._enable_check.click()               # what a user's tick does
     yield 600
     grey = _row(tab, "-g")
+    # Grey Axis Steps starts on Auto (the spin box greyed out, 525 patches ->
+    # -g30). Writing 11 into the greyed row without unticking Auto showed "11"
+    # on screen while targen got -g30, which no user can do (the row is
+    # disabled). Untick Auto first, as a user would.
+    auto = getattr(tab, "_manual_auto_grey_check", None)
+    if auto is not None and auto.isChecked():
+        auto.click()
+        yield 600
     grey.set_value(11)
     yield 800
     rec["settings_before"] = {"-d": dev.get_raw_value(),
