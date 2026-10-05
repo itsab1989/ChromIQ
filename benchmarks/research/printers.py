@@ -232,6 +232,40 @@ def _tvi(a: np.ndarray, gain: float, skew: float) -> np.ndarray:
     return np.clip(a + gain * g * (1.0 - a) * 1.4, 0.0, 1.0)
 
 
+def _cy_ink_d_alt(letter: str, lam: np.ndarray) -> np.ndarray:
+    """A second, independent ink set (agent 18b, challenge B2: X9 reused the
+    X5/X6 spectra). Different edges, widths and densities for every ink, and
+    unwanted absorptions the first set does not have."""
+    if letter == "C":      # greener cyan, broader red absorption
+        return 1.35 * _edge(lam, 588.0, 24.0) + 0.25 * _edge(lam, 455.0, 25.0, False)
+    if letter == "M":      # bluer magenta, wider green band
+        return (1.30 * _edge(lam, 482.0, 16.0) * _edge(lam, 605.0, 14.0, False)
+                + 0.18 * _edge(lam, 445.0, 20.0, False) + 0.06 * _edge(lam, 640.0, 30.0))
+    if letter == "Y":      # warmer yellow, softer edge
+        return 1.45 * _edge(lam, 505.0, 14.0, False) + 0.06
+    if letter == "K":      # warmer black, more transparent in the red
+        return 1.55 - 0.15 * (lam - 380.0) / 320.0
+    if letter == "O":      # red-orange, edge far out, some red leak
+        return 1.40 * _edge(lam, 585.0, 13.0, False) + 0.10 * _edge(lam, 640.0, 25.0)
+    if letter == "G":      # bluish (teal) green
+        return (1.05 * _edge(lam, 462.0, 15.0, False)
+                + 1.30 * _edge(lam, 570.0, 18.0) + 0.05)
+    if letter == "V":      # blue-violet, absorbs green and orange
+        return 1.35 * _edge(lam, 498.0, 16.0) * _edge(lam, 625.0, 20.0, False) + 0.08
+    raise KeyError(letter)
+
+
+def _kink(a: np.ndarray, at: float, amp: float) -> np.ndarray:
+    """A slope break at ``at`` (a drop-size change in an inkjet driver, an AM
+    dot join): continuous, zero at 0 and 1, so solids and paper stay exact.
+    No smooth model can absorb it, and a grid that never samples near ``at``
+    misses it (challenge S1)."""
+    if amp == 0.0:
+        return a
+    up = np.where(a > at, (a - at) * (1.0 - a) / max(1e-9, (1.0 - at) ** 2), 0.0)
+    return np.clip(a + amp * 4.0 * up * (1.0 - at), 0.0, 1.0)
+
+
 @dataclass(frozen=True)
 class ClapperYuleTruth(TruthPrinter):
     id: str
@@ -245,13 +279,19 @@ class ClapperYuleTruth(TruthPrinter):
     gain_super: float = 0.09          # TVI of an ink printed on other inks
     light_inks: tuple = ()            # (("c", 0.30), ...) diluted parent
     light_gain: float = 0.22          # light inks spread more (bigger drops)
+    inkset: str = "a"                 # "b": _cy_ink_d_alt (agent 18b)
+    kink_at: float = 0.45             # TVI slope break (only when kink_amp > 0)
+    kink_amp: float = 0.0
     family: str = field(default="clapper-yule", compare=False)
+
+    def _ink_d(self, letter, lam):
+        return (_cy_ink_d_alt if self.inkset == "b" else _cy_ink_d)(letter, lam)
 
     def _ink(self, letter, lam):
         for light, frac in self.light_inks:
             if light == letter:
-                return frac * _cy_ink_d(letter.upper(), lam)
-        return _cy_ink_d(letter, lam)
+                return frac * self._ink_d(letter.upper(), lam)
+        return self._ink_d(letter, lam)
 
     def _driver(self, rgb: np.ndarray) -> np.ndarray:
         """RGB driver: complement, black generation above 30 % grey
@@ -284,6 +324,8 @@ class ClapperYuleTruth(TruthPrinter):
             skew = 0.25 - 0.1 * (i % 3)
             eff[:, i] = (p_bare * _tvi(a[:, i], ga, skew)
                          + (1 - p_bare) * _tvi(a[:, i], self.gain_super, skew))
+            if self.kink_amp:
+                eff[:, i] = _kink(eff[:, i], self.kink_at, self.kink_amp)
         combos = np.stack(np.meshgrid(*([[0, 1]] * n), indexing="ij"),
                           -1).reshape(-1, n)
         dens = np.stack([self._ink(c, lam) for c in letters])     # (n, L)
@@ -314,6 +356,21 @@ def build_printers() -> dict[str, TruthPrinter]:
         ClapperYuleTruth("X7", "CMYKRGB", tac=340.0),
         ClapperYuleTruth("X8", "CMYKcm", tac=320.0,
                          light_inks=(("c", 0.30), ("m", 0.30))),
+        # agent 18: a 7-ink ECG (CMYKOGV) development printer, the ink set of
+        # FOGRA55 and of the owner's own 7-ink test; not in any baseline suite
+        ClapperYuleTruth("X9", "CMYKOGV", tac=320.0),
+        # agent 18b: INDEPENDENT development printers (challenge B2): a second
+        # ink set for every ink, matte paper, more gain, weaker trapping and a
+        # kinked TVI (S1). X10 = 7 inks (CMYKOGV), X11 = CMY (no K), X12 = CMYK.
+        ClapperYuleTruth("X10", "CMYKOGV", tac=300.0, paper="matte", inkset="b",
+                         gain_alone=0.22, gain_super=0.12, trap=0.82,
+                         kink_at=0.42, kink_amp=0.05),
+        ClapperYuleTruth("X11", "CMY", tac=260.0, paper="matte", inkset="b",
+                         gain_alone=0.22, gain_super=0.12, trap=0.82,
+                         kink_at=0.42, kink_amp=0.05),
+        ClapperYuleTruth("X12", "CMYK", tac=300.0, paper="matte", inkset="b",
+                         gain_alone=0.22, gain_super=0.12, trap=0.82,
+                         kink_at=0.42, kink_amp=0.05),
     ]
     out.update({p.id: p for p in x})
     return out
