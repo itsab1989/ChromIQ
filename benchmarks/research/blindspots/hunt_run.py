@@ -29,6 +29,9 @@ def proxy_for(out: Path, name: str, src: str):
     ref = dsm.reference_icc(src)
     ti3 = out / "work" / src / f"{src}-full.ti3"
     from benchmarks.research.printers import split_letters
+    txt = ti3.read_text(errors="replace")
+    rep = [ln for ln in txt.splitlines() if ln.startswith("COLOR_REP")][0]
+    letters = rep.split('"')[1].split("_")[0]
     n = 3 if letters in ("RGB", "iRGB") else len(split_letters(letters))
     if n > 4 and ref is not None and ref.exists():
         return str(ref), "lcms", n, letters in ("RGB", "iRGB")
