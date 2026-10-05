@@ -6,7 +6,7 @@ export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 TMPDIR=
 O=../out
 while true; do
   left=0
-  for spec in S2:colprof,fast,accurate X3:colprof,fast,accurate S3:colprof,fast,accurate XKH:colprof,fast,accurate XKB:colprof,fast,accurate X3m:colprof,fast,accurate R-Pro300-CanonSG:colprof,fast,accurate R-Knut-printer:colprof,fast,accurate R-FOGRA39L:colprof,fast,accurate R-GRACoL2006:colprof,fast,accurate X8:fast,accurate X5:fast,accurate S5:fast,accurate X7:fast,accurate S7:fast,accurate X5e:fast,accurate R-FOGRA55:fast,accurate R-APTEC7C:fast,accurate; do
+  for spec in S2:colprof,accurate X3:colprof,accurate S3:colprof,accurate XKH:colprof,accurate XKB:colprof,accurate X3m:colprof,accurate R-Pro300-CanonSG:colprof,accurate R-Knut-printer:colprof,accurate R-FOGRA39L:colprof,accurate R-GRACoL2006:colprof,accurate X8:accurate X5:accurate S5:accurate X7:accurate S7:accurate X5e:accurate R-FOGRA55:accurate R-APTEC7C:accurate; do
     n=${spec%%:*}; es=${spec#*:}
     [[ -f $O/hunt/$n-accurate.json ]] && continue
     left=1
