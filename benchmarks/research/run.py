@@ -494,6 +494,8 @@ def main(argv=None) -> int:
     ap.add_argument("--no-real", action="store_true", help="v3: synthetic sets only")
     ap.add_argument("--no-september", action="store_true",
                     help="v3: leave out the robustness chart")
+    ap.add_argument("--reverse-jobs", action="store_true",
+                    help="--resume: build the missing jobs last-first")
     ap.add_argument("--no-oogq", action="store_true",
                     help="v3 suites: skip the v3.1 property referee (oogq)")
     ap.add_argument("--score-parallel", type=int, default=0,
@@ -583,6 +585,10 @@ def main(argv=None) -> int:
             old = {b["job"]["out"]: b for b in json.loads(builds_path.read_text(encoding="utf-8"))
                    if b.get("ok") and Path(b["job"]["out"]).exists()}
             todo = [j for j in jobs if j["out"] not in old]
+            if args.reverse_jobs:
+                # v3.1: build from the end of the list (another agent builds
+                # the same jobs from the front; their builds are pre-seeded)
+                todo = todo[::-1]
             print(f"resume: {len(jobs) - len(todo)} builds kept, {len(todo)} to build", flush=True)
             builds = []
             for j in jobs:
