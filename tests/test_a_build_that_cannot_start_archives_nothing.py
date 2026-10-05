@@ -109,10 +109,13 @@ def test_a_path_install_is_not_called_missing(qapp, tmp_path, monkeypatch):
     from core.argyll_runner import ArgyllRunner
     from core.settings import AppSettings
 
+    from core.resource_path import argyll_binary
     fake_bin = tmp_path / "on-the-path"
     fake_bin.mkdir()
-    (fake_bin / "colprof").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    (fake_bin / "colprof").chmod(0o755)
+    # Named as the app looks it up on this system ("colprof.exe" on Windows).
+    tool = fake_bin / argyll_binary("colprof")
+    tool.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    tool.chmod(0o755)
     s = AppSettings()
     s.set("argyll_bin_path", str(tmp_path / "a-folder-with-no-argyll"))
     monkeypatch.setenv("PATH", str(fake_bin))

@@ -165,9 +165,32 @@ def test_every_argument_of_a_label_probe_really_changes_its_answer():
     # Italic is checked on **Instrument Serif**, whose italic really is a
     # different face: Inter's italic measures the same width for these glyphs,
     # so asserting it there would test the font and not the cache.
-    assert raster._widest_row_label_px(40, "Instrument Serif", False, True, "", 24) \
-        != raster._widest_row_label_px(40, "Instrument Serif", False, False, "", 24), \
-        "italic does not change the row label"
+    from tests.helpers.text_layout import pillow_lays_out_with_raqm
+    if pillow_lays_out_with_raqm():
+        assert raster._widest_row_label_px(40, "Instrument Serif", False, True, "", 24) \
+            != raster._widest_row_label_px(40, "Instrument Serif", False, False, "", 24), \
+            "italic does not change the row label"
+    else:
+        # With Pillow's BASIC layout (no FriBiDi, tests/helpers/text_layout.py)
+        # Instrument Serif's italic digits and letters advance by the same whole
+        # pixels as its regular ones at every size tried (19 to 80 px), so no
+        # width can tell them apart. What the cache must not do is drop the
+        # argument: the italic question has to load the italic FACE.
+        import pytest as _pytest
+        faces = []
+        real = raster._font
+        mp = _pytest.MonkeyPatch()
+        mp.setattr(raster, "_font", lambda *a, **k: (
+            faces.append(a), real(*a, **k))[1])
+        try:
+            raster._widest_row_label_px.cache_clear()
+            raster._widest_row_label_px(40, "Instrument Serif", False, True, "", 24)
+            raster._widest_row_label_px(40, "Instrument Serif", False, False, "", 24)
+        finally:
+            mp.undo()
+            raster._widest_row_label_px.cache_clear()
+        assert [f[3] for f in faces] == [True, False], (
+            "italic does not reach the row label's font", faces)
     # An alphabetic pattern, not just any string: "1" and "A" and "" all give
     # the same digits and would prove nothing. ("A-Z", not the "0-9;A-Z" this
     # used to be, which ArgyllCMS refuses outright: forum report, 2026-10-03.)

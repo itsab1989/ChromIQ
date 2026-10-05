@@ -24,6 +24,7 @@ import os
 import re
 
 import pytest
+from tests.helpers.text_layout import MEASURED_WITH_CORETEXT  # noqa: E402
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PyQt6")
@@ -702,6 +703,7 @@ def test_a_straddling_row_is_pushed_by_breaking_after_the_row_above(qapp):
 # RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: the two Inspect tools'
 # saved files (Knut 5950106034), 15 -> 16 on BOTH sizes. The first wording
 # printed 15 on A4 and 18 on US Letter and was shortened until they agreed.
+@MEASURED_WITH_CORETEXT
 @pytest.mark.parametrize("page,expect", [
     ("A4", {"main_actions": 3, "file_guide": 16}),
     ("Letter", {"main_actions": 3, "file_guide": 16}),

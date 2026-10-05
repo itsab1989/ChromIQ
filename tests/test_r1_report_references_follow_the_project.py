@@ -27,6 +27,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from tests.helpers.paths import slashed                            # noqa: E402
 from tests.test_beta38_challenge_fixes import _Settings           # noqa: E402
 from tests.test_challenge_c_report_files import (                 # noqa: E402
     _Target, _run_dirs, _three_runs)
@@ -130,7 +131,7 @@ def test_deleting_a_run_still_renumbers_this_projects_references_elsewhere(
     _delete(proj.root, "run2")
     assert _run_dirs(across) == ["run1", "run2.deleted", "run2"]
     keys = [m["key"] for m in _read(across)["document"]["measurements"]]
-    assert "/runs/run2.deleted|" in keys[1], keys
+    assert "/runs/run2.deleted|" in slashed(keys[1]), keys
     whole = sorted((proj.root / "reports").glob("report_*.json"))
     assert _run_dirs(whole[0]) == ["run1", "run2.deleted", "run2"]
 
@@ -153,7 +154,8 @@ def test_renaming_an_original_leaves_its_duplicates_reports_alone(tmp_path):
                                                                  "Z")
     assert _snapshot(copy) == before
     whole = sorted((z / "reports").glob("report_*.json"))
-    dirs = [m["dir"] for m in _read(whole[0])["document"]["measurements"]]
+    dirs = [slashed(m["dir"])
+            for m in _read(whole[0])["document"]["measurements"]]
     assert all("/Z/runs/" in d for d in dirs), dirs
 
 
@@ -166,5 +168,6 @@ def test_renaming_rewrites_the_report_across_projects_that_names_it(tmp_path):
     proj = _three_runs(tmp_path)
     across = _across_folder_report(tmp_path, proj.root, ["run1", "run2"])
     FileManager(_Settings(tmp_path)).rename_existing_project(proj.root, "Z")
-    dirs = [m["dir"] for m in _read(across)["document"]["measurements"]]
+    dirs = [slashed(m["dir"])
+            for m in _read(across)["document"]["measurements"]]
     assert all("/Z/runs/" in d for d in dirs), dirs

@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 
 import pytest
+from tests.helpers.text_layout import MEASURED_WITH_CORETEXT  # noqa: E402
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSizeF                           # noqa: E402
@@ -114,6 +115,7 @@ def _one_line_over() -> int:
 # ---------------------------------------------------------------------------
 # 1. "How to read this report"
 # ---------------------------------------------------------------------------
+@MEASURED_WITH_CORETEXT
 def test_a_one_line_spill_is_tightened_back_and_saves_the_sheet(qapp):
     """The frame spills ONE line; at most 0.2 pt brings it back, the frame
     then ends on its first page and the document is a sheet shorter.
@@ -132,6 +134,7 @@ def test_a_one_line_spill_is_tightened_back_and_saves_the_sheet(qapp):
     assert P.pages_that_carry_something(doc, BODY_H) == before - 1
 
 
+@MEASURED_WITH_CORETEXT
 def test_never_more_than_two_tenths_of_a_point(qapp):
     """The steps are Knut's, and the space the text is set in is exactly
     that of 9 pt text made at most 0.2 pt smaller.

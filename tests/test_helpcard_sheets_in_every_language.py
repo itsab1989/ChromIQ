@@ -39,6 +39,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.helpers.text_layout import MEASURED_WITH_CORETEXT  # noqa: E402
 
 from tests.helpers.languages import shipped_languages
 
@@ -134,6 +135,7 @@ def test_no_language_prints_a_sheet_carrying_only_the_colophon(lang):
 _MUTATION_LANDS_IN = ("en", "nl")
 
 
+@MEASURED_WITH_CORETEXT
 @pytest.mark.slow
 def test_the_orphan_rule_is_what_keeps_that_true_in_other_languages():
     """THE CONTROL. Without it the test above passes whether the rule works or

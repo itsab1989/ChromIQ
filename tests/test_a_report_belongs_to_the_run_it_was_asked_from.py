@@ -347,13 +347,16 @@ def test_a_report_of_another_file_in_the_same_folder_is_not_about_this_one():
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     about = MeasurementReportDialog._report_is_about
     ti3 = Path("/p/runs/run1/chart.ti3")
-    assert about({"_origin_dir": "/p/runs/run1", "ti3": "chart.ti3"}, ti3)
-    assert not about({"_origin_dir": "/p/runs/run1",
+    # `_origin_dir` is the folder as `_gather_runs` records it: native, so
+    # "\\p\\runs\\run1" on Windows and "/p/runs/run1" here.
+    run1, run2 = str(Path("/p/runs/run1")), str(Path("/p/runs/run2"))
+    assert about({"_origin_dir": run1, "ti3": "chart.ti3"}, ti3)
+    assert not about({"_origin_dir": run1,
                       "ti3": "preconditioning.ti3"}, ti3)
-    assert not about({"_origin_dir": "/p/runs/run2", "ti3": "chart.ti3"}, ti3)
+    assert not about({"_origin_dir": run2, "ti3": "chart.ti3"}, ti3)
     # A report saved before the name was kept is matched on its folder rather
     # than declared foreign, so no old report is re-derived by this rule.
-    assert about({"_origin_dir": "/p/runs/run1"}, ti3)
+    assert about({"_origin_dir": run1}, ti3)
 
 
 def test_a_measurement_that_cannot_be_read_says_so(tmp_path, qapp,

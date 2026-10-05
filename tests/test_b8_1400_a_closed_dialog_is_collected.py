@@ -105,6 +105,16 @@ def test_the_rule_holds_no_reference_to_what_it_watches(qapp):
     dlg.close()
     dlg.deleteLater()
     del dlg
-    _pump(qapp, 0.3)
-    gc.collect()
+    # What is asserted is that NOTHING keeps the dialog, not how fast a loaded
+    # machine gets round to it: the GitHub runners (macOS and Linux) still
+    # held it after the 0.3 s this used to allow, and pass alone. So pump
+    # and collect until it is gone, for up to 5 s; a real reference never goes.
+    from PyQt6.QtCore import QCoreApplication, QEvent
+    end = time.monotonic() + 5.0
+    while True:
+        _pump(qapp, 0.1)
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        gc.collect()
+        if ref() is None or time.monotonic() > end:
+            break
     assert ref() is None
