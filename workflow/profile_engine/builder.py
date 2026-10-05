@@ -87,7 +87,8 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 24 (F-05, 5+ ink mapped-intent black; acts only on >= 5 inks)
      "a24-f05", "a24-f05walk", "a24-f05min", "a24-f05pin", "a24-f05nopin",
      # Agent 24 (C-L1, ColorSync-readable A2B L* encoding; C-S1 spectral)
-     "a24-l1", "a24-l1scale", "a24-s1", "a24-s1sprague"})
+     "a24-l1", "a24-l1scale", "a24-s1", "a24-s1sprague",
+     "rgbcol", "rgbshadow", "no-rgbcol"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -103,7 +104,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # Integration 2 (D-19, 2026-10-05): "v4prm" ON too: the v4 container's
 # perceptual/saturation tables follow ICC.1:2022 Table 16 (F-09); the v2
 # file is untouched. "no-v4prm" switches it off for research.
-ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "v4prm"})
+ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "v4prm", "rgbcol"})  # combo3: + F-13 rgbcol (D-20)
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer
@@ -1054,6 +1055,52 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if axis.get("l_black") is not None:
             _emit(settings, f"Neutral black under the ink limits: "
                             f"L* {axis['l_black']:.1f}.")
+    rgb_col = None
+    if accurate and meas.is_additive and n == 3 and "rgbcol" in candidates:
+        # Research F-13 (Findings/agent20-01 s6.2, design A3). An RGB
+        # printer's B2A neutral column below the black: the smoothing refit
+        # gave these nodes a weak anchor and set them from their lighter,
+        # chromatic neighbours, so the grey ramp turned lighter in the deep
+        # shadows (X1: sRGB 7.86 -> 10.99 -> 9.90 L* through lcms and
+        # ColorSync). Each column node below the NEUTRAL black keeps its own
+        # per-node (nearest-clip) inversion, as colprof fills its table node
+        # by node, held through the refit and pinned after it; walking down,
+        # a node never prints lighter than the one above it; the L* 0
+        # corner stays RGB 0 (the deepest black). Clipping to RGB 0 instead
+        # (v1) tinted the grey axis above a chromatic black (S2 C* 3), and
+        # clipping to the neutral black (A2) cost dark-colour accuracy.
+        _black_l = float(model.predict(np.zeros((1, n)))[0, 0])
+        _nb_l, _ = b2a_mod.rgb_neutral_black(model, _black_l, ucs=use_ucs)
+        rgb_col = b2a_mod.below_black_column(node_lab, _nb_l)
+        _corner = np.linalg.norm(node_lab[rgb_col], axis=1) <= 1.0
+        # Only the L* 0 corner below the black: pin_black_node already sets
+        # it and nothing reverses, so the table stays byte-identical.
+        if _corner.all():
+            rgb_col = rgb_col[:0]
+            _corner = _corner[:0]
+        rgb_col_val = b2a_mod.monotone_column(model, dev_clut[rgb_col],
+                                              node_lab[rgb_col, 0])
+        rgb_col_val[_corner] = 0.0
+        if len(rgb_col):
+            dev_clut[rgb_col] = rgb_col_val
+            fixed_nodes = rgb_col
+        if len(rgb_col) and "rgbshadow" in candidates:
+            # Research F-13 design C: the near-neutral shadow nodes below the
+            # black are clipped ALONG L* first (re-inverted at the black's
+            # L* with their own a*, b*), so a tinted ramp is flat at the
+            # black's depth until it enters the gamut, like the column.
+            _c = np.hypot(node_lab[:, 1], node_lab[:, 2])
+            _sh = np.flatnonzero((node_lab[:, 0] < _nb_l) & (_c >= 1.0)
+                                 & (_c < 20.0))
+            if len(_sh):
+                _t = node_lab[_sh].copy()
+                _t[:, 0] = _nb_l
+                dev_clut[_sh] = b2a_mod.invert_to_device(
+                    model, _t, channel_letters=meas.channel_letters,
+                    is_additive=True, accurate=True, ucs=use_ucs)[0]
+                rgb_col = np.concatenate([rgb_col, _sh])
+                rgb_col_val = np.vstack([rgb_col_val, dev_clut[_sh]])
+                fixed_nodes = rgb_col
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
@@ -1127,6 +1174,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     dev_clut_shaped = b2a_mod.pin_black_node(
         dev_clut_shaped, node_lab,
         model.shape_device(device_black[None, :])[0])
+    if rgb_col is not None and len(rgb_col):
+        dev_clut_shaped = b2a_mod.pin_nodes(
+            dev_clut_shaped, rgb_col, model.shape_device(rgb_col_val))
     in_gamut = residual <= 1.0
 
     _emit(settings, "Writing the profile…")
