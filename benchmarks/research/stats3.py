@@ -47,7 +47,10 @@ from benchmarks.research.stats import (N_BOOT, PLACEHOLDER_TERM, _significant, h
 ENDPOINTS = [("a2b", "median"), ("a2b", "mean"), ("a2b", "p95"),
              ("b2a", "median"), ("b2a", "mean"), ("b2a", "p95"),
              ("neutral_de", "median"), ("neutral_de", "mean"),
-             ("neutral_hi", "mean")]
+             ("neutral_hi", "mean"),
+             # protocol v3 N (Agent 14's v2.2 N2): 5+ inks only
+             ("e7", "median"), ("e7", "p95"), ("e7b", "median"), ("e8", "median"),
+             ("e8", "p95"), ("e9", "median"), ("e9", "mean"), ("e9", "p95")]
 RAMP_KEYS = ("neutral_de", "neutral_hi")
 READER_GROUPS = {"argyll": "cmm", "lcms": "cmm", "colorsync": "cmm",
                  "lcms-app": "app", "ghostscript": "app",
@@ -331,10 +334,20 @@ def safety_rows(results_a: dict, results_b: dict | None, engine_a: str, engine_b
                   ("over ink limit", g(sa, "b2a", "over_limit_frac"), g(sb, "b2a", "over_limit_frac"), 0.0),
                   ("neutral L* reversals", g(sa, "neutral", "L_reversals"), g(sb, "neutral", "L_reversals"), 0),
                   ("neutral banding d2", g(sa, "neutral", "banding_max_d2"),
-                   g(sb, "neutral", "banding_max_d2"), None)]
+                   g(sb, "neutral", "banding_max_d2"), None),
+                  # v2.2 section 5 N-colour safety rows (5+ inks)
+                  ("NC5 visible gradient jumps", g(pa, "ncq", "NC5 visible jumps"),
+                   g(pb, "ncq", "NC5 visible jumps"), 0),
+                  ("NC3 extra ink on the grey axis", g(pa, "ncq", "NC3 grey extra ink max"),
+                   g(pb, "ncq", "NC3 grey extra ink max"), 0.01),
+                  ("NC6 over the ink limit", g(pa, "ncq", "NC6 over limit"),
+                   g(pb, "ncq", "NC6 over limit"), 0),
+                  ("F-12 gross extrapolation", g(sa, "nc", "gross_extrapolation"),
+                   g(sb, "nc", "gross_extrapolation"), 0)]
         for name, a, b, tol in checks:
-            if a is None or b is None:
+            if a is None or b is None or isinstance(a, dict) or isinstance(b, dict):
                 continue
+            a, b = float(a), float(b)
             t = max(0.05, 0.05 * abs(a)) if tol is None else tol
             if b > a + t:
                 out.append({"row": tag, "check": name, "a": a, "b": b, "tolerance": t})

@@ -688,7 +688,9 @@ def score_task(t: dict):
     cache = out / "scores" / f"{t['stem']}.json"
     if t.get("reuse") and cache.exists():
         rec = json.loads(cache.read_text(encoding="utf-8"))
-        if rec.get("sha256") == b.get("sha256"):
+        stale = ds.kind == "synthetic" and ds.n_channels >= 5 and not t["light"] \
+            and "ncq" not in rec
+        if rec.get("sha256") == b.get("sha256") and not stale:
             return t["i"], t["key"], rec
     rec = {k: b.get(k) for k in ("ok", "seconds", "sha256", "v4_sha256",
                                    "error", "outlier_rows", "fit_median_de00")}
@@ -706,6 +708,12 @@ def score_task(t: dict):
             try:
                 rec["scores"][r] = metrics.score(j["out"], ds, r, truth, n_eval=t["n_eval"],
                                                  light=t["light"], sink=sink)
+                # protocol v3 N (Agent 14's v2.2): N-colour point endpoints
+                # E7-E9 and the F-12 gross-extrapolation fact, 5+ inks
+                if (ds.kind == "synthetic" and ds.n_channels >= 5
+                        and r in ("argyll", "lcms") and not t["light"]):
+                    from benchmarks.research import ncpoints
+                    rec["scores"][r]["nc"] = ncpoints.evaluate(j["out"], ds.printer, r, sink)
                 rec["scores"][r]["seconds"] = time.time() - t0
             except Exception as exc:
                 rec["scores"][r] = {"error": f"{type(exc).__name__}: {exc}"}
@@ -713,6 +721,12 @@ def score_task(t: dict):
                 (out / "points").mkdir(exist_ok=True)
                 np.savez_compressed(out / "points" / f"{t['stem']}-{r}.npz",
                                     **{k: np.asarray(v) for k, v in sink.items()})
+        if ds.kind == "synthetic" and ds.n_channels >= 5 and not t["light"]:
+            try:
+                from benchmarks.research import ncpoints
+                rec["ncq"] = ncpoints.referee(j["out"], ds.printer, "argyll")
+            except Exception as exc:
+                rec["ncq"] = {"error": f"{type(exc).__name__}: {exc}"}
         if ds.kind == "synthetic" and j["engine"] != "colprof":
             flagged = set(b.get("outlier_rows") or [])
             true = set(int(x) for x in ds.misread_rows)

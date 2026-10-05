@@ -569,3 +569,43 @@ def test_d17_safety_property_checks_have_zero_tolerance():
     s = stats3.safety_rows(res({"colprof": base, "accurate": worse}), None, "colprof", "accurate")
     assert {x["check"] for x in s} == {"black depth L*", "paper-white ink %"}
     assert stats3.safety_rows(res({"colprof": base, "accurate": base}), None, "colprof", "accurate") == []
+
+
+# ---------------------------------------------------------------------------
+# N: Agent 14's N-colour endpoints folded in (protocol v3 section N)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not ARGYLL.exists(), reason="ArgyllCMS not installed")
+def test_ncolour_point_endpoints_are_index_aligned_and_in_stats3(tmp_path, printers):
+    from benchmarks.research import ncpoints, stats3
+    from workflow.profile_engine import icc_writer as icw
+    n, g = 6, 4
+    ax = np.linspace(0, 1, g)
+    mesh = np.stack(np.meshgrid(*([ax] * n), indexing="ij"), -1).reshape(-1, n)
+    lab = np.column_stack([100 - 80 * np.clip(mesh.sum(1) / 3, 0, 1),
+                           30 * (mesh[:, 1] - mesh[:, 0]), 30 * (mesh[:, 2] - mesh[:, 4])])
+    a2b = icw.make_mft2(n, 3, g, icw.lab_to_u16(lab))
+    b2a = icw.make_mft2(3, n, 9, icw.device_to_u16(np.full((9 ** 3, n), 0.1)))
+    p = icw.write_profile(tmp_path / "six.icc", icw.ProfileSpec(n_channels=n, description="x",
+                                                                 color_rep="CMYKOG"),
+                          {"A2B0": a2b, "A2B1": "A2B0", "A2B2": "A2B0",
+                           "B2A0": b2a, "B2A1": "B2A0", "B2A2": "B2A0"})
+    s1, s2 = {}, {}
+    r = ncpoints.evaluate(p, printers["X5"], "argyll", s1)
+    ncpoints.evaluate(p, printers["X5"], "argyll", s2)
+    assert set(s1) == {"e7", "e7b", "e8", "e9"}
+    assert all(s1[k].shape == s2[k].shape for k in s1)
+    assert isinstance(r["gross_extrapolation"], int)
+    eps = {f"{k}.{s}" for k, s in stats3.ENDPOINTS}
+    assert {"e7.median", "e8.p95", "e9.median"} <= eps
+
+
+def test_ncolour_safety_rows_have_zero_tolerance():
+    from benchmarks.research import stats3
+    base = {"black": {"printed_L": 7.0, "printed_ab": [0.2, 0.2]}, "nc": {"gross_extrapolation": 0}}
+    worse = {"black": {"printed_L": 7.0, "printed_ab": [0.2, 0.2]}, "nc": {"gross_extrapolation": 3}}
+    res = {"datasets": [{"name": "X5", "variant": "typical-ecg900", "profiles": {
+        "fast": {"ok": True, "scores": {"argyll": base}, "ncq": {"NC5 visible jumps": 1}},
+        "accurate": {"ok": True, "scores": {"argyll": worse}, "ncq": {"NC5 visible jumps": 4}}}}]}
+    checks = {x["check"] for x in stats3.safety_rows(res, None, "fast", "accurate")}
+    assert checks == {"F-12 gross extrapolation", "NC5 visible gradient jumps"}
