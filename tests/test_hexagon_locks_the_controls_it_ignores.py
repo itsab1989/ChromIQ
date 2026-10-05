@@ -293,8 +293,12 @@ FROZEN = {
     # was (8.29, 7.18, 20, 33, 660)
     ("CR30", True, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.29, 7.18, 20, 39, 780),
     ("CR30", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.19, 13.01, 15, 20, 300),
-    ("CR30", False, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.1, 12.33, 21, 21, 441),
-    ("SS", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (10.96, 9.49, 15, 29, 435),
+    # These two depend on the measured row labels. Since beta 11 Pillow lays
+    # text out with BASIC on every machine (core/pil_font.py, RB-6); they were
+    # (8.1, 12.33, 21, 21, 441) and (10.96, 9.49, 15, 29, 435) when frozen on
+    # a Mac whose Homebrew FriBiDi gave Pillow RAQM.
+    ("CR30", False, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.09, 12.33, 21, 21, 441),
+    ("SS", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (10.97, 9.5, 15, 29, 435),
     ("SS", True, "by_width", 0, 0, 2.0, 8.0, "A4"): (8.29, 7.18, 20, 39, 780),
     ("SS", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.33, 14.25, 15, 20, 300),
     ("i1", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.86, 13.2, 15, 20, 300),
