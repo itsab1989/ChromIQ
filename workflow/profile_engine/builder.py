@@ -87,7 +87,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
      "fin3", "no-fin3",
      # Agent 21 (F-14/F-15) and Agent 25 (F-15/F-17), research only:
-     "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix",
+     "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix", "a21-lightcloud60",
      "a25-oog", "a25-clip", "a25-space-ucs", "a25-space-lab",
      "a25-space-oklab", "a25-space-ipt", "a25-oracle-model",
      "a25-oracle-dev", "a25-oracle-seed", "a25-oracle-neutral",
@@ -666,6 +666,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # a25-* (Agent 25, F-15/F-17 out-of-gamut clip); off by default, reset
     # by build_profile when the build ends.
     b2a_mod.set_research_tokens(candidates, is_additive=meas.is_additive)
+    # agent 21 5fa8afdb "a21-lightcloud60" (with a21-lightcloud): light seeds only for L* >= 60
+    b2a_mod.LIGHT_CLOUD["l_min"] = (60.0 if "a21-lightcloud60" in candidates
+                                    and not meas.is_additive else None)
     b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
     b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
     if b2a_mod.ECG_SEPARATION["on"]:
