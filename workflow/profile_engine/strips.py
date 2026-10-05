@@ -29,18 +29,20 @@ misread rows at full weight.
 1. The strips are read from SAMPLE_LOC (``A1``, ``AB12``: the letters name
    the strip, ``INDEX_ORDER "STRIP_THEN_PATCH"``, every printtarg chart).
    Without such locations nothing happens.
-2. A stiff fit of the whole chart; every patch's ΔE2000 residual.
+2. Every patch's ΔE2000 residual from a stiff fit (12 strips or more: one
+   fit of the whole chart; fewer strips: each strip from a fit WITHOUT it,
+   because a sparse chart's fit interpolates its own misreads; then the
+   worst strip is suspect when its median residual is 3 times the other
+   strips' typical one, and this is repeated without it).
 3. A strip is SUSPECT when the MEDIAN residual of its patches is above
    ``max(MIN_DE, median + K_SCALE x 1.4826 MAD)`` of the chart: more than
    half of the strip is grossly off at once. An isolated misread or a hard
    colour region never moves a strip's median; a random layout puts a
    strip's patches all over colour space.
-3b. OUT OF STEP (chartread's own off-by-one check, with the model in place
-   of the expected values): a strip whose median residual is merely raised
-   is judged on a fit that has NOT seen it, and is suspect when its
-   readings fit at least twice as well shifted one patch early or late. An
-   ordered strip (a ramp; printtarg -r) is the only data in its region, so
-   a fit that saw it follows it.
+3b. Out-of-step strips over ORDERED rows (printtarg -r, a ramp read one
+   patch late) are not looked for: every rule tried (Argyll's off-by-one
+   shift, judged on a fit without the strip) also took clean grey ramps
+   (Findings agent22-01 s5), and ChromIQ's charts are randomised.
 4. The suspects are left out, the stiff fit is made again, and EVERY strip
    is judged again against the new fit: a strip that now fits is taken back
    (add-back), a strip the first fit had masked is found. Repeated until
@@ -66,10 +68,11 @@ MIN_STRIP = 4         # shorter strips are not judged
 MAX_SHARE = 0.25      # never drop more than this share of the chart
 MAX_ROUNDS = 4
 
-SHIFT_TEST = False   # off: see Findings agent22-01 s5 (false positives on clean ordered ramps)
-SHIFT_MIN_DE = 1.0    # an out-of-step strip must be off by this much as read
-SHIFT_RATIO = 0.5     # ... and fit at least twice as well shifted by one
-MAX_LEAVE_OUT = 8     # strips per round judged on a fit without them
+DENSE_STRIPS = 12     # from this many strips on, one fit judges them all
+SPARSE_RATIO = 3.0    # fewer strips: the worst must be 3x the others' error
+ORDER_RATIO = 0.5     # an ordered strip: consecutive patches this much closer
+LEVERAGE = 2.0        # left out, a patch farther than 2x the chart's typical
+                      # nearest-neighbour distance from the rest is not judged
 
 _LOC_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 
@@ -117,16 +120,61 @@ def _predict(device, lab, keep, grid, lam):
     return m.predict(device)
 
 
-def _shifted(pred, lab, rows):
-    """Median residual of a strip as read, and read one patch early / late
-    (Argyll's chartread explores the same off-by-one, ``spectro/chartread.c``):
-    a strip read out of step fits far better shifted back."""
+def _ordered(device, order, judged):
+    """Strips whose patches run in order through device space (a ramp:
+    printtarg -r, or a chart laid out by hand): consecutive patches much
+    closer than two random patches of the chart. Left out, such a strip
+    takes its whole region with it, so it is never judged that way (the
+    battery's September chart at 120 patches: every 11-step ramp strip
+    looked misread when left out)."""
+    rng = np.random.default_rng(7)
+    a, b = rng.integers(0, len(device), (2, 2000))
+    typical = float(np.median(np.linalg.norm(device[a] - device[b], axis=1)))
+    out = set()
+    for g in judged:
+        d = device[order[g]]
+        step = float(np.median(np.linalg.norm(np.diff(d, axis=0), axis=1)))
+        if step < ORDER_RATIO * typical:
+            out.add(g)
+    return out
+
+
+def _loso_residuals(device, lab, ids, keep, judged, order, grid, lam):
+    """Each strip's residuals from a fit of every OTHER kept strip; an
+    ordered strip's from the fit of all kept strips (it stays in)."""
     from workflow.profile_engine.metrics import delta_e_2000
-    p, r = pred[rows], lab[rows]
-    as_read = float(np.median(delta_e_2000(p, r)))
-    early = float(np.median(delta_e_2000(p[1:], r[:-1])))
-    late = float(np.median(delta_e_2000(p[:-1], r[1:])))
-    return as_read, min(early, late)
+    res = np.zeros(len(device))
+    ordered = _ordered(device, order, judged)
+    seen = None
+    d2 = ((device[:, None, :] - device[None, :, :]) ** 2).sum(-1)
+    np.fill_diagonal(d2, np.inf)
+    nn_typ = float(np.median(np.sqrt(d2.min(1))))
+    for g in judged:
+        rows = order[g]
+        if g in ordered:
+            if seen is None:
+                seen = delta_e_2000(_predict(device, lab, keep, grid, lam), lab)
+            res[rows] = seen[rows]
+            continue
+        k2 = keep.copy()
+        k2[rows] = False
+        r = delta_e_2000(_predict(device, lab, k2, grid, lam)[rows], lab[rows])
+        # a patch with no other patch near it (a device corner, the only
+        # sample of its region) is extrapolated when its strip is left out,
+        # misread or not: judge the strip by the patches the rest of the
+        # chart can predict (the battery's 120-patch chart: a strip of the
+        # 16 cube corners looked misread when left out)
+        nn = np.sqrt(((device[rows][:, None, :] - device[k2][None, :, :]) ** 2
+                      ).sum(-1)).min(1)
+        ok = nn <= LEVERAGE * nn_typ
+        if ok.sum() >= MIN_STRIP:
+            r = np.where(ok, r, np.nan)
+        else:
+            if seen is None:
+                seen = delta_e_2000(_predict(device, lab, keep, grid, lam), lab)
+            r = seen[rows]
+        res[rows] = r
+    return res
 
 
 def detect(meas, *, grid: int, lam: float) -> StripVerdict:
@@ -138,55 +186,43 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
     n = len(device)
     sizes = np.bincount(ids)
     judged = [g for g in range(len(sizes)) if sizes[g] >= MIN_STRIP]
-    from workflow.profile_engine.metrics import delta_e_2000
     order = _patch_order(meas.sample_locs, ids)
     keep = np.ones(n, bool)
     suspects: set = set()
     res = None
-    for _ in range(MAX_ROUNDS):
-        pred = _predict(device, lab, keep, grid, lam)
-        res = delta_e_2000(pred, lab)
-        r_in = res[keep]
-        med = float(np.median(r_in))
-        s = 1.4826 * float(np.median(np.abs(r_in - med)))
-        thr = max(MIN_DE, med + K_SCALE * s)
-        new = set()
-        loo = []
-        for g in judged:
-            rows = order[g]
-            m_g = float(np.median(res[rows]))
-            if m_g > thr:
-                new.add(g)
-                continue
-            # out of step: shifted back by one patch it fits much better.
-            # Judged on a fit that has NOT seen the strip: an ordered strip
-            # (printtarg -r: a ramp read one patch late) is the only data in
-            # its region, so a fit that saw it follows it (masking).
-            if SHIFT_TEST:
-                as_read, shifted = _shifted(pred, lab, rows)
-                if as_read > med + 2.0 * s:
-                    loo.append((as_read, g))
-        loo.sort(reverse=True)
-        for _, g in loo[:MAX_LEAVE_OUT]:
-            rows = order[g]
-            k2 = keep.copy()
-            k2[rows] = False
-            p2 = _predict(device, lab, k2, grid, lam)
-            as_read, shifted = _shifted(p2, lab, rows)
-            # only the shift decides here: a CLEAN ordered ramp left out is
-            # extrapolated badly too (X1 seed 0, grey ramp: 4.1 dE00 left
-            # out) but does not fit better shifted (4.4)
-            # ... and an out-of-step pass leaves one END patch grossly wrong
-            # (it reads the gap, the paper or the next patch along), which a
-            # clean ramp with a biased model under it never has
-            end = max(float(res[rows[0]]), float(res[rows[-1]]))
-            if (as_read > SHIFT_MIN_DE and shifted < SHIFT_RATIO * as_read
-                    and end > thr):
-                new.add(g)
-        if new == suspects:
-            break
-        suspects = new
-        keep = ~np.isin(ids, sorted(suspects))
+    if len(judged) >= DENSE_STRIPS:
+        # many strips: one fit of the chart, the patch-level threshold
+        from workflow.profile_engine.metrics import delta_e_2000
+        for _ in range(MAX_ROUNDS):
+            res = delta_e_2000(_predict(device, lab, keep, grid, lam), lab)
+            r_in = res[keep]
+            med = float(np.median(r_in))
+            s = 1.4826 * float(np.median(np.abs(r_in - med)))
+            thr = max(MIN_DE, med + K_SCALE * s)
+            new = {g for g in judged if float(np.median(res[order[g]])) > thr}
+            if new == suspects:
+                break
+            suspects = new
+            keep = ~np.isin(ids, sorted(suspects))
+    else:
+        # few strips (a one-page chart): a fit of the chart interpolates its
+        # own misreads, so each strip is predicted by a fit WITHOUT it, and
+        # the worst strip is compared with the others' typical error; the
+        # worst one out at a time, until none stands out
+        while True:
+            res = _loso_residuals(device, lab, ids, keep, judged, order,
+                                  grid, lam)
+            live = [g for g in judged if g not in suspects]
+            if len(live) < 3:
+                break
+            m = {g: float(np.nanmedian(res[order[g]])) for g in live}
+            worst = max(m, key=m.get)
+            rest = float(np.median([v for g, v in m.items() if g != worst]))
+            if m[worst] > max(MIN_DE, SPARSE_RATIO * rest):
+                suspects.add(worst)
+                keep = ~np.isin(ids, sorted(suspects))
+            else:
+                break
     if not suspects:
         return StripVerdict()
     rows = np.flatnonzero(np.isin(ids, sorted(suspects)))
@@ -205,8 +241,8 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
     info = []
     for g in sorted(suspects):
         r = res[order[g]]
-        info.append((names[g], int(len(r)), float(np.median(r)), float(r.min()),
-                     float(r.max())))
+        info.append((names[g], int(len(r)), float(np.nanmedian(r)), float(np.nanmin(r)),
+                     float(np.nanmax(r))))
     return StripVerdict(dropped_rows=rows, strips=info)
 
 
