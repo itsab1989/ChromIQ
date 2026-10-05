@@ -873,7 +873,22 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
                 gained = (np.hypot(lab_pol[:, 1], lab_pol[:, 2])
                           > np.hypot(t_sub[:, 1], t_sub[:, 2]) + 3.0)
                 keep = (dh <= 10.0) & ~gained
-                d_pol[~keep] = seeds_h[found][~keep]
+                if CLIP_FIX.get("on"):
+                    # Agent 21 / F-15: a hue angle is meaningless at low chroma
+                    # (a C* 1.3 polish near white failed the 10-degree test), and
+                    # a rejected polish must not write the RAW cloud seed (often
+                    # 25-35 L* too dark near white): fall back to the plain
+                    # nearest clip already in d, unless the seed is closer.
+                    c_pol = np.hypot(lab_pol[:, 1], lab_pol[:, 2])
+                    c_t = np.hypot(t_sub[:, 1], t_sub[:, 2])
+                    keep = ((dh <= 10.0) | (np.minimum(c_pol, c_t) < 5.0)) & ~gained
+                    near = d[sub_idx]
+                    e_near = np.linalg.norm(model.predict(near) - t_sub, axis=1)
+                    e_seed = np.linalg.norm(lab_seed - t_sub, axis=1)
+                    fb = np.where((e_near <= e_seed)[:, None], near, seeds_h[found])
+                    d_pol[~keep] = fb[~keep]
+                else:
+                    d_pol[~keep] = seeds_h[found][~keep]
                 d[sub_idx] = d_pol
     return d, residual
 
@@ -1466,6 +1481,7 @@ def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
 # interpolate that darkness into pale in-gamut colours. Add light and sparse
 # points (Agent 5 used the same coverage scaling for the refit probes).
 LIGHT_CLOUD: dict = {"on": False}
+CLIP_FIX: dict = {"on": False}      # agent 21 / F-15, token "a21-clipfix"
 
 
 def _light_cloud(n: int, limit, channel_max, rng: np.random.Generator) -> np.ndarray:
