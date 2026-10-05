@@ -691,6 +691,9 @@ class ChartCreator:
         self._settings = settings
 
         self._pending_on_finish: Callable[[list[Path]], None] | None = None
+        #: The ink limit the user chose, when targen was handed a nudged one
+        #: (F-10, see workflow/targen_ink_limit.py); put back into the .ti1.
+        self._ink_limit_restore: float | None = None
         #: The chart that was set aside for the build now running, and the run
         #: it belongs to. Settled on every way out — see :meth:`_finish`.
         self._chart_stash: "Path | None" = None
@@ -848,6 +851,12 @@ class ChartCreator:
         # _stamp_tiff_metadata uses _build_targen_args directly, so the TIFF
         # metadata stays clean.
         targen_args = ["-v"] + self._build_targen_args(params, patch_count)
+        # F-10 (#182): an ink limit on a cube corner that a fixed patch also
+        # sits on aborts targen 3.5.0's OFPS. Only the live argv is nudged; the
+        # stamp above, the recorded settings and (after the run) the .ti1 keep
+        # the limit the user chose.
+        from workflow.targen_ink_limit import corner_safe_argv
+        targen_args, self._ink_limit_restore = corner_safe_argv(targen_args)
         log.info("targen args: %s", targen_args)
 
         def _targen_scan(line: str) -> None:
@@ -1280,6 +1289,12 @@ class ChartCreator:
             on_line(f"[ERROR] targen exited with code {exit_code}")
             self._finish([])
             return
+        restore = self._ink_limit_restore
+        if restore is not None:
+            from workflow.targen_ink_limit import restore_recorded_ink_limit
+            stem = self._file_mgr.chart_stem(cal_target=params.cal_target)
+            restore_recorded_ink_limit(work_dir / f"{stem}.ti1", restore)
+            self._ink_limit_restore = None
 
         # ChromIQ layout engine (issue #93): when enabled (and the chart isn't
         # using a printtarg-only clip-content feature), build the chart in-process
