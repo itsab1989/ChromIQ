@@ -25,6 +25,8 @@ builds:
 """
 from __future__ import annotations
 
+import os
+
 import contextlib
 import os
 import re
@@ -655,7 +657,27 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     extra_hues = meas.extra_ink_hues() if accurate else None
     b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
     b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
-    if b2a_mod.ECG_SEPARATION["on"]:
+    # Agent 21 control: the firm ECG weight (2.0) as a SOFT prior (no colour
+    # constraint), to separate "firm rule" from "colour-exact"
+    b2a_mod.ECG_SEPARATION["weight"] = 0.5
+    if "a21-softfirm" in candidates:
+        b2a_mod.ECG_SEPARATION.update(on=True, sector=True, weight=2.0)
+    # Agent 21 (Findings/agent21-01 s3.0): colour-exact ink policy (D1) and
+    # its firm ECG rules; research tokens, OFF by default.
+    b2a_mod.HARD_COLOUR["on"] = bool({"a21-hardcol", "a21-ecgfirm", "a21-greyfirm",
+                                      "a21-smooth", "a21-smoothw", "a21-pairfirm"}
+                                     & set(candidates))
+    b2a_mod.HARD_COLOUR["pair_firm"] = 2.0 if "a21-pairfirm" in candidates else 0.0
+    b2a_mod.HARD_COLOUR["firm"] = 2.0 if "a21-ecgfirm" in candidates else 0.0
+    b2a_mod.HARD_COLOUR["grey_firm"] = 2.0 if ("a21-greyfirm" in candidates
+                                               or "a21-ecgfirm" in candidates) else 0.0
+    b2a_mod.HARD_COLOUR["smooth_p"] = None
+    b2a_mod.LIGHT_CLOUD["on"] = ("a21-lightcloud" in candidates and not meas.is_additive)
+    b2a_mod.HARD_COLOUR["stats"] = []
+    if ((b2a_mod.HARD_COLOUR["firm"] or b2a_mod.HARD_COLOUR["pair_firm"])
+            and not b2a_mod.ECG_SEPARATION["on"]):
+        b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
+    if b2a_mod.ECG_SEPARATION["on"] or "a21-softfirm" in candidates:
         b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
     # Measured black L* anchors the GCR locus in accurate mode (shadow-
     # banding fix) and any explicit -k/-K curve (Argyll normalises its
@@ -1021,6 +1043,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_max=channel_max)
         if "a9-monoblack" in candidates:
             axis = b2a_mod.monotone_black(model, axis)
+        if "a21-blendblack" in candidates:
+            from workflow.profile_engine import a21_smooth
+            axis = a21_smooth.blend_black(
+                model, axis, ink_limit=None if ink_limit is None else ink_limit / 100.0,
+                channel_max=channel_max)
+            if axis.get("a21_blend"):
+                _emit(settings, f"Agent 21 blend to the black: {axis['a21_blend']}.")
         if axis.get("deep_black") and "K" in meas.channel_letters:
             ki = meas.channel_letters.index("K")
             okx = np.asarray(axis["ok"], bool)
@@ -1054,6 +1083,25 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if axis.get("l_black") is not None:
             _emit(settings, f"Neutral black under the ink limits: "
                             f"L* {axis['l_black']:.1f}.")
+    if n > 3 and accurate and {"a21-smooth", "a21-smoothw"} & set(candidates):
+        # Agent 21 D2: smooth-then-reproject, colour exact on in-gamut nodes;
+        # the refit's inverse samples follow the same smoothed field.
+        from workflow.profile_engine import a21_smooth
+        # "a21-smoothw": a weaker field (0.3) so the ECG priors (0.5) and the
+        # grey rule (2.0) win over the smoothed field where they apply
+        _sw = 0.3 if "a21-smoothw" in candidates else 1.0
+        _pr, _pw = b2a_mod.ink_priors(
+            node_lab, n, channel_letters=meas.channel_letters,
+            k_prior=k_prior_col, k_gen=k_gen, accurate=accurate,
+            extra_hues=extra_hues, black_l=black_l)
+        b2a_mod._firm_policy(node_lab, _pr, _pw, meas.channel_letters, extra_hues)
+        _lim = None if (ink_limit is None or meas.is_additive) else ink_limit / 100.0
+        dev_clut, _field = a21_smooth.smooth_reproject(
+            model, node_lab, dev_clut, residual, b2a_grid, prior=_pr, prior_w=_pw,
+            ink_limit=_lim, channel_max=channel_max, fixed_nodes=fixed_nodes,
+            weight=_sw, progress=lambda m: _emit(settings, m))
+        b2a_mod.HARD_COLOUR["smooth_p"] = a21_smooth.field_prior(
+            _field, b2a_grid, codec.lab_to01, weight=_sw)
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
