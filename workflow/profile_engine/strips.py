@@ -139,6 +139,30 @@ def _ordered(device, order, judged):
     return out
 
 
+def _layout_random(meas) -> bool:
+    """True when the chart's patches were placed at random by printtarg:
+    the RANDOM_START keyword, in the .ti3 itself or in the chart's .ti2
+    beside it (or one or two folders up, the run folder). A sparse chart
+    laid out in order holds whole regions in one strip, and a strip left
+    out of the fit then looks misread (Findings agent22-01 s5b)."""
+    from pathlib import Path
+    if "RANDOM_START" in (meas.keywords or {}):
+        return True
+    try:
+        p = Path(meas.path)
+    except TypeError:
+        return False
+    for d in (p.parent, p.parent.parent, p.parent.parent.parent):
+        for c in [d / (p.stem + ".ti2")] + sorted(d.glob("*.ti2"))[:4]:
+            try:
+                if c.is_file() and "RANDOM_START" in c.read_text(
+                        encoding="utf-8", errors="replace")[:4000]:
+                    return True
+            except OSError:
+                continue
+    return False
+
+
 def _loso_residuals(device, lab, ids, keep, judged, order, grid, lam):
     """Each strip's residuals from a fit of every OTHER kept strip; an
     ordered strip's from the fit of all kept strips (it stays in)."""
@@ -204,7 +228,7 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
                 break
             suspects = new
             keep = ~np.isin(ids, sorted(suspects))
-    else:
+    elif _layout_random(meas):
         # few strips (a one-page chart): a fit of the chart interpolates its
         # own misreads, so each strip is predicted by a fit WITHOUT it, and
         # the worst strip is compared with the others' typical error; the
