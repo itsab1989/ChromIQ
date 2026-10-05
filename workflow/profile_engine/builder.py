@@ -626,6 +626,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     extra_hues = meas.extra_ink_hues() if accurate else None
     b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
     b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
+    # Agent 21 control: the firm ECG weight (2.0) as a SOFT prior (no colour
+    # constraint), to separate "firm rule" from "colour-exact"
+    b2a_mod.ECG_SEPARATION["weight"] = 0.5
+    if "a21-softfirm" in candidates:
+        b2a_mod.ECG_SEPARATION.update(on=True, sector=True, weight=2.0)
     # Agent 21 (Findings/agent21-01 s3.0): colour-exact ink policy (D1) and
     # its firm ECG rules; research tokens, OFF by default.
     b2a_mod.HARD_COLOUR["on"] = bool({"a21-hardcol", "a21-ecgfirm", "a21-greyfirm",
@@ -641,7 +646,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     if ((b2a_mod.HARD_COLOUR["firm"] or b2a_mod.HARD_COLOUR["pair_firm"])
             and not b2a_mod.ECG_SEPARATION["on"]):
         b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
-    if b2a_mod.ECG_SEPARATION["on"]:
+    if b2a_mod.ECG_SEPARATION["on"] or "a21-softfirm" in candidates:
         b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
     # Measured black L* anchors the GCR locus in accurate mode (shadow-
     # banding fix) and any explicit -k/-K curve (Argyll normalises its
