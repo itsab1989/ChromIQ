@@ -574,6 +574,113 @@ def _ecg_separation_priors(target, prior, prior_w, letters, extra_hues):
             prior_w[more, ch] = out[more]
 
 
+# Research tokens of agent 21 (Findings/agent21-01 s3.0, designs D1/D2), set by the
+# builder per build (one build per process), OFF by default:
+# "on": the colour-exact ink policy (D1, "a21-hardcol"); "firm": the ECG rules as
+# firm priors (only meaningful with "on"); "smooth_p": an override prior field
+# (callable target -> (prior, prior_w)) used by the smooth-then-reproject pass (D2).
+HARD_COLOUR: dict = {"on": False, "firm": 0.0, "grey_firm": 0.0, "eps": 1e-3,
+                     "tol": 0.05, "iters": 8, "smooth_p": None}
+
+
+def project_metamers(model: ForwardModel, target: np.ndarray, d: np.ndarray,
+                     prior: np.ndarray, prior_w: np.ndarray, *,
+                     ink_limit: float | None, channel_max: np.ndarray | None,
+                     iters: int = 8, eps: float = 1e-3, tol: float = 0.05,
+                     max_step: float = 0.25) -> tuple[np.ndarray, np.ndarray]:
+    """Colour-exact ink policy (agent 21 D1): per row, iterate the equality-
+    constrained Gauss-Newton step
+
+        min_s (s - g)^T W (s - g)  s.t.  J s = r   (g = prior - d, W = prior_w + eps)
+
+    whose fixed point is min ||d - prior||_W subject to f(d) = target, 0 <= d <= hi,
+    sum(d) <= ink_limit (active set for the box, an extra equality row for the
+    limit when it binds). Rows that do not end within ``tol`` (Lab, dE76) of their
+    target are returned unchanged; ``ok`` says which rows moved."""
+    n = d.shape[1]
+    hi = np.ones(n) if channel_max is None else np.asarray(channel_max, float)
+    x = d.copy()
+    w = prior_w + eps
+    has_prior = prior_w > 0
+    for it in range(iters):
+        f0 = model.predict(x)
+        r = target - f0
+        jac = _model_jacobian(model, x, np.arange(n), f0, boundary_fd=True)
+        pull = it < iters - 2               # last two rounds: colour only
+        g = np.where(has_prior, prior - x, 0.0) if pull else np.zeros_like(x)
+        free = np.ones_like(x, bool)
+        s = np.zeros_like(x)
+        for _sub in range(4):
+            winv = np.where(free, 1.0 / w, 0.0)
+            gg = np.where(free, g, 0.0)
+            # frozen channels sit on their bound: their move is fixed
+            sf = np.where(free, 0.0, s)
+            rr = r - np.einsum("nij,nj->ni", jac, sf)
+            def solve(rows, rhs):
+                a = np.einsum("nik,nk,njk->nij", rows, winv, rows)
+                a += 1e-9 * np.eye(a.shape[1])[None]
+                if a.shape[1] == 4:   # rows without a limit row: identity there
+                    a[:, 3, 3] += np.where(np.abs(rows[:, 3]).sum(1) > 0, 0.0, 1.0)
+                lam = np.linalg.solve(
+                    a, (rhs - np.einsum("nik,nk->ni", rows, gg))[..., None])[..., 0]
+                return gg + winv * np.einsum("nik,ni->nk", rows, lam)
+            step = solve(jac, rr)
+            if ink_limit is not None:
+                tot = x.sum(1) + sf.sum(1)
+                bind = (tot + np.where(free, step, 0.0).sum(1)) > ink_limit + 1e-9
+                if bind.any():
+                    c = np.where(free, 1.0, 0.0)[:, None, :] * bind[:, None, None]
+                    e = np.where(bind, ink_limit - tot, 0.0)
+                    step2 = solve(np.concatenate([jac, c], 1),
+                                  np.concatenate([rr, e[:, None]], 1))
+                    step = np.where(bind[:, None], step2, step)
+            s = np.where(free, step, s)
+            nxt = x + s
+            out = free & ((nxt < -1e-12) | (nxt > hi[None, :] + 1e-12))
+            if not out.any():
+                break
+            s = np.where(out, np.clip(nxt, 0.0, hi[None, :]) - x, s)
+            free &= ~out
+        big = np.abs(s).max(1)
+        s *= np.minimum(1.0, max_step / np.maximum(big, 1e-12))[:, None]
+        x = np.clip(x + s, 0.0, hi[None, :])
+        if ink_limit is not None:
+            x = project_tac(x, ink_limit)
+    res = np.linalg.norm(model.predict(x) - target, axis=1)
+    ok = res <= tol
+    out = d.copy()
+    out[ok] = x[ok]
+    return out, ok
+
+
+def _firm_policy(target, prior, prior_w, letters, extra_hues):
+    """Agent 21: the ECG rules as FIRM priors (meaningful only colour-exact):
+    complementary process ink to 0 where an extra ink's sector is open, the
+    extra ink to 0 outside its sector and on near-neutrals."""
+    firm = float(HARD_COLOUR.get("firm") or 0.0)
+    gfirm = float(HARD_COLOUR.get("grey_firm") or 0.0)
+    if firm > 0:
+        saved = ECG_SEPARATION.get("weight", 0.5)
+        ECG_SEPARATION["weight"] = firm
+        try:
+            _ecg_separation_priors(target, prior, prior_w, letters, extra_hues or {})
+            # the sector half (extra ink out of foreign sectors) as well
+            sec = ECG_SEPARATION.get("sector")
+            ECG_SEPARATION["sector"] = True
+            _ecg_separation_priors(target, prior, prior_w, letters, extra_hues or {})
+            ECG_SEPARATION["sector"] = sec
+        finally:
+            ECG_SEPARATION["weight"] = saved
+    if gfirm > 0:
+        nw = np.exp(-(np.hypot(target[:, 1], target[:, 2]) / 12.0) ** 2)
+        for ch in range(4, len(letters)):
+            if letters[ch] in ("c", "m", "y", "k"):
+                continue
+            more = gfirm * nw > prior_w[:, ch]
+            prior[more, ch] = 0.0
+            prior_w[more, ch] = gfirm * nw[more]
+
+
 def invert_to_device(model: ForwardModel, target: np.ndarray, *,
                      channel_letters: list[str], is_additive: bool,
                      ink_limit: float | None = None,
@@ -674,6 +781,27 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         idx = np.flatnonzero(retry)[better]
         d[idx] = d_retry[better]
         residual[idx] = res_retry[better]
+
+    if accurate and n > 3 and HARD_COLOUR.get("on") and prior is not None:
+        # Agent 21 D1: in-gamut rows re-solved colour-exact, the policy only
+        # choosing among metamers (firm ECG rules / a smoothed field allowed).
+        pr, pw = prior.copy(), prior_w.copy()
+        if HARD_COLOUR.get("smooth_p") is not None:
+            pr, pw = HARD_COLOUR["smooth_p"](target, pr, pw)
+        else:
+            _firm_policy(target, pr, pw, channel_letters, extra_hues)
+        ing = np.flatnonzero(residual < 0.5)
+        if len(ing):
+            if progress is not None:
+                progress(f"{progress_label}: colour-exact ink policy…")
+            d_new, ok = project_metamers(
+                model, target[ing], d[ing], pr[ing], pw[ing], ink_limit=limit,
+                channel_max=channel_max, iters=int(HARD_COLOUR.get("iters", 8)),
+                eps=float(HARD_COLOUR.get("eps", 1e-3)),
+                tol=float(HARD_COLOUR.get("tol", 0.05)))
+            d[ing] = d_new
+            residual[ing] = np.linalg.norm(model.predict(d[ing]) - target[ing], axis=1)
+            HARD_COLOUR.setdefault("stats", []).append((len(ing), int(ok.sum())))
 
     if accurate:
         # Hue-preserving clip: nodes that stay out of gamut are re-clipped
