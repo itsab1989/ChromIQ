@@ -1203,6 +1203,11 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             # in places; Findings F-16, F-18). In the engine's gamut by
             # construction, so no target needs a re-clip.
             mapped = model.predict(np.clip(mapper.node_dev, 0.0, 1.0))
+        _cands = getattr(settings, "engine_candidates", frozenset())
+        _odev = (np.clip(mapper.node_dev, 0.0, 1.0)
+                 if accurate and getattr(mapper, "node_dev", None) is not None
+                 and ({"a25-oracle-dev", "a25-oracle-seed"} & set(_cands))
+                 else None)
         if ownmap and "a9-warp" in getattr(settings, "engine_candidates",
                                            frozenset()):
             # Research a9-warp: colprof's realized map is smooth because it
@@ -1215,7 +1220,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         # Mapped targets land inside (or at) the gamut surface, so per-node
         # inversion converges everywhere — the boundary-cell kink that makes
         # the colorimetric table need a global refit doesn't arise here.
-        dev, _residual = b2a_mod.invert_to_device(
+        if _odev is not None and "a25-oracle-dev" in _cands:
+            # Research (Agent 25): colprof's own perceptual device values at
+            # the nodes, no re-inversion (what colprof's table prints).
+            dev = _odev
+            if channel_max is not None:
+                dev = np.minimum(dev, channel_max[None, :])
+        else:
+          dev, _residual = b2a_mod.invert_to_device(
             model, mapped, channel_letters=channel_letters,
             is_additive=is_additive, ink_limit=ink_limit,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
@@ -1224,7 +1236,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                                               frozenset()),
             channel_max=channel_max,
             progress=progress,
-            progress_label="Gamut mapping: building the final colour table")
+            progress_label="Gamut mapping: building the final colour table",
+            **({"seed": _odev} if _odev is not None else {}))
         # colprof -no applies to EVERY B2A table (A-17): identity output
         # tables with unshaped device values in the CLUT.
         shaped = dev if no_out_shaper else model.shape_device(dev)

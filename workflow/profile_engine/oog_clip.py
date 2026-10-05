@@ -43,23 +43,26 @@ import numpy as np
 # Research switches, set by builder for one build (b2a.set_research_tokens).
 PARAMS: dict = {
     "on": False,
-    "space": "ucs",        # ucs | lab | oklab | ipt
-    "wj": 2.0, "wc": 1.0, "wh": 2.2,
+    "space": "lab",        # lab | ucs | jab | oklab | ipt (ablation)
+    "wj": 4.0, "wc": 0.35, "wh": 8.0,   # squared LCh weights (Findings s4)
     "c_fade": 10.0,        # chroma over which the hue weight fades in
     "iters": 8,
-    "blend_lo": 0.5, "blend_hi": 2.0,   # residual band of the blend (dE76)
+    "blend_lo": 0.5, "blend_hi": 10.0,  # residual band of the blend (dE76)
     "faces": True,         # device-cube faces in the clip cloud
     "ab_scale": 1.0,       # scale of the opponent axes (Oklab ab are ~3x
                            # compressed against L relative to dE units)
     "l_scale": 1.0,        # scale of the lightness axis
     "hue_start": False,
-    "hue_from": "",        # "" = the space's own hue; else oklab | ipt | ucs:
+    "hue_from": "oklab",   # "" = the space's own hue; else oklab | ipt | ucs:
                            # the radial direction in the clip space follows
                            # that space's constant-hue line (hue-linearised)
     "chord": 0.5,          # chroma fraction of the hue-line point (pass 1)
     "pass2": False,
     "descent": True,       # monotone (backtracking) weighted Gauss-Newton
     "propagate": 0,        # rounds of neighbour propagation on a node lattice
+    "de00": False,         # CIEDE2000 tolerances S_L, S_C, S_H at the target
+                           # (space lab only): chroma differences of very
+                           # saturated colours count less, as they are seen
     "two_stage": False,    # choose the clip COLOUR without the ink priors,
                            # then separate that colour with them
     "wj_light": 1.0,       # lightness weight multiplier reached at L 100,
@@ -164,6 +167,24 @@ def hue_line_angle(t_lab: np.ndarray, space: str, k) -> np.ndarray:
     return ang
 
 
+def _frame_angle(t_lab, t_s, fn, hue_from, k):
+    """Radial direction of the clip frame IN THE CLIP SPACE: from the target
+    toward the point of the same ``hue_from`` hue at chroma fraction k."""
+    fwd, inv = _pair(hue_from)
+    s = fwd(t_lab)
+    s2 = s.copy()
+    kk = np.broadcast_to(np.asarray(k, float), (len(s),))
+    s2[:, 1] *= kk
+    s2[:, 2] *= kk
+    back_s = fn(inv(s2))
+    d = t_s[:, 1:] - back_s[:, 1:]
+    own = np.arctan2(t_s[:, 2], t_s[:, 1])
+    small = np.hypot(d[:, 0], d[:, 1]) < 1e-6
+    ang = np.arctan2(d[:, 1], d[:, 0])
+    ang[small] = own[small]
+    return ang
+
+
 def space_fn(space: str):
     k = float(PARAMS.get("ab_scale", 1.0))
     kl = float(PARAMS.get("l_scale", 1.0))
@@ -185,6 +206,19 @@ def _space_fn(space: str):
         return lab_to_oklab
     if space == "ipt":
         return lab_to_ipt
+    if space == "jab":
+        # CAM16 J, a, b from CHROMA C (Argyll's CAM clip space is CIECAM02
+        # Jab, xicc/xcam.c): the hue of CAM16 with the plain J / C scales.
+        from workflow.profile_engine.ti3_data import lab_to_xyz
+        from workflow.profile_engine.ucs import print_ucs
+        cam = print_ucs().cam
+
+        def jab(lab):
+            jmh = cam.xyz_to_jmh(lab_to_xyz(np.atleast_2d(lab)))
+            c = jmh[:, 1] / cam.FL ** 0.25
+            h = np.radians(jmh[:, 2])
+            return np.stack([jmh[:, 0], c * np.cos(h), c * np.sin(h)], 1)
+        return jab
     raise ValueError(space)
 
 
@@ -217,8 +251,15 @@ def weights(target_s: np.ndarray, p: dict = PARAMS,
                  / max(100.0 - p["light_from"], 1e-9), 0.0, 1.0)
     lt = lt * lt * (3.0 - 2.0 * lt)
     sj = np.sqrt(p["wj"] * (1.0 + (p["wj_light"] - 1.0) * lt))
-    sc = np.sqrt(p["wc"])
+    sc = np.sqrt(p["wc"]) * np.ones(n)
     shh = np.sqrt(p["wc"] + (p["wh"] - p["wc"]) * s)
+    if p.get("de00"):
+        from workflow.profile_engine.metrics import de00_scale_factors
+        s_l, s_c, s_h = de00_scale_factors(target_s)
+        sj = sj / s_l
+        sc = sc / s_c
+        # hue tolerance faded in with the hue weight (S_H -> S_C at C = 0)
+        shh = shh / (s_c + (s_h - s_c) * s)
     w = np.zeros((n, 3, 3))
     w[:, 0, 0] = sj
     # rows: radial component (sc * u.dab), tangential (shh * u_perp.dab)
@@ -366,9 +407,7 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
     t_lab = target_lab[sel]
     t_s = fn(t_lab)
     hue_from = p.get("hue_from") or ""
-    if hue_from and p["space"] != "lab":
-        raise ValueError("hue_from needs space 'lab'")
-    w = weights(t_s, p, hue_line_angle(t_lab, hue_from, p["chord"])
+    w = weights(t_s, p, _frame_angle(t_lab, t_s, fn, hue_from, p["chord"])
                 if hue_from else None)
     n = model.n_channels
     cloud = clip_cloud(n, limit, channel_max, np.random.default_rng(2525),
@@ -455,7 +494,7 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         cs_t = np.hypot(*fwd(t_lab)[:, 1:].T)
         cs_g = np.hypot(*fwd(got)[:, 1:].T)
         k = np.clip(cs_g / np.maximum(cs_t, 1e-9), 0.05, 1.0)
-        w = weights(t_s, p, hue_line_angle(t_lab, hue_from, k))
+        w = weights(t_s, p, _frame_angle(t_lab, t_s, fn, hue_from, k))
         d = b2a._gauss_newton(view, t_s, best.copy(), free, iters=p["iters"],
                               damping=damping, ink_limit=limit, err_weights=w,
                               prior=pr, prior_w=pw,

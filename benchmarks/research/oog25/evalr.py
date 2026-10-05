@@ -63,6 +63,8 @@ def evaluate(out: Path, name: str, icc: Path) -> dict:
                         if isinstance(v, dict) and k.endswith("-r")),
     }
     res["H2"] = h2
+    res["H6"] = h6
+    res["H11"] = h11
     res["H4"] = h4
     # --- F-17
     h5 = hunt.h5_memory(ctx)

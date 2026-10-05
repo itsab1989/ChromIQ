@@ -86,7 +86,8 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 21 (F-14/F-15) and Agent 25 (F-15/F-17), research only:
      "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix",
      "a25-oog", "a25-clip", "a25-space-ucs", "a25-space-lab",
-     "a25-space-oklab", "a25-space-ipt", "a25-oracle-model"})
+     "a25-space-oklab", "a25-space-ipt", "a25-oracle-model",
+     "a25-oracle-dev", "a25-oracle-seed"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
