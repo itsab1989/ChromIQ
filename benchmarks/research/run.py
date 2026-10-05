@@ -262,8 +262,11 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
                     d.ink_limit = REAL_TAC[name]
                 specs.append({"ds": d, "variant": "base"})
     elif suite == "seeds":
-        for pid in ["S1", "S3", "X1", "X3"]:
-            for k in range(5):
+        # Agent 15: BENCH_SEEDS (default 5) seeds; protocol v2.1 A4 needs >= 10
+        nseeds = int(os.environ.get("BENCH_SEEDS", "5"))
+        pids = os.environ.get("BENCH_SEED_PIDS", "S1,S3,X1,X3").split(",")
+        for pid in pids:
+            for k in range(nseeds):
                 if keep(pid):
                     specs.append({"ds": dsm.synthetic(pid, work, n_patches, seed=23 + k,
                                                       chart_seed=11 + k, printers=printers),

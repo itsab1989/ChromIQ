@@ -77,7 +77,9 @@ def build_engine(job: dict) -> dict:
             "fit_median_de00": res.fit_median_de00,
             "engine_file": str(mod_file),
             "dropped_settings": dropped,
-            "log_tail": lines[-6:]}
+            "log_tail": lines[-6:],
+            "model_lines": [ln for ln in lines if "held-out patches of this"
+                            in ln or "Gaussian process" in ln]}
 
 
 def build_colprof(job: dict) -> dict:
