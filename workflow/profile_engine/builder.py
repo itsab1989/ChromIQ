@@ -76,7 +76,7 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
-     "rgbcol", "rgboog", "no-b2a33s", "no-rgbpos", "no-rgbcol"})
+     "rgbcol", "rgboog", "rgbshadow", "no-b2a33s", "no-rgbpos", "no-rgbcol"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -874,6 +874,24 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if len(rgb_col):
             dev_clut[rgb_col] = 0.0
             fixed_nodes = rgb_col
+        rgb_col_val = np.zeros((len(rgb_col), n))
+        if len(rgb_col) and "rgbshadow" in candidates:
+            # Research F-13 design C: the near-neutral shadow nodes below the
+            # black are clipped ALONG L* first (re-inverted at the black's
+            # L* with their own a*, b*), so a tinted ramp is flat at the
+            # black's depth until it enters the gamut, like the column.
+            _c = np.hypot(node_lab[:, 1], node_lab[:, 2])
+            _sh = np.flatnonzero((node_lab[:, 0] < _black_l) & (_c >= 1.0)
+                                 & (_c < 20.0))
+            if len(_sh):
+                _t = node_lab[_sh].copy()
+                _t[:, 0] = _black_l
+                dev_clut[_sh] = b2a_mod.invert_to_device(
+                    model, _t, channel_letters=meas.channel_letters,
+                    is_additive=True, accurate=True, ucs=use_ucs)[0]
+                rgb_col = np.concatenate([rgb_col, _sh])
+                rgb_col_val = np.vstack([rgb_col_val, dev_clut[_sh]])
+                fixed_nodes = rgb_col
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
@@ -940,8 +958,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         model.shape_device(device_black[None, :])[0])
     if rgb_col is not None and len(rgb_col):
         dev_clut_shaped = b2a_mod.pin_nodes(
-            dev_clut_shaped, rgb_col,
-            model.shape_device(device_black[None, :])[0])
+            dev_clut_shaped, rgb_col, model.shape_device(rgb_col_val))
     in_gamut = residual <= 1.0
 
     _emit(settings, "Writing the profile…")

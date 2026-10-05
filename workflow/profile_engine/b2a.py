@@ -1063,7 +1063,8 @@ def pin_nodes(dev_clut: np.ndarray, nodes: np.ndarray,
     if nodes is None or not len(nodes):
         return dev_clut
     out = dev_clut.copy()
-    out[np.asarray(nodes, int)] = np.asarray(value, float)[None, :]
+    value = np.asarray(value, float)
+    out[np.asarray(nodes, int)] = value if value.ndim == 2 else value[None, :]
     return out
 
 
