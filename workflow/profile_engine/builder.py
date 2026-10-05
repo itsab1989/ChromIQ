@@ -85,7 +85,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
      "fin3", "no-fin3",
      # Agent 24 (F-05, 5+ ink mapped-intent black; acts only on >= 5 inks)
-     "a24-f05", "a24-f05walk", "a24-f05min", "a24-f05pin", "a24-f05nopin"})
+     "a24-f05", "a24-f05walk", "a24-f05min", "a24-f05pin", "a24-f05nopin",
+     # Agent 24 (C-L1, ColorSync-readable A2B L* encoding; C-S1 spectral)
+     "a24-l1", "a24-s1"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1243,6 +1245,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         from workflow.profile_engine.v4_prm import v4_luts
         luts_v4 = v4_luts(luts, codec.signature,
                           model.predict(device_black[None, :])[0])
+    if accurate and "a24-l1" in candidates and codec.signature == b"Lab ":
+        # Research C-L1 (Agent 24, D-01 closing section): the A2B L* output
+        # encoding that ColorSync reads right and every spec CMM reads as
+        # before (workflow/profile_engine/lab_l1.py). A2B tags only.
+        from workflow.profile_engine.lab_l1 import apply_l1
+        same = luts_v4 is luts
+        luts = apply_l1(luts)
+        luts_v4 = luts if same else apply_l1(luts_v4)
     if str(settings.icc_version) == "4":
         from dataclasses import replace
         spec = replace(spec, wtpt=v4_wtpt)
