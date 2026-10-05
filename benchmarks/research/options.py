@@ -52,11 +52,10 @@ DATASETS = {
     "S3": ("S3", "targen", 400, "typical"),
     "X3m": ("X3m", "targen", 400, "typical"),
     "X5": ("X5", "targen", 900, "typical"),
-    "S5": ("S5", "targen", 900, "typical"),
     "X1p": ("X1", "targen", 400, "pessimistic"),
     "X3p": ("X3", "targen", 400, "pessimistic"),
 }
-HEAVY = {"X5", "S5"}
+HEAVY = {"X5"}
 COLPROF_OK = {"X1", "X3", "S3", "X3m", "X1p", "X3p"}
 
 KP = {"k_rule": "p", "k_stle": 0.0, "k_stpo": 0.1, "k_enpo": 0.9, "k_enle": 1.0,
@@ -92,8 +91,7 @@ def matrix() -> list[dict]:
     for ds in ("X1", "X3"):
         for q in ("l", "h", "u"):
             m.append(_j("Q1", ds, f"q{q}", {"quality": q}))
-    for q in ("l", "h"):
-        m.append(_j("Q1", "X5", f"q{q}", {"quality": q}))
+    m.append(_j("Q1", "X5", "ql", {"quality": "l"}))
     # P2-Q2 B2A quality
     for ds in ("X1", "X3"):
         for b in ("l", "m", "h", "u", "n"):
@@ -123,7 +121,7 @@ def matrix() -> list[dict]:
         for k in ("z", "h", "x", "r"):
             m.append(_j("K1", ds, f"k{k}", {"k_rule": k}))
         m.append(_j("K1", ds, "kp", dict(KP)))
-    for k in ("r", "x", "z"):
+    for k in ("r", "x"):
         m.append(_j("K1", "X5", f"k{k}", {"k_rule": k}))
     m.append(_j("K1", "X1", "kx", {"k_rule": "x"}))
     for k in ("r", "x"):
@@ -169,7 +167,7 @@ def matrix() -> list[dict]:
         m.append(_j("N1", ds, "no", {"no_output_shaper": True}))
         m.append(_j("N1", ds, "ni-np", {"no_input_shaper": True, "no_grid_pos": True}))
     # P2-E1..E4 engine-only options
-    for ds in ("S3", "X3", "S5"):
+    for ds in ("S3", "X3"):
         m.append(_j("E1", ds, "physics", {"spectral_physics": True}, colprof=False))
     for ds in ("X1", "X3"):
         for v in ("4", "both"):
@@ -275,6 +273,9 @@ def cmd_build(args) -> int:
         os.environ[k] = "1"
     os.environ["CHROMIQ_ENGINE_THREADS"] = "1"
     os.environ.pop("CHROMIQ_ENGINE_NEXT", None)
+    tmp = out / "tmp"                      # our own temp: cleaned with the run
+    tmp.mkdir(exist_ok=True)
+    os.environ["TMPDIR"] = str(tmp)
     blocks = [b for b in args.blocks.split(",") if b] or None
     dsnames = [d for d in args.datasets.split(",") if d] or None
     dss = make_datasets(out / "work", dsnames)
