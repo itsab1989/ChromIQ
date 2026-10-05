@@ -368,7 +368,14 @@ def test_accurate_cmyk_build_and_separation_smoothness(tmp_path):
     ti3 = write_synth_ti3(tmp_path / "cmyk.ti3", "CMYK",
                           [f"CMYK_{c}" for c in "CMYK"], additive=False,
                           n_per_axis=7, ink_limit=300.0)
-    st = BuildSettings(quality="l", gammap_mode="accurate")
+    # Research integration 1 (2026-10-04): Maximum accuracy now writes its
+    # B2A at grid 33 by default (token b2a33s). The checks below measure the
+    # step between ADJACENT nodes, so a 4x finer grid (9 -> 33) shrinks them
+    # and the F-00 jump no longer reaches the thresholds, although the K
+    # locus that causes it is unchanged (XPASS on gate-07). F-00 is recorded
+    # at the grid it was found on: "no-b2a33s" keeps this build at grid 9 (-ql).
+    st = BuildSettings(quality="l", gammap_mode="accurate",
+                       engine_candidates=frozenset({"no-b2a33s"}))
     res = build_profile(ti3, tmp_path / "cmyk.icc", st)
     assert res.icc_path.exists()
     assert res.n_channels == 4

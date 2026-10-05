@@ -531,7 +531,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # patches (after the -R/-u mutations above), measured extra-ink hues.
         meas.average_endpoints()
     extra_hues = meas.extra_ink_hues() if accurate else None
-    b2a_mod.ECG_SEPARATION["on"] = "a14-ecgsep" in candidates
+    b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
+    b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
     if b2a_mod.ECG_SEPARATION["on"]:
         b2a_mod.ECG_SEPARATION["cmy_hues"] = _process_ink_hues(meas)
     # Measured black L* anchors the GCR locus in accurate mode (shadow-

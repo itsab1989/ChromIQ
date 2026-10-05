@@ -78,8 +78,11 @@ target_compile_definitions(chromiq-gammap PRIVATE ${PLATFORM_DEFS})
 if(MSVC)
   set(RELAX_FLAGS /w)
 else()
+  # -fno-strict-aliasing (F-08): gamut.c reads a single-triangle BSP leaf
+  # through `(gtri **)&np`; clang >= 20 pointer TBAA deletes the store and the
+  # Release helper segfaults. Argyll's own Jam build is not -O3 + clang 20.
   set(RELAX_FLAGS -w -Wno-error=implicit-function-declaration
-                  -Wno-error=int-conversion)
+                  -Wno-error=int-conversion -fno-strict-aliasing)
 endif()
 target_compile_options(argyllgm PRIVATE ${RELAX_FLAGS})
 target_compile_options(chromiq-gammap PRIVATE ${RELAX_FLAGS})
