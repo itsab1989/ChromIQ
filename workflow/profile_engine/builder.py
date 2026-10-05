@@ -91,6 +91,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # candidates.
 ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos"})
 
+# a19-extrap: weight of the interaction-order penalty relative to the fit's
+# lambda (agent 19; X5 and X7 re-solves: about lambda / 3 wins every
+# extrapolation row, larger starts to bend real three-ink structure).
+A19_ORDER_MU = 0.3
+
 
 def accurate_candidates(tokens) -> frozenset:
     """The candidate set a Maximum accuracy build runs with: the requested
@@ -582,7 +587,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # Agent 3 "rgbpos": the same, mirrored, for RGB devices.
             positioning=((not meas.is_additive or "rgbpos" in candidates)
                          and curve_rounds > 0),
-            additive=meas.is_additive)
+            additive=meas.is_additive,
+            # Research token "a19-extrap" (agent 19, F-12): penalise the
+            # 3+-ink interactions no chart identifies, 5+ ink devices only.
+            order_mu=(A19_ORDER_MU if ("a19-extrap" in candidates
+                                       and not meas.is_additive and n >= 5)
+                      else 0.0))
         if "a19-extrap" in candidates and not meas.is_additive:
             # Research token (agent 19, F-12): physical lower bounds on the
             # lattice where the chart leaves it to extrapolation. A node may

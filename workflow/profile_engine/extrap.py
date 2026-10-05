@@ -502,6 +502,23 @@ def _fdiff_t(y: np.ndarray, ax: int) -> np.ndarray:
     return yp[tuple(sl0)] - yp[tuple(sl1)]
 
 
+def interaction(x: np.ndarray, grid: int, n: int, order: int = 3) -> np.ndarray:
+    """Sum over ink subsets of size ``order`` of (D..)^T (D..) x. order 2 =
+    the torsion regulariser of Gupta et al. 2016 (JMLR 17:109), which also
+    penalises PAIRWISE (bilinear) interactions; order 3 leaves them free."""
+    import itertools
+    x3 = x.reshape((grid,) * n + (-1,))
+    o = np.zeros_like(x3)
+    for sub in itertools.combinations(range(n), order):
+        d = x3
+        for a in sub:
+            d = _fdiff(d, a)
+        for a in reversed(sub):
+            d = _fdiff_t(d, a)
+        o += d
+    return o.reshape(x.shape)
+
+
 def interaction3(x: np.ndarray, grid: int, n: int) -> np.ndarray:
     """Sum over ink triples of (Di Dj Dk)^T (Di Dj Dk) x: penalises every
     interaction of three or more inks; additive and pairwise (bilinear)
@@ -516,7 +533,7 @@ def interaction3(x: np.ndarray, grid: int, n: int) -> np.ndarray:
 
 
 def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
-                               iters=400):
+                               iters=400, order: int = 3):
     """Re-solve the lattice (fixed curves) with the curvature penalty plus
     ``mu`` x interaction3; from the current nodes."""
     from workflow.profile_engine.forward_model import _interp_weights
@@ -537,7 +554,7 @@ def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
 
     def amul(x):
         return (wt((w[:, :, None] * x[cols]).sum(1)) + lam * _curvature(x, grid, n)
-                + mu * interaction3(x, grid, n) + 1e-7 * x)
+                + mu * interaction(x, grid, n, order) + 1e-7 * x)
 
     b = wt(y)
     x = np.array(model.nodes, float, copy=True)
