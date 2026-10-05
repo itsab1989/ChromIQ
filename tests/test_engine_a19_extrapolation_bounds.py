@@ -183,3 +183,41 @@ def test_token_changes_no_byte_on_an_rgb_chart(tmp_path):
     _build(ti3, tmp_path / "off.icc", ())
     _build(ti3, tmp_path / "on.icc", ("a19-extrap",))
     assert (tmp_path / "off.icc").read_bytes() == (tmp_path / "on.icc").read_bytes()
+
+
+def test_order_penalty_leaves_additive_and_pairwise_structure_free():
+    """The interaction-order penalty (order 3) annihilates every function
+    of the form a + sum b_i x_i + sum c_ij x_i x_j (the structure a chart
+    measures), and penalises a three-ink product (what no chart pins)."""
+    n, grid = 5, 4
+    g = extrap.grid_coords(grid, n)
+    rng = np.random.default_rng(1)
+    f = (1.0 + g @ rng.normal(size=n)
+         + sum(rng.normal() * g[:, i] * g[:, j]
+               for i in range(n) for j in range(i + 1, n)))[:, None]
+    assert np.abs(extrap.interaction(f, grid, n, 3)).max() < 1e-9
+    h = (g[:, 0] * g[:, 1] * g[:, 2])[:, None]
+    assert (h * extrap.interaction(h, grid, n, 3)).sum() > 1e-6
+
+
+def test_order_correction_at_zero_weight_is_the_fit_bit_for_bit():
+    m = _model()
+    dev, lab = _chart()
+    out = extrap.resolve_with_order_penalty(m, dev, lab, 0.03, 0.0,
+                                            delta=True)
+    assert np.array_equal(out, m.nodes)
+
+
+def test_order_correction_moves_an_unsupported_corner_not_the_measured_ramps():
+    """F-12 shape: a corner far from every patch moves; the nodes on the
+    measured single-ink ramps (next to patches, light) barely move."""
+    m = _model()
+    m.nodes[-1] = [-30.0, 40.0, -40.0]        # a wild unsupported corner
+    dev, lab = _chart()
+    out = extrap.resolve_with_order_penalty(
+        m, dev, lab, 0.03, 0.01, local=(0.5, 1.0), ink_gate=(0.5, 1.5),
+        delta=True)
+    g = extrap.grid_coords(m.grid, 5)
+    ramp = (g > 0).sum(1) <= 1
+    assert np.abs(out[ramp] - m.nodes[ramp]).max() < 0.05
+    assert np.abs(out[-1] - m.nodes[-1]).max() > 1.0
