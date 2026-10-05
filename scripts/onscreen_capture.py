@@ -630,6 +630,110 @@ class FocusGiveBack:
             return False
 
 
+def in_modal_loop(w) -> bool:
+    """True only once *w* is really inside its modal loop: visible, opaque and
+    modal. A driver must wait for THIS before it answers a dialog.
+
+    Agent 18's second hang (2026-10-05 02:04, reproduced 02:13): the patch
+    editor's "New patch set" window (``_NewChartDialog.exec``) first shows
+    itself NON-modally at opacity 0 and pumps events to realise its 3D view,
+    and only then enters ``QDialog.exec()``. The driver looked for "a visible
+    top-level _NewChartDialog", found it in that first phase and pressed
+    Create; ``accept()`` outside the modal loop only hid it, and the override
+    then entered ``exec()`` and showed the window again, modal, with nobody
+    left to answer it. A working window is never dismissed by
+    :class:`PopupWatchdog`, so it stayed on Basti's screen."""
+    from PyQt6.QtCore import Qt
+    try:
+        if not w.isVisible() or w.windowOpacity() < 0.99:
+            return False
+        return bool(w.isModal()
+                    or w.windowModality() != Qt.WindowModality.NonModal)
+    except RuntimeError:              # deleted under us
+        return False
+
+
+class StepGuard:
+    """A driver that ends ITSELF, whatever it is waiting for.
+
+    A watcher THREAD (not a Qt timer: a Qt timer cannot fire while the main
+    thread is blocked outside the event loop) holds a deadline per scripted
+    step and one for the whole run. When either passes, it writes every
+    thread's stack to ``hang-<step>.txt`` in ``report_dir`` (so the hang names
+    its own line), calls ``on_timeout`` if given (no Qt calls there: it runs
+    on the watcher thread), and ends the process with ``os._exit(code)``. A
+    dead process leaves no window on screen and holds no keyboard; the
+    display assertion of :func:`keep_display_awake` ends with it (``-w pid``).
+
+    Usage::
+
+        guard = StepGuard(report_dir, step_s=300, total_s=3 * 3600).start()
+        guard.step("2 new patch set")            # default budget
+        guard.step("5 engine build", 2 * 3600)   # a long step says so
+        guard.stop()
+    """
+
+    def __init__(self, report_dir, *, step_s: float = 300.0,
+                 total_s: float = 3 * 3600.0, code: int = 3,
+                 on_timeout=None, log=print):
+        self.report_dir = Path(report_dir)
+        self.step_s, self.total_s, self.code = float(step_s), float(total_s), int(code)
+        self.on_timeout, self._log = on_timeout, log
+        self.name = "start"
+        self._t0 = time.monotonic()
+        self._deadline = self._t0 + self.step_s
+        self._stopped = False
+        self._thread = None
+        self.fired: "str | None" = None
+
+    def start(self) -> "StepGuard":
+        import threading
+        self._thread = threading.Thread(target=self._watch, name="StepGuard",
+                                        daemon=True)
+        self._thread.start()
+        return self
+
+    def step(self, name: str, seconds: "float | None" = None) -> None:
+        self.name = str(name)
+        self._deadline = time.monotonic() + float(seconds or self.step_s)
+        self._log(f"[guard] step {self.name!r}: "
+                  f"{float(seconds or self.step_s):.0f} s")
+
+    def stop(self) -> None:
+        self._stopped = True
+
+    def _watch(self) -> None:
+        while not self._stopped:
+            now = time.monotonic()
+            why = None
+            if now > self._deadline:
+                why = f"step {self.name!r} ran past its budget"
+            elif now - self._t0 > self.total_s:
+                why = f"the run ran past its total budget ({self.total_s:.0f} s)"
+            if why is not None:
+                self._fire(why)
+                return
+            time.sleep(0.5)
+
+    def _fire(self, why: str) -> None:
+        import faulthandler
+        import os
+        self.fired = why
+        try:
+            self.report_dir.mkdir(parents=True, exist_ok=True)
+            safe = "".join(c if c.isalnum() else "_" for c in self.name)[:60]
+            out = self.report_dir / f"hang-{safe}.txt"
+            with open(out, "w", encoding="utf-8") as fh:
+                fh.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} HANG: {why}\n\n")
+                fh.flush()
+                faulthandler.dump_traceback(fh, all_threads=True)
+            self._log(f"[guard] HANG: {why}; stacks in {out}")
+            if self.on_timeout is not None:
+                self.on_timeout(why)
+        finally:
+            os._exit(self.code)
+
+
 class PopupWatchdog:
     """Notice every pop-up a driver runs into, record it, and keep the run moving.
 
@@ -742,12 +846,20 @@ class PopupWatchdog:
     @staticmethod
     def _popups() -> list:
         from PyQt6.QtWidgets import QApplication, QMessageBox
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QFileDialog, QInputDialog
         found = []
         modal = QApplication.activeModalWidget()
         if modal is not None and modal.isVisible():
             found.append(modal)
         for w in QApplication.topLevelWidgets():
-            if isinstance(w, QMessageBox) and w.isVisible() and w not in found:
+            if not w.isVisible() or w in found:
+                continue
+            # A WINDOW-modal box (a sheet on its parent, `open()` rather than
+            # `exec()`) is not always `activeModalWidget()`, so a sweep of the
+            # top-level windows finds it too (agent 18b, 2026-10-05, F-11).
+            if (isinstance(w, (QMessageBox, QInputDialog, QFileDialog))
+                    or w.windowModality() == Qt.WindowModality.WindowModal):
                 found.append(w)
         return found
 
