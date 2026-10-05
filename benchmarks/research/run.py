@@ -374,6 +374,10 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         engines = [e for e in engines if e in ("colprof", "fast", "accurate")]
     if suite == "b2agrid":
         engines = [e for e in engines if e in ("colprof", "accurate")]
+    if suite == "v3" and "-ecg" in spec["variant"]:
+        # 5+ ink ECG charts: Bit-exact left out of this freeze (3-process
+        # cap; 20-30 min per multi-ink build); Fast is the comparator there
+        engines = [e for e in engines if e != "argyll"]
     if suite == "repeat":
         engines = ["accurate", "fast"]
     if suite == "physics":
