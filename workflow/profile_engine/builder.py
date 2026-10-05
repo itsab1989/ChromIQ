@@ -629,7 +629,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # Agent 21 (Findings/agent21-01 s3.0): colour-exact ink policy (D1) and
     # its firm ECG rules; research tokens, OFF by default.
     b2a_mod.HARD_COLOUR["on"] = bool({"a21-hardcol", "a21-ecgfirm", "a21-greyfirm",
-                                      "a21-smooth"} & set(candidates))
+                                      "a21-smooth", "a21-smoothw"} & set(candidates))
     b2a_mod.HARD_COLOUR["firm"] = 2.0 if "a21-ecgfirm" in candidates else 0.0
     b2a_mod.HARD_COLOUR["grey_firm"] = 2.0 if ("a21-greyfirm" in candidates
                                                or "a21-ecgfirm" in candidates) else 0.0
@@ -1027,10 +1027,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if axis.get("l_black") is not None:
             _emit(settings, f"Neutral black under the ink limits: "
                             f"L* {axis['l_black']:.1f}.")
-    if n > 3 and accurate and "a21-smooth" in candidates:
+    if n > 3 and accurate and {"a21-smooth", "a21-smoothw"} & set(candidates):
         # Agent 21 D2: smooth-then-reproject, colour exact on in-gamut nodes;
         # the refit's inverse samples follow the same smoothed field.
         from workflow.profile_engine import a21_smooth
+        # "a21-smoothw": a weaker field (0.3) so the ECG priors (0.5) and the
+        # grey rule (2.0) win over the smoothed field where they apply
+        _sw = 0.3 if "a21-smoothw" in candidates else 1.0
         _pr, _pw = b2a_mod.ink_priors(
             node_lab, n, channel_letters=meas.channel_letters,
             k_prior=k_prior_col, k_gen=k_gen, accurate=accurate,
@@ -1040,9 +1043,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         dev_clut, _field = a21_smooth.smooth_reproject(
             model, node_lab, dev_clut, residual, b2a_grid, prior=_pr, prior_w=_pw,
             ink_limit=_lim, channel_max=channel_max, fixed_nodes=fixed_nodes,
-            progress=lambda m: _emit(settings, m))
+            weight=_sw, progress=lambda m: _emit(settings, m))
         b2a_mod.HARD_COLOUR["smooth_p"] = a21_smooth.field_prior(
-            _field, b2a_grid, codec.lab_to01)
+            _field, b2a_grid, codec.lab_to01, weight=_sw)
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
