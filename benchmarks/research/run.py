@@ -231,12 +231,15 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
     elif suite == "a19seeds":
         # agent 19: ramp-row confirmation (protocol v2.1 A4, k >= 10) for
         # a19-extrap on the printers whose single build flagged E5/E6
+        # pessimistic noise: the level whose single builds flagged X6 E5
+        # and X8 black (agent19-01 s6)
         for pid in ["X6", "X7", "X8"]:
             for k in range(10):
                 if keep(pid):
-                    specs.append({"ds": dsm.synthetic(pid, work, n_patches, seed=23 + k,
-                                                      chart_seed=11 + k, printers=printers),
-                                  "variant": f"seed{k}"})
+                    specs.append({"ds": dsm.synthetic(pid, work, n_patches, level="pessimistic",
+                                                      seed=23 + k, chart_seed=11 + k,
+                                                      printers=printers),
+                                  "variant": f"pess-seed{k}"})
     elif suite == "noise":
         for pid in ["S3", "X3", "X1", "X5"]:
             for lvl in ["none", "battery", "reread", "typical", "pessimistic"]:

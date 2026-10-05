@@ -553,7 +553,9 @@ def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
                                iters=400, order: int = 3,
                                local: tuple | None = None,
                                ink_gate: tuple | None = None,
-                               delta: bool = False):
+                               delta: bool = False,
+                               chroma_gate: tuple | None = None,
+                               fit_space_lab=None):
     """``local`` = (near, ramp) in lattice cells: the penalty acts only away
     from the chart (weight 0 within ``near`` cells of the nearest patch,
     1 beyond ``near + ramp``), so the region the data pin, paper white and
@@ -583,6 +585,18 @@ def resolve_with_order_penalty(model, device, lab, lam, mu, *, weights=None,
         # samples live, keeps the plain fit
         tot = grid_coords(grid, n).sum(1)
         g = np.clip((tot - ink_gate[0]) / max(ink_gate[1] - ink_gate[0], 1e-9),
+                    0.0, 1.0)
+        g = g * g * (3.0 - 2.0 * g)
+        node_w = g if node_w is None else node_w * g
+    if chroma_gate is not None:
+        # and not on the grey: the near-neutral lattice carries real three-
+        # and four-ink structure (light inks, CMY grey balance), measured on
+        # X8: penalised, E6 0.51 -> 0.83, neutral C* max 1.13 -> 1.53
+        nl = np.asarray(model.nodes, float)
+        if fit_space_lab is not None:
+            nl = fit_space_lab(nl)
+        c = np.hypot(nl[:, 1], nl[:, 2])
+        g = np.clip((c - chroma_gate[0]) / max(chroma_gate[1] - chroma_gate[0], 1e-9),
                     0.0, 1.0)
         g = g * g * (3.0 - 2.0 * g)
         node_w = g if node_w is None else node_w * g
