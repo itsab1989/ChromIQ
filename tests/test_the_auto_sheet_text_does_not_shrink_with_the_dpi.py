@@ -153,14 +153,13 @@ def test_the_auto_line_is_the_same_size_as_at_200_dpi(dpi):
     assert h == pytest.approx(h_ref, abs=0.26), (
         f"the auto bottom line is {h:.3f} mm tall at {dpi} dpi and "
         f"{h_ref:.3f} mm at 200 dpi, on the same recipe")
-    # With Pillow's BASIC text layout (no FriBiDi, tests/helpers/text_layout.py)
-    # every glyph advance is a whole pixel, so seven glyphs can drift up to
-    # 3.5 px from the fractional sum. Measured the same way with BASIC forced:
-    # 150 23.029, 200 22.479, 240 22.860, 300 22.945, 360 23.001, 600 22.987 mm,
-    # worst 0.550 mm at 150; plus one 600 dpi pixel, as above.
-    from tests.helpers.text_layout import pillow_lays_out_with_raqm
-    w_tol = 0.47 if pillow_lays_out_with_raqm() else 0.60
-    assert w == pytest.approx(w_ref, abs=w_tol), (
+    # Since beta 11 Pillow lays text out with BASIC on every machine
+    # (core/pil_font.py, RB-6): every glyph advance is a whole pixel, so seven
+    # glyphs can drift up to 3.5 px from the fractional sum the table above
+    # was measured with (RAQM, on a Mac with Homebrew FriBiDi). Measured with
+    # BASIC: 150 23.029, 200 22.479, 240 22.860, 300 22.945, 360 23.001,
+    # 600 22.987 mm, worst 0.550 mm at 150; plus one 600 dpi pixel, as above.
+    assert w == pytest.approx(w_ref, abs=0.60), (
         f"the auto bottom line is {w:.3f} mm wide at {dpi} dpi and "
         f"{w_ref:.3f} mm at 200 dpi, on the same recipe")
 

@@ -29,6 +29,7 @@ import tifffile
 from PIL import Image, ImageDraw, ImageFont
 
 from core.logger import get_logger
+from core.pil_font import load_font
 from workflow import text_edge_fit
 
 log = get_logger(__name__)
@@ -1384,7 +1385,7 @@ def _pick_font(size_px: int, family: str = "") -> ImageFont.ImageFont:
             pass
     for name in ("DejaVuSans.ttf", "arial.ttf", "Arial.ttf", "Helvetica.ttf"):
         try:
-            return ImageFont.truetype(name, size_px)
+            return load_font(name, size_px)
         except OSError:
             continue
     return ImageFont.load_default()

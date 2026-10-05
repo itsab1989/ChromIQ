@@ -138,19 +138,20 @@ def test_the_photo_card_snapshot_holds_exactly_the_named_presets():
     assert set(BETA45_PHOTO_CARDS["presets"]) == set(PHOTO_CARDS)
 
 
-#: The same beta 44 snapshot as Pillow's BASIC text layout gives it (no
-#: FriBiDi, tests/helpers/text_layout.py): only the measured row-label width
-#: differs, generated from the v4.3.0-beta.44 tag as BETA44 was.
+#: The same beta 44 snapshot as Pillow's BASIC text layout gives it: only the
+#: measured row-label width differs, generated from the v4.3.0-beta.44 tag as
+#: BETA44 was (CI round 2). BETA44 itself was taken on a Mac whose Homebrew
+#: FriBiDi gave Pillow RAQM; since beta 11 every machine lays text out with
+#: BASIC (core/pil_font.py, RB-6), so this overlay is what every machine
+#: must produce, Basti's Mac included.
 BETA44_PILLOW_BASIC = json.loads(
     (ROOT / "tests/data/b8_1590_builtin_geometry_beta44_pillow_basic_layout.json"
      ).read_text(encoding="utf-8"))["presets"]
 
 
 def _beta44(key: str) -> dict:
-    from tests.helpers.text_layout import pillow_lays_out_with_raqm
     want = dict(BETA44["presets"][key])
-    if not pillow_lays_out_with_raqm():
-        want.update(BETA44_PILLOW_BASIC.get(key, {}))
+    want.update(BETA44_PILLOW_BASIC.get(key, {}))
     return want
 
 
