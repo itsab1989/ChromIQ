@@ -403,7 +403,11 @@ def dialog(qapp, installed):
     dlg = opened[0]
     # K40-1: the demos are printtarg presets, laid out behind the scenes; a
     # user reads the window once that is done, so the fixture waits for it.
-    assert dlg.wait_for_layouts(180.0), "the background layouts never finished"
+    # Budgeted for a loaded machine, not an idle one (CLAUDE.md, "a timeout
+    # that is too TIGHT is a phantom red"): 180 s ran out at load ~100 on
+    # 2026-10-05 while the file passed alone. A real hang still fails.
+    assert dlg.wait_for_layouts(600.0), (
+        "the background layouts did not finish within 600 s")
     # WHAT A USER SEES FIRST, kept before the fixture moves anything: this
     # file judged every pair under STRICT and never looked at the choice the
     # window opens on, which is where Knut looked (K15).
