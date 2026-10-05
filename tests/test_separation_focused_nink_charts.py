@@ -354,3 +354,40 @@ def test_the_multi_ink_setup_keeps_a_small_chart_small(dlg):
     dlg._gen_fill_to.setValue(900)
     dlg._on_preset_setup_selected(ix)
     assert (dlg._nch_perink_n.value(), dlg._nch_pairs_n.value()) == (12, 3)
+
+
+def test_state_3_takes_complementary_pairs_from_the_measured_solids(dlg, monkeypatch):
+    """Challenge S4: with a preconditioning profile the solids' measured hues
+    decide (FOGRA55's Y and V are only 142 deg apart, so not complementary),
+    never the letters; a failed lookup falls back to the letters."""
+    import workflow.xicclu_runner as X
+    _seven_inks(dlg)
+    dlg._precond_path = "/nonexistent/precond.icc"
+    # C M Y K O G V solids: O at 44 (opposite C 218), G at 149 (opposite M 338),
+    # V at 310 (only 141 deg from Y at 89: not complementary)
+    hue = {0: 218, 1: 338, 2: 89, 3: 0, 4: 44, 5: 149, 6: 310}
+    chroma = {0: 60, 1: 70, 2: 90, 3: 1, 4: 80, 5: 70, 6: 60}
+    import math
+
+    def fake_forward(rows, profile, bin_dir, **kw):
+        out = []
+        for r in rows:
+            i = max(range(len(r)), key=lambda j: r[j])
+            h, c = math.radians(hue[i]), chroma[i]
+            out.append((50.0, c * math.cos(h), c * math.sin(h)))
+        return out
+    monkeypatch.setattr(X, "forward_lab", fake_forward)
+    got = dlg._nch_complementary_pairs(INKS7, 3)
+    names = {frozenset(INKS7[i] for i in p) for p in got}
+    # G 149 and V 310 ARE 161 deg apart: measured, they are complementary
+    # (as on X9), although no letter rule says so
+    assert names == {frozenset("co"), frozenset("mg"), frozenset("gv")}
+    letters = {frozenset(INKS7[i] for i in p) for p in dlg._nch_complementary_pairs(INKS7, 2)}
+    assert frozenset("yv") in letters
+    # a failing lookup: the letters, no exception
+    dlg._nch_comp_cache = {}
+
+    def boom(*a, **k):
+        raise RuntimeError("no xicclu")
+    monkeypatch.setattr(X, "forward_lab", boom)
+    assert {frozenset(INKS7[i] for i in p) for p in dlg._nch_complementary_pairs(INKS7, 3)} == letters

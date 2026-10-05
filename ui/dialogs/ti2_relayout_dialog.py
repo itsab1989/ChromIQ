@@ -3499,8 +3499,10 @@ class _NewChartDialog(QDialog):
     def _nch_pairs_patch_count(self) -> int:
         """Patches the Ink-pair row adds: the diagonal, or the grid."""
         if self._nch_pairs_grid.isChecked():
-            return NDG.ink_pair_grids_count(self._nch_ink_codes(),
-                                            self._nch_pairs_n.value())
+            codes = self._nch_ink_codes()
+            return NDG.ink_pair_grids_count(
+                codes, self._nch_pairs_n.value(),
+                comp=self._nch_complementary_pairs(codes, self._nch_state()))
         return NDG.ink_pair_overprints_count(len(self._nch_ink_codes()),
                                              self._nch_pairs_n.value())
 
@@ -3729,6 +3731,9 @@ class _NewChartDialog(QDialog):
         limit = float(self._ink_limit.value())
         program: list[tuple] = []
         self.nch_moved_note = ""
+        # Which inks are complementary: from the preconditioning profile's
+        # measured solids in state 3, else from the ink letters (challenge S4)
+        comp = self._nch_complementary_pairs(codes, state)
         if self._nch_targen.isChecked():
             extra_args = [f"-D{self._INK_DFLAG[c]}" for c in codes[4:]]
             extra_args.append(f"-l{int(limit)}")
@@ -3745,7 +3750,7 @@ class _NewChartDialog(QDialog):
         if self._nch_pairs.isChecked():
             if self._nch_pairs_grid.isChecked():
                 program.extend(NDG.ink_pair_grids(
-                    codes, self._nch_pairs_n.value(), ink_limit=limit))
+                    codes, self._nch_pairs_n.value(), ink_limit=limit, comp=comp))
             else:
                 program.extend(NDG.ink_pair_overprints(
                     n, self._nch_pairs_n.value(), ink_limit=limit))
@@ -3829,7 +3834,7 @@ class _NewChartDialog(QDialog):
             if self._gen_fill_sparse.isChecked():
                 topup = NDG.separation_fill_nd(
                     seed, self._effective_fill_target(), codes,
-                    ink_limit=limit)
+                    ink_limit=limit, comp=comp)
             else:
                 topup = NDG.fill_gaps_nd(
                     seed, self._effective_fill_target(), n_channels=n,
@@ -3837,6 +3842,32 @@ class _NewChartDialog(QDialog):
             self._built_row_counts["fill"] = len(topup)
             program.extend(topup)
         return program
+
+    def _nch_complementary_pairs(self, codes, state: int) -> set:
+        """Ink pairs on opposite sides of the hue circle, for the pair grids
+        and the 3-4-ink fill. In state 3 the preconditioning profile says
+        where each solid really prints (one xicclu run); a user's "orange"
+        may be a red-orange, and FOGRA55's yellow and violet are only 142
+        degrees apart. Otherwise, or if the lookup fails, the ink letters
+        decide. Never two process inks (see NDG.complementary_pairs)."""
+        if state == 3 and self._precond_path:
+            cache = self.__dict__.setdefault("_nch_comp_cache", {})
+            key = (self._precond_path, tuple(codes))
+            if key in cache:
+                return set(cache[key])
+            try:
+                import math
+                from workflow.xicclu_runner import forward_lab
+                solids = [tuple(100.0 if j == i else 0.0 for j in range(len(codes)))
+                          for i in range(len(codes))]
+                labs = forward_lab(solids, self._precond_path, self._bin_dir)
+                hues = {i: (math.degrees(math.atan2(b, a)) % 360.0, math.hypot(a, b))
+                        for i, (_l, a, b) in enumerate(labs)}
+                cache[key] = NDG.complementary_pairs(codes, hues=hues)
+                return set(cache[key])
+            except Exception:  # noqa: BLE001 - the letters are the stated fallback
+                log.info("measured ink hues unavailable; complementary pairs by letter")
+        return NDG.complementary_pairs(codes)
 
     def _generator_cache_key(self) -> "tuple | None":
         """Everything :meth:`_build_generated_program` reads, as one hashable
