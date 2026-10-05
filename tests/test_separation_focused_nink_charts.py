@@ -324,3 +324,33 @@ def test_the_multi_ink_setup_turns_an_rgb_window_into_cmyk_plus(dlg):
     ix = dlg._preset_setup_combo.findData(_MULTI_INK_SETUP_KEY)
     dlg._on_preset_setup_selected(ix)
     assert dlg._device_type.currentData() == "cmykplus"
+
+
+def test_the_multi_ink_setup_selects_generate_so_create_builds_it(dlg):
+    """Found driving the app (agent 18b, 2026-10-05): the setup ticked the rows
+    but left the window on targen seeding, so Create built a 200-patch targen
+    chart. Create must hand over exactly the generated program."""
+    from ui.dialogs.ti2_relayout_dialog import _MULTI_INK_SETUP_KEY
+    _seven_inks(dlg)
+    dlg._ink_limit.setValue(320)
+    dlg._gen_fill_to.setValue(900)
+    dlg._mode_seed.setChecked(True)
+    ix = dlg._preset_setup_combo.findData(_MULTI_INK_SETUP_KEY)
+    dlg._on_preset_setup_selected(ix)
+    assert dlg._mode_generate.isChecked()
+    want = dlg._build_generated_program()
+    dlg._on_ok()
+    assert dlg.result_program is not None and len(dlg.result_program) == 900
+    assert [tuple(p) for p in dlg.result_program] == [tuple(p) for p in want]
+
+
+def test_the_multi_ink_setup_keeps_a_small_chart_small(dlg):
+    from ui.dialogs.ti2_relayout_dialog import _MULTI_INK_SETUP_KEY
+    _seven_inks(dlg)
+    ix = dlg._preset_setup_combo.findData(_MULTI_INK_SETUP_KEY)
+    dlg._gen_fill_to.setValue(600)
+    dlg._on_preset_setup_selected(ix)
+    assert (dlg._nch_perink_n.value(), dlg._nch_pairs_n.value()) == (10, 2)
+    dlg._gen_fill_to.setValue(900)
+    dlg._on_preset_setup_selected(ix)
+    assert (dlg._nch_perink_n.value(), dlg._nch_pairs_n.value()) == (12, 3)

@@ -479,7 +479,8 @@ log = get_logger(__name__)
 _MULTI_INK_SETUP_KEY = "__multi_ink_professional__"
 #: The rows "Multi-ink, professional layout" sets (agent 18, D-16): the
 #: composition of the professional ECG / FOGRA55 charts at a small budget.
-_MULTI_INK_SETUP = {"perink_n": 12, "pairs_n": 3, "richblack_n": 6,
+_MULTI_INK_SETUP = {"perink_n": 12, "pairs_n": 3, "perink_n_small": 10,
+                    "pairs_n_small": 2, "richblack_n": 6,
                     "richblack_k": 3, "neutral_n": 12}
 
 
@@ -2325,12 +2326,25 @@ class _NewChartDialog(QDialog):
             if ix >= 0:
                 self._device_type.setCurrentIndex(ix)
         st = _MULTI_INK_SETUP
+        # The sets are GENERATED: without this the window stayed on its
+        # source mode (targen seeding by default), and Create built a
+        # 200-patch targen chart while every row on screen said otherwise
+        # (agent 18b, found driving the app, 2026-10-05).
+        if getattr(self, "_mode_generate", None) is not None \
+                and self._mode_generate.isEnabled():
+            self._mode_generate.setChecked(True)
+            self._refresh_source_widgets()
+        # A small chart keeps a smaller fixed part (challenge S2): at <= 600
+        # patches 10 ramp steps and 2-level pair grids, as the battery's
+        # `ndnew` arm was built.
+        small = (getattr(self, "_gen_fill_to", None) is not None
+                 and self._gen_fill_to.value() <= 600)
         self._nch_targen.setChecked(False)
         self._nch_perink.setChecked(True)
-        self._nch_perink_n.setValue(st["perink_n"])
+        self._nch_perink_n.setValue(st["perink_n_small"] if small else st["perink_n"])
         self._nch_perink_light.setChecked(True)
         self._nch_pairs.setChecked(True)
-        self._nch_pairs_n.setValue(st["pairs_n"])
+        self._nch_pairs_n.setValue(st["pairs_n_small"] if small else st["pairs_n"])
         self._nch_pairs_grid.setChecked(True)
         self._nch_triples.setChecked(False)
         self._nch_richblack.setChecked(True)
