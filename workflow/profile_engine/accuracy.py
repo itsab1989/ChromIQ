@@ -66,6 +66,7 @@ def fit_forward_model_accurate(
         row_weights: np.ndarray | None = None,
         positioning: bool = False,
         additive: bool = False,
+        diag: dict | None = None,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
 
@@ -407,6 +408,9 @@ def fit_forward_model_accurate(
         # smears a big misread over its neighbours) fits fine in the end
         # — only report rejections the final fit still can't explain.
         outliers = np.flatnonzero(named | ((w_rob == 0.0) & (res > 3.0)))
+    if diag is not None:
+        diag.update(res_scan=res_scan, w_rob=w_rob, res=res, lam=lam,
+                    scale=scale)
     if space is not None:
         # The fit lived in UCS; hand back a Lab-speaking model so the
         # writer, inversion seeds and statistics stay unchanged.

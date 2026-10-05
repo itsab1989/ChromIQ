@@ -82,7 +82,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
      "a17-colpin", "v4prm",
      # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
-     "fin3", "no-fin3"})
+     "fin3", "no-fin3",
+     # Agent 22 (research/pe-misread-robust): whole-strip misreads left out
+     "a22-strip"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -541,6 +543,37 @@ def _will_use_colprof_oracle(meas: Ti3Measurement,
     return any(i not in _COLORIMETRIC_INTENTS for i in mapped)
 
 
+def _drop_misread_strips(meas, settings, q, started):
+    """Agent 22 token "a22-strip": whole strips that read wrong as a block
+    are left out of the build (``strips.py``). Unchanged without one."""
+    from workflow.profile_engine import strips
+    n = meas.n_channels
+    grid = 17 if n <= 3 else (9 if n == 4 else 5)
+    lam = 4.0 * _fit_lambda(grid) * (max(settings.smoothing, 0.01) / 0.5) ** 2
+    verdict = strips.detect(meas, grid=grid, lam=lam)
+    if verdict.note:
+        _emit(settings, f"Strip check: {verdict.note}.")
+    if not len(verdict.dropped_rows):
+        return meas
+    import tempfile
+
+    class _Dir:
+        def __init__(self):
+            self.td = tempfile.TemporaryDirectory(prefix="chromiq-strips-")
+
+        def close(self):
+            self.td.cleanup()
+    d = _Dir()
+    started.append(d)
+    for name, cnt, med, lo, hi in verdict.strips:
+        _emit(settings, f"Strip {name} looks misread: its {cnt} patches "
+                        f"disagree with the rest of the chart by {lo:.0f} to "
+                        f"{hi:.0f} \u0394E (median {med:.0f}). Its readings "
+                        f"were left out of this profile; re-read strip "
+                        f"{name} to use them.")
+    return strips.without_rows(meas, verdict.dropped_rows, d.td.name)
+
+
 def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         settings: BuildSettings,
                         started: list | None = None) -> BuildResult:
@@ -600,6 +633,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
 
     _sanity_gates(meas, settings)
     accurate = settings.gammap_mode == "accurate"
+    if accurate and "a22-strip" in accurate_candidates(
+            settings.engine_candidates):
+        meas = _drop_misread_strips(meas, settings, q, started)
     oracle_run = None
     if _will_use_colprof_oracle(meas, settings):
         # D-06: colprof reads only the .ti3 and the settings, so the oracle
