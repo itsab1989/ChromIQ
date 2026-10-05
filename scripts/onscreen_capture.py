@@ -969,6 +969,13 @@ class PopupWatchdog:
                 f.write(time.strftime("%H:%M:%S ") + line + "\n")
 
     def _tick(self) -> None:
+        self._ticking = True
+        try:
+            self._tick_body()
+        finally:
+            self._ticking = False
+
+    def _tick_body(self) -> None:
         now = time.monotonic()
         live = self._popups()
         alive_ids = {id(w) for w in live}
@@ -1047,6 +1054,19 @@ class PopupWatchdog:
         self._note(f"SEEN {info['class']} '{info['title']}' "
                    f"buttons={info['buttons']} text={info['text'][:300]!r}")
         if self.photograph and self.report_dir is not None:
+            # DEFERRED, never inside this tick (agent 18b, 2026-10-05, third
+            # hang): capture_window pumps events, so the driver's own code ran
+            # INSIDE the watchdog's tick, and Qt does not fire a timer again
+            # while its slot is still on the stack. The watchdog went blind
+            # for the rest of the run and never answered the next question.
+            from PyQt6.QtCore import QTimer
             shot = self.report_dir / f"popup_{len(self.events):03d}.png"
-            ok, why = capture_window(w, shot, allow_hide=False)
-            self._note(f"  photo {shot.name}" if ok else f"  NO PHOTO: {why}")
+            QTimer.singleShot(0, lambda w=w, shot=shot: self._photograph(w, shot))
+
+    def _photograph(self, w, shot) -> None:
+        from PyQt6 import sip
+        if sip.isdeleted(w) or not w.isVisible():
+            self._note(f"  NO PHOTO: {shot.name}, the pop-up was gone")
+            return
+        ok, why = capture_window(w, shot, allow_hide=False)
+        self._note(f"  photo {shot.name}" if ok else f"  NO PHOTO: {why}")

@@ -169,3 +169,42 @@ def test_the_total_budget_ends_a_run_whose_steps_keep_renewing(tmp_path):
                        timeout=120)
     assert r.returncode == 3
     assert "total budget" in (tmp_path / "hang-renewing.txt").read_text()
+
+
+def test_the_watchdog_photographs_outside_its_own_tick(monkeypatch, tmp_path):
+    """Third hang (2026-10-05 02:20): capture_window pumps events, the
+    watchdog photographed INSIDE its tick, the driver's next steps ran inside
+    that tick, and Qt never fired the watchdog's timer again, so the "Apply or
+    save" question was never answered. The photo must come after the tick."""
+    app = QApplication.instance() or QApplication([])
+    dog = oc.PopupWatchdog(tmp_path, photograph=True, policy="dismiss", grace_s=0.2,
+                           interval_ms=50, log=lambda m: None)
+    calls = []
+    looks = []
+    real_popups = oc.PopupWatchdog._popups
+    monkeypatch.setattr(oc.PopupWatchdog, "_popups",
+                        staticmethod(lambda: (looks.append(1), real_popups())[1]))
+
+    def fake_capture(w, path, **kw):
+        # what capture_window does: pump events for a while. The watchdog
+        # must keep looking meanwhile (it cannot if this runs in its tick).
+        before = len(looks)
+        end = time.monotonic() + 0.5
+        while time.monotonic() < end:
+            QApplication.processEvents()
+            time.sleep(0.01)
+        calls.append(len(looks) > before)
+        return False, "test"
+    monkeypatch.setattr(oc, "capture_window", fake_capture)
+    host = QWidget()
+    box = QMessageBox(QMessageBox.Icon.Question, "Q1", "First?",
+                      QMessageBox.StandardButton.Cancel, host)
+    dog.start()
+    QTimer.singleShot(5000, box.reject)          # safety net, never needed
+    t0 = time.monotonic()
+    box.exec()
+    dog.stop()
+    assert calls and all(calls)
+    # answered by the watchdog (Escape), well before the safety net
+    assert dog.events and dog.events[0]["action"].startswith("pressed")
+    assert time.monotonic() - t0 < 4.0
