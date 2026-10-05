@@ -87,7 +87,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 24 (F-05, 5+ ink mapped-intent black; acts only on >= 5 inks)
      "a24-f05", "a24-f05walk", "a24-f05min", "a24-f05pin", "a24-f05nopin",
      # Agent 24 (C-L1, ColorSync-readable A2B L* encoding; C-S1 spectral)
-     "a24-l1", "a24-s1"})
+     "a24-l1", "a24-s1", "a24-s1sprague"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -611,7 +611,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, "Computing colorimetry from the spectral data…")
         apply_spectral(meas, illuminant=settings.illuminant,
                        observer=settings.observer, fwa=settings.fwa,
-                       fwa_illum=settings.fwa_illum)
+                       fwa_illum=settings.fwa_illum,
+                       method=_spectral_method(settings))
 
     if settings.clip_primaries:
         # colprof -R: white Y restricted to ≤ 1.0, values clipped positive.
@@ -1337,6 +1338,20 @@ def _sanity_gates(meas: Ti3Measurement, settings: BuildSettings) -> None:
             f"before building a profile.")
 
 
+def _spectral_method(settings: BuildSettings) -> str:
+    """Research C-S1 (Agent 24): Maximum accuracy with token "a24-s1" (spline)
+    or "a24-s1sprague" integrates F-series illuminants at 1 nm; everything
+    else (other modes, smooth illuminants) keeps the band sum and its bytes."""
+    from workflow.profile_engine.spectral import needs_fine_integration
+    if settings.gammap_mode != "accurate" \
+            or not needs_fine_integration(settings.illuminant):
+        return ""
+    cands = accurate_candidates(settings.engine_candidates)
+    if "a24-s1sprague" in cands:
+        return "sprague"
+    return "spline" if "a24-s1" in cands else ""
+
+
 def _v4_adaptation(meas: Ti3Measurement, settings: BuildSettings,
                    wtpt_abs: np.ndarray):
     """ICC v4 needs ``chad`` and a D50-adapted ``wtpt`` when the measurement
@@ -1351,7 +1366,8 @@ def _v4_adaptation(meas: Ti3Measurement, settings: BuildSettings,
     from workflow.profile_engine.ti3_data import D50_XYZ100
     ill = spectra_to_xyz(np.ones((1, len(meas.wavelengths))),
                          meas.wavelengths,
-                         illuminant=settings.illuminant)[0]
+                         illuminant=settings.illuminant,
+                         method=_spectral_method(settings))[0]
     cone_ill = BRADFORD @ (ill / 100.0)
     cone_d50 = BRADFORD @ (D50_XYZ100 / 100.0)
     m = np.linalg.inv(BRADFORD) @ np.diag(cone_d50 / cone_ill) @ BRADFORD
