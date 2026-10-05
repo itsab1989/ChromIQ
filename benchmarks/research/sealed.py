@@ -294,10 +294,10 @@ def cmd_seal(args) -> int:
     import subprocess
     man["generator_commit"] = subprocess.run(
         ["git", "-C", str(HERE), "rev-parse", "HEAD"], capture_output=True, text=True,
-        timeout=60).stdout.strip()
+        encoding="utf-8", timeout=60).stdout.strip()
     man["generator_dirty"] = bool(subprocess.run(
         ["git", "-C", str(HERE), "status", "--porcelain", "--", "."], capture_output=True,
-        text=True, timeout=60).stdout.strip())
+        text=True, encoding="utf-8", timeout=60).stdout.strip())
     # plausibility, pass/fail only (no numbers, no parameters)
     fails = []
     for slot in SLOTS:

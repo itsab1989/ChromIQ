@@ -95,7 +95,8 @@ def ensure_targen(device_rep: str, patches: int, argyll: str = ARGYLL,
     args = targen_args(device_rep, patches)
     with tempfile.TemporaryDirectory() as td:
         r = subprocess.run([f"{argyll}/targen", *args, "chart"], cwd=td,
-                           capture_output=True, text=True, timeout=1800)
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=1800)
         src = Path(td) / "chart.ti1"
         if r.returncode != 0 or not src.exists():
             raise RuntimeError(f"targen {' '.join(args)} failed: "

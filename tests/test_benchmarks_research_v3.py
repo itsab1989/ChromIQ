@@ -179,7 +179,7 @@ def test_a_sealed_set_cannot_be_scored_before_the_orchestrator_unseals_it(tmp_pa
     ds = S.load_datasets(tmp_path, tmp_path / "work")
     assert len(ds) == 2 * sum(len(s["charts"]) for s in S.SLOTS if s["id"] in SUBSET)
     assert all(d.info["role"] == "sealed-confirmatory" for _, d in ds)
-    assert "unsealed by orchestrator" in (tmp_path / "UNSEAL-LOG.md").read_text()
+    assert "unsealed by orchestrator" in (tmp_path / "UNSEAL-LOG.md").read_text(encoding="utf-8")
 
 
 @pytest.mark.skipif(not TARGEN.exists(), reason="ArgyllCMS not installed")
@@ -192,7 +192,8 @@ def test_verify_catches_a_changed_measurement(tmp_path, monkeypatch):
     (tmp_path / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
     assert S.main(["verify", str(tmp_path), "--manifest", ""]) == 0
     f = tmp_path / "data" / man["slots"][0]["datasets"][0]["ti3"]
-    f.write_text(f.read_text().replace("END_DATA", "1 0 0 0 0 0 0\nEND_DATA", 1))
+    f.write_text(f.read_text(encoding="utf-8").replace("END_DATA", "1 0 0 0 0 0 0\nEND_DATA", 1),
+                 encoding="utf-8")
     assert S.main(["verify", str(tmp_path), "--manifest", ""]) == 1
 
 
@@ -200,11 +201,11 @@ def test_the_repository_manifest_seals_twelve_printers_and_no_parameters():
     from benchmarks.research import sealed as S
     if not S.REPO_MANIFEST.exists():
         pytest.skip("not sealed yet")
-    man = json.loads(S.REPO_MANIFEST.read_text())
+    man = json.loads(S.REPO_MANIFEST.read_text(encoding="utf-8"))
     assert [s["id"] for s in man["slots"]] == [s["id"] for s in S.SLOTS]
     assert man["plausibility"]["failed"] == 0
     assert len(man["seed_commitment"]) == 64
-    assert '"inks"' not in S.REPO_MANIFEST.read_text()
+    assert '"inks"' not in S.REPO_MANIFEST.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +231,7 @@ def test_targen_runs_at_chromiq_defaults_without_ramps_or_ink_limit():
 def test_the_committed_targen_charts_are_what_chromiq_would_print(rep, n):
     f = charts.DATA / f"{charts.chart_name(rep, n)}.ti1"
     assert f.exists()
-    text = f.read_text()
+    text = f.read_text(encoding="utf-8")
     assert f'CHROMIQ_BENCH_COMMAND "targen {" ".join(charts.targen_args(rep, n))}"' in text
     got_rep, dev = charts.read_ti1(f)
     assert got_rep == rep and len(dev) == n

@@ -666,13 +666,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     if candidates:
         _emit(settings, "Candidate pipeline active: "
                         f"{', '.join(sorted(candidates))}.")
+    _noise_winner = None
     if accurate and settings.noise_model and "gp" not in candidates:
         # #123 user option: noise-aware fitting behind a held-out exam —
         # only used when it clearly beats the standard fit on THIS chart
         # (the env token "gp" still forces it, for the benchmark harness).
         from workflow.profile_engine.accuracy import \
             fit_forward_model_accurate_challenged
-        model, outliers, _lam_used, _winner = \
+        model, outliers, _lam_used, _noise_winner = \
             fit_forward_model_accurate_challenged(
                 meas.device, meas.lab_relative, grid=a2b_grid,
                 base_lam=lam, curve_rounds=curve_rounds, ucs=use_ucs,
@@ -693,6 +694,28 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             positioning=((not meas.is_additive or "rgbpos" in candidates)
                          and curve_rounds > 0),
             additive=meas.is_additive)
+        if len(outliers):
+            # Name the patches the way the SHEET names them (SAMPLE_LOC):
+            # "rows 757, 811" only coincided with the printed IDs on a
+            # targen chart; on an imported or merged chart a data-row
+            # number sends the user to the wrong patch.
+            ids = ", ".join(meas.patch_label(int(i)) for i in outliers[:8])
+            more = "" if len(outliers) <= 8 else f" (+{len(outliers) - 8})"
+            _emit(settings,
+                  f"{len(outliers)} patch(es) disagree strongly with the "
+                  f"model and were down-weighted — {ids}{more}. "
+                  f"Consider remeasuring them.")
+    else:
+        model = fit_forward_model(meas.device, meas.lab_relative,
+                                  grid=a2b_grid, lam=lam,
+                                  curve_rounds=curve_rounds)
+    # Integration 2: the GP layer (fin3, default for <= 4 inks) follows the
+    # forward fit whichever way it was made, unless the noise-aware fit WON
+    # on this chart. Before, it sat inside the standard-fit branch, so
+    # switching the noise option on silently dropped the GP even where the
+    # noise handling stood aside (test_noise_option_stands_aside_on_clean_chart:
+    # a clean chart must build identically with and without the option).
+    if accurate and _noise_winner != "noise":
         if ("gpfwd" in candidates and not meas.is_additive and n > 4):
             _emit(settings, "Gaussian process forward model: not used for "
                             "5 or more inks (the forward fit is kept).")
@@ -735,21 +758,6 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     anchor_rel=0.1, keep_curves="gpkeep" in candidates,
                     shaped_samples="gpsamp" in candidates)
                 a2b_grid = model.grid
-        if len(outliers):
-            # Name the patches the way the SHEET names them (SAMPLE_LOC):
-            # "rows 757, 811" only coincided with the printed IDs on a
-            # targen chart; on an imported or merged chart a data-row
-            # number sends the user to the wrong patch.
-            ids = ", ".join(meas.patch_label(int(i)) for i in outliers[:8])
-            more = "" if len(outliers) <= 8 else f" (+{len(outliers) - 8})"
-            _emit(settings,
-                  f"{len(outliers)} patch(es) disagree strongly with the "
-                  f"model and were down-weighted — {ids}{more}. "
-                  f"Consider remeasuring them.")
-    else:
-        model = fit_forward_model(meas.device, meas.lab_relative,
-                                  grid=a2b_grid, lam=lam,
-                                  curve_rounds=curve_rounds)
     if "spectral" in candidates or (accurate and settings.spectral_physics):
         # #123 W4: challenge the grid with the YNSN physics hybrid — the
         # standard model stays unless the physics wins on held-out

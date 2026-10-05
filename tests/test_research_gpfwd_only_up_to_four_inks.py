@@ -72,7 +72,7 @@ def test_agent15s_repair_is_fitted_only_behind_the_gate():
 def test_every_fin3_token_is_read_only_inside_the_gated_branch():
     src = inspect.getsource(builder._build_profile_impl)
     gate = src.index("if gp_forward_applies(")
-    end = src.index("\n        if len(outliers):", gate)
+    end = src.index('\n    if "spectral" in candidates', gate)
     for tok in builder.GP_FIN3_TOKENS:
         q = f'"{tok}"'
         at = [i for i in range(len(src)) if src.startswith(q, i)]

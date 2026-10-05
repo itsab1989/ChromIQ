@@ -399,7 +399,8 @@ class ProxyPrinter:
         import subprocess
         inp = "\n".join(" ".join(f"{v:.6f}" for v in r) for r in dev) + "\n"
         out = subprocess.run(["/Applications/Argyll/bin/mpplu", "-px", str(self.path)],
-                             input=inp, capture_output=True, text=True, timeout=3600,
+                             input=inp, capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", timeout=3600,
                              check=True).stdout
         rows = [[float(x) for x in ln.split("->")[1].split("[")[0].split()[:3]]
                 for ln in out.splitlines() if "->" in ln]
@@ -503,7 +504,7 @@ def main(argv=None) -> None:
     r["headline"] = headline(r)
     txt = json.dumps(r, indent=1)
     if a.out:
-        Path(a.out).write_text(txt)
+        Path(a.out).write_text(txt, encoding="utf-8")
     print(json.dumps(r["headline"], indent=1))
 
 
