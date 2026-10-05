@@ -514,6 +514,9 @@ def ink_priors(target: np.ndarray, n: int, *,
     return prior, prior_w
 
 
+HUE_CLIP_GUARD: dict = {"on": False}   # agent 19, set per build by the builder
+
+
 def invert_to_device(model: ForwardModel, target: np.ndarray, *,
                      channel_letters: list[str], is_additive: bool,
                      ink_limit: float | None = None,
@@ -653,6 +656,22 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
                           > np.hypot(t_sub[:, 1], t_sub[:, 2]) + 3.0)
                 keep = (dh <= 10.0) & ~gained
                 d_pol[~keep] = seeds_h[found][~keep]
+                if HUE_CLIP_GUARD.get("on"):
+                    # Research token "a19-extrap" (agent 19): the hue-
+                    # preserving clip may not trade lightness for hue
+                    # without limit. Measured on X7: the node L* 99,
+                    # b* -8 (bluer than paper, out of gamut) took a dark
+                    # blue at L* 45 of the same hue instead of the nearest
+                    # clip at L* 95, and the B2A cells beside paper white
+                    # printed L* 93-96 for in-gamut L* 98.7 (15 visible
+                    # jumps). A clip more than 2x + 2 farther from the
+                    # target than the nearest clip keeps the nearest clip.
+                    lab_now = model.predict(d_pol)
+                    far = np.linalg.norm(lab_now - target[sub_idx], axis=1)
+                    near = np.linalg.norm(model.predict(d[sub_idx])
+                                          - target[sub_idx], axis=1)
+                    bad = far > 2.0 * near + 2.0
+                    d_pol[bad] = d[sub_idx][bad]
                 d[sub_idx] = d_pol
     return d, residual
 

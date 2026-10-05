@@ -685,6 +685,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     fit_res = np.linalg.norm(model.predict(meas.device) - meas.lab_relative,
                              axis=1)
 
+    # Research token "a19-extrap": the hue-preserving clip may not trade
+    # lightness for hue without limit (b2a.HUE_CLIP_GUARD). One build per
+    # process, as for every module-level research switch.
+    b2a_mod.HUE_CLIP_GUARD["on"] = bool(accurate and "a19-extrap" in candidates)
     _emit(settings, f"Inverting the model (B2A grid {b2a_grid})…")
     user_limit = settings.ink_limit is not None
     ink_limit = settings.ink_limit if user_limit else meas.ink_limit
