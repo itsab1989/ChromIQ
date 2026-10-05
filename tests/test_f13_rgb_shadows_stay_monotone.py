@@ -20,6 +20,7 @@ import pytest
 from workflow.profile_engine import BuildSettings, build_profile
 
 FIXTURE = Path(__file__).parent / "data" / "f13" / "X1-typical-s23-targen400.ti3"
+FIXTURE_S2 = Path(__file__).parent / "data" / "f13" / "S2-typical-s23-targen900.ti3"
 SRGB = "/System/Library/ColorSync/Profiles/sRGB Profile.icc"
 CODES = np.arange(0.0, 40.0001, 0.25)        # 16-bit steps near black
 TOL = 0.02                                    # L*, a step darker than this is a reversal
@@ -91,6 +92,37 @@ def test_srgb_grey_ramp_never_prints_lighter_in_the_shadows(cmm, x1_profile, x1_
     assert rev <= TOL, (
         f"{cmm}: sRGB code {CODES[worst]:.2f} prints L* {lstar[worst]:.2f}, "
         f"{rev:.2f} darker than an earlier, darker code (F-13)")
+
+
+@pytest.fixture(scope="module")
+def s2_profile(tmp_path_factory):
+    out = tmp_path_factory.mktemp("f13s2") / "S2-accurate.icc"
+    st = BuildSettings(quality="m", gammap_mode="accurate", icc_version="2",
+                       progress=lambda m: None)
+    return build_profile(FIXTURE_S2, out, st).icc_path
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(sys.platform != "darwin" or not Path(SRGB).exists(),
+                    reason="uses the system sRGB profile")
+def test_a_chromatic_black_does_not_tint_the_grey_axis_above_it(s2_profile):
+    """S2's black is chromatic (L* 18.85, C* 3.0). Holding the column below
+    it at RGB 0 (F-13 design A, v1) tinted the first L* above the black
+    (printed C* 2.0 at L* 20, chroma_max 1.19 -> 2.14 on the battery); the
+    neutral black (design A2) keeps it neutral, and monotone."""
+    from benchmarks.research.printers import build_printers
+    truth = build_printers()["S2"]
+    black = truth.lab_rel(np.zeros((1, 3)))[0, 0]
+    ramp = _lcms_ramp(SRGB, s2_profile)
+    lstar = truth.lab_rel(np.clip(ramp, 0.0, 1.0))[:, 0]
+    assert lstar[0] == pytest.approx(black, abs=0.05)
+    assert _largest_reversal(lstar) <= TOL
+    from benchmarks.research import cmm
+    ls = np.arange(black + 1.0, 32.0, 0.25)
+    dev = cmm.b2a(s2_profile, np.column_stack([ls, 0 * ls, 0 * ls]), "lcms")
+    printed = truth.lab_rel(np.clip(dev, 0.0, 1.0))
+    chroma = np.hypot(printed[:, 1], printed[:, 2])
+    assert chroma.max() < 1.0, f"grey axis C* {chroma.max():.2f} at L* {ls[np.argmax(chroma)]:.2f}"
 
 
 def test_below_black_column_selects_only_the_neutral_column_under_the_black():
