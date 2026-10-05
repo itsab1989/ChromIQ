@@ -866,31 +866,39 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                             f"L* {axis['l_black']:.1f}.")
     rgb_col = None
     if accurate and meas.is_additive and n == 3 and "rgbcol" in candidates:
-        # Research F-13 (agent20-01 s3, design A): the neutral column below
-        # the device black is the device black, held through the refit and
-        # pinned after it, so the grey ramp cannot turn lighter than the
-        # black before it enters the gamut (X1: 7.86 -> 10.99 -> 9.90 L*).
+        # Research F-13 (agent20-01 s3 and s5.2, design A2): the neutral
+        # column below the NEUTRAL black is that neutral black (the L* 0
+        # corner stays RGB 0, the deepest black), held through the refit
+        # and pinned after it, so the grey ramp cannot turn lighter before
+        # it enters the gamut (X1: 7.86 -> 10.99 -> 9.90 L*) and a
+        # chromatic black does not tint the first L* above it (S2).
         _black_l = float(model.predict(np.zeros((1, n)))[0, 0])
-        rgb_col = b2a_mod.below_black_column(node_lab, _black_l)
+        _nb_l, _nb_dev = b2a_mod.rgb_neutral_black(model, _black_l,
+                                                   ucs=use_ucs)
+        rgb_col = b2a_mod.below_black_column(node_lab, _nb_l)
+        _corner = np.linalg.norm(node_lab[rgb_col], axis=1) <= 1.0
         # Only the L* 0 corner below the black: pin_black_node already sets
         # it and nothing reverses, so the table stays byte-identical.
-        if not (np.linalg.norm(node_lab[rgb_col], axis=1) > 1.0).any():
+        if _corner.all():
             rgb_col = rgb_col[:0]
+            _corner = _corner[:0]
+        rgb_col_val = np.where(_corner[:, None], 0.0, _nb_dev[None, :])
         if len(rgb_col):
-            dev_clut[rgb_col] = 0.0
+            dev_clut[rgb_col] = rgb_col_val
             fixed_nodes = rgb_col
-        rgb_col_val = np.zeros((len(rgb_col), n))
+            _emit(settings, f"Neutral black: L* {_nb_l:.1f} "
+                            f"(device black L* {_black_l:.1f}).")
         if len(rgb_col) and "rgbshadow" in candidates:
             # Research F-13 design C: the near-neutral shadow nodes below the
             # black are clipped ALONG L* first (re-inverted at the black's
             # L* with their own a*, b*), so a tinted ramp is flat at the
             # black's depth until it enters the gamut, like the column.
             _c = np.hypot(node_lab[:, 1], node_lab[:, 2])
-            _sh = np.flatnonzero((node_lab[:, 0] < _black_l) & (_c >= 1.0)
+            _sh = np.flatnonzero((node_lab[:, 0] < _nb_l) & (_c >= 1.0)
                                  & (_c < 20.0))
             if len(_sh):
                 _t = node_lab[_sh].copy()
-                _t[:, 0] = _black_l
+                _t[:, 0] = _nb_l
                 dev_clut[_sh] = b2a_mod.invert_to_device(
                     model, _t, channel_letters=meas.channel_letters,
                     is_additive=True, accurate=True, ucs=use_ucs)[0]

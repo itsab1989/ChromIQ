@@ -1056,6 +1056,39 @@ def below_black_column(node_lab: np.ndarray, black_l: float,
                           & (node_lab[:, 0] < float(black_l)))
 
 
+def rgb_neutral_black(model: ForwardModel, black_l: float, *,
+                      ucs: bool = False, step: float = 0.05,
+                      span: float = 15.0, tol: float = 0.5
+                      ) -> tuple[float, np.ndarray]:
+    """The NEUTRAL black of an RGB device: the darkest L* (from the device
+    black's L* upward, ``step`` apart) whose neutral target (L*, 0, 0) the
+    model reaches within ``tol`` dE76, and its device value. Returns the
+    device black (``black_l``, RGB 0) when RGB 0 is itself neutral (model
+    C* < 1, the test :func:`neutral_axis` uses) or
+    no neutral is reached within ``span`` L*.
+
+    Research F-13 design A2 (agent20-01 s5.2): below the black the B2A
+    neutral column is clipped ALONG the axis to this point, as Agent 5's
+    :func:`apply_neutral_axis` does for ink devices; on a chromatic black
+    (battery S2: C* 3.0) clipping to RGB 0 instead put a colour cast into
+    the first L* above the black."""
+    n = model.n_channels
+    zero = np.zeros((1, n))
+    lab0 = model.predict(zero)[0]
+    if np.hypot(lab0[1], lab0[2]) < 1.0:
+        # RGB 0 is already neutral (C* < 1, Agent 5's neutrality test)
+        return float(black_l), zero[0]
+    ls = np.arange(float(black_l), float(black_l) + span + 1e-9, step)
+    tgt = np.column_stack([ls, np.zeros_like(ls), np.zeros_like(ls)])
+    dev, res = invert_to_device(model, tgt, channel_letters=[],
+                                is_additive=True, accurate=True, ucs=ucs)
+    ok = np.flatnonzero(res < tol)
+    if not len(ok):
+        return float(black_l), zero[0]
+    i = int(ok[0])
+    return float(ls[i]), np.clip(dev[i], 0.0, 1.0)
+
+
 def pin_nodes(dev_clut: np.ndarray, nodes: np.ndarray,
               value: np.ndarray) -> np.ndarray:
     """Set ``nodes`` of a CLUT to one device value (same space as the
