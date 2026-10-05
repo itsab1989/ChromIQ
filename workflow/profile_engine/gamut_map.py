@@ -1029,7 +1029,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      channel_max: np.ndarray | None = None,
                      oracle_run: "OracleRun | None" = None,
                      neutral_black_dev: np.ndarray | None = None,
-                     black_dev_shaped: np.ndarray | None = None) -> dict:
+                     black_dev_shaped: np.ndarray | None = None,
+                     neutral_axis=None) -> dict:
     """Mapped tables per intent → dict of mft2 tags/aliases for the writer.
 
     Returns entries for ``B2A0``/``B2A2`` (bytes or the alias string
@@ -1240,7 +1241,28 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             dev = _odev.copy()
             if channel_max is not None:
                 dev = np.minimum(dev, channel_max[None, :])
-            if _neutral_col is not None and len(_neutral_col):
+            _ax = neutral_axis() if callable(neutral_axis) else neutral_axis
+            if (_neutral_col is not None and len(_neutral_col)
+                    and _ax is not None and _ax.get("black") is not None):
+                # Ink devices: the colorimetric table's own neutral axis (the
+                # continuation walk under the ink policy, the column B2A1
+                # prints neutral with) at the lightness colprof's table
+                # prints; below its black, the neutral black.
+                al = np.asarray(_ax["l"], float)
+                aok = np.asarray(_ax["ok"], bool)
+                adev = np.asarray(_ax["dev"], float)
+                order = np.argsort(al[aok])
+                ls_ = al[aok][order]
+                ds_ = adev[aok][order]
+                for i in _neutral_col:
+                    lt = mapped[i, 0]
+                    if lt < _ax["l_black"]:
+                        dev[i] = np.asarray(_ax["black"], float)
+                    else:
+                        # linear along the walk (0.5 L* steps)
+                        dev[i] = [np.interp(lt, ls_, ds_[:, c])
+                                  for c in range(ds_.shape[1])]
+            elif _neutral_col is not None and len(_neutral_col):
                 dev[_neutral_col] = b2a_mod.invert_to_device(
                     model, mapped[_neutral_col],
                     channel_letters=channel_letters, is_additive=is_additive,

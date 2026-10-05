@@ -888,6 +888,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         from workflow.profile_engine import parallel
         if parallel.worker_count() > 1:
             anchor_ready = threading.Event()
+            axis_ready = threading.Event()
+
+            def _axis_value():
+                axis_ready.wait()
+                return anchor_box.get("axis")
 
             def _anchor_value():
                 anchor_ready.wait()
@@ -904,7 +909,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     entries=_B2A_ENTRIES[qb], codec=codec, settings=settings,
                     a2b_grid=a2b_grid, a2b_entries=_A2B_ENTRIES[q],
                     anchor=_anchor_value, channel_max=channel_max,
-                    oracle_run=oracle_run)
+                    oracle_run=oracle_run,
+                    **({"neutral_axis": _axis_value}
+                       if "a25-oracle-neutral" in candidates else {}))
 
             mapped_bg = parallel.Background(_mapped)
 
@@ -913,9 +920,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 so no engine thread outlives build_profile."""
                 def close(self) -> None:
                     anchor_ready.set()
+                    axis_ready.set()
                     mapped_bg.join()
             started.append(_Release())
             anchor_box["ready"] = anchor_ready
+            anchor_box["axis_ready"] = axis_ready
     anchor = None
     # Research D-08 item (a), agent9-01 section 2: Maximum accuracy can
     # replace the colprof proxy with the engine's own N-ink rule (tokens
@@ -1037,6 +1046,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"The deepest neutral black needs black ink "
                             f"earlier (L* {axis['walk_l_black']:.1f} -> "
                             f"{axis['l_black']:.1f}).")
+    if mapped_bg is not None and "axis_ready" in anchor_box:
+        anchor_box["axis"] = axis
+        anchor_box["axis_ready"].set()
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
@@ -1212,6 +1224,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor,
             channel_max=channel_max, oracle_run=oracle_run,
             neutral_black_dev=(axis or {}).get("black"),
+            **({"neutral_axis": axis}
+               if "a25-oracle-neutral" in candidates else {}),
             black_dev_shaped=model.shape_device(device_black[None, :])[0])
         luts.update(mapped)
         perceptual_distinct = "B2A0" in mapped
