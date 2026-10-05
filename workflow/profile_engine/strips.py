@@ -60,7 +60,23 @@ MIN_STRIP = 4         # shorter strips are not judged
 MAX_SHARE = 0.25      # never drop more than this share of the chart
 MAX_ROUNDS = 4
 
+SHIFT_TEST = True
+SHIFT_MIN_DE = 1.0    # an out-of-step strip must be off by this much as read
+SHIFT_RATIO = 0.5     # ... and fit at least twice as well shifted by one
+MAX_LEAVE_OUT = 8     # strips per round judged on a fit without them
+
 _LOC_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
+
+
+def _patch_order(sample_locs, ids):
+    """Rows of each strip in patch order (the digits of SAMPLE_LOC)."""
+    num = np.array([int(_LOC_RE.match(str(l).strip()).group(2))
+                    for l in sample_locs])
+    out = {}
+    for g in np.unique(ids):
+        rows = np.flatnonzero(ids == g)
+        out[int(g)] = rows[np.argsort(num[rows], kind="stable")]
+    return out
 
 
 def strip_ids(sample_locs) -> np.ndarray | None:
@@ -88,12 +104,23 @@ class StripVerdict:
     note: str = ""
 
 
-def _residuals(device, lab, keep, grid, lam):
+def _predict(device, lab, keep, grid, lam):
     from workflow.profile_engine.forward_model import fit_forward_model
-    from workflow.profile_engine.metrics import delta_e_2000
     m = fit_forward_model(device[keep], lab[keep], grid=grid, lam=lam,
                           curve_rounds=1, cg_iters=350, cg_rtol=1e-12)
-    return delta_e_2000(m.predict(device), lab)
+    return m.predict(device)
+
+
+def _shifted(pred, lab, rows):
+    """Median residual of a strip as read, and read one patch early / late
+    (Argyll's chartread explores the same off-by-one, ``spectro/chartread.c``):
+    a strip read out of step fits far better shifted back."""
+    from workflow.profile_engine.metrics import delta_e_2000
+    p, r = pred[rows], lab[rows]
+    as_read = float(np.median(delta_e_2000(p, r)))
+    early = float(np.median(delta_e_2000(p[1:], r[:-1])))
+    late = float(np.median(delta_e_2000(p[:-1], r[1:])))
+    return as_read, min(early, late)
 
 
 def detect(meas, *, grid: int, lam: float) -> StripVerdict:
@@ -105,16 +132,48 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
     n = len(device)
     sizes = np.bincount(ids)
     judged = [g for g in range(len(sizes)) if sizes[g] >= MIN_STRIP]
+    from workflow.profile_engine.metrics import delta_e_2000
+    order = _patch_order(meas.sample_locs, ids)
     keep = np.ones(n, bool)
     suspects: set = set()
     res = None
     for _ in range(MAX_ROUNDS):
-        res = _residuals(device, lab, keep, grid, lam)
+        pred = _predict(device, lab, keep, grid, lam)
+        res = delta_e_2000(pred, lab)
         r_in = res[keep]
         med = float(np.median(r_in))
         s = 1.4826 * float(np.median(np.abs(r_in - med)))
         thr = max(MIN_DE, med + K_SCALE * s)
-        new = {g for g in judged if float(np.median(res[ids == g])) > thr}
+        new = set()
+        loo = []
+        for g in judged:
+            rows = order[g]
+            m_g = float(np.median(res[rows]))
+            if m_g > thr:
+                new.add(g)
+                continue
+            # out of step: shifted back by one patch it fits much better.
+            # Judged on a fit that has NOT seen the strip: an ordered strip
+            # (printtarg -r: a ramp read one patch late) is the only data in
+            # its region, so a fit that saw it follows it (masking).
+            if SHIFT_TEST:
+                as_read, shifted = _shifted(pred, lab, rows)
+                if as_read > max(SHIFT_MIN_DE, med + 2.0 * s):
+                    if shifted < SHIFT_RATIO * as_read:
+                        new.add(g)
+                    else:
+                        loo.append((as_read, g))
+        loo.sort(reverse=True)
+        for _, g in loo[:MAX_LEAVE_OUT]:
+            rows = order[g]
+            k2 = keep.copy()
+            k2[rows] = False
+            p2 = _predict(device, lab, k2, grid, lam)
+            as_read, shifted = _shifted(p2, lab, rows)
+            if (float(np.median(delta_e_2000(p2[rows], lab[rows]))) > thr
+                    or (as_read > SHIFT_MIN_DE
+                        and shifted < SHIFT_RATIO * as_read)):
+                new.add(g)
         if new == suspects:
             break
         suspects = new
@@ -136,7 +195,7 @@ def detect(meas, *, grid: int, lam: float) -> StripVerdict:
                          ).group(1).upper() for i in suspects}
     info = []
     for g in sorted(suspects):
-        r = res[ids == g]
+        r = res[order[g]]
         info.append((names[g], int(len(r)), float(np.median(r)), float(r.min()),
                      float(r.max())))
     return StripVerdict(dropped_rows=rows, strips=info)
