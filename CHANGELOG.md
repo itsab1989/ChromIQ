@@ -1,6 +1,8 @@
 # Changelog
 
-## v4.3.3-beta.11 (unreleased)
+## v4.3.3-beta.11
+
+**A new neighbour check outlines misreads the limit cannot see, a misread corrected by a re-read turns green, verifications get their own limit (ΔE 10), charts made with a pre-conditioning profile get ΔE 20, the help says what the limits are for, charts look the same on every computer, and Create Chart no longer fails at an ink limit of 300.**
 
 ### Added
 
@@ -21,6 +23,7 @@
 
 ### Fixed
 
+- **Windows: renaming a project only by upper/lower case renames its folder too** (found by ChromIQ's new test runs on Windows). The folder kept its old spelling.
 - **Create Chart no longer fails with an ink limit of 300 and grey steps** (F-10, #182 5985477496, found by the profile-engine research). ArgyllCMS 3.5.0 targen stopped with "ofps: assert" (or "Failed to re-seed the voronoi") whenever a fixed patch sat on a corner of the device cube exactly at the ink limit: ticking Total Ink Limit (it starts at 300) on a CMYK chart and setting Grey Axis Steps above 0 was enough, and so were single-ink steps at 100, and cube or surface grids (-m, -M, -b) at 100, 200 or 300, on RGB and CMY too. In exactly those cases ChromIQ now hands targen the limit plus 0.1 (300.1), which keeps every patch you asked for, and the log says so. Your setting, the command stamped on the sheet, and the chart's recorded ink limit (and so the profile's colprof -l) keep the value you chose. Any other limit (250, 320, ...) goes to targen unchanged. A limit below 100 with single-ink steps still fails in targen, for a different reason.
 
 ## v4.3.3-beta.10
