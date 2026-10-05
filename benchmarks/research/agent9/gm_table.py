@@ -15,7 +15,7 @@ for pid in pids.split(","):
         f = Path(d) / f"{pid}-{noise}-{e}-{rd}-{it}.json"
         if not f.exists():
             continue
-        r = json.loads(f.read_text())
+        r = json.loads(f.read_text(encoding="utf-8"))
         cells = []
         for k, _ in K:
             v = r.get(k)

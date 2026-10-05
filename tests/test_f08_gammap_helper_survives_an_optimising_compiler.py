@@ -69,15 +69,18 @@ def test_helper_built_optimised_by_this_machines_compiler_maps(opt, tmp_path,
         ["cmake", "-S", str(HELPER_DIR), "-B", str(build),
          "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_C_FLAGS_RELEASE={opt} -DNDEBUG",
          f"-DCMAKE_C_COMPILER={cc}"],
-        capture_output=True, text=True, timeout=300)
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=300)
     assert cfg.returncode == 0, cfg.stderr[-800:]
     b = subprocess.run(["cmake", "--build", str(build), "-j4"],
-                       capture_output=True, text=True, timeout=1200)
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=1200)
     assert b.returncode == 0, b.stderr[-800:]
     exe = next(p for p in (build / "chromiq-gammap",
                            build / "chromiq-gammap.exe") if p.exists())
     version = subprocess.run([cc, "--version"], capture_output=True,
-                             text=True).stdout.splitlines()[0]
+                             text=True, encoding="utf-8", errors="replace",
+                             timeout=60).stdout.splitlines()[0]
     monkeypatch.setenv("CHROMIQ_GAMMAP", str(exe))
 
     profiles = ROOT / "assets/profiles"

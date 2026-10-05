@@ -107,7 +107,11 @@ def test_gp_build_emits_confidence_map(tmp_path):
     res = build_profile(ti3, tmp_path / "c.icc", s)
     assert res.icc_path.exists()
     assert any("Confidence map" in ln for ln in lines)
-    assert any("Candidate pipeline active: gp" in ln for ln in lines)
+    # The line lists every token the build ran with, Maximum accuracy's
+    # defaults included (research integration 1: b2a33s, rgbpos).
+    key = "Candidate pipeline active: "
+    active = [ln.split(key, 1)[1] for ln in lines if key in ln]
+    assert active and "gp" in active[0].strip().rstrip(".").split(", ")
 
 
 def test_non_gp_path_untouched():

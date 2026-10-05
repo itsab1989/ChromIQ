@@ -86,7 +86,7 @@ def main():
         fb = Path(a.dir_b) / f"{pid}-{noise}-{a.eng_b}-{rd}-{it}.json"
         if not fb.exists():
             continue
-        ra, rb = json.loads(fa.read_text()), json.loads(fb.read_text())
+        ra, rb = json.loads(fa.read_text(encoding="utf-8")), json.loads(fb.read_text(encoding="utf-8"))
         if "error" in ra or "error" in rb:
             rows.append({"printer": pid, "noise": noise, "reader": rd, "intent": it,
                          "error": ra.get("error") or rb.get("error")}); continue
@@ -116,7 +116,7 @@ def main():
     if errs:
         print("errors:", errs[:5])
     if a.out:
-        Path(a.out).write_text(json.dumps(rows, indent=0))
+        Path(a.out).write_text(json.dumps(rows, indent=0), encoding="utf-8")
 
 
 if __name__ == "__main__":

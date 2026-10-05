@@ -45,7 +45,7 @@ for pid in a.printers.split(","):
                     except Exception as exc:
                         res, pp = {"error": repr(exc)}, {}
                     res.update(profile=str(prof), printer=pid, noise=noise, engine=eng)
-                    stem.with_suffix(".json").write_text(json.dumps(res, indent=1))
+                    stem.with_suffix(".json").write_text(json.dumps(res, indent=1), encoding="utf-8")
                     if pp:
                         np.savez_compressed(stem.with_suffix(".npz"), **pp)
                     print(stem.name, round(time.process_time() - t0, 1), "cpu s", flush=True)

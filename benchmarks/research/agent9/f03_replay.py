@@ -16,10 +16,11 @@ for f in sorted(d.glob("call*.npz")):
             args = [exe, "--src", str(d/"src.gam"), "--intent", str(z["intent"]), "--mapres", str(int(z["mapres"])),
                     "--query", str(td/"q.txt"), "--out", str(td/"o.txt"), "--dst-cloud", str(td/"c.txt"),
                     "--wp", *[f"{v:.9f}" for v in z["wp"]], "--bp", *[f"{v:.9f}" for v in bp]]
-            r = subprocess.run(args, capture_output=True, text=True, timeout=1200)
+            r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=1200)
             key = f"{f.stem}-{z['intent']}-{tag}"
             out[key] = {"rc": r.returncode, "msg": r.stderr.strip()[-120:], "bp": [round(float(v), 2) for v in bp]}
             if r.returncode == 0 and tag == "shipped_bp":
                 np.savetxt(d / f"{f.stem}-shipped.out", np.loadtxt(td/"o.txt"))
             print(key, out[key], flush=True)
-(d / "replay.json").write_text(json.dumps(out, indent=1))
+(d / "replay.json").write_text(json.dumps(out, indent=1), encoding="utf-8")

@@ -31,7 +31,7 @@ def run(q, **k):
     try:
         return orig_run(q, **k)
     except Exception as e:
-        (out / f"call{i}.err").write_text(str(e))
+        (out / f"call{i}.err").write_text(str(e), encoding="utf-8")
         raise
 wire.run_gammap = run
 s = BuildSettings(quality="m", gammap_mode=mode, ink_limit=limit,
@@ -52,5 +52,5 @@ ap = wire.Appearance(wire.lab_to_xyz(m.predict(np.zeros((1, m.n_channels))))[0])
 res.update(neutral_black_lab=nb_lab.tolist(), full_ink_lab=full_lab.tolist(),
            neutral_black_dev=ax["black"].tolist(), neutral_black_jab=ap.lab_to_jab(nb_lab[None])[0].tolist())
 np.save(out / "neutral_bp_jab.npy", ap.lab_to_jab(nb_lab[None])[0])
-(out / "capture.json").write_text(json.dumps(res, indent=1))
+(out / "capture.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
 print(json.dumps(res))

@@ -22,6 +22,6 @@ for pid in pids:
             continue
         sink = {}
         res = metrics.score(str(prof), ds, rd, truth, n_eval=20000, sink=sink)
-        f.write_text(json.dumps(res, indent=1, default=float))
+        f.write_text(json.dumps(res, indent=1, default=float), encoding="utf-8")
         np.savez_compressed(f.with_suffix(".npz"), **{k: np.asarray(v) for k, v in sink.items()})
         print(pid, noise, rd, "scored", flush=True)
