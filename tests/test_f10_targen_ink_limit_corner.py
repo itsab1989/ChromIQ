@@ -111,8 +111,8 @@ needs_targen = pytest.mark.skipif(not TARGEN.exists(),
 
 
 def _targen(argv: list[str], cwd: Path) -> subprocess.CompletedProcess:
-    return subprocess.run([str(TARGEN), *argv], cwd=cwd, capture_output=True,
-                          text=True, timeout=300, stdin=subprocess.DEVNULL)
+    return subprocess.run([str(TARGEN), *argv], cwd=cwd, capture_output=True, encoding="utf-8", errors="replace",
+                          timeout=300, stdin=subprocess.DEVNULL)
 
 
 @needs_targen
@@ -133,7 +133,7 @@ def test_the_nudge_keeps_every_grey_step(tmp_path):
         d.mkdir()
         r = _targen(["-d4", "-f0", "-e0", "-B0", "-s0", f"-l{limit}", "-g11", "c"], d)
         assert r.returncode == 0, r.stderr
-        rows = (d / "c.ti1").read_text().split("BEGIN_DATA\n")[1]
+        rows = (d / "c.ti1").read_text(encoding="utf-8").split("BEGIN_DATA\n")[1]
         return sum(1 for line in rows.splitlines()
                    if line.split()[1:4] == ["100.0000"] * 3)
     assert greys("300.1") == 1
