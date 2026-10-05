@@ -290,9 +290,12 @@ def _cell(r):
     return (r["dataset"], r["chart"], r["endpoint"])
 
 
-def small_loss(r: dict) -> bool:
+def small_loss(r: dict, use_ci: bool = False) -> bool:
+    """D-17 2b on the point difference; ``use_ci`` reads it the way a
+    non-inferiority trial does (ICH E9 / EMA margin guideline): the whole
+    95 % CI of the loss must stay inside the margin."""
     st = r["endpoint"].split(".")[-1]
-    d = abs(r["diff"])
+    d = abs(r["diff"]) if not use_ci else max(abs(r["ci95"][0]), abs(r["ci95"][1]))
     return (d <= SMALL_LOSS[st] and abs(r.get("rel", 0.0)) <= SMALL_LOSS_REL
             and d < REREAD_FLOOR[st])
 
@@ -393,6 +396,7 @@ def weighed_adoption(rows: list[dict], safety: list[dict] | None = None,
         worst = max(rr, key=lambda r: abs(r["diff"]))
         item = {"cell": " ".join(str(x) for x in c), "diff": worst["diff"], "rel": worst["rel"],
                 "reader": worst["reader"], "level": worst["level"], "small": small_loss(worst),
+                "small_by_ci": small_loss(worst, use_ci=True), "ci95": worst["ci95"],
                 "safety": c[2].split(".")[0] in SAFETY_ENDPOINT_KEYS}
         listed.append(item)
         if item["safety"]:
@@ -402,7 +406,9 @@ def weighed_adoption(rows: list[dict], safety: list[dict] | None = None,
     safety = safety or []
     net_ok = len(wins) >= 2 * len(losses) and win_size > loss_size
     ok = net_ok and not big and not unsafe and not safety
-    return {"pass": ok, "rule": "D-17 weighed adoption", "wins": len(wins), "losses": len(losses),
+    ok_ci = net_ok and not unsafe and not safety and all(x["small_by_ci"] for x in listed
+                                                          if not x["safety"])
+    return {"pass": ok, "pass_noninferiority_ci": ok_ci, "rule": "D-17 weighed adoption", "wins": len(wins), "losses": len(losses),
             "win_size": win_size, "loss_size": loss_size, "net_benefit": net_ok,
             "large_losses": big, "safety_losses": unsafe + safety, "all_losses": listed}
 

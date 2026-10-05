@@ -83,6 +83,19 @@ def absolute_lab(prof, device: np.ndarray, reader: str) -> np.ndarray:
     return dst
 
 
+def training_patches(ds):
+    """(device, absolute Lab) of the training split the builders saw."""
+    text = Path(ds.ti3).read_text(encoding="utf-8", errors="replace")
+    fields, rows, _ = dsm._ti3_table(text)
+    vals = dsm._parse_rows(fields, rows)
+    xc = [fields.index(k) for k in ("XYZ_X", "XYZ_Y", "XYZ_Z")]
+    dc = [i for i, f in enumerate(fields) if "_" in f and not f.startswith(("XYZ", "SPEC", "LAB"))
+          and f != "SAMPLE_ID"][:ds.n_channels]
+    dev = np.array([[float(v[i]) for i in dc] for v in vals]) / 100.0
+    xyz = np.array([[float(v[i]) for i in xc] for v in vals])
+    return dev, colour.xyz_to_lab(xyz)
+
+
 def compare_one(ds, ours: dict, ref_spec, n_boot: int = 2000) -> dict:
     """ds: a real Dataset (with holdout_xyz); ours: {label: icc path}."""
     ref, who, reader = ref_spec
@@ -104,6 +117,21 @@ def compare_one(ds, ours: dict, ref_spec, n_boot: int = 2000) -> dict:
             row["diff_vs_reference"][st] = {"ours_minus_reference": b["diff"],
                                             "ci95": b["ci95"], "p": b["p"]}
         out["ours"][label] = row
+    # both in-sample: the training patches
+    try:
+        tdev, tlab = training_patches(ds)
+        de_rt = colour.de2000(absolute_lab(ref, tdev, reader), tlab)
+        out["training"] = {"n": int(len(tlab)), "reference": metrics.stats(de_rt), "ours": {}}
+        for label, icc in ours.items():
+            if icc is None or not Path(icc).exists():
+                continue
+            de = colour.de2000(absolute_lab(icc, tdev, "argyll" if ds.n_channels <= 4
+                                            else "lcms"), tlab)
+            b = paired_bootstrap(de_rt, de, "mean", n_boot=n_boot)
+            out["training"]["ours"][label] = {"stats": metrics.stats(de),
+                                              "mean_diff": b["diff"], "ci95": b["ci95"]}
+    except Exception as exc:          # reported, never hidden
+        out["training"] = {"error": f"{type(exc).__name__}: {exc}"}
     return out
 
 
@@ -123,6 +151,20 @@ def table(rows: list[dict]) -> str:
                 cells.append(f"{d['ours_minus_reference']:+.3f} [{d['ci95'][0]:+.3f}, {d['ci95'][1]:+.3f}]")
             lines.append(f"| {r['dataset']} ({r['n_heldout']}) | {label} | OUT-of-sample (training split) | "
                          f"{s['median']:.3f} | {s['mean']:.3f} | {s['p95']:.3f} | " + " | ".join(cells) + " |")
+    lines += ["", "Training patches (BOTH in-sample):", "",
+              "| set (n) | profile | median | mean | p95 | ours - reference: mean [95 % CI] |",
+              "|---|---|---|---|---|---|"]
+    for r in rows:
+        t = r.get("training") or {}
+        if "reference" not in t:
+            continue
+        s = t["reference"]
+        lines.append(f"| {r['dataset']} ({t['n']}) | {r['reference']} | {s['median']:.3f} | "
+                     f"{s['mean']:.3f} | {s['p95']:.3f} | |")
+        for label, o in t["ours"].items():
+            s = o["stats"]
+            lines.append(f"| {r['dataset']} ({t['n']}) | {label} | {s['median']:.3f} | {s['mean']:.3f} | "
+                         f"{s['p95']:.3f} | {o['mean_diff']:+.3f} [{o['ci95'][0]:+.3f}, {o['ci95'][1]:+.3f}] |")
     return "\n".join(lines)
 
 
