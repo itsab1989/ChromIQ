@@ -180,13 +180,29 @@ class Dataset:
 # (agent 7 T8b), so it is in-sample for the engine: DEVELOPMENT only.
 DEVELOPMENT = ("S1", "S2", "S3", "S4", "S5", "S6", "S7")
 
+# Non-representative real sets (2026-10-05, ProfileEngineResearch
+# Validation/pro300-impact-audit.md). R-Pro300-EpsonPremSG was printed with the
+# wrong colour management (Basti, 2026-10-05); R-Pro300-CanonSG is of unknown
+# origin (a chartread file dated 2026-03-02, placed in ~/ChromIQ for README
+# screenshots, matching no chart in its folder; Basti does not recognise it).
+# They stay in the battery as ROBUSTNESS data (fit / held-out / identity
+# checks), never as quality evidence: always development, never confirmatory,
+# never claim-eligible.
+NON_REPRESENTATIVE = ("R-Pro300-CanonSG", "R-Pro300-EpsonPremSG")
+ROBUSTNESS_ONLY = NON_REPRESENTATIVE
+ROBUSTNESS_LABEL = "robustness only, not quality evidence"
+
+
+def is_robustness_only(name: str) -> bool:
+    return name.split("@")[0] in ROBUSTNESS_ONLY
+
 
 def role_of(name: str) -> str:
     base = name.split("@")[0]
     if base in DEVELOPMENT:
         return "development"
-    if base in ("R-Pro300-CanonSG", "R-Pro300-EpsonPremSG"):
-        return "development"      # September's held-out charts (agent 7 T8d)
+    if is_robustness_only(base):
+        return "development"      # September's held-out charts (agent 7 T8d); non-representative
     return "confirmatory"
 
 
@@ -420,7 +436,8 @@ def real_split(name: str, src_ti3: Path, work: Path, holdout_frac: float = 0.10,
                           held_out_with_duplicates=int((sizes[hold_groups] > 1).sum()),
                           holdout_leak=leak,
                           protected_groups=len(prot_groups), split_seed=seed,
-                          split="v2: by device value", role=role_of(name)))
+                          split="v2: by device value", role=role_of(name),
+                          robustness_only=is_robustness_only(name)))
     return d
 
 
@@ -445,9 +462,14 @@ REAL_SOURCES = {
     "R-RGB-default-i1Pro": ("xrite", "ColorSpaceRGB/Measurements/RGB_default-i1Pro.mxf", "mxf",
                             "X-Rite i1Profiler sample RGB chart, i1Pro; printer unknown"),
     "R-Pro300-CanonSG": ("owner", "Canon-Pro300-CanonSG-i1Pro/Canon-Pro300-CanonSG-i1Pro.ti3", "ti3",
-                         "owner: Canon PRO-300 on Canon SG, 1168 patches RGB, i1Studio/ColorMunki-class"),
+                         "unknown origin: chartread file dated 2026-03-02 placed in ~/ChromIQ on 2026-05-30 "
+                         "for README screenshots; printer, paper and print path unverified (owner does not "
+                         "recognise it, 2026-10-05); 1168 patches RGB, i1Studio/ColorMunki-class; "
+                         "robustness data only"),
     "R-Pro300-EpsonPremSG": ("owner", "Pro300_EpsonPremSG_i1Studio_Jun26/runs/run1/Pro300_EpsonPremSG_i1Studio_Jun26.ti3", "ti3",
-                             "owner: Canon PRO-300 on Epson Premium SG, 924 patches RGB, i1Studio"),
+                             "non-representative (chart printed with wrong colour management, per Basti "
+                             "2026-10-05); Canon PRO-300 on Epson Premium SG, 924 patches RGB, i1Studio; "
+                             "robustness data only"),
     "R-Knut-printer": ("owner", "Knut-Scanner/runs/run1/Knut-Scanner.ti3", "ti3",
                        "owner/Knut: 315-patch RGB printer chart, ColorMunki-class"),
     # Agent 14 (2026-10-04): the first real N-colour set. Public, free of

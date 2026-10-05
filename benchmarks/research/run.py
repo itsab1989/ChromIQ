@@ -91,7 +91,7 @@ V3_SPARSE = ("S1", "S3", "X1", "X3", "XKH", "XKB")   # also targen 400 (one shee
 # Fast/Bit-exact identity re-builds (hard rule 1) on these typical targen-900
 # sets and every real set; Integrator 3's hash battery covers the rest
 V3_IDENTITY = ("X3",)
-V3_IDENTITY_REAL = ("R-FOGRA39L", "R-Pro300-CanonSG")
+V3_IDENTITY_REAL = ("R-FOGRA39L", "R-Pro300-CanonSG")   # CanonSG: unknown-origin robustness data; identity is data-agnostic
 # the 7-ink real sets (4884 / 3534 patches) are Agent 14's; not in this freeze
 V3_REAL_SKIP = ("R-FOGRA55", "R-APTEC7C")
 SEEDS3_PRINTERS = ["X1", "X3", "X5"]

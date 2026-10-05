@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from benchmarks.research.datasets import ROBUSTNESS_LABEL, ROBUSTNESS_ONLY, is_robustness_only
+
 ENGINE_ORDER = ["colprof", "fast", "argyll", "accurate", "fast@upstream",
                 "argyll@upstream", "accurate@f00-parent"]
 
@@ -65,7 +67,9 @@ def write_summary(results: dict, path: Path) -> None:
     L.append("")
     L.append("Datasets marked (dev) are DEVELOPMENT sets (protocol v2 section 1a): "
              "the engine was tuned on them; a claim of 'better' rests on the "
-             "confirmatory sets only.")
+             "confirmatory sets only. Sets marked "
+             f"({ROBUSTNESS_LABEL}) are non-representative real data: "
+             + ", ".join(ROBUSTNESS_ONLY) + ".")
     L.append("")
     readers = []
     for d in results["datasets"]:
@@ -90,7 +94,8 @@ def write_summary(results: dict, path: Path) -> None:
                 a2b = s.get("a2b") or s.get("a2b_heldout") or {}
                 L.append("| " + " | ".join([
                     d["name"] + (" (held-out)" if d["kind"] == "real" else "")
-                    + (" (dev)" if d.get("role") == "development" else ""),
+                    + (" (dev)" if d.get("role") == "development" else "")
+                    + (f" ({ROBUSTNESS_LABEL})" if is_robustness_only(d["name"]) else ""),
                     d["variant"], eng,
                     _g(a2b, "all", "median"), _g(a2b, "all", "p95"), _g(a2b, "all", "max", fmt="{:.2f}"),
                     _g(s, "b2a", "all", "median"), _g(s, "b2a", "all", "p95"),
