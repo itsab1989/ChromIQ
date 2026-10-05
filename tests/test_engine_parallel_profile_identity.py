@@ -14,15 +14,20 @@ from pathlib import Path
 
 import pytest
 
+from core.resource_path import argyll_binary
+
 
 def _argyll_bin() -> str | None:
+    """Argyll's bin dir the way the CI provides it on every OS: tests.argyll_env
+    honours CHROMIQ_ARGYLL_BIN (the Windows job puts Argyll there, not on
+    PATH, so the old shutil.which("colprof") lookup skipped this test on
+    Windows; CI triage 37251847063, section 3)."""
+    from tests.argyll_env import argyll_bin_dir
+    d = argyll_bin_dir()
+    if d is not None and (d / argyll_binary("colprof")).exists():
+        return str(d)
     hit = shutil.which("colprof")
-    if hit:
-        return str(Path(hit).parent)
-    for d in ("/Applications/Argyll/bin", "/opt/homebrew/bin"):
-        if (Path(d) / "colprof").exists():
-            return d
-    return None
+    return str(Path(hit).parent) if hit else None
 
 
 def _build(ti3: Path, out: Path, threads: str, argyll: str,

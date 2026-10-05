@@ -67,17 +67,24 @@ def test_helper_built_optimised_by_this_machines_compiler_maps(opt, tmp_path,
     build = tmp_path / "build"
     cfg = subprocess.run(
         ["cmake", "-S", str(HELPER_DIR), "-B", str(build),
+         # Ninja when there is one: single-config, so CMAKE_BUILD_TYPE (and
+         # with it the flags under test) applies. Without -G, cmake on
+         # Windows picks Visual Studio, which is multi-config, puts the exe
+         # under build/<Config>/ and builds Debug (CI triage 37251847063, B-2).
+         *(["-G", "Ninja"] if shutil.which("ninja") else []),
          "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_C_FLAGS_RELEASE={opt} -DNDEBUG",
          f"-DCMAKE_C_COMPILER={cc}"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         timeout=300)
     assert cfg.returncode == 0, cfg.stderr[-800:]
-    b = subprocess.run(["cmake", "--build", str(build), "-j4"],
+    b = subprocess.run(["cmake", "--build", str(build), "--config", "Release",
+                        "-j4"],
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=1200)
     assert b.returncode == 0, b.stderr[-800:]
-    exe = next(p for p in (build / "chromiq-gammap",
-                           build / "chromiq-gammap.exe") if p.exists())
+    exe = next((p for p in sorted(build.rglob("chromiq-gammap*"))
+                if p.is_file() and p.suffix in ("", ".exe")), None)
+    assert exe is not None, f"no chromiq-gammap under {build}"
     version = subprocess.run([cc, "--version"], capture_output=True,
                              text=True, encoding="utf-8", errors="replace",
                              timeout=60).stdout.splitlines()[0]
