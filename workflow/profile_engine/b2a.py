@@ -735,6 +735,12 @@ _DEEP_BLACK_MARGIN = 1.0      # L*: below this gain the walk's black stays
 _DEEP_BLACK_SEEDS = 12
 _DEEP_BLACK_JOIN_STEP = 2.0   # L*: spacing of the join points tried
 _DEEP_BLACK_JOIN_TOP = 60.0   # L*: lightest join tried (K starts near here)
+# CMYK only for now: on the battery's 6-ink S7 (walk 12.8, global 8.7) the
+# re-route gave a 3.2 L* deeper neutral black and a better B2A (median
+# 0.882 -> 0.828, p95 1.990 -> 1.600) but C/M/Y rise and fall along the
+# grey ramp (P7 TV excess 0.05 -> 0.25) and the L* 14-30 neutral median
+# went 0.61 -> 0.74. 5+ inks wait for an N-ink-aware blend (agent17-01 1.6).
+_DEEP_BLACK_MAX_INKS = 4
 
 
 def _neutral_ok(model: ForwardModel, d: np.ndarray, r: np.ndarray):
@@ -813,7 +819,7 @@ def _deepen_neutral_black(model: ForwardModel, axis: dict, *, step: float,
     blend is a K prior); with none, or when no join works, the walk's axis
     is returned unchanged."""
     letters = kw.get("channel_letters") or []
-    if "K" not in letters:
+    if "K" not in letters or model.n_channels > _DEEP_BLACK_MAX_INKS:
         return axis
     found = deepest_neutral(model, step=step, kw=kw)
     if found is None or found[0] > axis["l_black"] - _DEEP_BLACK_MARGIN:
