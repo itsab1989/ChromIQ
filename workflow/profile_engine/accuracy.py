@@ -66,6 +66,8 @@ def fit_forward_model_accurate(
         row_weights: np.ndarray | None = None,
         positioning: bool = False,
         additive: bool = False,
+        fit_space=None,
+        order_mu: float = 0.0,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
 
@@ -102,10 +104,17 @@ def fit_forward_model_accurate(
         from workflow.profile_engine.ucs import print_ucs
         space = print_ucs()
         lab = space.lab_to_ucs(lab)
+    elif fit_space is not None:
+        # research (agent 19, ablation): fit in another space with the same
+        # lab_to_ucs / ucs_to_lab interface; every distance stays dE00.
+        space = fit_space
+        lab = space.lab_to_ucs(lab)
 
     def dist(pred: np.ndarray, ref: np.ndarray) -> np.ndarray:
         if ucs:
             return np.linalg.norm(pred - ref, axis=1)
+        if fit_space is not None:
+            return delta_e_2000(space.ucs_to_lab(pred), space.ucs_to_lab(ref))
         return delta_e_2000(pred, ref)
 
     sigma = None
@@ -374,6 +383,39 @@ def fit_forward_model_accurate(
         res = dist(model.predict(device), lab)
         res_w = res / sigma if sigma is not None else res
         w_rob = w2_rob
+
+    if order_mu > 0.0:
+        # Research token "a19-extrap" (agent 19, F-12): one more solve of the
+        # final lattice (same curves, same robust weights, warm start) with
+        # a penalty on every interaction of three or more inks, weight
+        # order_mu x lambda. The per-axis curvature penalty leaves every
+        # multilinear function free, so a corner no patch reaches took the
+        # Lab-additive continuation of its inks (two dark inks -> L* < 0);
+        # with the order penalty it takes the additive + pairwise structure
+        # the chart measured elsewhere (functional ANOVA of order 2).
+        from workflow.profile_engine import extrap
+        if progress is not None:
+            progress("Fitting the printer model: limiting unmeasured "
+                     "many-ink interactions…")
+        wf = _total(w_rob)
+        model.nodes = extrap.resolve_with_order_penalty(
+            model, device, lab, lam, order_mu * lam,
+            weights=wf if ((wf < 0.999).any() or w_noise is not None
+                           or rw is not None) else None,
+            # only away from the chart: the region the patches pin (paper
+            # white and its light neighbourhood included) keeps the plain
+            # fit (global penalty: X7 near-white B2A jumps, NC5 0 -> 15)
+            local=(0.5, 1.0),
+            # and only where the node carries real ink (total lattice
+            # coordinate 0.5 -> 1.5): the local gate alone still left 15
+            # near-white X7 jumps; the light end the B2A refit samples
+            # keeps the plain fit
+            ink_gate=(0.5, 1.5),
+            # the CHANGE is solved, not the whole lattice again: a full
+            # re-solve from the fit drifted the unpenalised region
+            delta=True)
+        res = dist(model.predict(device), lab)
+        res_w = res / sigma if sigma is not None else res
 
     # Report likely misreads: everything rejected outright, plus whatever
     # still sits clearly above the bulk after the refit. With the noise

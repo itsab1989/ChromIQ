@@ -94,7 +94,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 24 (F-05, 5+ ink mapped-intent black; acts only on >= 5 inks)
      "a24-f05", "a24-f05walk", "a24-f05min", "a24-f05pin", "a24-f05nopin",
      # Agent 24 (C-L1, ColorSync-readable A2B L* encoding; C-S1 spectral)
-     "a24-l1", "a24-l1scale", "a24-s1", "a24-s1sprague"})
+     "a24-l1", "a24-l1scale", "a24-s1", "a24-s1sprague",
+     # Agent 19 (F-12 extrapolation; opt-in, Integration 3 verdict)
+     "a19-extrap", "a19-order", "a19-bounds"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -152,6 +154,11 @@ def _a21_cached_fit(fn):
         f.write_bytes(pickle.dumps(out))
         return out
     return wrapped
+
+# a19-extrap: weight of the interaction-order penalty relative to the fit's
+# lambda (agent 19; X5 and X7 re-solves: about lambda / 3 wins every
+# extrapolation row, larger starts to bend real three-ink structure).
+A19_ORDER_MU = 0.3
 
 
 def accurate_candidates(tokens) -> frozenset:
@@ -744,7 +751,32 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # Agent 3 "rgbpos": the same, mirrored, for RGB devices.
             positioning=((not meas.is_additive or "rgbpos" in candidates)
                          and curve_rounds > 0),
-            additive=meas.is_additive)
+            additive=meas.is_additive,
+            # Research token "a19-extrap" (agent 19, F-12): penalise the
+            # 3+-ink interactions no chart identifies, 5+ ink devices only.
+            order_mu=(A19_ORDER_MU if (({"a19-extrap", "a19-order"}
+                                        & candidates)
+                                       and not meas.is_additive and n >= 5)
+                      else 0.0))
+        if ({"a19-extrap", "a19-bounds"} & candidates
+                and not meas.is_additive):
+            # Research token (agent 19, F-12): physical lower bounds on the
+            # lattice where the chart leaves it to extrapolation. A node may
+            # not be darker, in any XYZ channel, than a measured patch that
+            # carries at least as much of every ink, nor than half the
+            # darkest patches; nodes that obey are untouched (no node moved
+            # = the same bytes). Before the GP block, so its taper and
+            # projection see the bounded stiff fit.
+            from workflow.profile_engine import extrap
+            _xinfo: dict = {}
+            bounded, _moved = extrap.bound_by_data(
+                model, meas.device, meas.lab_relative, info=_xinfo)
+            if _moved.any():
+                model.nodes = bounded
+                _emit(settings, f"Printer model: {int(_moved.sum())} of "
+                                f"{len(_moved)} colour-table nodes the chart "
+                                f"does not reach held to the measured "
+                                f"darkness bounds.")
         if len(outliers):
             # Name the patches the way the SHEET names them (SAMPLE_LOC):
             # "rows 757, 811" only coincided with the printed IDs on a
