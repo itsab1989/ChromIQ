@@ -68,8 +68,13 @@ def fit_forward_model_accurate(
         additive: bool = False,
         fit_space=None,
         order_mu: float = 0.0,
+        fixed_lam: float | None = None,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
+
+    ``fixed_lam`` (research token "a32-darkmodel-auto"): use this smoothing
+    and skip the held-out smoothing search (the scan, the robust refit and
+    everything else are unchanged).
 
     ``positioning`` (ink devices): every fit starts from shaper curves
     placed by the chart's single-ink ramps
@@ -223,7 +228,9 @@ def fit_forward_model_accurate(
                      f"budget (shadows ±{sh:.2f} ΔE, highlights ±{hi:.2f} "
                      f"ΔE).")
 
-    if npts >= _HOLDOUT_MIN_PATCHES:
+    if fixed_lam is not None:
+        lam = float(fixed_lam)
+    elif npts >= _HOLDOUT_MIN_PATCHES:
         # Several hold-out splits, not one: on a real 924-patch chart the
         # single-split criterion spread only 0.01–0.1 ΔE00 across the whole
         # ladder while the same factor moved 0.1 between splits, so the

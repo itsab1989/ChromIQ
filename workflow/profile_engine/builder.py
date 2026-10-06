@@ -101,7 +101,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 19 (F-12 extrapolation; opt-in, Integration 3 verdict)
      "a19-extrap", "a19-order", "a19-bounds",
      # Agent 29a (cluster 1: black hand-over; <= 4 inks)
-     "a29-blackhandover", "a29-blackhandover-ink", "a29-darkmodel"})
+     "a29-blackhandover", "a29-blackhandover-ink", "a29-darkmodel",
+     # Agent 32 (dark-corner fit weight chosen per chart)
+     "a32-darkmodel-auto", "a32-darkmodel-auto-lamcv"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -843,6 +845,58 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                         & candidates)
                                        and not meas.is_additive and n >= 5)
                       else 0.0))
+        from workflow.profile_engine import darkauto
+        if (darkauto.wanted(candidates) and _dark_w is None
+                and len(meas.device) >= 120):
+            # Research token "a32-darkmodel-auto" (Agent 32): the a29 dark
+            # weight, but only when this chart's own held-out patches show
+            # it helps; the smoothing stays the one chosen without it.
+            _fit_kw = dict(
+                grid=a2b_grid, curve_rounds=curve_rounds, ucs=use_ucs,
+                gp="gp" in candidates,
+                positioning=((not meas.is_additive or "rgbpos" in candidates)
+                             and curve_rounds > 0),
+                additive=meas.is_additive,
+                order_mu=(A19_ORDER_MU if (({"a19-extrap", "a19-order"}
+                                            & candidates)
+                                           and not meas.is_additive and n >= 5)
+                          else 0.0))
+
+            def _fit_at(d, l, w, lam_fixed):
+                return fit_forward_model_accurate(
+                    d, l, base_lam=lam, row_weights=w, fixed_lam=lam_fixed,
+                    **_fit_kw)[0]
+
+            from workflow.profile_engine.metrics import delta_e_2000 as _de
+            _emit(settings, "Fitting the printer model: testing a stronger "
+                            "dark-corner weight on held-out patches…")
+            _alpha, _lam_dk, _rep = darkauto.choose(
+                meas.device, meas.lab_relative, meas.row_weights, _fit_at,
+                _lam_used, _de,
+                lam_factors=(darkauto.LAM_FACTORS
+                             if darkauto.lam_cv_wanted(candidates) else None),
+                base_lam=lam)
+            settings_log = getattr(settings, "_agent32_report", None)
+            if isinstance(settings_log, dict):
+                settings_log.update(_rep)
+            if _alpha > 0.0 or _lam_dk != _lam_used:
+                rw0 = (np.ones(len(meas.device)) if meas.row_weights is None
+                       else np.asarray(meas.row_weights, float))
+                meas.row_weights = rw0 * darkauto.dark_weights(
+                    meas.lab_relative, _alpha)
+                model, outliers, _lam_used = fit_forward_model_accurate(
+                    meas.device, meas.lab_relative, base_lam=lam,
+                    row_weights=meas.row_weights, fixed_lam=_lam_dk,
+                    progress=lambda m: _emit(settings, m), **_fit_kw)
+            _emit(settings, f"Dark-corner weight chosen on {_rep['n_heldout']} "
+                            f"held-out patches: "
+                            + (f"x{1 + _alpha:g} at L* 0 (held-out mean "
+                               f"{_rep['alphas'][_alpha]['mean']:.3f} vs "
+                               f"{_rep['off']['mean']:.3f} dE00 without)."
+                               if _alpha > 0 else
+                               f"none (no weight beat the plain fit; "
+                               f"held-out mean {_rep['off']['mean']:.3f} "
+                               f"dE00)."))
         if ({"a19-extrap", "a19-bounds"} & candidates
                 and not meas.is_additive):
             # Research token (agent 19, F-12): physical lower bounds on the
