@@ -442,6 +442,7 @@ def main(argv=None) -> None:
     sd = json.loads(Path(args.seed_sd).read_text(encoding="utf-8")) if args.seed_sd else None
     res = compare(Path(args.dir_a), Path(args.dir_b), args.engine_a,
                   args.engine_b, args.reader, seed_sd=sd)
+    from benchmarks.research.datasets import ROBUSTNESS_LABEL, is_robustness_only
     for r in res["rows"]:
         pe = r["verdict_per_printer_endpoint"]
         print(f"{r['dataset']:>22} {r['variant']:>8} {r['reader']:>9} "
@@ -449,7 +450,8 @@ def main(argv=None) -> None:
               f"({r['rel'] * 100:+.1f} %, CI [{r['ci95'][0]:+.3f}, {r['ci95'][1]:+.3f}], "
               f"p {'n/a' if is_ramp(r) else format(r['p'], '.1e')}) {r['verdict']}"
               f"{'' if pe == r['verdict'] else f' (per printer x endpoint: {pe})'}"
-              f"{'' if r['role'] == 'confirmatory' else ' (development set)'}")
+              f"{'' if r['role'] == 'confirmatory' else ' (development set)'}"
+              f"{' (' + ROBUSTNESS_LABEL + ')' if is_robustness_only(r['dataset']) else ''}")
     for g in res["ramp_seeds"]:
         print(f"{g['dataset']:>22} {g['seeds']} seeds {g['reader']:>9} {g['endpoint']:>18}: "
               f"mean diff {g['mean_diff']:+.3f}, sign-flip p {g['p']:.3f} "

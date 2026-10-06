@@ -213,7 +213,9 @@ def decide(rows: list[dict], engine_a: str, engine_b: str, table: dict | None,
         big = abs(r["diff"]) >= r["min_effect"]
         word = "BETTER" if r["diff"] < 0 else "WORSE"
         r["family_size"] = len(cloud)
-        r["claim_eligible"] = r["role"] == "sealed" and r["chart_role"] == "primary"
+        from benchmarks.research.datasets import is_robustness_only
+        r["claim_eligible"] = (r["role"] == "sealed" and r["chart_role"] == "primary"
+                               and not is_robustness_only(r["dataset"]))
         if is_ramp(r):
             r["holm_significant"] = False
             r["verdict"] = (word + "*") if big else "TIE"
