@@ -981,10 +981,13 @@ def f05_variant(settings, model, *, is_additive: bool,
             or getattr(model, "n_channels", 0) < 5:
         return None
     cands = getattr(settings, "engine_candidates", frozenset())
+    # "a24-f05" is default-on, so the effective set carries it beside any
+    # explicitly requested variant: the variants are tested first and the
+    # plain default is the fallback (Agent 28).
     for tok, var in F05_TOKENS.items():
-        if tok in cands:
+        if tok != "a24-f05" and tok in cands:
             return var
-    return None
+    return "f05" if "a24-f05" in cands else None
 
 
 def darkest_neutral_of_cloud(cloud_lab: np.ndarray) -> np.ndarray:

@@ -191,6 +191,36 @@ def accurate_candidates(tokens) -> frozenset:
                      and t not in off)
 
 
+def effective_engine_candidates(settings) -> frozenset:
+    """The ONE place a build's token set is resolved for every consumer
+    (Agent 28, 2026-10-06). Maximum accuracy: accurate_candidates() of the
+    requested tokens, i.e. defaults + requested - opt-outs, with the
+    "no-<token>" markers kept so that resolving the result again gives the
+    same set (accurate_candidates is idempotent on it). Every other mode:
+    the empty set (candidates only ever modify the Maximum accuracy
+    pipeline, #123).
+
+    Before this, _build_profile_impl resolved the set into a LOCAL variable
+    while gamut_map.py and gammap_port/wire.py read the RAW requested
+    settings.engine_candidates, so the default-on tokens a25-oracle-dev,
+    a25-oracle-neutral and a24-f05 never reached the perceptual/saturation
+    tables (Agent 27, Findings/agent27-01 s3.1)."""
+    raw = frozenset(getattr(settings, "engine_candidates", None) or ())
+    if getattr(settings, "gammap_mode", "") != "accurate":
+        return frozenset()
+    return accurate_candidates(raw) | {t for t in raw if t.startswith("no-")}
+
+
+def _with_effective_candidates(settings):
+    """A copy of settings whose engine_candidates is the effective set (the
+    caller's object is left as it was)."""
+    import dataclasses
+    eff = effective_engine_candidates(settings)
+    if eff == frozenset(settings.engine_candidates or ()):
+        return settings
+    return dataclasses.replace(settings, engine_candidates=eff)
+
+
 def _process_ink_hues(meas) -> dict:
     """Measured hue of the C, M, Y solids (research token a14-ecgsep)."""
     out = {}
@@ -609,6 +639,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         settings: BuildSettings,
                         started: list | None = None) -> BuildResult:
     started = [] if started is None else started
+    # Every reader below (this function, gamut_map, gammap_port, the colprof
+    # oracle) sees the EFFECTIVE token set, never the raw request.
+    settings = _with_effective_candidates(settings)
     if settings.quality not in _QUALITY_INDEX:
         raise EngineError(f"Unknown quality {settings.quality!r} "
                           "(expected one of l, m, h, u).")
