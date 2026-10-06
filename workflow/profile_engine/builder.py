@@ -25,6 +25,8 @@ builds:
 """
 from __future__ import annotations
 
+import os
+
 import contextlib
 import re
 from dataclasses import dataclass
@@ -83,7 +85,12 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 17 (research/pe-mustfix): column pin; F-09 v4 PRM black
      "a17-colpin", "v4prm",
      # Integration 2: the fin3 GP set as one switch (see GP_FIN3_TOKENS)
-     "fin3", "no-fin3"})
+     "fin3", "no-fin3",
+     # Agent 21 (F-14/F-15) and Agent 25 (F-15/F-17), research only:
+     "a21-lightcloud", "a21-lightcloud-all", "a21-clipfix", "a21-lightcloud60",
+     "a25-oog", "a25-clip", "a25-space-ucs", "a25-space-lab",
+     "a25-space-oklab", "a25-space-ipt", "a25-oracle-model",
+     "a25-oracle-dev", "a25-oracle-seed", "a25-oracle-neutral", "a25-rgbcol"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -118,6 +125,29 @@ ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "v4prm", "rgbcol"})
 GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
                             "gpdark", "a2bfine", "gpkeep"})
 GP_FIN3_DEFAULT_ON = True
+
+
+def _a21_cached_fit(fn):
+    import hashlib
+    import pickle
+    from pathlib import Path as _P
+
+    def wrapped(device, lab, **kw):
+        h = hashlib.sha256()
+        for a in (device, lab, kw.get("row_weights")):
+            if a is not None:
+                h.update(np.ascontiguousarray(a, float).tobytes())
+        h.update(repr(sorted((k, v) for k, v in kw.items()
+                             if k not in ("progress", "row_weights"))).encode())
+        d = _P(os.environ["CHROMIQ_A21_FIT_CACHE"])
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / f"fit-{h.hexdigest()[:32]}.pkl"
+        if f.exists():
+            return pickle.loads(f.read_bytes())
+        out = fn(device, lab, **kw)
+        f.write_bytes(pickle.dumps(out))
+        return out
+    return wrapped
 
 
 def accurate_candidates(tokens) -> frozenset:
@@ -521,6 +551,8 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
             return _build_profile_impl(ti3_path, out_path, settings, started)
     finally:
         settings.progress = orig_progress
+        from workflow.profile_engine import b2a as _b2a
+        _b2a.set_research_tokens((), is_additive=None)
         for run in started:
             run.close()
 
@@ -629,6 +661,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # patches (after the -R/-u mutations above), measured extra-ink hues.
         meas.average_endpoints()
     extra_hues = meas.extra_ink_hues() if accurate else None
+    # Research tokens a21-lightcloud / a21-clipfix (Agent 21, F-14/F-15) and
+    # a25-* (Agent 25, F-15/F-17 out-of-gamut clip); off by default, reset
+    # by build_profile when the build ends.
+    b2a_mod.set_research_tokens(candidates, is_additive=meas.is_additive)
     b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
     b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
     if b2a_mod.ECG_SEPARATION["on"]:
@@ -687,6 +723,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 positioning=not meas.is_additive and curve_rounds > 0)
     elif accurate:
         from workflow.profile_engine.accuracy import fit_forward_model_accurate
+        if os.environ.get("CHROMIQ_A21_FIT_CACHE"):
+            # Research only (agent 21): an on-disk cache of this exact fit, so
+            # two battery arms that differ only in B2A tokens fit once. The
+            # pickle round trip returns the same arrays bit for bit.
+            fit_forward_model_accurate = _a21_cached_fit(fit_forward_model_accurate)
         model, outliers, _lam_used = fit_forward_model_accurate(
             meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
@@ -852,6 +893,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         from workflow.profile_engine import parallel
         if parallel.worker_count() > 1:
             anchor_ready = threading.Event()
+            axis_ready = threading.Event()
+
+            def _axis_value():
+                axis_ready.wait()
+                return anchor_box.get("axis")
 
             def _anchor_value():
                 anchor_ready.wait()
@@ -868,7 +914,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     entries=_B2A_ENTRIES[qb], codec=codec, settings=settings,
                     a2b_grid=a2b_grid, a2b_entries=_A2B_ENTRIES[q],
                     anchor=_anchor_value, channel_max=channel_max,
-                    oracle_run=oracle_run)
+                    oracle_run=oracle_run,
+                    **({"neutral_axis": _axis_value}
+                       if "a25-oracle-neutral" in candidates else {}))
 
             mapped_bg = parallel.Background(_mapped)
 
@@ -877,9 +925,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 so no engine thread outlives build_profile."""
                 def close(self) -> None:
                     anchor_ready.set()
+                    axis_ready.set()
                     mapped_bg.join()
             started.append(_Release())
             anchor_box["ready"] = anchor_ready
+            anchor_box["axis_ready"] = axis_ready
     anchor = None
     # Research D-08 item (a), agent9-01 section 2: Maximum accuracy can
     # replace the colprof proxy with the engine's own N-ink rule (tokens
@@ -1001,6 +1051,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"The deepest neutral black needs black ink "
                             f"earlier (L* {axis['walk_l_black']:.1f} -> "
                             f"{axis['l_black']:.1f}).")
+    if mapped_bg is not None and "axis_ready" in anchor_box:
+        anchor_box["axis"] = axis
+        anchor_box["axis_ready"].set()
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
@@ -1009,6 +1062,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         ucs=use_ucs, channel_max=channel_max,
         progress=lambda m: _emit(settings, m))
     fixed_nodes = None
+    if accurate and meas.is_additive and "a25-rgbcol" in candidates:
+        fixed_nodes = b2a_mod.additive_column_nodes(node_lab, residual)
     if axis is not None:
         fixed_nodes = b2a_mod.apply_neutral_axis(
             dev_clut, node_lab, axis, model,
@@ -1103,6 +1158,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # the n>3 path had 10,000 samples for 35,937 nodes).
             **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
                if "b2a33s" in candidates else {}))
+    if (accurate and meas.is_additive and "a25-rgbcol" in candidates
+            and fixed_nodes is not None and len(fixed_nodes)):
+        # Research (Agent 25): the in-gamut neutral column of an RGB table
+        # keeps its exact inversion (the refit's anchor alone gives way).
+        dev_clut_shaped = dev_clut_shaped.copy()
+        dev_clut_shaped[fixed_nodes] = model.shape_device(
+            dev_clut[fixed_nodes])
     if ("a17-colpin" in candidates and fixed_nodes is not None
             and len(fixed_nodes)):
         # Research agent17-01 section 3 (token, not default): the smoothing
@@ -1216,6 +1278,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor,
             channel_max=channel_max, oracle_run=oracle_run,
             neutral_black_dev=(axis or {}).get("black"),
+            **({"neutral_axis": axis}
+               if "a25-oracle-neutral" in candidates else {}),
             black_dev_shaped=model.shape_device(device_black[None, :])[0])
         luts.update(mapped)
         perceptual_distinct = "B2A0" in mapped

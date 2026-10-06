@@ -775,9 +775,14 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
         # inversion (-nI) and off-node queries.
         if node_lab is not None:
             for tag, intent in (("B2A0", "p"), ("B2A2", "s")):
-                out[tag] = _ExactNodeMapper(node_lab, _realized_at(
-                    xicclu, icc, node_lab, intent, meas.n_channels),
-                    out[tag])
+                _lab_at, _dev_at = _realized_at(
+                    xicclu, icc, node_lab, intent, meas.n_channels,
+                    with_device=True)
+                out[tag] = _ExactNodeMapper(node_lab, _lab_at, out[tag])
+                # Research (Agent 25, F-16/F-18, token a25-oracle-model):
+                # colprof's own device values at the nodes, so the target
+                # can be re-expressed through the ENGINE's model.
+                out[tag].node_dev = _dev_at
         if cache_key is not None:
             while len(_ORACLE_CACHE) >= _ORACLE_CACHE_MAX:
                 _ORACLE_CACHE.pop(next(iter(_ORACLE_CACHE)))
@@ -789,7 +794,7 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
 
 def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
-                 n_channels: int) -> np.ndarray:
+                 n_channels: int, with_device: bool = False):
     import subprocess
     inp = "\n".join(f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c in lab)
     r1 = _run_argyll([str(xicclu), "-fb", f"-i{intent}", "-pl", str(icc)],
@@ -802,6 +807,8 @@ def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
                     for ln in r2.stdout.splitlines() if "->" in ln])
     if len(out) != len(lab):
         raise OracleUnavailable("node sampling failed")
+    if with_device:
+        return out, np.array([[float(v) for v in ln.split()] for ln in dev])
     return out
 
 
@@ -829,6 +836,8 @@ class _LazyWarp:
 class _ExactNodeMapper:
     """colprof's realized mapping sampled exactly at the CLUT nodes; the
     fitted warp answers everything off-node (the -nI inverse, probes)."""
+
+    node_dev = None     # colprof's device values at the nodes (Agent 25)
 
     def __init__(self, node_lab: np.ndarray, node_mapped: np.ndarray,
                  warp: WarpMapper) -> None:
@@ -1020,7 +1029,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      channel_max: np.ndarray | None = None,
                      oracle_run: "OracleRun | None" = None,
                      neutral_black_dev: np.ndarray | None = None,
-                     black_dev_shaped: np.ndarray | None = None) -> dict:
+                     black_dev_shaped: np.ndarray | None = None,
+                     neutral_axis=None) -> dict:
     """Mapped tables per intent → dict of mft2 tags/aliases for the writer.
 
     Returns entries for ``B2A0``/``B2A2`` (bytes or the alias string
@@ -1185,6 +1195,34 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      f"({'1' if tag == 'B2A0' else '2'}/2, Argyll's "
                      f"mapper)…")
         mapped = mapper.map_lab(node_lab)
+        if accurate and "a25-oracle-model" in getattr(
+                settings, "engine_candidates", frozenset()) and getattr(
+                mapper, "node_dev", None) is not None:
+            # Research (Agent 25, F-16/F-18): the oracle target is what
+            # colprof's TABLE prints, by the engine's model, instead of what
+            # colprof's own A2B claims it prints (that A2B is 8-12 L* wrong
+            # in places; Findings F-16, F-18). In the engine's gamut by
+            # construction, so no target needs a re-clip.
+            mapped = model.predict(np.clip(mapper.node_dev, 0.0, 1.0))
+        _cands = getattr(settings, "engine_candidates", frozenset())
+        _neutral_col = None
+        if accurate and "a25-oracle-neutral" in _cands and getattr(
+                mapper, "node_dev", None) is not None:
+            # Research (Agent 25): perceptual maps the neutral axis onto the
+            # neutral axis. The source-neutral column's target keeps the L*
+            # colprof's table prints (engine model) but is made neutral, and
+            # is re-inverted; integration 2's inversion was neutral there
+            # (X1 grey C* 1.1) and colprof's own table is not (1.8).
+            _neutral_col = np.flatnonzero(
+                np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+            mapped = mapped.copy()
+            mapped[_neutral_col] = model.predict(
+                np.clip(mapper.node_dev[_neutral_col], 0.0, 1.0))
+            mapped[_neutral_col, 1:] = 0.0
+        _odev = (np.clip(mapper.node_dev, 0.0, 1.0)
+                 if accurate and getattr(mapper, "node_dev", None) is not None
+                 and ({"a25-oracle-dev", "a25-oracle-seed"} & set(_cands))
+                 else None)
         if ownmap and "a9-warp" in getattr(settings, "engine_candidates",
                                            frozenset()):
             # Research a9-warp: colprof's realized map is smooth because it
@@ -1197,7 +1235,47 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         # Mapped targets land inside (or at) the gamut surface, so per-node
         # inversion converges everywhere — the boundary-cell kink that makes
         # the colorimetric table need a global refit doesn't arise here.
-        dev, _residual = b2a_mod.invert_to_device(
+        if _odev is not None and "a25-oracle-dev" in _cands:
+            # Research (Agent 25): colprof's own perceptual device values at
+            # the nodes, no re-inversion (what colprof's table prints).
+            dev = _odev.copy()
+            if channel_max is not None:
+                dev = np.minimum(dev, channel_max[None, :])
+            _ax = neutral_axis() if callable(neutral_axis) else neutral_axis
+            if (_neutral_col is not None and len(_neutral_col)
+                    and _ax is not None and _ax.get("black") is not None):
+                # Ink devices: the colorimetric table's own neutral axis (the
+                # continuation walk under the ink policy, the column B2A1
+                # prints neutral with) at the lightness colprof's table
+                # prints; below its black, the neutral black.
+                al = np.asarray(_ax["l"], float)
+                aok = np.asarray(_ax["ok"], bool)
+                adev = np.asarray(_ax["dev"], float)
+                order = np.argsort(al[aok])
+                ls_ = al[aok][order]
+                ds_ = adev[aok][order]
+                for i in _neutral_col:
+                    lt = mapped[i, 0]
+                    if lt < _ax["l_black"]:
+                        dev[i] = np.asarray(_ax["black"], float)
+                    else:
+                        # linear along the walk (0.5 L* steps)
+                        dev[i] = [np.interp(lt, ls_, ds_[:, c])
+                                  for c in range(ds_.shape[1])]
+            elif _neutral_col is not None and len(_neutral_col):
+                dev[_neutral_col] = b2a_mod.invert_to_device(
+                    model, mapped[_neutral_col],
+                    channel_letters=channel_letters, is_additive=is_additive,
+                    ink_limit=ink_limit, accurate=accurate,
+                    extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                    channel_max=channel_max, seed=_odev[_neutral_col])[0]
+            if ink_limit is not None and not is_additive:
+                # the engine's ink limit, exactly (xicclu's 4-decimal device
+                # values and colprof's own limit handling overshoot it by up
+                # to 1 %: FOGRA39 333 % for a 330 % limit)
+                dev = b2a_mod.project_tac(dev, ink_limit / 100.0)
+        else:
+          dev, _residual = b2a_mod.invert_to_device(
             model, mapped, channel_letters=channel_letters,
             is_additive=is_additive, ink_limit=ink_limit,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
@@ -1206,7 +1284,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                                               frozenset()),
             channel_max=channel_max,
             progress=progress,
-            progress_label="Gamut mapping: building the final colour table")
+            progress_label="Gamut mapping: building the final colour table",
+            **({"seed": _odev} if _odev is not None else {}))
         # colprof -no applies to EVERY B2A table (A-17): identity output
         # tables with unshaped device values in the CLUT.
         shaped = dev if no_out_shaper else model.shape_device(dev)
