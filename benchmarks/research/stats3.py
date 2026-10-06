@@ -52,7 +52,9 @@ ENDPOINTS = [("a2b", "median"), ("a2b", "mean"), ("a2b", "p95"),
              ("e7", "median"), ("e7", "p95"), ("e7b", "median"), ("e8", "median"),
              ("e8", "p95"), ("e9", "median"), ("e9", "mean"), ("e9", "p95"),
              # Agent 21 (F-14) proposal E10: pale in-gamut colours through the B2A
-             ("pale", "median"), ("pale", "p95")]
+             ("pale", "median"), ("pale", "p95"),
+             # protocol v3.1 (F-14): pale in-gamut LIGHTNESS error |dL*|
+             ("pale_dl", "mean"), ("pale_dl", "p95")]
 RAMP_KEYS = ("neutral_de", "neutral_hi")
 READER_GROUPS = {"argyll": "cmm", "lcms": "cmm", "colorsync": "cmm",
                  "lcms-app": "app", "ghostscript": "app",
@@ -298,6 +300,12 @@ def small_loss(r: dict, use_ci: bool = False) -> bool:
     """D-17 2b on the point difference; ``use_ci`` reads it the way a
     non-inferiority trial does (ICH E9 / EMA margin guideline): the whole
     95 % CI of the loss must stay inside the margin."""
+    if r.get("kind") == "property":
+        # v3.1 property rows are counts, L*, degrees: D-17 2b's dE clauses do
+        # not apply; small = at most 10 % relative AND at most twice the key's
+        # floor (one reversal step, 0.2 L*, 1 degree), never on a safety key
+        return (not r.get("safety") and abs(r.get("rel", 0.0)) <= SMALL_LOSS_REL
+                and abs(r["diff"]) <= 2.0 * r["floor"])
     st = r["endpoint"].split(".")[-1]
     d = abs(r["diff"]) if not use_ci else max(abs(r["ci95"][0]), abs(r["ci95"][1]))
     return (d <= SMALL_LOSS[st] and abs(r.get("rel", 0.0)) <= SMALL_LOSS_REL
@@ -401,7 +409,8 @@ def weighed_adoption(rows: list[dict], safety: list[dict] | None = None,
         item = {"cell": " ".join(str(x) for x in c), "diff": worst["diff"], "rel": worst["rel"],
                 "reader": worst["reader"], "level": worst["level"], "small": small_loss(worst),
                 "small_by_ci": small_loss(worst, use_ci=True), "ci95": worst["ci95"],
-                "safety": c[2].split(".")[0] in SAFETY_ENDPOINT_KEYS}
+                "safety": c[2].split(".")[0] in SAFETY_ENDPOINT_KEYS
+                or any(r.get("safety") for r in rr)}
         listed.append(item)
         if item["safety"]:
             unsafe.append(item)
@@ -444,15 +453,131 @@ def breakdown(rows: list[dict], engine_a: str, engine_b: str,
     return out
 
 
+# ---------------------------------------------------------------------------
+# protocol v3.1 (Agent 16b): property rows from the oogq referee
+# ---------------------------------------------------------------------------
+
+def _oogq_key_info(key: str):
+    from benchmarks.research import oogq
+    return oogq.KEYS.get(key)
+
+
+def property_rows(results_a: dict, results_b: dict | None, engine_a: str,
+                  engine_b: str) -> list[dict]:
+    """One row per dataset x oogq key that both profiles carry. ``diff`` is
+    signed so that positive = B worse (the key's sign applied); ``a`` and
+    ``b`` are the raw numbers. A single build reads like a ramp row:
+    BETTER* / WORSE* by the minimum effect, confirmed only over seeds."""
+    results_b = results_b or results_a
+    by_b = {(d["name"], d["variant"]): d for d in results_b["datasets"]}
+    rows = []
+    for d in results_a["datasets"]:
+        db = by_b.get((d["name"], d["variant"]))
+        if db is None:
+            continue
+        pa, pb = d["profiles"].get(engine_a), db["profiles"].get(engine_b)
+        qa = ((pa or {}).get("oogq") or {}).get("q") or {}
+        qb = ((pb or {}).get("oogq") or {}).get("q") or {}
+        v = split_variant(d["variant"])
+        chart = (d.get("info") or {}).get("chart") or v["chart"]
+        for key in sorted(set(qa) & set(qb)):
+            info = _oogq_key_info(key)
+            if info is None:
+                continue
+            sign, floor, safety, finding, _ = info
+            a, b = float(qa[key]), float(qb[key])
+            diff = sign * (b - a)
+            rows.append({"dataset": d["name"], "variant": d["variant"], "reader": "lcms",
+                         "reader_group": "cmm", "endpoint": f"q.{key}", "a": a, "b": b,
+                         "diff": diff, "rel": diff / abs(a) if a else (0.0 if not diff else float("inf")),
+                         "floor": floor, "safety": safety, "finding": finding,
+                         "role": d.get("role", "development"), "level": v["level"] or "real",
+                         "chart": chart, "chart_role": CHART_ROLE.get(chart, "real"),
+                         "ink_class": ink_class(d["n_channels"], d["color_rep"]),
+                         "n_channels": d["n_channels"], "kind": "property",
+                         "ci95": [diff, diff]})
+    return rows
+
+
+def decide_properties(rows: list[dict], engine_a: str, engine_b: str,
+                      table: dict | None, min_rel: float = 0.05) -> list[dict]:
+    """Minimum effect = max(5 % of |A|, the key's floor, 2 x the larger
+    measured between-seed SD of the two engines for that key, level and ink
+    class; fallbacks as ``seed_sd``). No SD at all -> 4 x the floor, named
+    ``unmeasured`` (a property has no placeholder from v2.1)."""
+    for r in rows:
+        sa, src_a = seed_sd(table, engine_a, r["level"], r["ink_class"], r["endpoint"])
+        sb, src_b = seed_sd(table, engine_b, r["level"], r["ink_class"], r["endpoint"])
+        sds = [x for x in (sa, sb) if x is not None]
+        if sds:
+            r["seed_sd"] = max(sds)
+            r["seed_sd_source"] = src_a if (sa is not None and sa >= (sb or -1)) else src_b
+            r["min_effect"] = max(min_rel * abs(r["a"]), r["floor"], 2.0 * r["seed_sd"])
+        else:
+            r["seed_sd"] = None
+            r["seed_sd_source"] = "unmeasured (4 x floor)"
+            r["min_effect"] = max(min_rel * abs(r["a"]), 4.0 * r["floor"])
+        big = abs(r["diff"]) >= r["min_effect"]
+        r["verdict"] = (("WORSE*" if r["diff"] > 0 else "BETTER*") if big else "TIE")
+        r["verdict_per_printer_endpoint"] = r["verdict"]
+        r["holm_significant"] = False
+        r["claim_eligible"] = r["role"] == "sealed" and r["chart_role"] == "primary"
+    return rows
+
+
+def property_seed_verdicts(rows: list[dict], alpha: float = 0.05) -> list[dict]:
+    """Seed confirmation of property rows (as v2.1 A4 for ramps): sign-flip
+    test over the seeds of one printer x level x chart x key, Holm."""
+    groups: dict = defaultdict(list)
+    for r in rows:
+        if split_variant(r["variant"])["seed"] is not None:
+            groups[(r["dataset"], r["level"], r["chart"], r["reader"], r["endpoint"])].append(r)
+    out = []
+    for (ds, lv, ch, rd, ep), rr in groups.items():
+        d = np.array([x["diff"] for x in rr])
+        out.append({"dataset": ds, "level": lv, "chart": ch, "reader": rd, "endpoint": ep,
+                    "seeds": len(d), "mean_diff": float(d.mean()),
+                    "min_effect": max(x["min_effect"] for x in rr),
+                    "p": sign_flip_p(d), "p_min_possible": 2.0 / 2 ** len(d)})
+    rej = holm([g["p"] for g in out], alpha)
+    for g, s_ in zip(out, rej):
+        big = abs(g["mean_diff"]) >= g["min_effect"]
+        g["verdict"] = (("WORSE" if g["mean_diff"] > 0 else "BETTER") if (s_ and big) else "TIE")
+    return out
+
+
+def property_safety(rows: list[dict], seeds: list[dict] | None = None) -> list[dict]:
+    """D-17 2c for the v3.1 safety keys: a WORSE* not cleared over seeds is a
+    safety loss (zero tolerance beyond the minimum effect)."""
+    sv = {(g["dataset"], g["level"], g["chart"], g["reader"], g["endpoint"]): g
+          for g in (seeds or [])}
+    out = []
+    for r in rows:
+        if not r["safety"] or r["verdict"] != "WORSE*":
+            continue
+        g = sv.get((r["dataset"], r["level"], r["chart"], r["reader"], r["endpoint"]))
+        if g is not None and g["verdict"] != "WORSE":
+            continue
+        out.append({"row": f"{r['dataset']} {r['variant']}", "check": f"{r['endpoint']} ({r['finding']})",
+                    "a": r["a"], "b": r["b"], "tolerance": r["min_effect"]})
+    return out
+
+
 def compare(dir_a: Path, dir_b: Path, engine_a: str, engine_b: str, readers,
             table: dict | None = None, alpha: float = 0.05, n_boot: int = N_BOOT) -> dict:
     ra = json.loads((Path(dir_a) / "results.json").read_text(encoding="utf-8"))
     rows = build_rows(dir_a, dir_b, engine_a, engine_b, readers, n_boot, results_a=ra)
     decide(rows, engine_a, engine_b, table, alpha)
     seeds = ramp_seed_verdicts(rows, alpha)
+    rb = ra if Path(dir_a) == Path(dir_b) else json.loads(
+        (Path(dir_b) / "results.json").read_text(encoding="utf-8"))
+    prows = decide_properties(property_rows(ra, rb, engine_a, engine_b), engine_a, engine_b,
+                              table)
+    pseeds = property_seed_verdicts(prows, alpha)
     return {"a": str(dir_a), "b": str(dir_b), "engine_a": engine_a, "engine_b": engine_b,
             "method": METHOD, "alpha": alpha, "rows": rows, "ramp_seeds": seeds,
-            "breakdown": breakdown(rows, engine_a, engine_b, ra)}
+            "property_rows": prows, "property_seeds": pseeds,
+            "breakdown": breakdown(rows + prows, engine_a, engine_b, ra)}
 
 
 def main(argv=None) -> None:
@@ -466,6 +591,8 @@ def main(argv=None) -> None:
     ap.add_argument("--seed-sd", default="")
     ap.add_argument("--out", default="")
     ap.add_argument("--no-regression", action="store_true")
+    ap.add_argument("--all-properties", action="store_true",
+                    help="print TIE property rows too")
     ap.add_argument("--weighed", action="store_true",
                     help="also the D-17 weighed adoption rule (net benefit, small-loss "
                          "tolerance, zero-tolerance safety rows); exit 1 if it fails")
@@ -473,6 +600,8 @@ def main(argv=None) -> None:
     table = json.loads(Path(args.seed_sd).read_text(encoding="utf-8")) if args.seed_sd else None
     res = compare(Path(args.dir_a), Path(args.dir_b), args.engine_a, args.engine_b,
                   args.reader, table)
+    all_rows = res["rows"] + res["property_rows"]
+    all_seeds = res["ramp_seeds"] + res["property_seeds"]
     for r in res["rows"]:
         pe = r["verdict_per_printer_endpoint"]
         print(f"{r['dataset']:>22} {r['variant']:>24} {r['reader']:>15} {r['endpoint']:>18}: "
@@ -480,6 +609,13 @@ def main(argv=None) -> None:
               f"{r['ci95'][1]:+.3f}], min eff {r['min_effect']:.3f}) {r['verdict']}"
               f"{'' if pe == r['verdict'] else f' (per family: {pe})'}"
               f"{'' if r['claim_eligible'] else ' [no claim: ' + r['role'] + '/' + r['chart_role'] + ']'}")
+    print("\nPROPERTY ROWS (protocol v3.1, oogq; single build: BETTER*/WORSE*):")
+    for r in res["property_rows"]:
+        if r["verdict"] == "TIE" and not args.all_properties:
+            continue
+        print(f"{r['dataset']:>22} {r['variant']:>24} {r['endpoint']:>30}: {r['a']:.3f} -> "
+              f"{r['b']:.3f} (min eff {r['min_effect']:.3f}, {r['seed_sd_source']}) {r['verdict']}"
+              f"{' SAFETY' if r['safety'] else ''} [{r['finding']}]")
     print("\nPER INK CLASS (per-family column):")
     for cls, c in sorted(res["breakdown"]["classes"].items()):
         if "not_covered" in c:
@@ -488,15 +624,15 @@ def main(argv=None) -> None:
             print(f"  {cls:>18}: {len(c['printers'])} printers, {c['rows']} rows: "
                   + ", ".join(f"{k} {c[k]}" for k in ("BETTER", "WORSE", "TIE", "BETTER*", "WORSE*")))
     if args.no_regression:
-        nr = no_regression(res["rows"], res["ramp_seeds"])
+        nr = no_regression(all_rows, all_seeds)
         res["no_regression"] = nr
         print(f"\nNO-REGRESSION (v3 family): {'PASS' if nr['pass'] else 'FAIL'}; "
               f"{len(nr['worse'])} WORSE, {len(nr['open_ramp_rows'])} open ramp rows")
     if args.weighed:
         ra = json.loads((Path(args.dir_a) / "results.json").read_text(encoding="utf-8"))
         rb = json.loads((Path(args.dir_b) / "results.json").read_text(encoding="utf-8"))
-        w = weighed_adoption(res["rows"], safety_rows(ra, rb, args.engine_a, args.engine_b),
-                             res["ramp_seeds"])
+        w = weighed_adoption(all_rows, safety_rows(ra, rb, args.engine_a, args.engine_b),
+                             all_seeds)
         res["weighed"] = w
         print(f"\nD-17 WEIGHED ADOPTION: {'PASS' if w['pass'] else 'FAIL'}; {w['wins']} winning "
               f"cells ({w['win_size']:.3f}) vs {w['losses']} losing ({w['loss_size']:.3f}); "

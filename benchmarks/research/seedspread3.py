@@ -27,7 +27,12 @@ ENDPOINTS = {"a2b.median": ("a2b", "all", "median"), "a2b.mean": ("a2b", "all", 
              "b2a.p95": ("b2a", "all", "p95"),
              "neutral_de.median": ("neutral", "de", "median"),
              "neutral_de.mean": ("neutral", "de", "mean"),
-             "neutral_hi.mean": ("neutral", "highlight", "de", "mean")}
+             "neutral_hi.mean": ("neutral", "highlight", "de", "mean"),
+             # v3.1: the pale in-gamut sample (F-14), dE00 and |dL*|
+             "pale.median": ("b2a", "pale_sample", "median"),
+             "pale.p95": ("b2a", "pale_sample", "p95"),
+             "pale_dl.mean": ("b2a", "pale_sample", "dl_abs", "mean"),
+             "pale_dl.p95": ("b2a", "pale_sample", "dl_abs", "p95")}
 DECISION_READERS = ("argyll", "lcms", "colorsync", "lcms-app", "ghostscript")
 
 
@@ -48,6 +53,9 @@ def spread(results: dict, readers=DECISION_READERS) -> tuple[dict, dict]:
                         x = x.get(k, {}) if isinstance(x, dict) else {}
                     if isinstance(x, (int, float)):
                         vals[(eng, d["name"], cls, r, v["level"], chart, name)].append(float(x))
+            # v3.1: the oogq property rows (one reader: lcms float)
+            for k, x in (((p.get("oogq") or {}).get("q")) or {}).items():
+                vals[(eng, d["name"], cls, "oogq", v["level"], chart, f"q.{k}")].append(float(x))
     detail = {}
     pooled = defaultdict(list)
     for (eng, pr, cls, r, lv, ch, ep), v in sorted(vals.items()):

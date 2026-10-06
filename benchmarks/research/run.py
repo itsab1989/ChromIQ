@@ -91,9 +91,13 @@ V3_SPARSE = ("S1", "S3", "X1", "X3", "XKH", "XKB")   # also targen 400 (one shee
 # Fast/Bit-exact identity re-builds (hard rule 1) on these typical targen-900
 # sets and every real set; Integrator 3's hash battery covers the rest
 V3_IDENTITY = ("X3",)
-V3_IDENTITY_REAL = ("R-FOGRA39L", "R-Pro300-CanonSG")   # CanonSG: unknown-origin robustness data; identity is data-agnostic
-# the 7-ink real sets (4884 / 3534 patches) are Agent 14's; not in this freeze
-V3_REAL_SKIP = ("R-FOGRA55", "R-APTEC7C")
+V3_IDENTITY_REAL = ("R-FOGRA39L", "R-Pro300-CanonSG")
+# the 7-ink real sets (4884 / 3534 patches) were left out of the v3 freeze;
+# protocol v3.1 (Agent 16b) scores them (F-20 was found on FOGRA55)
+V3_REAL_SKIP: tuple = ()
+# v3.1: the real multi-ink sets that join the sealed set's 5+ ink slots in
+# the FINAL benchmark (development-exposed: they can veto, never claim)
+V31_MULTI_REAL = ("R-FOGRA55", "R-APTEC7C")
 SEEDS3_PRINTERS = ["X1", "X3", "X5"]
 SEEDS3_LEVELS = {"X1": ("typical",), "X5": ("typical",)}
 # seeds per printer and level: 10 where ramp rows must be confirmable (v2.1
@@ -368,6 +372,13 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
         for lvl, d in sealed_mod.load_datasets(SEALED_DIR[0], work, only=only):
             specs.append({"ds": d, "variant": f"{lvl}-{d.info['chart']}{d.info['patches']}",
                           "role": "sealed"})
+        # protocol v3.1: the real 7-ink sets are scored beside the sealed
+        # 5+ ink slots in the same final run (role development: veto only)
+        for name in ([] if NO_REAL[0] else V31_MULTI_REAL):
+            if keep(name):
+                d = dsm.real(name, work / name)
+                d.ink_limit = REAL_TAC.get(name, d.ink_limit)
+                specs.append({"ds": d, "variant": "base", "role": "development"})
     elif suite == "repeat":
         for pid in ["S3", "X5"]:
             if keep(pid):
@@ -495,6 +506,10 @@ def main(argv=None) -> int:
     ap.add_argument("--no-real", action="store_true", help="v3: synthetic sets only")
     ap.add_argument("--no-september", action="store_true",
                     help="v3: leave out the robustness chart")
+    ap.add_argument("--reverse-jobs", action="store_true",
+                    help="--resume: build the missing jobs last-first")
+    ap.add_argument("--no-oogq", action="store_true",
+                    help="v3 suites: skip the v3.1 property referee (oogq)")
     ap.add_argument("--score-parallel", type=int, default=0,
                     help="scoring processes (default = --parallel)")
     args = ap.parse_args(argv)
@@ -582,6 +597,10 @@ def main(argv=None) -> int:
             old = {b["job"]["out"]: b for b in json.loads(builds_path.read_text(encoding="utf-8"))
                    if b.get("ok") and Path(b["job"]["out"]).exists()}
             todo = [j for j in jobs if j["out"] not in old]
+            if args.reverse_jobs:
+                # v3.1: build from the end of the list (another agent builds
+                # the same jobs from the front; their builds are pre-seeded)
+                todo = todo[::-1]
             print(f"resume: {len(jobs) - len(todo)} builds kept, {len(todo)} to build", flush=True)
             builds = []
             for j in jobs:
@@ -640,6 +659,7 @@ def main(argv=None) -> int:
                               "proxy": proxy["job"]["out"] if proxy else None,
                               "readers": readers, "n_eval": args.eval,
                               "light": s["suite"] in ("seeds", "noise", "seeds3"),
+                              "oogq": s["suite"] in ("v3", "seeds3", "sealed") and not args.no_oogq,
                               "out": str(out), "reuse": args.resume or args.score_only})
         sp = args.score_parallel or args.parallel
         print(f"scoring {len(tasks)} profiles, {sp} processes", flush=True)
@@ -705,7 +725,14 @@ def score_task(t: dict):
         rec = json.loads(cache.read_text(encoding="utf-8"))
         stale = ds.kind == "synthetic" and ds.n_channels >= 5 and not t["light"] \
             and "ncq" not in rec
+        stale = stale or _pale_dl_missing(rec)
         if rec.get("sha256") == b.get("sha256") and not stale:
+            if t.get("oogq") and b.get("ok") and "oogq" not in rec:
+                # v3.1: only the property referee is new; the reader scores stand
+                truth = _truth_for(ds, t["proxy"])
+                if truth is not None:
+                    _score_oogq(rec, j, ds, truth, out)
+                    cache.write_text(json.dumps(rec, default=_js), encoding="utf-8")
             return t["i"], t["key"], rec
     rec = {k: b.get(k) for k in ("ok", "seconds", "sha256", "v4_sha256",
                                    "error", "outlier_rows", "fit_median_de00")}
@@ -742,6 +769,8 @@ def score_task(t: dict):
                 rec["ncq"] = ncpoints.referee(j["out"], ds.printer, "argyll")
             except Exception as exc:
                 rec["ncq"] = {"error": f"{type(exc).__name__}: {exc}"}
+        if t.get("oogq"):
+            _score_oogq(rec, j, ds, truth, out)
         if ds.kind == "synthetic" and j["engine"] != "colprof":
             flagged = set(b.get("outlier_rows") or [])
             true = set(int(x) for x in ds.misread_rows)
@@ -753,6 +782,48 @@ def score_task(t: dict):
     cache.parent.mkdir(exist_ok=True)
     cache.write_text(json.dumps(rec, default=_js), encoding="utf-8")
     return t["i"], t["key"], rec
+
+
+def _pale_dl_missing(rec: dict) -> bool:
+    """A cached score from before v3.1 has the pale sample but not its
+    lightness error (F-14): re-score it."""
+    for s in (rec.get("scores") or {}).values():
+        ps = (s.get("b2a") or {}).get("pale_sample") if isinstance(s, dict) else None
+        if ps is not None and "dl_abs" not in ps:
+            return True
+    return False
+
+
+def oogq_printer(ds, truth):
+    """The printer object the v3.1 referee prints on: the synthetic or
+    sealed truth printer itself (generator interface), or a real set's
+    labelled proxy wrapped as a printer."""
+    from benchmarks.research import oogq
+    if ds.kind != "real":
+        return ds.printer
+    from benchmarks.research.printers import split_letters
+    rep = ds.color_rep.split("_")[0]
+    additive = rep in ("RGB", "iRGB")
+    letters = list("RGB") if additive else split_letters(rep)
+    return oogq.TruthAdapter(truth, ds.n_channels, additive, ds.ink_limit, letters, ds.name)
+
+
+def _score_oogq(rec: dict, job: dict, ds, truth, out: Path) -> None:
+    """Protocol v3.1 property rows (F-13..F-20, gmq p/s, ncq on real 5+ ink
+    sets), stored as rec["oogq"]; never raises."""
+    from benchmarks.research import gmq, oogq
+    try:
+        pr = oogq_printer(ds, truth)
+        key = pr.id if ds.kind != "real" else ds.name
+        cloud = gmq.truth_cloud(pr, cache=out / "cache" / f"cloud-{key}.npz")
+        multi_real = ds.kind == "real" and ds.n_channels >= 5
+        res = oogq.evaluate(job["out"], pr, cloud=cloud, with_ncq=multi_real)
+        res["truth"] = "printer" if ds.kind != "real" else f"proxy:{Path(str(truth.proxy)).name}"
+        if multi_real and "ncq" in res:
+            rec["ncq"] = res.pop("ncq")
+        rec["oogq"] = res
+    except Exception as exc:
+        rec["oogq"] = {"error": f"{type(exc).__name__}: {exc}"}
 
 
 def _js(o):
