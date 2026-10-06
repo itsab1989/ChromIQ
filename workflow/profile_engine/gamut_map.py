@@ -1269,6 +1269,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             if model.n_channels <= 4 and (
                     "a29-blackhandover" in _cands
                     or ("a29-blackhandover-ink" in _cands
+                        and not is_additive)
+                    or (any(t.startswith("a34-blackseam") for t in _cands)
                         and not is_additive)):
                 # Research Agent 29a: the source black lands on the
                 # destination black (the axis black B2A1 prints; RGB 0 on
