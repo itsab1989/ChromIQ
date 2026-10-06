@@ -1,6 +1,6 @@
 """Research integration 1 (2026-10-04): which of Agent 3's candidates a
 Maximum accuracy build runs with by default. ON: b2a33s (B2A grid 33 with
-scaled refit samples), rgbpos (RGB ramp positioning). OFF: gpfwd and
+scaled refit samples), rgbpos (RGB ramp positioning), rgbcol (F-13, Agent 20). OFF: gpfwd and
 a2bfine (the GP layer; Agent 13's design challenge, agent13-01), and every
 Agent 9 a9-* token. Fast and Bit-exact never read candidates."""
 from workflow.profile_engine.builder import (ACCURATE_DEFAULT_TOKENS,
@@ -11,7 +11,7 @@ from workflow.profile_engine.builder import (ACCURATE_DEFAULT_TOKENS,
 
 from workflow.profile_engine.builder import GP_FIN3_TOKENS as _FIN3
 
-_DEF = {"b2a33s", "rgbpos", "v4prm"}     # v4prm: integration 2, D-19
+_DEF = {"b2a33s", "rgbpos", "v4prm", "rgbcol"}   # v4prm: integration 2, D-19; rgbcol: integration 3, D-20
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -33,9 +33,10 @@ def test_agent9_tokens_are_off_by_default():
 
 
 def test_a_default_can_be_switched_off_for_research():
-    assert accurate_candidates({"no-b2a33s"}) == {"rgbpos", "v4prm"} | _FIN3
+    assert accurate_candidates({"no-b2a33s"}) == {"rgbpos", "v4prm", "rgbcol"} | _FIN3
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
-                                "no-fin3"}) == frozenset()
+                                "no-rgbcol", "no-fin3"}) == frozenset()
+    assert "no-rgbcol" in ENGINE_CANDIDATE_TOKENS
     assert "no-b2a33s" in ENGINE_CANDIDATE_TOKENS
     assert candidates_from_env("no-rgbpos,bogus") == {"no-rgbpos"}
 
