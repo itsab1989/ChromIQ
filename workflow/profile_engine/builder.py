@@ -101,7 +101,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 19 (F-12 extrapolation; opt-in, Integration 3 verdict)
      "a19-extrap", "a19-order", "a19-bounds",
      # Agent 29a (cluster 1: black hand-over; <= 4 inks)
-     "a29-blackhandover", "a29-blackhandover-ink", "a29-darkmodel"})
+     "a29-blackhandover", "a29-blackhandover-ink", "a29-darkmodel",
+     # Agent 29b (cluster 2, monotone a25-oog clip into black; research only)
+     "a29-oog-darkmono", "a29-oog-darkmono-bpc", "a29-oog-darkmono-soft",
+     "a29-oog-darkmono-floor"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -150,6 +153,21 @@ GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
                             "gpdark", "a2bfine", "gpkeep"})
 GP_FIN3_DEFAULT_ON = True
 
+
+def darkmono_clip_floor(axis, model, *, is_additive: bool, n: int):
+    """Agent 29b / 31: the L* the a29-oog-darkmono clip may not aim below.
+
+    The black the colorimetric table's neutral column ends at: on an ink
+    device ``axis["l_black"]``, read after any a29 black hand-over has
+    replaced the axis (so the deep, slightly tinted black, not
+    ``axis["neutral_l_black"]``); on RGB without an axis the L* of device
+    RGB 0. None when neither applies.
+    """
+    if axis is not None and axis.get("l_black") is not None:
+        return float(axis["l_black"])
+    if is_additive and n == 3:
+        return float(model.predict(np.zeros((1, n)))[0, 0])
+    return None
 
 def _a21_cached_fit(fn):
     import hashlib
@@ -1197,6 +1215,23 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     if mapped_bg is not None and "axis_ready" in anchor_box:
         anchor_box["axis"] = axis
         anchor_box["axis_ready"].set()
+    if accurate and any(t.startswith("a29-oog-darkmono") for t in candidates):
+        # Research Agent 29b (Findings/agent29b-01): the a25-oog clip may not
+        # aim below the black the colorimetric table's neutral column ends
+        # at (ink devices: the neutral axis's black; RGB: device RGB 0, the
+        # column's L* 0 corner). Colorimetric table only, this thread only;
+        # cleared after the refit.
+        # Agent 31 (factorial 29a x 29b): this runs AFTER the a29 black
+        # hand-over above, so on an ink device the floor is the black the
+        # column ends at after the hand-over (axis["l_black"], the deep
+        # black), never the neutral black it was handed over from.
+        _floor = darkmono_clip_floor(axis, model,
+                                     is_additive=meas.is_additive, n=n)
+        from workflow.profile_engine import oog_clip as _oogc
+        _oogc.set_dark_floor(_floor)
+        if _floor is not None:
+            _emit(settings, f"Out-of-gamut clip floor at the black: "
+                            f"L* {_floor:.1f}.")
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
@@ -1305,6 +1340,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # the n>3 path had 10,000 samples for 35,937 nodes).
             **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
                if "b2a33s" in candidates else {}))
+    from workflow.profile_engine import oog_clip as _oogc
+    _oogc.set_dark_floor(None)          # Agent 29b: colorimetric table done
     if (accurate and meas.is_additive and "a25-rgbcol" in candidates
             and fixed_nodes is not None and len(fixed_nodes)):
         # Research (Agent 25): the in-gamut neutral column of an RGB table
