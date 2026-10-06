@@ -5359,6 +5359,12 @@ class TabProfile(QWidget):
         from datetime import datetime
 
         self._archived_build = None
+        # D-05 (research integration 3): with the engine OFF this door is
+        # exactly master's: only `<stem>.icc` moves and nothing is
+        # remembered, so a failed colprof build does not put it back
+        # (Findings/agent10-02 s2). The twin move and the put-back on
+        # failure (5cc35aa9, reviewer R14) are engine-on behaviour.
+        engine_on = bool(self._settings.get("profile_engine_beta", False))
         try:
             icc = self._builder.expected_icc_path(params)
             if not icc.is_file() or icc.stat().st_size == 0:
@@ -5366,7 +5372,7 @@ class TabProfile(QWidget):
             # The engine's "both" ICC-version output writes a "-v4.icc" twin
             # beside the profile; it is replaced by the same build.
             twin = icc.with_name(icc.stem + "-v4.icc")
-            present = [icc] + ([twin] if twin.is_file() else [])
+            present = [icc] + ([twin] if engine_on and twin.is_file() else [])
             dest = Run.for_dir(icc.parent).archive_to_old(present, datetime.now())
         except Exception as exc:      # noqa: BLE001 - never block the build
             log.warning("could not archive the profile being replaced",
@@ -5375,9 +5381,10 @@ class TabProfile(QWidget):
                 "[WARNING] Could not move the previous profile out of the "
                 "way: {error}").format(error=exc))
             return
-        if dest is not None:
+        if dest is not None and engine_on:
             self._archived_build = (Path(dest), [q.name for q in present],
                                     icc.parent)
+        if dest is not None:
             self._log.appendPlainText(tr(
                 "The previous profile was moved to: {folder}").format(folder=dest))
 

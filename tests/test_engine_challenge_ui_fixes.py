@@ -160,6 +160,35 @@ def test_rebuild_archives_the_previous_profile_and_its_twin(tmp_path, qtbot):
     assert icc.exists()
 
 
+def test_engine_off_archives_like_master_and_puts_nothing_back(tmp_path, qtbot):
+    """D-05 (research integration 3, Findings/agent10-02 s2): with the
+    engine OFF a rebuild moves only `<stem>.icc` into `old/`, as master
+    does; a failed colprof build does not put it back, and a `-v4.icc`
+    twin stays where it is."""
+    from core.file_manager import Project
+    tab = _tab(tmp_path, profile_engine_beta=False)
+    qtbot.addWidget(tab)
+    root = Path(tab._settings.get("custom_output_path")) / "Arch"
+    proj = Project.create(root, "Arch")
+    run = proj.current_run()
+    ti3 = _rgb_ti3(run.measurement_ti3)
+    icc = ti3.with_suffix(".icc")
+    twin = icc.with_name(icc.stem + "-v4.icc")
+    icc.write_bytes(b"old profile bytes " * 100)
+    twin.write_bytes(b"old twin bytes " * 100)
+    tab._settings.set("target_name", "Arch")
+    tab.set_ti3_path(ti3, propagate=False)
+    tab._archive_the_profile_being_replaced(ProfileParams(ti3_path=ti3))
+    assert not icc.exists() and twin.exists()
+    old = run.dir / "old"
+    assert sorted(p.name for p in old.rglob("*.icc")) == ["Arch.icc"]
+    assert "The previous profile was moved to" in tab._log.toPlainText()
+    tab._restore_archived_build()
+    assert not icc.exists()
+    assert [p.name for p in old.rglob("*.icc")] == ["Arch.icc"]
+    assert "put back" not in tab._log.toPlainText()
+
+
 def test_quit_guard_sees_every_engine_builder():
     from workflow.engine_builder import EngineProfileBuilder
 
