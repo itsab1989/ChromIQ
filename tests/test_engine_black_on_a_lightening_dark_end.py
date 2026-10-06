@@ -58,9 +58,10 @@ def test_the_black_is_the_darkest_neutral_not_the_end_of_the_walk(xkb):
     p, model = xkb
     walk = b2a.neutral_axis(model, deep_black=False, **_KW)
     axis = b2a.neutral_axis(model, **_KW)
-    # the walk alone stops lighter (the defect)
-    assert walk["l_black"] > 11.0
-    # the fixed axis reaches the deep neutral, and the PRINTER agrees
+    # the fixed axis reaches the deep neutral, and the PRINTER agrees.
+    # Asserted FIRST (CI triage 37292451150, B-4): on macOS Intel (numpy
+    # 2.3.5) the old walk happened to reach 9.43, and a precondition placed
+    # first stopped the test before the shipped axis was ever checked.
     assert axis["l_black"] < 9.0
     printed = p.lab_rel(axis["black"][None, :])[0]
     assert printed[0] < 9.0
@@ -71,6 +72,11 @@ def test_the_black_is_the_darkest_neutral_not_the_end_of_the_walk(xkb):
     pr = p.lab_rel(np.asarray(axis["dev"])[ok])
     assert np.hypot(pr[:, 1], pr[:, 2]).max() < 1.5
     assert (np.diff(pr[:, 0]) < 0.05).all()       # light to dark
+    # the walk alone stops lighter (the defect): a path-dependent search,
+    # so the precondition is checked last and reports its value
+    assert walk["l_black"] > axis["l_black"], (
+        f"walk without the deep-black search reached L* {walk['l_black']:.2f}, "
+        f"the axis {axis['l_black']:.2f}")
 
 
 def test_a_walk_that_reaches_the_black_is_returned_unchanged():

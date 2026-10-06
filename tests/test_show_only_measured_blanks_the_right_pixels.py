@@ -886,7 +886,11 @@ def _rgb_array(img):
     ptr = im.constBits()
     ptr.setsize(im.sizeInBytes())
     a = np.frombuffer(ptr, dtype=np.uint8).reshape(im.height(), im.bytesPerLine())
-    return a[:, :im.width() * 3].reshape(im.height(), im.width(), 3)
+    # COPIED OUT before `im` goes: the array is a view on the converted image's
+    # own buffer, which is freed when this function returns. Reading it after
+    # that is a use-after-free, which macOS happened to forgive and Windows
+    # did not (access violation in `_n_read_ink`, first CI run, 2026-10-04).
+    return a[:, :im.width() * 3].reshape(im.height(), im.width(), 3).copy()
 
 
 def _n_read_ink(img):

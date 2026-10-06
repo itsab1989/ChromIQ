@@ -382,6 +382,10 @@ LAB = np.array([[100.0, 0, 0], [80.0, 5, -5], [55.0, -10, 20], [30.0, 0, 0], [15
 
 def test_lcms_with_application_flags_reads_like_the_table(tmp_path):
     from benchmarks.research import cmm
+    try:
+        cmm._lcms()
+    except cmm.LcmsUnavailable as e:   # CI triage 37292451150, B-3
+        pytest.skip(f"benchmark lcms reader unavailable here: {e}")
     p = _smooth_profile(tmp_path)
     ref = cmm.b2a(p, LAB, "lcms")
     app = cmm.b2a(p, LAB, "lcms-app")

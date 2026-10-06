@@ -114,10 +114,26 @@ def _xicclu(path: Path, direction: str, rows: np.ndarray, n_out: int,
 
 
 # --- littleCMS ----------------------------------------------------------------
+class LcmsUnavailable(RuntimeError):
+    """No liblcms2 this reader can load on this platform."""
+
+
 @lru_cache(maxsize=None)
 def _lcms():
+    import ctypes.util
     import PIL
-    cands = sorted(Path(PIL.__file__).parent.joinpath(".dylibs").glob("liblcms2*"))
+    # Pillow ships liblcms2 in .dylibs (macOS wheels) or pillow.libs (Linux
+    # wheels); Windows links it into _imagingcms, so fall back to a system
+    # lcms2 (CI triage 37292451150, B-3). LcmsUnavailable when none exists.
+    here = Path(PIL.__file__).parent
+    cands = (sorted(here.joinpath(".dylibs").glob("liblcms2*"))
+             + sorted(here.parent.joinpath("pillow.libs").glob("liblcms2*")))
+    found = ctypes.util.find_library("lcms2")
+    if found:
+        cands.append(found)
+    if not cands:
+        raise LcmsUnavailable("no liblcms2 found (Pillow .dylibs, pillow.libs "
+                              "or the system library path)")
     lib = ctypes.CDLL(str(cands[0]))
     lib.cmsOpenProfileFromFile.restype = ctypes.c_void_p
     lib.cmsOpenProfileFromFile.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
