@@ -141,3 +141,13 @@ def test_the_options_matrix_exercises_every_build_tab_field():
     missing = {f.name for f in _fields()} - seen
     # fwa_illum is exercised (S3 "fD50"); every other field must be too
     assert not missing, f"options never set by the audit: {sorted(missing)}"
+
+
+def test_every_dataset_a_build_or_job_names_is_scoreable():
+    """The analysis step looks each job's dataset up in DATASETS: a name the
+    matrix uses (or COLPROF_OK lists) that is missing there raised
+    KeyError 'X1p' after 179 builds."""
+    from benchmarks.research.options import DATASETS, COLPROF_OK, matrix
+    used = {row["ds"] for row in matrix()}
+    assert used <= set(DATASETS), sorted(used - set(DATASETS))
+    assert COLPROF_OK <= set(DATASETS), sorted(COLPROF_OK - set(DATASETS))

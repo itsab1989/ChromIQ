@@ -52,6 +52,7 @@ DATASETS = {
     "S3": ("S3", "targen", 400, "typical"),
     "X3m": ("X3m", "targen", 400, "typical"),
     "X5": ("X5", "targen", 900, "typical"),
+    "X1p": ("X1", "targen", 400, "pessimistic"),
     "X3p": ("X3", "targen", 400, "pessimistic"),
 }
 HEAVY = {"X5"}
