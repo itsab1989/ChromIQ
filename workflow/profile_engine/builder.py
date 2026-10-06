@@ -99,7 +99,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 24 (C-L1, ColorSync-readable A2B L* encoding; C-S1 spectral)
      "a24-l1", "a24-l1scale", "a24-s1", "a24-s1sprague",
      # Agent 19 (F-12 extrapolation; opt-in, Integration 3 verdict)
-     "a19-extrap", "a19-order", "a19-bounds"})
+     "a19-extrap", "a19-order", "a19-bounds",
+     # Agent 29a (cluster 1: black hand-over; <= 4 inks)
+     "a29-blackhandover", "a29-blackhandover-ink", "a29-darkmodel"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -232,6 +234,29 @@ def _process_ink_hues(meas) -> dict:
             a, b = lab[solid, 1].mean(), lab[solid, 2].mean()
             out[letter] = float(np.degrees(np.arctan2(b, a)) % 360.0)
     return out or None
+
+
+# Research token "a29-darkmodel" (Agent 29a, Findings/agent29a-01 s8): per
+# patch fit weight 1 + alpha * clip((L_cut - L*) / L_cut, 0, 1). Variants
+# "a29-darkmodel-a<alpha>" and "-l<L_cut>" for the A/B only.
+A29_DARK_ALPHA = 3.0
+A29_DARK_LCUT = 50.0
+
+
+def dark_model_weights(lab: np.ndarray, candidates) -> np.ndarray | None:
+    """The a29-darkmodel per-patch weights, or None when the token is off."""
+    toks = [t for t in (candidates or ()) if t.startswith("a29-darkmodel")]
+    if not toks:
+        return None
+    alpha, lcut = A29_DARK_ALPHA, A29_DARK_LCUT
+    for t in toks:
+        for part in t[len("a29-darkmodel"):].split("-"):
+            if part.startswith("a") and len(part) > 1:
+                alpha = float(part[1:])
+            elif part.startswith("l") and len(part) > 1:
+                lcut = float(part[1:])
+    l_star = np.asarray(lab, float)[:, 0]
+    return 1.0 + alpha * np.clip((lcut - l_star) / lcut, 0.0, 1.0)
 
 
 def candidates_from_env(env_value: str | None) -> frozenset:
@@ -756,6 +781,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         f"quality would need {asked_grid ** n:,} nodes. "
                         f"Higher quality settings give the same table here.")
 
+    _dark_w = dark_model_weights(meas.lab_relative, candidates)
+    if _dark_w is not None:
+        # Research token "a29-darkmodel" (Agent 29a): the forward fit's
+        # least-squares weight rises toward the dark corner, so one global
+        # smoothing (chosen on the held-out MEDIAN, which the light
+        # majority decides) no longer flattens the shadows. Every fit
+        # below (scan, cross-validation, final, robust refit, GP) reads it
+        # through row_weights.
+        rw0 = (np.ones(len(meas.device)) if meas.row_weights is None
+               else np.asarray(meas.row_weights, float))
+        meas.row_weights = rw0 * _dark_w
     _emit(settings, f"Fitting the printer model ({len(meas.device)} patches, "
                     f"grid {a2b_grid})…")
     # colprof -r: reading average deviation (default 0.5%); the smoothing
@@ -1141,6 +1177,23 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"The deepest neutral black needs black ink "
                             f"earlier (L* {axis['walk_l_black']:.1f} -> "
                             f"{axis['l_black']:.1f}).")
+        _bh_ink = "a29-blackhandover-ink" in candidates
+        if ("a29-blackhandover" in candidates or _bh_ink) and n <= 4:
+            # Research Agent 29a: below the neutral black, hand the axis
+            # over to a deeper, slightly tinted black (colprof's depth),
+            # after the K prior above was taken from the neutral axis.
+            axis = b2a_mod.blackhandover_axis(
+                model, axis, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit,
+                channel_max=channel_max,
+                # a29-blackhandover-ink: the deep black at most C* 2 (chain 1:
+                # the C* <= 3 step tinted XKB pess t400 to 2.25, colprof 1.15)
+                **({"ladder": (1.0, 2.0)} if _bh_ink else {}))
+            if axis.get("handover"):
+                _emit(settings, f"Black hand-over: neutral to L* "
+                                f"{axis['neutral_l_black']:.1f}, then to "
+                                f"the deepest black L* "
+                                f"{axis['l_black']:.1f}.")
     if mapped_bg is not None and "axis_ready" in anchor_box:
         anchor_box["axis"] = axis
         anchor_box["axis_ready"].set()
