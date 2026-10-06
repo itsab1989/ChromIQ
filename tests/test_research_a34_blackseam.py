@@ -33,8 +33,15 @@ TOKEN = "a34-blackseam"
 VARIANTS = ("a34-blackseam-pin", "a34-blackseam-deepfloor")
 
 
-def test_the_tokens_are_known_and_off_by_default():
-    for tok in (TOKEN,) + VARIANTS:
+def test_a34_blackseam_is_default_and_its_variants_are_not():
+    # Agent 35 made a34-blackseam a Maximum accuracy default (Agent 34's
+    # verdict, Findings/agent34-01 s5.4); -pin and -deepfloor stay opt-in.
+    assert TOKEN in ENGINE_CANDIDATE_TOKENS
+    assert TOKEN in ACCURATE_DEFAULT_TOKENS
+    assert TOKEN in accurate_candidates(frozenset())
+    assert "no-" + TOKEN in ENGINE_CANDIDATE_TOKENS
+    assert TOKEN not in accurate_candidates({"no-" + TOKEN})
+    for tok in VARIANTS:
         assert tok in ENGINE_CANDIDATE_TOKENS
         assert tok not in ACCURATE_DEFAULT_TOKENS
         assert tok not in accurate_candidates(frozenset())

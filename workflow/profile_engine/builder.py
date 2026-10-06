@@ -82,6 +82,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Integration 3 off-switches for its new defaults
      "no-a25-oog", "no-a25-rgbcol", "no-a25-oracle-dev", "no-a25-oracle-neutral",
      "no-a24-s1", "no-a24-f05", "no-a29-oog-darkmono-floor",
+     "no-a34-blackseam",
      "no-b2a33s", "no-rgbpos", "no-v4prm",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
      "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
@@ -146,10 +147,16 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # a29-oog-darkmono variants (plain, -soft, -bpc: dark-blue contours); an
 # explicitly requested variant wins over the default floor (b2a
 # set_research_tokens). "no-a29-oog-darkmono-floor" switches it off.
+# Agent 35 (2026-10-06, Findings/agent35-01-percblack.md, Agent 34's verdict
+# Findings/agent34-01-blackseam.md s5.4): ON as well: "a34-blackseam" (the
+# deep black chosen by L* bought per C* of tint, axis gaps filled along
+# their branch, clip floor at the neutral black). It replaces
+# a29-blackhandover-ink as the black rule (a34 wins when both are given).
+# "no-a34-blackseam" switches it off; -pin and -deepfloor stay opt-in.
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
-    "a24-s1", "a24-f05", "a29-oog-darkmono-floor"})
+    "a24-s1", "a24-f05", "a29-oog-darkmono-floor", "a34-blackseam"})
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer
