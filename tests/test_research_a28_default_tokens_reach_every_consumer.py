@@ -126,7 +126,7 @@ def test_the_build_resolves_the_set_before_any_reader():
 
 def test_the_colprof_path_imports_nothing_from_the_engine():
     import workflow.profile_builder as pb
-    tree = ast.parse(Path(pb.__file__).read_text())
+    tree = ast.parse(Path(pb.__file__).read_text(encoding="utf-8"))
     mods = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module:
@@ -134,7 +134,7 @@ def test_the_colprof_path_imports_nothing_from_the_engine():
         elif isinstance(node, ast.Import):
             mods.update(a.name for a in node.names)
     assert not [m for m in mods if "profile_engine" in m], mods
-    assert "engine_candidates" not in Path(pb.__file__).read_text()
+    assert "engine_candidates" not in Path(pb.__file__).read_text(encoding="utf-8")
 
 
 def test_the_colprof_argv_is_unchanged():
