@@ -167,3 +167,47 @@ def test_a_build_with_the_token_hands_the_axis_over(tmp_path, monkeypatch):
                       BuildSettings(quality="l", gammap_mode="accurate",
                                     engine_candidates=tokens))
         assert len(calls) == expect
+
+
+# --- a29-darkmodel: the forward fit weighs the dark corner more --------------
+
+def test_the_dark_model_token_is_known_and_off_by_default():
+    assert "a29-darkmodel" in ENGINE_CANDIDATE_TOKENS
+    assert "a29-darkmodel" not in ACCURATE_DEFAULT_TOKENS
+    from workflow.profile_engine.builder import dark_model_weights
+    lab = np.array([[0.0, 0, 0], [25.0, 0, 0], [50.0, 0, 0], [90.0, 0, 0]])
+    assert dark_model_weights(lab, frozenset()) is None
+    w = dark_model_weights(lab, {"a29-darkmodel"})
+    assert w[0] == pytest.approx(4.0) and w[1] == pytest.approx(2.5)
+    assert w[2] == pytest.approx(1.0) and w[3] == pytest.approx(1.0)
+    w6 = dark_model_weights(lab, {"a29-darkmodel-a6-l25"})
+    assert w6[0] == pytest.approx(7.0) and w6[1] == pytest.approx(1.0)
+
+
+@pytest.mark.slow
+def test_the_dark_model_token_reaches_the_forward_fit(tmp_path, monkeypatch):
+    from benchmarks.synthetic import PRINTERS, make_chart, measure, write_ti3
+    from workflow.profile_engine import accuracy
+    from workflow.profile_engine.builder import BuildSettings, build_profile
+    seen = []
+    real = accuracy.fit_forward_model_accurate
+
+    def spy(*a, row_weights=None, **kw):
+        seen.append(None if row_weights is None else np.asarray(row_weights).copy())
+        return real(*a, row_weights=row_weights, **kw)
+
+    monkeypatch.setattr(accuracy, "fit_forward_model_accurate", spy)
+    p = PRINTERS["S1"]
+    chart = make_chart(p, 300)
+    xyz, refl, _ = measure(p, chart)
+    ti3 = write_ti3(tmp_path / "S1.ti3", p, chart, xyz, refl)
+    for tokens in (frozenset(), frozenset({"a29-darkmodel"})):
+        seen.clear()
+        build_profile(ti3, tmp_path / f"S1-{len(tokens)}.icc",
+                      BuildSettings(quality="l", gammap_mode="accurate",
+                                    engine_candidates=tokens))
+        w = seen[0]
+        if tokens:
+            assert w is not None and w.max() > 1.5 and w.min() >= 1.0
+        else:
+            assert w is None or np.allclose(w, np.round(w))
