@@ -104,7 +104,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a29-blackhandover", "a29-blackhandover-ink",
      # Agent 29b (cluster 2, monotone a25-oog clip into black; research only)
      "a29-oog-darkmono", "a29-oog-darkmono-bpc", "a29-oog-darkmono-soft",
-     "a29-oog-darkmono-floor"})
+     "a29-oog-darkmono-floor",
+     # Agent 34 (black seam: rate-chosen deep black, axis gaps filled)
+     "a34-blackseam", "a34-blackseam-pin", "a34-blackseam-deepfloor"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -164,7 +166,8 @@ GP_FIN3_TOKENS = frozenset({"gpfwd", "gpsel", "gpwarp", "gpclip", "gplight2",
 GP_FIN3_DEFAULT_ON = True
 
 
-def darkmono_clip_floor(axis, model, *, is_additive: bool, n: int):
+def darkmono_clip_floor(axis, model, *, is_additive: bool, n: int,
+                        neutral: bool = False):
     """Agent 29b / 31: the L* the a29-oog-darkmono clip may not aim below.
 
     The black the colorimetric table's neutral column ends at: on an ink
@@ -173,6 +176,8 @@ def darkmono_clip_floor(axis, model, *, is_additive: bool, n: int):
     ``axis["neutral_l_black"]``); on RGB without an axis the L* of device
     RGB 0. None when neither applies.
     """
+    if neutral and axis is not None and axis.get("handover"):
+        return float(axis["neutral_l_black"])
     if axis is not None and axis.get("l_black") is not None:
         return float(axis["l_black"])
     if is_additive and n == 3:
@@ -1172,7 +1177,34 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                             f"earlier (L* {axis['walk_l_black']:.1f} -> "
                             f"{axis['l_black']:.1f}).")
         _bh_ink = "a29-blackhandover-ink" in candidates
-        if ("a29-blackhandover" in candidates or _bh_ink) and n <= 4:
+        _a34 = any(t.startswith("a34-blackseam") for t in candidates)
+        if _a34 and n <= 4:
+            # Research Agent 34 (Findings/agent34-01): fill the rows the
+            # walk could not solve neutral where both neighbours are on one
+            # separation branch, then hand the axis over to the deep black
+            # chosen by depth bought per C* of tint (not a fixed cap),
+            # bounded by the printer's own darkest measured near-neutrals.
+            axis = b2a_mod.fill_axis_gaps(model, axis)
+            if axis.get("filled"):
+                _emit(settings, f"Neutral axis: {len(axis['filled'])} "
+                                f"unsolved rows filled along their branch.")
+            _meas_c = b2a_mod.measured_dark_chroma(
+                meas.lab_relative, meas.device, ink_limit=ink_limit)
+            import functools as _ft
+            axis = b2a_mod.blackhandover_axis(
+                model, axis, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit,
+                channel_max=channel_max, ladder=b2a_mod.A34_LADDER,
+                chooser=_ft.partial(
+                    b2a_mod.rate_deep_black,
+                    max_chroma=(None if _meas_c is None
+                                else _meas_c + b2a_mod.A34_MEAS_MARGIN)))
+            if axis.get("handover"):
+                _emit(settings, f"Black hand-over: neutral to L* "
+                                f"{axis['neutral_l_black']:.1f}, then to "
+                                f"the deepest black L* "
+                                f"{axis['l_black']:.1f}.")
+        elif ("a29-blackhandover" in candidates or _bh_ink) and n <= 4:
             # Research Agent 29a: below the neutral black, hand the axis
             # over to a deeper, slightly tinted black (colprof's depth),
             # after the K prior above was taken from the neutral axis.
@@ -1191,6 +1223,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     if mapped_bg is not None and "axis_ready" in anchor_box:
         anchor_box["axis"] = axis
         anchor_box["axis_ready"].set()
+    _a34_on = any(t.startswith("a34-blackseam") for t in candidates)
     if accurate and any(t.startswith("a29-oog-darkmono") for t in candidates):
         # Research Agent 29b (Findings/agent29b-01): the a25-oog clip may not
         # aim below the black the colorimetric table's neutral column ends
@@ -1202,7 +1235,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # column ends at after the hand-over (axis["l_black"], the deep
         # black), never the neutral black it was handed over from.
         _floor = darkmono_clip_floor(axis, model,
-                                     is_additive=meas.is_additive, n=n)
+                                     is_additive=meas.is_additive, n=n,
+                                     # Agent 34: with a34-blackseam the
+                                     # floor stays at the NEUTRAL black
+                                     # when the column is handed over to
+                                     # a deeper tinted black (i1Pro: blue
+                                     # ramp swing 8.28 -> 5.69, contours
+                                     # 213 -> 178; i1iSis contours 164 ->
+                                     # 88). Ablation: -deepfloor.
+                                     neutral=(_a34_on and "a34-blackseam-"
+                                              "deepfloor" not in candidates))
         from workflow.profile_engine import oog_clip as _oogc
         _oogc.set_dark_floor(_floor)
         if _floor is not None:
@@ -1325,7 +1367,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         dev_clut_shaped = dev_clut_shaped.copy()
         dev_clut_shaped[fixed_nodes] = model.shape_device(
             dev_clut[fixed_nodes])
-    if ("a17-colpin" in candidates and fixed_nodes is not None
+    if (("a17-colpin" in candidates or "a34-blackseam-pin" in candidates)
+            and fixed_nodes is not None
             and len(fixed_nodes)):
         # Research agent17-01 section 3 (token, not default): the smoothing
         # refit holds the neutral column only by a weight-4 anchor, and

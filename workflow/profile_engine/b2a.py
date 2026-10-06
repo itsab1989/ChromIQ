@@ -1078,7 +1078,8 @@ def handover_black(model: ForwardModel, *, l_neutral: float,
 
 
 def blackhandover_axis(model: ForwardModel, axis: dict, *,
-                       ladder: tuple = _HANDOVER_LADDER, **inv_kw) -> dict:
+                       ladder: tuple = _HANDOVER_LADDER,
+                       chooser=None, **inv_kw) -> dict:
     """Research token "a29-blackhandover": extend the neutral axis below its
     neutral black to a deeper, slightly tinted black (see the comment
     above). Grid points of ``axis["l"]`` between the deep black's L* and the
@@ -1093,9 +1094,12 @@ def blackhandover_axis(model: ForwardModel, axis: dict, *,
           if k not in ("node_lab", "progress", "seed")}
     nb = np.asarray(axis["black"], float)
     lab_nb = model.predict(nb[None, :])[0]
-    deep = handover_black(model, l_neutral=float(lab_nb[0]),
-                          c_neutral=float(np.hypot(lab_nb[1], lab_nb[2])),
-                          kw=kw, ladder=ladder)
+    # ``chooser``: research a34-blackseam picks the deep black by its own
+    # rule (rate_deep_black); None keeps the a29 rule.
+    deep = (chooser or handover_black)(
+        model, l_neutral=float(lab_nb[0]),
+        c_neutral=float(np.hypot(lab_nb[1], lab_nb[2])), kw=kw,
+        ladder=ladder)
     if deep is None:
         return axis
     dd = np.asarray(deep["dev"], float)
@@ -1134,6 +1138,144 @@ def blackhandover_axis(model: ForwardModel, axis: dict, *,
                 "handover_lab": lab_k[-1],
                 "blend_l": l_k, "blend_dev": d_k,
                 "blend_c": np.hypot(lab_k[:, 1], lab_k[:, 2])})
+    return out
+
+
+# Research token "a34-blackseam" (Agent 34, Findings/agent34-01). Two
+# parts on top of the a29 hand-over (which it replaces as the black rule):
+#
+# 1. The deep black is chosen by a RATE, not by a fixed chroma cap: from
+#    the neutral black, step to the deeper, slightly tinted black of the
+#    chroma ladder that buys the most L* per C* of tint, and only while
+#    every C* buys at least A34_RATE L*; the tint may not exceed the
+#    printer's own darkest measured near-neutral patches by more than
+#    A34_MEAS_MARGIN. The a29 cap (C* 2) was below the i1iSis's tinted black
+#    (its darkest measured patches are C* 2.5-2.9; colprof's black C* 4.1)
+#    and above what XKB pessimistic t400's 0.2 L* extra depth was worth.
+# 2. Every neutral column node above the black takes an axis value: the
+#    walk leaves rows it cannot solve neutral (i1Pro: 23.5-28 L*, where the
+#    K-only and the rich C+M+Y+K separations meet), and a column node whose
+#    row failed fell back to its own per-node inversion, a third
+#    separation (i1Pro node L* 28.1 printed model L* 39.9 before the refit
+#    smoothed it). Such rows are filled by interpolating the two nearest
+#    solved rows when both lie on the same separation branch and the
+#    filled device prints neutral in the model.
+A34_RATE = 1.0
+A34_LADDER = (1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0)
+A34_MEAS_MARGIN = 1.0
+A34_MEAS_N = 3
+A34_MEAS_MAX_C = 6.0
+A34_FILL_BRANCH = 0.3       # max channel difference of the two neighbours
+A34_FILL_TOL_L = 1.0        # filled row: model L* within this of its target
+A34_FILL_TOL_C = 1.5        # ... and model C* below this
+
+
+def measured_dark_chroma(lab: np.ndarray, device: np.ndarray, *,
+                         ink_limit: float | None = None,
+                         n: int = A34_MEAS_N,
+                         max_c: float = A34_MEAS_MAX_C) -> float | None:
+    """Median C* of the ``n`` darkest measured patches that are
+    near-neutral (C* < ``max_c``) and within the ink limit (percent): the
+    tint of the printer's own deepest blacks. None without such patches."""
+    lab = np.asarray(lab, float)
+    device = np.asarray(device, float)
+    c = np.hypot(lab[:, 1], lab[:, 2])
+    keep = c < max_c
+    if ink_limit is not None:
+        keep &= device.sum(1) * 100.0 <= float(ink_limit) + 1e-6
+    idx = np.flatnonzero(keep)
+    if not len(idx):
+        return None
+    idx = idx[np.argsort(lab[idx, 0], kind="stable")][:n]
+    return float(np.median(c[idx]))
+
+
+def rate_deep_black(model: ForwardModel, *, l_neutral: float,
+                    c_neutral: float, kw: dict,
+                    ladder: tuple = A34_LADDER, rate: float = A34_RATE,
+                    max_chroma: float | None = None,
+                    candidates: list | None = None) -> dict | None:
+    """a34-blackseam's deep black (see the comment above): greedy on the
+    chroma ladder, from the neutral black, take the rung with the best
+    L* gained per C* added while that is at least ``rate``; rungs above
+    ``max_chroma`` are not tried. ``candidates``: precomputed (model Lab,
+    device) per rung, for tests. None when no rung is worth it."""
+    rungs = [c for c in ladder if max_chroma is None or c <= max_chroma]
+    found = []
+    for i, cm in enumerate(rungs):
+        f = (candidates[i] if candidates is not None
+             else deepest_tinted(model, chroma_max=cm, kw=kw))
+        if f is None:
+            continue
+        lab, dev = f
+        found.append({"lab": np.asarray(lab, float),
+                      "dev": np.asarray(dev, float), "chroma_max": cm,
+                      "c": float(np.hypot(lab[1], lab[2]))})
+    cur_l, cur_c, best = float(l_neutral), float(c_neutral), None
+    while True:
+        step = None
+        for f in found:
+            dl = cur_l - float(f["lab"][0])
+            dc = f["c"] - cur_c
+            if dl <= 1e-6:
+                continue
+            r = dl / dc if dc > 1e-6 else np.inf
+            if r >= rate and (step is None or r > step[0] + 1e-12):
+                step = (r, f)
+        if step is None:
+            break
+        best = step[1]
+        cur_l, cur_c = float(best["lab"][0]), best["c"]
+    if best is None:
+        return None
+    out = dict(best)
+    out["score"] = float(best["lab"][0])
+    return out
+
+
+def fill_axis_gaps(model: ForwardModel, axis: dict, *,
+                   branch: float = A34_FILL_BRANCH,
+                   tol_l: float = A34_FILL_TOL_L,
+                   tol_c: float = A34_FILL_TOL_C) -> dict:
+    """a34-blackseam part 2: rows of the walk between its paper white and
+    its (neutral) black that did not solve neutral take the linear
+    interpolation in L* of the nearest solved rows above and below, when
+    those two are on the same branch (no channel differs by more than
+    ``branch``) and the filled device prints within ``tol_l`` L* of the row
+    and below ``tol_c`` C* in the model. Returns a new axis (``filled``:
+    the L* values filled) or the axis itself when nothing was filled."""
+    if axis.get("black") is None:
+        return axis
+    ls = np.asarray(axis["l"], float)
+    dev = np.asarray(axis["dev"], float).copy()
+    ok = np.asarray(axis["ok"], bool).copy()
+    l_bottom = float(axis.get("neutral_l_black", axis["l_black"]))
+    rows = np.flatnonzero(~ok & (ls >= l_bottom - 1e-9))
+    good = np.flatnonzero(ok)
+    filled = []
+    for i in rows:
+        hi = good[ls[good] > ls[i]]
+        lo = good[(ls[good] < ls[i]) & (ls[good] >= l_bottom - 0.5 - 1e-9)]
+        if not len(hi) or not len(lo):
+            continue
+        a = hi[np.argmin(ls[hi])]
+        b = lo[np.argmax(ls[lo])]
+        if np.max(np.abs(dev[a] - dev[b])) > branch:
+            continue
+        t = (ls[a] - ls[i]) / (ls[a] - ls[b])
+        d = dev[a] + t * (dev[b] - dev[a])
+        lab = model.predict(d[None, :])[0]
+        if (abs(lab[0] - ls[i]) > tol_l
+                or np.hypot(lab[1], lab[2]) > tol_c):
+            continue
+        filled.append((i, d))
+    if not filled:
+        return axis
+    for i, d in filled:
+        dev[i], ok[i] = d, True
+    out = dict(axis)
+    out.update({"dev": dev, "ok": ok,
+                "filled": [float(ls[i]) for i, _ in filled]})
     return out
 
 
