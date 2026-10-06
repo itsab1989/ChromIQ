@@ -1471,6 +1471,12 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     p.clear()
     p.update(oog_clip.DEFAULTS)
     p["on"] = "a25-oog" in t or "a25-clip" in t
+    # Agent 29b: monotone clip into black (acts only with the a25 clip on and
+    # a floor set by the builder for the colorimetric table)
+    p["dm_on"] = "a29-oog-darkmono" in t or "a29-oog-darkmono-bpc" in t
+    if "a29-oog-darkmono-bpc" in t:
+        p["dm_band"] = 15.0
+    oog_clip.set_dark_floor(None)       # the builder sets it per table
     for tok in t:
         if tok.startswith("a25-space-"):
             p["space"] = tok[len("a25-space-"):]

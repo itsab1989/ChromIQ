@@ -38,6 +38,8 @@ light colours and to turn blues purple (Braun, Ebner, Fairchild 1998).
 """
 from __future__ import annotations
 
+import threading
+
 import numpy as np
 
 # Research switches, set by builder for one build (b2a.set_research_tokens).
@@ -71,10 +73,55 @@ PARAMS: dict = {
                            # then separate that colour with them
     "wj_light": 1.0,       # lightness weight multiplier reached at L 100,
     "light_from": 70.0,    # faded in (smoothstep) from this target L
+    # Agent 29b (token a29-oog-darkmono): monotone clip into black. Below the
+    # black the table's neutral column ends at (dark_floor), the clip aims
+    # at that black's L* instead of the target's own: a ramp into black can
+    # no longer print darker than its own end and then turn lighter again.
+    "dm_on": False,
+    "dm_band": 0.0,        # 0: hard floor max(L*, black); > 0: BPC-like
+                           # linear scaling of [0, black + band] onto
+                           # [black, black + band] (token ...-bpc: 15)
+    "dm_blend": 1.0,       # lift (L*) over which a lifted node hands over
+                           # fully from the nearest clip to the weighted clip
+    "dm_lband": 10.0,      # L* above the black over which the lightness
+    "dm_wj": 25.0,         # weight rises (smoothstep) to dm_wj x wj: in the
+                           # dark band the clip gives up chroma, not
+                           # lightness, so printed L* follows the (monotone)
+                           # target L* whatever the target's chroma does
         # re-aim the frame at the pass-1 result's chroma    # also start from the integration-2 hue-gated seed
 }
 
 DEFAULTS = dict(PARAMS)
+
+# The black L* the colorimetric table's neutral column ends at, for the
+# thread building that table only (the perceptual / saturation tables may be
+# built at the same time on a background thread and must not see it).
+_DARK = threading.local()
+
+
+def set_dark_floor(l_black) -> None:
+    """Agent 29b: the colorimetric B2A's black L* (None clears it)."""
+    _DARK.l = None if l_black is None else float(l_black)
+
+
+def dark_floor():
+    """The floor in force for this thread, or None (token off / not set)."""
+    if not PARAMS.get("dm_on"):
+        return None
+    return getattr(_DARK, "l", None)
+
+
+def dark_target_l(l_t: np.ndarray, floor: float, band: float) -> np.ndarray:
+    """Monotone (non-decreasing) map of target L* that never goes below
+    ``floor``; identity at and above ``floor + band``. band 0 is the hard
+    floor max(L*, floor), which leaves every target at or above the black
+    exactly as it was."""
+    l_t = np.asarray(l_t, float)
+    if band <= 0.0:
+        return np.maximum(l_t, floor)
+    top = floor + band
+    scaled = floor + np.maximum(l_t, 0.0) * band / top
+    return np.where(l_t >= top, l_t, scaled)
 
 
 # --- hue-linear views ------------------------------------------------------
@@ -417,10 +464,31 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
     fn = space_fn(p["space"])
     view = SpaceView(model, fn)
     t_lab = target_lab[sel]
+    lift = None
+    floor = dark_floor()
+    if floor is not None:
+        # Agent 29b: below the table's black the clip aims at the black's
+        # L* (with the target's own a*, b*), so lightness along a ramp into
+        # black is monotone; apply_neutral_axis does the same for C* < 5.
+        new_l = dark_target_l(t_lab[:, 0], floor, float(p.get("dm_band", 0.0)))
+        lift = new_l - t_lab[:, 0]
+        if (lift > 0).any():
+            t_lab = t_lab.copy()
+            t_lab[:, 0] = new_l
+        else:
+            lift = None
     t_s = fn(t_lab)
     hue_from = p.get("hue_from") or ""
     w = weights(t_s, p, _frame_angle(t_lab, t_s, fn, hue_from, p["chord"])
                 if hue_from else None)
+    if floor is not None and float(p.get("dm_wj", 1.0)) != 1.0:
+        lb = max(float(p.get("dm_lband", 10.0)), 1e-9)
+        u = np.clip((floor + lb - target_lab[sel][:, 0]) / lb, 0.0, 1.0)
+        u = u * u * (3.0 - 2.0 * u)
+        mult = 1.0 + (float(p["dm_wj"]) - 1.0) * u
+        if (mult > 1.0).any():
+            w = w.copy()
+            w[:, 0, :] *= np.sqrt(mult)[:, None]
     n = model.n_channels
     cloud = clip_cloud(n, limit, channel_max, np.random.default_rng(2525),
                        light=True, faces=p["faces"])
@@ -535,6 +603,11 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         hi = hi + p["blend_light"] * u * u * (3.0 - 2.0 * u)
     bf = np.clip((residual[sel] - lo) / (hi - lo), 0.0, 1.0)
     bf = bf * bf * (3.0 - 2.0 * bf)
+    if lift is not None:
+        # the nearest clip aims at the darker original target: a lifted node
+        # takes the weighted clip of the lifted target instead
+        u = np.clip(lift / max(float(p.get("dm_blend", 1.0)), 1e-9), 0.0, 1.0)
+        bf = np.maximum(bf, u * u * (3.0 - 2.0 * u))
     out[sel] = (1.0 - bf)[:, None] * d_near[sel] + bf[:, None] * best
     if limit is not None:
         tot = out[sel].sum(1)

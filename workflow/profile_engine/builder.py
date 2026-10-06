@@ -99,7 +99,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 24 (C-L1, ColorSync-readable A2B L* encoding; C-S1 spectral)
      "a24-l1", "a24-l1scale", "a24-s1", "a24-s1sprague",
      # Agent 19 (F-12 extrapolation; opt-in, Integration 3 verdict)
-     "a19-extrap", "a19-order", "a19-bounds"})
+     "a19-extrap", "a19-order", "a19-bounds",
+     # Agent 29b (cluster 2, monotone a25-oog clip into black; research only)
+     "a29-oog-darkmono", "a29-oog-darkmono-bpc"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1144,6 +1146,23 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     if mapped_bg is not None and "axis_ready" in anchor_box:
         anchor_box["axis"] = axis
         anchor_box["axis_ready"].set()
+    if accurate and ("a29-oog-darkmono" in candidates
+                     or "a29-oog-darkmono-bpc" in candidates):
+        # Research Agent 29b (Findings/agent29b-01): the a25-oog clip may not
+        # aim below the black the colorimetric table's neutral column ends
+        # at (ink devices: the neutral axis's black; RGB: device RGB 0, the
+        # column's L* 0 corner). Colorimetric table only, this thread only;
+        # cleared after the refit.
+        _floor = None
+        if axis is not None and axis.get("l_black") is not None:
+            _floor = float(axis["l_black"])
+        elif meas.is_additive and n == 3:
+            _floor = float(model.predict(np.zeros((1, n)))[0, 0])
+        from workflow.profile_engine import oog_clip as _oogc
+        _oogc.set_dark_floor(_floor)
+        if _floor is not None:
+            _emit(settings, f"Out-of-gamut clip floor at the black: "
+                            f"L* {_floor:.1f}.")
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
@@ -1252,6 +1271,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # the n>3 path had 10,000 samples for 35,937 nodes).
             **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
                if "b2a33s" in candidates else {}))
+    from workflow.profile_engine import oog_clip as _oogc
+    _oogc.set_dark_floor(None)          # Agent 29b: colorimetric table done
     if (accurate and meas.is_additive and "a25-rgbcol" in candidates
             and fixed_nodes is not None and len(fixed_nodes)):
         # Research (Agent 25): the in-gamut neutral column of an RGB table
