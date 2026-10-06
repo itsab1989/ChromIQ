@@ -551,14 +551,34 @@ def _oracle_cache_key(meas: Ti3Measurement, source_gamut, settings,
     # measurement in the same app session reused the perceptual-only
     # result and its saturation table became the perceptual one.
     return (str(meas.path), st.st_mtime_ns, st.st_size,
-            tuple(_oracle_args(Path("colprof"), settings, source_gamut)),
+            tuple(_oracle_args(Path("colprof"), settings, source_gamut,
+                               meas)),
             node_key)
 
 
-def _oracle_args(colprof: Path, settings, source_gamut) -> list[str]:
+def _oracle_args(colprof: Path, settings, source_gamut,
+                 meas: Ti3Measurement | None = None) -> list[str]:
     """The oracle's colprof command line, without the output base name."""
     q = settings.quality if settings.quality in ("l", "m", "h") else "h"
     args = [str(colprof), f"-q{q}"]
+    if (meas is not None and not meas.is_additive and "a35-oracle-limit"
+            in (getattr(settings, "engine_candidates", None) or ())):
+        # Research Agent 35 (Findings/agent35-01 s2): without -l colprof
+        # uses the .ti3's TOTAL_INK_LIMIT minus 10 % ("Total ink limit
+        # being used is 290%"), so the oracle's perceptual black was found
+        # under 290 % while the engine, the app's own colprof run
+        # (profile_builder prefills -l from the .ti3) and the battery's
+        # colprof all use 300 %. XKH typical september: oracle black
+        # (0.49, 0.47, 0.58, 0.89) prints L* 9.0, at -l300 (0.60, 0.74,
+        # 0.64, 1.0) prints 5.1. Pass the build's own limits.
+        lim = getattr(settings, "ink_limit", None)
+        if lim is None:
+            lim = meas.ink_limit
+        if lim is not None:
+            args.append(f"-l{float(lim):g}")
+        klim = getattr(settings, "black_ink_limit", None)
+        if klim is not None:
+            args.append(f"-L{float(klim):g}")
     # Same source/intent/viewing surface the engine build was asked for.
     # -s = perceptual only (colprof aliases saturation to it), -S =
     # both; -nP/-nS say which SOURCE gamut each uses and never collapse
@@ -670,7 +690,8 @@ def start_colprof_oracle(meas: Ti3Measurement, source_gamut, settings,
     key = _oracle_cache_key(meas, source_gamut, settings, node_lab)
     if key is None or key in _ORACLE_CACHE:
         return None
-    return OracleRun(key, _oracle_args(colprof, settings, source_gamut),
+    return OracleRun(key, _oracle_args(colprof, settings, source_gamut,
+                                       meas),
                      meas.path)
 
 
@@ -722,7 +743,8 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
     own = run is None
     if own:
         run = OracleRun(cache_key, _oracle_args(colprof, settings,
-                                                source_gamut), meas.path)
+                                                source_gamut, meas),
+                        meas.path)
     try:
         icc = run.wait()
 
@@ -1043,6 +1065,50 @@ def invert_mapping(mapper, mapped_lab: np.ndarray, iters: int = 20
     return lab0
 
 
+def _a35_apply_band(model, dev, mapped, col, band, mode, inv_kw,
+                    black_dev=None):
+    """Research Agent 35 (a35-percblack-*): the perceptual/saturation
+    neutral column nodes whose target L* falls in the hand-over band
+    [l_deep, l_deep + width) take the hand-over target (L*, tint a*b*),
+    inverted from the path's device value as seed, or the path value
+    itself where that prints closer (b2a.percblack_band_devices); nodes
+    at or below the deep black print it (``black_dev``, else the path's
+    end). Then no band node may print lighter than the column node above
+    it (model L*), as b2a.monotone_column guarantees for F-13."""
+    from workflow.profile_engine import b2a as _b2a
+    dev = np.asarray(dev, float).copy()
+    col = np.asarray(col)
+    if not len(col):
+        return dev
+    tl = np.asarray(mapped[col, 0], float)
+    l_deep, w = float(band["l_deep"]), float(band["width"])
+    pl, pd = band["path_l"], band["path_dev"]
+    deep_dev = (np.asarray(black_dev, float) if black_dev is not None
+                else pd[int(np.argmin(pl))])
+    below = tl <= l_deep + 1e-6
+    inb = (~below) & (tl < l_deep + w)
+    if inb.any():
+        tgt = np.column_stack([tl[inb], _b2a.percblack_tint(
+            tl[inb], l_deep=l_deep, ab_deep=band["ab_deep"], width=w,
+            mode=mode)])
+        seed = _b2a.path_device_at(tl[inb], pl, pd)
+        inv = _b2a.invert_to_device(model, tgt, seed=seed, **inv_kw)[0]
+        if inv_kw.get("ink_limit") is not None and not inv_kw.get(
+                "is_additive"):
+            inv = _b2a.project_tac(inv, inv_kw["ink_limit"] / 100.0)
+        dev[col[inb]] = _b2a.percblack_band_devices(model, tgt, inv, seed)
+    if below.any():
+        dev[col[below]] = deep_dev
+    order = np.argsort(-tl, kind="stable")              # light to dark
+    lp = model.predict(dev[col[order]])[:, 0]
+    band_o = (inb | below)[order]
+    for k in range(1, len(order)):
+        if band_o[k] and lp[k] > lp[k - 1] + 1e-6:
+            dev[col[order[k]]] = dev[col[order[k - 1]]]
+            lp[k] = lp[k - 1]
+    return dev
+
+
 def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      source_gamut: Path, *, channel_letters: list[str],
                      is_additive: bool, ink_limit: float | None,
@@ -1253,6 +1319,11 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         _cands = getattr(settings, "engine_candidates", frozenset())
         _neutral_col = None
         _a29_pts = None
+        # Research Agent 35: perceptual/saturation black = the colorimetric
+        # black, reached by a hand-over band (b2a A35_TOKENS)
+        _a35 = (b2a_mod.a35_mode(_cands)
+                if accurate and model.n_channels <= 4 else None)
+        _a35_band = None
         if accurate and "a25-oracle-neutral" in _cands and getattr(
                 mapper, "node_dev", None) is not None:
             # Research (Agent 25): perceptual maps the neutral axis onto the
@@ -1271,7 +1342,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                     or ("a29-blackhandover-ink" in _cands
                         and not is_additive)
                     or (any(t.startswith("a34-blackseam") for t in _cands)
-                        and not is_additive)):
+                        and not is_additive)
+                    or _a35 is not None):
                 # Research Agent 29a: the source black lands on the
                 # destination black (the axis black B2A1 prints; RGB 0 on
                 # an RGB printer), whatever the engine's model says
@@ -1292,8 +1364,25 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                         # Pre-check: capping at colprof's own perceptual
                         # black chroma (engine model) instead tinted the
                         # i1iSis perceptual black to C* 2.9 (base 1.7).
-                        _a29_pts = b2a_mod.axis_points(_axv, chroma_cap=1.0)
+                        # Agent 35: with a35-percblack-* the column goes
+                        # all the way to the colorimetric (deep) black
+                        _a29_pts = b2a_mod.axis_points(
+                            _axv, chroma_cap=None if _a35 else 1.0)
                         _bk_l = _a29_pts[2]
+                        if _a35 and _axv.get("handover"):
+                            _lab_d = np.asarray(_axv["handover_lab"], float)
+                            _w = b2a_mod.percblack_width(
+                                _axv["blend_l"], _axv["blend_c"],
+                                l_neutral=float(_axv["neutral_l_black"]),
+                                l_deep=float(_axv["l_black"]),
+                                c_deep=float(np.hypot(*_lab_d[1:])),
+                                mode=_a35)
+                            _a35_band = {
+                                "l_deep": float(_axv["l_black"]),
+                                "ab_deep": _lab_d[1:], "width": _w,
+                                "path_l": np.asarray(_axv["blend_l"], float),
+                                "path_dev": np.asarray(_axv["blend_dev"],
+                                                       float)}
                 if _bk_l is not None:
                     mapped[_neutral_col, 0] = b2a_mod.anchor_column_black(
                         mapped[_neutral_col, 0], node_lab[_neutral_col, 0],
@@ -1346,6 +1435,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                         # linear along the walk (0.5 L* steps)
                         dev[i] = [np.interp(lt, ls_, ds_[:, c])
                                   for c in range(ds_.shape[1])]
+                if _a35_band is not None:
+                    dev = _a35_apply_band(
+                        model, dev, mapped, _neutral_col, _a35_band, _a35,
+                        dict(channel_letters=channel_letters,
+                             is_additive=is_additive, ink_limit=ink_limit,
+                             accurate=accurate, extra_hues=extra_hues,
+                             black_l=black_l, k_gen=k_gen,
+                             channel_max=channel_max))
             elif _neutral_col is not None and len(_neutral_col):
                 _tgt = mapped[_neutral_col]
                 _at_black = None
@@ -1373,6 +1470,33 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                     channel_max=channel_max, seed=_odev[_neutral_col])[0]
                 if _at_black is not None and _at_black.any():
                     dev[_neutral_col[_at_black]] = 0.0
+                if (_a35 is not None and is_additive
+                        and model.n_channels == 3
+                        and "a29-blackhandover" not in _cands):
+                    # Research Agent 35: RGB. The source black prints RGB 0
+                    # (B2A1's and colprof's black); the column is handed
+                    # over to RGB 0's a*b* below the RGB neutral black.
+                    _lab0 = model.predict(np.zeros((1, 3)))[0]
+                    _l_nb, _d_nb = b2a_mod.rgb_neutral_black(
+                        model, float(_lab0[0]))
+                    if _l_nb > float(_lab0[0]) + 1e-6:
+                        _pl, _pd, _pc = b2a_mod.rgb_handover_path(model,
+                                                                  _d_nb)
+                        _w = b2a_mod.percblack_width(
+                            _pl, _pc, l_neutral=float(_pl[0]),
+                            l_deep=float(_pl[-1]),
+                            c_deep=float(np.hypot(*_lab0[1:])), mode=_a35)
+                        dev = _a35_apply_band(
+                            model, dev, mapped, _neutral_col,
+                            {"l_deep": float(_pl[-1]), "ab_deep": _lab0[1:],
+                             "width": _w, "path_l": _pl, "path_dev": _pd},
+                            _a35,
+                            dict(channel_letters=channel_letters,
+                                 is_additive=is_additive,
+                                 ink_limit=ink_limit, accurate=accurate,
+                                 extra_hues=extra_hues, black_l=black_l,
+                                 k_gen=k_gen, channel_max=channel_max),
+                            black_dev=np.zeros(3))
             if ink_limit is not None and not is_additive:
                 # the engine's ink limit, exactly (xicclu's 4-decimal device
                 # values and colprof's own limit handling overshoot it by up

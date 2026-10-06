@@ -107,7 +107,12 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a29-oog-darkmono", "a29-oog-darkmono-bpc", "a29-oog-darkmono-soft",
      "a29-oog-darkmono-floor",
      # Agent 34 (black seam: rate-chosen deep black, axis gaps filled)
-     "a34-blackseam", "a34-blackseam-pin", "a34-blackseam-deepfloor"})
+     "a34-blackseam", "a34-blackseam-pin", "a34-blackseam-deepfloor",
+     # Agent 35 (perceptual/saturation black = the colorimetric black,
+     # reached by a hand-over band; research only)
+     "a35-percblack-blend", "a35-percblack-deep",
+     # Agent 35: the colprof oracle runs with the build's ink limits
+     "a35-oracle-limit"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two

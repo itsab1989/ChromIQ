@@ -1279,6 +1279,144 @@ def fill_axis_gaps(model: ForwardModel, axis: dict, *,
     return out
 
 
+# Research tokens "a35-percblack-blend" / "a35-percblack-deep" (Agent 35,
+# Findings/agent35-01-percblack.md; Basti 2026-10-06 night). The perceptual
+# and saturation tables end at the SAME black as the colorimetric one (RGB
+# 0 on an RGB printer, a34-blackseam's rate-chosen deep black on ink), not
+# at the neutral black (S1 28.8 vs colprof 26.8, ET on paper +1.1 L*). The
+# neutral column's target a*b* is handed over from neutral to the deep
+# black's a*b* over a band [l_deep, l_deep + width] of target L*:
+#
+# * blend (option 3): smoothstep (C1 at both ends, monotone). The width is
+#   the L* gap between the neutral and the deep black, widened only as far
+#   as the measured hand-over path (the device line from the neutral black
+#   to the deep black, monotone part) needs for every band target to be
+#   printable: the curve's fraction of the deep black's tint must reach the
+#   path's own fraction at every path sample (in-gamut, so the inversion
+#   never has to clip a target to a lighter neutral).
+# * deep (option 1, colprof's way): Argyll's gmm_bendBP (gamut/gammap.c
+#   l. 1378-1445): the band is the black's a*b* distance from neutral
+#   ("brad", in L* units), the blend is smoothstep of smoothstep near the
+#   top and linear at the black, towards the straight white-to-black axis.
+#   Never narrower than the printable width above.
+A35_TOKENS = ("a35-percblack-blend", "a35-percblack-deep")
+_A35_WIDTH_STEPS = 32           # width search resolution: gap / 32 ...
+_A35_WIDTH_MAX = 4.0            # ... up to 4 x the gap
+
+
+def a35_mode(candidates) -> str | None:
+    """'blend', 'deep' or None from the build's candidate tokens (deep
+    wins when both are given)."""
+    c = set(candidates or ())
+    if "a35-percblack-deep" in c:
+        return "deep"
+    if "a35-percblack-blend" in c:
+        return "blend"
+    return None
+
+
+def _smoothstep(t: np.ndarray) -> np.ndarray:
+    t = np.clip(np.asarray(t, float), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def percblack_fraction(target_l: np.ndarray, *, l_deep: float,
+                       width: float, mode: str) -> np.ndarray:
+    """Fraction (0 above the band, 1 at and below the deep black) of the
+    deep black's a*b* at each target L*."""
+    u = (float(l_deep) + float(width) - np.asarray(target_l, float)) \
+        / max(float(width), 1e-9)
+    if mode == "deep":
+        t = _smoothstep(u)
+        ty = _smoothstep(t)
+        return (1.0 - t) * ty + t * t      # gammap.c: spline at 0, linear at 1
+    return _smoothstep(u)
+
+
+def percblack_tint(target_l: np.ndarray, *, l_deep: float,
+                   ab_deep: np.ndarray, width: float, mode: str,
+                   l_white: float = 100.0) -> np.ndarray:
+    """a*b* targets of the hand-over (see the comment above). ``deep``
+    blends towards the straight white-to-black axis, as gammap.c does."""
+    tl = np.asarray(target_l, float)
+    f = percblack_fraction(tl, l_deep=l_deep, width=width, mode=mode)
+    if mode == "deep":
+        span = max(float(l_white) - float(l_deep), 1e-9)
+        f = f * np.clip((float(l_white) - tl) / span, 0.0, 1.0)
+    return f[:, None] * np.asarray(ab_deep, float)[None, :]
+
+
+def percblack_width(path_l: np.ndarray, path_c: np.ndarray, *,
+                    l_neutral: float, l_deep: float, c_deep: float,
+                    mode: str) -> float:
+    """Band width (L*) of the hand-over. ``path_l`` / ``path_c``: model L*
+    and C* along the hand-over path from the neutral black (first) to the
+    deep black (last). blend: the smallest gap * (1 + k / 32) whose
+    smoothstep fraction reaches the path's fraction (C* above the neutral
+    black's, over the deep black's) at every path sample; deep: the black's
+    chroma (gammap.c brad), at least that printable width."""
+    gap = max(float(l_neutral) - float(l_deep), 1e-6)
+    pl = np.asarray(path_l, float)
+    pc = np.asarray(path_c, float)
+    c_top = float(pc[0]) if len(pc) else 0.0
+    den = max(float(c_deep) - c_top, 1e-9)
+    need = np.clip((pc - c_top) / den, 0.0, 1.0)
+    w_ok = gap * _A35_WIDTH_MAX
+    for k in range(int(_A35_WIDTH_STEPS * (_A35_WIDTH_MAX - 1.0)) + 1):
+        w = gap * (1.0 + k / _A35_WIDTH_STEPS)
+        f = percblack_fraction(pl, l_deep=l_deep, width=w, mode="blend")
+        if np.all(f >= need - 1e-6):
+            w_ok = w
+            break
+    if mode == "deep":
+        return max(float(c_deep), w_ok)
+    return w_ok
+
+
+def rgb_handover_path(model: ForwardModel, neutral_dev: np.ndarray,
+                      n: int = 81):
+    """RGB: the device line from the neutral black's device value to RGB 0,
+    its monotone (darkening) part: ``(l, dev, c)`` from the neutral black
+    to RGB 0, as blackhandover_axis builds the ink path."""
+    nb = np.asarray(neutral_dev, float)
+    u = np.linspace(0.0, 1.0, n)
+    line = nb[None, :] * (1.0 - u)[:, None]
+    lab = model.predict(line)
+    keep = [0]
+    for i in range(1, n):
+        if lab[i, 0] < lab[keep[-1], 0] - 1e-6:
+            keep.append(i)
+    keep = np.asarray(keep)
+    return lab[keep, 0], line[keep], np.hypot(lab[keep, 1], lab[keep, 2])
+
+
+def path_device_at(target_l: np.ndarray, path_l: np.ndarray,
+                   path_dev: np.ndarray) -> np.ndarray:
+    """Device values on the hand-over path at the given L* (linear in L*,
+    clamped to the path's ends)."""
+    o = np.argsort(path_l)
+    pl, pd = np.asarray(path_l, float)[o], np.asarray(path_dev, float)[o]
+    tl = np.asarray(target_l, float)
+    return np.column_stack([np.interp(tl, pl, pd[:, c])
+                            for c in range(pd.shape[1])])
+
+
+def percblack_band_devices(model: ForwardModel, target: np.ndarray,
+                           inverted: np.ndarray, on_path: np.ndarray
+                           ) -> np.ndarray:
+    """Per band node, the device value of the two candidates (the inversion
+    of the hand-over target, and the hand-over path at the target L*) that
+    the model prints closer to the target (dE76). The path value is always
+    printable and monotone, so a node whose inversion had to clip keeps the
+    path."""
+    a = model.predict(np.asarray(inverted, float))
+    b = model.predict(np.asarray(on_path, float))
+    t = np.asarray(target, float)
+    da = np.linalg.norm(a - t, axis=1)
+    db = np.linalg.norm(b - t, axis=1)
+    return np.where((da <= db)[:, None], inverted, on_path)
+
+
 def axis_points(axis: dict, chroma_cap: float | None = None):
     """The axis as interpolation points for the mapped intents: ``(ls
     ascending, devices, l_black, black)``. The accepted grid points, and on
