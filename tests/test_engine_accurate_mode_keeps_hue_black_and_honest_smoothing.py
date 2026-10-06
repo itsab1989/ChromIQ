@@ -44,6 +44,29 @@ def _hue_err(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.abs((_hue(a) - _hue(b) + 180.0) % 360.0 - 180.0)
 
 
+def _oklab_hue(lab: np.ndarray) -> np.ndarray:
+    """Hue angle in Oklab (D50 Lab -> XYZ -> Bradford D65 -> Oklab)."""
+    L, a, b = lab.T
+    fy = (L + 16.0) / 116.0
+    fx, fz = fy + a / 500.0, fy - b / 200.0
+    f = lambda t: np.where(t ** 3 > 0.008856, t ** 3, (t - 16.0 / 116.0) / 7.787)
+    xyz = np.stack([0.9642 * f(fx), f(fy), 0.8249 * f(fz)], 1)
+    xyz = xyz @ np.array([[0.9555766, -0.0230393, 0.0631636],
+                          [-0.0282895, 1.0099416, 0.0210077],
+                          [0.0122982, -0.0204830, 1.3299098]]).T
+    lms = np.cbrt(xyz @ np.array([[0.8189330101, 0.3618667424, -0.1288597137],
+                                  [0.0329845436, 0.9293118715, 0.0361456387],
+                                  [0.0482003018, 0.2643662691, 0.6338517070]]).T)
+    o = lms @ np.array([[0.2104542553, 0.7936177850, -0.0040720468],
+                        [1.9779984951, -2.4285922050, 0.4505937099],
+                        [0.0259040371, 0.7827717662, -0.8086757660]]).T
+    return np.degrees(np.arctan2(o[:, 2], o[:, 1])) % 360.0
+
+
+def _perceived_hue_err(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    return np.abs((_oklab_hue(a) - _oklab_hue(b) + 180.0) % 360.0 - 180.0)
+
+
 def _build(tmp_path, mode: str, **kw):
     ti3 = write_synth_ti3(tmp_path / f"{mode}.ti3", "iRGB", _RGB, True,
                           n_per_axis=6)
@@ -65,7 +88,14 @@ def test_far_out_of_gamut_relative_clip_keeps_the_hue_family(tmp_path):
     targets = np.vstack([ring, flipped])
     dev = np.clip(icc.b2a_device(targets, "B2A1"), 0.0, 1.0)
     printed = icc.a2b_lab(dev, "A2B1")
-    err = _hue_err(printed, targets)
+    # Hue is judged in a hue-linear space (Oklab). Research integration 3
+    # made the F-15/F-17 clip ("a25-oog", Findings/agent25-01) default: it
+    # keeps the PERCEIVED hue, so a far-out blue that CIELAB's own hue angle
+    # bends towards purple is printed blue, and reads as 40 deg "wrong" in
+    # CIELAB hue on this synthetic printer (measured: Oklab max 20.8, median
+    # 0.7; the integration-2 clip 20.4 / 2.4; Experiments/agent26/huecheck).
+    # The flip this test exists for is 180 deg in either space.
+    err = _perceived_hue_err(printed, targets)
     assert err.max() <= 30.0, err.round(1)
     assert np.median(err) <= 10.0, err.round(1)
     # …and the printed colour is still a saturated one, not grey: the clip

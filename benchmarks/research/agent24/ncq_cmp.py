@@ -10,7 +10,7 @@ for fb in sorted((run / "ncq").glob(f"*-{arm}-*.json")):
     fa = run / "ncq" / f"{tag}-base-{rd}-{it}.json"
     if not fa.exists():
         continue
-    a, b = json.loads(fa.read_text()), json.loads(fb.read_text())
+    a, b = json.loads(fa.read_text(encoding="utf-8")), json.loads(fb.read_text(encoding="utf-8"))
     if "headline" not in a or "headline" not in b:
         print("error", fb.name, a.get("error"), b.get("error")); continue
     a, b = a["headline"], b["headline"]

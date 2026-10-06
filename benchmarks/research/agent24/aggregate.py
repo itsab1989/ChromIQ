@@ -18,7 +18,7 @@ rows = []
 for r in runs:
     f = R / r / f"cmp-{arm}-vs-base.json"
     if f.exists():
-        rows += [dict(x, run=r) for x in json.loads(f.read_text())]
+        rows += [dict(x, run=r) for x in json.loads(f.read_text(encoding="utf-8"))]
 tally = defaultdict(lambda: defaultdict(int))
 for x in rows:
     if "verdict" in x:

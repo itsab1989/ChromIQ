@@ -26,7 +26,7 @@ def main():
             p = out / "hunt" / f"{name}-{e}.json"
             if not p.exists():
                 continue
-            f = flat(json.loads(p.read_text()))
+            f = flat(json.loads(p.read_text(encoding="utf-8")))
             line = []
             for fam, rx, lab in FAM[1:]:
                 for it in ("p", "r", "s"):

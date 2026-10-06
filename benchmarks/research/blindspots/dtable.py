@@ -43,7 +43,7 @@ def main():
         for e in ("colprof", "fast", "accurate"):
             p = out / "hunt" / f"{n}-{e}.json"
             if p.exists():
-                print(f"{n:18s} {e:9s} {row(json.loads(p.read_text()))}")
+                print(f"{n:18s} {e:9s} {row(json.loads(p.read_text(encoding="utf-8")))}")
 
 
 if __name__ == "__main__":

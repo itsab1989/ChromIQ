@@ -112,7 +112,7 @@ def sips_srgb_to(dst_profile, rgb01):
         a = np.round(np.clip(rgb01, 0, 1) * 65535).astype("<u2").reshape(1, len(rgb01), 3)
         src = Path(td) / "in.tif"; out = Path(td) / "out.tif"
         tifffile.imwrite(src, a, photometric="rgb", iccprofile=Path("/System/Library/ColorSync/Profiles/sRGB Profile.icc").read_bytes())
-        r = subprocess.run(["sips", "-M", str(dst_profile), "relative", str(src), "--out", str(out)], capture_output=True, text=True, timeout=120)
+        r = subprocess.run(["sips", "-M", str(dst_profile), "relative", str(src), "--out", str(out)], capture_output=True, text=True, timeout=120, encoding="utf-8")
         assert out.exists(), r.stderr
         b = tifffile.imread(out)
         return b.reshape(len(rgb01), -1).astype(float) / (65535.0 if b.dtype == np.uint16 else 255.0), b.dtype, r.stdout + r.stderr

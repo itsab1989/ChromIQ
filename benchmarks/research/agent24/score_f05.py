@@ -108,7 +108,7 @@ def main():
             if v4b.exists() and v4p.exists():
                 ta, tb = tags(v4b), tags(v4p)
                 tj[p.stem + "-v4"] = sorted(s for s in set(ta) | set(tb) if ta.get(s) != tb.get(s))
-    (run / "tags.json").write_text(json.dumps(tj, indent=1))
+    (run / "tags.json").write_text(json.dumps(tj, indent=1), encoding="utf-8")
     gam_cache: dict = {}
     for p in profs:
         tag, arm = p.stem.rsplit("-", 1)
@@ -119,7 +119,7 @@ def main():
             gam_cache[pid] = gmq.TruthGamut(gmq.truth_cloud(printer))
         for rd in readers:
             if rd == "colorsync" and not cmm.colorsync_supported(str(p)):
-                (gdir / f"{p.stem}-{rd}-unsupported.json").write_text("{}")
+                (gdir / f"{p.stem}-{rd}-unsupported.json").write_text("{}", encoding="utf-8")
                 continue
             for it in intents:
                 f = gdir / f"{p.stem}-{rd}-{it}.json"
@@ -130,7 +130,7 @@ def main():
                         np.savez_compressed(f.with_suffix(".npz"), **pp)
                     except Exception as ex:          # noqa: BLE001
                         res = {"error": f"{type(ex).__name__}: {ex}"}
-                    f.write_text(json.dumps(res, indent=1))
+                    f.write_text(json.dumps(res, indent=1), encoding="utf-8")
                     print(f"gmq {p.stem} {rd} {it}: C* {res.get('M1_neutral_C_mean')} "
                           f"rt {res.get('M11_rt_median')}", flush=True)
                 fn = ndir / f"{p.stem}-{rd}-{it}.json"
@@ -141,9 +141,9 @@ def main():
                                          tac=300.0 if proxy else None) if proxy else \
                             ncq.evaluate(p, pid, rd, it, "1,2,3,5")
                         fn.write_text(json.dumps({"headline": ncq.headline(r)}, indent=1,
-                                                 default=float))
+                                                 default=float), encoding="utf-8")
                     except Exception as ex:          # noqa: BLE001
-                        fn.write_text(json.dumps({"error": f"{type(ex).__name__}: {ex}"}))
+                        fn.write_text(json.dumps({"error": f"{type(ex).__name__}: {ex}"}), encoding="utf-8")
                     print(f"ncq {p.stem} {rd} {it} done", flush=True)
     print("DONE", flush=True)
 

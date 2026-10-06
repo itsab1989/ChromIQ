@@ -81,7 +81,7 @@ def main():
         fa = g / f"{tag}-{base}-{rd}-{it}.json"
         if not fa.exists():
             continue
-        ra, rb = json.loads(fa.read_text()), json.loads(fb.read_text())
+        ra, rb = json.loads(fa.read_text(encoding="utf-8")), json.loads(fb.read_text(encoding="utf-8"))
         if "error" in ra or "error" in rb:
             rows.append({"tag": tag, "reader": rd, "intent": it, "error": ra.get("error") or rb.get("error")})
             continue
@@ -113,13 +113,13 @@ def main():
         print("\n| dataset | reader | intent | neutral C* mean | C* max | round trip med | black L* | black C* | core dE med | hue IPT |")
         cells = sorted({(r["tag"], r["reader"], r["intent"]) for r in rows if "prop" in r})
         for tag, rd, it in cells:
-            ra = json.loads((g / f"{tag}-{base}-{rd}-{it}.json").read_text())
-            rb = json.loads((g / f"{tag}-{arm}-{rd}-{it}.json").read_text())
+            ra = json.loads((g / f"{tag}-{base}-{rd}-{it}.json").read_text(encoding="utf-8"))
+            rb = json.loads((g / f"{tag}-{arm}-{rd}-{it}.json").read_text(encoding="utf-8"))
             f = lambda k: f"{ra[k]:.2f} -> {rb[k]:.2f}" if ra.get(k) is not None else "n/a"
             print(f"| {tag} | {rd} | {it} | {f('M1_neutral_C_mean')} | {f('M1_neutral_C_max')} | "
                   f"{f('M11_rt_median')} | {f('M8_black_L')} | {f('M8_black_C')} | "
                   f"{f('M5_core_de_median')} | {f('M2_hue_ipt_wmean')} |")
-    (run / f"cmp-{arm}-vs-{base}.json").write_text(json.dumps(rows, indent=0))
+    (run / f"cmp-{arm}-vs-{base}.json").write_text(json.dumps(rows, indent=0), encoding="utf-8")
 
 
 if __name__ == "__main__":

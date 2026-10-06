@@ -27,7 +27,11 @@ def test_other_modes_never_change(mode):
 
 
 def test_maximum_accuracy_needs_the_token_and_an_f_illuminant():
+    # Research integration 3: "a24-s1" is a Maximum accuracy default, so an
+    # F illuminant integrates by spline unless the token is switched off.
     s = BuildSettings(gammap_mode="accurate", illuminant="F8")
+    assert _spectral_method(s) == "spline"
+    s.engine_candidates = frozenset({"no-a24-s1"})
     assert _spectral_method(s) == ""
     s.engine_candidates = frozenset({"a24-s1"})
     assert _spectral_method(s) == "spline"

@@ -36,7 +36,7 @@ def row(xa, xb, *, dataset, level, chart, reader, endpoint, ink_class, n_channel
 
 
 def decide(rows, engine="accurate"):
-    table = json.loads(SEED_SD.read_text())
+    table = json.loads(SEED_SD.read_text(encoding="utf-8"))
     stats3.decide(rows, engine, engine, table)
     return rows, stats3.weighed_adoption(rows)
 

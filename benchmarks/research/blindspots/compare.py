@@ -58,7 +58,7 @@ def compare(out: Path, name: str, engines, focus: str, show_all=False):
     for e in engines:
         p = out / "hunt" / f"{name}-{e}.json"
         if p.exists():
-            data[e] = flat(json.loads(p.read_text()))
+            data[e] = flat(json.loads(p.read_text(encoding="utf-8")))
     if focus not in data:
         return []
     rows = []

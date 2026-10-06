@@ -23,7 +23,7 @@ def _settings(**kw):
 
 def _meas(tmp_path):
     p = tmp_path / "m.ti3"
-    p.write_text("CTI3\n")
+    p.write_text("CTI3\n", encoding="utf-8")
     return SimpleNamespace(path=p)
 
 

@@ -79,11 +79,11 @@ def iccref_a2b(prof, dev):
     """ICC reference implementation (iccDEV IccProfLib 2.3.2.3, Homebrew) A2B1, tetrahedral."""
     import subprocess, tempfile
     sig = Path(prof).read_bytes()[16:20].decode("latin-1")
-    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, dir=Path(__file__).parent / "out") as f:
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, dir=Path(__file__).parent / "out", encoding="utf-8") as f:
         f.write(f"'{sig}' ; Data Format\nicEncodeUnitFloat ; Encoding\n\n")
         f.write("\n".join(" ".join(f"{v:.6f}" for v in r) for r in dev) + "\n")
     r = subprocess.run(["iccApplyNamedCmm", f.name, "0:6", "1", str(prof), "1"],
-                       capture_output=True, text=True, timeout=600)
+                       capture_output=True, text=True, timeout=600, encoding="utf-8")
     Path(f.name).unlink()
     rows = [ln.split(";")[0].split() for ln in r.stdout.splitlines()
             if ";" in ln and ln.split(";")[0].strip()
@@ -154,7 +154,7 @@ def main():
     t0, t1 = dict(tags_of(d)), dict(tags_of(var.read_bytes()))
     res["non_a2b_identical"] = all(t1[s][:len(t0[s])] == t0[s] and not t1[s][len(t0[s]):].strip(b"\0")
                                    for s in t0 if not s.startswith("A2B"))
-    outj.write_text(json.dumps(res, indent=1))
+    outj.write_text(json.dumps(res, indent=1), encoding="utf-8")
     print(json.dumps({k: (v if not isinstance(v, dict) or "all" not in v else
                           {"white": round(v["white_de"], 4), "neu_med": round(v["neutral"]["med"], 4),
                            "rnd_med": round(v["random"]["med"], 4), "max": round(v["all"]["max"], 4)})

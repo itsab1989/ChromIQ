@@ -57,7 +57,7 @@ def points(out: Path, profs, variant="b"):
         np.savez_compressed(f, **arr)
         meta = {"pid": pid, "level": level, "chart": re.sub(r"\d+", "", chart),
                 "n": prn.n, "rep": prn.color_rep, "src": str(p)}
-        f.with_suffix(".json").write_text(json.dumps(meta))
+        f.with_suffix(".json").write_text(json.dumps(meta), encoding="utf-8")
         cs = arr.get("colorsync.a"), arr.get("colorsync.b")
         print(f"{p.name}: colorsync med {np.median(cs[0]) if cs[0] is not None else 'n/a'} -> "
               f"{np.median(cs[1]) if cs[1] is not None else 'n/a'}; argyll identical "
@@ -84,7 +84,7 @@ def real_points(out: Path, p: Path, variant: str):
     np.savez_compressed(f, **arr)
     f.with_suffix(".json").write_text(json.dumps({"pid": name, "level": "real", "chart": "real",
                                                   "n": d.n_channels, "rep": d.color_rep,
-                                                  "src": str(p)}))
+                                                  "src": str(p)}), encoding="utf-8")
     print(f"{p.name}: colorsync med {np.median(arr['colorsync.a']):.4f} -> "
           f"{np.median(arr['colorsync.b']):.4f}", flush=True)
 
@@ -92,7 +92,7 @@ def real_points(out: Path, p: Path, variant: str):
 def decide(out: Path, variant="b"):
     rows = []
     for f in sorted(out.glob(f"*.{variant}.npz")):
-        meta = json.loads(f.with_suffix(".json").read_text())
+        meta = json.loads(f.with_suffix(".json").read_text(encoding="utf-8"))
         z = np.load(f)
         for rd in READERS:
             if f"{rd}.a" not in z:
@@ -104,8 +104,8 @@ def decide(out: Path, variant="b"):
                     ink_class=ink_class(meta["n"], meta["rep"]), n_channels=meta["n"],
                     kind="real" if meta["level"] == "real" else "synthetic"))
     rows, adoption = a24stats.decide(rows)
-    (out / f"rows-{variant}.json").write_text(json.dumps(rows, indent=1, default=float))
-    (out / f"adoption-{variant}.json").write_text(json.dumps(adoption, indent=1, default=float))
+    (out / f"rows-{variant}.json").write_text(json.dumps(rows, indent=1, default=float), encoding="utf-8")
+    (out / f"adoption-{variant}.json").write_text(json.dumps(adoption, indent=1, default=float), encoding="utf-8")
     print(a24stats.summary(rows, adoption))
     by = {}
     for r in rows:

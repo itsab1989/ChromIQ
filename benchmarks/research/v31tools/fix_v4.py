@@ -2,12 +2,12 @@
 import json, sys
 from pathlib import Path
 f = Path(sys.argv[1]) / "builds.json"
-b = json.loads(f.read_text())
+b = json.loads(f.read_text(encoding="utf-8"))
 n = 0
 for x in b:
     if x.get("ok") and not x.get("v4_path"):
         v4 = Path(x["job"]["out"]).with_name(Path(x["job"]["out"]).stem + "-v4.icc")
         if v4.exists():
             x["v4_path"] = str(v4); n += 1
-f.write_text(json.dumps(b, indent=1))
+f.write_text(json.dumps(b, indent=1), encoding="utf-8")
 print(n, "fixed")

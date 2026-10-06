@@ -59,7 +59,7 @@ def build(job: dict, log: Path) -> dict:
     if res is None:
         res = {"ok": False, "error": f"rc {r.returncode}: {r.stderr[-800:]}"}
     res["wall"] = time.time() - t0
-    with log.open("a") as f:
+    with log.open("a", encoding="utf-8") as f:
         f.write(json.dumps({"out": job["out"], **{k: res.get(k) for k in
                 ("ok", "seconds", "wall", "sha256", "error")}}) + "\n")
     print(f"{time.strftime('%H:%M')} {Path(job['out']).name}: "
@@ -92,7 +92,7 @@ def main() -> None:
         if per:
             jobs.append(per)
     log = out / "builds.jsonl"
-    (out / "COMMAND.txt").write_text(" ".join(sys.argv) + "\n")
+    (out / "COMMAND.txt").write_text(" ".join(sys.argv) + "\n", encoding="utf-8")
 
     def chain(per):
         first = build(per[0], log)
@@ -101,7 +101,7 @@ def main() -> None:
         if "--score" in sys.argv:               # same slot: score this dataset's arms
             tag = Path(per[0]["out"]).stem.rsplit("-", 1)[0]
             subprocess.run([PY, str(H / "f05" / "score_f05.py"), run, "--tag", tag, "--ncq"],
-                           env=ENV, stdout=open(out / f"score-{tag}.log", "w"),
+                           env=ENV, stdout=open(out / f"score-{tag}.log", "w", encoding="utf-8"),
                            stderr=subprocess.STDOUT, timeout=4 * 3600)
             print(f"{time.strftime('%H:%M')} scored {tag}", flush=True)
         return first

@@ -29,7 +29,7 @@ def proxy_for(out: Path, name: str, src: str):
     ref = dsm.reference_icc(src)
     ti3 = out / "work" / src / f"{src}-full.ti3"
     from benchmarks.research.printers import split_letters
-    txt = ti3.read_text(errors="replace")
+    txt = ti3.read_text(errors="replace", encoding="utf-8")
     rep = [ln for ln in txt.splitlines() if ln.startswith("COLOR_REP")][0]
     letters = rep.split('"')[1].split("_")[0]
     n = 3 if letters in ("RGB", "iRGB") else len(split_letters(letters))
@@ -96,7 +96,7 @@ def main(argv=None) -> int:
             res["profile"] = str(icc)
             if dst.exists() and only:
                 import json
-                old = json.loads(dst.read_text())
+                old = json.loads(dst.read_text(encoding="utf-8"))
                 old.update(hunt.jsonable(res))
                 res = old
             hunt.dump(res, dst)

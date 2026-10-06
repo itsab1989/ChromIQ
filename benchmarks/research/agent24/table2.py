@@ -2,7 +2,7 @@ import json,glob,sys,re
 from collections import defaultdict
 rows=[]
 for f in sorted(glob.glob('all/*.json')):
-    r=json.load(open(f)); n=f.split('/')[-1][3:-5]
+    r=json.load(open(f, encoding="utf-8")); n=f.split('/')[-1][3:-5]
     over=max((v['clut_L_over_100'] for v in r['tags'].values()),default=0)
     get=lambda k,f2: (f2(r[k]) if k in r and 'error' not in r[k] else None)
     rows.append(dict(name=n, n=r['n'], over=over, same=r['non_a2b_identical'],
