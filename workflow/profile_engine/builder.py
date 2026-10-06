@@ -79,6 +79,9 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 ENGINE_CANDIDATE_TOKENS = frozenset(
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
      "rgbcol", "rgbshadow", "no-rgbcol",
+     # Integration 3 off-switches for its new defaults
+     "no-a25-oog", "no-a25-rgbcol", "no-a25-oracle-dev", "no-a25-oracle-neutral",
+     "no-a24-s1", "no-a24-f05",
      "no-b2a33s", "no-rgbpos", "no-v4prm",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
      "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
@@ -116,7 +119,20 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # 20, Findings/agent20-01): it holds an RGB printer's neutral column below
 # the device black AT the black through the B2A refit (the grey ramp no
 # longer turns lighter in the deep shadows). "no-rgbcol" for ablations.
-ACCURATE_DEFAULT_TOKENS = frozenset({"b2a33s", "rgbpos", "v4prm", "rgbcol"})
+# Integration 3 (2026-10-06, Integrator 5 verdicts in
+# ProfileEngineResearch/Findings/agent26-01-integration3.md; D-17 with D-24):
+# ON as well: "a25-oog" (F-15/F-17 out-of-gamut clip; carries Agent 21's
+# L* >= 60 light seeds, i.e. "a21-lightcloud60", on ink devices; D-24 without
+# blend_light), "a25-rgbcol" (RGB in-gamut neutral column anchored),
+# "a25-oracle-dev" + "a25-oracle-neutral" (F-16/F-18 perceptual and
+# saturation tables, <= 4 inks), "a24-s1" (C-S1 spectral illuminants by
+# spline, only for F-type illuminants), "a24-f05" (F-05 mapped-intent black,
+# only 5+ inks). Opt-in only: "a24-l1" (C-L1), "a19-extrap" (F-12). Each has
+# a "no-<token>" switch for ablations.
+ACCURATE_DEFAULT_TOKENS = frozenset({
+    "b2a33s", "rgbpos", "v4prm", "rgbcol",
+    "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
+    "a24-s1", "a24-f05"})
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer
@@ -1144,7 +1160,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         rgb_col_val[_corner] = 0.0
         if len(rgb_col):
             dev_clut[rgb_col] = rgb_col_val
-            fixed_nodes = rgb_col
+            # Integration 3: together with "a25-rgbcol" (in-gamut column)
+            # BOTH parts of the neutral column are held; before, this line
+            # replaced a25-rgbcol's nodes and silently undid that token.
+            fixed_nodes = (rgb_col if fixed_nodes is None
+                           else np.union1d(fixed_nodes, rgb_col))
         if len(rgb_col) and "rgbshadow" in candidates:
             # Research F-13 design C: the near-neutral shadow nodes below the
             # black are clipped ALONG L* first (re-inverted at the black's
@@ -1161,7 +1181,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     is_additive=True, accurate=True, ucs=use_ucs)[0]
                 rgb_col = np.concatenate([rgb_col, _sh])
                 rgb_col_val = np.vstack([rgb_col_val, dev_clut[_sh]])
-                fixed_nodes = rgb_col
+                fixed_nodes = np.union1d(fixed_nodes, _sh)
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
