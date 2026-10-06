@@ -544,21 +544,14 @@ def _oracle_cache_key(meas: Ti3Measurement, source_gamut, settings,
         return None
     node_key = None if node_lab is None else (
         node_lab.shape[0], round(float(node_lab.sum()), 3))
-    return (str(meas.path), st.st_mtime_ns, st.st_size, str(source_gamut),
-            getattr(settings, "quality", ""),
-            getattr(settings, "perc_intent", ""),
-            getattr(settings, "sat_intent", ""),
-            getattr(settings, "src_viewing", ""),
-            getattr(settings, "dst_viewing", ""),
-            getattr(settings, "perc_src_colorimetric", False),
-            getattr(settings, "sat_src_colorimetric", False),
-            getattr(settings, "illuminant", ""),
-            getattr(settings, "observer", ""),
-            getattr(settings, "fwa", False),
-            getattr(settings, "fwa_illum", ""),
-            getattr(settings, "k_rule", ""),
-            getattr(settings, "k_locus", False),
-            getattr(settings, "k_curve_params", None),
+    # Keyed on the oracle's own command line (Integration 3, Agent 10b
+    # finding s3.3): every setting that reaches colprof is in the key by
+    # construction. Before, "-s" vs "-S" (settings.sat_gamut) was missing,
+    # so after one "-s" build every later "-S" build of the same
+    # measurement in the same app session reused the perceptual-only
+    # result and its saturation table became the perceptual one.
+    return (str(meas.path), st.st_mtime_ns, st.st_size,
+            tuple(_oracle_args(Path("colprof"), settings, source_gamut)),
             node_key)
 
 
