@@ -1252,6 +1252,7 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             mapped = model.predict(np.clip(mapper.node_dev, 0.0, 1.0))
         _cands = getattr(settings, "engine_candidates", frozenset())
         _neutral_col = None
+        _a29_pts = None
         if accurate and "a25-oracle-neutral" in _cands and getattr(
                 mapper, "node_dev", None) is not None:
             # Research (Agent 25): perceptual maps the neutral axis onto the
@@ -1265,6 +1266,33 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             mapped[_neutral_col] = model.predict(
                 np.clip(mapper.node_dev[_neutral_col], 0.0, 1.0))
             mapped[_neutral_col, 1:] = 0.0
+            if "a29-blackhandover" in _cands and model.n_channels <= 4:
+                # Research Agent 29a: the source black lands on the
+                # destination black (the axis black B2A1 prints; RGB 0 on
+                # an RGB printer), whatever the engine's model says
+                # colprof's black device value prints.
+                if is_additive:
+                    _bk_l = float(model.predict(
+                        np.zeros((1, model.n_channels)))[0, 0])
+                else:
+                    _axv = (neutral_axis() if callable(neutral_axis)
+                            else neutral_axis)
+                    _bk_l = None
+                    if _axv is not None and _axv.get("black") is not None:
+                        # perceptual/saturation hand over only while the
+                        # model still prints it neutral (C* <= 1, the
+                        # axis's own test): colprof keeps its perceptual
+                        # black near neutral on CMYK (battery v3.1:
+                        # R-CMYK-default C* 0.4-0.5) while B2A1 goes deep.
+                        # Pre-check: capping at colprof's own perceptual
+                        # black chroma (engine model) instead tinted the
+                        # i1iSis perceptual black to C* 2.9 (base 1.7).
+                        _a29_pts = b2a_mod.axis_points(_axv, chroma_cap=1.0)
+                        _bk_l = _a29_pts[2]
+                if _bk_l is not None:
+                    mapped[_neutral_col, 0] = b2a_mod.anchor_column_black(
+                        mapped[_neutral_col, 0], node_lab[_neutral_col, 0],
+                        _bk_l)
         _odev = (np.clip(mapper.node_dev, 0.0, 1.0)
                  if accurate and getattr(mapper, "node_dev", None) is not None
                  and ({"a25-oracle-dev", "a25-oracle-seed"} & set(_cands))
@@ -1300,21 +1328,46 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                 order = np.argsort(al[aok])
                 ls_ = al[aok][order]
                 ds_ = adev[aok][order]
+                _lb, _bk = _ax["l_black"], np.asarray(_ax["black"], float)
+                if _a29_pts is not None:
+                    # Research Agent 29a: the hand-over points, ending at
+                    # the exact (capped) black, not at a 0.5 L* grid point
+                    ls_, ds_, _lb, _bk = _a29_pts
                 for i in _neutral_col:
                     lt = mapped[i, 0]
-                    if lt < _ax["l_black"]:
-                        dev[i] = np.asarray(_ax["black"], float)
+                    if lt < _lb:
+                        dev[i] = _bk
                     else:
                         # linear along the walk (0.5 L* steps)
                         dev[i] = [np.interp(lt, ls_, ds_[:, c])
                                   for c in range(ds_.shape[1])]
             elif _neutral_col is not None and len(_neutral_col):
+                _tgt = mapped[_neutral_col]
+                _at_black = None
+                if (is_additive and "a29-blackhandover" in _cands
+                        and model.n_channels == 3):
+                    # Research Agent 29a: RGB. Neutral down to the RGB
+                    # neutral black (at least 1 L* above the device black),
+                    # then a*b* hand over smoothly to RGB 0's own a*b*; the
+                    # source black prints RGB 0 (colprof's black). Before,
+                    # a neutral target below the neutral black was clipped
+                    # to a lighter neutral (S1 28.8 vs 26.8, X1 9.0 vs 7.9).
+                    _lab0 = model.predict(np.zeros((1, 3)))[0]
+                    _l_nb, _ = b2a_mod.rgb_neutral_black(model,
+                                                         float(_lab0[0]))
+                    _tgt = _tgt.copy()
+                    _tgt[:, 1:] = b2a_mod.handover_target_ab(
+                        _tgt[:, 0], l_top=max(_l_nb, _lab0[0] + 1.0),
+                        l_deep=float(_lab0[0]), ab_deep=_lab0[1:])
+                    _at_black = _tgt[:, 0] <= _lab0[0] + 0.05
                 dev[_neutral_col] = b2a_mod.invert_to_device(
-                    model, mapped[_neutral_col],
+                    model, _tgt,
                     channel_letters=channel_letters, is_additive=is_additive,
                     ink_limit=ink_limit, accurate=accurate,
                     extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
                     channel_max=channel_max, seed=_odev[_neutral_col])[0]
+                if _at_black is not None and _at_black.any():
+                    dev[_neutral_col[_at_black]] = 0.0
             if ink_limit is not None and not is_additive:
                 # the engine's ink limit, exactly (xicclu's 4-decimal device
                 # values and colprof's own limit handling overshoot it by up

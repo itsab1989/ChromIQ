@@ -967,6 +967,241 @@ def _deepen_neutral_black(model: ForwardModel, axis: dict, *, step: float,
             "axis_tv": tv}
 
 
+# Research token "a29-blackhandover" (Agent 29a, Findings/agent29a-01).
+# The neutral axis ends at the darkest point the model prints NEUTRAL (C* <
+# 1). Where the printer's deepest black is slightly tinted, colprof's black
+# is that deeper tinted one (xicc/xlut.c bfindfunc: minimise L* with a soft
+# penalty on a*b*, then the clip vector lines every out-of-gamut neutral up
+# with the white-black line), and ours was up to 2-5 L* lighter (battery
+# v3.1: R-CMYK-default, XKB, X3; perceptually S1, S2, X1, XKH). The axis is
+# kept neutral down to its neutral black and then HANDED OVER to a deeper,
+# slightly tinted black: the device value is blended linearly from the
+# neutral black to the deep black, so no ink jumps and C* rises from ~0 at
+# the neutral black to the deep black's C*. The deep black is the darkest
+# model point under the build's limits for a ladder of chroma bounds,
+# scored L* + _HANDOVER_LAMBDA * C* (1 C* costs half an L*), and it is only
+# used when that score beats the neutral black by _HANDOVER_MIN_GAIN.
+_HANDOVER_LADDER = (1.0, 2.0, 3.0)
+_HANDOVER_LAMBDA = 0.5
+_HANDOVER_MIN_GAIN = 0.3
+_HANDOVER_SEEDS = 12
+
+
+def deepest_tinted(model: ForwardModel, *, chroma_max: float, kw: dict,
+                   step: float = 0.5, seeds_n: int = _HANDOVER_SEEDS
+                   ) -> tuple[np.ndarray, np.ndarray] | None:
+    """The darkest point the MODEL prints with C* <= ``chroma_max`` under
+    the build's limits (TAC, channel ceilings), whatever the ink policy.
+
+    Seeds: the darkest points of the limit-respecting device cloud with
+    C* below max(2 * chroma_max, 4), greedily 0.15 apart in device space,
+    plus K alone when there is a K channel (colprof's first trial, 000K).
+    From each, damped Gauss-Newton walks down in L* holding the current
+    a*b* (pulled inside 0.8 * ``chroma_max``), halving the step on a
+    failure and stopping after three. Returns ``(model Lab, device)`` of the
+    darkest accepted point, or None. Deterministic."""
+    n = model.n_channels
+    ink_limit = kw.get("ink_limit")
+    limit = (None if ink_limit is None or kw.get("is_additive")
+             else ink_limit / 100.0)
+    cmax = kw.get("channel_max")
+    cloud, lab = _cloud_and_lab(model, model, n, limit, cmax, 2718,
+                                memo=True)
+    chroma = np.hypot(lab[:, 1], lab[:, 2])
+    cand = np.flatnonzero(chroma < max(2.0 * chroma_max, 4.0))
+    cand = cand[np.argsort(lab[cand, 0], kind="stable")]
+    seeds: list[np.ndarray] = []
+    for i in cand:
+        if all(np.max(np.abs(cloud[i] - s)) > 0.15 for s in seeds):
+            seeds.append(cloud[i])
+            if len(seeds) >= seeds_n:
+                break
+    letters = kw.get("channel_letters") or []
+    if "K" in letters:
+        k = np.zeros(n)
+        k[letters.index("K")] = 1.0
+        if cmax is not None:
+            k = np.minimum(k, np.asarray(cmax, float))
+        seeds.append(k)
+    free = np.arange(n)
+    gn = dict(free=free, damping=0.05, ink_limit=limit, boundary_fd=True,
+              tac_projection=True, channel_max=cmax)
+    best = None
+    for s in seeds:
+        cur = np.asarray(s, float)[None, :].copy()
+        lc = model.predict(cur)[0]
+        c = float(np.hypot(lc[1], lc[2]))
+        if c > chroma_max:
+            ab = lc[1:] * (0.8 * chroma_max / c)
+            cur = _gauss_newton_rows(model, np.array([[lc[0], ab[0], ab[1]]]),
+                                     cur, iters=20, **gn)
+            lc = model.predict(cur)[0]
+            if np.hypot(lc[1], lc[2]) > chroma_max:
+                continue
+        st, fails = step, 0
+        while fails < 3:
+            c = float(np.hypot(lc[1], lc[2]))
+            ab = lc[1:] * min(1.0, 0.8 * chroma_max / max(c, 1e-9))
+            d = _gauss_newton_rows(
+                model, np.array([[lc[0] - st, ab[0], ab[1]]]), cur,
+                iters=12, **gn)
+            ln = model.predict(d)[0]
+            if ln[0] < lc[0] - 0.01 and np.hypot(ln[1], ln[2]) <= chroma_max:
+                cur, lc, fails = d, ln, 0
+            else:
+                fails += 1
+                st /= 2.0
+        if best is None or lc[0] < best[0][0] - 1e-9:
+            best = (lc.copy(), cur[0].copy())
+    return best
+
+
+def handover_black(model: ForwardModel, *, l_neutral: float,
+                   c_neutral: float, kw: dict) -> dict | None:
+    """The deep black the axis is handed over to, or None when it does not
+    beat the neutral black (``l_neutral``, chroma ``c_neutral``) by
+    _HANDOVER_MIN_GAIN in L* + _HANDOVER_LAMBDA * C*."""
+    base = l_neutral + _HANDOVER_LAMBDA * c_neutral
+    best = None
+    for cm in _HANDOVER_LADDER:
+        found = deepest_tinted(model, chroma_max=cm, kw=kw)
+        if found is None:
+            continue
+        lab, dev = found
+        score = float(lab[0] + _HANDOVER_LAMBDA * np.hypot(lab[1], lab[2]))
+        if best is None or score < best["score"] - 1e-9:
+            best = {"lab": lab, "dev": dev, "score": score, "chroma_max": cm}
+    if best is None or best["score"] > base - _HANDOVER_MIN_GAIN:
+        return None
+    return best
+
+
+def blackhandover_axis(model: ForwardModel, axis: dict, **inv_kw) -> dict:
+    """Research token "a29-blackhandover": extend the neutral axis below its
+    neutral black to a deeper, slightly tinted black (see the comment
+    above). Grid points of ``axis["l"]`` between the deep black's L* and the
+    neutral black's take the device value of the linear device blend
+    neutral black -> deep black at that model L* (the blend's L* made
+    monotone by keeping only new minima). The axis black becomes the deep
+    black; ``neutral_l_black`` keeps the old one. Returns the axis
+    unchanged when there is no deeper black worth it."""
+    if axis.get("black") is None:
+        return axis
+    kw = {k: v for k, v in inv_kw.items()
+          if k not in ("node_lab", "progress", "seed")}
+    nb = np.asarray(axis["black"], float)
+    lab_nb = model.predict(nb[None, :])[0]
+    deep = handover_black(model, l_neutral=float(lab_nb[0]),
+                          c_neutral=float(np.hypot(lab_nb[1], lab_nb[2])),
+                          kw=kw)
+    if deep is None:
+        return axis
+    dd = np.asarray(deep["dev"], float)
+    u = np.linspace(0.0, 1.0, 81)
+    blend = nb[None, :] + u[:, None] * (dd - nb)[None, :]
+    if kw.get("ink_limit") is not None and not kw.get("is_additive"):
+        blend = project_tac(blend, kw["ink_limit"] / 100.0)
+    bl = model.predict(blend)[:, 0]
+    keep = [0]
+    for i in range(1, len(u)):
+        if bl[i] < bl[keep[-1]] - 1e-6:
+            keep.append(i)
+    keep = np.asarray(keep)
+    if len(keep) < 2:
+        return axis
+    l_k, d_k = bl[keep], blend[keep]
+    l_deep = float(l_k[-1])
+    ls = np.asarray(axis["l"], float)
+    dev = np.asarray(axis["dev"], float).copy()
+    ok = np.asarray(axis["ok"], bool).copy()
+    order = np.argsort(l_k)
+    for i, lv in enumerate(ls):
+        if lv >= lab_nb[0] - 1e-9 or lv < l_deep - 1e-9:
+            continue
+        dev[i] = [np.interp(lv, l_k[order], d_k[order, c])
+                  for c in range(dev.shape[1])]
+        ok[i] = True
+    last = int(np.flatnonzero(ok)[-1])
+    ok[last + 1:] = False
+    lab_k = model.predict(d_k)
+    out = dict(axis)
+    out.update({"dev": dev, "ok": ok, "l_black": l_deep,
+                "black": d_k[-1].copy(), "handover": True,
+                "neutral_l_black": float(lab_nb[0]),
+                "neutral_black": nb.copy(),
+                "handover_lab": lab_k[-1],
+                "blend_l": l_k, "blend_dev": d_k,
+                "blend_c": np.hypot(lab_k[:, 1], lab_k[:, 2])})
+    return out
+
+
+def axis_points(axis: dict, chroma_cap: float | None = None):
+    """The axis as interpolation points for the mapped intents: ``(ls
+    ascending, devices, l_black, black)``. The accepted grid points, and on
+    a hand-over axis the neutral part plus the exact blend samples (the
+    0.5 L* grid alone ends above the deep black). ``chroma_cap``: the blend
+    stops at the last sample whose model C* is within it (research
+    a29-blackhandover: the perceptual black is handed over only as far as
+    colprof's own perceptual black is tinted, at least C* 1)."""
+    ls = np.asarray(axis["l"], float)
+    ok = np.asarray(axis["ok"], bool)
+    dev = np.asarray(axis["dev"], float)
+    if not axis.get("handover"):
+        o = np.argsort(ls[ok])
+        return ls[ok][o], dev[ok][o], float(axis["l_black"]), \
+            np.asarray(axis["black"], float)
+    top = ok & (ls >= axis["neutral_l_black"] - 1e-9)
+    bl = np.asarray(axis["blend_l"], float)
+    bd = np.asarray(axis["blend_dev"], float)
+    if chroma_cap is not None:
+        bc = np.asarray(axis["blend_c"], float)
+        over = np.flatnonzero(bc > chroma_cap)
+        n_keep = int(over[0]) if len(over) else len(bl)
+        n_keep = max(n_keep, 1)                # the neutral black itself
+        bl, bd = bl[:n_keep], bd[:n_keep]
+    pl = np.concatenate([ls[top], bl])
+    pd = np.vstack([dev[top], bd])
+    o = np.argsort(pl, kind="stable")
+    pl, pd = pl[o], pd[o]
+    keep = np.concatenate([[True], np.diff(pl) > 1e-9])
+    pl, pd = pl[keep], pd[keep]
+    return pl, pd, float(pl[0]), pd[0].copy()
+
+
+def handover_target_ab(target_l: np.ndarray, *, l_top: float,
+                       l_deep: float, ab_deep: np.ndarray) -> np.ndarray:
+    """a*b* of the hand-over curve at ``target_l``: 0 at and above
+    ``l_top``, the deep black's a*b* at and below ``l_deep``, smoothstep in
+    between (C1 at both ends)."""
+    span = max(float(l_top) - float(l_deep), 1e-6)
+    t = np.clip((float(l_top) - np.asarray(target_l, float)) / span,
+                0.0, 1.0)
+    s = t * t * (3.0 - 2.0 * t)
+    return s[:, None] * np.asarray(ab_deep, float)[None, :]
+
+
+def anchor_column_black(target_l: np.ndarray, source_l: np.ndarray,
+                        black_l: float, fade: float = 25.0) -> np.ndarray:
+    """Perceptual column lightness with the SOURCE black on the destination
+    black: the darkest source-neutral node's target L* is moved onto
+    ``black_l`` and the correction fades out linearly by source L* =
+    ``fade``; then made non-increasing from light to dark. Research
+    a29-blackhandover: on XKH september the engine's model prints colprof's
+    perceptual black device value at L* 9.0 (colprof's own A2B: 5.0), so
+    the column ended 3.8 L* above the black B2A1 prints."""
+    tl = np.asarray(target_l, float).copy()
+    sl = np.asarray(source_l, float)
+    if not len(tl):
+        return tl
+    i0 = int(np.argmin(sl))
+    shift = float(black_l) - tl[i0]
+    w = np.clip(1.0 - (sl - sl[i0]) / fade, 0.0, 1.0)
+    tl = tl + shift * w
+    order = np.argsort(-sl, kind="stable")             # light to dark
+    tl[order] = np.minimum.accumulate(tl[order])
+    return tl
+
+
 def monotone_black(model: ForwardModel, axis: dict,
                    tol: float = 0.02) -> dict:
     """Research agent9-01 6.2 ("a9-monoblack"): end the neutral axis at

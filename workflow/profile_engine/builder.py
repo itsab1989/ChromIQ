@@ -99,7 +99,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 24 (C-L1, ColorSync-readable A2B L* encoding; C-S1 spectral)
      "a24-l1", "a24-l1scale", "a24-s1", "a24-s1sprague",
      # Agent 19 (F-12 extrapolation; opt-in, Integration 3 verdict)
-     "a19-extrap", "a19-order", "a19-bounds"})
+     "a19-extrap", "a19-order", "a19-bounds",
+     # Agent 29a (cluster 1: black hand-over; <= 4 inks)
+     "a29-blackhandover"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1141,6 +1143,19 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"The deepest neutral black needs black ink "
                             f"earlier (L* {axis['walk_l_black']:.1f} -> "
                             f"{axis['l_black']:.1f}).")
+        if "a29-blackhandover" in candidates and n <= 4:
+            # Research Agent 29a: below the neutral black, hand the axis
+            # over to a deeper, slightly tinted black (colprof's depth),
+            # after the K prior above was taken from the neutral axis.
+            axis = b2a_mod.blackhandover_axis(
+                model, axis, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit,
+                channel_max=channel_max)
+            if axis.get("handover"):
+                _emit(settings, f"Black hand-over: neutral to L* "
+                                f"{axis['neutral_l_black']:.1f}, then to "
+                                f"the deepest black L* "
+                                f"{axis['l_black']:.1f}.")
     if mapped_bg is not None and "axis_ready" in anchor_box:
         anchor_box["axis"] = axis
         anchor_box["axis_ready"].set()
