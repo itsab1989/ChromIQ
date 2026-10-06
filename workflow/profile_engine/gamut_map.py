@@ -1266,7 +1266,10 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             mapped[_neutral_col] = model.predict(
                 np.clip(mapper.node_dev[_neutral_col], 0.0, 1.0))
             mapped[_neutral_col, 1:] = 0.0
-            if "a29-blackhandover" in _cands and model.n_channels <= 4:
+            if model.n_channels <= 4 and (
+                    "a29-blackhandover" in _cands
+                    or ("a29-blackhandover-ink" in _cands
+                        and not is_additive)):
                 # Research Agent 29a: the source black lands on the
                 # destination black (the axis black B2A1 prints; RGB 0 on
                 # an RGB printer), whatever the engine's model says

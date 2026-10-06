@@ -211,3 +211,15 @@ def test_the_dark_model_token_reaches_the_forward_fit(tmp_path, monkeypatch):
             assert w is not None and w.max() > 1.5 and w.min() >= 1.0
         else:
             assert w is None or np.allclose(w, np.round(w))
+
+
+def test_the_ink_variant_caps_the_deep_black_at_chroma_two():
+    assert "a29-blackhandover-ink" in ENGINE_CANDIDATE_TOKENS
+    assert "a29-blackhandover-ink" not in ACCURATE_DEFAULT_TOKENS
+    model = _ToyCmyk(6.0)
+    axis = b2a.neutral_axis(model, accurate=True, **_KW)
+    out = b2a.blackhandover_axis(model, axis, ladder=(1.0, 2.0), **_KW)
+    assert out.get("handover") is True
+    lab = model.predict(out["black"])[0]
+    assert np.hypot(lab[1], lab[2]) <= 2.0 + 1e-6
+    assert out["l_black"] < axis["l_black"]

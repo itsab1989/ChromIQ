@@ -1057,13 +1057,14 @@ def deepest_tinted(model: ForwardModel, *, chroma_max: float, kw: dict,
 
 
 def handover_black(model: ForwardModel, *, l_neutral: float,
-                   c_neutral: float, kw: dict) -> dict | None:
+                   c_neutral: float, kw: dict,
+                   ladder: tuple = _HANDOVER_LADDER) -> dict | None:
     """The deep black the axis is handed over to, or None when it does not
     beat the neutral black (``l_neutral``, chroma ``c_neutral``) by
     _HANDOVER_MIN_GAIN in L* + _HANDOVER_LAMBDA * C*."""
     base = l_neutral + _HANDOVER_LAMBDA * c_neutral
     best = None
-    for cm in _HANDOVER_LADDER:
+    for cm in ladder:
         found = deepest_tinted(model, chroma_max=cm, kw=kw)
         if found is None:
             continue
@@ -1076,7 +1077,8 @@ def handover_black(model: ForwardModel, *, l_neutral: float,
     return best
 
 
-def blackhandover_axis(model: ForwardModel, axis: dict, **inv_kw) -> dict:
+def blackhandover_axis(model: ForwardModel, axis: dict, *,
+                       ladder: tuple = _HANDOVER_LADDER, **inv_kw) -> dict:
     """Research token "a29-blackhandover": extend the neutral axis below its
     neutral black to a deeper, slightly tinted black (see the comment
     above). Grid points of ``axis["l"]`` between the deep black's L* and the
@@ -1093,7 +1095,7 @@ def blackhandover_axis(model: ForwardModel, axis: dict, **inv_kw) -> dict:
     lab_nb = model.predict(nb[None, :])[0]
     deep = handover_black(model, l_neutral=float(lab_nb[0]),
                           c_neutral=float(np.hypot(lab_nb[1], lab_nb[2])),
-                          kw=kw)
+                          kw=kw, ladder=ladder)
     if deep is None:
         return axis
     dd = np.asarray(deep["dev"], float)
