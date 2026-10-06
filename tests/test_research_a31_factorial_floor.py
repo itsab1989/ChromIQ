@@ -26,11 +26,15 @@ ARM_A = "a29-blackhandover-ink"
 ARM_B = "a29-oog-darkmono-floor"
 
 
-def test_both_arm_tokens_are_known_off_by_default_and_combine():
+def test_both_arm_tokens_are_known_and_combine_and_only_b_is_default():
+    # Integration 4 (Agent 33): arm B is a Maximum accuracy default, arm A
+    # stays opt-in (factorial verdict, Findings/agent31-01 s3.4)
     for tok in (ARM_A, ARM_B):
         assert tok in ENGINE_CANDIDATE_TOKENS
-        assert tok not in ACCURATE_DEFAULT_TOKENS
-        assert tok not in accurate_candidates(frozenset())
+    assert ARM_A not in ACCURATE_DEFAULT_TOKENS
+    assert ARM_A not in accurate_candidates(frozenset())
+    assert ARM_B in ACCURATE_DEFAULT_TOKENS
+    assert ARM_B in accurate_candidates(frozenset())
     both = candidates_from_env(f"{ARM_A},{ARM_B}")
     assert ARM_A in both and ARM_B in both
 

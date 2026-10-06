@@ -1717,8 +1717,13 @@ def set_research_tokens(tokens, *, is_additive) -> None:
         # ablation after the A/B (Findings agent29b-01 s5): a gentler
         # lightness-first band (the x25 band made dark-blue contours)
         p["dm_wj"], p["dm_lband"] = 6.0, 20.0
-    if "a29-oog-darkmono-floor" in t:
-        p["dm_wj"] = 1.0                 # ablation: the floor alone
+    if "a29-oog-darkmono-floor" in t and not t & {
+            "a29-oog-darkmono", "a29-oog-darkmono-soft",
+            "a29-oog-darkmono-bpc"}:
+        # the floor alone (Agent 29b ablation; default ON since integration
+        # 4). An explicitly requested other variant wins over the default,
+        # so each one still builds exactly as on its own branch.
+        p["dm_wj"] = 1.0
     oog_clip.set_dark_floor(None)       # the builder sets it per table
     for tok in t:
         if tok.startswith("a25-space-"):

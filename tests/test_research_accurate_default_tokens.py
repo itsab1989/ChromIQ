@@ -15,7 +15,9 @@ from workflow.profile_engine.builder import GP_FIN3_TOKENS as _FIN3
 # a24-f05: integration 3 (Findings/agent26-01-integration3.md, D-24)
 _INT3 = {"a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
          "a24-s1", "a24-f05"}
-_DEF = {"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3
+# a29-oog-darkmono-floor: integration 4 (Findings/agent33-01-integration4.md)
+_INT4 = {"a29-oog-darkmono-floor"}
+_DEF = {"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -38,11 +40,11 @@ def test_agent9_tokens_are_off_by_default():
 
 def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-b2a33s"}) == ({"rgbpos", "v4prm", "rgbcol"}
-                                                  | _INT3 | _FIN3)
+                                                  | _INT3 | _INT4 | _FIN3)
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
                                 "no-rgbcol", "no-fin3"}
-                               | {"no-" + t for t in _INT3}) == frozenset()
-    for t in _INT3:
+                               | {"no-" + t for t in _INT3 | _INT4}) == frozenset()
+    for t in _INT3 | _INT4:
         assert "no-" + t in ENGINE_CANDIDATE_TOKENS
 
 

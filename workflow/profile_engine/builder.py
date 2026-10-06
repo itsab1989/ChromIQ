@@ -81,7 +81,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "rgbcol", "rgbshadow", "no-rgbcol",
      # Integration 3 off-switches for its new defaults
      "no-a25-oog", "no-a25-rgbcol", "no-a25-oracle-dev", "no-a25-oracle-neutral",
-     "no-a24-s1", "no-a24-f05",
+     "no-a24-s1", "no-a24-f05", "no-a29-oog-darkmono-floor",
      "no-b2a33s", "no-rgbpos", "no-v4prm",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
      "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
@@ -134,10 +134,20 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # spline, only for F-type illuminants), "a24-f05" (F-05 mapped-intent black,
 # only 5+ inks). Opt-in only: "a24-l1" (C-L1), "a19-extrap" (F-12). Each has
 # a "no-<token>" switch for ablations.
+# Integration 4 (2026-10-06, Integrator 6, Findings/agent33-01-integration4.md;
+# factorial verdict Findings/agent31-01-factorial.md s3.4, D-17/D-25): ON as
+# well: "a29-oog-darkmono-floor" (Agent 29b/31: the a25-oog clip may not aim
+# below the black the colorimetric neutral column ends at; no safety loss vs
+# the integration-3 engine, SWOP C3/C5 and CMYK-default ramp reversals gone).
+# Opt-in only: "a29-blackhandover-ink" (i1Pro neutral reversals 5 -> 14),
+# "a29-blackhandover" (its RGB part made contour edges) and the other
+# a29-oog-darkmono variants (plain, -soft, -bpc: dark-blue contours); an
+# explicitly requested variant wins over the default floor (b2a
+# set_research_tokens). "no-a29-oog-darkmono-floor" switches it off.
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
-    "a24-s1", "a24-f05"})
+    "a24-s1", "a24-f05", "a29-oog-darkmono-floor"})
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer
