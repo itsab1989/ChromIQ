@@ -69,6 +69,10 @@ def test_the_tokens_are_known_and_switch_on_and_off():
     assert oog_clip.dark_floor() == 10.0
     b2a.set_research_tokens(("a25-oog", "a29-oog-darkmono-bpc"), is_additive=False)
     assert oog_clip.PARAMS["dm_band"] == 15.0
+    b2a.set_research_tokens(("a25-oog", "a29-oog-darkmono-soft"), is_additive=False)
+    assert oog_clip.PARAMS["dm_on"] and oog_clip.PARAMS["dm_wj"] == 6.0
+    b2a.set_research_tokens(("a25-oog", "a29-oog-darkmono-floor"), is_additive=False)
+    assert oog_clip.PARAMS["dm_on"] and oog_clip.PARAMS["dm_wj"] == 1.0
     assert oog_clip.dark_floor() is None          # every build sets its own
     b2a.set_research_tokens((), is_additive=False)
     assert oog_clip.PARAMS == oog_clip.DEFAULTS

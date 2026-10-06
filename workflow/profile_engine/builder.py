@@ -101,7 +101,8 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 19 (F-12 extrapolation; opt-in, Integration 3 verdict)
      "a19-extrap", "a19-order", "a19-bounds",
      # Agent 29b (cluster 2, monotone a25-oog clip into black; research only)
-     "a29-oog-darkmono", "a29-oog-darkmono-bpc"})
+     "a29-oog-darkmono", "a29-oog-darkmono-bpc", "a29-oog-darkmono-soft",
+     "a29-oog-darkmono-floor"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1146,8 +1147,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     if mapped_bg is not None and "axis_ready" in anchor_box:
         anchor_box["axis"] = axis
         anchor_box["axis_ready"].set()
-    if accurate and ("a29-oog-darkmono" in candidates
-                     or "a29-oog-darkmono-bpc" in candidates):
+    if accurate and any(t.startswith("a29-oog-darkmono") for t in candidates):
         # Research Agent 29b (Findings/agent29b-01): the a25-oog clip may not
         # aim below the black the colorimetric table's neutral column ends
         # at (ink devices: the neutral axis's black; RGB: device RGB 0, the

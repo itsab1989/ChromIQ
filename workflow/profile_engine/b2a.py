@@ -1473,9 +1473,15 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     p["on"] = "a25-oog" in t or "a25-clip" in t
     # Agent 29b: monotone clip into black (acts only with the a25 clip on and
     # a floor set by the builder for the colorimetric table)
-    p["dm_on"] = "a29-oog-darkmono" in t or "a29-oog-darkmono-bpc" in t
+    p["dm_on"] = any(x.startswith("a29-oog-darkmono") for x in t)
     if "a29-oog-darkmono-bpc" in t:
         p["dm_band"] = 15.0
+    if "a29-oog-darkmono-soft" in t:
+        # ablation after the A/B (Findings agent29b-01 s5): a gentler
+        # lightness-first band (the x25 band made dark-blue contours)
+        p["dm_wj"], p["dm_lband"] = 6.0, 20.0
+    if "a29-oog-darkmono-floor" in t:
+        p["dm_wj"] = 1.0                 # ablation: the floor alone
     oog_clip.set_dark_floor(None)       # the builder sets it per table
     for tok in t:
         if tok.startswith("a25-space-"):
