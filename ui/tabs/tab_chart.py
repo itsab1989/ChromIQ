@@ -1409,12 +1409,16 @@ class _Ti1Preset:
     # says "10x15cm / 4x6" photo card" is a statement about the paper, and it
     # would be printed as a lie on the next chart if it were left behind.
     chart_notes: str = ""
-    # "STAMP SETTINGS DOWN THE RIGHT EDGE", when the preset has an opinion.
-    #
-    # `None` means "leave the checkbox alone", which is every family but the
-    # photo cards and the 7.5 mm "Maximised" A4/Letter charts (whose 5 mm
-    # right margin has no room for the stamp either, see
-    # `_i1_75_max_preset`), and is what the app did before this field existed.
+    # "STAMP SETTINGS DOWN THE RIGHT EDGE": EVERY BUILT-IN STATES IT, OFF
+    # (beta 12, #182 FINDINGS I). Knut: all presets are designed and saved
+    # without it. Until beta 11 the default was `None`, "leave the checkbox
+    # alone", and 148 of 189 built-ins (every ColorMunki Fast/Slow Reading
+    # Speed chart, all 26 CR30 hexagon charts) inherited whatever the box held,
+    # which on a new target is the app's default, ON: Basti's A3 Plus 616
+    # verification chart came out stamped, and the CR30 hexagon charts' stamp
+    # ran over the patches. `None` still means "leave it alone" for a preset
+    # that is given it on purpose; no shipped preset is
+    # (tests/test_beta12_every_builtin_preset_states_the_stamp.py).
     #
     # WHY THE PHOTO CARDS HAVE AN OPINION, and it is measured rather than
     # assumed. All twenty of Knut's photo-card exports carry it OFF; the app's
@@ -1424,7 +1428,7 @@ class _Ti1Preset:
     # tall enough for his note AND the command line, so the note was truncated
     # with a "…" on all nineteen. Driven on screen 2026-09-18: 19 of 19 warned
     # with the stamp on, 0 of 19 with it off, nothing else changed.
-    stamp_settings: "bool | None" = None
+    stamp_settings: "bool | None" = False
     # A PAGE LAYOUT WITHOUT AN EDITOR DESIGN, SAID IN ITS ROW (Knut, #182
     # 5860041950). The row carries KNUT_LAYOUT_ONLY_SUFFIX where a Full layout
     # setup carries KNUT_FLS_SUFFIX. Only the ColorMunki A4 300-patch TC3.00
@@ -16362,8 +16366,8 @@ class TabChart(QWidget):
         wrote (`BUILTIN_CHART_NOTES`) — text a person typed is never touched.
 
         The stamp checkbox follows the same rule from the other end: a preset
-        that states `stamp_settings` owns it, and one that does not (every
-        family but the photo cards) leaves it exactly where the user had it.
+        that states `stamp_settings` owns it, and since beta 12 every built-in
+        states it (OFF); `None` would leave it where the user had it.
         """
         edit = getattr(self, "_manual_chart_notes_edit", None)
         if edit is not None:

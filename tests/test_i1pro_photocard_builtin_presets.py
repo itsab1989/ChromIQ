@@ -493,45 +493,23 @@ def test_every_card_switches_the_settings_stamp_off(preset):
 
 
 def test_a_preset_with_no_opinion_leaves_the_stamp_box_alone(tab):
-    """`None` is not `False`. Every family but the photo cards states nothing,
-    and nothing must mean "leave the checkbox where the user had it" — the
-    default this app shipped with for a hundred and fifty-eight presets."""
+    """`None` is not `False`: a preset given `None` leaves the checkbox where
+    the user had it. Since beta 12 no shipped preset is given it (every
+    built-in states OFF, test_beta12_every_builtin_preset_states_the_stamp),
+    so the mechanism is tested on a copy."""
+    import dataclasses
     from ui.tabs.tab_chart import KNUT_PRESETS
-    other = next(q for q in KNUT_PRESETS if q.stamp_settings is None)
+    other = dataclasses.replace(KNUT_PRESETS[0], stamp_settings=None)
     box = tab._manual_stamp_cmd_check
     for state in (True, False):
         box.setChecked(state)
-        tab._seed_knut_preset(other.key)
+        tab._seed_builtin_chart_notes(other)
         assert box.isChecked() is state, (
             f"{other.slug} moved a checkbox it states no opinion on")
     # …and a photo card does state one, so it moves it in both directions.
     box.setChecked(True)
     tab._seed_knut_preset(PHOTO[0].key)
     assert box.isChecked() is False
-
-
-def test_only_the_photo_cards_have_an_opinion_on_the_stamp():
-    """Stated so that giving another family one is a decision, not a side
-    effect of editing a shared helper.
-
-    The second decision was taken on 2026-09-22 (K1): Knut's eight 7.5 mm
-    "Maximised - No Clip-border" A4/Letter charts carry the stamp OFF too,
-    for the same measured reason (a 5 mm right margin, the command line over
-    the patches with it on). See test_i1pro75_maximised_builtin_presets.py.
-
-    The third, beta 47 (B8-1620): the nine "by Pharmacist" charts with a
-    layout, whose exports all carry it OFF; left on, it ran over the patches
-    of the ColorMunki A4 600 on screen. 4.3.1 added five more, whose exports
-    carry it OFF too."""
-    from ui.tabs.tab_chart import KNUT_PRESETS
-    opinionated = {q.slug for q in KNUT_PRESETS if q.stamp_settings is not None}
-    maximised_a4_letter = {q.slug for q in KNUT_PRESETS
-                           if q.slug.startswith("i1_w75max_")}
-    pharmacist = {q.slug for q in KNUT_PRESETS if q.slug.startswith("pharm_")}
-    assert len(maximised_a4_letter) == 8
-    assert len(pharmacist) == 14
-    assert opinionated == ({q.slug for q in PHOTO} | maximised_a4_letter
-                           | pharmacist)
 
 
 def test_a_builtin_preset_gives_its_text_a_home_in_the_project_it_creates():
