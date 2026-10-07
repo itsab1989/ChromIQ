@@ -172,19 +172,27 @@ def cell_excess(clut: np.ndarray, out_tables: np.ndarray, grid: int,
 
 def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
                limit: float, *, tol: float = 1e-4, margin: float = 2e-4,
-               max_iter: int = 60):
+               max_iter: int = 80, protect=()):
     """Return (new u16 CLUT, changed node indices). ``limit`` is a fraction
     (3.0 = 300 %). In every cell whose interpolated ink exceeds
-    ``limit + tol`` the corners that carry the worst point (weight > 2 %)
-    lose that excess (plus ``margin``) of total ink, by the Euclidean
-    projection onto the lower TAC face; repeated until no cell exceeds.
-    Nodes are never raised, and nodes outside such cells never move."""
+    ``limit + tol`` by ``e``, the corners that carry the worst point
+    (weight > 2 %) and hold more than ``limit - e - margin`` are brought
+    down to it; when none does (the excess is the output tables' concavity
+    alone), those corners lose ``e + margin``. Ink is taken off by the
+    Euclidean projection onto the lower TAC face, as the inversion does.
+    Repeated until no cell exceeds. Nodes are never raised, nodes outside
+    such cells never move, and ``protect`` (the black corner) moves only if
+    the cell cannot be held without it."""
     from workflow.profile_engine.b2a import project_tac
     clut = np.array(clut, dtype=np.int64)
     n = clut.shape[1]
     cells = _cells(grid)
+    keep = np.zeros(len(clut), bool)
+    keep[list(protect)] = True
+    # a protected node that is itself over the limit is not protectable
+    keep &= _out(out_tables, clut).sum(1) <= limit + tol
     changed: set[int] = set()
-    for _ in range(max_iter):
+    for it in range(max_iter):
         exc, wmax = cell_excess(clut, out_tables, grid, limit, cells)
         bad = np.flatnonzero(exc > tol)
         if not len(bad):
@@ -192,8 +200,18 @@ def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
         tac_now = _out(out_tables, clut).sum(1)
         cap = np.full(len(clut), np.inf)
         for b in bad:
-            hit = cells[b][wmax[b] > 0.02]
-            np.minimum.at(cap, hit, tac_now[hit] - exc[b] - margin)
+            corners = cells[b]
+            hit = corners[(wmax[b] > 0.02) & ~keep[corners]]
+            if not len(hit):
+                hit = corners[~keep[corners]]
+                if not len(hit) or it >= max_iter // 2:
+                    hit = corners           # last resort: the black moves
+            target = limit - exc[b] - margin
+            above = hit[tac_now[hit] > target]
+            if len(above):
+                np.minimum.at(cap, above, target)
+            else:
+                np.minimum.at(cap, hit, tac_now[hit] - exc[b] - margin)
         nodes = np.flatnonzero(np.isfinite(cap))
         dev = _out(out_tables, clut[nodes])
         new = np.vstack([project_tac(dev[i:i + 1], max(float(cap[k]), 0.0))
@@ -207,7 +225,8 @@ def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
     return clut.astype(">u2"), np.array(sorted(changed), int)
 
 
-def guard_mft2(blob: bytes, limit: float) -> tuple[bytes, np.ndarray]:
+def guard_mft2(blob: bytes, limit: float, *,
+               protect=()) -> tuple[bytes, np.ndarray]:
     """A B2A lut16 tag whose interpolated total ink stays within ``limit``
     (fraction). Returns (new tag bytes, changed node indices); unchanged
     tables come back as the very same bytes."""
@@ -222,21 +241,24 @@ def guard_mft2(blob: bytes, limit: float) -> tuple[bytes, np.ndarray]:
     clut = np.frombuffer(blob, ">u2", size, pos).reshape(grid ** 3, n_out)
     out_t = np.frombuffer(blob, ">u2", n_out * e_out,
                           pos + 2 * size).reshape(n_out, e_out)
-    new, changed = guard_clut(clut, out_t, grid, limit)
+    new, changed = guard_clut(clut, out_t, grid, limit, protect=protect)
     if not len(changed):
         return blob, changed
     return (blob[:pos] + np.ascontiguousarray(new, ">u2").tobytes()
             + blob[pos + 2 * size:]), changed
 
 
-def guard_luts(luts: dict, limit_pct: float, *, log=None) -> dict:
+def guard_luts(luts: dict, limit_pct: float, *, log=None,
+               protect=()) -> dict:
     """Every B2A tag of a lut dict (bytes or an alias name) guarded; the
-    aliases stay aliases. ``limit_pct`` in percent."""
+    aliases stay aliases. ``limit_pct`` in percent; ``protect``: CLUT node
+    indices (the black corner) that move only as a last resort."""
     out = dict(luts)
     for tag in ("B2A0", "B2A1", "B2A2"):
         v = luts.get(tag)
         if isinstance(v, (bytes, bytearray)):
-            out[tag], changed = guard_mft2(bytes(v), limit_pct / 100.0)
+            out[tag], changed = guard_mft2(bytes(v), limit_pct / 100.0,
+                                           protect=protect)
             if log is not None and len(changed):
                 log(f"{tag}: {len(changed)} nodes lowered to hold the "
                     f"{limit_pct:.0f}% ink limit between nodes")

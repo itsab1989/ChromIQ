@@ -1607,8 +1607,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         from workflow.profile_engine.tac_guard import guard_luts
         same = luts_v4 is luts
         log = lambda m: _emit(settings, m)  # noqa: E731
-        luts = guard_luts(luts, float(ink_limit), log=log)
-        luts_v4 = luts if same else guard_luts(luts_v4, float(ink_limit))
+        # The black corner moves only if its cell cannot be held otherwise
+        # (or it is itself over the limit): the black rows stay as built.
+        _blk = [int(np.argmin(np.linalg.norm(node_lab, axis=1)))]
+        luts = guard_luts(luts, float(ink_limit), log=log, protect=_blk)
+        luts_v4 = luts if same else guard_luts(luts_v4, float(ink_limit),
+                                               protect=_blk)
     if str(settings.icc_version) == "4":
         from dataclasses import replace
         spec = replace(spec, wtpt=v4_wtpt)

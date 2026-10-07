@@ -99,6 +99,30 @@ def test_the_guard_holds_the_limit_between_nodes(n):
     assert not set(changed.tolist()) & set(range(grid * grid))
 
 
+def test_a_protected_corner_stays_unless_it_is_itself_over_the_limit():
+    grid, n, limit = 5, 4, 2.6
+    tables = _concave_tables(n)
+    clut = _table_with_limit(n, grid, limit)
+    tac = tg._out(tables, clut.astype(float)).sum(1)
+    exc, _ = tg.cell_excess(clut, tables, grid, limit)
+    cells = tg._cells(grid)
+    # a corner on the limit inside a cell that exceeds
+    bad = cells[exc > 1e-4].ravel()
+    bad = bad[tac[bad] <= limit - 1e-3]
+    k = int(bad[np.argmax(tac[bad])])
+    new, changed = tg.guard_clut(clut, tables, grid, limit, protect=[k])
+    assert k not in set(changed.tolist())
+    assert (new[k] == clut[k]).all()
+    assert _dense_max(new, tables, grid, limit) <= limit + 1e-4
+    # over the limit itself: it cannot be protected, it comes down
+    over = clut.copy()
+    over[k] = np.minimum(over[k].astype(int) + 3000, 0xFFFF)
+    assert tg._out(tables, over[k:k + 1].astype(float)).sum() > limit + 1e-3
+    new, changed = tg.guard_clut(over, tables, grid, limit, protect=[k])
+    assert k in set(changed.tolist())
+    assert _dense_max(new, tables, grid, limit) <= limit + 1e-4
+
+
 def test_a_table_inside_the_limit_comes_back_as_the_same_bytes():
     grid, n = 5, 4
     tables = _concave_tables(n)
@@ -165,9 +189,13 @@ def test_a_build_with_the_token_holds_the_limit_and_is_the_guarded_build(tmp_pat
         out[len(tokens)] = IccProfile(f)
     off, on = out[0], out[1]
     assert set(off.tags) == set(on.tags)
+    from workflow.profile_engine.pcs import LabPcs
     for tag in off.tags:
         if tag.startswith("B2A"):
-            want, _ = tg.guard_mft2(off.tags[tag], 2.8)
+            grid = off.tags[tag][10]
+            black = (int(np.argmin(np.linalg.norm(LabPcs.node_lab(grid), axis=1)))
+                     if off.pcs == b"Lab " else 0)
+            want, _ = tg.guard_mft2(off.tags[tag], 2.8, protect=[black])
             assert on.tags[tag] == want, tag
         else:
             assert on.tags[tag] == off.tags[tag], tag
