@@ -14,8 +14,11 @@ ProfileEngineResearch Findings/agent38-01-knut-laser.md.
 The exam: five deterministic folds over the chart (duplicates together;
 paper, the black and the solids always train), the accurate fit at the
 standard smoothing with and without the curves on each training part, dE00
-on the held-out part. The curves are the extra assumption, so they have to
-earn their place: they are KEPT when they are clearly better (paired
+on the held-out part. v2 (in force): the curves are dropped only when they
+are clearly WORSE (paired bootstrap 95 % lower bound of the mean held-out
+difference with - without above zero) and none of the guards below objects.
+v1 (``decide(strict=False)``, measured and rejected, Agent 38 s5): the curves
+had to earn their place, KEPT only when they are clearly better (paired
 bootstrap 95 % upper bound of the mean held-out difference with - without
 below zero; 2000 draws, fixed seed), and also kept when dropping them would
 clearly raise the held-out p95 (paired bootstrap 95 % lower bound of
@@ -54,7 +57,8 @@ def _boot_idx(n: int, n_boot: int = A38_BOOT, seed: int = A38_SEED) -> np.ndarra
     return np.random.default_rng(seed).integers(0, n, (n_boot, n))
 
 
-def decide(e_with: np.ndarray, e_without: np.ndarray, lab: np.ndarray) -> dict:
+def decide(e_with: np.ndarray, e_without: np.ndarray, lab: np.ndarray,
+           strict: bool = True) -> dict:
     """The rule above on per-patch held-out dE00 (aligned arrays) and the
     measured Lab of those patches. -> report dict with "drop" (bool) and
     "why" (the clause that kept the curves, or "")."""
@@ -71,8 +75,16 @@ def decide(e_with: np.ndarray, e_without: np.ndarray, lab: np.ndarray) -> dict:
            "mean_without": float(e_without.mean()), "upper95_with_minus_without": upper,
            "p95_with": p95_w, "p95_without": p95_o}
     why = []
+    lower = float(np.percentile((e_with - e_without)[idx].mean(1), 2.5))
+    rep["lower95_with_minus_without"] = lower
     if upper < 0.0:
         why.append("clearly better")
+    if strict and lower <= 0.0:
+        # v2 (the rule in force): the curves go only when they are clearly
+        # WORSE. v1 (strict=False) dropped them whenever they were not
+        # clearly better, and on the misread-heavy synthetic t400 charts
+        # (exam a coin toss) that doubled the A2B error (Agent 38 s5).
+        why.append("not clearly worse")
     rep["p95_rise_lower95"] = p95_lower
     if p95_lower > 0.0:
         why.append("p95")

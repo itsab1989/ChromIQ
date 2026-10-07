@@ -38,11 +38,22 @@ def test_curves_that_are_clearly_better_are_kept():
     assert not rep["drop"] and "clearly better" in rep["why"]
 
 
-def test_curves_that_make_no_difference_are_dropped():
+def test_v1_dropped_curves_that_make_no_difference_v2_keeps_them():
     rng = np.random.default_rng(2)
     e = rng.uniform(0.2, 0.6, 400)
-    rep = noisyrgb.decide(e, e + rng.normal(0, 0.01, 400), _lab(400, rng))
-    assert rep["drop"] and rep["why"] == ""
+    e2 = e + rng.normal(0, 0.01, 400)
+    lab = _lab(400, rng)
+    v1 = noisyrgb.decide(e, e2, lab, strict=False)
+    assert v1["drop"] and v1["why"] == ""
+    v2 = noisyrgb.decide(e, e2, lab)
+    assert not v2["drop"] and "not clearly worse" in v2["why"]
+
+
+def test_v2_drops_curves_that_are_clearly_worse():
+    rng = np.random.default_rng(9)
+    e_with = rng.uniform(0.3, 0.6, 600)
+    rep = noisyrgb.decide(e_with, e_with - 0.05 + rng.normal(0, 0.01, 600), _lab(600, rng))
+    assert rep["lower95_with_minus_without"] > 0 and rep["drop"]
 
 
 def test_curves_are_kept_when_dropping_them_costs_the_near_neutrals():
@@ -51,7 +62,7 @@ def test_curves_are_kept_when_dropping_them_costs_the_near_neutrals():
     e_with = rng.uniform(0.3, 0.6, 400)
     e_without = e_with - 0.05            # better on average ...
     e_without[300:] += 0.4               # ... but the greys get worse
-    rep = noisyrgb.decide(e_with, e_without, lab)
+    rep = noisyrgb.decide(e_with, e_without, lab, strict=False)
     assert not rep["drop"] and "neutral" in rep["why"]
 
 
@@ -62,7 +73,7 @@ def test_curves_are_kept_when_dropping_them_costs_the_light_colours():
     e_with = rng.uniform(0.3, 0.6, 400)
     e_without = e_with - 0.03
     e_without[300:] += 0.3
-    rep = noisyrgb.decide(e_with, e_without, lab)
+    rep = noisyrgb.decide(e_with, e_without, lab, strict=False)
     assert not rep["drop"] and "light" in rep["why"]
 
 
@@ -73,7 +84,7 @@ def test_curves_are_kept_when_dropping_them_clearly_raises_the_p95():
     worst = np.argsort(e_with)[-200:]
     e_without[worst] += 1.0              # a heavier tail without the curves
     e_without[np.argsort(e_with)[:1500]] -= 0.2    # a better mean all the same
-    rep = noisyrgb.decide(e_with, e_without, _lab(2000, rng))
+    rep = noisyrgb.decide(e_with, e_without, _lab(2000, rng), strict=False)
     assert rep["mean_without"] < rep["mean_with"]
     assert not rep["drop"] and "p95" in rep["why"]
 
