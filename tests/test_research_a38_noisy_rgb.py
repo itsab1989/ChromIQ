@@ -14,7 +14,8 @@ import numpy as np
 
 from workflow.profile_engine import accuracy, noisyrgb
 from workflow.profile_engine.builder import (ACCURATE_DEFAULT_TOKENS,
-                                             ENGINE_CANDIDATE_TOKENS)
+                                             ENGINE_CANDIDATE_TOKENS,
+                                             accurate_candidates)
 
 
 def _lab(n, rng, light=False, neutral=False):
@@ -25,10 +26,21 @@ def _lab(n, rng, light=False, neutral=False):
     return lab
 
 
-def test_the_token_is_known_and_not_a_default():
+def test_the_token_is_a_default_with_an_off_switch():
+    # Integration 5 (Agent 39): v2 is a Maximum accuracy default (Agent 38 s5.4)
     assert noisyrgb.A38_TOKEN == "a38-noisy-rgb"
     assert noisyrgb.A38_TOKEN in ENGINE_CANDIDATE_TOKENS
-    assert noisyrgb.A38_TOKEN not in ACCURATE_DEFAULT_TOKENS
+    assert noisyrgb.A38_TOKEN in ACCURATE_DEFAULT_TOKENS
+    assert "no-a38-noisy-rgb" in ENGINE_CANDIDATE_TOKENS
+    assert noisyrgb.A38_TOKEN in accurate_candidates(frozenset())
+    assert noisyrgb.A38_TOKEN not in accurate_candidates({"no-a38-noisy-rgb"})
+
+
+def test_the_default_rule_is_v2_strict():
+    # v1 (strict=False) was rejected; the exam must call the v2 rule
+    assert inspect.signature(noisyrgb.decide).parameters["strict"].default is True
+    src = inspect.getsource(noisyrgb.rgbpos_exam)
+    assert "strict=False" not in src
 
 
 def test_curves_that_are_clearly_better_are_kept():

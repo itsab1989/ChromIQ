@@ -83,7 +83,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a25-oog", "no-a25-rgbcol", "no-a25-oracle-dev", "no-a25-oracle-neutral",
      "no-a24-s1", "no-a24-f05", "no-a29-oog-darkmono-floor",
      "no-a34-blackseam", "no-a35-percblack-blend", "no-a35-oracle-limit",
-     "no-a36-lcms8-safe",
+     "no-a36-lcms8-safe", "no-a38-noisy-rgb",
      "no-b2a33s", "no-rgbpos", "no-v4prm",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
      "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
@@ -174,11 +174,21 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # "a36-lcms8-safe" (the RGB perceptual neutral column is made monotone by a
 # bridge, not a running minimum, so no plateau reaches lcms2's 8-bit
 # prelinearisation). "no-a36-lcms8-safe" switches it off.
+# Integration 5 (2026-10-07, Integrator 7, Findings/agent39-01-integration5.md;
+# verdict Findings/agent38-01-knut-laser.md s5.4): ON as well:
+# "a38-noisy-rgb", rule v2 (noisyrgb.decide(strict=True)): on RGB charts a
+# five-fold held-out exam drops the "rgbpos" ramp curves only when they are
+# clearly WORSE than no curves; otherwise the build is the default build byte
+# for byte. Of the 19 battery RGB charts it drops them on R-ET8550 only (real
+# verify sheet overall 0.522 -> 0.489, darks 0.718 -> 0.617). v1 (drop unless
+# clearly better) doubled the A2B error on the misread-heavy t400 charts and is
+# NOT the default. "no-a38-noisy-rgb" switches it off.
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
     "a24-s1", "a24-f05", "a29-oog-darkmono-floor", "a34-blackseam",
-    "a35-percblack-blend", "a35-oracle-limit", "a36-lcms8-safe"})
+    "a35-percblack-blend", "a35-oracle-limit", "a36-lcms8-safe",
+    "a38-noisy-rgb"})
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer
