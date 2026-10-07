@@ -114,7 +114,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 35: the colprof oracle runs with the build's ink limits
      "a35-oracle-limit",
      # Agent 36: the RGB perceptual column made monotone without plateaus
-     "a36-lcms8-safe"})
+     "a36-lcms8-safe",
+     # Agent 38: RGB ramp curves kept only where a held-out exam wants them
+     "a38-noisy-rgb"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -846,6 +848,21 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # two battery arms that differ only in B2A tokens fit once. The
             # pickle round trip returns the same arrays bit for bit.
             fit_forward_model_accurate = _a21_cached_fit(fit_forward_model_accurate)
+        _positioning = ((not meas.is_additive or "rgbpos" in candidates)
+                        and curve_rounds > 0)
+        if (_positioning and meas.is_additive
+                and "a38-noisy-rgb" in candidates):
+            # Research (Agent 38): keep the RGB ramp curves only where a
+            # held-out exam on this chart shows they help (noisy, sparse
+            # laser charts: they cost the grey column; noisyrgb.py).
+            from workflow.profile_engine import noisyrgb
+            _a38 = noisyrgb.rgbpos_exam(
+                meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
+                curve_rounds=curve_rounds, row_weights=meas.row_weights,
+                ucs=use_ucs)
+            _emit(settings, noisyrgb.message(_a38))
+            if _a38["drop"]:
+                _positioning = False
         model, outliers, _lam_used = fit_forward_model_accurate(
             meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
@@ -855,8 +872,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # Ink devices: shaper curves start from the chart's own
             # single-ink ramps (research agent5-03, item 1 cause D).
             # Agent 3 "rgbpos": the same, mirrored, for RGB devices.
-            positioning=((not meas.is_additive or "rgbpos" in candidates)
-                         and curve_rounds > 0),
+            positioning=_positioning,
             additive=meas.is_additive,
             # Research token "a19-extrap" (agent 19, F-12): penalise the
             # 3+-ink interactions no chart identifies, 5+ ink devices only.
