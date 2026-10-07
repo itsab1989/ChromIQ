@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.3-beta.12 (unreleased)
+
+### Fixed
+
+- **A corrected misread turns green even when the re-read was still under suspicion** (#182, Basti 6002595728). A patch outlined red whose re-read was fine stayed red, and later lost its outline without ever turning green, when the neighbour check still suspected the re-read because the strips around it had not been read yet (Basti's AA5 and AA16). ChromIQ now remembers that the re-read read a different colour, and turns the patch green as soon as nothing flags it any more. Reading the misread colour again cancels that. A re-read that matches the patch's first reading rather than the misread is unchanged for now (a question to Knut).
+
 ## v4.3.3-beta.11
 
 **A new neighbour check outlines misreads the limit cannot see, a misread corrected by a re-read turns green, verifications get their own limit (ΔE 10), charts made with a pre-conditioning profile get ΔE 20, the help says what the limits are for, charts look the same on every computer, and Create Chart no longer fails at an ink limit of 300.**
