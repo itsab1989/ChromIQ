@@ -2090,8 +2090,11 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     """Module switches for one build (research tokens a21-*, a25-*).
     Called by the builder before the first inversion and with an empty set
     afterwards; Fast and Bit-exact never reach the code they switch."""
-    from workflow.profile_engine import oog_clip
+    from workflow.profile_engine import oog_clip, forward_model as _fm
     t = frozenset(tokens or ())
+    # Agent 45 (a45b-shaperfloor): the shaper refit keeps every interval at
+    # least A42_FLOOR of the identity's slope
+    _fm.SHAPER_FLOOR["slope"] = (A42_FLOOR if A45B_TOKEN in t else None)
     LIGHT_CLOUD["on"] = bool(("a21-lightcloud" in t and is_additive is False)
                              or "a21-lightcloud-all" in t)
     # a25-oog carries Agent 21's L* >= 60 variant (a21-lightcloud60): the
@@ -2267,6 +2270,7 @@ A42_ACCEPT = 0.5
 A45_FINE = 20                   # a45-c1space: samples per shaper knot interval
 A45_C1_TOKEN = "a45-c1space"
 A45_TOKEN = "a45-darkend"
+A45B_TOKEN = "a45b-shaperfloor"
 
 
 def a45_c1(candidates) -> bool:

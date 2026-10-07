@@ -137,3 +137,24 @@ def test_the_wiring_sits_behind_the_tokens():
     bsrc = inspect.getsource(builder)
     assert "a45-darkend" in bsrc and "a45-c1space" in bsrc
     assert "smooth=b2a_mod.a45_c1(candidates)" in bsrc
+
+
+def test_a45b_shaper_floor_keeps_every_interval_open():
+    from workflow.profile_engine import forward_model as fm
+    rng = np.random.default_rng(3)
+    dev = rng.random((400, 1))
+    # an ink that does nothing between 0.6 and 0.65 (a flat stretch)
+    x = np.where(dev[:, 0] < 0.6, dev[:, 0],
+                 np.where(dev[:, 0] < 0.65, 0.6, dev[:, 0] - 0.05))
+    lab = np.column_stack([100 - 90 * x, 0 * x, 0 * x])
+    try:
+        b2a.set_research_tokens({b2a.A45B_TOKEN}, is_additive=False)
+        assert fm.SHAPER_FLOOR["slope"] == b2a.A42_FLOOR
+        m = fm.fit_forward_model(dev, lab, grid=5, curve_rounds=2)
+        h = 1.0 / (m.curves.shape[1] - 1)
+        assert np.diff(m.curves[0]).min() >= b2a.A42_FLOOR * h - 1e-12
+    finally:
+        b2a.set_research_tokens((), is_additive=None)
+    assert fm.SHAPER_FLOOR["slope"] is None
+    m0 = fm.fit_forward_model(dev, lab, grid=5, curve_rounds=2)
+    assert np.diff(m0.curves[0]).min() > 0          # still monotone

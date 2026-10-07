@@ -135,7 +135,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a43-shadowdetail", "a43-shadowdetail-width",
      # Agent 45: the perceptual dark end C1 and monotone (a C1 B2A curve
      # space; with the held black, one planned device path to the oracle black)
-     "a45-c1space", "a45-darkend"})
+     "a45-c1space", "a45-darkend",
+     # Agent 45 round 2: the forward model's shaper refit keeps every ink
+     # interval at least half the identity's slope
+     "a45b-shaperfloor"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
