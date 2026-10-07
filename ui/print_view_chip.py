@@ -132,6 +132,7 @@ class PrintViewChip(QWidget):
         self._bg = QColor(30, 30, 30, 185)
         self._ink = QColor("#f4f2ef")
         self._ring = QColor("#4dd0e1")
+        self._edge = QColor(0, 0, 0, 0)
         self._hovered = False
         self._kb_focus = False
         self._anchor = (0, 0)          # (right, top) in the parent
@@ -161,8 +162,11 @@ class PrintViewChip(QWidget):
             self._animate_to(self.expanded_width(), instant=True)
         self.update()
 
-    def set_colours(self, bg: str, ink: str, ring: str) -> None:
+    def set_colours(self, bg: str, ink: str, ring: str, edge: str = "") -> None:
+        """*edge*: a hairline round the pill, for an appearance whose well is
+        as dark as the pill (Dark), where the pill would otherwise vanish."""
         self._bg, self._ink, self._ring = QColor(bg), QColor(ink), QColor(ring)
+        self._edge = QColor(edge) if edge else QColor(0, 0, 0, 0)
         self.update()
 
     def icon(self) -> str:
@@ -291,9 +295,14 @@ class PrintViewChip(QWidget):
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawRoundedRect(pill.adjusted(-1.5, -1.5, 1.5, 1.5),
                               r + 1.5, r + 1.5)
-        p.setPen(Qt.PenStyle.NoPen)
+        if self._edge.alpha():
+            edge = QPen(self._edge)
+            edge.setWidthF(1.0)
+            p.setPen(edge)
+        else:
+            p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(self._bg)
-        p.drawRoundedRect(pill, r, r)
+        p.drawRoundedRect(pill.adjusted(0.5, 0.5, -0.5, -0.5), r - 0.5, r - 0.5)
         # the icon sits at the RIGHT end, where the chip is anchored
         icon_box = QRectF(pill.right() - PILL_H + 4, pill.top() + 4,
                           PILL_H - 8, PILL_H - 8)

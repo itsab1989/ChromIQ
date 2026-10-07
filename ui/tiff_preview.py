@@ -106,7 +106,7 @@ _PREVIEW_DARK = {
     "readout":  "#808080",
     "banner_bg": "#f0c674", "banner_border": "#b88a2a", "banner_text": "#2a1a00",
     "badge_bg": "rgba(30, 30, 30, 185)", "badge_text": "#f4f2ef",
-    "focus_ring": "#4dd0e1",
+    "focus_ring": "#4dd0e1", "badge_edge": "#5a5a5a",
     "tip_bg": "#262626", "tip_text": "#e6e6e6", "tip_border": "#404040",
     "tip_swatch_border": "#5a5a5a",
 }
@@ -3434,7 +3434,8 @@ class TiffPreview(QWidget):
         if chip is None or sip.isdeleted(chip):
             return
         pal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
-        chip.set_colours(pal["badge_bg"], pal["badge_text"], pal["focus_ring"])
+        chip.set_colours(pal["badge_bg"], pal["badge_text"], pal["focus_ring"],
+                         pal.get("badge_edge", ""))
 
     def _place_print_chip(self) -> None:
         """Top right of the image area, where the indicator has always been;

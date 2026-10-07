@@ -77,6 +77,20 @@ def frames(win, chip, name: str, n: int = 14) -> list[str]:
     return got
 
 
+def hover(chip, on: bool) -> None:
+    """The pointer onto the chip, or away. QTest.mouseMove does not reach a
+    window macOS has not activated (and the driver never activates one), so
+    the Enter / Leave events the window system would send are delivered to
+    the chip instead."""
+    from PyQt6.QtCore import QEvent, QPointF
+    from PyQt6.QtGui import QEnterEvent
+    if on:
+        p = QPointF(chip.width() - 8, chip.height() / 2)
+        QApplication.sendEvent(chip, QEnterEvent(p, p, chip.mapToGlobal(p)))
+    else:
+        QApplication.sendEvent(chip, QEvent(QEvent.Type.Leave))
+
+
 def main() -> int:
     settings_seed = CS.AppSettings()
     work = OUT / "work"
@@ -135,14 +149,14 @@ def main() -> int:
              f"view {v['icon']} '{v['title']}' switchable={v['switchable']}")
         photo(win, f"{LANG}-{mode}-1-paper-collapsed.png")
         # hover: a synthetic pointer move onto the chip, then away
-        QTest.mouseMove(chip, QPoint(chip.width() - 8, chip.height() // 2))
+        hover(chip, True)
         seq = frames(win, chip, f"{LANG}-{mode}-open")
         CS.pump(300)
         note(f"[{mode}] hovered: width {chip.width()} (collapsed "
              f"{chip.collapsed_width()}, expanded {chip.expanded_width()}); "
              f"frames {seq}")
         photo(win, f"{LANG}-{mode}-2-paper-hover.png")
-        QTest.mouseMove(pv._img_label, QPoint(40, 300))
+        hover(chip, False)
         seq = frames(win, chip, f"{LANG}-{mode}-close")
         CS.pump(300)
         note(f"[{mode}] pointer away: width {chip.width()}; frames {seq}")
@@ -152,10 +166,10 @@ def main() -> int:
         v = pv.print_view()
         note(f"[{mode}] Ctrl+Y -> {v['icon']} '{v['title']}', setting "
              f"{TP.device_values_chosen()}")
-        QTest.mouseMove(chip, QPoint(chip.width() - 8, chip.height() // 2))
+        hover(chip, True)
         CS.pump(400)
         photo(win, f"{LANG}-{mode}-3-device-hover.png")
-        QTest.mouseMove(pv._img_label, QPoint(40, 300))
+        hover(chip, False)
         CS.pump(400)
         photo(win, f"{LANG}-{mode}-4-device-collapsed.png")
         # the same choice in Create Chart and Measure
@@ -187,7 +201,13 @@ def main() -> int:
         if pv.print_view()["device"]:
             shortcut_toggle()
         # keyboard focus ring (focus INSIDE the app's own window only)
-        chip.setFocus(Qt.FocusReason.TabFocusReason)
+        # Qt gives a widget keyboard focus only inside the ACTIVE window, and
+        # the driver never activates one (Basti types elsewhere), so the
+        # focus event Tab would bring is delivered to the chip directly.
+        from PyQt6.QtCore import QEvent
+        from PyQt6.QtGui import QFocusEvent
+        QApplication.sendEvent(chip, QFocusEvent(QEvent.Type.FocusIn,
+                                                 Qt.FocusReason.TabFocusReason))
         CS.pump(400)
         photo(win, f"{LANG}-{mode}-6-keyboard-focus.png")
         QTest.keyClick(chip, Qt.Key.Key_Space)
@@ -197,12 +217,13 @@ def main() -> int:
         QTest.keyClick(chip, Qt.Key.Key_Return)
         CS.pump(300)
         note(f"[{mode}] Enter -> device {pv.print_view()['device']}")
-        pv._img_label.setFocus(Qt.FocusReason.OtherFocusReason)
+        QApplication.sendEvent(chip, QFocusEvent(QEvent.Type.FocusOut,
+                                                 Qt.FocusReason.TabFocusReason))
         # no profile: the screen icon, a click that does nothing
         pv.load_tiff(bare)
         pv._update_display()
         CS.pump(500)
-        QTest.mouseMove(chip, QPoint(chip.width() - 8, chip.height() // 2))
+        hover(chip, True)
         CS.pump(400)
         v = pv.print_view()
         photo(win, f"{LANG}-{mode}-7-no-profile-hover.png")
@@ -215,7 +236,7 @@ def main() -> int:
              f"{TP.device_values_chosen()} (unchanged)")
         RESULT.setdefault("tooltips", {})[mode] = {
             "no_profile": v["tooltip"]}
-        QTest.mouseMove(pv._img_label, QPoint(40, 300))
+        hover(chip, False)
         CS.pump(300)
         pv.load_tiff(pages)
         pv._update_display()
