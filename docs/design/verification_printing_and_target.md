@@ -889,14 +889,45 @@ this chain, which needs no Apply Calibration step and cannot be stale.
 |---|---|---|---|---|
 | B1 | Profiling chart | `design` (sRGB reading of device values) | yes | `measurement_report.py:362` |
 | B2 | Verification chart, printed **raw** (today) | `design` | **no** — compares ink numbers read as sRGB against a print nothing converted | `measurement_report.py:191` `_reference_labs` |
-| B3 | Verification chart, printed **through the profile** (feature A) | `design` | **yes** — this is what makes A worth doing | unchanged code, newly correct |
+| B3 | Verification chart, printed **through the profile** (feature A) | **`source`** since beta 12 (was `design`) | **no, until beta 12**: the `.ti2`'s design XYZ is ArgyllCMS targen's own sRGB model, not the source profile the print was converted from, and the gamut split ran in absolute colorimetry. See §3.4a | `measurement_report.source_reference`, `profile_accuracy_block` |
 | B4 | #133 gamut chart | **`colorimetric`** — a new value | n/a, does not exist | NEW → `measurement_report.py` |
 | B5 | Imported measurement, no `.ti2` | `device` | yes | `measurement_report.py:370` |
 | B6 | #133 chart, colorimetric reference missing | **must refuse**, not fall back | n/a | NEW — a silent fallback to `design` produces a plausible wrong number. **Follow the pattern beta.206 set**: state what could not be established rather than substituting something plausible |
 
 **B3 is the single most important line in this document.** Feature A does not
 just add an option; it makes the report's existing reference correct for the
-first time.
+first time. (Beta 12: it did not, quite. The design XYZ was the wrong
+reference for a sheet printed through the profile; §3.4a is Knut's ruling.)
+
+### 3.4a A sheet printed through its profile is judged twice (#182, beta 12)
+
+#### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-10-07, 6045500910 (#182 [6045500910](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6045500910), answer 1: *"OK"* to question 1 of [6044584365](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6044584365): *"judge the profile's accuracy against its own prediction, and judge colour fidelity against the true source colour on in-gamut patches only (gamut test in the print's intent, relative), with out-of-gamut patches reported separately and not failing any limit. OK? (This changes row B3 of the verification specification.)"*).
+
+| # | Condition | Action |
+|---|---|---|
+| B3a | A verification printed **through the profile** | its **profile accuracy** is judged against the run profile's own prediction of what was printed |
+| B3b | the same sheet | its **colour fidelity** is judged against the **true source colour**: the chart's colours through the source profile the print used (`sRGB.icm`), not ArgyllCMS targen's internal colour model |
+| B3c | the same sheet | colour fidelity is judged on the patches **inside the profile's gamut** only, the gamut tested in the **print's intent** (relative for a relative print) |
+| B3d | the same sheet | the patches **beyond the gamut** are reported separately and never fail a limit |
+| B3e | a sheet printed **raw** (FROM PROFILE GAMUT, B4) | unchanged |
+
+Measured on Basti's ET8550 run1 verification of 2026-10-06 (616 patches, relative, sRGB.icm): colour fidelity, in gamut (443 of 616), average 0.77, maximum 3.66 ΔE00 (it was 437 in gamut, average 1.50, maximum 5.27 against the design); profile accuracy, all 616, average 0.51, 95th percentile 1.01, maximum 2.13.
+
+#### ⏳ Awaiting confirmation — how 3.4a is built
+
+**Confirmed by:** *nobody yet.*
+
+| # | Condition | Action | Where |
+|---|---|---|---|
+| B3f | through the profile, printed by ChromIQ (`route` `chromiq`), the source profile readable (the recorded path, else the same file name in the Argyll folder), and, for a white-mapping intent, a paper patch on the sheet | `reference_source` `source`; the aims are the `.ti3` RGB through the source profile, `xicclu` relative (absolute for an absolute print); the sheet is read relative to its paper patch by Bradford, as ArgyllCMS relates absolute and relative colorimetry (the FROM PROFILE GAMUT media-relative chart's rule, K51-D) | `measurement_report.source_reference` |
+| B3g | otherwise (another route, no source profile, no paper patch on a relative print) | the design reference, exactly as before | `build_report` |
+| B3h | the gamut split | the same safe margin and referee as before, in the print's intent; `gamut_split.intent` records it | `build_report` |
+| B3i | profile accuracy | every patch against the live check's prediction of the values sent (§3.5, A24 to A28: the same decision, so a profile changed since the print, another light or an unreadable calibration gives no prediction and the report says so), in the sheet's yardstick; the five ΔE00 colour-accuracy figures, judged with the same five limits | `profile_accuracy_block`, `profile_accuracy_verdict`, `verify_expected.report_prediction` |
+| B3j | the verdict | the sheet's overall word stays the colour-fidelity rows' (in gamut, as before); profile accuracy carries its own five words and does not change it. **A question for Knut**: should a failed profile accuracy fail the sheet? | `stamp_verdict` |
+| B3k | everything else on the sheet that reads the aims (worst patches, the sixteen colours, cube corners, grey and tone rows, evenness) | reads the source aims too, in the same yardstick | `build_report` |
+| B3l | the words | M-REPORT-THROUGH-PROFILE (§M-PROPOSED of the UMM) | `measurement_report_dialog` |
 
 ### 3.5 The live expected colour while a verification sheet is measured (#182, 2026-10-03)
 

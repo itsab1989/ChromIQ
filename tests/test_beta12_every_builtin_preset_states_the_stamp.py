@@ -8,8 +8,9 @@ was, and on a new target that is the app's default, ON. Basti's A3 Plus 616
 verification chart came out stamped that way (2026-10-07), and the CR30
 hexagon charts' stamp ran over their patches.
 
-The default for a NEW target (the setting `chart_stamp_commands`, ON) is
-deliberately unchanged: that is a question to Knut.
+The default for a NEW target was a question to Knut; he answered it in
+#182 6045500910 ("stamp default OFF"): see
+tests/test_beta12_a_new_target_opens_with_the_stamp_off.py.
 """
 from __future__ import annotations
 
@@ -26,12 +27,6 @@ def test_every_builtin_preset_states_the_stamp_off():
     assert silent == [], f"{len(silent)} built-ins leave the stamp alone"
     on = [p.slug for p in KNUT_PRESETS if p.stamp_settings is not False]
     assert on == []
-
-
-def test_the_factory_default_for_a_new_target_is_unchanged():
-    import inspect
-    src = inspect.getsource(TabChart)
-    assert 'self._settings.get("chart_stamp_commands", True)' in src
 
 
 @pytest.fixture(scope="module")

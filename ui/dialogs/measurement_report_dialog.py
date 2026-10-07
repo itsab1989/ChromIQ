@@ -15526,6 +15526,18 @@ class MeasurementReportDialog(QDialog):
                                 None))
         row_getters += [(_METRIC_LABELS[k](), num((lambda r, k=k: de(r).get(k)), 2))
                         for k in keys]
+        # Beta 12 (Knut 6045500910): a sheet printed through its profile has
+        # its profile's accuracy as a block of its own; dashes for the others.
+        if any((r.get("profile_accuracy") or {}).get("de00") for r in runs):
+            from workflow import measurement_messages as _MM
+
+            def _pa(r):
+                return (r.get("profile_accuracy") or {}).get("de00") or {}
+            row_getters.append((tr(_MM._REPORT_PROFILE_ACCURACY_HEADING),
+                                None))
+            row_getters += [(_METRIC_LABELS[k](),
+                             num((lambda r, k=k: _pa(r).get(k)), 2))
+                            for k in keys]
         # **FIGURES THAT NEVER HAVE A LIMIT, UNDER A HEADING THAT SAYS SO (K28,
         # item 4).** Knut, asked whether to keep the spread, the lightest and
         # darkest L* and the eight corner ΔE00 or remove them: *"keep them
@@ -16937,7 +16949,12 @@ class MeasurementReportDialog(QDialog):
         elif colour == "through-profile":
             intent = intent_labels.get(printing.get("intent") or "relative",
                                        printing.get("intent") or "")
+            from workflow import measurement_messages as _MM
+            # Beta 12 (Knut 6045500910): judged twice when its source is
+            # known; the older sentence for a sheet judged on its design.
             rows.append((tr("What this measured"), tr(
+                _MM._REPORT_SOURCE_MEASURED)
+                if ref_src == "source" else tr(
                 "how accurate this profile is — the sheet was the profile's "
                 "own prediction, made real"), False))
             rows.append((tr("Printed"),
@@ -17059,6 +17076,17 @@ class MeasurementReportDialog(QDialog):
         elif ref == "device":
             rows.append((tr("Reference for the ΔE figures"), tr(
                 "the sRGB estimate of the chart's device values"), False))
+        elif ref == "source":
+            # Beta 12 (Knut 6045500910): the TRUE source colour, in-gamut
+            # patches judged, the gamut tested in the print's intent.
+            from workflow import measurement_messages as _MM
+            _sr = r.get("source_reference") or {}
+            rows.append((tr("Reference for the ΔE figures"), tr(
+                _MM._REPORT_SOURCE_REFERENCE).format(
+                    profile=str(_sr.get("profile") or ""),
+                    intent=intent_labels.get(
+                        str(_sr.get("intent") or "relative"),
+                        str(_sr.get("intent") or ""))), False))
         elif ref:
             rows.append((tr("Reference for the ΔE figures"), tr(
                 "the chart's design colours"), False))
@@ -17074,6 +17102,76 @@ class MeasurementReportDialog(QDialog):
                 + "<table cellpadding='4' cellspacing='0' "
                 "style='border-collapse:collapse;font-size:11px'>"
                 + "".join(trs) + "</table>")
+
+    def _profile_accuracy_html(self, r: dict) -> str:
+        """PROFILE ACCURACY of a sheet printed through its profile (beta 12,
+        Knut #182 6045500910): every patch against the run profile's own
+        prediction of the ink amounts really printed, the five ΔE00 figures
+        with the run's limits and their words (the saved ones on a saved
+        report). Empty on every other sheet. Words M-REPORT-THROUGH-PROFILE
+        (§M-PROPOSED)."""
+        pa = r.get("profile_accuracy")
+        if not pa:
+            return ""
+        from workflow import measurement_messages as _MM
+        from workflow.compliance_sets import FAIL, PASS, word_label
+        from workflow.measurement_report import (ACCURACY_METRICS,
+                                                 profile_accuracy_verdict)
+        head = _h3(tr(_MM._REPORT_PROFILE_ACCURACY_HEADING))
+        de = pa.get("de00") or {}
+        if not de:
+            return (head + f"<p style='color:{_C['faint']};font-size:11px'>"
+                    + html.escape(tr(_MM._REPORT_PROFILE_ACCURACY_NONE))
+                    + "</p>")
+        rec = self._recorded(r)
+        rows = None
+        if rec is not None and rec.get("profile_accuracy"):
+            rows = list(rec["profile_accuracy"].get("rows") or [])
+        if rows is None:
+            v = profile_accuracy_verdict(r, self._limits_for(r).limits)
+            rows = list((v or {}).get("rows") or [])
+        record = self._ungraded_by_type()
+        thb = f"border-bottom:1.5px solid {_C['rule']}"
+        cols = [tr("Metric"), tr("Measured ΔE00"), tr("Limit")]
+        if not record:
+            cols.append(tr("Result"))
+        trs = ["<tr style='color:" + _C["faint"] + "'>" + "".join(
+            f"<th align='{'left' if j == 0 else 'right'}' style='{thb}'>"
+            + html.escape(c) + "</th>" for j, c in enumerate(cols)) + "</tr>"]
+        by_key = {x.get("key"): x for x in rows}
+        i = 0
+        for k, _w in ACCURACY_METRICS:
+            if k not in de or k not in _METRIC_LABELS:
+                continue
+            row = by_key.get(k) or {}
+            bg = (f" style='background:{self._ZEBRA_BG}'" if i % 2 == 1
+                  else "")
+            i += 1
+            thr = row.get("threshold")
+            word = row.get("word")
+            res = ""
+            if not record:
+                if word is None:
+                    res = "<td align='center'>—</td>"
+                else:
+                    col = {PASS: _C["pass"], FAIL: _C["fail"]}.get(
+                        word, _C["faint"])
+                    res = (f"<td align='center'><span style='color:{col};"
+                           "font-weight:bold'>"
+                           + html.escape(word_label(word)) + "</span></td>")
+            trs.append(
+                f"<tr{bg}><td style='padding-right:14px'>"
+                + html.escape(_METRIC_LABELS[k]()) + "</td>"
+                + f"<td align='right'><b>{_fmt(de.get(k))}</b></td>"
+                + "<td align='right'>"
+                + ("—" if thr is None else _fmt(thr)) + "</td>"
+                + res + "</tr>")
+        return (head + "<table cellpadding='5' cellspacing='0' "
+                "style='border-collapse:collapse;font-size:11px'>"
+                + "".join(trs) + "</table>"
+                + f"<p style='color:{_C['faint']};font-size:10px'>"
+                + html.escape(tr(_MM._REPORT_PROFILE_ACCURACY_NOTE))
+                + "</p>")
 
     def _run_detail_html(self, r: dict, numbering: "list | None" = None) -> str:
         """One run's full breakdown: the colour-accuracy Pass/Fail table
@@ -17243,8 +17341,12 @@ class MeasurementReportDialog(QDialog):
             # Both cases compare against the chart's DESIGN — either straight from
             # the .ti2, or reconstructed from the device values — so the heading is
             # the same; the note below explains the reconstruction (Knut).
-            parts.append(_h3(tr("Colour accuracy (ΔE00 against the chart's "
-                                "design)")))
+            if r.get("reference_source") == "source":
+                from workflow import measurement_messages as _MM
+                parts.append(_h3(tr(_MM._REPORT_SOURCE_HEADING)))
+            else:
+                parts.append(_h3(tr("Colour accuracy (ΔE00 against the "
+                                    "chart's design)")))
             parts.append("<table cellpadding='5' cellspacing='0' "
                          "style='border-collapse:collapse;font-size:11px'>"
                          + "".join(trs) + "</table>")
@@ -17270,6 +17372,12 @@ class MeasurementReportDialog(QDialog):
                     f"<p style='color:{_C['faint']};font-size:10px'>"
                     + html.escape(self._verdict_provenance(r, recorded))
                     + "</p>")
+            # Beta 12 (Knut 6045500910): a sheet printed through its profile
+            # has its PROFILE'S ACCURACY judged too, every patch against the
+            # profile's own prediction, with the same limits.
+            _pa_html = self._profile_accuracy_html(r)
+            if _pa_html:
+                parts.append(_pa_html)
             if raw_drift:
                 # K59 (Knut, #182 5849392788): *"Use the word "Change"
                 # instead of "Drift"."* A comparison of two prints shows a

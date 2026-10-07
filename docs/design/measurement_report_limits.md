@@ -142,6 +142,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §54 | K65: no setting of the report window changes the page before Generate Report is pressed, on an old or a new report; any change gives the red line, with nothing ticked too; Cancel keeps the page, Update or Create new rebuilds it with the running version | 2026-09-27, 5858874320 | the rule is Knut's (Confirmed); what was built NOT confirmed || §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788; 5850164956 | the answers are Knut's (Confirmed); the fourteen texts APPROVED by Knut in 5850164956 (Confirmed); K60, his answers D1 to D3 (Confirmed) and what was built from them (NOT confirmed, 49.6); one gap left (B8-1396) |
 | §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
+| §58 | Beta 12: a verification printed through its profile is judged for its profile accuracy against the profile's own prediction, and for colour fidelity against the true source colour (sRGB.icm) on in-gamut patches only, the gamut tested in the print's intent; beyond the gamut never fails | 2026-10-07, 6045500910 | the ruling is Knut's (Confirmed); what was built NOT confirmed (58.1 to 58.6); one question open (58.3) |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -10103,3 +10104,25 @@ Tests: `tests/test_qc5_report_scope_numbers_as_saved.py`, each red under its
 mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-02_beta3/U_impl_qc5/`.
 
 **Status:** the ruling is Knut's; what was built NOT confirmed.
+
+## 58. A verification printed through its profile: profile accuracy, and colour fidelity against the true source colour (#182, beta 12)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-10-07, 6045500910 (#182 [6045500910](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6045500910), answer 1, *"OK"* to question 1 of [6044584365](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6044584365)).
+
+* On a verification **printed through its profile**, the **profile's accuracy** is judged against the profile's own prediction of what was printed.
+* Its **colour fidelity** is judged against the **true source colour** (the source profile the print used, e.g. `sRGB.icm`, not ArgyllCMS targen's internal colour model), on the patches **within the profile's gamut** only; the gamut test is done in the **print's intent** (relative for a relative print).
+* The patches **beyond the gamut** are reported separately and **never fail a limit** (§26.4 unchanged: "within gamut" after the judged names, the beyond and together figures for information).
+* A sheet printed **raw** (FROM PROFILE GAMUT) keeps its behaviour. Basti's run2 report of 2026-10-07 is unchanged, number for number.
+
+### ⏳ Awaiting confirmation: what was built from it
+
+**Confirmed by:** *nobody yet.*
+
+* **58.1 The reference** is `reference_source` `"source"` (was `"design"`); `source_reference` records the source profile's file name and the intent. Built in `measurement_report.source_reference`; the conditions are `verification_printing_and_target.md` §3.4a B3f and B3g.
+* **58.2 The judged rows** are the five colour-accuracy rows and the two evenness rows, judged within gamut exactly as §26.4 says, now against the source aims and with the split tested in the print's intent (`gamut_split.intent`). The verdict's `source` stays `gamut_in`.
+* **58.3 Profile accuracy** is a block of its own (`report["profile_accuracy"]`: profile, intent, the five figures over every patch) and a table in the detailed section, "Profile accuracy (ΔE00 against the profile's own prediction)", with the run's five colour-accuracy limits and a word for each (`verdict.profile_accuracy`, saved with the report), and a block of the Overview. Its words do **not** change the sheet's overall word or the count of judged metrics: whether they should is **a question for Knut**.
+* **58.4 Basti's run1** (2026-10-06, 616 patches): before, 437 within gamut, average 1.50, maximum 5.27, 95th percentile 3.42 (FAIL on three rows); now 443 within gamut (relative), average 0.77, lowest 95 % 0.67, highest 5 % 2.67, maximum 3.66, 95th percentile 1.89 (FAIL on the highest 5 % and the maximum, both colours just inside the gamut's edge); beyond the gamut 173, average 5.47, maximum 13.53, never judged; profile accuracy over all 616: average 0.51, 95th percentile 1.01, maximum 2.13, all PASS at the default limits.
+* **58.5 Not changed:** a raw print, a FROM PROFILE GAMUT chart, a sheet printed in another application, a sheet with no print record, a saved report (shown as it was saved, §53).
+* **58.6 Words:** M-REPORT-THROUGH-PROFILE, §M-PROPOSED of the UMM.

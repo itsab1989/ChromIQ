@@ -2063,6 +2063,34 @@ M_PATCH_CORRECTED_VARIANTS = _m(
     "\n".join((_CARD_GREEN_LIMIT, _SUM_CORRECTED_ONE)),
     approved=False)
 
+# --- PROPOSED: a re-read past the limit that agrees with no earlier reading ---
+#: Knut, #182 6045500910 (beta 12), answer 2: a patch red by the limit read
+#: again, past the limit again and not the same as its earlier reading (more
+#: than ΔE 3 apart), stays red, "and message should say that the two
+#: measurements were not similar and both above error threshold, and needs
+#: another measurement to confirm what is the reoccurring and correct value
+#: for the patch." The rule is his and CONFIRMED (10.10a); the words are ours
+#: and wait here. The card breaks its lines by hand. {de}: this reading's
+#: ΔE*ab, {prevs}: the earlier readings past the limit, in the order read,
+#: each with one decimal, joined by ", "; {limit}: the limit, one decimal;
+#: {n}: how many readings, 3 or more (the "two" line covers 2).
+_CARD_UNSETTLED_HEAD = "Red outline: the readings do not agree"
+_CARD_UNSETTLED_DE = "ΔE*ab {de} now; before: {prevs}"
+_CARD_UNSETTLED_TWO_1 = "The two readings are not similar,"
+_CARD_UNSETTLED_TWO_2 = "and both are past your limit {limit}."
+_CARD_UNSETTLED_MANY_1 = "The {n} readings are not similar,"
+_CARD_UNSETTLED_MANY_2 = "and all are past your limit {limit}."
+_CARD_UNSETTLED_3 = "Read it again: a reading that matches"
+_CARD_UNSETTLED_4 = "one of them shows which value is real."
+M_PATCH_UNSETTLED = _m(
+    "M-PATCH-UNSETTLED",
+    _CARD_UNSETTLED_HEAD,
+    "\n".join((_CARD_UNSETTLED_DE, _CARD_UNSETTLED_TWO_1,
+               _CARD_UNSETTLED_TWO_2, _CARD_UNSETTLED_MANY_1,
+               _CARD_UNSETTLED_MANY_2, _CARD_UNSETTLED_3,
+               _CARD_UNSETTLED_4)),
+    approved=False)
+
 # --- PROPOSED: the misread summary in the window that closes a measurement --
 #: #182 beta 11, Knut 5983470377 answer 5: "The Measurement Completed window,
 #: which today has a summary of some things (like the reading speeds) should
@@ -4314,6 +4342,41 @@ M_REPORT_SOLIDS_PREDICTED = _m(
     "printer's colours are from the ideal ones, so the two can differ a lot.",
     approved=True)   # Knut, #182 5845588201: "accepted"
 
+# --- PROPOSED: a sheet printed through its profile, judged twice (beta 12) ---
+#: Knut, #182 6045500910, answer 1 ("OK" to question 1 of 6044584365): the
+#: profile's accuracy against its own prediction, and colour fidelity against
+#: the TRUE source colour on in-gamut patches only. The ruling is CONFIRMED
+#: (verification_printing_and_target.md B3, measurement_report_limits.md §58);
+#: the words are ours and wait here. {profile}: the source profile's file name
+#: (sRGB.icm); {intent}: the intent's name as the report prints it
+#: ("relative colorimetric").
+_REPORT_PROFILE_ACCURACY_HEADING = (
+    "Profile accuracy (ΔE00 against the profile's own prediction)")
+_REPORT_SOURCE_HEADING = (
+    "Colour accuracy (ΔE00 against the colours the sheet was converted from)")
+_REPORT_SOURCE_REFERENCE = (
+    "the colours the sheet was converted from: the chart's colours in "
+    "{profile}, {intent}. Only the colours inside the profile's gamut "
+    "({intent}) are judged; the others are shown beyond the gamut, for "
+    "information.")
+_REPORT_SOURCE_MEASURED = (
+    "two things: how faithfully the colours inside the profile's gamut were "
+    "reproduced, and how accurate the profile is against its own prediction")
+_REPORT_PROFILE_ACCURACY_NOTE = (
+    "Every patch, inside the gamut or not, compared with what the profile "
+    "predicts for the ink amounts that were really printed. Judged with the "
+    "same limits; these words do not change the sheet's verdict.")
+_REPORT_PROFILE_ACCURACY_NONE = (
+    "The profile's prediction of this sheet could not be worked out, so the "
+    "profile's accuracy is not shown.")
+M_REPORT_THROUGH_PROFILE = _m(
+    "M-REPORT-THROUGH-PROFILE",
+    _REPORT_PROFILE_ACCURACY_HEADING,
+    "\n".join((_REPORT_SOURCE_HEADING, _REPORT_SOURCE_REFERENCE,
+               _REPORT_SOURCE_MEASURED, _REPORT_PROFILE_ACCURACY_NOTE,
+               _REPORT_PROFILE_ACCURACY_NONE)),
+    approved=False)
+
 M_REPORT_PAPER_AGAINST_PROFILE = _m(
     "M-REPORT-PAPER-AGAINST-PROFILE",
     "Paper compared with the profile's paper",
@@ -4671,6 +4734,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE,
     M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
     M_REPORT_SOLIDS_PREDICTED, M_REPORT_PAPER_AGAINST_PROFILE,
+    M_REPORT_THROUGH_PROFILE,
     M_REPORT_WORKED_OUT_EARLIER, M_REPORT_NOT_WORKED_OUT,
     *K59_TEXTS, M_REPORT_MIXED_OPENING_RUNS,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
@@ -4695,7 +4759,7 @@ CATALOGUE = {m.id: m for m in (
     M_PATCH_COLOUR_RANGE,
     M_PATCH_EXPECTED_PREDICTED,
     M_PATCH_NEIGHBOUR, M_MEASURED_SUSPECTS,
-    M_PATCH_CORRECTED, M_PATCH_CORRECTED_VARIANTS,
+    M_PATCH_CORRECTED, M_PATCH_CORRECTED_VARIANTS, M_PATCH_UNSETTLED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_DONE_PROFILING,

@@ -680,6 +680,35 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_4)))
             rows.append((None, ""))
             rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
+        elif info.get("warn") and info.get("unsettled"):
+            # RED, RE-READ AND NOT SETTLED (Knut, #182 6045500910, (a) and
+            # (c)): past the limit again and like none of its earlier
+            # readings, which were past it too. Words M-PATCH-UNSETTLED
+            # (§M-PROPOSED).
+            prevs = [float(x) for x in info.get("unsettled") or ()]
+            limit_txt = f"{float(info.get('warn_de', 0.0)):.1f}"
+            rows.append((None, "─" * 30))
+            rows.append((None, tr(_mm._CARD_UNSETTLED_HEAD)))
+            rows.append((None, tr(_mm._CARD_UNSETTLED_DE).format(
+                de=f"{float(info.get('de', 0.0)):.1f}",
+                prevs=", ".join(f"{x:.1f}" for x in prevs))))
+            if nb:
+                nb_lines(_mm._CARD_NB_1_ALSO)
+            rows.append((None, ""))
+            if len(prevs) <= 1:
+                rows.append((None, tr(_mm._CARD_UNSETTLED_TWO_1)))
+                rows.append((None, tr(_mm._CARD_UNSETTLED_TWO_2).format(
+                    limit=limit_txt)))
+            else:
+                rows.append((None, tr(_mm._CARD_UNSETTLED_MANY_1).format(
+                    n=len(prevs) + 1)))
+                rows.append((None, tr(_mm._CARD_UNSETTLED_MANY_2).format(
+                    limit=limit_txt)))
+            rows.append((None, ""))
+            rows.append((None, tr(_mm._CARD_UNSETTLED_3)))
+            rows.append((None, tr(_mm._CARD_UNSETTLED_4)))
+            rows.append((None, ""))
+            rows.append((None, tr("(Preferences ▸ Measurement, “Flag a patch…”)")))
         elif info.get("warn"):
             rows.append((None, "─" * 30))
             # Not "likely misread" alone (Knut, #182 5956210745): a large

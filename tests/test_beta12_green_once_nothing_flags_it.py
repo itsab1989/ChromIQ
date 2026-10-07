@@ -14,7 +14,9 @@ SAME_READING_DE is remembered as a pending correction and turns green the
 moment the patch is judged not flagged, live or not.
 
 The J28 mirror case (the re-read matches the FIRST reading, not the misread
-straight before it) is deliberately unchanged: it is a question to Knut.
+straight before it) was a question to Knut; he answered it in #182
+6045500910: a reading that matches ANY earlier reading of the patch is
+confirmed (yellow). See tests/test_beta12_reread_rules.py.
 """
 from __future__ import annotations
 
@@ -117,7 +119,8 @@ def _replay(limit: float, fence_on: bool) -> dict:
             sus = f is not None and f.suspect
             inputs[loc] = (e, m, de, warn, de - med)
             v = judge.judge(loc, e, m, de, warn or sus, standout=de - med,
-                            live=True, strip=strip_of(loc), reread_only=sus)
+                            live=True, strip=strip_of(loc), reread_only=sus,
+                            limit=limit)
             hist.setdefault(loc, []).append((True, warn, v.flag))
             done.add(loc)
         for loc, f in changed.items():
@@ -126,7 +129,7 @@ def _replay(limit: float, fence_on: bool) -> dict:
             e, m, de, warn, so = inputs[loc]
             v = judge.judge(loc, e, m, de, warn or f.suspect, standout=so,
                             live=False, strip=strip_of(loc),
-                            reread_only=f.suspect)
+                            reread_only=f.suspect, limit=limit)
             hist[loc].append((False, warn, v.flag))
         judge.rejudge()
     # Patches red by the LIMIT once and re-read under it: their last outline.
@@ -142,8 +145,10 @@ def test_bastis_readings_aa5_and_aa16_turn_green():
     final = _replay(95.0, fence_on=False)
     assert pf.is_corrected(final["AA5"])
     assert pf.is_corrected(final["AA16"])
-    # The J28 mirror case is unchanged (a question to Knut): still red.
-    assert final["J28"] is pf.FLAG_RED
+    # J28: its third reading matches its FIRST (69.5), not the misread in
+    # between (150.4), and the neighbour check still suspects it: yellow,
+    # confirmed by a re-read (Knut, #182 6045500910). Red before beta 12.
+    assert final["J28"] == pf.FLAG_CONFIRMED
     assert [loc for loc, f in final.items() if not pf.is_corrected(f)] == ["J28"]
     assert len(final) == 32
 

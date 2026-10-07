@@ -104,6 +104,31 @@ def source_profile_path(bin_dir: "str | Path") -> str:
     return find_ref_profile(bin_dir, ("sRGB.icm",))
 
 
+def recorded_source_profile(recorded: "str | None",
+                            bin_dir: "str | Path") -> str:
+    """The source profile a print record names, readable here, or "".
+
+    The recorded path when it is a file; else, when it was recorded on
+    another computer (another account, another Argyll folder), the profile
+    of the SAME file name this computer's :func:`source_profile_path` finds.
+    An empty record means this computer's own. One rule for the
+    Measurement Report's source reference and the profile's prediction of
+    the sheet, so a report never judges against a source it then says is
+    missing (beta-12 review).
+    """
+    src = str(recorded or "")
+    if src and Path(src).is_file():
+        return src
+    alt = source_profile_path(bin_dir) if bin_dir else ""
+    if not alt or not Path(alt).is_file():
+        return ""
+    if not src:
+        return str(alt)
+    # a Windows path recorded elsewhere has backslashes Path() keeps whole
+    name = src.replace("\\", "/").rsplit("/", 1)[-1]
+    return str(alt) if Path(alt).name == name else ""
+
+
 def convert_pages_through_profile(
     pages: "Sequence[Path]",
     profile: Path,

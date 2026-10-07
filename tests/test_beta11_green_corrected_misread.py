@@ -61,7 +61,10 @@ def test_red_again_ends_green(qapp, tmp_path):
     _read_all(tab, {"D6": 0.55})
     tab._on_strip_measured(_strip("D"))
     tab._on_strip_measured(_strip("D", {"D6": 0.55}))
-    assert _flags(tab)["D6"] is True
+    # The first reading's colour came back: no longer green. Since beta 12 a
+    # re-read is compared with EVERY earlier reading (Knut, #182 6045500910),
+    # so matching the first one confirms it (yellow) rather than leaving it red.
+    assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED
     assert tab.corrected_locs() == []
 
 

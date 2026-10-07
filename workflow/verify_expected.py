@@ -410,8 +410,25 @@ def live_expected(ti2: "str | Path", record_ti3: "str | Path", run, *,
     return result
 
 
+def report_prediction(ti2: "str | Path", record_ti3: "str | Path", run, *,
+                      bin_dir: "str | Path", intent: str = "a",
+                      runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+                      ) -> LiveExpected:
+    """The run profile's prediction of what was printed on a verification
+    sheet, for the Measurement Report's PROFILE ACCURACY (Knut, #182
+    6045500910, answer 1 to 6044584365): exactly the live check's decision
+    and chain (:func:`live_expected`), with the forward table asked in
+    *intent* (``"a"`` absolute, ``"r"`` relative, the print's own when the
+    sheet is judged against its paper). Never raises; logs nothing."""
+    try:
+        return _decide(Path(ti2), Path(record_ti3), run, bin_dir=bin_dir,
+                       runner=runner, use_cache=True, xyz_intent=intent)
+    except Exception as exc:      # noqa: BLE001 — a report is never worth a crash
+        return estimate(f"the prediction failed: {exc}")
+
+
 def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
-            use_cache: bool) -> LiveExpected:
+            use_cache: bool, xyz_intent: str = "a") -> LiveExpected:
     from workflow.verification_print import (COLOUR_RAW, COLOUR_THROUGH,
                                              ROUTE_CHROMIQ, read_print_record)
     if not ti2.is_file():
@@ -475,7 +492,7 @@ def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
     st = ti2.stat()
     key = (str(ti2), st.st_mtime_ns, json.dumps(rec, sort_keys=True, default=str),
            str(profile), profile.stat().st_mtime_ns, str(bin_dir), kind,
-           str(cal_src or ""), _sha1_of(cal_src))
+           str(cal_src or ""), _sha1_of(cal_src), xyz_intent)
     if use_cache and runner is subprocess.run and key in _CACHE:
         return _CACHE[key]
 
@@ -484,7 +501,7 @@ def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
     # like a success so it is not retried on every repaint (review AQ2,
     # 2026-10-03). The fallback it gives is the same either way.
     result = _predict(ti2, rows, rec, profile, kind, cal_src, why, bin_dir=bin_dir,
-                      runner=_capped(runner))
+                      runner=_capped(runner), xyz_intent=xyz_intent)
     if use_cache and runner is subprocess.run:
         if len(_CACHE) >= _CACHE_MAX:
             _CACHE.clear()
@@ -502,12 +519,14 @@ def _capped(runner):
 
 
 def _predict(ti2, rows, rec, profile, kind, cal_src, why, *, bin_dir,
-             runner) -> LiveExpected:
-    from workflow.verification_print import source_profile_path
+             runner, xyz_intent: str = "a") -> LiveExpected:
+    from workflow.verification_print import recorded_source_profile
     rgb = [r for _loc, r in rows]
     if kind == "through":
-        src = str(rec.get("source_profile") or "") or source_profile_path(bin_dir)
-        if not src or not Path(src).is_file():
+        # the recorded source, else the same file here (beta-12 review: the
+        # report's source reference follows the same rule)
+        src = recorded_source_profile(rec.get("source_profile"), bin_dir)
+        if not src:
             return estimate("the sRGB source profile of the conversion is missing")
         cal_file = None
         try:
@@ -528,7 +547,8 @@ def _predict(ti2, rows, rec, profile, kind, cal_src, why, *, bin_dir,
         sent = rgb
     from workflow.xicclu_runner import XiccluError, forward_xyz
     try:
-        xyz = forward_xyz(sent, profile, bin_dir, intent="a", runner=runner)
+        xyz = forward_xyz(sent, profile, bin_dir, intent=xyz_intent,
+                          runner=runner)
     except (XiccluError, OSError, subprocess.SubprocessError) as exc:
         return estimate(f"xicclu could not predict the patches ({exc})")
     if len(xyz) != len(rows):

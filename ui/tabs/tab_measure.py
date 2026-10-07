@@ -15636,10 +15636,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 strip = self._strip_of(str(loc))
             except Exception:      # noqa: BLE001 — no strip: no peers, nothing else
                 strip = None
+            # The limit itself, for Knut's re-read rules (#182 6045500910):
+            # readings past it that disagree stay red, a re-read under it
+            # after one past it is green.
+            try:
+                limit = float(self._patch_warn_limit())
+            except Exception:      # noqa: BLE001 — without it the older rules apply
+                limit = None
             v = self._flag_judge().judge(loc, exp_lab, meas_lab, de,
                                          bool(flagged), standout=standout,
                                          live=live, strip=strip,
-                                         reread_only=bool(reread_only))
+                                         reread_only=bool(reread_only),
+                                         limit=limit)
         except Exception:          # noqa: BLE001 — never lose the red outline
             log.debug("could not judge patch %s", loc, exc_info=True)
             return bool(flagged), extra
@@ -15673,6 +15681,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 # Red until its own re-read: a neighbour suspect (Knut,
                 # #182 5984174575).
                 "reread_only": bool(getattr(v, "reread_only", False)),
+                # Re-read past the limit like none of its earlier readings:
+                # their ΔE (Knut, #182 6045500910, (a) and (c)).
+                "unsettled": [float(x) for x in
+                              (getattr(v, "unsettled", ()) or ())],
                 # Red in a learned range: why (Knut, #182 5982206917).
                 "misfit": [{"test": m.test, "own": tuple(m.own),
                             "ref": tuple(m.ref), "count": m.count,

@@ -101,6 +101,14 @@ the limit decides whether it is shown, never whether it exists, so it is
 dropped only by a LIVE reading that is clean or a different colour, never by
 a repaint from the file.
 
+**B3. A re-read is compared with every earlier reading** (Knut, #182
+6045500910, beta 12; :meth:`FlagJudge.judge`). For a patch red by the limit:
+a re-read the same as ANY earlier flagged reading of it (within
+SAME_READING_DE) is yellow; past the limit again and like none of them, red
+and *unsettled* (the card says the readings disagree and asks for one more);
+under the limit after any reading past it, green (at once, or as soon as the
+neighbour check stops flagging it).
+
 **Kept with the measurement (#182 K4, Sebastian 5959447807).** The re-read
 references are saved beside the ``.ti3`` (``workflow/confirmed_patches.py``)
 and loaded back when that measurement is shown again or resumed; a FRESH read starts with
@@ -483,6 +491,10 @@ class _Reading:
     #: value turns it yellow; it is never a similar patch and never judged
     #: like a learned range.
     reread_only: bool = False
+    #: Read again past the limit and like none of its earlier readings, which
+    #: were past the limit too (Knut, #182 6045500910, (a) and (c)): one of
+    #: them is a misread, so it is never a similar patch for another patch.
+    unsettled: bool = False
 
 
 @dataclass
@@ -549,6 +561,12 @@ class Verdict:
     #: "neighbour" (the neighbour check, alone or with the limit) or "limit";
     #: its ΔE is *prev_de*.
     corrected_by: str = ""
+    #: RED, re-read and not settled (Knut, #182 6045500910, (a) and (c)): the
+    #: ΔE of its earlier readings past the limit, in the order read; no
+    #: earlier flagged reading is within SAME_READING_DE of this one. A
+    #: reading that matches any of them turns it yellow; one under the limit
+    #: turns it green.
+    unsettled: tuple = ()
 
 
 def _sub(a, b):
@@ -576,6 +594,8 @@ def _are_peers(a: _Reading, b: _Reading) -> bool:
         return False
     if a.reread_only or b.reread_only:
         return False           # a neighbour suspect: re-read only (5984174575)
+    if a.unsettled or b.unsettled:
+        return False           # readings that disagree (6045500910)
     if _norm(_sub(a.exp_lab, b.exp_lab)) >= PEER_EXPECTED_DE:
         return False
     return _norm(_sub(_sub(a.meas_lab, a.exp_lab),
@@ -673,6 +693,19 @@ class FlagJudge:
         #: green (``_corrected``) the moment the patch is judged not flagged,
         #: live or not (beta 12, #182 FINDINGS B1, the AA5 case).
         self._pending: "dict[str, tuple]" = {}
+        #: loc -> every distinct reading of it this session, in the order
+        #: read (the last one is ``_last``'s): a re-read is compared with ALL
+        #: of them, not only the one straight before it (Knut, #182
+        #: 6045500910: "if the third measurement is same as any of the two
+        #: first, then it turns yellow"). A repaint of the same reading adds
+        #: nothing; it brings the last one's flag up to date.
+        self._history: "dict[str, list]" = {}
+        #: loc -> the earlier readings' ΔE of a patch re-read past the limit
+        #: like none of them (Verdict.unsettled).
+        self._unsettled: "dict[str, tuple]" = {}
+        #: Unsettled patches taken over from a stored memory (``load``): the
+        #: first reading of them painted from the file stays unsettled.
+        self._unsettled_loaded: "set[str]" = set()
 
     @property
     def corrected(self) -> "dict[str, tuple]":
@@ -859,6 +892,17 @@ class FlagJudge:
             rd = self._last.get(loc)
             if loc not in out and (rd is None or not rd.flagged):
                 out[loc] = {"kind": "corrected", "de": de, "by": by}
+        # RED, UNSETTLED (Knut 6045500910): kept with the measurement, with
+        # its earlier flagged readings, so it is still red when opened again
+        # and a later re-read can still match any of them.
+        for loc, prevs in self._unsettled.items():
+            rd = self._last.get(loc)
+            hist = self._history.get(loc, [])
+            if loc in out or rd is None or not rd.flagged or not hist:
+                continue
+            out[loc] = {"kind": "unsettled", "prevs": list(prevs),
+                        "readings": [{"de": r.de, "meas_lab": list(r.meas_lab)}
+                                     for r in hist[:-1] if r.flagged]}
         return out
 
     def load(self, patches: dict) -> int:
@@ -882,6 +926,22 @@ class FlagJudge:
                         "neighbour" if e.get("by") == "neighbour" else "limit")
                 except (TypeError, ValueError):
                     pass
+                continue
+            if isinstance(e, dict) and e.get("kind") == "unsettled":
+                # Red until a reading settles it (6045500910); its earlier
+                # readings are the ones a re-read is compared with.
+                try:
+                    prevs = tuple(float(x) for x in e.get("prevs") or ())
+                    readings = [
+                        _Reading(tuple(float(v) for v in r["meas_lab"][:3]),
+                                 float(r["de"]), True)
+                        for r in e.get("readings") or ()]
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if prevs and readings:
+                    self._unsettled[str(loc)] = prevs
+                    self._unsettled_loaded.add(str(loc))
+                    self._history[str(loc)] = readings
                 continue
             if not isinstance(e, dict) or e.get("kind") != "confirmed":
                 continue
@@ -1043,11 +1103,17 @@ class FlagJudge:
         rng = self.range_of(loc, rd.exp_lab)
         k, locs = self.range_status(rng)
         own = self._active_ref(loc)
-        if own is None and rd.reread_only:
+        unsettled = self._unsettled.get(loc, ()) if own is None else ()
+        if own is None and (rd.reread_only or unsettled):
             # A neighbour suspect: only its own re-read clears it (Knut,
             # #182 5984174575), whatever similar patches or its range say.
+            # A re-read past the limit like none of its earlier readings
+            # stays red until a reading settles it (Knut, #182 6045500910,
+            # (a) and (c)): one of them is a misread, so neither similar
+            # patches nor a learned range may vouch for it.
             return Verdict(FLAG_RED, colour_range=rng, range_k=k,
-                           range_locs=locs, reread_only=True)
+                           range_locs=locs, reread_only=rd.reread_only,
+                           unsettled=unsettled)
         peers = tuple(self.peers_of(loc)) if own is None else ()
         if own is not None or peers:
             # Confirmed stays yellow, whether its range has learned or not.
@@ -1074,7 +1140,8 @@ class FlagJudge:
     def judge(self, loc: str, exp_lab, meas_lab, de: float, flagged: bool,
               *, standout: "float | None" = None, live: bool = True,
               strip: "str | None" = None,
-              reread_only: bool = False) -> Verdict:
+              reread_only: bool = False,
+              limit: "float | None" = None) -> Verdict:
         """The outline for this reading of *loc*, as things stand now.
 
         *flagged* is the red rule's answer (past the limit and, reading strips
@@ -1089,6 +1156,22 @@ class FlagJudge:
         *reread_only*: the neighbour check suspects it (Knut, #182
         5984174575), so only its own re-read with the same value turns it
         yellow; similar patches and a learned range apply only to the limit.
+        *limit* is the ΔE the limit check flags at (the caller's
+        ``_patch_warn_limit``); without it the two rules that speak of the
+        limit itself ((a)/(c) and (d) below) are not applied.
+
+        THE RE-READ RULES (Knut, #182 6045500910, for a patch red by the
+        limit). A live re-read is compared with EVERY earlier reading of the
+        patch this session, not only the one straight before it:
+
+        * the same colour (within SAME_READING_DE) as any earlier flagged
+          reading, and still flagged: yellow, confirmed by a re-read ((b),
+          and a third reading that matches the first after a misread);
+        * past the limit again, like none of the earlier flagged readings,
+          one or more of which were past the limit too: red, *unsettled*
+          ((a) and (c)), until a reading settles it;
+        * under the limit after one or more readings past it: green, at once
+          when nothing else flags it, else as soon as nothing does ((d)).
 
         A confirmation (or the loss of one) can change OTHER patches' verdicts
         too; the caller asks :meth:`rejudge` once the whole batch is judged.
@@ -1098,24 +1181,97 @@ class FlagJudge:
         meas_lab = tuple(float(v) for v in meas_lab[:3])
         exp_lab = tuple(float(v) for v in exp_lab[:3])
         prev = self._last.get(loc)
+        hist = self._history.setdefault(loc, [])
+        earlier = list(hist) if live else []
+        if live and prev is not None and (not hist or hist[-1] is not prev):
+            # A reading taken over from a stored memory (``load``) is the
+            # previous reading too.
+            earlier.append(prev)
+        lim = None if limit is None else float(limit)
+
+        def same(a, b) -> bool:
+            return _norm(_sub(a, b)) <= SAME_READING_DE
+
+        def by_of(r) -> str:
+            return "neighbour" if r.reread_only else "limit"
+
+        def past(r) -> bool:
+            return lim is not None and r.flagged and r.de >= lim
+
+        # (a)/(c): past the limit again, and like none of the earlier flagged
+        # readings, of which one or more were past the limit too.
+        unsettled: tuple = ()
+        if live and flagged and lim is not None and de >= lim:
+            red_before = [r for r in earlier if r.flagged]
+            if (any(past(r) for r in red_before)
+                    and not any(same(meas_lab, r.meas_lab)
+                                for r in red_before)):
+                unsettled = tuple(float(r.de) for r in red_before if past(r))
         rd = _Reading(meas_lab, de, bool(flagged), exp_lab,
                       None if standout is None else float(standout),
                       None if strip is None else str(strip),
-                      bool(reread_only and flagged))
+                      bool(reread_only and flagged), bool(unsettled))
+        if live:
+            hist.append(rd)
+            if unsettled:
+                self._unsettled[loc] = unsettled
+            else:
+                self._unsettled.pop(loc, None)
+        elif hist and same(meas_lab, hist[-1].meas_lab):
+            # A repaint of the same reading: it only brings the flag up to
+            # date (a later strip cleared the neighbour check, say).
+            rd.unsettled = bool(hist[-1].unsettled and flagged)
+            hist[-1] = rd
+            if not rd.unsettled:
+                self._unsettled.pop(loc, None)
+        else:
+            # A reading from the file (a measurement resumed or opened): the
+            # previous reading a live re-read is compared with. Still
+            # unsettled when the stored memory says so (``load``).
+            hist.append(rd)
+            if loc in self._unsettled_loaded and flagged:
+                rd.unsettled = True
+            else:
+                self._unsettled.pop(loc, None)
+            self._unsettled_loaded.discard(loc)
+        if not live and rd.unsettled and lim is not None:
+            # Judged again against the limit as it is NOW (raised in
+            # Preferences, or the measurement opened under another one):
+            # an earlier reading no longer past it does not make the patch
+            # unsettled, and the card never says "both are past your limit"
+            # of a reading that is not (review of beta 12).
+            still = tuple(x for x in self._unsettled.get(loc, ()) if x >= lim)
+            if still:
+                self._unsettled[loc] = still
+            else:
+                rd.unsettled = False
+                self._unsettled.pop(loc, None)
         was = self._ranges.pop(loc, None)   # classified from this expected colour
         self._set_reading(loc, rd, was)
         own = self._refs.get(loc)
+
+        # (d): the last earlier reading past the limit, when this one is
+        # under it (Knut 6045500910: "if any of the previous measurements
+        # were above the threshold").
+        over = None
+        if live and lim is not None and de < lim:
+            for r in reversed(earlier):
+                if past(r):
+                    over = r
+                    break
         if not flagged:
             # GREEN (Knut, #182 5984277558): it was red, and this LIVE
             # reading fits. A repaint or a judgement from other readings is
             # not a re-read, so it never makes one; it keeps one made before.
             # A re-read that gives the SAME colour (within SAME_READING_DE)
-            # corrected nothing: the reading stands, only a limit moved.
+            # corrected nothing when only the limit moved; one that falls
+            # under the limit after a reading past it did (6045500910 (d)).
             pending = self._pending.pop(loc, None)
-            if (live and prev is not None and prev.flagged
-                    and _norm(_sub(meas_lab, prev.meas_lab)) > SAME_READING_DE):
-                self._corrected[loc] = (
-                    float(prev.de), "neighbour" if prev.reread_only else "limit")
+            if over is not None:
+                self._corrected[loc] = (float(over.de), "limit")
+            elif (live and prev is not None and prev.flagged
+                    and not same(meas_lab, prev.meas_lab)):
+                self._corrected[loc] = (float(prev.de), by_of(prev))
             elif pending is not None:
                 # A live re-read already corrected the misread while another
                 # reason still flagged the patch; that reason is gone now.
@@ -1130,36 +1286,50 @@ class FlagJudge:
                 return Verdict(FLAG_CORRECTED, prev_de=corr[0],
                                corrected_by=corr[1])
             return Verdict(FLAG_NONE)
+        # The same colour as ANY earlier flagged reading (Knut 6045500910);
+        # the latest such reading is the one it agrees with.
+        match = None
+        if flagged:
+            for r in reversed(earlier):
+                if r.flagged and same(meas_lab, r.meas_lab):
+                    match = r
+                    break
         if live:
             # Flagged again by a live reading: no longer corrected.
             self._corrected.pop(loc, None)
             pending = self._pending.get(loc)
-            if (pending is not None
-                    and _norm(_sub(meas_lab, pending[2])) <= SAME_READING_DE):
+            if pending is not None and same(meas_lab, pending[2]):
                 # The misread came back: nothing was corrected.
                 self._pending.pop(loc, None)
-            elif (pending is None and prev is not None and prev.flagged
-                    and _norm(_sub(meas_lab, prev.meas_lab)) > SAME_READING_DE):
-                # A re-read to a clearly different colour that is still
-                # flagged (say, the neighbour check still suspects it): it
-                # turns green once nothing flags it any more.
-                self._pending[loc] = (
-                    float(prev.de), "neighbour" if prev.reread_only else "limit",
-                    prev.meas_lab)
-        if (own is not None
-                and _norm(_sub(meas_lab, own.meas_lab)) <= SAME_READING_DE):
+                pending = None
+            if pending is None:
+                if over is not None:
+                    # Under the limit now, but still flagged (the neighbour
+                    # check): green once nothing flags it (6045500910 (d)).
+                    self._pending[loc] = (float(over.de), "limit",
+                                          over.meas_lab)
+                elif (match is None and prev is not None and prev.flagged
+                        and not same(meas_lab, prev.meas_lab)):
+                    # A re-read to a clearly different colour that is still
+                    # flagged (say, the neighbour check still suspects it):
+                    # it turns green once nothing flags it any more. Not
+                    # when it repeats an earlier reading: then it confirms
+                    # that one, and corrects nothing.
+                    self._pending[loc] = (float(prev.de), by_of(prev),
+                                          prev.meas_lab)
+        if own is not None and same(meas_lab, own.meas_lab):
             pass                          # the same colour once more: confirmed
-        elif (live and prev is not None and prev.flagged
-                and _norm(_sub(meas_lab, prev.meas_lab)) <= SAME_READING_DE):
-            self._refs[loc] = _Reference(
-                loc=loc, exp_lab=exp_lab, meas_lab=meas_lab,
-                shift=_sub(meas_lab, exp_lab), de=de, prev_de=prev.de,
-                standout=rd.standout)
-            self._refs_changed()
-        elif live and own is not None:
-            # Re-read to a clearly different colour: it is not confirmed now.
-            self._refs.pop(loc, None)
-            self._refs_changed()
+        else:
+            if match is not None:
+                self._refs[loc] = _Reference(
+                    loc=loc, exp_lab=exp_lab, meas_lab=meas_lab,
+                    shift=_sub(meas_lab, exp_lab), de=de, prev_de=match.de,
+                    standout=rd.standout)
+                self._refs_changed()
+            elif live and own is not None:
+                # Re-read to a clearly different colour: it is not confirmed now.
+                self._refs.pop(loc, None)
+                self._refs_changed()
         v = self._verdict(loc, rd)
         self._verdicts[loc] = v
         return v

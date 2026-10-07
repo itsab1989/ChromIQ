@@ -494,6 +494,30 @@ the row-number box follows the instrument.
 | **D-3** | A default's **own** write is not an answer | Otherwise the spacers a CR30 turned off could never be turned back on for the strip reader that follows |
 | **D-4** | The app's own starting point — factory settings, `default_recipe`, saved defaults — is **not** an answer | Or D-2 would silence every default in the app |
 
+### 4d. The stamp is off on a new target
+
+Knut, 2026-10-07, #182 [6045500910](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6045500910), answer 3 to question 3 of [6044584365](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6044584365):
+
+> *"Yes, stamp default OFF, and all stored built-in presets shall default have stamp OFF."*
+
+#### ✅ Confirmed behaviour — the stamp's factory setting
+
+**Confirmed by:** Knut, 2026-10-07, 6045500910
+
+| # | Rule | Why |
+|---|---|---|
+| **ST-1** | The factory setting of "Stamp settings down the right edge" is **OFF**: a target with nothing stored (S4, S5, S8, S9) and no saved defaults opens with the stamp off | Knut's ruling; the charts are designed without it |
+| **ST-2** | Every built-in preset sets the stamp **off** | Knut's ruling (built in beta 12, `chart_load_and_generate_paths.md`) |
+| **ST-3** | A target that has the stamp in its own record keeps it, on or off | S1 to S3: its own settings |
+
+#### ⏳ Awaiting confirmation — how 4d is built
+
+**Confirmed by:** *nobody yet.*
+
+* **Saved defaults still win** (§4: "factory settings, or the saved defaults if the user has any"). Someone who pressed Save as Defaults with the stamp ticked gets it ticked on a new target; nothing stored is migrated, because a saved value cannot be told apart from a choice.
+* **A record without the stamp key** (written before the key existed) is a target with nothing stored for this control and opens on the saved default, else off.
+* The checkbox itself starts unticked when the window is built, and Create Chart's "Restore defaults" unticks it.
+
 ## 5. Scope
 
 **In scope: Create Chart, Measure, Build Profile, Calibration & Profiling.**

@@ -32,7 +32,9 @@ Schema 1::
                 "standout": 61.0 | null},
         "F4":  {"kind": "learned", "like": "A23"},
         "C7":  {"kind": "peer", "with": ["K2", "R9"]},
-        "D2":  {"kind": "corrected", "de": 58.1, "by": "neighbour"}}}
+        "D2":  {"kind": "corrected", "de": 58.1, "by": "neighbour"},
+        "J28": {"kind": "unsettled", "prevs": [120.3],
+                "readings": [{"de": 120.3, "meas_lab": [..]}]}}}
 
 ``corrected`` (Knut, #182 5984277558): a patch that was red and whose live
 re-read fits now, drawn green; the first reading's ΔE and the rule that
@@ -66,6 +68,11 @@ KIND_PEER = "peer"
 #: A misread a re-read corrected (green, Knut #182 5984277558): the first
 #: reading's ΔE and the rule that flagged it. Never a reference.
 KIND_CORRECTED = "corrected"
+#: Read again past the limit, like none of its earlier readings (red, Knut
+#: #182 6045500910): the earlier readings' ΔE past the limit (``prevs``) and
+#: every earlier flagged reading (``readings``: ΔE and measured L*a*b*), so it
+#: is red again when opened and a later re-read is compared with them.
+KIND_UNSETTLED = "unsettled"
 
 MODE_STRIP = "strip"
 MODE_PATCH = "patch"
@@ -111,6 +118,23 @@ def _clean_entry(entry: dict) -> "dict | None":
             return None
         by = "neighbour" if entry.get("by") == "neighbour" else "limit"
         return {"kind": KIND_CORRECTED, "de": round(de, 2), "by": by}
+    if kind == KIND_UNSETTLED:
+        try:
+            prevs = [round(float(x), 2) for x in entry.get("prevs") or ()]
+            readings = []
+            for r in entry.get("readings") or ():
+                lab = [round(float(x), 4) for x in r["meas_lab"][:3]]
+                de = round(float(r["de"]), 2)
+                if len(lab) != 3 or any(v != v or abs(v) == float("inf")
+                                        for v in lab + [de]):
+                    return None
+                readings.append({"de": de, "meas_lab": lab})
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not prevs or not readings or any(
+                v != v or abs(v) == float("inf") for v in prevs):
+            return None
+        return {"kind": KIND_UNSETTLED, "prevs": prevs, "readings": readings}
     if kind != KIND_CONFIRMED:
         return None
 

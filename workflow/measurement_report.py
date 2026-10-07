@@ -219,6 +219,22 @@ PAPER_WHITE_CHART_RELATIVE = "chart_relative"
 PAPER_WHITE_FROM_PROFILE = "profile"
 PAPER_WHITE_UNAVAILABLE = "unavailable"
 PAPER_WHITE_NOT_USED = "not_used"
+#: Beta 12 (Knut, #182 6045500910): the ``why`` of a paper white used because
+#: a sheet printed through its profile is judged against the colours it was
+#: converted FROM (``reference_source == "source"``), media-relative for a
+#: white-mapping intent, read the way ArgyllCMS relates absolute to relative
+#: colorimetry (Bradford, :func:`media_relative_xyz`).
+PAPER_WHITE_SOURCE_RELATIVE = "source_relative"
+
+#: THE REFERENCE OF A SHEET PRINTED THROUGH ITS PROFILE (Knut, #182
+#: 6045500910, answer 1, "OK" to question 1 of 6044584365). Its colour
+#: fidelity is judged against the colour the conversion really aimed at: the
+#: chart's RGB through the SOURCE PROFILE the print record names (sRGB.icm),
+#: in the print's intent. Until beta 12 it was the ``.ti2``'s design XYZ,
+#: which is ArgyllCMS targen's own sRGB model (black at L* 9 where sRGB.icm
+#: has L* 0): up to ΔE00 6.9 from the true aim, every one of Basti's worst
+#: "within gamut" patches a dark colour.
+REFERENCE_SOURCE_PROFILE = "source"
 
 
 def paper_corner_ids(cref: "dict | None") -> "list[str]":
@@ -1445,6 +1461,153 @@ def created_stamp_for(ti3_path: str | Path, *,
         return datetime.now().isoformat(timespec="seconds")
 
 
+def source_reference(printing: "dict | None", data, rgb100, lab,
+                     argyll_bin, ti3_path: "Path | None" = None):
+    """``(aims, record, paper_xyz)`` for a sheet ChromIQ printed THROUGH its
+    profile, or None when it was not, or the source cannot be read.
+
+    *aims*: ``{sample_id: Lab}``, the chart's RGB through the source profile
+    the print record names (the conversion's own first leg), in the print's
+    intent: absolute for an absolute print, else relative. *record*: what the
+    report keeps (``profile``, ``intent``). *paper_xyz*: the sheet's paper
+    patch reading the measurement is read relative to, or None for an
+    absolute print. A white-mapping print without a paper patch is left to
+    the older rule (None), which falls back to the profile's paper white.
+    Knut, #182 6045500910.
+    """
+    from workflow.verification_print import (COLOUR_THROUGH, ROUTE_CHROMIQ,
+                                             recorded_source_profile)
+    if not printing or rgb100 is None or not argyll_bin:
+        return None
+    if (printing.get("colour") != COLOUR_THROUGH
+            or printing.get("route") != ROUTE_CHROMIQ):
+        return None
+    # the recorded source, else the same file by name here (recorded on
+    # another computer); the profile's prediction uses the same rule. A
+    # record that names none keeps the design reference, as before.
+    if not printing.get("source_profile"):
+        return None
+    src = recorded_source_profile(printing.get("source_profile"), argyll_bin)
+    if not src:
+        return None
+    absolute = str(printing.get("intent") or "relative") == "absolute"
+    paper = None
+    if not absolute:
+        _wi = paper_white_row(lab, rgb100)
+        if _wi is None:
+            return None
+        paper = np.asarray(data.xyz[_wi], dtype=float)
+        if float(paper.min()) <= 0.0:
+            return None
+    try:
+        from workflow.xicclu_runner import forward_lab
+        labs = forward_lab([tuple(float(v) for v in r) for r in rgb100],
+                           src, argyll_bin, intent="a" if absolute else "r")
+    except Exception as exc:      # noqa: BLE001 — degrade to the older rule
+        log.debug("source reference skipped: %s", exc)
+        return None
+    if len(labs) != len(data.sample_ids):
+        return None
+    aims = {sid: tuple(float(v) for v in l[:3])
+            for sid, l in zip(data.sample_ids, labs)}
+    return (aims, {"profile": Path(src).name,
+                   "intent": "absolute" if absolute else "relative"}, paper)
+
+
+def profile_accuracy_block(ti3_path: Path, ti2: Path, data,
+                           source: dict, corner_ids, argyll_bin) -> dict:
+    """PROFILE ACCURACY of a sheet printed through its profile (Knut, #182
+    6045500910): every patch against the run profile's own prediction of the
+    ink values that were really sent (the live check's chain,
+    ``verify_expected``), in the yardstick the sheet is judged in (relative
+    to its paper patch for a white-mapping intent, Bradford; absolute for an
+    absolute print). Fair to every patch, in gamut or not, so it is not
+    split. ``{"profile", "intent", "de00"}``, or ``{"reason"}`` when the
+    prediction cannot be had (the profile changed since the print, another
+    light, a calibration that cannot be read again)."""
+    from core.file_manager import Run, VERIFICATIONS_DIRNAME
+    from workflow.verify_expected import report_prediction
+    absolute = (source or {}).get("intent") == "absolute"
+    try:
+        d = Path(ti3_path).parent
+        run_dir = (d.parent.parent if d.parent.name == VERIFICATIONS_DIRNAME
+                   else d.parent)
+        run = Run.for_dir(run_dir)
+        pred = report_prediction(ti2, ti3_path, run, bin_dir=argyll_bin,
+                                 intent="a" if absolute else "r")
+    except Exception as exc:      # noqa: BLE001
+        return {"reason": f"the prediction failed: {exc}"}
+    if not pred.is_prediction:
+        return {"reason": pred.reason}
+    lab_m = None
+    if absolute:
+        lab_m = [xyz_to_lab(tuple(float(v) / 100.0 for v in x))
+                 for x in data.xyz]
+    else:
+        rgb100 = (_rgb_to_0_100(np.asarray(data.rgb, dtype=float))
+                  if data.rgb is not None and len(data.rgb) else None)
+        lab_abs = [xyz_to_lab(tuple(float(v) / 100.0 for v in x))
+                   for x in data.xyz]
+        wi = paper_white_row(lab_abs, rgb100)
+        if wi is None:
+            return {"reason": "the sheet has no paper patch"}
+        paper = np.asarray(data.xyz[wi], dtype=float)
+        lab_m = [xyz_to_lab(tuple(np.asarray(media_relative_xyz(x, paper))
+                                  / 100.0)) for x in data.xyz]
+    locs = list(data.sample_locs) if data.sample_locs else list(data.sample_ids)
+    des = []
+    for i, sid in enumerate(data.sample_ids):
+        if sid in (corner_ids or ()):
+            continue
+        p = pred.expected_for(str(locs[i]))
+        if p is None:
+            continue
+        des.append(ciede2000(tuple(lab_m[i]),
+                             xyz_to_lab(tuple(float(v) / 100.0 for v in p))))
+    if not des:
+        return {"reason": "no patch of the sheet has a prediction"}
+    name = ""
+    try:
+        name = pred.reason.rsplit("profile ", 1)[-1]
+    except Exception:      # noqa: BLE001
+        pass
+    return {"profile": name, "intent": "absolute" if absolute else "relative",
+            "de00": _stats(des)}
+
+
+def profile_accuracy_verdict(report: dict, limits) -> "dict | None":
+    """The PROFILE ACCURACY figures judged with the same limits as the five
+    colour-accuracy rows (Knut 6045500910: "judge the profile's accuracy
+    against its own prediction"). ``{"rows": [{"row_id", "key", "value",
+    "threshold", "word"}], "all_pass"}``, or None on a sheet without them.
+    Its own words: they do not change the sheet's overall word, which the
+    colour-fidelity rows give (a question for Knut, §58 of
+    measurement_report_limits.md)."""
+    from workflow.compliance_sets import FAIL, PASS, ROWS, Limit, row_verdict
+    de = ((report or {}).get("profile_accuracy") or {}).get("de00")
+    if not de:
+        return None
+    keys = {k for k, _w in ACCURACY_METRICS}
+    rows = []
+    for r in ROWS:
+        if r.metric_key not in keys:
+            continue
+        lim = (limits or {}).get(r.id)
+        if lim is None or not isinstance(lim, Limit):
+            lim = Limit.none()
+        value = de.get(r.metric_key)
+        word = row_verdict(lim, value, True)
+        if word is None:
+            continue
+        rows.append({"row_id": r.id, "key": r.metric_key, "value": value,
+                     "threshold": lim.number if lim.is_numeric else None,
+                     "word": word})
+    judged = [r for r in rows if r["word"] in (PASS, FAIL)]
+    return {"rows": rows,
+            "all_pass": (all(r["word"] == PASS for r in judged)
+                         if judged else None)}
+
+
 def build_report(ti3_path: str | Path, worst_n: int = 16,
                  argyll_bin: "str | Path | None" = None, *,
                  at: "str | Path | None" = None) -> dict:
@@ -1625,6 +1788,26 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     #: #182 E8: the aims EVENNESS compares the absolute readings with. The
     #: ΔE00 aims as they are, unless the sheet is read media-relative below.
     evenness_ref = None
+    #: Beta 12 (Knut 6045500910): a sheet printed THROUGH its profile is
+    #: judged against the colours it was converted from, not the chart's
+    #: design (see REFERENCE_SOURCE_PROFILE). Read media-relative to its own
+    #: paper patch for a white-mapping intent, by ArgyllCMS's Bradford.
+    _src = None
+    if ref_source == "design" and printing and argyll_bin:
+        _src = source_reference(printing, data, rgb100, lab, argyll_bin,
+                                ti3_path)
+    if _src is not None:
+        ref, report["source_reference"], _sw = _src
+        ref_source = REFERENCE_SOURCE_PROFILE
+        report["reference_source"] = ref_source
+        if _sw is not None:
+            lab = [xyz_to_lab(tuple(np.asarray(media_relative_xyz(
+                x, _sw)) / 100.0)) for x in data.xyz]
+            report["yardstick"] = "media-relative"
+            report["paper_white_used"] = {
+                "from": PAPER_WHITE_FROM_SHEET,
+                "why": PAPER_WHITE_SOURCE_RELATIVE}
+            evenness_ref = aims_on_the_paper(ref, _sw, bradford=True)
     #: K51-D: the aims the cube-corner table reads, kept before a
     #: media-relative chart moves its paper corners to white (below).
     _corner_ref = ref
@@ -1756,7 +1939,8 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
             # record names one that still exists, else the run's own built
             # profile — the only honest judge of "could this colour be
             # reached" for raw and unrecorded sheets.
-            if ref_source == "design" and argyll_bin:
+            if ref_source in ("design", REFERENCE_SOURCE_PROFILE) \
+                    and argyll_bin:
                 try:
                     referee = None
                     if printing and printing.get("profile_path"):
@@ -1777,9 +1961,16 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                                                            flags_in_gamut)
                         ref_labs = [tuple(ref[data.sample_ids[i]])
                                     for _d, i in des]
+                        # THE PRINT'S OWN INTENT for a sheet judged against
+                        # its source (Knut 6045500910): a relative print is
+                        # judged relative, so near-white colours are not
+                        # "beyond the gamut" for the paper's own tint.
+                        # Absolute for everything else, as before.
+                        _gi = ((report.get("source_reference") or {})
+                               .get("intent") or "absolute")
                         flags = flags_in_gamut(ref_labs, referee, argyll_bin,
                                                margin=MARGIN_SAFE,
-                                               intent="absolute")
+                                               intent=_gi)
                         d_in = [d for (d, _i), f in zip(des, flags) if f]
                         # the same split, by patch, for the evenness rows:
                         # where the words judge the within-gamut figures,
@@ -1790,6 +1981,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                         report["gamut_split"] = {
                             "profile": referee.name,
                             "margin": MARGIN_SAFE,
+                            "intent": _gi,
                             "n_in": len(d_in),
                             "n_out": len(d_out),
                             "de00_in": _stats(d_in) if d_in else None,
@@ -1797,6 +1989,10 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                         }
                 except Exception as exc:      # noqa: BLE001 — degrade, never fail
                     log.debug("gamut split skipped: %s", exc)
+            if ref_source == REFERENCE_SOURCE_PROFILE:
+                report["profile_accuracy"] = profile_accuracy_block(
+                    ti3_path, ref_ti2, data, report["source_reference"],
+                    corner_ids, argyll_bin)
             worst = sorted(des, key=lambda t: -t[0])[:worst_n]
             report["worst_patches"] = [{
                 "loc": data.sample_locs[i] if data.sample_locs else data.sample_ids[i],
@@ -4537,6 +4733,12 @@ def stamp_verdict(report: dict, limits_or_avg, max_thr: "float | None" = None,
                     "not_computed": summary.not_computed,
                     "reason": summary.reason},
     }
+    # Beta 12 (Knut 6045500910): a sheet printed through its profile also
+    # has its profile's accuracy judged, with the same limits. Only there:
+    # every other report's verdict block is exactly what it was.
+    _pa = profile_accuracy_verdict(report, limits)
+    if _pa is not None:
+        report["verdict"]["profile_accuracy"] = _pa
     return report
 
 

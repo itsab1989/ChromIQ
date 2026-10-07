@@ -489,7 +489,8 @@ def test_one_device_patch_is_one_range_whatever_its_expected_colour():
     """While the chart's map is set, the expected colour never decides the
     range: a patch is its device range whatever expected colour it carries,
     and a location the chart does not hold has no range (never learns)."""
-    j = pf.FlagJudge(white=D65, device_ranges={"P1": "blue", "X1": "blue",
+    j = pf.FlagJudge(white=D65, device_ranges={"P1": "blue", "P2": "blue",
+                                               "X1": "blue",
                                                "X2": "blue", "X3": "blue"})
     green, purple = _lch(60, 50, 150), _lch(40, 60, 318)
     for e in (green, purple, BLUES[0]):
@@ -499,7 +500,10 @@ def test_one_device_patch_is_one_range_whatever_its_expected_colour():
     for n, e in enumerate(BLUES, 1):
         _confirm(j, f"X{n}", e)
     # a purple expected colour of a device-blue patch learns from the blues
-    assert j.judge("P1", purple, _m(purple), 32.4, True).flag == pf.FLAG_LEARNED
+    # (a patch not read before: P1's own earlier purple reading would confirm
+    # it instead, since beta 12 compares a re-read with every earlier reading,
+    # Knut #182 6045500910)
+    assert j.judge("P2", purple, _m(purple), 32.4, True).flag == pf.FLAG_LEARNED
     # the location the chart does not hold stays red, with no range
     _confirm(j, "Z9", BLUES[0])
     assert j.range_status("") == (0, ())

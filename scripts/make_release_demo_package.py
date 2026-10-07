@@ -431,6 +431,9 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Evenness/run10: the measured noise one notch over and under both of ChromIQ default's limits (B8-1446, retargeted by B8-1476)",
         "Create Chart presets (verification demos): “Which presets can be used for verification?”, Full colour check, Custom ISO 12647-7: R04, R06, R07, R11 and R17 as a 16-bit page prints them (B8-1440, B8-1443, B8-1445)",
     ]),
+    ("§58", "Beta 12: a verification printed through its profile", [
+        "not in the package: a dated verification ChromIQ printed through the run's profile (Print Chart, Colour: through the profile): New report…, detailed data, Generate report: the reference line names the source profile and the intent, the colour-accuracy rows are judged within the gamut tested in that intent, and the Profile accuracy table judges every patch against the profile's prediction. Proved on Basti's ET8550 run1 of 2026-10-06 (tests/data/g_basti_et8550_run1_verify)",
+    ]),
     ("§51", "K62:", [
         "Report-Limits-Evenness/run1, Run type Verification: New report…, ChromIQ default: the evenly printed sheet reads close to zero on both evenness rows, the change across the strips fails the pairwise row first and the one lighter area the from-the-mean row, all with the noise's average share taken out (B8-1476)",
         "Report-Limits-Evenness/run10: the measured noise one notch over and under ChromIQ default's 1.8 and 1.2 (B8-1476)",
@@ -549,6 +552,11 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     # ordinary chart's paper row, approved by Knut in 5845588201.
     "M-REPORT-SOLIDS-PREDICTED": [
         "Report-Limits-Every-Metric/run1: New report…, Contract proof check, ISO 12647-7:2016 values: the two solid rows carry this note",
+    ],
+    # Beta 12 (Knut, #182 6045500910): a sheet printed through its profile
+    # is judged against its source colours and its profile's prediction.
+    "M-REPORT-THROUGH-PROFILE": [
+        "any run's dated verification printed by ChromIQ through the profile (Print Chart, Colour: through the profile): New report…, detailed data, Generate report: the reference line, the colour-accuracy heading and the Profile accuracy table; with the run's profile rebuilt after the print, the line that it could not be worked out. Proved on Basti's ET8550 run1 of 2026-10-06 (not in the package)",
     ],
     "M-REPORT-PAPER-AGAINST-PROFILE": [
         "Report-Limits-Threshold-Series/run1: New report…, Contract proof check, ISO 12647-7:2016 values: the paper row carries this note",

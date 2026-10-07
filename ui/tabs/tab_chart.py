@@ -99,6 +99,12 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+#: "Stamp settings down the right edge" on a target with nothing stored and
+#: no saved defaults: OFF (Knut, #182 6045500910, answer 3: "Yes, stamp
+#: default OFF, and all stored built-in presets shall default have stamp
+#: OFF"; per_target_settings.md §4d). Until beta 12 it was ON.
+STAMP_FACTORY_DEFAULT = False
+
 # How long a chart generate may run before the slow-chart watchdog offers the
 # user a way out. A healthy targen finishes in ~1-2 s; the OFPS-cliff case
 # never finishes. 30 s comfortably clears legitimately large charts (even on
@@ -7312,7 +7318,9 @@ class TabChart(QWidget):
         self._manual_stamp_cmd_check = QCheckBox(
             tr("Stamp settings down the right edge"), self._manual_stamp_cmd_row
         )
-        self._manual_stamp_cmd_check.setChecked(True)
+        # OFF by default (Knut, #182 6045500910 answer 3: "stamp default
+        # OFF"); a target's own record and the saved defaults still decide.
+        self._manual_stamp_cmd_check.setChecked(STAMP_FACTORY_DEFAULT)
         # §2.2, as for the notes above: the stamp choice is recorded in the
         # chart's sidecar and restored over this box on a run change.
         self._manual_stamp_cmd_check.toggled.connect(
@@ -21547,7 +21555,8 @@ class TabChart(QWidget):
             try:
                 self._manual_stamp_cmd_check.setChecked(
                     bool(stored["stamp"]) if "stamp" in stored
-                    else bool(self._settings.get("chart_stamp_commands", True)))
+                    else bool(self._settings.get("chart_stamp_commands",
+                                                 STAMP_FACTORY_DEFAULT)))
             except Exception:      # noqa: BLE001
                 pass
         # "AUTO PATCH COUNT" IS THE TARGET'S OWN (§1.2, B8-1363). An EMPTY
@@ -30137,7 +30146,8 @@ class TabChart(QWidget):
         if hasattr(self, "_manual_chart_notes_edit"):
             self._manual_chart_notes_edit.setText("")
         if hasattr(self, "_manual_stamp_cmd_check"):
-            self._manual_stamp_cmd_check.setChecked(bool(s.get("chart_stamp_commands", True)))
+            self._manual_stamp_cmd_check.setChecked(
+                bool(s.get("chart_stamp_commands", STAMP_FACTORY_DEFAULT)))
         if hasattr(self, "_manual_left_clip_check"):
             self._manual_left_clip_check.setChecked(bool(s.get("chart_left_clip_info", False)))
 
