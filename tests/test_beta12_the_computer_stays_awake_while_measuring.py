@@ -199,3 +199,37 @@ def test_the_real_caffeinate_command_exists_on_macos():
         pytest.skip("macOS only")
     assert shutil.which("caffeinate") or subprocess.os.path.exists(
         "/usr/bin/caffeinate")
+
+
+def test_released_before_the_callers_finish_opens_its_windows(manager,
+                                                              monkeypatch):
+    """Beta-12 review: the Measure tab's finish opens end-of-measurement
+    windows with exec() (no instrument, disconnected, the summary). The
+    hold must already be gone while such a window waits for the user, or a
+    failed read left overnight keeps the display and the Mac awake."""
+    m, rec = manager
+    got = {}
+    monkeypatch.setattr(type(m), "start", _wrap(
+        lambda self, p, l, f: got.setdefault("finish", f)))
+    seen = []
+
+    def finish(code):
+        seen.append(list(rec.events))      # what was held while it ran
+    m.start(object(), lambda _l: None, finish)
+    got["finish"](1)
+    assert seen == [["hold", "release"]]
+
+
+def test_a_finish_that_starts_the_next_session_keeps_it_held(manager,
+                                                             monkeypatch):
+    m, rec = manager
+    finishes = []
+    monkeypatch.setattr(type(m), "start", _wrap(
+        lambda self, p, l, f: finishes.append(f)))
+
+    def finish(_code):
+        if len(finishes) == 1:
+            m.start(object(), lambda _l: None, lambda _c: None)
+    m.start(object(), lambda _l: None, finish)
+    finishes[0](0)
+    assert rec.events == ["hold", "release", "hold"]

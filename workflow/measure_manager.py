@@ -260,8 +260,15 @@ def _keeps_the_computer_awake(start):
     Wraps ``MeasureManager.start``: held when the session starts, released by
     the session's own finish, which every ending reaches (done, failed,
     stopped, refused, a reader that never started: ``ArgyllRunner`` calls
-    ``on_finish`` for each), even when the caller's finish raises, and by a
-    start that raises. The app quitting ends it too (atexit, and on macOS
+    ``on_finish`` for each), and by a start that raises.
+
+    RELEASED BEFORE THE CALLER'S FINISH RUNS, not after it (beta-12 review).
+    The Measure tab's finish opens its end-of-measurement windows with
+    ``exec()`` (no instrument, instrument disconnected, the closing summary),
+    and a hold released only after them would keep the display and the Mac
+    awake for as long as such a window waits, all night for a user who walked
+    away from a failed read. A finish that starts the next session at once
+    holds again in that start. The app quitting ends it too (atexit, and on macOS
     caffeinate's ``-w`` on ChromIQ's pid). A decorator, so the session's own
     code (and the tests that read it) stay exactly as they were.
     """
@@ -274,10 +281,8 @@ def _keeps_the_computer_awake(start):
         guard.hold()
 
         def _finish_and_let_sleep(code: int, _outer=on_finish) -> None:
-            try:
-                _outer(code)
-            finally:
-                guard.release()
+            guard.release()
+            _outer(code)
 
         try:
             return start(self, params, on_line, _finish_and_let_sleep)
