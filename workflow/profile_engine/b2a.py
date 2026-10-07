@@ -2797,7 +2797,7 @@ def smooth_exact(model: ForwardModel, shaped: np.ndarray,
 # boundary distance), so near-neutral highlights and shadows, whose edge is
 # close to the axis, keep a zone of almost nothing.
 A46_TOKEN = "a46-softcorner"
-A46_WIDTH = 0.20            # zone width / boundary chroma (sweep: Findings s4)
+A46_WIDTH = 0.30            # zone width / edge chroma (sweet spot of the sweep, Findings s4)
 A46_MIN_SHIFT = 0.05        # dE76: a clip moved less than this keeps its value
 
 
