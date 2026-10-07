@@ -10,7 +10,8 @@ OptimizeByComputingLinearization) places its CLUT nodes along exactly that
 grey-ramp curve, and once the column was monotone (the reversal used to
 make lcms reject the curve) it ran and put skin up to 11 % wrong. The token
 makes the column monotone with a straight bridge over each reversal zone
-instead (b2a.monotone_bridge), on RGB printers only. ProfileEngineResearch
+instead (b2a.monotone_bridge), on RGB printers only; a Maximum accuracy
+default after the A/B ("no-a36-lcms8-safe" switches it off). ProfileEngineResearch
 Findings/agent36-01-lcms8.md.
 """
 import inspect
@@ -20,7 +21,8 @@ import pytest
 
 from workflow.profile_engine import b2a, gamut_map
 from workflow.profile_engine.builder import (ACCURATE_DEFAULT_TOKENS,
-                                             ENGINE_CANDIDATE_TOKENS)
+                                             ENGINE_CANDIDATE_TOKENS,
+                                             accurate_candidates)
 
 # S1 pessimistic september, perceptual column as int-4 built it (source L*
 # light to dark, target L* from the oracle): a 3 L* reversal at source L*
@@ -29,10 +31,14 @@ _SRC = np.array([75.0, 71.9, 68.8, 65.6, 62.5, 59.4, 56.2, 53.1, 50.0, 46.9])
 _TGT = np.array([81.0, 78.4, 75.4, 73.9, 70.4, 71.9, 73.6, 64.5, 59.7, 55.2])
 
 
-def test_the_token_is_known_and_not_a_default():
+def test_the_token_is_a_default_with_an_off_switch():
+    # Agent 36 A/B (Findings/agent36-01-lcms8.md s5): default since then
     assert b2a.A36_TOKEN == "a36-lcms8-safe"
     assert b2a.A36_TOKEN in ENGINE_CANDIDATE_TOKENS
-    assert b2a.A36_TOKEN not in ACCURATE_DEFAULT_TOKENS
+    assert b2a.A36_TOKEN in ACCURATE_DEFAULT_TOKENS
+    assert "no-a36-lcms8-safe" in ENGINE_CANDIDATE_TOKENS
+    assert b2a.A36_TOKEN in accurate_candidates(frozenset())
+    assert b2a.A36_TOKEN not in accurate_candidates({"no-a36-lcms8-safe"})
 
 
 def test_the_running_minimum_makes_the_plateau_the_bridge_does_not():

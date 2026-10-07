@@ -83,6 +83,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a25-oog", "no-a25-rgbcol", "no-a25-oracle-dev", "no-a25-oracle-neutral",
      "no-a24-s1", "no-a24-f05", "no-a29-oog-darkmono-floor",
      "no-a34-blackseam", "no-a35-percblack-blend", "no-a35-oracle-limit",
+     "no-a36-lcms8-safe",
      "no-b2a33s", "no-rgbpos", "no-v4prm",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
      "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
@@ -167,11 +168,15 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # the build's ink limits; a bug fix). "a35-percblack-deep" stays opt-in
 # (it wins over blend when given). "no-a35-percblack-blend" and
 # "no-a35-oracle-limit" switch them off.
+# Agent 36 verdict (Findings/agent36-01-lcms8.md s5): ON as well:
+# "a36-lcms8-safe" (the RGB perceptual neutral column is made monotone by a
+# bridge, not a running minimum, so no plateau reaches lcms2's 8-bit
+# prelinearisation). "no-a36-lcms8-safe" switches it off.
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
     "a24-s1", "a24-f05", "a29-oog-darkmono-floor", "a34-blackseam",
-    "a35-percblack-blend", "a35-oracle-limit"})
+    "a35-percblack-blend", "a35-oracle-limit", "a36-lcms8-safe"})
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer
