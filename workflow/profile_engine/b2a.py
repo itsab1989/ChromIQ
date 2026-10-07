@@ -2697,10 +2697,17 @@ def smooth_exact(model: ForwardModel, shaped: np.ndarray,
                  node_lab: np.ndarray, *, pernode: np.ndarray, grid: int,
                  keep_out: np.ndarray | None = None, mu: float = A44B_MU,
                  accept: float = A42_ACCEPT, rounds: int = 4,
-                 cg_iters: int = 300):
+                 cg_iters: int = 300, residual: np.ndarray | None = None,
+                 deep_oog: float = 5.0):
     """Research a44b-smoothexact (see the comment above A44B_TOKEN).
     ``shaped``: the B2A CLUT in the model's curve space (after a44's exact
-    keep); 3 output channels only. Returns ``(shaped, info)``."""
+    keep); 3 output channels only. ``residual``: the per-node inversion
+    residual; nodes deep out of gamut (above ``deep_oog``, the refit's own
+    heavy-anchor rule: "their clamp IS the answer") stay where they are
+    unless they lie within two cells of an in-gamut node (the reach of the
+    second-difference stencil). Without this the curvature term moved the
+    deep clips too (sRGB blue: IPT hue error +0.1 to +1.0 deg on all six
+    sets a44b changed). Returns ``(shaped, info)``."""
     n = shaped.shape[1]
     info = {"applied": False}
     if n != 3 or len(node_lab) != grid ** 3:
@@ -2719,6 +2726,18 @@ def smooth_exact(model: ForwardModel, shaped: np.ndarray,
     free = np.ones(len(s), bool)
     if keep_out is not None and len(keep_out):
         free[np.asarray(keep_out, int)] = False
+    if residual is not None:
+        near = ing.reshape((grid,) * 3)
+        for _ in range(2):
+            grown = near.copy()
+            for ax in range(3):
+                a = [slice(None)] * 3
+                b = [slice(None)] * 3
+                a[ax], b[ax] = slice(1, None), slice(None, -1)
+                grown[tuple(a)] |= near[tuple(b)]
+                grown[tuple(b)] |= near[tuple(a)]
+            near = grown
+        free[(np.asarray(residual, float) > deep_oog) & ~near.ravel()] = False
     fm = free[:, None].astype(float)
     h = 1e-3
     eye = np.eye(3)
