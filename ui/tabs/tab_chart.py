@@ -6421,6 +6421,8 @@ class TabChart(QWidget):
         right_layout.setContentsMargins(0, 0, 0, 12)
         right_layout.setSpacing(0)
         self._preview = TiffPreview(right)
+        # beta 12: a run's chart page is shown as it will print
+        self._preview.set_print_preview(True)
         self._preview.set_caption(tr("CHART PREVIEW"))
         right_layout.addWidget(self._preview, stretch=1)
         # ONE SENTENCE UNDER THE PREVIEW when the strip or patch pattern would

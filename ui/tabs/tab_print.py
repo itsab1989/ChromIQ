@@ -733,6 +733,8 @@ class TabPrint(QWidget):
         rl.setContentsMargins(0, 0, 0, 12)
         rl.setSpacing(0)
         self._preview = TiffPreview(right)
+        # beta 12: a run's chart page is shown as it will print
+        self._preview.set_print_preview(True)
         self._preview.set_caption(tr("PRINT PREVIEW"))
         rl.addWidget(self._preview, stretch=1)
         splitter.addWidget(right)
@@ -960,6 +962,9 @@ class TabPrint(QWidget):
         # no-pages condition itself.
         self._cm_notice.setVisible(has_pages and is_verif)
         if not (has_pages and is_verif):
+            # beta 12: no Colour row, so the preview follows the chart's own
+            # printing path (a profiling chart prints raw)
+            self._preview.set_print_preview(True)
             return
 
         state = vp.chart_conversion_state(self._current_ti2)
@@ -1004,6 +1009,11 @@ class TabPrint(QWidget):
                     else tr(_CM_NOTICE_RAW_CHOSEN))
         finally:
             self._updating_cm = False
+        # beta 12 (Knut 6045500910 Q4, Basti 6045468325): the preview shows
+        # the sheet the way the Colour row will print it
+        self._preview.set_print_preview(
+            True, colour=self._cm_selected_colour(),
+            intent=self._cm_selected_intent())
 
     def _profiles_in_other_runs(self, run) -> list[str]:
         """Ids of the project's OTHER runs that hold a built profile.

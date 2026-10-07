@@ -4377,6 +4377,52 @@ M_REPORT_THROUGH_PROFILE = _m(
                _REPORT_PROFILE_ACCURACY_NONE)),
     approved=False)
 
+# --- PROPOSED: the chart preview shows the sheet as it will print (beta 12) -
+#: Knut, #182 6045500910 answer 4: "preview should always look as paper would
+#: look printed, assuming normal printing path"; Basti 6045468325: show the
+#: soft-proofed version and "a little indicator that gives this information
+#: without being a distraction". The behaviour is theirs, the words are ours.
+#: The headline is the indicator over a page shown through the run's profile
+#: (printed raw); line 1 the indicator of a page printed through the profile;
+#: lines 2 to 4 the indicator of a page shown as its device values (no
+#: profile yet, pages carrying the printer calibration, a conversion that
+#: failed). Lines 5 to 9 are the indicator's tooltips, in the same order.
+#: {profile}: the run profile's file name; {source}: the source profile's
+#: file name; {intent}: the print's intent ("relative colorimetric").
+_PREVIEW_AS_PRINTED_RAW = "As on paper, via the run's profile"
+_PREVIEW_AS_PRINTED_THROUGH = "As on paper, printed through the profile"
+_PREVIEW_DEVICE_NO_PROFILE = "Device values, no profile yet"
+_PREVIEW_DEVICE_CALIBRATED = "Device values, calibrated pages"
+_PREVIEW_DEVICE_FAILED = "Device values, profile not applied"
+_PREVIEW_TIP_RAW = (
+    "The preview shows this chart as it prints: the ink amounts in the file, "
+    "as the run's profile {profile} predicts them on paper, with the paper "
+    "shown as white. What is printed does not change.")
+_PREVIEW_TIP_THROUGH = (
+    "The preview shows this chart as it prints through the profile: its "
+    "colours converted from {source} to {profile} ({intent}), as ChromIQ "
+    "converts them when printing, then as the profile predicts them on "
+    "paper, with the paper shown as white. What is printed does not change.")
+_PREVIEW_TIP_NO_PROFILE = (
+    "The preview shows the ink amounts in the file as screen colours, so it "
+    "can look lighter or more colourful than the print. Once this run has a "
+    "profile, the preview shows the chart as it prints.")
+_PREVIEW_TIP_CALIBRATED = (
+    "The pages of this chart carry the printer calibration, which the "
+    "profile does not describe, so the preview shows the ink amounts in the "
+    "file as screen colours.")
+_PREVIEW_TIP_FAILED = (
+    "ArgyllCMS could not convert this page through {profile}, so the "
+    "preview shows the ink amounts in the file as screen colours.")
+M_PREVIEW_AS_PRINTED = _m(
+    "M-PREVIEW-AS-PRINTED",
+    _PREVIEW_AS_PRINTED_RAW,
+    "\n".join((_PREVIEW_AS_PRINTED_THROUGH, _PREVIEW_DEVICE_NO_PROFILE,
+               _PREVIEW_DEVICE_CALIBRATED, _PREVIEW_DEVICE_FAILED,
+               _PREVIEW_TIP_RAW, _PREVIEW_TIP_THROUGH, _PREVIEW_TIP_NO_PROFILE,
+               _PREVIEW_TIP_CALIBRATED, _PREVIEW_TIP_FAILED)),
+    approved=False)
+
 M_REPORT_PAPER_AGAINST_PROFILE = _m(
     "M-REPORT-PAPER-AGAINST-PROFILE",
     "Paper compared with the profile's paper",
@@ -4735,6 +4781,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
     M_REPORT_SOLIDS_PREDICTED, M_REPORT_PAPER_AGAINST_PROFILE,
     M_REPORT_THROUGH_PROFILE,
+    M_PREVIEW_AS_PRINTED,
     M_REPORT_WORKED_OUT_EARLIER, M_REPORT_NOT_WORKED_OUT,
     *K59_TEXTS, M_REPORT_MIXED_OPENING_RUNS,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
