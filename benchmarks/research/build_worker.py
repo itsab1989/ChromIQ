@@ -80,7 +80,8 @@ def build_engine(job: dict) -> dict:
             "log_tail": lines[-6:],
             "model_lines": [ln for ln in lines if "held-out patches of this"
                             in ln or "Gaussian process" in ln
-                            or "Soft gamut corner" in ln]}
+                            or "Soft gamut corner" in ln
+                            or "Cusp clip" in ln]}
 
 
 def build_colprof(job: dict) -> dict:

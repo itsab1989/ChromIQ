@@ -3076,3 +3076,188 @@ def soft_corner(model: ForwardModel, shaped: np.ndarray,
             out[idx]), 0.0, 1.0)) - want, axis=1)
         info["smoothed_miss_p95"] = float(np.percentile(e_s[take], 95))
     return out, info
+
+
+# Research a46b-cuspclip (Agent 46 round 2; Findings/agent46-01 s5, s8). The
+# relative colorimetric clip of an out-of-gamut node, re-aimed: instead of
+# the hue-weighted nearest point (a25-oog), the node T is clipped along the
+# straight line from T to E = (L*cusp(h), 0, 0), the grey-axis point at the
+# lightness of its hue's most colourful printable colour (the "cusp"), to
+# the last printable point on that line (bisection, the build's own gamut
+# test). This is CUSP clipping (Morovic), the direction CIE 156's SGCK uses
+# for its knee: hue is kept exactly (T, E and the clip lie in T's hue plane)
+# and lightness moves toward the cusp, so a dark saturated colour clips
+# lighter and keeps more chroma where the gamut narrows below the cusp.
+# Near the grey axis the direction is meaningless, so the clip blends from
+# the existing one (C* <= A46B_C0) to the cusp clip (C* >= A46B_C0 + A46B_CB)
+# by smoothstep. In-gamut nodes are not touched by the clip; the a46 knee
+# (width A46B_WIDTH) is then applied on top, which rounds the crossing.
+A46B_TOKEN = "a46b-cuspclip"
+A46B_WIDTH = 0.20
+A46B_C0 = 5.0
+A46B_CB = 10.0
+
+
+def cusp_lightness(lab: np.ndarray, bins: int = 180,
+                   smooth: int = 3) -> np.ndarray:
+    """L* of the most colourful colour per hue bin (360 / ``bins`` deg) of a
+    cloud of printable colours, circularly smoothed over 2*``smooth``+1 bins;
+    empty bins are filled from their neighbours."""
+    lab = np.asarray(lab, float)
+    c = np.hypot(lab[:, 1], lab[:, 2])
+    hb = ((np.degrees(np.arctan2(lab[:, 2], lab[:, 1])) % 360.0)
+          / (360.0 / bins)).astype(int) % bins
+    best = np.full(bins, -1.0)
+    lc = np.full(bins, np.nan)
+    order = np.argsort(c)
+    best[hb[order]] = c[order]          # last write per bin = largest C*
+    lc[hb[order]] = lab[order, 0]
+    ok = np.isfinite(lc)
+    if not ok.any():
+        return np.full(bins, 50.0)
+    idx = np.arange(bins)
+    known = idx[ok]
+    lc = np.interp(idx, np.concatenate([known - bins, known, known + bins]),
+                   np.tile(lc[ok], 3))
+    k = np.arange(-smooth, smooth + 1)
+    return np.array([lc[(i + k) % bins].mean() for i in idx])
+
+
+def printable_cloud(model: ForwardModel, *, is_additive: bool,
+                    ink_limit: float | None = None,
+                    channel_max: np.ndarray | None = None,
+                    seed: int = 4646) -> np.ndarray:
+    """Device values on the faces of the device cube (n = 3), or the
+    K = 0 faces of the CMY cube projected onto the total ink limit plus a
+    random fill (n >= 4): where a hue's most colourful colour lies."""
+    n = model.n_channels
+    g = np.linspace(0.0, 1.0, 49)
+    a, b = (x.ravel() for x in np.meshgrid(g, g, indexing="ij"))
+    faces = []
+    for ax in range(3):
+        for v in (0.0, 1.0):
+            x = np.zeros((len(a), n))
+            o = [i for i in range(3) if i != ax]
+            x[:, ax], x[:, o[0]], x[:, o[1]] = v, a, b
+            faces.append(x)
+    d = np.vstack(faces)
+    if n > 3:
+        rng = np.random.default_rng(seed)
+        d = np.vstack([d, rng.random((40000, n))])
+    if not is_additive and ink_limit is not None and n > 3:
+        d = project_tac(d, ink_limit / 100.0)
+    if channel_max is not None:
+        d = np.minimum(d, channel_max[None, :])
+    return d
+
+
+def cusp_clip_targets(node_lab: np.ndarray, prn: np.ndarray,
+                      ingamut: np.ndarray, cusp_l: np.ndarray, inside, *,
+                      keep_out: np.ndarray | None = None,
+                      c0: float = A46B_C0, cb: float = A46B_CB,
+                      bisect: int = 10):
+    """Research a46b-cuspclip, geometry: new clip targets for the
+    out-of-gamut nodes (see the comment above A46B_TOKEN). ``prn``: the
+    table's current print per node; ``cusp_l``: :func:`cusp_lightness`;
+    ``inside(points, node_idx) -> bool``. Returns ``(targets, changed)``."""
+    t = np.asarray(node_lab, float)
+    p = np.asarray(prn, float)
+    tgt = p.copy()
+    c = np.hypot(t[:, 1], t[:, 2])
+    sel = ~np.asarray(ingamut, bool) & (c > c0)
+    if keep_out is not None and len(keep_out):
+        sel[np.asarray(keep_out, int)] = False
+    idx = np.flatnonzero(sel)
+    changed = np.zeros(len(t), bool)
+    if not len(idx):
+        return tgt, changed
+    bins = len(cusp_l)
+    h = np.degrees(np.arctan2(t[idx, 2], t[idx, 1])) % 360.0
+    e = np.zeros((len(idx), 3))
+    e[:, 0] = cusp_l[(h / (360.0 / bins)).astype(int) % bins]
+    # E must be printable (it is, short of a broken model); a node whose E
+    # is not keeps its clip
+    e_ok = np.asarray(inside(e, idx), bool)
+    idx, e = idx[e_ok], e[e_ok]
+    if not len(idx):
+        return tgt, changed
+    lo = np.zeros(len(idx))                  # lam 0 = T (outside)
+    hi = np.ones(len(idx))                   # lam 1 = E (on the grey axis)
+    for _ in range(bisect):
+        mid = 0.5 * (lo + hi)
+        ins = np.asarray(inside(t[idx] + mid[:, None] * (e - t[idx]), idx),
+                         bool)
+        hi = np.where(ins, mid, hi)
+        lo = np.where(ins, lo, mid)
+    pc = t[idx] + hi[:, None] * (e - t[idx])
+    x = np.clip((c[idx] - c0) / cb, 0.0, 1.0)
+    beta = x * x * (3.0 - 2.0 * x)
+    tgt[idx] = (1.0 - beta)[:, None] * p[idx] + beta[:, None] * pc
+    changed[idx] = np.linalg.norm(tgt[idx] - p[idx], axis=1) > A46_MIN_SHIFT
+    tgt[~changed] = p[~changed]
+    return tgt, changed
+
+
+def cusp_clip(model: ForwardModel, shaped: np.ndarray, node_lab: np.ndarray,
+              *, ingamut: np.ndarray, grid: int, cloud_device: np.ndarray,
+              reach, keep_out: np.ndarray | None = None,
+              accept: float = A42_ACCEPT):
+    """Research a46b-cuspclip: re-aim the out-of-gamut nodes of the
+    colorimetric table (curve space) at their cusp clip. ``reach(points,
+    seed_device) -> device``: the build's own per-node inversion seeded from
+    the node (a bare Gauss-Newton from the clip point misses printable points
+    along the line: on Knut it halved the nodes clipped and tripled the sky
+    field's roughness, Findings s8).
+    Moves as a46 does: damped Gauss-Newton from the node's own value, else
+    the gamut test's own device value where that prints closer; on RGB
+    tables the moved nodes are then re-solved as one smooth field. Returns
+    ``(shaped, info)``; nodes not moved come back bit for bit."""
+    have = np.clip(model.unshape_device(np.asarray(shaped, float)), 0.0, 1.0)
+    prn = model.predict(have)
+    cl = cusp_lightness(model.predict(np.asarray(cloud_device, float)))
+    last = {}
+
+    def inside(points, idx):
+        dv = np.clip(np.asarray(reach(points, have[idx]), float), 0.0, 1.0)
+        ok = np.linalg.norm(model.predict(dv) - points, axis=1) <= accept
+        last["dev"], last["ok"] = dv, ok
+        return ok
+
+    tgt, ch = cusp_clip_targets(node_lab, prn, ingamut, cl, inside,
+                                keep_out=keep_out)
+    info = {"nodes": int(ch.sum()), "cusp_l": cl}
+    idx = np.flatnonzero(ch)
+    if not len(idx):
+        return shaped, info
+    want = tgt[idx]
+    s0 = np.asarray(shaped, float)[idx]
+    new = _move_prints(model, s0, want)
+    e_new = np.linalg.norm(model.predict(np.clip(model.unshape_device(new),
+                                                 0.0, 1.0)) - want, axis=1)
+    # where the local move cannot get there (another branch), start from
+    # the gamut test's own solution for the wanted point
+    far = e_new > accept
+    if far.any():
+        dv = np.clip(np.asarray(reach(want[far], have[idx[far]]), float),
+                     0.0, 1.0)
+        alt = _move_prints(model, model.shape_device(dv), want[far])
+        e_alt = np.linalg.norm(model.predict(np.clip(model.unshape_device(
+            alt), 0.0, 1.0)) - want[far], axis=1)
+        better = e_alt < e_new[far]
+        fi = np.flatnonzero(far)[better]
+        new[fi] = alt[better]
+        e_new[fi] = e_alt[better]
+    e_old = np.linalg.norm(prn[idx] - want, axis=1)
+    take = e_new < e_old
+    out = np.asarray(shaped, float).copy()
+    out[idx[take]] = new[take]
+    if out.shape[1] == 3 and take.any():
+        free = np.zeros(len(out), bool)
+        free[idx[take]] = True
+        full = np.zeros((len(out), 3))
+        full[idx] = want
+        out = _smooth_moved(model, out, full, free, grid)
+    info.update(taken=int(take.sum()),
+                miss_p95=float(np.percentile(e_new[take], 95))
+                if take.any() else 0.0)
+    return out, info

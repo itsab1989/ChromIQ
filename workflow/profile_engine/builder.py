@@ -138,7 +138,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a43-shadowdetail", "a43-shadowdetail-width",
      # Agent 46 (D-29): the relative colorimetric table eases off in a
      # narrow zone just inside the gamut edge (soft knee into the clip)
-     "a46-softcorner"})
+     "a46-softcorner",
+     # Agent 46 round 2: the out-of-gamut rel. col. clip aimed at the hue's
+     # cusp lightness (hue kept), with the a46 knee at width 0.2 on top
+     "a46b-cuspclip"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1567,11 +1570,34 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _emit(settings, "Colorimetric table smoothed on its own "
                                 "branches (in-gamut nodes within "
                                 f"{_sx['ingamut_err_p95']:.2f} dE at p95).")
-    if accurate and b2a_mod.A46_TOKEN in candidates and n <= 4:
+    _a46b = accurate and b2a_mod.A46B_TOKEN in candidates and n <= 4
+    if _a46b:
+        # Research a46b-cuspclip: every out-of-gamut node of the colorimetric
+        # table clipped along the line to the grey axis at its hue's cusp
+        # lightness (b2a.py, comment above A46B_TOKEN); then the a46 knee.
+        def _reach46b(points, seed):
+            return b2a_mod.invert_to_device(
+                model, points, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit, seed=seed,
+                k_prior=k_prior_col, accurate=accurate,
+                extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                ucs=use_ucs, channel_max=channel_max)[0]
+        dev_clut_shaped, _cc = b2a_mod.cusp_clip(
+            model, dev_clut_shaped, node_lab,
+            ingamut=residual <= b2a_mod.A42_ACCEPT, grid=b2a_grid,
+            cloud_device=b2a_mod.printable_cloud(
+                model, is_additive=meas.is_additive, ink_limit=ink_limit,
+                channel_max=channel_max),
+            reach=_reach46b, keep_out=fixed_nodes)
+        if _cc.get("taken"):
+            _emit(settings, f"Cusp clip: {_cc['taken']} out-of-gamut nodes "
+                            "clipped toward their hue's cusp lightness.")
+    if accurate and (b2a_mod.A46_TOKEN in candidates or _a46b) and n <= 4:
         # Research a46-softcorner (D-29): exact in gamut except a narrow zone
         # at the gamut edge, where the table bends C1-smoothly into its own
         # clip (b2a.py, comment above A46_TOKEN). Colorimetric table only.
-        _w46 = b2a_mod.A46_WIDTH
+        _w46 = (b2a_mod.A46_WIDTH if b2a_mod.A46_TOKEN in candidates
+                else b2a_mod.A46B_WIDTH)
         if os.environ.get("CHROMIQ_A46_WIDTH"):        # research sweeps only
             _w46 = float(os.environ["CHROMIQ_A46_WIDTH"])
 

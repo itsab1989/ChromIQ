@@ -215,3 +215,48 @@ def test_local_moves_stay_on_their_branch_and_reach_close_targets():
     inside = np.all((_dev(want) >= 0) & (_dev(want) <= 1), axis=1)
     assert np.all(err[inside] < 1e-3)
     assert np.abs(s1 - s0).max() < 0.05
+
+
+# --- a46b-cuspclip ---------------------------------------------------------
+
+def test_the_cusp_token_is_known_and_not_a_default():
+    assert b2a.A46B_TOKEN == "a46b-cuspclip"
+    assert b2a.A46B_TOKEN in ENGINE_CANDIDATE_TOKENS
+    assert b2a.A46B_TOKEN not in ACCURATE_DEFAULT_TOKENS
+    assert b2a.A46B_WIDTH == 0.20
+
+
+def test_cusp_lightness_finds_each_hues_most_colourful_l():
+    h = np.radians(np.arange(0, 360, 1.0))
+    lab = []
+    for L, c in ((30.0, 20.0), (60.0, 50.0), (85.0, 10.0)):
+        lab.append(np.stack([np.full_like(h, L), c * np.cos(h), c * np.sin(h)], 1))
+    cl = b2a.cusp_lightness(np.vstack(lab))
+    assert np.allclose(cl, 60.0)
+
+
+def test_cusp_clip_keeps_hue_aims_at_the_cusp_and_leaves_in_gamut_alone():
+    model = _ToyRgb()
+    node_lab, per, ing = _table(model)
+    prn = model.predict(per)
+    cl = np.full(180, 55.0)
+    tgt, ch = b2a.cusp_clip_targets(node_lab, prn, ing, cl, _inside)
+    assert ch.any() and not (ch & ing).any()
+    assert np.array_equal(tgt[~ch], prn[~ch])
+    i = np.flatnonzero(ch & (np.hypot(node_lab[:, 1], node_lab[:, 2]) >= 15))
+    t, p = node_lab[i], tgt[i]
+    # on the line from T to (55, 0, 0): same hue, and printable (on the edge)
+    ht = np.degrees(np.arctan2(t[:, 2], t[:, 1]))
+    hp = np.degrees(np.arctan2(p[:, 2], p[:, 1]))
+    assert np.abs((hp - ht + 180) % 360 - 180).max() < 1e-6
+    e = np.stack([np.full(len(i), 55.0), 0 * i, 0 * i], 1)
+    lam = np.linalg.norm(p - t, axis=1) / np.linalg.norm(e - t, axis=1)
+    assert np.allclose(t + lam[:, None] * (e - t), p, atol=1e-6)
+    d = _dev(p)
+    assert np.all((d >= -0.01) & (d <= 1.01))
+
+
+def test_the_builder_runs_the_cusp_clip_before_the_knee():
+    src = inspect.getsource(builder._build_profile_impl)
+    i_cc = src.index("b2a_mod.cusp_clip(")
+    assert src.index("b2a_mod.smooth_exact(") < i_cc < src.index("b2a_mod.soft_corner(")
