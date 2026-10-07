@@ -1463,7 +1463,8 @@ def handover_target_ab(target_l: np.ndarray, *, l_top: float,
 
 
 def anchor_column_black(target_l: np.ndarray, source_l: np.ndarray,
-                        black_l: float, fade: float = 25.0) -> np.ndarray:
+                        black_l: float, fade: float = 25.0,
+                        bridge: bool = False) -> np.ndarray:
     """Perceptual column lightness with the SOURCE black on the destination
     black: the darkest source-neutral node's target L* is moved onto
     ``black_l`` and the correction fades out linearly by source L* =
@@ -1479,8 +1480,73 @@ def anchor_column_black(target_l: np.ndarray, source_l: np.ndarray,
     shift = float(black_l) - tl[i0]
     w = np.clip(1.0 - (sl - sl[i0]) / fade, 0.0, 1.0)
     tl = tl + shift * w
+    if bridge:
+        return monotone_bridge(tl, sl)
     order = np.argsort(-sl, kind="stable")             # light to dark
     tl[order] = np.minimum.accumulate(tl[order])
+    return tl
+
+
+# Research token "a36-lcms8-safe" (Agent 36, Findings/agent36-01-lcms8.md).
+# anchor_column_black made the column non-increasing with a running
+# minimum, which turns a reversal of the colprof oracle's perceptual column
+# (S1 pessimistic september: target L* 73.6 at source L* ~56, 70.4 two
+# nodes darker) into a PLATEAU: several source nodes print one L* (70.4
+# from sRGB grey 136 to 152). The plateau is a flat step in every grey
+# gradient, and on an RGB printer it also makes all three device channels
+# flat along the sRGB grey ramp. lcms2 (cmsopt.c
+# OptimizeByComputingLinearization, the default 8-bit RGB -> RGB path)
+# allocates its 33 CLUT nodes per input channel along exactly that grey
+# ramp curve: a flat stretch leaves one CLUT cell spanning 0.15 of the
+# input range, and off-axis colours (skin, sky) go up to 11 % wrong. With
+# the reversal (int-4) lcms rejected the curve as non-monotone and took
+# the accurate resampling path, so the defect appeared once the column
+# became monotone. The bridge removes the reversal without a plateau.
+A36_TOKEN = "a36-lcms8-safe"
+
+
+def monotone_bridge(target_l: np.ndarray, source_l: np.ndarray
+                    ) -> np.ndarray:
+    """Make the column's target L* non-increasing from light to dark
+    (by source L*) without plateaus: every node outside a reversal keeps
+    its value exactly; each reversal zone (the nodes where the running
+    minimum from the light end and the running maximum from the dark end
+    disagree, i.e. where no monotone curve can pass through the targets)
+    is replaced by the straight line in source L* between the two nodes
+    that bound it, which both envelopes agree on. Strictly decreasing
+    wherever the bounding values differ. A zone open at an end of the
+    column falls back to the running minimum (anchor_column_black's rule).
+    No parameter."""
+    tl = np.asarray(target_l, float).copy()
+    sl = np.asarray(source_l, float)
+    n = len(tl)
+    if n < 3:
+        if n:
+            order = np.argsort(-sl, kind="stable")
+            tl[order] = np.minimum.accumulate(tl[order])
+        return tl
+    order = np.argsort(-sl, kind="stable")             # light to dark
+    t = tl[order]
+    s = sl[order]
+    lo = np.minimum.accumulate(t)                      # from the light end
+    hi = np.maximum.accumulate(t[::-1])[::-1]          # from the dark end
+    tol = 1e-9 * max(1.0, float(np.abs(t).max()))
+    bad = (hi - lo) > tol
+    out = lo.copy()
+    k = 0
+    while k < n:
+        if not bad[k]:
+            k += 1
+            continue
+        j = k
+        while j < n and bad[j]:
+            j += 1
+        a, b = k - 1, j                                # bounding nodes
+        if a >= 0 and b < n and s[a] > s[b]:
+            u = (s[a] - s[k:j]) / (s[a] - s[b])
+            out[k:j] = t[a] + (t[b] - t[a]) * u
+        k = j
+    tl[order] = out
     return tl
 
 

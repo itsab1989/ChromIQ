@@ -1385,9 +1385,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                                 "path_dev": np.asarray(_axv["blend_dev"],
                                                        float)}
                 if _bk_l is not None:
+                    # Research Agent 36 (a36-lcms8-safe): on an RGB
+                    # printer the column is made monotone by a bridge, not
+                    # a running minimum, so an oracle reversal leaves no
+                    # plateau (b2a.monotone_bridge; Findings/agent36-01).
                     mapped[_neutral_col, 0] = b2a_mod.anchor_column_black(
                         mapped[_neutral_col, 0], node_lab[_neutral_col, 0],
-                        _bk_l)
+                        _bk_l, bridge=bool(
+                            is_additive and b2a_mod.A36_TOKEN in _cands))
         _odev = (np.clip(mapper.node_dev, 0.0, 1.0)
                  if accurate and getattr(mapper, "node_dev", None) is not None
                  and ({"a25-oracle-dev", "a25-oracle-seed"} & set(_cands))

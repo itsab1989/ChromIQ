@@ -112,7 +112,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # reached by a hand-over band; research only)
      "a35-percblack-blend", "a35-percblack-deep",
      # Agent 35: the colprof oracle runs with the build's ink limits
-     "a35-oracle-limit"})
+     "a35-oracle-limit",
+     # Agent 36: the RGB perceptual column made monotone without plateaus
+     "a36-lcms8-safe"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
