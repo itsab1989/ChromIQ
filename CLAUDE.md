@@ -318,7 +318,10 @@ i did a fresh install of macos."* The suite already cleans up after itself
     baseline; the SessionEnd hook runs `scripts/session_cleanup.py --yes`,
     which deletes ONLY our own tooling's leftovers (chromiq-* and pytest temp,
     driver sandboxes, merged clean agent worktrees, the ending session's own
-    scratch) and reports the change since the baseline;
+    scratch) and reports the change since the baseline. It keeps anything
+    changed in the last 30 minutes or held open by a live process (another
+    session's RUNNING test run lives in a `chromiq-run-*` folder) and lists
+    it as "in use, kept";
   * its guard `is_ours` refuses any path outside those roots and names, even
     if a bug listed it (`tests/test_session_cleanup_never_touches_personal_
     data.py`). Never widen it to build/, dist/, /cores, the Desktop, ~/ChromIQ,

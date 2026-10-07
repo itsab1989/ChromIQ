@@ -233,3 +233,83 @@ def test_a_dry_run_with_an_open_stdin_does_not_wait_for_it():
     finally:
         proc.stdin.close()
     assert rc == 0 and "systemMessage" in proc.stdout.read()
+
+
+# ---- beta 12: another session's RUNNING work is in use, and kept ------------
+#
+# Every test run keeps its temp files in one `chromiq-run-*` folder, and two
+# sessions run tests side by side. Unless a process pattern matched, the
+# cleanup of one session took the other's running folder from under it.
+# Anything changed in the last 30 minutes, or held open by a live process, is
+# now kept and reported "in use, kept".
+
+@pytest.fixture
+def three_folders(monkeypatch):
+    """In the temp root the planner scans: an old idle folder, a fresh one,
+    and an old one this process holds a file open in."""
+    import shutil
+    root = Path(tempfile.gettempdir())
+    made = []
+
+    def mk(name):
+        p = root / name
+        p.mkdir()
+        (p / "f.txt").write_text("x", encoding="utf-8")
+        made.append(p)
+        return p
+
+    idle = mk(f"chromiq-run-idle{os.getpid()}")
+    fresh = mk(f"chromiq-run-fresh{os.getpid()}")
+    held = mk(f"chromiq-run-held{os.getpid()}")
+    _age(idle)
+    _age(held)
+    monkeypatch.setattr(S, "something_running", lambda: [])
+    monkeypatch.setattr(S, "merged_worktrees", lambda: [])
+    # Only these three are ever planned, so a run with --yes below can touch
+    # nothing else on the machine (no real /private/tmp sandbox, no prune).
+    monkeypatch.setattr(S.disk_report, "_rows", lambda: [
+        ("$TMPDIR chromiq-* folders", 3, 0, "", True, [idle, fresh, held])])
+    monkeypatch.setattr(S, "_git", lambda *a: S.subprocess.CompletedProcess(a, 0, "", ""))
+    fh = open(held / "f.txt", encoding="utf-8")
+    try:
+        yield idle, fresh, held
+    finally:
+        fh.close()
+        for p in made:
+            shutil.rmtree(p, ignore_errors=True)
+
+
+def test_a_folder_changed_in_the_last_half_hour_is_in_use(three_folders):
+    import time
+    _idle, fresh, _held = three_folders
+    assert S.in_use(fresh, time.time(), []).startswith("changed ")
+
+
+def test_an_old_folder_a_live_process_holds_open_is_in_use(three_folders):
+    import time
+    idle, _fresh, held = three_folders
+    open_paths = S.held_open_paths()
+    assert S.in_use(held, time.time(), open_paths) == "held open by a live process"
+    assert S.in_use(idle, time.time(), open_paths) == ""
+
+
+def test_the_plan_keeps_what_is_in_use_and_names_it(three_folders):
+    idle, fresh, held = three_folders
+    items, kept = S.plan_and_kept("")
+    planned = {p for _w, p, _s in items}
+    kept_paths = {p: reason for _w, p, reason in kept}
+    assert idle in planned
+    assert fresh not in planned and held not in planned
+    assert kept_paths[fresh].startswith("changed ")
+    assert kept_paths[held] == "held open by a live process"
+
+
+def test_a_run_reports_in_use_kept_and_leaves_them(three_folders, capsys):
+    idle, fresh, held = three_folders
+    S.main(["--yes"])
+    out = capsys.readouterr().out
+    assert "in use, kept (held open by a live process)" in out
+    assert str(held) in out and str(fresh) in out
+    assert "in use, kept" in out.splitlines()[-1]
+    assert fresh.is_dir() and held.is_dir()
+    assert not idle.exists()
