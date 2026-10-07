@@ -2,6 +2,10 @@
 
 ## v4.3.3-beta.12 (unreleased)
 
+### Added
+
+- **The computer stays awake while you measure** (Basti, #182 6015495063). While a measurement is running, neither the display nor the computer goes to sleep, also during long pauses between strips. As soon as the measurement ends, however it ends (finished, failed, stopped, or ChromIQ closed), your normal sleep settings apply again. On macOS ChromIQ uses the system's own caffeinate, tied to ChromIQ so it can never be left running; on Windows the system's execution-state setting; on Linux systemd-inhibit where it is installed.
+
 ### Changed
 
 - **"Strip Read Quickly" allows a little room** (Basti, #182 6001610646). A strip read up to 2 % faster than your instrument's limit (8 ms a patch at 400 ms, about a fifth of a second over a 28-patch strip) no longer brings up the Re-read / Continue window or the slow-down sound; it is reported as close to the limit instead. Basti's strip, 398 ms against 400, was within that. The reading time is measured on the computer's clock between the instrument's ready beep and the strip arriving, and each of those passes through the reading engine and the app's event queue first, so 2 % is about what the clock itself can be off. A strip read faster than that is still warned about exactly as before.

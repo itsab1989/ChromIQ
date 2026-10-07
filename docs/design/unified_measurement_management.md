@@ -7444,3 +7444,13 @@ replay instrument) and on screen.
   window's question: a second alarm waits and is asked when the first is
   answered, and a waiting one is replaced only by a newer alarm about the same
   strip.
+
+## 12. The computer stays awake while a measurement runs (Basti, #182 6015495063, beta 12)
+
+#### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+* **When.** From the moment a measurement session starts (Start Measurement, any reading mode, the engine or stock chartread) until it ends, however it ends: all read, failed, stopped, refused before the instrument was asked anything, or the app quitting. Neither the display nor the system goes to sleep in between; the lid closing still sleeps a laptop.
+* **How.** macOS: `caffeinate -d -i -w <ChromIQ's pid>`, which ends by itself with ChromIQ, so no assertion is ever left behind (`pmset -g assertions` shows it while it is held). Windows: `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)`, cleared with `ES_CONTINUOUS`. Linux: `systemd-inhibit --what=idle:sleep` where it exists, otherwise nothing. A failure is logged and never stops a measurement. `core/keep_awake.py`, held by `MeasureManager.start`.
+* **No window, no setting.** Nothing is shown; it is not optional. Reading a single patch (spotread) does not hold it.

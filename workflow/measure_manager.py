@@ -253,6 +253,40 @@ def _strip_order_of(cl, label: str) -> int:
     return letter_to_idx(letters) if letters else -1
 
 
+def _keeps_the_computer_awake(start):
+    """Keep the computer awake for as long as a measurement session runs
+    (Basti, #182 6015495063; ``core/keep_awake.py``).
+
+    Wraps ``MeasureManager.start``: held when the session starts, released by
+    the session's own finish, which every ending reaches (done, failed,
+    stopped, refused, a reader that never started: ``ArgyllRunner`` calls
+    ``on_finish`` for each), even when the caller's finish raises, and by a
+    start that raises. The app quitting ends it too (atexit, and on macOS
+    caffeinate's ``-w`` on ChromIQ's pid). A decorator, so the session's own
+    code (and the tests that read it) stay exactly as they were.
+    """
+    import functools
+
+    @functools.wraps(start)
+    def wrapper(self, params, on_line, on_finish):
+        from core import keep_awake as _ka
+        guard = _ka.keep_awake
+        guard.hold()
+
+        def _finish_and_let_sleep(code: int, _outer=on_finish) -> None:
+            try:
+                _outer(code)
+            finally:
+                guard.release()
+
+        try:
+            return start(self, params, on_line, _finish_and_let_sleep)
+        except BaseException:
+            guard.release()
+            raise
+    return wrapper
+
+
 class MeasureManager(QObject):
     stripe_changed         = pyqtSignal(str)  # emits strip ID string e.g. "A01"
     all_stripes_done       = pyqtSignal()    # emitted when chartread reports all rows read
@@ -545,6 +579,7 @@ class MeasureManager(QObject):
     def _strip_order(self, label: str) -> int:
         return _strip_order_of(getattr(self, "_labels", None), label)
 
+    @_keeps_the_computer_awake
     def start(
         self,
         params: MeasureParams,

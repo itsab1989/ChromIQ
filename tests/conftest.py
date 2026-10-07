@@ -1666,6 +1666,9 @@ def _keep_child_processes_off_the_network() -> None:
 def pytest_configure(config):
     import tempfile
 
+    # A measurement keeps the computer awake (core/keep_awake.py). A test run
+    # starts many, with fakes; none of them may hold Basti's Mac awake.
+    os.environ["CHROMIQ_NO_KEEP_AWAKE"] = "1"
     _enter_the_run_temp(config)
     _enforce_the_helper(config)
     # as main() does: every Argyll tool and helper a test starts skips the
