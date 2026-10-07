@@ -4654,6 +4654,15 @@ def is_drift_check(report: dict) -> bool:
                 and (report.get("printing") or {}).get("colour") == "raw")
 
 
+def no_patch_in_gamut(report: dict) -> bool:
+    """True for a sheet split by the profile's gamut with every patch beyond
+    it: the split was made, and nothing landed inside (B3d, §26.4)."""
+    split = (report or {}).get("gamut_split")
+    if not isinstance(split, dict) or split.get("de00_in"):
+        return False
+    return not split.get("n_in") and bool(split.get("n_out"))
+
+
 def graded_de00(report: dict) -> "tuple[dict, str]":
     """``(the delta-E block the verdict is passed on, its source name)``.
 
@@ -4663,9 +4672,16 @@ def graded_de00(report: dict) -> "tuple[dict, str]":
     Runs without a split are judged on all patches.
     """
     report = report or {}
-    d_in = (report.get("gamut_split") or {}).get("de00_in")
+    split = report.get("gamut_split") or {}
+    d_in = split.get("de00_in")
     if d_in:
         return dict(d_in), VERDICT_SOURCE_IN_GAMUT
+    if no_patch_in_gamut(report):
+        # B3d / §26.4 (beta 12 review): a sheet split by the gamut with NO
+        # patch inside it has no figure to judge. Falling through to the
+        # all-patch block judged the colours beyond the gamut, which never
+        # fail a limit; the rows read "no patch inside the gamut" instead.
+        return {}, VERDICT_SOURCE_IN_GAMUT
     de = report.get("de00")
     if de:
         return dict(de), VERDICT_SOURCE_ALL
@@ -5225,9 +5241,13 @@ REASON_SOLIDS_PRINTING_UNRECORDED = "solids_printing_unrecorded"
 #: asks before anything is printed, of a chart whose run has a profile, and
 #: models a verification printed through it (`preset_eligibility`), so it
 #: can never meet them and does not classify them.
+#: Beta 12 (B3d, §26.4): a sheet split by the profile's gamut with no patch
+#: inside it. Its within-gamut rows have nothing to judge, and the patches
+#: beyond the gamut never fail a limit, so the rows say so instead.
+REASON_NO_PATCH_IN_GAMUT = "no_patch_in_gamut"
 AFTER_PRINTING_REASONS: "tuple[str, ...]" = (
     REASON_NO_PROFILE_TO_COMPARE, REASON_SOLIDS_THROUGH_PROFILE,
-    REASON_SOLIDS_PRINTING_UNRECORDED)
+    REASON_SOLIDS_PRINTING_UNRECORDED, REASON_NO_PATCH_IN_GAMUT)
 REASON_NO_RAMP = "no_ramp"
 #: K31 rule A: a ramp with enough steps spanning enough of the band, whose
 #: steps are bunched (`RAMP_SPACING_TOL`). Its own code, because "no tone ramp
@@ -6903,6 +6923,10 @@ def row_values(report: dict) -> "dict[str, dict]":
         for r in ROWS:
             if r.metric_key:
                 put(r.id, None, REASON_NO_REFERENCE)
+    elif no_patch_in_gamut(report):
+        for r in ROWS:
+            if r.metric_key:
+                put(r.id, None, REASON_NO_PATCH_IN_GAMUT)
     else:
         for r in ROWS:
             if not r.metric_key:
@@ -7141,6 +7165,9 @@ def row_values(report: dict) -> "dict[str, dict]":
                    for p in ev.get("pages_uncovered") or ()]
                 + [["unmeasured", int(p), None]
                    for p in ev.get("pages_unmeasured") or ()])
+        elif no_patch_in_gamut(report) and ev.get("population") == "in_gamut":
+            # judged on the within-gamut patches, and there are none (B3d)
+            put(rid, None, REASON_NO_PATCH_IN_GAMUT)
         else:
             put(rid, None, ev.get("reason") or REASON_EVENNESS_NO_LAYOUT)
 

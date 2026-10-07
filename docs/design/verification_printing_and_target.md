@@ -928,6 +928,7 @@ Measured on Basti's ET8550 run1 verification of 2026-10-06 (616 patches, relativ
 | B3j | the verdict | the sheet's overall word stays the colour-fidelity rows' (in gamut, as before); profile accuracy carries its own five words and does not change it. **A question for Knut**: should a failed profile accuracy fail the sheet? | `stamp_verdict` |
 | B3k | everything else on the sheet that reads the aims (worst patches, the sixteen colours, cube corners, grey and tone rows, evenness) | reads the source aims too, in the same yardstick | `build_report` |
 | B3l | the words | M-REPORT-THROUGH-PROFILE (§M-PROPOSED of the UMM) | `measurement_report_dialog` |
+| B3m | the gamut split leaves **no patch inside the gamut** (beta 12 review) | the within-gamut rows (the five colour-accuracy rows and the two evenness rows) read N-A with the reason "no patch of the measured chart lies inside the profile's gamut, and the patches beyond it are never judged against a limit" (`no_patch_in_gamut`). Before, the verdict fell back to every patch, so the colours beyond the gamut failed limits against B3d. Any sheet with a split, not only a through-profile one (§26.4) | `measurement_report.graded_de00`, `no_patch_in_gamut`, `row_values` |
 
 ### 3.5 The live expected colour while a verification sheet is measured (#182, 2026-10-03)
 
