@@ -133,30 +133,39 @@ def _bump(p: Path):
     os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
 
 
-def test_a_rebuilt_profile_or_page_deletes_the_render_it_replaces(
-        tmp_path, fake_bin):
+def test_a_rebuilt_profile_or_page_leaves_nothing_on_disk(
+        tmp_path, fake_bin, monkeypatch):
+    """Beta-12 review B deleted a superseded render at once; build C (Basti,
+    2026-10-08) writes none at all: the soft-proof is made in memory and the
+    only files are cctiff's two small ones, gone when the call returns."""
+    import tempfile
+    seen = tmp_path / "temp"
+    seen.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(seen))
     tif = _profiling_page(tmp_path)
     plan = PP.plan_for_page(tif)
     first = PP.softproof_page(tif, plan, fake_bin, runner=_copying_runner)
     _bump(plan.profile)                                  # profile rebuilt
     second = PP.softproof_page(tif, plan, fake_bin, runner=_copying_runner)
-    assert second != first and second.is_file()
-    assert not first.exists(), "the old profile's render was left on disk"
     _bump(tif)                                           # chart generated again
     third = PP.softproof_page(tif, plan, fake_bin, runner=_copying_runner)
-    assert third.is_file() and not second.exists()
-    assert len(PP._cache) == 1
+    assert all(a is not None and a.shape == (8, 8, 3)
+               for a in (first, second, third))
+    assert list(seen.iterdir()) == [], "a preview file was left on disk"
+    # the older profile's colour table is let go, not kept beside the new one
+    assert len(PP._tables) == 1
 
 
 def test_another_way_of_showing_the_same_page_is_kept(tmp_path, fake_bin):
     """Toggling Raw / Through in the Print tab must not throw away the other
-    render: both are current."""
+    render: both chains keep their colours."""
     tif = _profiling_page(tmp_path)
     plan = PP.plan_for_page(tif)
     a = PP.softproof_page(tif, plan, fake_bin, runner=_copying_runner)
     other = PP.PreviewPlan(PP.KIND_RAW, profile=plan.profile, intent="x")
     b = PP.softproof_page(tif, other, fake_bin, runner=_copying_runner)
-    assert a.is_file() and b.is_file() and a != b
+    assert a is not None and b is not None
+    assert len(PP._tables) == 2
 
 
 # ------------------------------------- 3. a tool's bad moment is not certified

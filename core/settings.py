@@ -431,6 +431,12 @@ DEFAULTS: dict[str, Any] = {
     "margin_guides_show":        False,   # dotted threshold guide lines on preview
     "margin_measured_guides_show": False,  # long dotted lines at the measured margins
     "margin_coords_show":         False,   # cross-hair + paper-mm/inch readout on pointer (#29)
+    # Beta 12 (Basti, 2026-10-08): the chart preview of Create Chart, Print
+    # Chart and Measure shows a run's page as on paper (soft-proofed through
+    # the run's profile); True shows the device values instead. One choice for
+    # the whole app, not per target, switched by the preview's indicator or
+    # Ctrl+Y / Cmd+Y. Nothing printed depends on it.
+    "preview_show_device_values": False,
     # Ruler helper markers (#152, Knut): short dashes printed along all four
     # page edges so a ruler can be laid on the sheet while measuring. These are
     # printed into the chart, not a preview overlay.

@@ -1010,11 +1010,27 @@ Which way a verification chart prints (P4/P5): in the **Print Chart** tab the Co
 
 The screen end is relative colorimetric into ArgyllCMS's `sRGB.icm`, as the CMYK preview's "True colours" render already is: the paper is shown as the screen's white. **Our choice, a question for Knut**: should the preview also show the paper's own tone (absolute colorimetric), which would also make the white margins of the page read as the paper rather than as white?
 
-Each page is soft-proofed once per session and kept, keyed by the page, the profile (path, modification time and size) and the chain; a failure is remembered too. Nothing that is printed changes: the print path never reads the preview's files.
+Each page is soft-proofed once per session and kept, keyed by the page, the profile (path, modification time and size) and the chain; a failure is remembered too. Nothing that is printed changes: the print path never reads the preview's files. (Since build C of beta 12 there are no preview files: see S5 below.)
 
 Measured on a copy of Basti's ET8550 project (relative L* of the inked pixels, as shown on screen): run2's FROM PROFILE GAMUT verification chart, printed raw, 59.1 as device values, 53.6 as it prints (5.5 L* lighter as device values, 20.5 at the 95th percentile); the profiling charts, 53.5 against 47.0; run1's verification chart, printed through the profile, 53.5 against 53.3 (the conversion aims at the sRGB colours the page holds; colours beyond the gamut differ, 6.7 at the 95th percentile).
 
 Built in `workflow/print_preview.py` (`plan_for_page`, `softproof_page`), `ui/tiff_preview.py` (`set_print_preview`, `_as_it_will_print`, the indicator in `_update_render_badge`), and the three tabs (`tab_chart`, `tab_print`, which passes its Colour row, `tab_measure`). Verified by `tests/test_beta12_b_preview_as_it_will_print.py`.
+
+#### ⏳ Awaiting confirmation: the indicator is a switch (Basti, 2026-10-08, beta 12 build C)
+
+**Confirmed by:** *nobody yet.*
+
+Basti asked for this on 2026-10-08. It adds a user's choice to 3.7 and leaves its confirmed default alone: the preview still opens as the paper will look, and only a user who asks sees the device values.
+
+| # | What | How it behaves |
+|---|---|---|
+| S1 | the indicator | collapsed it is only an icon in the preview's top right corner: a paper sheet with a folded corner (as on paper) or a small screen (device values), drawn on an opaque pill of the appearance's own ground (light in Light and Neutral, dark in Dark); quiet and neutral: the short line and the click hint in the theme's greys (at least 4.5:1 on the pill), the icon alone in the CURRENT TAB's own accent (Create Chart, Print Chart, Measure), muted to at least 3:1 and the same in both views, ACTION in Neutral; the view is told apart by the icon's shape and the words, never by a colour (Basti, 2026-10-08, review C); on hover it slides open to the LEFT in about 170 ms (OutCubic) to its short line and what a click does, and closes when the pointer leaves; it floats over the image, so the preview does not move; with macOS "Reduce motion" (or Windows' animations off) it opens and closes at once |
+| S2 | a click, Space or Enter on it, or ⌘Y / Ctrl+Y in the main window | switches between as on paper and device values; the same choice in Create Chart, Print Chart and Measure, remembered app-wide (AppSettings `preview_show_device_values`, not per target); nothing printed reads it |
+| S3 | a page with no view on paper (P1, P6, P7) | the screen icon with that row's text and explanation; a click and the shortcut do nothing, and the tooltip says so |
+| S4 | the keyboard | the indicator takes Tab focus, shows a focus ring and opens while it has keyboard focus; it is a button to a screen reader (VoiceOver, Narrator), its accessible name is its short line and its description the tooltip. Open, it never runs past the image area's left edge: where the line does not fit, the click hint is left out, then the short line is shortened with an ellipsis. ⌘Y / Ctrl+Y is a window shortcut of the main window, so the chart layout editor (its own window) keeps Ctrl+Y as Redo while it is in front; the shortcut is listed in the Keyboard shortcuts card |
+| S5 | speed and files | the soft-proof is made in memory: cctiff is asked only about the colours a chain (profile, route, intent) has not met yet, as a small image of those colours, and its answers are kept in a sparse colour table (about 6 MB for a 4000-patch chart, never more than 65 MB; two chains at most); a page is mapped through it with numpy at its full resolution, with pixels identical to cctiff over the whole page. Rendered pages are kept as pixmaps in ONE store for the whole app (in memory only, at most 144 MB: both views of the page on screen and of the one before it, least recently shown first out, never fewer than two), so a switch is a swap; the chart's other pages' colours are worked out in the background. Nothing is left on disk: each cctiff call's two small files live in a temporary folder named after the process, removed when the call returns, and one left by a ChromIQ that was killed mid-call is removed by the next ChromIQ (review C) |
+
+Verified by `tests/test_beta12_c_preview_switch.py`.
 
 ## 4. The Print Chart tab, reconciled
 

@@ -155,11 +155,14 @@ def test_a_dated_verifications_own_chart_snapshot(tmp_path):
 class _FakeCctiff:
     def __init__(self, ok=True):
         self.calls: "list[list[str]]" = []
+        self.sizes: "list[tuple[int, int]]" = []
         self.ok = ok
 
     def __call__(self, cmd, **kw):
         assert kw.get("timeout"), "every ArgyllCMS call needs a timeout"
         self.calls.append([str(c) for c in cmd])
+        with Image.open(cmd[-2]) as im:
+            self.sizes.append(im.size)
         if self.ok:
             shutil.copy2(cmd[-2], cmd[-1])
         return subprocess.CompletedProcess(cmd, 0 if self.ok else 1, "", "")
@@ -179,17 +182,21 @@ def fake_bin(tmp_path):
 
 
 def test_a_page_is_soft_proofed_once(tmp_path, fake_bin):
+    """Build C (Basti, 2026-10-08): only the colours a chain has not met go
+    through cctiff, once; the page is mapped in memory."""
     tif = _project(tmp_path)
     plan = PP.plan_for_page(tif)
     run = _FakeCctiff()
     a = PP.softproof_page(tif, plan, fake_bin, runner=run)
     b = PP.softproof_page(tif, plan, fake_bin, runner=run)
-    assert a == b and a.is_file()
-    assert len(run.calls) == 1                       # cached
+    assert a is not None and np.array_equal(a, b)
+    assert len(run.calls) == 1                       # the colours are kept
     cmd = run.calls[0]
     # the run's profile as the input, relative colorimetric to sRGB
     assert cmd[cmd.index(str(plan.profile)) - 1] == "r"
     assert cmd[-3].endswith("sRGB.icm")
+    # cctiff is asked about the page's three colours, not its 576 pixels
+    assert run.sizes == [(3, 1)]
 
 
 def test_a_through_page_is_converted_exactly_as_the_print_converts_it(
@@ -204,7 +211,7 @@ def test_a_through_page_is_converted_exactly_as_the_print_converts_it(
     assert len(run.calls) == 2
     from workflow.cctiff_apply import convert_args
     first = run.calls[0]
-    expected = convert_args(src, plan.profile, tif, Path(first[-1]),
+    expected = convert_args(src, plan.profile, Path(first[-2]), Path(first[-1]),
                             verbose=False, intent="p")
     assert first[1:] == [str(x) for x in expected]
 
@@ -240,14 +247,14 @@ def preview(qapp):
 
 def test_the_preview_shows_the_soft_proof_and_says_so(tmp_path, preview,
                                                        fake_bin, monkeypatch):
-    from ui.tiff_preview import TiffPreview
+    from ui.tiff_preview import PrintProof, TiffPreview
     tif = _project(tmp_path)
-    out = tmp_path / "proof.tif"
-    _tiff(out, rgb=((250, 250, 250), (150, 30, 30), (40, 40, 40)))
+    px = np.full((8, 24, 3), 123, np.uint8)
     monkeypatch.setattr(TiffPreview, "_argyll_bin_with", staticmethod(lambda t: fake_bin))
-    monkeypatch.setattr(PP, "softproof_page", lambda *a, **k: out)
+    monkeypatch.setattr(PP, "softproof_page", lambda *a, **k: px)
     preview.set_print_preview(True)
-    assert preview._as_it_will_print(tif) == out
+    shown = preview._as_it_will_print(tif)
+    assert isinstance(shown, PrintProof) and shown.pixels is px
     text, tip = preview.print_preview_badge()
     assert text == "As on paper, via the run's profile"
     assert f"{NAME}.icc" in tip
@@ -306,10 +313,10 @@ def test_real_cctiff_renders_the_page_and_never_touches_it(tmp_path):
     before = hashlib.sha256(tif.read_bytes()).hexdigest()
     plan = PP.plan_for_page(tif, bin_dir=_bin())
     out = PP.softproof_page(tif, plan, _bin())
-    assert out is not None and out != tif
+    assert out is not None
     assert hashlib.sha256(tif.read_bytes()).hexdigest() == before   # nothing printed changes
     a = np.asarray(Image.open(tif).convert("RGB"), dtype=float)
-    b = np.asarray(Image.open(out).convert("RGB"), dtype=float)
+    b = out.astype(float)
     assert a.shape == b.shape
     # paper stays the screen's white (relative), the red patch is shown
     # as the printer prints it, not as its device value reads as screen RGB

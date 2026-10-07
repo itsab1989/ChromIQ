@@ -4414,13 +4414,39 @@ _PREVIEW_TIP_CALIBRATED = (
 _PREVIEW_TIP_FAILED = (
     "ArgyllCMS could not convert this page through {profile}, so the "
     "preview shows the ink amounts in the file as screen colours.")
+#: Basti, 2026-10-08: the indicator is also the SWITCH between the two views,
+#: and stays small: collapsed an icon, on hover a short line. Line 10 and 11
+#: are that line's view, lines 12 and 13 what a click does (shown beside it);
+#: line 14 closes the tooltip of a page shown as on paper, line 15 is the
+#: tooltip of a page shown as device values by choice, line 16 closes the
+#: tooltip of a page that has no view on paper (lines 7 to 9). {keys}: the
+#: platform's spelling of the shortcut (⌘Y, Ctrl+Y).
+_PREVIEW_CHIP_PAPER = "As on paper"
+_PREVIEW_CHIP_DEVICE = "Device values"
+_PREVIEW_CHIP_TO_DEVICE = "click: device values"
+_PREVIEW_CHIP_TO_PAPER = "click: as on paper"
+_PREVIEW_TIP_CLICK_DEVICE = (
+    "Click here, or press {keys}, to see the ink amounts in the file as "
+    "screen colours instead. ChromIQ remembers your choice in Create Chart, "
+    "Print Chart and Measure.")
+_PREVIEW_TIP_DEVICE_CHOSEN = (
+    "You chose to see the ink amounts in the file as screen colours, so the "
+    "preview can look lighter or more colourful than the print. Click here, "
+    "or press {keys}, to see the chart as it prints through {profile} again. "
+    "What is printed does not change.")
+_PREVIEW_TIP_NO_SWITCH = (
+    "This page cannot be shown as on paper, so a click changes nothing here.")
 M_PREVIEW_AS_PRINTED = _m(
     "M-PREVIEW-AS-PRINTED",
     _PREVIEW_AS_PRINTED_RAW,
     "\n".join((_PREVIEW_AS_PRINTED_THROUGH, _PREVIEW_DEVICE_NO_PROFILE,
                _PREVIEW_DEVICE_CALIBRATED, _PREVIEW_DEVICE_FAILED,
                _PREVIEW_TIP_RAW, _PREVIEW_TIP_THROUGH, _PREVIEW_TIP_NO_PROFILE,
-               _PREVIEW_TIP_CALIBRATED, _PREVIEW_TIP_FAILED)),
+               _PREVIEW_TIP_CALIBRATED, _PREVIEW_TIP_FAILED,
+               _PREVIEW_CHIP_PAPER, _PREVIEW_CHIP_DEVICE,
+               _PREVIEW_CHIP_TO_DEVICE, _PREVIEW_CHIP_TO_PAPER,
+               _PREVIEW_TIP_CLICK_DEVICE, _PREVIEW_TIP_DEVICE_CHOSEN,
+               _PREVIEW_TIP_NO_SWITCH)),
     approved=False)
 
 M_REPORT_PAPER_AGAINST_PROFILE = _m(

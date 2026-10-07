@@ -9,7 +9,8 @@ from typing import Optional
 
 from PIL import Image
 from PyQt6 import sip
-from PyQt6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import (QObject, QPoint, QPointF, QRect, QRectF, QSize, Qt,
+                          QTimer, pyqtSignal)
 from PyQt6.QtGui import (QColor, QFont, QFontMetricsF, QImage, QPainter,
                          QPainterPath, QPixmap, QRegion, qGray)
 from PyQt6.QtWidgets import (
@@ -24,7 +25,7 @@ from PyQt6.QtWidgets import (
 from workflow.layout_engine import hexagon
 from core.i18n import tr
 from core.logger import get_logger
-from ui import neutral_styles
+from ui import neutral_styles, styles
 from ui.styles import SPEC_GREEN, SPEC_MAGENTA
 from core.i18n import tr
 from core.text_io import read_text
@@ -140,6 +141,215 @@ _PREVIEW_BY_MODE = {
     "dark":    _PREVIEW_DARK,
     "neutral": _PREVIEW_NEUTRAL,
 }
+def _chip_mix(colour: str, toward: str, t: float) -> str:
+    """*colour* moved a fraction *t* of the way to *toward*, in sRGB."""
+    a = [int(colour[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(toward[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x * (1 - t) + y * t):02x}"
+                         for x, y in zip(a, b))
+
+
+#: The indicator switch's colours (Basti, 2026-10-08, review C): QUIET and
+#: largely neutral. The pill is opaque, in its appearance's own ground, so it
+#: reads the same over the well, the paper or a patch; the short line and the
+#: click hint are the theme's greys; the ICON alone carries a colour, and it
+#: is the CURRENT TAB's own accent (Create Chart, Print Chart, Measure: each
+#: tab's colour in the masthead stripe), muted until it reaches 3:1 on the
+#: pill, the same in both views. The view is told apart by the icon's shape
+#: and the words, never by a colour, so no tab ever shows another tab's
+#: accent. Neutral has one accent, so there the icon is ACTION
+#: (:func:`ui.theme.accent_for`). tests/test_beta12_c_review.py checks the
+#: contrasts: the line 4.5:1 or more, the icon 3:1 or more.
+_CHIP_ICON_MIN = 3.0
+_CHIP_MUTE_TOWARD = {"light": "#1a1a1a", "neutral": "#1a1a1a",
+                     "dark": "#b8b4ae"}
+
+
+def _chip_lum(c: str) -> float:
+    def ch(v: float) -> float:
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(c[i:i + 2], 16) for i in (1, 3, 5))
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+
+
+def chip_contrast(a: str, b: str) -> float:
+    hi, lo = sorted((_chip_lum(a), _chip_lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def chip_icon_ink(accent: str, mode: str) -> str:
+    """The icon's colour: *accent* (the tab's) as the appearance paints an
+    accent, moved towards the appearance's ink in small steps until it shows
+    on the pill at :data:`_CHIP_ICON_MIN`, and a little quieter than the raw
+    accent in any case."""
+    from ui.theme import accent_for
+    base = accent_for(accent, mode)
+    if mode == "neutral":
+        return base
+    ground = _CHIP_BY_MODE[mode]["ground"]
+    toward = _CHIP_MUTE_TOWARD[mode]
+    t = 0.15
+    ink = _chip_mix(base, toward, t)
+    while chip_contrast(ink, ground) < _CHIP_ICON_MIN and t < 1.0:
+        t = min(1.0, t + 0.05)
+        ink = _chip_mix(base, toward, t)
+    return ink
+
+
+_CHIP_BY_MODE = {
+    # the ring: the cyan, muted in Light so it shows on the pale well
+    "light":   {"focus_ring": _chip_mix(styles.SPEC_CYAN, "#1a1a1a", 0.45),
+                "badge_edge": "#d0ccc6", "ground": "#f7f5f2",
+                "text": "#2e2c29", "hint": "#5a5650"},
+    "dark":    {"focus_ring": "#4dd0e1", "badge_edge": "#5a5a5a",
+                "ground": "#1b1b1b", "text": "#f4f2ef", "hint": "#b8b4ae"},
+    "neutral": {"focus_ring": neutral_styles.NM_ACTION,
+                "badge_edge": neutral_styles.NM_BORDER, "ground": "#f2f2f2",
+                "text": neutral_styles.NM_TEXT_MAIN,
+                "hint": neutral_styles.NM_TEXT_DIM},
+}
+
+# ---------------------------------------------------------------------------
+# As on paper / device values: ONE choice for the whole app (Basti, beta 12)
+# ---------------------------------------------------------------------------
+#: The AppSettings key. Not per target: like the overlay checkbox it is how
+#: the user likes to look at charts, the same in Create Chart, Print Chart and
+#: Measure. Nothing printed reads it.
+PREVIEW_DEVICE_VALUES_KEY = "preview_show_device_values"
+
+
+class _PrintViewNotifier(QObject):
+    """Tells every chart preview that the choice changed, so the three tabs
+    never disagree. Previews connect a BOUND method (never a lambda; see
+    CLAUDE.md on self-capturing slots)."""
+    changed = pyqtSignal()
+
+
+_PRINT_VIEW_NOTIFIER: "_PrintViewNotifier | None" = None
+
+
+def print_view_notifier() -> _PrintViewNotifier:
+    global _PRINT_VIEW_NOTIFIER
+    if _PRINT_VIEW_NOTIFIER is None or sip.isdeleted(_PRINT_VIEW_NOTIFIER):
+        _PRINT_VIEW_NOTIFIER = _PrintViewNotifier()
+    return _PRINT_VIEW_NOTIFIER
+
+
+#: The choice as last read or written, so a repaint does not open the
+#: settings store each time; None until it is first asked for.
+_DEVICE_VALUES_CHOSEN: "bool | None" = None
+
+
+def device_values_chosen() -> bool:
+    """True when the user chose to see chart pages as device values."""
+    global _DEVICE_VALUES_CHOSEN
+    if _DEVICE_VALUES_CHOSEN is None:
+        try:
+            from core.settings import AppSettings
+            _DEVICE_VALUES_CHOSEN = bool(
+                AppSettings().get(PREVIEW_DEVICE_VALUES_KEY, False))
+        except Exception:      # noqa: BLE001 - a preference, never worth a crash
+            return False
+    return _DEVICE_VALUES_CHOSEN
+
+
+class PrintProof:
+    """A page soft-proofed for the screen (workflow/print_preview.py): *key*
+    names it in the preview's pixmap cache, *pixels* is the (h, w, 3) uint8
+    page, or None when the cache already holds it as a pixmap."""
+    __slots__ = ("key", "pixels")
+
+    def __init__(self, key: tuple, pixels) -> None:
+        self.key, self.pixels = key, pixels
+
+
+def _prefetch_worker(pages, colour, intent, bin_dir, stop) -> None:
+    """Background thread: put each page's colours into the chain's colour
+    table (workflow/print_preview.py, in memory), so showing the page later
+    asks cctiff nothing. Makes no picture, touches no Qt object."""
+    try:
+        from workflow import print_preview as PP
+        for page in pages:
+            if stop.is_set():
+                return
+            plan = PP.plan_for_page(page, selected_colour=colour,
+                                    selected_intent=intent, bin_dir=bin_dir)
+            if plan is not None and plan.kind in (PP.KIND_RAW, PP.KIND_THROUGH):
+                PP.prefetch_page(page, plan, bin_dir)
+    except Exception:      # noqa: BLE001 - a head start, never worth a crash
+        log.debug("print preview prefetch failed", exc_info=True)
+
+
+class _FrameCache:
+    """The chart previews' rendered pages, as pixmaps, in memory only, ONE
+    store for the whole app (review C of beta 12).
+
+    Build C kept up to 400 MB of pixmaps in EACH preview, and Create Chart,
+    Print Chart and Measure each have one: measured on screen, a 10-page
+    4000-patch A4 chart viewed in the three tabs took the app from 539 MB to
+    2.1 GB. What makes a switch a swap is having BOTH views of the page on
+    screen at hand, so that is what the budget is sized for: an A4 or Letter
+    page at 300 dpi is 32 to 34 MB as a pixmap, and 144 MB holds both views
+    of the page on screen and of the page before it. The three tabs share
+    it, so the same page shown in two tabs is kept once. The least recently
+    shown go first, but never the last two (the two views of the page on
+    screen, however large). GUI thread only."""
+
+    BUDGET = 144 * 1024 * 1024
+
+    def __init__(self) -> None:
+        from collections import OrderedDict
+        self._d: "OrderedDict[tuple, tuple]" = OrderedDict()
+        self.nbytes = 0
+
+    def __len__(self) -> int:
+        return len(self._d)
+
+    def __contains__(self, key) -> bool:
+        return key in self._d
+
+    def get(self, key):
+        hit = self._d.get(key)
+        if hit is not None:
+            self._d.move_to_end(key)
+        return hit
+
+    def put(self, key: tuple, pm, margin: float, mode: str) -> None:
+        if pm is None or pm.isNull():
+            return
+        size = pm.width() * pm.height() * max(1, pm.depth() // 8)
+        old = self._d.pop(key, None)
+        if old is not None:
+            self.nbytes -= old[3]
+        self._d[key] = (pm, margin, mode, size)
+        self.nbytes += size
+        while self.nbytes > self.BUDGET and len(self._d) > 2:
+            _k, ev = self._d.popitem(last=False)
+            self.nbytes -= ev[3]
+
+    def clear(self) -> None:
+        self._d.clear()
+        self.nbytes = 0
+
+
+_FRAMES: "_FrameCache | None" = None
+
+
+def frame_cache() -> _FrameCache:
+    global _FRAMES
+    if _FRAMES is None:
+        _FRAMES = _FrameCache()
+    return _FRAMES
+
+
+def set_device_values_chosen(on: bool) -> None:
+    """Remember the choice and redraw every chart preview."""
+    global _DEVICE_VALUES_CHOSEN
+    from core.settings import AppSettings
+    AppSettings().set(PREVIEW_DEVICE_VALUES_KEY, bool(on))
+    _DEVICE_VALUES_CHOSEN = bool(on)
+    print_view_notifier().changed.emit()
 
 # ---------------------------------------------------------------------------
 # The outline of a flagged patch: red, or yellow once it is known to be real
@@ -1105,6 +1315,20 @@ class TiffPreview(QWidget):
         self._print_preview: bool = False
         self._print_selected: "tuple[str | None, str | None]" = (None, None)
         self._print_badge: "tuple[str, str]" = ("", "")
+        # Basti, 2026-10-08: the indicator is a switch, drawn by
+        # ui/print_view_chip.py; its state for the page on screen, or None.
+        self._print_view: "dict | None" = None
+        self._print_chip = None
+        self._print_view_connected = False
+        #: the owning tab's accent, for the indicator's icon (set_chip_accent)
+        self._chip_accent = ""
+        # Both renderings of a page, once made, are kept as pixmaps at their
+        # full resolution, so switching the view (or turning back to a page)
+        # is a swap and never a reload (Basti, 2026-10-08). Only while the
+        # tab asked for the print preview; ONE store for the whole app,
+        # bounded (see _FrameCache).
+        self._frame_cache = frame_cache()
+        self._prefetch_stop = None
         self._current: int = 0
         self._active_stripe: int = -1
         self._bidirectional: bool = False
@@ -1300,6 +1524,7 @@ class TiffPreview(QWidget):
         self._ink_badge.setStyleSheet(badge_qss)
         if getattr(self, "_badge_lbl", None) is not None:
             self._badge_lbl.setStyleSheet(badge_qss)
+        self._style_print_chip()
         self._ink_readout.setStyleSheet(
             f"QLabel {{ color: {pal['readout']}; font-family: 'Menlo'; }}")
 
@@ -1317,6 +1542,7 @@ class TiffPreview(QWidget):
         """
         self._ink_channels = ink_channels
         self._pages = []
+        self._prefetch_sig = None
         for p in paths:
             n = self._count_frames(p)
             if n == 0:
@@ -2541,6 +2767,7 @@ class TiffPreview(QWidget):
         self._ink_badge.setVisible(False)
         if getattr(self, "_badge_lbl", None) is not None:
             self._badge_lbl.setVisible(False)
+        self._hide_print_chip()
 
     def clear(self) -> None:
         self.reset_ink_inspector()
@@ -2943,14 +3170,33 @@ class TiffPreview(QWidget):
 
         path, frame = self._pages[self._current]
         try:
-            shown = self._as_it_will_print(path)
-            img = self._load_frame(shown, frame, self._ink_channels,
-                                   muted=frozenset(self._muted_inks))
-            self._pixmap = self._pil_to_pixmap(img)
-            self._page_qimage = None       # a new page, a new sample source
-            # Per page: a chart's pages can differ (a last page half full), and
-            # the frame follows the page actually on screen.
-            self._measure_own_margin(self._pixmap)
+            shown = self._as_it_will_print(path, frame)
+            if isinstance(shown, PrintProof):
+                key = shown.key
+            else:
+                key = self._frame_cache_key(shown, frame)
+            hit = self._frame_cache.get(key) if key is not None else None
+            if hit is not None:
+                # the same file, frame and inks as before: the same pixmap
+                self._pixmap, self._own_margin_frac, mode, _size = hit
+                _set_render_mode(mode)
+                self._page_qimage = None
+            else:
+                if isinstance(shown, PrintProof):
+                    _set_render_mode("")       # an RGB page: no CMYK badge
+                    img = Image.fromarray(shown.pixels, "RGB")
+                else:
+                    img = self._load_frame(shown, frame, self._ink_channels,
+                                           muted=frozenset(self._muted_inks))
+                self._pixmap = self._pil_to_pixmap(img)
+                self._page_qimage = None       # a new page, a new sample source
+                # Per page: a chart's pages can differ (a last page half full),
+                # and the frame follows the page actually on screen.
+                self._measure_own_margin(self._pixmap)
+                if key is not None:
+                    self._remember_frame(key, self._pixmap,
+                                         self._own_margin_frac,
+                                         last_render_mode())
         except Exception as exc:
             log.warning("Preview render error: %s", exc)
             self._img_label.setText(tr("Preview error:\n{exc}").format(exc=exc))
@@ -2970,6 +3216,9 @@ class TiffPreview(QWidget):
         *colour* / *intent*: the Print Chart tab's live Colour row for a
         verification chart, which outranks the print record there (it is
         what the next print does). Re-renders only when something changed."""
+        if on and not self._print_view_connected:
+            print_view_notifier().changed.connect(self._on_print_view_changed)
+            self._print_view_connected = True
         want = (bool(on), (colour, intent))
         if want == (self._print_preview, self._print_selected):
             return
@@ -2978,16 +3227,105 @@ class TiffPreview(QWidget):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, self._update_display)
 
+    def _frame_cache_key(self, shown: Path, frame: int) -> "tuple | None":
+        """What a rendered pixmap depends on, or None when it is not kept
+        (the print preview is off: those tabs keep their old behaviour)."""
+        if not self._print_preview:
+            return None
+        try:
+            st = Path(shown).stat()
+        except OSError:
+            return None
+        return (str(shown), st.st_mtime_ns, st.st_size, int(frame),
+                tuple(self._ink_channels or ()),
+                tuple(sorted(self._muted_inks)))
+
+    def _remember_frame(self, key: tuple, pm, margin: float, mode: str) -> None:
+        self._frame_cache.put(key, pm, margin, mode)
+
+    def _prefetch_softproofs(self, plan, bin_dir) -> None:
+        """Make the soft-proof of every OTHER page in the background, so
+        turning the page or switching the view never waits on cctiff. The
+        page on screen is always made first, by the caller. A new set of
+        pages, or a new plan, stops the previous run."""
+        import threading
+        pages = [p for p, _f in self._pages]
+        if len(set(pages)) < 2:
+            return
+        sig = (tuple(pages), self._print_selected, str(bin_dir))
+        if getattr(self, "_prefetch_sig", None) == sig:
+            return
+        self._prefetch_sig = sig
+        if self._prefetch_stop is not None:
+            self._prefetch_stop.set()
+        stop = threading.Event()
+        self._prefetch_stop = stop
+        colour, intent = self._print_selected
+        threading.Thread(target=_prefetch_worker,
+                         args=(list(dict.fromkeys(pages)), colour, intent,
+                               bin_dir, stop),
+                         name="print-preview-prefetch", daemon=True).start()
+
+    def print_view(self) -> "dict | None":
+        """The indicator's state for the page on screen: ``icon`` (paper or
+        screen), ``title``, ``hint``, ``tooltip``, ``switchable`` and
+        ``device`` (the page is shown as device values); None when the page
+        is not a run's chart page."""
+        return self._print_view
+
+    def toggle_print_view(self) -> bool:
+        """Switch between as on paper and device values, app-wide, as a click
+        on the indicator does. False (and nothing changes) when the page on
+        screen has no other view."""
+        v = self._print_view
+        if not (self._print_preview and v and v["switchable"]):
+            return False
+        set_device_values_chosen(not v["device"])
+        return True
+
+    def _on_print_view_changed(self) -> None:
+        if self._img_label is None or sip.isdeleted(self._img_label):
+            return
+        if not (self._print_preview and self._pages):
+            return
+        if self.isVisible():
+            # a switch changes the view, not how the page prints: the plan
+            # just worked out for this page still holds (it reads the chart's
+            # .ti2, the dearest part of a switch)
+            self._reuse_plan = True
+            try:
+                self._update_display()
+            finally:
+                self._reuse_plan = False
+        else:
+            # a tab not on screen catches up when it is shown, so a switch
+            # costs one preview, not three
+            self._print_view_stale = True
+
+    def _on_print_chip_activated(self) -> None:
+        self.toggle_print_view()
+
+    def _set_print_view(self, *, device: bool, title: str, hint: str,
+                        tooltip: str, switchable: bool) -> None:
+        from ui.print_view_chip import ICON_PAPER, ICON_SCREEN
+        self._print_view = {
+            "icon": ICON_SCREEN if device else ICON_PAPER,
+            "title": title, "hint": hint, "tooltip": tooltip,
+            "switchable": bool(switchable), "device": bool(device)}
+
     def print_preview_badge(self) -> "tuple[str, str]":
         """The indicator's ``(text, tooltip)`` for the page on screen, or
         ``("", "")`` when the page is not a run's chart page."""
         return self._print_badge
 
-    def _as_it_will_print(self, path: Path) -> Path:
-        """The file to show for *path*: its soft-proof when the page is a
-        run's RGB chart page and it can be made, else *path* itself. Sets the
-        indicator either way (M-PREVIEW-AS-PRINTED)."""
+    def _as_it_will_print(self, path: Path,
+                          frame: int = 0) -> "Path | PrintProof":
+        """What to show for *path*: its soft-proof (a :class:`PrintProof`)
+        when the page is a run's RGB chart page and it can be made, else
+        *path* itself. Sets the indicator either way (M-PREVIEW-AS-PRINTED).
+        A proof already kept as a pixmap comes back without its pixels."""
         self._print_badge = ("", "")
+        self._print_view = None
         if not self._print_preview:
             return path
         try:
@@ -3001,11 +3339,29 @@ class TiffPreview(QWidget):
             from workflow import print_preview as PP
             bin_dir = self._argyll_bin_with("cctiff")
             colour, intent = self._print_selected
-            plan = PP.plan_for_page(path, selected_colour=colour,
-                                    selected_intent=intent, bin_dir=bin_dir)
+            pkey = (str(path), self._print_selected, str(bin_dir))
+            last = getattr(self, "_last_plan", None)
+            if getattr(self, "_reuse_plan", False) and last and last[0] == pkey:
+                plan = last[1]
+            else:
+                plan = PP.plan_for_page(path, selected_colour=colour,
+                                        selected_intent=intent, bin_dir=bin_dir)
+                self._last_plan = (pkey, plan)
             if plan is None:
                 return path
+            from ui.keyboard_help import keys_for, with_shortcut
             name = plan.profile.name if plan.profile is not None else ""
+            keys = keys_for("preview_view")
+
+            def no_switch() -> None:
+                # no view on paper to switch to: the screen icon, the
+                # explanation, and a click (or the key) that does nothing
+                head, tip = self._print_badge
+                self._set_print_view(
+                    device=True, title=head, hint="",
+                    tooltip=f"{head}\n\n{tip}\n\n{tr(MM._PREVIEW_TIP_NO_SWITCH)}",
+                    switchable=False)
+
             if plan.kind == PP.KIND_DEVICE:
                 if plan.why == PP.WHY_CALIBRATED:
                     self._print_badge = (tr(MM._PREVIEW_DEVICE_CALIBRATED),
@@ -3013,13 +3369,38 @@ class TiffPreview(QWidget):
                 else:
                     self._print_badge = (tr(MM._PREVIEW_DEVICE_NO_PROFILE),
                                          tr(MM._PREVIEW_TIP_NO_PROFILE))
+                no_switch()
                 return path
-            out = (PP.softproof_page(path, plan, bin_dir)
-                   if bin_dir is not None else None)
+            if bin_dir is not None and device_values_chosen():
+                # Basti, 2026-10-08: the user asked for the device values.
+                # The soft-proof keeps being made in the background, so the
+                # switch back is a swap and not a wait.
+                self._prefetch_softproofs(plan, bin_dir)
+                head = tr(MM._PREVIEW_CHIP_DEVICE)
+                tip = tr(MM._PREVIEW_TIP_DEVICE_CHOSEN).format(
+                    keys=keys, profile=name)
+                self._print_badge = (head, tip)
+                self._set_print_view(
+                    device=True, title=head, hint=tr(MM._PREVIEW_CHIP_TO_PAPER),
+                    tooltip=with_shortcut(f"{head}\n\n{tip}", "preview_view"),
+                    switchable=True)
+                return path
+            out = None
+            if bin_dir is not None:
+                ckey = PP.chain_key(plan, bin_dir)
+                pkey = (("proof",) + PP._stat_key(path) + (int(frame), ckey)
+                        if ckey is not None else None)
+                if pkey is not None and pkey in self._frame_cache:
+                    out = PrintProof(pkey, None)       # already on hand
+                elif pkey is not None:
+                    px = PP.softproof_page(path, plan, bin_dir, frame=frame)
+                    out = PrintProof(pkey, px) if px is not None else None
+                self._prefetch_softproofs(plan, bin_dir)
             if out is None:
                 self._print_badge = (
                     tr(MM._PREVIEW_DEVICE_FAILED),
                     tr(MM._PREVIEW_TIP_FAILED).format(profile=name))
+                no_switch()
                 return path
             if plan.kind == PP.KIND_THROUGH:
                 intents = {"relative": tr("relative colorimetric"),
@@ -3035,6 +3416,14 @@ class TiffPreview(QWidget):
                 self._print_badge = (
                     tr(MM._PREVIEW_AS_PRINTED_RAW),
                     tr(MM._PREVIEW_TIP_RAW).format(profile=name))
+            head, tip = self._print_badge
+            click = tr(MM._PREVIEW_TIP_CLICK_DEVICE).format(keys=keys)
+            self._set_print_view(
+                device=False, title=tr(MM._PREVIEW_CHIP_PAPER),
+                hint=tr(MM._PREVIEW_CHIP_TO_DEVICE),
+                tooltip=with_shortcut(f"{head}\n\n{tip}\n\n{click}",
+                                      "preview_view"),
+                switchable=True)
             return out
         except Exception:      # noqa: BLE001 — a preview is never worth a crash
             log.debug("print preview failed for %s", path, exc_info=True)
@@ -3076,11 +3465,15 @@ class TiffPreview(QWidget):
         text = ("" if not mode else
                 tr("True colours — via the chart's profile") if mode == "profile"
                 else tr("Approximate colours — the ink values in the file are exact"))
+        if not mode and self._print_view is not None:
+            # an RGB chart page: what the preview shows (M-PREVIEW-AS-PRINTED),
+            # as the switch Basti asked for (ui/print_view_chip.py)
+            self._show_print_chip()
+            if getattr(self, "_badge_lbl", None) is not None:
+                self._badge_lbl.setVisible(False)
+            return
+        self._hide_print_chip()
         tip = ""
-        if not mode and self._print_badge[0]:
-            # an RGB chart page: what the preview shows (M-PREVIEW-AS-PRINTED)
-            text, tip = self._print_badge
-            mode = "print"
         if self._ink_row.isVisible():
             # Share the ink-options line (Basti) — no floating overlay then.
             self._ink_badge.setText(text)
@@ -3119,6 +3512,61 @@ class TiffPreview(QWidget):
         self._badge_lbl.move(max(0, x), max(0, y))
         self._badge_lbl.raise_()
         self._badge_lbl.setVisible(True)
+
+    def set_chip_accent(self, colour: str) -> None:
+        """The owning tab's accent (Create Chart, Print Chart, Measure): the
+        one colour the indicator's icon may carry (Basti, 2026-10-08)."""
+        self._chip_accent = colour or ""
+        self._style_print_chip()
+
+    def _show_print_chip(self) -> None:
+        from ui.print_view_chip import PrintViewChip
+        chip = self._print_chip
+        if chip is None or sip.isdeleted(chip):
+            chip = PrintViewChip(self)
+            chip.setObjectName("print_view_chip")
+            chip.activated.connect(self._on_print_chip_activated)
+            self._print_chip = chip
+            self._style_print_chip()
+        v = self._print_view or {}
+        chip.set_state(icon=v.get("icon", ""), title=v.get("title", ""),
+                       hint=v.get("hint", ""), tooltip=v.get("tooltip", ""),
+                       switchable=v.get("switchable", False))
+        self._place_print_chip()
+        chip.raise_()
+        chip.setVisible(True)
+
+    def _hide_print_chip(self) -> None:
+        chip = self._print_chip
+        if chip is not None and not sip.isdeleted(chip):
+            chip.setVisible(False)
+
+    def _style_print_chip(self) -> None:
+        chip = self._print_chip
+        if chip is None or sip.isdeleted(chip):
+            return
+        pal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
+        extra = _CHIP_BY_MODE.get(self._mode, _CHIP_BY_MODE["dark"])
+        mode = self._mode if self._mode in _CHIP_BY_MODE else "dark"
+        icon = (chip_icon_ink(self._chip_accent, mode) if self._chip_accent
+                else extra["text"])
+        chip.set_colours(extra["ground"], extra["text"],
+                         extra["focus_ring"], extra["badge_edge"],
+                         icon_ink=icon, hint_ink=extra["hint"])
+
+    def _place_print_chip(self) -> None:
+        """Top right of the image area, where the indicator has always been;
+        the chip opens to the left from there."""
+        chip = self._print_chip
+        if chip is None or sip.isdeleted(chip) or self._img_label is None \
+                or sip.isdeleted(self._img_label):
+            return
+        from ui.print_view_chip import RING
+        origin = self._img_label.mapTo(self, QPoint(0, 0))
+        right = origin.x() + self._img_label.width() - 10 + RING
+        # it opens to the left, never past the image area's own left edge
+        chip.set_max_width(right - origin.x() - 6)
+        chip.place(right, origin.y() + 10 - RING)
 
     #: The two greens the measurement overlays are drawn in. `#56d6a5` is
     #: :data:`ui.styles.SPEC_GREEN`, the Measure tab's own accent, used where a
@@ -5451,6 +5899,7 @@ class TiffPreview(QWidget):
         # written by the repaint above, which has only been scheduled here.
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._reconcile_legend_hover)
+        self._place_print_chip()
         if getattr(self, "_badge_lbl", None) is not None \
                 and self._badge_lbl.isVisible():
             self._badge_lbl.move(
@@ -5459,6 +5908,9 @@ class TiffPreview(QWidget):
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)
+        if getattr(self, "_print_view_stale", False):
+            self._print_view_stale = False
+            QTimer.singleShot(0, self._update_display)
         if self._pixmap:
             # Defer until Qt has activated the now-visible tab's layout —
             # otherwise _img_label.size() is still the hidden minimum and the
