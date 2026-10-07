@@ -69,17 +69,24 @@ class _ToyRgb:
         return np.column_stack([L, a, bb])
 
 
-def test_the_tokens_are_known_and_off_by_default():
-    for tok in TOKENS:
+def test_blend_and_the_oracle_limit_are_default_and_deep_is_not():
+    # Agent 35's battery verdict (Findings/agent35-01 s6, D-26)
+    for tok in ("a35-percblack-blend", "a35-oracle-limit"):
         assert tok in ENGINE_CANDIDATE_TOKENS
-        assert tok not in ACCURATE_DEFAULT_TOKENS
-        assert tok not in accurate_candidates(frozenset())
-        assert tok in accurate_candidates({tok})
+        assert tok in ACCURATE_DEFAULT_TOKENS
+        assert tok in accurate_candidates(frozenset())
+        assert "no-" + tok in ENGINE_CANDIDATE_TOKENS
+        assert tok not in accurate_candidates({"no-" + tok})
+    deep = "a35-percblack-deep"
+    assert deep in ENGINE_CANDIDATE_TOKENS
+    assert deep not in ACCURATE_DEFAULT_TOKENS
+    assert deep in accurate_candidates({deep})
     both = candidates_from_env(",".join(TOKENS))
     assert set(TOKENS) <= both
-    assert b2a.a35_mode(both) == "deep"          # deep wins when both given
-    assert b2a.a35_mode({"a35-percblack-blend"}) == "blend"
-    assert b2a.a35_mode(accurate_candidates(frozenset())) is None
+    assert b2a.a35_mode(accurate_candidates({deep})) == "deep"   # deep wins
+    assert b2a.a35_mode(accurate_candidates(frozenset())) == "blend"
+    assert b2a.a35_mode(accurate_candidates({"no-a35-percblack-blend"})) \
+        is None
 
 
 @pytest.mark.parametrize("mode", ["blend", "deep"])
@@ -228,3 +235,23 @@ def test_the_oracle_gets_the_builds_ink_limit_only_with_the_token():
     # without the measurement (older callers) nothing changes
     assert gamut_map._oracle_args(cp, st({"a35-oracle-limit"}), src) == \
         gamut_map._oracle_args(cp, st(()), src)
+
+
+def test_the_oracle_cache_key_carries_the_ink_limit(tmp_path):
+    """The cache key is built from the oracle's own arguments, so -l is in
+    it; a measurement stub without is_additive (older callers) is no ink
+    device and gets no -l."""
+    p = tmp_path / "m.ti3"
+    p.write_text("CTI3\n", encoding="utf-8")
+    ink = SimpleNamespace(path=p, is_additive=False, ink_limit=300.0)
+    bare = SimpleNamespace(path=p)
+
+    def st(tokens):
+        return SimpleNamespace(quality="m", engine_candidates=frozenset(tokens))
+    src = Path("src.icm")
+    k_off = gamut_map._oracle_cache_key(ink, src, st(()), None)
+    k_on = gamut_map._oracle_cache_key(ink, src, st({"a35-oracle-limit"}), None)
+    assert k_off != k_on and "-l300" in k_on[3]
+    assert gamut_map._oracle_cache_key(bare, src, st({"a35-oracle-limit"}),
+                                       None) == \
+        gamut_map._oracle_cache_key(bare, src, st(()), None)

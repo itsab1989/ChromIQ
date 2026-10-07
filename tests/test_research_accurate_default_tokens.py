@@ -18,7 +18,7 @@ _INT3 = {"a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
 # a29-oog-darkmono-floor: integration 4 (Findings/agent33-01-integration4.md)
 _INT4 = {"a29-oog-darkmono-floor"}
 # a34-blackseam: integration 5 candidate (Findings/agent35-01-percblack.md)
-_INT5 = {"a34-blackseam"}
+_INT5 = {"a34-blackseam", "a35-percblack-blend", "a35-oracle-limit"}
 _DEF = {"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5
 
 

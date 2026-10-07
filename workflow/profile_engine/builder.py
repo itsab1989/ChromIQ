@@ -82,7 +82,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Integration 3 off-switches for its new defaults
      "no-a25-oog", "no-a25-rgbcol", "no-a25-oracle-dev", "no-a25-oracle-neutral",
      "no-a24-s1", "no-a24-f05", "no-a29-oog-darkmono-floor",
-     "no-a34-blackseam",
+     "no-a34-blackseam", "no-a35-percblack-blend", "no-a35-oracle-limit",
      "no-b2a33s", "no-rgbpos", "no-v4prm",
      # Agent 15 (D-14 repair), read only together with "gpfwd":
      "gpwarp", "gpres", "gpclip", "gpsel", "gpkeep", "gplight", "gplight2", "gpdark", "gpsamp",
@@ -158,10 +158,18 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # their branch, clip floor at the neutral black). It replaces
 # a29-blackhandover-ink as the black rule (a34 wins when both are given).
 # "no-a34-blackseam" switches it off; -pin and -deepfloor stay opt-in.
+# Agent 35 battery verdict (Findings/agent35-01-percblack.md s6, D-26):
+# ON as well: "a35-percblack-blend" (perceptual and saturation end at the
+# colorimetric black, neutral down to the neutral black, smoothstep
+# hand-over in the last L*) and "a35-oracle-limit" (the colprof oracle with
+# the build's ink limits; a bug fix). "a35-percblack-deep" stays opt-in
+# (it wins over blend when given). "no-a35-percblack-blend" and
+# "no-a35-oracle-limit" switch them off.
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
-    "a24-s1", "a24-f05", "a29-oog-darkmono-floor", "a34-blackseam"})
+    "a24-s1", "a24-f05", "a29-oog-darkmono-floor", "a34-blackseam",
+    "a35-percblack-blend", "a35-oracle-limit"})
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer

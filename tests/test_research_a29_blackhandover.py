@@ -145,15 +145,21 @@ def test_the_source_black_lands_on_the_destination_black():
 
 @pytest.mark.slow
 def test_a_build_with_the_token_hands_the_axis_over(tmp_path, monkeypatch):
-    """Wiring: a real Maximum accuracy build asks for the hand-over only
-    when the token is on."""
+    """Wiring: a real Maximum accuracy build asks for the a29 hand-over
+    only when the token is on. With a34-blackseam on (the default since
+    Agent 35) a34 wins and the a29 rule is its ``elif``, so the token is
+    measured with a34 switched off, as on the token's own branch."""
     from benchmarks.synthetic import PRINTERS, make_chart, measure, write_ti3
     from workflow.profile_engine.builder import BuildSettings, build_profile
     calls = []
     real = b2a.blackhandover_axis
 
     def spy(model, axis, **kw):
-        calls.append(kw.get("ink_limit"))
+        # Agent 35: a34-blackseam (default since research/a35-percblack)
+        # reaches the same function with its own ``chooser``; count only
+        # the a29 rule's calls (chooser None)
+        if kw.get("chooser") is None:
+            calls.append(kw.get("ink_limit"))
         return real(model, axis, **kw)
 
     monkeypatch.setattr(b2a, "blackhandover_axis", spy)
@@ -161,7 +167,8 @@ def test_a_build_with_the_token_hands_the_axis_over(tmp_path, monkeypatch):
     chart = make_chart(p, 400)
     xyz, refl, _ = measure(p, chart)
     ti3 = write_ti3(tmp_path / "S3.ti3", p, chart, xyz, refl)
-    for tokens, expect in ((frozenset(), 0), (frozenset({TOKEN}), 1)):
+    for tokens, expect in ((frozenset({"no-a34-blackseam"}), 0),
+                           (frozenset({TOKEN, "no-a34-blackseam"}), 1)):
         calls.clear()
         build_profile(ti3, tmp_path / f"S3-{expect}.icc",
                       BuildSettings(quality="l", gammap_mode="accurate",

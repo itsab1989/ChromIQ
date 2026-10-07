@@ -561,7 +561,8 @@ def _oracle_args(colprof: Path, settings, source_gamut,
     """The oracle's colprof command line, without the output base name."""
     q = settings.quality if settings.quality in ("l", "m", "h") else "h"
     args = [str(colprof), f"-q{q}"]
-    if (meas is not None and not meas.is_additive and "a35-oracle-limit"
+    if (meas is not None and getattr(meas, "is_additive", None) is False
+            and "a35-oracle-limit"
             in (getattr(settings, "engine_candidates", None) or ())):
         # Research Agent 35 (Findings/agent35-01 s2): without -l colprof
         # uses the .ti3's TOTAL_INK_LIMIT minus 10 % ("Total ink limit
@@ -573,7 +574,7 @@ def _oracle_args(colprof: Path, settings, source_gamut,
         # 0.64, 1.0) prints 5.1. Pass the build's own limits.
         lim = getattr(settings, "ink_limit", None)
         if lim is None:
-            lim = meas.ink_limit
+            lim = getattr(meas, "ink_limit", None)
         if lim is not None:
             args.append(f"-l{float(lim):g}")
         klim = getattr(settings, "black_ink_limit", None)
@@ -1497,6 +1498,22 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                                  extra_hues=extra_hues, black_l=black_l,
                                  k_gen=k_gen, channel_max=channel_max),
                             black_dev=np.zeros(3))
+                    else:
+                        # RGB 0 is itself neutral (model C* < 1, X1): no
+                        # band, but the source black still prints RGB 0,
+                        # B2A1's black. The neutral target's inversion
+                        # put 1.8 % blue in it (X1 perceptual 8.5-9.0 vs
+                        # RGB 0's 7.9; Agent 35 battery, s6).
+                        # Only where RGB 0 is darker in the model than
+                        # the inversion: on R-Knut-printer the inversion's
+                        # neutral prints deeper than RGB 0 (proxy 19.6 vs
+                        # 20.1), pinning RGB 0 there made a reversal.
+                        _blk = np.flatnonzero(
+                            mapped[_neutral_col, 0] <= float(_lab0[0]) + 0.05)
+                        if len(_blk):
+                            _lk = model.predict(dev[_neutral_col[_blk]])[:, 0]
+                            _blk = _blk[_lk > float(_lab0[0])]
+                            dev[_neutral_col[_blk]] = 0.0
             if ink_limit is not None and not is_additive:
                 # the engine's ink limit, exactly (xicclu's 4-decimal device
                 # values and colprof's own limit handling overshoot it by up
