@@ -2544,3 +2544,94 @@ def dark_bridge_on_grid(dev: np.ndarray, l_star: np.ndarray, *,
     dev[band] = np.stack([np.interp(cs[:, c], space[c], xp)
                           for c in range(dev.shape[1])], 1)
     return dev
+
+
+# Research token "a44b-smoothexact" (Agent 44, Findings/agent44-01 s9). On
+# Knut's laser printer the response is folded (12-21 % of the device cube
+# has a non-positive Jacobian in every reference, colprof's A2B included),
+# so even the exact per-node inversion steps between branches from node to
+# node: the a44 sky field kept d2 p99 0.22 against colprof's 0.08. Here the
+# colorimetric RGB table is re-solved as one field: minimise, over the node
+# values in curve space, sum |print(node) - target|^2 + A44B_MU * |second
+# differences|^2, by Gauss-Newton linearised around the current table, so
+# every node stays on its own branch (no averaging of competing samples).
+# Targets: the node's Lab where its own inversion reaches it, else the
+# table's own print (clips stay). Pinned nodes do not move. A44B_MU = 100:
+# the in-gamut nodes then miss their target by 0.85 dE76 at p95, under half
+# of A44_TOL (Knut; mu 30-1000 in the findings).
+A44B_TOKEN = "a44b-smoothexact"
+A44B_MU = 100.0
+
+
+def _curv3(x: np.ndarray, grid: int) -> np.ndarray:
+    x3 = x.reshape((grid,) * 3 + (-1,))
+    o = np.zeros_like(x3)
+    for ax in range(3):
+        lo = [slice(None)] * 4
+        mid, hi = list(lo), list(lo)
+        lo[ax], mid[ax], hi[ax] = slice(0, -2), slice(1, -1), slice(2, None)
+        d2 = x3[tuple(lo)] - 2 * x3[tuple(mid)] + x3[tuple(hi)]
+        o[tuple(lo)] += d2
+        o[tuple(mid)] -= 2 * d2
+        o[tuple(hi)] += d2
+    return o.reshape(x.shape)
+
+
+def smooth_exact(model: ForwardModel, shaped: np.ndarray,
+                 node_lab: np.ndarray, *, pernode: np.ndarray, grid: int,
+                 keep_out: np.ndarray | None = None, mu: float = A44B_MU,
+                 accept: float = A42_ACCEPT, rounds: int = 4,
+                 cg_iters: int = 300):
+    """Research a44b-smoothexact (see the comment above A44B_TOKEN).
+    ``shaped``: the B2A CLUT in the model's curve space (after a44's exact
+    keep); 3 output channels only. Returns ``(shaped, info)``."""
+    n = shaped.shape[1]
+    info = {"applied": False}
+    if n != 3 or len(node_lab) != grid ** 3:
+        return shaped, info
+
+    def pr(s):
+        return model.predict(np.clip(model.unshape_device(
+            np.clip(s, 0.0, 1.0)), 0.0, 1.0))
+
+    e_per = np.linalg.norm(model.predict(np.asarray(pernode, float))
+                           - node_lab, axis=1)
+    s = np.asarray(shaped, float).copy()
+    tgt = pr(s)
+    ing = e_per <= accept
+    tgt[ing] = node_lab[ing]
+    free = np.ones(len(s), bool)
+    if keep_out is not None and len(keep_out):
+        free[np.asarray(keep_out, int)] = False
+    fm = free[:, None].astype(float)
+    h = 1e-3
+    eye = np.eye(3)
+    for _ in range(rounds):
+        r = pr(s) - tgt
+        jac = np.stack([(pr(s + h * eye[k]) - pr(s - h * eye[k])) / (2 * h)
+                        for k in range(3)], 2)
+        jtj = np.einsum("nlk,nlm->nkm", jac, jac)
+        b = -(np.einsum("nlk,nl->nk", jac, r) + mu * _curv3(s, grid)) * fm
+
+        def amul(x):
+            return (np.einsum("nkm,nm->nk", jtj, x * fm)
+                    + mu * _curv3(x * fm, grid)) * fm + 1e-6 * x
+        x = np.zeros_like(s)
+        rr = b - amul(x)
+        p = rr.copy()
+        rs = float((rr * rr).sum())
+        for _i in range(cg_iters):
+            ap = amul(p)
+            al = rs / max(float((p * ap).sum()), 1e-30)
+            x += al * p
+            rr -= al * ap
+            rs2 = float((rr * rr).sum())
+            if rs2 < 1e-12:
+                break
+            p = rr + (rs2 / rs) * p
+            rs = rs2
+        s = np.clip(s + x, 0.0, 1.0)
+    e = np.linalg.norm(pr(s) - node_lab, axis=1)
+    info.update(applied=True, ingamut_err_mean=float(e[ing].mean()),
+                ingamut_err_p95=float(np.percentile(e[ing], 95)))
+    return s, info
