@@ -141,6 +141,7 @@ class PrintViewChip(QAbstractButton):
         self._hovered = False
         self._kb_focus = False
         self._anchor = (0, 0)          # (right, top) in the parent
+        self._max_w = 0                # 0: no limit (see set_max_width)
         side = PILL_H + 2 * RING
         self._width = side
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -202,11 +203,39 @@ class PrintViewChip(QAbstractButton):
         f.setPixelSize(11)
         return f
 
+    def set_max_width(self, w: int) -> None:
+        """The most the chip may open to: the room left of its anchor in the
+        image area (review C of beta 12). The French line is 300 px and the
+        image area 316 px at the window's minimum size, and the splitter
+        makes it narrower still: past that the open chip ran off the image's
+        left edge, cut. Now the hint goes first, then the title is elided."""
+        w = max(0, int(w))
+        if w == self._max_w:
+            return
+        self._max_w = w
+        if self.is_open():
+            self._animate_to(self.expanded_width(), instant=True)
+
+    def _shown_text(self) -> "tuple[str, str]":
+        """The title and hint that fit in the width the chip may open to."""
+        fm = QFontMetrics(self._font())
+        frame = 10 + 4 + PILL_H + 2 * RING
+        title, hint = self._title, self._hint
+        if not self._max_w:
+            return title, hint
+        room = self._max_w - frame
+        if hint and fm.horizontalAdvance(title) + 8 + fm.horizontalAdvance(hint) <= room:
+            return title, hint
+        if fm.horizontalAdvance(title) <= room:
+            return title, ""
+        return fm.elidedText(title, Qt.TextElideMode.ElideRight, max(0, room)), ""
+
     def expanded_width(self) -> int:
         fm = QFontMetrics(self._font())
-        w = 10 + fm.horizontalAdvance(self._title)
-        if self._hint:
-            w += 8 + fm.horizontalAdvance(self._hint)
+        title, hint = self._shown_text()
+        w = 10 + fm.horizontalAdvance(title)
+        if hint:
+            w += 8 + fm.horizontalAdvance(hint)
         return w + 4 + PILL_H + 2 * RING
 
     def is_open(self) -> bool:
@@ -308,7 +337,8 @@ class PrintViewChip(QAbstractButton):
         draw_icon(p, self._icon, icon_box, self._ink)
         # the text is revealed from behind the icon as the pill grows
         text_w = pill.width() - PILL_H
-        if text_w > 4 and self._title:
+        title, hint = self._shown_text()
+        if text_w > 4 and title:
             clip = QPainterPath()
             clip.addRoundedRect(pill, r, r)
             p.setClipPath(clip)
@@ -321,11 +351,11 @@ class PrintViewChip(QAbstractButton):
             x = pill.right() - PILL_H - full + 10
             base = pill.top() + (PILL_H + fm.ascent() - fm.descent()) / 2.0
             p.setPen(self._ink)
-            p.drawText(int(round(x)), int(round(base)), self._title)
-            if self._hint:
+            p.drawText(int(round(x)), int(round(base)), title)
+            if hint:
                 dim = QColor(self._ink)
                 dim.setAlphaF(0.72)
                 p.setPen(dim)
-                p.drawText(int(x + fm.horizontalAdvance(self._title) + 8),
-                           int(round(base)), self._hint)
+                p.drawText(int(x + fm.horizontalAdvance(title) + 8),
+                           int(round(base)), hint)
         p.end()

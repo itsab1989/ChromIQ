@@ -3491,8 +3491,10 @@ class TiffPreview(QWidget):
             return
         from ui.print_view_chip import RING
         origin = self._img_label.mapTo(self, QPoint(0, 0))
-        chip.place(origin.x() + self._img_label.width() - 10 + RING,
-                   origin.y() + 10 - RING)
+        right = origin.x() + self._img_label.width() - 10 + RING
+        # it opens to the left, never past the image area's own left edge
+        chip.set_max_width(right - origin.x() - 6)
+        chip.place(right, origin.y() + 10 - RING)
 
     #: The two greens the measurement overlays are drawn in. `#56d6a5` is
     #: :data:`ui.styles.SPEC_GREEN`, the Measure tab's own accent, used where a

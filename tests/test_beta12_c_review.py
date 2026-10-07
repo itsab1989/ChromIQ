@@ -195,3 +195,33 @@ def test_the_indicator_is_a_button_a_screen_reader_can_press(qapp):
     chip.click()
     assert hits == [1]                       # nothing to switch to
     chip.deleteLater()
+
+
+def test_the_open_chip_never_runs_past_the_image_area(qapp):
+    """The French line is 300 px; the image area is 316 px at the window's
+    minimum size and narrower when the splitter is dragged. The hint goes
+    first, then the title is elided; the icon stays."""
+    from ui.print_view_chip import ICON_PAPER, PrintViewChip
+    chip = PrintViewChip(None)
+    chip.set_state(icon=ICON_PAPER, title="Comme sur papier",
+                   hint="clic : valeurs du périphérique", tooltip="t",
+                   switchable=True)
+    natural = chip.expanded_width()
+    chip.set_max_width(natural)
+    assert chip.expanded_width() == natural and chip._shown_text()[1]
+    chip.set_max_width(natural - 20)
+    title, hint = chip._shown_text()
+    assert hint == "" and title == "Comme sur papier"
+    assert chip.expanded_width() <= natural - 20
+    chip.set_max_width(80)
+    title, hint = chip._shown_text()
+    assert hint == "" and title.endswith("…") and chip.expanded_width() <= 80
+    chip.set_max_width(0)                    # no limit
+    assert chip.expanded_width() == natural
+    chip.deleteLater()
+
+
+def test_the_preview_tells_the_chip_how_much_room_there_is(qapp):
+    import inspect
+    from ui.tiff_preview import TiffPreview
+    assert "set_max_width" in inspect.getsource(TiffPreview._place_print_chip)
