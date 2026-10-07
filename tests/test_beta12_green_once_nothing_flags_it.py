@@ -84,7 +84,7 @@ def _replay(limit: float, fence_on: bool) -> dict:
     """Basti's 43 strip events of 2026-10-05 through the Measure tab's own
     outline pipeline (the per-strip loop of ``tab_measure``), offline."""
     from ui.tabs.tab_measure import _strip_outlier_fence
-    evs = json.loads((DATA / "strip_events.json").read_text())
+    evs = json.loads((DATA / "strip_events.json").read_text(encoding="utf-8"))
     ti2 = DATA / "chart.ti2"
     judge = pf.FlagJudge(white=pf.chart_white(ti2),
                          device_ranges=pf.chart_device_ranges(ti2))

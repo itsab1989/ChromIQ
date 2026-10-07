@@ -99,8 +99,10 @@ def test_the_stamp_is_on_by_default_and_no_recipe_can_clear_it():
 
 def test_an_empty_notes_box_is_never_blamed(tab):
     tab._seed_knut_preset(_straight_key())
-    assert tab._manual_stamp_cmd_check.isChecked(), (
-        "the default changed; this test's premise is gone")
+    # Since beta 12 every built-in switches the stamp OFF (#182); the user
+    # ticking it back on is the case this test is about.
+    assert tab._manual_stamp_cmd_check.isChecked() is False
+    tab._manual_stamp_cmd_check.setChecked(True)
     assert not tab._manual_chart_notes_edit.text()
 
     got = [w for w in _notes(tab) if "right edge" in w]
