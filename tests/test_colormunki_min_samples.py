@@ -137,21 +137,30 @@ def test_the_limit_is_applied_strictly_by_calculation(seconds, patches,
                                                       too_fast):
     """Knut, 2026-07-27: "The limits shall always be used strictly according to
     the calculations, as before." The round 5-and-7-second figures in the help
-    text are approximations for reading, not the rule."""
+    text are approximations for reading, not the rule.
+
+    Beta 12 (Basti 6001610646) puts a 2 % tolerance for the computer's clock
+    under the limit; with it at 0 the calculation is exactly this one, and
+    with the default the same strips are judged 2 % lower (below)."""
     from core.measure_pace import PaceConfig, PaceTracker
-    cfg = PaceConfig(sample_hz=50.0, min_samples=23)
+    cfg = PaceConfig(sample_hz=50.0, min_samples=23,
+                     too_fast_tolerance_percent=0.0)
     tracker = PaceTracker(cfg)
 
     verdict = tracker.strip_timed(seconds, patches)
 
     assert verdict.too_fast is too_fast, verdict
+    lenient = PaceTracker(PaceConfig(sample_hz=50.0, min_samples=23))
+    assert lenient.strip_timed(seconds, patches).too_fast is (
+        seconds / patches < 0.46 * 0.98), (seconds, patches)
 
 
 def test_the_time_per_patch_does_not_depend_on_strip_length():
     """His correction of my question: the per-patch requirement stays at 460 ms;
     it is the strip TOTAL that grows with the number of patches."""
     from core.measure_pace import PaceConfig, PaceTracker
-    cfg = PaceConfig(sample_hz=50.0, min_samples=23)
+    cfg = PaceConfig(sample_hz=50.0, min_samples=23,
+                     too_fast_tolerance_percent=0.0)
     tracker = PaceTracker(cfg)
 
     for patches in (8, 11, 15, 21, 30):
@@ -169,7 +178,8 @@ def test_the_verdict_agrees_with_the_number_it_reports():
     rounded DOWN instead, because a patch with time for 22.7 readings got 22
     complete ones. Now the two never disagree."""
     from core.measure_pace import PaceConfig, PaceTracker
-    tracker = PaceTracker(PaceConfig(sample_hz=50.0, min_samples=23))
+    tracker = PaceTracker(PaceConfig(sample_hz=50.0, min_samples=23,
+                                     too_fast_tolerance_percent=0.0))
 
     for seconds, patches in ((5.0, 11), (5.06, 11), (6.0, 11),
                              (6.89, 15), (6.9, 15), (9.0, 15)):

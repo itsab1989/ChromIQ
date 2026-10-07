@@ -2,6 +2,10 @@
 
 ## v4.3.3-beta.12 (unreleased)
 
+### Changed
+
+- **"Strip Read Quickly" allows a little room** (Basti, #182 6001610646). A strip read up to 2 % faster than your instrument's limit (8 ms a patch at 400 ms, about a fifth of a second over a 28-patch strip) no longer brings up the Re-read / Continue window or the slow-down sound; it is reported as close to the limit instead. Basti's strip, 398 ms against 400, was within that. The reading time is measured on the computer's clock between the instrument's ready beep and the strip arriving, and each of those passes through the reading engine and the app's event queue first, so 2 % is about what the clock itself can be off. A strip read faster than that is still warned about exactly as before.
+
 ### Fixed
 
 - **The lower reading-direction arrow in the Measure tab no longer covers the bottom row of patches** (Basti, #182 6001610646). When you read strips in both directions, the second arrow now sits just below the patches, in the chart's bottom margin (where it may cover the help marks printed there), and is made shorter when that margin is narrow. Only a chart with almost no paper under its patches keeps it at the sheet's bottom edge.
