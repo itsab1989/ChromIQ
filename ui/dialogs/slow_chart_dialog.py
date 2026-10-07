@@ -41,8 +41,14 @@ class SlowChartDialog(QDialog):
     FAST = 2
     CANCEL = 3
 
-    def __init__(self, parent: QWidget | None = None, min_width: int = 560) -> None:
+    def __init__(self, parent: QWidget | None = None, min_width: int = 560,
+                 *, uses_profile: bool = True) -> None:
+        """*uses_profile*: whether this build passes targen a pre-conditioning
+        profile (-c). The window's own text is about such a build (a
+        refinement chart); a chart built without one is told only what
+        applies to it (M-CHART-SLOW-NO-PROFILE, beta 12)."""
         super().__init__(parent)
+        self.uses_profile = bool(uses_profile)
         title = tr("This chart is taking longer than usual")
         self.setWindowTitle(title)
         self.setMinimumWidth(min_width)
@@ -64,25 +70,11 @@ class SlowChartDialog(QDialog):
         heading.setWordWrap(True)
         layout.addWidget(heading)
 
-        body_text = tr(
-            "ChromIQ hasn't frozen — your chart is still being built in the "
-            "background. With certain pre-conditioning profiles, Argyll's "
-            "standard way of arranging the colour patches can slow down "
-            "dramatically on larger (multi-page) charts, and that's what's "
-            "happening here.\n\n"
-            "You have three choices:\n\n"
-            "• Keep waiting — let it finish with the highest-quality patch "
-            "layout. Be aware this may take a very long time, and there's no "
-            "reliable way to predict how long.\n\n"
-            "• Rebuild with the faster layout (recommended) — ChromIQ stops "
-            "this attempt and immediately rebuilds the same chart, with the "
-            "same profile and the same number of patches, using a different "
-            "patch-arrangement method that doesn't suffer from this slowdown. "
-            "The patches are still spread evenly through your profile's colour "
-            "space, so for a refinement chart the quality is effectively the "
-            "same — and it usually finishes in under a second.\n\n"
-            "• Cancel — stop building the chart. Nothing is saved."
-        )
+        if not self.uses_profile:
+            from workflow.measurement_messages import M_CHART_SLOW_NO_PROFILE
+            _title, body_text = M_CHART_SLOW_NO_PROFILE.render()
+        else:
+            body_text = self._text_for_a_profile_build()
         body = QLabel(body_text, self)
         body.setWordWrap(True)
         body.setStyleSheet(f"color: {text_color};")
@@ -147,6 +139,31 @@ class SlowChartDialog(QDialog):
         self.setMaximumHeight(cap)
         self.resize(self.width(), min(desired, cap))
         log.debug("SlowChartDialog created")
+
+
+    @staticmethod
+    def _text_for_a_profile_build() -> str:
+        """The window's text for a chart built with a pre-conditioning
+        profile, which is where the slowdown was first met."""
+        return tr(
+            "ChromIQ hasn't frozen — your chart is still being built in the "
+            "background. With certain pre-conditioning profiles, Argyll's "
+            "standard way of arranging the colour patches can slow down "
+            "dramatically on larger (multi-page) charts, and that's what's "
+            "happening here.\n\n"
+            "You have three choices:\n\n"
+            "• Keep waiting — let it finish with the highest-quality patch "
+            "layout. Be aware this may take a very long time, and there's no "
+            "reliable way to predict how long.\n\n"
+            "• Rebuild with the faster layout (recommended) — ChromIQ stops "
+            "this attempt and immediately rebuilds the same chart, with the "
+            "same profile and the same number of patches, using a different "
+            "patch-arrangement method that doesn't suffer from this slowdown. "
+            "The patches are still spread evenly through your profile's colour "
+            "space, so for a refinement chart the quality is effectively the "
+            "same — and it usually finishes in under a second.\n\n"
+            "• Cancel — stop building the chart. Nothing is saved."
+        )
 
 
 class _BodyScrollArea(QScrollArea):

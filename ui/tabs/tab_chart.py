@@ -19817,7 +19817,9 @@ class TabChart(QWidget):
             return  # finished in the gap before the timer fired
         from ui.dialogs.slow_chart_dialog import SlowChartDialog
 
-        dlg = SlowChartDialog(self.window())
+        dlg = SlowChartDialog(
+            self.window(),
+            uses_profile=self._creator.targen_uses_profile())
         self._slow_dialog = dlg
         choice = dlg.exec()       # nested loop; targen keeps running behind it
         self._slow_dialog = None
