@@ -198,7 +198,7 @@ def cell_excess(clut: np.ndarray, out_tables: np.ndarray, grid: int,
 
 def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
                limit: float, *, tol: float = 1e-4, margin: float = 2e-4,
-               max_iter: int = 80, protect=()):
+               max_iter: int = 400, relax_at: int = 40, protect=()):
     """Return (new u16 CLUT, changed node indices). ``limit`` is a fraction
     (3.0 = 300 %). In every cell whose interpolated ink exceeds
     ``limit + tol`` by ``e``, the corners that carry the worst point
@@ -234,7 +234,7 @@ def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
             hit = corners[(wmax[b] > 0.02) & ~keep[corners]]
             if not len(hit):
                 hit = corners[~keep[corners]]
-                if not len(hit) or it >= max_iter // 2:
+                if not len(hit) or it >= relax_at:
                     hit = corners           # last resort: the black moves
             target = limit - exc[b] - margin
             above = hit[tac_now[hit] > target]
@@ -259,7 +259,30 @@ def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
             e2, w2 = cell_excess(clut, out_tables, grid, limit, cells[touched])
             exc[touched], wmax[touched] = e2, w2
     else:
-        raise RuntimeError("TAC guard did not converge")
+        # Not reached on the battery (the slowest table, the 7-ink FOGRA55
+        # B2A0, needs 81-200 rounds): a build must not fail here, so any
+        # remaining cell is held by its upper bound (the sum of each
+        # channel's largest corner ink), which no interpolation can exceed.
+        for _ in range(2000):
+            bad = np.flatnonzero(exc > tol)
+            if not len(bad):
+                break
+            code = clut.astype(float)
+            top = _out(out_tables, code[cells[bad]].max(1)).sum(1)
+            tac_now = _out(out_tables, clut).sum(1)
+            cap = np.full(len(clut), np.inf)
+            np.minimum.at(cap, cells[bad].ravel(),
+                          np.repeat(top - limit + margin, 8) * -1.0
+                          + tac_now[cells[bad].ravel()])
+            nodes = np.flatnonzero(np.isfinite(cap))
+            new = _project_rows(_out(out_tables, clut[nodes]),
+                                np.maximum(cap[nodes], 0.0))
+            for c in range(n):
+                code_c = _out_inverse_floor(out_tables[c], new[:, c], vals[c])
+                clut[nodes, c] = np.minimum(clut[nodes, c], code_c)
+            changed.update(int(x) for x in nodes)
+            exc[bad], wmax[bad] = cell_excess(clut, out_tables, grid, limit,
+                                              cells[bad])
     return clut.astype(">u2"), np.array(sorted(changed), int)
 
 

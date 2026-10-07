@@ -134,6 +134,14 @@ def test_a_protected_corner_stays_unless_it_is_itself_over_the_limit():
     assert _dense_max(new, tables, grid, limit) <= limit + 1e-4
 
 
+def test_the_fallback_still_holds_the_limit_and_never_raises():
+    grid, n, limit = 5, 4, 2.6
+    tables = _concave_tables(n)
+    clut = _table_with_limit(n, grid, limit)
+    new, _ = tg.guard_clut(clut, tables, grid, limit, max_iter=1)
+    assert _dense_max(new, tables, grid, limit) <= limit + 1e-4
+
+
 def test_a_table_inside_the_limit_comes_back_as_the_same_bytes():
     grid, n = 5, 4
     tables = _concave_tables(n)
