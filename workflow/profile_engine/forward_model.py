@@ -294,6 +294,29 @@ def ramp_positioning_curves(device: np.ndarray, lab: np.ndarray, *,
     return out
 
 
+def ramp_positioning_curves_mixed(device: np.ndarray, lab: np.ndarray, *,
+                                  light_blend: float = 0.25,
+                                  band: tuple = (0.65, 0.9),
+                                  knots: int = 21, min_ramp: int = 3
+                                  ) -> np.ndarray:
+    """Research (Agent 38 s6, token a40-knut-grey): the ramp curves with a
+    gentler placement (``light_blend`` instead of 0.5) over the light part
+    of each channel's ink range, handed over by a smoothstep across
+    ``band`` (ink fraction) to the shipped placement at the dark end, so the
+    dark corner keeps the lattice the shipped curves give it. Knut's laser
+    chart, ten-fold held-out: 1.767 shipped, 1.526 mixed (colprof 1.721);
+    grey column 2.44 -> 1.69 (colprof 1.77)."""
+    a = ramp_positioning_curves(device, lab, knots=knots, blend=light_blend,
+                                min_ramp=min_ramp)
+    b = ramp_positioning_curves(device, lab, knots=knots, blend=0.5,
+                                min_ramp=min_ramp)
+    xp = np.linspace(0.0, 1.0, knots)
+    lo, hi = band
+    t = np.clip((xp - lo) / (hi - lo), 0.0, 1.0)
+    w = t * t * (3.0 - 2.0 * t)
+    return np.maximum.accumulate((1.0 - w) * a + w * b, axis=1)
+
+
 def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
                  channel: int, xp: np.ndarray,
                  weights: np.ndarray | None = None) -> None:

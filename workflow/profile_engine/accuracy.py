@@ -32,7 +32,8 @@ import numpy as np
 
 from workflow.profile_engine.forward_model import (ForwardModel,
                                                    fit_forward_model,
-                                                   ramp_positioning_curves)
+                                                   ramp_positioning_curves,
+                                                   ramp_positioning_curves_mixed)
 from workflow.profile_engine.metrics import delta_e_2000
 
 # λ search ladder, as factors on the parity table's value (settings -r
@@ -57,6 +58,12 @@ _HOLDOUT_MIN_PATCHES = 120     # below this a CV split starves the fit
 _CG_RTOL = 1e-12               # squared-residual scale → ~1e-6 relative
 
 
+def _ramp_curves(dev_pos, lab, ramp_blend):
+    if ramp_blend == "mixed":
+        return ramp_positioning_curves_mixed(dev_pos, lab)
+    return ramp_positioning_curves(dev_pos, lab, blend=ramp_blend)
+
+
 def fit_forward_model_accurate(
         device: np.ndarray, lab: np.ndarray, *, grid: int, base_lam: float,
         curve_rounds: int = 2,
@@ -69,8 +76,14 @@ def fit_forward_model_accurate(
         fit_space=None,
         order_mu: float = 0.0,
         lam_factors: tuple | None = None,
+        ramp_blend: float | str = 0.5,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
+
+    ``ramp_blend`` (research, Agent 38 s6, token a40-knut-grey): the share
+    of the ramp placement in the positioning curves (the rest is the
+    identity); 0.5 = the shipped curves; "mixed" = gentler in the light
+    part, shipped at the dark end (forward_model.ramp_positioning_curves_mixed).
 
     ``lam_factors`` (research, Agent 38): the smoothing ladder to search
     instead of ``_LAMBDA_FACTORS`` (``(1.0,)`` = the standard value only,
@@ -186,8 +199,9 @@ def fit_forward_model_accurate(
         pos = fit_forward_model(device, lab, grid=grid, lam=4.0 * base_lam,
                                 curve_rounds=0, cg_iters=350,
                                 cg_rtol=_CG_RTOL, weights=rw,
-                                init_curves=_mirror(ramp_positioning_curves(
-                                    dev_pos, lab_for_curves), additive))
+                                init_curves=_mirror(_ramp_curves(
+                                    dev_pos, lab_for_curves,
+                                    ramp_blend), additive))
         pred_all = pos.predict(device)
         if space is not None:
             pred_all = space.ucs_to_lab(pred_all)
@@ -196,7 +210,7 @@ def fit_forward_model_accurate(
         bad_all = ramp & ~replaced & (r_all > max(2.0, float(np.median(r_all))
                                                   + 3.0 * mad_a))
         lab_for_curves[bad_all] = pred_all[bad_all]
-        init = _mirror(ramp_positioning_curves(dev_pos, lab_for_curves),
+        init = _mirror(_ramp_curves(dev_pos, lab_for_curves, ramp_blend),
                        additive)
 
     if sigma is not None:

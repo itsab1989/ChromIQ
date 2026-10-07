@@ -136,3 +136,60 @@ def message(rep: dict) -> str:
             f"mean {rep['mean_with']:.2f} with, {rep['mean_without']:.2f} without; "
             f"near-neutral {rep.get('neutral_with', float('nan')):.2f} with, "
             f"{rep.get('neutral_without', float('nan')):.2f} without).")
+
+
+# ---------------------------------------------------------------------------
+# Research token "a40-knut-grey" (Agent 38 s6, 2026-10-07): a gentler ramp
+# placement where the chart shows the shipped one is clearly worse.
+#
+# Knut's laser chart (3-4 points per ramp, toner saturating at ~75 % of a
+# channel): ten-fold held-out with the shipped curves (blend 0.5) 1.767, grey
+# column 2.44; with blend 0.25 1.624, grey 1.99 (colprof 1.721 / 1.768);
+# dropping the curves altogether (a38 v1) bought the same accuracy but cost
+# the safety rows, and so did blend 0.25 everywhere (a sharper hand-over at
+# L* 25). The "mixed" curves are 0.25 over the light part of each channel
+# and the shipped 0.5 at the dark end (ten-fold 1.526, grey 1.69). The exam
+# is the same five folds; "mixed" replaces 0.5 only when 0.5 is clearly WORSE (lower bound > 0) and none of the guards
+# (p95, near-neutral, light) objects.
+A40_TOKEN = "a40-knut-grey"
+A40_BLENDS = (0.5, "mixed")
+
+
+def blend_exam(device, lab, *, grid: int, base_lam: float, curve_rounds: int,
+               row_weights=None, ucs: bool = False,
+               blends: tuple = A40_BLENDS) -> dict:
+    """:func:`decide` with "with" = the shipped blend, "without" = the
+    gentler one; "drop" True means: use the gentler blend."""
+    from workflow.profile_engine import parallel
+    from workflow.profile_engine.accuracy import fit_forward_model_accurate
+    from workflow.profile_engine.metrics import delta_e_2000
+    device = np.asarray(device, float)
+    lab = np.asarray(lab, float)
+    rw = None if row_weights is None else np.asarray(row_weights, float)
+    fold = exam_folds(device)
+
+    def one(b: float, f: int):
+        tr = fold != f
+        m, _, _ = fit_forward_model_accurate(
+            device[tr], lab[tr], grid=grid, base_lam=base_lam,
+            curve_rounds=curve_rounds, ucs=ucs, positioning=True,
+            additive=True, row_weights=None if rw is None else rw[tr],
+            lam_factors=(1.0,), ramp_blend=b)
+        te = fold == f
+        return delta_e_2000(m.predict(device[te]), lab[te])
+
+    keys = [(b, f) for b in blends for f in range(A38_FOLDS)]
+    vals = parallel.run_tasks([(lambda b=b, f=f: one(b, f)) for b, f in keys])
+    held = np.concatenate([np.flatnonzero(fold == f) for f in range(A38_FOLDS)])
+    rep = decide(np.concatenate(vals[:A38_FOLDS]),
+                 np.concatenate(vals[A38_FOLDS:]), lab[held])
+    rep["blend"] = blends[1] if rep["drop"] else blends[0]
+    return rep
+
+
+def blend_message(rep: dict) -> str:
+    return (f"RGB ramp curves: {'gentler in the light part' if rep['drop'] else 'shipped'} "
+            f"(held-out exam over {rep['n']} patches: mean {rep['mean_with']:.2f} shipped, "
+            f"{rep['mean_without']:.2f} gentler; near-neutral "
+            f"{rep.get('neutral_with', float('nan')):.2f} / "
+            f"{rep.get('neutral_without', float('nan')):.2f}).")

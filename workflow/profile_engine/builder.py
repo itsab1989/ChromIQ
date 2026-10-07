@@ -116,6 +116,8 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a35-oracle-limit",
      # Agent 36: the RGB perceptual column made monotone without plateaus
      "a36-lcms8-safe",
+     # Agent 38 s6: gentler RGB ramp placement where an exam wants it
+     "a40-knut-grey",
      # Agent 38: RGB ramp curves kept only where a held-out exam wants them
      "a38-noisy-rgb"})
 
@@ -843,6 +845,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, "Candidate pipeline active: "
                         f"{', '.join(sorted(candidates))}.")
     _noise_winner = None
+    _a40_on = False                     # Agent 38 s6 (a40-knut-grey)
     if accurate and settings.noise_model and "gp" not in candidates:
         # #123 user option: noise-aware fitting behind a held-out exam —
         # only used when it clearly beats the standard fit on THIS chart
@@ -878,6 +881,26 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, noisyrgb.message(_a38))
             if _a38["drop"]:
                 _positioning = False
+        _ramp_blend = {}
+        _a40_on = False
+        if (_positioning and meas.is_additive
+                and "a40-knut-grey" in candidates):
+            # Research (Agent 38 s6): a gentler ramp placement in the light
+            # part of each channel ("mixed") where the shipped one is clearly worse on this chart's held-out
+            # exam (Knut's laser chart: the grey column; noisyrgb.py).
+            from workflow.profile_engine import noisyrgb
+            _a40 = noisyrgb.blend_exam(
+                meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
+                curve_rounds=curve_rounds, row_weights=meas.row_weights,
+                ucs=use_ucs)
+            _emit(settings, noisyrgb.blend_message(_a40))
+            if _a40["drop"]:
+                # ... and the standard smoothing: on a chart where the exam
+                # says this, the single-split search is a coin toss (Knut:
+                # x0.25..x4 across ten folds; its x4 pick cost 0.3 dE00).
+                _ramp_blend = {"ramp_blend": _a40["blend"],
+                               "lam_factors": (1.0,)}
+                _a40_on = True
         model, outliers, _lam_used = fit_forward_model_accurate(
             meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
@@ -888,6 +911,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # single-ink ramps (research agent5-03, item 1 cause D).
             # Agent 3 "rgbpos": the same, mirrored, for RGB devices.
             positioning=_positioning,
+            **_ramp_blend,
             additive=meas.is_additive,
             # Research token "a19-extrap" (agent 19, F-12): penalise the
             # 3+-ink interactions no chart identifies, 5+ ink devices only.
@@ -1413,6 +1437,22 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                if "b2a33s" in candidates else {}))
     from workflow.profile_engine import oog_clip as _oogc
     _oogc.set_dark_floor(None)          # Agent 29b: colorimetric table done
+    if (_a40_on and fixed_nodes is not None and len(fixed_nodes)):
+        # Research (Agent 38 s6, a40-knut-grey): with the gentler curves the
+        # neutral black of a noisy chart can land on a cube face (Knut: RGB
+        # 0, 0, 0.17), and the held column then turns a channel back on its
+        # way up (B 0.17 at L* 25, 0.11 at L* 28): a kink a grey ramp shows.
+        # Along the column every RGB channel is made non-decreasing in L*
+        # (pool-adjacent-violators); a column that is monotone already is
+        # left exactly as it is.
+        dev_clut = dev_clut.copy()
+        _col = b2a_mod.column_nodes_by_l(node_lab, fixed_nodes)
+        _bl = float(model.predict(np.zeros((1, n)))[0, 0])
+        _nbl, _ = b2a_mod.rgb_neutral_black(model, _bl, ucs=use_ucs)
+        dev_clut[_col] = b2a_mod.dark_bridge(
+            dev_clut[_col], node_lab[_col, 0], black_l=_bl,
+            to_l=float(_nbl) + 3.0)
+        dev_clut[_col] = b2a_mod.monotone_channels(dev_clut[_col])
     if (accurate and meas.is_additive and "a25-rgbcol" in candidates
             and fixed_nodes is not None and len(fixed_nodes)):
         # Research (Agent 25): the in-gamut neutral column of an RGB table

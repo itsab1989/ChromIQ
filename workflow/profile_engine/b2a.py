@@ -2036,6 +2036,56 @@ def additive_column_nodes(node_lab: np.ndarray, residual: np.ndarray) -> np.ndar
     return np.flatnonzero((chroma < 1.0) & (residual < 0.5))
 
 
+def column_nodes_by_l(node_lab: np.ndarray, nodes: np.ndarray) -> np.ndarray:
+    """Research (Agent 38 s6): the neutral-column nodes (C* < 1) among
+    ``nodes``, ordered from dark to light."""
+    nodes = np.asarray(nodes, int)
+    c = np.hypot(node_lab[nodes, 1], node_lab[nodes, 2])
+    col = nodes[c < 1.0]
+    return col[np.argsort(node_lab[col, 0], kind="stable")]
+
+
+def dark_bridge(dev: np.ndarray, l_star: np.ndarray, *, black_l: float,
+                to_l: float) -> np.ndarray:
+    """Research (Agent 38 s6): column nodes (dark to light) between the
+    device black (RGB 0 at ``black_l``) and the first node at or above
+    ``to_l`` are put on the straight line between the two in L*, so the
+    grey ramp walks from the (tinted) black into the neutral column without
+    a corner on a cube face. Nodes outside the band are unchanged."""
+    dev = np.asarray(dev, float).copy()
+    l_star = np.asarray(l_star, float)
+    above = np.flatnonzero(l_star >= to_l)
+    if not len(above):
+        return dev
+    a = above[0]
+    band = (l_star > black_l) & (l_star < l_star[a])
+    u = (l_star[band] - black_l) / max(l_star[a] - black_l, 1e-9)
+    dev[band] = u[:, None] * dev[a][None, :]
+    return dev
+
+
+def monotone_channels(dev: np.ndarray) -> np.ndarray:
+    """Research (Agent 38 s6): each column of ``dev`` (rows dark to light)
+    made non-decreasing by pool-adjacent-violators (the least-squares
+    monotone fit); an already monotone channel is returned unchanged."""
+    dev = np.asarray(dev, float)
+    out = dev.copy()
+    for c in range(dev.shape[1]):
+        y = dev[:, c]
+        if np.all(np.diff(y) >= 0):
+            continue
+        vals, wts = [], []
+        for v in y:
+            vals.append(float(v)); wts.append(1)
+            while len(vals) > 1 and vals[-2] > vals[-1]:
+                w = wts[-2] + wts[-1]
+                vals[-2] = (vals[-2] * wts[-2] + vals[-1] * wts[-1]) / w
+                wts[-2] = w
+                vals.pop(); wts.pop()
+        out[:, c] = np.repeat(vals, wts)
+    return out
+
+
 def set_research_tokens(tokens, *, is_additive) -> None:
     """Module switches for one build (research tokens a21-*, a25-*).
     Called by the builder before the first inversion and with an empty set
