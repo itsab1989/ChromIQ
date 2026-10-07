@@ -298,11 +298,30 @@ def softproof_page(tiff: "str | Path", plan: PreviewPlan, bin_dir: "str | Path",
             Path(src).unlink()
         except OSError:
             pass
+    _drop_superseded(key)
     _cache[key] = out
     log.info("print preview: %s shown %s through %s", tiff.name,
              "converted as printed and" if plan.kind == KIND_THROUGH else "raw,",
              plan.profile.name)
     return out
+
+
+def _drop_superseded(key: tuple) -> None:
+    """Delete the renders *key* replaces: the same page, shown the same way,
+    from an older page file or an older profile (beta-12 review). Without it
+    every profile rebuild or Generate left the previous renders (3 to 8 MB a
+    page) in the temporary folder until ChromIQ quit."""
+    page, prof = key[0][0], key[1][0]
+    for old in [k for k in _cache
+                if k[0][0] == page and k[1][0] == prof and k[2:] == key[2:]
+                and k != key]:
+        try:
+            _cache.pop(old).unlink()
+        except OSError:
+            pass
+    for old in [k for k in _failed
+                if k[0][0] == page and k[1][0] == prof and k[2:] == key[2:]]:
+        _failed.discard(old)
 
 
 def clear_cache() -> None:

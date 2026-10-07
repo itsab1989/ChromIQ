@@ -69,6 +69,15 @@ def build() -> dict:
                 print(f"  {row.key}: cannot be checked ({exc})", file=sys.stderr)
                 continue
             values = json.loads(json.dumps(values))
+            transient = sorted({c.get("reason") for c in values.values()
+                                if isinstance(c, dict)
+                                and c.get("reason") in PE._NOT_CERTIFIABLE})
+            if transient:
+                # printtarg missing, refusing or too slow on THIS machine: an
+                # answer about the tools, not the preset (beta-12 review)
+                raise SystemExit(f"  {row.key}: not certified, the layout "
+                                 f"tools answered {transient}; fix ArgyllCMS "
+                                 "and run this again")
             answered = sorted(r for r, c in values.items()
                               if isinstance(c, dict) and c.get("value") is not None)
             certs[digest] = {"preset": row.key, "label": row.label,

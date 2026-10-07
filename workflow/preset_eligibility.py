@@ -710,13 +710,24 @@ def chart_row_values(chart: "str | Path",
         else:
             # laid out just now: file it under the key that says so
             _CACHE[key[:-1] + (PL.state(p, recipe),)] = hit
-        if not any(c.get("reason") == REASON_EVENNESS_LAYING_OUT
+        if not any(c.get("reason") in _NOT_CERTIFIABLE
                    for c in hit.values() if isinstance(c, dict)):
             # a user preset's answer, worked out in full: certify it (Knut
-            # 6045500910, answer 5); built-ins are certified at release
+            # 6045500910, answer 5); built-ins are certified at release.
+            # Never an answer about this machine's tools at this moment
+            # (still laying out, printtarg not found, printtarg refused or
+            # timed out): that would stay the preset's answer after the
+            # tools are fixed (beta-12 review)
             from workflow import preset_certificates as PC
             PC.record(p, recipe, hit)
     return hit
+
+
+#: Answers that describe the tools at one moment, not the preset, and so are
+#: never certified (beta-12 review).
+_NOT_CERTIFIABLE = frozenset({REASON_EVENNESS_LAYING_OUT,
+                              REASON_EVENNESS_LAYOUT_NO_TOOL,
+                              REASON_EVENNESS_LAYOUT_REFUSED})
 
 
 def _certified(p: Path, recipe: "dict | None", key: tuple) -> "dict | None":

@@ -918,6 +918,24 @@ class TabPrint(QWidget):
 
         self._cm_through_rb.toggled.connect(self._on_cm_selection_changed)
         self._cm_raw_rb.toggled.connect(self._on_cm_selection_changed)
+        # beta-12 review: the preview converts through the profile in the
+        # chosen intent, so a new intent must reach it too (the radios above
+        # already do, through `_update_colour_row_visible`)
+        self._cm_intent_combo.currentIndexChanged.connect(
+            self._on_cm_intent_changed)
+
+    def _on_cm_intent_changed(self, *_a) -> None:
+        """Show the sheet in the Rendering intent just chosen (beta 12,
+        Knut 6045500910 Q4): the preview converts exactly as the print will."""
+        if getattr(self, "_updating_cm", False):
+            return
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or not ctl.target.is_verification() \
+                or not self._tiff_pages:
+            return
+        self._preview.set_print_preview(
+            True, colour=self._cm_selected_colour(),
+            intent=self._cm_selected_intent())
 
     def _on_cm_selection_changed(self, *_a) -> None:
         """Follow a user click on the Colour radios: remember the choice and

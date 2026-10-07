@@ -143,11 +143,18 @@ def preset_hash(chart: "str | Path", recipe: "dict | None") -> str:
 
 
 def _read(path: Path) -> dict:
+    """A certificate store, or ``{}``. A file that is not one (cut short,
+    edited by hand, ``"certificates"`` not a mapping) is read as empty, never
+    as a reason to fail the presets window (beta-12 review)."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
+    except (OSError, ValueError, UnicodeDecodeError):
         return {}
+    if not isinstance(data, dict):
+        return {}
+    if not isinstance(data.get("certificates"), dict):
+        data["certificates"] = {}
+    return data
 
 
 def _shipped_store() -> dict:
