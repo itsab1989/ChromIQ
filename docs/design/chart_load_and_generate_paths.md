@@ -132,6 +132,22 @@ dropped branch rather than dead code, and that is not a sweep's decision.
 | Restore Used Chart, the pages half; the verification page rebuild | The labels the stored chart was printed with (ArgyllCMS's, or ChromIQ's old rule for a chart from before 4.3.3-beta.7, recognised from its own locations) | None: the chart is already on paper |
 | A stored or preset pattern that cannot be used | Loads unchanged and shows red | Generate stays unavailable until it is changed |
 
+## A built-in preset and the stamp (beta 12, #182)
+
+> **⏳ Awaiting confirmation. Confirmed by:** *nobody yet.* The rule is Knut's
+> statement that the presets are designed and saved without the stamp; how it
+> is built waits for his or Sebastian's word.
+
+* **Every built-in preset sets "Stamp settings down the right edge" OFF** when
+  it is chosen, in Create Chart Manual and in From Profile Gamut. Until beta 11
+  only 41 of 189 did (the Pharmacist charts, the photo cards, the i1 Maximised
+  charts); the other 148, all 26 CR30 hexagon charts among them, left the box as
+  it was, and on a new target that is ON (Basti's A3 Plus 616 verification,
+  2026-10-07; the CR30 stamp over the patches).
+* A user preset keeps the stamp it was saved with (`stamp_commands`).
+* **Unchanged, and a question to Knut:** a new target still starts with the
+  stamp ON (`chart_stamp_commands`, per_target_settings.md §1.2).
+
 ## Answered, and so not built
 
 Whether importing a chart file should also offer "replace only the chart",

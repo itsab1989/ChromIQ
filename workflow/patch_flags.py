@@ -666,6 +666,13 @@ class FlagJudge:
         #: corrected by a live re-read that fits (Knut 5984277558). Never a
         #: reference; a later live reading that is flagged again ends it.
         self._corrected: "dict[str, tuple]" = {}
+        #: loc -> (ΔE of the misread, "neighbour" | "limit", its measured
+        #: L*a*b*): a LIVE re-read differed from a flagged reading by more
+        #: than SAME_READING_DE while the patch was still flagged for another
+        #: reason (the neighbour check had not cleared it yet). It turns
+        #: green (``_corrected``) the moment the patch is judged not flagged,
+        #: live or not (beta 12, #182 FINDINGS B1, the AA5 case).
+        self._pending: "dict[str, tuple]" = {}
 
     @property
     def corrected(self) -> "dict[str, tuple]":
@@ -1104,10 +1111,15 @@ class FlagJudge:
             # not a re-read, so it never makes one; it keeps one made before.
             # A re-read that gives the SAME colour (within SAME_READING_DE)
             # corrected nothing: the reading stands, only a limit moved.
+            pending = self._pending.pop(loc, None)
             if (live and prev is not None and prev.flagged
                     and _norm(_sub(meas_lab, prev.meas_lab)) > SAME_READING_DE):
                 self._corrected[loc] = (
                     float(prev.de), "neighbour" if prev.reread_only else "limit")
+            elif pending is not None:
+                # A live re-read already corrected the misread while another
+                # reason still flagged the patch; that reason is gone now.
+                self._corrected[loc] = (pending[0], pending[1])
             # Read clean now, LIVE: whatever was confirmed about it no longer
             # holds. A repaint from the file only hides it (the limit).
             if live and self._refs.pop(loc, None) is not None:
@@ -1121,6 +1133,19 @@ class FlagJudge:
         if live:
             # Flagged again by a live reading: no longer corrected.
             self._corrected.pop(loc, None)
+            pending = self._pending.get(loc)
+            if (pending is not None
+                    and _norm(_sub(meas_lab, pending[2])) <= SAME_READING_DE):
+                # The misread came back: nothing was corrected.
+                self._pending.pop(loc, None)
+            elif (pending is None and prev is not None and prev.flagged
+                    and _norm(_sub(meas_lab, prev.meas_lab)) > SAME_READING_DE):
+                # A re-read to a clearly different colour that is still
+                # flagged (say, the neighbour check still suspects it): it
+                # turns green once nothing flags it any more.
+                self._pending[loc] = (
+                    float(prev.de), "neighbour" if prev.reread_only else "limit",
+                    prev.meas_lab)
         if (own is not None
                 and _norm(_sub(meas_lab, own.meas_lab)) <= SAME_READING_DE):
             pass                          # the same colour once more: confirmed

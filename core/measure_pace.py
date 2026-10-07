@@ -61,6 +61,36 @@ class PaceConfig:
     #: good speed, which is what it deserved. 0 means "never say close to the
     #: limit; only warn when a strip is genuinely too fast".
     marginal_percent: float = 10.0
+    #: How far under the limit a strip may come before it is called TOO FAST
+    #: (beta 12, Basti #182 6001610646 item 2: warned at 398 ms with a 400 ms
+    #: limit, "maybe there should be a tiny amount of wiggle room").
+    #:
+    #: WHY 2 %. The time is not the instrument's: it is the computer's clock
+    #: between two events, the instrument's ready beep and the finished strip,
+    #: and each one crosses the engine's thread, a pipe and the Qt event queue
+    #: before it is stamped. A late ready event shortens the strip by however
+    #: late it was. Over a 28-patch strip at 400 ms (11.2 s) 2 % is 224 ms, 8 ms
+    #: per patch, and less than half a reading at the slowest swipe rate
+    #: ChromIQ knows (50 Hz, 20 ms a reading), so a strip inside it still
+    #: averaged more than 19.5 of the 20 readings asked for. A strip inside the
+    #: band is not silent: it is reported "close to the limit", like one just
+    #: over it, without the Re-read / Continue window and the slow-down sound.
+    #: Knut's "strictly according to the calculations" (#131, 2026-07-27)
+    #: still decides the limit itself; this only absorbs the clock's error.
+    too_fast_tolerance_percent: float = 2.0
+
+    @property
+    def says_marginal(self) -> bool:
+        """False when the band is 0 %: "never say close to the limit", also
+        for a strip inside the too-fast tolerance."""
+        return float(self.marginal_percent or 0.0) > 0.0
+
+    @property
+    def too_fast_seconds(self) -> float:
+        """Seconds per patch below which a strip is TOO FAST: the limit less
+        ``too_fast_tolerance_percent``."""
+        pct = max(0.0, float(self.too_fast_tolerance_percent or 0.0))
+        return self.target_seconds * (1.0 - pct / 100.0)
 
     @property
     def knows_rate(self) -> bool:
@@ -172,7 +202,7 @@ class PaceTracker:
         return PatchPace(
             seconds=seconds,
             est_samples=self.config.samples_for(seconds),
-            too_fast=seconds < self.config.target_seconds,
+            too_fast=seconds < self.config.too_fast_seconds,
         )
 
     # ---- judging a whole strip at once -------------------------------------
@@ -203,8 +233,12 @@ class PaceTracker:
         # The epsilon is float repair, not leniency: an 11-patch strip's exact
         # minimum is 23 × 11 ÷ 50 = 5.06 s, and 5.06 ÷ 11 lands a whisker under
         # 0.46 in binary, so the exactly-correct strip would be called too fast.
-        result.too_fast = result.mean_seconds < target * (1 - 1e-9)
+        # Under the limit by less than `too_fast_tolerance_percent` (the
+        # clock's own error, beta 12) is "close to the limit", not too fast.
+        result.too_fast = (result.mean_seconds
+                           < self.config.too_fast_seconds * (1 - 1e-9))
         result.marginal = (not result.too_fast
+                           and self.config.says_marginal
                            and result.mean_seconds < self.config.marginal_seconds)
         return result
 
@@ -220,10 +254,13 @@ class PaceTracker:
             result.mean_seconds = sum(self._intervals) / len(self._intervals)
             result.est_samples = self.config.samples_for(result.mean_seconds)
             target = self.config.target_seconds
-            result.too_fast = self.enough_data and result.mean_seconds < target
+            result.too_fast = (self.enough_data and result.mean_seconds
+                               < self.config.too_fast_seconds)
             # "Marginal" = it passed, but a little slower and it would not have.
             result.marginal = (self.enough_data and not result.too_fast
-                               and result.mean_seconds < self.config.marginal_seconds)
+                               and self.config.says_marginal
+                               and result.mean_seconds
+                               < self.config.marginal_seconds)
         if when is not None and self._strip_start is not None:
             result.elapsed = max(0.0, when - self._strip_start)
         elif self._intervals:

@@ -24888,7 +24888,7 @@ would reach.
   test_chart_builds_with_the_sheet_pages_and_patches_its_name_promises
   test_they_are_offered_in_the_verification_window
   test_every_chart_switches_the_settings_stamp_off
-  test_only_the_photo_cards_have_an_opinion_on_the_stamp
+  test_every_builtin_preset_states_the_stamp_off
 
 ### B8-802 · FIXED · Round 2A: an older report's type lost on rebuild, and Update half-writing a new date
 - blocks release: yes

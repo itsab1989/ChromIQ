@@ -7227,6 +7227,7 @@ How beta 11 builds what Knut approved; none of it was asked of him.
 **Confirmed by:** *nobody yet.*
 
 * **Only a live re-read makes green.** The previous reading of the patch (this session's, or the file's when a measurement is resumed) was flagged, and the new one, read now, is not, and reads a different colour (more than ΔE 3 from the red reading, the re-read rule's own margin, 10.2). A patch that stops being red because the limit was raised, or because later strips changed its neighbour check, is not green: nothing was read again; nor is one read again with the same colour after the limit was raised, since its reading was right.
+* **A re-read that is still suspected turns green later (beta 12, #182 B1, Basti's AA5 of 2026-10-05).** When the live re-read reads a clearly different colour (more than ΔE 3 from the flagged reading) but something still flags it, typically the neighbour check because the strips around it are not read yet, the correction is remembered, and the patch turns green the moment it is no longer flagged, also when that happens on a later strip's repaint. Reading the misread colour again (within ΔE 3) cancels it; a new session forgets it. This carries out the confirmed rule above (the re-read did fit); it is not a new rule. Unchanged, and a question to Knut: a re-read that matches the patch's FIRST reading rather than the misread straight before it (Basti's J28) stays red.
 * **It ends** when the patch is read once more and the new reading is flagged again (red or yellow); a repaint never ends it.
 * **The memory file** (`<stem>.confirmed.json`, 10.7) holds it as `{"kind": "corrected", "de": <first ΔE>, "by": "neighbour" | "limit"}`, read back when the measurement is opened and never used as a reference, so green teaches no colour range and confirms no similar patch.
 * **On a verification too.** The limit check runs there and a verification can be misread, so a corrected misread on a verification is green with the same card. Its closing window carries no misread summary (5983470377), so the "corrected" line is not shown there.
@@ -7443,3 +7444,13 @@ replay instrument) and on screen.
   window's question: a second alarm waits and is asked when the first is
   answered, and a waiting one is replaced only by a newer alarm about the same
   strip.
+
+## 12. The computer stays awake while a measurement runs (Basti, #182 6015495063, beta 12)
+
+#### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+* **When.** From the moment a measurement session starts (Start Measurement, any reading mode, the engine or stock chartread) until it ends, however it ends: all read, failed, stopped, refused before the instrument was asked anything, or the app quitting. Neither the display nor the system goes to sleep in between; the lid closing still sleeps a laptop.
+* **How.** macOS: `caffeinate -d -i -w <ChromIQ's pid>`, which ends by itself with ChromIQ, so no assertion is ever left behind (`pmset -g assertions` shows it while it is held). Windows: `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)`, cleared with `ES_CONTINUOUS`. Linux: `systemd-inhibit --what=idle:sleep` where it exists, otherwise nothing. A failure is logged and never stops a measurement. `core/keep_awake.py`, held by `MeasureManager.start`.
+* **No window, no setting.** Nothing is shown; it is not optional. Reading a single patch (spotread) does not hold it.

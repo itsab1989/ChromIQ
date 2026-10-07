@@ -61,8 +61,12 @@ def test_the_edges_of_the_band():
 
 
 def test_a_strip_under_the_limit_is_too_fast_not_merely_close():
-    p = _strip(399)
+    """Past the 2 % tolerance (beta 12, Basti 6001610646): 400 ms less 2 %
+    is 392 ms. Inside it a strip is close to the limit, not too fast."""
+    p = _strip(391)
     assert p.too_fast is True and p.marginal is False
+    p = _strip(399)
+    assert p.too_fast is False and p.marginal is True
 
 
 def test_the_band_follows_the_setting():
@@ -75,7 +79,10 @@ def test_the_band_follows_the_setting():
 def test_zero_percent_means_only_warn_about_genuinely_too_fast():
     off = PaceConfig(min_samples=20, sample_hz=50.0, marginal_percent=0.0)
     assert _strip(401, off).marginal is False
-    assert _strip(399, off).too_fast is True
+    assert _strip(391, off).too_fast is True
+    # Inside the beta 12 tolerance with the band off: nothing is said.
+    assert _strip(398, off).too_fast is False
+    assert _strip(398, off).marginal is False
 
 
 def test_a_negative_percentage_cannot_invert_the_band():

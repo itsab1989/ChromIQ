@@ -721,9 +721,9 @@ and pins its 24-column grid.
 settings down the right edge" OFF; the app's default is ON. Driven in the real
 window with it on, the A4-837p chart came up with *"The settings stamp down the
 right edge runs over the patches"*: the right margin is 5 mm. So the rows carry
-`stamp_settings=False`, the field the photo cards added for the same reason,
-and `test_only_the_photo_cards_have_an_opinion_on_the_stamp` names this as the
-second family with an opinion.
+`stamp_settings=False`, the field the photo cards added for the same reason.
+Since beta 12 every built-in states it OFF (the field's default is False, #182);
+`test_every_builtin_preset_states_the_stamp_off` keeps it that way.
 
 They sit under the existing i1Pro heading and sort by the i1Pro rule (paper,
 then patch width, then patch count), so on each paper they interleave with the

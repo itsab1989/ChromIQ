@@ -2404,6 +2404,42 @@ class TiffPreview(QWidget):
             out.append(self._img_label.mapTo(self, QPoint(label_x, 0)).x())
         return out
 
+    #: The lower scan arrow's gap under the last patch, in logical pixels.
+    _BOTTOM_ARROW_GAP = 3
+    #: The shortest lower arrow worth drawing below the patches; with less
+    #: paper than this under them it falls back to the sheet's bottom edge.
+    _BOTTOM_ARROW_MIN = 8
+
+    def _bottom_arrow_span(self, scale_y: float, top: float,
+                           paper_bottom: float, arrow_h: float
+                           ) -> "tuple[float, float]":
+        """Where the lower (upward) scan arrow goes: ``(tip_y, base_y)`` in
+        the painter's logical coordinates.
+
+        BELOW THE PATCHES, NOT ON THEM (Basti, #182 6001610646, item 1). It
+        was hung from the sheet's bottom edge (``paper_bottom - 5``, 20 px
+        tall), which on his Pharmacist A3 Plus chart put its tip over the
+        bottom row of patches. Now its tip sits just under the lowest strip
+        (and the edge spacer band under it, which is printed too), in the
+        bottom margin, where it may cover the chart's help markers: "these
+        are more important on the real chart lying in front of the user",
+        and the chart on screen is a guide. It keeps its 20 px when the
+        margin has room, is shortened to what there is, and only on a sheet
+        with less than ``_BOTTOM_ARROW_MIN`` px of paper under the patches
+        goes back to the old place, the lesser evil to no arrow at all.
+        *scale_y* is logical pixels per image pixel, *top* the sheet's top
+        in the painter (the frame).
+        """
+        if not self._stripe_rects:
+            return paper_bottom - 5 - arrow_h, paper_bottom - 5
+        lowest = max(r.y() + r.height() for r in self._stripe_rects)
+        lowest += self._edge_spacer_px
+        tip = top + lowest * scale_y + self._BOTTOM_ARROW_GAP
+        room = (paper_bottom - 1) - tip
+        if room >= self._BOTTOM_ARROW_MIN:
+            return tip, tip + min(float(arrow_h), room)
+        return paper_bottom - 5 - arrow_h, paper_bottom - 5
+
     def set_stripe_rects(self, rects: list[QRect],
                          arrow_mode: str = "base") -> None:
         """Provide precomputed pixel rects for each stripe on current page.
@@ -3097,12 +3133,12 @@ class TiffPreview(QWidget):
                 # extent still tracks the active strip so the two arrows
                 # stay visually paired.
                 if self._bidirectional:
-                    chart_bottom = scaled.height() / dpr + B
-                    y_bot = chart_bottom - 5
+                    y_tip, y_bot = self._bottom_arrow_span(
+                        sy / dpr, B, scaled.height() / dpr + B, arrow_h)
                     bot = QPainterPath()
                     bot.moveTo(cx - rw / 2, y_bot)
                     bot.lineTo(cx + rw / 2, y_bot)
-                    bot.lineTo(cx, y_bot - arrow_h)
+                    bot.lineTo(cx, y_tip)
                     bot.closeSubpath()
                     painter.fillPath(bot, self._overlay_accent(self._OVERLAY_ARROW))
 

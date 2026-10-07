@@ -1409,12 +1409,16 @@ class _Ti1Preset:
     # says "10x15cm / 4x6" photo card" is a statement about the paper, and it
     # would be printed as a lie on the next chart if it were left behind.
     chart_notes: str = ""
-    # "STAMP SETTINGS DOWN THE RIGHT EDGE", when the preset has an opinion.
-    #
-    # `None` means "leave the checkbox alone", which is every family but the
-    # photo cards and the 7.5 mm "Maximised" A4/Letter charts (whose 5 mm
-    # right margin has no room for the stamp either, see
-    # `_i1_75_max_preset`), and is what the app did before this field existed.
+    # "STAMP SETTINGS DOWN THE RIGHT EDGE": EVERY BUILT-IN STATES IT, OFF
+    # (beta 12, #182 FINDINGS I). Knut: all presets are designed and saved
+    # without it. Until beta 11 the default was `None`, "leave the checkbox
+    # alone", and 148 of 189 built-ins (every ColorMunki Fast/Slow Reading
+    # Speed chart, all 26 CR30 hexagon charts) inherited whatever the box held,
+    # which on a new target is the app's default, ON: Basti's A3 Plus 616
+    # verification chart came out stamped, and the CR30 hexagon charts' stamp
+    # ran over the patches. `None` still means "leave it alone" for a preset
+    # that is given it on purpose; no shipped preset is
+    # (tests/test_beta12_every_builtin_preset_states_the_stamp.py).
     #
     # WHY THE PHOTO CARDS HAVE AN OPINION, and it is measured rather than
     # assumed. All twenty of Knut's photo-card exports carry it OFF; the app's
@@ -1424,7 +1428,7 @@ class _Ti1Preset:
     # tall enough for his note AND the command line, so the note was truncated
     # with a "…" on all nineteen. Driven on screen 2026-09-18: 19 of 19 warned
     # with the stamp on, 0 of 19 with it off, nothing else changed.
-    stamp_settings: "bool | None" = None
+    stamp_settings: "bool | None" = False
     # A PAGE LAYOUT WITHOUT AN EDITOR DESIGN, SAID IN ITS ROW (Knut, #182
     # 5860041950). The row carries KNUT_LAYOUT_ONLY_SUFFIX where a Full layout
     # setup carries KNUT_FLS_SUFFIX. Only the ColorMunki A4 300-patch TC3.00
@@ -14106,7 +14110,12 @@ class TabChart(QWidget):
                             "use_chromiq_layout_engine", False)) \
                         != engine_builtin:
                     self._set_engine_checked(engine_builtin)
-                if data == TC918_PRESET_KEY:
+                if (data in KNUT_PRESET_KEYS
+                        and self._mode_name() == "gamut"):
+                    # FROM PROFILE GAMUT: the preset's LAYOUT only, filled
+                    # from the profile's gamut (Basti, #182 6036695078).
+                    applied = self._apply_knut_layout_for_gamut(data, name)
+                elif data == TC918_PRESET_KEY:
                     applied = self._apply_tc918_preset(name)
                 elif data in KNUT_PRESET_KEYS:
                     applied = self._apply_knut_preset(data, name)
@@ -16362,8 +16371,8 @@ class TabChart(QWidget):
         wrote (`BUILTIN_CHART_NOTES`) — text a person typed is never touched.
 
         The stamp checkbox follows the same rule from the other end: a preset
-        that states `stamp_settings` owns it, and one that does not (every
-        family but the photo cards) leaves it exactly where the user had it.
+        that states `stamp_settings` owns it, and since beta 12 every built-in
+        states it (OFF); `None` would leave it where the user had it.
         """
         edit = getattr(self, "_manual_chart_notes_edit", None)
         if edit is not None:
@@ -16553,6 +16562,55 @@ class TabChart(QWidget):
         if self._refuse_cal_inks_for_patch_set(ti1):
             return True
         return self._generate_from_ti1(ti1)
+
+    def _apply_knut_layout_for_gamut(self, key: str,
+                                     target_name: str | None = None) -> bool:
+        """A built-in preset chosen in the FROM PROFILE GAMUT module: its
+        LAYOUT, filled with colours from the profile's gamut.
+
+        Basti, #182 6036695078: *"if a user selects a preset in the 'from
+        profile gamut' module in a verification run chromiq should only use
+        the presets chart layout but not the presets patches. it should
+        instead fill that layout with patches from the master set like when
+        creating a chart from scratch there."* The preset's patch set is a
+        PROFILING set; a verification from the gamut tests the master set's
+        colours the profile can print. Until beta 12 picking a preset here
+        built the preset's own patches and left the module's count alone.
+
+        So: the layout is seeded exactly as Manual seeds it (page, patch
+        size, strips, margins, the stamp and notes), "Auto, fill the pages"
+        is switched on so the count is what fits the layout less the 8 cube
+        corners (an A3 Plus 616 preset gives 608 + 8), capped as always by
+        what the profile can print, and the gamut chart is generated at once,
+        the way every built-in builds the moment it is picked. Nothing changes
+        in Manual or Guided, or for a profiling chart.
+        """
+        if self._runner.is_running:
+            log.warning("Knut preset (gamut layout): a process is already running")
+            return False
+        p = KNUT_PRESETS_BY_KEY[key]
+        self._seed_knut_preset(key, target_name)
+        self._knut_active = True
+        self._knut_active_key = key
+        ti1 = resource_path(p.ti1_asset)
+        if ti1.is_file():
+            self._sync_device_type_to_bound_set(ti1)
+        self._knut_targen_sig = self._targen_signature()
+        self._update_preset_locks()
+        self._refresh_manual_command_preview()
+        auto = getattr(self, "_gamut_auto_check", None)
+        if auto is not None:
+            auto.setChecked(True)
+        self._update_gamut_count_line()
+        log.info("From Profile Gamut: preset %r used for its layout only; "
+                 "%d colours + %d cube corners from the profile's gamut",
+                 key, self._gamut_effective_count(), _GAMUT_CORNER_PATCHES)
+        # Whether the build began. A build that did not (no profile, the
+        # person answered Cancel to the question about the run's results)
+        # puts the tab back like every other built-in (#175); returning True
+        # regardless left the preset applied with nothing built (beta-12
+        # review).
+        return bool(self._on_generate())
 
     def _reset_knut_overrides(self) -> None:
         """Revert the printtarg flags a TC9.18+Spyderprint preset forced on.
@@ -19221,7 +19279,7 @@ class TabChart(QWidget):
         self._refresh_project_exists_line()
         return True
 
-    def _on_generate(self) -> None:
+    def _on_generate(self) -> "bool | None":
         """Generate Chart.
 
         THE WHOLE BODY IS INSIDE A `try`, for one reason: a §S4.7 answer
@@ -19249,8 +19307,9 @@ class TabChart(QWidget):
             # layout from Manual via the ordinary from-.ti1 build (which asks the
             # §4 displacing-results question itself).
             if self._mode_name() == "gamut":
-                self._on_generate_gamut()
-                return
+                # Whether the build began: a preset picked in this module
+                # (`_apply_knut_layout_for_gamut`) is put back when it did not.
+                return self._on_generate_gamut()
             # THE NAME BEFORE THE GATE. §S4.7 below compares the name in the
             # box with the projects on disk, so an empty box gives it nothing to
             # compare: it waved the build through, and the name supplied
@@ -23056,14 +23115,17 @@ class TabChart(QWidget):
                        "layout.").format(n=n))
         return ""
 
-    def _on_generate_gamut(self) -> None:
+    def _on_generate_gamut(self) -> bool:
         """Generate for the FROM PROFILE GAMUT module: select the colours from
         the master set through this run's profile, write the patch list, and
-        hand it to the ordinary from-.ti1 build (Manual's layout settings)."""
+        hand it to the ordinary from-.ti1 build (Manual's layout settings).
+
+        Returns whether the build began (False: no profile, the colours could
+        not be chosen, no project, or the person declined the build)."""
         profile = self._gamut_profile()
         if profile is None:
             self._refresh_gamut_state()
-            return
+            return False
         count = self._gamut_effective_count()
         margin = self._gamut_margin_combo.currentData() or "safe"
         intent = self._gamut_intent_combo.currentData() or "absolute"
@@ -23080,7 +23142,7 @@ class TabChart(QWidget):
             ctl = getattr(self, "_target_ctl", None)
             project = ctl.project_or_none() if ctl is not None else None
             if project is None:
-                return
+                return False
             from core.measurement_target import resolve_run
             run = resolve_run(project, ctl.target)
             ti1 = run.ensure_cache_dir() / "gamut-target.ti1"
@@ -23104,7 +23166,7 @@ class TabChart(QWidget):
                    ).format(reason=str(exc)),
                 self, min_width=520,
             ).exec()
-            return
+            return False
         finally:
             QApplication.restoreOverrideCursor()
         self._settings.set("gamut_target_count", count)
@@ -23130,6 +23192,7 @@ class TabChart(QWidget):
                 "Only {n} of the requested {count} colours are printable "
                 "with this profile, so the chart holds {n} colours plus the "
                 "8 cube corners.").format(n=selection.achieved, count=count))
+        return bool(started)
 
     def _write_gamut_reference_after_adopt(self, new_ti2: "Path | None") -> None:
         """After a gamut chart was adopted as the run's verify chart, store the
