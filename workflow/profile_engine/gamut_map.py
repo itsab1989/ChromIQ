@@ -1089,9 +1089,11 @@ def _a35_apply_band(model, dev, mapped, col, band, mode, inv_kw,
     below = tl <= l_deep + 1e-6
     inb = (~below) & (tl < l_deep + w)
     if inb.any():
+        # Research a43-shadowdetail(-width): full tint at and below
+        # band["l_full"] (b2a.a43_band); a35's band when it is absent
         tgt = np.column_stack([tl[inb], _b2a.percblack_tint(
-            tl[inb], l_deep=l_deep, ab_deep=band["ab_deep"], width=w,
-            mode=mode)])
+            tl[inb], l_deep=float(band.get("l_full", l_deep)),
+            ab_deep=band["ab_deep"], width=w, mode=mode)])
         seed = _b2a.path_device_at(tl[inb], pl, pd)
         inv = _b2a.invert_to_device(model, tgt, seed=seed, **inv_kw)[0]
         if inv_kw.get("ink_limit") is not None and not inv_kw.get(
@@ -1363,6 +1365,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                     _axv = (neutral_axis() if callable(neutral_axis)
                             else neutral_axis)
                     _bk_l = None
+                    _a43 = b2a_mod.a43_mode(_cands)
+                    if (_a43 == "floor" and _a35 and _axv is not None
+                            and _axv.get("handover")):
+                        # Research Agent 43, part 2: the perceptual and
+                        # saturation black no deeper than the darkest
+                        # measured near-neutral patch (b2a.a43_floor_axis)
+                        _axv = b2a_mod.a43_floor_axis(
+                            model, _axv, _axv.get("a43_meas_floor"))
                     if _axv is not None and _axv.get("black") is not None:
                         # perceptual/saturation hand over only while the
                         # model still prints it neutral (C* <= 1, the
@@ -1379,14 +1389,24 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                         _bk_l = _a29_pts[2]
                         if _a35 and _axv.get("handover"):
                             _lab_d = np.asarray(_axv["handover_lab"], float)
-                            _w = b2a_mod.percblack_width(
-                                _axv["blend_l"], _axv["blend_c"],
-                                l_neutral=float(_axv["neutral_l_black"]),
-                                l_deep=float(_axv["l_black"]),
-                                c_deep=float(np.hypot(*_lab_d[1:])),
-                                mode=_a35)
+                            if _a43 and _a35 == "blend":
+                                # Research Agent 43, part 1 (b2a.a43_band)
+                                _lf, _w = b2a_mod.a43_band(
+                                    _axv["blend_l"], _axv["blend_c"],
+                                    l_neutral=float(_axv["neutral_l_black"]),
+                                    l_deep=float(_axv["l_black"]),
+                                    c_deep=float(np.hypot(*_lab_d[1:])))
+                            else:
+                                _w = b2a_mod.percblack_width(
+                                    _axv["blend_l"], _axv["blend_c"],
+                                    l_neutral=float(_axv["neutral_l_black"]),
+                                    l_deep=float(_axv["l_black"]),
+                                    c_deep=float(np.hypot(*_lab_d[1:])),
+                                    mode=_a35)
+                                _lf = float(_axv["l_black"])
                             _a35_band = {
                                 "l_deep": float(_axv["l_black"]),
+                                "l_full": _lf,
                                 "ab_deep": _lab_d[1:], "width": _w,
                                 "path_l": np.asarray(_axv["blend_l"], float),
                                 "path_dev": np.asarray(_axv["blend_dev"],
@@ -1495,13 +1515,23 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                     if _l_nb > float(_lab0[0]) + 1e-6:
                         _pl, _pd, _pc = b2a_mod.rgb_handover_path(model,
                                                                   _d_nb)
-                        _w = b2a_mod.percblack_width(
-                            _pl, _pc, l_neutral=float(_pl[0]),
-                            l_deep=float(_pl[-1]),
-                            c_deep=float(np.hypot(*_lab0[1:])), mode=_a35)
+                        _lf = float(_pl[-1])
+                        if b2a_mod.a43_mode(_cands) and _a35 == "blend":
+                            # Research Agent 43, part 1 (b2a.a43_band)
+                            _lf, _w = b2a_mod.a43_band(
+                                _pl, _pc, l_neutral=float(_pl[0]),
+                                l_deep=float(_pl[-1]),
+                                c_deep=float(np.hypot(*_lab0[1:])))
+                        else:
+                            _w = b2a_mod.percblack_width(
+                                _pl, _pc, l_neutral=float(_pl[0]),
+                                l_deep=float(_pl[-1]),
+                                c_deep=float(np.hypot(*_lab0[1:])),
+                                mode=_a35)
                         dev = _a35_apply_band(
                             model, dev, mapped, _neutral_col,
-                            {"l_deep": float(_pl[-1]), "ab_deep": _lab0[1:],
+                            {"l_deep": float(_pl[-1]), "l_full": _lf,
+                             "ab_deep": _lab0[1:],
                              "width": _w, "path_l": _pl, "path_dev": _pd},
                             _a35,
                             dict(channel_letters=channel_letters,

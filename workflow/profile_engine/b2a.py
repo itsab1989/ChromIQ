@@ -2393,3 +2393,119 @@ def nearblack_column(model: ForwardModel, shaped: np.ndarray,
         return shaped, info
     info.update(restored=True, nodes=int(len(take)))
     return out, info
+
+
+# Research tokens "a43-shadowdetail" / "a43-shadowdetail-width" (Agent 43,
+# Findings/agent43-01-shadowdetail.md). Two parts on the a35 perceptual /
+# saturation black hand-over (D-26: neutral through the shadows, the
+# deepest black only at the end):
+#
+# 1. The band width (both tokens). percblack_width asks the smoothstep
+#    fraction of the deep black's tint to reach the hand-over path's own
+#    fraction at every path sample. When the path's chroma reaches the deep
+#    black's chroma ABOVE the deep black (i1iSis: the linear device blend is
+#    at C* 2.8 by L* 19.6, the deep black C* 2.83 at L* 16.6) that fraction
+#    is 1 at a lightness the smoothstep only reaches at the deep black, no
+#    width passes, and the search fell back to its maximum, 4 x the gap: the
+#    tint ran from L* 16.6 up to L* 34 (measured on four references: C* 2
+#    at printed L* 25-30, colprof 0.4). Here the tint is full from the point
+#    where the path first reaches the deep black's chroma (``l_full``) down,
+#    and the smoothstep band is searched above it by the same rule. A path
+#    whose chroma never overshoots gives l_full = the deep black: a35's band
+#    exactly.
+# 2. The data floor (a43-shadowdetail only, ink devices). The perceptual
+#    and saturation black go no deeper than the printer's darkest measured
+#    near-neutral patch (the patches measured_dark_chroma reads): below it
+#    every value is the model's extrapolation, and on R-CMYK-default-i1iSis
+#    (darkest patch L* 19.2, deep black L* 16.6) the four references
+#    disagree there by 2.2 L* and 1.9 C*. The colorimetric table keeps the
+#    deep black (a34, D-26). Sets whose deep black lies within the data are
+#    untouched.
+A43_TOKEN = "a43-shadowdetail"
+A43_WIDTH_TOKEN = "a43-shadowdetail-width"
+
+
+def a43_mode(candidates) -> str | None:
+    """'floor' (both parts), 'width' (part 1 only) or None."""
+    c = set(candidates or ())
+    if A43_TOKEN in c:
+        return "floor"
+    if A43_WIDTH_TOKEN in c:
+        return "width"
+    return None
+
+
+def measured_dark_floor(lab: np.ndarray, device: np.ndarray, *,
+                        ink_limit: float | None = None,
+                        max_c: float = A34_MEAS_MAX_C) -> float | None:
+    """L* of the darkest measured near-neutral patch (C* < ``max_c``) within
+    the ink limit (percent), the same patches measured_dark_chroma reads.
+    None without such patches."""
+    lab = np.asarray(lab, float)
+    device = np.asarray(device, float)
+    keep = np.hypot(lab[:, 1], lab[:, 2]) < max_c
+    if ink_limit is not None:
+        keep &= device.sum(1) * 100.0 <= float(ink_limit) + 1e-6
+    if not keep.any():
+        return None
+    return float(lab[keep, 0].min())
+
+
+def a43_band(path_l: np.ndarray, path_c: np.ndarray, *, l_neutral: float,
+             l_deep: float, c_deep: float) -> tuple[float, float]:
+    """Part 1 (see the comment above A43_TOKEN): ``(l_full, width)``. The
+    tint is the deep black's at and below ``l_full`` (the first path sample,
+    from the neutral black down, whose chroma reaches ``c_deep``; the deep
+    black when none does), smoothstep over [l_full, l_full + width] with
+    the width found by percblack_width on the path above l_full."""
+    pl = np.asarray(path_l, float)
+    pc = np.asarray(path_c, float)
+    hit = np.flatnonzero(pc >= float(c_deep) - 1e-9)
+    j = int(hit[0]) if len(hit) else len(pl) - 1
+    l_full = max(float(pl[j]), float(l_deep))
+    if l_full <= float(l_deep) + 1e-9:
+        l_full = float(l_deep)
+        w = percblack_width(pl, pc, l_neutral=l_neutral, l_deep=l_deep,
+                            c_deep=c_deep, mode="blend")
+        return l_full, w
+    w = percblack_width(pl[:j + 1], pc[:j + 1], l_neutral=l_neutral,
+                        l_deep=l_full, c_deep=c_deep, mode="blend")
+    return l_full, w
+
+
+def a43_floor_axis(model: ForwardModel, axis: dict,
+                   floor_l: float | None) -> dict:
+    """Part 2: the hand-over axis as the perceptual / saturation tables see
+    it, ending at ``floor_l`` (the darkest measured near-neutral patch) when
+    the deep black lies below it: the blend samples darker than the floor
+    are dropped and the path's own device value at the floor (linear in
+    L*, as path_device_at) becomes the black. Returns the axis itself when
+    there is no hand-over, no floor, the deep black is within the data, or
+    the floor is at or above the neutral black (then nothing below the
+    neutral black is supported, and the neutral black is the black)."""
+    if not axis.get("handover") or floor_l is None:
+        return axis
+    l_deep = float(axis["l_black"])
+    l_nb = float(axis["neutral_l_black"])
+    if floor_l <= l_deep + 1e-9:
+        return axis
+    bl = np.asarray(axis["blend_l"], float)
+    bd = np.asarray(axis["blend_dev"], float)
+    if floor_l >= l_nb - 1e-9:
+        d = bd[:1]
+    else:
+        keep = bl > floor_l + 1e-9
+        d = np.vstack([bd[keep], path_device_at(np.array([floor_l]), bl,
+                                                bd)])
+    lab = model.predict(d)
+    out = dict(axis)
+    out.update({"l_black": float(lab[-1, 0]), "black": d[-1].copy(),
+                "handover_lab": lab[-1], "blend_l": lab[:, 0],
+                "blend_dev": d, "blend_c": np.hypot(lab[:, 1], lab[:, 2]),
+                "a43_floor": float(floor_l)})
+    if len(d) < 2:
+        ls = np.asarray(axis["l"], float)
+        out.update({"handover": False, "l_black": l_nb,
+                    "black": np.asarray(axis["neutral_black"], float).copy(),
+                    "ok": np.asarray(axis["ok"], bool) & (ls >= l_nb - 1e-9)})
+    return out
