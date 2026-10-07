@@ -282,3 +282,65 @@ def test_reduce_motion_is_asked_again_while_chromiq_runs(monkeypatch):
     assert C.reduce_motion() is False          # cached, not asked again
     clock[0] += C._MOTION_TTL_S
     assert C.reduce_motion() is True           # the user turned it on
+
+
+# ------------------------------------------------------------ chip colours
+def _lum(c: str) -> float:
+    def ch(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(c[i:i + 2], 16) for i in (1, 3, 5))
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+
+
+def _contrast(a: str, b: str) -> float:
+    hi, lo = sorted((_lum(a), _lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _hue(c: str) -> float:
+    import colorsys
+    r, g, b = (int(c[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    return colorsys.rgb_to_hls(r, g, b)[0] * 360
+
+
+@pytest.mark.parametrize("mode", ["light", "neutral", "dark"])
+def test_the_chip_colours_come_from_the_accent_palette(mode):
+    """Basti, 2026-10-08: the chip takes the colour of the view shown, one of
+    ChromIQ's five accents per view, the same in every appearance, muted."""
+    from ui import styles
+    from ui import tiff_preview as TP
+    assert set(TP._CHIP_ACCENTS.values()) <= set(styles.TAB_COLORS)
+    assert TP._CHIP_ACCENTS["paper"] != TP._CHIP_ACCENTS["device"]
+    pal = TP._CHIP_BY_MODE[mode]
+    for view in ("paper", "device"):
+        accent = TP._CHIP_ACCENTS[view]
+        ink = pal[view]
+        assert ink == TP._chip_ink(mode, view)
+        # a muted variant of THAT accent: same hue within a few degrees, and
+        # not the accent itself
+        d = abs(_hue(ink) - _hue(accent)) % 360
+        assert min(d, 360 - d) < 8, (mode, view, ink, accent)
+        assert ink.lower() != accent.lower()
+        # it reads on the pill: text 4.5:1 (the icon needs only 3:1)
+        assert _contrast(ink, pal["ground"]) >= 4.5, (mode, view)
+    assert pal["paper"] != pal["device"]
+    assert _contrast(pal["hint"], pal["ground"]) >= 4.5
+    # the focus ring shows on the well it sits on
+    well = TP._PREVIEW_BY_MODE[mode]["img_bg"]
+    assert _contrast(pal["focus_ring"], well) >= 3.0, mode
+
+
+def test_the_chip_paints_the_ink_of_the_view_shown(qapp):
+    from ui.print_view_chip import ICON_PAPER, ICON_SCREEN, PrintViewChip
+    chip = PrintViewChip(None)
+    chip.set_colours("#f7f5f2", "#ffffff", "#000000", "#d0ccc6",
+                     paper_ink="#356f59", screen_ink="#635398",
+                     hint_ink="#5a5650")
+    chip.set_state(icon=ICON_PAPER, title="a", hint="b", tooltip="",
+                   switchable=True)
+    assert chip.view_ink().name() == "#356f59"
+    chip.set_state(icon=ICON_SCREEN, title="a", hint="b", tooltip="",
+                   switchable=True)
+    assert chip.view_ink().name() == "#635398"
+    chip.deleteLater()

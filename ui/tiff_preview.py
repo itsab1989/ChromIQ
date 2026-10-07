@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
 from workflow.layout_engine import hexagon
 from core.i18n import tr
 from core.logger import get_logger
-from ui import neutral_styles
+from ui import neutral_styles, styles
 from ui.styles import SPEC_GREEN, SPEC_MAGENTA
 from core.i18n import tr
 from core.text_io import read_text
@@ -141,13 +141,58 @@ _PREVIEW_BY_MODE = {
     "dark":    _PREVIEW_DARK,
     "neutral": _PREVIEW_NEUTRAL,
 }
-#: The indicator switch's own colours beyond the badge's (beta 12 build C),
-#: kept apart so the shipped palettes above stay as they were: the keyboard
-#: focus ring, and a hairline round the pill where the well is as dark as it.
+def _chip_mix(colour: str, toward: str, t: float) -> str:
+    """*colour* moved a fraction *t* of the way to *toward*, in sRGB."""
+    a = [int(colour[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(toward[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x * (1 - t) + y * t):02x}"
+                         for x, y in zip(a, b))
+
+
+#: The indicator switch's colours (Basti, 2026-10-08, review C): the icon and
+#: its short line take the colour of the view shown, ONE of ChromIQ's five
+#: accents per view and the same accent in every appearance, muted so it reads
+#: clearly but quietly. As on paper is the green (the Measure tab's accent),
+#: device values the violet; neither is the amber or magenta that mean
+#: "careful" elsewhere, and the cyan stays the keyboard focus ring.
+#: Each sits on an OPAQUE pill of its appearance's own ground, so its contrast
+#: does not depend on what is under the chip (well, paper or patch):
+#:   Light   #f7f5f2: paper #356f59 5.4:1, device #635398 6.0:1, hint 6.6:1
+#:   Neutral #f2f2f2: paper #356f59 5.3:1, device #635398 5.8:1, hint 10:1
+#:   Dark    #1b1b1b: paper #78caa8 8.9:1, device #a894e3 6.6:1, hint 8.3:1
+#: (tests/test_beta12_c_review.py recomputes them). The hint ("click: ...")
+#: stays neutral. Kept apart from the shipped palettes above, which Neutral's
+#: fences check; this is the one place Neutral shows a hue, because Basti
+#: asked for the two views to be told apart by colour in every appearance.
+_CHIP_ACCENTS = {"paper": styles.SPEC_GREEN, "device": styles.SPEC_VIOLET}
+_CHIP_MUTE = {           # mode -> (toward, how far, per view)
+    "light":   ("#1a1a1a", {"paper": 0.55, "device": 0.45}),
+    "neutral": ("#1a1a1a", {"paper": 0.55, "device": 0.45}),
+    "dark":    ("#b8b4ae", {"paper": 0.35, "device": 0.35}),
+}
+
+
+def _chip_ink(mode: str, view: str) -> str:
+    toward, t = _CHIP_MUTE[mode]
+    return _chip_mix(_CHIP_ACCENTS[view], toward, t[view])
+
+
 _CHIP_BY_MODE = {
-    "light":   {"focus_ring": "#4dd0e1", "badge_edge": ""},
-    "dark":    {"focus_ring": "#4dd0e1", "badge_edge": "#5a5a5a"},
-    "neutral": {"focus_ring": neutral_styles.NM_ACTION, "badge_edge": ""},
+    # the ring: the cyan, muted in Light so it shows on the pale well
+    "light":   {"focus_ring": _chip_mix(styles.SPEC_CYAN, "#1a1a1a", 0.45),
+                "badge_edge": "#d0ccc6",
+                "ground": "#f7f5f2", "hint": "#5a5650",
+                "paper": _chip_ink("light", "paper"),
+                "device": _chip_ink("light", "device")},
+    "dark":    {"focus_ring": "#4dd0e1", "badge_edge": "#5a5a5a",
+                "ground": "#1b1b1b", "hint": "#b8b4ae",
+                "paper": _chip_ink("dark", "paper"),
+                "device": _chip_ink("dark", "device")},
+    "neutral": {"focus_ring": neutral_styles.NM_ACTION,
+                "badge_edge": neutral_styles.NM_BORDER,
+                "ground": "#f2f2f2", "hint": "#3a3a3a",
+                "paper": _chip_ink("neutral", "paper"),
+                "device": _chip_ink("neutral", "device")},
 }
 
 # ---------------------------------------------------------------------------
@@ -3479,8 +3524,10 @@ class TiffPreview(QWidget):
             return
         pal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
         extra = _CHIP_BY_MODE.get(self._mode, _CHIP_BY_MODE["dark"])
-        chip.set_colours(pal["badge_bg"], pal["badge_text"],
-                         extra["focus_ring"], extra["badge_edge"])
+        chip.set_colours(extra["ground"], pal["badge_text"],
+                         extra["focus_ring"], extra["badge_edge"],
+                         paper_ink=extra["paper"], screen_ink=extra["device"],
+                         hint_ink=extra["hint"])
 
     def _place_print_chip(self) -> None:
         """Top right of the image area, where the indicator has always been;
