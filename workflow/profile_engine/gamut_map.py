@@ -1161,7 +1161,9 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
     inv_curves = b2a_mod.inverse_curves(model.curves)
     # Research a42-nearblack, part 1 (b2a.py): the same B2A curve space as
     # the colorimetric table.
-    _a42_space = (b2a_mod.b2a_space_curves(model.curves)
+    _a42_space = (b2a_mod.b2a_space_curves(
+                      model.curves, smooth=b2a_mod.a45_c1(getattr(
+                          settings, "engine_candidates", frozenset())))
                   if accurate and b2a_mod.A42_TOKEN in getattr(
                       settings, "engine_candidates", frozenset()) else None)
     if _a42_space is not None:
@@ -1334,6 +1336,7 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         _a35 = (b2a_mod.a35_mode(_cands)
                 if accurate and model.n_channels <= 4 else None)
         _a35_band = None
+        _a45_path = None
         if accurate and "a25-oracle-neutral" in _cands and getattr(
                 mapper, "node_dev", None) is not None:
             # Research (Agent 25): perceptual maps the neutral axis onto the
@@ -1371,8 +1374,21 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                         # Research Agent 43, part 2: the perceptual and
                         # saturation black no deeper than the darkest
                         # measured near-neutral patch (b2a.a43_floor_axis)
+                        _l_deep0 = float(_axv["l_black"])
                         _axv = b2a_mod.a43_floor_axis(
                             model, _axv, _axv.get("a43_meas_floor"))
+                        if (b2a_mod.A45_TOKEN in _cands
+                                and _axv.get("a43_floor") is not None):
+                            # Research Agent 45, parts 2/3: the black is the
+                            # oracle's own black device, reached from the
+                            # axis on one planned device path (b2a.py)
+                            _ob = None
+                            if getattr(mapper, "node_dev", None) is not None:
+                                _i0 = int(np.argmin(np.abs(node_lab).sum(1)))
+                                _ob = np.clip(mapper.node_dev[_i0], 0.0, 1.0)
+                            _a45_path = b2a_mod.a45_dark_path(
+                                model, _axv, _ob, l_deep=_l_deep0,
+                                l_floor=_axv.get("a43_floor"))
                     if _axv is not None and _axv.get("black") is not None:
                         # perceptual/saturation hand over only while the
                         # model still prints it neutral (C* <= 1, the
@@ -1387,7 +1403,10 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                         _a29_pts = b2a_mod.axis_points(
                             _axv, chroma_cap=None if _a35 else 1.0)
                         _bk_l = _a29_pts[2]
-                        if _a35 and _axv.get("handover"):
+                        if _a45_path is not None:
+                            _bk_l = _a45_path["l_b"]
+                        if (_a35 and _axv.get("handover")
+                                and _a45_path is None):
                             _lab_d = np.asarray(_axv["handover_lab"], float)
                             if _a43 and _a35 == "blend":
                                 # Research Agent 43, part 1 (b2a.a43_band)
@@ -1468,6 +1487,12 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                         # linear along the walk (0.5 L* steps)
                         dev[i] = [np.interp(lt, ls_, ds_[:, c])
                                   for c in range(ds_.shape[1])]
+                if _a45_path is not None:
+                    # Research Agent 45: the dark end on the planned path
+                    _lt = mapped[_neutral_col, 0]
+                    _in = _lt < _a45_path["l_a"]
+                    dev[_neutral_col[_in]] = b2a_mod.a45_path_devices(
+                        _lt[_in], _a45_path)
                 if _a35_band is not None:
                     dev = _a35_apply_band(
                         model, dev, mapped, _neutral_col, _a35_band, _a35,

@@ -132,7 +132,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a40-inklimit", "no-a40-inklimit",
      # Agent 43: the perceptual hand-over band no wider than the path needs,
      # and the perceptual black no deeper than the measured data
-     "a43-shadowdetail", "a43-shadowdetail-width"})
+     "a43-shadowdetail", "a43-shadowdetail-width",
+     # Agent 45: the perceptual dark end C1 and monotone (a C1 B2A curve
+     # space; with the held black, one planned device path to the oracle black)
+     "a45-c1space", "a45-darkend"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1485,7 +1488,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if accurate and b2a_mod.A44_TOKEN in candidates:
             # Research a44-exactkeep, part 2: the bridge drawn on the grid
             # nodes and in the B2A curve space, as the CMM reads it.
-            _sp = (b2a_mod.b2a_space_curves(model.curves)
+            _sp = (b2a_mod.b2a_space_curves(
+                       model.curves, smooth=b2a_mod.a45_c1(candidates))
                    if b2a_mod.A42_TOKEN in candidates else None)
             dev_clut[_col] = b2a_mod.dark_bridge_on_grid(
                 dev_clut[_col], node_lab[_col, 0], black_l=_bl,
@@ -1598,7 +1602,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             out_tables=np.tile(icw._identity_table(entries_b2a), (n, 1)))
     else:
         inv = b2a_mod.inverse_curves(model.curves)
-        _space = (b2a_mod.b2a_space_curves(model.curves)
+        _space = (b2a_mod.b2a_space_curves(
+                      model.curves, smooth=b2a_mod.a45_c1(candidates))
                   if accurate and b2a_mod.A42_TOKEN in candidates else None)
         if _space is not None:
             # Research a42-nearblack, part 1: the B2A curve space keeps

@@ -2264,27 +2264,65 @@ def inverse_curves(curves: np.ndarray, knots: int = 256) -> np.ndarray:
 A42_TOKEN = "a42-nearblack"
 A42_FLOOR = 0.5
 A42_ACCEPT = 0.5
+A45_FINE = 20                   # a45-c1space: samples per shaper knot interval
+A45_C1_TOKEN = "a45-c1space"
+A45_TOKEN = "a45-darkend"
 
 
-def b2a_space_curves(curves: np.ndarray, floor: float = A42_FLOOR):
+def a45_c1(candidates) -> bool:
+    """Research Agent 45: the C1 B2A curve space (part 1), on with either
+    a45 token."""
+    c = set(candidates or ())
+    return A45_C1_TOKEN in c or A45_TOKEN in c
+
+
+def b2a_space_curves(curves: np.ndarray, floor: float = A42_FLOOR,
+                     smooth: bool = False):
     """Research a42-nearblack: the B2A curve space. Each channel's shaper
     (knots on an even grid, 0..1, monotone) whose slope falls below
     ``floor`` anywhere gets that slope raised to ``floor`` and is
     renormalised to 0..1; a channel that never does is returned exactly as
-    it is. Returns None when no channel changes."""
+    it is. Returns None when no channel changes.
+
+    ``smooth`` (research a45-c1space, Agent 45): the floored channel's
+    slope is made continuous (a box of one knot interval over the
+    piecewise-constant slope, the least smoothing that removes the jumps)
+    and the curve is returned on a fine grid of A45_FINE samples per knot
+    interval, so the space is C1: no slope corner where a floored interval
+    meets its neighbours. Channels that need no floor are carried over
+    unchanged (linearly resampled, the same function)."""
     curves = np.asarray(curves, float)
     k = curves.shape[1]
     h = 1.0 / (k - 1)
     out = curves.copy()
     changed = False
+    floored = []
     for c in range(curves.shape[0]):
         d = np.diff(curves[c]) / h
         if d.min() >= floor:
             continue
+        floored.append(c)
         y = np.concatenate([[0.0], np.cumsum(np.maximum(d, floor) * h)])
         out[c] = y / y[-1]
         changed = True
-    return out if changed else None
+    if not changed or not smooth:
+        return out if changed else None
+    f = A45_FINE
+    xf = np.linspace(0.0, 1.0, (k - 1) * f + 1)
+    xk = np.linspace(0.0, 1.0, k)
+    fine = np.stack([np.interp(xf, xk, curves[c])
+                     for c in range(curves.shape[0])])
+    for c in floored:
+        ds = np.repeat(np.maximum(np.diff(curves[c]) / h, floor), f)
+        pad = np.concatenate([np.full(f, ds[0]), ds, np.full(f, ds[-1])])
+        # centred box of one knot interval (f samples) on the
+        # midpoint-sampled slope: continuous, piecewise linear, >= floor
+        cs = np.concatenate([[0.0], np.cumsum(pad)])
+        n_ = len(ds)
+        sm = (cs[f // 2 + f: f // 2 + f + n_] - cs[f // 2: f // 2 + n_]) / f
+        y = np.concatenate([[0.0], np.cumsum(sm)])
+        fine[c] = y / y[-1]
+    return fine
 
 
 def reexpress(shaped: np.ndarray, curves: np.ndarray,
@@ -2292,12 +2330,12 @@ def reexpress(shaped: np.ndarray, curves: np.ndarray,
     """Curve-space values under shaper ``curves`` re-expressed under the
     shaper ``space`` (same device value at every node)."""
     shaped = np.asarray(shaped, float)
-    k = curves.shape[1]
-    xp = np.linspace(0.0, 1.0, k)
+    xp = np.linspace(0.0, 1.0, curves.shape[1])
+    xs = np.linspace(0.0, 1.0, space.shape[1])     # a45: a finer space grid
     out = np.empty_like(shaped)
     for c in range(shaped.shape[1]):
         dev = np.interp(shaped[:, c], curves[c], xp)
-        out[:, c] = np.interp(dev, xp, space[c])
+        out[:, c] = np.interp(dev, xs, space[c])
     return out
 
 
@@ -2660,3 +2698,69 @@ def a43_floor_axis(model: ForwardModel, axis: dict,
                     "black": np.asarray(axis["neutral_black"], float).copy(),
                     "ok": np.asarray(axis["ok"], bool) & (ls >= l_nb - 1e-9)})
     return out
+
+
+# Research token "a45-darkend" (Agent 45, Findings/agent45-01-darkend.md),
+# with a43-shadowdetail's held black (D-28). Three defects of the
+# perceptual / saturation dark end on R-CMYK-default-i1iSis:
+#
+# 1. (a45-c1space, also on with a45-darkend) the a42 B2A curve space has a
+#    slope corner where a floored shaper interval meets its neighbours
+#    (i1iSis K 0.60-0.65, printed L* 30-33): b2a_space_curves(smooth=True).
+# 2. The hand-over join: below about L* 22.5 the neutral axis takes the
+#    model's own near-black branch (Y -> 0, then C 0.57 / M 0.49 at the
+#    neutral black), and the a35 band inverts its tint targets node by node
+#    (one node at C 0.63 / M 0.57): device corners at printed L* 20-22.
+# 3. The held black (a43_floor_axis) is a point of the model's blend
+#    (0.31, 0.26, 0, 0.96), Y-free like that branch, which no patch
+#    measured; the references print it 0.3-1.6 L* lighter than the model.
+#    The colour ramps' last nodes are the oracle's devices (a25-oracle-dev,
+#    Y 0.5-0.6 near the black), and on this printer Y darkens a rich black
+#    (measured: 0.53/0.53/0/1 L* 20.99, 0.53/0.53/0.53/1 L* 19.38), so each
+#    ramp dips below the black and rises into it.
+#
+# Planned together, only where the a43 data floor acts (the deep black lies
+# below the measured data): the perceptual / saturation black is the
+# ORACLE's own black device (what its perceptual table gives the source
+# black; every neighbouring node is the oracle's, so the colour ramps end
+# where they already head) when the model puts it within the data (not
+# below the floor) and below the neutral black; and the column reaches it
+# on one straight device path, parameterised linearly in target L*, from
+# the axis point at the top of the hand-over zone, neutral black +
+# (neutral black - model deep black) (a42's zone rule): above that the axis
+# is unchanged, below it no node is inverted on its own. Without an oracle,
+# or with its black outside those bounds, a43's held black stays.
+def a45_dark_path(model: ForwardModel, axis: dict, black_dev, *,
+                  l_deep: float, l_floor: float | None) -> dict | None:
+    """Parts 2/3 (see the comment above): the planned dark path, or None
+    when it does not apply. ``axis``: the hand-over axis (the neutral part
+    is read); ``black_dev``: the oracle's black device; ``l_deep``: the
+    model deep black's L* before the a43 floor; ``l_floor``: the darkest
+    measured near-neutral patch's L*."""
+    if not axis.get("handover") or black_dev is None:
+        return None
+    b = np.asarray(black_dev, float)
+    l_n = float(axis["neutral_l_black"])
+    l_b = float(model.predict(b[None, :])[0, 0])
+    if l_b >= l_n - 1e-6 or (l_floor is not None
+                             and l_b < float(l_floor) - 1e-6):
+        return None
+    l_a = l_n + (l_n - min(l_b, float(l_deep)))
+    ls = np.asarray(axis["l"], float)
+    ok = np.asarray(axis["ok"], bool) & (ls >= l_n - 1e-9)
+    if not ok.any():
+        return None
+    o = np.argsort(ls[ok])
+    al, ad = ls[ok][o], np.asarray(axis["dev"], float)[ok][o]
+    l_a = min(l_a, float(al[-1]))
+    a = np.array([np.interp(l_a, al, ad[:, c]) for c in range(ad.shape[1])])
+    return {"l_a": float(l_a), "l_n": l_n, "l_b": l_b, "a": a, "b": b}
+
+
+def a45_path_devices(target_l: np.ndarray, path: dict) -> np.ndarray:
+    """Device values of the planned dark path at target L* (the black at
+    and below l_b, the axis point at and above l_a, straight between)."""
+    tl = np.asarray(target_l, float)
+    u = np.clip((path["l_a"] - tl) / max(path["l_a"] - path["l_b"], 1e-9),
+                0.0, 1.0)[:, None]
+    return (1.0 - u) * path["a"][None, :] + u * path["b"][None, :]
