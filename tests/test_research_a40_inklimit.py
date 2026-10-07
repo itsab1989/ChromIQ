@@ -52,6 +52,17 @@ def test_both_interpolations_are_partitions_of_unity_and_exact_on_planes():
     assert ((wt > 1e-12).sum(1) <= 4).all()
 
 
+def test_the_row_projection_is_project_tac_to_the_bit():
+    from workflow.profile_engine.b2a import project_tac
+    rng = np.random.default_rng(3)
+    d = rng.random((400, 6)) * 1.2 - 0.05
+    caps = rng.random(400) * 4.0
+    got = tg._project_rows(d, caps)
+    want = np.vstack([project_tac(d[i:i + 1], float(caps[i]))
+                      for i in range(len(d))])
+    assert np.array_equal(got, want)
+
+
 def _concave_tables(n: int, entries: int = 1024) -> np.ndarray:
     """Output tables y = x ** 0.5 (concave): interpolated ink lies above
     the chord between nodes."""

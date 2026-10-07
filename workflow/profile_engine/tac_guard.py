@@ -7,14 +7,15 @@ onto it), but a CMM interpolates the shaped values and only then applies the
 output tables. Where an output table is concave, the device value at a point
 between nodes lies ABOVE the chord between the node values, so the sum of
 the inks can exceed the limit inside a cell whose corners sit on it.
-Measured on research-integration-5: up to 303.8 % for a 300 % limit
-(R-CMYK-default-i1Pro B2A1, 1.2 % of the battery's samples above 301 %).
+Measured on research-integration-5: up to 306.7 % between nodes for a 300 %
+limit (R-CMYK-default-i1Pro B2A1; 1.2 % of the battery's samples above
+301 %).
 
 colprof's contract (xicc/xlut.c ``icxLimitD``/``icxLuLut_inv_clut``) is that
-the inverse never returns a node over the limit; it does not guard the
-interpolation either, but its own -l default sits 10 % under the chart's
-limit, so it never comes near. The engine uses the chart's limit itself, so
-the table has to hold it everywhere a CMM can land, not only at the nodes.
+the inverse never returns a NODE over the limit; nothing guards the
+interpolation, and colprof's own tables overshoot between nodes too
+(int-5 battery: X3m B2A1 268.7 % for 260 %). This guard is stricter: the
+nodes AND every point a CMM can interpolate hold the limit.
 
 :func:`guard_mft2` works on the finished lut16 bytes (after every pin, the
 gamut clip and the v4 PRM resampling, so nothing later can undo it), with
@@ -22,8 +23,9 @@ the exact quantised CLUT and output tables a CMM reads. It finds every cell
 in which some trilinear or tetrahedral interpolation point exceeds the
 limit and lowers only the corners of those cells that are above the
 cell's safe cap (Euclidean projection onto the TAC face, as the inversion
-itself does), iterating until no cell exceeds. Nodes in every other cell are
-returned byte for byte.
+itself does), iterating until no cell exceeds (re-checking only the cells
+whose corners moved). Nodes in every other cell are returned byte for
+byte; the black corner is protected unless it is itself over the limit.
 """
 from __future__ import annotations
 
@@ -93,15 +95,39 @@ def _out(tables: np.ndarray, code: np.ndarray) -> np.ndarray:
     return res / 65535.0
 
 
-def _out_inverse_floor(table: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """The largest integer CLUT code whose output is <= ``y`` (fractions);
-    the table is monotone non-decreasing."""
+def _code_values(table: np.ndarray) -> np.ndarray:
+    """The output (fraction) of every one of the 65536 CLUT codes."""
     e = len(table)
     tf = table.astype(float) / 65535.0
     codes = np.arange(65536)
-    vals = np.interp(codes / 65535.0 * (e - 1), np.arange(e), tf)
+    return np.interp(codes / 65535.0 * (e - 1), np.arange(e), tf)
+
+
+def _out_inverse_floor(table: np.ndarray, y: np.ndarray,
+                       vals: np.ndarray | None = None) -> np.ndarray:
+    """The largest integer CLUT code whose output is <= ``y`` (fractions);
+    the table is monotone non-decreasing."""
+    vals = _code_values(table) if vals is None else vals
     k = np.searchsorted(vals, np.asarray(y, float) + 1e-12, side="right") - 1
     return np.clip(k, 0, 65535)
+
+
+def _project_rows(d: np.ndarray, caps: np.ndarray) -> np.ndarray:
+    """``b2a.project_tac`` with one limit per row (same arithmetic, row by
+    row, so the result is the same to the bit)."""
+    d = d.copy()
+    caps = np.asarray(caps, float)
+    over = d.sum(1) > caps
+    if not over.any():
+        return d
+    sub = np.clip(d[over], 0.0, None)
+    u = np.sort(sub, axis=1)[:, ::-1]
+    css = np.cumsum(u, axis=1) - caps[over][:, None]
+    ks = np.arange(1, sub.shape[1] + 1)[None, :]
+    rho = (u - css / ks > 0).sum(1)
+    theta = css[np.arange(len(sub)), rho - 1] / rho
+    d[over] = np.maximum(sub - theta[:, None], 0.0)
+    return d
 
 
 def _cells(grid: int) -> np.ndarray:
@@ -183,7 +209,6 @@ def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
     Repeated until no cell exceeds. Nodes are never raised, nodes outside
     such cells never move, and ``protect`` (the black corner) moves only if
     the cell cannot be held without it."""
-    from workflow.profile_engine.b2a import project_tac
     clut = np.array(clut, dtype=np.int64)
     n = clut.shape[1]
     cells = _cells(grid)
@@ -191,9 +216,14 @@ def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
     keep[list(protect)] = True
     # a protected node that is itself over the limit is not protectable
     keep &= _out(out_tables, clut).sum(1) <= limit + tol
+    vals = [_code_values(out_tables[c]) for c in range(n)]
+    # node -> the cells it is a corner of (to re-check only those)
+    owner = np.repeat(np.arange(len(cells)), 8)
+    order = np.argsort(cells.ravel(), kind="stable")
+    starts = np.searchsorted(cells.ravel()[order], np.arange(len(clut) + 1))
+    exc, wmax = cell_excess(clut, out_tables, grid, limit, cells)
     changed: set[int] = set()
     for it in range(max_iter):
-        exc, wmax = cell_excess(clut, out_tables, grid, limit, cells)
         bad = np.flatnonzero(exc > tol)
         if not len(bad):
             break
@@ -214,12 +244,20 @@ def guard_clut(clut: np.ndarray, out_tables: np.ndarray, grid: int,
                 np.minimum.at(cap, hit, tac_now[hit] - exc[b] - margin)
         nodes = np.flatnonzero(np.isfinite(cap))
         dev = _out(out_tables, clut[nodes])
-        new = np.vstack([project_tac(dev[i:i + 1], max(float(cap[k]), 0.0))
-                         for i, k in enumerate(nodes)])
+        new = _project_rows(dev, np.maximum(cap[nodes], 0.0))
+        before = clut[nodes].copy()
         for c in range(n):
-            code = _out_inverse_floor(out_tables[c], new[:, c])
+            code = _out_inverse_floor(out_tables[c], new[:, c], vals[c])
             clut[nodes, c] = np.minimum(clut[nodes, c], code)
         changed.update(int(x) for x in nodes)
+        moved = nodes[(clut[nodes] != before).any(1)]
+        # only cells with a moved corner can have changed
+        touched = np.unique(np.concatenate(
+            [owner[order[starts[k]:starts[k + 1]]] for k in moved]
+            or [np.zeros(0, int)]))
+        if len(touched):
+            e2, w2 = cell_excess(clut, out_tables, grid, limit, cells[touched])
+            exc[touched], wmax[touched] = e2, w2
     else:
         raise RuntimeError("TAC guard did not converge")
     return clut.astype(">u2"), np.array(sorted(changed), int)
