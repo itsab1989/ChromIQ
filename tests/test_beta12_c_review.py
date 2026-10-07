@@ -225,3 +225,45 @@ def test_the_preview_tells_the_chip_how_much_room_there_is(qapp):
     import inspect
     from ui.tiff_preview import TiffPreview
     assert "set_max_width" in inspect.getsource(TiffPreview._place_print_chip)
+
+
+# ------------------------------------------------------------ the key
+def test_a_text_field_keeps_ctrl_y_where_it_means_redo(qapp):
+    """Where the platform's Redo includes Ctrl+Y (Windows; the offscreen
+    platform uses the same table), a focused line edit or text box takes the
+    key and the preview switch does not fire. Built the way MainWindow's
+    ``sc()`` builds it: a plain QShortcut on the window."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtGui import QKeySequence, QShortcut
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import (QLineEdit, QMainWindow, QPlainTextEdit,
+                                 QVBoxLayout, QWidget)
+    from ui.keyboard_help import BINDINGS
+    redo = [k.toString() for k in QKeySequence.keyBindings(
+        QKeySequence.StandardKey.Redo)]
+    if BINDINGS["preview_view"] not in redo:
+        pytest.skip("Ctrl+Y is not Redo on this platform's key table")
+    win = QMainWindow()
+    box = QWidget()
+    lay = QVBoxLayout(box)
+    le, te = QLineEdit(), QPlainTextEdit()
+    lay.addWidget(le)
+    lay.addWidget(te)
+    win.setCentralWidget(box)
+    hits = []
+    QShortcut(QKeySequence(BINDINGS["preview_view"]), win,
+              activated=lambda: hits.append(1))
+    win.show()
+    win.activateWindow()
+    qapp.processEvents()
+    try:
+        for w in (le, te):
+            w.setFocus()
+            QTest.keyClick(w, Qt.Key.Key_Y, Qt.KeyboardModifier.ControlModifier)
+        assert hits == []
+        box.setFocus()
+        QTest.keyClick(box, Qt.Key.Key_Y, Qt.KeyboardModifier.ControlModifier)
+        assert hits == [1]
+    finally:
+        win.close()
+        win.deleteLater()
