@@ -40,7 +40,6 @@ through them with numpy (:func:`softproof_page`).
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 import tempfile
@@ -258,13 +257,56 @@ def chain_key(plan: PreviewPlan, bin_dir: "str | Path") -> "tuple | None":
         return None
 
 
+#: The colour table's block size, as a shift: colours are grouped in runs of
+#: 64 neighbours (0xRRGGBB >> 6), and only the groups a chart touches get room.
+_BLOCK_SHIFT = 6
+_BLOCK_MASK = np.uint32((1 << _BLOCK_SHIFT) - 1)
+
+
 class _ColourTable:
     """Every 8-bit RGB colour this chain has been asked about, and what
-    ArgyllCMS's cctiff made of it: a 2^24 table, packed 0xRRGGBB, with
-    :data:`_UNKNOWN` where nothing has been asked yet (64 MB)."""
+    ArgyllCMS's cctiff made of it, packed 0xRRGGBB; :data:`_UNKNOWN` where
+    nothing has been asked yet.
+
+    Sparse (review C of beta 12): a flat 2^24 table is 64 MB per chain for
+    the ~20,000 colours a 4000-patch chart holds. Here a 1 MB index of the
+    2^18 blocks of 64 colours points into a store that holds only the blocks
+    a chart touches: 5.6 MB for that chart, measured, and never more than the
+    flat table. Block 0 of the store is all :data:`_UNKNOWN`, so a colour in
+    a block nobody asked about reads as unknown without a branch. Reads and
+    writes take the table's lock: the preview and its background prefetch
+    share one table."""
 
     def __init__(self) -> None:
-        self.out = np.full(1 << 24, _UNKNOWN, dtype=np.uint32)
+        self._lock = threading.Lock()
+        self._index = np.zeros(1 << (24 - _BLOCK_SHIFT), dtype=np.uint32)
+        self._store = np.full(1 << _BLOCK_SHIFT, _UNKNOWN, dtype=np.uint32)
+        self._used = 1                     # blocks in use, block 0 included
+
+    def nbytes(self) -> int:
+        return int(self._index.nbytes + self._store.nbytes)
+
+    def lookup(self, packed: np.ndarray) -> np.ndarray:
+        with self._lock:
+            return self._store[self._index[packed >> _BLOCK_SHIFT]
+                               | (packed & _BLOCK_MASK)]
+
+    def insert(self, colours: np.ndarray, values: np.ndarray) -> None:
+        with self._lock:
+            blocks = np.unique(colours >> _BLOCK_SHIFT)
+            new = blocks[self._index[blocks] == 0]
+            if new.size:
+                need = (self._used + new.size) << _BLOCK_SHIFT
+                if need > self._store.size:
+                    grown = np.full(max(need, 2 * self._store.size), _UNKNOWN,
+                                    dtype=np.uint32)
+                    grown[:self._store.size] = self._store
+                    self._store = grown
+                self._index[new] = (np.arange(self._used, self._used + new.size,
+                                              dtype=np.uint32) << _BLOCK_SHIFT)
+                self._used += int(new.size)
+            self._store[self._index[colours >> _BLOCK_SHIFT]
+                        | (colours & _BLOCK_MASK)] = values
 
 
 def _table_for(key: tuple) -> _ColourTable:
@@ -311,6 +353,64 @@ def _unpack(p: np.ndarray) -> np.ndarray:
     return out
 
 
+#: The temporary folder of one cctiff call is named after the process that
+#: made it, so a ChromIQ that was killed in the middle of a call (Force Quit,
+#: a crash) leaves a folder the next one can recognise as an orphan and
+#: remove (review C of beta 12: nothing of the preview may stay on disk).
+_TMP_PREFIX = "chromiq-print-preview-"
+_swept = False
+
+
+def _tmp_prefix() -> str:
+    import os
+    return f"{_TMP_PREFIX}{os.getpid()}-"
+
+
+def _pid_alive(pid: int) -> bool:
+    import os
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        h = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)  # type: ignore[attr-defined]
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ctypes.windll.kernel32.GetExitCodeProcess(h, ctypes.byref(code))  # type: ignore[attr-defined]
+        ctypes.windll.kernel32.CloseHandle(h)  # type: ignore[attr-defined]
+        return code.value == 259           # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True                        # someone else's: alive
+    return True
+
+
+def _sweep_orphans(root: "Path | None" = None) -> None:
+    """Once per process: remove the preview's temporary folders left by a
+    ChromIQ that no longer runs. Only folders with this exact name pattern,
+    only in the temporary folder, only when their process is gone."""
+    global _swept
+    if _swept and root is None:
+        return
+    _swept = True
+    import shutil
+    base = Path(root or tempfile.gettempdir())
+    try:
+        found = list(base.glob(_TMP_PREFIX + "*"))
+    except OSError:
+        return
+    for d in found:
+        rest = d.name[len(_TMP_PREFIX):]
+        pid = rest.split("-", 1)[0]
+        if not d.is_dir() or d.is_symlink() or not pid.isdigit() \
+                or _pid_alive(int(pid)):
+            continue
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def _cctiff_colours(colours: np.ndarray, plan: PreviewPlan, bin_dir: Path,
                     runner) -> "np.ndarray | None":
     """Send *colours* (packed 0xRRGGBB) through the same cctiff chain the page
@@ -337,7 +437,8 @@ def _cctiff_colours(colours: np.ndarray, plan: PreviewPlan, bin_dir: Path,
     flat = np.empty(w * h, dtype=np.uint32)
     flat[:n] = colours
     flat[n:] = colours[-1]
-    with tempfile.TemporaryDirectory(prefix="chromiq-print-preview-") as tmp:
+    _sweep_orphans()
+    with tempfile.TemporaryDirectory(prefix=_tmp_prefix()) as tmp:
         src = Path(tmp) / "colours.tif"
         out = Path(tmp) / "shown.tif"
         Image.fromarray(_unpack(flat.reshape(h, w)), "RGB").save(src)
@@ -376,7 +477,7 @@ def _cctiff_colours(colours: np.ndarray, plan: PreviewPlan, bin_dir: Path,
 def softproof_page(tiff: "str | Path", plan: PreviewPlan, bin_dir: "str | Path",
                    *, frame: int = 0,
                    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
-                   ) -> "np.ndarray | None":
+                   fill_only: bool = False) -> "np.ndarray | None":
     """The page as it will print, for the screen: an (h, w, 3) uint8 RGB
     array at the page's own resolution, or None when it cannot be made (the
     caller then shows the device values and says so). Never raises.
@@ -405,26 +506,53 @@ def softproof_page(tiff: "str | Path", plan: PreviewPlan, bin_dir: "str | Path",
     if page is None:
         return None
     packed = _pack(page)
+    out = _through_table(packed, key, plan, bin_dir, runner, tiff.name)
+    if out is None or fill_only:
+        return None
+    return _unpack(out)
+
+
+def _through_table(packed: np.ndarray, key: tuple, plan: PreviewPlan,
+                   bin_dir: Path, runner, name: str) -> "np.ndarray | None":
+    """*packed* mapped through the chain's colour table, asking cctiff first
+    about any colour the table does not hold yet; None when cctiff refuses."""
     table = _table_for(key)
+    out = table.lookup(packed)
+    unknown = out == _UNKNOWN
+    if not unknown.any():
+        return out
     with _fill_lock:
-        seen = np.zeros(1 << 24, dtype=bool)
-        seen[packed.ravel()] = True
-        missing = np.flatnonzero(seen & (table.out == _UNKNOWN)).astype(np.uint32)
-        if missing.size:
-            try:
-                got = _cctiff_colours(missing, plan, bin_dir, runner)
-            except Exception:      # noqa: BLE001 — a preview is never worth a crash
-                log.debug("print preview: cctiff chain failed", exc_info=True)
-                got = None
-            if got is None:
-                with _lock:
-                    _failed.add(key)
-                return None
-            table.out[missing] = got
-            log.info("print preview: %d new colours of %s through %s (%s)",
-                     missing.size, tiff.name, plan.profile.name, plan.kind)
+        # another thread may have asked about these colours meanwhile
+        out = table.lookup(packed)
+        unknown = out == _UNKNOWN
+        if not unknown.any():
+            return out
+        seen = np.zeros(1 << 24, dtype=bool)       # 16 MB, for this call only
+        seen[packed[unknown]] = True
+        missing = np.flatnonzero(seen).astype(np.uint32)
+        del seen
+        try:
+            got = _cctiff_colours(missing, plan, bin_dir, runner)
+        except Exception:      # noqa: BLE001 — a preview is never worth a crash
+            log.debug("print preview: cctiff chain failed", exc_info=True)
+            got = None
+        if got is None:
+            with _lock:
+                _failed.add(key)
+            return None
+        table.insert(missing, got)
+        log.info("print preview: %d new colours of %s through %s (%s)",
+                 missing.size, name, plan.profile.name, plan.kind)
     # every colour of the page is in the table now, and entries never change
-    return _unpack(table.out[packed])
+    return table.lookup(packed)
+
+
+def prefetch_page(tiff: "str | Path", plan: PreviewPlan,
+                  bin_dir: "str | Path") -> None:
+    """Fill the chain's colour table with *tiff*'s colours, so showing the
+    page later asks cctiff nothing; makes no picture (the background
+    prefetch of the chart preview). Never raises."""
+    softproof_page(tiff, plan, bin_dir, fill_only=True)
 
 
 def clear_cache() -> None:

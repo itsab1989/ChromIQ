@@ -205,8 +205,9 @@ class PrintProof:
 
 
 def _prefetch_worker(pages, colour, intent, bin_dir, stop) -> None:
-    """Background thread: soft-proof each page once (the on-disk cache in
-    workflow/print_preview.py keeps it). Touches no Qt object."""
+    """Background thread: put each page's colours into the chain's colour
+    table (workflow/print_preview.py, in memory), so showing the page later
+    asks cctiff nothing. Makes no picture, touches no Qt object."""
     try:
         from workflow import print_preview as PP
         for page in pages:
@@ -215,11 +216,71 @@ def _prefetch_worker(pages, colour, intent, bin_dir, stop) -> None:
             plan = PP.plan_for_page(page, selected_colour=colour,
                                     selected_intent=intent, bin_dir=bin_dir)
             if plan is not None and plan.kind in (PP.KIND_RAW, PP.KIND_THROUGH):
-                # fills the chain's colour table, so showing this page later
-                # asks cctiff nothing
-                PP.softproof_page(page, plan, bin_dir)
+                PP.prefetch_page(page, plan, bin_dir)
     except Exception:      # noqa: BLE001 - a head start, never worth a crash
         log.debug("print preview prefetch failed", exc_info=True)
+
+
+class _FrameCache:
+    """The chart previews' rendered pages, as pixmaps, in memory only, ONE
+    store for the whole app (review C of beta 12).
+
+    Build C kept up to 400 MB of pixmaps in EACH preview, and Create Chart,
+    Print Chart and Measure each have one: measured on screen, a 10-page
+    4000-patch A4 chart viewed in the three tabs took the app from 539 MB to
+    2.1 GB. What makes a switch a swap is having BOTH views of the page on
+    screen at hand, so that is what the budget is sized for: an A4 or Letter
+    page at 300 dpi is 32 to 34 MB as a pixmap, and 144 MB holds both views
+    of the page on screen and of the page before it. The three tabs share
+    it, so the same page shown in two tabs is kept once. The least recently
+    shown go first, but never the last two (the two views of the page on
+    screen, however large). GUI thread only."""
+
+    BUDGET = 144 * 1024 * 1024
+
+    def __init__(self) -> None:
+        from collections import OrderedDict
+        self._d: "OrderedDict[tuple, tuple]" = OrderedDict()
+        self.nbytes = 0
+
+    def __len__(self) -> int:
+        return len(self._d)
+
+    def __contains__(self, key) -> bool:
+        return key in self._d
+
+    def get(self, key):
+        hit = self._d.get(key)
+        if hit is not None:
+            self._d.move_to_end(key)
+        return hit
+
+    def put(self, key: tuple, pm, margin: float, mode: str) -> None:
+        if pm is None or pm.isNull():
+            return
+        size = pm.width() * pm.height() * max(1, pm.depth() // 8)
+        old = self._d.pop(key, None)
+        if old is not None:
+            self.nbytes -= old[3]
+        self._d[key] = (pm, margin, mode, size)
+        self.nbytes += size
+        while self.nbytes > self.BUDGET and len(self._d) > 2:
+            _k, ev = self._d.popitem(last=False)
+            self.nbytes -= ev[3]
+
+    def clear(self) -> None:
+        self._d.clear()
+        self.nbytes = 0
+
+
+_FRAMES: "_FrameCache | None" = None
+
+
+def frame_cache() -> _FrameCache:
+    global _FRAMES
+    if _FRAMES is None:
+        _FRAMES = _FrameCache()
+    return _FRAMES
 
 
 def set_device_values_chosen(on: bool) -> None:
@@ -1202,10 +1263,9 @@ class TiffPreview(QWidget):
         # Both renderings of a page, once made, are kept as pixmaps at their
         # full resolution, so switching the view (or turning back to a page)
         # is a swap and never a reload (Basti, 2026-10-08). Only while the
-        # tab asked for the print preview; bounded by _FRAME_CACHE_BYTES.
-        from collections import OrderedDict
-        self._frame_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
-        self._frame_cache_bytes = 0
+        # tab asked for the print preview; ONE store for the whole app,
+        # bounded (see _FrameCache).
+        self._frame_cache = frame_cache()
         self._prefetch_stop = None
         self._current: int = 0
         self._active_stripe: int = -1
@@ -1421,10 +1481,6 @@ class TiffPreview(QWidget):
         self._ink_channels = ink_channels
         self._pages = []
         self._prefetch_sig = None
-        keep = {str(Path(p)) for p in paths}
-        for k in [k for k in self._frame_cache
-                  if (k[1] if k and k[0] == "proof" else k[0]) not in keep]:
-            self._frame_cache_bytes -= self._frame_cache.pop(k)[3]
         for p in paths:
             n = self._count_frames(p)
             if n == 0:
@@ -3060,7 +3116,6 @@ class TiffPreview(QWidget):
             hit = self._frame_cache.get(key) if key is not None else None
             if hit is not None:
                 # the same file, frame and inks as before: the same pixmap
-                self._frame_cache.move_to_end(key)
                 self._pixmap, self._own_margin_frac, mode, _size = hit
                 _set_render_mode(mode)
                 self._page_qimage = None
@@ -3110,11 +3165,6 @@ class TiffPreview(QWidget):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, self._update_display)
 
-    #: The kept pixmaps' budget, in memory only: an A4 page at 300 dpi is
-    #: 35 MB as a pixmap, so this holds both views of about five such pages;
-    #: the least recently shown go first.
-    _FRAME_CACHE_BYTES = 400 * 1024 * 1024
-
     def _frame_cache_key(self, shown: Path, frame: int) -> "tuple | None":
         """What a rendered pixmap depends on, or None when it is not kept
         (the print preview is off: those tabs keep their old behaviour)."""
@@ -3129,18 +3179,7 @@ class TiffPreview(QWidget):
                 tuple(sorted(self._muted_inks)))
 
     def _remember_frame(self, key: tuple, pm, margin: float, mode: str) -> None:
-        if pm is None or pm.isNull():
-            return
-        size = pm.width() * pm.height() * max(1, pm.depth() // 8)
-        old = self._frame_cache.pop(key, None)
-        if old is not None:
-            self._frame_cache_bytes -= old[3]
-        self._frame_cache[key] = (pm, margin, mode, size)
-        self._frame_cache_bytes += size
-        while (self._frame_cache_bytes > self._FRAME_CACHE_BYTES
-               and len(self._frame_cache) > 2):
-            _k, ev = self._frame_cache.popitem(last=False)
-            self._frame_cache_bytes -= ev[3]
+        self._frame_cache.put(key, pm, margin, mode)
 
     def _prefetch_softproofs(self, plan, bin_dir) -> None:
         """Make the soft-proof of every OTHER page in the background, so
