@@ -126,6 +126,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 44: a42's keep-the-exact-value rule anywhere in the
      # colorimetric table (in-gamut nodes the refit pulled off)
      "a44-exactkeep",
+     # Agent 44 round 2: the RGB colorimetric table re-solved as one smooth
+     # field on its own branches where a44 found the refit failed
+     "a44b-smoothexact",
      # Agent 40: the total ink limit held between the B2A nodes as well
      # (workflow/profile_engine/tac_guard.py); "no-a40-inklimit" is its
      # off-switch once it is a default
@@ -1549,6 +1552,18 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"Exact inversion kept at {_ek['nodes']} of "
                             f"{_ek['candidates']} in-gamut nodes the "
                             f"smoothing refit had pulled off.")
+        if (_ek["nodes"] and n == 3
+                and b2a_mod.A44B_TOKEN in candidates):
+            # Research a44b-smoothexact: where the refit failed on an RGB
+            # table (a folded printer response), re-solve the table as one
+            # smooth field that keeps every node on its own branch.
+            dev_clut_shaped, _sx = b2a_mod.smooth_exact(
+                model, dev_clut_shaped, node_lab, pernode=dev_clut,
+                grid=b2a_grid, keep_out=fixed_nodes)
+            if _sx["applied"]:
+                _emit(settings, "Colorimetric table smoothed on its own "
+                                "branches (in-gamut nodes within "
+                                f"{_sx['ingamut_err_p95']:.2f} dE at p95).")
     if channel_max is not None:
         # The smooth refit is a least-squares field over samples that all
         # respect the ceiling; between them it can overshoot (measured: K

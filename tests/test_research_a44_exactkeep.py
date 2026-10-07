@@ -196,3 +196,50 @@ def test_the_builder_draws_the_grid_bridge_only_with_the_token():
     i = src.index("b2a_mod.dark_bridge_on_grid(")
     assert "if accurate and b2a_mod.A44_TOKEN in candidates:" in src[:i]
     assert "b2a_mod.dark_bridge(" in src[i:]   # the a40 bridge otherwise
+
+
+# a44b-smoothexact: the RGB colorimetric table re-solved as one smooth field
+# on its own branches.
+
+def test_the_a44b_token_is_known_and_not_a_default():
+    assert b2a.A44B_TOKEN == "a44b-smoothexact"
+    assert b2a.A44B_TOKEN in ENGINE_CANDIDATE_TOKENS
+    assert b2a.A44B_TOKEN not in ACCURATE_DEFAULT_TOKENS
+    assert b2a.A44B_MU == 100.0
+
+
+def test_smooth_exact_smooths_a_rough_table_and_keeps_it_accurate():
+    model = _ToyRgb()
+    node_lab, per, ing = _table(model)
+    rough = per.copy()
+    rng = np.random.default_rng(7)
+    rough[ing] = np.clip(rough[ing] + rng.normal(0, 0.02, (len(ing), 3)),
+                         0, 1)
+    out, info = b2a.smooth_exact(model, rough, node_lab, pernode=per,
+                                 grid=G, mu=1.0)
+    assert info["applied"]
+    e = lambda t: np.linalg.norm(model.predict(t[ing]) - node_lab[ing], axis=1)  # noqa: E731
+    assert e(out).mean() < e(rough).mean()      # back toward the targets
+    curv = lambda t: np.abs(b2a._curv3(t, G)).mean()  # noqa: E731
+    assert curv(out) < curv(rough)
+
+
+def test_smooth_exact_keeps_pinned_nodes_and_skips_ink_tables():
+    model = _ToyRgb()
+    node_lab, per, ing = _table(model)
+    rough = np.clip(per + 0.03, 0, 1)
+    pins = ing[:3]
+    out, _info = b2a.smooth_exact(model, rough, node_lab, pernode=per,
+                                  grid=G, keep_out=pins)
+    assert np.allclose(out[pins], rough[pins], atol=1e-5)
+    four = np.zeros((len(node_lab), 4))
+    same, info = b2a.smooth_exact(model, four, node_lab, pernode=per, grid=G)
+    assert same is four and not info["applied"]
+
+
+def test_the_builder_runs_a44b_only_on_rgb_after_an_exact_keep():
+    src = inspect.getsource(builder._build_profile_impl)
+    i = src.index("b2a_mod.smooth_exact(")
+    assert 'if (_ek["nodes"] and n == 3' in src[:i]
+    assert "and b2a_mod.A44B_TOKEN in candidates):" in src[:i]
+    assert src.index("b2a_mod.exact_keep(") < i
