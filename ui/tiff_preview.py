@@ -96,7 +96,6 @@ _PREVIEW_LIGHT = {
     "readout":  "#808080",
     "banner_bg": "#f0c674", "banner_border": "#b88a2a", "banner_text": "#2a1a00",
     "badge_bg": "rgba(30, 30, 30, 185)", "badge_text": "#f4f2ef",
-    "focus_ring": "#4dd0e1",
     "tip_bg": "#ffffff", "tip_text": "#22211f", "tip_border": "#d0ccc6",
     "tip_swatch_border": "#b8b3ad",
 }
@@ -106,7 +105,6 @@ _PREVIEW_DARK = {
     "readout":  "#808080",
     "banner_bg": "#f0c674", "banner_border": "#b88a2a", "banner_text": "#2a1a00",
     "badge_bg": "rgba(30, 30, 30, 185)", "badge_text": "#f4f2ef",
-    "focus_ring": "#4dd0e1", "badge_edge": "#5a5a5a",
     "tip_bg": "#262626", "tip_text": "#e6e6e6", "tip_border": "#404040",
     "tip_swatch_border": "#5a5a5a",
 }
@@ -133,7 +131,6 @@ _PREVIEW_NEUTRAL = {
     # is a fill, not inverted text.
     "badge_bg":   neutral_styles.NM_ACTION,
     "badge_text": neutral_styles.NM_ON_ACTION,
-    "focus_ring": neutral_styles.NM_ACTION,
     "tip_bg":     neutral_styles.NM_BG_SURFACE,
     "tip_text":   neutral_styles.NM_TEXT_MAIN,
     "tip_border": neutral_styles.NM_BORDER,
@@ -143,6 +140,14 @@ _PREVIEW_BY_MODE = {
     "light":   _PREVIEW_LIGHT,
     "dark":    _PREVIEW_DARK,
     "neutral": _PREVIEW_NEUTRAL,
+}
+#: The indicator switch's own colours beyond the badge's (beta 12 build C),
+#: kept apart so the shipped palettes above stay as they were: the keyboard
+#: focus ring, and a hairline round the pill where the well is as dark as it.
+_CHIP_BY_MODE = {
+    "light":   {"focus_ring": "#4dd0e1", "badge_edge": ""},
+    "dark":    {"focus_ring": "#4dd0e1", "badge_edge": "#5a5a5a"},
+    "neutral": {"focus_ring": neutral_styles.NM_ACTION, "badge_edge": ""},
 }
 
 # ---------------------------------------------------------------------------
@@ -3434,8 +3439,9 @@ class TiffPreview(QWidget):
         if chip is None or sip.isdeleted(chip):
             return
         pal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
-        chip.set_colours(pal["badge_bg"], pal["badge_text"], pal["focus_ring"],
-                         pal.get("badge_edge", ""))
+        extra = _CHIP_BY_MODE.get(self._mode, _CHIP_BY_MODE["dark"])
+        chip.set_colours(pal["badge_bg"], pal["badge_text"],
+                         extra["focus_ring"], extra["badge_edge"])
 
     def _place_print_chip(self) -> None:
         """Top right of the image area, where the indicator has always been;
