@@ -243,3 +243,23 @@ def test_the_builder_runs_a44b_only_on_rgb_after_an_exact_keep():
     assert 'if (_ek["nodes"] and n == 3' in src[:i]
     assert "and b2a_mod.A44B_TOKEN in candidates):" in src[:i]
     assert src.index("b2a_mod.exact_keep(") < i
+
+
+def test_smooth_exact_leaves_deep_clips_beyond_the_stencil_alone():
+    model = _ToyRgb()
+    node_lab, per, ing = _table(model)
+    rough = np.clip(per + np.random.default_rng(3).normal(0, 0.03, per.shape),
+                    0, 1)
+    residual = np.linalg.norm(model.predict(per) - node_lab, axis=1)
+    out, _info = b2a.smooth_exact(model, rough, node_lab, pernode=per,
+                                  grid=G, residual=residual)
+    near = np.zeros((G,) * 3, bool)
+    near.ravel()[ing] = True
+    for _ in range(2):
+        g = near.copy()
+        for ax in range(3):
+            g |= np.roll(near, 1, ax) | np.roll(near, -1, ax)
+        near = g
+    far_deep = np.flatnonzero((residual > 5.0) & ~near.ravel())
+    assert len(far_deep)
+    assert np.array_equal(out[far_deep], rough[far_deep])

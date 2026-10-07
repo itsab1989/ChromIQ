@@ -1548,7 +1548,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # smooth field that keeps every node on its own branch.
             dev_clut_shaped, _sx = b2a_mod.smooth_exact(
                 model, dev_clut_shaped, node_lab, pernode=dev_clut,
-                grid=b2a_grid, keep_out=fixed_nodes)
+                grid=b2a_grid, keep_out=fixed_nodes, residual=residual)
             if _sx["applied"]:
                 _emit(settings, "Colorimetric table smoothed on its own "
                                 "branches (in-gamut nodes within "
