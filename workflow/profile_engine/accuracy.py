@@ -68,8 +68,13 @@ def fit_forward_model_accurate(
         additive: bool = False,
         fit_space=None,
         order_mu: float = 0.0,
+        lam_factors: tuple | None = None,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
+
+    ``lam_factors`` (research, Agent 38): the smoothing ladder to search
+    instead of ``_LAMBDA_FACTORS`` (``(1.0,)`` = the standard value only,
+    used by the a38-noisy-rgb exam); None = the shipped ladder.
 
     ``positioning`` (ink devices): every fit starts from shaper curves
     placed by the chart's single-ink ramps
@@ -223,7 +228,8 @@ def fit_forward_model_accurate(
                      f"budget (shadows ±{sh:.2f} ΔE, highlights ±{hi:.2f} "
                      f"ΔE).")
 
-    if npts >= _HOLDOUT_MIN_PATCHES:
+    if npts >= _HOLDOUT_MIN_PATCHES and (lam_factors is None
+                                          or len(lam_factors) > 1):
         # Several hold-out splits, not one: on a real 924-patch chart the
         # single-split criterion spread only 0.01–0.1 ΔE00 across the whole
         # ladder while the same factor moved 0.1 between splits, so the
@@ -257,19 +263,20 @@ def fit_forward_model_accurate(
         # candidate may change it), each call is the same computation, so
         # the same bits. The noise-model hill-climb below stays serial.
         from workflow.profile_engine import parallel
+        factors = _LAMBDA_FACTORS if lam_factors is None else tuple(lam_factors)
         pre = None
         if parallel.worker_count() > 1:
-            keys = [(f, k) for f in _LAMBDA_FACTORS
+            keys = [(f, k) for f in factors
                     for k in range(len(splits))]
             vals = parallel.run_tasks(
                 [(lambda f=f, k=k: cv_err(base_lam * f, *splits[k]))
                  for f, k in keys])
             pre = dict(zip(keys, vals))
         errs: dict[float, list[float]] = {}
-        for ci, f in enumerate(_LAMBDA_FACTORS):
+        for ci, f in enumerate(factors):
             if progress is not None:
                 progress(f"Fitting the printer model: smoothing search "
-                         f"{ci + 1}/{len(_LAMBDA_FACTORS)}…")
+                         f"{ci + 1}/{len(factors)}…")
             if pre is not None:
                 errs[f] = [pre[(f, k)] for k in range(len(splits))]
             else:
@@ -289,7 +296,7 @@ def fit_forward_model_accurate(
         best_err, best_lam = mean[best_f], base_lam * best_f
         unit_ = "× the instrument noise" if sigma is not None else "ΔE2000"
         if progress is not None:
-            at_end = best_f in (_LAMBDA_FACTORS[0], _LAMBDA_FACTORS[-1])
+            at_end = best_f in (factors[0], factors[-1])
             progress(f"Smoothing chosen by cross-validation: ×{best_f:.2g} "
                      f"of the standard value (held-out median "
                      f"{best_err:.2f} vs {mean[1.0]:.2f} {unit_} at the "
