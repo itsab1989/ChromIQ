@@ -27,6 +27,7 @@
 - **Texts that send you to a tab name it as the tab bar does.** Polish said "Drukuj wzorzec" and "Pomiar" for the tabs "Wydrukuj wzorzec" and "Zmierz"; Russian, Ukrainian and Dutch named the Build Profile and Measure tabs by other words than their titles. All 13 languages were checked.
 - **The "taking longer than usual" window only talks about what your chart uses.** During a chart built without a pre-conditioning profile (a plain CMYK chart, for example) it spoke of pre-conditioning profiles and refinement charts; it now explains the slowdown and the faster layout without them. A chart built with a profile shows the same text as before.
 - **A chart that targen could not build shows targen's whole message.** The window quoted only "targen: Error -", because ArgyllCMS writes its message in two pieces; it now quotes the sentence that follows too.
+- **The true-colour preview of a CMYK chart leaves no files behind, not even after a crash.** Its converted pages were kept in a temporary folder until ChromIQ quit, so a crash or Force Quit left that folder on the disk. They are now kept in memory, and a folder left by a ChromIQ that was killed in the middle of a conversion is removed the next time ChromIQ converts a page.
 
 ## v4.3.3-beta.11
 

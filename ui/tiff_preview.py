@@ -6022,11 +6022,12 @@ class TiffPreview(QWidget):
         Only possible when the chart's device profile is discoverable next to
         the TIFF (run's preconditioning.icc / meta.json recipe) and Argyll is
         installed; returns None otherwise — callers fall back to the
-        approximate composite. Conversion results are cached by mtime.
+        approximate composite. Conversion results are cached by mtime, in memory
+        only (nothing of it stays on disk, beta 12).
         """
         try:
             from workflow.colorimetric_preview import (
-                colorimetric_rgb_tiff, find_device_profile,
+                colorimetric_rgb_frame, find_device_profile,
             )
             profile = find_device_profile(path)
             if profile is None:
@@ -6037,16 +6038,8 @@ class TiffPreview(QWidget):
                             if (d / argyll_binary("cctiff")).exists()), None)
             if bin_dir is None:
                 return None
-            conv = colorimetric_rgb_tiff(path, profile, bin_dir)
-            if conv is None:
-                return None
-            img = Image.open(conv)
-            if hasattr(img, "seek"):
-                try:
-                    img.seek(frame)
-                except EOFError:
-                    pass
-            return img.convert("RGB")
+            img = colorimetric_rgb_frame(path, profile, bin_dir, frame)
+            return None if img is None else img.copy()
         except Exception:  # noqa: BLE001 — preview upgrade is best-effort
             return None
 
