@@ -50,7 +50,8 @@ def _tab(tmp_path, monkeypatch, *, verification=True):
     calls = {"gamut": [], "ti1": []}
     monkeypatch.setattr(
         tab, "_on_generate_gamut",
-        lambda: calls["gamut"].append(tab._gamut_effective_count()))
+        lambda: calls["gamut"].append(tab._gamut_effective_count())
+        or calls.get("gamut_started", True))
     monkeypatch.setattr(
         tab, "_generate_from_ti1",
         lambda ti1, ask=True: calls["ti1"].append(str(ti1)) or True)
@@ -105,3 +106,30 @@ def test_a_profiling_run_still_builds_the_presets_own_patches(qapp, tmp_path,
     tab, calls = _tab(tmp_path, monkeypatch, verification=False)
     _pick(tab, KEY)
     assert calls["gamut"] == [] and len(calls["ti1"]) == 1
+
+
+def test_a_gamut_build_that_did_not_begin_puts_the_preset_back(qapp, tmp_path,
+                                                              monkeypatch):
+    """Beta-12 review: no build (no profile, or Cancel to the question about
+    the run's results) puts the tab back like every other built-in (#175).
+    It used to return True regardless, leaving the preset applied with
+    nothing built."""
+    tab, calls = _tab(tmp_path, monkeypatch)
+    calls["gamut_started"] = False
+    tab._switch_mode("gamut")
+    before = tab._preset_combo.currentIndex()
+    _pick(tab, KEY)
+    assert calls["gamut"] == [608]          # it was asked
+    assert tab._preset_combo.currentIndex() == before
+    assert not tab._knut_active and tab._knut_active_key is None
+
+
+def test_the_gamut_generate_says_whether_the_build_began(qapp, tmp_path,
+                                                        monkeypatch):
+    from ui.tabs import tab_chart as TC
+    tab, _calls = _tab(tmp_path, monkeypatch)
+    real = TC.TabChart._on_generate_gamut.__get__(tab)
+    monkeypatch.setattr(tab, "_on_generate_gamut", real)
+    tab._switch_mode("gamut")
+    monkeypatch.setattr(tab, "_gamut_profile", lambda: None)
+    assert tab._on_generate() is False

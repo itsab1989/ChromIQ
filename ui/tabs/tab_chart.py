@@ -16605,8 +16605,12 @@ class TabChart(QWidget):
         log.info("From Profile Gamut: preset %r used for its layout only; "
                  "%d colours + %d cube corners from the profile's gamut",
                  key, self._gamut_effective_count(), _GAMUT_CORNER_PATCHES)
-        self._on_generate()
-        return True
+        # Whether the build began. A build that did not (no profile, the
+        # person answered Cancel to the question about the run's results)
+        # puts the tab back like every other built-in (#175); returning True
+        # regardless left the preset applied with nothing built (beta-12
+        # review).
+        return bool(self._on_generate())
 
     def _reset_knut_overrides(self) -> None:
         """Revert the printtarg flags a TC9.18+Spyderprint preset forced on.
@@ -19275,7 +19279,7 @@ class TabChart(QWidget):
         self._refresh_project_exists_line()
         return True
 
-    def _on_generate(self) -> None:
+    def _on_generate(self) -> "bool | None":
         """Generate Chart.
 
         THE WHOLE BODY IS INSIDE A `try`, for one reason: a §S4.7 answer
@@ -19303,8 +19307,9 @@ class TabChart(QWidget):
             # layout from Manual via the ordinary from-.ti1 build (which asks the
             # §4 displacing-results question itself).
             if self._mode_name() == "gamut":
-                self._on_generate_gamut()
-                return
+                # Whether the build began: a preset picked in this module
+                # (`_apply_knut_layout_for_gamut`) is put back when it did not.
+                return self._on_generate_gamut()
             # THE NAME BEFORE THE GATE. §S4.7 below compares the name in the
             # box with the projects on disk, so an empty box gives it nothing to
             # compare: it waved the build through, and the name supplied
@@ -23110,14 +23115,17 @@ class TabChart(QWidget):
                        "layout.").format(n=n))
         return ""
 
-    def _on_generate_gamut(self) -> None:
+    def _on_generate_gamut(self) -> bool:
         """Generate for the FROM PROFILE GAMUT module: select the colours from
         the master set through this run's profile, write the patch list, and
-        hand it to the ordinary from-.ti1 build (Manual's layout settings)."""
+        hand it to the ordinary from-.ti1 build (Manual's layout settings).
+
+        Returns whether the build began (False: no profile, the colours could
+        not be chosen, no project, or the person declined the build)."""
         profile = self._gamut_profile()
         if profile is None:
             self._refresh_gamut_state()
-            return
+            return False
         count = self._gamut_effective_count()
         margin = self._gamut_margin_combo.currentData() or "safe"
         intent = self._gamut_intent_combo.currentData() or "absolute"
@@ -23134,7 +23142,7 @@ class TabChart(QWidget):
             ctl = getattr(self, "_target_ctl", None)
             project = ctl.project_or_none() if ctl is not None else None
             if project is None:
-                return
+                return False
             from core.measurement_target import resolve_run
             run = resolve_run(project, ctl.target)
             ti1 = run.ensure_cache_dir() / "gamut-target.ti1"
@@ -23158,7 +23166,7 @@ class TabChart(QWidget):
                    ).format(reason=str(exc)),
                 self, min_width=520,
             ).exec()
-            return
+            return False
         finally:
             QApplication.restoreOverrideCursor()
         self._settings.set("gamut_target_count", count)
@@ -23184,6 +23192,7 @@ class TabChart(QWidget):
                 "Only {n} of the requested {count} colours are printable "
                 "with this profile, so the chart holds {n} colours plus the "
                 "8 cube corners.").format(n=selection.achieved, count=count))
+        return bool(started)
 
     def _write_gamut_reference_after_adopt(self, new_ti2: "Path | None") -> None:
         """After a gamut chart was adopted as the run's verify chart, store the
