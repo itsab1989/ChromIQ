@@ -91,6 +91,7 @@ def preview(qapp, paper_view, fake_bin, monkeypatch):
     w = TiffPreview(None)
     w.resize(600, 500)
     w.set_print_preview(True)
+    w.show()
     yield w
     w.deleteLater()
 
@@ -160,9 +161,27 @@ def test_every_preview_follows_the_choice(tmp_path, preview, paper_view):
     for w in (preview, other):
         w.load_tiff([tif])
         w._update_display()
+    other.show()
     preview.toggle_print_view()
     assert other.print_view()["device"]
     other.deleteLater()
+
+
+def test_a_preview_not_on_screen_catches_up_when_shown(tmp_path, preview, qapp):
+    """A switch costs the preview on screen, not all three tabs' previews."""
+    from ui.tiff_preview import TiffPreview
+    hidden = TiffPreview(None)
+    hidden.set_print_preview(True)
+    tif = _run(tmp_path)
+    for w in (preview, hidden):
+        w.load_tiff([tif])
+        w._update_display()
+    preview.toggle_print_view()
+    assert not hidden.print_view()["device"]          # not redrawn yet
+    hidden.show()
+    qapp.processEvents()
+    assert hidden.print_view()["device"]
+    hidden.deleteLater()
 
 
 def test_without_a_profile_the_screen_icon_shows_and_a_click_does_nothing(

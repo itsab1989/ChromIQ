@@ -171,13 +171,22 @@ def print_view_notifier() -> _PrintViewNotifier:
     return _PRINT_VIEW_NOTIFIER
 
 
+#: The choice as last read or written, so a repaint does not open the
+#: settings store each time; None until it is first asked for.
+_DEVICE_VALUES_CHOSEN: "bool | None" = None
+
+
 def device_values_chosen() -> bool:
     """True when the user chose to see chart pages as device values."""
-    try:
-        from core.settings import AppSettings
-        return bool(AppSettings().get(PREVIEW_DEVICE_VALUES_KEY, False))
-    except Exception:      # noqa: BLE001 - a preference, never worth a crash
-        return False
+    global _DEVICE_VALUES_CHOSEN
+    if _DEVICE_VALUES_CHOSEN is None:
+        try:
+            from core.settings import AppSettings
+            _DEVICE_VALUES_CHOSEN = bool(
+                AppSettings().get(PREVIEW_DEVICE_VALUES_KEY, False))
+        except Exception:      # noqa: BLE001 - a preference, never worth a crash
+            return False
+    return _DEVICE_VALUES_CHOSEN
 
 
 class PrintProof:
@@ -210,8 +219,10 @@ def _prefetch_worker(pages, colour, intent, bin_dir, stop) -> None:
 
 def set_device_values_chosen(on: bool) -> None:
     """Remember the choice and redraw every chart preview."""
+    global _DEVICE_VALUES_CHOSEN
     from core.settings import AppSettings
     AppSettings().set(PREVIEW_DEVICE_VALUES_KEY, bool(on))
+    _DEVICE_VALUES_CHOSEN = bool(on)
     print_view_notifier().changed.emit()
 
 # ---------------------------------------------------------------------------
@@ -3169,8 +3180,21 @@ class TiffPreview(QWidget):
     def _on_print_view_changed(self) -> None:
         if self._img_label is None or sip.isdeleted(self._img_label):
             return
-        if self._print_preview and self._pages:
-            self._update_display()
+        if not (self._print_preview and self._pages):
+            return
+        if self.isVisible():
+            # a switch changes the view, not how the page prints: the plan
+            # just worked out for this page still holds (it reads the chart's
+            # .ti2, the dearest part of a switch)
+            self._reuse_plan = True
+            try:
+                self._update_display()
+            finally:
+                self._reuse_plan = False
+        else:
+            # a tab not on screen catches up when it is shown, so a switch
+            # costs one preview, not three
+            self._print_view_stale = True
 
     def _on_print_chip_activated(self) -> None:
         self.toggle_print_view()
@@ -3209,8 +3233,14 @@ class TiffPreview(QWidget):
             from workflow import print_preview as PP
             bin_dir = self._argyll_bin_with("cctiff")
             colour, intent = self._print_selected
-            plan = PP.plan_for_page(path, selected_colour=colour,
-                                    selected_intent=intent, bin_dir=bin_dir)
+            pkey = (str(path), self._print_selected, str(bin_dir))
+            last = getattr(self, "_last_plan", None)
+            if getattr(self, "_reuse_plan", False) and last and last[0] == pkey:
+                plan = last[1]
+            else:
+                plan = PP.plan_for_page(path, selected_colour=colour,
+                                        selected_intent=intent, bin_dir=bin_dir)
+                self._last_plan = (pkey, plan)
             if plan is None:
                 return path
             from ui.keyboard_help import keys_for, with_shortcut
@@ -5758,6 +5788,9 @@ class TiffPreview(QWidget):
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)
+        if getattr(self, "_print_view_stale", False):
+            self._print_view_stale = False
+            QTimer.singleShot(0, self._update_display)
         if self._pixmap:
             # Defer until Qt has activated the now-visible tab's layout —
             # otherwise _img_label.size() is still the hidden minimum and the
