@@ -122,7 +122,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a38-noisy-rgb",
      # Agent 42: the near-black hand-over of the B2A tables (curve space
      # without collapsed ink intervals, the near-black column held)
-     "a42-nearblack"})
+     "a42-nearblack",
+     # Agent 40: the total ink limit held between the B2A nodes as well
+     # (workflow/profile_engine/tac_guard.py); "no-a40-inklimit" is its
+     # off-switch once it is a default
+     "a40-inklimit", "no-a40-inklimit"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1677,6 +1681,24 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         l1v = "scale" if "a24-l1scale" in candidates else "b"
         luts = apply_l1(luts, l1v)
         luts_v4 = luts if same else apply_l1(luts_v4, l1v)
+    if (accurate and "a40-inklimit" in candidates and ink_limit is not None
+            and not meas.is_additive):
+        # Agent 40 (Findings/agent40-01-inklimit.md): the total ink limit
+        # held BETWEEN the B2A nodes too, not only at them. The CMM
+        # interpolates the shaped CLUT and then applies the (partly concave)
+        # output tables, so a cell whose corners sit on the limit printed up
+        # to 306.6 % for 300 % (R-CMYK-default-i1Pro B2A1). Last step before
+        # writing, on the final bytes: after every pin, the gamut clip and
+        # the v4 PRM resampling, so nothing later can undo it.
+        from workflow.profile_engine.tac_guard import guard_luts
+        same = luts_v4 is luts
+        log = lambda m: _emit(settings, m)  # noqa: E731
+        # The black corner moves only if its cell cannot be held otherwise
+        # (or it is itself over the limit): the black rows stay as built.
+        _blk = [int(np.argmin(np.linalg.norm(node_lab, axis=1)))]
+        luts = guard_luts(luts, float(ink_limit), log=log, protect=_blk)
+        luts_v4 = luts if same else guard_luts(luts_v4, float(ink_limit),
+                                               protect=_blk)
     if str(settings.icc_version) == "4":
         from dataclasses import replace
         spec = replace(spec, wtpt=v4_wtpt)
