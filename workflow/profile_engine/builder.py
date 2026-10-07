@@ -119,7 +119,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 38 s6: gentler RGB ramp placement where an exam wants it
      "a40-knut-grey",
      # Agent 38: RGB ramp curves kept only where a held-out exam wants them
-     "a38-noisy-rgb"})
+     "a38-noisy-rgb",
+     # Agent 42: the near-black hand-over of the B2A tables (curve space
+     # without collapsed ink intervals, the near-black column held)
+     "a42-nearblack"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1449,9 +1452,21 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _col = b2a_mod.column_nodes_by_l(node_lab, fixed_nodes)
         _bl = float(model.predict(np.zeros((1, n)))[0, 0])
         _nbl, _ = b2a_mod.rgb_neutral_black(model, _bl, ucs=use_ucs)
+        _to_l = float(_nbl) + 3.0
+        if b2a_mod.A42_TOKEN in candidates:
+            # Research a42-nearblack: a bridge top whose value lies in an
+            # ink interval the model cannot resolve (Knut, a40 curves: node
+            # L* 25 at G 0.001 inside G 0-0.05) is no anchor; the bridge
+            # runs on to the next column node.
+            _cl = node_lab[_col, 0]
+            for _j in np.flatnonzero(_cl >= _to_l):
+                _to_l = float(_cl[_j])
+                if not b2a_mod.ill_posed(dev_clut[_col[_j]],
+                                         model.curves)[0]:
+                    break
         dev_clut[_col] = b2a_mod.dark_bridge(
             dev_clut[_col], node_lab[_col, 0], black_l=_bl,
-            to_l=float(_nbl) + 3.0)
+            to_l=_to_l)
         dev_clut[_col] = b2a_mod.monotone_channels(dev_clut[_col])
     if (accurate and meas.is_additive and "a25-rgbcol" in candidates
             and fixed_nodes is not None and len(fixed_nodes)):
@@ -1472,6 +1487,29 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         dev_clut_shaped = dev_clut_shaped.copy()
         dev_clut_shaped[fixed_nodes] = model.shape_device(
             dev_clut[fixed_nodes])
+    if accurate and b2a_mod.A42_TOKEN in candidates and n <= 4:
+        # Research a42-nearblack, part 2: in the rows of the black hand-over
+        # the column and its first ring take their own per-node inversion
+        # back where the refit gave way (b2a.py, comment above A42_TOKEN).
+        # The hand-over top: the neutral black plus its gap to the deepest
+        # black (ink: the axis; RGB: RGB 0 and its neutral black).
+        _l_top = None
+        if not meas.is_additive and axis is not None \
+                and axis.get("black") is not None:
+            _nb = float(axis.get("neutral_l_black", axis["l_black"]))
+            _l_top = _nb + max(_nb - float(axis["l_black"]), 0.0)
+        elif meas.is_additive and n == 3:
+            _bl = float(model.predict(np.zeros((1, n)))[0, 0])
+            _nbl, _ = b2a_mod.rgb_neutral_black(model, _bl, ucs=use_ucs)
+            _l_top = float(_nbl) + max(float(_nbl) - _bl, 0.0)
+        if _l_top is not None:
+            dev_clut_shaped, _nbk = b2a_mod.nearblack_column(
+                model, dev_clut_shaped, node_lab, pernode=dev_clut,
+                l_top=_l_top, grid=b2a_grid, lab_to01=codec.lab_to01)
+            if _nbk["restored"]:
+                _emit(settings, f"Near-black hand-over: {_nbk['nodes']} "
+                                f"nodes up to L* {_nbk['rows'][-1]:.1f} "
+                                f"keep their own inversion.")
     if channel_max is not None:
         # The smooth refit is a least-squares field over samples that all
         # respect the ceiling; between them it can overshoot (measured: K
@@ -1521,6 +1559,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             out_tables=np.tile(icw._identity_table(entries_b2a), (n, 1)))
     else:
         inv = b2a_mod.inverse_curves(model.curves)
+        _space = (b2a_mod.b2a_space_curves(model.curves)
+                  if accurate and b2a_mod.A42_TOKEN in candidates else None)
+        if _space is not None:
+            # Research a42-nearblack, part 1: the B2A curve space keeps
+            # every ink interval at least half the identity's share.
+            dev_clut_shaped = b2a_mod.reexpress(dev_clut_shaped,
+                                                model.curves, _space)
+            inv = b2a_mod.inverse_curves(_space)
         b2a_col = icw.make_mft2(
             3, n, b2a_grid, icw.device_to_u16(dev_clut_shaped),
             in_tables=b2a_in,

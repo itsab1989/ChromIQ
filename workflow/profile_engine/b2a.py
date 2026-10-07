@@ -2234,3 +2234,162 @@ def inverse_curves(curves: np.ndarray, knots: int = 256) -> np.ndarray:
     for c in range(n):
         out[c] = np.interp(xs, curves[c], xp)   # swap axes = inverse
     return out
+
+
+# Research token "a42-nearblack" (Agent 42, Findings/agent42-01). Two
+# defects meet at the near-black end of the colorimetric table:
+#
+# 1. The B2A tables store curve-space values and undo them with the inverse
+#    of the A2B shaper curves. The shaper refit (forward_model._refit_curve)
+#    may push a knot against its neighbour, so one ink interval collapses
+#    into a sliver of the curve axis (i1iSis K 0.60-0.65: slope 0.13; Knut
+#    with a40-knut-grey, G 0.00-0.05: slope 0.002). A B2A cell that crosses
+#    such a sliver jumps through the whole interval in a few per cent of its
+#    width: the 2.5 L* step at i1iSis L* 29 and the a40 kink at Knut L* 25.
+#    The shipped ramp curves guarantee every channel at least half the
+#    identity's slope ("blended half way with the identity so every grid
+#    cell keeps some ink range"); the B2A curve space restores that same
+#    guarantee (A42_FLOOR = 0.5, the shipped blend, not a new constant).
+#    Node device values are unchanged; only the path between nodes differs,
+#    and only in cells that cross a floored interval.
+# 2. The smoothing refit gives way at the near-black column: near the black
+#    the inverse samples sit on competing separations and the least-squares
+#    field averages them (i1iSis node L* 25 printed model L* 26.9, C* 4.3).
+#    The contiguous run of column nodes from the black upward whose refit
+#    value misses the neutral axis's own value by the walk's acceptance
+#    (0.5 dE) takes the axis value back, when that prints smoother along
+#    the column in the model than the refit does (a branch switch inside one
+#    cell, i1Pro, keeps the refit); the correction fades linearly across the
+#    cells that touch the column (half on the first ring, none beyond).
+A42_TOKEN = "a42-nearblack"
+A42_FLOOR = 0.5
+A42_ACCEPT = 0.5
+
+
+def b2a_space_curves(curves: np.ndarray, floor: float = A42_FLOOR):
+    """Research a42-nearblack: the B2A curve space. Each channel's shaper
+    (knots on an even grid, 0..1, monotone) whose slope falls below
+    ``floor`` anywhere gets that slope raised to ``floor`` and is
+    renormalised to 0..1; a channel that never does is returned exactly as
+    it is. Returns None when no channel changes."""
+    curves = np.asarray(curves, float)
+    k = curves.shape[1]
+    h = 1.0 / (k - 1)
+    out = curves.copy()
+    changed = False
+    for c in range(curves.shape[0]):
+        d = np.diff(curves[c]) / h
+        if d.min() >= floor:
+            continue
+        y = np.concatenate([[0.0], np.cumsum(np.maximum(d, floor) * h)])
+        out[c] = y / y[-1]
+        changed = True
+    return out if changed else None
+
+
+def reexpress(shaped: np.ndarray, curves: np.ndarray,
+              space: np.ndarray) -> np.ndarray:
+    """Curve-space values under shaper ``curves`` re-expressed under the
+    shaper ``space`` (same device value at every node)."""
+    shaped = np.asarray(shaped, float)
+    k = curves.shape[1]
+    xp = np.linspace(0.0, 1.0, k)
+    out = np.empty_like(shaped)
+    for c in range(shaped.shape[1]):
+        dev = np.interp(shaped[:, c], curves[c], xp)
+        out[:, c] = np.interp(dev, xp, space[c])
+    return out
+
+
+def ill_posed(dev: np.ndarray, curves: np.ndarray,
+              floor: float = A42_FLOOR) -> np.ndarray:
+    """Research a42-nearblack: per device row, True when any channel lies in
+    a shaper interval flatter than ``floor`` (the model barely tells values
+    there apart, so an inversion's choice inside it is arbitrary)."""
+    dev = np.atleast_2d(np.asarray(dev, float))
+    k = curves.shape[1]
+    h = 1.0 / (k - 1)
+    out = np.zeros(len(dev), bool)
+    for c in range(dev.shape[1]):
+        d = np.diff(curves[c]) / h
+        j = np.clip((dev[:, c] / h).astype(int), 0, k - 2)
+        out |= d[j] < floor
+    return out
+
+
+def _lines_d2(model: ForwardModel, shaped: np.ndarray, grid: int, to01,
+              lines, l_lo: float, l_hi: float) -> float:
+    """Largest |second difference| of model Lab along lines of constant a*,
+    b* (``lines``), every 0.25 L* from ``l_lo`` to ``l_hi``, through the
+    B2A CLUT ``shaped`` (curve space) interpolated as a CMM does."""
+    from workflow.profile_engine.forward_model import _interp_weights
+    lq = np.arange(float(l_lo), float(l_hi) + 1e-9, 0.25)
+    if len(lq) < 3:
+        return 0.0
+    worst = 0.0
+    for a, b in lines:
+        lab = np.stack([lq, np.full_like(lq, a), np.full_like(lq, b)], 1)
+        w, cols = _interp_weights(to01(lab), grid, 3)
+        cq = (w[:, :, None] * shaped[cols]).sum(1)
+        out = model.predict(np.clip(model.unshape_device(cq), 0.0, 1.0))
+        worst = max(worst, float(np.linalg.norm(np.diff(out, 2, axis=0),
+                                                axis=1).max()))
+    return worst
+
+
+def nearblack_column(model: ForwardModel, shaped: np.ndarray,
+                     node_lab: np.ndarray, *, pernode: np.ndarray,
+                     l_top: float, grid: int, lab_to01=None,
+                     accept: float = A42_ACCEPT):
+    """Research a42-nearblack, part 2 (see the comment above A42_TOKEN).
+    ``shaped``: the refitted B2A CLUT (curve space, after the column pins);
+    ``pernode``: the per-node inversion it was refitted from (device). The
+    near-black rows are the grid rows up to and including the first one at
+    or above ``l_top`` (the top of the black hand-over: the neutral black
+    plus its own gap to the deepest black). In those rows the column and
+    its first ring (the nodes a near-neutral lookup reads) take the
+    per-node value back wherever that prints at least ``accept`` dE closer
+    to the node's target than the refit's value does; and only if the
+    column and the four lines half a grid step beside it then print
+    smoother in the model, up to the row above the zone. Returns ``(shaped,
+    info)``; ``shaped`` is a new array only when something was restored."""
+    info = {"rows": [], "restored": False, "nodes": 0}
+    rows_l = np.unique(np.round(node_lab[:, 0], 9))
+    above = np.flatnonzero(rows_l >= float(l_top) - 1e-9)
+    if not len(above):
+        return shaped, info
+    k_top = int(above[0])
+    zone_l = rows_l[:k_top + 1]
+    info["rows"] = zone_l.tolist()
+    ab = np.unique(np.round(node_lab[:, 1], 6))
+    step = float(np.median(np.diff(ab))) if len(ab) > 1 else 1.0
+    cand = np.flatnonzero((node_lab[:, 0] <= zone_l[-1] + 1e-6)
+                          & (np.abs(node_lab[:, 1]) <= step * 1.01)
+                          & (np.abs(node_lab[:, 2]) <= step * 1.01))
+    pn = np.asarray(pernode, float)[cand]
+    have = np.clip(model.unshape_device(shaped[cand]), 0.0, 1.0)
+    e_per = np.linalg.norm(model.predict(pn) - node_lab[cand], axis=1)
+    e_ref = np.linalg.norm(model.predict(have) - node_lab[cand], axis=1)
+    take = cand[e_per + accept <= e_ref]
+    if not len(take):
+        return shaped, info
+    out = shaped.copy()
+    out[take] = model.shape_device(np.asarray(pernode, float)[take])
+    if lab_to01 is None:
+        from workflow.profile_engine.icc_writer import lab_grid_axes
+        _ls, _ab = lab_grid_axes(grid)
+        _o = np.array([_ls[0], _ab[0], _ab[0]])
+        _s = np.array([_ls[-1] - _ls[0], _ab[-1] - _ab[0], _ab[-1] - _ab[0]])
+
+        def lab_to01(lab):
+            return np.clip((lab - _o[None, :]) / _s[None, :], 0.0, 1.0)
+    h = step / 2.0
+    lines = [(0.0, 0.0), (h, 0.0), (-h, 0.0), (0.0, h), (0.0, -h)]
+    hi = rows_l[min(k_top + 1, len(rows_l) - 1)]
+    d_old = _lines_d2(model, shaped, grid, lab_to01, lines, 0.0, hi)
+    d_new = _lines_d2(model, out, grid, lab_to01, lines, 0.0, hi)
+    info.update(d2_refit=d_old, d2_restored=d_new)
+    if d_new > d_old:
+        return shaped, info
+    info.update(restored=True, nodes=int(len(take)))
+    return out, info

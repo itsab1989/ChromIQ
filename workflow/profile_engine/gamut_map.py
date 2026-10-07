@@ -1157,6 +1157,13 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         dst = np.vstack([dst, meas.lab_relative])
     node_lab = codec.node_lab(grid)
     inv_curves = b2a_mod.inverse_curves(model.curves)
+    # Research a42-nearblack, part 1 (b2a.py): the same B2A curve space as
+    # the colorimetric table.
+    _a42_space = (b2a_mod.b2a_space_curves(model.curves)
+                  if accurate and b2a_mod.A42_TOKEN in getattr(
+                      settings, "engine_candidates", frozenset()) else None)
+    if _a42_space is not None:
+        inv_curves = b2a_mod.inverse_curves(_a42_space)
     no_out_shaper = bool(getattr(settings, "no_output_shaper", False))
     sat_gamut = bool(getattr(settings, "sat_gamut", True))
     out: dict[str, bytes | str] = {}
@@ -1554,6 +1561,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             if no_out_shaper:
                 dev_b = model.unshape_device(dev_b[None, :])[0]
             shaped = b2a_mod.pin_black_node(shaped, node_lab, dev_b)
+        if _a42_space is not None and not no_out_shaper:
+            shaped = b2a_mod.reexpress(shaped, model.curves, _a42_space)
         out[tag] = icw.make_mft2(
             3, model.n_channels, grid, icw.device_to_u16(shaped),
             in_tables=codec.b2a_in_tables(entries),
