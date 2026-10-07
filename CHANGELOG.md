@@ -28,6 +28,7 @@
 - **The "taking longer than usual" window only talks about what your chart uses.** During a chart built without a pre-conditioning profile (a plain CMYK chart, for example) it spoke of pre-conditioning profiles and refinement charts; it now explains the slowdown and the faster layout without them. A chart built with a profile shows the same text as before.
 - **A chart that targen could not build shows targen's whole message.** The window quoted only "targen: Error -", because ArgyllCMS writes its message in two pieces; it now quotes the sentence that follows too.
 - **The true-colour preview of a CMYK chart leaves no files behind, not even after a crash.** Its converted pages were kept in a temporary folder until ChromIQ quit, so a crash or Force Quit left that folder on the disk. They are now kept in memory, and a folder left by a ChromIQ that was killed in the middle of a conversion is removed the next time ChromIQ converts a page.
+- **The chart preview prepares the other pages once, not once per tab.** Create Chart, Print Chart and Measure each started their own background work to make the chart's pages ready "as on paper", for the same chart. They now share one, which saves processor time on a large chart; switching the view is as fast as before and the pages look exactly the same.
 
 ## v4.3.3-beta.11
 

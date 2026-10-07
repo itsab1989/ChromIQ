@@ -281,6 +281,95 @@ def _prefetch_worker(pages, colour, intent, bin_dir, stop) -> None:
         log.debug("print preview prefetch failed", exc_info=True)
 
 
+class _SharedPrefetch:
+    """ONE background soft-proof prefetch per chart, profile chain and intent,
+    shared by the three chart previews (review C of beta 12).
+
+    Create Chart, Print Chart and Measure each show the same chart, and each
+    started its own prefetch of the same pages: three threads decoding every
+    page and looking up every colour, of which two only ever found the work
+    done (cctiff itself was already asked once, behind `_fill_lock`). Now the
+    first preview starts the run and the others join it; a preview that moves
+    on to other pages leaves the run, and it is stopped only when no preview
+    still wants it. A finished run is remembered while its chain's colour
+    table is still held, so a fourth request does not decode the pages again.
+    What is filled, and so the toggle and the pixels, is exactly as before.
+    """
+
+    _KEEP_DONE = 16
+
+    def __init__(self) -> None:
+        import threading
+        self._lock = threading.Lock()
+        #: sig -> {"stop": Event, "owners": set, "thread": Thread|None,
+        #:         "done": bool, "chain": tuple|None}
+        self._runs: "dict[tuple, dict]" = {}
+        #: owner id -> the sig it currently wants
+        self._wants: "dict[int, tuple]" = {}
+
+    @staticmethod
+    def _table_held(chain) -> bool:
+        if chain is None:
+            return False
+        try:
+            from workflow import print_preview as PP
+            with PP._lock:
+                return chain in PP._tables
+        except Exception:      # noqa: BLE001
+            return False
+
+    def request(self, owner: int, sig: tuple, chain, pages, colour, intent,
+                bin_dir) -> bool:
+        """*owner* wants *sig* prefetched; True when this call started the
+        thread, False when it joined a running or finished one."""
+        import threading
+        with self._lock:
+            old = self._wants.get(owner)
+            if old is not None and old != sig:
+                self._leave(owner, old)
+            self._wants[owner] = sig
+            run = self._runs.get(sig)
+            if run is not None:
+                alive = run["thread"] is not None and run["thread"].is_alive()
+                if alive or (run["done"] and self._table_held(run["chain"])):
+                    run["owners"].add(owner)
+                    return False
+            stop = threading.Event()
+            run = {"stop": stop, "owners": {owner}, "thread": None,
+                   "done": False, "chain": chain}
+            self._runs[sig] = run
+            t = threading.Thread(target=self._work,
+                                 args=(run, pages, colour, intent, bin_dir),
+                                 name="print-preview-prefetch", daemon=True)
+            run["thread"] = t
+            self._prune()
+        t.start()
+        return True
+
+    def _work(self, run, pages, colour, intent, bin_dir) -> None:
+        _prefetch_worker(pages, colour, intent, bin_dir, run["stop"])
+        with self._lock:
+            run["done"] = not run["stop"].is_set()
+
+    def _leave(self, owner: int, sig: tuple) -> None:
+        run = self._runs.get(sig)
+        if run is None:
+            return
+        run["owners"].discard(owner)
+        if not run["owners"] and not run["done"]:
+            run["stop"].set()
+            del self._runs[sig]
+
+    def _prune(self) -> None:
+        done = [k for k, r in self._runs.items()
+                if r["done"] and not r["owners"]]
+        for k in done[:max(0, len(done) - self._KEEP_DONE)]:
+            del self._runs[k]
+
+
+_PREFETCH = _SharedPrefetch()
+
+
 class _FrameCache:
     """The chart previews' rendered pages, as pixmaps, in memory only, ONE
     store for the whole app (review C of beta 12).
@@ -1328,7 +1417,6 @@ class TiffPreview(QWidget):
         # tab asked for the print preview; ONE store for the whole app,
         # bounded (see _FrameCache).
         self._frame_cache = frame_cache()
-        self._prefetch_stop = None
         self._current: int = 0
         self._active_stripe: int = -1
         self._bidirectional: bool = False
@@ -3247,24 +3335,27 @@ class TiffPreview(QWidget):
         """Make the soft-proof of every OTHER page in the background, so
         turning the page or switching the view never waits on cctiff. The
         page on screen is always made first, by the caller. A new set of
-        pages, or a new plan, stops the previous run."""
-        import threading
+        pages, or a new plan, leaves the previous run, which stops once no
+        other preview wants it (one run per chart for the three tabs)."""
         pages = [p for p, _f in self._pages]
         if len(set(pages)) < 2:
             return
-        sig = (tuple(pages), self._print_selected, str(bin_dir))
+        from workflow import print_preview as PP
+        chain = PP.chain_key(plan, bin_dir)
+        try:
+            stats = tuple(PP._stat_key(p) for p in dict.fromkeys(pages))
+        except OSError:
+            stats = tuple(dict.fromkeys(pages))
+        # The chart (its pages as they are on disk), the profile chain and
+        # the print's colour and intent: what decides which colours get
+        # filled. Three previews of one chart share one run (_SharedPrefetch).
+        sig = (stats, self._print_selected, str(bin_dir), chain)
         if getattr(self, "_prefetch_sig", None) == sig:
             return
         self._prefetch_sig = sig
-        if self._prefetch_stop is not None:
-            self._prefetch_stop.set()
-        stop = threading.Event()
-        self._prefetch_stop = stop
         colour, intent = self._print_selected
-        threading.Thread(target=_prefetch_worker,
-                         args=(list(dict.fromkeys(pages)), colour, intent,
-                               bin_dir, stop),
-                         name="print-preview-prefetch", daemon=True).start()
+        _PREFETCH.request(id(self), sig, chain, list(dict.fromkeys(pages)),
+                          colour, intent, bin_dir)
 
     def print_view(self) -> "dict | None":
         """The indicator's state for the page on screen: ``icon`` (paper or
