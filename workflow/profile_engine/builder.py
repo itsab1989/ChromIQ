@@ -129,7 +129,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 40: the total ink limit held between the B2A nodes as well
      # (workflow/profile_engine/tac_guard.py); "no-a40-inklimit" is its
      # off-switch once it is a default
-     "a40-inklimit", "no-a40-inklimit"})
+     "a40-inklimit", "no-a40-inklimit",
+     # Agent 43: the perceptual hand-over band no wider than the path needs,
+     # and the perceptual black no deeper than the measured data
+     "a43-shadowdetail", "a43-shadowdetail-width"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1291,6 +1294,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                 f"{axis['neutral_l_black']:.1f}, then to "
                                 f"the deepest black L* "
                                 f"{axis['l_black']:.1f}.")
+                if b2a_mod.a43_mode(candidates) == "floor":
+                    # Research Agent 43, part 2: the darkest measured
+                    # near-neutral patch, read by the perceptual and
+                    # saturation tables (gamut_map, b2a.a43_floor_axis)
+                    axis = dict(axis, a43_meas_floor=(
+                        b2a_mod.measured_dark_floor(
+                            meas.lab_relative, meas.device,
+                            ink_limit=ink_limit)))
         elif ("a29-blackhandover" in candidates or _bh_ink) and n <= 4:
             # Research Agent 29a: below the neutral black, hand the axis
             # over to a deeper, slightly tinted black (colprof's depth),
