@@ -100,6 +100,7 @@ a = Analysis(
         ('assets',               'assets'),
         ('data/parameters.yaml', 'data'),
         ('data/preset_defaults.json', 'data'),
+        ('data/preset_certificates.json', 'data'),   # beta 12, Knut 6045500910 Q5
         # THE THREE SPECS MUST BUNDLE THE SAME DATA, AND FOR A LONG TIME THEY
         # DID NOT. macOS shipped `data/i18n` and `data/scanner_targets`;
         # Windows shipped only the first and Linux neither, so a Linux build

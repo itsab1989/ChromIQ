@@ -877,6 +877,28 @@ def prebuilt_bundles(monkeypatch):
     return register(monkeypatch)
 
 
+@pytest.fixture(autouse=True)
+def _preset_certificates_off(request):
+    """Preset metric certificates (Knut 6045500910, answer 5) are OFF in the
+    suite unless a test asks for `preset_certificates`: a test that changes
+    how a chart is judged (a monkeypatched threshold, a stubbed layout) must
+    see the judge it built, not the answer shipped for the real one."""
+    from workflow import preset_certificates as _pc
+    on = "preset_certificates" in request.fixturenames
+    _pc.reset()
+    _pc.set_disabled(not on)
+    yield
+    _pc.set_disabled(True)
+    _pc.reset()
+
+
+@pytest.fixture()
+def preset_certificates():
+    """Certificates read and written as the app does them (see above)."""
+    from workflow import preset_certificates as _pc
+    yield _pc
+
+
 @pytest.fixture()
 def automatic_gc():
     """For a test that measures what `workflow.preset_layout` does with

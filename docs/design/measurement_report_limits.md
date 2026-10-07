@@ -10126,3 +10126,27 @@ mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-02_beta3/U_impl_qc5/`.
 * **58.4 Basti's run1** (2026-10-06, 616 patches): before, 437 within gamut, average 1.50, maximum 5.27, 95th percentile 3.42 (FAIL on three rows); now 443 within gamut (relative), average 0.77, lowest 95 % 0.67, highest 5 % 2.67, maximum 3.66, 95th percentile 1.89 (FAIL on the highest 5 % and the maximum, both colours just inside the gamut's edge); beyond the gamut 173, average 5.47, maximum 13.53, never judged; profile accuracy over all 616: average 0.51, 95th percentile 1.01, maximum 2.13, all PASS at the default limits.
 * **58.5 Not changed:** a raw print, a FROM PROFILE GAMUT chart, a sheet printed in another application, a sheet with no print record, a saved report (shown as it was saved, §53).
 * **58.6 Words:** M-REPORT-THROUGH-PROFILE, §M-PROPOSED of the UMM.
+* **58.7 No patch inside the gamut** (beta 12 review). A sheet whose split leaves every patch beyond the gamut has nothing within-gamut to judge. The seven within-gamut rows read N-A with the reason `no_patch_in_gamut`, "no patch of the measured chart lies inside the profile's gamut, and the patches beyond it are never judged against a limit" (our words, waiting with 58.6); the patches beyond the gamut still fail nothing (§26.4). Until this, `graded_de00` fell back to the all-patch figures and judged exactly those patches. The verdict's `source` stays `gamut_in`. Built in `measurement_report.no_patch_in_gamut`, `graded_de00`, `row_values`; verified by `tests/test_beta12_b_no_patch_inside_the_gamut.py`.
+
+
+## 59. Preset metric certificates: the presets window and the run-type check read a certificate first (#182, beta 12)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-10-07, 6045500910 (#182 [6045500910](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6045500910), answer 5).
+
+* The count (for example "16 of 18 answered") is the number of metrics a chart can fulfil; the comments already say when a FROM PROFILE GAMUT chart is required. Unchanged.
+* At every release it is checked which built-in presets exist, and each gets a **certificate** saying how many of the metrics its chart can answer.
+* The presets window in Create Chart, and the check on entering run type Verification, read the certificate first; with one, its answer is used and the preset's chart is not generated again.
+* A preset without a certificate (a user's own preset) has its chart generated once and a certificate created.
+* A deleted user preset loses its certificate; a changed preset gets a new one (its chart generated again).
+
+### ⏳ Awaiting confirmation: what was built from it
+
+**Confirmed by:** *nobody yet.*
+
+* **59.1 What a certificate holds.** The full answer `preset_eligibility.chart_row_values` gives for the preset's chart (every metric, with its value or the reason it cannot be answered), so every report type and limit set is counted from it with the limits of the moment, exactly as from a chart worked out now. Measured: the certificate equals the answer worked out afresh (`test_a_certificate_says_what_working_it_out_says`).
+* **59.2 When it is valid.** Only for the same preset (a SHA-256 of the chart file, its layout recipe with this computer's paths taken out and any file it names hashed by content, and every file beside the chart the answer reads) and the same judge (the app version and the certificate format). Anything else is a miss, and the chart is worked out as before: a stale certificate is never used.
+* **59.3 Built-in presets:** `data/preset_certificates.json`, shipped in the app, written by `python scripts/make_preset_certificates.py` (189 presets, 7 s). **Release step:** after the version bump, run it and commit the file; `tests/test_beta12_b_preset_certificates.py::test_every_built_in_preset_ships_a_valid_certificate` fails until it is done, and `--check` says whether the file is current.
+* **59.4 A user's own presets:** `preset_certificates.json` beside the presets folder (never in the repository), written the first time the preset's chart is worked out in full (not while it is still being laid out); replaced when the preset changes; removed when the preset is deleted with the minus button, and tidied when the window lists the presets (a preset removed outside ChromIQ). A run's own chart is never certified.
+* **59.5 Built:** `workflow/preset_certificates.py`; `preset_eligibility.chart_row_values` and `values_ready` read it first (so the window, the pre-flight and the run-type check all do); `tab_chart._on_preset_delete`, `verification_preset_rows`; `ChromIQ.spec`.

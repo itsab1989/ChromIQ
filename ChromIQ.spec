@@ -199,6 +199,9 @@ a = Analysis(
         ('assets',           'assets'),
         ('data/parameters.yaml', 'data'),
         ('data/preset_defaults.json', 'data'),
+        # beta 12 (Knut 6045500910 answer 5): the built-in presets' metric
+        # certificates, written at release by scripts/make_preset_certificates.py
+        ('data/preset_certificates.json', 'data'),
         ('data/i18n',        'data/i18n'),
         ('data/scanner_targets', 'data/scanner_targets'),
         ('data/compliance_sets', 'data/compliance_sets'),

@@ -12045,6 +12045,12 @@ class MeasurementReportDialog(QDialog):
             # subset (`graded_de00`), and that was 18. `{n}` was filled from
             # `report["patches"]`, which is the sheet.
             "small_sample": _small_sample_sentence(r),
+            # Beta 12 (B3d, §26.4): every patch lies beyond the profile's
+            # gamut, and those never fail a limit, so nothing is judged.
+            "no_patch_in_gamut": tr(
+                "no patch of the measured chart lies inside the profile's "
+                "gamut, and the patches beyond it are never judged against a "
+                "limit"),
             "printing_unrecorded": tr("how this sheet was printed is not "
                                       "recorded, so this value is shown for "
                                       "information only"),

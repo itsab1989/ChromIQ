@@ -4290,6 +4290,13 @@ def verification_preset_rows(settings) -> list:
             # every user preset's evenness rows read "laid out later".
             recipe=(layout_for_user_preset(data, settings.get)
                     if chart is not None else None)))
+    # Knut 6045500910, answer 5: a certificate of a preset that is gone (one
+    # removed outside ChromIQ) is dropped
+    try:
+        from workflow import preset_certificates as _pc
+        _pc.keep_only(r.chart for r in own if r.chart is not None)
+    except Exception:      # noqa: BLE001 - never lose the window over it
+        log.warning("could not tidy the preset certificates", exc_info=True)
     return rows + sorted(own, key=lambda r: r.label.lower())
 
 
@@ -6421,6 +6428,8 @@ class TabChart(QWidget):
         right_layout.setContentsMargins(0, 0, 0, 12)
         right_layout.setSpacing(0)
         self._preview = TiffPreview(right)
+        # beta 12: a run's chart page is shown as it will print
+        self._preview.set_print_preview(True)
         self._preview.set_caption(tr("CHART PREVIEW"))
         right_layout.addWidget(self._preview, stretch=1)
         # ONE SENTENCE UNDER THE PREVIEW when the strip or patch pattern would
@@ -15729,6 +15738,9 @@ class TabChart(QWidget):
         self._save_presets_to_settings(presets)
         # Remove the attached .ti1 sidecar, if any, so it doesn't orphan.
         sidecar = _preset_sidecar_path("create_chart", str(name), ".ti1")
+        # Knut 6045500910, answer 5: a deleted preset's certificate goes too
+        from workflow import preset_certificates as _pc
+        _pc.forget(sidecar)
         if sidecar.is_file():
             try:
                 sidecar.unlink()

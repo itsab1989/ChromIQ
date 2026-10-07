@@ -651,6 +651,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # beta 12, Knut 6045500910 (10.10a)
                                  "M-PATCH-UNSETTLED",
                                  "M-REPORT-THROUGH-PROFILE",
+                                 # beta 12, Knut 6045500910 Q4, Basti
+                                 # 6045468325: the preview's indicator
+                                 "M-PREVIEW-AS-PRINTED",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

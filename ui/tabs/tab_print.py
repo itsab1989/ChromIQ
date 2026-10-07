@@ -733,6 +733,8 @@ class TabPrint(QWidget):
         rl.setContentsMargins(0, 0, 0, 12)
         rl.setSpacing(0)
         self._preview = TiffPreview(right)
+        # beta 12: a run's chart page is shown as it will print
+        self._preview.set_print_preview(True)
         self._preview.set_caption(tr("PRINT PREVIEW"))
         rl.addWidget(self._preview, stretch=1)
         splitter.addWidget(right)
@@ -916,6 +918,24 @@ class TabPrint(QWidget):
 
         self._cm_through_rb.toggled.connect(self._on_cm_selection_changed)
         self._cm_raw_rb.toggled.connect(self._on_cm_selection_changed)
+        # beta-12 review: the preview converts through the profile in the
+        # chosen intent, so a new intent must reach it too (the radios above
+        # already do, through `_update_colour_row_visible`)
+        self._cm_intent_combo.currentIndexChanged.connect(
+            self._on_cm_intent_changed)
+
+    def _on_cm_intent_changed(self, *_a) -> None:
+        """Show the sheet in the Rendering intent just chosen (beta 12,
+        Knut 6045500910 Q4): the preview converts exactly as the print will."""
+        if getattr(self, "_updating_cm", False):
+            return
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or not ctl.target.is_verification() \
+                or not self._tiff_pages:
+            return
+        self._preview.set_print_preview(
+            True, colour=self._cm_selected_colour(),
+            intent=self._cm_selected_intent())
 
     def _on_cm_selection_changed(self, *_a) -> None:
         """Follow a user click on the Colour radios: remember the choice and
@@ -960,6 +980,9 @@ class TabPrint(QWidget):
         # no-pages condition itself.
         self._cm_notice.setVisible(has_pages and is_verif)
         if not (has_pages and is_verif):
+            # beta 12: no Colour row, so the preview follows the chart's own
+            # printing path (a profiling chart prints raw)
+            self._preview.set_print_preview(True)
             return
 
         state = vp.chart_conversion_state(self._current_ti2)
@@ -1004,6 +1027,11 @@ class TabPrint(QWidget):
                     else tr(_CM_NOTICE_RAW_CHOSEN))
         finally:
             self._updating_cm = False
+        # beta 12 (Knut 6045500910 Q4, Basti 6045468325): the preview shows
+        # the sheet the way the Colour row will print it
+        self._preview.set_print_preview(
+            True, colour=self._cm_selected_colour(),
+            intent=self._cm_selected_intent())
 
     def _profiles_in_other_runs(self, run) -> list[str]:
         """Ids of the project's OTHER runs that hold a built profile.

@@ -928,6 +928,7 @@ Measured on Basti's ET8550 run1 verification of 2026-10-06 (616 patches, relativ
 | B3j | the verdict | the sheet's overall word stays the colour-fidelity rows' (in gamut, as before); profile accuracy carries its own five words and does not change it. **A question for Knut**: should a failed profile accuracy fail the sheet? | `stamp_verdict` |
 | B3k | everything else on the sheet that reads the aims (worst patches, the sixteen colours, cube corners, grey and tone rows, evenness) | reads the source aims too, in the same yardstick | `build_report` |
 | B3l | the words | M-REPORT-THROUGH-PROFILE (§M-PROPOSED of the UMM) | `measurement_report_dialog` |
+| B3m | the gamut split leaves **no patch inside the gamut** (beta 12 review) | the within-gamut rows (the five colour-accuracy rows and the two evenness rows) read N-A with the reason "no patch of the measured chart lies inside the profile's gamut, and the patches beyond it are never judged against a limit" (`no_patch_in_gamut`). Before, the verdict fell back to every patch, so the colours beyond the gamut failed limits against B3d. Any sheet with a split, not only a through-profile one (§26.4) | `measurement_report.graded_de00`, `no_patch_in_gamut`, `row_values` |
 
 ### 3.5 The live expected colour while a verification sheet is measured (#182, 2026-10-03)
 
@@ -980,6 +981,40 @@ its count where it was, which is not a test of the profile's gamut. Nothing
 earlier in this document contradicts this: §2 already says a FROM PROFILE
 GAMUT chart's colours come from the master set filtered through the profile,
 and the layout from Manual's settings, which a preset fills.
+
+### 3.7 The chart preview shows the sheet as it will print (#182, beta 12)
+
+#### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-10-07, 6045500910 (#182 [6045500910](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6045500910), answer 4, to question 4 of [6044584365](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6044584365), *"should a chart that will be printed raw be shown soft-proofed through the run's profile (as it will look on paper), as CMYK pages already are?"*: *"preview should always look as paper would look printed, assuming normal printing path, as Sebastian said."*); Basti, 2026-10-07, 6045468325 ([6045468325](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6045468325): *"ChromIQ is logging how a chart was built (regular way or through the profile) and how it was printed (raw, relative or absolute). So as soon as those settings are locked in for a verification run I think showing the softproofed version makes sense. Maybe the tiff preview could show a little indicator that gives this information without being a distraction."*).
+
+* The chart preview looks as the paper will look printed, by the normal printing path of that chart.
+* A small indicator on the preview says what it shows, without being a distraction.
+
+#### ⏳ Awaiting confirmation — how 3.7 is built
+
+**Confirmed by:** *nobody yet.*
+
+| # | Condition | The preview shows | Indicator (M-PREVIEW-AS-PRINTED, §M-PROPOSED) |
+|---|---|---|---|
+| P1 | a profiling chart, the run has no profile yet | the page's device values as screen colours, as before | "Device values, no profile yet" |
+| P2 | a profiling chart, the run has a profile | the page through the run's profile (a profiling chart is printed raw) | "As on paper, via the run's profile" |
+| P3 | a FROM PROFILE GAMUT verification chart (§3.1a: always raw) | the page through the run's profile | "As on paper, via the run's profile" |
+| P4 | a regular verification chart printed (or to be printed) raw | the page through the run's profile | "As on paper, via the run's profile" |
+| P5 | a regular verification chart printed (or to be printed) through the profile | the page converted exactly as the print converts it (`cctiff_apply.convert_args`: the source profile and intent of the print), then through the run's profile | "As on paper, printed through the profile" |
+| P6 | the page carries the printer calibration (`printtarg -K`, an older engine's `-K`, or unknown) | the device values: the profile describes the values before the calibration, so it cannot be applied to these pixels | "Device values, calibrated pages" |
+| P7 | the soft-proof cannot be made (no cctiff, no `sRGB.icm`, cctiff refuses) | the device values | "Device values, profile not applied" |
+| P8 | a calibration chart, a chart opened from elsewhere, a page outside a run, a CMYK or multi-ink page | unchanged (CMYK pages keep their own "True colours" render and badge) | none |
+
+Which way a verification chart prints (P4/P5): in the **Print Chart** tab the Colour row's live choice, because it is what the next print does; in **Create Chart** and **Measure** the chart's print record once it has been printed (only a record written after the page was made: a chart generated again is a new chart), else the target's stored Colour, else the same history-aware default the Print Chart tab starts from (`verification_print.default_colour_for_run`).
+
+The screen end is relative colorimetric into ArgyllCMS's `sRGB.icm`, as the CMYK preview's "True colours" render already is: the paper is shown as the screen's white. **Our choice, a question for Knut**: should the preview also show the paper's own tone (absolute colorimetric), which would also make the white margins of the page read as the paper rather than as white?
+
+Each page is soft-proofed once per session and kept, keyed by the page, the profile (path, modification time and size) and the chain; a failure is remembered too. Nothing that is printed changes: the print path never reads the preview's files.
+
+Measured on a copy of Basti's ET8550 project (relative L* of the inked pixels, as shown on screen): run2's FROM PROFILE GAMUT verification chart, printed raw, 59.1 as device values, 53.6 as it prints (5.5 L* lighter as device values, 20.5 at the 95th percentile); the profiling charts, 53.5 against 47.0; run1's verification chart, printed through the profile, 53.5 against 53.3 (the conversion aims at the sRGB colours the page holds; colours beyond the gamut differ, 6.7 at the 95th percentile).
+
+Built in `workflow/print_preview.py` (`plan_for_page`, `softproof_page`), `ui/tiff_preview.py` (`set_print_preview`, `_as_it_will_print`, the indicator in `_update_render_badge`), and the three tabs (`tab_chart`, `tab_print`, which passes its Colour row, `tab_measure`). Verified by `tests/test_beta12_b_preview_as_it_will_print.py`.
 
 ## 4. The Print Chart tab, reconciled
 

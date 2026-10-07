@@ -1099,6 +1099,12 @@ class TiffPreview(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._pages: list[tuple[Path, int]] = []   # (file_path, frame_index)
+        # Beta 12 (Knut 6045500910 Q4, Basti 6045468325): show a run's chart
+        # page as it will print. Off unless the tab asks (Create Chart, Print
+        # Chart, Measure); the image soft-proof window never does.
+        self._print_preview: bool = False
+        self._print_selected: "tuple[str | None, str | None]" = (None, None)
+        self._print_badge: "tuple[str, str]" = ("", "")
         self._current: int = 0
         self._active_stripe: int = -1
         self._bidirectional: bool = False
@@ -2937,7 +2943,8 @@ class TiffPreview(QWidget):
 
         path, frame = self._pages[self._current]
         try:
-            img = self._load_frame(path, frame, self._ink_channels,
+            shown = self._as_it_will_print(path)
+            img = self._load_frame(shown, frame, self._ink_channels,
                                    muted=frozenset(self._muted_inks))
             self._pixmap = self._pil_to_pixmap(img)
             self._page_qimage = None       # a new page, a new sample source
@@ -2955,6 +2962,95 @@ class TiffPreview(QWidget):
 
         self._update_render_badge()
         self._repaint_label()
+
+    def set_print_preview(self, on: bool, *, colour: "str | None" = None,
+                          intent: "str | None" = None) -> None:
+        """Show a run's chart page as it will print (beta 12).
+
+        *colour* / *intent*: the Print Chart tab's live Colour row for a
+        verification chart, which outranks the print record there (it is
+        what the next print does). Re-renders only when something changed."""
+        want = (bool(on), (colour, intent))
+        if want == (self._print_preview, self._print_selected):
+            return
+        self._print_preview, self._print_selected = want
+        if self._pages:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, self._update_display)
+
+    def print_preview_badge(self) -> "tuple[str, str]":
+        """The indicator's ``(text, tooltip)`` for the page on screen, or
+        ``("", "")`` when the page is not a run's chart page."""
+        return self._print_badge
+
+    def _as_it_will_print(self, path: Path) -> Path:
+        """The file to show for *path*: its soft-proof when the page is a
+        run's RGB chart page and it can be made, else *path* itself. Sets the
+        indicator either way (M-PREVIEW-AS-PRINTED)."""
+        self._print_badge = ("", "")
+        if not self._print_preview:
+            return path
+        try:
+            with Image.open(path) as im:
+                if im.mode not in ("RGB", "RGBA"):
+                    return path          # CMYK and multi-ink: their own badge
+        except Exception:      # noqa: BLE001
+            return path
+        try:
+            from workflow import measurement_messages as MM
+            from workflow import print_preview as PP
+            bin_dir = self._argyll_bin_with("cctiff")
+            colour, intent = self._print_selected
+            plan = PP.plan_for_page(path, selected_colour=colour,
+                                    selected_intent=intent, bin_dir=bin_dir)
+            if plan is None:
+                return path
+            name = plan.profile.name if plan.profile is not None else ""
+            if plan.kind == PP.KIND_DEVICE:
+                if plan.why == PP.WHY_CALIBRATED:
+                    self._print_badge = (tr(MM._PREVIEW_DEVICE_CALIBRATED),
+                                         tr(MM._PREVIEW_TIP_CALIBRATED))
+                else:
+                    self._print_badge = (tr(MM._PREVIEW_DEVICE_NO_PROFILE),
+                                         tr(MM._PREVIEW_TIP_NO_PROFILE))
+                return path
+            out = (PP.softproof_page(path, plan, bin_dir)
+                   if bin_dir is not None else None)
+            if out is None:
+                self._print_badge = (
+                    tr(MM._PREVIEW_DEVICE_FAILED),
+                    tr(MM._PREVIEW_TIP_FAILED).format(profile=name))
+                return path
+            if plan.kind == PP.KIND_THROUGH:
+                intents = {"relative": tr("relative colorimetric"),
+                           "absolute": tr("absolute colorimetric"),
+                           "perceptual": tr("perceptual"),
+                           "saturation": tr("saturation")}
+                self._print_badge = (
+                    tr(MM._PREVIEW_AS_PRINTED_THROUGH),
+                    tr(MM._PREVIEW_TIP_THROUGH).format(
+                        source=Path(plan.source_profile).name, profile=name,
+                        intent=intents.get(plan.intent, plan.intent)))
+            else:
+                self._print_badge = (
+                    tr(MM._PREVIEW_AS_PRINTED_RAW),
+                    tr(MM._PREVIEW_TIP_RAW).format(profile=name))
+            return out
+        except Exception:      # noqa: BLE001 — a preview is never worth a crash
+            log.debug("print preview failed for %s", path, exc_info=True)
+            return path
+
+    @staticmethod
+    def _argyll_bin_with(tool: str) -> "Path | None":
+        """The first ArgyllCMS folder that holds *tool*, as the CMYK preview
+        finds cctiff."""
+        try:
+            from core.platform_paths import argyll_candidate_dirs
+            from core.resource_path import argyll_binary
+            return next((d for d in argyll_candidate_dirs()
+                         if (d / argyll_binary(tool)).exists()), None)
+        except Exception:      # noqa: BLE001
+            return None
 
     def _update_render_badge(self) -> None:
         """Honesty badge for device-native (multi-ink) pages (#72 Tier D):
@@ -2980,6 +3076,11 @@ class TiffPreview(QWidget):
         text = ("" if not mode else
                 tr("True colours — via the chart's profile") if mode == "profile"
                 else tr("Approximate colours — the ink values in the file are exact"))
+        tip = ""
+        if not mode and self._print_badge[0]:
+            # an RGB chart page: what the preview shows (M-PREVIEW-AS-PRINTED)
+            text, tip = self._print_badge
+            mode = "print"
         if self._ink_row.isVisible():
             # Share the ink-options line (Basti) — no floating overlay then.
             self._ink_badge.setText(text)
@@ -3002,6 +3103,7 @@ class TiffPreview(QWidget):
             self._badge_lbl.setVisible(False)
             return
         self._badge_lbl.setText(text)
+        self._badge_lbl.setToolTip(tip)
         self._badge_lbl.adjustSize()
         # Anchor to the TOP-right of the image area, not the widget's bottom
         # edge: the bottom is where the surrounding tab places its controls

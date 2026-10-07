@@ -2743,6 +2743,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         rl.setContentsMargins(0, 0, 0, 15)
         rl.setSpacing(0)
         self._preview = TiffPreview(right)
+        # beta 12: a run's chart page is shown as it will print
+        self._preview.set_print_preview(True)
         self._preview.stripe_clicked.connect(self._on_preview_strip_clicked)
         # The times are kept for the whole measurement, so turning to another
         # page of a multi-page chart must redraw them for THAT page (Knut,
