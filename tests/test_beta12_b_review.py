@@ -256,7 +256,7 @@ def test_the_shipped_certificates_are_what_this_chromiq_works_out():
         r = subprocess.run([sys.executable,
                             str(ROOT / "scripts" / "make_preset_certificates.py"),
                             "--check"], cwd=ROOT, env=env, capture_output=True,
-                           text=True, timeout=900)
+                           text=True, encoding="utf-8", timeout=900)
     except subprocess.TimeoutExpired:
         pytest.fail("make_preset_certificates.py --check did not finish in "
                     "15 minutes on the loaded machine")
