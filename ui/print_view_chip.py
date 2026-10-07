@@ -155,9 +155,10 @@ class PrintViewChip(QAbstractButton):
         self._ink = QColor("#f4f2ef")
         self._ring = QColor("#4dd0e1")
         self._edge = QColor(0, 0, 0, 0)
-        # Basti, 2026-10-08: the icon and the short line take the colour of
-        # the view shown (one muted accent per view); the hint stays neutral
-        self._view_inks: "dict[str, QColor]" = {}
+        # Basti, 2026-10-08: quiet and neutral; the icon alone may carry the
+        # CURRENT TAB's accent, the same for both views (the view is told
+        # apart by the icon's shape and the words only)
+        self._icon_ink: "QColor | None" = None
         self._hint_ink: "QColor | None" = None
         self._hovered = False
         self._kb_focus = False
@@ -192,24 +193,22 @@ class PrintViewChip(QAbstractButton):
         self.update()
 
     def set_colours(self, bg: str, ink: str, ring: str, edge: str = "", *,
-                    paper_ink: str = "", screen_ink: str = "",
-                    hint_ink: str = "") -> None:
-        """*edge*: a hairline round the pill, where the pill would otherwise
-        vanish on the well or the paper. *paper_ink* / *screen_ink*: the icon
-        and short line while the page is shown as on paper / as device values
-        (*ink* when not given); *hint_ink*: the click hint (*ink* at 72 %
-        when not given)."""
+                    icon_ink: str = "", hint_ink: str = "") -> None:
+        """*ink*: the short line. *edge*: a hairline round the pill, where the
+        pill would otherwise vanish on the well or the paper. *icon_ink*: the
+        icon (*ink* when not given), the same in both views; *hint_ink*: the
+        click hint (*ink* at 72 % when not given)."""
         self._bg, self._ink, self._ring = QColor(bg), QColor(ink), QColor(ring)
         self._edge = QColor(edge) if edge else QColor(0, 0, 0, 0)
-        self._view_inks = {k: QColor(v) for k, v in
-                           ((ICON_PAPER, paper_ink), (ICON_SCREEN, screen_ink))
-                           if v}
+        self._icon_ink = QColor(icon_ink) if icon_ink else None
         self._hint_ink = QColor(hint_ink) if hint_ink else None
         self.update()
 
-    def view_ink(self) -> QColor:
-        """The colour of the icon and the short line for the view shown."""
-        return self._view_inks.get(self._icon, self._ink)
+    def icon_ink(self) -> QColor:
+        return self._icon_ink if self._icon_ink is not None else self._ink
+
+    def text_ink(self) -> QColor:
+        return self._ink
 
     def icon(self) -> str:
         return self._icon
@@ -368,8 +367,7 @@ class PrintViewChip(QAbstractButton):
         # the icon sits at the RIGHT end, where the chip is anchored
         icon_box = QRectF(pill.right() - PILL_H + 4, pill.top() + 4,
                           PILL_H - 8, PILL_H - 8)
-        ink = self.view_ink()
-        draw_icon(p, self._icon, icon_box, ink)
+        draw_icon(p, self._icon, icon_box, self.icon_ink())
         # the text is revealed from behind the icon as the pill grows
         text_w = pill.width() - PILL_H
         title, hint = self._shown_text()
@@ -385,7 +383,7 @@ class PrintViewChip(QAbstractButton):
             full = self.expanded_width() - 2 * RING - PILL_H
             x = pill.right() - PILL_H - full + 10
             base = pill.top() + (PILL_H + fm.ascent() - fm.descent()) / 2.0
-            p.setPen(ink)
+            p.setPen(self._ink)
             p.drawText(int(round(x)), int(round(base)), title)
             if hint:
                 if self._hint_ink is not None:

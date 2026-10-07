@@ -149,50 +149,65 @@ def _chip_mix(colour: str, toward: str, t: float) -> str:
                          for x, y in zip(a, b))
 
 
-#: The indicator switch's colours (Basti, 2026-10-08, review C): the icon and
-#: its short line take the colour of the view shown, ONE of ChromIQ's five
-#: accents per view and the same accent in every appearance, muted so it reads
-#: clearly but quietly. As on paper is the green (the Measure tab's accent),
-#: device values the violet; neither is the amber or magenta that mean
-#: "careful" elsewhere, and the cyan stays the keyboard focus ring.
-#: Each sits on an OPAQUE pill of its appearance's own ground, so its contrast
-#: does not depend on what is under the chip (well, paper or patch):
-#:   Light   #f7f5f2: paper #356f59 5.4:1, device #635398 6.0:1, hint 6.6:1
-#:   Neutral #f2f2f2: paper #356f59 5.3:1, device #635398 5.8:1, hint 10:1
-#:   Dark    #1b1b1b: paper #78caa8 8.9:1, device #a894e3 6.6:1, hint 8.3:1
-#: (tests/test_beta12_c_review.py recomputes them). The hint ("click: ...")
-#: stays neutral. Kept apart from the shipped palettes above, which Neutral's
-#: fences check; this is the one place Neutral shows a hue, because Basti
-#: asked for the two views to be told apart by colour in every appearance.
-_CHIP_ACCENTS = {"paper": styles.SPEC_GREEN, "device": styles.SPEC_VIOLET}
-_CHIP_MUTE = {           # mode -> (toward, how far, per view)
-    "light":   ("#1a1a1a", {"paper": 0.55, "device": 0.45}),
-    "neutral": ("#1a1a1a", {"paper": 0.55, "device": 0.45}),
-    "dark":    ("#b8b4ae", {"paper": 0.35, "device": 0.35}),
-}
+#: The indicator switch's colours (Basti, 2026-10-08, review C): QUIET and
+#: largely neutral. The pill is opaque, in its appearance's own ground, so it
+#: reads the same over the well, the paper or a patch; the short line and the
+#: click hint are the theme's greys; the ICON alone carries a colour, and it
+#: is the CURRENT TAB's own accent (Create Chart, Print Chart, Measure: each
+#: tab's colour in the masthead stripe), muted until it reaches 3:1 on the
+#: pill, the same in both views. The view is told apart by the icon's shape
+#: and the words, never by a colour, so no tab ever shows another tab's
+#: accent. Neutral has one accent, so there the icon is ACTION
+#: (:func:`ui.theme.accent_for`). tests/test_beta12_c_review.py checks the
+#: contrasts: the line 4.5:1 or more, the icon 3:1 or more.
+_CHIP_ICON_MIN = 3.0
+_CHIP_MUTE_TOWARD = {"light": "#1a1a1a", "neutral": "#1a1a1a",
+                     "dark": "#b8b4ae"}
 
 
-def _chip_ink(mode: str, view: str) -> str:
-    toward, t = _CHIP_MUTE[mode]
-    return _chip_mix(_CHIP_ACCENTS[view], toward, t[view])
+def _chip_lum(c: str) -> float:
+    def ch(v: float) -> float:
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(c[i:i + 2], 16) for i in (1, 3, 5))
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+
+
+def chip_contrast(a: str, b: str) -> float:
+    hi, lo = sorted((_chip_lum(a), _chip_lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def chip_icon_ink(accent: str, mode: str) -> str:
+    """The icon's colour: *accent* (the tab's) as the appearance paints an
+    accent, moved towards the appearance's ink in small steps until it shows
+    on the pill at :data:`_CHIP_ICON_MIN`, and a little quieter than the raw
+    accent in any case."""
+    from ui.theme import accent_for
+    base = accent_for(accent, mode)
+    if mode == "neutral":
+        return base
+    ground = _CHIP_BY_MODE[mode]["ground"]
+    toward = _CHIP_MUTE_TOWARD[mode]
+    t = 0.15
+    ink = _chip_mix(base, toward, t)
+    while chip_contrast(ink, ground) < _CHIP_ICON_MIN and t < 1.0:
+        t = min(1.0, t + 0.05)
+        ink = _chip_mix(base, toward, t)
+    return ink
 
 
 _CHIP_BY_MODE = {
     # the ring: the cyan, muted in Light so it shows on the pale well
     "light":   {"focus_ring": _chip_mix(styles.SPEC_CYAN, "#1a1a1a", 0.45),
-                "badge_edge": "#d0ccc6",
-                "ground": "#f7f5f2", "hint": "#5a5650",
-                "paper": _chip_ink("light", "paper"),
-                "device": _chip_ink("light", "device")},
+                "badge_edge": "#d0ccc6", "ground": "#f7f5f2",
+                "text": "#2e2c29", "hint": "#5a5650"},
     "dark":    {"focus_ring": "#4dd0e1", "badge_edge": "#5a5a5a",
-                "ground": "#1b1b1b", "hint": "#b8b4ae",
-                "paper": _chip_ink("dark", "paper"),
-                "device": _chip_ink("dark", "device")},
+                "ground": "#1b1b1b", "text": "#f4f2ef", "hint": "#b8b4ae"},
     "neutral": {"focus_ring": neutral_styles.NM_ACTION,
-                "badge_edge": neutral_styles.NM_BORDER,
-                "ground": "#f2f2f2", "hint": "#3a3a3a",
-                "paper": _chip_ink("neutral", "paper"),
-                "device": _chip_ink("neutral", "device")},
+                "badge_edge": neutral_styles.NM_BORDER, "ground": "#f2f2f2",
+                "text": neutral_styles.NM_TEXT_MAIN,
+                "hint": neutral_styles.NM_TEXT_DIM},
 }
 
 # ---------------------------------------------------------------------------
@@ -1305,6 +1320,8 @@ class TiffPreview(QWidget):
         self._print_view: "dict | None" = None
         self._print_chip = None
         self._print_view_connected = False
+        #: the owning tab's accent, for the indicator's icon (set_chip_accent)
+        self._chip_accent = ""
         # Both renderings of a page, once made, are kept as pixmaps at their
         # full resolution, so switching the view (or turning back to a page)
         # is a swap and never a reload (Basti, 2026-10-08). Only while the
@@ -3496,6 +3513,12 @@ class TiffPreview(QWidget):
         self._badge_lbl.raise_()
         self._badge_lbl.setVisible(True)
 
+    def set_chip_accent(self, colour: str) -> None:
+        """The owning tab's accent (Create Chart, Print Chart, Measure): the
+        one colour the indicator's icon may carry (Basti, 2026-10-08)."""
+        self._chip_accent = colour or ""
+        self._style_print_chip()
+
     def _show_print_chip(self) -> None:
         from ui.print_view_chip import PrintViewChip
         chip = self._print_chip
@@ -3524,10 +3547,12 @@ class TiffPreview(QWidget):
             return
         pal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
         extra = _CHIP_BY_MODE.get(self._mode, _CHIP_BY_MODE["dark"])
-        chip.set_colours(extra["ground"], pal["badge_text"],
+        mode = self._mode if self._mode in _CHIP_BY_MODE else "dark"
+        icon = (chip_icon_ink(self._chip_accent, mode) if self._chip_accent
+                else extra["text"])
+        chip.set_colours(extra["ground"], extra["text"],
                          extra["focus_ring"], extra["badge_edge"],
-                         paper_ink=extra["paper"], screen_ink=extra["device"],
-                         hint_ink=extra["hint"])
+                         icon_ink=icon, hint_ink=extra["hint"])
 
     def _place_print_chip(self) -> None:
         """Top right of the image area, where the indicator has always been;

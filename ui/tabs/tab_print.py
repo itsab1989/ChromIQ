@@ -735,6 +735,9 @@ class TabPrint(QWidget):
         self._preview = TiffPreview(right)
         # beta 12: a run's chart page is shown as it will print
         self._preview.set_print_preview(True)
+        # the indicator's icon carries this tab's own accent (Basti)
+        from ui.styles import SPEC_AMBER as _chip_accent
+        self._preview.set_chip_accent(_chip_accent)
         self._preview.set_caption(tr("PRINT PREVIEW"))
         rl.addWidget(self._preview, stretch=1)
         splitter.addWidget(right)

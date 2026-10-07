@@ -285,19 +285,6 @@ def test_reduce_motion_is_asked_again_while_chromiq_runs(monkeypatch):
 
 
 # ------------------------------------------------------------ chip colours
-def _lum(c: str) -> float:
-    def ch(v):
-        v /= 255
-        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
-    r, g, b = (int(c[i:i + 2], 16) for i in (1, 3, 5))
-    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
-
-
-def _contrast(a: str, b: str) -> float:
-    hi, lo = sorted((_lum(a), _lum(b)), reverse=True)
-    return (hi + 0.05) / (lo + 0.05)
-
-
 def _hue(c: str) -> float:
     import colorsys
     r, g, b = (int(c[i:i + 2], 16) / 255 for i in (1, 3, 5))
@@ -305,42 +292,53 @@ def _hue(c: str) -> float:
 
 
 @pytest.mark.parametrize("mode", ["light", "neutral", "dark"])
-def test_the_chip_colours_come_from_the_accent_palette(mode):
-    """Basti, 2026-10-08: the chip takes the colour of the view shown, one of
-    ChromIQ's five accents per view, the same in every appearance, muted."""
+def test_the_chip_is_quiet_and_its_only_colour_is_the_tabs_accent(mode):
+    """Basti, 2026-10-08: the chip is quiet and largely neutral; the icon may
+    carry the CURRENT TAB's accent, the same for both views; the view is told
+    apart by the icon's shape and the words. Icon 3:1, text 4.5:1."""
     from ui import styles
     from ui import tiff_preview as TP
-    assert set(TP._CHIP_ACCENTS.values()) <= set(styles.TAB_COLORS)
-    assert TP._CHIP_ACCENTS["paper"] != TP._CHIP_ACCENTS["device"]
+    from ui.theme import accent_for
     pal = TP._CHIP_BY_MODE[mode]
-    for view in ("paper", "device"):
-        accent = TP._CHIP_ACCENTS[view]
-        ink = pal[view]
-        assert ink == TP._chip_ink(mode, view)
-        # a muted variant of THAT accent: same hue within a few degrees, and
-        # not the accent itself
-        d = abs(_hue(ink) - _hue(accent)) % 360
-        assert min(d, 360 - d) < 8, (mode, view, ink, accent)
-        assert ink.lower() != accent.lower()
-        # it reads on the pill: text 4.5:1 (the icon needs only 3:1)
-        assert _contrast(ink, pal["ground"]) >= 4.5, (mode, view)
-    assert pal["paper"] != pal["device"]
-    assert _contrast(pal["hint"], pal["ground"]) >= 4.5
+    for colour in ("text", "hint"):
+        assert TP.chip_contrast(pal[colour], pal["ground"]) >= 4.5, colour
+    for accent in styles.TAB_COLORS[:3]:
+        ink = TP.chip_icon_ink(accent, mode)
+        assert TP.chip_contrast(ink, pal["ground"]) >= 3.0, (mode, accent)
+        base = accent_for(accent, mode)
+        if mode == "neutral":
+            assert ink == base          # Neutral's one accent
+        else:
+            d = abs(_hue(ink) - _hue(base)) % 360
+            assert min(d, 360 - d) < 8, (mode, accent, ink)
     # the focus ring shows on the well it sits on
     well = TP._PREVIEW_BY_MODE[mode]["img_bg"]
-    assert _contrast(pal["focus_ring"], well) >= 3.0, mode
+    assert TP.chip_contrast(pal["focus_ring"], well) >= 3.0, mode
+    # no colour per view anywhere
+    assert not any(k in pal for k in ("paper", "device"))
 
 
-def test_the_chip_paints_the_ink_of_the_view_shown(qapp):
+def test_each_tab_gives_its_preview_its_own_accent():
+    import inspect
+    from ui.tabs import tab_chart, tab_measure, tab_print
+    for mod, acc in ((tab_chart, "SPEC_MAGENTA"), (tab_print, "SPEC_AMBER"),
+                     (tab_measure, "SPEC_GREEN")):
+        src = inspect.getsource(mod)
+        assert f"from ui.styles import {acc} as _chip_accent" in src
+        assert "self._preview.set_chip_accent(_chip_accent)" in src
+
+
+def test_the_icon_ink_is_the_same_in_both_views(qapp):
     from ui.print_view_chip import ICON_PAPER, ICON_SCREEN, PrintViewChip
     chip = PrintViewChip(None)
-    chip.set_colours("#f7f5f2", "#ffffff", "#000000", "#d0ccc6",
-                     paper_ink="#356f59", screen_ink="#635398",
-                     hint_ink="#5a5650")
-    chip.set_state(icon=ICON_PAPER, title="a", hint="b", tooltip="",
-                   switchable=True)
-    assert chip.view_ink().name() == "#356f59"
-    chip.set_state(icon=ICON_SCREEN, title="a", hint="b", tooltip="",
-                   switchable=True)
-    assert chip.view_ink().name() == "#635398"
+    chip.set_colours("#f7f5f2", "#2e2c29", "#000000", "#d0ccc6",
+                     icon_ink="#af7e26", hint_ink="#5a5650")
+    seen = set()
+    for icon in (ICON_PAPER, ICON_SCREEN):
+        chip.set_state(icon=icon, title="a", hint="b", tooltip="",
+                       switchable=True)
+        seen.add((chip.icon_ink().name(), chip.text_ink().name()))
+    assert seen == {("#af7e26", "#2e2c29")}
     chip.deleteLater()
+
+
