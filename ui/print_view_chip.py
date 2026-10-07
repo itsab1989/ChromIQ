@@ -24,7 +24,6 @@ scale and in the chip's own ink in every appearance.
 """
 from __future__ import annotations
 
-import functools
 import sys
 
 from PyQt6.QtCore import (QEasingCurve, QPointF, QPropertyAnimation, QRectF, Qt,
@@ -43,11 +42,29 @@ RING = 3
 ANIM_MS = 170
 
 
-@functools.lru_cache(maxsize=1)
+#: (monotonic time asked, answer): the system is asked again after
+#: _MOTION_TTL_S, so turning "Reduce motion" on while ChromIQ runs takes
+#: effect at the next hover instead of at the next launch (review C).
+_motion_asked: "tuple[float, bool] | None" = None
+_MOTION_TTL_S = 5.0
+
+
 def reduce_motion() -> bool:
     """True when the system asks for less motion (macOS "Reduce motion",
     Windows "Show animations in Windows" off). Qt does not expose it, so it is
-    asked of the system; anything else, or any failure, answers False."""
+    asked of the system, at most every few seconds; anything else, or any
+    failure, answers False."""
+    global _motion_asked
+    import time
+    now = time.monotonic()
+    if _motion_asked is not None and now - _motion_asked[0] < _MOTION_TTL_S:
+        return _motion_asked[1]
+    answer = _ask_reduce_motion()
+    _motion_asked = (now, answer)
+    return answer
+
+
+def _ask_reduce_motion() -> bool:
     try:
         if sys.platform == "darwin":
             from AppKit import NSWorkspace  # type: ignore[import-not-found]

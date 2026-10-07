@@ -267,3 +267,18 @@ def test_a_text_field_keeps_ctrl_y_where_it_means_redo(qapp):
     finally:
         win.close()
         win.deleteLater()
+
+
+
+def test_reduce_motion_is_asked_again_while_chromiq_runs(monkeypatch):
+    from ui import print_view_chip as C
+    answers = iter([False, True])
+    monkeypatch.setattr(C, "_ask_reduce_motion", lambda: next(answers))
+    monkeypatch.setattr(C, "_motion_asked", None)
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    assert C.reduce_motion() is False
+    clock[0] += 1
+    assert C.reduce_motion() is False          # cached, not asked again
+    clock[0] += C._MOTION_TTL_S
+    assert C.reduce_motion() is True           # the user turned it on
