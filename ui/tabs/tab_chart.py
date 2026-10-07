@@ -14110,7 +14110,12 @@ class TabChart(QWidget):
                             "use_chromiq_layout_engine", False)) \
                         != engine_builtin:
                     self._set_engine_checked(engine_builtin)
-                if data == TC918_PRESET_KEY:
+                if (data in KNUT_PRESET_KEYS
+                        and self._mode_name() == "gamut"):
+                    # FROM PROFILE GAMUT: the preset's LAYOUT only, filled
+                    # from the profile's gamut (Basti, #182 6036695078).
+                    applied = self._apply_knut_layout_for_gamut(data, name)
+                elif data == TC918_PRESET_KEY:
                     applied = self._apply_tc918_preset(name)
                 elif data in KNUT_PRESET_KEYS:
                     applied = self._apply_knut_preset(data, name)
@@ -16557,6 +16562,51 @@ class TabChart(QWidget):
         if self._refuse_cal_inks_for_patch_set(ti1):
             return True
         return self._generate_from_ti1(ti1)
+
+    def _apply_knut_layout_for_gamut(self, key: str,
+                                     target_name: str | None = None) -> bool:
+        """A built-in preset chosen in the FROM PROFILE GAMUT module: its
+        LAYOUT, filled with colours from the profile's gamut.
+
+        Basti, #182 6036695078: *"if a user selects a preset in the 'from
+        profile gamut' module in a verification run chromiq should only use
+        the presets chart layout but not the presets patches. it should
+        instead fill that layout with patches from the master set like when
+        creating a chart from scratch there."* The preset's patch set is a
+        PROFILING set; a verification from the gamut tests the master set's
+        colours the profile can print. Until beta 12 picking a preset here
+        built the preset's own patches and left the module's count alone.
+
+        So: the layout is seeded exactly as Manual seeds it (page, patch
+        size, strips, margins, the stamp and notes), "Auto, fill the pages"
+        is switched on so the count is what fits the layout less the 8 cube
+        corners (an A3 Plus 616 preset gives 608 + 8), capped as always by
+        what the profile can print, and the gamut chart is generated at once,
+        the way every built-in builds the moment it is picked. Nothing changes
+        in Manual or Guided, or for a profiling chart.
+        """
+        if self._runner.is_running:
+            log.warning("Knut preset (gamut layout): a process is already running")
+            return False
+        p = KNUT_PRESETS_BY_KEY[key]
+        self._seed_knut_preset(key, target_name)
+        self._knut_active = True
+        self._knut_active_key = key
+        ti1 = resource_path(p.ti1_asset)
+        if ti1.is_file():
+            self._sync_device_type_to_bound_set(ti1)
+        self._knut_targen_sig = self._targen_signature()
+        self._update_preset_locks()
+        self._refresh_manual_command_preview()
+        auto = getattr(self, "_gamut_auto_check", None)
+        if auto is not None:
+            auto.setChecked(True)
+        self._update_gamut_count_line()
+        log.info("From Profile Gamut: preset %r used for its layout only; "
+                 "%d colours + %d cube corners from the profile's gamut",
+                 key, self._gamut_effective_count(), _GAMUT_CORNER_PATCHES)
+        self._on_generate()
+        return True
 
     def _reset_knut_overrides(self) -> None:
         """Revert the printtarg flags a TC9.18+Spyderprint preset forced on.

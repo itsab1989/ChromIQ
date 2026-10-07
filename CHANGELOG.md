@@ -8,6 +8,7 @@
 
 ### Changed
 
+- **A preset chosen in the From Profile Gamut module gives the chart its layout, not its colours** (Basti, #182 6036695078). On a verification, picking a built-in preset in From Profile Gamut used to build that preset's own patches, which are made for profiling, and left "Colours to test" where it was. Now the preset only lays out the page (paper, patch size, strips, margins), "Auto, fill the pages" is switched on, and the chart is filled with colours from your profile's gamut plus the 8 cube corners: the A3 Plus 616-patch preset gives 608 colours + 8 corners. Picking a preset in Manual, or for a profiling chart, works as before.
 - **"Strip Read Quickly" allows a little room** (Basti, #182 6001610646). A strip read up to 2 % faster than your instrument's limit (8 ms a patch at 400 ms, about a fifth of a second over a 28-patch strip) no longer brings up the Re-read / Continue window or the slow-down sound; it is reported as close to the limit instead. Basti's strip, 398 ms against 400, was within that. The reading time is measured on the computer's clock between the instrument's ready beep and the strip arriving, and each of those passes through the reading engine and the app's event queue first, so 2 % is about what the clock itself can be off. A strip read faster than that is still warned about exactly as before.
 
 ### Fixed

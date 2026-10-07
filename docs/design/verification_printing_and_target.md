@@ -935,6 +935,21 @@ Nothing is written at print time; the record is read as it is.
 
 ---
 
+### ⏳ 3.6 A built-in preset chosen in the FROM PROFILE GAMUT module (Basti, #182 6036695078, beta 12)
+
+**Confirmed by:** *nobody yet.*
+
+| Condition | Action | Code |
+|---|---|---|
+| Create Chart is in FROM PROFILE GAMUT and a built-in preset is chosen | the preset's **layout** only (page, patch size, strips, margins, stamp and notes), exactly as Manual seeds it; "Auto, fill the pages" is switched on, so the count is what fits that layout less the 8 cube corners (A3 Plus 616 preset: 608 + 8), capped as always by what the profile can print; the gamut chart is generated at once, as every built-in builds the moment it is picked | `tab_chart._apply_knut_layout_for_gamut` |
+| the same preset in Manual or Guided, or in a profiling run | unchanged: the preset's own patch set is built | `tab_chart._apply_knut_preset` |
+
+Until beta 12 the module built the preset's own (profiling) patches and left
+its count where it was, which is not a test of the profile's gamut. Nothing
+earlier in this document contradicts this: §2 already says a FROM PROFILE
+GAMUT chart's colours come from the master set filtered through the profile,
+and the layout from Manual's settings, which a preset fills.
+
 ## 4. The Print Chart tab, reconciled
 
 #133 §8 proposed two rows on this tab (**Route**, and **Recorded on the
