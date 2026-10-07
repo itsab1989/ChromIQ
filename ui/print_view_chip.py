@@ -30,7 +30,7 @@ import sys
 from PyQt6.QtCore import (QEasingCurve, QPointF, QPropertyAnimation, QRectF, Qt,
                           pyqtProperty, pyqtSignal)
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QAbstractButton, QWidget
 
 #: The two icons.
 ICON_PAPER = "paper"
@@ -114,12 +114,17 @@ def draw_icon(p: QPainter, kind: str, rect: QRectF, colour: QColor) -> None:
     p.restore()
 
 
-class PrintViewChip(QWidget):
+class PrintViewChip(QAbstractButton):
     """The indicator: an icon that slides open to a short line on hover.
 
     It knows nothing about previews: :meth:`set_state` gives it what to show
     and :attr:`activated` says the user asked for the other view. It never
-    emits while :meth:`switchable` is False."""
+    emits while :meth:`switchable` is False.
+
+    A button, not a bare widget (review C of beta 12): a screen reader then
+    announces it as a button and can press it (VoiceOver's "press", Windows
+    Narrator's invoke), which a plain QWidget offers neither of. It paints
+    itself; the click comes from QAbstractButton's own mouse handling."""
 
     activated = pyqtSignal()
 
@@ -143,6 +148,7 @@ class PrintViewChip(QWidget):
         self.resize(side, side)
         self._anim = QPropertyAnimation(self, b"revealWidth", self)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.clicked.connect(self._activate)
 
     # -------------------------------------------------------------- state
     def set_state(self, *, icon: str, title: str, hint: str, tooltip: str,
@@ -154,6 +160,7 @@ class PrintViewChip(QWidget):
         self._hint = hint if switchable else ""
         self._switchable = bool(switchable)
         self.setToolTip(tooltip)
+        # not setText: a "&" in a translation would make it a mnemonic
         self.setAccessibleName(title)
         self.setAccessibleDescription(tooltip)
         self.setCursor(Qt.CursorShape.PointingHandCursor if switchable
@@ -260,14 +267,6 @@ class PrintViewChip(QWidget):
         self._reconsider()
         self.update()
         super().focusOutEvent(event)
-
-    def mouseReleaseEvent(self, event) -> None:  # type: ignore[override]
-        if (event.button() == Qt.MouseButton.LeftButton
-                and self.rect().contains(event.position().toPoint())):
-            self._activate()
-            event.accept()
-            return
-        super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event) -> None:  # type: ignore[override]
         if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return,

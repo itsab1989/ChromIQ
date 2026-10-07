@@ -172,3 +172,26 @@ def test_the_call_folder_names_its_process(tmp_path, monkeypatch):
     PP.softproof_page(tif, PP.plan_for_page(tif), b, runner=_copy_runner)
     PP.clear_cache()
     assert made == [f"{PP._TMP_PREFIX}{os.getpid()}-"]
+
+
+# ------------------------------------------------------------ accessibility
+def test_the_indicator_is_a_button_a_screen_reader_can_press(qapp):
+    """Qt gives every QAbstractButton its accessible Button role and a press
+    action that calls click() (PyQt6 does not wrap QAccessible, so the class
+    and click() are what a test can hold)."""
+    from PyQt6.QtWidgets import QAbstractButton
+    from ui.print_view_chip import ICON_PAPER, PrintViewChip
+    chip = PrintViewChip(None)
+    assert isinstance(chip, QAbstractButton)
+    chip.set_state(icon=ICON_PAPER, title="As on paper",
+                   hint="click: device values", tooltip="tip", switchable=True)
+    assert chip.accessibleName() == "As on paper"
+    hits = []
+    chip.activated.connect(lambda: hits.append(1))
+    chip.click()                     # what the accessible press action does
+    assert hits == [1]
+    chip.set_state(icon=ICON_PAPER, title="Device values, no profile yet",
+                   hint="", tooltip="tip", switchable=False)
+    chip.click()
+    assert hits == [1]                       # nothing to switch to
+    chip.deleteLater()
