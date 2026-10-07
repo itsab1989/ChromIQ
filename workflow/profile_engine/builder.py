@@ -123,6 +123,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 42: the near-black hand-over of the B2A tables (curve space
      # without collapsed ink intervals, the near-black column held)
      "a42-nearblack",
+     # Agent 44: a42's keep-the-exact-value rule anywhere in the
+     # colorimetric table (in-gamut nodes the refit pulled off)
+     "a44-exactkeep",
      # Agent 40: the total ink limit held between the B2A nodes as well
      # (workflow/profile_engine/tac_guard.py); "no-a40-inklimit" is its
      # off-switch once it is a default
@@ -1468,9 +1471,18 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 if not b2a_mod.ill_posed(dev_clut[_col[_j]],
                                          model.curves)[0]:
                     break
-        dev_clut[_col] = b2a_mod.dark_bridge(
-            dev_clut[_col], node_lab[_col, 0], black_l=_bl,
-            to_l=_to_l)
+        if accurate and b2a_mod.A44_TOKEN in candidates:
+            # Research a44-exactkeep, part 2: the bridge drawn on the grid
+            # nodes and in the B2A curve space, as the CMM reads it.
+            _sp = (b2a_mod.b2a_space_curves(model.curves)
+                   if b2a_mod.A42_TOKEN in candidates else None)
+            dev_clut[_col] = b2a_mod.dark_bridge_on_grid(
+                dev_clut[_col], node_lab[_col, 0], black_l=_bl,
+                to_l=_to_l, space=model.curves if _sp is None else _sp)
+        else:
+            dev_clut[_col] = b2a_mod.dark_bridge(
+                dev_clut[_col], node_lab[_col, 0], black_l=_bl,
+                to_l=_to_l)
         dev_clut[_col] = b2a_mod.monotone_channels(dev_clut[_col])
     if (accurate and meas.is_additive and "a25-rgbcol" in candidates
             and fixed_nodes is not None and len(fixed_nodes)):
@@ -1514,6 +1526,18 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _emit(settings, f"Near-black hand-over: {_nbk['nodes']} "
                                 f"nodes up to L* {_nbk['rows'][-1]:.1f} "
                                 f"keep their own inversion.")
+    if accurate and b2a_mod.A44_TOKEN in candidates and n <= 4:
+        # Research a44-exactkeep: anywhere in the table, an in-gamut node
+        # the refit pulled more than A44_TOL off its exact inversion takes
+        # that inversion back where the cells around it then print closer
+        # (b2a.py, comment above A44_TOKEN).
+        dev_clut_shaped, _ek = b2a_mod.exact_keep(
+            model, dev_clut_shaped, node_lab, pernode=dev_clut,
+            grid=b2a_grid, keep_out=fixed_nodes)
+        if _ek["nodes"]:
+            _emit(settings, f"Exact inversion kept at {_ek['nodes']} of "
+                            f"{_ek['candidates']} in-gamut nodes the "
+                            f"smoothing refit had pulled off.")
     if channel_max is not None:
         # The smooth refit is a least-squares field over samples that all
         # respect the ceiling; between them it can overshoot (measured: K

@@ -2393,3 +2393,154 @@ def nearblack_column(model: ForwardModel, shaped: np.ndarray,
         return shaped, info
     info.update(restored=True, nodes=int(len(take)))
     return out, info
+
+
+# Research token "a44-exactkeep" (Agent 44, Findings/agent44-01). a42's
+# keep-the-exact-value rule, beyond the near-black rows. Where the forward
+# model folds (a noisy chart fitted on few patches: Knut's laser printer, 608
+# of 3273 refit samples in the eight cells around node (46.9, 0, -16) have a
+# negative Jacobian), random device samples that print the same Lab carry
+# different device values, and the least-squares refit averages the
+# branches: in-gamut nodes whose own inversion is exact print 10-26 dE76 off
+# (the light-blue contours of a40-knut-grey, Agent 42 s9). The refit may
+# smooth, but it may not move an in-gamut node (own inversion within
+# A42_ACCEPT of its target) further from its target than A44_TOL, the
+# largest cost the refit is allowed to pay for smoothness: where it does,
+# the node takes its own inversion back, if the cells around it then print
+# closer to their targets in the model (a node the refit moved for a good
+# reason, a kink between converged and clipped neighbours, keeps the refit).
+A44_TOKEN = "a44-exactkeep"
+A44_TOL = 2.0
+
+
+def _cell_points(node_idx: np.ndarray, grid: int, sub: int = 4):
+    """Lattice points (0..1 grid coordinates) every 1/``sub`` cell over the
+    eight cells around each node; returns (points, owner index)."""
+    t = np.arange(-sub, sub + 1) / float(sub)
+    off = np.stack(np.meshgrid(t, t, t, indexing="ij"), -1).reshape(-1, 3)
+    ijk = np.stack(np.unravel_index(node_idx, (grid,) * 3), 1).astype(float)
+    pts = (ijk[:, None, :] + off[None, :, :]) / (grid - 1)
+    own = np.repeat(np.arange(len(node_idx)), len(off))
+    keep = np.all((pts >= -1e-9) & (pts <= 1 + 1e-9), axis=2).reshape(-1)
+    return np.clip(pts.reshape(-1, 3), 0.0, 1.0)[keep], own[keep]
+
+
+def _print_err(model: ForwardModel, shaped: np.ndarray, p01: np.ndarray,
+               from01, grid: int) -> np.ndarray:
+    from workflow.profile_engine.forward_model import _interp_weights
+    w, cols = _interp_weights(p01, grid, 3)
+    cq = (w[:, :, None] * shaped[cols]).sum(1)
+    out = model.predict(np.clip(model.unshape_device(cq), 0.0, 1.0))
+    return np.linalg.norm(out - from01(p01), axis=1)
+
+
+def exact_keep(model: ForwardModel, shaped: np.ndarray,
+               node_lab: np.ndarray, *, pernode: np.ndarray, grid: int,
+               tol: float = A44_TOL, accept: float = A42_ACCEPT,
+               keep_out: np.ndarray | None = None):
+    """Research a44-exactkeep (see the comment above A44_TOKEN).
+    ``shaped``: the refitted B2A CLUT (curve space) after every earlier pin;
+    ``pernode``: the per-node inversion (device). ``keep_out``: node indices
+    never touched (pinned nodes). Returns ``(shaped, info)``; ``shaped`` is
+    a new array only when a node was restored."""
+    info = {"candidates": 0, "nodes": 0}
+    # The guard reads a lattice point's target as the blend of its corner
+    # nodes' Lab, which holds for the uniform Lab grid (the Lab PCS) only.
+    lo, hi = node_lab.min(0), node_lab.max(0)
+    ijk = np.stack(np.unravel_index(np.arange(len(node_lab)), (grid,) * 3),
+                   1) / float(grid - 1)
+    if len(node_lab) != grid ** 3 or not np.allclose(
+            lo[None, :] + ijk * (hi - lo)[None, :], node_lab, atol=1e-3):
+        info["skipped"] = "grid"
+        return shaped, info
+    pn = np.asarray(pernode, float)
+    e_per = np.linalg.norm(model.predict(pn) - node_lab, axis=1)
+    have = np.clip(model.unshape_device(shaped), 0.0, 1.0)
+    e_ref = np.linalg.norm(model.predict(have) - node_lab, axis=1)
+    cand = (e_per <= accept) & (e_ref > tol) & (e_ref >= e_per + accept)
+    if keep_out is not None and len(keep_out):
+        cand[np.asarray(keep_out, int)] = False
+    cand = np.flatnonzero(cand)
+    info["candidates"] = int(len(cand))
+    if not len(cand):
+        return shaped, info
+    def from01(p):
+        return lo[None, :] + p * (hi - lo)[None, :]
+
+    exact = model.shape_device(pn[cand])
+    pts, own = _cell_points(cand, grid)
+    # The guard scores only points inside the gamut (the blend of their
+    # corner nodes' own inversion errors within ``accept``): beyond it every
+    # table prints the clip, and a point's error there is its distance to
+    # the gamut, not the table's.
+    from workflow.profile_engine.forward_model import _interp_weights
+    _w, _c = _interp_weights(pts, grid, 3)
+    inside = (_w * e_per[_c]).sum(1) <= accept
+    pts, own = pts[inside], own[inside]
+    # Every candidate restored together, then pruned: a node goes back to
+    # the refit when the cells around it print closer to their targets that
+    # way (given every other node as it stands); up to three passes.
+    ok = np.ones(len(cand), bool)
+    for _pass in range(3):
+        out = shaped.copy()
+        out[cand[ok]] = exact[ok]
+        flip = np.zeros(len(cand), bool)
+        for j in np.flatnonzero(ok):
+            sel = own == j
+            if not sel.any():
+                continue
+            e_keep = _print_err(model, out, pts[sel], from01, grid)
+            trial = out.copy()
+            trial[cand[j]] = shaped[cand[j]]
+            e_back = _print_err(model, trial, pts[sel], from01, grid)
+            flip[j] = e_back.mean() <= e_keep.mean()
+        if not flip.any():
+            break
+        ok &= ~flip
+    out = shaped.copy()
+    out[cand[ok]] = exact[ok]
+    info["nodes"] = int(ok.sum())
+    if not ok.any():
+        return shaped, info
+    info["restored"] = cand[ok].tolist()
+    return out, info
+
+
+def dark_bridge_on_grid(dev: np.ndarray, l_star: np.ndarray, *,
+                        black_l: float, to_l: float,
+                        space: np.ndarray) -> np.ndarray:
+    """Research a44-exactkeep, part 2 (with a40-knut-grey): the a40 dark
+    bridge (:func:`dark_bridge`) drawn the way the table is read. A CMM
+    interpolates the column between GRID nodes and in the B2A curve space
+    (``space``: the shaper the B2A output tables undo, a42's floored one
+    when that token is on), so a line hinged at the black's own L* (between
+    two nodes) and straight in device values leaves a corner at the first
+    node above the black: Knut, node L* 25.0 printed 0.7 L* dark with the
+    device rate up 50 % past it (rel. col. neutral d2 0.38, int-5 0.17).
+    Here the line runs from the last column node at or below the black (its
+    own value, the black) to the first node at or above ``to_l``, straight
+    in the curve space; nodes outside the band are unchanged. Without a node
+    at or below the black it is :func:`dark_bridge`."""
+    dev = np.asarray(dev, float).copy()
+    l_star = np.asarray(l_star, float)
+    above = np.flatnonzero(l_star >= to_l)
+    below = np.flatnonzero(l_star <= black_l + 1e-9)
+    if not len(above):
+        return dev
+    if not len(below):
+        return dark_bridge(dev, l_star, black_l=black_l, to_l=to_l)
+    a, b = above[0], below[-1]
+    band = (l_star > l_star[b]) & (l_star < l_star[a])
+    if not band.any():
+        return dev
+    k = space.shape[1]
+    xp = np.linspace(0.0, 1.0, k)
+    ca = np.array([np.interp(dev[a, c], xp, space[c])
+                   for c in range(dev.shape[1])])
+    cb = np.array([np.interp(dev[b, c], xp, space[c])
+                   for c in range(dev.shape[1])])
+    u = (l_star[band] - l_star[b]) / max(l_star[a] - l_star[b], 1e-9)
+    cs = cb[None, :] + u[:, None] * (ca - cb)[None, :]
+    dev[band] = np.stack([np.interp(cs[:, c], space[c], xp)
+                          for c in range(dev.shape[1])], 1)
+    return dev
