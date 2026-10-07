@@ -135,7 +135,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a40-inklimit", "no-a40-inklimit",
      # Agent 43: the perceptual hand-over band no wider than the path needs,
      # and the perceptual black no deeper than the measured data
-     "a43-shadowdetail", "a43-shadowdetail-width"})
+     "a43-shadowdetail", "a43-shadowdetail-width",
+     # Agent 46 (D-29): the relative colorimetric table eases off in a
+     # narrow zone just inside the gamut edge (soft knee into the clip)
+     "a46-softcorner"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1564,6 +1567,30 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _emit(settings, "Colorimetric table smoothed on its own "
                                 "branches (in-gamut nodes within "
                                 f"{_sx['ingamut_err_p95']:.2f} dE at p95).")
+    if accurate and b2a_mod.A46_TOKEN in candidates and n <= 4:
+        # Research a46-softcorner (D-29): exact in gamut except a narrow zone
+        # at the gamut edge, where the table bends C1-smoothly into its own
+        # clip (b2a.py, comment above A46_TOKEN). Colorimetric table only.
+        _w46 = b2a_mod.A46_WIDTH
+        if os.environ.get("CHROMIQ_A46_WIDTH"):        # research sweeps only
+            _w46 = float(os.environ["CHROMIQ_A46_WIDTH"])
+
+        def _inv46(targets, seed):
+            return b2a_mod.invert_to_device(
+                model, targets, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit, seed=seed,
+                k_prior=k_prior_col, accurate=accurate,
+                extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                ucs=use_ucs, channel_max=channel_max)[0]
+        dev_clut_shaped, _sc = b2a_mod.soft_corner(
+            model, dev_clut_shaped, node_lab,
+            ingamut=residual <= b2a_mod.A42_ACCEPT, grid=b2a_grid,
+            invert=_inv46, width=_w46, keep_out=fixed_nodes)
+        if _sc.get("taken"):
+            _emit(settings, f"Soft gamut corner (width {_w46:.2f} of the "
+                            f"edge chroma): {_sc['taken']} nodes eased "
+                            f"({_sc['ingamut_nodes']} in gamut, "
+                            f"{_sc['oog_nodes']} clipped).")
     if channel_max is not None:
         # The smooth refit is a least-squares field over samples that all
         # respect the ceiling; between them it can overshoot (measured: K

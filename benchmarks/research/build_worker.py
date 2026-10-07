@@ -79,7 +79,8 @@ def build_engine(job: dict) -> dict:
             "dropped_settings": dropped,
             "log_tail": lines[-6:],
             "model_lines": [ln for ln in lines if "held-out patches of this"
-                            in ln or "Gaussian process" in ln]}
+                            in ln or "Gaussian process" in ln
+                            or "Soft gamut corner" in ln]}
 
 
 def build_colprof(job: dict) -> dict:

@@ -2770,3 +2770,309 @@ def smooth_exact(model: ForwardModel, shaped: np.ndarray,
     info.update(applied=True, ingamut_err_mean=float(e[ing].mean()),
                 ingamut_err_p95=float(np.percentile(e[ing], 95)))
     return s, info
+
+
+# Research a46-softcorner (Agent 46, D-29; ProfileEngineResearch
+# Findings/agent46-01-softcorner.md). The relative colorimetric table stays
+# exact in gamut, except in a narrow zone just inside the gamut edge where
+# it eases off, so a gradient that leaves the gamut bends into the clip with
+# a continuous slope (C1) instead of a corner. Along chroma, at constant
+# L* and hue (so the easing keeps hue and lightness), a node at signed
+# distance s from the boundary (s > 0 outside: its clip distance; s = -depth
+# inside, measured along chroma with the build's own gamut test) is moved
+# to the signed distance g(s):
+#     g(s) = s                          for s <= -w   (unchanged, exactly)
+#     g(s) = -(s - w)^2 / (4 w)         for -w < s < w (soft knee)
+#     g(s) = 0                          for s >= w    (the clip, unchanged)
+# the quadratic soft knee of an audio compressor, centred on the edge: g and
+# g' are continuous at -w (g = -w, g' = 1) and at +w (g = 0, g' = 0), g is
+# increasing, so a gradient bends once, smoothly, and colours more than w
+# outside keep their clip exactly; between, the clip point itself is eased
+# inward by |g(s)| (w / 4 at the edge). An exponential knee that only tends
+# to the clip was tried first: a gradient grazing the edge then bends twice
+# (Findings s3). The zone
+# width w is a fixed fraction (A46_WIDTH) of the nearest clip point's
+# chroma: the knee sits at the same share of the way from the grey axis to
+# the edge everywhere (as CIE 156's SGCK puts its knee at a share of the
+# boundary distance), so near-neutral highlights and shadows, whose edge is
+# close to the axis, keep a zone of almost nothing.
+A46_TOKEN = "a46-softcorner"
+A46_WIDTH = 0.20            # zone width / boundary chroma (sweep: Findings s4)
+A46_MIN_SHIFT = 0.05        # dE76: a clip moved less than this keeps its value
+
+
+def soft_knee(s, w):
+    """The a46 knee: signed distance ``s`` (outward positive) to the mapped
+    signed distance; identity for ``s <= -w`` (and wherever ``w <= 0``)."""
+    s = np.asarray(s, float)
+    w = np.broadcast_to(np.asarray(w, float), s.shape)
+    out = s.copy()
+    z = (w > 0) & (s > -w)
+    out[z] = -np.square(np.minimum(s[z], w[z]) - w[z]) / (4.0 * w[z])
+    return out
+
+
+def soft_corner_targets(node_lab: np.ndarray, prn: np.ndarray,
+                        ingamut: np.ndarray, grid: int, *,
+                        width: float = A46_WIDTH,
+                        keep_out: np.ndarray | None = None,
+                        min_shift: float = A46_MIN_SHIFT,
+                        inside=None, bisect: int = 6):
+    """Research a46-softcorner (see the comment above A46_TOKEN), geometry
+    only. ``prn``: what each node of the table prints (Lab); ``ingamut``:
+    the node's own inversion reaches its target. Returns ``(targets,
+    changed, info)``: new node targets (a copy; only ``changed`` rows
+    differ), and per node the signed distance ``s``, zone width ``w`` and
+    direction ``n`` used (NaN where not used).
+
+    The easing runs along chroma at constant L* and hue (n = the radial
+    unit at the node's hue; outside, at its clip point's hue), so it keeps
+    hue and lightness. Candidates in gamut are the nodes within reach of a
+    clip point; ``inside(points, node_idx) -> bool`` (the build's own gamut
+    test) then measures each one's depth ALONG n: a node whose point ``w``
+    further out is still printable keeps its value exactly, the others get
+    their depth by bisection (``bisect`` halvings of ``w``). Without
+    ``inside`` the distance to the nearest clip point stands in."""
+    t = np.asarray(node_lab, float)
+    p = np.asarray(prn, float)
+    nn = len(t)
+    info = {"skipped": None}
+    s_all = np.full(nn, np.nan)
+    w_all = np.full(nn, np.nan)
+    n_all = np.full((nn, 3), np.nan)
+    tgt = t.copy()
+    changed = np.zeros(nn, bool)
+    lo, hi = t.min(0), t.max(0)
+    ijk = np.stack(np.unravel_index(np.arange(nn), (grid,) * 3), 1)
+    if nn != grid ** 3 or width <= 0 or not np.allclose(
+            lo[None, :] + ijk / float(grid - 1) * (hi - lo)[None, :], t,
+            atol=1e-3):
+        info["skipped"] = "grid" if width > 0 else "width"
+        return tgt, changed, dict(info, s=s_all, w=w_all, n=n_all)
+    step = (hi - lo) / float(grid - 1)
+    free = np.ones(nn, bool)
+    if keep_out is not None and len(keep_out):
+        free[np.asarray(keep_out, int)] = False
+    ing = np.asarray(ingamut, bool)
+    oog = ~ing
+    e = np.linalg.norm(t - p, axis=1)
+    cp = np.hypot(p[:, 1], p[:, 2])
+    w_o = width * cp
+    if not oog.any() or not ing.any():
+        info["skipped"] = "no edge"
+        return tgt, changed, dict(info, s=s_all, w=w_all, n=n_all)
+
+    def radial(lab):
+        c = np.hypot(lab[:, 1], lab[:, 2])
+        r = np.zeros((len(lab), 3))
+        ok = c > 1.0
+        r[ok, 1] = lab[ok, 1] / c[ok]
+        r[ok, 2] = lab[ok, 2] / c[ok]
+        return r, ok
+    # outside: the clip point eased inward along chroma at its own L*, hue
+    ro, oko = radial(p)
+    sel = oog & oko
+    s_all[sel] = e[sel]
+    w_all[sel] = w_o[sel]
+    n_all[sel] = ro[sel]
+    # inside: candidates within reach of a clip point; zone width from it
+    cap = float(w_o[oog].max()) + float(step.max())
+    g_idx = np.flatnonzero(ing & free)
+    r = np.minimum(np.ceil(cap / step).astype(int), grid - 1)
+    offs = np.stack(np.meshgrid(*[np.arange(-k, k + 1) for k in r],
+                                indexing="ij"), -1).reshape(-1, 3)
+    gi = ijk[g_idx]
+    tg = t[g_idx]
+    best = np.full(len(g_idx), np.inf)
+    wbest = np.zeros(len(g_idx))
+    for off in offs:
+        q = gi + off[None, :]
+        ok = np.all((q >= 0) & (q < grid), axis=1)
+        nb = np.ravel_multi_index(np.clip(q, 0, grid - 1).T, (grid,) * 3)
+        ok &= oog[nb]
+        dist = np.linalg.norm(p[nb] - tg, axis=1)
+        better = ok & (dist < best) & (dist < w_o[nb])
+        best[better] = dist[better]
+        wbest[better] = w_o[nb][better]
+    ri, oki = radial(tg)
+    cand_m = np.isfinite(best) & oki
+    cand = g_idx[cand_m]
+    w_all[cand] = wbest[cand_m]
+    n_all[cand] = ri[cand_m]
+    s_all[cand] = -best[cand_m]
+    if inside is not None and len(cand):
+        wc = w_all[cand]
+        ok = np.asarray(inside(t[cand] + wc[:, None] * n_all[cand], cand),
+                        bool)
+        s_all[cand[ok]] = -np.inf              # at least w deep: unchanged
+        rest = cand[~ok]
+        lo_t = np.zeros(len(rest))
+        hi_t = w_all[rest].copy()
+        for _ in range(bisect):
+            mid = 0.5 * (lo_t + hi_t)
+            ins = np.asarray(inside(t[rest] + mid[:, None] * n_all[rest],
+                                    rest), bool)
+            lo_t = np.where(ins, mid, lo_t)
+            hi_t = np.where(ins, hi_t, mid)
+        s_all[rest] = -0.5 * (lo_t + hi_t)
+    known = (~np.isnan(s_all) & (s_all > -np.inf) & free
+             & np.isfinite(w_all) & (w_all > 0))
+    s = s_all[known]
+    w = w_all[known]
+    g = soft_knee(s, w)
+    move = s > -w
+    move &= ~((s > 0) & (np.abs(g) < min_shift))
+    idx = np.flatnonzero(known)[move]
+    o = oog[idx]
+    tgt[idx] = np.where(o[:, None], p[idx] + g[move, None] * n_all[idx],
+                        t[idx] + (g[move] - s[move])[:, None] * n_all[idx])
+    changed[idx] = True
+    info.update(nodes=int(changed.sum()),
+                ingamut_nodes=int((changed & ing).sum()),
+                oog_nodes=int((changed & ~ing).sum()),
+                max_shift=float(np.linalg.norm(tgt[idx] - np.where(
+                    o[:, None], p[idx], t[idx]), axis=1).max())
+                if len(idx) else 0.0)
+    return tgt, changed, dict(info, s=s_all, w=w_all, n=n_all)
+
+
+def _move_prints(model: ForwardModel, shaped: np.ndarray, want: np.ndarray,
+                 iters: int = 8, h: float = 1e-3) -> np.ndarray:
+    """Damped Gauss-Newton in curve space from the table's own values toward
+    the prints ``want`` (each close to what the node prints now), so a node
+    stays on its branch and a smooth field of moves stays smooth."""
+    s = np.asarray(shaped, float).copy()
+    n = s.shape[1]
+    eye = np.eye(n)
+
+    def pr(x):
+        return model.predict(np.clip(model.unshape_device(
+            np.clip(x, 0.0, 1.0)), 0.0, 1.0))
+    err = np.linalg.norm(want - pr(s), axis=1)
+    for _ in range(iters):
+        r = want - pr(s)
+        jac = np.stack([(pr(s + h * eye[k]) - pr(s - h * eye[k])) / (2 * h)
+                        for k in range(n)], 2)
+        jtj = np.einsum("nlk,nlm->nkm", jac, jac)
+        lam = 1e-3 * np.trace(jtj, axis1=1, axis2=2) / n + 1e-9
+        jtj = jtj + lam[:, None, None] * eye[None, :, :]
+        step = np.linalg.solve(
+            jtj, np.einsum("nlk,nl->nk", jac, r)[:, :, None])[:, :, 0]
+        # backtracking: a row takes the longest of 1, 1/2, ... 1/32 of its
+        # step that lowers its error (a folded response has a near-singular
+        # Jacobian, and a full step there jumps to another branch)
+        done = np.zeros(len(s), bool)
+        for a in (1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125):
+            trial = np.clip(s + a * step, 0.0, 1.0)
+            e_t = np.linalg.norm(want - pr(trial), axis=1)
+            ok = ~done & (e_t < err)
+            s[ok] = trial[ok]
+            err[ok] = e_t[ok]
+            done |= ok
+            if done.all():
+                break
+    return s
+
+
+def _smooth_moved(model: ForwardModel, shaped: np.ndarray, want: np.ndarray,
+                  free: np.ndarray, grid: int, *, mu: float = A44B_MU,
+                  rounds: int = 4, cg_iters: int = 300) -> np.ndarray:
+    """a44b's field solve restricted to the moved nodes: minimise, over the
+    ``free`` nodes only, sum |print - want|^2 + mu |second differences in
+    curve space|^2 (Gauss-Newton around the current table, CG), so moved
+    nodes on a folded RGB response stay one smooth field the CMM can
+    interpolate. ``want``: a target per node (rows of fixed nodes unused)."""
+    def pr(x):
+        return model.predict(np.clip(model.unshape_device(
+            np.clip(x, 0.0, 1.0)), 0.0, 1.0))
+    s = np.asarray(shaped, float).copy()
+    fm = free[:, None].astype(float)
+    h = 1e-3
+    eye = np.eye(3)
+    for _ in range(rounds):
+        r = (pr(s) - want) * fm
+        jac = np.stack([(pr(s + h * eye[k]) - pr(s - h * eye[k])) / (2 * h)
+                        for k in range(3)], 2)
+        jtj = np.einsum("nlk,nlm->nkm", jac, jac)
+        b = -(np.einsum("nlk,nl->nk", jac, r) + mu * _curv3(s, grid)) * fm
+
+        def amul(x):
+            return (np.einsum("nkm,nm->nk", jtj, x * fm)
+                    + mu * _curv3(x * fm, grid)) * fm + 1e-6 * x
+        x = np.zeros_like(s)
+        rr = b - amul(x)
+        p = rr.copy()
+        rs = float((rr * rr).sum())
+        for _i in range(cg_iters):
+            ap = amul(p)
+            al = rs / max(float((p * ap).sum()), 1e-30)
+            x += al * p
+            rr -= al * ap
+            rs2 = float((rr * rr).sum())
+            if rs2 < 1e-12:
+                break
+            p = rr + (rs2 / rs) * p
+            rs = rs2
+        s = np.clip(s + x * fm, 0.0, 1.0)
+    return s
+
+
+def soft_corner(model: ForwardModel, shaped: np.ndarray,
+                node_lab: np.ndarray, *, ingamut: np.ndarray, grid: int,
+                invert, width: float = A46_WIDTH,
+                keep_out: np.ndarray | None = None,
+                accept: float = A42_ACCEPT, smooth: bool = True):
+    """Research a46-softcorner: move the zone nodes of the colorimetric
+    table (curve space, after a44/a44b) to their soft-knee targets.
+    ``invert(targets, seed_device) -> device`` is the build's own per-node
+    inversion; it serves only as the gamut test along the clip direction.
+    A node's print is moved by the knee's shift (in gamut: T' - T, so the
+    table keeps its own small smoothing error; outside: T' - its clip), by
+    damped Gauss-Newton from its current value, so it stays on its branch
+    and the table stays as smooth as the shifts. A node takes the new value
+    only where it prints closer to the wanted point than before. Every other
+    node is returned exactly as it came in. Returns ``(shaped, info)``."""
+    have = np.clip(model.unshape_device(np.asarray(shaped, float)), 0.0, 1.0)
+    prn = model.predict(have)
+
+    def inside(points, idx):
+        dv = np.clip(np.asarray(invert(points, have[idx]), float), 0.0, 1.0)
+        return np.linalg.norm(model.predict(dv) - points, axis=1) <= accept
+
+    tgt, ch, info = soft_corner_targets(node_lab, prn, ingamut, grid,
+                                        width=width, keep_out=keep_out,
+                                        inside=inside)
+    info = {k: v for k, v in info.items() if k not in ("s", "w", "n")}
+    idx = np.flatnonzero(ch)
+    info["taken"] = 0
+    if not len(idx):
+        return shaped, info
+    ing = np.asarray(ingamut, bool)[idx]
+    nl = np.asarray(node_lab, float)[idx]
+    want = np.where(ing[:, None], prn[idx] + (tgt[idx] - nl), tgt[idx])
+    new = _move_prints(model, np.asarray(shaped, float)[idx], want)
+    e_new = np.linalg.norm(model.predict(np.clip(model.unshape_device(new),
+                                                 0.0, 1.0)) - want, axis=1)
+    e_old = np.linalg.norm(prn[idx] - want, axis=1)
+    take = e_new < e_old
+    info["taken"] = int(take.sum())
+    info["miss_p95"] = float(np.percentile(e_new[take], 95)) if take.any() \
+        else 0.0
+    if not take.any():
+        return shaped, info
+    out = np.asarray(shaped, float).copy()
+    out[idx[take]] = new[take]
+    if smooth and out.shape[1] == 3:
+        # the moved nodes re-solved as one smooth field (a44b's solve, the
+        # moved nodes free, every other node fixed): independent moves on a
+        # folded response leave cells whose interpolated device values
+        # print far from the blend of their corners (Knut: 4 C* at the knee)
+        free = np.zeros(len(out), bool)
+        free[idx[take]] = True
+        full = np.zeros((len(out), 3))
+        full[idx] = want
+        out = _smooth_moved(model, out, full, free, grid)
+        e_s = np.linalg.norm(model.predict(np.clip(model.unshape_device(
+            out[idx]), 0.0, 1.0)) - want, axis=1)
+        info["smoothed_miss_p95"] = float(np.percentile(e_s[take], 95))
+    return out, info
