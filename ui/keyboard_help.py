@@ -77,6 +77,11 @@ BINDINGS: dict[str, str] = {
     # and Windows. Windows' own Alt+F4 needs no binding: it closes the window,
     # which is the same door (see `quit_keys`).
     "quit":               "Ctrl+Q",
+    # The chart preview: as on paper / device values (Basti, beta 12), the key
+    # Photoshop uses for Proof Colors. A WINDOW shortcut of the main window,
+    # so the chart layout editor's own Ctrl+Y (redo, "redo_alt") is untouched
+    # while that window is the one in front.
+    "preview_view":       "Ctrl+Y",
     **{f"tab_{i}": f"Ctrl+{i}" for i in range(1, 6)},
 }
 
@@ -172,6 +177,9 @@ def _shortcuts() -> list[tuple[str, str]]:
         (quit_keys(), tr("Quit ChromIQ (asks first if a measurement is "
                          "running)")),
         (keys_for("tools"), tr("Open the Tools menu")),
+        (keys_for("preview_view"),
+         tr("Show the chart preview as on paper or as device values "
+            "(Create Chart, Print Chart, Measure)")),
         (f"{keys_for("redo")}  ·  {keys_for("redo_alt")}",
          tr("Redo — in the chart layout editor")),
         (keys_for("primary_action"),

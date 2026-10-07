@@ -33,8 +33,10 @@ CMYK preview's "True colours" render already is: the paper is shown as the
 screen's white, the colours as they sit relative to it.
 
 Nothing here changes what is printed. Process model: ``subprocess.run`` with
-an injectable runner and a ``timeout=``; results cached per page, profile and
-chain, so a chart is soft-proofed once.
+an injectable runner and a ``timeout=``. Since build C of beta 12 (Basti,
+2026-10-08) nothing is cached on disk: cctiff is asked only about the colours
+a chain has not met yet, its answers are kept in memory, and a page is mapped
+through them with numpy (:func:`softproof_page`).
 """
 from __future__ import annotations
 
@@ -42,10 +44,14 @@ import hashlib
 import json
 import subprocess
 import tempfile
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
+
+import numpy as np
 
 from core.logger import get_logger
 
@@ -63,9 +69,19 @@ WHY_FAILED = "failed"              # ArgyllCMS could not convert it
 
 _TIMEOUT_S = 120
 
-_cache: "dict[tuple, Path]" = {}
+#: Per chain (see :func:`chain_key`), the colours cctiff has been asked
+#: about and its answers, in memory only; the two most recent chains are kept.
+_tables: "OrderedDict[tuple, _ColourTable]" = OrderedDict()
+_MAX_TABLES = 2
+_UNKNOWN = np.uint32(0xFFFFFFFF)
+#: Chains cctiff refused.
 _failed: "set[tuple]" = set()
-_cache_dir: "tempfile.TemporaryDirectory | None" = None
+#: The preview soft-proofs the page on screen itself and the chart's other
+#: pages in a background thread (Basti, 2026-10-08: switching the view must be
+#: a swap). `_lock` guards the globals above; `_fill_lock` lets one thread at
+#: a time ask cctiff for new colours, so no colour is asked for twice.
+_lock = threading.RLock()
+_fill_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -229,27 +245,81 @@ def _stat_key(path: "Path | str") -> tuple:
     return (str(p), st.st_mtime_ns, st.st_size)
 
 
-def softproof_page(tiff: "str | Path", plan: PreviewPlan, bin_dir: "str | Path",
-                   *, runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
-                   ) -> "Path | None":
-    """The page rendered for the screen as it will print, an RGB TIFF, or
-    None when it cannot be made (the caller then shows the device values and
-    says so). Cached per page, profile and chain; a failure is remembered
-    too, so a broken chain is not retried on every repaint. Never raises."""
-    global _cache_dir
+def chain_key(plan: PreviewPlan, bin_dir: "str | Path") -> "tuple | None":
+    """What a page's soft-proof depends on besides the page itself: the
+    profile (path, modification time, size), the route, the intent, the
+    source profile and the ArgyllCMS folder. None when the profile is gone."""
     if plan.kind not in (KIND_RAW, KIND_THROUGH) or plan.profile is None:
         return None
-    tiff, bin_dir = Path(tiff), Path(bin_dir)
     try:
-        key = (_stat_key(tiff), _stat_key(plan.profile), plan.kind, plan.intent,
-               plan.source_profile, str(bin_dir))
+        return (_stat_key(plan.profile), plan.kind, plan.intent,
+                plan.source_profile, str(bin_dir))
     except OSError:
         return None
-    hit = _cache.get(key)
-    if hit is not None and hit.is_file():
-        return hit
-    if key in _failed:
-        return None
+
+
+class _ColourTable:
+    """Every 8-bit RGB colour this chain has been asked about, and what
+    ArgyllCMS's cctiff made of it: a 2^24 table, packed 0xRRGGBB, with
+    :data:`_UNKNOWN` where nothing has been asked yet (64 MB)."""
+
+    def __init__(self) -> None:
+        self.out = np.full(1 << 24, _UNKNOWN, dtype=np.uint32)
+
+
+def _table_for(key: tuple) -> _ColourTable:
+    with _lock:
+        t = _tables.get(key)
+        if t is None:
+            t = _ColourTable()
+            _tables[key] = t
+            # the same chain with an older profile file is never asked again
+            for old in [k for k in _tables if k != key and k[0][0] == key[0][0]
+                        and k[1:] == key[1:]]:
+                del _tables[old]
+            while len(_tables) > _MAX_TABLES:
+                _tables.popitem(last=False)
+        else:
+            _tables.move_to_end(key)
+        return t
+
+
+def _page_pixels(tiff: Path, frame: int) -> "np.ndarray | None":
+    """The page's frame as an (h, w, 3) uint8 array, or None when it is not
+    an 8-bit RGB page (those are not soft-proofed here)."""
+    from PIL import Image
+    with Image.open(tiff) as im:
+        try:
+            im.seek(frame)
+        except EOFError:
+            pass
+        if im.mode not in ("RGB", "RGBA"):
+            return None
+        return np.asarray(im.convert("RGB"), dtype=np.uint8)
+
+
+def _pack(a: np.ndarray) -> np.ndarray:
+    return ((a[..., 0].astype(np.uint32) << 16)
+            | (a[..., 1].astype(np.uint32) << 8) | a[..., 2].astype(np.uint32))
+
+
+def _unpack(p: np.ndarray) -> np.ndarray:
+    out = np.empty(p.shape + (3,), dtype=np.uint8)
+    out[..., 0] = (p >> 16) & 0xFF
+    out[..., 1] = (p >> 8) & 0xFF
+    out[..., 2] = p & 0xFF
+    return out
+
+
+def _cctiff_colours(colours: np.ndarray, plan: PreviewPlan, bin_dir: Path,
+                    runner) -> "np.ndarray | None":
+    """Send *colours* (packed 0xRRGGBB) through the same cctiff chain the page
+    itself used to go through, as a small image of just those colours, and
+    return what came out, in the same order. cctiff transforms each pixel on
+    its own, so a colour comes out of this exactly as it comes out of the
+    whole page. The two small files live in a temporary folder for the
+    duration of the call and are gone when it returns."""
+    from PIL import Image
     from core.proc_text import run_text
     from core.resource_path import argyll_binary
     from workflow.cctiff_apply import convert_args
@@ -257,74 +327,108 @@ def softproof_page(tiff: "str | Path", plan: PreviewPlan, bin_dir: "str | Path",
     exe = bin_dir / argyll_binary("cctiff")
     srgb = _srgb(bin_dir)
     if not exe.exists() or srgb is None:
-        _failed.add(key)
         return None
-    if _cache_dir is None:
-        _cache_dir = tempfile.TemporaryDirectory(prefix="chromiq-print-preview-")
-    tag = hashlib.sha1(repr(key).encode("utf-8")).hexdigest()[:12]
-    out = Path(_cache_dir.name) / f"{tiff.stem}-{tag}.tif"
-    steps: "list[list[str]]" = []
-    src = tiff
-    if plan.kind == KIND_THROUGH:
-        if not plan.source_profile or not Path(plan.source_profile).is_file():
-            _failed.add(key)
-            return None
-        sent = Path(_cache_dir.name) / f"{tiff.stem}-{tag}-sent.tif"
-        # exactly the print's own conversion (same arguments, same bit depth)
-        steps.append([str(exe), *convert_args(
-            Path(plan.source_profile), plan.profile, tiff, sent,
-            verbose=False, intent=intent_letter(plan.intent))])
-        src = sent
-    steps.append([str(exe), "-f", "T", "-i", "r", str(plan.profile),
-                  "-i", "r", str(srgb), str(src), str(out)])
-    for cmd in steps:
-        try:
-            r = run_text(cmd, runner=runner, capture_output=True,
-                         timeout=_TIMEOUT_S)
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            log.warning("print preview: cctiff did not finish: %s", exc)
-            _failed.add(key)
-            return None
-        if r.returncode != 0:
-            log.info("print preview unavailable (cctiff %s): %s", r.returncode,
-                     ((r.stderr or "") + (r.stdout or "")).strip()[-200:])
-            _failed.add(key)
-            return None
-    if not out.is_file():
-        _failed.add(key)
+    if plan.kind == KIND_THROUGH and (
+            not plan.source_profile or not Path(plan.source_profile).is_file()):
         return None
-    if plan.kind == KIND_THROUGH:
-        try:
-            Path(src).unlink()
-        except OSError:
-            pass
-    _drop_superseded(key)
-    _cache[key] = out
-    log.info("print preview: %s shown %s through %s", tiff.name,
-             "converted as printed and" if plan.kind == KIND_THROUGH else "raw,",
-             plan.profile.name)
-    return out
+    n = int(colours.size)
+    w = min(n, 1024)
+    h = -(-n // w)
+    flat = np.empty(w * h, dtype=np.uint32)
+    flat[:n] = colours
+    flat[n:] = colours[-1]
+    with tempfile.TemporaryDirectory(prefix="chromiq-print-preview-") as tmp:
+        src = Path(tmp) / "colours.tif"
+        out = Path(tmp) / "shown.tif"
+        Image.fromarray(_unpack(flat.reshape(h, w)), "RGB").save(src)
+        steps: "list[list[str]]" = []
+        if plan.kind == KIND_THROUGH:
+            sent = Path(tmp) / "sent.tif"
+            # exactly the print's own conversion (same arguments, same depth)
+            steps.append([str(exe), *convert_args(
+                Path(plan.source_profile), plan.profile, src, sent,
+                verbose=False, intent=intent_letter(plan.intent))])
+            src = sent
+        steps.append([str(exe), "-f", "T", "-i", "r", str(plan.profile),
+                      "-i", "r", str(srgb), str(src), str(out)])
+        for cmd in steps:
+            try:
+                r = run_text(cmd, runner=runner, capture_output=True,
+                             timeout=_TIMEOUT_S)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                log.warning("print preview: cctiff did not finish: %s", exc)
+                return None
+            if r.returncode != 0:
+                log.info("print preview unavailable (cctiff %s): %s",
+                         r.returncode,
+                         ((r.stderr or "") + (r.stdout or "")).strip()[-200:])
+                return None
+        if not out.is_file():
+            return None
+        with Image.open(out) as im:
+            if im.mode != "RGB" or im.size != (w, h):
+                log.info("print preview: cctiff answered %s %s", im.mode, im.size)
+                return None
+            got = np.asarray(im, dtype=np.uint8)
+    return _pack(got).reshape(-1)[:n]
 
 
-def _drop_superseded(key: tuple) -> None:
-    """Delete the renders *key* replaces: the same page, shown the same way,
-    from an older page file or an older profile (beta-12 review). Without it
-    every profile rebuild or Generate left the previous renders (3 to 8 MB a
-    page) in the temporary folder until ChromIQ quit."""
-    page, prof = key[0][0], key[1][0]
-    for old in [k for k in _cache
-                if k[0][0] == page and k[1][0] == prof and k[2:] == key[2:]
-                and k != key]:
-        try:
-            _cache.pop(old).unlink()
-        except OSError:
-            pass
-    for old in [k for k in _failed
-                if k[0][0] == page and k[1][0] == prof and k[2:] == key[2:]]:
-        _failed.discard(old)
+def softproof_page(tiff: "str | Path", plan: PreviewPlan, bin_dir: "str | Path",
+                   *, frame: int = 0,
+                   runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+                   ) -> "np.ndarray | None":
+    """The page as it will print, for the screen: an (h, w, 3) uint8 RGB
+    array at the page's own resolution, or None when it cannot be made (the
+    caller then shows the device values and says so). Never raises.
+
+    **Nothing is written to disk that outlives the call** (Basti,
+    2026-10-08). A chart page holds a few thousand distinct colours, so only
+    the colours this chain has not met yet go through cctiff, as a small
+    image of those colours; what came out is kept in memory in a colour table
+    per chain, and the page is mapped through it with numpy. The pixels are
+    the ones cctiff makes of the whole page (`tests/test_beta12_c_preview_
+    switch.py` compares them with a full-page cctiff run). A chain cctiff
+    refused is remembered, so a broken chain is not retried on every repaint.
+    """
+    tiff, bin_dir = Path(tiff), Path(bin_dir)
+    key = chain_key(plan, bin_dir)
+    if key is None:
+        return None
+    with _lock:
+        if key in _failed:
+            return None
+    try:
+        page = _page_pixels(tiff, frame)
+    except Exception:      # noqa: BLE001 — an unreadable page shows as it is
+        log.debug("print preview: could not read %s", tiff, exc_info=True)
+        return None
+    if page is None:
+        return None
+    packed = _pack(page)
+    table = _table_for(key)
+    with _fill_lock:
+        seen = np.zeros(1 << 24, dtype=bool)
+        seen[packed.ravel()] = True
+        missing = np.flatnonzero(seen & (table.out == _UNKNOWN)).astype(np.uint32)
+        if missing.size:
+            try:
+                got = _cctiff_colours(missing, plan, bin_dir, runner)
+            except Exception:      # noqa: BLE001 — a preview is never worth a crash
+                log.debug("print preview: cctiff chain failed", exc_info=True)
+                got = None
+            if got is None:
+                with _lock:
+                    _failed.add(key)
+                return None
+            table.out[missing] = got
+            log.info("print preview: %d new colours of %s through %s (%s)",
+                     missing.size, tiff.name, plan.profile.name, plan.kind)
+    # every colour of the page is in the table now, and entries never change
+    return _unpack(table.out[packed])
 
 
 def clear_cache() -> None:
-    """Forget every render (tests)."""
-    _cache.clear()
-    _failed.clear()
+    """Forget every colour table and every refused chain (tests)."""
+    with _lock:
+        _tables.clear()
+        _failed.clear()

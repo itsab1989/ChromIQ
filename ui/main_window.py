@@ -511,6 +511,11 @@ class MainWindow(QMainWindow):
         # ⌘Return / ⌘Enter — run the current tab's main action.
         sc("primary_action", self._trigger_primary_action)
         sc("primary_action_alt", self._trigger_primary_action)
+        # ⌘Y / Ctrl+Y: the chart preview as on paper or as device values
+        # (Basti, beta 12; Photoshop's Proof Colors key). A WINDOW shortcut,
+        # QShortcut's default: the chart layout editor is its own window, and
+        # its Ctrl+Y (redo) wins while that window is the one in front.
+        sc("preview_view", self._toggle_preview_view)
         # ⌘Q / Ctrl+Q — quit, through the window's own close (Knut, #182
         # 5973222284).
         self._install_quit_action()
@@ -609,6 +614,18 @@ class MainWindow(QMainWindow):
         on). QTabBar navigates with the arrows natively once it has focus."""
         self._tabs.setCurrentIndex(i)
         self._tabs.tabBar().setFocus(Qt.FocusReason.ShortcutFocusReason)
+
+    def _toggle_preview_view(self) -> bool:
+        """⌘Y / Ctrl+Y: switch the current tab's chart preview between as on
+        paper and device values, exactly as a click on its indicator does
+        (the choice is app-wide and remembered). Does nothing on a tab with
+        no chart preview, or when the page has no view on paper."""
+        tab = self._tabs.currentWidget()
+        preview = getattr(tab, "_preview", None)
+        toggle = getattr(preview, "toggle_print_view", None)
+        if toggle is None:
+            return False
+        return bool(toggle())
 
     def _trigger_primary_action(self) -> None:
         """Click the current tab's primary button (Generate / Print / Measure /
