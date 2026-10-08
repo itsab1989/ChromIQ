@@ -2011,9 +2011,15 @@ class SettingsDialog(QDialog):
         """The usable part of the screen this window opens on: the screen less
         the menu bar, the Dock or the taskbar (QScreen.availableGeometry)."""
         from PyQt6.QtGui import QGuiApplication
-        parent = self.parentWidget()
-        screen = ((parent.screen() if parent is not None else None)
-                  or self.screen() or QGuiApplication.primaryScreen())
+        handle = self.windowHandle() if self.isVisible() else None
+        if handle is not None and handle.screen() is not None:
+            # On screen: the screen it is on now, which after a drag to
+            # another display is no longer the parent's.
+            screen = handle.screen()
+        else:
+            parent = self.parentWidget()
+            screen = ((parent.screen() if parent is not None else None)
+                      or self.screen() or QGuiApplication.primaryScreen())
         return screen.availableGeometry() if screen is not None else None
 
     def _caption_height(self) -> int:
@@ -2065,6 +2071,23 @@ class SettingsDialog(QDialog):
         self._keep_on_screen()
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._keep_on_screen)
+        handle = self.windowHandle()
+        if handle is not None and not getattr(self, "_follows_screen", False):
+            self._follows_screen = True
+            handle.screenChanged.connect(self._on_screen_changed)
+
+    def _on_screen_changed(self, _screen) -> None:
+        """Dragged to another display (b13c review): the floor that fitted a
+        large screen may not fit a 13" one, and the user could not make the
+        window smaller than it, so OK and Cancel stayed below the edge. Lower
+        the floor and shrink to the new work area if needed. It is not moved:
+        the user is dragging it, and a window that jumps under the pointer is
+        worse than one they can now resize."""
+        w, h = self._fit_to_work_area(self.width(), self.height())
+        self.setMinimumSize(min(self.minimumWidth(), w),
+                            min(self.minimumHeight(), h))
+        if (w, h) != (self.width(), self.height()):
+            self.resize(w, h)
 
     def _width_for_every_tab(self) -> int:
         """The window width at which the whole tab bar shows (B8-756).

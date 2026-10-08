@@ -2055,8 +2055,10 @@ class TiffPreview(QWidget):
             # header had grown by the file-name line and the gap under it, so
             # the chip sat 13 px too high, on the header, until a click
             # re-placed it. Following the image area itself is the one rule
-            # for every tab, whatever order the layout settles in.
+            # for every tab, whatever order the layout settles in. The floating
+            # honesty badge shares the anchor, so it follows the same way.
             self._place_print_chip()
+            self._place_render_badge()
         if obj in (self._caption_lbl, self._filename_lbl, self._img_label):
             t = ev.type()
             if t == _QEvent.Type.ToolTip:
@@ -3607,20 +3609,29 @@ class TiffPreview(QWidget):
         self._badge_lbl.setText(text)
         self._badge_lbl.setToolTip(tip)
         self._badge_lbl.adjustSize()
-        # Anchor to the TOP-right of the image area, not the widget's bottom
-        # edge: the bottom is where the surrounding tab places its controls
-        # (e.g. the Next button), which the old bottom-anchored badge covered
-        # (#125, Knut). mapTo handles the label's nesting inside the header/
-        # image layout.
-        from PyQt6.QtCore import QPoint
-        origin = (self._img_label.mapTo(self, QPoint(0, 0))
-                  if self._img_label is not None
-                  and not sip.isdeleted(self._img_label) else QPoint(0, 0))
-        x = origin.x() + self._img_label.width() - self._badge_lbl.width() - 10
-        y = origin.y() + 10
-        self._badge_lbl.move(max(0, x), max(0, y))
+        self._place_render_badge()
         self._badge_lbl.raise_()
         self._badge_lbl.setVisible(True)
+
+    def _place_render_badge(self) -> None:
+        """The floating honesty badge: TOP right of the image area.
+
+        Anchored there, not to the widget's bottom edge: the bottom is where
+        the surrounding tab places its controls (e.g. the Next button), which
+        the old bottom-anchored badge covered (#125, Knut). Until beta 13 that
+        rule held only when the badge appeared: resizeEvent still moved it to
+        the widget's bottom right (the pre-#125 rule), so after any resize it
+        left the image and sat on "Page 1 / 1" and the panel below. One place
+        now, called from both, and from the image area's own Move / Resize
+        like the preview chip (b13a review)."""
+        b = getattr(self, "_badge_lbl", None)
+        if b is None or sip.isdeleted(b) or self._img_label is None \
+                or sip.isdeleted(self._img_label):
+            return
+        origin = self._img_label.mapTo(self, QPoint(0, 0))
+        x = origin.x() + self._img_label.width() - b.width() - 10
+        y = origin.y() + 10
+        b.move(max(0, x), max(0, y))
 
     def set_chip_accent(self, colour: str) -> None:
         """The owning tab's accent (Create Chart, Print Chart, Measure): the
@@ -6009,11 +6020,7 @@ class TiffPreview(QWidget):
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._reconcile_legend_hover)
         self._place_print_chip()
-        if getattr(self, "_badge_lbl", None) is not None \
-                and self._badge_lbl.isVisible():
-            self._badge_lbl.move(
-                self.width() - self._badge_lbl.width() - 12,
-                self.height() - self._badge_lbl.height() - 12)
+        self._place_render_badge()
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)
