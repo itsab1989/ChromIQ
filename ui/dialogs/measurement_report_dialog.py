@@ -17194,8 +17194,26 @@ class MeasurementReportDialog(QDialog):
                 "style='border-collapse:collapse;font-size:11px'>"
                 + "".join(trs) + "</table>"
                 + f"<p style='color:{_C['faint']};font-size:10px'>"
-                + html.escape(tr(_MM._REPORT_PROFILE_ACCURACY_NOTE))
+                + html.escape(tr(
+                    _MM._REPORT_PROFILE_ACCURACY_NOTE_BEFORE_K40
+                    if self._shows_a_pre_k40_word(r)
+                    else _MM._REPORT_PROFILE_ACCURACY_NOTE))
                 + "</p>")
+
+    def _shows_a_pre_k40_word(self, r: dict) -> bool:
+        """Review of beta 15 (k40): a report SAVED by beta 12 to 14 is shown
+        with the Overall word it was saved with (§53), which did not count
+        the Profile accuracy table; the table's note then says so, instead of
+        claiming a FAIL here failed the sheet."""
+        try:
+            from workflow.measurement_report import saved_before_k40
+            rec = self._recorded(r)
+            return (rec is not None and saved_before_k40(rec)
+                    and isinstance(rec.get("summary"), dict)
+                    and bool(rec.get("overall"))
+                    and not self._type_changes_the_document())
+        except Exception:      # noqa: BLE001 — a note is never worth a crash
+            return False
 
     def _run_detail_html(self, r: dict, numbering: "list | None" = None) -> str:
         """One run's full breakdown: the colour-accuracy Pass/Fail table

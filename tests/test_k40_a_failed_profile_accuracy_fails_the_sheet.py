@@ -101,3 +101,33 @@ def test_a_type_without_the_colour_rows_is_not_failed_by_the_table():
     rep = {"profile_accuracy": {"de00": {"avg_all": 9.0, "max_all": 9.0}}}
     grey_only = [{"row_id": "grey_ramp_steps", "word": "PASS"}]
     assert profile_accuracy_pairs(rep, grey_only, {}) == []
+
+
+def test_a_report_saved_before_k40_keeps_the_note_that_was_true_of_it(
+        tmp_path, qapp):
+    """Review of beta 15: a report SAVED by beta 12 to 14 is shown with the
+    Overall word it was saved with (§53), which did not count the table. Its
+    note must not claim that a FAIL in the table failed the sheet; a report
+    judged by beta 15 says that it does."""
+    from tests.test_calibration_reports import _settings
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow import measurement_messages as M
+    from workflow.measurement_report import (PROFILE_ACCURACY_COUNTED_KEY,
+                                             saved_before_k40)
+    _good, bad = _failing(tmp_path)
+    assert bad["verdict"]["profile_accuracy"][PROFILE_ACCURACY_COUNTED_KEY]
+    assert not saved_before_k40(bad["verdict"])
+    old = copy.deepcopy(bad)
+    old["verdict"]["profile_accuracy"].pop(PROFILE_ACCURACY_COUNTED_KEY)
+    assert saved_before_k40(old["verdict"])
+    dlg = MeasurementReportDialog(_settings(argyll_bin_path=str(BIN)), None)
+    try:
+        dlg._type_changes_the_document = lambda: False
+        assert dlg._shows_a_pre_k40_word(old)
+        assert not dlg._shows_a_pre_k40_word(bad)
+        dlg._type_changes_the_document = lambda: True    # recomputed: k40
+        assert not dlg._shows_a_pre_k40_word(old)
+    finally:
+        dlg.close()
+    assert "do not change the sheet's verdict" in \
+        M._REPORT_PROFILE_ACCURACY_NOTE_BEFORE_K40

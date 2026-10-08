@@ -1647,6 +1647,18 @@ PROFILE_ACCURACY_ROW_IDS: "frozenset[str]" = frozenset(
 #: The prefix a Profile accuracy row's id carries among a column's counted
 #: pairs, so it is never mistaken for the colour-fidelity row of that name.
 PROFILE_ACCURACY_ID_PREFIX = "profile_accuracy:"
+#: Recorded in ``verdict.profile_accuracy`` since beta 15 (k40): True when the
+#: table's words counted in the sheet's Overall word. A verdict saved without
+#: it was saved by beta 12 to 14, whose Overall word did not count them.
+PROFILE_ACCURACY_COUNTED_KEY = "counts_in_overall"
+
+
+def saved_before_k40(recorded: "dict | None") -> bool:
+    """True for a SAVED verdict whose Profile accuracy table did not count in
+    its Overall word (saved by beta 12 to 14): the report is shown as it was
+    saved (§53), so its note must say what was true of it then."""
+    pa = (recorded or {}).get("profile_accuracy")
+    return isinstance(pa, dict) and PROFILE_ACCURACY_COUNTED_KEY not in pa
 
 
 def profile_accuracy_pairs(report: dict, rows: "list[dict]",
@@ -4828,10 +4840,14 @@ def stamp_verdict(report: dict, limits_or_avg, max_thr: "float | None" = None,
         report["verdict"]["profile_accuracy"] = _pa
         # k40: the Overall word already counts the table (`summarise`);
         # all_pass says the same
+        _counts = bool(profile_accuracy_pairs(
+            report, counted_rows(report, rows), limits))
+        # Recorded, so a report saved before k40 (whose Overall word did NOT
+        # count the table) is told apart when it is opened again and keeps
+        # the note that was true of it (review of beta 15).
+        _pa[PROFILE_ACCURACY_COUNTED_KEY] = _counts
         if (_pa.get("all_pass") is False
-                and report["verdict"]["all_pass"] is True
-                and profile_accuracy_pairs(report, counted_rows(report, rows),
-                                           limits)):
+                and report["verdict"]["all_pass"] is True and _counts):
             report["verdict"]["all_pass"] = False
     return report
 

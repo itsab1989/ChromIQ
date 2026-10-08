@@ -4387,6 +4387,13 @@ _REPORT_SOURCE_MEASURED = (
     "reproduced, and how accurate the profile is against its own prediction")
 #: k40 (Knut 6059912998, answer 1): a failed table fails the sheet, so the
 #: beta-12 line ("these words do not change the sheet's verdict") is revised.
+#: The beta-12 line, kept for a report SAVED by beta 12 to 14 and shown as
+#: it was saved (§53): its Overall word did not count the table (review of
+#: beta 15). The beta-12 line 4 of M-REPORT-THROUGH-PROFILE, unchanged.
+_REPORT_PROFILE_ACCURACY_NOTE_BEFORE_K40 = (
+    "Every patch, inside the gamut or not, compared with what the profile "
+    "predicts for the ink amounts that were really printed. Judged with the "
+    "same limits; these words do not change the sheet's verdict.")
 _REPORT_PROFILE_ACCURACY_NOTE = (
     "Every patch, inside the gamut or not, compared with what the profile "
     "predicts for the ink amounts that were really printed. Judged with the "
