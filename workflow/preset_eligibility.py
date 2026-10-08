@@ -1360,6 +1360,36 @@ def assess(chart: "str | Path | None", type_id: str, set_id: str,
                        limits=limits, recipe=recipe)
 
 
+def assess_gamut(chart: "str | Path | None", type_id: str, set_id: str,
+                 overrides: "dict | None" = None,
+                 recipe: "dict | None" = None) -> "Assessment | None":
+    """k45 (Knut #182 6060464553): the preset laid out FROM PROFILE GAMUT,
+    against one combination, from its certificate's ``"gamut"`` answer
+    (`preset_certificates.lookup_gamut`); None when there is none (a user
+    preset, a preset that ships finished pages, a stale certificate). Never
+    raises, and never lays anything out: the answer is made at release."""
+    if chart is None:
+        return None
+    from workflow import preset_certificates as PC
+    try:
+        g = PC.lookup_gamut(chart, recipe)
+    except Exception:      # noqa: BLE001
+        g = None
+    if not g:
+        return None
+    values = g["values"]
+    asked = rows_asked(type_id, set_id, overrides)
+    answered, missing = [], []
+    for rid in asked:
+        v = values.get(rid) or {}
+        if v.get("value") is not None:
+            answered.append(rid)
+        else:
+            missing.append((rid, v.get("reason") or MR.REASON_NOT_COMPUTED))
+    return Assessment(asked=asked, answered=tuple(answered),
+                      missing=tuple(missing))
+
+
 # ---------------------------------------------------------------------------
 # The star
 # ---------------------------------------------------------------------------

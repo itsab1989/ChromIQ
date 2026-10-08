@@ -209,6 +209,82 @@ def lookup(chart: "str | Path", recipe: "dict | None") -> "dict | None":
     return None
 
 
+# ---------------------------------------------------------------------------
+# k45: the same preset laid out FROM PROFILE GAMUT
+# ---------------------------------------------------------------------------
+#: Knut, #182 6060464553: *"The presets shall be checked by creating the
+#: chart images using 'From Profile's Gamut' so that it can be judged if a
+#: preset can deliver also those metrics that depend on 'From Profile's
+#: Gamut'. Now this shall be done before a release, so that a certificate
+#: tells if it can be used for the metrics that depend on 'From Profile's
+#: Gamut'."* And Basti: the Manual count stays, because the app does not know
+#: at chart-build time how the chart will be used.
+#:
+#: So a built-in preset that can be laid out again has a SECOND answer in its
+#: certificate, ``"gamut"``: the preset's layout (its recipe and its patch
+#: count) filled the FROM PROFILE GAMUT way (the beta-12 rule): the colours
+#: :func:`workflow.gamut_target.select_gamut_targets` picks from a profile's
+#: gamut, the preset's patch count less the 8 cube corners that ride along,
+#: with the app's own defaults (margin "safe", intent "absolute"), and the
+#: colorimetric reference beside the chart. The profile is
+#: :data:`GAMUT_PROFILE`, a real printer profile, recorded by name and hash.
+GAMUT_PROFILE_REL = ("tests/data/g_basti_et8550_run1_verify/"
+                     "ET8550_EpsPremSG_AdobeRGB_CM_Okt26.icc")
+#: The defaults Create Chart's FROM PROFILE GAMUT module opens with.
+GAMUT_MARGIN = "safe"
+GAMUT_INTENT = "absolute"
+#: The corners `gamut_target` always appends.
+GAMUT_CORNERS = 8
+
+
+def gamut_variant_values(chart: "str | Path", recipe: "dict | None",
+                         profile: "str | Path", bin_dir: "str | Path",
+                         workdir: "str | Path") -> "tuple[dict, int]":
+    """``(values, patches)``: what the preset's layout answers when its
+    colours come FROM PROFILE GAMUT through *profile*. The chart is written
+    into *workdir* (a scratch folder), under the preset's own stem, with its
+    colorimetric reference beside it, and judged exactly as the presets
+    window judges any chart (`preset_eligibility.chart_row_values`, laid out
+    now). *patches* is the gamut chart's own count. Raises on failure."""
+    from workflow import gamut_target as GT
+    from workflow import preset_eligibility as PE
+    from workflow.verification_print import colorimetric_reference_for
+    chart = Path(chart)
+    n = PE.patch_count(chart)
+    count = max(1, n - GAMUT_CORNERS)
+    sel = GT.select_gamut_targets(Path(profile), count, GAMUT_MARGIN,
+                                  GAMUT_INTENT, bin_dir=bin_dir)
+    out = Path(workdir) / f"{chart.stem}.ti1"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    GT.write_gamut_ti1(sel, out)
+    GT.write_colorimetric_reference(sel, colorimetric_reference_for(out))
+    values = PE.chart_row_values(out, recipe, lay_out=True)
+    return json.loads(json.dumps(values)), PE.patch_count(out)
+
+
+def lookup_gamut(chart: "str | Path", recipe: "dict | None"
+                 ) -> "dict | None":
+    """The certified FROM PROFILE GAMUT answer of a built-in preset
+    (``{"values", "answered", "profile", "patches"}``), or None: no
+    certificate, a stale one, or a preset that cannot be laid out again.
+    Never raises."""
+    if _disabled:
+        return None
+    try:
+        digest = preset_hash(chart, recipe)
+    except OSError:
+        return None
+    with _lock:
+        shipped = _shipped_store()
+        if shipped.get("code_version") != code_version():
+            return None
+        cert = (shipped.get("certificates") or {}).get(digest)
+        g = cert.get("gamut") if isinstance(cert, dict) else None
+        if isinstance(g, dict) and isinstance(g.get("values"), dict):
+            return g
+    return None
+
+
 def is_user_preset_chart(chart: "str | Path") -> bool:
     """Whether *chart* is a user preset's own patch set (in the presets
     folder): only those get a certificate in the user's store."""
