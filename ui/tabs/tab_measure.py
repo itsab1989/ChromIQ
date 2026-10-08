@@ -1130,11 +1130,11 @@ LIMITS_PURPOSE_HELP = (
     "without a profile of your printer, and lie far from any real "
     "print, so even a good patch can be 30 to 50 ΔE off. The limit is"
     " as high as in ArgyllCMS's own chartread and catches only gross "
-    "misreads; the strip check (“Only flag a patch that stands out "
-    "from its own strip”) and the neighbour check (“Flag a patch "
-    "that does not fit the patches nearest in colour by more "
-    "than”) do most of the misread hunting on "
-    "these charts.\n"
+    "misreads; the strip test (“Strip test: flag a patch past the "
+    "limit only if it also stands out from its own strip”) and the "
+    "neighbour check (“Neighbour check: flag a patch that does not "
+    "fit the patches nearest to it in colour”) do most of the misread "
+    "hunting on these charts.\n"
     "  • A chart made with a pre-conditioning profile, default ΔE 20: "
     "ArgyllCMS marks it (ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
     " what the printer should print, and a much smaller difference is"
@@ -1142,7 +1142,7 @@ LIMITS_PURPOSE_HELP = (
     "  • A verification judged against its profile, default ΔE 10: a "
     "verification chart ChromIQ printed is compared with what the "
     "run's profile predicts for it, so its expected colours are the "
-    "closest of all. The strip check does not apply to it.\n"
+    "closest of all. The strip test does not apply to it.\n"
     "The chart decides which limit applies when you measure, so you "
     "never have to choose.")
 
@@ -3269,8 +3269,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "between what the chart asked for and what was measured: it "
             "reached the limit set in Preferences ▸ Measurement under “Flag a "
             "patch when its colour error reaches”, and when you read strips "
-            "with “only flag a patch that also stands out from its own strip” "
-            "on, it also stands out from the rest of its strip. Point at it "
+            "with “Strip test: flag a patch past the limit only if it also "
+            "stands out from its own strip” on, it also stands out from the "
+            "rest of its strip. Point at it "
             "and the bottom of the card says so, with the patch's ΔE*ab beside "
             "your limit.\n\n"
             "A red outline is a reason to look, not proof of a mistake. It "
@@ -15153,6 +15154,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         anyway. Red, yellow by a re-read, yellow by similar patches and
         learned are all worked out again from the readings.
         """
+        # k44: the neighbour check's switch applies at once, in a session too
+        self.refresh_neighbour_switch()
         if getattr(self, "_session_live", False) or getattr(
                 self, "_loading_measure_settings", False):
             return
@@ -15788,9 +15791,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         try:
             nc = self._neighbour_check()
             # The user's buffer (Knut 5983725218); a new one judges every
-            # patch again.
+            # patch again. Its own for a chart made with a pre-conditioning
+            # profile (Knut 6059912998, answer 6: default 5, else 10).
             from workflow.neighbour_check import buffer_from
-            nc.set_buffer(buffer_from(self._settings))
+            nc.set_buffer(buffer_from(
+                self._settings, accurate=self._chart_expected_is_accurate()))
+            nc_on = self._neighbour_check_on()
             aside = self._set_aside_locs()
             for p in patches or ():
                 loc = str(p.get("loc", "") or "")
@@ -15806,7 +15812,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     strip = ""
                 nc.set_reading(loc, p.get("exyz", [0, 0, 0]),
                                p.get("xyz", [0, 0, 0]), strip)
-            return self._neighbour_redraw_set(nc)
+            # k44: switched off, it keeps the readings (so switching it on
+            # again needs no new reading) and outlines nothing
+            changed = self._neighbour_redraw_set(nc)
+            self._nb_applied_on = nc_on
+            return changed if nc_on else {}
         except Exception:      # noqa: BLE001 — never lose the outlines
             log.debug("the neighbour check failed", exc_info=True)
             return {}
@@ -15834,7 +15844,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         try:
             for loc in locs:
                 nc.forget(loc)
-            self._neighbour_rejudge(self._neighbour_redraw_set(nc), set())
+            _ch = self._neighbour_redraw_set(nc)
+            if not self._neighbour_check_on():
+                return                       # k44: it outlines nothing
+            self._neighbour_rejudge(_ch, set())
             self._apply_flag_rejudge(live=False)
         except Exception:      # noqa: BLE001 — never lose the outlines
             log.debug("could not forget the set-aside readings", exc_info=True)
@@ -15842,10 +15855,56 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _neighbour_suspect(self, loc):
         """*loc*'s finding when the neighbour check suspects it, else None."""
         nc = getattr(self, "_nb_check", None)
-        if nc is None or not self._neighbour_check_applies():
+        if (nc is None or not self._neighbour_check_applies()
+                or not self._neighbour_check_on()):
             return None
         f = nc.finding(str(loc))
         return f if f is not None and f.suspect else None
+
+    def _neighbour_check_on(self) -> bool:
+        """The neighbour check's own switch in Preferences ▸ Measurement
+        (k44, Knut #182 6060201176), on unless switched off."""
+        from workflow.neighbour_check import enabled_from
+        return enabled_from(self._settings)
+
+    def refresh_neighbour_switch(self) -> None:
+        """k44 (Knut #182 6060201176): the neighbour check switched off or on
+        in Preferences takes effect at once, also during a measurement. Off,
+        every outline it caused goes; on, they come back. Nothing is read
+        again, so what a re-read confirmed or corrected (yellow, green) is
+        kept: each patch it judged is judged again from its last reading,
+        with the check's verdict counted or not."""
+        on = self._neighbour_check_on()
+        if getattr(self, "_nb_applied_on", True) == on:
+            return
+        self._nb_applied_on = on
+        nc = getattr(self, "_nb_check", None)
+        if nc is None or not self._neighbour_check_applies():
+            return
+        try:
+            per_page: "dict[int, dict]" = {}
+            inputs = getattr(self, "_nb_inputs", {})
+            for loc, (exp_lab, meas_lab, de, warn, standout) in list(
+                    inputs.items()):
+                f = nc.finding(loc)
+                sus = bool(on and f is not None and f.suspect)
+                if not (f is not None and f.suspect):
+                    continue                 # the check never touched it
+                flag, extra = self._judge_patch(
+                    loc, exp_lab, meas_lab, de, warn or sus,
+                    standout=standout, live=False, reread_only=sus)
+                extra.update(self._neighbour_extra(f if sus else None))
+                page, box = self._locate_patch(loc)
+                if page < 0 or box is None:
+                    continue
+                per_page.setdefault(page, {})[box] = (flag, extra)
+            preview = getattr(self, "_preview", None)
+            if preview is not None and hasattr(preview, "update_patch_flags"):
+                for page, mapping in per_page.items():
+                    preview.update_patch_flags(page, mapping)
+            self._apply_flag_rejudge(live=False)
+        except Exception:      # noqa: BLE001 — never lose the outlines
+            log.debug("could not apply the neighbour switch", exc_info=True)
 
     def _neighbour_extra(self, f) -> dict:
         """The hover card's facts about a neighbour suspect (None: not one),
@@ -15921,7 +15980,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         ``red``: suspects still drawn red; ``kept``: suspects a re-read
         confirmed (yellow); ``checked``/``total``: patches with enough
         comparisons to be judged, of all read."""
-        if not self._neighbour_check_applies():
+        if (not self._neighbour_check_applies()
+                or not self._neighbour_check_on()):
             return None
         nc = getattr(self, "_nb_check", None)
         if nc is None or len(nc) == 0:

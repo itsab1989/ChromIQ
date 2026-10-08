@@ -953,6 +953,9 @@ class _PatchInfoTile(QWidget):
                 excess=f"{float(nb.get('excess', 0.0)):.1f}")))
             rows.append((None, tr(_mm._CARD_NB_4).format(
                 buffer=f"{float(nb.get('buffer', 0.0)):.1f}")))
+            # k43, approved by Knut (6059912998, answer 5)
+            rows.append((None, tr(_mm._CARD_NB_LATER_1)))
+            rows.append((None, tr(_mm._CARD_NB_LATER_2)))
 
         def limit_line() -> None:
             """"ΔE ... reached your limit", or, for a patch only the

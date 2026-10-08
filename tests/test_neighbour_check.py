@@ -5,8 +5,11 @@ and replayed on the real profiling sheets the analysis measured.
 The real sheets are in ``tests/data/neighbour_check/`` (location, device RGB,
 expected XYZ, measured XYZ per patch; made from the measurements by
 ``make_fixtures.py`` of the 2026-10-04_beta11/neighbours report). The counts
-below are ANALYSIS.md section C's table, row "real profiling", per sheet:
-35 suspects at buffer 10 over the six sheets, none at 15.
+below were ANALYSIS.md section C's table, row "real profiling", per sheet:
+35 suspects at buffer 10 over the six sheets, none at 15. Re-measured for
+beta 15's B2+ rule (two comparisons are enough, and the patch must be the
+one further from its expected colour, Knut #182 6059912998): 24 at buffer
+10, none at 15; the beta-11 figures are kept beside them.
 """
 from __future__ import annotations
 
@@ -43,8 +46,9 @@ def check_of(patches, buffer=N.BUFFER_DE):
 def test_the_numbers_are_the_approved_ones():
     assert N.RADIUS_DE == 15.0
     assert N.MAX_COMPARED == 4
-    assert N.MIN_COMPARED == 3
+    assert N.MIN_COMPARED == 2              # B2+, beta 15 (was 3)
     assert N.BUFFER_DE == 10.0
+    assert N.BUFFER_ACCURATE_DE == 5.0      # Knut 6059912998, answer 6
 
 
 def test_lab_is_the_engines():
@@ -122,16 +126,45 @@ def test_the_buffer_is_strict():
 
 
 def test_never_suspected_for_lack_of_comparisons():
-    """Two comparison patches, however far its reading is: not judged."""
+    """One comparison patch, however far its reading is: not judged (B2+:
+    two are enough, beta 15; it was three)."""
     rows = [("A1", (50, 0, 0), (90, 40, 40), "A"),
             ("B1", (50, 2, 0), (50, 2, 0), "B"),
-            ("C1", (50, 4, 0), (50, 4, 0), "C"),
             ("D1", (80, 60, 0), (80, 60, 0), "D")]      # too far in colour
     nc = _check_lab(rows)
     f = nc.finding("A1")
-    assert f.compared == ("B1", "C1")
+    assert f.compared == ("B1",)
     assert not f.checked and not f.suspect
     assert nc.suspects() == []
+
+
+def test_b2_two_comparisons_are_enough():
+    """B2+ (Knut #182 6059912998, "Use the suggested B2+ method"): a patch
+    with two read neighbours in other strips is judged."""
+    rows = [("A1", (50, 0, 0), (90, 40, 40), "A"),
+            ("B1", (50, 2, 0), (50, 2, 0), "B"),
+            ("C1", (50, 4, 0), (50, 4, 0), "C"),
+            ("D1", (80, 60, 0), (80, 60, 0), "D")]
+    nc = _check_lab(rows)
+    f = nc.finding("A1")
+    assert f.compared == ("B1", "C1") and f.checked and f.suspect
+    # its two neighbours are not: they are not the ones that are off
+    assert nc.suspects() == ["A1"]
+
+
+def test_b2_plus_a_healthy_patch_beside_faulty_ones_stays_unmarked():
+    """The patch must be the one further from its expected colour: a good
+    patch whose neighbours were ruined (a nozzle line) does not fit them
+    either, and beta 11 turned it red; B2+ does not."""
+    rows = [("A1", (50, 0, 0), (50, 0, 0), "A"),         # healthy
+            ("B1", (50, 2, 0), (80, 30, 0), "B"),        # ruined
+            ("C1", (50, 4, 0), (80, 32, 0), "C"),        # ruined
+            ("D1", (50, 6, 0), (80, 34, 0), "D")]        # ruined
+    nc = _check_lab(rows)
+    f = nc.finding("A1")
+    assert f.checked and f.excess > N.BUFFER_DE        # it does not fit them
+    assert f.further < 0                               # but it is not off
+    assert not nc.is_suspect("A1")
 
 
 def test_patches_of_its_own_strip_never_count():
@@ -237,14 +270,18 @@ def test_four_thousand_patches_are_judged_in_well_under_a_second():
 
 
 # ---- Knut's real charts, as ANALYSIS.md section C measured them ------------
-#: name: (patches, {buffer: suspects}, share with >= 3 comparisons)
+#: name: (patches, {buffer: suspects}, share with >= 2 comparisons), B2+
+#: (beta 15). Beta 11's rule (3 comparisons, no "further" condition) gave,
+#: in the same order: {5: 43, 8: 9, 10: 4}, 0.779 -> {5: 8, 8: 1, 10: 1},
+#: run4 {all 0} at 0.441, Epson {5: 10, 8: 2, 10: 2} at 0.978, Canon
+#: {5: 259, 8: 81, 10: 28} at 0.985, scanner {5: 14, 8: 4, 10: 0} at 0.467.
 REAL = {
-    "hp_laser_1944": (1944, {5: 43, 8: 9, 10: 4, 15: 0}, 1.0),
-    "knut_run1_648": (648, {5: 8, 8: 1, 10: 1, 15: 0}, 0.779),
-    "knut_run4_324": (324, {5: 0, 8: 0, 10: 0, 15: 0}, 0.441),
-    "epson_p300_924": (924, {5: 10, 8: 2, 10: 2, 15: 0}, 0.978),
-    "canon_pro300_1168": (1168, {5: 259, 8: 81, 10: 28, 15: 0}, 0.985),
-    "knut_scanner_315": (315, {5: 14, 8: 4, 10: 0, 15: 0}, 0.467),
+    "hp_laser_1944": (1944, {5: 29, 8: 7, 10: 3, 15: 0}, 1.0),
+    "knut_run1_648": (648, {5: 5, 8: 1, 10: 1, 15: 0}, 0.853),
+    "knut_run4_324": (324, {5: 0, 8: 0, 10: 0, 15: 0}, 0.599),
+    "epson_p300_924": (924, {5: 8, 8: 2, 10: 2, 15: 0}, 0.999),
+    "canon_pro300_1168": (1168, {5: 115, 8: 44, 10: 18, 15: 0}, 1.0),
+    "knut_scanner_315": (315, {5: 9, 8: 3, 10: 0, 15: 0}, 0.711),
 }
 
 
@@ -260,9 +297,11 @@ def test_real_sheets_give_the_analysis_numbers(name):
 
 
 def test_the_real_suspects_at_buffer_ten():
-    """35 of 5,323 patches (0.7 %), 28 of them on the wide-gamut Canon."""
+    """B2+: 24 of 5,323 patches (0.5 %), 18 of them on the wide-gamut Canon
+    (beta 11's rule: 35, 28 on the Canon)."""
     total = sum(len(check_of(sheet(name)).suspects()) for name in REAL)
-    assert total == 35
+    assert total == 24
+    assert len(check_of(sheet("canon_pro300_1168")).suspects()) == 18
     assert check_of(sheet("knut_run1_648")).suspects() == ["P27"]
     assert check_of(sheet("epson_p300_924")).suspects() == ["AK19", "AM5"]
 

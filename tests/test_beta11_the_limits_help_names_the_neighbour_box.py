@@ -15,8 +15,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-LABEL = ("Flag a patch that does not fit the patches nearest in colour by "
-         "more than:")
+#: k44 (beta 15): the neighbour check's own checkbox, named after it
+LABEL = ("Neighbour check: flag a patch that does not fit the patches "
+         "nearest to it in colour")
 
 
 def _codes():

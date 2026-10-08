@@ -2000,9 +2000,9 @@ M_PATCH_EXPECTED_PREDICTED = _m(
 #: the beta 10 analysis: a patch whose reading does not fit the patches
 #: nearest to it in expected colour is drawn red, even below the limit
 #: (workflow/neighbour_check.py). The words are ours and wait here. The card
-#: breaks its lines by hand, so each line is one line on the card. {n} is 3 or
-#: 4 (never fewer: a patch with fewer comparisons is not judged), so no
-#: language needs a singular form. {excess} is the median of how much further
+#: breaks its lines by hand, so each line is one line on the card. {n} is 2,
+#: 3 or 4 (never fewer: a patch with fewer comparisons is not judged; 2 since
+#: beta 15's B2+), so no language needs a singular form. {excess} is the median of how much further
 #: its reading is from each of theirs than its expected colour is from theirs,
 #: the very figure the buffer is compared with, and {buffer} the user's buffer
 #: (ΔE*ab, one decimal each). The review of beta 11 replaced "they should read
@@ -2026,12 +2026,21 @@ _CARD_NB_YELLOW = "Red before: it did not fit its neighbours"
 #: instead of its colour range's lines.
 _CARD_NB_REREAD_1 = "Only its own re-read can turn it yellow,"
 _CARD_NB_REREAD_2 = "not similar patches or its colour range."
+#: k43, APPROVED by Knut in #182 6059912998, answer 5: *"May the help and
+#: hover card say: 'Checked again after each strip: a patch can turn red
+#: later, when patches near it in colour are read'?"* "Yes". The card breaks
+#: it in two at the comma; the Preferences help carries it whole
+#: (:data:`NB_CHECKED_AGAIN`). Lines 10 and 11 of M-PATCH-NEIGHBOUR.
+NB_CHECKED_AGAIN = ("Checked again after each strip: a patch can turn red "
+                    "later, when patches near it in colour are read")
+_CARD_NB_LATER_1 = "Checked again after each strip: a patch can turn red later,"
+_CARD_NB_LATER_2 = "when patches near it in colour are read."
 M_PATCH_NEIGHBOUR = _m(
     "M-PATCH-NEIGHBOUR",
     _CARD_NB_RED,
     "\n".join((_CARD_NB_1, _CARD_NB_1_ALSO, _CARD_NB_2, _CARD_NB_3,
                _CARD_NB_4, _CARD_NB_5, _CARD_NB_YELLOW, _CARD_NB_REREAD_1,
-               _CARD_NB_REREAD_2)),
+               _CARD_NB_REREAD_2, _CARD_NB_LATER_1, _CARD_NB_LATER_2)),
     approved=False)
 
 # --- APPROVED: the green outline of a misread a re-read corrected ----------

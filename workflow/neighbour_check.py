@@ -17,14 +17,28 @@ nearest colours in its own strip).
    of the reader: a smudge or a slipped strip moves several patches of one
    strip alike) and whose EXPECTED colours lie within :data:`RADIUS_DE`
    (ΔE*ab 15) of its own, the nearest first;
-2. with fewer than :data:`MIN_COMPARED` (3) of them it is not judged at all:
-   a patch is never suspected for lack of comparisons;
+2. with fewer than :data:`MIN_COMPARED` (2 since beta 15, was 3) of them it
+   is not judged at all: a patch is never suspected for lack of comparisons;
 3. for each comparison patch b, the excess is how much further apart the two
    READINGS are than the two EXPECTED colours:
    ``|meas_a - meas_b| - |exp_a - exp_b|`` (ΔE*ab, L*a*b* as the engine
    computes it, D50);
-4. when the MEDIAN excess is over :data:`BUFFER_DE` (ΔE 10), the patch is a
-   suspected misread.
+4. when the MEDIAN excess is over the buffer (:data:`BUFFER_DE`, ΔE 10, on a
+   chart with estimated colours; :data:`BUFFER_ACCURATE_DE`, ΔE 5, on a chart
+   made with a pre-conditioning profile, beta 15),
+5. AND the patch is the one that is off (beta 15, "B2+"): the median of
+   ``|meas_a - exp_a| - |meas_b - exp_b|`` is above 0, so it is further from
+   its own expected colour than its comparison patches are from theirs,
+   the patch is a suspected misread.
+
+**B2+ (beta 15, Knut #182 6059912998, "Use the suggested B2+ method"),**
+measured in ``2026-10-08_neighbour_methods/ANALYSIS.md`` on 3,492 simulated
+measurements: two comparisons are enough (small charts: 34 % of patches
+checked instead of 17 %, gross misreads caught 34 % instead of 19 %), and
+condition 5 keeps a HEALTHY patch beside a nozzle line or a drying ink from
+turning red with the faulty ones (38 and 81 healthy reds per measurement
+before, 3.5 and 5.3 after). Exactly two, never more, was worse; up to four
+stays.
 
 Estimated expected colours are rough, but they are rough in the same way for
 colours that lie close together, so two patches expected close together are
@@ -34,8 +48,10 @@ median is what keeps one misread neighbour from making its partners suspect.
 
 Measured on the real profiling sheets of the analysis (Knut's HP laser 1944,
 his run1 648 and run4 324, an Epson P300 924, a Canon Pro300 1168, his
-scanner chart 315): 35 suspects at buffer 10 of 5,323 patches (0.7 %), 28 of
-them on the wide-gamut Canon; none at buffer 15. Against injected misreads it
+scanner chart 315): beta 11's rule found 35 suspects at buffer 10 of 5,323
+patches (0.7 %), 28 of them on the wide-gamut Canon; none at buffer 15. B2+,
+re-measured for beta 15 on the same sheets (`tests/test_neighbour_check.py`
+``REAL``): 24 at buffer 10, 18 of them on the Canon, none at 15. Against injected misreads it
 caught 43 % of smudges, 77 % of single glitches and every out-of-step or
 wrong-strip read, most of which no limit can see because they land in the
 middle of the colour space.
@@ -58,10 +74,21 @@ import numpy as np
 RADIUS_DE = 15.0
 #: At most this many comparison patches, the nearest by expected colour.
 MAX_COMPARED = 4
-#: Fewer than this, and the patch is not judged.
-MIN_COMPARED = 3
-#: The median excess must be MORE than this for a suspect.
+#: Fewer than this, and the patch is not judged (B2+, beta 15: was 3).
+MIN_COMPARED = 2
+#: The median excess must be MORE than this for a suspect, on a chart with
+#: estimated colours (most charts).
 BUFFER_DE = 10.0
+#: ... and on a chart made with a pre-conditioning profile, whose expected
+#: colours are close to the print (Knut #182 6059912998, answer 6: "a
+#: separate variable for charts made from a pre-conditioning profile, with 5
+#: as default"). The analysis: 0 to 3 false reds there at 5.
+BUFFER_ACCURATE_DE = 5.0
+BUFFER_ACCURATE_KEY = "patch_neighbour_buffer_de_accurate"
+#: The neighbour check's own switch (k44, Knut #182 6060201176), on by
+#: default. Off, it judges nothing: no patch is red for it, and its outlines
+#: come back as they were when it is switched on again.
+SWITCH_KEY = "patch_neighbour_check"
 #: The user's buffer (Preferences ▸ Measurement, Knut #182 5983725218:
 #: "a defined input box ... so that the threshold for when this check
 #: triggers a red highlighted patch can be modified by user"), and its range.
@@ -70,15 +97,28 @@ BUFFER_MIN_DE = 1.0
 BUFFER_MAX_DE = 50.0
 
 
-def buffer_from(settings) -> float:
-    """The user's buffer, or the default, kept within its range."""
+def buffer_from(settings, accurate: bool = False) -> float:
+    """The user's buffer, or the default, kept within its range: the one for
+    a chart made with a pre-conditioning profile when *accurate* (the chart's
+    file says ACCURATE_EXPECTED_VALUES), else the one for other charts."""
+    key, default = ((BUFFER_ACCURATE_KEY, BUFFER_ACCURATE_DE) if accurate
+                    else (BUFFER_KEY, BUFFER_DE))
     try:
-        v = float(settings.get(BUFFER_KEY, BUFFER_DE))
+        v = float(settings.get(key, default))
     except (TypeError, ValueError, AttributeError):
-        return BUFFER_DE
+        return default
     if v != v:                      # NaN
-        return BUFFER_DE
+        return default
     return min(BUFFER_MAX_DE, max(BUFFER_MIN_DE, v))
+
+
+def enabled_from(settings) -> bool:
+    """Whether the neighbour check is switched on (Preferences ▸
+    Measurement, k44); on when unset or unreadable."""
+    try:
+        return bool(settings.get(SWITCH_KEY, True))
+    except Exception:      # noqa: BLE001
+        return True
 
 #: ArgyllCMS's icmD50, the white the engine's L*a*b* is computed against
 #: (``workflow.measurement_report._engine_lab``).
@@ -105,14 +145,17 @@ class NeighbourFinding:
     *compared* are their locations, nearest first. *excess* is the median of
     the pairs' excess, *expected_de* the median distance between its expected
     colour and theirs, *measured_de* the median distance between its reading
-    and theirs (all ΔE*ab). *suspect* is the verdict: enough comparisons and
-    the median excess over the buffer."""
+    and theirs, *further* the median of how much further its reading is from
+    its own expected colour than theirs are from theirs (all ΔE*ab).
+    *suspect* is the verdict: enough comparisons, the median excess over the
+    buffer, and *further* above 0 (B2+)."""
     loc: str
     compared: tuple = ()
     excess: float = 0.0
     expected_de: float = 0.0
     measured_de: float = 0.0
     suspect: bool = False
+    further: float = 0.0
 
     @property
     def checked(self) -> bool:
@@ -389,15 +432,23 @@ class NeighbourCheck:
         dm = np.linalg.norm(meas[safe] - meas[rows][:, None, :], axis=2)
         de[~ok] = np.nan
         dm[~ok] = np.nan
+        # B2+: how far each reading is from its own expected colour
+        off_own = np.linalg.norm(meas[rows] - exp[rows], axis=1)[:, None]
+        off_nb = np.linalg.norm(meas[safe] - exp[safe], axis=2)
+        fu = off_own - off_nb
+        fu[~ok] = np.nan
         has = count > 0
         med_ex = np.zeros(len(rows))
         med_de = np.zeros(len(rows))
         med_dm = np.zeros(len(rows))
+        med_fu = np.zeros(len(rows))
         if has.any():
             med_ex[has] = np.nanmedian((dm - de)[has], axis=1)
             med_de[has] = np.nanmedian(de[has], axis=1)
             med_dm[has] = np.nanmedian(dm[has], axis=1)
-        suspect = has & (count >= self.min_compared) & (med_ex > self.buffer)
+            med_fu[has] = np.nanmedian(fu[has], axis=1)
+        suspect = (has & (count >= self.min_compared) & (med_ex > self.buffer)
+                   & (med_fu > 0.0))
         for r, i in enumerate(rows):
             if not has[r]:
                 self._findings[locs[i]] = NeighbourFinding(locs[i])
@@ -408,7 +459,8 @@ class NeighbourCheck:
                 excess=float(med_ex[r]),
                 expected_de=float(med_de[r]),
                 measured_de=float(med_dm[r]),
-                suspect=bool(suspect[r]))
+                suspect=bool(suspect[r]),
+                further=float(med_fu[r]))
 
     def finding(self, loc: str) -> "NeighbourFinding | None":
         """The last evaluation's finding for *loc* (None: no reading then)."""
