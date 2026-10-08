@@ -15,6 +15,9 @@ import pathlib
 from dataclasses import dataclass
 import re
 from core.text_io import read_text
+from core.logger import get_logger
+
+log = get_logger(__name__)
 
 # A PPD UI option is specifically a "colour-management" option if its label
 # looks like one (used to qualify a bare "Off"/"None" value):
@@ -356,10 +359,24 @@ def canon_driver_table(ppd_text: str) -> dict[str, str]:
     PRO-300/310/200S/1000/1100 dialogs wrote.  The profile does not depend on the
     print quality on any of those models (0 of 174 media).  {} when the driver
     has no readable database (PRO-100: a binary table)."""
+    out: dict[str, str] = {}
+    for mv, body in _canon_media_colour_blocks(ppd_text):
+        by_q = dict(re.findall(r'<printquality_rgb type="(\d+)"[^>]*>.*?<output_icc>'
+                               r'<!\[CDATA\[([^\]]+)\]\]>', body, re.S))
+        if not by_q:
+            continue
+        dq = re.search(r'<availableprintquality_rgb default="(\d+)"', body)
+        icc = (by_q.get(dq.group(1)) if dq else None) or next(iter(by_q.values()))
+        out[mv] = icc.strip()
+    return out
+
+
+def _canon_media_colour_blocks(ppd_text: str):
+    """Yield ``(medium value, colour-mode block of its .hmi)`` for every medium
+    of the Canon IJ model's media database (nothing when it has none)."""
     db = canon_media_database(ppd_text)
     if db is None or not db.is_dir():
-        return {}
-    out: dict[str, str] = {}
+        return
     for mv, uuid in re.findall(
             r'^\*CNIJMediaTypeIVEC\s+(\S+):\s*"custom-media-type-canon-([0-9A-Fa-f-]+)"',
             ppd_text, re.M):
@@ -368,14 +385,33 @@ def canon_driver_table(ppd_text: str) -> dict[str, str]:
         except OSError:
             continue
         cm = re.search(r'<printcolormode type="color">(.*?)</printcolormode>', x, re.S)
-        body = cm.group(1) if cm else x
-        by_q = dict(re.findall(r'<printquality_rgb type="(\d+)"[^>]*>.*?<output_icc>'
-                               r'<!\[CDATA\[([^\]]+)\]\]>', body, re.S))
-        if not by_q:
-            continue
+        yield mv, (cm.group(1) if cm else x)
+
+
+def canon_driver_qualities(ppd_text: str) -> dict[str, str]:
+    """{medium value: CNIJPrintQuality} the Canon IJ dialog writes for the medium
+    when the user leaves the quality alone, from the model's media database.
+
+    Each medium's ``.hmi`` lists its print qualities (``<printquality_rgb
+    type="N" threeposition="fine|normal|draft|none">``) and a default.  The
+    dialog picks the quality marked "normal" (the Standard position of its
+    quality control) and, where a medium has none, the database's default; it
+    writes it as ``CNIJPrintQuality = (N - 1) * 5``, which the filter
+    (Raster2CanonIJ2S) turns back into ``<ivec:printquality>N``.  Review 2,
+    2026-10-08: this reproduced every quality the PRO-300/310/200S/1000/1100
+    dialogs wrote, measured on the real dialogs for every medium
+    (report folder 2026-10-08_beta15_print_review2, dialog_canon/).  The
+    quality is part of the printer state a profile describes: on a PRO-1000
+    the plain ``lp`` job printed Canvas and the fine-art papers at type 3, the
+    dialog at type 4."""
+    out: dict[str, str] = {}
+    for mv, body in _canon_media_colour_blocks(ppd_text):
+        types = re.findall(r'<printquality_rgb type="(\d+)"\s+threeposition="(\w+)"', body)
+        normal = next((t for t, pos in types if pos == "normal"), None)
         dq = re.search(r'<availableprintquality_rgb default="(\d+)"', body)
-        icc = (by_q.get(dq.group(1)) if dq else None) or next(iter(by_q.values()))
-        out[mv] = icc.strip()
+        pick = normal or (dq.group(1) if dq else None)
+        if pick is not None and pick.isdigit() and int(pick) >= 1:
+            out[mv] = str((int(pick) - 1) * 5)
     return out
 
 
@@ -444,6 +480,34 @@ def epson_driver_table(ppd_text: str) -> dict[str, str]:
 
 def epson_ui_type(ppd_text: str) -> str | None:
     return epson_pde(ppd_text)[0]
+
+
+def epson_driver_quality(ppd_text: str, media_value: str,
+                         settings: dict[str, str]) -> str | None:
+    """The EPIJ_Qual the Epson dialog sets when the user picks *media_value*,
+    from the model's PDEData.dat: ``*EPIJLinkValue: *EPIJ_Medi <medium>|
+    <conditions>|*EPIJ_Qual <q> ...``, the first line whose conditions hold for
+    *settings* (the job's EPIJ_Mode and EPIJ_Ink_).  Review 2, 2026-10-08:
+    reproduces all 13 qualities the ET-8550, ET-18100, SC-P800, R3000 and
+    R2000 dialogs wrote (vendor tests).  None when the file has no such line
+    (the SC-P900/P700/P5300 dialogs choose quality another way, EPIJ_APri)."""
+    path = epson_pde_path(ppd_text)
+    if path is None:
+        return None
+    try:
+        text = read_text(path, lenient=True)
+    except OSError:
+        return None
+    for mv, cond, result in re.findall(
+            r'^\*EPIJLinkValue:\s*\*EPIJ_Medi\s+(\S+)\|([^|\n]*)\|([^\n]*)$', text, re.M):
+        if mv != media_value:
+            continue
+        if not all(settings.get(k) == v for k, v in re.findall(r"\*(\S+)\s+(\S+)", cond)):
+            continue
+        q = re.search(r"\*EPIJ_Qual\s+(\S+)", result)
+        if q:
+            return q.group(1)
+    return None
 
 
 # ---- 2. the tables shipped with ChromIQ ---------------------------------------------
@@ -555,12 +619,23 @@ def paper_profile_for(ppd_text: str, options: dict[str, str] | None = None,
         if chosen is None and learned is not None and model:
             hit = learned.lookup(model, rule.media_option, media_value,
                                  rule.quality_option, quality)
-            if hit and str(hit.get("value")) in values:
+            if hit and _learned_still_valid(hit, values, blocks, rule):
                 chosen, source = str(hit["value"]), "learned"
                 keys.update(hit.get("keys") or {})
         if chosen is None:
             chosen, source = default, "unknown"
         keys.pop(rule.profile_option, None)
+        if rule.quality_option:
+            if str(options.get(rule.quality_option) or ""):
+                # the user chose the quality (the Print Chart tab offers it on
+                # Epson): that is what goes, as in the dialog
+                keys.pop(rule.quality_option, None)
+            elif rule.quality_option not in keys:
+                # review 2: the quality the dialog picks for the medium when the
+                # user leaves it alone (lp otherwise sent the PPD's default)
+                q_val = _driver_quality(rule, ppd_text, media_value, keys, options)
+                if q_val is not None:
+                    keys[rule.quality_option] = q_val
         icc = None
         if chosen is not None:
             for quals, _label, path in _icc_profiles(ppd_text):
@@ -588,6 +663,39 @@ def _driver_value(rule: PaperProfileRule, ppd_text: str, media_value: str,
         if rule.driver_table == "epson-pde":
             v = epson_driver_table(ppd_text).get(media_value)
             return v if v in values else None
+    except Exception:  # noqa: BLE001 - a broken driver file must not stop printing
+        return None
+    return None
+
+
+def _learned_still_valid(hit: dict, values: dict[str, str], blocks: dict,
+                         rule: PaperProfileRule) -> bool:
+    """A learned entry is used only while the installed PPD still means the same
+    by it (review 2: a driver update can renumber its paper profiles).  The
+    value must still exist and still carry the label it had when it was learned;
+    the medium too, when its label was kept."""
+    value = str(hit.get("value"))
+    if value not in values:
+        return False
+    label = hit.get("label")
+    if label and values.get(value) != label:
+        log.warning("printer memory: %s=%s is now %r in the driver, was %r when "
+                    "learned; not used", rule.profile_option, value, values.get(value),
+                    label)
+        return False
+    return True
+
+
+def _driver_quality(rule: PaperProfileRule, ppd_text: str, media_value: str,
+                    keys: dict[str, str], options: dict[str, str]) -> str | None:
+    """The print quality the installed driver's dialog picks for the medium."""
+    try:
+        if rule.driver_table == "canon-db":
+            return canon_driver_qualities(ppd_text).get(media_value)
+        if rule.driver_table == "epson-pde":
+            settings = {k: str(options.get(k) or keys.get(k) or _ppd_default(ppd_text, k)
+                               or "") for k in ("EPIJ_Mode", "EPIJ_Ink_")}
+            return epson_driver_quality(ppd_text, media_value, settings)
     except Exception:  # noqa: BLE001 - a broken driver file must not stop printing
         return None
     return None

@@ -64,7 +64,21 @@ class PaperProfileMemory:
             log.warning("printer memory %s unreadable (%s); starting empty", self.path, exc)
             return {"schema": _SCHEMA, "models": {}}
         if not isinstance(data, dict) or not isinstance(data.get("models"), dict):
+            log.warning("printer memory %s has an unexpected shape; starting empty",
+                        self.path)
             return {"schema": _SCHEMA, "models": {}}
+        # Review 2: a hand-edited or half-written file must not stop a print.
+        # Keep only {model: {key: {...}}} with a profile value; drop the rest.
+        models = {}
+        for model, entries in data["models"].items():
+            if not isinstance(entries, dict):
+                continue
+            good = {k: e for k, e in entries.items()
+                    if isinstance(e, dict) and isinstance(e.get("value"), str)
+                    and isinstance(e.get("keys", {}), dict)}
+            if good:
+                models[str(model)] = good
+        data["models"] = models
         return data
 
     def _save(self, data: dict) -> None:
@@ -121,8 +135,7 @@ class PaperProfileMemory:
         entry = {"vendor": vendor, "media_option": media_option, "media": media_value,
                  "quality_option": quality_option, "quality": quality,
                  "option": profile_option, "value": value, "label": label,
-                 "keys": dict(keys or {}), "queue": queue,
-                 "learned_at": time.time()}
+                 "keys": dict(keys or {}), "learned_at": time.time()}
         k = self._key(media_option, media_value, quality_option, quality)
         with _lock:
             data = self._load()
@@ -138,8 +151,8 @@ class PaperProfileMemory:
                 return False
         if not same:
             log.info("printer memory: %s, %s=%s, %s=%s -> %s=%s (%s) learned from the "
-                     "dialog", model, media_option, media_value, quality_option,
-                     quality or "-", profile_option, value, label)
+                     "dialog on %s", model, media_option, media_value, quality_option,
+                     quality or "-", profile_option, value, label, queue or "?")
         return not same
 
 

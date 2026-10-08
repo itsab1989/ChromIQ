@@ -3351,11 +3351,11 @@ class SettingsDialog(QDialog):
             "ChromIQ sets application colour matching for you and attaches the paper "
             "profile of the medium you choose; you do not need to change colour "
             "settings in the dialog.\n\n"
-            "The dialog works with any printer, because the printer's own dialog "
-            "chooses the paper profile. ChromIQ's own route knows the paper profiles "
+            "The dialog works with any printer: where the driver has paper profiles, "
+            "its own dialog chooses one. ChromIQ's own route knows the paper profiles "
             "of the Canon and Epson models whose drivers it can read or which it has "
-            "measured, and learns any other model from one print through this "
-            "dialog."),
+            "measured, and learns any other model one paper type at a time, from a "
+            "print through this dialog."),
             self,
             min_width=620,
         )

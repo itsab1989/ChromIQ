@@ -479,3 +479,167 @@ def test_off_macos_nothing_is_asked(monkeypatch, tmp_path):
 def test_the_built_in_tables_ship_in_the_bundle():
     assert "data/printer_paper_profiles.json" in (ROOT / "ChromIQ.spec").read_text(
         encoding="utf-8")
+
+
+# ---- 8. review 2 (2026-10-08): quality, the learning store, the windows ---------------
+@pytest.mark.parametrize("ppd,medium,quality", [
+    # measured on the real dialogs (vendor tests and review 2, dialog_canon/):
+    ("Canon_PRO_1000_series.ppd", "78", "15"), ("Canon_PRO_1000_series.ppd", "63", "10"),
+    ("Canon_PRO_1000_series.ppd", "0", "10"), ("Canon_PRO_1000_series.ppd", "51", "10"),
+    ("Canon_PRO_300_series.ppd", "165", "5"), ("Canon_PRO_300_series.ppd", "162", "5"),
+    ("Canon_PRO_300_series.ppd", "63", "10"), ("Canon_PRO_300_series.ppd", "0", "10"),
+])
+def test_canon_quality_is_the_dialogs_own_for_the_medium(fixture_drivers, ppd, medium, quality):
+    """The quality is part of the printer state a profile describes. Before
+    review 2 lp sent no quality, so the PPD's 10 printed PRO-1000 Canvas and
+    the fine-art papers at quality type 3 where the dialog prints type 4."""
+    text = _fixture_ppd(ppd)
+    assert pc.canon_driver_qualities(text)[medium] == quality
+
+
+def test_canon_quality_rule_without_a_shipped_value(fixture_drivers, monkeypatch):
+    """A Canon model the shipped tables do not list still gets the dialog's
+    quality, from its own media database."""
+    monkeypatch.setattr(pc, "built_in_model", lambda model: None)
+    pp = pc.paper_profile_for(_fixture_ppd("Canon_PRO_1000_series.ppd"),
+                              {"CNIJMediaType": "78"})
+    assert pp.source == "driver" and pp.keys()["CNIJPrintQuality"] == "15"
+
+
+@pytest.mark.parametrize("ppd,medium,quality", [
+    # the vendor tests' dialog measurements (EPIJ_Qual the dialog wrote)
+    ("EPSON_ET_8550_Series.ppd", "142", "303"), ("EPSON_ET_8550_Series.ppd", "145", "305"),
+    ("EPSON_ET_8550_Series.ppd", "75", "305"), ("EPSON_ET_8550_Series.ppd", "13", "305"),
+    ("EPSON_Epson_Stylus_Photo_R3000.ppd", "12", "36"),
+    ("EPSON_Epson_Stylus_Photo_R3000.ppd", "2", "35"),
+])
+def test_epson_quality_left_alone_is_the_dialogs_own(fixture_drivers, ppd, medium, quality):
+    pp = pc.paper_profile_for(_fixture_ppd(ppd), {"EPIJ_Medi": medium})
+    assert pp.keys()["EPIJ_Qual"] == quality
+
+
+def test_an_epson_quality_the_user_chose_is_kept(fixture_drivers):
+    pp = pc.paper_profile_for(_fixture_ppd("EPSON_ET_8550_Series.ppd"),
+                              {"EPIJ_Medi": "13", "EPIJ_Qual": "306"})
+    assert "EPIJ_Qual" not in pp.keys()   # the tab's own 306 goes, untouched
+
+
+def test_newui_j_epson_gets_no_guessed_quality(fixture_drivers):
+    """SC-P900/P700/P5300 dialogs set quality another way (EPIJ_APri):
+    nothing is sent that was not measured."""
+    pp = pc.paper_profile_for(_fixture_ppd("EPSON_SC_P900_Series.ppd"), {"EPIJ_Medi": "13"})
+    assert "EPIJ_Qual" not in pp.keys()
+
+
+def test_a_damaged_memory_file_never_stops_a_print(tmp_path, fixture_drivers):
+    f = tmp_path / "m.json"
+    for raw in ("{", "[]", '{"models": 5}',
+                '{"models": {"Canon PRO-999 series": 5, "X": {"k": "bad"},'
+                ' "Y": {"k": {"value": 3}}}}'):
+        f.write_text(raw, encoding="utf-8")
+        mem = PaperProfileMemory(f)
+        assert mem.lookup("Canon PRO-999 series", "CNIJMediaType", "51") is None
+        pp = pc.paper_profile_for(_unknown_canon(), {"CNIJMediaType": "51"}, learned=mem)
+        assert not pp.known
+        assert mem.record("Canon PRO-999 series", "Canon IJ", "CNIJMediaType", "51",
+                          "CNIJPrintQuality", "10", "CNIJProfileID", "3",
+                          label="CN_PRO-300_G1_PhotoPaperProPlatinum.icc")
+        assert pc.paper_profile_for(_unknown_canon(), {"CNIJMediaType": "51"},
+                                    learned=mem).source == "learned"
+
+
+def test_a_learned_value_the_driver_now_means_differently_is_not_used(tmp_path,
+                                                                      fixture_drivers):
+    """A driver update can renumber its paper profiles: the label learned
+    with the value must still be the PPD's label for it."""
+    mem = PaperProfileMemory(tmp_path / "m.json")
+    mem.record("Canon PRO-999 series", "Canon IJ", "CNIJMediaType", "51",
+               "CNIJPrintQuality", "10", "CNIJProfileID", "3",
+               label="CN_PRO-300_G1_SomethingElse.icc")
+    pp = pc.paper_profile_for(_unknown_canon(), {"CNIJMediaType": "51"}, learned=mem)
+    assert not pp.known
+
+
+def test_the_memory_keeps_no_queue_or_path(tmp_path, fixture_drivers):
+    mem = PaperProfileMemory(tmp_path / "m.json")
+    mem.record("Canon PRO-999 series", "Canon IJ", "CNIJMediaType", "51",
+               "CNIJPrintQuality", "10", "CNIJProfileID", "3", label="x.icc",
+               queue="Bastis_Drucker_im_Buero")
+    raw = (tmp_path / "m.json").read_text(encoding="utf-8")
+    assert "Bastis" not in raw and "/Users/" not in raw and "queue" not in raw
+
+
+def test_several_finished_read_backs_open_one_window_at_a_time(qapp):
+    """A report can open a modal window whose event loop fires the poll timer
+    again; the second report must wait for the first window to close."""
+    from ui.tabs.tab_print import TabPrint
+    events = []
+
+    class _RB:
+        def __init__(self, name):
+            self.report, self.error = name, None
+
+        def poll(self):
+            return "done"
+
+    class _T:
+        def stop(self):
+            events.append("stop")
+
+    class _Stub:
+        _read_backs = [_RB("a"), _RB("b")]
+        _read_back_timer = _T()
+
+        def _set_status(self, text):
+            pass
+
+        def _report_job_ticket(self, rep):
+            events.append(f"open {rep}")
+            TabPrint._poll_read_backs(self)   # the modal's event loop
+            events.append(f"close {rep}")
+    TabPrint._poll_read_backs(_Stub())
+    assert events[:4] == ["open a", "close a", "open b", "close b"]
+
+
+def test_print_anyway_does_not_claim_photoshop_state(qapp, monkeypatch, fixture_drivers,
+                                                     tmp_path):
+    """After "Print Anyway" the confirmation window must not say the printer's
+    own processing is "as for prints from Photoshop": nobody knows that there."""
+    from ui.tabs.tab_print import TabPrint
+    from workflow import measurement_messages as MM
+    from workflow.cups_printer import CupsRawPrinter
+    pp = pc.paper_profile_for(_unknown_canon(), {"CNIJMediaType": "51"})
+    monkeypatch.setattr(CupsRawPrinter, "_reference_paper_profile",
+                        staticmethod(lambda tiff, cfg: pp))
+    rows = TabPrint._colour_rows(None, "Q", {}, tmp_path / "x.tif")
+    names = [r[0] for r in rows]
+    assert MM._PRINT_ROW_PAPER_PROFILE in names
+    assert MM._PRINT_ROW_PRINTER_COLOUR not in names
+
+
+def test_the_built_in_tables_ship_on_every_platform():
+    for spec in ("ChromIQ.spec", "ChromIQWin.spec", "ChromIQLinux.spec"):
+        assert "printer_paper_profiles.json" in (ROOT / spec).read_text(encoding="utf-8")
+
+
+def test_the_canon_quality_rule_matches_every_dialog_measurement():
+    """Every Canon quality measured on a real dialog (shipped as 'dialog'
+    entries) is what the media-database rule gives. Skipped where the Canon
+    drivers are not installed (CI); here it is the proof of the rule."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import printer_paper_tables as ppt
+    checked = 0
+    for model, entry in _built().items():
+        if not model.startswith("Canon") or model == "Canon PRO-100 series":
+            continue
+        text = ppt.installed_ppd(model) if model in ppt.MODELS else None
+        if text is None:
+            continue
+        rule = pc.canon_driver_qualities(text)
+        for mv, row in entry.get("media", {}).items():
+            q = (row.get("keys") or {}).get("CNIJPrintQuality")
+            if row.get("from") == "dialog" and q is not None:
+                assert rule.get(mv) == q, (model, mv)
+                checked += 1
+    if not checked:
+        pytest.skip("no Canon driver installed")

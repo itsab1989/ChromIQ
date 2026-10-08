@@ -637,8 +637,10 @@ def make_fixtures(dest: Path) -> list[str]:
             rel = pde.relative_to(pc.MAC_DRIVER_ROOT)
             out = dest / rel
             out.parent.mkdir(parents=True, exist_ok=True)
+            # the dialog's quality per medium (ppd_color.epson_driver_quality)
+            links = re.findall(r'^\*EPIJLinkValue:\s*\*EPIJ_Medi .*\*EPIJ_Qual .*$', t, re.M)
             out.write_text((ui.group(0) if ui else "") + "\n\n" + (blk.group(0) if blk else "")
-                           + "\n", encoding="latin-1")
+                           + "\n" + "".join(line + "\n" for line in links), encoding="latin-1")
             written.append(str(rel))
     return written
 

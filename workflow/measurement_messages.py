@@ -4946,7 +4946,8 @@ M_PRINT_JOB_UNTAGGED = _m(
 #: from the user's own prints through the macOS dialog. For any other Canon or
 #: Epson model it must not guess silently: this window says so before printing
 #: and offers the dialog. {printer} is the queue, {medium} the paper type as the
-#: driver names it, {profile} the driver's standard profile, which a print sent
+#: driver names it, {profile} the driver's standard setting for the paper profile (the PPD's
+#: default; Epson names it "None"), which a print sent
 #: anyway carries. The three buttons are the lines after the body.
 _PRINT_UNKNOWN_BTN_DIALOG = "Use the macOS Print Dialog"
 _PRINT_UNKNOWN_BTN_ANYWAY = "Print Anyway"
@@ -4962,8 +4963,8 @@ M_PRINT_PAPER_PROFILE_UNKNOWN = _m(
     "remembers its choice, so later charts for this printer and paper type can "
     "go straight to the printer.\n\n"
     "If you print straight to the printer anyway, the chart goes with the "
-    "driver\u2019s standard profile ({profile}), which may not be the one your "
-    "prints from Photoshop get on this paper.",
+    "driver\u2019s standard setting for the paper profile ({profile}), which "
+    "may not be what your prints from Photoshop get on this paper.",
     approved=False)
 
 CATALOGUE = {m.id: m for m in (

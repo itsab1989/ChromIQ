@@ -100,9 +100,11 @@ _TT_BODY_PRINT_MACOS_BYPASS = (
     "chart with colour management switched off.\n\n"
     "ChromIQ knows which paper profile goes with which paper type for the "
     "Canon and Epson models whose drivers it can read, and for the models it "
-    "has measured. Any other model it learns from one print through the macOS "
-    "print dialog. Until then it tells you before printing and offers the "
-    "dialog.\n\n"
+    "has measured. For any other model it learns this one paper type at a "
+    "time, from a print through the macOS print dialog. Until then it tells "
+    "you before printing and offers the dialog. On plain paper a Canon keeps "
+    "its own colour processing switched on, as it does for prints from "
+    "Photoshop.\n\n"
     "**Before you print:**\n"
     "• Load the exact paper you chose in step 1. Different paper = "
     "different profile.\n"
@@ -130,10 +132,10 @@ _TT_BODY_PRINT_MACOS_NATIVE = (
     "chose to the chart, so macOS does not change its colours. Pick the right "
     "media type: the paper profile follows it. Afterwards the Print Chart tab "
     "says what the printing system holds for the job.\n\n"
-    "This works with any printer, because the printer's own dialog chooses "
-    "the paper profile. ChromIQ also remembers that choice, so a Canon or "
-    "Epson model it did not know can then print straight to the queue as "
-    "well.\n\n"
+    "This works with any printer: where the driver has paper profiles, its "
+    "own dialog chooses one. ChromIQ also remembers that choice, so a Canon "
+    "or Epson model it did not know can then print straight to the queue on "
+    "that paper type as well.\n\n"
     "**Before you print:**\n"
     "• Load the exact paper you chose in step 1.\n"
     "• Make sure the printer is on, has ink, and is selected.\n\n"
@@ -591,7 +593,8 @@ class TabPrint(QWidget):
                 "management switched off.\n\n"
                 "ChromIQ knows the paper profiles of the Canon and Epson models "
                 "whose drivers it can read or which it has measured, and learns any "
-                "other model from one print through the macOS print dialog.")
+                "other model one paper type at a time, from a print through the "
+                "macOS print dialog.")
         else:
             _printer_tip = tr(
                 "Select the printer to send the chart to.  Only printers installed in\n"
@@ -2084,7 +2087,10 @@ class TabPrint(QWidget):
             return [(tr(MM._PRINT_ROW_COLOUR), tr("Off (forced)"))]
         rows = [(tr(MM._PRINT_ROW_COLOUR), tr(MM._PRINT_ROW_COLOUR_BY_CHROMIQ)),
                 (tr(MM._PRINT_ROW_PAPER_PROFILE), pp.label)]
-        if pp.rule.own_colour_off_needs_paper_profile:
+        if pp.rule.own_colour_off_needs_paper_profile and pp.known:
+            # Review 2: not for a model ChromIQ does not know ("Print Anyway"
+            # after M-PRINT-PAPER-PROFILE-UNKNOWN). The "on" value says "as for
+            # prints from Photoshop", which nobody knows for that paper there.
             rows.append((tr(MM._PRINT_ROW_PRINTER_COLOUR),
                          tr(MM._PRINT_ROW_PRINTER_COLOUR_ON if pp.is_default
                             else MM._PRINT_ROW_PRINTER_COLOUR_OFF)))
@@ -2159,17 +2165,27 @@ class TabPrint(QWidget):
 
     def _poll_read_backs(self) -> None:
         from workflow import measurement_messages as MM
-        for rb in list(self._read_backs):
-            state = rb.poll()
-            if state == "pending":
-                continue
-            self._read_backs.remove(rb)
-            if state == "timeout" or rb.report is None:
-                log.warning("print ticket: no read-back (%s)",
-                            "timed out" if state == "timeout" else rb.error)
-                self._set_status(tr(MM._PRINT_JOB_UNREAD))
-                continue
-            self._report_job_ticket(rb.report)
+        # Review 2: a report can open a modal window, whose event loop keeps
+        # this timer firing. Without the guard every other finished read-back
+        # opened its window on top of the first, so several prints stacked up
+        # several windows at once. Now they come one after another.
+        if getattr(self, "_reporting_read_back", False):
+            return
+        self._reporting_read_back = True
+        try:
+            for rb in list(self._read_backs):
+                state = rb.poll()
+                if state == "pending":
+                    continue
+                self._read_backs.remove(rb)
+                if state == "timeout" or rb.report is None:
+                    log.warning("print ticket: no read-back (%s)",
+                                "timed out" if state == "timeout" else rb.error)
+                    self._set_status(tr(MM._PRINT_JOB_UNREAD))
+                    continue
+                self._report_job_ticket(rb.report)
+        finally:
+            self._reporting_read_back = False
         if not self._read_backs:
             self._read_back_timer.stop()
 
@@ -2462,9 +2478,9 @@ class TabPrint(QWidget):
                     "colours. Pick the right media type: the paper profile follows it. "
                     "Afterwards the Print Chart tab says what the printing system holds "
                     "for the job.\n\n"
-                    "This works with any printer, because the printer's own dialog "
-                    "chooses the paper profile. You don't need to change any colour "
-                    "setting.\n\n"
+                    "This works with any printer: where the driver has paper "
+                    "profiles, its own dialog chooses one. You don't need to change "
+                    "any colour setting.\n\n"
                     "Prefer no dialog at all? Untick \"Use default macOS printer dialog\" "
                     "in Preferences to send the chart straight to the queue via lp.\n\n"
                     "Allow pigment inks to dry fully before measuring "

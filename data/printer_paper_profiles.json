@@ -289,8 +289,12 @@
      "profile": "11"
     },
     "27": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "28": {
@@ -303,13 +307,21 @@
      "profile": "7"
     },
     "42": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "15"
+     },
      "label": "CN_PRO-1000_500_PhotoPaperPlusSemi-gloss.icc",
+     "measured": "2026-10-08",
      "profile": "6"
     },
     "50": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "15"
+     },
      "label": "CN_PRO-1000_500_PhotoPaperPlusGlossyII.icc",
+     "measured": "2026-10-08",
      "profile": "3"
     },
     "51": {
@@ -322,48 +334,84 @@
      "profile": "4"
     },
     "56": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "63": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1000_500_PhotoPaperProLuster.icc",
+     "measured": "2026-10-08",
      "profile": "5"
     },
     "66": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1000_500_PhotoPaperProPremiumMatte.icc",
+     "measured": "2026-10-08",
      "profile": "14"
     },
     "7": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "73": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "15"
+     },
      "label": "CN_PRO-1000_500_LightweightPhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "9"
     },
     "74": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "15"
+     },
      "label": "CN_PRO-1000_500_HeavyweightPhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "10"
     },
     "75": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "15"
+     },
      "label": "CN_PRO-1000_500_HeavyweightFineArtPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "15"
     },
     "76": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "15"
+     },
      "label": "CN_PRO-1000_500_ExtraHeavyweightFineArtPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "16"
     },
     "77": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "15"
+     },
      "label": "CN_PRO-1000_500_JapanesePaperWashi-P.icc",
+     "measured": "2026-10-08",
      "profile": "19"
     },
     "78": {
@@ -376,13 +424,21 @@
      "profile": "18"
     },
     "79": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1000_500_HighestDensityFineArtPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "17"
     },
     "9318": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1000_500_PhotoPaperProPremiumMatteA.icc",
+     "measured": "2026-10-08",
      "profile": "13"
     },
     "9319": {
@@ -391,13 +447,21 @@
      "profile": "2"
     },
     "9320": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1000_500_PremiumFineArtSmooth.icc",
+     "measured": "2026-10-08",
      "profile": "12"
     },
     "9361": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-1000_500_PhotoPaperProCrystalGrade.icc",
+     "measured": "2026-10-08",
      "profile": "8"
     }
    },
@@ -407,18 +471,30 @@
   "Canon PRO-1100 series": {
    "media": {
     "0": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "149": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_PlusGlossyIIA.icc",
+     "measured": "2026-10-08",
      "profile": "2"
     },
     "155": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_PhotoPprProPremiumMatteA.icc",
+     "measured": "2026-10-08",
      "profile": "13"
     },
     "158": {
@@ -431,8 +507,12 @@
      "profile": "11"
     },
     "163": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-1100_510_PhotoPaperProCrystalGrade.icc",
+     "measured": "2026-10-08",
      "profile": "7"
     },
     "165": {
@@ -445,78 +525,138 @@
      "profile": "10"
     },
     "169": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-1100_510_PremiumFineArtRough.icc",
+     "measured": "2026-10-08",
      "profile": "12"
     },
     "180": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "181": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "27": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "28": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_MattePhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "6"
     },
     "42": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_PhotoPaperPlusSemi-gloss.icc",
+     "measured": "2026-10-08",
      "profile": "5"
     },
     "51": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_PhotoPaperProPlatinum.icc",
+     "measured": "2026-10-08",
      "profile": "3"
     },
     "56": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "63": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_PhotoPaperProLuster.icc",
+     "measured": "2026-10-08",
      "profile": "4"
     },
     "7": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "73": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_LightweightPhotoPaper.icc",
+     "measured": "2026-10-08",
      "profile": "8"
     },
     "74": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_HeavyweightPhotoPaper.icc",
+     "measured": "2026-10-08",
      "profile": "9"
     },
     "75": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_HeavyweightFineArtPaper.icc",
+     "measured": "2026-10-08",
      "profile": "14"
     },
     "76": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_ExtraHeavyweightFineArtPaper.icc",
+     "measured": "2026-10-08",
      "profile": "15"
     },
     "77": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-1100_510_JapanesePaperWashi-P.icc",
+     "measured": "2026-10-08",
      "profile": "18"
     },
     "78": {
@@ -529,8 +669,12 @@
      "profile": "17"
     },
     "79": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-1100_510_HighestDensityFineArtPaper.icc",
+     "measured": "2026-10-08",
      "profile": "16"
     }
    },
@@ -540,13 +684,21 @@
   "Canon PRO-200S series": {
    "media": {
     "0": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "149": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-200S_S1MkII_PhotoPaperPlusGlossyIIA.icc",
+     "measured": "2026-10-08",
      "profile": "2"
     },
     "150": {
@@ -559,43 +711,75 @@
      "profile": "6"
     },
     "155": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-200S_S1MkII_PhotoPaperProPremiumMatteA.icc",
+     "measured": "2026-10-08",
      "profile": "12"
     },
     "16": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "160": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "162": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "163": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-200S_S1MkII_PhotoPaperProCrystalGrade.icc",
+     "measured": "2026-10-08",
      "profile": "8"
     },
     "166": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "167": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "169": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-200S_S1MkII_PremiumFineArtRough.icc",
+     "measured": "2026-10-08",
      "profile": "11"
     },
     "18": {
@@ -604,8 +788,12 @@
      "profile": "1"
     },
     "27": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "28": {
@@ -628,68 +816,120 @@
      "profile": "1"
     },
     "42": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-200S_S1MkII_PhotoPaperPlusSemi-gloss.icc",
+     "measured": "2026-10-08",
      "profile": "5"
     },
     "51": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-200S_S1MkII_PhotoPaperProPlatinum.icc",
+     "measured": "2026-10-08",
      "profile": "3"
     },
     "54": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "56": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "63": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-200S_S1MkII_PhotoPaperProLuster.icc",
+     "measured": "2026-10-08",
      "profile": "4"
     },
     "7": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "73": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-200S_S1MkII_LightweightPhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "9"
     },
     "74": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-200S_S1MkII_HeavyweightPhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "10"
     },
     "75": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-200S_S1MkII_HeavyweightFineArtPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "13"
     },
     "76": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-200S_S1MkII_ExtraHeavyweightFineArtPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "14"
     },
     "77": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-200S_S1MkII_JapanesePaperWashi-P.icc",
+     "measured": "2026-10-08",
      "profile": "16"
     },
     "78": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-200S_S1MkII_Canvas-P.icc",
+     "measured": "2026-10-08",
      "profile": "15"
     },
     "8": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     }
    },
@@ -708,13 +948,21 @@
      "profile": "1"
     },
     "149": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-300_G1_PhotoPaperPlusGlossyIIA.icc",
+     "measured": "2026-10-08",
      "profile": "2"
     },
     "155": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-300_G1_PhotoPaperProPremiumMatteA.icc",
+     "measured": "2026-10-08",
      "profile": "13"
     },
     "158": {
@@ -727,8 +975,12 @@
      "profile": "11"
     },
     "160": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "162": {
@@ -741,8 +993,12 @@
      "profile": "1"
     },
     "163": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-300_G1_PhotoPaperProCrystalGrade.icc",
+     "measured": "2026-10-08",
      "profile": "7"
     },
     "165": {
@@ -755,18 +1011,30 @@
      "profile": "10"
     },
     "169": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-300_G1_PremiumFineArtRough.icc",
+     "measured": "2026-10-08",
      "profile": "12"
     },
     "27": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "28": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-300_G1_MattePhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "6"
     },
     "31": {
@@ -780,8 +1048,12 @@
      "profile": "1"
     },
     "42": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-300_G1_PhotoPaperPlusSemi-gloss.icc",
+     "measured": "2026-10-08",
      "profile": "5"
     },
     "51": {
@@ -794,8 +1066,12 @@
      "profile": "3"
     },
     "56": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "63": {
@@ -817,28 +1093,48 @@
      "profile": "1"
     },
     "73": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-300_G1_LightweightPhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "8"
     },
     "74": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-300_G1_HeavyweightPhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "9"
     },
     "75": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-300_G1_HeavyweightFineArtPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "14"
     },
     "76": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-300_G1_ExtraHeavyweightFineArtPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "15"
     },
     "77": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-300_G1_JapanesePaperWashi-P.icc",
+     "measured": "2026-10-08",
      "profile": "18"
     },
     "78": {
@@ -851,8 +1147,12 @@
      "profile": "17"
     },
     "79": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-300_G1_HighestDensityFineArtPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "16"
     }
    },
@@ -862,78 +1162,138 @@
   "Canon PRO-310 series": {
    "media": {
     "0": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "149": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-310_G2_PhotoPaperPlusGlossyIIA.icc",
+     "measured": "2026-10-08",
      "profile": "2"
     },
     "155": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_PhotoPaperProPremiumMatteA.icc",
+     "measured": "2026-10-08",
      "profile": "15"
     },
     "158": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_PremiumFineArtSmooth.icc",
+     "measured": "2026-10-08",
      "profile": "13"
     },
     "160": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "162": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "163": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_PhotoPaperProCrystalGrade.icc",
+     "measured": "2026-10-08",
      "profile": "7"
     },
     "165": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "0"
+     },
      "label": "CN_PRO-310_G2_BarytaPhotoPaper.icc",
+     "measured": "2026-10-08",
      "profile": "11"
     },
     "169": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_PremiumFineArtRough.icc",
+     "measured": "2026-10-08",
      "profile": "14"
     },
     "17495": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-310_G2_LightweightPhotoPaperA.icc",
+     "measured": "2026-10-08",
      "profile": "10"
     },
     "17496": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-310_G2_LightweightPhotoPaperB.icc",
+     "measured": "2026-10-08",
      "profile": "12"
     },
     "180": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "181": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "27": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "28": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-310_G2_MattePhotoPaper-P.icc",
+     "measured": "2026-10-08",
      "profile": "6"
     },
     "31": {
@@ -947,63 +1307,111 @@
      "profile": "1"
     },
     "42": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-310_G2_PhotoPaperPlusSemi-gloss.icc",
+     "measured": "2026-10-08",
      "profile": "5"
     },
     "51": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-310_G2_PhotoPaperProPlatinum.icc",
+     "measured": "2026-10-08",
      "profile": "3"
     },
     "56": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "63": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_PRO-310_G2_PhotoPaperProLuster.icc",
+     "measured": "2026-10-08",
      "profile": "4"
     },
     "7": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "10"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-08",
      "profile": "1"
     },
     "73": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_LightweightPhotoPaper.icc",
+     "measured": "2026-10-08",
      "profile": "8"
     },
     "74": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_HeavyweightPhotoPaper.icc",
+     "measured": "2026-10-08",
      "profile": "9"
     },
     "75": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_HeavyweightFineArtPaper.icc",
+     "measured": "2026-10-08",
      "profile": "16"
     },
     "76": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_ExtraHeavyweightFineArtPaper.icc",
+     "measured": "2026-10-08",
      "profile": "17"
     },
     "77": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_JapanesePaperWashi-P.icc",
+     "measured": "2026-10-08",
      "profile": "20"
     },
     "78": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "5"
+     },
      "label": "CN_PRO-310_G2_Canvas-P.icc",
+     "measured": "2026-10-08",
      "profile": "19"
     },
     "79": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJPrintQuality": "0"
+     },
      "label": "CN_PRO-310_G2_HighestDensityFineArtPaper.icc",
+     "measured": "2026-10-08",
      "profile": "18"
     }
    },

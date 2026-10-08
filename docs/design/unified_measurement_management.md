@@ -2654,7 +2654,7 @@ approved one is left sitting in it.*
 
 ### M-PRINT-PAPER-PROFILE-UNKNOWN · PROPOSED · the direct route does not know which paper profile the driver of this model chooses, Print Chart tab, beta 15
 
-*New 2026-10-08 (beta 15 builder round). Basti: the direct route sends the paper profile the vendor's own print dialog would choose for the medium. ChromIQ knows it from the installed driver's own table (Canon IJ media database, Epson PDEData.dat), from the tables measured and shipped with it (`data/printer_paper_profiles.json`: PRO-300/310/200S/1000/1100/100, ET-8550/18100, SC-P700/900/5300/800, Stylus Photo R2000/R3000), or from the user's own earlier prints through the macOS dialog (`workflow/printer_memory.py`). For any other Canon IJ or Epson model it must not guess silently: this window comes before the confirmation window. {printer} is the queue, {medium} the paper type as the driver names it, {profile} the driver's standard profile, which a job sent anyway carries. The buttons: "Use the macOS Print Dialog" (the default: prints this chart through the dialog, with the printer already chosen), "Print Anyway", "Cancel". A printer with no paper profiles at all (generic, driverless, Xerox, Gutenprint) never sees it: it prints exactly as in beta 14.*
+*New 2026-10-08 (beta 15 builder round). Basti: the direct route sends the paper profile the vendor's own print dialog would choose for the medium. ChromIQ knows it from the installed driver's own table (Canon IJ media database, Epson PDEData.dat), from the tables measured and shipped with it (`data/printer_paper_profiles.json`: PRO-300/310/200S/1000/1100/100, ET-8550/18100, SC-P700/900/5300/800, Stylus Photo R2000/R3000), or from the user's own earlier prints through the macOS dialog (`workflow/printer_memory.py`). For any other Canon IJ or Epson model it must not guess silently: this window comes before the confirmation window. {printer} is the queue, {medium} the paper type as the driver names it, {profile} the driver's standard setting for the paper profile (the PPD's default, which Epson labels "None"), which a job sent anyway carries. Review 2, 2026-10-08: "standard profile (None)" was untrue for an Epson, so the sentence names the setting. The buttons: "Use the macOS Print Dialog" (the default: prints this chart through the dialog, with the printer already chosen), "Print Anyway", "Cancel". A printer with no paper profiles at all (generic, driverless, Xerox, Gutenprint) never sees it: it prints exactly as in beta 14.*
 
 > **ChromIQ does not know this printer’s paper profiles yet**
 >
@@ -2662,7 +2662,7 @@ approved one is left sitting in it.*
 >
 > Print this chart through the macOS print dialog and pick the same paper type there. The driver then chooses the paper profile itself, and ChromIQ remembers its choice, so later charts for this printer and paper type can go straight to the printer.
 >
-> If you print straight to the printer anyway, the chart goes with the driver’s standard profile ({profile}), which may not be the one your prints from Photoshop get on this paper.
+> If you print straight to the printer anyway, the chart goes with the driver’s standard setting for the paper profile ({profile}), which may not be what your prints from Photoshop get on this paper.
 
 ### M-VERIFY-UNCHECKED-METRICS · PROPOSED · what the report does with a metric the chart cannot answer — the presets window, with one line in the Measure tab pre-flight
 

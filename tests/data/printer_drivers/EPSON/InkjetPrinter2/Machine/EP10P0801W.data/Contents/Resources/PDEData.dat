@@ -20,3 +20,37 @@
 *EPIJ_Medi 98|1
 *EPIJ_Medi 127|1
 *EPIJ_Medi 128|1"
+*EPIJLinkValue: *EPIJ_Medi 13|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 35 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 97|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 35 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 15|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 35 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 27|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 35 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 14|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 2|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 35 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 46|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 88|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 17|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 33 *EPIJ_Bi_D 1 *EPIJ_FDet 0 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 98|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 33 *EPIJ_Bi_D 1 *EPIJ_FDet 0 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 26|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 127|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 76|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 128|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 2|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 35 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 33 *EPIJ_Bi_D 1 *EPIJ_FDet 0 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 98|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 33 *EPIJ_Bi_D 1 *EPIJ_FDet 0 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 26|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 127|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 76|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 128|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 13|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 97|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 15|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 27|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 14|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 46|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 88|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
+*EPIJLinkValue: *EPIJ_Medi 17|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 36 *EPIJ_Bi_D 1 *EPIJ_FDet 1 *EPIJHighSpeedPreset
