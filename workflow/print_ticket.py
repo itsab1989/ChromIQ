@@ -1,0 +1,163 @@
+"""Read a print job's real ticket back from CUPS and say what it carries.
+
+Until beta 14 the native macOS route "verified" colour management by reading back
+the very dictionary it had just written, which could not fail and did not look at
+the job (phase-1 investigation, 2026-10-08).  This module asks the printing system
+instead: Get-Job-Attributes over IPP (pycups, the user's own job, no password),
+and compares the colour-relevant keys with what ChromIQ asked for.
+
+Pure Python apart from the optional ``cups`` module; every function degrades to
+"could not read" where CUPS is absent (Windows) instead of raising.
+"""
+from __future__ import annotations
+
+import getpass
+import time
+from dataclasses import dataclass, field
+
+from core.logger import get_logger
+from workflow.ppd_color import (APPLICATION_COLOUR_MATCHING, PaperProfile,
+                                paper_profile_for)
+
+log = get_logger(__name__)
+
+try:  # pragma: no cover - depends on the platform
+    import cups as _cups
+except Exception:  # noqa: BLE001
+    _cups = None
+
+
+@dataclass
+class TicketReport:
+    """What the job in CUPS carries, against what ChromIQ asked for."""
+
+    queue: str
+    job_id: int | None
+    read: bool
+    expected: dict[str, str]
+    carried: dict[str, str] = field(default_factory=dict)
+    mismatches: dict[str, tuple[str | None, str]] = field(default_factory=dict)
+    paper_profile: PaperProfile | None = None
+    #: native route: the description of the profile the chart was tagged with
+    tagged_with: str | None = None
+    #: True when the tag is the job's own paper profile (an identity match)
+    tag_matches_job: bool | None = None
+    #: Canon rule: "off" / "on" for the printer's own colour processing
+    own_colour_processing: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.read and not self.mismatches and self.tag_matches_job is not False
+
+    def summary(self) -> str:
+        """One log line, keys and values as CUPS holds them."""
+        if not self.read:
+            return f"job {self.job_id} on {self.queue}: ticket could not be read"
+        keys = ", ".join(f"{k}={v}" for k, v in sorted(self.carried.items()))
+        extra = ""
+        if self.tagged_with is not None:
+            extra = f"; chart tagged with {self.tagged_with!r} (matches job: {self.tag_matches_job})"
+        bad = "" if not self.mismatches else f"; MISMATCH {self.mismatches}"
+        return f"job {self.job_id} on {self.queue}: {keys}{extra}{bad}"
+
+
+def _colour_keys(attrs: dict) -> dict[str, str]:
+    out = {}
+    for k, v in attrs.items():
+        if (k in ("AP_ColorMatchingMode", "ColorSync") or k.startswith(("CNIJ", "EPIJ"))
+                or "ColorMatching" in k or "Profile" in k):
+            out[k] = str(v)
+    return out
+
+
+def find_job(queue: str, since: float, user: str | None = None) -> int | None:
+    """The newest job on *queue* owned by *user* created at or after *since*."""
+    if _cups is None:
+        return None
+    user = user or getpass.getuser()
+    try:
+        conn = _cups.Connection()
+        jobs = conn.getJobs(which_jobs="all", my_jobs=True,
+                            requested_attributes=["job-id", "job-printer-uri",
+                                                  "time-at-creation",
+                                                  "job-originating-user-name"])
+    except Exception as exc:  # noqa: BLE001
+        log.warning("print ticket: listing jobs failed: %s", exc)
+        return None
+    best = None
+    for jid, a in jobs.items():
+        if not str(a.get("job-printer-uri", "")).endswith("/" + queue):
+            continue
+        if a.get("job-originating-user-name") not in (None, user):
+            continue
+        if a.get("time-at-creation", 0) + 2 < since:
+            continue
+        best = jid if best is None else max(best, jid)
+    return best
+
+
+def read_ticket(job_id: int) -> dict | None:
+    if _cups is None or job_id is None:
+        return None
+    try:
+        return _cups.Connection().getJobAttributes(job_id)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("print ticket: reading job %s failed: %s", job_id, exc)
+        return None
+
+
+def check_job(queue: str, job_id: int | None, expected: dict[str, str],
+              ppd_text: str | None = None, tagged_with: str | None = None,
+              tag_icc_desc_for=None, retries: int = 5) -> TicketReport:
+    """Read job *job_id* back and compare it with *expected*.
+
+    *ppd_text*, when given, lets the report name the paper profile the job selects
+    (``ppd_color.paper_profile_for`` applied to the job's own options).
+    *tagged_with* is the description of the profile the native route tagged the
+    chart with; *tag_icc_desc_for(path)* returns the description of the job's
+    paper-profile file, so the two can be compared.
+    """
+    attrs = None
+    for _ in range(max(1, retries)):
+        attrs = read_ticket(job_id) if job_id is not None else None
+        if attrs:
+            break
+        time.sleep(0.2)
+    rep = TicketReport(queue=queue, job_id=job_id, read=bool(attrs),
+                       expected=dict(expected), tagged_with=tagged_with)
+    if not attrs:
+        return rep
+    rep.carried = _colour_keys(attrs)
+    for k, want in expected.items():
+        got = attrs.get(k)
+        got = None if got is None else str(got)
+        if got != want:
+            rep.mismatches[k] = (got, want)
+    if ppd_text:
+        opts = {k: str(v) for k, v in attrs.items() if isinstance(v, (str, int))}
+        pp = paper_profile_for(ppd_text, opts)
+        if pp is not None:
+            carried = opts.get(pp.option)
+            if carried is None:
+                # the job names no paper profile: the PPD default is what applies
+                pp = paper_profile_for(ppd_text, {pp.rule.media_option: "__none__"})
+            rep.paper_profile = pp
+            if pp is not None and pp.rule.own_colour_off_needs_paper_profile:
+                app = attrs.get("AP_ColorMatchingMode") == \
+                    APPLICATION_COLOUR_MATCHING["AP_ColorMatchingMode"]
+                named = carried is not None and carried != _default_of(ppd_text, pp)
+                rep.own_colour_processing = "off" if (app and named) else "on"
+            if tagged_with is not None and pp is not None and pp.icc_path \
+                    and tag_icc_desc_for is not None:
+                try:
+                    rep.tag_matches_job = (tag_icc_desc_for(pp.icc_path) or "").strip() \
+                        == tagged_with.strip()
+                except Exception:  # noqa: BLE001
+                    rep.tag_matches_job = None
+    log.info("print ticket: %s", rep.summary())
+    return rep
+
+
+def _default_of(ppd_text: str, pp: PaperProfile) -> str | None:
+    from workflow.ppd_color import _ppd_default
+    return _ppd_default(ppd_text, pp.option)

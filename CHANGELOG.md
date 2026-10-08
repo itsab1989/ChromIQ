@@ -1,5 +1,23 @@
 # Changelog
 
+## v4.3.3-beta.15 (unreleased)
+
+**Charts print in the state your photos print in: on a Canon or Epson, ChromIQ now sends the chart the way Photoshop sends an image when Photoshop manages colours, and macOS no longer converts the chart's colours on the way.**
+
+### Fixed
+
+- **macOS 27 changed every patch of a chart printed through the macOS print dialog** (phase 1 of the Canon investigation, 2026-10-08). The dialog route handed the chart over as "device RGB"; macOS 27 treats that as sRGB and converts it into the paper profile of the medium chosen in the dialog before the printer driver sees it. Measured with the same 23-colour test chart: on Canon Photo Paper Pro Platinum 22 of 23 colours changed (blue 0,0,255 reached the Canon as 25,54,254), on Epson Premium Glossy and Epson plain paper 21 of 23; only Canon plain paper came through unchanged. ChromIQ now reads the profile macOS will convert into, once the dialog has closed, and attaches exactly that profile to the chart, so the conversion changes nothing: 23 of 23 test colours reach the driver unchanged on both printers, photo paper and plain paper, and all 89 colours of a real one-page chart printed from the Print Chart tab. This is what ColorSync Utility's "Print as color target" does.
+- **A Canon on photo paper ran its own colour processing on the direct route** (no dialog). ChromIQ said "Colour management: Off (forced)", but the job named no paper profile, and in that case the Canon driver tells the printer to apply Canon's own colour processing. The job now carries the medium's paper profile exactly as the Canon print dialog sets it (Photo Paper Pro Platinum 3, Matte Photo Paper 6, Baryta 10, and so on), and the chart is tagged with that same profile so macOS leaves it alone. On photo and fine art papers the printer's own processing is now off, as for a photo printed from Photoshop; on plain paper, cards and discs it stays on, because that is what a Photoshop print gets there too.
+- **The "verified" colour check could not fail.** The dialog route compared its own settings with themselves. After every print, on both routes, ChromIQ now reads the job back from the printing system and says what it really carries in the Print Chart tab's status line ("Sent as job 96. The printing system confirms it carries application colour matching and the paper profile CN_PRO-300_G1_MattePhotoPaper-P.icc."). If the job differs from what ChromIQ sent, a window says which setting differs and that the sheet may not carry the chart's own colours.
+
+### Changed
+
+- **A Canon or Epson job carries what a Photoshop print carries, and nothing more** (Basti, 2026-10-08). Photoshop with "Photoshop manages colours" puts one key on a job (application colour matching); the printer's own print dialog adds the medium and its paper profile. ChromIQ no longer adds Canon's "No Color Correction", Epson's colour settings lock, ColorSync=None or the raster format hints to these printers' jobs. On the Canon they changed nothing the printer receives (measured byte for byte); on the Epson the direct route now sends the same colour settings the Epson print dialog writes for application colour matching (Off, No Color Adjustment). Other printers (HP and the rest) are sent exactly what beta 14 sent.
+- **The confirmation window says what the job will carry.** For a Canon or Epson, "Colour management" now reads "By ChromIQ, as when Photoshop manages colours", with the paper profile the job selects, and for a Canon whether the printer's own colour processing is off for that paper.
+- The direct route sends a Canon or Epson an RGB chart as a TIFF (or the exact-size PDF, when that option is on in Preferences) with the paper profile attached, instead of first trying PostScript, which these drivers refuse.
+
+**Do I need to make my profiles again?** Measured on Basti's Epson ET-8550 profile of October (ChromIQ, Premium Glossy): it agrees with his March profile made with ColorSync Utility's "Print as color target" within ΔE00 2.3 on every primary and secondary, where a chart converted by macOS would differ by 8 to 56. That chart was not converted, and the profile does not need to be redone. A profile whose chart was printed through the macOS print dialog on macOS 27 with beta 14 or earlier was converted and should be made again; a Canon profile on photo paper printed on the direct route in beta 14 describes the printer with Canon's own colour processing on, which photos printed from Photoshop on that paper do not get.
+
 ## v4.3.3-beta.14
 
 **The chart preview can show the paper's own tone: "Simulate paper white" in the preview's switch.**

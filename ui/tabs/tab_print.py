@@ -1813,7 +1813,7 @@ class TabPrint(QWidget):
         if self._settings.get("confirm_before_printing", True):
             if not self._show_preflight(
                 printer, selected_opts, orientation, page_size_pt,
-                mismatch, len(pages),
+                mismatch, len(pages), first_tiff=first_tiff,
             ):
                 return
         elif mismatch:
@@ -1959,6 +1959,7 @@ class TabPrint(QWidget):
         page_size_pt: tuple[float, float] | None,
         mismatch: str | None,
         page_count: int,
+        first_tiff: Path | None = None,
     ) -> bool:
         """Show the preflight dialog. Returns True if user accepts."""
         rows: list[tuple[str, str]] = [("Printer", printer)]
@@ -1982,7 +1983,7 @@ class TabPrint(QWidget):
             h_mm = page_size_pt[1] * 25.4 / 72.0
             rows.append(("Media size", f"{w_mm:.0f} × {h_mm:.0f} mm"))
         rows.append(("Duplex", "Off (forced)"))
-        rows.append(("Colour management", "Off (forced)"))
+        rows.extend(self._colour_rows(printer, selected_opts, first_tiff))
 
         warnings: list[str] = []
         if mismatch:
@@ -1999,6 +2000,60 @@ class TabPrint(QWidget):
         if accepted and dlg.dont_ask_again():
             self._settings.set("confirm_before_printing", False)
         return accepted
+
+    def _colour_rows(self, printer: str, selected_opts: dict[str, str],
+                     first_tiff: Path | None) -> list[tuple[str, str]]:
+        """The confirmation window's colour rows (M-PRINT-COLOUR-CONFIRM): what
+        the job will carry.  A printer whose dialog picks a paper profile gets
+        the Photoshop-equivalent job; any other keeps the beta 14 row."""
+        from workflow import measurement_messages as MM
+        from workflow.cups_printer import CupsRawPrinter, PrintConfig
+        pp = None
+        if first_tiff is not None:
+            pp = CupsRawPrinter._reference_paper_profile(
+                first_tiff, PrintConfig(printer_name=printer, options=selected_opts))
+        if pp is None:
+            return [("Colour management", "Off (forced)")]
+        rows = [(tr(MM._PRINT_ROW_COLOUR), tr(MM._PRINT_ROW_COLOUR_BY_CHROMIQ)),
+                (tr(MM._PRINT_ROW_PAPER_PROFILE), pp.label)]
+        if pp.rule.own_colour_off_needs_paper_profile:
+            rows.append((tr(MM._PRINT_ROW_PRINTER_COLOUR),
+                         tr(MM._PRINT_ROW_PRINTER_COLOUR_ON if pp.is_default
+                            else MM._PRINT_ROW_PRINTER_COLOUR_OFF)))
+        return rows
+
+    def _report_job_ticket(self, rep) -> None:
+        """Say what the job read back from the printing system carries
+        (M-PRINT-JOB-CONFIRMED), or show M-PRINT-JOB-NOT-AS-SENT."""
+        from workflow import measurement_messages as MM
+        if rep is None:
+            return
+        if not rep.read:
+            self._set_status(tr(MM._PRINT_JOB_UNREAD))
+            return
+        if not rep.ok:
+            self._show_job_not_as_sent(rep)
+            return
+        pp = rep.paper_profile
+        if pp is not None and pp.option in rep.carried:
+            text = tr(MM._PRINT_JOB_SENT_PROFILE).format(job=rep.job_id, profile=pp.label)
+        else:
+            text = tr(MM._PRINT_JOB_SENT_PLAIN).format(job=rep.job_id)
+        if rep.tag_matches_job:
+            text += " " + tr(MM._PRINT_JOB_SENT_TAGGED)
+        self._set_status(text)
+
+    def _show_job_not_as_sent(self, rep) -> None:
+        """M-PRINT-JOB-NOT-AS-SENT, with one line per key that differs."""
+        from workflow import measurement_messages as MM
+        lines = [tr(MM._PRINT_JOB_DIFFERS_LINE).format(
+                     key=k, got=got if got is not None else "\u2013", want=want)
+                 for k, (got, want) in sorted(rep.mismatches.items())]
+        if rep.tag_matches_job is False:
+            lines.append(tr(MM._PRINT_JOB_UNTAGGED_LINE))
+        title, body = MM.M_PRINT_JOB_NOT_AS_SENT.render(details="\n".join(lines))
+        self._set_status(title)
+        warn(self, title, body)
 
     def _option_label_for(self, opt_name: str) -> str:
         """Return the human-readable category label currently shown next to
@@ -2079,6 +2134,7 @@ class TabPrint(QWidget):
             self._on_print_done(code)
 
         ink_channels = _find_sidecar_channels(tiff_path)
+        self._printer.last_job_id = None
         self._printer.print_job_ps(
             print_path, config,
             ink_channels=ink_channels,
@@ -2089,7 +2145,27 @@ class TabPrint(QWidget):
                 self._settings.get("pdf_print_fallback", False)
             ),
         )
+        if accepted[0]:
+            self._read_back_lp_job(printer)
         return accepted[0]
+
+    def _read_back_lp_job(self, printer: str) -> None:
+        """Read the job lp just created back from CUPS and report it."""
+        try:
+            from workflow.ppd_color import ppd_path_for_queue
+            from workflow.print_ticket import check_job
+            ppd_text = None
+            ppd = ppd_path_for_queue(printer)
+            if ppd:
+                from core.text_io import read_text
+                ppd_text = read_text(Path(ppd), lenient=True)
+            rep = check_job(printer, getattr(self._printer, "last_job_id", None),
+                            dict(getattr(self._printer, "last_expected", {}) or {}),
+                            ppd_text=ppd_text)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("print ticket read-back failed: %s", exc)
+            return
+        self._report_job_ticket(rep)
 
     def _on_print_done(self, code: int) -> None:
         if code == 0:
@@ -2290,6 +2366,9 @@ class TabPrint(QWidget):
                                                           print_frames)
                 try:
                     submitted = bool(print_frames(pages))
+                    if submitted:
+                        from workflow import native_print_macos as _npm
+                        self._report_job_ticket(_npm.last_report)
                 except ChartIsNotRGB as exc:
                     # R26-F8: this route can only carry RGB, and it used to
                     # convert anything else on the way in without saying so.
@@ -2311,22 +2390,13 @@ class TabPrint(QWidget):
                                mode=str(exc)),
                     )
                 except ColorManagementMismatch as exc:
-                    # The job WAS submitted; only the colour-management lock
-                    # could not be verified afterwards. That is a print, so the
-                    # record describes it — and the window below says what
-                    # could not be checked about it.
+                    # The job WAS submitted; what CUPS holds for it is not what
+                    # ChromIQ sent. That is a print, so the record describes
+                    # it, and the window says what differs.
                     submitted = True
                     log.warning("Native macOS print: %s", exc)
-                    warn(
-                        self, tr("Colour Management Lock Not Verified"),
-                        tr("The print job was sent, but ChromIQ could not verify that "
-                           "the printer driver's colour management was disabled.\n\n"
-                           "Details: {exc}\n\n"
-                           "The print may have been colour-managed by the driver. "
-                           "Check the swatch with Digital Color Meter or reprint "
-                           "after switching to the non-native (standard) print mode "
-                           "in Preferences.").format(exc=exc),
-                    )
+                    from workflow import native_print_macos as _npm
+                    self._report_job_ticket(_npm.last_report)
             except Exception as exc:
                 log.error("Native macOS print failed: %s", exc)
                 QMessageBox.critical(

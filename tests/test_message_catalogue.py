@@ -208,6 +208,15 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # (B8-1500's M-REPORT-NOT-WORKED-OUT was
                                  # APPROVED by Knut, #182 5858874320, and
                                  # left this list.)
+                                 # Beta 15, Basti 2026-10-08: the chart prints
+                                 # in the state a Photoshop print gets, and the
+                                 # job is read back from CUPS. The rows of the
+                                 # confirmation window, the status line after
+                                 # sending and the window when the job is not
+                                 # what was sent are our words.
+                                 "M-PRINT-COLOUR-CONFIRM",
+                                 "M-PRINT-JOB-CONFIRMED",
+                                 "M-PRINT-JOB-NOT-AS-SENT",
                                  "M-REPORT-DELETE-FAILED",
                                  "M-REPORT-NOT-WRITABLE",
                                  # (#182 K49, (b2): the two notes on the
@@ -754,6 +763,11 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_duplicate_blocked_note"),
     ("ui.tabs.tab_profile", "TabProfile", "_confirm_rebuild_over_verifications"),
     ("ui.tabs.tab_print", "TabPrint", "_show_cm_error"),
+    # Beta 15: the confirmation window's colour rows, the status line after a
+    # job is read back, and the window when it is not what was sent.
+    ("ui.tabs.tab_print", "TabPrint", "_colour_rows"),
+    ("ui.tabs.tab_print", "TabPrint", "_report_job_ticket"),
+    ("ui.tabs.tab_print", "TabPrint", "_show_job_not_as_sent"),
     ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
     # B7 / C1 (#182 5959070209): the printer calibration windows.
     ("ui.tabs.tab_print", "TabPrint", "_confirm_raw_uncalibrated"),

@@ -1,36 +1,32 @@
-"""Native macOS print path (PyObjC) — emulates Adobe Color Printer Utility's
-colour-off behaviour on the spool side.
+"""Native macOS print path (PyObjC): the macOS print dialog, and a job in the
+printer state a Photoshop print gets when "Photoshop manages colours".
 
 Opens the standard macOS print panel via ``NSPrintPanel`` / ``NSPrintOperation``
-and submits the profiling-target bitmap as **device RGB with no embedded ICC
-profile** at its exact generated size (no scaling).
+and submits the profiling-target bitmap at its exact generated size (no
+scaling).
 
-To stop the printer driver from colour-managing the chart it sets
-``AP_ColorMatchingMode`` = ``AP_ApplicationColorMatching`` on the job's
-PrintCore ``PMPrintSettings`` with the *locked* flag, before and again after
-the print dialog.  As a vendor-independent backstop it also scans the
-selected printer's PPD for that driver's own "no colour adjustment" option
-(e.g. Epson ``EPIJ_CMat=3``) and locks it directly.  ``PMPrintSettingsSetValue``
-is not wrapped by PyObjC, so it is called through ``ctypes`` against
-PrintCore.  No custom colour-matching callback is registered, so no
-transform is applied: pixel values reach the driver unchanged.
+What decides the printer state, measured on macOS 27.0.1 (report folder
+``2026-10-08_print_fix``):
 
-In addition, ``_apply_session_no_color_management`` re-declares the printer's
-own default output intent as the *application* output intent on the
-``PMPrintSession`` and switches the session to application-managed colour, via
-the ``PMSession*WithColorSyncProfiles`` SPI family.  This is the step ColorByte
-Print-Tool performs (reverse-engineered from its binary) that the
-``PMPrintSettings`` lock alone does not: it stops vendor colour engines that
-ignore the Apple-level keys — notably newer Canon macOS drivers, which
-otherwise colour-manage profiling charts even with ``ColorSync=None``.  Unlike
-the *bare* ``PMSessionSetApplicationOutputIntent`` /
-``PMSessionCopyDefaultOutputIntent`` (which SIGABRT on the ``NSPrintInfo``
-session), the ``*WithColorSyncProfiles`` variants are callable on that session
-— Print-Tool uses exactly this path under ``NSPrintOperation``.  See the
-``project-native-print-acpu`` auto-memory entry.
+* Photoshop's own contribution to the job ticket is one key,
+  ``AP_ColorMatchingMode`` = ``AP_ApplicationColorMatching``; everything else is
+  written by the driver's dialog extension for the medium chosen.  ChromIQ sets
+  that key (locked, before and after the dialog).  For printers whose dialog
+  picks a paper profile (Canon IJ, Epson: ``ppd_color.PAPER_PROFILE_RULES``) it
+  sets nothing else, so the ticket equals a Photoshop print's.  For any other
+  printer it still locks the driver's own "no colour adjustment" option found in
+  the PPD (e.g. HP), as before.
+* macOS 27 spools an ``NSDeviceRGBColorSpace`` bitmap tagged as sRGB, and its
+  rasteriser converts tagged colour to the job's output profile (the paper
+  profile).  After the dialog ChromIQ reads that profile
+  (``_destination_rgb_profile``) and re-tags the chart with exactly it, so the
+  conversion is the identity and the chart's own numbers reach the driver.
+* After submission the job is read back from CUPS (``workflow.print_ticket``),
+  not from ChromIQ's own dictionary, and ``last_report`` says what it carries.
 
-This module logs the resolved ``printSettings`` / ``dictionary`` after every run
-for diagnostics.
+``PMPrintSettingsSetValue`` is not wrapped by PyObjC, so it is called through
+``ctypes`` against PrintCore; so are the ``PMSession*WithColorSyncProfiles``
+read and the ColorSync profile accessors.
 
 macOS only.  Imported lazily by ``ui/tabs/tab_print.py`` when
 ``sys.platform == "darwin"``.
@@ -43,7 +39,8 @@ from pathlib import Path
 from PIL import Image
 
 from core.logger import get_logger
-from workflow.ppd_color import vendor_no_cm_settings
+from workflow.ppd_color import (paper_profile_for,
+                                vendor_no_cm_settings)
 
 log = get_logger(__name__)
 
@@ -62,15 +59,14 @@ _PT_PER_INCH = 72.0
 # ``AP_ApplicationColorMatching`` a custom source profile is meaningless anyway:
 # the application is asserting the pixels are already device-ready.
 #
-# The real "no colour management" mechanism is the *session*-level declaration in
-# ``_apply_session_no_color_management`` (application output intent +
-# ``PMSessionSetColorMatchingMode``), which is also what greys out the print
-# panel's Color Matching pane.  This settings key mirrors it into the Cocoa /
-# PrintCore settings as a backstop, set *locked* so it can't be silently
-# rewritten between dialog and submission.  ``vendor_no_cm_settings`` additionally
-# scans the selected printer's PPD for that driver's own "No Color Adjustment"
-# option (e.g. Canon ``CNIJIntent2=1001``) and locks it too, so it doesn't matter
-# whether a given vendor's PDE honours the Apple-level key.
+# Beta 15: the session-level calls that used to follow (re-declaring the
+# printer's default output intent as the application's, after ColorByte
+# Print-Tool) are gone. Phase 1 (2026-10-08) measured that they change nothing on
+# macOS 27, and Photoshop's own ticket carries only the key above. The key is set
+# *locked* so it cannot be silently rewritten between dialog and submission.
+# ``vendor_no_cm_settings`` still adds a driver's own "No Color Adjustment"
+# option for printers OUTSIDE ``ppd_color.PAPER_PROFILE_RULES`` (e.g. HP); for
+# Canon IJ and Epson the driver's dialog writes what a Photoshop print carries.
 _LOCKED_COLOR_SETTINGS: dict[str, str] = {
     "AP_ColorMatchingMode": "AP_ApplicationColorMatching",
 }
@@ -165,6 +161,12 @@ if _PRINTCORE_OK:
             ctypes.c_void_p,  # PMPrintSettings
             ctypes.c_void_p,  # CFDictionaryRef intents
         ]
+        _appsvc.ColorSyncProfileCopyData.restype = ctypes.c_void_p
+        _appsvc.ColorSyncProfileCopyData.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        _cf.CFDataGetLength.restype = ctypes.c_long
+        _cf.CFDataGetLength.argtypes = [ctypes.c_void_p]
+        _cf.CFDataGetBytePtr.restype = ctypes.c_void_p
+        _cf.CFDataGetBytePtr.argtypes = [ctypes.c_void_p]
         _PM_SESSION_OK = True
     except Exception as _exc2:  # pragma: no cover
         _PM_SESSION_OK = False
@@ -188,50 +190,6 @@ def _cfstr_to_py(cfstr_ptr: int) -> str | None:
     ):
         return buf.value.decode("utf-8", "replace")
     return None
-
-
-# The output-intent dictionary returned by PrintCore is keyed by colour model;
-# we only generate RGB charts, but log all three if present so a future
-# grey/CMYK path is easy to diagnose.
-_OUTPUT_INTENT_KEYS = (
-    "PMSessionRGBOutputIntent",
-    "PMSessionGrayOutputIntent",
-    "PMSessionCMYKOutputIntent",
-)
-
-
-def _log_output_intent_profiles(intents_dict_ptr: int, label: str) -> None:
-    """Log the device-profile name(s) inside an output-intent CFDictionary.
-
-    This is the visibility Print-Tool gets from its ``OutputIntent = %@`` NSLog:
-    on the Canon path it tells us *which* profile the print system is treating
-    the chart pixels as already being in.  For a true colour-managed-off pass
-    this should name the printer's own device profile (so the transform is
-    identity), not a working space like sRGB.  Diagnostics only; never raises.
-    """
-    if not intents_dict_ptr:
-        return
-    for key in _OUTPUT_INTENT_KEYS:
-        k_ref = _cfstr(key)
-        try:
-            prof = _cf.CFDictionaryGetValue(
-                ctypes.c_void_p(intents_dict_ptr), ctypes.c_void_p(k_ref)
-            )
-        finally:
-            if k_ref:
-                _cf.CFRelease(ctypes.c_void_p(k_ref))
-        if not prof:
-            continue
-        desc_ref = 0
-        try:
-            desc_ref = _appsvc.ColorSyncProfileCopyDescriptionString(ctypes.c_void_p(prof))
-            name = _cfstr_to_py(desc_ref) or "<unnamed profile>"
-        except Exception:  # pragma: no cover - diagnostics only
-            name = "<description unavailable>"
-        finally:
-            if desc_ref:
-                _cf.CFRelease(ctypes.c_void_p(desc_ref))
-        log.info("native print: [%s] %s -> %s", label, key, name)
 
 
 def _queue_name(display_name: str) -> str:
@@ -263,6 +221,11 @@ def _locked_settings_for(print_info) -> dict[str, str]:
         if display:
             from workflow.print_manager import PrintModule
             ppd = PrintModule.find_ppd_path(_queue_name(display))
+            if ppd and _is_reference_vendor(ppd):
+                # Canon IJ / Epson (ppd_color.PAPER_PROFILE_RULES): the job
+                # carries what a Photoshop print carries, the Apple key alone;
+                # the driver's dialog writes the medium and its paper profile.
+                return settings
             if ppd:
                 for key, val in vendor_no_cm_settings(ppd):
                     settings[key] = val
@@ -270,6 +233,33 @@ def _locked_settings_for(print_info) -> dict[str, str]:
     except Exception as exc:
         log.warning("native print: vendor PPD scan failed: %s", exc)
     return settings
+
+
+def _is_reference_vendor(ppd_path: str) -> bool:
+    """True for a PPD whose driver dialog picks a paper profile (Canon IJ, Epson)."""
+    try:
+        from core.text_io import read_text
+        return paper_profile_for(read_text(Path(ppd_path), lenient=True)) is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _ppd_text_for(print_info) -> tuple[str | None, str | None]:
+    """(queue name, PPD text) of *print_info*'s printer, or (None, None)."""
+    try:
+        printer = print_info.printer()
+        display = printer.name() if printer is not None else None
+        if not display:
+            return None, None
+        queue = _queue_name(display)
+        from workflow.print_manager import PrintModule
+        ppd = PrintModule.find_ppd_path(queue)
+        if not ppd:
+            return queue, None
+        from core.text_io import read_text
+        return queue, read_text(Path(ppd), lenient=True)
+    except Exception:  # noqa: BLE001
+        return None, None
 
 
 class ChartIsNotRGB(RuntimeError):
@@ -300,46 +290,11 @@ class ChartIsNotRGB(RuntimeError):
 
 
 class ColorManagementMismatch(RuntimeError):
-    """Raised when the post-submit verification doesn't match the values we
-    locked into the print settings — i.e. some part of the OS or driver stack
-    overrode our ``AP_ApplicationColorMatching`` request after the dialog
-    closed.  The job has already been submitted by the time this is raised;
-    the caller should warn the user but not retry.
+    """Raised when the job read back from CUPS does not carry the colour keys
+    ChromIQ set, or the chart could not be tagged with the job's own paper
+    profile.  The job has already been submitted by the time this is raised;
+    ``last_report`` holds the details and the caller warns the user, no retry.
     """
-
-
-def _verify_color_management(print_info, stage: str) -> dict[str, tuple[str | None, str]]:
-    """Read each expected colour-management key back from *print_info*'s Cocoa
-    ``printSettings`` dict and compare against the value we locked.  Logs a
-    single ✓ line on success or a warning line on mismatch.
-
-    Returns a mapping of mismatches ``{key: (observed, expected)}``; empty if
-    every key matched.  *stage* is a short label ("post-dialog", "post-submit")
-    so we can tell at which point a mismatch crept in.
-    """
-    expected = _locked_settings_for(print_info)
-    cocoa = print_info.printSettings()
-    mismatches: dict[str, tuple[str | None, str]] = {}
-    parts: list[str] = []
-    for key, want in expected.items():
-        try:
-            raw = cocoa.objectForKey_(key)
-        except Exception:
-            raw = None
-        got = None if raw is None else str(raw)
-        if got == want:
-            parts.append(f"{key}={got}")
-        else:
-            mismatches[key] = (got, want)
-            parts.append(f"{key}={got!r}!=({want})")
-    summary = ", ".join(parts) if parts else "no keys to verify"
-    if mismatches:
-        log.warning("native print: [%s] colour-management verification FAILED — %s",
-                    stage, summary)
-    else:
-        log.info("native print: [%s] colour management verified OFF (%s)",
-                 stage, summary)
-    return mismatches
 
 
 def _lock_no_color_management(print_info) -> None:
@@ -391,95 +346,96 @@ def _lock_no_color_management(print_info) -> None:
         log.warning("native print: locking colour-matching failed: %s", exc)
 
 
-def _apply_session_no_color_management(print_info) -> None:
-    """Re-declare the printer's *default* output intent as the *application's*
-    output intent and switch the print session to application-managed colour.
+def _destination_rgb_profile(print_info) -> tuple[bytes | None, str | None]:
+    """The RGB profile macOS will convert this job's tagged colour INTO.
 
-    This is the step ColorByte Print-Tool performs that ChromIQ previously did
-    not.  Setting only the ``PMPrintSettings`` ``AP_ColorMatchingMode`` key (see
-    ``_lock_no_color_management``) is enough for some drivers (e.g. Epson, which
-    also exposes ``EPIJ_CMat``), but newer Canon macOS drivers keep running
-    their internal colour engine regardless — the symptom a user hit on a Canon
-    Pro-1000 under Tahoe, where charts printed as if a profile had been applied.
-
-    Copying the printer's default output intent (its own device-space profiles)
-    and re-declaring it as the application output intent tells the print system
-    the bitmap is *already* in the device's space, so neither ColorSync nor the
-    vendor colour engine transforms it — the same thing Print-Tool does, and
-    why its Color Matching pane shows greyed out.
-
-    Best-effort: every failure is logged and swallowed so a print is never
-    blocked.  Reverse-engineered from Print-Tool 2.3.4; see the binding comment
-    near ``_PM_SESSION_OK`` for the recovered signatures.
+    macOS 27 spools an ``NSDeviceRGBColorSpace`` bitmap tagged as sRGB, and its
+    rasteriser then converts it to the output intent of the job: the paper
+    profile the driver's dialog chose (phase 1, 2026-10-08: 62.5 % of a Canon
+    test chart's pixels changed, blue 0,0,255 to 25,54,254; the Epson the same).
+    ``PMSessionCopyDefaultOutputIntentWithColorSyncProfiles`` on the FINAL
+    ticket names that profile; tagging the chart with exactly it makes the
+    conversion the identity, which is what ColorSync Utility's "Print as color
+    target" does.  Returns (ICC bytes, description) or (None, None).
     """
     if not (_PRINTCORE_OK and _PM_SESSION_OK):
-        return
+        return None, None
     import objc
 
+    intents = ctypes.c_void_p(0)
     try:
         pid = objc.pyobjc_id(print_info)
         session = _libobjc.objc_msgSend(
-            ctypes.c_void_p(pid), _libobjc.sel_registerName(b"PMPrintSession"),
-        )
+            ctypes.c_void_p(pid), _libobjc.sel_registerName(b"PMPrintSession"))
         settings = _libobjc.objc_msgSend(
-            ctypes.c_void_p(pid), _libobjc.sel_registerName(b"PMPrintSettings"),
-        )
+            ctypes.c_void_p(pid), _libobjc.sel_registerName(b"PMPrintSettings"))
         if not session or not settings:
-            log.warning("native print: PMPrintSession/Settings NULL — session intent skipped")
-            return
-
-        # 1. Copy the printer's default output intent (its device profiles).
-        intents = ctypes.c_void_p(0)
+            log.warning("native print: PMPrintSession/Settings NULL, no output intent")
+            return None, None
         status = _appsvc.PMSessionCopyDefaultOutputIntentWithColorSyncProfiles(
-            ctypes.c_void_p(session), ctypes.c_void_p(settings), ctypes.byref(intents),
-        )
-        if status == 0 and intents:
-            # Log which device profile the print system says is the printer's
-            # default — on the Canon this is the single most useful signal for
-            # whether colour-off is really happening (it must name the printer's
-            # own space, not sRGB/working space).
-            _log_output_intent_profiles(intents.value or 0, "default-intent")
-            # 2. Re-declare it as the *application's* output intent → the print
-            #    system treats the pixels as already device-targeted (no CM).
-            st2 = _appsvc.PMSessionSetApplicationOutputIntentWithColorSyncProfiles(
-                ctypes.c_void_p(session), ctypes.c_void_p(settings), intents,
-            )
-            if st2 != 0:
-                log.warning("native print: SetApplicationOutputIntent -> %d", st2)
-            else:
-                log.info("native print: application output intent declared (device-space passthrough)")
-            _cf.CFRelease(intents)
-        elif status == 0:
-            # Not a fault: this driver simply registers no default output
-            # intent, so the device-space redeclare (the anti-vendor-CM step)
-            # has nothing to work with. The ColorSync-off lock and the
-            # application-managed-colour switch below still apply. Logged as
-            # info — the WARNING wording alarmed a user mid-print session
-            # (Sebastian, 2026-08-10).
-            log.info(
-                "native print: driver reports no default output intent — "
-                "device-space redeclare skipped; colour-off lock and "
-                "application-managed colour still apply")
-        else:
-            log.warning(
-                "native print: CopyDefaultOutputIntent -> %d (intents=%s)",
-                status, bool(intents),
-            )
-
-        # 3. Switch the session itself to application-managed colour.
-        mode_ref = _cfstr("AP_ApplicationColorMatching")
+            ctypes.c_void_p(session), ctypes.c_void_p(settings), ctypes.byref(intents))
+        if status != 0 or not intents.value:
+            log.warning("native print: CopyDefaultOutputIntent -> %d, no profile", status)
+            return None, None
+        k_ref = _cfstr("PMSessionRGBOutputIntent")
         try:
-            st3 = _appsvc.PMSessionSetColorMatchingMode(
-                ctypes.c_void_p(session), ctypes.c_void_p(settings),
-                ctypes.c_void_p(mode_ref),
-            )
-            if st3 != 0:
-                log.warning("native print: SetColorMatchingMode -> %d", st3)
+            prof = _cf.CFDictionaryGetValue(intents, ctypes.c_void_p(k_ref))
         finally:
-            if mode_ref:
-                _cf.CFRelease(ctypes.c_void_p(mode_ref))
-    except Exception as exc:
-        log.warning("native print: session output-intent setup failed: %s", exc)
+            _cf.CFRelease(ctypes.c_void_p(k_ref))
+        if not prof:
+            return None, None
+        data = None
+        d_ref = _appsvc.ColorSyncProfileCopyData(ctypes.c_void_p(prof), None)
+        if d_ref:
+            n = _cf.CFDataGetLength(ctypes.c_void_p(d_ref))
+            ptr = _cf.CFDataGetBytePtr(ctypes.c_void_p(d_ref))
+            data = ctypes.string_at(ptr, n)
+            _cf.CFRelease(ctypes.c_void_p(d_ref))
+        name = None
+        desc_ref = _appsvc.ColorSyncProfileCopyDescriptionString(ctypes.c_void_p(prof))
+        if desc_ref:
+            name = _cfstr_to_py(desc_ref)
+            _cf.CFRelease(ctypes.c_void_p(desc_ref))
+        return data, name
+    except Exception as exc:  # noqa: BLE001
+        log.warning("native print: reading the output intent failed: %s", exc)
+        return None, None
+    finally:
+        if intents.value:
+            _cf.CFRelease(intents)
+
+
+def _retag_reps(reps: list, icc: bytes) -> list | None:
+    """*reps* re-tagged with the colour space of *icc*, pixels untouched
+    (``bitmapImageRepByRetaggingWithColorSpace:`` changes the tag, not the
+    samples); None when *icc* is not a usable RGB colour space."""
+    import AppKit
+    import Foundation
+    cs = AppKit.NSColorSpace.alloc().initWithICCProfileData_(
+        Foundation.NSData.dataWithBytes_length_(icc, len(icc)))
+    if cs is None:
+        return None
+    out = []
+    for r in reps:
+        t = r.bitmapImageRepByRetaggingWithColorSpace_(cs)
+        if t is None:
+            return None
+        out.append(t)
+    return out
+
+
+def _icc_description(path: str) -> str | None:
+    """The description of the ICC profile file at *path* (for the read-back)."""
+    try:
+        from PIL import ImageCms
+        return ImageCms.getProfileDescription(ImageCms.getOpenProfile(path)).strip()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+#: The read-back of the last job ``print_frames`` submitted (a
+#: ``print_ticket.TicketReport``), or None when nothing was submitted.
+last_report = None
 
 
 # The print view is registered with the Objective-C runtime on first import;
@@ -608,11 +564,12 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
     # accessory or the driver's Printer Options pane.
     print_info.setPaperSize_(_Foundation.NSMakeSize(page_box[0], page_box[1]))
 
-    # Lock "no colour management" *before* the dialog so its colour panes open
-    # greyed out, then show the dialog (for paper / quality / copies), then lock
-    # it again afterwards in case a pane reset it — the same dance ACPU does.
+    # Ask for application colour matching *before* the dialog so its colour
+    # panes open greyed out, then show the dialog (for paper / quality /
+    # copies), then ask again afterwards in case a pane reset it.
+    global last_report
+    last_report = None
     _lock_no_color_management(print_info)
-    _apply_session_no_color_management(print_info)
 
     panel = AppKit.NSPrintPanel.printPanel()
     # Force the paper-size / orientation / scale controls to be available in
@@ -630,10 +587,25 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
         return False
 
     _lock_no_color_management(print_info)
-    _apply_session_no_color_management(print_info)
-    # Verify the lock survived the dialog before we hand the job to the spooler.
-    _verify_color_management(print_info, "post-dialog")
+    # Tag the chart with the profile macOS will convert it into, so the
+    # conversion is the identity and the chart's own numbers reach the driver.
+    dest_icc, dest_name = _destination_rgb_profile(print_info)
+    if dest_icc:
+        tagged = _retag_reps(view._reps, dest_icc)
+        if tagged is not None:
+            view._reps = tagged
+            log.info("native print: chart tagged with the job's output profile %r",
+                     dest_name)
+        else:
+            log.warning("native print: output profile %r not usable as a colour space",
+                        dest_name)
+            dest_icc, dest_name = None, None
+    else:
+        log.warning("native print: no output profile could be read; macOS may "
+                    "convert the chart's colours")
 
+    import time as _time
+    t_start = _time.time()
     op = AppKit.NSPrintOperation.printOperationWithView_printInfo_(view, print_info)
     op.setShowsPrintPanel_(False)
     op.setShowsProgressPanel_(True)
@@ -647,15 +619,15 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
     if not ok:
         log.warning("native print: job submission failed")
         return False
-    # Verify what the submitted job actually carried.  If something overrode
-    # the lock between our re-apply and submission, surface it to the user.
-    mismatches = _verify_color_management(pi_after, "post-submit")
-    if mismatches:
-        details = ", ".join(
-            f"{k}={got!r} (expected {want!r})" for k, (got, want) in mismatches.items()
-        )
-        raise ColorManagementMismatch(
-            "the job was submitted but ChromIQ could not verify that colour "
-            "management was disabled — " + details
-        )
+    # Read the job back from CUPS: what the printing system holds is what
+    # prints, not the dictionary ChromIQ wrote (that check could not fail).
+    from workflow.print_ticket import check_job, find_job
+    queue, ppd_text = _ppd_text_for(pi_after)
+    expected = _locked_settings_for(pi_after)
+    job = find_job(queue, t_start) if queue else None
+    last_report = check_job(queue or "?", job, expected, ppd_text=ppd_text,
+                            tagged_with=dest_name if dest_icc else "",
+                            tag_icc_desc_for=_icc_description)
+    if last_report.read and not last_report.ok:
+        raise ColorManagementMismatch(last_report.summary())
     return True

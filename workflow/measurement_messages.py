@@ -4854,6 +4854,69 @@ def report_gone_line(entry: dict) -> str:
         project=project, run=num, when=when, why=why)
 
 
+# --- PROPOSED: printing in the state a Photoshop print gets (beta 15) ------
+#: Basti, 2026-10-08: a profiling chart must print in exactly the printer state
+#: his image prints from Photoshop get ("Photoshop manages colours"). For a
+#: Canon IJ or Epson queue the Print Chart tab now sends that job, and the
+#: confirmation window says so instead of "Colour management: Off (forced)",
+#: which was not true of a Canon on photo paper. Lines 1 to 5 are the window's
+#: rows: three row names and three values (the third row is shown for a Canon
+#: only, whose own colour processing depends on the paper profile).
+_PRINT_ROW_COLOUR = "Colour management"
+_PRINT_ROW_COLOUR_BY_CHROMIQ = "By ChromIQ, as when Photoshop manages colours"
+_PRINT_ROW_PAPER_PROFILE = "Paper profile"
+_PRINT_ROW_PRINTER_COLOUR = "Printer's own colour processing"
+_PRINT_ROW_PRINTER_COLOUR_OFF = "Off for this paper"
+_PRINT_ROW_PRINTER_COLOUR_ON = "On for this paper type, as for prints from Photoshop"
+M_PRINT_COLOUR_CONFIRM = _m(
+    "M-PRINT-COLOUR-CONFIRM",
+    _PRINT_ROW_COLOUR,
+    "\n".join((_PRINT_ROW_COLOUR_BY_CHROMIQ, _PRINT_ROW_PAPER_PROFILE,
+               _PRINT_ROW_PRINTER_COLOUR, _PRINT_ROW_PRINTER_COLOUR_OFF,
+               _PRINT_ROW_PRINTER_COLOUR_ON)),
+    approved=False)
+
+#: After every print, on both routes, ChromIQ reads the job back from the
+#: printing system (CUPS) and says what it carries, in the Print Chart tab's
+#: status line. Until beta 14 the macOS dialog route "verified" its colour
+#: setting by reading back its own dictionary, which could not fail.
+_PRINT_JOB_SENT_PROFILE = (
+    "Sent as job {job}. The printing system confirms it carries application "
+    "colour matching and the paper profile {profile}.")
+_PRINT_JOB_SENT_PLAIN = (
+    "Sent as job {job}. The printing system confirms it carries application "
+    "colour matching.")
+_PRINT_JOB_SENT_TAGGED = (
+    "The chart went with that same profile attached, so macOS leaves its "
+    "colours unchanged.")
+_PRINT_JOB_UNREAD = (
+    "Sent. ChromIQ could not read the job back from the printing system, so "
+    "its colour settings are not confirmed.")
+M_PRINT_JOB_CONFIRMED = _m(
+    "M-PRINT-JOB-CONFIRMED",
+    "Print job sent",
+    "\n".join((_PRINT_JOB_SENT_PROFILE, _PRINT_JOB_SENT_PLAIN,
+               _PRINT_JOB_SENT_TAGGED, _PRINT_JOB_UNREAD)),
+    approved=False)
+
+#: The window when the job read back from CUPS does not carry what ChromIQ
+#: sent, or the chart could not be given the job's own profile. Replaces the
+#: beta 14 window "Colour Management Lock Not Verified". {details} is one line
+#: per key, built from line 2 below.
+_PRINT_JOB_DIFFERS_LINE = "{key}: {got} (ChromIQ sent {want})"
+_PRINT_JOB_UNTAGGED_LINE = (
+    "The chart could not be given the job's own paper profile, so macOS may "
+    "convert its colours.")
+M_PRINT_JOB_NOT_AS_SENT = _m(
+    "M-PRINT-JOB-NOT-AS-SENT",
+    "The print job is not what ChromIQ sent",
+    "The job was sent, but the printing system shows other colour settings "
+    "on it than ChromIQ asked for:\n\n{details}\n\n"
+    "The sheet may not carry the chart's own colours, and a measurement of it "
+    "would not describe your printer. If it has not printed yet, cancel it in "
+    "the printer's queue and print again.",
+    approved=False)
+
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_CAL_FOUND_ENGINE,
@@ -4879,6 +4942,7 @@ CATALOGUE = {m.id: m for m in (
     *K59_TEXTS, M_REPORT_MIXED_OPENING_RUNS,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
+    M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
     M_IMPORT_NOT_OPENED, M_IMPORT_FOLDER_EXISTS,
