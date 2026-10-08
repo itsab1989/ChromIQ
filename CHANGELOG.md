@@ -14,7 +14,17 @@
 - **Two buffers for the neighbour check** (Knut, #182). Preferences > Measurement has "Buffer on a chart made with a pre-conditioning profile" (default 5 ΔE) beside "Buffer on a chart with estimated colours (most charts)" (default 10 ΔE, your earlier value kept). The chart decides which applies.
 - **The strip test and the neighbour check are named, and the neighbour check has its own switch** (Knut, #182). The checkbox that read "When reading strips, only flag a patch that also stands out from its own strip" is now "Strip test: ..."; it never controlled the neighbour check, and switching it off can only add red outlines. The new checkbox "Neighbour check: flag a patch that does not fit the patches nearest to it in colour" switches the neighbour check: off with OK, its red outlines go at once, also during a measurement; on again, they come back, and what a re-read confirmed (yellow) or corrected (green) is kept. Both help cards say exactly what each does, needs and cannot do.
 - **"Which presets can be used for verification?" counts each preset two ways** (Knut, #182). Next to the count with the preset's own colours there is now the count when the preset is filled From Profile Gamut, checked for every built-in preset before each release. 162 of the 189 built-in presets answer all 18 metrics that way; with their own colours none can, because only a chart filled From Profile Gamut prints its solid patches as they are.
+- **The Verification box opens on the latest dated verification** (Knut, #182). With Run type Verification, choosing a run or switching to Verification selects the run's most recent dated verification, so its measurement shows on the Measure tab at once; "New verification" is selected only when the run has none. Selecting a dated verification asks nothing: "This chart already has a measurement" no longer opens on a mere selection (it still opens when you arrive at the Measure tab), and the questions before measuring into a date that holds readings, or changing a measured chart, are unchanged.
+- **Every hover card compares the patch with its colour neighbours** (Knut, #182). Under "Measured", the card says how much further from (or closer to) its expected colour the patch is than the 2 to 4 patches nearest to it in colour are from theirs (the median), flagged or not, so a patch slightly off can be told from a good one. On verification and calibration charts the card shows the same comparison, but the neighbour check outlines nothing there.
 - **Ukrainian: "paper white" is "білизна паперу" in 55 more texts** (help texts, report notes, Preferences), where it read as "white paper".
+
+### Fixed (review of beta 15)
+
+- A report saved by an earlier beta, whose verdict did not count the Profile accuracy table, keeps the table's earlier note, so it never claims that a failed figure there failed the sheet.
+- "Save as defaults" pressed in Guided no longer switches off Manual's "Stamp settings down the right edge".
+- The presets window's two count headings are on two lines, so the preset names are no longer cut short; a built-in preset without a current certificate reads "Unknown" instead of "Built-in presets only".
+- The preview's switch closes when the pointer rests near it over another window.
+- Translations of the new texts corrected in German, Dutch, Spanish, French, Italian, Norwegian, Portuguese, Swedish and Ukrainian (the rendering intent called by each language's usual name, the neighbour comparison's lines).
 
 ## v4.3.3-beta.14
 
