@@ -15155,7 +15155,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         learned are all worked out again from the readings.
         """
         # k44: the neighbour check's switch applies at once, in a session too
-        self.refresh_neighbour_switch()
+        _sw = getattr(self, "refresh_neighbour_switch", None)
+        if _sw is not None:
+            _sw()
         if getattr(self, "_session_live", False) or getattr(
                 self, "_loading_measure_settings", False):
             return

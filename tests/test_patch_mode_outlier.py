@@ -84,5 +84,8 @@ def test_the_switch_says_it_is_strip_only():
     import pathlib
     src = (pathlib.Path(__file__).resolve().parents[1]
            / "ui" / "dialogs" / "settings_dialog.py").read_text(encoding="utf-8")
-    assert "When reading strips, only flag a patch" in src
-    assert "applies to strip reading only" in src
+    # k44 (beta 15): named after its function, the strip test; its help
+    # says it works while reading strips and not patch by patch
+    assert "Strip test: flag a patch past the limit only if it also" in src
+    assert "while you read strips" in src
+    assert "Reading patch by patch there is no strip to compare with" in src

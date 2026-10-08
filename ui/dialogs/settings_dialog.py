@@ -3120,7 +3120,9 @@ class SettingsDialog(QDialog):
         # function it switches, the STRIP TEST, so it cannot be read as the
         # neighbour check, which has its own checkbox below.
         self._patch_fence_check = QCheckBox(tr(STRIP_TEST_LABEL), self)
-        self._patch_fence_check.setToolTip(tr(STRIP_TEST_HELP))
+        # a tooltip shows no bold: the lead-ins without their marks
+        self._patch_fence_check.setToolTip(
+            tr(STRIP_TEST_HELP).replace("**", ""))
         _pw_row.addWidget(TooltipButton(
             tr("Patch-reading error limits"),
             tr("While you measure with the ChromIQ chart-reading engine, each "
