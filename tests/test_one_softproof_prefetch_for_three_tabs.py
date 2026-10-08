@@ -139,6 +139,34 @@ def test_a_finished_run_is_reused_while_its_colours_are_held(worker, chart,
     assert len(worker.starts) == 2               # evicted: fill it again
 
 
+def test_a_rerun_belongs_to_every_tab_that_still_wants_the_chart(worker,
+                                                                  chart,
+                                                                  tmp_path):
+    """Review D: a finished run whose colours were let go is run again by the
+    next tab to ask. The two tabs that joined the first run do not ask again,
+    so if the rerun belonged to the asker alone, that tab moving on stopped a
+    prefetch the other two still wanted."""
+    pages, plan, b = chart
+    a, c = _preview(pages), _preview(pages)
+    _ask(a, plan, b)
+    _ask(c, plan, b)
+    worker.release.set()
+    _wait_done(1, worker)
+    worker.release.clear()
+    d = _preview(pages)
+    _ask(d, plan, b)                             # no table held: run again
+    assert len(worker.starts) == 2
+    rerun_stop = worker.starts[1][3]
+    other = tmp_path / "elsewhere_01.tif"
+    other.write_bytes(b"x")
+    other2 = tmp_path / "elsewhere_02.tif"
+    other2.write_bytes(b"y")
+    d._pages = [(other, 0), (other2, 0)]
+    _ask(d, plan, b)
+    assert not rerun_stop.is_set(), "tabs a and c still want this chart"
+    worker.release.set()
+
+
 def test_the_real_worker_still_fills_the_shared_table(tmp_path, monkeypatch):
     """End to end with the real worker and a stand-in cctiff: three tabs, one
     cctiff call, and the table answers the page afterwards without another."""

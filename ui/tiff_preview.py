@@ -335,7 +335,14 @@ class _SharedPrefetch:
                     run["owners"].add(owner)
                     return False
             stop = threading.Event()
-            run = {"stop": stop, "owners": {owner}, "thread": None,
+            # Every preview that still wants this chart owns the new run, not
+            # only the one asking: a finished run whose colour table was let
+            # go is run again here, and the previews that joined the old one
+            # do not ask again (their _prefetch_sig is unchanged), so with only
+            # the asker as owner its leaving stopped a run two others wanted
+            # (review D of beta 12).
+            owners = {o for o, s in self._wants.items() if s == sig}
+            run = {"stop": stop, "owners": owners, "thread": None,
                    "done": False, "chain": chain}
             self._runs[sig] = run
             t = threading.Thread(target=self._work,
