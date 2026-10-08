@@ -30,7 +30,13 @@ stored choice, or the same history-aware default the Print tab starts from).
 
 The screen end is relative colorimetric to Argyll's ``sRGB.icm``, as the
 CMYK preview's "True colours" render already is: the paper is shown as the
-screen's white, the colours as they sit relative to it.
+screen's white, the colours as they sit relative to it. With **Simulate paper
+white** (beta 14, Basti 2026-10-08, Photoshop's "Simulate Paper Color") the
+run's profile is read absolute colorimetric instead, so the paper keeps the
+tone the profile's media white point gives it and every colour sits on it as
+on the sheet; only that last step, print to screen, changes (a verification
+chart printed through the profile is converted for the print exactly as
+before). See :attr:`PreviewPlan.paper_white` and :func:`paper_colour`.
 
 Nothing here changes what is printed. Process model: ``subprocess.run`` with
 an injectable runner and a ``timeout=``. Since build C of beta 12 (Basti,
@@ -92,6 +98,11 @@ class PreviewPlan:
     source_profile: str = ""         # the print's source profile (through)
     printed: bool = False            # decided by a print record
     why: str = ""                    # for KIND_DEVICE
+    #: Simulate paper white (beta 14): the profile is read absolute
+    #: colorimetric on the way to the screen, so the paper shows its own tone.
+    #: Never set by :func:`plan_for_page` (it decides how the page PRINTS);
+    #: the preview sets it from the user's choice with ``dataclasses.replace``.
+    paper_white: bool = False
 
 
 @dataclass(frozen=True)
@@ -247,14 +258,17 @@ def _stat_key(path: "Path | str") -> tuple:
 def chain_key(plan: PreviewPlan, bin_dir: "str | Path") -> "tuple | None":
     """What a page's soft-proof depends on besides the page itself: the
     profile (path, modification time, size), the route, the intent, the
-    source profile and the ArgyllCMS folder. None when the profile is gone."""
+    source profile and the ArgyllCMS folder, and whether the paper white is
+    simulated (its own colour table: the same page colour shows differently).
+    None when the profile is gone."""
     if plan.kind not in (KIND_RAW, KIND_THROUGH) or plan.profile is None:
         return None
     try:
-        return (_stat_key(plan.profile), plan.kind, plan.intent,
-                plan.source_profile, str(bin_dir))
+        key = (_stat_key(plan.profile), plan.kind, plan.intent,
+               plan.source_profile, str(bin_dir))
     except OSError:
         return None
+    return key + ("paper-white",) if plan.paper_white else key
 
 
 #: The colour table's block size, as a shift: colours are grouped in runs of
@@ -450,7 +464,12 @@ def _cctiff_colours(colours: np.ndarray, plan: PreviewPlan, bin_dir: Path,
                 Path(plan.source_profile), plan.profile, src, sent,
                 verbose=False, intent=intent_letter(plan.intent))])
             src = sent
-        steps.append([str(exe), "-f", "T", "-i", "r", str(plan.profile),
+        # print to screen: the profile relative colorimetric (the paper is
+        # the screen's white), or absolute when the paper white is simulated
+        # (the paper keeps its own tone, D50 adapted to the screen's white,
+        # as Photoshop's Simulate Paper Color shows it)
+        steps.append([str(exe), "-f", "T",
+                      "-i", "a" if plan.paper_white else "r", str(plan.profile),
                       "-i", "r", str(srgb), str(src), str(out)])
         for cmd in steps:
             try:
@@ -555,8 +574,52 @@ def prefetch_page(tiff: "str | Path", plan: PreviewPlan,
     softproof_page(tiff, plan, bin_dir, fill_only=True)
 
 
+#: The paper's own colour on screen per profile (see :func:`paper_colour`),
+#: a few bytes each, in memory only.
+_paper: "OrderedDict[tuple, tuple[int, int, int] | None]" = OrderedDict()
+_MAX_PAPER = 8
+
+
+def paper_colour(plan: PreviewPlan, bin_dir: "str | Path", *,
+                 runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+                 ) -> "tuple[int, int, int] | None":
+    """The blank paper's colour on screen with the paper white simulated: the
+    printer's device white (nothing printed) through *plan*'s profile,
+    absolute colorimetric. It colours the frame the preview draws round a
+    page. Always the PRINTER's white, also for a chart printed through the
+    profile, whose own white margin is converted for the print first: the
+    paper beyond the page is never printed on. None when ArgyllCMS cannot say.
+    Never raises."""
+    if plan.profile is None or plan.kind not in (KIND_RAW, KIND_THROUGH):
+        return None
+    paper = PreviewPlan(KIND_RAW, profile=plan.profile, paper_white=True)
+    key = chain_key(paper, bin_dir)
+    if key is None:
+        return None
+    with _lock:
+        if key in _paper:
+            _paper.move_to_end(key)
+            return _paper[key]
+        if key in _failed:
+            return None
+    try:
+        got = _cctiff_colours(np.array([0xFFFFFF], dtype=np.uint32), paper,
+                              Path(bin_dir), runner)
+    except Exception:      # noqa: BLE001 — a preview is never worth a crash
+        log.debug("print preview: paper colour failed", exc_info=True)
+        got = None
+    rgb = (tuple(int(v) for v in _unpack(got[:1])[0]) if got is not None
+           else None)
+    with _lock:
+        _paper[key] = rgb
+        while len(_paper) > _MAX_PAPER:
+            _paper.popitem(last=False)
+    return rgb
+
+
 def clear_cache() -> None:
     """Forget every colour table and every refused chain (tests)."""
     with _lock:
         _tables.clear()
         _failed.clear()
+        _paper.clear()

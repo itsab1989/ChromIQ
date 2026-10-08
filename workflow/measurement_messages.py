@@ -4449,6 +4449,48 @@ M_PREVIEW_AS_PRINTED = _m(
                _PREVIEW_TIP_NO_SWITCH)),
     approved=False)
 
+# --- PROPOSED: Simulate paper white, inside the preview's indicator (beta 14)
+#: Basti, 2026-10-08: "when the user hovers the label icon and it extends and
+#: the proof view is active could then there be also a button inside that
+#: activates and deactivates simulate paper white? ... the choice should also
+#: be remembered." The behaviour is his, the words are ours. The headline is
+#: the small button's label inside the open indicator (only while a page is
+#: shown as on paper); line 1 is the button's name for a screen reader,
+#: line 2 the indicator's name while the paper white is simulated; lines 3
+#: and 4 the button's tooltip when off and when on; lines 5 and 6 replace
+#: the indicator's explanation (M-PREVIEW-AS-PRINTED lines 5 and 6) while
+#: the paper white is simulated. Placeholders as in M-PREVIEW-AS-PRINTED.
+_PREVIEW_PAPER_WHITE = "Paper white"
+_PREVIEW_PAPER_WHITE_NAME = "Simulate paper white"
+_PREVIEW_CHIP_PAPER_WHITE_ON = "As on paper, paper white simulated"
+_PREVIEW_PAPER_WHITE_TIP_OFF = (
+    "Simulate paper white is off: the paper is shown as the screen's white. "
+    "Click, or press Space, to show the paper in its own tone, as the run's "
+    "profile describes it. ChromIQ remembers your choice.")
+_PREVIEW_PAPER_WHITE_TIP_ON = (
+    "Simulate paper white is on: the paper is shown in its own tone, as the "
+    "run's profile describes it (absolute colorimetric), and every colour "
+    "sits on it as on the sheet. Click, or press Space, to show the paper as "
+    "white again.")
+_PREVIEW_TIP_RAW_PAPER = (
+    "The preview shows this chart as it prints: the ink amounts in the file, "
+    "as the run's profile {profile} predicts them on paper, with the paper "
+    "in its own tone (paper white simulated). What is printed does not "
+    "change.")
+_PREVIEW_TIP_THROUGH_PAPER = (
+    "The preview shows this chart as it prints through the profile: its "
+    "colours converted from {source} to {profile} ({intent}), as ChromIQ "
+    "converts them when printing, then as the profile predicts them on "
+    "paper, with the paper in its own tone (paper white simulated). What is "
+    "printed does not change.")
+M_PREVIEW_PAPER_WHITE = _m(
+    "M-PREVIEW-PAPER-WHITE",
+    _PREVIEW_PAPER_WHITE,
+    "\n".join((_PREVIEW_PAPER_WHITE_NAME, _PREVIEW_CHIP_PAPER_WHITE_ON,
+               _PREVIEW_PAPER_WHITE_TIP_OFF, _PREVIEW_PAPER_WHITE_TIP_ON,
+               _PREVIEW_TIP_RAW_PAPER, _PREVIEW_TIP_THROUGH_PAPER)),
+    approved=False)
+
 # --- PROPOSED: the slow-chart window of a build with no profile (beta 12) ---
 #: The window that offers the faster patch layout (ui/dialogs/
 #: slow_chart_dialog.py) was written for a refinement chart: "with certain
@@ -4832,7 +4874,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
     M_REPORT_SOLIDS_PREDICTED, M_REPORT_PAPER_AGAINST_PROFILE,
     M_REPORT_THROUGH_PROFILE,
-    M_PREVIEW_AS_PRINTED,
+    M_PREVIEW_AS_PRINTED, M_PREVIEW_PAPER_WHITE,
     M_REPORT_WORKED_OUT_EARLIER, M_REPORT_NOT_WORKED_OUT,
     *K59_TEXTS, M_REPORT_MIXED_OPENING_RUNS,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,

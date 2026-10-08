@@ -1032,6 +1032,23 @@ Basti asked for this on 2026-10-08. It adds a user's choice to 3.7 and leaves it
 
 Verified by `tests/test_beta12_c_preview_switch.py`.
 
+#### ⏳ Awaiting confirmation: Simulate paper white inside the indicator (Basti, 2026-10-08, beta 14)
+
+**Confirmed by:** *nobody yet.*
+
+Basti asked for this on 2026-10-08: *"when the user hovers the label icon and it extends and the proof view is active could then there be also a button inside that activates and deactivates simulate paper white? ... the choice should also be remembered."* It is the absolute-colorimetric view the question to Knut above asks about, offered as the user's choice; the default (off) leaves 3.7 exactly as it was.
+
+| # | What | How it behaves |
+|---|---|---|
+| W1 | where it is | while a page is shown as on paper (P2 to P5) and the indicator is open (hover or keyboard focus), a small button at the open indicator's left end: a tick box and "Paper white" (M-PREVIEW-PAPER-WHITE, §M-PROPOSED). It is not there over device values (S2, by choice) nor over a page with no view on paper (P1, P6, P7) |
+| W2 | a click, or Space or Enter on it | switches Simulate paper white on or off and never the view: the indicator's own click is not triggered. One choice for the whole app, remembered (AppSettings `preview_simulate_paper_white`, not per target), default off; the three tabs follow it as they follow S2. No shortcut of its own (Photoshop has none either) |
+| W3 | on | the last step only, print to screen: the run's profile read absolute colorimetric into `sRGB.icm` (read relative), so the paper keeps the tone of the profile's media white point, adapted from D50 to the screen's white as Photoshop's Simulate Paper Color shows it. A chart printed through the profile (P5) is still converted for the print with the print's own source profile and intent. The page's blank margin (device white) and the frame the preview draws round the page take the blank paper's colour: the printer's device white through the profile, absolute (`print_preview.paper_colour`), also for P5, whose margin is converted for the print first. The frame keeps the width it has without the simulation, so switching recolours the sheet and never moves the page |
+| W4 | the words | the indicator's short line stays "As on paper"; its accessible name becomes "As on paper, paper white simulated", and its tooltip's explanation says "with the paper in its own tone (paper white simulated)" instead of "with the paper shown as white". The button's tooltip says whether it is on and what a click does; the Keyboard shortcuts card says how to reach it (Tab from the indicator, then Space) |
+| W5 | the keyboard | Tab from the open indicator moves to the button and keeps the indicator open; Tab again leaves both and it closes; Shift+Tab goes back to the indicator. The button takes focus from Tab only, so a click on it does not keep the indicator open after the pointer has gone |
+| W6 | speed and memory | its own colour table per chain (S5: two chains at most, so on and off of one chart are both held) and its own kept renderings, keyed by the flag in the same 144 MB store; nothing on disk. Only the chain on screen is worked out in the background, so turning it on costs one cctiff call for the page on screen, and after that switching back and forth is a swap |
+
+Verified by `tests/test_beta14_simulate_paper_white.py`.
+
 ## 4. The Print Chart tab, reconciled
 
 #133 §8 proposed two rows on this tab (**Route**, and **Recorded on the

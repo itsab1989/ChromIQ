@@ -21,6 +21,14 @@ label to become the switch between the two views, and for it to stay small:
 There is no universal soft-proof symbol, so both icons are drawn here, as the
 Profile-run bar's are (`ui/bar_icons.py`): vector, with a pen, crisp at any
 scale and in the chip's own ink in every appearance.
+
+**Simulate paper white** (beta 14, Basti 2026-10-08): while the page is shown
+as on paper, the OPEN chip carries a second, smaller button at its left end,
+"Paper white" with a tick box, like Photoshop's Simulate Paper Color. It is
+its own button: a click on it never reaches the chip, so it switches the
+paper white and never the view. Tab moves to it from the chip (the chip stays
+open while it has the keyboard), Space or Enter switches it. It is not there
+over device values, nor without a profile (`set_state(paper_white=None)`).
 """
 from __future__ import annotations
 
@@ -131,6 +139,112 @@ def draw_icon(p: QPainter, kind: str, rect: QRectF, colour: QColor) -> None:
     p.restore()
 
 
+class _PaperWhiteButton(QAbstractButton):
+    """The "Paper white" button inside the open chip: a small inner pill with
+    a tick box and a short word. Checkable; the chip sets its state, and its
+    :attr:`clicked` is the user's. Takes focus from Tab only, so a click does
+    not leave the chip open after the pointer has gone. Paints in the chip's
+    own colours."""
+
+    BOX = 9
+    H = PILL_H - 6
+
+    def __init__(self, chip: "PrintViewChip") -> None:
+        super().__init__(chip)
+        self._chip = chip
+        self._label = ""
+        self.setCheckable(True)
+        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.hide()
+
+    def set_label(self, text: str) -> None:
+        self._label = text
+        self.resize(self.natural_width(), self.H)
+        self.update()
+
+    def label(self) -> str:
+        return self._label
+
+    def natural_width(self) -> int:
+        fm = QFontMetrics(self._chip._font())
+        return 5 + self.BOX + 5 + fm.horizontalAdvance(self._label) + 7
+
+    def focusInEvent(self, event) -> None:  # type: ignore[override]
+        super().focusInEvent(event)
+        self._chip._reconsider()
+        self.update()
+
+    def focusOutEvent(self, event) -> None:  # type: ignore[override]
+        super().focusOutEvent(event)
+        self._chip._reconsider()
+        self.update()
+
+    def keyPressEvent(self, event) -> None:  # type: ignore[override]
+        if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return,
+                           Qt.Key.Key_Enter, Qt.Key.Key_Select):
+            if not event.isAutoRepeat():
+                self.click()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event) -> None:  # type: ignore[override]
+        if event.key() == Qt.Key.Key_Space:
+            event.accept()       # handled on press (QAbstractButton clicks on release)
+            return
+        super().keyReleaseEvent(event)
+
+    def paintEvent(self, _event) -> None:  # type: ignore[override]
+        chip = self._chip
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        p.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        r = QRectF(0.5, 0.5, self.width() - 1.0, self.height() - 1.0)
+        ink = QColor(chip.text_ink())
+        ground = QColor(ink)
+        ground.setAlphaF(0.20 if self.isChecked() else
+                         (0.12 if self.underMouse() else 0.06))
+        if self.hasFocus():
+            ring = QPen(chip._ring)
+            ring.setWidthF(1.5)
+            p.setPen(ring)
+        else:
+            edge = QColor(ink)
+            edge.setAlphaF(0.35)
+            p.setPen(QPen(edge, 1.0))
+        p.setBrush(ground)
+        p.drawRoundedRect(r, r.height() / 2.0, r.height() / 2.0)
+        # the tick box, left
+        box = QRectF(5.5, (self.height() - self.BOX) / 2.0, self.BOX, self.BOX)
+        p.setPen(QPen(ink, 1.1))
+        if self.isChecked():
+            p.setBrush(ink)
+            p.drawRoundedRect(box, 2.0, 2.0)
+            tick = QPen(QColor(chip._bg.red(), chip._bg.green(),
+                               chip._bg.blue()), 1.5)
+            tick.setCapStyle(Qt.PenCapStyle.RoundCap)
+            tick.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            p.setPen(tick)
+            path = QPainterPath()
+            path.moveTo(box.left() + 2.0, box.center().y() + 0.2)
+            path.lineTo(box.left() + 3.8, box.bottom() - 2.2)
+            path.lineTo(box.right() - 1.8, box.top() + 2.2)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawPath(path)
+        else:
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRoundedRect(box, 2.0, 2.0)
+        font = chip._font()
+        fm = QFontMetrics(font)
+        p.setFont(font)
+        p.setPen(ink)
+        base = (self.height() + fm.ascent() - fm.descent()) / 2.0
+        p.drawText(int(round(box.right() + 5)), int(round(base)), self._label)
+        p.end()
+
+
 class PrintViewChip(QAbstractButton):
     """The indicator: an icon that slides open to a short line on hover.
 
@@ -144,6 +258,9 @@ class PrintViewChip(QAbstractButton):
     itself; the click comes from QAbstractButton's own mouse handling."""
 
     activated = pyqtSignal()
+    #: The user switched Simulate paper white with the inner button: the new
+    #: state. Never emitted for :meth:`set_state`.
+    paperWhiteToggled = pyqtSignal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -172,20 +289,42 @@ class PrintViewChip(QAbstractButton):
         self._anim = QPropertyAnimation(self, b"revealWidth", self)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.clicked.connect(self._activate)
+        # Simulate paper white (beta 14): None while it is not offered
+        self._paper: "bool | None" = None
+        self._pw = _PaperWhiteButton(self)
+        self._pw.clicked.connect(self._on_paper_white_clicked)
 
     # -------------------------------------------------------------- state
     def set_state(self, *, icon: str, title: str, hint: str, tooltip: str,
-                  switchable: bool) -> None:
+                  switchable: bool, name: str = "",
+                  paper_white: "bool | None" = None, paper_label: str = "",
+                  paper_name: str = "", paper_tip: str = "") -> None:
         """What the chip shows. *hint* is the short "click: ..." line, empty
-        when a click does nothing."""
+        when a click does nothing. *name*: the accessible name when it is not
+        *title*. *paper_white*: the Simulate paper white button's state, or
+        None when it is not offered (device values, no profile); it is never
+        offered on a chip that cannot switch. *paper_label* is its short word,
+        *paper_name* its accessible name, *paper_tip* its tooltip."""
         self._icon = icon
         self._title = title
         self._hint = hint if switchable else ""
         self._switchable = bool(switchable)
         self.setToolTip(tooltip)
         # not setText: a "&" in a translation would make it a mnemonic
-        self.setAccessibleName(title)
+        self.setAccessibleName(name or title)
         self.setAccessibleDescription(tooltip)
+        self._paper = (bool(paper_white) if paper_white is not None
+                       and switchable and paper_label else None)
+        if self._paper is not None:
+            self._pw.set_label(paper_label)
+            self._pw.setChecked(self._paper)
+            self._pw.setToolTip(paper_tip)
+            self._pw.setAccessibleName(paper_name or paper_label)
+            self._pw.setAccessibleDescription(paper_tip)
+        elif self._pw.hasFocus():
+            # the button is going: the keyboard stays on the chip
+            self.setFocus(Qt.FocusReason.OtherFocusReason)
+        self._sync_paper_button()
         self.setCursor(Qt.CursorShape.PointingHandCursor if switchable
                        else Qt.CursorShape.ArrowCursor)
         if self.is_open():
@@ -222,6 +361,39 @@ class PrintViewChip(QAbstractButton):
     def switchable(self) -> bool:
         return self._switchable
 
+    def paper_white(self) -> "bool | None":
+        """The Simulate paper white button's state, None when not offered."""
+        return self._paper
+
+    def paper_white_button(self) -> QAbstractButton:
+        return self._pw
+
+    def _on_paper_white_clicked(self, checked: bool) -> None:
+        if self._paper is None:
+            return
+        self._paper = bool(checked)
+        self.paperWhiteToggled.emit(bool(checked))
+
+    def _paper_room(self) -> int:
+        """What the paper white button takes of the open chip's width."""
+        return 3 + self._pw.natural_width() + 7 if self._paper is not None else 0
+
+    def _sync_paper_button(self) -> None:
+        """Show the inner button while the chip is open and offers it, laid
+        out against the RIGHT end like the words, so it slides in with them
+        (the chip clips it while it opens)."""
+        pw = getattr(self, "_pw", None)
+        if pw is None:
+            return
+        on = self._paper is not None and self.is_open()
+        if on:
+            full = self.expanded_width() - 2 * RING - PILL_H
+            pill_right = self.width() - RING
+            x = pill_right - PILL_H - full + 3
+            pw.move(int(round(x)), RING + (PILL_H - pw.height()) // 2)
+        if pw.isVisibleTo(self) != on:
+            pw.setVisible(on)
+
     def place(self, right: int, top: int) -> None:
         """Anchor the chip's top RIGHT corner; it opens to the left."""
         self._anchor = (int(right), int(top))
@@ -252,7 +424,7 @@ class PrintViewChip(QAbstractButton):
     def _shown_text(self) -> "tuple[str, str]":
         """The title and hint that fit in the width the chip may open to."""
         fm = QFontMetrics(self._font())
-        frame = 10 + 4 + PILL_H + 2 * RING
+        frame = (self._paper_room() or 10) + 4 + PILL_H + 2 * RING
         title, hint = self._title, self._hint
         if not self._max_w:
             return title, hint
@@ -266,13 +438,17 @@ class PrintViewChip(QAbstractButton):
     def expanded_width(self) -> int:
         fm = QFontMetrics(self._font())
         title, hint = self._shown_text()
-        w = 10 + fm.horizontalAdvance(title)
+        w = (self._paper_room() or 10) + fm.horizontalAdvance(title)
         if hint:
             w += 8 + fm.horizontalAdvance(hint)
         return w + 4 + PILL_H + 2 * RING
 
     def is_open(self) -> bool:
-        return self._hovered or self._kb_focus
+        # the paper white button holds the chip open while the keyboard is
+        # on it (it takes focus from Tab only)
+        pw = getattr(self, "_pw", None)
+        return (self._hovered or self._kb_focus
+                or (pw is not None and pw.hasFocus()))
 
     def _get_reveal(self) -> int:
         return self._width
@@ -288,6 +464,7 @@ class PrintViewChip(QAbstractButton):
         right, top = self._anchor
         side = PILL_H + 2 * RING
         self.setGeometry(right - self._width, top, self._width, side)
+        self._sync_paper_button()
 
     def _animate_to(self, target: int, *, instant: bool = False) -> None:
         self._anim.stop()
@@ -300,6 +477,7 @@ class PrintViewChip(QAbstractButton):
         self._anim.start()
 
     def _reconsider(self) -> None:
+        self._sync_paper_button()
         self._animate_to(self.expanded_width() if self.is_open()
                          else self.collapsed_width())
 
@@ -381,7 +559,7 @@ class PrintViewChip(QAbstractButton):
             fm = QFontMetrics(self._font())
             # laid out against the RIGHT end, so the words slide in from it
             full = self.expanded_width() - 2 * RING - PILL_H
-            x = pill.right() - PILL_H - full + 10
+            x = pill.right() - PILL_H - full + (self._paper_room() or 10)
             base = pill.top() + (PILL_H + fm.ascent() - fm.descent()) / 2.0
             p.setPen(self._ink)
             p.drawText(int(round(x)), int(round(base)), title)

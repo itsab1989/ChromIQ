@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.3.3-beta.14 (unreleased)
+
+**The chart preview can show the paper's own tone: "Simulate paper white" in the preview's switch.**
+
+### Added
+
+- **Simulate paper white in the chart preview** (Basti, 2026-10-08). While the preview of Create Chart, Print Chart or Measure shows a page as on paper, hovering the small icon in its top right corner now also opens a "Paper white" button, like Photoshop's Simulate Paper Color. Ticked, the page is shown with the paper in its own tone, as the run's profile describes it (absolute colorimetric), so a cream or bluish paper looks cream or bluish and every colour sits on it as on the sheet; the page's blank margin and the frame round it take the same paper colour. Unticked, the paper is shown as white, as before. The button only switches the paper white, never the view, and is not there while the preview shows device values or before the run has a profile. A verification chart printed through the profile is still converted exactly as the print converts it; only the last step, from the paper to the screen, changes. ChromIQ remembers the choice for all three tabs; it starts off. With the keyboard, Tab from the switch to the button and press Space. Switching back and forth is instant once a page has been shown both ways, kept in memory only, and nothing printed changes.
+
 ## v4.3.3-beta.13
 
 **Fixes for small screens: the preview's switch on the Print Chart tab sits in the right place from the start, Preferences fits a 13" MacBook Air, and the "Approximate colours" note no longer jumps over the controls when the window is resized.**

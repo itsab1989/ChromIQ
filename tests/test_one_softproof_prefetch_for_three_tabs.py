@@ -28,7 +28,7 @@ def worker(monkeypatch):
     starts = []
     release = threading.Event()
 
-    def fake(pages, colour, intent, bin_dir, stop):
+    def fake(pages, colour, intent, bin_dir, stop, **_kw):
         starts.append((tuple(pages), colour, intent, stop))
         while not (release.is_set() or stop.is_set()):
             release.wait(0.01)

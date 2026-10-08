@@ -254,6 +254,37 @@ def device_values_chosen() -> bool:
     return _DEVICE_VALUES_CHOSEN
 
 
+#: Simulate paper white (beta 14, Basti 2026-10-08): the AppSettings key, one
+#: choice for the whole app like the one above; off (the paper as the
+#: screen's white) is the beta-12 look. Switched by the small button inside
+#: the open indicator; nothing printed reads it.
+PREVIEW_PAPER_WHITE_KEY = "preview_simulate_paper_white"
+_PAPER_WHITE_CHOSEN: "bool | None" = None
+
+
+def paper_white_chosen() -> bool:
+    """True when the user chose to simulate the paper white."""
+    global _PAPER_WHITE_CHOSEN
+    if _PAPER_WHITE_CHOSEN is None:
+        try:
+            from core.settings import AppSettings
+            _PAPER_WHITE_CHOSEN = bool(
+                AppSettings().get(PREVIEW_PAPER_WHITE_KEY, False))
+        except Exception:      # noqa: BLE001 - a preference, never worth a crash
+            return False
+    return _PAPER_WHITE_CHOSEN
+
+
+def set_paper_white_chosen(on: bool) -> None:
+    """Remember the choice and redraw every chart preview (the same notifier
+    as the view, so the three tabs never disagree)."""
+    global _PAPER_WHITE_CHOSEN
+    from core.settings import AppSettings
+    AppSettings().set(PREVIEW_PAPER_WHITE_KEY, bool(on))
+    _PAPER_WHITE_CHOSEN = bool(on)
+    print_view_notifier().changed.emit()
+
+
 class PrintProof:
     """A page soft-proofed for the screen (workflow/print_preview.py): *key*
     names it in the preview's pixmap cache, *pixels* is the (h, w, 3) uint8
@@ -264,11 +295,15 @@ class PrintProof:
         self.key, self.pixels = key, pixels
 
 
-def _prefetch_worker(pages, colour, intent, bin_dir, stop) -> None:
+def _prefetch_worker(pages, colour, intent, bin_dir, stop, *,
+                     paper_white: bool = False) -> None:
     """Background thread: put each page's colours into the chain's colour
     table (workflow/print_preview.py, in memory), so showing the page later
-    asks cctiff nothing. Makes no picture, touches no Qt object."""
+    asks cctiff nothing. Makes no picture, touches no Qt object. Only the
+    chain the preview shows is filled: with the paper white simulated, the
+    absolute one, else the relative one."""
     try:
+        from dataclasses import replace
         from workflow import print_preview as PP
         for page in pages:
             if stop.is_set():
@@ -276,6 +311,8 @@ def _prefetch_worker(pages, colour, intent, bin_dir, stop) -> None:
             plan = PP.plan_for_page(page, selected_colour=colour,
                                     selected_intent=intent, bin_dir=bin_dir)
             if plan is not None and plan.kind in (PP.KIND_RAW, PP.KIND_THROUGH):
+                if paper_white:
+                    plan = replace(plan, paper_white=True)
                 PP.prefetch_page(page, plan, bin_dir)
     except Exception:      # noqa: BLE001 - a head start, never worth a crash
         log.debug("print preview prefetch failed", exc_info=True)
@@ -319,7 +356,7 @@ class _SharedPrefetch:
             return False
 
     def request(self, owner: int, sig: tuple, chain, pages, colour, intent,
-                bin_dir) -> bool:
+                bin_dir, *, paper_white: bool = False) -> bool:
         """*owner* wants *sig* prefetched; True when this call started the
         thread, False when it joined a running or finished one."""
         import threading
@@ -343,7 +380,8 @@ class _SharedPrefetch:
             # (review D of beta 12).
             owners = {o for o, s in self._wants.items() if s == sig}
             run = {"stop": stop, "owners": owners, "thread": None,
-                   "done": False, "chain": chain}
+                   "done": False, "chain": chain,
+                   "paper_white": bool(paper_white)}
             self._runs[sig] = run
             t = threading.Thread(target=self._work,
                                  args=(run, pages, colour, intent, bin_dir),
@@ -354,7 +392,8 @@ class _SharedPrefetch:
         return True
 
     def _work(self, run, pages, colour, intent, bin_dir) -> None:
-        _prefetch_worker(pages, colour, intent, bin_dir, run["stop"])
+        _prefetch_worker(pages, colour, intent, bin_dir, run["stop"],
+                         paper_white=run.get("paper_white", False))
         with self._lock:
             run["done"] = not run["stop"].is_set()
 
@@ -1513,6 +1552,11 @@ class TiffPreview(QWidget):
         #: keeps its full width — a colour test could not tell, because that
         #: paper white can round to pure white and did.
         self._frame_is_paper: bool = False
+        #: Simulate paper white in the chart preview (beta 14): the paper's
+        #: colour on screen for the page shown, or None (the frame is white);
+        #: and whether the frame colour is currently the preview's own tint.
+        self._paper_rgb: "tuple[int, int, int] | None" = None
+        self._paper_frame_set: bool = False
         # Opt-in zoom/pan (soft-proof tool). Off elsewhere so the measure-tab
         # stripe overlay is untouched. _zoom 1.0 = fit-to-window; _pan is the
         # image-centre offset in logical px.
@@ -1708,18 +1752,43 @@ class TiffPreview(QWidget):
             self._notice_lbl.clear()
             self._notice_lbl.setVisible(False)
 
-    def set_frame_color(self, color: "QColor | None") -> None:
+    def set_frame_color(self, color: "QColor | None", *,
+                        keep_border: bool = True) -> None:
         """Tint the margin drawn around the image (e.g. to the simulated paper
-        white). ``None`` restores plain white. Repaints if an image is shown."""
+        white). ``None`` restores plain white. Repaints if an image is shown.
+
+        *keep_border*: the frame keeps its full width while tinted (the
+        soft-proof tool). The chart preview's Simulate paper white passes
+        False: its frame stays exactly as wide as without the simulation, so
+        switching it recolours the sheet and never moves the page."""
+        self._set_frame(color, keep_border=keep_border)
+        if self._pixmap:
+            self._repaint_label()
+
+    def _set_frame(self, color: "QColor | None", *, keep_border: bool) -> None:
         self._frame_color = QColor(color) if color is not None else QColor(Qt.GlobalColor.white)
         # A tint set on purpose IS the frame's reason to exist — the soft-proof
         # tool draws the paper white around the proof. Recorded as a flag rather
         # than inferred from the colour: that paper white is computed from Lab
         # and clips to pure white on a bright stock (softproof_runner), which a
         # colour test reads as "no tint" and silently drops the frame.
-        self._frame_is_paper = color is not None
-        if self._pixmap:
-            self._repaint_label()
+        self._frame_is_paper = color is not None and keep_border
+
+    def _apply_paper_frame(self) -> None:
+        """The chart preview's frame: the simulated paper's colour while the
+        page on screen is shown as on paper with the paper white simulated,
+        else white again (only if this preview tinted it: the soft-proof
+        tool sets its own). Through the same frame colour the soft-proof
+        tool uses, so the frame and the page's own margin (device white,
+        which the absolute rendering also turns into the paper's colour)
+        read as one sheet."""
+        rgb = self._paper_rgb if self._print_preview else None
+        if rgb is not None:
+            self._set_frame(QColor(*rgb), keep_border=False)
+            self._paper_frame_set = True
+        elif self._paper_frame_set:
+            self._set_frame(None, keep_border=False)
+            self._paper_frame_set = False
 
     def set_margin_guides(
         self, guides: "list[tuple[str, float, bool]] | None"
@@ -3313,6 +3382,7 @@ class TiffPreview(QWidget):
         # The page is known now, so any strip rects that arrived before it can
         # finally be measured against it.
         self._clamp_stripe_rects_to_page()
+        self._apply_paper_frame()
 
         self._update_render_badge()
         self._repaint_label()
@@ -3375,7 +3445,8 @@ class TiffPreview(QWidget):
         self._prefetch_sig = sig
         colour, intent = self._print_selected
         _PREFETCH.request(id(self), sig, chain, list(dict.fromkeys(pages)),
-                          colour, intent, bin_dir)
+                          colour, intent, bin_dir,
+                          paper_white=bool(getattr(plan, "paper_white", False)))
 
     def print_view(self) -> "dict | None":
         """The indicator's state for the page on screen: ``icon`` (paper or
@@ -3416,13 +3487,32 @@ class TiffPreview(QWidget):
     def _on_print_chip_activated(self) -> None:
         self.toggle_print_view()
 
+    def _on_paper_white_toggled(self, on: bool) -> None:
+        self.set_paper_white(on)
+
+    def set_paper_white(self, on: bool) -> bool:
+        """Simulate paper white on or off, app-wide, as the button inside the
+        indicator does. False (and nothing changes) when the page on screen
+        is not shown as on paper. Never switches the view itself."""
+        v = self._print_view
+        if not (self._print_preview and v and v.get("paper_white") is not None):
+            return False
+        if bool(on) != paper_white_chosen():
+            set_paper_white_chosen(bool(on))
+        return True
+
     def _set_print_view(self, *, device: bool, title: str, hint: str,
-                        tooltip: str, switchable: bool) -> None:
+                        tooltip: str, switchable: bool,
+                        paper_white: "bool | None" = None,
+                        name: str = "") -> None:
         from ui.print_view_chip import ICON_PAPER, ICON_SCREEN
         self._print_view = {
             "icon": ICON_SCREEN if device else ICON_PAPER,
             "title": title, "hint": hint, "tooltip": tooltip,
-            "switchable": bool(switchable), "device": bool(device)}
+            "switchable": bool(switchable), "device": bool(device),
+            # Simulate paper white: None while not offered (device values,
+            # no profile), else whether it is on
+            "paper_white": paper_white, "name": name or title}
 
     def print_preview_badge(self) -> "tuple[str, str]":
         """The indicator's ``(text, tooltip)`` for the page on screen, or
@@ -3437,6 +3527,7 @@ class TiffPreview(QWidget):
         A proof already kept as a pixmap comes back without its pixels."""
         self._print_badge = ("", "")
         self._print_view = None
+        self._paper_rgb = None
         if not self._print_preview:
             return path
         try:
@@ -3482,6 +3573,11 @@ class TiffPreview(QWidget):
                                          tr(MM._PREVIEW_TIP_NO_PROFILE))
                 no_switch()
                 return path
+            if paper_white_chosen():
+                # Simulate paper white (beta 14): only the last step, print
+                # to screen, changes; how the page prints is the plan's own
+                from dataclasses import replace
+                plan = replace(plan, paper_white=True)
             if bin_dir is not None and device_values_chosen():
                 # Basti, 2026-10-08: the user asked for the device values.
                 # The soft-proof keeps being made in the background, so the
@@ -3513,6 +3609,10 @@ class TiffPreview(QWidget):
                     tr(MM._PREVIEW_TIP_FAILED).format(profile=name))
                 no_switch()
                 return path
+            pw = plan.paper_white
+            if pw:
+                # the frame round the page: the printer's blank paper
+                self._paper_rgb = PP.paper_colour(plan, bin_dir)
             if plan.kind == PP.KIND_THROUGH:
                 intents = {"relative": tr("relative colorimetric"),
                            "absolute": tr("absolute colorimetric"),
@@ -3520,13 +3620,15 @@ class TiffPreview(QWidget):
                            "saturation": tr("saturation")}
                 self._print_badge = (
                     tr(MM._PREVIEW_AS_PRINTED_THROUGH),
-                    tr(MM._PREVIEW_TIP_THROUGH).format(
+                    tr(MM._PREVIEW_TIP_THROUGH_PAPER if pw
+                       else MM._PREVIEW_TIP_THROUGH).format(
                         source=Path(plan.source_profile).name, profile=name,
                         intent=intents.get(plan.intent, plan.intent)))
             else:
                 self._print_badge = (
                     tr(MM._PREVIEW_AS_PRINTED_RAW),
-                    tr(MM._PREVIEW_TIP_RAW).format(profile=name))
+                    tr(MM._PREVIEW_TIP_RAW_PAPER if pw
+                       else MM._PREVIEW_TIP_RAW).format(profile=name))
             head, tip = self._print_badge
             click = tr(MM._PREVIEW_TIP_CLICK_DEVICE).format(keys=keys)
             self._set_print_view(
@@ -3534,7 +3636,9 @@ class TiffPreview(QWidget):
                 hint=tr(MM._PREVIEW_CHIP_TO_DEVICE),
                 tooltip=with_shortcut(f"{head}\n\n{tip}\n\n{click}",
                                       "preview_view"),
-                switchable=True)
+                switchable=True, paper_white=bool(pw),
+                name=(tr(MM._PREVIEW_CHIP_PAPER_WHITE_ON) if pw
+                      else tr(MM._PREVIEW_CHIP_PAPER)))
             return out
         except Exception:      # noqa: BLE001 — a preview is never worth a crash
             log.debug("print preview failed for %s", path, exc_info=True)
@@ -3646,12 +3750,20 @@ class TiffPreview(QWidget):
             chip = PrintViewChip(self)
             chip.setObjectName("print_view_chip")
             chip.activated.connect(self._on_print_chip_activated)
+            chip.paperWhiteToggled.connect(self._on_paper_white_toggled)
             self._print_chip = chip
             self._style_print_chip()
         v = self._print_view or {}
+        pw = v.get("paper_white")
+        from workflow import measurement_messages as MM
         chip.set_state(icon=v.get("icon", ""), title=v.get("title", ""),
                        hint=v.get("hint", ""), tooltip=v.get("tooltip", ""),
-                       switchable=v.get("switchable", False))
+                       switchable=v.get("switchable", False),
+                       name=v.get("name", ""), paper_white=pw,
+                       paper_label=tr(MM._PREVIEW_PAPER_WHITE),
+                       paper_name=tr(MM._PREVIEW_PAPER_WHITE_NAME),
+                       paper_tip=(tr(MM._PREVIEW_PAPER_WHITE_TIP_ON) if pw
+                                  else tr(MM._PREVIEW_PAPER_WHITE_TIP_OFF)))
         self._place_print_chip()
         chip.raise_()
         chip.setVisible(True)

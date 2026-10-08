@@ -180,6 +180,11 @@ def _shortcuts() -> list[tuple[str, str]]:
         (keys_for("preview_view"),
          tr("Show the chart preview as on paper or as device values "
             "(Create Chart, Print Chart, Measure)")),
+        # Simulate paper white (beta 14): no shortcut of its own (Photoshop has
+        # none either); the keyboard reaches its button from the indicator
+        ("Tab  ·  Space",
+         tr("Simulate paper white in the chart preview: Tab from its "
+            "indicator to the Paper white button, then Space")),
         (f"{keys_for("redo")}  ·  {keys_for("redo_alt")}",
          tr("Redo — in the chart layout editor")),
         (keys_for("primary_action"),

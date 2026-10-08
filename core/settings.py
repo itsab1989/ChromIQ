@@ -437,6 +437,12 @@ DEFAULTS: dict[str, Any] = {
     # the whole app, not per target, switched by the preview's indicator or
     # Ctrl+Y / Cmd+Y. Nothing printed depends on it.
     "preview_show_device_values": False,
+    # Beta 14 (Basti, 2026-10-08): Simulate paper white in that view: the
+    # run's profile read absolute colorimetric, so the paper shows its own
+    # tone (Photoshop's Simulate Paper Color). Off (the paper as the screen's
+    # white) is the beta-12 look. One choice for the whole app, switched by
+    # the button inside the preview's open indicator. Nothing printed reads it.
+    "preview_simulate_paper_white": False,
     # Ruler helper markers (#152, Knut): short dashes printed along all four
     # page edges so a ruler can be laid on the sheet while measuring. These are
     # printed into the chart, not a preview overlay.
