@@ -820,7 +820,9 @@ def gamut_detail_lines(row: "PresetRow | None") -> "list[Line]":
     n, total = len(g.answered), len(g.asked)
     return [Line(tr("Filled From Profile Gamut, this layout answers {n} of "
                     "the {total} metrics.").format(n=n, total=total),
-                 bold=True)]
+                 bold=True),
+            Line(tr("Everything below is for the preset's own colours."),
+                 info=True)]
 
 
 def summary_lines(row: "PresetRow | None", *, generic: bool = False) -> "list[Line]":
@@ -1738,6 +1740,13 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                   "{starred}     Answering every metric asked: {complete}"
                   ).format(listed=s["listed"], starred=s["starred"],
                            complete=s["complete"])
+        # k45: and the same count laid out From Profile Gamut
+        g_full = sum(1 for r in shown
+                     if r.gamut_assessment is not None
+                     and r.gamut_assessment.asked
+                     and not r.gamut_assessment.missing)
+        text += "     " + tr("Answering every metric asked, From Profile "
+                             "Gamut: {n}").format(n=g_full)
         # K40-1: the counts above grow while presets are still being checked
         waiting = sum(1 for r in shown if self._is_waiting(r))
         if waiting:
