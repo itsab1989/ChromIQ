@@ -426,6 +426,57 @@ def test_not_offered_on_a_chip_that_cannot_switch(chip):
     assert not chip.paper_white_button().isVisibleTo(chip)
 
 
+@pytest.mark.parametrize("room", [400, 316, 250, 180, 140, 110, 80])
+def test_the_open_chip_never_leaves_the_image_area(chip, room):
+    """Beta-14 review: the button made the open chip wider than the room it
+    may open to (159 px in 110), the beta-12 review C fault again, and kept
+    the button beside a title elided to one letter. The hint goes first, then
+    the button, and only then is the title elided."""
+    from PyQt6.QtGui import QFontMetrics
+    btn = chip.paper_white_button()
+    chip.set_state(icon="paper", title="Comme sur papier",
+                   hint="clic : valeurs du périphérique", tooltip="",
+                   switchable=True, paper_white=True,
+                   paper_label="Blanc du papier")
+    chip.set_max_width(room)
+    chip._hovered = True
+    chip._reconsider()
+    title, _hint = chip._shown_text()
+    assert chip.expanded_width() <= room
+    if btn.isVisibleTo(chip):
+        assert title == "Comme sur papier"           # never beside an elided title
+        assert btn.x() >= 0
+    else:
+        fm = QFontMetrics(chip._font())
+        assert (chip._paper_need() + fm.horizontalAdvance("Comme sur papier")
+                + 4 + 22 + 6) > room
+    if room >= 316:
+        assert btn.isVisibleTo(chip)
+
+
+def test_the_keyboard_on_the_button_keeps_the_chip_open_when_it_goes(chip,
+                                                                     qapp):
+    """⌘Y to device values while Tab is on the button: the button goes, the
+    keyboard falls back to the chip, and the chip stays open (b14 review: a
+    plain setFocus read as a click and closed it under the keyboard)."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QApplication
+    from ui import print_view_chip as C
+    chip.host_before.setFocus()
+    qapp.processEvents()
+    QTest.keyClick(chip.host_before, Qt.Key.Key_Tab)
+    QTest.keyClick(chip, Qt.Key.Key_Tab)
+    qapp.processEvents()
+    assert QApplication.focusWidget() is chip.paper_white_button()
+    chip.set_state(icon=C.ICON_SCREEN, title="Device values",
+                   hint="click: as on paper", tooltip="", switchable=True,
+                   paper_white=None)
+    qapp.processEvents()
+    assert QApplication.focusWidget() is chip
+    assert chip.is_open()
+
+
 # ------------------------------------------------------------ the help card
 def test_the_help_card_says_how_to_reach_it():
     from ui.keyboard_help import _shortcuts

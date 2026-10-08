@@ -322,8 +322,10 @@ class PrintViewChip(QAbstractButton):
             self._pw.setAccessibleName(paper_name or paper_label)
             self._pw.setAccessibleDescription(paper_tip)
         elif self._pw.hasFocus():
-            # the button is going: the keyboard stays on the chip
-            self.setFocus(Qt.FocusReason.OtherFocusReason)
+            # the button is going: the keyboard stays on the chip, as
+            # Shift+Tab would leave it (open, ringed); a plain setFocus read
+            # as a click and closed the chip under the keyboard (b14 review)
+            self.setFocus(Qt.FocusReason.BacktabFocusReason)
         self._sync_paper_button()
         self.setCursor(Qt.CursorShape.PointingHandCursor if switchable
                        else Qt.CursorShape.ArrowCursor)
@@ -375,8 +377,28 @@ class PrintViewChip(QAbstractButton):
         self.paperWhiteToggled.emit(bool(checked))
 
     def _paper_room(self) -> int:
-        """What the paper white button takes of the open chip's width."""
-        return 3 + self._pw.natural_width() + 7 if self._paper is not None else 0
+        """What the paper white button takes of the open chip's width; 0 when
+        it is not offered, or does not fit (see :meth:`_paper_fits`)."""
+        return self._paper_need() if self._paper_fits() else 0
+
+    def _paper_need(self) -> int:
+        return 3 + self._pw.natural_width() + 7
+
+    def _paper_fits(self) -> bool:
+        """The button is offered AND the whole title still fits beside it in
+        the width the chip may open to (beta-14 review). The hint goes first,
+        as before; past that the button goes, never the title: in a narrow
+        preview (the splitter, a long language) the chip otherwise opened
+        wider than the image area (159 px in 110) or kept the button beside
+        a title elided to "C…". The paper white is switched again once the
+        preview is wide enough."""
+        if self._paper is None:
+            return False
+        if not self._max_w:
+            return True
+        fm = QFontMetrics(self._font())
+        return (self._paper_need() + fm.horizontalAdvance(self._title)
+                + 4 + PILL_H + 2 * RING) <= self._max_w
 
     def _sync_paper_button(self) -> None:
         """Show the inner button while the chip is open and offers it, laid
@@ -385,7 +407,12 @@ class PrintViewChip(QAbstractButton):
         pw = getattr(self, "_pw", None)
         if pw is None:
             return
-        on = self._paper is not None and self.is_open()
+        on = self._paper_fits() and self.is_open()
+        if not on and pw.hasFocus():
+            # the button is going (too narrow now): the keyboard stays on
+            # the chip, which keeps it open
+            self.setFocus(Qt.FocusReason.BacktabFocusReason)
+            on = self._paper_fits() and self.is_open()
         if on:
             full = self.expanded_width() - 2 * RING - PILL_H
             pill_right = self.width() - RING
