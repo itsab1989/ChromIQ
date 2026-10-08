@@ -39,3 +39,13 @@ def test_manual_still_follows_its_checkbox(tab):
     assert tab._collect_manual().stamp_commands is True
     tab._manual_stamp_cmd_check.setChecked(False)
     assert tab._collect_manual().stamp_commands is False
+
+
+def test_save_defaults_in_guided_keeps_manuals_stamp():
+    """Review of beta 15: Guided's stamp is always off, so a Save as
+    Defaults made in Guided must not write that into Manual's setting."""
+    import inspect
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._on_save_defaults)
+    i = src.index('s.set("chart_stamp_commands"')
+    assert 'if self._current_mode() != "guided":' in src[max(0, i - 400):i]
