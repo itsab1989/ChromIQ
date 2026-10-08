@@ -53,9 +53,15 @@ def qapp():
 
 
 @pytest.fixture
-def dialog(qapp, tmp_path):
+def dialog(qapp, tmp_path, monkeypatch):
+    from PyQt6.QtCore import QRect
     from core.settings import AppSettings
     from ui.dialogs.settings_dialog import SettingsDialog
+    # A desktop-sized work area. Since beta 13 (b13c) the window is capped to
+    # the screen it opens on, and the offscreen platform's screen is 800x800:
+    # these tests pin the MEASUREMENT, so they must not be measuring the cap.
+    monkeypatch.setattr(SettingsDialog, "_work_area",
+                        lambda self: QRect(0, 25, 2560, 1415))
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     return SettingsDialog(s, None)

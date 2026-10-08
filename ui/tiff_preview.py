@@ -2046,6 +2046,17 @@ class TiffPreview(QWidget):
         2026-08-10, twice). An owned label is measured for its own text every
         time, so no other tooltip can lend it a size."""
         from PyQt6.QtCore import QEvent as _QEvent
+        if obj is self._img_label and ev.type() in (_QEvent.Type.Move,
+                                                     _QEvent.Type.Resize):
+            # The chip is anchored to the image area, not to this widget
+            # (beta 13, b13a). The image area can move WITHOUT this widget
+            # resizing: on the Print Chart tab, whose chart is loaded while the
+            # tab is hidden, the resizeEvent of the first show came before the
+            # header had grown by the file-name line and the gap under it, so
+            # the chip sat 13 px too high, on the header, until a click
+            # re-placed it. Following the image area itself is the one rule
+            # for every tab, whatever order the layout settles in.
+            self._place_print_chip()
         if obj in (self._caption_lbl, self._filename_lbl, self._img_label):
             t = ev.type()
             if t == _QEvent.Type.ToolTip:

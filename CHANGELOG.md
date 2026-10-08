@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.3.3-beta.13 (unreleased)
+
+### Fixed
+
+- **The preview's switch sits in the right place on the Print Chart tab from the start** (Basti, 2026-10-08). On first opening the Print Chart tab, the small paper or screen icon in the preview's top right corner sat 13 px too high, on the "PRINT PREVIEW" heading, and only moved to its place after a click. The preview's heading grows by the chart's name once the tab is on screen, which moves the image down after the icon had been placed. The icon now follows the image itself, so it is in the same place on Create Chart, Print Chart and Measure from the first moment, at any window size.
+- **Preferences fits a small screen** (Basti, 2026-10-08, a 13" MacBook Air). The window opened at a fixed minimum size taller than such a screen's usable area, so its top touched the menu bar and OK and Cancel were just below the bottom of the screen. It now never opens larger than the usable part of the screen (without the menu bar and the Dock or taskbar), less a small margin, and is placed fully on it; the pages scroll inside it and the button row always shows. On a larger screen it opens at the same size as before.
+
 ## v4.3.3-beta.12
 
 **A verification printed through its profile is judged against the right colours, with a new Profile accuracy table; Knut's re-read rules (green, yellow, red) are complete; the chart preview shows the sheet as it will print, with a switch (or ⌘Y / Ctrl+Y) to the raw device values; the computer stays awake while you measure; built-in presets no longer switch the stamp on, and a new target starts with it off.**

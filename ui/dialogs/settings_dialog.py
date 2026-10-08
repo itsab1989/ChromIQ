@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QSize, Qt, QUrl
+from PyQt6.QtCore import QRect, QSize, Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QFontMetrics
 from PyQt6.QtWidgets import (
     QApplication,
@@ -1992,8 +1992,79 @@ class SettingsDialog(QDialog):
         # scrolls, the natural hint is short, which left a lot of the content
         # hidden behind a scrollbar. A taller floor shows more at a glance.
         _h = int(self.sizeHint().height() * 1.5)
-        self.setMinimumHeight(_h)
+        # ...but never larger than the screen's work area (beta 13, b13c).
+        # Basti, a 13" MacBook Air (1470x956 points): the window opened with
+        # its top on the menu bar and OK / Cancel just below the screen. The
+        # pages already scroll and the button row sits outside them, so only
+        # this floor was in the way. On a screen where it fits, nothing changes.
+        _w, _h = self._fit_to_work_area(_w, _h)
+        self.setMinimumSize(_w, _h)
         self.resize(_w, _h)
+
+    #: Room kept free between the window's frame and the work area's edges.
+    _SCREEN_MARGIN = 12
+    #: The title bar's height before the window is mapped (it reads 0 then);
+    #: macOS's is 28. Re-read from the real frame once the window is shown.
+    _CAPTION_GUESS = 32
+
+    def _work_area(self) -> "QRect | None":
+        """The usable part of the screen this window opens on: the screen less
+        the menu bar, the Dock or the taskbar (QScreen.availableGeometry)."""
+        from PyQt6.QtGui import QGuiApplication
+        parent = self.parentWidget()
+        screen = ((parent.screen() if parent is not None else None)
+                  or self.screen() or QGuiApplication.primaryScreen())
+        return screen.availableGeometry() if screen is not None else None
+
+    def _caption_height(self) -> int:
+        chrome = self.frameGeometry().height() - self.height()
+        return chrome if chrome > 0 else self._CAPTION_GUESS
+
+    def _fit_to_work_area(self, w: int, h: int) -> "tuple[int, int]":
+        """*w* x *h*, shrunk where the window (frame and margin included) would
+        not fit the work area. Never below what the layout needs: the pages
+        scroll, so that floor is small (about 780 x 270)."""
+        area = self._work_area()
+        if area is None:
+            return w, h
+        m = self._SCREEN_MARGIN
+        floor = self.layout().minimumSize() if self.layout() else QSize(0, 0)
+        max_w = area.width() - 2 * m
+        max_h = area.height() - 2 * m - self._caption_height()
+        return (max(floor.width(), min(w, max_w)),
+                max(floor.height(), min(h, max_h)))
+
+    def _keep_on_screen(self) -> None:
+        """Shrink the window if its real frame does not fit, then move it so
+        the whole frame sits inside the work area, a margin from each edge.
+        A window that already fits stays where Qt put it."""
+        area = self._work_area()
+        if area is None:
+            return
+        w, h = self._fit_to_work_area(self.width(), self.height())
+        if (w, h) != (self.width(), self.height()):
+            self.setMinimumSize(min(self.minimumWidth(), w),
+                                min(self.minimumHeight(), h))
+            self.resize(w, h)
+        m = self._SCREEN_MARGIN
+        frame = self.frameGeometry()
+        fw = frame.width()
+        fh = max(frame.height(), self.height() + self._caption_height())
+        left, top = area.x() + m, area.y() + m
+        right, bottom = area.x() + area.width() - m, area.y() + area.height() - m
+        x = min(frame.x(), right - fw)
+        y = min(frame.y(), bottom - fh)
+        x, y = max(x, left), max(y, top)
+        if (x, y) != (frame.x(), frame.y()):
+            self.move(x, y)
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        # QDialog centres the window on its parent first; then it is kept
+        # inside the work area, and once more after the frame is real.
+        super().showEvent(event)
+        self._keep_on_screen()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._keep_on_screen)
 
     def _width_for_every_tab(self) -> int:
         """The window width at which the whole tab bar shows (B8-756).
