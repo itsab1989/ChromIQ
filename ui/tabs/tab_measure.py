@@ -15912,14 +15912,29 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """The hover card's facts about a neighbour suspect (None: not one),
         with the buffer it was judged against."""
         if f is None:
-            return {"neighbour": None}
+            return {"neighbour": None, "nb_compare": self._neighbour_compare}
         nc = getattr(self, "_nb_check", None)
         from workflow.neighbour_check import BUFFER_DE
         return {"neighbour": {"n": len(f.compared), "locs": list(f.compared),
                               "excess": float(f.excess),
                               "buffer": float(getattr(nc, "buffer", BUFFER_DE)),
                               "expected": float(f.expected_de),
-                              "measured": float(f.measured_de)}}
+                              "measured": float(f.measured_de)},
+                "nb_compare": self._neighbour_compare}
+
+    def _neighbour_compare(self, loc) -> "tuple[int, float] | None":
+        """b15 item 10 (Knut #182 6065640028): the hover card's comparison
+        of *loc* with the patches nearest to it in colour, asked when the
+        card is drawn so it follows every later strip: ``(n, further)``
+        (`NeighbourCheck.comparison`), or None where the neighbour check does
+        not run (a verification, a calibration chart)."""
+        nc = getattr(self, "_nb_check", None)
+        if nc is None or not self._neighbour_check_applies():
+            return None
+        try:
+            return nc.comparison(str(loc))
+        except Exception:      # noqa: BLE001 — a card is never worth a crash
+            return None
 
     def _judge_with_neighbours(self, loc, exp_lab, meas_lab, de, warn, *,
                                standout=None, live=True):

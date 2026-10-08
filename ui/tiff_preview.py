@@ -871,6 +871,25 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("ΔE*ab  {de:.2f}").format(
                 de=float(info.get("de", 0.0)))))
             rows.append((None, tr("  (CIE76, L*a*b* D50)")))
+        # b15 item 10 (Knut #182 6065640028): how far it is from its colour
+        # neighbours, on every card of a patch the neighbour check judges,
+        # flagged or not; asked now, so it follows every later strip
+        nbc = info.get("nb_compare")
+        cmp_ = nbc(loc) if callable(nbc) else None
+        if show_meas and cmp_ is not None:
+            from workflow import measurement_messages as _mmc
+            from workflow.neighbour_check import MIN_COMPARED as _NB_MIN
+            n_c, fu = int(cmp_[0]), float(cmp_[1])
+            if n_c >= _NB_MIN:
+                d = f"{abs(fu):.1f}"
+                rows.append((None, tr(_mmc._CARD_NBC_1).format(n=n_c)))
+                rows.append((None, tr(_mmc._CARD_NBC_CLOSER if fu < 0
+                                      and d != "0.0"
+                                      else _mmc._CARD_NBC_FURTHER).format(d=d)))
+                rows.append((None, tr(_mmc._CARD_NBC_2)))
+            else:
+                rows.append((None, tr(_mmc._CARD_NBC_FEW)))
+                rows.append((None, tr(_mmc._CARD_NBC_FEW_2)))
         # WHY THE RED OUTLINE, at the bottom and set apart from the numbers
         # (Knut, #202 5951426710): the outline was never explained where it
         # is seen. In every view mode, because the outline is drawn in every

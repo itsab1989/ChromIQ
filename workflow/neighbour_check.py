@@ -466,6 +466,19 @@ class NeighbourCheck:
         """The last evaluation's finding for *loc* (None: no reading then)."""
         return self._findings.get(str(loc))
 
+    def comparison(self, loc: str) -> "tuple[int, float]":
+        """b15 item 10 (Knut #182 6065640028): ``(n, further)`` for the hover
+        card: how many read patches of other strips *loc* is compared with
+        (0 to :data:`MAX_COMPARED`), and the median of how much further its
+        reading is from its own expected colour than theirs are from theirs
+        (ΔE*ab; above 0: further off than its neighbours). The very figure
+        B2+ asks to be above 0, so the card and the outline cannot disagree.
+        ``(0, 0.0)`` for a patch with no reading or no comparison."""
+        f = self._findings.get(str(loc))
+        if f is None:
+            return 0, 0.0
+        return len(f.compared), float(f.further)
+
     def is_suspect(self, loc: str) -> bool:
         f = self._findings.get(str(loc))
         return bool(f is not None and f.suspect)

@@ -230,6 +230,11 @@ class MeasurementTargetController(QObject):
         if value != self._target.run_type:
             self.about_to_change_target.emit()
             self._target.run_type = value
+            # b15 item 9 (Knut #182 6065640028, approved by Basti): entering
+            # Verification opens on the run's latest dated verification
+            if value == RUN_TYPE_VERIFICATION:
+                self._target.verification_id = self.default_verification_id(
+                    self._target.profile_run)
             self.changed.emit()
 
     def set_profile_run(self, run_id: str, *, save_outgoing: bool = True) -> None:
@@ -248,9 +253,28 @@ class MeasurementTargetController(QObject):
             if save_outgoing:
                 self.about_to_change_target.emit()
             self._target.profile_run = run_id
-            # A different run has its own verification dates — drop a stale pick.
-            self._target.verification_id = ""
+            # A different run has its own verification dates: drop a stale
+            # pick. On Verification, open on the run's latest dated one (b15
+            # item 9, Knut #182 6065640028, approved by Basti), "New
+            # verification" only when it has none.
+            self._target.verification_id = (
+                self.default_verification_id(run_id)
+                if self._target.run_type == RUN_TYPE_VERIFICATION else "")
             self.changed.emit()
+
+    def default_verification_id(self, run_id: str) -> str:
+        """The Verification box's default for *run_id*: its LATEST dated
+        verification, or "" ("New verification") when it has none (b15 item
+        9: Knut, #182 6065640028, "Should the dropdown always default to the
+        last dated verification, and only default to 'New Verification...' if
+        there are no verifications?", approved by Basti). A user's own pick of
+        "New verification" is never overridden: this is asked only when the
+        run or the run type changes."""
+        try:
+            ids = self.verification_ids(run_id)
+        except Exception:      # noqa: BLE001
+            return ""
+        return ids[-1] if ids else ""
 
     def set_verification_id(self, vid: str) -> None:
         if vid != self._target.verification_id:

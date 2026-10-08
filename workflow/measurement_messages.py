@@ -2035,12 +2035,26 @@ NB_CHECKED_AGAIN = ("Checked again after each strip: a patch can turn red "
                     "later, when patches near it in colour are read")
 _CARD_NB_LATER_1 = "Checked again after each strip: a patch can turn red later,"
 _CARD_NB_LATER_2 = "when patches near it in colour are read."
+#: b15 item 10 (Knut #182 6065640028, approved by Basti): on EVERY card of
+#: a patch the neighbour check judges, under "Measured", whether flagged or
+#: not: how far the patch is from its expected colour compared with the
+#: patches nearest to it in colour (`NeighbourCheck.comparison`, the B2+
+#: median). {n}: 2 to 4; {d}: ΔE*ab, one decimal, never negative (the sign
+#: is the word: further / closer). Lines 12 to 16 of M-PATCH-NEIGHBOUR.
+_CARD_NBC_1 = "Against the {n} patches nearest in colour:"
+_CARD_NBC_FURTHER = "ΔE {d} further from its expected colour"
+_CARD_NBC_CLOSER = "ΔE {d} closer to its expected colour"
+_CARD_NBC_2 = "than they are from theirs (median)."
+_CARD_NBC_FEW = "Not compared with its neighbours yet:"
+_CARD_NBC_FEW_2 = "fewer than 2 near it in colour are read."
 M_PATCH_NEIGHBOUR = _m(
     "M-PATCH-NEIGHBOUR",
     _CARD_NB_RED,
     "\n".join((_CARD_NB_1, _CARD_NB_1_ALSO, _CARD_NB_2, _CARD_NB_3,
                _CARD_NB_4, _CARD_NB_5, _CARD_NB_YELLOW, _CARD_NB_REREAD_1,
-               _CARD_NB_REREAD_2, _CARD_NB_LATER_1, _CARD_NB_LATER_2)),
+               _CARD_NB_REREAD_2, _CARD_NB_LATER_1, _CARD_NB_LATER_2,
+               _CARD_NBC_1, _CARD_NBC_FURTHER, _CARD_NBC_CLOSER, _CARD_NBC_2,
+               _CARD_NBC_FEW, _CARD_NBC_FEW_2)),
     approved=False)
 
 # --- APPROVED: the green outline of a misread a re-read corrected ----------
