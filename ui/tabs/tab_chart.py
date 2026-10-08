@@ -29861,6 +29861,10 @@ class TabChart(QWidget):
             no_strip_limit       = no_strip_limit,
             left_clip_info       = bool(self._settings.get("chart_left_clip_info", False)),
             chromiq_clip_style   = bool(self._settings.get("i1pro_chromiq_clip_style", False)),
+            # k42 (Knut #182 6059912998 Q3, confirmed by Basti): Guided has
+            # no "Stamp settings down the right edge" control, so a Guided
+            # chart is printed WITHOUT the stamp (ChartParams defaults on)
+            stamp_commands       = False,
         )
 
     def _collect_manual(self) -> ChartParams:
