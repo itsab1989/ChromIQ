@@ -560,7 +560,19 @@ class PrintViewChip(QAbstractButton):
             -HOVER_MARGIN, -HOVER_MARGIN, HOVER_MARGIN, HOVER_MARGIN)
 
     def _pointer_in_zone(self) -> bool:
-        return self.hover_zone().contains(QCursor.pos())
+        pos = QCursor.pos()
+        if not self.hover_zone().contains(pos):
+            return False
+        # Review of b15a: only while the pointer is over THIS window. Over
+        # another application's window, a dialog or a menu that happens to lie
+        # within the margin, the chip has been left for good and must close,
+        # not stay open for as long as the pointer rests there.
+        try:
+            from PyQt6.QtWidgets import QApplication
+            under = QApplication.widgetAt(pos)
+        except Exception:      # noqa: BLE001 — never keep it open by mistake
+            return False
+        return under is not None and under.window() is self.window()
 
     def _leave_grace_over(self) -> None:
         if not self._hovered:

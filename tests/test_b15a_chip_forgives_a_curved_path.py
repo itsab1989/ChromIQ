@@ -108,3 +108,26 @@ def test_a_hidden_chip_closes_without_waiting(chip, monkeypatch):
 def test_a_collapsed_chip_has_nothing_to_wait_for(chip):
     _leave(chip)                                # never opened
     assert not chip.closing() and not chip.is_open()
+
+
+def test_the_zone_counts_only_over_its_own_window(chip, monkeypatch):
+    """Review of b15a: near the chip but over another window (another
+    application, a dialog, a menu) is not "still on the way to the button";
+    the chip must close instead of staying open while the pointer rests
+    there."""
+    from PyQt6.QtGui import QCursor
+    from PyQt6.QtWidgets import QApplication, QWidget
+    from ui import print_view_chip as C
+    centre = chip.hover_zone().center()
+    monkeypatch.setattr(C.QCursor, "pos", staticmethod(lambda: centre))
+    monkeypatch.setattr(QApplication, "widgetAt",
+                        staticmethod(lambda *_a: chip))
+    assert chip._pointer_in_zone()
+    other = QWidget()
+    monkeypatch.setattr(QApplication, "widgetAt",
+                        staticmethod(lambda *_a: other))
+    assert not chip._pointer_in_zone()
+    monkeypatch.setattr(QApplication, "widgetAt",
+                        staticmethod(lambda *_a: None))
+    assert not chip._pointer_in_zone()
+    _ = QCursor

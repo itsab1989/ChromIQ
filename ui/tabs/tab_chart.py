@@ -29643,7 +29643,11 @@ class TabChart(QWidget):
         # leaking into new sessions too. It resets to EMPTY, not to a factory
         # name (Basti, #164 Q15) — see _restore_defaults.
         s.set("chart_target_name",         "")
-        s.set("chart_stamp_commands",      bool(params.stamp_commands))
+        # k42 review: Guided has no stamp control and always prints without
+        # the stamp, so a save made in Guided must not switch Manual's "Stamp
+        # settings down the right edge" off (it is Manual's own setting).
+        if self._current_mode() != "guided":
+            s.set("chart_stamp_commands",  bool(params.stamp_commands))
         s.set("chart_left_clip_info",      bool(params.left_clip_info))
         s.set("chart_instrument",          params.instrument)
         s.set("chart_paper",               params.paper)

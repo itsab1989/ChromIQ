@@ -793,6 +793,19 @@ TWO_COUNTS_NOTE = (
     "applies.")
 
 
+def two_line_heading(text: str) -> str:
+    """Review of k45: the two count headings on two lines, broken after
+    their first comma ("Metrics answered," / "own colours"), so the two
+    columns do not take the width the preset NAMES need (measured on screen
+    in uk: the Preset column was left 108 px wide and every name elided).
+    Unchanged when the translation has no comma."""
+    for sep in (", ", "，", "、", ","):
+        i = text.find(sep)
+        if i > 0:
+            return text[:i + len(sep)].rstrip() + "\n" + text[i + len(sep):].lstrip()
+    return text
+
+
 def gamut_column(row: PresetRow) -> str:
     """k45: the From Profile Gamut count, or why there is none."""
     if row.is_current_chart:
@@ -801,7 +814,12 @@ def gamut_column(row: PresetRow) -> str:
         return tr("Not possible")
     g = getattr(row, "gamut_assessment", None)
     if g is None:
-        return tr("Built-in presets only") if row.chart is not None else ""
+        if row.chart is None:
+            return ""
+        # Review of k45: a BUILT-IN preset without a current certificate (a
+        # build whose certificates were not made again after a change) is not
+        # a user's preset; it is simply not known.
+        return tr("Unknown") if row.builtin else tr("Built-in presets only")
     if not g.asked:
         return tr("Nothing is judged")
     return tr("{n} of {total} metrics").format(
@@ -1196,9 +1214,11 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         # counts, one per way of filling the chart, each column saying which.
         self._tree.setColumnCount(5)
         self._tree.setHeaderLabels([tr("Preset"), tr("Patches"), tr("Pages"),
-                                    tr("Metrics answered, own colours"),
-                                    tr("Metrics answered, From Profile "
-                                       "Gamut")])
+                                    two_line_heading(tr(
+                                        "Metrics answered, own colours")),
+                                    two_line_heading(tr(
+                                        "Metrics answered, From Profile "
+                                        "Gamut"))])
         self._tree.headerItem().setToolTip(3, tr(TWO_COUNTS_NOTE))
         self._tree.headerItem().setToolTip(4, tr(TWO_COUNTS_NOTE))
         self._tree.setRootIsDecorated(True)
@@ -1220,7 +1240,8 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             head.setSectionResizeMode(c, QHeaderView.ResizeMode.Fixed)
             label = self._tree.headerItem().text(c)
             self._tree.setColumnWidth(
-                c, max(wdt, hfm.horizontalAdvance(label) + _HEADER_PAD))
+                c, max(wdt, max(hfm.horizontalAdvance(line)
+                                for line in label.split("\n")) + _HEADER_PAD))
         # A BOUND METHOD, never a self-capturing lambda on a signal a widget's
         # own child emits: CLAUDE.md, the fade-scroll SIGSEGV.
         self._tree.currentItemChanged.connect(self._on_selected)

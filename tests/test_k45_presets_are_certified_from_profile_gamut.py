@@ -136,8 +136,10 @@ def test_the_window_shows_both_counts(rows, preset_certificates, qapp):
     try:
         head = dlg._tree.headerItem()
         assert dlg._tree.columnCount() == 5
-        assert head.text(3) == "Metrics answered, own colours"
-        assert head.text(4) == "Metrics answered, From Profile Gamut"
+        assert head.text(3) == "Metrics answered,\nown colours"
+        assert head.text(4) == "Metrics answered,\nFrom Profile Gamut"
+        # review of k45: the preset names keep their room
+        assert dlg._tree.columnWidth(4) < 200
         assert head.toolTip(4) == TWO_COUNTS_NOTE
         r = next(x for x in rows if "a4" in x.key and "616" not in x.key
                  and x.gamut_assessment is not None
@@ -157,3 +159,8 @@ def test_without_a_certificate_the_window_says_so(qapp):
     assert gamut_column(r) == "Built-in presets only"
     r.relayoutable = False
     assert gamut_column(r) == "Not possible"
+    # review of k45: a built-in preset whose certificate is missing or stale
+    # is not a user's preset
+    b = PresetRow(group="g", label="built-in", chart=Path("/x.ti1"),
+                  patches=10, pages=1, builtin=True)
+    assert gamut_column(b) == "Unknown"
