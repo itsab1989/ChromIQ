@@ -219,9 +219,7 @@ class CupsRawPrinter:
         pp = self._reference_paper_profile(tiff_path, config)
         if pp is not None:
             self.last_paper_profile = pp
-            self.last_expected = {**APPLICATION_COLOUR_MATCHING,
-                                  **pp.rule.dialog_keys_for(pp.media_value),
-                                  pp.option: pp.value}
+            self.last_expected = {**APPLICATION_COLOUR_MATCHING, **pp.keys()}
             self._print_job_reference(tiff_path, config, pp, on_finish, orientation,
                                       page_size_pt, pdf_fallback)
             return
@@ -277,13 +275,21 @@ class CupsRawPrinter:
         the queue's PPD is one of ``PAPER_PROFILE_RULES``'s vendors and the chart
         is RGB with that profile readable; else None (the generic path).
 
+        The value comes from the driver's own table, ChromIQ's built-in table or
+        what the user's dialog prints taught it (``workflow.printer_memory``);
+        ``pp.known`` is False when none of them knows the model, and the Print
+        Chart tab asks the user before printing such a job
+        (M-PRINT-PAPER-PROFILE-UNKNOWN).
+
         macOS only: the route answers macOS's rasteriser, which converts tagged
         colour into the job's paper profile. A Linux CUPS with a Canon or Epson
         PPD keeps the beta 14 job (review 2026-10-08)."""
         if sys.platform != "darwin":
             return None
         try:
-            pp = paper_profile_for_queue(config.printer_name, config.options)
+            from workflow.printer_memory import PaperProfileMemory
+            pp = paper_profile_for_queue(config.printer_name, config.options,
+                                         learned=PaperProfileMemory())
         except Exception as exc:  # pragma: no cover - defensive
             log.warning("paper-profile lookup failed for %s: %s", config.printer_name, exc)
             return None
@@ -306,8 +312,7 @@ class CupsRawPrinter:
         """The job options of the Photoshop-equivalent route (see
         ``_REFERENCE_JOB_OPTIONS``): the tab's own choices, the reference keys and
         the medium's paper profile."""
-        return {**cfg.options, **_REFERENCE_JOB_OPTIONS,
-                **pp.rule.dialog_keys_for(pp.media_value), pp.option: pp.value}
+        return {**cfg.options, **_REFERENCE_JOB_OPTIONS, **pp.keys()}
 
     def _print_job_reference(
         self,

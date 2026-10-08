@@ -210,13 +210,18 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # left this list.)
                                  # Beta 15, Basti 2026-10-08: the chart prints
                                  # in the state a Photoshop print gets, and the
-                                 # job is read back from CUPS. The rows of the
-                                 # confirmation window, the status line after
-                                 # sending and the window when the job is not
-                                 # what was sent are our words.
-                                 "M-PRINT-COLOUR-CONFIRM",
-                                 "M-PRINT-JOB-CONFIRMED",
+                                 # job is read back from CUPS. The window when
+                                 # the job is not what was sent (not approved
+                                 # as worded), its variant when only the paper
+                                 # profile is missing, and the window for a
+                                 # model whose paper profiles ChromIQ does not
+                                 # know are our words. (The confirmation
+                                 # window's colour rows and the status line
+                                 # were APPROVED by Sebastian, 2026-10-08, and
+                                 # left this list.)
                                  "M-PRINT-JOB-NOT-AS-SENT",
+                                 "M-PRINT-JOB-UNTAGGED",
+                                 "M-PRINT-PAPER-PROFILE-UNKNOWN",
                                  "M-REPORT-DELETE-FAILED",
                                  "M-REPORT-NOT-WRITABLE",
                                  # (#182 K49, (b2): the two notes on the

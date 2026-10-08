@@ -154,6 +154,7 @@ a = Analysis(
         ('data/parameters.yaml', 'data'),
         ('data/preset_defaults.json', 'data'),
         ('data/preset_certificates.json', 'data'),   # beta 12, Knut 6045500910 Q5
+        ('data/printer_paper_profiles.json', 'data'),  # beta 15, paper-profile tables
         ('data/i18n',            'data/i18n'),
         ('data/scanner_targets', 'data/scanner_targets'),
         ('data/compliance_sets', 'data/compliance_sets'),

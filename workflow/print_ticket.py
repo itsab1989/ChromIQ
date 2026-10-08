@@ -8,12 +8,20 @@ and compares the colour-relevant keys with what ChromIQ asked for.
 
 Pure Python apart from the optional ``cups`` module; every function degrades to
 "could not read" where CUPS is absent (Windows) instead of raising.
+
+The read-back never runs on the GUI thread (review 2026-10-08: up to ~1 s of
+retries plus CUPS calls froze the window).  ``BackgroundReadBack`` runs it on a
+daemon thread; the Print Chart tab polls it from a timer and gives up after
+``READ_BACK_TIMEOUT_S``, saying the job could not be read back.
 """
 from __future__ import annotations
 
 import getpass
+import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
 
 from core.logger import get_logger
 from workflow.ppd_color import (APPLICATION_COLOUR_MATCHING, PaperProfile,
@@ -39,8 +47,10 @@ class TicketReport:
     mismatches: dict[str, tuple[str | None, str]] = field(default_factory=dict)
     paper_profile: PaperProfile | None = None
     #: native route: the description of the profile the chart was tagged with
+    #: (for the log; the comparison is by bytes, ``tagged_icc``)
     tagged_with: str | None = None
-    #: True when the tag is the job's own paper profile (an identity match)
+    #: True when the tag is, byte for byte, the job's own paper profile (an
+    #: identity match); False when it is not, or the chart went untagged
     tag_matches_job: bool | None = None
     #: Canon rule: "off" / "on" for the printer's own colour processing
     own_colour_processing: str | None = None
@@ -108,14 +118,17 @@ def read_ticket(job_id: int) -> dict | None:
 
 def check_job(queue: str, job_id: int | None, expected: dict[str, str],
               ppd_text: str | None = None, tagged_with: str | None = None,
-              tag_icc_desc_for=None, retries: int = 5) -> TicketReport:
-    """Read job *job_id* back and compare it with *expected*.
+              tagged_icc: bytes | None = None, retries: int = 5) -> TicketReport:
+    """Read job *job_id* back and compare it with *expected*.  Blocking: call
+    it through ``BackgroundReadBack``, never on the GUI thread.
 
     *ppd_text*, when given, lets the report name the paper profile the job selects
     (``ppd_color.paper_profile_for`` applied to the job's own options).
-    *tagged_with* is the description of the profile the native route tagged the
-    chart with; *tag_icc_desc_for(path)* returns the description of the job's
-    paper-profile file, so the two can be compared.
+    *tagged_icc* is the ICC profile the native route tagged the chart with (b""
+    when it went untagged, None when the route does not tag); it is compared BY
+    BYTES with the job's paper-profile file (review 2026-10-08: the description
+    was compared before, which two different profiles can share).
+    *tagged_with* is that profile's description, for the log only.
     """
     attrs = None
     for _ in range(max(1, retries)):
@@ -149,12 +162,11 @@ def check_job(queue: str, job_id: int | None, expected: dict[str, str],
                     APPLICATION_COLOUR_MATCHING["AP_ColorMatchingMode"]
                 named = carried is not None and carried != _default_of(ppd_text, pp)
                 rep.own_colour_processing = "off" if (app and named) else "on"
-            if tagged_with is not None and pp is not None and pp.icc_path \
-                    and tag_icc_desc_for is not None:
+            if tagged_icc is not None and pp is not None and pp.icc_path:
                 try:
-                    rep.tag_matches_job = (tag_icc_desc_for(pp.icc_path) or "").strip() \
-                        == tagged_with.strip()
-                except Exception:  # noqa: BLE001
+                    rep.tag_matches_job = bool(tagged_icc) and \
+                        Path(pp.icc_path).read_bytes() == tagged_icc
+                except OSError:
                     rep.tag_matches_job = None
     log.info("print ticket: %s", rep.summary())
     return rep
@@ -174,3 +186,45 @@ def _same_value(got, want: str) -> bool:
 def _default_of(ppd_text: str, pp: PaperProfile) -> str | None:
     from workflow.ppd_color import _ppd_default
     return _ppd_default(ppd_text, pp.option)
+
+
+#: How long the Print Chart tab waits for the read-back before it says the job
+#: could not be read.  The read itself is five tries 0.2 s apart plus two IPP
+#: requests; ten seconds leaves a loaded machine room and still answers soon.
+READ_BACK_TIMEOUT_S = 10.0
+
+
+class BackgroundReadBack:
+    """Run one blocking read-back (*work*, returning a ``TicketReport``) on a
+    daemon thread.  The GUI thread asks ``poll()``: "pending", "done" (the
+    report is in ``report``) or "timeout" (the thread is abandoned; a daemon
+    thread cannot keep the app from quitting).  Nothing here touches Qt."""
+
+    def __init__(self, work: Callable[[], "TicketReport"],
+                 timeout: float = READ_BACK_TIMEOUT_S) -> None:
+        self.report: TicketReport | None = None
+        self.error: BaseException | None = None
+        self.thread_name: str | None = None
+        self._done = threading.Event()
+        self._deadline = time.monotonic() + timeout
+        self._work = work
+        self._thread = threading.Thread(target=self._run, name="print-read-back",
+                                        daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        self.thread_name = threading.current_thread().name
+        try:
+            self.report = self._work()
+        except BaseException as exc:  # noqa: BLE001 - reported, never raised here
+            self.error = exc
+            log.warning("print ticket: read-back failed: %s", exc)
+        finally:
+            self._done.set()
+
+    def poll(self) -> str:
+        if self._done.is_set():
+            return "done"
+        if time.monotonic() >= self._deadline:
+            return "timeout"
+        return "pending"

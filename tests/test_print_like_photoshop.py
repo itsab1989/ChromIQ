@@ -30,6 +30,7 @@ from workflow.postscript_generator import PdfGenerator
 
 # --- a Canon IJ PPD as the PRO-300 driver 30.10.1 writes it (the parts that matter)
 CANON_PPD = """*PPD-Adobe: "4.3"
+*ModelName: "Canon PRO-300 series"
 *cupsICCProfile RGB16.1./CN_IJPrinter_Profile2015.icc: "{dir}/generic.icc"
 *cupsICCProfile RGB16.3./CN_PRO-300_G1_PhotoPaperProPlatinum.icc: "{dir}/platinum.icc"
 *cupsICCProfile RGB16.6./CN_PRO-300_G1_MattePhotoPaper-P.icc: "{dir}/matte.icc"
@@ -58,6 +59,7 @@ CANON_PPD = """*PPD-Adobe: "4.3"
 """
 
 EPSON_PPD = """*PPD-Adobe: "4.3"
+*ModelName: "EPSON ET-8550 Series"
 *cupsICCProfile ..1/EPSON ET-8550 L8180 Series Standard: "{dir}/standard.icc"
 *cupsICCProfile ..3/EPSON ET-8550 L8180 Series Premium Glossy: "{dir}/premglossy.icc"
 *cupsICCProfile ..7/EPSON ET-8550 L8180 Series Velvet Fine Art: "{dir}/velvet.icc"
@@ -74,6 +76,32 @@ EPSON_PPD = """*PPD-Adobe: "4.3"
 *EPIJ_CMat 0/Manual Settings: ""
 *EPIJ_CMat 3/Off (No Color Adjustment): ""
 *CloseUI: *EPIJ_CMat
+*OpenUI *EPIJ_Mode/Mode: PickOne
+*DefaultEPIJ_Mode: 0
+*EPIJ_Mode 0/Automatic: ""
+*EPIJ_Mode 3/Custom: ""
+*CloseUI: *EPIJ_Mode
+*OpenUI *EPIJ_CCor/Color Mode: PickOne
+*DefaultEPIJ_CCor: 12
+*EPIJ_CCor 12/Standard: ""
+*EPIJ_CCor 3/Off: ""
+*EPIJ_CCor 4/Adobe RGB: ""
+*CloseUI: *EPIJ_CCor
+*OpenUI *EPIJ_OSColMat/OS Color Matching: PickOne
+*DefaultEPIJ_OSColMat: 1
+*EPIJ_OSColMat 1/On: ""
+*EPIJ_OSColMat 2/Off: ""
+*CloseUI: *EPIJ_OSColMat
+*OpenUI *EPIJ_OSCMProf/OS CM Profile: PickOne
+*DefaultEPIJ_OSCMProf: 0
+*EPIJ_OSCMProf 0/0: ""
+*EPIJ_OSCMProf 1/1: ""
+*CloseUI: *EPIJ_OSCMProf
+*OpenUI *EPIJ_HdofClSp/Handoff: PickOne
+*DefaultEPIJ_HdofClSp: 1
+*EPIJ_HdofClSp 0/0: ""
+*EPIJ_HdofClSp 1/1: ""
+*CloseUI: *EPIJ_HdofClSp
 *OpenUI *EPIJProfileSpec/EPSON Profile: PickOne
 *DefaultEPIJProfileSpec: 0
 *EPIJProfileSpec 0/None: ""
@@ -159,7 +187,7 @@ def test_lp_reference_job_keys_and_tag(tmp_path, monkeypatch, vendor, pdf):
     text = _ppd(tmp_path, CANON_PPD if vendor == "canon" else EPSON_PPD)
     medium = {"canon": ("CNIJMediaType", "28"), "epson": ("EPIJ_Medi", "13")}[vendor]
     monkeypatch.setattr(cups_printer, "paper_profile_for_queue",
-                        lambda q, opts=None: paper_profile_for(text, opts))
+                        lambda q, opts=None, learned=None: paper_profile_for(text, opts))
     sent = _capture_lp(monkeypatch)
     chart = _rgb_chart(tmp_path / "c.tif")
     pr = CupsRawPrinter()
@@ -197,7 +225,7 @@ def test_lp_reference_job_keys_and_tag(tmp_path, monkeypatch, vendor, pdf):
 
 
 def test_a_generic_printer_keeps_the_beta14_job(tmp_path, monkeypatch):
-    monkeypatch.setattr(cups_printer, "paper_profile_for_queue", lambda q, opts=None: None)
+    monkeypatch.setattr(cups_printer, "paper_profile_for_queue", lambda q, opts=None, learned=None: None)
     monkeypatch.setattr(cups_printer, "vendor_no_cm_settings_for_queue",
                         lambda q: [("HPColorMode", "application-managed")])
     cmd = CupsRawPrinter._build_lp_command_ps(Path("/tmp/x.ps"), PrintConfig("HP", {}))
@@ -209,7 +237,7 @@ def test_a_cmyk_chart_on_a_canon_takes_the_generic_route(tmp_path, monkeypatch):
     import tifffile
     text = _ppd(tmp_path, CANON_PPD)
     monkeypatch.setattr(cups_printer, "paper_profile_for_queue",
-                        lambda q, opts=None: paper_profile_for(text, opts))
+                        lambda q, opts=None, learned=None: paper_profile_for(text, opts))
     p = tmp_path / "k.tif"
     tifffile.imwrite(str(p), np.zeros((4, 4, 4), np.uint8), photometric="separated")
     assert CupsRawPrinter._reference_paper_profile(p, PrintConfig("Q", {})) is None
@@ -279,19 +307,26 @@ def test_read_back_canon_plain_paper_is_the_printers_own_processing(tmp_path, mo
 
 
 def test_read_back_native_tag_must_be_the_jobs_profile(tmp_path, monkeypatch):
+    """The tag is compared with the job's paper profile BY BYTES (review
+    2026-10-08: by description before, which two profiles can share)."""
     text = _ppd(tmp_path, CANON_PPD)
     _ticket(monkeypatch, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching",
                           "CNIJMediaType": "51", "CNIJProfileID": "3"})
-    desc = {str(tmp_path / "platinum.icc"): "Canon PRO-300/G1 Photo Paper Pro Platinum"}
+    platinum = (tmp_path / "platinum.icc").read_bytes()
     good = print_ticket.check_job(
         "Q", 7, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching"}, ppd_text=text,
-        tagged_with="Canon PRO-300/G1 Photo Paper Pro Platinum",
-        tag_icc_desc_for=desc.get)
+        tagged_with="Canon PRO-300/G1 Photo Paper Pro Platinum", tagged_icc=platinum)
     assert good.ok and good.tag_matches_job is True
+    # same description, other bytes: not the job's profile
     bad = print_ticket.check_job(
         "Q", 7, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching"}, ppd_text=text,
-        tagged_with="sRGB IEC61966-2.1", tag_icc_desc_for=desc.get)
+        tagged_with="Canon PRO-300/G1 Photo Paper Pro Platinum",
+        tagged_icc=platinum + b"x")
     assert not bad.ok and bad.tag_matches_job is False
+    untagged = print_ticket.check_job(
+        "Q", 7, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching"}, ppd_text=text,
+        tagged_icc=b"")
+    assert untagged.tag_matches_job is False and not untagged.mismatches
 
 
 def test_read_back_that_cannot_read_says_so(monkeypatch):
@@ -367,13 +402,15 @@ def test_dialog_route_sets_only_the_apple_key_for_a_canon(tmp_path, monkeypatch)
         "AP_ColorMatchingMode": "AP_ApplicationColorMatching"}
 
 
-def test_epson_dialog_keys_follow_the_medium():
+def test_epson_dialog_keys_follow_the_medium(tmp_path):
     """Measured: the ET-8550 dialog writes EPIJ_CCor=3 on photo media and leaves
     the PPD's 12 on plain paper; lp must send the same."""
-    rule = next(r for r in PAPER_PROFILE_RULES if r.vendor == "Epson")
-    assert rule.dialog_keys_for("13")["EPIJ_CCor"] == "3"
-    assert rule.dialog_keys_for("0")["EPIJ_CCor"] == "12"
-    assert rule.dialog_keys_for("0")["EPIJ_CMat"] == "3"
+    text = _ppd(tmp_path, EPSON_PPD)
+    photo = paper_profile_for(text, {"EPIJ_Medi": "13"}).keys()
+    plain = paper_profile_for(text, {"EPIJ_Medi": "0"}).keys()
+    assert photo["EPIJ_CCor"] == "3"
+    assert plain["EPIJ_CCor"] == "12"
+    assert plain["EPIJ_CMat"] == "3" and plain["EPIJ_Mode"] == "3"
 
 
 # ---- review 2026-10-08: weak spots found driving the real app ------------------
@@ -382,7 +419,7 @@ def test_linux_keeps_the_beta14_job_for_a_canon(tmp_path, monkeypatch):
     or Epson PPD must keep the beta 14 job (CI runs Linux; behaviour unchanged)."""
     text = _ppd(tmp_path, CANON_PPD)
     monkeypatch.setattr(cups_printer, "paper_profile_for_queue",
-                        lambda q, opts=None: paper_profile_for(text, opts))
+                        lambda q, opts=None, learned=None: paper_profile_for(text, opts))
     monkeypatch.setattr(cups_printer.sys, "platform", "linux")
     chart = _rgb_chart(tmp_path / "c.tif")
     assert CupsRawPrinter._reference_paper_profile(
@@ -428,10 +465,10 @@ def test_read_back_follows_the_profile_the_job_carries(tmp_path, monkeypatch):
     text = _ppd(tmp_path, EPSON_PPD_145.replace("Photo Paper Glossy", "Some Other Glossy"))
     _ticket(monkeypatch, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching",
                           "EPIJ_Medi": "145", "EPIJProfileSpec": "5"})
-    desc = {str(tmp_path / "photoglossy.icc"): "EPSON ET-8550 L8180 Series Photo Glossy"}
     rep = print_ticket.check_job(
         "Q", 7, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching"}, ppd_text=text,
-        tagged_with="EPSON ET-8550 L8180 Series Photo Glossy", tag_icc_desc_for=desc.get)
+        tagged_with="EPSON ET-8550 L8180 Series Photo Glossy",
+        tagged_icc=(tmp_path / "photoglossy.icc").read_bytes())
     assert rep.paper_profile.value == "5"
     assert rep.tag_matches_job is True and rep.ok
 

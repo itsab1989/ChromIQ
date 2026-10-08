@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PIL import Image
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -93,52 +93,57 @@ from ui.warning_sign import inform, set_warning_icon, warn
 _TT_TITLE_PRINT = "Step 2 — Print the chart"
 
 _TT_BODY_PRINT_MACOS_BYPASS = (
-    "This step sends the TIFF from step 1 straight to your printer with "
-    "all of macOS's colour management turned off. ChromIQ converts the "
-    "chart to PostScript and sends it via the CUPS \"lp\" command, "
-    "bypassing ColorSync and the driver's own colour matching. That's "
-    "deliberate: to profile a printer we need to see how it behaves on "
-    "its own, before any correction.\n\n"
+    "This step sends the chart from step 1 straight to your printer's queue. "
+    "On a Canon or Epson, ChromIQ sends it the way Photoshop sends an image "
+    "when Photoshop manages colours: the medium's paper profile is attached, "
+    "so macOS leaves the chart's numbers unchanged. Other printers get the "
+    "chart with colour management switched off.\n\n"
+    "ChromIQ knows which paper profile goes with which paper type for the "
+    "Canon and Epson models whose drivers it can read, and for the models it "
+    "has measured. Any other model it learns from one print through the macOS "
+    "print dialog. Until then it tells you before printing and offers the "
+    "dialog.\n\n"
     "**Before you print:**\n"
     "• Load the exact paper you chose in step 1. Different paper = "
     "different profile.\n"
     "• Make sure the printer is on, has ink, and is selected below.\n"
     "• Use the same ink, paper, and print settings every time you "
-    "re-profile this printer — the profile only matches that recipe.\n\n"
+    "re-profile this printer: the profile only matches that recipe.\n\n"
     "**How to use this screen:**\n"
-    "• Pick the printer and paper size. Quality should usually be the "
-    "highest setting you'll print at in real use.\n"
-    "• Click \"Print\". No print dialog will appear — the chart goes "
+    "• Pick the printer, paper size and media type. Quality should usually "
+    "be the highest setting you'll print at in real use.\n"
+    "• Click \"Print\". No print dialog will appear: the chart goes "
     "straight to the queue.\n\n"
     "**After printing:** let the print dry fully (at least 1 hour, 24 h for "
     "best accuracy with pigment inks) before measuring. Wet ink reads "
     "wrong.\n\n"
     "If you'd rather use the macOS print dialog (e.g. to pick a specific "
-    "paper feed), enable \"Use default macOS printer dialog\" in Preferences."
+    "paper feed), enable \"Use default macOS printer dialog\" in Preferences. "
+    "The dialog works with any printer."
 )
 
 _TT_BODY_PRINT_MACOS_NATIVE = (
     "This step opens macOS's standard print dialog so you can pick paper "
     "feed, media type, quality, and copies yourself.\n\n"
-    "ChromIQ turns off the printer's colour management for you. It tells the "
-    "system the chart is already in the printer's own colour space (so no "
-    "colour transform is applied) and switches the driver to \"no colour "
-    "correction\" — the same thing dedicated tools like Print-Tool do. The "
-    "dialog's \"Color Matching\" pane opens greyed out as a result; that's "
-    "expected and correct.\n\n"
+    "ChromIQ asks for application colour matching, as Photoshop does. After "
+    "you close the dialog it attaches the paper profile of the medium you "
+    "chose to the chart, so macOS does not change its colours. Pick the right "
+    "media type: the paper profile follows it. Afterwards the Print Chart tab "
+    "says what the printing system holds for the job.\n\n"
+    "This works with any printer, because the printer's own dialog chooses "
+    "the paper profile. ChromIQ also remembers that choice, so a Canon or "
+    "Epson model it did not know can then print straight to the queue as "
+    "well.\n\n"
     "**Before you print:**\n"
     "• Load the exact paper you chose in step 1.\n"
     "• Make sure the printer is on, has ink, and is selected.\n\n"
     "**How to use this screen:**\n"
     "• Click \"Print\". The macOS print dialog appears.\n"
     "• Pick the right paper / media type and print quality.\n"
-    "• You don't need to touch any colour setting — just don't go out of "
-    "your way to switch an ICC profile or rendering intent back on.\n"
-    "• Never click Cancel/Abort in any pane or sub-window — always close them "
-    "with OK. Cancel reverts the colour-off setting; OK keeps it.\n\n"
+    "• You don't need to change any colour setting.\n\n"
     "Prefer ChromIQ to print straight to the queue with no dialog? Untick "
-    "\"Use default macOS printer dialog\" in Preferences to use the lp path instead "
-    "— it also forces colour management off.\n\n"
+    "\"Use default macOS printer dialog\" in Preferences to use the lp path "
+    "instead.\n\n"
     "Let the print dry fully (1 h minimum, 24 h for pigment inks) before "
     "measuring."
 )
@@ -410,6 +415,43 @@ def buttons_fit_one_row(hints: "list[int]", spacing: int,
     return sum(hints) + max(len(hints) - 1, 0) * spacing + 24 <= pane
 
 
+class _LpReadBack:
+    """The read-back of a job ``lp`` created (runs on a background thread)."""
+
+    def __init__(self, printer: str, job_id, expected: dict) -> None:
+        self.printer, self.job_id, self.expected = printer, job_id, expected
+
+    def __call__(self):
+        from workflow.ppd_color import ppd_path_for_queue
+        from workflow.print_ticket import check_job
+        ppd_text = None
+        ppd = ppd_path_for_queue(self.printer)
+        if ppd:
+            from core.text_io import read_text
+            ppd_text = read_text(Path(ppd), lenient=True)
+        return check_job(self.printer, self.job_id, self.expected, ppd_text=ppd_text)
+
+
+class _DialogReadBack:
+    """The read-back of a job the macOS print dialog submitted (background
+    thread), which also teaches ChromIQ the paper profile the dialog wrote
+    (``workflow.printer_memory``)."""
+
+    def __init__(self, submission) -> None:
+        self.submission = submission
+
+    def __call__(self):
+        from workflow import native_print_macos as npm
+        from workflow.printer_memory import learn_from_report
+        rep = npm.read_back(self.submission)
+        try:
+            learn_from_report(rep)
+        except Exception as exc:  # noqa: BLE001 - learning never stops a print
+            log.warning("printer memory: could not learn from job %s: %s",
+                        rep.job_id, exc)
+        return rep
+
+
 class TabPrint(QWidget):
 
     ti2_loaded         = pyqtSignal(Path)  # emitted when the user loads a .ti2 file
@@ -537,17 +579,29 @@ class TabPrint(QWidget):
         refresh_btn.clicked.connect(self._refresh_printers)
         pr_row.addWidget(refresh_btn)
 
-        pr_row.addWidget(TooltipButton(
-            tr("Printer Selection"),
-            tr("Select the printer to send the chart to.  Only printers installed in\n"
-            "the system CUPS print queue are listed.\n\n"
-            "ChromIQ converts the chart to PostScript and sends it via lp —\n"
-            "bypassing ColorSync entirely.  If CUPS rejects PostScript (e.g.\n"
-            "AirPrint or Driverless drivers), it automatically retries by sending\n"
-            "the TIFF directly with colour-space-aware raster options.\n"
-            "Colour management is always disabled automatically."),
-            left,
-        ))
+        if is_macos():
+            # Beta 15 (approved by Sebastian, 2026-10-08): the colour sentences
+            # were untrue for a Canon or Epson on macOS.
+            _printer_tip = tr(
+                "Select the printer to send the chart to. Only printers installed "
+                "in the system CUPS print queue are listed.\n\n"
+                "A Canon or Epson gets the chart as a TIFF (or exact-size PDF) with "
+                "the medium's paper profile attached, as a Photoshop print. Other "
+                "printers get PostScript first, then the TIFF, with colour "
+                "management switched off.\n\n"
+                "ChromIQ knows the paper profiles of the Canon and Epson models "
+                "whose drivers it can read or which it has measured, and learns any "
+                "other model from one print through the macOS print dialog.")
+        else:
+            _printer_tip = tr(
+                "Select the printer to send the chart to.  Only printers installed in\n"
+                "the system CUPS print queue are listed.\n\n"
+                "ChromIQ converts the chart to PostScript and sends it via lp —\n"
+                "bypassing ColorSync entirely.  If CUPS rejects PostScript (e.g.\n"
+                "AirPrint or Driverless drivers), it automatically retries by sending\n"
+                "the TIFF directly with colour-space-aware raster options.\n"
+                "Colour management is always disabled automatically.")
+        pr_row.addWidget(TooltipButton(tr("Printer Selection"), _printer_tip, left))
         pg.addLayout(pr_row)
         ll.addWidget(printer_grp)
 
@@ -1810,6 +1864,18 @@ class TabPrint(QWidget):
         if _borderless_selected(selected_opts) and not self._confirm_borderless():
             return
 
+        # Beta 15: a Canon or Epson model whose paper profiles ChromIQ does not
+        # know (not in the driver's tables, not built in, not learned) is not
+        # printed with a guessed profile without asking.
+        unknown = self._unknown_paper_profile(printer, selected_opts, first_tiff)
+        if unknown is not None:
+            choice = self._ask_unknown_paper_profile(printer, unknown)
+            if choice == "dialog":
+                self._print_native(pages, printer=printer)
+                return
+            if choice != "anyway":
+                return
+
         if self._settings.get("confirm_before_printing", True):
             if not self._show_preflight(
                 printer, selected_opts, orientation, page_size_pt,
@@ -1962,7 +2028,9 @@ class TabPrint(QWidget):
         first_tiff: Path | None = None,
     ) -> bool:
         """Show the preflight dialog. Returns True if user accepts."""
-        rows: list[tuple[str, str]] = [("Printer", printer)]
+        # Beta 15: every row name and fixed value goes through tr(); until now
+        # only the colour rows did, so a German window was half English.
+        rows: list[tuple[str, str]] = [(tr("Printer"), printer)]
         # Per-option rows, using the human-readable category label and the
         # selected combo's display text (not the raw CUPS value).
         for opt_name, combo in self._option_combos.items():
@@ -1974,26 +2042,26 @@ class TabPrint(QWidget):
             rows.append((label, combo.currentText()))
         if orientation is not None:
             rows.append((
-                "Orientation",
-                "Landscape (auto)" if orientation == ORIENTATION_LANDSCAPE
-                else "Portrait (auto)",
+                tr("Orientation"),
+                tr("Landscape (auto)") if orientation == ORIENTATION_LANDSCAPE
+                else tr("Portrait (auto)"),
             ))
         if page_size_pt is not None:
             w_mm = page_size_pt[0] * 25.4 / 72.0
             h_mm = page_size_pt[1] * 25.4 / 72.0
-            rows.append(("Media size", f"{w_mm:.0f} × {h_mm:.0f} mm"))
-        rows.append(("Duplex", "Off (forced)"))
+            rows.append((tr("Media size"), f"{w_mm:.0f} × {h_mm:.0f} mm"))
+        rows.append((tr("Duplex"), tr("Off (forced)")))
         rows.extend(self._colour_rows(printer, selected_opts, first_tiff))
 
         warnings: list[str] = []
         if mismatch:
             warnings.append(mismatch)
         if _borderless_selected(selected_opts):
-            warnings.append(
-                "Borderless is enabled — the driver enlarges the page a few "
+            warnings.append(tr(
+                "Borderless is enabled: the driver enlarges the page a few "
                 "percent to reach past the paper edges, so the chart will NOT "
                 "print at 100% and patches shift. Print with borders instead."
-            )
+            ))
 
         dlg = PreflightDialog(rows, warnings, page_count, self)
         accepted = dlg.exec() == QDialog.DialogCode.Accepted
@@ -2013,7 +2081,7 @@ class TabPrint(QWidget):
             pp = CupsRawPrinter._reference_paper_profile(
                 first_tiff, PrintConfig(printer_name=printer, options=selected_opts))
         if pp is None:
-            return [("Colour management", "Off (forced)")]
+            return [(tr(MM._PRINT_ROW_COLOUR), tr("Off (forced)"))]
         rows = [(tr(MM._PRINT_ROW_COLOUR), tr(MM._PRINT_ROW_COLOUR_BY_CHROMIQ)),
                 (tr(MM._PRINT_ROW_PAPER_PROFILE), pp.label)]
         if pp.rule.own_colour_off_needs_paper_profile:
@@ -2022,14 +2090,104 @@ class TabPrint(QWidget):
                             else MM._PRINT_ROW_PRINTER_COLOUR_OFF)))
         return rows
 
+    def _unknown_paper_profile(self, printer: str, selected_opts: dict[str, str],
+                               first_tiff: Path | None):
+        """The paper profile of this job when ChromIQ does not know it (a Canon
+        or Epson model in no table and not learned), else None.  macOS only:
+        elsewhere the direct route keeps the beta 14 job."""
+        if first_tiff is None or not is_macos():
+            return None
+        from workflow.cups_printer import CupsRawPrinter, PrintConfig
+        try:
+            pp = CupsRawPrinter._reference_paper_profile(
+                first_tiff, PrintConfig(printer_name=printer, options=selected_opts))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("paper-profile lookup failed: %s", exc)
+            return None
+        if pp is None or pp.known:
+            return None
+        log.warning("Print: %s (%s), medium %s=%s: paper profile unknown (not in the "
+                    "driver's tables, not built in, not learned); asking the user",
+                    printer, pp.model, pp.rule.media_option, pp.media_value)
+        return pp
+
+    def _ask_unknown_paper_profile(self, printer: str, pp) -> str:
+        """M-PRINT-PAPER-PROFILE-UNKNOWN.  Returns "dialog", "anyway" or ""."""
+        from workflow import measurement_messages as MM
+        title, body = MM.M_PRINT_PAPER_PROFILE_UNKNOWN.render(
+            printer=printer, medium=pp.media_label, profile=pp.label)
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        set_warning_icon(dlg)
+        dlg.setText(body)
+        dialog_btn = dlg.addButton(tr(MM._PRINT_UNKNOWN_BTN_DIALOG),
+                                   QMessageBox.ButtonRole.AcceptRole)
+        anyway_btn = dlg.addButton(tr(MM._PRINT_UNKNOWN_BTN_ANYWAY),
+                                   QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(dialog_btn)
+        dlg.setEscapeButton(cancel_btn)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(dlg)
+        fit_message_box_buttons(dlg)
+        dlg.exec()
+        clicked = dlg.clickedButton()
+        if clicked is dialog_btn:
+            return "dialog"
+        if clicked is anyway_btn:
+            log.warning("Print: user printed %s with the driver's standard profile %s",
+                        printer, pp.label)
+            return "anyway"
+        return ""
+
+    # -- the read-back, off the GUI thread ------------------------------------------
+    def _start_read_back(self, work) -> None:
+        """Run *work* (a blocking read-back returning a TicketReport) on a
+        background thread and report it when it is done, or say it could not be
+        read after ``print_ticket.READ_BACK_TIMEOUT_S`` (review 2026-10-08: it
+        ran on the GUI thread, with no timeout of its own)."""
+        from workflow.print_ticket import BackgroundReadBack, READ_BACK_TIMEOUT_S
+        if not hasattr(self, "_read_backs"):
+            self._read_backs = []
+            self._read_back_timer = QTimer(self)
+            self._read_back_timer.setInterval(100)
+            self._read_back_timer.timeout.connect(self._poll_read_backs)
+        self._read_backs.append(BackgroundReadBack(work, READ_BACK_TIMEOUT_S))
+        if not self._read_back_timer.isActive():
+            self._read_back_timer.start()
+
+    def _poll_read_backs(self) -> None:
+        from workflow import measurement_messages as MM
+        for rb in list(self._read_backs):
+            state = rb.poll()
+            if state == "pending":
+                continue
+            self._read_backs.remove(rb)
+            if state == "timeout" or rb.report is None:
+                log.warning("print ticket: no read-back (%s)",
+                            "timed out" if state == "timeout" else rb.error)
+                self._set_status(tr(MM._PRINT_JOB_UNREAD))
+                continue
+            self._report_job_ticket(rb.report)
+        if not self._read_backs:
+            self._read_back_timer.stop()
+
     def _report_job_ticket(self, rep) -> None:
         """Say what the job read back from the printing system carries
-        (M-PRINT-JOB-CONFIRMED), or show M-PRINT-JOB-NOT-AS-SENT."""
+        (M-PRINT-JOB-CONFIRMED), or show M-PRINT-JOB-NOT-AS-SENT /
+        M-PRINT-JOB-UNTAGGED."""
         from workflow import measurement_messages as MM
         if rep is None:
             return
         if not rep.read:
             self._set_status(tr(MM._PRINT_JOB_UNREAD))
+            return
+        if not rep.ok and not rep.mismatches:
+            # the only problem: the chart could not be given the job's profile
+            title, body = MM.M_PRINT_JOB_UNTAGGED.render()
+            self._set_status(title)
+            warn(self, title, body)
             return
         if not rep.ok:
             self._show_job_not_as_sent(rep)
@@ -2151,22 +2309,11 @@ class TabPrint(QWidget):
         return accepted[0]
 
     def _read_back_lp_job(self, printer: str) -> None:
-        """Read the job lp just created back from CUPS and report it."""
-        try:
-            from workflow.ppd_color import ppd_path_for_queue
-            from workflow.print_ticket import check_job
-            ppd_text = None
-            ppd = ppd_path_for_queue(printer)
-            if ppd:
-                from core.text_io import read_text
-                ppd_text = read_text(Path(ppd), lenient=True)
-            rep = check_job(printer, getattr(self._printer, "last_job_id", None),
-                            dict(getattr(self._printer, "last_expected", {}) or {}),
-                            ppd_text=ppd_text)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("print ticket read-back failed: %s", exc)
-            return
-        self._report_job_ticket(rep)
+        """Read the job lp just created back from CUPS, on a background thread,
+        and report it."""
+        self._start_read_back(_LpReadBack(
+            printer, getattr(self._printer, "last_job_id", None),
+            dict(getattr(self._printer, "last_expected", {}) or {})))
 
     def _on_print_done(self, code: int) -> None:
         if code == 0:
@@ -2305,25 +2452,21 @@ class TabPrint(QWidget):
                 )
             else:
                 self._warn_lbl.setText(
-                    tr("⚠  You are printing via the macOS printer dialog. Verify that the paper, "
-                    "media type, and quality you pick match the media you are printing on — "
-                    "wrong settings cause incorrect ink laydown and invalid colour "
-                    "measurements.\n\n"
-                    "Colour management is disabled automatically. ChromIQ declares the chart "
-                    "as already being in the printer's own colour space (so no colour "
-                    "transform is applied) and sets the driver's \"no colour correction\" "
-                    "option — the same technique dedicated tools like Print-Tool use. The "
-                    "dialog's \"Color Matching\" pane will be greyed out; that is expected.\n\n"
-                    "You don't need to change any colour setting. Just don't switch an ICC "
-                    "profile or rendering intent back on, and pick the correct paper / media "
-                    "type and print quality.\n\n"
-                    "IMPORTANT: never click Cancel (or Abort) in any of the dialog's panes "
-                    "or sub-windows — always close them with OK. Cancel reverts the "
-                    "colour-off setting ChromIQ applied; OK keeps it. When in doubt, OK is "
-                    "always the safe button.\n\n"
-                    "Prefer no dialog at all? Untick \"Use default macOS printer dialog\" in "
-                    "Preferences to send the chart straight to the queue via lp (colour "
-                    "management is forced off there too).\n\n"
+                    tr("⚠  You are printing via the macOS printer dialog. Verify that the "
+                    "paper, media type, and quality you pick match the media you are "
+                    "printing on: wrong settings cause incorrect ink laydown and invalid "
+                    "colour measurements.\n\n"
+                    "ChromIQ asks for application colour matching, as Photoshop does. "
+                    "After you close the dialog it attaches the paper profile of the "
+                    "medium you chose to the chart, so macOS does not change its "
+                    "colours. Pick the right media type: the paper profile follows it. "
+                    "Afterwards the Print Chart tab says what the printing system holds "
+                    "for the job.\n\n"
+                    "This works with any printer, because the printer's own dialog "
+                    "chooses the paper profile. You don't need to change any colour "
+                    "setting.\n\n"
+                    "Prefer no dialog at all? Untick \"Use default macOS printer dialog\" "
+                    "in Preferences to send the chart straight to the queue via lp.\n\n"
                     "Allow pigment inks to dry fully before measuring "
                     "(at least 1 h; 24 h for best accuracy).")
                 )
@@ -2348,6 +2491,20 @@ class TabPrint(QWidget):
             # literal. Measured 2026-09-16: these were the only three sentences
             # in the app hidden that way. The concatenation is now a
             # placeholder, so the sentence a translator sees is the whole one.
+            if is_macos():
+                # Beta 15 (approved by Sebastian, 2026-10-08).
+                self._warn_lbl.setText(tr(
+                    "⚠  Verify that all print settings above match the media you are "
+                    "printing on.\n\n"
+                    "Wrong media type or quality settings will cause incorrect ink laydown "
+                    "and invalid colour measurements. Allow pigment inks to dry fully "
+                    "before measuring (at least 1 h; 24 h for best accuracy).\n\n"
+                    "On a Canon or Epson the chart goes as Photoshop sends an image it has "
+                    "colour-managed, with the paper profile attached so macOS leaves it "
+                    "unchanged; other printers get it with colour management switched "
+                    "off. {fallback}"
+                ).format(fallback=fallback_sentence))
+                return
             self._warn_lbl.setText(tr(
                 "⚠  Verify that all print settings above match the media you are printing on.\n\n"
                 "Wrong media type or quality settings will cause incorrect ink laydown and "
@@ -2357,19 +2514,24 @@ class TabPrint(QWidget):
                 "PostScript and sends it via lp, bypassing ColorSync entirely. {fallback}"
             ).format(fallback=fallback_sentence))
 
-    def _print_native(self, pages: list[tuple[Path, int]]) -> None:
+    def _print_native(self, pages: list[tuple[Path, int]],
+                      printer: str | None = None) -> None:
+        """Print through the OS print dialog.  *printer*: a queue to preselect
+        (the direct route hands a job over when it does not know the model's
+        paper profiles)."""
         import sys as _sys
         if _sys.platform == "darwin":
             submitted = False
             try:
                 from workflow.native_print_macos import (ChartIsNotRGB,
-                                                          ColorManagementMismatch,
                                                           print_frames)
                 try:
-                    submitted = bool(print_frames(pages))
+                    submitted = bool(print_frames(pages, printer=printer))
                     if submitted:
                         from workflow import native_print_macos as _npm
-                        self._report_job_ticket(_npm.last_report)
+                        if _npm.last_submission is not None:
+                            self._start_read_back(
+                                _DialogReadBack(_npm.last_submission))
                 except ChartIsNotRGB as exc:
                     # R26-F8: this route can only carry RGB, and it used to
                     # convert anything else on the way in without saying so.
@@ -2386,18 +2548,10 @@ class TabPrint(QWidget):
                            "colours that were never printed.\n\n"
                            "Turn off \u201cUse default macOS printer dialog\u201d in "
                            "Preferences and print again. The standard route sends "
-                           "the chart's own numbers to the printer through lp, "
-                           "with colour management switched off.").format(
+                           "the chart to the printer through lp, with its own "
+                           "numbers unchanged.").format(
                                mode=str(exc)),
                     )
-                except ColorManagementMismatch as exc:
-                    # The job WAS submitted; what CUPS holds for it is not what
-                    # ChromIQ sent. That is a print, so the record describes
-                    # it, and the window says what differs.
-                    submitted = True
-                    log.warning("Native macOS print: %s", exc)
-                    from workflow import native_print_macos as _npm
-                    self._report_job_ticket(_npm.last_report)
             except Exception as exc:
                 log.error("Native macOS print failed: %s", exc)
                 QMessageBox.critical(

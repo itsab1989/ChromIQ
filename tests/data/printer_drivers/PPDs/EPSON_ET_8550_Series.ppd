@@ -1,0 +1,95 @@
+*PPD-Adobe: "4.3"
+*ModelName: "EPSON ET-8550 Series"
+*NickName: "EPSON ET-8550 Series"
+*EPIJMachineBundleName: "EP20C0605W.data"
+*cupsICCProfile ..1/EPSON ET-8550 L8180 Series Standard: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/EP2006PM1.profiles/Contents/Resources/EPSON ET-8550 L8180 Series Standard.icc"
+*cupsICCProfile ..2/EPSON ET-8550 L8180 Series Ultra Glossy: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/EP2006PM1.profiles/Contents/Resources/EPSON ET-8550 L8180 Series Ultra Glossy.icc"
+*cupsICCProfile ..3/EPSON ET-8550 L8180 Series Premium Glossy: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/EP2006PM1.profiles/Contents/Resources/EPSON ET-8550 L8180 Series Premium Glossy.icc"
+*cupsICCProfile ..4/EPSON ET-8550 L8180 Series Premium Semigloss: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/EP2006PM1.profiles/Contents/Resources/EPSON ET-8550 L8180 Series Premium Semigloss.icc"
+*cupsICCProfile ..5/EPSON ET-8550 L8180 Series Photo Glossy: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/EP2006PM1.profiles/Contents/Resources/EPSON ET-8550 L8180 Series Photo Glossy.icc"
+*cupsICCProfile ..6/EPSON ET-8550 L8180 Series Matte: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/EP2006PM1.profiles/Contents/Resources/EPSON ET-8550 L8180 Series Matte.icc"
+*cupsICCProfile ..7/EPSON ET-8550 L8180 Series Velvet Fine Art: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/EP2006PM1.profiles/Contents/Resources/EPSON ET-8550 L8180 Series Velvet Fine Art.icc"
+*cupsICCProfile ..8/EPSON ET-8550 L8180 Series Photo Quality Ink Jet: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/EP2006PM1.profiles/Contents/Resources/EPSON ET-8550 L8180 Series Photo Quality Ink Jet.icc"
+*cupsICCProfile ..0/sRGB Profile: "/System/Library/ColorSync/Profiles/sRGB Profile.icc"
+*cupsICCQualifier3: EPIJProfileSpec
+*OpenUI *EPIJ_Medi/Media Type: PickOne
+*DefaultEPIJ_Medi: 0
+*EPIJ_Medi 0/Plain paper: ""
+*EPIJ_Medi 142/Letterhead: ""
+*EPIJ_Medi 2/Epson Photo Quality Ink Jet: ""
+*EPIJ_Medi 12/Epson Matte: ""
+*EPIJ_Medi 53/Velvet Fine Art Paper: ""
+*EPIJ_Medi 92/Epson Ultra Glossy: ""
+*EPIJ_Medi 13/Epson Premium Glossy: ""
+*EPIJ_Medi 15/Epson Premium Semigloss: ""
+*EPIJ_Medi 145/Photo Paper Glossy: ""
+*EPIJ_Medi 75/Epson Photo Stickers: ""
+*EPIJ_Medi 93/Envelope: ""
+*EPIJ_Medi 26/CD<2F>DVD: ""
+*EPIJ_Medi 187/Thin paper: ""
+*EPIJ_Medi 159/Thick paper1 (0<2E>8mm): ""
+*EPIJ_Medi 160/Thick paper2 (1<2E>3mm): ""
+*CloseUI: *EPIJ_Medi
+*OpenUI *EPIJ_Ink_/Color: PickOne
+*DefaultEPIJ_Ink_: 1
+*EPIJ_Ink_ 1/Color: ""
+*EPIJ_Ink_ 3/Black and White Photo: ""
+*EPIJ_Ink_ 0/Grayscale: ""
+*CloseUI: *EPIJ_Ink_
+*OpenUI *EPIJ_Mode/Mode: PickOne
+*DefaultEPIJ_Mode: 0
+*EPIJ_Mode 0/Automatic: ""
+*EPIJ_Mode 3/Custom: ""
+*CloseUI: *EPIJ_Mode
+*OpenUI *EPIJ_Qual/Print Quality: PickOne
+*DefaultEPIJ_Qual: 303
+*EPIJ_Qual 302/Economy: ""
+*EPIJ_Qual 303/Normal: ""
+*EPIJ_Qual 308/Draft: ""
+*EPIJ_Qual 304/Fine: ""
+*EPIJ_Qual 305/Quality: ""
+*EPIJ_Qual 306/High Quality: ""
+*EPIJ_Qual 307/Best Quality: ""
+*CloseUI: *EPIJ_Qual
+*OpenUI *EPIJ_CMat/Color Settings: PickOne
+*DefaultEPIJ_CMat: 0
+*EPIJ_CMat 0/Manual Settings: ""
+*EPIJ_CMat 1/PhotoEnhance: ""
+*EPIJ_CMat 3/Off (No Color Adjustment): ""
+*CloseUI: *EPIJ_CMat
+*OpenUI *EPIJ_CCor/Mode: PickOne
+*DefaultEPIJ_CCor: 12
+*EPIJ_CCor 12/EPSON Vivid: ""
+*EPIJ_CCor 3/EPSON Vivid: ""
+*EPIJ_CCor 4/EPSON Standard: ""
+*EPIJ_CCor 6/Adobe RGB: ""
+*CloseUI: *EPIJ_CCor
+*OpenUI *EPIJ_OSColMat/ColorMatching: PickOne
+*DefaultEPIJ_OSColMat: 1
+*EPIJ_OSColMat 1/Vendor Color Matching: ""
+*EPIJ_OSColMat 2/ColorSync Matching: ""
+*CloseUI: *EPIJ_OSColMat
+*OpenUI *EPIJ_HdofClSp/Use Generic RGB: PickOne
+*DefaultEPIJ_HdofClSp: 1
+*EPIJ_HdofClSp 0/Off: ""
+*EPIJ_HdofClSp 1/On: ""
+*CloseUI: *EPIJ_HdofClSp
+*OpenUI *EPIJ_OSCMProf/CustomColorMatchingProfile: PickOne
+*DefaultEPIJ_OSCMProf: 0
+*EPIJ_OSCMProf 0/None: ""
+*EPIJ_OSCMProf 1/sRGB: ""
+*EPIJ_OSCMProf 2/AdobeRGB: ""
+*EPIJ_OSCMProf 3/GenericRGB: ""
+*CloseUI: *EPIJ_OSCMProf
+*OpenUI *EPIJProfileSpec/EPSON Profile: PickOne
+*DefaultEPIJProfileSpec: 0
+*EPIJProfileSpec 0/None: ""
+*EPIJProfileSpec 1/EPSON ET-8550 L8180 Series Standard: ""
+*EPIJProfileSpec 2/EPSON ET-8550 L8180 Series Ultra Glossy: ""
+*EPIJProfileSpec 3/EPSON ET-8550 L8180 Series Premium Glossy: ""
+*EPIJProfileSpec 4/EPSON ET-8550 L8180 Series Premium Semigloss: ""
+*EPIJProfileSpec 5/EPSON ET-8550 L8180 Series Photo Glossy: ""
+*EPIJProfileSpec 6/EPSON ET-8550 L8180 Series Matte: ""
+*EPIJProfileSpec 7/EPSON ET-8550 L8180 Series Velvet Fine Art: ""
+*EPIJProfileSpec 8/EPSON ET-8550 L8180 Series Photo Quality Ink Jet: ""
+*CloseUI: *EPIJProfileSpec

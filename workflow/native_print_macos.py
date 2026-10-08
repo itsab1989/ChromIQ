@@ -22,7 +22,10 @@ What decides the printer state, measured on macOS 27.0.1 (report folder
   (``_destination_rgb_profile``) and re-tags the chart with exactly it, so the
   conversion is the identity and the chart's own numbers reach the driver.
 * After submission the job is read back from CUPS (``workflow.print_ticket``),
-  not from ChromIQ's own dictionary, and ``last_report`` says what it carries.
+  not from ChromIQ's own dictionary.  ``print_frames`` only records what it
+  submitted (``last_submission``); the Print Chart tab reads the job back on a
+  background thread (``read_back``), with a timeout, and learns the paper
+  profile the dialog wrote (``workflow.printer_memory``).
 
 ``PMPrintSettingsSetValue`` is not wrapped by PyObjC, so it is called through
 ``ctypes`` against PrintCore; so are the ``PMSession*WithColorSyncProfiles``
@@ -244,24 +247,6 @@ def _is_reference_vendor(ppd_path: str) -> bool:
         return False
 
 
-def _ppd_text_for(print_info) -> tuple[str | None, str | None]:
-    """(queue name, PPD text) of *print_info*'s printer, or (None, None)."""
-    try:
-        printer = print_info.printer()
-        display = printer.name() if printer is not None else None
-        if not display:
-            return None, None
-        queue = _queue_name(display)
-        from workflow.print_manager import PrintModule
-        ppd = PrintModule.find_ppd_path(queue)
-        if not ppd:
-            return queue, None
-        from core.text_io import read_text
-        return queue, read_text(Path(ppd), lenient=True)
-    except Exception:  # noqa: BLE001
-        return None, None
-
-
 class ChartIsNotRGB(RuntimeError):
     """The chart's own pixels are not RGB, and this route can only carry RGB.
 
@@ -289,20 +274,13 @@ class ChartIsNotRGB(RuntimeError):
     """
 
 
-class ColorManagementMismatch(RuntimeError):
-    """Raised when the job read back from CUPS does not carry the colour keys
-    ChromIQ set, or the chart could not be tagged with the job's own paper
-    profile.  The job has already been submitted by the time this is raised;
-    ``last_report`` holds the details and the caller warns the user, no retry.
-    """
-
-
-def _lock_no_color_management(print_info) -> None:
+def _lock_no_color_management(print_info) -> dict[str, str]:
     """Set the application-colour-matching keys (locked) on *print_info*'s
     PrintCore ``PMPrintSettings`` and sync them back into the Cocoa layer.
 
     Also mirrors the keys into the Cocoa ``printSettings`` dict as a fallback.
-    Best-effort: logs and continues if PrintCore is unavailable.
+    Best-effort: logs and continues if PrintCore is unavailable.  Returns the
+    keys it set (what the read-back expects the job to carry).
     """
     import objc
 
@@ -314,7 +292,7 @@ def _lock_no_color_management(print_info) -> None:
         cocoa[key] = value
 
     if not _PRINTCORE_OK:
-        return
+        return locked
     try:
         pm_ptr = _libobjc.objc_msgSend(
             ctypes.c_void_p(objc.pyobjc_id(print_info)),
@@ -322,7 +300,7 @@ def _lock_no_color_management(print_info) -> None:
         )
         if not pm_ptr:
             log.warning("native print: PMPrintSettings() returned NULL")
-            return
+            return locked
         for key, value in locked.items():
             k_ref = _cfstr(key)
             v_ref = _cfstr(value)
@@ -344,6 +322,7 @@ def _lock_no_color_management(print_info) -> None:
             print_info.updateFromPMPrintSettings()
     except Exception as exc:
         log.warning("native print: locking colour-matching failed: %s", exc)
+    return locked
 
 
 def _destination_rgb_profile(print_info) -> tuple[bytes | None, str | None]:
@@ -424,18 +403,53 @@ def _retag_reps(reps: list, icc: bytes) -> list | None:
     return out
 
 
-def _icc_description(path: str) -> str | None:
-    """The description of the ICC profile file at *path* (for the read-back)."""
-    try:
-        from PIL import ImageCms
-        return ImageCms.getProfileDescription(ImageCms.getOpenProfile(path)).strip()
-    except Exception:  # noqa: BLE001
-        return None
+#: What the last ``print_frames`` submitted (a ``Submission``), or None when
+#: nothing was submitted.  ``read_back`` turns it into a ``TicketReport``.
+last_submission = None
 
 
-#: The read-back of the last job ``print_frames`` submitted (a
-#: ``print_ticket.TicketReport``), or None when nothing was submitted.
-last_report = None
+class Submission:
+    """One job handed to the spooler by ``print_frames``, enough to find and
+    judge it in CUPS later (off the GUI thread)."""
+
+    def __init__(self, printer_display: str | None, expected: dict,
+                 started: float, tagged_icc: bytes, tagged_with: str | None) -> None:
+        self.printer_display = printer_display
+        self.queue: str | None = None
+        self.ppd_text: str | None = None
+        self.expected = dict(expected)
+        self.started = started
+        self.tagged_icc = tagged_icc
+        self.tagged_with = tagged_with
+
+
+def read_back(sub: "Submission"):
+    """Find *sub*'s job in CUPS and read it back (blocking: run it through
+    ``print_ticket.BackgroundReadBack``).  The chart's tag is compared with the
+    job's paper profile by bytes."""
+    from workflow.print_ticket import check_job, find_job
+    if sub.printer_display:
+        sub.queue = _queue_name(sub.printer_display)
+        from workflow.print_manager import PrintModule
+        ppd = PrintModule.find_ppd_path(sub.queue)
+        if ppd:
+            from core.text_io import read_text
+            try:
+                sub.ppd_text = read_text(Path(ppd), lenient=True)
+            except OSError:
+                sub.ppd_text = None
+    job = find_job(sub.queue, sub.started) if sub.queue else None
+    rep = check_job(sub.queue or "?", job, sub.expected, ppd_text=sub.ppd_text,
+                    tagged_with=sub.tagged_with, tagged_icc=sub.tagged_icc)
+    if (not sub.tagged_icc and rep.read and rep.tag_matches_job is None
+            and sub.ppd_text and "*cupsICCProfile" in sub.ppd_text):
+        # Any printer whose PPD names profiles macOS can match to (HP DesignJet
+        # and the like, not only Canon/Epson): the chart went untagged, so macOS
+        # may convert it, and the status line must not say otherwise. A PPD
+        # without profiles (no output intent at all) stays quiet: measured on
+        # the sample HP DeskJet queue, its raster is byte-identical to beta 14's.
+        rep.tag_matches_job = False
+    return rep
 
 
 # The print view is registered with the Objective-C runtime on first import;
@@ -485,7 +499,7 @@ except Exception:  # pragma: no cover - non-macOS / no PyObjC
     _ChartPrintView = None  # type: ignore[assignment]
 
 
-def print_frames(pages: list[tuple[Path, int]]) -> bool:
+def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> bool:
     """Show the native macOS print dialog for *pages* and submit them as one job.
 
     *pages* is a list of ``(tiff_path, frame_index)`` tuples — the same shape
@@ -498,9 +512,13 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
     was not — the dialog was cancelled, or there was nothing to print, or
     ``runOperation`` refused it. It used to return ``None`` on all four
     outcomes, so a caller could not tell a print from a cancel; the print
-    record depends on that difference (R6 F5).  ``ColorManagementMismatch`` is
-    raised only *after* a successful submission, so an exception of that one
-    kind also means the job went.
+    record depends on that difference (R6 F5).  After a submission
+    ``last_submission`` describes the job; it is read back from CUPS by the
+    caller, off the GUI thread (``read_back``).
+
+    *printer*: a CUPS queue to preselect in the dialog (the Print Chart tab
+    passes the queue it was about to print to when it hands the job over to the
+    dialog because it does not know that model's paper profiles).
     """
     if not pages:
         return False
@@ -567,8 +585,10 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
     # Ask for application colour matching *before* the dialog so its colour
     # panes open greyed out, then show the dialog (for paper / quality /
     # copies), then ask again afterwards in case a pane reset it.
-    global last_report
-    last_report = None
+    global last_submission
+    last_submission = None
+    if printer:
+        _preselect_printer(print_info, printer)
     _lock_no_color_management(print_info)
 
     panel = AppKit.NSPrintPanel.printPanel()
@@ -586,7 +606,7 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
         log.info("native print: dialog cancelled")
         return False
 
-    _lock_no_color_management(print_info)
+    locked = _lock_no_color_management(print_info)
     # Tag the chart with the profile macOS will convert it into, so the
     # conversion is the identity and the chart's own numbers reach the driver.
     dest_icc, dest_name = _destination_rgb_profile(print_info)
@@ -619,23 +639,29 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
     if not ok:
         log.warning("native print: job submission failed")
         return False
-    # Read the job back from CUPS: what the printing system holds is what
-    # prints, not the dictionary ChromIQ wrote (that check could not fail).
-    from workflow.print_ticket import check_job, find_job
-    queue, ppd_text = _ppd_text_for(pi_after)
-    expected = _locked_settings_for(pi_after)
-    job = find_job(queue, t_start) if queue else None
-    last_report = check_job(queue or "?", job, expected, ppd_text=ppd_text,
-                            tagged_with=dest_name if dest_icc else "",
-                            tag_icc_desc_for=_icc_description)
-    if (not dest_icc and last_report.read and last_report.tag_matches_job is None
-            and ppd_text and "*cupsICCProfile" in ppd_text):
-        # Any printer whose PPD names profiles macOS can match to (HP DesignJet
-        # and the like, not only Canon/Epson): the chart went untagged, so macOS
-        # may convert it, and the status line must not say otherwise. A PPD
-        # without profiles (no output intent at all) stays quiet: measured on
-        # the sample HP DeskJet queue, its raster is byte-identical to beta 14's.
-        last_report.tag_matches_job = False
-    if last_report.read and not last_report.ok:
-        raise ColorManagementMismatch(last_report.summary())
+    try:
+        printer_obj = pi_after.printer()
+        display = str(printer_obj.name()) if printer_obj is not None else None
+    except Exception:  # noqa: BLE001
+        display = None
+    last_submission = Submission(display, locked, t_start, dest_icc or b"",
+                                 dest_name if dest_icc else None)
     return True
+
+
+def _preselect_printer(print_info, queue: str) -> None:
+    """Select *queue* (a CUPS queue name) in *print_info* before the dialog."""
+    try:
+        import AppKit
+        display = queue
+        try:
+            import cups
+            display = cups.Connection().getPrinters().get(queue, {}).get(
+                "printer-info") or queue
+        except Exception:  # noqa: BLE001
+            pass
+        pr = AppKit.NSPrinter.printerWithName_(display)
+        if pr is not None:
+            print_info.setPrinter_(pr)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("native print: could not preselect %s: %s", queue, exc)

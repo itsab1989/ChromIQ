@@ -4854,7 +4854,7 @@ def report_gone_line(entry: dict) -> str:
         project=project, run=num, when=when, why=why)
 
 
-# --- PROPOSED: printing in the state a Photoshop print gets (beta 15) ------
+# --- APPROVED (Sebastian, 2026-10-08): printing in the state a Photoshop print gets (beta 15)
 #: Basti, 2026-10-08: a profiling chart must print in exactly the printer state
 #: his image prints from Photoshop get ("Photoshop manages colours"). For a
 #: Canon IJ or Epson queue the Print Chart tab now sends that job, and the
@@ -4874,7 +4874,7 @@ M_PRINT_COLOUR_CONFIRM = _m(
     "\n".join((_PRINT_ROW_COLOUR_BY_CHROMIQ, _PRINT_ROW_PAPER_PROFILE,
                _PRINT_ROW_PRINTER_COLOUR, _PRINT_ROW_PRINTER_COLOUR_OFF,
                _PRINT_ROW_PRINTER_COLOUR_ON)),
-    approved=False)
+    approved=True)  # Sebastian, 2026-10-08 (DECISIONS_print_fix_beta15, A1)
 
 #: After every print, on both routes, ChromIQ reads the job back from the
 #: printing system (CUPS) and says what it carries, in the Print Chart tab's
@@ -4897,12 +4897,16 @@ M_PRINT_JOB_CONFIRMED = _m(
     "Print job sent",
     "\n".join((_PRINT_JOB_SENT_PROFILE, _PRINT_JOB_SENT_PLAIN,
                _PRINT_JOB_SENT_TAGGED, _PRINT_JOB_UNREAD)),
-    approved=False)
+    approved=True)  # Sebastian, 2026-10-08 (DECISIONS_print_fix_beta15, A2)
 
+# --- PROPOSED: the job read back from CUPS is not what ChromIQ sent (beta 15)
 #: The window when the job read back from CUPS does not carry what ChromIQ
-#: sent, or the chart could not be given the job's own profile. Replaces the
-#: beta 14 window "Colour Management Lock Not Verified". {details} is one line
-#: per key, built from line 2 below.
+#: sent. Replaces the beta 14 window "Colour Management Lock Not Verified".
+#: {details} is one line per key, built from the first line below; the second
+#: line is added when, besides, the chart could not be given the job's paper
+#: profile. Sebastian, 2026-10-08, did not approve it: its opening sentence is
+#: wrong when the paper profile is the only problem, which now has its own
+#: window, M-PRINT-JOB-UNTAGGED.
 _PRINT_JOB_DIFFERS_LINE = "{key}: {got} (ChromIQ sent {want})"
 _PRINT_JOB_UNTAGGED_LINE = (
     "The chart could not be given the job's own paper profile, so macOS may "
@@ -4915,6 +4919,51 @@ M_PRINT_JOB_NOT_AS_SENT = _m(
     "The sheet may not carry the chart's own colours, and a measurement of it "
     "would not describe your printer. If it has not printed yet, cancel it in "
     "the printer's queue and print again.",
+    approved=False)
+
+# --- PROPOSED: the chart could not be given the job's paper profile (beta 15)
+#: The macOS dialog route tags the chart with the paper profile the job prints
+#: with, so macOS leaves its colours alone. When that profile could not be read,
+#: or the job read back from CUPS uses another one, and nothing else on the job
+#: differs, this window says so (review 2026-10-08: the M-PRINT-JOB-NOT-AS-SENT
+#: wording, "other colour settings than ChromIQ asked for", was wrong here).
+M_PRINT_JOB_UNTAGGED = _m(
+    "M-PRINT-JOB-UNTAGGED",
+    "The chart may not print with its own colours",
+    "The job was sent, but ChromIQ could not give the chart the paper profile "
+    "this job prints with. macOS may therefore change the chart\u2019s colours "
+    "on the way to the printer, and a measurement of that sheet would not "
+    "describe your printer.\n\n"
+    "If it has not printed yet, cancel it in the printer\u2019s queue and print "
+    "again. If this message comes back, turn off \u201cUse default macOS printer "
+    "dialog\u201d in Preferences and print from the Print Chart tab directly.",
+    approved=False)
+
+# --- PROPOSED: a printer whose paper profiles ChromIQ does not know (beta 15)
+#: Basti, 2026-10-08: on the direct route ChromIQ sends the paper profile the
+#: vendor's print dialog would choose for the medium. It knows that for the
+#: models whose driver tables it reads or which it has measured, and learns it
+#: from the user's own prints through the macOS dialog. For any other Canon or
+#: Epson model it must not guess silently: this window says so before printing
+#: and offers the dialog. {printer} is the queue, {medium} the paper type as the
+#: driver names it, {profile} the driver's standard profile, which a print sent
+#: anyway carries. The three buttons are the lines after the body.
+_PRINT_UNKNOWN_BTN_DIALOG = "Use the macOS Print Dialog"
+_PRINT_UNKNOWN_BTN_ANYWAY = "Print Anyway"
+M_PRINT_PAPER_PROFILE_UNKNOWN = _m(
+    "M-PRINT-PAPER-PROFILE-UNKNOWN",
+    "ChromIQ does not know this printer\u2019s paper profiles yet",
+    "ChromIQ does not know which paper profile the driver of {printer} chooses "
+    "for the paper type \u201c{medium}\u201d. A print from Photoshop gets that "
+    "paper profile from the printer\u2019s own print dialog, and the chart has "
+    "to print in the same state.\n\n"
+    "Print this chart through the macOS print dialog and pick the same paper "
+    "type there. The driver then chooses the paper profile itself, and ChromIQ "
+    "remembers its choice, so later charts for this printer and paper type can "
+    "go straight to the printer.\n\n"
+    "If you print straight to the printer anyway, the chart goes with the "
+    "driver\u2019s standard profile ({profile}), which may not be the one your "
+    "prints from Photoshop get on this paper.",
     approved=False)
 
 CATALOGUE = {m.id: m for m in (
@@ -4943,6 +4992,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
+    M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
     M_IMPORT_NOT_OPENED, M_IMPORT_FOLDER_EXISTS,

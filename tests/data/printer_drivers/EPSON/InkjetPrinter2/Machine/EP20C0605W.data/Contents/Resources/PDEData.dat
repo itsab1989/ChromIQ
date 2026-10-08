@@ -1,0 +1,20 @@
+*EPIJUIType: "AppleLFPUI_WW"
+
+*EPIJConditionValue EPIJProfileSpec/: "
+*EPIJ_Ink_ 0|0
+*EPIJ_Ink_ 3|0
+*EPIJ_Medi 92|2
+*EPIJ_Medi 13|3
+*EPIJ_Medi 15|4
+*EPIJ_Medi 145|5
+*EPIJ_Medi 12|6
+*EPIJ_Medi 53|7
+*EPIJ_Medi 2|8
+*EPIJ_Medi 0|1
+*EPIJ_Medi 26|1
+*EPIJ_Medi 75|1
+*EPIJ_Medi 93|1
+*EPIJ_Medi 142|1
+*EPIJ_Medi 159|1
+*EPIJ_Medi 160|1
+*EPIJ_Medi 187|1"
