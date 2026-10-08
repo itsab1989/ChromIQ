@@ -6758,7 +6758,7 @@
  "The chart went with that same profile attached, so macOS leaves its colours unchanged.": "色卡附带了同一个配置文件，因此 macOS 不会改变其颜色。",
  "Sent. ChromIQ could not read the job back from the printing system, so its colour settings are not confirmed.": "已发送。ChromIQ 无法从打印系统读回该任务，因此其颜色设置未得到确认。",
  "The print job is not what ChromIQ sent": "打印任务与 ChromIQ 发送的不一致",
- "The job was sent, but the printing system shows other colour settings on it than ChromIQ asked for:\n\n{details}\n\nThe sheet may not carry the chart's own colours, and a measurement of it would not describe your printer. If it has not printed yet, cancel it in the printer's queue and print again.": "任务已发送，但打印系统显示其颜色设置与 ChromIQ 要求的不同：\n\n{details}\n\n纸张上可能不是色卡本身的颜色，对其进行的测量也无法描述您的打印机。如果尚未打印，请在打印机队列中取消该任务并重新打印。",
+ "The job was sent, but the printing system shows other colour settings on it than ChromIQ asked for:\n\n{details}\n\nThe sheet may not carry the chart's own colours, and a measurement of it would not describe your printer. If it has not printed yet, cancel it in the printer's queue and print again.": "任务已发送，但打印系统显示其颜色设置与 ChromIQ 要求的不同：\n\n{details}\n\n纸张上可能不是色卡本身的颜色，对其进行的测量也无法描述你的打印机。如果尚未打印，请在打印机队列中取消该任务并重新打印。",
  "{key}: {got} (ChromIQ sent {want})": "{key}：{got}（ChromIQ 发送的是 {want}）",
  "The chart could not be given the job's own paper profile, so macOS may convert its colours.": "无法为色卡附上该任务的纸张配置文件，因此 macOS 可能会转换其颜色。",
  "By ChromIQ, as when Photoshop manages colours\nPaper profile\nPrinter's own colour processing\nOff for this paper\nOn for this paper type, as for prints from Photoshop": "由 ChromIQ 完成，与 Photoshop 管理颜色时相同\n纸张配置文件\n打印机自身的色彩处理\n此纸张关闭\n此纸张类型开启，与从 Photoshop 打印时相同",
