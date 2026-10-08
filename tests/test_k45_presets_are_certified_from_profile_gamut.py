@@ -136,10 +136,12 @@ def test_the_window_shows_both_counts(rows, preset_certificates, qapp):
     try:
         head = dlg._tree.headerItem()
         assert dlg._tree.columnCount() == 5
-        assert head.text(3) == "Metrics answered,\nown colours"
-        assert head.text(4) == "Metrics answered,\nFrom Profile Gamut"
-        # review of k45: the preset names keep their room
-        assert dlg._tree.columnWidth(4) < 200
+        # beta-15 last fixes: short headings, each on two lines, so the
+        # preset names keep their room; "metrics answered" is said once, by
+        # the line beside "Sort by" and the headings' tooltip
+        assert head.text(3) == "Own\ncolours"
+        assert head.text(4) == "From Profile\nGamut"
+        assert dlg._tree.columnWidth(4) < 140
         assert head.toolTip(4) == TWO_COUNTS_NOTE
         r = next(x for x in rows if "a4" in x.key and "616" not in x.key
                  and x.gamut_assessment is not None

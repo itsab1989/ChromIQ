@@ -161,7 +161,7 @@ def test_the_column_total_is_every_metric(qapp, rows):
         assert checked, "no preset could be assessed, so this proves nothing"
         for it, r in checked:
             assert len(r.assessment.asked) == total, r.label
-            assert it.text(3) == tr("{n} of {total} metrics").format(
+            assert it.text(3) == tr(PVD.COUNT_CELL).format(
                 n=len(r.assessment.answered), total=total), r.label
         # and the count line says the same number, in its own words
         assert dlg._asked_label.text() == tr(

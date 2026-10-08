@@ -248,7 +248,7 @@ def test_the_window_never_waits_and_says_working(qapp, tmp_path):
         assert tr("Still being checked") in text
         assert dlg.wait_for_layouts(120.0)
         assert not PE.is_being_laid_out(row.assessment)
-        assert dlg._columns(row)[3] == tr("{n} of {total} metrics").format(
+        assert dlg._columns(row)[3] == tr(PVD.COUNT_CELL).format(
             n=len(row.assessment.answered), total=len(row.assessment.asked))
         assert "uniformity_sd" in row.assessment.answered
     finally:

@@ -2125,9 +2125,14 @@ class TabPrint(QWidget):
         title, body = MM.M_PRINT_PAPER_PROFILE_UNKNOWN.render(
             printer=printer, medium=pp.media_label, profile=pp.label)
         dlg = QMessageBox(self)
+        # THE TITLE IN THE WINDOW, NOT ONLY ON ITS FRAME (beta-15 sweep): macOS
+        # draws no title on a message box, so a title set only with
+        # setWindowTitle is never seen. Like the other §M windows, the title
+        # is the box's bold first line and the body its informative text.
         dlg.setWindowTitle(title)
         set_warning_icon(dlg)
-        dlg.setText(body)
+        dlg.setText(title)
+        dlg.setInformativeText(body)
         dialog_btn = dlg.addButton(tr(MM._PRINT_UNKNOWN_BTN_DIALOG),
                                    QMessageBox.ButtonRole.AcceptRole)
         anyway_btn = dlg.addButton(tr(MM._PRINT_UNKNOWN_BTN_ANYWAY),

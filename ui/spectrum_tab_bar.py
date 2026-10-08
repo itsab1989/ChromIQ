@@ -138,6 +138,23 @@ class SpectrumTabBar(QTabBar):
         sh.setHeight(48)
         return sh
 
+    def minimumTabSizeHint(self, index: int):  # type: ignore[override]
+        """The narrowest a tab may be: its own label, never its share of the
+        bar's CURRENT width.
+
+        **THIS IS WHAT HELD THE WINDOW AT ITS OWN WIDTH** (beta-15 sweep, a 13"
+        MacBook Air, 1470x956 points). Qt's ``minimumTabSizeHint`` calls the
+        virtual ``tabSizeHint`` above, which answers "the tab widget's width
+        divided by five", so the bar's minimum was whatever width the window
+        already had: measured on screen, a window at 1470 reported a minimum
+        of 1474 (the bar plus the tab widget's frame), wider than the screen,
+        and could never be made narrower. The base class's own hint is the
+        label's size; the 120 px floor is the one ``tabSizeHint`` keeps."""
+        sh = QTabBar.tabSizeHint(self, index)
+        sh.setWidth(max(120, sh.width()))
+        sh.setHeight(48)
+        return sh
+
     # ------------------------------------------------------------------
     # Painting
     # ------------------------------------------------------------------

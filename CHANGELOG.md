@@ -55,6 +55,13 @@
 - The hover card's line "Checked again after each strip: a patch can turn red later, when patches near it in colour are read" is broken over three lines, so the red card keeps its usual width (it was about 500 px wide in every language). The words are unchanged.
 - Translations of the new texts corrected in German, Dutch, Spanish, French, Italian, Norwegian, Portuguese, Swedish and Ukrainian (the rendering intent called by each language's usual name, the neighbour comparison's lines).
 
+### Fixed (on-screen sweep of beta 15)
+
+- **"Which presets can be used for verification?" shows the preset names again, and more of them.** The two count columns are headed "Own colours" and "From Profile Gamut", hold "16 of 18", and are only as wide as that; one line beside "Sort by" says that both count the metrics a chart answers, with the full explanation on hover (it was a four-line box over the list). Every preset name has its full name as a tooltip. Measured on screen at the window's size of 1179 x 730: names cut 4 in English and 12 in German (were 125 and 161; beta 14: 17), rows shown 20 and 19 (were 14).
+- **The main window fits a 13" MacBook Air.** Its smallest width followed the width it already had (the tab bar asked for its current width as its minimum), so a window at 1470 points could not be made narrower than 1474. It is now 900, as intended.
+- The question for a printer model whose paper profiles ChromIQ does not know shows its title, "ChromIQ does not know this printer’s paper profiles yet", as the other questions do.
+- Ukrainian: the credits say "Стало можливим завдяки Knut Georg Larsson" ("Made possible by"), and "Побудовано на ArgyllCMS" ("Built on"); both had read "Створено" ("Created").
+
 ## v4.3.3-beta.14
 
 **The chart preview can show the paper's own tone: "Simulate paper white" in the preview's switch.**

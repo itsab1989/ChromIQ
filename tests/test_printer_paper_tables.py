@@ -444,6 +444,7 @@ def test_unknown_model_window_offers_the_dialog(qapp, monkeypatch, fixture_drive
     def fake_exec(box):
         seen["title"] = box.windowTitle()
         seen["text"] = box.text()
+        seen["informative"] = box.informativeText()
         seen["buttons"] = [b.text() for b in box.buttons()]
         dialog = next(b for b in box.buttons() if b.text() == MM._PRINT_UNKNOWN_BTN_DIALOG)
         dialog.click()
@@ -453,9 +454,16 @@ def test_unknown_model_window_offers_the_dialog(qapp, monkeypatch, fixture_drive
     parent = QWidget()
     choice = TabPrint._ask_unknown_paper_profile(parent, "Q_PRO999", pp)
     assert choice == "dialog"
-    # (Qt on macOS shows no title on a message box; the body says it all)
-    assert "Q_PRO999" in seen["text"] and "Photo Paper Pro Platinum" in seen["text"]
-    assert pp.label in seen["text"]
+    # Qt on macOS shows no title on a message box, so the TITLE is the box's
+    # own first line, as in the other §M windows (beta-15 sweep: the window
+    # showed no title at all), and the body is its informative text.
+    title, _body = MM.M_PRINT_PAPER_PROFILE_UNKNOWN.render(
+        printer="Q_PRO999", medium=pp.media_label, profile=pp.label)
+    assert seen["text"] == title
+    assert title == "ChromIQ does not know this printer\u2019s paper profiles yet"
+    body = seen["informative"]
+    assert "Q_PRO999" in body and "Photo Paper Pro Platinum" in body
+    assert pp.label in body
     assert MM._PRINT_UNKNOWN_BTN_ANYWAY in seen["buttons"]
     parent.deleteLater()
 

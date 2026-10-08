@@ -82,10 +82,6 @@ from workflow import preset_eligibility as PE
 
 log = logging.getLogger(__name__)
 
-#: Room beside a column heading's text: the section's own margins and the
-#: sort indicator a header may draw.
-_HEADER_PAD = 28
-
 #: The two "Sort by" choices (K33-8, B8-999). The first is the order the list
 #: has always had, the Create Chart Preset pulldown's own; the second sorts
 #: each group by how many of the counted metrics a preset's chart answers.
@@ -793,17 +789,34 @@ TWO_COUNTS_NOTE = (
     "applies.")
 
 
+#: Beta-15 last fixes: the one line that takes the place of TWO_COUNTS_NOTE's
+#: box over the list. The headings no longer say "Metrics answered", so this
+#: line says it once for both; the whole explanation is its tooltip and the
+#: headings' tooltip.
+TWO_COUNTS_LINE = (
+    "Both columns count the metrics the chart answers: with the preset\u2019s "
+    "own colours, or filled From Profile Gamut.")
+
+#: The two count headings and the count in their cells. Short, so the two
+#: columns are as wide as "16 of 18" and their heading, and the preset NAMES
+#: keep the width beta 14 gave them (beta-15 sweep: two-line headings of at
+#: least 140 px each left the Preset column 400 px in English and 333 in
+#: German, and 125 and 161 of 197 names were cut, against 17 in beta 14).
+OWN_COLOURS_HEADING = "Own colours"
+GAMUT_HEADING = "From Profile Gamut"
+COUNT_CELL = "{n} of {total}"
+
 def two_line_heading(text: str) -> str:
-    """Review of k45: the two count headings on two lines, broken after
-    their first comma ("Metrics answered," / "own colours"), so the two
-    columns do not take the width the preset NAMES need (measured on screen
-    in uk: the Preset column was left 108 px wide and every name elided).
-    Unchanged when the translation has no comma."""
-    for sep in (", ", "，", "、", ","):
-        i = text.find(sep)
-        if i > 0:
-            return text[:i + len(sep)].rstrip() + "\n" + text[i + len(sep):].lstrip()
-    return text
+    """A column heading on two lines, broken at the space nearest its middle,
+    so the column is as narrow as its longer half ("From Profile" / "Gamut",
+    "Own" / "colours"). Unchanged when the heading has no space (Chinese,
+    Japanese) or is one word."""
+    spaces = [i for i, ch in enumerate(text) if ch == " "]
+    if not spaces:
+        return text
+    mid = len(text) / 2
+    i = min(spaces, key=lambda k: (abs(k - mid), -k))
+    return text[:i] + "\n" + text[i + 1:]
 
 
 def gamut_column(row: PresetRow) -> str:
@@ -822,8 +835,7 @@ def gamut_column(row: PresetRow) -> str:
         return tr("Unknown") if row.builtin else tr("Built-in presets only")
     if not g.asked:
         return tr("Nothing is judged")
-    return tr("{n} of {total} metrics").format(
-        n=len(g.answered), total=len(g.asked))
+    return tr(COUNT_CELL).format(n=len(g.answered), total=len(g.asked))
 
 
 def gamut_detail_lines(row: "PresetRow | None") -> "list[Line]":
@@ -1180,7 +1192,20 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                   "answer the same number keep the Preset pulldown order."),
             Qt.ItemDataRole.ToolTipRole)
         star_row.addWidget(self._sort_combo)
-        star_row.addStretch(1)
+        star_row.addSpacing(16)
+        # **WHAT THE TWO COUNT COLUMNS MEAN, IN ONE LINE BESIDE "SORT BY"**
+        # (beta-15 last fixes). k45 put TWO_COUNTS_NOTE in a box of its own
+        # over the list, four lines tall in English: measured on screen, the
+        # list showed 14 rows where beta 14 showed 21. This line takes no
+        # height of its own; the whole explanation is still its tooltip and
+        # the two headings' tooltip.
+        self._two_counts = QLabel(tr(TWO_COUNTS_LINE), self)
+        self._two_counts.setWordWrap(True)
+        self._two_counts.setToolTip(tr(TWO_COUNTS_NOTE))
+        self._two_counts.setCursor(Qt.CursorShape.WhatsThisCursor)
+        self._two_counts.setAlignment(Qt.AlignmentFlag.AlignLeft
+                                      | Qt.AlignmentFlag.AlignVCenter)
+        star_row.addWidget(self._two_counts, stretch=1)
         outer.addLayout(star_row)
 
         # K51 (Knut, #182 5846167083, rule (4) with his modifications;
@@ -1200,11 +1225,6 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         star_note.setWordWrap(True)
         star_note.setObjectName("info")
         outer.addWidget(star_note)
-        # k45: what the two count columns mean
-        two_counts = QLabel(tr(TWO_COUNTS_NOTE), self)
-        two_counts.setWordWrap(True)
-        two_counts.setObjectName("info")
-        outer.addWidget(two_counts)
 
         # -- the list and the detail
         split = QSplitter(Qt.Orientation.Horizontal, self)
@@ -1214,11 +1234,8 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         # counts, one per way of filling the chart, each column saying which.
         self._tree.setColumnCount(5)
         self._tree.setHeaderLabels([tr("Preset"), tr("Patches"), tr("Pages"),
-                                    two_line_heading(tr(
-                                        "Metrics answered, own colours")),
-                                    two_line_heading(tr(
-                                        "Metrics answered, From Profile "
-                                        "Gamut"))])
+                                    two_line_heading(tr(OWN_COLOURS_HEADING)),
+                                    two_line_heading(tr(GAMUT_HEADING))])
         self._tree.headerItem().setToolTip(3, tr(TWO_COUNTS_NOTE))
         self._tree.headerItem().setToolTip(4, tr(TWO_COUNTS_NOTE))
         self._tree.setRootIsDecorated(True)
@@ -1232,16 +1249,13 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         head = self._tree.header()
         head.setStretchLastSection(False)
         head.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        # …AND NEVER NARROWER THAN ITS OWN HEADING (round B before beta 37,
-        # L3): 140 px cut the German "Beantwortete Metriken" to "…Metriker".
-        # A heading is a translated string, so its width is measured.
-        hfm = head.fontMetrics()
-        for c, wdt in ((1, 80), (2, 70), (3, 140), (4, 140)):
+        # The four figure columns are sized to what they hold (their heading
+        # and their cells) by `_fit_figure_columns`, after every fill: a
+        # heading is a translated string and a cell can be a word, so neither
+        # is guessed (round B before beta 37, L3: 140 px cut the German
+        # "Beantwortete Metriken" to "…Metriker").
+        for c in (1, 2, 3, 4):
             head.setSectionResizeMode(c, QHeaderView.ResizeMode.Fixed)
-            label = self._tree.headerItem().text(c)
-            self._tree.setColumnWidth(
-                c, max(wdt, max(hfm.horizontalAdvance(line)
-                                for line in label.split("\n")) + _HEADER_PAD))
         # A BOUND METHOD, never a self-capturing lambda on a signal a widget's
         # own child emits: CLAUDE.md, the fade-scroll SIGSEGV.
         self._tree.currentItemChanged.connect(self._on_selected)
@@ -1622,8 +1636,10 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                 continue
             for col, text in enumerate(self._columns(row)):
                 item.setText(col, text)
+            self._set_tooltips(item)
             if row.starred or row.is_current_chart:
                 item.setFont(0, bold)
+        self._fit_figure_columns()
         if isinstance(cur_row, PresetRow) and id(cur_row) in want:
             self._show_detail(cur_row)
 
@@ -1687,6 +1703,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         if self._current is not None:
             item = QTreeWidgetItem(self._tree, self._columns(self._current))
             item.setData(0, Qt.ItemDataRole.UserRole, self._current)
+            self._set_tooltips(item)
             item.setFont(0, bold)
             if self._current.label == keep_label:
                 select_me = item
@@ -1710,11 +1727,13 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             for r in members:
                 item = QTreeWidgetItem(head, self._columns(r))
                 item.setData(0, Qt.ItemDataRole.UserRole, r)
+                self._set_tooltips(item)
                 if r.starred:
                     item.setFont(0, bold)
                 if r.label == keep_label:
                     select_me = item
             head.setExpanded(True)
+        self._fit_figure_columns()
         if select_me is not None:
             self._tree.setCurrentItem(select_me)
             # …AND SHOW IT. `setCurrentItem` does not scroll on a tree that has
@@ -1725,6 +1744,44 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                 select_me, QAbstractItemView.ScrollHint.PositionAtCenter)
         else:
             self._show_detail(None)
+
+    @staticmethod
+    def _set_tooltips(item) -> None:
+        """Every preset's whole name as the tooltip of its name cell, however
+        the column cuts it, and each count cell's whole text as its own (a
+        word such as "Built-in presets only" can be wider than the column)."""
+        row = item.data(0, Qt.ItemDataRole.UserRole)
+        if isinstance(row, PresetRow):
+            item.setToolTip(0, row.label)
+        for c in (3, 4):
+            item.setToolTip(c, item.text(c))
+
+    def _fit_figure_columns(self) -> None:
+        """Patches and Pages as wide as their heading and their widest cell;
+        the two counts as wide as their heading and a count ("16 of 18",
+        "Working…"), no wider; the Preset name takes the rest.
+
+        A word in a count cell ("Cannot be checked" on the current chart
+        when Create Chart holds none, "Built-in presets only" on your own
+        preset) is NOT what sizes its column: measured on screen, the one
+        "Cannot be checked" on the current-chart row took 56 px from every
+        preset name. It is cut instead, and its cell's tooltip says it whole,
+        as does the detail pane beside the list."""
+        tree = self._tree
+        head = tree.header()
+        fm = tree.fontMetrics()
+        # the cell's own margins, as the view's style draws them
+        from PyQt6.QtWidgets import QStyle
+        pad = 2 * (tree.style().pixelMetric(
+            QStyle.PixelMetric.PM_FocusFrameHMargin, None, tree) + 1) + 4
+        count = max(fm.horizontalAdvance(tr(COUNT_CELL).format(n=88, total=88)),
+                    fm.horizontalAdvance(tr("Working…"))) + pad
+        for c in (1, 2, 3, 4):
+            if c in (3, 4):
+                width = max(head.sectionSizeHint(c), count)
+            else:
+                width = max(head.sectionSizeHint(c), tree.sizeHintForColumn(c))
+            tree.setColumnWidth(c, width)
 
     def _columns(self, row: PresetRow) -> "list[str]":
         name = ("●  " + row.label) if row.starred else row.label
@@ -1740,7 +1797,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         elif not a.asked:
             verdict = tr("Nothing is judged")
         else:
-            verdict = tr("{n} of {total} metrics").format(
+            verdict = tr(COUNT_CELL).format(
                 n=len(a.answered), total=len(a.asked))
         gamut = gamut_column(row)
         if row.is_current_chart and row.from_profile_gamut:
