@@ -310,7 +310,10 @@ def test_a_run_reports_in_use_kept_and_leaves_them(three_folders, capsys):
     out = capsys.readouterr().out
     assert "in use, kept (held open by a live process)" in out
     assert str(held) in out and str(fresh) in out
-    assert "in use, kept" in out.splitlines()[-1]
+    # The summary line, wherever it falls: with a disk baseline on the machine
+    # the "since baseline" lines follow it (gate 1 of beta 12 on Basti's Mac).
+    summary = [ln for ln in out.splitlines() if ln.startswith("ChromIQ cleanup:")]
+    assert summary and "in use, kept" in summary[-1]
     assert fresh.is_dir() and held.is_dir()
     assert not idle.exists()
 
