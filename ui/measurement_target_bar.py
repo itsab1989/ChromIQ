@@ -908,7 +908,7 @@ class MeasurementTargetBar(QWidget):
             "Which verification to work on. “New verification” starts a fresh, "
             "dated check that is kept next to your earlier ones, so you build "
             "up a history of how this profile performs month after month. Pick "
-            "an existing date instead to re-measure that particular check. "
+            "an existing date to see that check again or to re-measure it. "
             "When you switch to Verification or choose another profile run, "
             "the box shows the latest date, or “New verification” when there "
             "is none yet."))
