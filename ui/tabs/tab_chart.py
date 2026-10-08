@@ -29643,7 +29643,11 @@ class TabChart(QWidget):
         # leaking into new sessions too. It resets to EMPTY, not to a factory
         # name (Basti, #164 Q15) — see _restore_defaults.
         s.set("chart_target_name",         "")
-        s.set("chart_stamp_commands",      bool(params.stamp_commands))
+        # k42 review: Guided has no stamp control and always prints without
+        # the stamp, so a save made in Guided must not switch Manual's "Stamp
+        # settings down the right edge" off (it is Manual's own setting).
+        if self._current_mode() != "guided":
+            s.set("chart_stamp_commands",  bool(params.stamp_commands))
         s.set("chart_left_clip_info",      bool(params.left_clip_info))
         s.set("chart_instrument",          params.instrument)
         s.set("chart_paper",               params.paper)
@@ -29861,6 +29865,10 @@ class TabChart(QWidget):
             no_strip_limit       = no_strip_limit,
             left_clip_info       = bool(self._settings.get("chart_left_clip_info", False)),
             chromiq_clip_style   = bool(self._settings.get("i1pro_chromiq_clip_style", False)),
+            # k42 (Knut #182 6059912998 Q3, confirmed by Basti): Guided has
+            # no "Stamp settings down the right edge" control, so a Guided
+            # chart is printed WITHOUT the stamp (ChartParams defaults on)
+            stamp_commands       = False,
         )
 
     def _collect_manual(self) -> ChartParams:

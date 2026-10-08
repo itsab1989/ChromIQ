@@ -108,7 +108,9 @@ def test_the_limits_say_what_they_are_for_in_both_places():
     assert "tr(LIMITS_PURPOSE_HELP)" in inspect.getsource(tm)
 
 
-_STRIP_CHECK_LABEL = "Only flag a patch that stands out from its own strip"
+#: k44 (beta 15): the checkbox is named after its function, the strip test
+_STRIP_CHECK_LABEL = ("Strip test: flag a patch past the limit only if it "
+                      "also stands out from its own strip")
 
 
 def test_the_help_quotes_the_strip_check_as_its_checkbox_reads():
@@ -120,7 +122,8 @@ def test_the_help_quotes_the_strip_check_as_its_checkbox_reads():
     import inspect
     import json
     from ui.dialogs import settings_dialog as sd
-    assert f"tr(\"{_STRIP_CHECK_LABEL}\")" in inspect.getsource(sd)
+    assert sd.STRIP_TEST_LABEL == _STRIP_CHECK_LABEL
+    assert "tr(STRIP_TEST_LABEL)" in inspect.getsource(sd)
     assert f"“{_STRIP_CHECK_LABEL}”" in sd.LIMITS_PURPOSE_HELP
     root = os.path.join(os.path.dirname(__file__), "..", "data", "i18n")
     files = sorted(glob.glob(os.path.join(root, "*.json")))

@@ -159,6 +159,9 @@ class PresetRow:
     #: True while this preset's answer is being worked out on the background
     #: thread (K40-1): the row reads "Working…" and is re-read when it arrives.
     pending: bool = False
+    #: k45 (Knut #182 6060464553): the same preset laid out FROM PROFILE
+    #: GAMUT, from its certificate (`PE.assess_gamut`); None without one.
+    gamut_assessment: "PE.Assessment | None" = None
 
 
 # ---------------------------------------------------------------------------
@@ -776,6 +779,70 @@ def _gamut_state_line(row: PresetRow) -> str:
         "its profile its solid patches are converted.")
 
 
+#: k45 (Knut #182 6060464553): what the two "Metrics answered" columns
+#: count. The header tooltip and the line over the list.
+TWO_COUNTS_NOTE = (
+    "Each preset is counted two ways. Own colours: the chart as the preset "
+    "makes it, with its own patch colours. From Profile Gamut: the preset's "
+    "layout filled with the colours a profile can print, plus the 8 cube "
+    "corners, as Create Chart builds it when you choose the preset under "
+    "FROM PROFILE GAMUT. Only a chart filled From Profile Gamut prints "
+    "its solid patches as they are, so only it can answer the two metrics of "
+    "the solid colours. ChromIQ checks every built-in preset both ways "
+    "before each release; how you will fill the chart decides which count "
+    "applies.")
+
+
+def two_line_heading(text: str) -> str:
+    """Review of k45: the two count headings on two lines, broken after
+    their first comma ("Metrics answered," / "own colours"), so the two
+    columns do not take the width the preset NAMES need (measured on screen
+    in uk: the Preset column was left 108 px wide and every name elided).
+    Unchanged when the translation has no comma."""
+    for sep in (", ", "，", "、", ","):
+        i = text.find(sep)
+        if i > 0:
+            return text[:i + len(sep)].rstrip() + "\n" + text[i + len(sep):].lstrip()
+    return text
+
+
+def gamut_column(row: PresetRow) -> str:
+    """k45: the From Profile Gamut count, or why there is none."""
+    if row.is_current_chart:
+        return ""
+    if not row.relayoutable:
+        return tr("Not possible")
+    g = getattr(row, "gamut_assessment", None)
+    if g is None:
+        if row.chart is None:
+            return ""
+        # Review of k45: a BUILT-IN preset without a current certificate (a
+        # build whose certificates were not made again after a change) is not
+        # a user's preset; it is simply not known.
+        return tr("Unknown") if row.builtin else tr("Built-in presets only")
+    if not g.asked:
+        return tr("Nothing is judged")
+    return tr("{n} of {total} metrics").format(
+        n=len(g.answered), total=len(g.asked))
+
+
+def gamut_detail_lines(row: "PresetRow | None") -> "list[Line]":
+    """k45: the From Profile Gamut count of a preset, above its detail."""
+    if row is None or row.is_current_chart or not row.assessment.checked:
+        return []
+    if not row.relayoutable:
+        return []          # `_no_gamut_lines` says why, in the detail
+    g = row.gamut_assessment
+    if g is None or not g.asked:
+        return []
+    n, total = len(g.answered), len(g.asked)
+    return [Line(tr("Filled From Profile Gamut, this layout answers {n} of "
+                    "the {total} metrics.").format(n=n, total=total),
+                 bold=True),
+            Line(tr("Everything below is for the preset's own colours."),
+                 info=True)]
+
+
 def summary_lines(row: "PresetRow | None", *, generic: bool = False) -> "list[Line]":
     """The same answer, short enough for a popup to carry it.
 
@@ -1133,13 +1200,27 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         star_note.setWordWrap(True)
         star_note.setObjectName("info")
         outer.addWidget(star_note)
+        # k45: what the two count columns mean
+        two_counts = QLabel(tr(TWO_COUNTS_NOTE), self)
+        two_counts.setWordWrap(True)
+        two_counts.setObjectName("info")
+        outer.addWidget(two_counts)
 
         # -- the list and the detail
         split = QSplitter(Qt.Orientation.Horizontal, self)
         self._tree = QTreeWidget(split)
-        self._tree.setColumnCount(4)
+        # k45 (Knut #182 6060464553; Basti: keep the Manual count, the app
+        # does not know at chart-build time how the chart will be used): two
+        # counts, one per way of filling the chart, each column saying which.
+        self._tree.setColumnCount(5)
         self._tree.setHeaderLabels([tr("Preset"), tr("Patches"), tr("Pages"),
-                                    tr("Metrics answered")])
+                                    two_line_heading(tr(
+                                        "Metrics answered, own colours")),
+                                    two_line_heading(tr(
+                                        "Metrics answered, From Profile "
+                                        "Gamut"))])
+        self._tree.headerItem().setToolTip(3, tr(TWO_COUNTS_NOTE))
+        self._tree.headerItem().setToolTip(4, tr(TWO_COUNTS_NOTE))
         self._tree.setRootIsDecorated(True)
         self._tree.setUniformRowHeights(True)
         self._tree.setAlternatingRowColors(True)
@@ -1155,11 +1236,12 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         # L3): 140 px cut the German "Beantwortete Metriken" to "…Metriker".
         # A heading is a translated string, so its width is measured.
         hfm = head.fontMetrics()
-        for c, wdt in ((1, 80), (2, 70), (3, 140)):
+        for c, wdt in ((1, 80), (2, 70), (3, 140), (4, 140)):
             head.setSectionResizeMode(c, QHeaderView.ResizeMode.Fixed)
             label = self._tree.headerItem().text(c)
             self._tree.setColumnWidth(
-                c, max(wdt, hfm.horizontalAdvance(label) + _HEADER_PAD))
+                c, max(wdt, max(hfm.horizontalAdvance(line)
+                                for line in label.split("\n")) + _HEADER_PAD))
         # A BOUND METHOD, never a self-capturing lambda on a signal a widget's
         # own child emits: CLAUDE.md, the fade-scroll SIGSEGV.
         self._tree.currentItemChanged.connect(self._on_selected)
@@ -1287,7 +1369,10 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
 
         def answered(r):
             a = r.assessment
-            return len(a.answered) if a is not None and a.checked else -1
+            own = len(a.answered) if a is not None and a.checked else -1
+            g = r.gamut_assessment
+            # k45: the better of the two ways of filling the chart
+            return max(own, len(g.answered) if g is not None else -1)
         return sorted(members, key=lambda r: -answered(r))
 
     def _on_selected(self, current, _previous=None) -> None:
@@ -1360,6 +1445,10 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                 continue
             row.assessment = PE.assess(row.chart, type_id, set_id,
                                        self._overrides, recipe=row.recipe)
+            row.gamut_assessment = (
+                None if row.is_current_chart or not row.relayoutable
+                else PE.assess_gamut(row.chart, type_id, set_id,
+                                     self._overrides, recipe=row.recipe))
             _count_laid_out_pages(row)
             row.starred = PE.made_for_verification(
                 row.chart, row.patches, row.pages,
@@ -1492,6 +1581,10 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                 continue
             row.assessment = PE.assess(row.chart, type_id, set_id,
                                        self._overrides, recipe=row.recipe)
+            row.gamut_assessment = (
+                None if row.is_current_chart or not row.relayoutable
+                else PE.assess_gamut(row.chart, type_id, set_id,
+                                     self._overrides, recipe=row.recipe))
             _count_laid_out_pages(row)
             if not row.is_current_chart:
                 row.starred = PE.made_for_verification(
@@ -1597,7 +1690,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             item.setFont(0, bold)
             if self._current.label == keep_label:
                 select_me = item
-            sep = QTreeWidgetItem(self._tree, ["", "", "", ""])
+            sep = QTreeWidgetItem(self._tree, ["", "", "", "", ""])
             sep.setFirstColumnSpanned(True)
             # NOT CLICKABLE, and that is the whole point of it: no
             # ItemIsSelectable and no ItemIsEnabled, so a click lands nowhere
@@ -1610,7 +1703,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                  if r.group == group and (r.starred or not only)])
             if not members:
                 continue
-            head = QTreeWidgetItem(self._tree, [group, "", "", ""])
+            head = QTreeWidgetItem(self._tree, [group, "", "", "", ""])
             head.setFirstColumnSpanned(True)
             head.setFont(0, bold)
             head.setFlags(Qt.ItemFlag.ItemIsEnabled)
@@ -1649,10 +1742,16 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         else:
             verdict = tr("{n} of {total} metrics").format(
                 n=len(a.answered), total=len(a.asked))
+        gamut = gamut_column(row)
+        if row.is_current_chart and row.from_profile_gamut:
+            # the chart in Create Chart IS filled From Profile Gamut: its
+            # count belongs in that column
+            verdict, gamut = "", verdict
         return [name,
                 str(row.patches) if row.patches else "",
                 str(row.pages) if row.pages else "",
-                verdict]
+                verdict, gamut]
+
 
     def _fill_figures(self) -> None:
         shown = [r for r in self._rows
@@ -1662,6 +1761,13 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                   "{starred}     Answering every metric asked: {complete}"
                   ).format(listed=s["listed"], starred=s["starred"],
                            complete=s["complete"])
+        # k45: and the same count laid out From Profile Gamut
+        g_full = sum(1 for r in shown
+                     if r.gamut_assessment is not None
+                     and r.gamut_assessment.asked
+                     and not r.gamut_assessment.missing)
+        text += "     " + tr("Answering every metric asked, From Profile "
+                             "Gamut: {n}").format(n=g_full)
         # K40-1: the counts above grow while presets are still being checked
         waiting = sum(1 for r in shown if self._is_waiting(r))
         if waiting:
@@ -1701,6 +1807,9 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         verification pre-flight can show the same answer about the same chart.
         """
         self._clear_detail()
+        for line in gamut_detail_lines(row):
+            self._add(line.text, bold=line.bold, info=line.info,
+                      indent=line.indent)
         for line in detail_lines(
                 row, every_metric=self.current_set() == PE.ALL_METRICS):
             self._add(line.text, bold=line.bold, info=line.info,

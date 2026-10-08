@@ -435,7 +435,10 @@ def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
     lines = _card(info)
     assert "Red outline: a large difference" in lines
     i = lines.index(M._CARD_NB_1_ALSO.format(n=info["neighbour"]["n"]))
-    assert lines[i + 5:i + 7] == [M._CARD_NB_REREAD_1, M._CARD_NB_REREAD_2]
+    # beta 15 (k43): the two lines Knut approved follow the figures
+    assert lines[i + 4:i + 7] == [M._CARD_NB_LATER_1, M._CARD_NB_LATER_1B,
+                                  M._CARD_NB_LATER_2]
+    assert lines[i + 8:i + 10] == [M._CARD_NB_REREAD_1, M._CARD_NB_REREAD_2]
     assert M._CARD_RANGE_RED_LEARNED_1 not in lines
     tab._on_strip_measured(_strip("D", {"D6": 0.55}))
     assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED

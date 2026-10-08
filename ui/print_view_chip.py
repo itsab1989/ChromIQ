@@ -8,7 +8,10 @@ label to become the switch between the two views, and for it to stay small:
   the preview shows the page as on paper, a small screen while it shows the
   device values;
 * **on hover it slides open** to a short line ("As on paper", and what a click
-  does), and closes again when the pointer leaves. The full explanation stays
+  does), and closes again when the pointer has left it (beta 15: after a
+  grace of LEAVE_GRACE_MS, and not while the pointer is still within
+  HOVER_MARGIN px of it, so the "Paper white" button at its far left end can
+  be reached on a curved path; coming back cancels the close). The full explanation stays
   in the tooltip. Opening and closing animate the width, fast but smooth,
   growing to the LEFT so the icon under the pointer never moves; the chip
   floats over the image, so nothing in the preview's layout moves with it;
@@ -34,9 +37,10 @@ from __future__ import annotations
 
 import sys
 
-from PyQt6.QtCore import (QEasingCurve, QPointF, QPropertyAnimation, QRectF, Qt,
-                          pyqtProperty, pyqtSignal)
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
+from PyQt6.QtCore import (QEasingCurve, QPointF, QPropertyAnimation, QRect,
+                          QRectF, Qt, QTimer, pyqtProperty, pyqtSignal)
+from PyQt6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QPainter,
+                         QPainterPath, QPen)
 from PyQt6.QtWidgets import QAbstractButton, QWidget
 
 #: The two icons.
@@ -48,6 +52,19 @@ PILL_H = 22
 RING = 3
 #: How long opening or closing takes, unless the system asks for less motion.
 ANIM_MS = 170
+#: How long the OPEN chip waits after the pointer has left it before it
+#: closes (b15a, Basti 2026-10-08). Until beta 14 it closed the instant the
+#: pointer left, so the "Paper white" button at the far LEFT end could only be
+#: reached on a perfectly straight path along a 22 px pill. 500 ms is the
+#: "about half a second" Nielsen Norman Group give for hover content to stay
+#: after the pointer leaves, and sits just above Windows' 400 ms hover time
+#: (SPI_GETMOUSEHOVERTIME), so a wobble is forgiven but the chip does not
+#: linger visibly once the user has moved on. Pointer back inside: cancelled.
+LEAVE_GRACE_MS = 500
+#: While the pointer stays within this many pixels of the open chip, the
+#: grace is renewed instead of closing: the forgiving hover zone. 12 px is
+#: about half the pill's height, enough for a curved path below or above it.
+HOVER_MARGIN = 12
 
 
 #: (monotonic time asked, answer): the system is asked again after
@@ -293,6 +310,11 @@ class PrintViewChip(QAbstractButton):
         self._paper: "bool | None" = None
         self._pw = _PaperWhiteButton(self)
         self._pw.clicked.connect(self._on_paper_white_clicked)
+        # b15a: the close after the pointer left waits LEAVE_GRACE_MS
+        self._leave_timer = QTimer(self)
+        self._leave_timer.setSingleShot(True)
+        self._leave_timer.setInterval(LEAVE_GRACE_MS)
+        self._leave_timer.timeout.connect(self._leave_grace_over)
 
     # -------------------------------------------------------------- state
     def set_state(self, *, icon: str, title: str, hint: str, tooltip: str,
@@ -510,14 +532,65 @@ class PrintViewChip(QAbstractButton):
 
     # ------------------------------------------------------------ events
     def enterEvent(self, event) -> None:  # type: ignore[override]
+        self._leave_timer.stop()          # back in time: the close is off
         self._hovered = True
         self._reconsider()
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:  # type: ignore[override]
+        # b15a: not at once. An open chip stays open for LEAVE_GRACE_MS, and
+        # for as long as the pointer stays within HOVER_MARGIN of it; a
+        # collapsed one has nothing to keep.
+        if self._hovered and self.isVisible():
+            self._leave_timer.start(LEAVE_GRACE_MS)
+        else:
+            self._hovered = False
+            self._reconsider()
+        super().leaveEvent(event)
+
+    def closing(self) -> bool:
+        """True while the pointer has left and the grace is running."""
+        return self._leave_timer.isActive()
+
+    def hover_zone(self) -> QRect:
+        """The forgiving hover zone, in global coordinates: the chip grown by
+        HOVER_MARGIN on every side."""
+        tl = self.mapToGlobal(self.rect().topLeft())
+        return QRect(tl, self.size()).adjusted(
+            -HOVER_MARGIN, -HOVER_MARGIN, HOVER_MARGIN, HOVER_MARGIN)
+
+    def _pointer_in_zone(self) -> bool:
+        pos = QCursor.pos()
+        if not self.hover_zone().contains(pos):
+            return False
+        # Review of b15a: only while the pointer is over THIS window. Over
+        # another application's window, a dialog or a menu that happens to lie
+        # within the margin, the chip has been left for good and must close,
+        # not stay open for as long as the pointer rests there.
+        try:
+            from PyQt6.QtWidgets import QApplication
+            under = QApplication.widgetAt(pos)
+        except Exception:      # noqa: BLE001 — never keep it open by mistake
+            return False
+        return under is not None and under.window() is self.window()
+
+    def _leave_grace_over(self) -> None:
+        if not self._hovered:
+            return
+        if self.isVisible() and self._pointer_in_zone():
+            # still close by: look again shortly, the chip stays open
+            self._leave_timer.start(100)
+            return
         self._hovered = False
         self._reconsider()
-        super().leaveEvent(event)
+
+    def hideEvent(self, event) -> None:  # type: ignore[override]
+        # hidden (another tab, no page): nothing to wait for
+        self._leave_timer.stop()
+        if self._hovered:
+            self._hovered = False
+            self._reconsider()
+        super().hideEvent(event)
 
     def focusInEvent(self, event) -> None:  # type: ignore[override]
         # Only the keyboard opens it and rings it: a click also gives focus,

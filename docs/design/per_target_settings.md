@@ -517,6 +517,7 @@ Knut, 2026-10-07, #182 [6045500910](https://github.com/itsab1989/ChromIQ/issues/
 * **Saved defaults still win** (§4: "factory settings, or the saved defaults if the user has any"). Someone who pressed Save as Defaults with the stamp ticked gets it ticked on a new target; nothing stored is migrated, because a saved value cannot be told apart from a choice.
 * **A record without the stamp key** (written before the key existed) is a target with nothing stored for this control and opens on the saved default, else off.
 * The checkbox itself starts unticked when the window is built, and Create Chart's "Restore defaults" unticks it.
+* **ST-4, a Guided chart is printed without the stamp** (beta 15, k42). Knut, #182 [6059912998](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6059912998), answer 3: *"I suggest, Guided should not show the stamp if there is no stamp control. Ask Sebastian to confirm this, as this was his design."* Confirmed by Sebastian for beta 15. Guided has no "Stamp settings down the right edge" control; until beta 14 every Guided chart was stamped (`ChartParams.stamp_commands` defaults on and Guided never set it). Now `_collect_guided` sets it off, whatever Manual's checkbox or the saved defaults say, so the layout keeps no strip clear for it either. Save as Defaults pressed in Guided leaves Manual's stored stamp choice (`chart_stamp_commands`) as it was: it is Manual's control, and a Guided save used to write Guided's value into it (review of beta 15). Test: `tests/test_k42_guided_charts_carry_no_stamp.py`.
 
 ## 5. Scope
 

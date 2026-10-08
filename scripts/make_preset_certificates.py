@@ -16,6 +16,15 @@ hash or version does not match is worked out as before.
 Built-in recipes depend on one setting ("i1Pro: ChromIQ clip style"), so both
 of its values are certified. Settings are sandboxed: nothing here reads or
 writes the user's preferences.
+
+k45 (Knut #182 6060464553, beta 15): every built-in preset that can be laid
+out again is ALSO certified laid out FROM PROFILE GAMUT, the preset giving the
+layout and the colours coming from the gamut of a representative printer
+profile plus the 8 cube corners (`preset_certificates.gamut_variant_values`,
+profile `preset_certificates.GAMUT_PROFILE_REL`: Basti's Epson ET-8550 on
+Epson Premium Semigloss, a real glossy inkjet profile). Its answer is the
+certificate's ``"gamut"`` part; the Manual answer stays as it was. The
+prebuilt-files presets ("by Pharmacist") ship finished pages and get none.
 """
 from __future__ import annotations
 
@@ -53,6 +62,15 @@ def build() -> dict:
     settings = AppSettings()
     certs: dict = {}
     t0 = time.monotonic()
+    from tests.argyll_env import argyll_bin_dir
+    bin_dir = argyll_bin_dir()
+    if bin_dir is None:
+        raise SystemExit("ArgyllCMS is needed to certify the presets")
+    profile = ROOT / PC.GAMUT_PROFILE_REL
+    gamut_profile = {"file": profile.name,
+                     "sha256": PC._sha_file(profile),
+                     "margin": PC.GAMUT_MARGIN, "intent": PC.GAMUT_INTENT}
+    scratch = Path(_SANDBOX.name) / "gamut"
     for variant in _VARIANTS:
         for k, v in variant.items():
             settings.set(k, v)
@@ -80,12 +98,24 @@ def build() -> dict:
                                  "and run this again")
             answered = sorted(r for r, c in values.items()
                               if isinstance(c, dict) and c.get("value") is not None)
-            certs[digest] = {"preset": row.key, "label": row.label,
-                             "answered": len(answered), "values": values}
+            cert = {"preset": row.key, "label": row.label,
+                    "answered": len(answered), "values": values}
+            if row.relayoutable:
+                # k45: the same preset laid out FROM PROFILE GAMUT
+                g_values, g_patches = PC.gamut_variant_values(
+                    row.chart, row.recipe, profile, bin_dir,
+                    scratch / digest[:16])
+                g_answered = sorted(
+                    r for r, c in g_values.items()
+                    if isinstance(c, dict) and c.get("value") is not None)
+                cert["gamut"] = {"answered": len(g_answered),
+                                 "patches": g_patches, "values": g_values}
+            certs[digest] = cert
     print(f"{len(certs)} certificates in {time.monotonic() - t0:.1f} s")
     return {"code_version": PC.code_version(),
             "note": "Written by scripts/make_preset_certificates.py at release "
                     "time; see workflow/preset_certificates.py.",
+            "gamut_profile": gamut_profile,
             "certificates": dict(sorted(certs.items()))}
 
 
@@ -102,6 +132,7 @@ def main() -> int:
         except (OSError, ValueError):
             old = {}
         same = (old.get("code_version") == data["code_version"]
+                and old.get("gamut_profile") == data["gamut_profile"]
                 and old.get("certificates") == data["certificates"])
         print("certificates are current" if same else
               "certificates are STALE: run scripts/make_preset_certificates.py")

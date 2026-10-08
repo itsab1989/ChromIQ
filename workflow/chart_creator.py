@@ -1483,8 +1483,9 @@ class ChartCreator:
             # WILL ANYTHING BE STAMPED DOWN THE RIGHT EDGE? The layout has to
             # know, because it leaves the strip clear (§R9,
             # `raster._clear_the_side_stamp`). Exactly the test `stamp_lines`
-            # makes: notes, or the settings line, or both. Guided never clears
-            # `stamp_commands`, so this is True for every Guided chart.
+            # makes: notes, or the settings line, or both. Guided has no stamp
+            # control and sets `stamp_commands` False since beta 15 (k42), so
+            # a Guided chart stamps only notes it is given.
             side_stamp=bool(params.stamp_commands
                             or (params.chart_notes or "").strip()),
             # Empty for a new chart (the engine stamps today); set only when a

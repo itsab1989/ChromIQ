@@ -324,9 +324,14 @@ DEFAULTS: dict[str, Any] = {
     # The neighbour check's buffer (#182 beta 11, Knut 5983470377 item 5 and
     # 5983725218): a patch whose reading is further from the patches nearest
     # to it in colour than their expected colours are, by more than this
-    # (median over 3 or 4 of them, ΔE*ab), gets the red outline
-    # (workflow/neighbour_check.py).
+    # (median over 2 to 4 of them since beta 15's B2+, ΔE*ab), gets the red
+    # outline (workflow/neighbour_check.py). This one is for charts with
+    # estimated colours; a chart made with a pre-conditioning profile has its
+    # own, default 5 (Knut #182 6059912998, answer 6).
     "patch_neighbour_buffer_de": 10.0,
+    "patch_neighbour_buffer_de_accurate": 5.0,
+    # The neighbour check's own switch (k44, Knut #182 6060201176).
+    "patch_neighbour_check": True,
     # Measurement sound feedback (#131, Phase 1). Master switch lives on the
     # Measure tab; per-event choices and the optional user sounds folder on the
     # Preferences → Sounds / Paths tabs. Off by default (opt-in comfort feature).
@@ -971,7 +976,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 26
+SETTINGS_SCHEMA = 27
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1173,6 +1178,9 @@ class AppSettings:
         if self._migrate_report_thresholds_to_sets():
             dropped.append("report_pass_threshold_avg/max (now limit sets; a "
                            "changed pair lives on in compliance_set_overrides)")
+        if self._migrate_neighbour_buffer_pair():
+            dropped.append("patch_neighbour_buffer_de (a changed buffer now "
+                           "also applies to pre-conditioning-profile charts)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
@@ -1311,6 +1319,34 @@ class AppSettings:
             self._qs.remove("use_chromiq_layout_engine")
             return True
         return False
+
+    def _migrate_neighbour_buffer_pair(self) -> bool:
+        """schema 27 (beta 15, k43, Knut #182 6059912998 answer 6): the
+        neighbour check's one buffer became two, "patch_neighbour_buffer_de"
+        for charts with estimated colours (default 10) and
+        "patch_neighbour_buffer_de_accurate" for charts made with a
+        pre-conditioning profile (default 5).
+
+        Until beta 15 the one buffer applied to BOTH kinds of chart. So a user
+        who had moved it away from its default 10 gets that number in the new
+        buffer too: otherwise their checking of pre-conditioning-profile charts
+        would silently become stricter (their own number replaced by 5). A
+        stored 10 is only an echo of the default (Save in Preferences writes
+        every key), and the designed pair 10/5 applies. A value already in the
+        new key is never overwritten."""
+        raw = self._qs.value("patch_neighbour_buffer_de", None)
+        if raw is None:
+            return False
+        if self._qs.value("patch_neighbour_buffer_de_accurate", None) is not None:
+            return False
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            return False
+        if abs(val - 10.0) <= 1e-9:
+            return False
+        self._qs.setValue("patch_neighbour_buffer_de_accurate", val)
+        return True
 
     def _migrate_patch_warn_two_limits(self) -> bool:
         """schema 25 (#182, Sebastian 5956560815 approving proposal A, Knut

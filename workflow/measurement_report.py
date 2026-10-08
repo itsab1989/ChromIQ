@@ -1461,6 +1461,32 @@ def created_stamp_for(ti3_path: str | Path, *,
         return datetime.now().isoformat(timespec="seconds")
 
 
+#: k41 (Knut #182 6059912998, answer 2: "Check what is done in the industry
+#: for same situation and do that"). The two rendering intents that change
+#: colour ON PURPOSE. ICC White Paper 9: "the 'perceptual' and 'saturation'
+#: rendering intents are intended for re-purposing and the colorimetric
+#: rendering intents are intended for proofing"; ICC White Paper 27: profiles
+#: with re-rendering "intentionally modify the output colorimetry and hence
+#: cannot be completely evaluated using only objective methods", while the
+#: forward table "should be checked by comparing PCS values to device
+#: measurements" (ArgyllCMS profcheck does exactly that). So a sheet printed
+#: through one of these is JUDGED on its profile accuracy (the printed device
+#: values against the profile's own prediction, `profile_accuracy_block`,
+#: which does not depend on the intent), and its colours against the source
+#: are shown for information only (`NOTE_INTENT_PERCEPTUAL_INFO`). Relative
+#: and absolute colorimetric prints keep §58 exactly.
+RE_RENDERING_INTENTS: "tuple[str, ...]" = ("perceptual", "saturation")
+
+
+def print_intent_rerenders(report: dict) -> "str | None":
+    """``"perceptual"`` / ``"saturation"`` for a sheet printed through its
+    profile with an intent that changes colour on purpose and judged against
+    its source (k41), else None."""
+    sr = (report or {}).get("source_reference") or {}
+    pi = sr.get("print_intent")
+    return str(pi) if pi in RE_RENDERING_INTENTS else None
+
+
 def source_reference(printing: "dict | None", data, rgb100, lab,
                      argyll_bin, ti3_path: "Path | None" = None):
     """``(aims, record, paper_xyz)`` for a sheet ChromIQ printed THROUGH its
@@ -1510,8 +1536,14 @@ def source_reference(printing: "dict | None", data, rgb100, lab,
         return None
     aims = {sid: tuple(float(v) for v in l[:3])
             for sid, l in zip(data.sample_ids, labs)}
-    return (aims, {"profile": Path(src).name,
-                   "intent": "absolute" if absolute else "relative"}, paper)
+    rec = {"profile": Path(src).name,
+           "intent": "absolute" if absolute else "relative"}
+    # k41 (Knut #182 6059912998, answer 2): a print through a re-rendering
+    # intent is compared with its source for information only
+    _pi = str(printing.get("intent") or "relative")
+    if _pi in RE_RENDERING_INTENTS:
+        rec["print_intent"] = _pi
+    return (aims, rec, paper)
 
 
 def profile_accuracy_block(ti3_path: Path, ti2: Path, data,
@@ -1580,9 +1612,8 @@ def profile_accuracy_verdict(report: dict, limits) -> "dict | None":
     colour-accuracy rows (Knut 6045500910: "judge the profile's accuracy
     against its own prediction"). ``{"rows": [{"row_id", "key", "value",
     "threshold", "word"}], "all_pass"}``, or None on a sheet without them.
-    Its own words: they do not change the sheet's overall word, which the
-    colour-fidelity rows give (a question for Knut, §58 of
-    measurement_report_limits.md)."""
+    k40 (Knut #182 6059912998, answer 1): a FAIL among them fails the
+    sheet's overall word too; see :func:`profile_accuracy_pairs`."""
     from workflow.compliance_sets import FAIL, PASS, ROWS, Limit, row_verdict
     de = ((report or {}).get("profile_accuracy") or {}).get("de00")
     if not de:
@@ -1606,6 +1637,58 @@ def profile_accuracy_verdict(report: dict, limits) -> "dict | None":
     return {"rows": rows,
             "all_pass": (all(r["word"] == PASS for r in judged)
                          if judged else None)}
+
+
+#: The five colour-accuracy rows, by Report Limits row id: the rows the
+#: Profile accuracy table judges again against the profile's prediction.
+PROFILE_ACCURACY_ROW_IDS: "frozenset[str]" = frozenset(
+    ("all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
+     "all_de00_p95"))
+#: The prefix a Profile accuracy row's id carries among a column's counted
+#: pairs, so it is never mistaken for the colour-fidelity row of that name.
+PROFILE_ACCURACY_ID_PREFIX = "profile_accuracy:"
+#: Recorded in ``verdict.profile_accuracy`` since beta 15 (k40): True when the
+#: table's words counted in the sheet's Overall word. A verdict saved without
+#: it was saved by beta 12 to 14, whose Overall word did not count them.
+PROFILE_ACCURACY_COUNTED_KEY = "counts_in_overall"
+
+
+def saved_before_k40(recorded: "dict | None") -> bool:
+    """True for a SAVED verdict whose Profile accuracy table did not count in
+    its Overall word (saved by beta 12 to 14): the report is shown as it was
+    saved (§53), so its note must say what was true of it then."""
+    pa = (recorded or {}).get("profile_accuracy")
+    return isinstance(pa, dict) and PROFILE_ACCURACY_COUNTED_KEY not in pa
+
+
+def profile_accuracy_pairs(report: dict, rows: "list[dict]",
+                           limits) -> "list[tuple]":
+    """k40 (Knut #182 6059912998, answer 1): *"Do you mean the metrics
+    'Average ΔE00, all patches', 'Average ΔE00, lowest 95 %', 'Average ΔE00,
+    highest 5 %', 'Maximum ΔE00, all patches' and 'Maximum ΔE00, lowest 95 %
+    (95th percentile)' ...? If so, then a fail of these should also fail the
+    overall judgement."* Those are exactly :data:`ACCURACY_METRICS`, the five
+    rows of the Profile accuracy table.
+
+    So the column's Overall word and its counts take the table's five words
+    as five more values, ``[(limit, word, "profile_accuracy:<row id>")]``,
+    on a sheet that has the table, and only where the column itself judges
+    the colour-accuracy rows (a report type without them, a Grey and tone
+    check, is not failed by a table it does not judge). Empty otherwise."""
+    from workflow.compliance_sets import Limit
+    if not any((r.get("row_id") or r.get("key")) in PROFILE_ACCURACY_ROW_IDS
+               for r in (rows or ())):
+        return []
+    v = profile_accuracy_verdict(report, limits)
+    if not v:
+        return []
+    out = []
+    for r in v.get("rows") or ():
+        lim = (limits or {}).get(r.get("row_id"))
+        out.append((lim if isinstance(lim, Limit) else Limit.none(),
+                    r.get("word"),
+                    PROFILE_ACCURACY_ID_PREFIX + str(r.get("row_id"))))
+    return out
 
 
 def build_report(ti3_path: str | Path, worst_n: int = 16,
@@ -4755,6 +4838,17 @@ def stamp_verdict(report: dict, limits_or_avg, max_thr: "float | None" = None,
     _pa = profile_accuracy_verdict(report, limits)
     if _pa is not None:
         report["verdict"]["profile_accuracy"] = _pa
+        # k40: the Overall word already counts the table (`summarise`);
+        # all_pass says the same
+        _counts = bool(profile_accuracy_pairs(
+            report, counted_rows(report, rows), limits))
+        # Recorded, so a report saved before k40 (whose Overall word did NOT
+        # count the table) is told apart when it is opened again and keeps
+        # the note that was true of it (review of beta 15).
+        _pa[PROFILE_ACCURACY_COUNTED_KEY] = _counts
+        if (_pa.get("all_pass") is False
+                and report["verdict"]["all_pass"] is True and _counts):
+            report["verdict"]["all_pass"] = False
     return report
 
 
@@ -5444,8 +5538,17 @@ NOTE_PAPER_AGAINST_PROFILE = "paper_against_profile"
 #: SHOWS a value, and survive the Printing record's `_ungrade`, which clears
 #: the notes that comment a verdict (challenge 2 of beta 44, finding 8,
 #: B8-1277; §41.7: "every judged or shown value carries" the note).
+#: k41: the five colour-accuracy rows of a sheet printed through a
+#: re-rendering intent (`RE_RENDERING_INTENTS`) are shown for information,
+#: and the note says why. Texts: `measurement_messages.
+#: M_REPORT_INTENT_PERCEPTUAL_INFO` / `M_REPORT_INTENT_SATURATION_INFO`.
+NOTE_INTENT_PERCEPTUAL_INFO = "intent_perceptual_info"
+NOTE_INTENT_SATURATION_INFO = "intent_saturation_info"
+
 VALUE_NOTES: "tuple[str, ...]" = (NOTE_SOLIDS_PREDICTED,
-                                  NOTE_PAPER_AGAINST_PROFILE)
+                                  NOTE_PAPER_AGAINST_PROFILE,
+                                  NOTE_INTENT_PERCEPTUAL_INFO,
+                                  NOTE_INTENT_SATURATION_INFO)
 
 #: The rows whose numbers such a sheet moves, measured in §32.6: the five
 #: colour-difference statistics, the three control-strip rows, the two gamut
@@ -6928,6 +7031,9 @@ def row_values(report: dict) -> "dict[str, dict]":
             if r.metric_key:
                 put(r.id, None, REASON_NO_PATCH_IN_GAMUT)
     else:
+        # k41: through a re-rendering intent the source comparison is shown,
+        # never judged; the profile accuracy table judges the sheet
+        _rr = print_intent_rerenders(report)
         for r in ROWS:
             if not r.metric_key:
                 continue
@@ -6935,6 +7041,10 @@ def row_values(report: dict) -> "dict[str, dict]":
             if v is None:
                 put(r.id, None, REASON_SMALL_SAMPLE if de.get("small_sample")
                     else REASON_NO_REFERENCE)
+            elif _rr:
+                put(r.id, v, graded=False,
+                    notes=(NOTE_INTENT_SATURATION_INFO if _rr == "saturation"
+                           else NOTE_INTENT_PERCEPTUAL_INFO))
             else:
                 put(r.id, v)
 
@@ -7347,6 +7457,9 @@ def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str,
         # verification measurement would read COND instead of PASS.
         pairs.append((lim if isinstance(lim, Limit) else Limit.none(),
                       row["word"], row["row_id"]))
+    # k40: a failed Profile accuracy table fails the sheet
+    pairs.extend(profile_accuracy_pairs(report, counted_rows(report, rows),
+                                        limits))
     # THE RAW ID, NOT THE RESOLVED SET'S. `getattr(s, "id", None)` is None for
     # a set this ChromIQ no longer defines, which threw away the only evidence
     # left about what the run was judged against.

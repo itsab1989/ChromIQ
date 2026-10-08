@@ -12194,6 +12194,14 @@ class MeasurementReportDialog(QDialog):
             # K59: §M text (M-REPORT-RAW-PRINT-INFO, approved by Knut in 5850164956)
             from workflow import measurement_messages as M
             return M.M_REPORT_RAW_PRINT_INFO.render()[1]
+        from workflow.measurement_report import (
+            NOTE_INTENT_PERCEPTUAL_INFO, NOTE_INTENT_SATURATION_INFO)
+        if code in (NOTE_INTENT_PERCEPTUAL_INFO, NOTE_INTENT_SATURATION_INFO):
+            # k41: §M text (M-REPORT-THROUGH-PROFILE lines 8 and 9, proposed)
+            from workflow import measurement_messages as M
+            return tr(M._REPORT_INTENT_SATURATION_INFO
+                      if code == NOTE_INTENT_SATURATION_INFO
+                      else M._REPORT_INTENT_PERCEPTUAL_INFO)
         from workflow.measurement_report import (NOTE_PAPER_AGAINST_PROFILE,
                                                  NOTE_SOLIDS_PREDICTED)
         if code in (NOTE_SOLIDS_PREDICTED, NOTE_PAPER_AGAINST_PROFILE):
@@ -12846,6 +12854,10 @@ class MeasurementReportDialog(QDialog):
                   if isinstance(limits.get(row.get("row_id")), Limit)
                   else Limit.none(), row.get("word"), row.get("row_id"))
                  for row in counted_rows(r, rows)]
+        # k40 (Knut 6059912998): a failed Profile accuracy table fails the
+        # column, with the limits the column is judged with
+        from workflow.measurement_report import profile_accuracy_pairs
+        pairs.extend(profile_accuracy_pairs(r, counted_rows(r, rows), limits))
         # K51 (B8-1330): a raw drift check that judges its paper or solid
         # rows is a judged column; its rows shown for information are not
         # counted (`set_summary`).
@@ -16958,8 +16970,10 @@ class MeasurementReportDialog(QDialog):
             from workflow import measurement_messages as _MM
             # Beta 12 (Knut 6045500910): judged twice when its source is
             # known; the older sentence for a sheet judged on its design.
+            from workflow.measurement_report import print_intent_rerenders
             rows.append((tr("What this measured"), tr(
-                _MM._REPORT_SOURCE_MEASURED)
+                _MM._REPORT_SOURCE_MEASURED_INFO
+                if print_intent_rerenders(r) else _MM._REPORT_SOURCE_MEASURED)
                 if ref_src == "source" else tr(
                 "how accurate this profile is — the sheet was the profile's "
                 "own prediction, made real"), False))
@@ -17087,8 +17101,12 @@ class MeasurementReportDialog(QDialog):
             # patches judged, the gamut tested in the print's intent.
             from workflow import measurement_messages as _MM
             _sr = r.get("source_reference") or {}
+            # k41: through perceptual or saturation, for information only
+            from workflow.measurement_report import print_intent_rerenders
             rows.append((tr("Reference for the ΔE figures"), tr(
-                _MM._REPORT_SOURCE_REFERENCE).format(
+                _MM._REPORT_SOURCE_REFERENCE_INFO
+                if print_intent_rerenders(r)
+                else _MM._REPORT_SOURCE_REFERENCE).format(
                     profile=str(_sr.get("profile") or ""),
                     intent=intent_labels.get(
                         str(_sr.get("intent") or "relative"),
@@ -17176,8 +17194,26 @@ class MeasurementReportDialog(QDialog):
                 "style='border-collapse:collapse;font-size:11px'>"
                 + "".join(trs) + "</table>"
                 + f"<p style='color:{_C['faint']};font-size:10px'>"
-                + html.escape(tr(_MM._REPORT_PROFILE_ACCURACY_NOTE))
+                + html.escape(tr(
+                    _MM._REPORT_PROFILE_ACCURACY_NOTE_BEFORE_K40
+                    if self._shows_a_pre_k40_word(r)
+                    else _MM._REPORT_PROFILE_ACCURACY_NOTE))
                 + "</p>")
+
+    def _shows_a_pre_k40_word(self, r: dict) -> bool:
+        """Review of beta 15 (k40): a report SAVED by beta 12 to 14 is shown
+        with the Overall word it was saved with (§53), which did not count
+        the Profile accuracy table; the table's note then says so, instead of
+        claiming a FAIL here failed the sheet."""
+        try:
+            from workflow.measurement_report import saved_before_k40
+            rec = self._recorded(r)
+            return (rec is not None and saved_before_k40(rec)
+                    and isinstance(rec.get("summary"), dict)
+                    and bool(rec.get("overall"))
+                    and not self._type_changes_the_document())
+        except Exception:      # noqa: BLE001 — a note is never worth a crash
+            return False
 
     def _run_detail_html(self, r: dict, numbering: "list | None" = None) -> str:
         """One run's full breakdown: the colour-accuracy Pass/Fail table
