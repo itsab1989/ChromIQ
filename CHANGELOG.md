@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.3.3-beta.14 (unreleased)
+## v4.3.3-beta.14
 
 **The chart preview can show the paper's own tone: "Simulate paper white" in the preview's switch.**
 
