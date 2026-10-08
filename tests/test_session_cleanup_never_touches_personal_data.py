@@ -313,3 +313,21 @@ def test_a_run_reports_in_use_kept_and_leaves_them(three_folders, capsys):
     assert "in use, kept" in out.splitlines()[-1]
     assert fresh.is_dir() and held.is_dir()
     assert not idle.exists()
+
+
+def test_a_run_folder_named_after_a_live_pytest_is_in_use(tmp_path):
+    """Review D: a test run's folder is ``chromiq-run-<controller pid>-*``, so
+    it is kept for as long as that pytest lives, however quiet it has been."""
+    import subprocess
+    import sys
+    import time
+    live = tmp_path / f"chromiq-run-{os.getppid() or 1}-abcd"
+    live.mkdir()
+    _age(live)
+    gone = subprocess.Popen([sys.executable, "-c", "pass"])
+    gone.wait(timeout=30)
+    dead = tmp_path / f"chromiq-run-{gone.pid}-efgh"
+    dead.mkdir()
+    _age(dead)
+    assert "still running" in S.in_use(live, time.time(), [])
+    assert S.in_use(dead, time.time(), []) == ""

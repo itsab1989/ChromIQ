@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -90,6 +92,22 @@ def _newest_mtime(path: Path) -> float:
     return newest
 
 
+def _pid_alive(pid: int) -> bool:
+    """Whether *pid* is a live process (a test run names its temp folder
+    ``chromiq-run-<pid>-*`` after its controller, review D)."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
 def held_open_paths() -> "list[str]":
     """Every path a live process holds open, or has as its working folder.
 
@@ -120,6 +138,9 @@ def _held_open(path: Path, open_paths: "list[str]") -> bool:
 
 def in_use(path: Path, now: float, open_paths: "list[str]") -> str:
     """Why *path* must be kept although it is ours ("" when it may go)."""
+    m = re.match(r"chromiq-run-(\d+)-", path.name)
+    if m and _pid_alive(int(m.group(1))):
+        return f"its test run (pid {m.group(1)}) is still running"
     age = now - _newest_mtime(path)
     if age < IN_USE_FOR_S:
         return f"changed {max(0, int(age // 60))} min ago"

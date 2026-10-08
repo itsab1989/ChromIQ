@@ -337,7 +337,12 @@ i did a fresh install of macos."* The suite already cleans up after itself
   removed when the run is green and kept (and named) when it is red. Before
   it (2026-10-02) each gate left ~1.3 GB of loose `chromiq-*` folders for an
   hour. A cache that must outlive a run goes through `_REAL_TEMP`
-  (`CHROMIQ_SUITE_REAL_TMP`), never `tempfile.gettempdir()`.
+  (`CHROMIQ_SUITE_REAL_TMP`), never `tempfile.gettempdir()`. The folder is
+  named `chromiq-run-<controller pid>-*`, and the start-up sweep of stale
+  temp folders skips one whose pytest is alive, anything changed at any depth
+  in the last 30 minutes, and anything a live process holds open: by the top
+  folder's date alone it once deleted another session's running 3.27 GB run
+  folder (review D, beta 12; `tests/test_temp_cleanup.py`).
 * `python3 scripts/disk_report.py` lists every place ChromIQ work writes to,
   with sizes and what is safe to remove; `--check` fails below 100 GB free or
   above 25 GB held. The monitor runs it every cycle (MONITOR.md step 2c).
