@@ -260,3 +260,35 @@ def test_the_builder_runs_the_cusp_clip_before_the_knee():
     src = inspect.getsource(builder._build_profile_impl)
     i_cc = src.index("b2a_mod.cusp_clip(")
     assert src.index("b2a_mod.smooth_exact(") < i_cc < src.index("b2a_mod.soft_corner(")
+
+
+# --- a46c-cuspclip-ipt -----------------------------------------------------
+
+def test_a46c_token_known_not_default_and_wired():
+    assert b2a.A46C_TOKEN == "a46c-cuspclip-ipt"
+    assert b2a.A46C_TOKEN in ENGINE_CANDIDATE_TOKENS
+    assert b2a.A46C_TOKEN not in ACCURATE_DEFAULT_TOKENS
+    src = inspect.getsource(builder._build_profile_impl)
+    assert '"space": "ipt"' in src and "b2a_mod.A46C_BAND" in src
+
+
+def test_a46c_keeps_ipt_hue_and_leaves_colours_above_the_cusp_alone():
+    from workflow.profile_engine.oog_clip import ipt_to_lab, lab_to_ipt
+    model = _ToyRgb()
+    node_lab, per, ing = _table(model)
+    prn = model.predict(per)
+    cl = np.full(180, 45.0)                 # IPT I of every hue's cusp
+    tgt, ch = b2a.cusp_clip_targets(node_lab, prn, ing, cl, _inside,
+                                    to_s=lab_to_ipt, from_s=ipt_to_lab,
+                                    below_band=5.0)
+    assert ch.any() and not (ch & ing).any()
+    ti = lab_to_ipt(node_lab)
+    assert not (ch & (ti[:, 0] >= 45.0)).any()          # above the cusp: kept
+    assert np.array_equal(tgt[~ch], prn[~ch])
+    full = ch & (ti[:, 0] <= 40.0) & (np.hypot(node_lab[:, 1], node_lab[:, 2]) >= 15)
+    i = np.flatnonzero(full)
+    assert len(i)
+    pi = lab_to_ipt(tgt[i])
+    h1 = np.degrees(np.arctan2(ti[i, 2], ti[i, 1]))
+    h2 = np.degrees(np.arctan2(pi[:, 2], pi[:, 1]))
+    assert np.abs((h2 - h1 + 180) % 360 - 180).max() < 1e-6   # IPT hue kept

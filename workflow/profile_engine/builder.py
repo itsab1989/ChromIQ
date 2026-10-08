@@ -141,7 +141,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a46-softcorner",
      # Agent 46 round 2: the out-of-gamut rel. col. clip aimed at the hue's
      # cusp lightness (hue kept), with the a46 knee at width 0.2 on top
-     "a46b-cuspclip"})
+     "a46b-cuspclip",
+     # Agent 46 round 3: a46b in IPT hue planes, below the cusp only
+     "a46c-cuspclip-ipt"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1570,7 +1572,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _emit(settings, "Colorimetric table smoothed on its own "
                                 "branches (in-gamut nodes within "
                                 f"{_sx['ingamut_err_p95']:.2f} dE at p95).")
-    _a46b = accurate and b2a_mod.A46B_TOKEN in candidates and n <= 4
+    _a46c = accurate and b2a_mod.A46C_TOKEN in candidates and n <= 4
+    _a46b = (accurate and b2a_mod.A46B_TOKEN in candidates and n <= 4
+             ) or _a46c
     if _a46b:
         # Research a46b-cuspclip: every out-of-gamut node of the colorimetric
         # table clipped along the line to the grey axis at its hue's cusp
@@ -1588,7 +1592,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             cloud_device=b2a_mod.printable_cloud(
                 model, is_additive=meas.is_additive, ink_limit=ink_limit,
                 channel_max=channel_max),
-            reach=_reach46b, keep_out=fixed_nodes)
+            reach=_reach46b, keep_out=fixed_nodes,
+            # a46c: IPT hue planes, colours below the cusp only
+            **({"space": "ipt", "below_band": b2a_mod.A46C_BAND}
+               if _a46c else {}))
         if _cc.get("taken"):
             _emit(settings, f"Cusp clip: {_cc['taken']} out-of-gamut nodes "
                             "clipped toward their hue's cusp lightness.")

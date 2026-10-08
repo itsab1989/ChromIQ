@@ -3155,11 +3155,19 @@ def cusp_clip_targets(node_lab: np.ndarray, prn: np.ndarray,
                       ingamut: np.ndarray, cusp_l: np.ndarray, inside, *,
                       keep_out: np.ndarray | None = None,
                       c0: float = A46B_C0, cb: float = A46B_CB,
-                      bisect: int = 10):
+                      bisect: int = 10, to_s=None, from_s=None,
+                      below_band: float | None = None):
     """Research a46b-cuspclip, geometry: new clip targets for the
     out-of-gamut nodes (see the comment above A46B_TOKEN). ``prn``: the
     table's current print per node; ``cusp_l``: :func:`cusp_lightness`;
-    ``inside(points, node_idx) -> bool``. Returns ``(targets, changed)``."""
+    ``inside(points, node_idx) -> bool``. Returns ``(targets, changed)``.
+    a46c: ``to_s`` / ``from_s`` map Lab to a hue-linear space (IPT) and back;
+    the hue plane, the cusp (``cusp_l`` then holds the space's lightness) and
+    the clip line are taken there. ``below_band``: only colours below their
+    hue's cusp lightness are re-aimed, fully from ``below_band`` under it,
+    by smoothstep; colours at or above it keep their clip."""
+    if to_s is None:
+        to_s = from_s = (lambda x: np.asarray(x, float))
     t = np.asarray(node_lab, float)
     p = np.asarray(prn, float)
     tgt = p.copy()
@@ -3172,26 +3180,35 @@ def cusp_clip_targets(node_lab: np.ndarray, prn: np.ndarray,
     if not len(idx):
         return tgt, changed
     bins = len(cusp_l)
-    h = np.degrees(np.arctan2(t[idx, 2], t[idx, 1])) % 360.0
+    ts = np.asarray(to_s(t[idx]), float)
+    h = np.degrees(np.arctan2(ts[:, 2], ts[:, 1])) % 360.0
     e = np.zeros((len(idx), 3))
     e[:, 0] = cusp_l[(h / (360.0 / bins)).astype(int) % bins]
+    gam = np.ones(len(idx))
+    if below_band is not None:
+        y = np.clip((e[:, 0] - ts[:, 0]) / below_band, 0.0, 1.0)
+        gam = y * y * (3.0 - 2.0 * y)
+        keep = gam > 0
+        idx, ts, e, gam = idx[keep], ts[keep], e[keep], gam[keep]
+        if not len(idx):
+            return tgt, changed
     # E must be printable (it is, short of a broken model); a node whose E
     # is not keeps its clip
-    e_ok = np.asarray(inside(e, idx), bool)
-    idx, e = idx[e_ok], e[e_ok]
+    e_ok = np.asarray(inside(np.asarray(from_s(e), float), idx), bool)
+    idx, ts, e, gam = idx[e_ok], ts[e_ok], e[e_ok], gam[e_ok]
     if not len(idx):
         return tgt, changed
     lo = np.zeros(len(idx))                  # lam 0 = T (outside)
     hi = np.ones(len(idx))                   # lam 1 = E (on the grey axis)
     for _ in range(bisect):
         mid = 0.5 * (lo + hi)
-        ins = np.asarray(inside(t[idx] + mid[:, None] * (e - t[idx]), idx),
-                         bool)
+        ins = np.asarray(inside(np.asarray(from_s(
+            ts + mid[:, None] * (e - ts)), float), idx), bool)
         hi = np.where(ins, mid, hi)
         lo = np.where(ins, lo, mid)
-    pc = t[idx] + hi[:, None] * (e - t[idx])
+    pc = np.asarray(from_s(ts + hi[:, None] * (e - ts)), float)
     x = np.clip((c[idx] - c0) / cb, 0.0, 1.0)
-    beta = x * x * (3.0 - 2.0 * x)
+    beta = x * x * (3.0 - 2.0 * x) * gam
     tgt[idx] = (1.0 - beta)[:, None] * p[idx] + beta[:, None] * pc
     changed[idx] = np.linalg.norm(tgt[idx] - p[idx], axis=1) > A46_MIN_SHIFT
     tgt[~changed] = p[~changed]
@@ -3201,7 +3218,8 @@ def cusp_clip_targets(node_lab: np.ndarray, prn: np.ndarray,
 def cusp_clip(model: ForwardModel, shaped: np.ndarray, node_lab: np.ndarray,
               *, ingamut: np.ndarray, grid: int, cloud_device: np.ndarray,
               reach, keep_out: np.ndarray | None = None,
-              accept: float = A42_ACCEPT):
+              accept: float = A42_ACCEPT, space: str = "lab",
+              below_band: float | None = None):
     """Research a46b-cuspclip: re-aim the out-of-gamut nodes of the
     colorimetric table (curve space) at their cusp clip. ``reach(points,
     seed_device) -> device``: the build's own per-node inversion seeded from
@@ -3214,7 +3232,12 @@ def cusp_clip(model: ForwardModel, shaped: np.ndarray, node_lab: np.ndarray,
     ``(shaped, info)``; nodes not moved come back bit for bit."""
     have = np.clip(model.unshape_device(np.asarray(shaped, float)), 0.0, 1.0)
     prn = model.predict(have)
-    cl = cusp_lightness(model.predict(np.asarray(cloud_device, float)))
+    to_s = from_s = None
+    if space == "ipt":
+        from workflow.profile_engine.oog_clip import ipt_to_lab, lab_to_ipt
+        to_s, from_s = lab_to_ipt, ipt_to_lab
+    cloud = model.predict(np.asarray(cloud_device, float))
+    cl = cusp_lightness(cloud if to_s is None else to_s(cloud))
     last = {}
 
     def inside(points, idx):
@@ -3224,7 +3247,8 @@ def cusp_clip(model: ForwardModel, shaped: np.ndarray, node_lab: np.ndarray,
         return ok
 
     tgt, ch = cusp_clip_targets(node_lab, prn, ingamut, cl, inside,
-                                keep_out=keep_out)
+                                keep_out=keep_out, to_s=to_s, from_s=from_s,
+                                below_band=below_band)
     info = {"nodes": int(ch.sum()), "cusp_l": cl}
     idx = np.flatnonzero(ch)
     if not len(idx):
@@ -3261,3 +3285,16 @@ def cusp_clip(model: ForwardModel, shaped: np.ndarray, node_lab: np.ndarray,
                 miss_p95=float(np.percentile(e_new[take], 95))
                 if take.any() else 0.0)
     return out, info
+
+
+# Research a46c-cuspclip-ipt (Agent 46 round 3; Findings/agent46-01 s9). a46b
+# with its three measured faults removed by mechanism: (1) the hue plane, the
+# cusp and the clip line are taken in IPT (Ebner and Fairchild's space built
+# for constant perceived hue, the space of the battery's blue hue rows), not
+# in CIELAB, whose constant-hue lines bend for blue (a46b turned sRGB blue 13
+# to 35 deg violet); (2) only colours below their hue's cusp lightness are
+# re-aimed (fully from A46C_BAND IPT units under it), so pale and light
+# colours, and the D50 white beyond paper (absolute intent), keep the
+# existing clip; (3) the a46 knee at 0.2 on top, as a46b.
+A46C_TOKEN = "a46c-cuspclip-ipt"
+A46C_BAND = 5.0
