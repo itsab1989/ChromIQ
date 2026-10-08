@@ -2983,7 +2983,6 @@
  "Overwrite existing files?": "¿Sobrescribir los archivos existentes?",
  "Overwrite sends this patch set to the Create Chart tab, which lays it out with the page layout set there (not the one shown here) — or Save As exports the full chart, this layout included, to a folder you pick without leaving the editor.": "Sobrescribir envía este conjunto de parches a la pestaña Crear carta, que lo distribuye con el diseño de página fijado allí (no el que se muestra aquí); Guardar como exporta la carta completa, con este diseño incluido, a una carpeta que elijas sin salir del editor.",
  "Overwrite the existing files?": "¿Sobrescribir los archivos existentes?",
- "Overwrite {when}": "Sobrescribir {when}",
  "P95": "P95",
  "PASS": "PASS",
  "PASS, FAIL, INFO, N-A (the verdict words)": "PASS, FAIL, INFO, N-A (las palabras de veredicto)",

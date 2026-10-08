@@ -2983,7 +2983,6 @@
  "Overwrite existing files?": "Overskrive eksisterende filer?",
  "Overwrite sends this patch set to the Create Chart tab, which lays it out with the page layout set there (not the one shown here) — or Save As exports the full chart, this layout included, to a folder you pick without leaving the editor.": "Overskriv sender dette feltsettet til fanen Lag kart, som setter det opp med sideoppsettet som er satt der (ikke det som vises her) — Lagre som eksporterer hele kartet, dette oppsettet inkludert, til en mappe du velger uten å forlate editoren.",
  "Overwrite the existing files?": "Overskrive de eksisterende filene?",
- "Overwrite {when}": "Overskriv {when}",
  "P95": "P95",
  "PASS": "PASS",
  "PASS, FAIL, INFO, N-A (the verdict words)": "PASS, FAIL, INFO, N-A (domsordene)",

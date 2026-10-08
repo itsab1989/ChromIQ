@@ -265,7 +265,9 @@ def test_the_comfortable_width_comes_back_when_there_is_room(qapp, tmp_path):
     # so "wider is bigger" had nothing to compare against. Moving the narrow
     # width down restores the precondition; weakening the comparison to `>=`
     # would have hidden the fact that the test had stopped testing anything.
-    mast.resize(1000, mast.sizeHint().height())
+    # 900 since the beta 15 follow-up: a date reads as the date, no longer
+    # "Overwrite <date>", so the row fits at 1000 px and nothing is squeezed.
+    mast.resize(900, mast.sizeHint().height())
     mast.reposition_center(); QApplication.processEvents()
     squeezed = bar._verify_combo.width()
     natural = max(bar._verify_combo.fontMetrics().horizontalAdvance(

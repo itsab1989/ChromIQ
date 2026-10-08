@@ -2983,7 +2983,6 @@
  "Overwrite existing files?": "既存のファイルを上書きしますか?",
  "Overwrite sends this patch set to the Create Chart tab, which lays it out with the page layout set there (not the one shown here) — or Save As exports the full chart, this layout included, to a folder you pick without leaving the editor.": "「上書き」はこのパッチセットを「チャート作成」タブに送り、そこで設定されているページレイアウト（ここに表示されているものではありません）で配置します。「名前を付けて保存」は、このレイアウトを含むチャート全体を、エディターを離れずに選んだフォルダーへ書き出します。",
  "Overwrite the existing files?": "既存のファイルを上書きしますか？",
- "Overwrite {when}": "{when} を上書き",
  "P95": "P95",
  "PASS": "PASS",
  "PASS, FAIL, INFO, N-A (the verdict words)": "PASS、FAIL、INFO、N-A（判定語）",

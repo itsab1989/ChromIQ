@@ -2983,7 +2983,6 @@
  "Overwrite existing files?": "Перезаписати наявні файли?",
  "Overwrite sends this patch set to the Create Chart tab, which lays it out with the page layout set there (not the one shown here) — or Save As exports the full chart, this layout included, to a folder you pick without leaving the editor.": "Функція «Перезаписати» надсилає цей набір патчів на вкладку «Створити діаграму», яка розміщує його з установленим там макетом сторінки (а не тим, що показано тут) — або «Зберегти як» експортує повну діаграму, включаючи цей макет, до папки, яку ви вибираєте, не виходячи з редактора.",
  "Overwrite the existing files?": "Перезаписати існуючі файли?",
- "Overwrite {when}": "Перезаписати {when}",
  "P95": "P95",
  "PASS": "PASS",
  "PASS, FAIL, INFO, N-A (the verdict words)": "PASS, FAIL, INFO, N-A (слова вердикту)",

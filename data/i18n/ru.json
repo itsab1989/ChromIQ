@@ -2983,7 +2983,6 @@
  "Overwrite existing files?": "Перезаписать существующие файлы?",
  "Overwrite sends this patch set to the Create Chart tab, which lays it out with the page layout set there (not the one shown here) — or Save As exports the full chart, this layout included, to a folder you pick without leaving the editor.": "«Перезаписать» отправляет этот набор патчей во вкладку «Создать мишень», которая размещает его по раскладке, заданной там (а не по показанной здесь); «Сохранить как» экспортирует всю мишень вместе с этой раскладкой в выбранную вами папку, не выходя из редактора.",
  "Overwrite the existing files?": "Перезаписать существующие файлы?",
- "Overwrite {when}": "Перезаписать {when}",
  "P95": "P95",
  "PASS": "PASS",
  "PASS, FAIL, INFO, N-A (the verdict words)": "PASS, FAIL, INFO, N-A (слова вердикта)",

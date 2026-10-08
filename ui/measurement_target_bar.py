@@ -1629,14 +1629,30 @@ class MeasurementTargetBar(QWidget):
         # could not do that job — at 150 px the Verification run box already
         # clipped, so the pass that is meant never to lose information lost it
         # on its first step.
-        for readable in (True, False):
-            for box in (self._verify_combo, self._run_combo, self._type_combo):
+        # A middle pass (beta 15 follow-up): before anything is cut, every box
+        # gives up what it holds beyond the text it SHOWS. A closed box shows
+        # only its current entry, and the list it opens is never narrower than
+        # its entries. Without it, Russian and Ukrainian at 1280 px cut the
+        # Verification box to "2027-" while Run type kept room for
+        # "Профилирование" behind "Проверка".
+        # In the last pass the Run box is cut first: what it loses is the end
+        # of "Run N (overwrite)", while the Verification box, which shows a
+        # date and nothing else since beta 15, would lose the time.
+        passes = (
+            (self._readable_width, (self._verify_combo, self._run_combo,
+                                    self._type_combo)),
+            (self._current_width, (self._verify_combo, self._run_combo,
+                                   self._type_combo)),
+            (lambda _b: self._SQUEEZE_HARD_FLOOR,
+             (self._run_combo, self._verify_combo, self._type_combo)),
+        )
+        for floor_of, boxes in passes:
+            for box in boxes:
                 if excess <= 0:
                     return
                 if not box.isVisible():
                     continue
-                floor = (self._readable_width(box) if readable
-                         else self._SQUEEZE_HARD_FLOOR)
+                floor = floor_of(box)
                 # minimumWidth, not width(): setFixedWidth pins both bounds,
                 # while the live geometry is whatever the last (too narrow)
                 # layout left.
@@ -1645,6 +1661,12 @@ class MeasurementTargetBar(QWidget):
                 if give > 0:
                     box.setFixedWidth(have - give)
                     excess -= give
+
+    def _current_width(self, box) -> int:
+        """The narrowest *box* may be while the entry it shows still fits."""
+        fm = box.fontMetrics()
+        return (fm.horizontalAdvance(box.currentText())
+                + (self._combo_chrome(box) or self._COMBO_CHROME) + 4)
 
     def _readable_width(self, box) -> int:
         """The narrowest *box* may be while every entry it can show still fits."""
@@ -1669,7 +1691,7 @@ class MeasurementTargetBar(QWidget):
                       [self._type_combo.itemText(i)
                        for i in range(self._type_combo.count())])
         # The verification box is measured against BOTH labels every date can
-        # carry — "Overwrite <date>" and "<date> — no measurement yet" — so a
+        # carry — "<date>" and "<date> — no measurement yet" — so a
         # date gaining a measurement never resizes it.
         self._fit_box(self._verify_combo, list(verify_labels) or
                       [self._verify_combo.itemText(i)
@@ -2572,8 +2594,15 @@ class MeasurementTargetBar(QWidget):
                 self._verify_combo.clear()
                 run_id = t.profile_run
                 for vid in self._ctl.verification_ids(run_id):
-                    label = tr("Overwrite {when}").format(
-                        when=self._pretty_date(vid))
+                    # The date alone. Choosing a date only LOOKS at that
+                    # verification (b15 item 9 opens the box on the latest
+                    # one), so the entry must not read like a destructive act:
+                    # it said "Overwrite <date>" from #130 phase 4, when the
+                    # box opened on "New verification" and picking a date was
+                    # the deliberate step towards measuring over it. Measuring
+                    # over a date that holds readings is still asked about at
+                    # Start Measurement, which is where it really happens.
+                    label = self._pretty_date(vid)
                     # Both forms this date could show, so the box is sized for
                     # the wider one whichever it currently is.
                     every_label += [label, tr("{when} — no measurement yet").format(

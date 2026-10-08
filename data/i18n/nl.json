@@ -2983,7 +2983,6 @@
  "Overwrite existing files?": "Bestaande bestanden overschrijven?",
  "Overwrite sends this patch set to the Create Chart tab, which lays it out with the page layout set there (not the one shown here) — or Save As exports the full chart, this layout included, to a folder you pick without leaving the editor.": "Overschrijven stuurt deze meetveldset naar het tabblad Kaart maken, dat hem opmaakt met de daar ingestelde paginalay-out (niet die hier wordt getoond) — Opslaan als exporteert de volledige kaart, inclusief deze lay-out, naar een map naar keuze zonder de editor te verlaten.",
  "Overwrite the existing files?": "De bestaande bestanden overschrijven?",
- "Overwrite {when}": "{when} overschrijven",
  "P95": "P95",
  "PASS": "PASS",
  "PASS, FAIL, INFO, N-A (the verdict words)": "PASS, FAIL, INFO, N-A (de oordeelwoorden)",
