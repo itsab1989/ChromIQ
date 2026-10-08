@@ -3384,11 +3384,28 @@ class TooltipWrapFilter(QObject):
     #: Qt's own "no maximum" value (QWIDGETSIZE_MAX), which PyQt does not export.
     _RESET_MAX = 16777215
 
+    #: the text a tooltip label was last fitted for (a dynamic property)
+    _FIT_TEXT = "_chromiq_fitted_text"
+
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if (event.type() in (QEvent.Type.Polish, QEvent.Type.Show)
-                and obj.metaObject().className() == "QTipLabel"
+        t = event.type()
+        if t not in (QEvent.Type.Polish, QEvent.Type.Show, QEvent.Type.Move):
+            return False
+        if not (obj.metaObject().className() == "QTipLabel"
                 and isinstance(obj, QLabel)):
-            self.fit(obj)
+            return False
+        if t == QEvent.Type.Move:
+            # **A TOOLTIP REUSED WHILE SHOWN GETS NO Show.** Pointing from one
+            # widget straight to the next, Qt puts the new text into the label
+            # that is still on screen and only moves it, so the box kept the
+            # previous tooltip's fixed size: from the neighbour check's long
+            # help to a buffer field it stood 565 px tall around four lines
+            # (beta 15 text pass, measured on screen). The move is the one
+            # event that reuse sends; refit when the text is not the one the
+            # box was fitted for (its own re-anchoring move then does nothing).
+            if obj.property(self._FIT_TEXT) == obj.text():
+                return False
+        self.fit(obj)
         return False
 
     def fit(self, obj: QLabel) -> None:
@@ -3402,6 +3419,7 @@ class TooltipWrapFilter(QObject):
         hovering back and forth appeared to fix and re-break it at random
         (Knut, #130 2026-07-26).
         """
+        obj.setProperty(self._FIT_TEXT, obj.text())
         # ---- reset: no state may carry over from the previous tooltip -------
         obj.setWordWrap(False)
         obj.setMinimumSize(0, 0)
@@ -3476,7 +3494,9 @@ class CompositeAppFilter(QObject):
     #: The only event types any of the four acts on. Everything else returns
     #: immediately, which is most of the million dispatches.
     _INTERESTING = frozenset({QEvent.Type.Polish, QEvent.Type.Show,
-                              QEvent.Type.StyleChange})
+                              QEvent.Type.StyleChange,
+                              # a tooltip reused while shown (TooltipWrapFilter)
+                              QEvent.Type.Move})
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)

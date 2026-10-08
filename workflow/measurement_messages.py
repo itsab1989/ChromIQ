@@ -2014,7 +2014,7 @@ _CARD_NB_1 = "Its reading does not fit the {n} patches"
 _CARD_NB_1_ALSO = "It also does not fit the {n} patches"
 _CARD_NB_2 = "nearest in colour, read in other strips:"
 _CARD_NB_3 = "it is ΔE {excess} further from their readings"
-_CARD_NB_4 = "than the expected colours are (your limit {buffer})."
+_CARD_NB_4 = "than the expected colours are (your buffer {buffer})."
 _CARD_NB_5 = "Probably a misread."
 #: A yellow card (a re-read gave the same colour, similar patches, or a
 #: learned range) of a patch the limit did not flag: instead of "ΔE*ab ...

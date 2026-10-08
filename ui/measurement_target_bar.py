@@ -901,11 +901,17 @@ class MeasurementTargetBar(QWidget):
         self._verify_label = self._mk_label(tr("Verification:"))
         row.addWidget(self._verify_label)
         self._verify_combo = NoScrollComboBox(self)
+        # Beta 15 text pass: item 9 (Knut #182 6065640028, approved by Basti)
+        # made the box open on the latest date; the tooltip says so. The em
+        # dash went with the edit (CLAUDE.md).
         self._verify_combo.setToolTip(tr(
             "Which verification to work on. “New verification” starts a fresh, "
-            "dated check that is kept next to your earlier ones — so you build "
+            "dated check that is kept next to your earlier ones, so you build "
             "up a history of how this profile performs month after month. Pick "
-            "an existing date instead to re-measure that particular check."))
+            "an existing date instead to re-measure that particular check. "
+            "When you switch to Verification or choose another profile run, "
+            "the box shows the latest date, or “New verification” when there "
+            "is none yet."))
         self._verify_combo.currentIndexChanged.connect(self._on_verify_changed)
         row.addWidget(self._verify_combo)
 

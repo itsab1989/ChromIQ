@@ -1831,9 +1831,10 @@ NEIGHBOUR_CHECK_HELP = (
     "colour than they are from theirs. So a good patch next to patches that "
     "a blocked nozzle or a drying ink has spoiled stays unmarked.\n\n"
     "**What it needs:** at least 2 such patches, read in strips other than "
-    "its own. A patch with fewer is not judged. It runs on profiling charts, "
-    "with estimated colours or made with a pre-conditioning profile, not on "
-    "a verification or a calibration chart.\n\n"
+    "its own. A patch with fewer is not judged. It outlines patches only on "
+    "profiling charts, with estimated colours or made with a pre-conditioning "
+    "profile. On a verification or a calibration chart the hover card still "
+    "shows the comparison, but no patch is outlined for it.\n\n"
     "**When:** Checked again after each strip: a patch can turn red later, "
     "when patches near it in colour are read. It is also worked out when "
     "you open a measurement.\n\n"
@@ -1863,6 +1864,26 @@ NEIGHBOUR_CHECK_HELP = (
     "**Off:** every red outline the neighbour check caused goes at once, "
     "also during a measurement; switched on again, they come back. Which "
     "patches a re-read confirmed (yellow) or corrected (green) is kept.")
+#: beta 15 text pass (Basti: "friendly, complete, easy to understand, and
+#: correct"): the two buffer fields had no tooltip. Each label and its spin box
+#: carry one. "can give": the buffer is one of the two conditions of the rule
+#: (B2+); the patch must also be the one that is off. PROPOSED, not approved.
+NB_BUFFER_ACCURATE_TIP = (
+    "How much further apart a patch's reading may be from its neighbours' "
+    "readings than the expected colours are from each other (the middle value "
+    "over the patches compared), before the neighbour check can give it a red "
+    "outline. This value is for a chart made with a pre-conditioning profile: "
+    "its expected colours are close to the print, so a small difference is "
+    "already suspicious. Default 5 ΔE. A lower value finds more misreads and "
+    "also outlines more real differences; a higher value outlines fewer.")
+NB_BUFFER_ESTIMATED_TIP = (
+    "How much further apart a patch's reading may be from its neighbours' "
+    "readings than the expected colours are from each other (the middle value "
+    "over the patches compared), before the neighbour check can give it a red "
+    "outline. This value is for a chart with estimated colours (most charts): "
+    "those are only ArgyllCMS's estimate, so the readings need more room. "
+    "Default 10 ΔE. A lower value finds more misreads and also outlines more "
+    "real differences; a higher value outlines fewer.")
 
 
 #: WHAT THE LIMITS ARE FOR (Knut, #182 5983733592, after 5983725218): the red
@@ -3230,7 +3251,10 @@ class SettingsDialog(QDialog):
         self._patch_neighbour_check = QCheckBox(tr(NEIGHBOUR_CHECK_LABEL),
                                                 self)
         self._patch_neighbour_check.setObjectName("patch_neighbour_check")
-        self._patch_neighbour_check.setToolTip(tr(NB_CHECKED_AGAIN) + ".")
+        # the full help, as the strip test's checkbox has it (a tooltip shows
+        # no bold: the lead-ins without their marks)
+        self._patch_neighbour_check.setToolTip(
+            tr(NEIGHBOUR_CHECK_HELP).replace("**", ""))
         self._patch_neighbour_spin = _nb_spin("patch_neighbour_buffer")
         self._patch_neighbour_acc_spin = _nb_spin(
             "patch_neighbour_buffer_accurate")
@@ -3251,6 +3275,12 @@ class SettingsDialog(QDialog):
             (QLabel(tr("Buffer on a chart with estimated colours (most "
                        "charts):"), self), self._patch_neighbour_spin)]
         _nb_w = max(lbl.sizeHint().width() for lbl, _s in _nb_labels)
+        # each buffer's label and its box carry the same tooltip
+        _nb_acc_tip = tr(NB_BUFFER_ACCURATE_TIP)
+        _nb_est_tip = tr(NB_BUFFER_ESTIMATED_TIP)
+        for (_lbl, _spin), _tip in zip(_nb_labels, (_nb_acc_tip, _nb_est_tip)):
+            _lbl.setToolTip(_tip)
+            _spin.setToolTip(_tip)
         for _lbl, _spin in _nb_labels:
             _lbl.setMinimumWidth(_nb_w)
             _r = QHBoxLayout()

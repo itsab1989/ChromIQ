@@ -3287,6 +3287,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "you read its strip again, the reading is right: keep it and build "
             "the profile from it. The profile needs to know how far your "
             "printer falls short of such colours.")
+            # Beta 15 text pass: the paragraph above names only the limit,
+            # but the neighbour check (beta 11, own switch since k44) also
+            # outlines red, below the limit. Its own paragraph, so the one
+            # above keeps its translations.
+            + "\n\n" + tr(
+            "A patch can also get a red outline below the limit, from the "
+            "neighbour check (“Neighbour check: flag a patch that does not fit "
+            "the patches nearest to it in colour”, also in Preferences ▸ "
+            "Measurement): its reading does not fit the patches nearest to it "
+            "in colour that were read in other strips. Its card then says so. "
+            "Read the patch again to find out whether it was a misread.")
             # What the limits are for (Knut, #182 5983733592): the same
             # paragraph as Preferences ▸ Measurement's help.
             + "\n\n" + tr(LIMITS_PURPOSE_HELP)
