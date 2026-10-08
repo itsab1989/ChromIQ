@@ -1,6 +1,8 @@
 # Changelog
 
-## v4.3.3-beta.12 (unreleased)
+## v4.3.3-beta.12
+
+**A verification printed through its profile is judged against the right colours, with a new Profile accuracy table; Knut's re-read rules (green, yellow, red) are complete; the chart preview shows the sheet as it will print, with a switch (or ⌘Y / Ctrl+Y) to the raw device values; the computer stays awake while you measure; built-in presets no longer switch the stamp on, and a new target starts with it off.**
 
 ### Added
 

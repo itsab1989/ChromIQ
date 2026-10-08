@@ -1,5 +1,5 @@
 {
- "code_version": "4.3.3-beta.11/cert1",
+ "code_version": "4.3.3-beta.12/cert1",
  "note": "Written by scripts/make_preset_certificates.py at release time; see workflow/preset_certificates.py.",
  "certificates": {
   "0369b6236bccbf4403a00c1a24635c13cd57df90f3bb105e13548b8683cf4c0a": {
