@@ -141,6 +141,29 @@ class SlowChartDialog(QDialog):
         log.debug("SlowChartDialog created")
 
 
+    def showEvent(self, event) -> None:
+        """Widen the window to its button row once the buttons have their
+        real width (review D of beta 12).
+
+        The app's button font (Menlo, upper case) is applied when the window
+        is shown, after the sizing above, and this window has an explicit
+        minimum width, so Qt never grows it to the wider row: on screen in
+        Russian and Ukrainian "Rebuild with faster layout" ran under Cancel
+        and lost its first letter. The buttons are fitted by then (the
+        application's event filter sees Show first), so the row's own minimum
+        is the true one."""
+        super().showEvent(event)
+        try:
+            lay = self.layout()
+            lay.invalidate()
+            lay.activate()
+            need = lay.minimumSize().width()
+            if need > self.width():
+                self.setMinimumWidth(need)
+                self.resize(need, self.height())
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            pass
+
     @staticmethod
     def _text_for_a_profile_build() -> str:
         """The window's text for a chart built with a pre-conditioning

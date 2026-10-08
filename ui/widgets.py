@@ -179,6 +179,18 @@ def fit_button_width(btn) -> None:
     # the application stylesheet; Menlo is not a guess there, it is a fact. It
     # is the ALERT that escapes the stylesheet, so that is where the allowance
     # belongs.
+    # THE DEFAULT BUTTON IS PAINTED BOLD (ui/default_button.py:
+    # "QPushButton:default { font-weight: bold }"), but a style sheet's
+    # pseudo-state never reaches btn.font(), so its label was measured in
+    # the regular weight and clipped at both ends. Measured on screen, review
+    # D of beta 12, Ukrainian slow-chart window: Inter 353 px regular, 361 px
+    # bold, in a 393 px button that lost a letter at each end.
+    try:
+        if btn.isDefault() and not btn.property("chromiq_safe_default"):
+            font = QFont(font)
+            font.setBold(True)
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        pass
     fm = QFontMetrics(font)
     if _may_be_painted_by_the_platform(btn):
         try:
