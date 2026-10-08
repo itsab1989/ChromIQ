@@ -1,8 +1,8 @@
 # Changelog
 
-## v4.3.3-beta.15 (unreleased)
+## v4.3.3-beta.15
 
-**Charts print in the state your photos print in: on a Canon or Epson, ChromIQ now sends the chart the way Photoshop sends an image when Photoshop manages colours, and macOS no longer converts the chart's colours on the way.**
+**Charts print in the state your photos print in: on a Canon or Epson, ChromIQ now sends the chart the way Photoshop sends an image when Photoshop manages colours, and macOS no longer converts the chart's colours on the way (measured on 14 Canon and Epson models). Also: the neighbour check judges with 2 neighbours and only marks the patch that is off, with its own switch and two buffers; a failed Profile accuracy table fails a verification; perceptual and saturation verifications are judged on profile accuracy; Guided charts carry no stamp; the Verification box opens on the latest date; every patch card compares the patch with its neighbours; presets are counted From Profile Gamut too; and the preview's switch waits before it closes.**
 
 ### Fixed
 
