@@ -74,11 +74,26 @@ def test_the_card_follows_later_strips(qapp, tmp_path):
 
 
 @pytest.mark.parametrize("case", ["verification", "calibration"])
-def test_not_where_the_check_does_not_run(qapp, tmp_path, monkeypatch, case):
+def test_also_where_the_check_does_not_run_and_without_outlines(
+        qapp, tmp_path, monkeypatch, case):
+    """Review of b15 item 10: Knut asked for the comparison ALWAYS. On a
+    verification or a calibration chart the same B2+ figure is worked out on
+    the measurement's own readings for the card only: the neighbour check
+    still outlines nothing there, not even a gross misread (outlines on a
+    verification are a separate analysis Knut asked to see first)."""
     folder = tmp_path / ("cal" if case == "calibration" else "run1")
     tab = _tab(folder)
     if case == "verification":
         monkeypatch.setattr(type(tab), "_is_verification_run", lambda self: True)
-    _read_all(tab)
-    lines = _lines(tab, "C5")
-    assert not any(l.startswith(("Against the", "Not compared")) for l in lines)
+    _read_all(tab, {"D6": 0.55})
+    assert not tab._neighbour_check_applies()
+    nc = getattr(tab, "_nb_check", None)
+    assert nc is None or len(nc) == 0
+    n, fu = tab._nb_card.comparison("D6")
+    assert n >= 2 and fu > 0
+    lines = _lines(tab, "D6")
+    assert M._CARD_NBC_1.format(n=n) in lines
+    assert M._CARD_NBC_FURTHER.format(d=f"{fu:.1f}") in lines
+    assert M._CARD_NB_RED not in lines
+    assert _info(tab, "D6").get("neighbour") is None
+    assert tab.neighbour_summary_facts() is None

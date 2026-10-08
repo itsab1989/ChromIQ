@@ -4364,6 +4364,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # first; a bound method, never a lambda (CLAUDE.md).
         QTimer.singleShot(0, self.refresh_patch_flags)
         self._pending_overlay_offer = False
+        # An ARRIVAL, which Knut ruled asks on every chart (#130 2026-07-29),
+        # a dated verification too; a selection change alone does not (see
+        # `_offer_is_for_a_selection_alone`).
+        self._offer_on_arrival = True
         # NOT here and now. Opening a modal window from inside showEvent blocks
         # before the tab has finished being painted, so the window comes up over
         # a half-drawn tab — Knut, #130 2026-07-28: "the whole main window
@@ -4488,6 +4492,33 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.warning("Could not settle the Measure options after a "
                         "selection change", exc_info=True)
 
+    def _offer_is_for_a_selection_alone(self) -> bool:
+        """True when the offer was asked for only because the bar now selects
+        a DATED VERIFICATION (Run type changed to Verification, another run
+        chosen on Verification, or another date picked), not because the user
+        arrived at this tab.
+
+        Beta 15 item 9 opens the Verification box on the latest dated
+        verification, so switching Run type to Verification on a run with
+        dates selected a measured date at once, and "This chart already has a
+        measurement" asked before the user had done anything (review of b15
+        item 9). Merely SELECTING an existing verification asks nothing: its
+        overlay follows the options panel's tick, "Refine / resume" is offered
+        there, and the protective questions stay where they belong: Start
+        Measurement on a date that holds readings (§5's replace messages) and
+        changing the chart of a measured run (`chart_overwrite_message`).
+        Arriving at the tab still asks, as Knut ruled for every chart (#130
+        2026-07-29), and a profiling run's selection still asks (#131
+        scenario 4)."""
+        if getattr(self, "_offer_on_arrival", False):
+            return False
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            return bool(ctl is not None and ctl.target.is_verification()
+                        and ctl.target.verification_id)
+        except Exception:      # noqa: BLE001 — when in doubt, ask as before
+            return False
+
     def _offer_existing_overlay_now(self) -> None:
         """Make the held offer, once the tab has actually painted."""
         self._offer_queued = False
@@ -4497,6 +4528,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if self.isVisible() and not getattr(self, "_offer_open", False) \
                     and self._another_window_is_open("offer"):
                 return
+            if self.isVisible() and self._offer_is_for_a_selection_alone():
+                # b15 item 9 review: no question for a selection; show what
+                # the overlay tick asks for, once the selection has settled.
+                QTimer.singleShot(0, self.refresh_patch_flags)
+                return
+            self._offer_on_arrival = False
             if self.isVisible():
                 # An empty measurement is dealt with before anything else looks
                 # at it. Knut set this sequence himself (#130, 2026-07-30):
@@ -15757,7 +15794,42 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         nc = getattr(self, "_nb_check", None)
         if nc is not None:
             nc.reset()
+        card = getattr(self, "_nb_card", None)
+        if card is not None:
+            card.reset()
         self._nb_inputs = {}
+
+    def _neighbour_card_feed(self, patches) -> None:
+        """b15 item 10, review: Knut wants the comparison with the colour
+        neighbours on EVERY card (#182 6065640028, "present in the hover-text
+        for a patch always"). On a chart the neighbour check does not judge
+        (a verification, a calibration chart) the same B2+ figures are worked
+        out on that measurement's own readings and expected colours, for the
+        card ONLY: this instance outlines nothing, is never asked for a
+        verdict and has no part in the closing window. Outlines on a
+        verification are a separate analysis Knut asked to see first."""
+        try:
+            card = getattr(self, "_nb_card", None)
+            if card is None:
+                from workflow.neighbour_check import NeighbourCheck
+                card = self._nb_card = NeighbourCheck()
+            aside = self._set_aside_locs()
+            for p in patches or ():
+                loc = str(p.get("loc", "") or "")
+                if not loc:
+                    continue
+                if loc in aside:
+                    card.forget(loc)
+                    continue
+                try:
+                    strip = self._strip_of(loc)
+                except Exception:      # noqa: BLE001 — no strip: no comparison
+                    strip = ""
+                card.set_reading(loc, p.get("exyz", [0, 0, 0]),
+                                 p.get("xyz", [0, 0, 0]), strip)
+            card.evaluate()
+        except Exception:      # noqa: BLE001 — a card is never worth a crash
+            log.debug("the card's neighbour comparison failed", exc_info=True)
 
     def _neighbour_check(self):
         nc = getattr(self, "_nb_check", None)
@@ -15789,6 +15861,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         ``{loc: finding}`` for each patch to judge and draw again
         (:meth:`_neighbour_redraw_set`)."""
         if not self._neighbour_check_applies():
+            self._neighbour_card_feed(patches)
             return {}
         try:
             nc = self._neighbour_check()
@@ -15841,6 +15914,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         changes, the forgotten ones included."""
         nc = getattr(self, "_nb_check", None)
         locs = [str(x) for x in (locs or ()) if x]
+        card = getattr(self, "_nb_card", None)
+        if card is not None and locs and not self._neighbour_check_applies():
+            try:                     # the card-only figures (item 10 review)
+                for loc in locs:
+                    card.forget(loc)
+                card.evaluate()
+            except Exception:      # noqa: BLE001 — a card is never worth a crash
+                log.debug("could not forget on the card check", exc_info=True)
         if nc is None or not locs or not self._neighbour_check_applies():
             return
         try:
@@ -15926,10 +16007,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """b15 item 10 (Knut #182 6065640028): the hover card's comparison
         of *loc* with the patches nearest to it in colour, asked when the
         card is drawn so it follows every later strip: ``(n, further)``
-        (`NeighbourCheck.comparison`), or None where the neighbour check does
-        not run (a verification, a calibration chart)."""
-        nc = getattr(self, "_nb_check", None)
-        if nc is None or not self._neighbour_check_applies():
+        (`NeighbourCheck.comparison`); on a verification or a calibration
+        chart from the card-only instance, which outlines nothing."""
+        # On a chart the check does not judge, the card-only figures
+        # (`_neighbour_card_feed`, review of b15 item 10).
+        nc = getattr(self, "_nb_check" if self._neighbour_check_applies()
+                     else "_nb_card", None)
+        if nc is None:
             return None
         try:
             return nc.comparison(str(loc))
