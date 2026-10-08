@@ -127,6 +127,16 @@ def main():
             qb = ((d["profiles"].get("accurate") or {}).get("oogq") or {}).get("q") or {}
             lines.append(f"| {d['name']} | " + " | ".join(
                 f"{fmt(qa.get(k))} / {fmt(qb.get(k))}" for k in keys) + " |")
+        # integration 6: the wide-scale evenness rows (Agent 44 s10.6; benchmarks/research/evenness.py)
+        ekeys = [k for k, v in oogq.KEYS.items() if v[3] == "EVEN"]
+        lines += ["", "### Wide-scale evenness, every chart and level, colprof / Maximum accuracy "
+                      "(lower is better; real sets: the colprof -qh proxy only, four references in analysis/refs4)", "",
+                  "| set | variant | " + " | ".join(ekeys) + " |", "|---|---|" + "---|" * len(ekeys)]
+        for d in ra["datasets"]:
+            qa = ((d["profiles"].get("colprof") or {}).get("oogq") or {}).get("q") or {}
+            qb = ((d["profiles"].get("accurate") or {}).get("oogq") or {}).get("q") or {}
+            lines.append(f"| {d['name']} | {d['variant']} | " + " | ".join(
+                f"{fmt(qa.get(k))} / {fmt(qb.get(k))}" for k in ekeys) + " |")
         lines += ["", "### Safety losses (D-17 2c), all", ""]
         for x in w["safety_losses"]:
             if "cell" in x:

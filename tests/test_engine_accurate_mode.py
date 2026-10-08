@@ -342,6 +342,17 @@ def test_accurate_rgb_build_end_to_end(tmp_path):
     assert res.fit_median_de00 > 0.0
     assert res.fit_median_de00 <= res.fit_p95_de00
     assert res.fit_median_de < 1.5
+    # Integration 6: a40-knut-grey is a default. On this small noiseless
+    # chart its held-out exam picks the gentler ramp curves, and the build
+    # then fits at the standard smoothing (no cross-validated search; Agent
+    # 38 s6, builder.py). The search itself is pinned with the exam off:
+    if any("gentler in the light part" in m for m in msgs):
+        assert not any("cross-validation" in m for m in msgs)
+        msgs = []
+        st = BuildSettings(quality="l", gammap_mode="accurate",
+                           progress=msgs.append,
+                           engine_candidates=frozenset({"no-a40-knut-grey"}))
+        build_profile(ti3, tmp_path / "rgb-search.icc", st)
     assert any("cross-validation" in m for m in msgs)
 
 
@@ -495,8 +506,11 @@ def test_accurate_build_emits_granular_progress(tmp_path):
                           ["RGB_R", "RGB_G", "RGB_B"], additive=True,
                           n_per_axis=6)
     msgs: list[str] = []
+    # the smoothing search runs unless a40-knut-grey's exam switches to the
+    # standard smoothing, which it does on this toy chart (integration 6)
     st = BuildSettings(quality="l", gammap_mode="accurate",
-                       progress=msgs.append)
+                       progress=msgs.append,
+                       engine_candidates=frozenset({"no-a40-knut-grey"}))
     build_profile(ti3, tmp_path / "rgb.icc", st)
     assert any("smoothing search" in m for m in msgs)
     assert any("converging" in m for m in msgs)

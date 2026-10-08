@@ -29,10 +29,11 @@ from workflow.profile_engine.builder import (ACCURATE_DEFAULT_TOKENS,
 TOKEN = "a40-inklimit"
 
 
-def test_the_token_is_known_and_opt_in():
+def test_the_token_is_known_and_a_default_since_integration_6():
     assert TOKEN in ENGINE_CANDIDATE_TOKENS
     assert "no-" + TOKEN in ENGINE_CANDIDATE_TOKENS
-    assert TOKEN not in ACCURATE_DEFAULT_TOKENS
+    assert TOKEN in ACCURATE_DEFAULT_TOKENS
+    assert TOKEN in accurate_candidates(frozenset())
     assert TOKEN in accurate_candidates({TOKEN})
     assert TOKEN not in accurate_candidates({TOKEN, "no-" + TOKEN})
 

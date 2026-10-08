@@ -27,11 +27,12 @@ from workflow.profile_engine.builder import (ACCURATE_DEFAULT_TOKENS,
 XP = np.linspace(0.0, 1.0, 21)
 
 
-def test_the_token_is_known_and_not_a_default():
+def test_the_token_is_known_and_a_default_since_integration_6():
     assert b2a.A42_TOKEN == "a42-nearblack"
     assert b2a.A42_TOKEN in ENGINE_CANDIDATE_TOKENS
-    assert b2a.A42_TOKEN not in ACCURATE_DEFAULT_TOKENS
-    assert b2a.A42_TOKEN not in accurate_candidates(frozenset())
+    assert b2a.A42_TOKEN in ACCURATE_DEFAULT_TOKENS
+    assert b2a.A42_TOKEN in accurate_candidates(frozenset())
+    assert b2a.A42_TOKEN not in accurate_candidates({"no-" + b2a.A42_TOKEN})
     assert b2a.A42_FLOOR == 0.5 and b2a.A42_ACCEPT == 0.5
 
 

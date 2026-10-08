@@ -59,11 +59,12 @@ def _table(model):
     return node_lab, per, np.flatnonzero(e <= b2a.A42_ACCEPT)
 
 
-def test_the_token_is_known_and_not_a_default():
+def test_the_token_is_known_and_a_default_since_integration_6():
     assert b2a.A44_TOKEN == "a44-exactkeep"
     assert b2a.A44_TOKEN in ENGINE_CANDIDATE_TOKENS
-    assert b2a.A44_TOKEN not in ACCURATE_DEFAULT_TOKENS
-    assert b2a.A44_TOKEN not in accurate_candidates(frozenset())
+    assert b2a.A44_TOKEN in ACCURATE_DEFAULT_TOKENS
+    assert b2a.A44_TOKEN in accurate_candidates(frozenset())
+    assert b2a.A44_TOKEN not in accurate_candidates({"no-" + b2a.A44_TOKEN})
     assert b2a.A44_TOL == 2.0
 
 
@@ -201,10 +202,11 @@ def test_the_builder_draws_the_grid_bridge_only_with_the_token():
 # a44b-smoothexact: the RGB colorimetric table re-solved as one smooth field
 # on its own branches.
 
-def test_the_a44b_token_is_known_and_not_a_default():
+def test_the_a44b_token_is_known_and_a_default_since_integration_6():
     assert b2a.A44B_TOKEN == "a44b-smoothexact"
     assert b2a.A44B_TOKEN in ENGINE_CANDIDATE_TOKENS
-    assert b2a.A44B_TOKEN not in ACCURATE_DEFAULT_TOKENS
+    assert b2a.A44B_TOKEN in ACCURATE_DEFAULT_TOKENS
+    assert "no-" + b2a.A44B_TOKEN in ENGINE_CANDIDATE_TOKENS
     assert b2a.A44B_MU == 100.0
 
 

@@ -20,7 +20,11 @@ _INT4 = {"a29-oog-darkmono-floor"}
 # a34-blackseam: integration 5 candidate (Findings/agent35-01-percblack.md)
 _INT5 = {"a34-blackseam", "a35-percblack-blend", "a35-oracle-limit",
          "a36-lcms8-safe", "a38-noisy-rgb"}
-_DEF = {"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5
+# integration 6 (Findings/agent47-01-integration6.md)
+_INT6 = {"a40-inklimit", "a42-nearblack", "a43-shadowdetail-width",
+         "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
+         "a44b-smoothexact", "a45-c1space", "a45-darkend"}
+_DEF = {"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -43,11 +47,11 @@ def test_agent9_tokens_are_off_by_default():
 
 def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-b2a33s"}) == ({"rgbpos", "v4prm", "rgbcol"}
-                                                  | _INT3 | _INT4 | _INT5 | _FIN3)
+                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _FIN3)
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
                                 "no-rgbcol", "no-fin3"}
-                               | {"no-" + t for t in _INT3 | _INT4 | _INT5}) == frozenset()
-    for t in _INT3 | _INT4 | _INT5:
+                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6}) == frozenset()
+    for t in _INT3 | _INT4 | _INT5 | _INT6:
         assert "no-" + t in ENGINE_CANDIDATE_TOKENS
 
 

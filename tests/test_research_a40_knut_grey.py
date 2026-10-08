@@ -20,10 +20,11 @@ from workflow.profile_engine.builder import (ACCURATE_DEFAULT_TOKENS,
                                              ENGINE_CANDIDATE_TOKENS)
 
 
-def test_the_token_is_known_and_not_a_default():
+def test_the_token_is_known_and_a_default_since_integration_6():
     assert noisyrgb.A40_TOKEN == "a40-knut-grey"
     assert noisyrgb.A40_TOKEN in ENGINE_CANDIDATE_TOKENS
-    assert noisyrgb.A40_TOKEN not in ACCURATE_DEFAULT_TOKENS
+    assert noisyrgb.A40_TOKEN in ACCURATE_DEFAULT_TOKENS
+    assert "no-" + noisyrgb.A40_TOKEN in ENGINE_CANDIDATE_TOKENS
     assert noisyrgb.A40_BLENDS == (0.5, "mixed")
 
 

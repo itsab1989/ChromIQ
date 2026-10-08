@@ -141,7 +141,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a45-c1space", "a45-darkend",
      # Agent 45 round 2: the forward model's shaper refit keeps every ink
      # interval at least half the identity's slope
-     "a45b-shaperfloor"})
+     "a45b-shaperfloor",
+     # Integration 6: the off switches of the new Maximum accuracy defaults
+     "no-a40-knut-grey", "no-a42-nearblack", "no-a43-shadowdetail",
+     "no-a43-shadowdetail-width", "no-a44-exactkeep", "no-a44b-smoothexact",
+     "no-a45-c1space", "no-a45-darkend"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -207,12 +211,29 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # verify sheet overall 0.522 -> 0.489, darks 0.718 -> 0.617). v1 (drop unless
 # clearly better) doubled the A2B error on the misread-heavy t400 charts and is
 # NOT the default. "no-a38-noisy-rgb" switches it off.
+# Integration 6 (2026-10-08, Integrator 8, Findings/agent47-01-integration6.md;
+# rulings ProfileEngineResearch/RESUME.md s51-52, D-28): ON as well:
+# "a40-inklimit" (Agent 40: the total ink limit held between the B2A nodes,
+# tac_guard.py, the last step before writing), "a42-nearblack" (Agent 42: the
+# B2A near-black hand-over, curve space without collapsed ink intervals),
+# "a43-shadowdetail-width" (Agent 43: the perceptual hand-over band no wider
+# than the path needs; a bug fix) and "a43-shadowdetail" (the perceptual black
+# held at the darkest measured patch, Basti's choice D-28), "a40-knut-grey"
+# (Agent 38 s6: gentler RGB ramp placement), "a44-exactkeep" (Agent 44:
+# in-gamut colorimetric nodes keep their exact inversion), "a44b-smoothexact"
+# (Agent 44 v2: the RGB colorimetric table re-solved smooth on its own
+# branches), "a45-c1space" and "a45-darkend" (Agent 45: the perceptual dark
+# end C1 and monotone with the held black). Opt-in only: "a45b-shaperfloor"
+# (rel. col. safety losses on i1iSis). Each has a "no-<token>" switch.
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
     "a24-s1", "a24-f05", "a29-oog-darkmono-floor", "a34-blackseam",
     "a35-percblack-blend", "a35-oracle-limit", "a36-lcms8-safe",
-    "a38-noisy-rgb"})
+    "a38-noisy-rgb",
+    "a40-inklimit", "a42-nearblack", "a43-shadowdetail-width",
+    "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
+    "a44b-smoothexact", "a45-c1space", "a45-darkend"})
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from benchmarks.research import colour, gmq
+from benchmarks.research import colour, evenness, gmq
 from benchmarks.research.blindspots import hunt, xf
 
 # key -> (sign, absolute floor of the minimum effect, safety, finding, what)
@@ -77,6 +77,22 @@ KEYS: dict[str, tuple[int, float, bool, str, str]] = {
     "black_gap_s": (1, 0.5, True, "F-05/F-20", "same, saturation"),
     "black_C_p": (1, 0.5, True, "F-05/F-20", "printed chroma of the perceptual black"),
     "black_C_s": (1, 0.5, True, "F-05/F-20", "printed chroma of the saturation black"),
+    # Integration 6 (Agent 47; Agent 44 s10.6, evenness.py): WIDE-scale evenness of the printed pace
+    # (max |pace smoothed over 30 % - median| / median), the decision gate the narrow banding rows were
+    # not (RESUME.md s52 LESSON). Floors 0.05 are PROPOSED (no between-seed SD measured yet).
+    "even_grey_r": (1, 0.05, True, "EVEN", "sRGB grey 0-255, rel. col.: wide-scale evenness of the printed pace"),
+    "even_grey_p": (1, 0.05, True, "EVEN", "sRGB grey 0-255, perceptual: wide-scale evenness"),
+    "even_grey_lift_r": (1, 0.05, True, "EVEN", "neutral L* 0-35, rel. col., lifted view (black..+30 L* x3, C* x2): evenness"),
+    "even_grey_lift_p": (1, 0.05, True, "EVEN", "neutral L* 0-35, perceptual, lifted view: evenness"),
+    "even_dark_r": (1, 0.05, True, "EVEN", "sRGB colour-to-black ramps (blue, red, brown, green), rel. col.: worst evenness"),
+    "even_dark_p": (1, 0.05, True, "EVEN", "same, perceptual"),
+    "even_dark_lift_r": (1, 0.05, True, "EVEN", "colour-to-black ramps, rel. col., lifted view: worst evenness"),
+    "even_dark_lift_p": (1, 0.05, True, "EVEN", "same, perceptual, lifted view"),
+    "even_sky_r": (1, 0.05, True, "EVEN", "Agent 44's sky diagonal, rel. col.: evenness"),
+    "even_sky_p": (1, 0.05, True, "EVEN", "sky diagonal, perceptual: evenness"),
+    "turn_sky_r": (1, 5.0, False, "EVEN", "sky diagonal, rel. col.: wide-scale turn minus the source's, degrees"),
+    "turn_sky_p": (1, 5.0, False, "EVEN", "sky diagonal, perceptual: wide-scale turn minus the source's"),
+    "sky_de_ingamut_r": (1, 0.1, False, "EVEN", "sky diagonal, rel. col.: mean dE00 to the source over its in-gamut part"),
 }
 # gmq (Agent 9, M1-M11) per intent: the scored subset (direction known)
 GMQ_KEYS = {"M1_neutral_C_mean": (1, 0.1), "M1_neutral_C_max": (1, 0.2),
@@ -200,6 +216,7 @@ def evaluate(profile, printer, reader: str = "lcms", cloud=None, with_gmq: bool 
     block("below_black", lambda: below_black(ctx))
     block("shadows", lambda: {i: grey_shadows(ctx, i) for i in ("p", "s")})
     block("abs_white", lambda: abs_white(ctx))
+    block("evenness", lambda: evenness.evaluate(ctx))
     h1, h2, h5, h6, h8, h11 = (raw.get(k, {}) for k in ("H1", "H2", "H5", "H6", "H8", "H11"))
     if h2:
         rr = _ramps(h2, "r")
@@ -247,6 +264,9 @@ def evaluate(profile, printer, reader: str = "lcms", cloud=None, with_gmq: bool 
     if "shadows" in raw:
         q["grey_shadow_swing_p"] = raw["shadows"]["p"]
         q["grey_shadow_swing_s"] = raw["shadows"]["s"]
+    if "evenness" in raw:
+        q.update(raw["evenness"][0])
+        raw["evenness"] = raw["evenness"][1]
     if "below_black" in raw:
         q["below_black_swing_r"] = raw["below_black"]["swing"]
         q["below_black_rev_r"] = raw["below_black"]["rev"]

@@ -52,11 +52,14 @@ def _axis(path_l, path_dev, path_c):
             "blend_l": path_l, "blend_dev": path_dev, "blend_c": path_c}
 
 
-def test_the_tokens_are_known_and_off_by_default():
+def test_the_tokens_are_known_and_defaults_since_integration_6():
     for tok in (b2a.A43_TOKEN, b2a.A43_WIDTH_TOKEN):
         assert tok in ENGINE_CANDIDATE_TOKENS
-        assert tok not in ACCURATE_DEFAULT_TOKENS
-        assert tok not in accurate_candidates(frozenset())
+        assert tok in ACCURATE_DEFAULT_TOKENS
+        assert tok in accurate_candidates(frozenset())
+        assert tok not in accurate_candidates({"no-" + tok})
+    # D-28: the held black is the default mode
+    assert b2a.a43_mode(accurate_candidates(frozenset())) == "floor"
     assert b2a.a43_mode({b2a.A43_TOKEN, b2a.A43_WIDTH_TOKEN}) == "floor"
     assert b2a.a43_mode({b2a.A43_WIDTH_TOKEN}) == "width"
     assert b2a.a43_mode(set()) is None

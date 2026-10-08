@@ -29,11 +29,12 @@ def _collapsed_shaper():
     return (y / y[-1])[None, :]
 
 
-def test_the_tokens_are_known_and_off_by_default():
+def test_the_tokens_are_known_and_defaults_since_integration_6():
     for tok in (b2a.A45_C1_TOKEN, b2a.A45_TOKEN):
         assert tok in ENGINE_CANDIDATE_TOKENS
-        assert tok not in ACCURATE_DEFAULT_TOKENS
-        assert tok not in accurate_candidates(frozenset())
+        assert tok in ACCURATE_DEFAULT_TOKENS
+        assert tok in accurate_candidates(frozenset())
+        assert tok not in accurate_candidates({"no-" + tok})
     assert b2a.a45_c1({b2a.A45_TOKEN}) and b2a.a45_c1({b2a.A45_C1_TOKEN})
     assert not b2a.a45_c1({b2a.A42_TOKEN})
 
@@ -158,3 +159,10 @@ def test_a45b_shaper_floor_keeps_every_interval_open():
     assert fm.SHAPER_FLOOR["slope"] is None
     m0 = fm.fit_forward_model(dev, lab, grid=5, curve_rounds=2)
     assert np.diff(m0.curves[0]).min() > 0          # still monotone
+
+
+def test_the_shaper_floor_stays_opt_in_after_integration_6():
+    # Agent 45 s8.5: a45b-shaperfloor adds rel. col. safety losses on i1iSis.
+    assert "a45b-shaperfloor" in ENGINE_CANDIDATE_TOKENS
+    assert "a45b-shaperfloor" not in ACCURATE_DEFAULT_TOKENS
+    assert "a45b-shaperfloor" not in accurate_candidates(frozenset())
