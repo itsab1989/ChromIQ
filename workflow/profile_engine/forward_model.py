@@ -317,6 +317,19 @@ def ramp_positioning_curves_mixed(device: np.ndarray, lab: np.ndarray, *,
     return np.maximum.accumulate((1.0 - w) * a + w * b, axis=1)
 
 
+# Research token "a45b-shaperfloor" (Agent 45, Findings/agent45-01-darkend.md
+# s8): the shaper refit may not make any knot interval flatter than this
+# slope (None: only kept monotone, 1e-4 apart). The shipped ramp curves
+# guarantee half the identity's slope ("so every grid cell keeps some ink
+# range"); the refit could collapse an interval between two chart levels to
+# a sliver (i1iSis K 0.60-0.65, slope 0.13, between the chart's K 0.5 and
+# 0.69), where the model then reads the ink as doing nothing: the neutral
+# column put a node there that every reference prints 2.4 L* lighter than
+# the model (a light band at printed L* 31-33). Set per build by
+# b2a.set_research_tokens.
+SHAPER_FLOOR: dict = {"slope": None}
+
+
 def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
                  channel: int, xp: np.ndarray,
                  weights: np.ndarray | None = None) -> None:
@@ -339,13 +352,17 @@ def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
 
     base = err(knots)
     step = 1.0 / (k - 1) / 2.0
+    gap = 1e-4
+    if SHAPER_FLOOR["slope"] is not None and np.all(
+            np.diff(knots) >= SHAPER_FLOOR["slope"] / (k - 1) - 1e-12):
+        gap = SHAPER_FLOOR["slope"] / (k - 1)   # a45b: only from a feasible start
     for _ in range(3):                      # a few sweeps, halving the step
         improved = False
         for j in range(1, k - 1):           # endpoints pinned at 0 and 1
             for delta in (step, -step):
                 trial = knots.copy()
                 trial[j] = np.clip(trial[j] + delta,
-                                   trial[j - 1] + 1e-4, trial[j + 1] - 1e-4)
+                                   trial[j - 1] + gap, trial[j + 1] - gap)
                 e = err(trial)
                 if e < base - 1e-9:
                     knots, base, improved = trial, e, True

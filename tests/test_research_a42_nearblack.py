@@ -200,7 +200,7 @@ def test_the_builder_wires_both_parts_only_with_the_token():
     src = inspect.getsource(builder._build_profile_impl)
     assert "b2a_mod.A42_TOKEN in candidates" in src
     assert "b2a_mod.nearblack_column(" in src
-    assert "b2a_mod.b2a_space_curves(model.curves)" in src
+    assert "b2a_mod.b2a_space_curves(\n                      model.curves, smooth=" in src
     assert "b2a_mod.rgb_neutral_black(model, _bl, ucs=use_ucs)" in src
     assert "_nb + max(_nb - float(axis[\"l_black\"]), 0.0)" in src
     # the a40 bridge skips an ill-posed top only with a42
