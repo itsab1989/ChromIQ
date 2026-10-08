@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.3.3-beta.15 (unreleased)
+
+<!-- builder B: the bullet blocks below are builder B's; the print fix has its own -->
+
+### Changed
+
+- **The preview's switch waits before it closes** (Basti). Leaving the small icon in the preview's top right corner no longer closes it at once: it stays open for half a second, and for as long as the pointer stays within a few pixels of it, so the "Paper white" button at its left end can be reached on a natural, curved path. Coming back cancels the close. The opening animation, the keyboard and the placement are as before.
+- **A failed Profile accuracy table fails the verification** (Knut, #182). On a verification printed through its profile, the five figures of the Profile accuracy table (average, lowest 95 %, highest 5 %, maximum, and the 95th percentile, each against the profile's own prediction) now count towards the sheet's overall verdict: one of them over its limit makes the sheet FAIL. Before, the table had its own words and did not change the verdict.
+- **Verifications printed with the perceptual or saturation intent are judged on the profile's accuracy** (Knut, #182, following industry practice: ICC White Papers 9 and 27, ArgyllCMS profcheck). Those intents change colours on purpose, so comparing the print with the original colours cannot pass or fail it. That comparison is now shown for information, with a note naming the intent, and the sheet is judged on its Profile accuracy table. Relative and absolute colorimetric prints are judged exactly as before.
+- **Guided charts are printed without the stamp** (Knut, confirmed by Sebastian). Guided has no "Stamp settings down the right edge" control; until now every Guided chart carried the stamp anyway.
+- **The neighbour check is quieter and sees more on small charts** (Knut, #182, method "B2+"). A patch is now judged as soon as 2 patches near it in colour have been read in other strips (was 3), and it turns red only when it is the patch that is off, further from its own expected colour than its neighbours are from theirs. A good patch next to patches spoiled by a blocked nozzle or a drying ink stays unmarked. Measured on Knut's real sheets: 24 suspects at the default instead of 35; on small charts twice as many patches can be checked. The hover card says "Checked again after each strip: a patch can turn red later, when patches near it in colour are read".
+- **Two buffers for the neighbour check** (Knut, #182). Preferences > Measurement has "Buffer on a chart made with a pre-conditioning profile" (default 5 ΔE) beside "Buffer on a chart with estimated colours (most charts)" (default 10 ΔE, your earlier value kept). The chart decides which applies.
+- **The strip test and the neighbour check are named, and the neighbour check has its own switch** (Knut, #182). The checkbox that read "When reading strips, only flag a patch that also stands out from its own strip" is now "Strip test: ..."; it never controlled the neighbour check, and switching it off can only add red outlines. The new checkbox "Neighbour check: flag a patch that does not fit the patches nearest to it in colour" switches the neighbour check: off with OK, its red outlines go at once, also during a measurement; on again, they come back, and what a re-read confirmed (yellow) or corrected (green) is kept. Both help cards say exactly what each does, needs and cannot do.
+- **"Which presets can be used for verification?" counts each preset two ways** (Knut, #182). Next to the count with the preset's own colours there is now the count when the preset is filled From Profile Gamut, checked for every built-in preset before each release. 162 of the 189 built-in presets answer all 18 metrics that way; with their own colours none can, because only a chart filled From Profile Gamut prints its solid patches as they are.
+- **Ukrainian: "paper white" is "білизна паперу" in 55 more texts** (help texts, report notes, Preferences), where it read as "white paper".
+
 ## v4.3.3-beta.14
 
 **The chart preview can show the paper's own tone: "Simulate paper white" in the preview's switch.**
