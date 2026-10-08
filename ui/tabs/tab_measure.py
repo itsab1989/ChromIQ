@@ -11026,8 +11026,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         For prose and for rich text. A **button** needs `_profile_tab_name_btn`
         instead — see there.
         """
-        return (tr("Calibration & Profiling") if self._calibration_options_on()
-                else tr("Build Profile"))
+        # THROUGH THE TAB STRIP'S OWN NUMBERED KEY (review D of beta 12), as
+        # ui/help_card_print.py::_tab_name does. tr("Build Profile") is the
+        # BUTTON's key: Russian «Собрать профиль» and Ukrainian «Побудувати
+        # профіль» name a button, while the tab says «Сборка профиля» and
+        # «Створити профіль», and German "Calibration & Profiling" is
+        # "Kalibrierung & Profilerstellung" against the tab's "Kalibrierung &
+        # Profil". "Go to {tab} Tab" then named a tab that does not exist.
+        import re
+        on = self._calibration_options_on()
+        labelled = (tr("4. Calibration & Profiling") if on
+                    else tr("4. Build Profile"))
+        name = re.sub(r"^\s*\d+\s*[.)]\s*", "", labelled).strip()
+        return name or (tr("Calibration & Profiling") if on
+                        else tr("Build Profile"))
 
     def _profile_tab_name_btn(self) -> str:
         """The same name, safe to put on a QPushButton.

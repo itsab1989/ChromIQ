@@ -49,13 +49,21 @@ def test_the_bare_tab_names_match_the_tab_bar(lang):
 
 
 # Old names that drifted, and the phrase that introduces a tab in that language.
+# Review D widened every intro: a capital ("Karta Pomiar" in five pl strings),
+# bold markup between the word "tab" and its name ("вкладке <b>Собрать
+# профиль</b>"), and a lower-case descriptive name ("вкладке измерения",
+# "вкладка вимірювання") all slipped past the first version of this test.
+_B = r"(?:<b>)?"
 STALE = {
-    "pl": (r"\bkar(?:ta|cie|ty|tę|tach)\s+[„“]?", ["Drukuj wzorzec", "Pomiar", "Utwórz profil"]),
-    "ru": (r"[Вв]кладк\w*\s+[«]?", ["Собрать профиль", "Создать профиль"]),
-    "uk": (r"(?:[Вв]кладк\w*|[Вв]кладц\w*)\s+[«]?",
-           ["Побудувати профіль", "Створення профілю", "Вимірювання", "Друк діаграми",
-            "Build Profile", "Print Chart"]),
-    "nl": (r"tabblad\s+[‘“]?", ["Profiel bouwen"]),
+    "pl": (r"\b[Kk]ar(?:ta|cie|ty|tę|tach)\s+[„“]?" + _B,
+           ["Drukuj wzorzec", "Pomiar", "Utwórz profil"]),
+    "ru": (r"[Вв]кладк\w*\s+[«]?" + _B,
+           ["Собрать профиль", "Создать профиль", "измерения", "сборки профиля"]),
+    "uk": (r"(?:[Вв]кладк\w*|[Вв]кладц\w*)\s+[«]?" + _B,
+           ["Побудувати профіль", "Створення профілю", "Вимірювання",
+            "вимірювання", "Друк діаграми", "Build Profile", "Print Chart",
+            "Create Chart", "Measure"]),
+    "nl": (r"tabblad\s+[‘“]?" + _B, ["Profiel bouwen"]),
 }
 
 
@@ -75,3 +83,23 @@ def test_no_string_sends_the_user_to_a_tab_by_an_old_name(lang):
 def test_polish_never_says_drukuj_wzorzec():
     for key, value in _cat("pl").items():
         assert not re.search(r"(?<!Wy)Drukuj wzorzec", value), key[:60]
+
+
+@pytest.mark.parametrize("lang", ["ru", "uk", "de", "pl", "nl"])
+def test_go_to_the_profile_tab_names_the_tab_not_the_button(lang, monkeypatch):
+    """Review D: the Measure tab's "Go to {tab} Tab" and its completion text
+    filled {tab} from tr("Build Profile"), which is the BUTTON's key: in
+    Russian and Ukrainian it names a button, not the tab («Сборка профиля»,
+    «Створити профіль»), and German's "Calibration & Profiling" differs from
+    its tab too."""
+    import core.i18n as i18n
+    from ui.tabs.tab_measure import TabMeasure
+    cat = _cat(lang)
+    monkeypatch.setattr(i18n, "tr", lambda s: cat.get(s, s))
+    import ui.tabs.tab_measure as tm
+    monkeypatch.setattr(tm, "tr", lambda s: cat.get(s, s))
+    for on, key in ((False, "4. Build Profile"),
+                    (True, "4. Calibration & Profiling")):
+        fake = TabMeasure.__new__(TabMeasure)
+        fake._calibration_options_on = lambda on=on: on
+        assert TabMeasure._profile_tab_name(fake) == _title(cat, key), (lang, on)
