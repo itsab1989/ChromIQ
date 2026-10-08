@@ -316,9 +316,10 @@ def test_a_folder_held_open_by_a_live_process_is_kept(fake_temp):
     held = run / "a-file.txt"
     child = subprocess.Popen(
         [sys.executable, "-c",
-         "import sys,time; f=open(sys.argv[1]); print('ok', flush=True); "
+         "import sys,time; f=open(sys.argv[1], encoding='utf-8'); "
+         "print('ok', flush=True); "
          "time.sleep(60)", str(held)],
-        stdout=subprocess.PIPE, text=True)
+        stdout=subprocess.PIPE, text=True, encoding="utf-8")
     try:
         assert child.stdout.readline().strip() == "ok"
         old = time.time() - (_STALE_AFTER_HOURS + 2) * 3600
