@@ -1,6 +1,8 @@
 # Changelog
 
-## v4.3.3-beta.13 (unreleased)
+## v4.3.3-beta.13
+
+**Fixes for small screens: the preview's switch on the Print Chart tab sits in the right place from the start, Preferences fits a 13" MacBook Air, and the "Approximate colours" note no longer jumps over the controls when the window is resized.**
 
 ### Fixed
 
