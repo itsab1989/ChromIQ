@@ -330,8 +330,13 @@ class PdfGenerator:
         dpi: int = 300,
         ink_channels: list[str] | None = None,
         page_size_pt: tuple[float, float] | None = None,
+        icc_profile: bytes | None = None,
     ) -> bytes:
         """Return a complete PDF as bytes for *tiff_path*.
+
+        icc_profile: an RGB chart is tagged ICCBased with these profile bytes
+        instead of DeviceRGB.  Used to tag a chart with the very profile its job
+        selects, so macOS's rasteriser has an identity conversion to make.
 
         page_size_pt: physical media size (w_pt, h_pt). When set, drives the
         page MediaBox so the PDF and any `lp -o PageSize=...` agree; the image
@@ -371,7 +376,10 @@ class PdfGenerator:
         ).encode("ascii")
 
         has_tint_fn = n_ch > 4
-        n_objs = 6 if has_tint_fn else 5
+        tagged = icc_profile is not None and n_ch == 3
+        if tagged:
+            cs_str = "[/ICCBased 6 0 R]"
+        n_objs = 6 if (has_tint_fn or tagged) else 5
         obj_bodies: list[bytes] = [b""] * (n_objs + 1)
 
         obj_bodies[1] = b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
@@ -400,6 +408,14 @@ class PdfGenerator:
             f"stream\n"
         ).encode("ascii") + img_data + b"\nendstream\nendobj\n"
 
+        if tagged:
+            icc_data = zlib.compress(icc_profile, 6)
+            obj_bodies[6] = (
+                f"6 0 obj\n"
+                f"<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode\n"
+                f"   /Length {len(icc_data)} >>\n"
+                f"stream\n"
+            ).encode("ascii") + icc_data + b"\nendstream\nendobj\n"
         if has_tint_fn:
             tint_body = self._pdf_tint_fn_body(n_ch, ink_channels).encode("ascii")
             domain = " ".join(["0 1"] * n_ch)

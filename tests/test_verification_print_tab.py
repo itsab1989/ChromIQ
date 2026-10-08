@@ -480,7 +480,15 @@ def test_the_colour_management_locks_still_guard_both_print_paths():
     native = inspect.getsource(TabPrint._print_native)
     assert "native_print_macos" in native    # the locked native path
     preflight = inspect.getsource(TabPrint._show_preflight)
-    assert "Colour management" in preflight and "Off (forced)" in preflight
+    assert "_colour_rows" in preflight
+    # Beta 15: a Canon IJ / Epson queue gets the Photoshop-equivalent job (its
+    # chart tagged with the job's own paper profile, so macOS converts nothing);
+    # any other printer keeps the beta 14 row.
+    rows = inspect.getsource(TabPrint._colour_rows)
+    # (the row's name comes from the catalogue since the builder round, so it
+    # is translated like the rest of the window)
+    assert "_PRINT_ROW_COLOUR" in rows and "Off (forced)" in rows
+    assert "_PRINT_ROW_COLOUR_BY_CHROMIQ" in rows
     funnel = inspect.getsource(TabPrint._apply_verification_colour)
     for forbidden in ("print_job_ps", "lp ", "subprocess"):
         assert forbidden not in funnel

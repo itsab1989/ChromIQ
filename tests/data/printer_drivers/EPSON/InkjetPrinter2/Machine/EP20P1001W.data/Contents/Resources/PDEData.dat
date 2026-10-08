@@ -1,0 +1,23 @@
+*EPIJUIType: "NewUI_J"
+
+*EPIJConditionValue EPIJProfileSpec/: "
+*EPIJ_Ink_ 0|0
+*EPIJ_Ink_ 3|0
+*EPIJ_Medi 13|2
+*EPIJ_Medi 15|3
+*EPIJ_Medi 27|4
+*EPIJ_Medi 145|5
+*EPIJ_Medi 157|6
+*EPIJ_Medi 14|7
+*EPIJ_Medi 53|8
+*EPIJ_Medi 88|9
+*EPIJ_Medi 17|10
+*EPIJ_Medi 183|11
+*EPIJ_Medi 181|12
+*EPIJ_Medi 155|13
+*EPIJ_Medi 153|14
+*EPIJ_Medi 106|15
+*EPIJ_Medi 0|1
+*EPIJ_Medi 2|1
+*EPIJ_Medi 26|1
+*EPIJ_Medi 76|1"

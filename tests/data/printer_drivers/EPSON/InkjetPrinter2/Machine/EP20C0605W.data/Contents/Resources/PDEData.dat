@@ -1,0 +1,50 @@
+*EPIJUIType: "AppleLFPUI_WW"
+
+*EPIJConditionValue EPIJProfileSpec/: "
+*EPIJ_Ink_ 0|0
+*EPIJ_Ink_ 3|0
+*EPIJ_Medi 92|2
+*EPIJ_Medi 13|3
+*EPIJ_Medi 15|4
+*EPIJ_Medi 145|5
+*EPIJ_Medi 12|6
+*EPIJ_Medi 53|7
+*EPIJ_Medi 2|8
+*EPIJ_Medi 0|1
+*EPIJ_Medi 26|1
+*EPIJ_Medi 75|1
+*EPIJ_Medi 93|1
+*EPIJ_Medi 142|1
+*EPIJ_Medi 159|1
+*EPIJ_Medi 160|1
+*EPIJ_Medi 187|1"
+*EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 303
+*EPIJLinkValue: *EPIJ_Medi 142|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 303
+*EPIJLinkValue: *EPIJ_Medi 2|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 92|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 13|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 15|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 145|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 75|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 93|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 303
+*EPIJLinkValue: *EPIJ_Medi 26|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 187|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 159|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 160|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 303
+*EPIJLinkValue: *EPIJ_Medi 142|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 303
+*EPIJLinkValue: *EPIJ_Medi 2|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 75|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 305
+*EPIJLinkValue: *EPIJ_Medi 93|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 303
+*EPIJLinkValue: *EPIJ_Medi 26|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 187|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 159|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 160|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 92|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 13|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 15|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 306
+*EPIJLinkValue: *EPIJ_Medi 145|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 306
