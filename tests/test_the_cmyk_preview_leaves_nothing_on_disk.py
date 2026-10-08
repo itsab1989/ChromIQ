@@ -125,7 +125,7 @@ def test_a_chromiq_killed_after_a_real_conversion_leaves_nothing(tmp_path):
         time.sleep(600)
     """)
     p = subprocess.Popen([sys.executable, "-c", script], env=_child_env(root),
-                         stdout=subprocess.PIPE, text=True)
+                         stdout=subprocess.PIPE, text=True, encoding="utf-8")
     try:
         line = p.stdout.readline()
         assert line.strip() == "converted True", line
@@ -166,7 +166,7 @@ def test_a_chromiq_killed_during_a_conversion_is_swept_by_the_next(tmp_path):
                                    {str(tmp_path / "bin")!r}, runner=hang)
     """)
     p = subprocess.Popen([sys.executable, "-c", script], env=_child_env(root),
-                         stdout=subprocess.PIPE, text=True)
+                         stdout=subprocess.PIPE, text=True, encoding="utf-8")
     try:
         assert p.stdout.readline().strip() == "in cctiff"
         os.kill(p.pid, signal.SIGKILL)

@@ -3340,7 +3340,7 @@ _GRAMMAR = [
     ("it", "SPOT_TOOL", "dalla finestra Strumenti ▸", "da la "),
     ("pt", "MEASURE_TAB", "a partir do separador Medir", "a partir de o "),
     ("pt", "SPOT_TOOL", "a partir da janela Ferramentas ▸", "a partir de a "),
-    ("pl", "MEASURE_TAB", "z karty Pomiar", "z karcie"),
+    ("pl", "MEASURE_TAB", "z karty Zmierz", "z karcie"),  # the tab is "3. Zmierz" (beta 12)
     ("pl", "SPOT_TOOL", "z okna Narzędzia ▸", "z Narzędzia ▸"),
     ("ru", "MEASURE_TAB", "из вкладки «Измерение»",
      "из вкладке"),
