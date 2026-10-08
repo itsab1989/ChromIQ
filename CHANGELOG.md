@@ -7,6 +7,11 @@
 ### Added
 
 - **Simulate paper white in the chart preview** (Basti, 2026-10-08). While the preview of Create Chart, Print Chart or Measure shows a page as on paper, hovering the small icon in its top right corner now also opens a "Paper white" button, like Photoshop's Simulate Paper Color. Ticked, the page is shown with the paper in its own tone, as the run's profile describes it (absolute colorimetric), so a cream or bluish paper looks cream or bluish and every colour sits on it as on the sheet; the page's blank margin and the frame round it take the same paper colour. Unticked, the paper is shown as white, as before. The button only switches the paper white, never the view, and is not there while the preview shows device values or before the run has a profile. A verification chart printed through the profile is still converted exactly as the print converts it; only the last step, from the paper to the screen, changes. ChromIQ remembers the choice for all three tabs; it starts off. With the keyboard, Tab from the switch to the button and press Space. Switching back and forth is instant once a page has been shown both ways, kept in memory only, and nothing printed changes.
+- When the preview is too narrow for the button and the whole "As on paper" beside it (the splitter pulled far to the right, or a long language), the switch leaves the button out rather than open past the image or shorten its words to a letter; widen the preview to reach it again. The keyboard help names the keys in your language ("Tab · Leertaste").
+
+### Changed
+
+- **Ukrainian: "paper white" is now "білизна паперу" throughout the short labels** (the Paper white button, Simulate paper white in the soft-proof tool, and the report's paper white headings), as Russian has it. Before, it read as "white paper", and two labels were cut off or ungrammatical ("Відносно паперу біл").
 
 ## v4.3.3-beta.13
 
