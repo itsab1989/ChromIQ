@@ -245,9 +245,11 @@ def test_the_presets_column_heading_fits_in_german(qapp):
         dlg = PVD.PresetVerificationDialog([])
         try:
             head = dlg._tree.header()
-            for c in (1, 2, 3):
+            for c in (1, 2, 3, 4):
                 label = dlg._tree.headerItem().text(c)
-                need = head.fontMetrics().horizontalAdvance(label)
+                # a heading may be on two lines (review of k45, beta 15)
+                need = max(head.fontMetrics().horizontalAdvance(line)
+                           for line in label.split("\n"))
                 assert dlg._tree.columnWidth(c) > need + 12, (
                     c, label, dlg._tree.columnWidth(c), need)
         finally:
