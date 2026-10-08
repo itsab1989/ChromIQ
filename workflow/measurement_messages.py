@@ -4362,10 +4362,41 @@ _REPORT_SOURCE_REFERENCE = (
 _REPORT_SOURCE_MEASURED = (
     "two things: how faithfully the colours inside the profile's gamut were "
     "reproduced, and how accurate the profile is against its own prediction")
+#: k40 (Knut 6059912998, answer 1): a failed table fails the sheet, so the
+#: beta-12 line ("these words do not change the sheet's verdict") is revised.
 _REPORT_PROFILE_ACCURACY_NOTE = (
     "Every patch, inside the gamut or not, compared with what the profile "
     "predicts for the ink amounts that were really printed. Judged with the "
-    "same limits; these words do not change the sheet's verdict.")
+    "same limits, and a value over its limit here also fails the sheet's "
+    "overall verdict.")
+#: k41 (Knut 6059912998, answer 2): a sheet printed through the perceptual
+#: or saturation intent. Its source comparison is shown for information and
+#: the profile accuracy table judges it (`measurement_report.
+#: RE_RENDERING_INTENTS`). Line 6 replaces line 2, line 7 replaces line 3;
+#: lines 8 and 9 are the note on its five colour-accuracy rows.
+_REPORT_SOURCE_REFERENCE_INFO = (
+    "the colours the sheet was converted from: the chart's colours in "
+    "{profile}, {intent}. The sheet was printed with a rendering intent that "
+    "changes colours on purpose, so this comparison is shown for information "
+    "only and is not judged.")
+_REPORT_SOURCE_MEASURED_INFO = (
+    "how accurate the profile is against its own prediction. The rendering "
+    "intent changed the colours on purpose, so how closely they match the "
+    "original colours is shown for information only")
+_REPORT_INTENT_PERCEPTUAL_INFO = (
+    "This sheet was printed with the perceptual rendering intent, which "
+    "changes colours on purpose so that all of them fit inside the printer's "
+    "gamut. So this value compares the print with the original colours for "
+    "information only and is not judged against a limit. The sheet is judged "
+    "on its profile accuracy instead: every patch against what the profile "
+    "predicts for the ink amounts that were really printed.")
+_REPORT_INTENT_SATURATION_INFO = (
+    "This sheet was printed with the saturation rendering intent, which "
+    "changes colours on purpose to make them as vivid as the printer allows. "
+    "So this value compares the print with the original colours for "
+    "information only and is not judged against a limit. The sheet is judged "
+    "on its profile accuracy instead: every patch against what the profile "
+    "predicts for the ink amounts that were really printed.")
 _REPORT_PROFILE_ACCURACY_NONE = (
     "The profile's prediction of this sheet could not be worked out, so the "
     "profile's accuracy is not shown.")
@@ -4374,7 +4405,9 @@ M_REPORT_THROUGH_PROFILE = _m(
     _REPORT_PROFILE_ACCURACY_HEADING,
     "\n".join((_REPORT_SOURCE_HEADING, _REPORT_SOURCE_REFERENCE,
                _REPORT_SOURCE_MEASURED, _REPORT_PROFILE_ACCURACY_NOTE,
-               _REPORT_PROFILE_ACCURACY_NONE)),
+               _REPORT_PROFILE_ACCURACY_NONE, _REPORT_SOURCE_REFERENCE_INFO,
+               _REPORT_SOURCE_MEASURED_INFO, _REPORT_INTENT_PERCEPTUAL_INFO,
+               _REPORT_INTENT_SATURATION_INFO)),
     approved=False)
 
 # --- PROPOSED: the chart preview shows the sheet as it will print (beta 12) -
