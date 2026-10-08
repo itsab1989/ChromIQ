@@ -225,7 +225,11 @@ PAPER_PROFILE_RULES: tuple[PaperProfileRule, ...] = (
         profile_option="EPIJProfileSpec",
         profile_label_strip=(r"^EPSON .*? Series ",),
         media_label_strip=(r"^Epson ",),
-        aliases=(("plainpaper", "standard"), ("velvetfineartpaper", "velvetfineart")),
+        # "Photo Paper Glossy" -> "Photo Glossy": the ET-8550 dialog wrote
+        # EPIJProfileSpec=5 for EPIJ_Medi=145 (review 2026-10-08, N15_epson_m145);
+        # without the alias lp sent 0 ("None") and the read-back cried wolf.
+        aliases=(("plainpaper", "standard"), ("velvetfineartpaper", "velvetfineart"),
+                 ("photopaperglossy", "photoglossy")),
         dialog_keys=(("EPIJ_Mode", "3"), ("EPIJ_CMat", "3"), ("EPIJ_CCor", "3"),
                      ("EPIJ_OSColMat", "2"), ("EPIJ_OSCMProf", "1"),
                      ("EPIJ_HdofClSp", "0")),
@@ -238,7 +242,8 @@ PAPER_PROFILE_RULES: tuple[PaperProfileRule, ...] = (
             "Art Paper/Epson Ultra Glossy, and on every medium EPIJ_Mode=3 (Custom), "
             "EPIJ_CMat=3 (Off, No Color Adjustment), EPIJ_OSColMat=2, "
             "EPIJ_OSCMProf=1, EPIJ_HdofClSp=0, where the PPD defaults differ "
-            "(EPIJ_CCor=3 on the photo media, 12 on plain paper)"),
+            "(EPIJ_CCor=3 on the photo media, 12 on plain paper); review 2026-10-08: "
+            "EPIJProfileSpec 5/4 for Photo Paper Glossy/Epson Premium Semigloss"),
     ),
 )
 
@@ -281,11 +286,16 @@ def _icc_profiles(text: str) -> list[tuple[list[str], str, str]]:
     return out
 
 
-def paper_profile_for(ppd_text: str, options: dict[str, str] | None = None
-                      ) -> PaperProfile | None:
+def paper_profile_for(ppd_text: str, options: dict[str, str] | None = None,
+                      honour_profile_option: bool = False) -> PaperProfile | None:
     """The paper profile the vendor's print dialog would put on the ticket for the
     medium in *options* (or the PPD's default medium), or None when the PPD is not
-    one of ``PAPER_PROFILE_RULES``'s vendors.  Pure text work, any platform."""
+    one of ``PAPER_PROFILE_RULES``'s vendors.  Pure text work, any platform.
+
+    *honour_profile_option*: when *options* already names a value of the
+    profile option (a job read back from CUPS), that is the profile the job
+    selects, whatever the medium's name maps to.  The read-back uses it; the
+    lp route does not, it computes the value from the medium."""
     options = options or {}
     blocks = {key: (label, values) for key, label, values in parse_ppd_options(ppd_text)}
     for rule in PAPER_PROFILE_RULES:
@@ -301,7 +311,12 @@ def paper_profile_for(ppd_text: str, options: dict[str, str] | None = None
         want = dict(rule.aliases).get(want, want)
         default = _ppd_default(ppd_text, rule.profile_option)
         chosen = None
-        for val, vlabel in blocks[rule.profile_option][1]:
+        if honour_profile_option and options.get(rule.profile_option):
+            carried = str(options[rule.profile_option])
+            values = dict(blocks[rule.profile_option][1])
+            if carried in values:
+                chosen = (carried, values[carried])
+        for val, vlabel in (() if chosen else blocks[rule.profile_option][1]):
             if _norm(vlabel, rule.profile_label_strip) == want:
                 chosen = (val, vlabel)
                 break

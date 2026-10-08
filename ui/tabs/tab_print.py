@@ -2145,7 +2145,8 @@ class TabPrint(QWidget):
                 self._settings.get("pdf_print_fallback", False)
             ),
         )
-        if accepted[0]:
+        if accepted[0] and is_macos():
+            # macOS only: Linux keeps beta 14's status line (review 2026-10-08).
             self._read_back_lp_job(printer)
         return accepted[0]
 

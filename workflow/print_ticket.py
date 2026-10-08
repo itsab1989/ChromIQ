@@ -129,13 +129,15 @@ def check_job(queue: str, job_id: int | None, expected: dict[str, str],
         return rep
     rep.carried = _colour_keys(attrs)
     for k, want in expected.items():
-        got = attrs.get(k)
-        got = None if got is None else str(got)
-        if got != want:
-            rep.mismatches[k] = (got, want)
+        raw = attrs.get(k)
+        if not _same_value(raw, want):
+            rep.mismatches[k] = (None if raw is None else str(raw), want)
     if ppd_text:
         opts = {k: str(v) for k, v in attrs.items() if isinstance(v, (str, int))}
-        pp = paper_profile_for(ppd_text, opts)
+        # the profile the JOB selects (its own option value), not the one its
+        # medium's name maps to: a medium the rule does not know (or names
+        # differently) must not turn into a false "not as sent" alarm
+        pp = paper_profile_for(ppd_text, opts, honour_profile_option=True)
         if pp is not None:
             carried = opts.get(pp.option)
             if carried is None:
@@ -156,6 +158,17 @@ def check_job(queue: str, job_id: int | None, expected: dict[str, str],
                     rep.tag_matches_job = None
     log.info("print ticket: %s", rep.summary())
     return rep
+
+
+def _same_value(got, want: str) -> bool:
+    """Is the job attribute *got* (as pycups returns it) the option value *want*
+    ChromIQ sent?  cupsd stores an option value "true"/"false" as an IPP
+    boolean, so pycups hands back True/False; compare those as words."""
+    if got is None:
+        return False
+    if isinstance(got, bool):
+        return want.strip().lower() == ("true" if got else "false")
+    return str(got) == want
 
 
 def _default_of(ppd_text: str, pp: PaperProfile) -> str | None:

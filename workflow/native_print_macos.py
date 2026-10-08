@@ -628,6 +628,14 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
     last_report = check_job(queue or "?", job, expected, ppd_text=ppd_text,
                             tagged_with=dest_name if dest_icc else "",
                             tag_icc_desc_for=_icc_description)
+    if (not dest_icc and last_report.read and last_report.tag_matches_job is None
+            and ppd_text and "*cupsICCProfile" in ppd_text):
+        # Any printer whose PPD names profiles macOS can match to (HP DesignJet
+        # and the like, not only Canon/Epson): the chart went untagged, so macOS
+        # may convert it, and the status line must not say otherwise. A PPD
+        # without profiles (no output intent at all) stays quiet: measured on
+        # the sample HP DeskJet queue, its raster is byte-identical to beta 14's.
+        last_report.tag_matches_job = False
     if last_report.read and not last_report.ok:
         raise ColorManagementMismatch(last_report.summary())
     return True

@@ -275,7 +275,13 @@ class CupsRawPrinter:
                                  ) -> PaperProfile | None:
         """The paper profile the vendor's dialog would choose for this job, when
         the queue's PPD is one of ``PAPER_PROFILE_RULES``'s vendors and the chart
-        is RGB with that profile readable; else None (the generic path)."""
+        is RGB with that profile readable; else None (the generic path).
+
+        macOS only: the route answers macOS's rasteriser, which converts tagged
+        colour into the job's paper profile. A Linux CUPS with a Canon or Epson
+        PPD keeps the beta 14 job (review 2026-10-08)."""
+        if sys.platform != "darwin":
+            return None
         try:
             pp = paper_profile_for_queue(config.printer_name, config.options)
         except Exception as exc:  # pragma: no cover - defensive

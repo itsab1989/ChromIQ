@@ -85,7 +85,7 @@ EPSON_PPD = """*PPD-Adobe: "4.3"
 
 
 def _ppd(tmp_path: Path, text: str) -> str:
-    for name in ("generic", "platinum", "matte", "baryta", "standard", "premglossy",
+    for name in ("generic", "platinum", "matte", "baryta", "standard", "premglossy", "photoglossy",
                  "velvet", "srgb"):
         (tmp_path / f"{name}.icc").write_bytes(b"ICC-" + name.encode())
     return text.replace("{dir}", str(tmp_path))
@@ -374,3 +374,73 @@ def test_epson_dialog_keys_follow_the_medium():
     assert rule.dialog_keys_for("13")["EPIJ_CCor"] == "3"
     assert rule.dialog_keys_for("0")["EPIJ_CCor"] == "12"
     assert rule.dialog_keys_for("0")["EPIJ_CMat"] == "3"
+
+
+# ---- review 2026-10-08: weak spots found driving the real app ------------------
+def test_linux_keeps_the_beta14_job_for_a_canon(tmp_path, monkeypatch):
+    """The reference route answers macOS's rasteriser. A Linux CUPS with a Canon
+    or Epson PPD must keep the beta 14 job (CI runs Linux; behaviour unchanged)."""
+    text = _ppd(tmp_path, CANON_PPD)
+    monkeypatch.setattr(cups_printer, "paper_profile_for_queue",
+                        lambda q, opts=None: paper_profile_for(text, opts))
+    monkeypatch.setattr(cups_printer.sys, "platform", "linux")
+    chart = _rgb_chart(tmp_path / "c.tif")
+    assert CupsRawPrinter._reference_paper_profile(
+        chart, PrintConfig("Q", {"CNIJMediaType": "28"})) is None
+    monkeypatch.setattr(cups_printer.sys, "platform", "darwin")
+    assert CupsRawPrinter._reference_paper_profile(
+        chart, PrintConfig("Q", {"CNIJMediaType": "28"})) is not None
+
+
+def test_the_lp_read_back_is_macos_only():
+    import inspect
+    from ui.tabs.tab_print import TabPrint
+    src = inspect.getsource(TabPrint._send_page)
+    assert "self._read_back_lp_job(printer)" in src
+    assert "if accepted[0] and is_macos():" in src
+
+
+EPSON_PPD_145 = EPSON_PPD.replace(
+    '*EPIJ_Medi 53/Velvet Fine Art Paper: ""',
+    '*EPIJ_Medi 53/Velvet Fine Art Paper: ""\n*EPIJ_Medi 145/Photo Paper Glossy: ""'
+).replace(
+    '*EPIJProfileSpec 7/EPSON ET-8550 L8180 Series Velvet Fine Art: ""',
+    '*EPIJProfileSpec 7/EPSON ET-8550 L8180 Series Velvet Fine Art: ""\n'
+    '*EPIJProfileSpec 5/EPSON ET-8550 L8180 Series Photo Glossy: ""'
+).replace(
+    '*cupsICCProfile ..0/sRGB Profile: "{dir}/srgb.icc"',
+    '*cupsICCProfile ..0/sRGB Profile: "{dir}/srgb.icc"\n'
+    '*cupsICCProfile ..5/EPSON ET-8550 L8180 Series Photo Glossy: "{dir}/photoglossy.icc"')
+
+
+def test_epson_photo_paper_glossy_selects_photo_glossy(tmp_path):
+    """Measured on the real ET-8550 dialog (review N15_epson_m145): medium 145
+    'Photo Paper Glossy' -> EPIJProfileSpec 5 'Photo Glossy'. Before the alias
+    the lp route sent 0 ('None')."""
+    pp = paper_profile_for(_ppd(tmp_path, EPSON_PPD_145), {"EPIJ_Medi": "145"})
+    assert pp.value == "5" and not pp.is_default
+
+
+def test_read_back_follows_the_profile_the_job_carries(tmp_path, monkeypatch):
+    """A dialog job whose medium the rule maps to another profile (or to none)
+    is judged by the profile it really carries: the chart tagged with exactly
+    that profile is not a mismatch (it raised a false NOT-AS-SENT window)."""
+    text = _ppd(tmp_path, EPSON_PPD_145.replace("Photo Paper Glossy", "Some Other Glossy"))
+    _ticket(monkeypatch, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching",
+                          "EPIJ_Medi": "145", "EPIJProfileSpec": "5"})
+    desc = {str(tmp_path / "photoglossy.icc"): "EPSON ET-8550 L8180 Series Photo Glossy"}
+    rep = print_ticket.check_job(
+        "Q", 7, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching"}, ppd_text=text,
+        tagged_with="EPSON ET-8550 L8180 Series Photo Glossy", tag_icc_desc_for=desc.get)
+    assert rep.paper_profile.value == "5"
+    assert rep.tag_matches_job is True and rep.ok
+
+
+def test_read_back_compares_a_boolean_option_as_a_word(monkeypatch):
+    """cupsd stores an option value 'true'/'false' as an IPP boolean (measured
+    with lp -o TestB=true on a review queue); pycups returns True/False."""
+    _ticket(monkeypatch, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching",
+                          "VendorColorOff": True})
+    rep = print_ticket.check_job("Q", 7, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching",
+                                         "VendorColorOff": "true"}, retries=1)
+    assert rep.ok, rep.mismatches
