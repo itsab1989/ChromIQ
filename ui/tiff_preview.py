@@ -974,6 +974,7 @@ class _PatchInfoTile(QWidget):
                 buffer=f"{float(nb.get('buffer', 0.0)):.1f}")))
             # k43, approved by Knut (6059912998, answer 5)
             rows.append((None, tr(_mm._CARD_NB_LATER_1)))
+            rows.append((None, tr(_mm._CARD_NB_LATER_1B)))
             rows.append((None, tr(_mm._CARD_NB_LATER_2)))
 
         def limit_line() -> None:

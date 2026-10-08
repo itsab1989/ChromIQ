@@ -2029,18 +2029,22 @@ _CARD_NB_REREAD_2 = "not similar patches or its colour range."
 #: k43, APPROVED by Knut in #182 6059912998, answer 5: *"May the help and
 #: hover card say: 'Checked again after each strip: a patch can turn red
 #: later, when patches near it in colour are read'?"* "Yes". The card breaks
-#: it in two at the comma; the Preferences help carries it whole
-#: (:data:`NB_CHECKED_AGAIN`). Lines 10 and 11 of M-PATCH-NEIGHBOUR.
+#: it in three, at the colon and the comma, so no line is wider than the
+#: card's others (beta 15 follow-up: broken only at the comma, its first
+#: half made the red card about 500 px wide in every language); the words
+#: are unchanged. The Preferences help carries it whole
+#: (:data:`NB_CHECKED_AGAIN`). Lines 10 to 12 of M-PATCH-NEIGHBOUR.
 NB_CHECKED_AGAIN = ("Checked again after each strip: a patch can turn red "
                     "later, when patches near it in colour are read")
-_CARD_NB_LATER_1 = "Checked again after each strip: a patch can turn red later,"
+_CARD_NB_LATER_1 = "Checked again after each strip:"
+_CARD_NB_LATER_1B = "a patch can turn red later,"
 _CARD_NB_LATER_2 = "when patches near it in colour are read."
 #: b15 item 10 (Knut #182 6065640028, approved by Basti): on EVERY card of
 #: a patch the neighbour check judges, under "Measured", whether flagged or
 #: not: how far the patch is from its expected colour compared with the
 #: patches nearest to it in colour (`NeighbourCheck.comparison`, the B2+
 #: median). {n}: 2 to 4; {d}: ΔE*ab, one decimal, never negative (the sign
-#: is the word: further / closer). Lines 12 to 16 of M-PATCH-NEIGHBOUR.
+#: is the word: further / closer). Lines 13 to 18 of M-PATCH-NEIGHBOUR.
 _CARD_NBC_1 = "Against the {n} patches nearest in colour:"
 _CARD_NBC_FURTHER = "ΔE {d} further from its expected colour"
 _CARD_NBC_CLOSER = "ΔE {d} closer to its expected colour"
@@ -2052,7 +2056,8 @@ M_PATCH_NEIGHBOUR = _m(
     _CARD_NB_RED,
     "\n".join((_CARD_NB_1, _CARD_NB_1_ALSO, _CARD_NB_2, _CARD_NB_3,
                _CARD_NB_4, _CARD_NB_5, _CARD_NB_YELLOW, _CARD_NB_REREAD_1,
-               _CARD_NB_REREAD_2, _CARD_NB_LATER_1, _CARD_NB_LATER_2,
+               _CARD_NB_REREAD_2, _CARD_NB_LATER_1, _CARD_NB_LATER_1B,
+               _CARD_NB_LATER_2,
                _CARD_NBC_1, _CARD_NBC_FURTHER, _CARD_NBC_CLOSER, _CARD_NBC_2,
                _CARD_NBC_FEW, _CARD_NBC_FEW_2)),
     approved=False)

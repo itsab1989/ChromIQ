@@ -48,9 +48,11 @@ def test_the_card_carries_the_approved_line(qapp, tmp_path):
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55})
     lines = _card(_info(tab, "D6"))
-    assert M._CARD_NB_LATER_1 in lines and M._CARD_NB_LATER_2 in lines
-    assert (M._CARD_NB_LATER_1 + " " + M._CARD_NB_LATER_2).rstrip(".") \
-        == M.NB_CHECKED_AGAIN
+    later = [M._CARD_NB_LATER_1, M._CARD_NB_LATER_1B, M._CARD_NB_LATER_2]
+    i = lines.index(later[0])
+    assert lines[i:i + 3] == later
+    # the approved words, unchanged, only broken across three lines
+    assert " ".join(later).rstrip(".") == M.NB_CHECKED_AGAIN
 
 
 def test_switched_off_live_the_outline_goes_and_comes_back(qapp, tmp_path):
