@@ -47,6 +47,14 @@ _TIMEOUT_S = 120
 # its own rendered pages, this saves a second cctiff run on a re-render.
 _cache: "OrderedDict[tuple[str, float, str, float], tuple]" = OrderedDict()
 _CACHE_PAGES = 6
+#: ...and never more than this many bytes of pixels (review D of beta 12):
+#: six A3 pages at 300 dpi are 312 MB, at 600 dpi 1.2 GB, on top of the
+#: previews' own 144 MB frame store. The newest entry is always kept.
+_CACHE_BYTES = 96 * 1024 * 1024
+
+
+def _nbytes(frames) -> int:
+    return sum(f.width * f.height * len(f.getbands()) for f in frames)
 
 #: cctiff's folder for one call, named after the process that made it.
 _TMP_PREFIX = "chromiq-colorimetric-"
@@ -168,7 +176,9 @@ def colorimetric_rgb_frames(
     if not frames:
         return None
     _cache[key] = frames
-    while len(_cache) > _CACHE_PAGES:
+    while len(_cache) > 1 and (
+            len(_cache) > _CACHE_PAGES
+            or sum(_nbytes(v) for v in _cache.values()) > _CACHE_BYTES):
         _cache.popitem(last=False)
     return frames
 

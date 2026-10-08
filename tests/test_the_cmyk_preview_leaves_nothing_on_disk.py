@@ -189,3 +189,37 @@ def test_a_chromiq_killed_during_a_conversion_is_swept_by_the_next(tmp_path):
         """)], env=_child_env(root), timeout=120)
     assert nxt.returncode == 0
     assert _ours(root) == [], _ours(root)
+
+
+def test_the_pages_in_memory_are_bounded_by_bytes_too(tmp_path, monkeypatch):
+    """Review D: six A3 pages at 300 dpi are 312 MB on top of the previews'
+    144 MB frame store, so the cache is held to a byte budget as well as a
+    count, and the newest page is kept even when it alone is over it."""
+    from PIL import Image
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(CP, "_swept", True)
+    monkeypatch.setattr(CP, "_CACHE_BYTES", 100 * 100 * 3 * 2)   # two pages
+    CP._cache.clear()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "cctiff").write_text("", encoding="utf-8")
+    (tmp_path / "ref").mkdir()
+    (tmp_path / "ref" / "sRGB.icm").write_bytes(b"x")
+    prof = tmp_path / "p.icc"
+    prof.write_bytes(b"x")
+
+    def fake(cmd, **kw):
+        Image.new("RGB", (100, 100), (1, 2, 3)).save(cmd[-1])
+        return subprocess.CompletedProcess(cmd, 0, b"", b"")
+
+    for i in range(4):
+        tif = tmp_path / f"page{i}.tif"
+        tif.write_bytes(b"x")
+        assert CP.colorimetric_rgb_frames(tif, prof, bin_dir, runner=fake)
+    assert len(CP._cache) == 2
+    monkeypatch.setattr(CP, "_CACHE_BYTES", 10)
+    tif = tmp_path / "big.tif"
+    tif.write_bytes(b"x")
+    assert CP.colorimetric_rgb_frames(tif, prof, bin_dir, runner=fake)
+    assert list(k[0] for k in CP._cache) == [str(tif)]
+    CP._cache.clear()
