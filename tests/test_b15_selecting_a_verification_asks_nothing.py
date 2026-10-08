@@ -36,6 +36,9 @@ class _Tab:
     def _recover_stranded_partial(self):
         return False
 
+    def _apply_the_remembered_overlay_answer(self):
+        pass                    # its own test: test_b15_sweep_*overlay*
+
     def _maybe_offer_existing_overlay(self):
         self.asked += 1
 
