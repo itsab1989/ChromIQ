@@ -4449,7 +4449,7 @@ M_PREVIEW_AS_PRINTED = _m(
                _PREVIEW_TIP_NO_SWITCH)),
     approved=False)
 
-# --- PROPOSED: Simulate paper white, inside the preview's indicator (beta 14)
+# --- APPROVED (Sebastian, 2026-10-08): Simulate paper white, inside the preview's indicator (beta 14)
 #: Basti, 2026-10-08: "when the user hovers the label icon and it extends and
 #: the proof view is active could then there be also a button inside that
 #: activates and deactivates simulate paper white? ... the choice should also
@@ -4489,7 +4489,7 @@ M_PREVIEW_PAPER_WHITE = _m(
     "\n".join((_PREVIEW_PAPER_WHITE_NAME, _PREVIEW_CHIP_PAPER_WHITE_ON,
                _PREVIEW_PAPER_WHITE_TIP_OFF, _PREVIEW_PAPER_WHITE_TIP_ON,
                _PREVIEW_TIP_RAW_PAPER, _PREVIEW_TIP_THROUGH_PAPER)),
-    approved=False)
+    approved=True)  # Sebastian, 2026-10-08
 
 # --- PROPOSED: the slow-chart window of a build with no profile (beta 12) ---
 #: The window that offers the faster patch layout (ui/dialogs/

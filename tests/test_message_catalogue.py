@@ -654,9 +654,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # beta 12, Knut 6045500910 Q4, Basti
                                  # 6045468325: the preview's indicator
                                  "M-PREVIEW-AS-PRINTED",
-                                 # beta 14, Basti 2026-10-08: Simulate
-                                 # paper white inside the indicator
-                                 "M-PREVIEW-PAPER-WHITE",
                                  # beta 12: the slow-chart window of a chart
                                  # built without a pre-conditioning profile
                                  "M-CHART-SLOW-NO-PROFILE",
