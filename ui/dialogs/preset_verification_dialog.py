@@ -1777,10 +1777,13 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         count = max(fm.horizontalAdvance(tr(COUNT_CELL).format(n=88, total=88)),
                     fm.horizontalAdvance(tr("Working…"))) + pad
         for c in (1, 2, 3, 4):
+            # Qt's own measure of the heading, and 4 px of air: at exactly
+            # that measure "Seiten" kept 7 px beside a 37 px word
+            heading = head.sectionSizeHint(c) + 4
             if c in (3, 4):
-                width = max(head.sectionSizeHint(c), count)
+                width = max(heading, count)
             else:
-                width = max(head.sectionSizeHint(c), tree.sizeHintForColumn(c))
+                width = max(heading, tree.sizeHintForColumn(c))
             tree.setColumnWidth(c, width)
 
     def _columns(self, row: PresetRow) -> "list[str]":

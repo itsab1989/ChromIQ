@@ -250,7 +250,13 @@ def test_the_presets_column_heading_fits_in_german(qapp):
                 # a heading may be on two lines (review of k45, beta 15)
                 need = max(head.fontMetrics().horizontalAdvance(line)
                            for line in label.split("\n"))
-                assert dlg._tree.columnWidth(c) > need + 12, (
+                # beta-15 last fixes: the figure columns are sized to Qt's
+                # own measure of their heading (`sectionSizeHint`, the text
+                # plus the style's two header margins), no longer to a
+                # guessed 28 px pad; checked on screen, "Messfelder" whole
+                assert dlg._tree.columnWidth(c) >= head.sectionSizeHint(c), (
+                    c, label, dlg._tree.columnWidth(c), head.sectionSizeHint(c))
+                assert dlg._tree.columnWidth(c) >= need + 8, (
                     c, label, dlg._tree.columnWidth(c), need)
         finally:
             dlg.close()
