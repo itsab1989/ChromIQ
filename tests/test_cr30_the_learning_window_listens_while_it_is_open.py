@@ -152,7 +152,9 @@ def test_declining_stops_the_learner_and_says_what_it_costs(qtbot):
     TabMeasure._offer_cr30_tile_learning(host, reader)
     # The learner runs on its own thread and is told to stop as the window
     # goes; it notices on its next poll, which is after this call returns.
-    qtbot.waitUntil(lambda: reader.saw_cancel, timeout=3000)
+    # 30 s, not 3: waitUntil returns as soon as it holds, and the beta-14
+    # gate 2 ran out of 3 s at a load average of 68 (passes alone in 2 s).
+    qtbot.waitUntil(lambda: reader.saw_cancel, timeout=30000)
     assert "built-in value" in host._log.toPlainText()
 
 
@@ -185,7 +187,7 @@ def test_a_press_after_the_window_closed_does_not_take_the_app_down(qtbot):
 
     QTimer.singleShot(20, decline)
     TabMeasure._offer_cr30_tile_learning(host, _Late())
-    qtbot.waitUntil(lambda: "worker" in kept, timeout=3000)
+    qtbot.waitUntil(lambda: "worker" in kept, timeout=30000)
     QApplication.processEvents()
 
     from PyQt6 import sip
