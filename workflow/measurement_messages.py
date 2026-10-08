@@ -4449,6 +4449,31 @@ M_PREVIEW_AS_PRINTED = _m(
                _PREVIEW_TIP_NO_SWITCH)),
     approved=False)
 
+# --- PROPOSED: the slow-chart window of a build with no profile (beta 12) ---
+#: The window that offers the faster patch layout (ui/dialogs/
+#: slow_chart_dialog.py) was written for a refinement chart: "with certain
+#: pre-conditioning profiles", "the same profile", "for a refinement chart".
+#: A plain chart (no targen -c) shows this text instead; a build with a
+#: profile keeps the window's own text. Headline and buttons are unchanged.
+M_CHART_SLOW_NO_PROFILE = _m(
+    "M-CHART-SLOW-NO-PROFILE",
+    "This chart is taking longer than usual",
+    "ChromIQ hasn't frozen: your chart is still being built in the "
+    "background. On larger (multi-page) charts, Argyll's standard way of "
+    "arranging the colour patches can slow down dramatically, and that's "
+    "what's happening here.\n\n"
+    "You have three choices:\n\n"
+    "• Keep waiting: let it finish with the highest-quality patch layout. Be "
+    "aware this may take a very long time, and there's no reliable way to "
+    "predict how long.\n\n"
+    "• Rebuild with the faster layout (recommended): ChromIQ stops this "
+    "attempt and immediately rebuilds the same chart, with the same number "
+    "of patches, using a different patch-arrangement method that doesn't "
+    "suffer from this slowdown. The patches are still spread evenly through "
+    "the colour space, and it usually finishes in under a second.\n\n"
+    "• Cancel: stop building the chart. Nothing is saved.",
+    approved=False)
+
 M_REPORT_PAPER_AGAINST_PROFILE = _m(
     "M-REPORT-PAPER-AGAINST-PROFILE",
     "Paper compared with the profile's paper",
@@ -4877,6 +4902,7 @@ CATALOGUE = {m.id: m for m in (
     M_SCAN_CONVERTED, M_SCAN_FIT_TOO_FAR,
     M_SCAN_PROFILE_ARCHIVED,
     M_SCAN_WP_DEFAULT,
+    M_CHART_SLOW_NO_PROFILE,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

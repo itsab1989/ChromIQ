@@ -1186,6 +1186,91 @@ def _is_chromiq_temp(entry: pathlib.Path, _depth: int = 2,
     return False
 
 
+#: A folder with anything in it changed more recently than this is in use,
+#: whatever its own date says (beta 12, review D). The top folder's mtime moves
+#: only when an entry directly inside it is added or removed, so a run that
+#: has been writing deep inside its ``chromiq-run-*`` for an hour looked
+#: stale by that date alone, and the start-up sweep of ANOTHER session's run
+#: deleted it under it: 3.27 GB, measured by builder D on 2026-10-07. Same
+#: window as ``scripts/session_cleanup.py::IN_USE_FOR_S``.
+_IN_USE_FOR_S = 1800
+
+_RUN_TMP_PID = __import__("re").compile(r"^chromiq-run-(\d+)-")
+
+
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True                          # alive, someone else's
+    except OSError:
+        return False                         # Windows: no such process
+    return True
+
+
+def _held_open_paths() -> "list[str]":
+    """Every path a live process holds open or works in: one system-wide
+    ``lsof`` (about 0.1 s here). Empty where there is no lsof (Windows) or
+    it fails; the other two rules still hold then."""
+    import subprocess
+    try:
+        out = subprocess.run(["lsof", "-nP", "-w", "-Fn"],
+                             capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [ln[1:] for ln in out.splitlines()
+            if ln.startswith("n") and ln[1:2] == "/"]
+
+
+def _changed_since(folder: pathlib.Path, since: float) -> bool:
+    """Whether anything in *folder*, at any depth, changed after *since*.
+    Stops at the first such entry."""
+    stack = [str(folder)]
+    while stack:
+        here = stack.pop()
+        try:
+            with os.scandir(here) as it:
+                for child in it:
+                    try:
+                        st = child.stat(follow_symlinks=False)
+                    except OSError:
+                        continue
+                    if st.st_mtime > since:
+                        return True
+                    if child.is_dir(follow_symlinks=False):
+                        stack.append(child.path)
+        except OSError:
+            continue
+    return False
+
+
+def _in_use(entry: pathlib.Path, open_paths: "list[str]") -> bool:
+    """Whether a stale-looking temp folder is still somebody's: a run folder
+    whose owning pytest is alive, anything changed inside it in the last
+    :data:`_IN_USE_FOR_S`, or anything in it held open by a live process."""
+    import time
+    m = _RUN_TMP_PID.match(entry.name)
+    if m and int(m.group(1)) != os.getpid() and _pid_alive(int(m.group(1))):
+        return True
+    if _changed_since(entry, time.time() - _IN_USE_FOR_S):
+        return True
+    roots = {str(entry)}
+    try:
+        roots.add(str(entry.resolve()))
+    except OSError:
+        pass
+    for root in roots:
+        prefix = root.rstrip("/\\") + os.sep
+        if any(o == root or o.startswith(prefix) for o in open_paths):
+            return True
+    return False
+
+
 def _sweep_stale_temp_dirs() -> "tuple[int, int]":
     """Delete what earlier test runs left in the system temp folder.
 
@@ -1227,6 +1312,7 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
         keep.add(pathlib.Path(cache).name)
 
     folders = freed = 0
+    open_paths = None
     # pytest's OWN trees, which it is supposed to prune to the last few — but
     # it skips any directory whose .lock file is still there, and a run that
     # CRASHES leaves its lock behind. Measured 2026-08-05: a tree from three
@@ -1253,6 +1339,10 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
                 continue                     # a run in progress
         except OSError:
             continue                         # vanished between glob and stat
+        if open_paths is None:
+            open_paths = _held_open_paths()  # once, and only when needed
+        if _in_use(entry, open_paths):
+            continue                         # another session's live run
         size = _folder_size(entry)
         shutil.rmtree(entry, onerror=_force_writable)
         if not entry.exists():
@@ -1638,7 +1728,11 @@ def _enter_the_run_temp(config) -> None:
     import tempfile
     run = os.environ.get("CHROMIQ_SUITE_RUN_TMP", "")
     if not hasattr(config, "workerinput") or not os.path.isdir(run):
-        run = _tempfile.mkdtemp(prefix="chromiq-run-", dir=str(_REAL_TEMP))
+        # The controller's pid in the name: the start-up sweep of
+        # another session never takes the folder of a run whose pytest is
+        # still alive, however long it has been quiet (beta 12, review D).
+        run = _tempfile.mkdtemp(prefix=f"chromiq-run-{os.getpid()}-",
+                                dir=str(_REAL_TEMP))
         os.environ["CHROMIQ_SUITE_RUN_TMP"] = run
         os.environ["CHROMIQ_SUITE_RUN_TMP_OWNER"] = str(os.getpid())
     tempfile.tempdir = run

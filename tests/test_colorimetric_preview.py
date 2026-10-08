@@ -44,9 +44,9 @@ def test_conversion_failure_returns_none(tmp_path):
     def boom(cmd, **kw):
         return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="nope")
 
-    assert CP.colorimetric_rgb_tiff(tif, prof, ARGYLL_BIN, runner=boom) is None
-    assert CP.colorimetric_rgb_tiff(tmp_path / "missing.tif", prof,
-                                    ARGYLL_BIN) is None
+    assert CP.colorimetric_rgb_frames(tif, prof, ARGYLL_BIN, runner=boom) is None
+    assert CP.colorimetric_rgb_frames(tmp_path / "missing.tif", prof,
+                                      ARGYLL_BIN) is None
 
 
 @live
@@ -67,12 +67,12 @@ def test_live_cmyk_chart_gets_true_colour_preview(tmp_path):
     import shutil
     shutil.copy(GENERIC_CMYK, tmp_path / "preconditioning.icc")
 
-    conv = CP.colorimetric_rgb_tiff(tif, tmp_path / "preconditioning.icc",
-                                    ARGYLL_BIN)
-    assert conv is not None and conv.is_file()
-    # Cache hit: same object for a second call.
-    assert CP.colorimetric_rgb_tiff(tif, tmp_path / "preconditioning.icc",
-                                    ARGYLL_BIN) == conv
+    conv = CP.colorimetric_rgb_frames(tif, tmp_path / "preconditioning.icc",
+                                      ARGYLL_BIN)
+    assert conv and conv[0].mode == "RGB"
+    # Cache hit: the same pages for a second call, held in memory.
+    assert CP.colorimetric_rgb_frames(tif, tmp_path / "preconditioning.icc",
+                                      ARGYLL_BIN) is conv
 
     pytest.importorskip("PyQt6")
     from ui import tiff_preview as TP

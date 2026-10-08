@@ -27,6 +27,10 @@ def _aged(path: Path, hours: float) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     (path / "a-file.txt").write_text("x" * 100, encoding="utf-8")
     when = time.time() - hours * 3600
+    # Everything inside too, deepest first: since review D the sweep keeps a
+    # folder with ANYTHING in it changed in the last half hour.
+    for p in sorted(path.rglob("*"), key=lambda q: len(q.parts), reverse=True):
+        os.utime(p, (when, when), follow_symlinks=False)
     os.utime(path, (when, when))
     return path
 
@@ -274,3 +278,86 @@ def test_a_worker_never_deletes_the_shared_tree(tmp_path):
 
     pytest_sessionfinish(_Session(), 0)
     assert base.exists()
+
+
+# ---- another session's RUNNING test folder is never swept (review D) ------
+# Builder D, 2026-10-07: a start-up sweep deleted a 3.27 GB chromiq-run-*
+# folder during a run. The folder's own date moves only when something is
+# added directly inside it, so a run writing deep inside for an hour looked
+# stale. The sweep now keeps anything in use: changed anywhere inside in the
+# last half hour, held open by a live process, or named after a live pytest.
+def test_a_folder_written_deep_inside_is_kept(fake_temp):
+    run = _aged(fake_temp / "chromiq-run-busy", _STALE_AFTER_HOURS + 2)
+    deep = run / "tmpabc" / "chart"
+    deep.mkdir(parents=True)
+    (deep / "page_01.tif").write_bytes(b"x" * 10)
+    old = time.time() - (_STALE_AFTER_HOURS + 2) * 3600
+    os.utime(run, (old, old))                # its own date says: stale
+    folders, _ = _sweep_stale_temp_dirs()
+    assert run.exists() and (deep / "page_01.tif").exists()
+    assert folders == 0
+
+
+def test_a_folder_quiet_for_less_than_half_an_hour_is_kept(fake_temp):
+    import tests.conftest as cf
+    run = _aged(fake_temp / "chromiq-run-quiet", _STALE_AFTER_HOURS + 2)
+    recent = time.time() - (cf._IN_USE_FOR_S - 120)
+    os.utime(run / "a-file.txt", (recent, recent))
+    _sweep_stale_temp_dirs()
+    assert run.exists()
+
+
+def test_a_folder_held_open_by_a_live_process_is_kept(fake_temp):
+    import subprocess
+    import sys
+    run = _aged(fake_temp / "chromiq-run-held", _STALE_AFTER_HOURS + 2)
+    if sys.platform == "win32":
+        pytest.skip("lsof is the check; Windows refuses the delete itself")
+    held = run / "a-file.txt"
+    child = subprocess.Popen(
+        [sys.executable, "-c",
+         "import sys,time; f=open(sys.argv[1], encoding='utf-8'); "
+         "print('ok', flush=True); "
+         "time.sleep(60)", str(held)],
+        stdout=subprocess.PIPE, text=True, encoding="utf-8")
+    try:
+        assert child.stdout.readline().strip() == "ok"
+        old = time.time() - (_STALE_AFTER_HOURS + 2) * 3600
+        os.utime(held, (old, old))
+        os.utime(run, (old, old))
+        import tests.conftest as cf
+        if not any(p.endswith("/chromiq-run-held/a-file.txt")
+                   for p in cf._held_open_paths()):
+            pytest.skip("lsof is unavailable here")
+        _sweep_stale_temp_dirs()
+        assert run.exists(), "a folder a live process holds open was deleted"
+    finally:
+        child.kill()
+        child.wait(timeout=30)
+    _sweep_stale_temp_dirs()
+    assert not run.exists(), "once nobody holds it, the stale folder goes"
+
+
+def test_a_run_folder_of_a_live_pytest_is_kept_and_of_a_dead_one_goes(
+        fake_temp):
+    import subprocess
+    import sys
+    parent = os.getppid() or 1               # alive, and not this process
+    live = _aged(fake_temp / f"chromiq-run-{parent}-abcd", _STALE_AFTER_HOURS + 2)
+    gone = subprocess.Popen([sys.executable, "-c", "pass"])
+    gone.wait(timeout=30)
+    dead = _aged(fake_temp / f"chromiq-run-{gone.pid}-efgh",
+                 _STALE_AFTER_HOURS + 2)
+    _sweep_stale_temp_dirs()
+    assert live.exists(), "the folder of a pytest still running was deleted"
+    assert not dead.exists()
+
+
+def test_this_run_s_folder_names_its_controller():
+    import tempfile
+    import tests.conftest as cf
+    name = Path(tempfile.gettempdir()).name
+    m = cf._RUN_TMP_PID.match(name)
+    assert m, name
+    owner = os.environ.get("CHROMIQ_SUITE_RUN_TMP_OWNER")
+    assert m.group(1) == owner

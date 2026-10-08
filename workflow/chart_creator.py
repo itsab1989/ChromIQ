@@ -39,6 +39,21 @@ TEXT_EDGE_CLIP_SETTING_KEY = "text_edge_clip_mm"
 # failures) — we surface only the ones with a user-actionable fix.
 # ---------------------------------------------------------------------------
 
+#: A tool line that ends at Argyll's error marker, with the sentence still to
+#: come on the next line ("targen: Error -" + "ofps: assert, ...").
+_ERROR_MARKER_ALONE = re.compile(r"(?:Error\s*-|Error:|Diagnostic:)\s*$")
+
+def _argv_has_profile(argv: "list[str]") -> bool:
+    """True when a targen argv carries a pre-conditioning profile: ``-c <icc>``
+    or the joined ``-c<icc>`` form."""
+    for i, tok in enumerate(argv):
+        if tok == "-c":
+            return i + 1 < len(argv) and bool(argv[i + 1].strip())
+        if tok.startswith("-c") and len(tok) > 2:
+            return True
+    return False
+
+
 _TARGEN_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     # L824 / L863 — preconditioning profile mismatched
     (re.compile(r"ICC profile doesn't match device!"),
@@ -832,6 +847,7 @@ class ChartCreator:
         self._pending_patch_count = patch_count
         self._matched_errors = []
         self._raw_errors = []
+        self._error_stem = None
         self._matched_warnings = []
         self._start_targen(params, patch_count, on_line, work_dir)
 
@@ -858,6 +874,9 @@ class ChartCreator:
         from workflow.targen_ink_limit import corner_safe_argv
         targen_args, self._ink_limit_restore = corner_safe_argv(targen_args)
         log.info("targen args: %s", targen_args)
+        # The slow-chart window speaks of pre-conditioning profiles only when
+        # this build really passes one (beta 12).
+        self._targen_uses_profile = _argv_has_profile(targen_args)
 
         def _targen_scan(line: str) -> None:
             self._scan_line("targen", line)
@@ -870,6 +889,11 @@ class ChartCreator:
             on_line=_targen_scan,
             on_finish=lambda code: self._targen_done(code, params, on_line, work_dir),
         )
+
+    def targen_uses_profile(self) -> bool:
+        """Whether the targen running now was given a pre-conditioning
+        profile (-c). False before any targen ran."""
+        return bool(getattr(self, "_targen_uses_profile", False))
 
     def restart_with_fast_sampler(self) -> bool:
         """Kill the running targen and relaunch the same chart with the fast
@@ -1113,6 +1137,7 @@ class ChartCreator:
         if self._should_use_engine(params):
             self._matched_errors = []
             self._raw_errors = []
+            self._error_stem = None
             self._matched_warnings = []
             self._run_engine(params, work_dir, on_line)
             return
@@ -1121,6 +1146,7 @@ class ChartCreator:
         log.debug("printtarg args (from ti1): %s", pt_args)
         self._matched_errors = []
         self._raw_errors = []
+        self._error_stem = None
         self._matched_warnings = []
 
         def _printtarg_scan(line: str) -> None:
@@ -1221,6 +1247,22 @@ class ChartCreator:
         # failed build never appeared. He was left with an empty preview and two
         # lines in the log. An unrecognised error is still an error, and the user
         # is still owed the tool's own words.
+        #
+        # AN ARGYLL ERROR CAN ARRIVE IN TWO PIECES. Argyll's error() writes
+        # "targen: Error - " and the sentence as separate writes to an
+        # unbuffered stderr, and the runner emits a read that ends without a
+        # newline at once (its prompts need that), so the failure window
+        # quoted "targen: Error -" and nothing else (beta-11 targen review).
+        # A line that stops right after the marker is held, and the next line
+        # from the same tool is joined onto it before anything is matched.
+        stem = getattr(self, "_error_stem", None)
+        self._error_stem = None
+        if stem is not None and stem[0] == tool and line.strip():
+            if self._raw_errors and self._raw_errors[-1] == stem:
+                self._raw_errors.pop()
+            line = f"{stem[1]} {line.strip()}"
+        if _ERROR_MARKER_ALONE.search(line):
+            self._error_stem = (tool, line.strip())
         low = line.lower()
         if ("error" in low or "failed" in low) and line.strip():
             self._raw_errors.append((tool, line.strip()))

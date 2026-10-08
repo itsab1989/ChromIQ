@@ -14,6 +14,10 @@ What it removes, and only that:
   pytest trees, driver sandboxes, core dumps, build/ and dist/), skipping
   anything changed in the last hour, which may belong to a session or a gate
   that is still running;
+* and in every case, running or not, skipping anything changed in the last
+  30 minutes or held open by a live process: another session's RUNNING test
+  run lives in a ``chromiq-run-*`` folder this script would otherwise delete
+  under it. Those are reported as "in use, kept";
 * git worktrees under .claude/worktrees whose branch is merged into the
   current branch or master and that have no uncommitted changes;
 * the ENDING session's own scratch folder (/private/tmp/claude-*/<project>/
@@ -27,6 +31,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -41,6 +47,11 @@ import disk_report  # noqa: E402
 #: more recently than this may still be in use. With nothing running, the
 #: ending session's own fresh leftovers go too (they are most of them).
 QUIET_FOR_S = 3600
+
+#: Whatever happens elsewhere, a folder changed more recently than this is
+#: taken to be in use: another session's test run, driver or app may be
+#: writing there although no process pattern above matched it (beta 12).
+IN_USE_FOR_S = 1800
 
 #: Processes that mean "something may still be writing there".
 _BUSY_PATTERNS = ("pytest", "main.py", "chromiq-chartread", "chromiq-gammap",
@@ -79,6 +90,63 @@ def _newest_mtime(path: Path) -> float:
     except OSError:
         pass
     return newest
+
+
+def _pid_alive(pid: int) -> bool:
+    """Whether *pid* is a live process (a test run names its temp folder
+    ``chromiq-run-<pid>-*`` after its controller, review D)."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def held_open_paths() -> "list[str]":
+    """Every path a live process holds open, or has as its working folder.
+
+    One ``lsof`` over the whole system (about 0.2 s on Basti's Mac) rather
+    than one per candidate folder, which with ``+D`` walks the whole tree.
+    Empty when lsof is missing or fails: the 30-minute rule still holds."""
+    try:
+        out = subprocess.run(["lsof", "-nP", "-w", "-Fn"], capture_output=True,
+                             text=True, encoding="utf-8", errors="replace",
+                             timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [line[1:] for line in out.splitlines()
+            if line.startswith("n") and line[1:2] == "/"]
+
+
+def _held_open(path: Path, open_paths: "list[str]") -> bool:
+    try:
+        roots = {str(path), str(path.resolve())}
+    except OSError:
+        roots = {str(path)}
+    for root in roots:
+        prefix = root.rstrip("/") + "/"
+        if any(o == root or o.startswith(prefix) for o in open_paths):
+            return True
+    return False
+
+
+def in_use(path: Path, now: float, open_paths: "list[str]") -> str:
+    """Why *path* must be kept although it is ours ("" when it may go)."""
+    m = re.match(r"chromiq-run-(\d+)-", path.name)
+    if m and _pid_alive(int(m.group(1))):
+        return f"its test run (pid {m.group(1)}) is still running"
+    age = now - _newest_mtime(path)
+    if age < IN_USE_FOR_S:
+        return f"changed {max(0, int(age // 60))} min ago"
+    if _held_open(path, open_paths):
+        return "held open by a live process"
+    return ""
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
@@ -153,22 +221,34 @@ def own_scratch(session_id: str) -> list[Path]:
 
 def plan(session_id: str = "") -> list[tuple[str, Path, int]]:
     """``(why, path, bytes)`` for everything that would be removed."""
+    return plan_and_kept(session_id)[0]
+
+
+def plan_and_kept(session_id: str = "") -> "tuple[list, list]":
+    """What would be removed, and what is ours but IN USE and therefore kept:
+    ``([(why, path, bytes)], [(why, path, reason)])``."""
     now = time.time()
     quiet = QUIET_FOR_S if something_running() else 0
-    items = []
+    open_paths = held_open_paths()
+    items, kept = [], []
     for label, _n, _b, _hint, deletable, paths in disk_report._rows():
         if not deletable:
             continue
         for p in paths:
             if quiet and now - _newest_mtime(p) < quiet:
                 continue
-            if is_ours(p):
-                items.append((label, p, disk_report._size(p)))
+            if not is_ours(p):
+                continue
+            reason = in_use(p, now, open_paths)
+            if reason:
+                kept.append((label, p, reason))
+                continue
+            items.append((label, p, disk_report._size(p)))
     for path, branch in merged_worktrees():
         items.append((f"merged worktree ({branch})", path, disk_report._size(path)))
     for p in own_scratch(session_id):
         items.append(("this session's scratch", p, disk_report._size(p)))
-    return items
+    return items, kept
 
 
 def allowed_roots() -> list[tuple[Path, str]]:
@@ -254,7 +334,10 @@ def main(argv=None) -> int:
 
     if args.yes:
         _git("worktree", "prune")        # records of worktrees already gone
-    items = plan(session_id)
+    items, kept = plan_and_kept(session_id)
+    if not args.quiet:
+        for why, path, reason in kept:
+            print(f"in use, kept ({reason})  {why}: {path}")
     freed = 0
     failed = []
     for why, path, size in items:
@@ -269,6 +352,8 @@ def main(argv=None) -> int:
     summary = (f"ChromIQ cleanup: {'freed' if args.yes else 'would free'} "
                f"{(freed if args.yes else total) / 1e9:.2f} GB in {len(items)} item"
                f"{'s' if len(items) != 1 else ''}")
+    if kept:
+        summary += f"; {len(kept)} in use, kept"
     if failed:
         summary += f"; {len(failed)} could not be removed"
     since = disk_report.since_baseline()
