@@ -4530,6 +4530,38 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — when in doubt, ask as before
             return False
 
+    def _apply_the_remembered_overlay_answer(self) -> None:
+        """A dated verification selected WITHOUT the question gets the
+        overlay the question would have given it (beta 15 sweep).
+
+        The selection passes through a state with no measurement on the way
+        (Run type changed, the bar's date not yet applied), and
+        `_update_resume_availability` hides AND unticks the overlay box there
+        (#134). Before item 9 the question then came, and its "Show it as an
+        overlay on the patches" (the remembered answer,
+        ``overlay_prompt_show_overlay``) ticked the box again. With the
+        question gone nothing did: measured on screen, Run type to
+        Verification on a real project opened on the latest date with the
+        box visible, unticked and no overlay, where beta 14's question
+        showed 616 patches. So the remembered answer is applied here, as OK
+        in that window applies it; a remembered "no" leaves the box alone."""
+        try:
+            if not bool(self._settings.get("overlay_prompt_show_overlay",
+                                           True)):
+                return
+            if not self._engine_selected():
+                return
+            self._update_resume_availability()
+            cb = (self._overlay_cb if self._current_mode() == "guided"
+                  else self._m_overlay_cb)
+            if cb is None or cb.isHidden() or cb.isChecked():
+                return
+            self._sync_overlay_checkboxes(True)
+            self._on_overlay_toggled(True)
+        except Exception:      # noqa: BLE001 — never break a selection
+            log.debug("could not apply the remembered overlay answer",
+                      exc_info=True)
+
     def _offer_existing_overlay_now(self) -> None:
         """Make the held offer, once the tab has actually painted."""
         self._offer_queued = False
@@ -4542,6 +4574,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if self.isVisible() and self._offer_is_for_a_selection_alone():
                 # b15 item 9 review: no question for a selection; show what
                 # the overlay tick asks for, once the selection has settled.
+                self._apply_the_remembered_overlay_answer()
                 QTimer.singleShot(0, self.refresh_patch_flags)
                 return
             self._offer_on_arrival = False
