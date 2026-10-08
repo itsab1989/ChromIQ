@@ -801,7 +801,7 @@ def gamut_column(row: PresetRow) -> str:
         return tr("Not possible")
     g = getattr(row, "gamut_assessment", None)
     if g is None:
-        return tr("Not certified") if row.chart is not None else ""
+        return tr("Built-in presets only") if row.chart is not None else ""
     if not g.asked:
         return tr("Nothing is judged")
     return tr("{n} of {total} metrics").format(

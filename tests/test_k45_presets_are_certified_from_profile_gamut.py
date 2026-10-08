@@ -154,6 +154,6 @@ def test_without_a_certificate_the_window_says_so(qapp):
     from ui.dialogs.preset_verification_dialog import PresetRow, gamut_column
     r = PresetRow(group="g", label="mine", chart=Path("/x.ti1"), patches=10,
                   pages=1, builtin=False)
-    assert gamut_column(r) == "Not certified"
+    assert gamut_column(r) == "Built-in presets only"
     r.relayoutable = False
     assert gamut_column(r) == "Not possible"
