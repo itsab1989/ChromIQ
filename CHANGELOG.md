@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.3.3-beta.17 (unreleased)
+
+### New
+
+- **ChromIQ can be installed with Homebrew on a Mac, together with ArgyllCMS, in one command.** Use `brew install --cask itsab1989/chromiq/chromiq` for the stable version, or `brew install --cask itsab1989/chromiq/chromiq@beta` for the newest beta. ChromIQ then opens straight away: the cask removes the macOS download quarantine, so there is no "could not verify" warning and no right-click and Open. `brew upgrade --cask chromiq` keeps it up to date, and each release updates the casks automatically. You need [Homebrew](https://brew.sh) itself first. The DMG downloads work as before.
+
+### Documentation
+
+- **The README and the website explain the Homebrew installation**: installing the stable version or the beta, switching between them, updating, uninstalling (your projects in `~/ChromIQ` are always kept), and what to do when ChromIQ is already in your Applications folder.
+
 ## v4.3.3-beta.16
 
 **More printers print the chart in the state your photos print in (now measured on 27 Canon, Epson and DNP models), at the resolution and quality their own print dialog uses; the Print Chart tab offers the quality your photos use; ChromIQ's own printing sends the chart at exactly 100 %; and two measuring glitches are fixed (the next-strip arrows after paging back, and the preview's switch staying open). If a setting changed back by itself after an earlier update, set it again once: it now stays.**

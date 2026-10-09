@@ -5,22 +5,17 @@ cask "chromiq@beta" do
   sha256 arm:   "d6dbd5109885381d255b2dceeaa7f01173b9bc6fd07e1a1067d0dfa175908844",
          intel: "1d21f283f1db9fb908dae193e604e6aea81933abd030a5903d3eef0d180767e5"
 
-  url "https://github.com/itsab1989/ChromIQ/releases/download/v#{version}/ChromIQ-macOS-#{arch}_v#{version}.dmg",
-      verified: "github.com/itsab1989/ChromIQ/"
+  url "https://github.com/itsab1989/ChromIQ/releases/download/v#{version}/ChromIQ-macOS-#{arch}_v#{version}.dmg"
   name "ChromIQ (beta)"
   desc "GUI for ICC printer profiling with ArgyllCMS"
   homepage "https://github.com/itsab1989/ChromIQ"
 
-  # The newest release, beta or stable: the GitHub API lists pre-releases too.
+  # The newest release, beta or stable. The releases feed lists pre-releases
+  # too, and unlike the GitHub API it is not rate-limited for anonymous use.
   livecheck do
-    url "https://api.github.com/repos/itsab1989/ChromIQ/releases"
-    strategy :json do |json|
-      json.filter_map do |release|
-        next if release["draft"]
-
-        release["tag_name"]&.delete_prefix("v")
-      end
-    end
+    url "https://github.com/itsab1989/ChromIQ/releases.atom"
+    regex(%r{/releases/tag/v?(\d+(?:\.\d+)+(?:-[a-z]+(?:\.\d+)?)?)["<]}i)
+    strategy :page_match
   end
 
   conflicts_with cask: "chromiq"

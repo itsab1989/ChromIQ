@@ -17,7 +17,12 @@ A stable tag updates ``chromiq`` and, when it is newer than the beta the beta
 cask carries, ``chromiq@beta`` too, so beta users are never left on a beta
 older than the stable release. A pre-release tag (``-alpha``, ``-beta``,
 ``-rc``, ``-pre``) updates ``chromiq@beta`` only. A cask is never moved to an
-older version (a re-run, or a hotfix of an older line, leaves it alone).
+older version (a hotfix of an older line leaves it alone). A cask already AT
+the tag's version gets the checksums it is given: re-running a release
+rebuilds and re-uploads its DMGs (``gh release upload --clobber``), and a
+cask left with the first build's checksums would refuse to install. When the
+DMGs did not change, the rewrite is identical and the workflow commits
+nothing.
 
 Pure standard library: the version order is the same as ``core/updater.py``'s
 ``_parse_version`` (SemVer precedence, a final release above its betas), kept
@@ -84,9 +89,9 @@ def casks_to_update(tag: str, stable_now: str, beta_now: str) -> list[str]:
     """Which casks a release *tag* moves forward, given their current versions."""
     new = parse_version(tag)
     out = []
-    if not is_prerelease(tag) and new > parse_version(stable_now):
+    if not is_prerelease(tag) and new >= parse_version(stable_now):
         out.append("chromiq")
-    if new > parse_version(beta_now):
+    if new >= parse_version(beta_now):
         out.append("chromiq@beta")
     return out
 
@@ -102,8 +107,10 @@ def main(argv: list[str] | None = None) -> int:
     for name, sha in (("--arm-sha", a.arm_sha), ("--intel-sha", a.intel_sha)):
         if not _SHA_RE.match(sha):
             ap.error(f"{name} is not a SHA-256 hex digest: {sha!r}")
-    if parse_version(a.tag) == ((-1,),):
-        ap.error(f"not a version tag: {a.tag!r}")
+    # The casks download .../download/v<version>/...: a tag without the
+    # leading "v" would point them at a release that does not exist.
+    if parse_version(a.tag) == ((-1,),) or not a.tag.strip().startswith("v"):
+        ap.error(f"not a release tag like v4.3.3: {a.tag!r}")
     version = a.tag.strip().removeprefix("v")
 
     paths = {name: a.tap / "Casks" / f"{name}.rb"
@@ -117,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8")
         print(f"{name}: {cask_version(texts[name])} -> {version}")
     if not todo:
-        print(f"nothing to update for {a.tag}: the casks are already at or past it")
+        print(f"nothing to update for {a.tag}: the casks are already past it")
     return 0
 
 

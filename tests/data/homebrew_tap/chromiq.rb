@@ -5,8 +5,7 @@ cask "chromiq" do
   sha256 arm:   "eacd1a639faafa014531b8911b8d0c15a186774bfe8b7976cd56f905177cc4d7",
          intel: "d80c832ee86f8bd0ef5cfdf2d7e82aee21d1c209d8570aba2564ab5a179a63ad"
 
-  url "https://github.com/itsab1989/ChromIQ/releases/download/v#{version}/ChromIQ-macOS-#{arch}_v#{version}.dmg",
-      verified: "github.com/itsab1989/ChromIQ/"
+  url "https://github.com/itsab1989/ChromIQ/releases/download/v#{version}/ChromIQ-macOS-#{arch}_v#{version}.dmg"
   name "ChromIQ"
   desc "GUI for ICC printer profiling with ArgyllCMS"
   homepage "https://github.com/itsab1989/ChromIQ"
