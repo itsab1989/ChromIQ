@@ -601,7 +601,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
         reps.append(rep)
         sizes_pt.append((w_px * _PT_PER_INCH / dpi_x, h_px * _PT_PER_INCH / dpi_y))
         try:
-            content_pt.append(_content_box_pt(rgb, dpi_x, dpi_y))
+            content_pt.append(_solid_box_pt(rgb, dpi_x, dpi_y))
         except Exception:  # noqa: BLE001 - unknown content: never given margins
             content_pt.append((0.0, 0.0, sizes_pt[-1][0], sizes_pt[-1][1]))
 
@@ -780,6 +780,43 @@ def _content_box_pt(rgb, dpi_x: float, dpi_y: float):
         return None
     k_x, k_y = _PT_PER_INCH / dpi_x, _PT_PER_INCH / dpi_y
     return (cols[0] * k_x, rows[0] * k_y, (cols[-1] + 1) * k_x, (rows[-1] + 1) * k_y)
+
+
+def _solid_box_pt(rgb, dpi_x: float, dpi_y: float, min_mm: float = 1.0):
+    """The box of the page's SOLID ink in points (x0, y0, x1, y1) from its
+    top left, None when there is none: ink at least *min_mm* across both
+    ways, which patches and scan markers are and text and hairlines are not
+    (beta 16 review).  printtarg prints its info line rotated along the
+    chart's side, and on a short page it runs from the top edge to the bottom
+    edge: measured on a 4 x 6 in chart made with -M6, whose patches keep
+    6 mm clear.  Judged by every ink pixel, such a chart could never be given
+    the driver's minimum margins, so the Canon imagePROGRAF alert this was
+    made to prevent came back for it, with no way past it.  The driver's
+    3 mm band may now clip that line; it never clips a patch."""
+    import numpy as np
+    a = np.asarray(rgb)
+    ink = (a < 250).any(axis=2)
+    b = max(1, int(round(min(dpi_x, dpi_y) * 0.3 / 25.4)))      # ~0.3 mm cells
+    h, w = ink.shape[0] // b, ink.shape[1] // b
+    if h == 0 or w == 0:
+        return _content_box_pt(rgb, dpi_x, dpi_y)
+    cells = ink[: h * b, : w * b].reshape(h, b, w, b).all(axis=(1, 3))
+    k = max(2, int(np.ceil(min_mm / (b * 25.4 / min(dpi_x, dpi_y)))))
+    if h < k or w < k:
+        return _content_box_pt(rgb, dpi_x, dpi_y)
+    s = np.zeros((h + 1, w + 1), np.int32)
+    s[1:, 1:] = cells.cumsum(0, dtype=np.int32).cumsum(1, dtype=np.int32)
+    win = s[k:, k:] - s[:-k, k:] - s[k:, :-k] + s[:-k, :-k]
+    solid = win == k * k
+    rows, cols = np.flatnonzero(solid.any(axis=1)), np.flatnonzero(solid.any(axis=0))
+    if rows.size == 0:
+        return None
+    # one cell of slack each side: a patch's edge cell may be part white
+    x0, y0 = max(0, (cols[0] - 1) * b), max(0, (rows[0] - 1) * b)
+    x1 = min(ink.shape[1], (cols[-1] + k + 1) * b)
+    y1 = min(ink.shape[0], (rows[-1] + k + 1) * b)
+    k_x, k_y = _PT_PER_INCH / dpi_x, _PT_PER_INCH / dpi_y
+    return (x0 * k_x, y0 * k_y, x1 * k_x, y1 * k_y)
 
 
 def _ppd_text_of(print_info) -> str | None:

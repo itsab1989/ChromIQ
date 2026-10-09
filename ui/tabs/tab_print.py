@@ -1786,7 +1786,8 @@ class TabPrint(QWidget):
 
     def _update_quality_note(self) -> None:
         """M-PRINT-QUALITY under the quality row, for a Canon or Epson whose
-        qualities the driver lists; hidden otherwise."""
+        qualities the driver lists, while a quality is chosen in it; hidden
+        otherwise."""
         note = self._quality_note
         if note is None:
             return
@@ -1797,6 +1798,12 @@ class TabPrint(QWidget):
         from workflow import measurement_messages as MM
         key = next((k for k in self._option_combos if k in _PAPER_QUALITY_OPTS), "")
         current = self._option_combos[key].currentData() if key else None
+        if not current:
+            # Beta 16 review: at "Printer Default" there is no quality for
+            # "this quality" to name (PictureMate, SC-P900: the dialog's own
+            # choice is not known, so nothing is preselected)
+            note.setVisible(False)
+            return
         head = tr(MM.M_PRINT_QUALITY.title)
         text = f"<b>{_html_escape(head)}</b><br>{_html_escape(tr(MM._PRINT_QUALITY_WHY))}"
         if qc.learned is not None and current == qc.learned:

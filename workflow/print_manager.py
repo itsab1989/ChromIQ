@@ -26,6 +26,7 @@ _BORDERLESS_SYNTH = "__BORDERLESS__"
 # Suffixes printers append to a base PageSize value to mean "borderless".
 _BORDERLESS_SIZE_SUFFIXES = (".NMgn", ".Borderless", ".FullBleed", "Borderless", "FullBleed")
 # Option names whose 3-value (Borderless) choice toggles borderless mode.
+_EPSON_BDLS_OPT = "EPIJ_Bdls"   # PictureMate: Borderless Off (0) / On (1)
 _EPSON_PSRC_OPT = "EPIJ_PSrc"
 _EPSON_PSRC_STANDARD = "2"
 _EPSON_PSRC_BORDERLESS = "3"
@@ -280,6 +281,14 @@ class PrintModule:
                 synth = self._synthesize_borderless(printer, all_opts, ppd_labels, result)
                 if synth is not None:
                     state, pair_label, pair_values = synth
+                    # Beta 16 review: the PictureMate PM-400/PM-520 PPDs carry
+                    # an EPIJ_Bdls "Borderless" Off/On as well as EPIJ_PSrc's
+                    # Borderless page setup, and the tab showed both rows
+                    # under the same name. One row: the page setup row every
+                    # Epson has, which now sets EPIJ_Bdls with it.
+                    if state.get("kind") == "epij_psrc" and _EPSON_BDLS_OPT in result:
+                        del result[_EPSON_BDLS_OPT]
+                        state["bdls"] = True
                     self._borderless_state[printer] = state
                     result[_BORDERLESS_SYNTH] = (pair_label, pair_values)
 
@@ -658,6 +667,8 @@ class PrintModule:
             options[_EPSON_PSRC_OPT] = (
                 _EPSON_PSRC_BORDERLESS if on else _EPSON_PSRC_STANDARD
             )
+            if state.get("bdls"):
+                options[_EPSON_BDLS_OPT] = "1" if on else "0"
         elif state["kind"] == "pagesize_variant" and on:
             size_opt = state["size_opt"]
             variant_map = state["variant_map"]
