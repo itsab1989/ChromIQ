@@ -439,9 +439,13 @@ def _canon_media(ppd_text: str) -> dict[str, CanonMedium]:
     xml = dict(_canon_media_hmi(ppd_text, db))
     if xml:
         return xml
+    import struct
     try:
         return _canon_media_tbl(ppd_text, db)
-    except (OSError, ValueError, IndexError):  # a damaged table: nothing known
+    except (OSError, ValueError, IndexError, struct.error) as exc:
+        # a damaged table, or one a driver update laid out differently:
+        # nothing is known, and the direct route says so (beta-16 review)
+        log.warning("Canon media table in %s not read: %s", db, exc)
         return {}
 
 
@@ -515,7 +519,13 @@ def _canon_media_tbl(ppd_text: str, db: pathlib.Path) -> dict[str, CanonMedium]:
         raise ValueError("not a Canon media table")
     tables = {}
     for i in range(n):
-        _ln, tid, off = struct.unpack_from("<III", d, 0x304 + 12 * i)
+        _hdr, tid, off = struct.unpack_from("<III", d, 0x304 + 12 * i)
+        # beta-16 review: every table starts with its own size, and a table
+        # must end inside the file.  A cut-off file otherwise decoded
+        # "successfully" with some papers' profile records missing, which then
+        # got the default profile as if the driver said so.
+        if off + 4 > len(d) or off + struct.unpack_from("<I", d, off)[0] > len(d):
+            raise ValueError(f"Canon media table {tid} runs past the end of the file")
         tables[tid] = off
     if 2002 not in tables or 2004 not in tables:
         raise ValueError("Canon media table without print modes or profiles")
@@ -566,6 +576,15 @@ def _canon_media_tbl(ppd_text: str, db: pathlib.Path) -> dict[str, CanonMedium]:
     values = {key: dict(vals) for key, _l, vals in parse_ppd_options(ppd_text)}
     default_icc = values.get("CNIJProfileID", {}).get(
         _ppd_default(ppd_text, "CNIJProfileID") or "", "")
+    # Beta-16 review: every profile the table names must be one this PPD
+    # offers.  Another model's table, or one a driver update laid out
+    # differently, decodes into names (or garbage) the PPD does not have; that
+    # table is not this driver's and nothing in it is used.
+    known = set(values.get("CNIJProfileID", {}).values())
+    strangers = {name for name in icc.values() if name not in known}
+    if strangers or not known:
+        raise ValueError(f"Canon media table names profiles the PPD does not offer: "
+                         f"{sorted(strangers)[:3]}")
     out: dict[str, CanonMedium] = {}
     for mv in values.get("CNIJMediaType", {}):
         if not mv.isdigit() or int(mv) not in modes:
@@ -928,16 +947,33 @@ def epson_dialog_keys(ppd_text: str, media_value: str) -> dict[str, str]:
                 out.update({k: r[k] for k in ("EPIJ_Qual", "EPIJ_Bi_D", "EPIJ_FDet",
                                               "EPIJ_FWea", "EPIJ_Weav") if k in r})
                 break
-    # The standard CUPS options the dialog sets from its condition tables:
-    # MediaType, ColorModel and, above all, Resolution, the resolution the
-    # chart is rasterised at for the filter (Premium Glossy: 720x720dpi where
-    # the PPD's default is 360x360dpi).  Beta 15 sent none of them.
+    out.update(epson_condition_keys(ppd_text, media_value, out))
+    return out
+
+
+#: The standard CUPS options an Epson dialog sets from its condition tables.
+EPSON_CONDITION_KEYS = ("MediaType", "ColorModel", "Resolution")
+
+
+def epson_condition_keys(ppd_text: str, media_value: str,
+                         keys: dict[str, str]) -> dict[str, str]:
+    """MediaType, ColorModel and, above all, Resolution, as the Epson dialog
+    sets them from its condition tables for *media_value* with *keys* (its
+    mode, quality...) on top of the PPD's defaults.  Resolution is the
+    resolution the chart is rasterised at for the filter (Premium Glossy:
+    720x720dpi where the PPD's default is 360x360dpi); beta 15 sent none of
+    them.  It depends on the QUALITY as well as the paper (ET-8550 plain paper:
+    Normal 360 dpi, Fine and Best Quality 720 dpi), so a quality chosen in the
+    Print Chart tab is worked out again with that quality (beta-16 review).
+    Only keys a table answers are returned."""
+    variant = epson_variant_for(ppd_text, media_value)
     _ui, tables = epson_pde(ppd_text, variant)
     settings = {k: v for k, v in ((k, _ppd_default(ppd_text, k)) for k, _l, _v in
                                   parse_ppd_options(ppd_text)) if v is not None}
-    settings.update(out)
-    settings.update({"EPIJ_Medi": media_value, "EPIJ_Ink_": ink})
-    for key in ("MediaType", "ColorModel", "Resolution"):
+    settings.update(keys)
+    settings.update({"EPIJ_Medi": media_value, "EPIJ_Ink_": "1"})
+    out = {}
+    for key in EPSON_CONDITION_KEYS:
         v = epson_condition_value(tables.get(key, []), settings)
         if v is not None:
             out[key] = v
@@ -1143,6 +1179,7 @@ def paper_profile_for(ppd_text: str, options: dict[str, str] | None = None,
             keys.update(_epson_type_keys(rule, ppd_text))
         else:
             keys.update(rule.dialog_keys)
+        emulated: dict[str, str] = {}
         if rule.driver_table == "epson-pde":
             # beta 16: what the installed driver's dialog writes for the medium,
             # worked out from its PDEData.dat (``epson_dialog_keys``); it
@@ -1174,6 +1211,17 @@ def paper_profile_for(ppd_text: str, options: dict[str, str] | None = None,
                     # its Advanced mode, as the user's photos then must too
                     keys["EPIJ_Mode"] = "3"
                     keys.pop("EPIJ_APri", None)
+                if rule.driver_table == "epson-pde" and emulated:
+                    # beta-16 review: the dialog's Resolution (and MediaType,
+                    # ColorModel) for the paper AT THE CHOSEN QUALITY, not at
+                    # the one the dialog would have picked (ET-8550 plain
+                    # paper at Best Quality: 720 dpi, not Normal's 360)
+                    try:
+                        keys.update(epson_condition_keys(
+                            ppd_text, media_value,
+                            {**keys, rule.quality_option: str(options[rule.quality_option])}))
+                    except Exception:  # noqa: BLE001 - a broken driver file must not stop printing
+                        pass
             elif rule.quality_option not in keys:
                 # review 2: the quality the dialog picks for the medium when the
                 # user leaves it alone (lp otherwise sent the PPD's default)
@@ -1294,6 +1342,15 @@ def dialog_keys_without_paper_profile(ppd_text: str,
         keys = epson_dialog_keys(ppd_text, mv)
     except Exception:  # noqa: BLE001 - a broken driver file must not stop printing
         return {}
+    chosen = {k: str(options[k]) for k in keys if str(options.get(k) or "")}
+    if chosen:
+        # beta-16 review: a quality chosen in the tab gets the dialog's
+        # Resolution for that quality (PM-400 plain paper: Fine 720 dpi, not
+        # Normal's 360)
+        try:
+            keys.update(epson_condition_keys(ppd_text, mv, {**keys, **chosen}))
+        except Exception:  # noqa: BLE001
+            pass
     keys = {k: v for k, v in keys.items() if not str(options.get(k) or "")}
     return dict(_allowed(ppd_text, blocks, keys))
 
