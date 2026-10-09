@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "{n} leituras repostas.",
  "Reconnect": "Religar",
  "Undo delete": "Anular apagamento",
- "Your CR30 is not answering": "O seu CR30 não responde"
+ "Your CR30 is not answering": "O seu CR30 não responde",
+ "A reading taken before Ready was not used": "Uma leitura feita antes de «Pronto» não foi usada",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Foi feita uma leitura antes de esta janela estar pronta para ela, por isso não foi usada. Volte a medir.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "Foram feitas {n} leituras antes de esta janela estar pronta para elas, por isso não foram usadas. Volte a medir."
 }

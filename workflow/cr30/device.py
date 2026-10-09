@@ -424,7 +424,8 @@ class CR30:
     def read_next_measurement(self, *, timeout: float = 180.0,
                               cancelled=None, poll: float = 0.25,
                               for_learning: bool = False,
-                              trigger_wanted=None) -> Measurement:
+                              trigger_wanted=None,
+                              drop_stale: bool = True) -> Measurement:
         """Wait for the operator to press the instrument's button, then read it.
 
         THIS, not :meth:`read_measurement`, is the spot workflow. The CR30 holds
@@ -447,6 +448,12 @@ class CR30:
 
         *cancelled* is called between polls; return True from it to abort a wait
         the user has given up on.
+
+        *drop_stale* False keeps the presses the instrument has announced so
+        far (Bluetooth only; see :meth:`drop_stale_presses`). The caller passes
+        it when it has ALREADY dropped them for the arming this read belongs
+        to, so a press made after the window said Ready is collected instead
+        of being thrown away as stale.
         """
         import time
         deadline = time.monotonic() + timeout
@@ -565,17 +572,8 @@ class CR30:
         # exactly the press it had just asked for, then waited ninety seconds
         # in silence. Over Bluetooth, where learning needs two presses and
         # there is no gate flag, that made the feature impossible as written.
-        dropped = 0 if for_learning else self._t.drop_events()
-        if dropped:
-            # Reported, not merely logged: to the operator this is a press that
-            # did nothing, and silence is what made every earlier version of
-            # this fault so expensive.
-            log.info("CR30: discarded %d %s taken before this patch was "
-                     "armed", dropped,
-                     "reading" if dropped == 1 else "readings")
-            report = getattr(self, "on_dropped", None)
-            if callable(report):
-                report(dropped)
+        if not for_learning and drop_stale:
+            self.drop_stale_presses()
 
         try:
             return self._ble_wait_and_read(
@@ -589,6 +587,36 @@ class CR30:
             # one exception every caller already treats as "the instrument is
             # not there any more".
             raise DeviceLost(str(exc)) from exc
+
+    def drop_stale_presses(self) -> int:
+        """Forget the presses the instrument announced before now; how many.
+
+        Bluetooth only: over USB a press is an unsolicited frame in the serial
+        buffer and nothing is dropped here (the count is 0).
+
+        WHEN this runs is the whole point. It used to run only at the start of
+        every read, which is AFTER the window had said Ready -- the read
+        thread had still to be scheduled -- so a press made in that gap was the
+        first thing thrown away (beta 17 review: up to about a second, and
+        "discarded 1 reading taken before this patch was armed" in the log
+        while the window said nothing). A host that says Ready calls this
+        first and then reads with ``drop_stale=False``.
+        """
+        drop = getattr(self._t, "drop_events", None)
+        if self.kind == "usb" or not callable(drop):
+            return 0
+        dropped = drop()
+        if dropped:
+            # Reported, not merely logged: to the operator this is a press that
+            # did nothing, and silence is what made every earlier version of
+            # this fault so expensive.
+            log.info("CR30: discarded %d %s taken before this patch was "
+                     "armed", dropped,
+                     "reading" if dropped == 1 else "readings")
+            report = getattr(self, "on_dropped", None)
+            if callable(report):
+                report(dropped)
+        return dropped
 
     def _ble_wait_and_read(self, deadline, timeout, cancelled, for_learning,
                            trigger_wanted, wait_for_event) -> Measurement:

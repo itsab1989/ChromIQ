@@ -81,7 +81,8 @@ class FakeDevice:
 
     # -- the device -----------------------------------------------------
     def read_next_measurement(self, *, timeout=180.0, cancelled=None, poll=0.01,
-                              for_learning=False, trigger_wanted=None):
+                              for_learning=False, trigger_wanted=None,
+                              drop_stale=True):
         end = time.monotonic() + timeout
         while self._pending is None:
             if trigger_wanted is not None and trigger_wanted():

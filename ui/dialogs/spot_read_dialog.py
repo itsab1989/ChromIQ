@@ -785,6 +785,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         mgr.magnet_gated.connect(self._on_cr30_magnet)
         mgr.trigger_not_armed.connect(self._on_cr30_trigger_not_armed)
         mgr.instrument_lost.connect(self._on_cr30_lost)
+        mgr.presses_discarded.connect(self._on_cr30_early_press)
         mgr.session_ended.connect(self._on_session_ended)
         mgr.start(None, self._note)
 
@@ -873,6 +874,20 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
+
+    def _on_cr30_early_press(self, n: int) -> None:
+        """M-SPOT-CR30-EARLY-PRESS. Presses from before Ready were not used.
+
+        The instrument announced them before the session was listening (most
+        often while the calibration's last window was still open, which itself
+        says to press the button), so they belong to no reading anybody asked
+        for and are dropped. The person who pressed must not be left waiting
+        for a row that will never come. Proposed wording, so it speaks through
+        the window's log, which is visible for the whole of a CR30 session.
+        """
+        from workflow import measurement_messages as M
+        _title, body = M.M_SPOT_CR30_EARLY_PRESS.render(n=int(n))
+        self._note(body)
 
     def _on_cr30_lost(self, reason: str) -> None:
         """M-SPOT-CR30-GONE. The instrument stopped answering mid-session.

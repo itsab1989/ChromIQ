@@ -470,9 +470,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # found the first by pressing the spacebar,
                                  # which is the Measure tab's reading trigger.
                                  "M-SPOT-CLEAR", "M-SPOT-UNSAVED",
-                                 # beta 17: the CR30 stopped answering in a
-                                 # spot session (Basti, beta 16); our words.
-                                 "M-SPOT-CR30-GONE",
+                                 # (beta 17: M-SPOT-CR30-GONE, the CR30
+                                 # stopped answering in a spot session, was
+                                 # APPROVED by Basti, 2026-10-10, and left
+                                 # this list.)
+                                 # Beta 17 review: a press from before the
+                                 # spot window said Ready is not used, and
+                                 # its log says so; our words.
+                                 "M-SPOT-CR30-EARLY-PRESS",
                                  # 2026-09-03, review 5. Tools > Build
                                  # profile with scanner or camera builds
                                  # a profile from data that is not the
@@ -664,7 +669,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # neighbour lines (6078174421, 6084176226,
                                  # M-PATCH-NEIGHBOUR); two lines the mock-ups
                                  # did not show, and the closing window's
-                                 # summary, are our words.
+                                 # summary, are our words. (The two lines'
+                                 # English was approved by Basti, 2026-10-10;
+                                 # they wait for Knut.)
                                  "M-PATCH-NEIGHBOUR-VARIANTS",
                                  "M-MEASURED-SUSPECTS",
                                  # Knut approved the green outline and its
@@ -935,6 +942,8 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_SCAN_ALIGN_NO_INPUT.render(),
         M.M_REPORT_NOT_SAVED.render(),
         M.M_SPOT_CR30_GONE.render(),
+        M.M_SPOT_CR30_EARLY_PRESS.render(n=1),
+        M.M_SPOT_CR30_EARLY_PRESS.render(n=3),
         M.M_SCAN_DIAGNOSTIC.render(),
         M.M_SCAN_LOADED.render(file="scan.tif", w=2078, h=1470,
                                target="Wolf Faust IT8", n=288),

@@ -97,6 +97,11 @@ class Cr30SpotManager(QObject):
     #: asks whether to look for the instrument again (`reconnect`) or to
     #: stop. The reason is the reader's own words, for the log.
     instrument_lost         = pyqtSignal(str)
+    #: The instrument had announced presses before the window said Ready, and
+    #: they were not used: (count). Pressed while the calibration's last
+    #: window was still open, typically. To the person who pressed, that is a
+    #: press that did nothing, so the window says so (M-SPOT-CR30-EARLY-PRESS).
+    presses_discarded       = pyqtSignal(int)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -156,21 +161,25 @@ class Cr30SpotManager(QObject):
         except Exception:      # noqa: BLE001 — a preference, never a blocker
             log.debug("could not set the CR30 re-arm interval", exc_info=True)
         self._note(_transport_note(self._reader))
-        # ARM BEFORE THE WINDOW SAYS READY, AND BEFORE THE THREAD EXISTS.
-        #
-        # `ready_to_read` is what enables "Take reading", and the reader thread
-        # does not reach its wait until it has taken the lock and opened the
-        # transport -- seconds, over Bluetooth. Every press in between used to
-        # be refused and kept nowhere: no reading, no error, nothing. Arming
-        # here means the press is held by the read it was made for and spent
-        # the moment that read opens.
+        # ARM BEFORE THE THREAD EXISTS, so a "Take reading" request has a read
+        # to belong to from the first moment (`DeviceReader.arm_trigger`).
         self._session = object()
         try:
             self._reader.arm_trigger(self._session)
         except AttributeError:      # an older reader; the press is refused
             log.debug("CR30: this reader cannot be armed for a trigger")
-        self._start_loop()
-        self.ready_to_read.emit()
+        # BUT SAY READY ONLY ONCE THE READ LOOP IS REALLY LISTENING.
+        #
+        # This emitted `ready_to_read` right here, before the loop had even
+        # started -- and over Bluetooth the loop's first read began by
+        # throwing away every press the instrument had announced so far. A
+        # press of the instrument's button in that gap (up to about a second
+        # on the simulated radio, beta 17 review) was thrown away while the
+        # window said Ready, and only the log mentioned it. The loop now drops
+        # the stale presses FIRST and announces itself after
+        # (`_ReadLoop.opened`), and no later read of this session drops again,
+        # so every press made once Ready is shown is collected.
+        self._start_loop(announce_when_open=True)
 
     def _start_loop(self, announce_when_open: bool = False) -> None:
         # NOT PARENTED TO THIS MANAGER, AND THAT IS THE WHOLE POINT.
@@ -189,6 +198,7 @@ class Cr30SpotManager(QObject):
         worker.refused.connect(self.read_refused)
         worker.gated.connect(self._on_gated)
         worker.lost.connect(self._on_lost)
+        worker.discarded.connect(self.presses_discarded)
         if announce_when_open:
             worker.opened.connect(self.ready_to_read)
         worker.finished.connect(thread.quit)
@@ -237,7 +247,7 @@ class Cr30SpotManager(QObject):
                     self.instrument_detected, self.read_refused,
                     self.magnet_gated, self.trigger_not_armed,
                     self.instrument_disconnected, self.instrument_lost,
-                    self.session_ended):
+                    self.presses_discarded, self.session_ended):
             try:
                 sig.disconnect()
             except (TypeError, RuntimeError):
@@ -346,7 +356,9 @@ class Cr30SpotManager(QObject):
         # the loop is a microsecond behind -- but it is right because the
         # session is ARMED (see `start`), not because a worker happens to be
         # in position. Believing the old sentence is how a press made in this
-        # gap came to be thrown away.
+        # gap came to be thrown away. And the next read does not drop the
+        # presses announced meanwhile: this session's stale presses went once,
+        # before its first Ready (`DeviceReader.drop_stale_presses`).
         self.ready_to_read.emit()
 
     def _on_gated(self, reason: str) -> None:
@@ -432,8 +444,11 @@ class _ReadLoop(QObject):
     refused  = pyqtSignal(str)
     gated    = pyqtSignal(str)
     lost     = pyqtSignal(str)
-    #: The instrument is open and the first read is about to wait for it.
+    #: The instrument is open, the stale presses are gone, and the first read
+    #: is about to wait: from here on every press is collected.
     opened   = pyqtSignal()
+    #: How many stale presses were dropped before `opened`.
+    discarded = pyqtSignal(int)
     finished = pyqtSignal(int)
 
     def __init__(self, reader) -> None:
@@ -462,6 +477,19 @@ class _ReadLoop(QObject):
                     self.lost.emit(str(exc) or type(exc).__name__)
                 self.finished.emit(-1)
                 return
+        # The presses the instrument announced BEFORE this point belong to no
+        # reading anybody asked for (a press while the calibration's window was
+        # still open, a spare capped press of the teach-in), so they go now,
+        # once, before the window says Ready -- and not at each read after it.
+        dropper = getattr(self._reader, "drop_stale_presses", None)
+        if callable(dropper) and not self._stop:
+            try:
+                dropped = int(dropper() or 0)
+            except Exception:             # noqa: BLE001 — the read reports it
+                log.debug("CR30: could not drop stale presses", exc_info=True)
+                dropped = 0
+            if dropped and not self._stop:
+                self.discarded.emit(dropped)
         if not self._stop:
             self.opened.emit()
         while not self._stop:

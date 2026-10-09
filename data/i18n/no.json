@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "{n} avlesninger lagt tilbake.",
  "Reconnect": "Koble til igjen",
  "Undo delete": "Angre sletting",
- "Your CR30 is not answering": "CR30-en din svarer ikke"
+ "Your CR30 is not answering": "CR30-en din svarer ikke",
+ "A reading taken before Ready was not used": "En avlesning tatt før «Klar» ble ikke brukt",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Én avlesning ble tatt før dette vinduet var klart for den, så den ble ikke brukt. Mål på nytt.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "{n} avlesninger ble tatt før dette vinduet var klart for dem, så de ble ikke brukt. Mål på nytt."
 }

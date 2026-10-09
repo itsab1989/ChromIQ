@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "{n} metingen teruggezet.",
  "Reconnect": "Opnieuw verbinden",
  "Undo delete": "Terugzetten",
- "Your CR30 is not answering": "Je CR30 reageert niet"
+ "Your CR30 is not answering": "Je CR30 reageert niet",
+ "A reading taken before Ready was not used": "Een meting van voor ‘Klaar’ is niet gebruikt",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Er is een meting gedaan voor dit venster er klaar voor was, dus die is niet gebruikt. Meet opnieuw.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "Er zijn {n} metingen gedaan voor dit venster er klaar voor was, dus die zijn niet gebruikt. Meet opnieuw."
 }

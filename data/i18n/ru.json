@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "Возвращено показаний: {n}.",
  "Reconnect": "Подключить снова",
  "Undo delete": "Отменить удаление",
- "Your CR30 is not answering": "Ваш CR30 не отвечает"
+ "Your CR30 is not answering": "Ваш CR30 не отвечает",
+ "A reading taken before Ready was not used": "Показание, снятое до «Готово», не использовано",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Одно показание снято до того, как это окно было к нему готово, поэтому оно не использовано. Измерьте ещё раз.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "Показаний снято {n} до того, как это окно было к ним готово, поэтому они не использованы. Измерьте ещё раз."
 }

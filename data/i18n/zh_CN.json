@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "已恢复 {n} 个读数。",
  "Reconnect": "重新连接",
  "Undo delete": "撤销删除",
- "Your CR30 is not answering": "你的 CR30 没有响应"
+ "Your CR30 is not answering": "你的 CR30 没有响应",
+ "A reading taken before Ready was not used": "「已就绪」之前的读取未被采用",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "有一次读取发生在此窗口准备好之前，因此没有被采用。请重新测量。",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "有 {n} 次读取发生在此窗口准备好之前，因此没有被采用。请重新测量。"
 }

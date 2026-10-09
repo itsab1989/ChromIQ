@@ -34,7 +34,8 @@ class _StubDevice:
         self.closed = False
 
     def read_next_measurement(self, *, timeout, cancelled=None, poll=0.25,
-                              for_learning=False, trigger_wanted=None):
+                              for_learning=False, trigger_wanted=None,
+                              drop_stale=True):
         # Mirrors the real signature: a stand-in that takes fewer arguments
         # fails the caller the moment the real object grows one.
         deadline = time.monotonic() + timeout

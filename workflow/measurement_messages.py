@@ -2049,7 +2049,8 @@ M_PATCH_NEIGHBOUR = _m(
     approved=True)
 
 # --- PROPOSED: the neighbour check's lines the mock-ups did not show -------
-#: Beta 17, ours and waiting. Line 1 (the headline): a patch past the patch
+#: Beta 17, ours. Text approved by Basti, 2026-10-10; waiting for Knut,
+#: so still PROPOSED. Line 1 (the headline): a patch past the patch
 #: error limit that ALSO fails the neighbour check, after the limit's lines.
 #: Line 2: a patch with fewer than 2 read patches within the colour-neighbour
 #: radius, instead of line 1, 2 or 3 of M-PATCH-NEIGHBOUR.
@@ -3175,13 +3176,14 @@ M_SPOT_UNSAVED = _m(
     count_key="n",
     approved=False)
 
-# --- PROPOSED: the CR30 stopped answering during a spot session ------------
+# --- APPROVED: the CR30 stopped answering during a spot session ------------
 #
 # Basti, beta 16 (2026-10-09): the CR30 switched itself off during a session
 # in Tools ▸ Read single patches, Stop did nothing, and once it was on again
 # nothing happened until the window was closed. The session now pauses, keeps
 # every reading, and asks. The mechanism is in `ui/dialogs/spot_read_dialog.py`
-# and `workflow/cr30_spot_manager.py`; the WORDING waits here.
+# and `workflow/cr30_spot_manager.py`. Wording approved by Basti, 2026-10-10,
+# who also confirmed that one short press of the button switches a CR30 on.
 M_SPOT_CR30_GONE = _m(
     "M-SPOT-CR30-GONE",
     "Your CR30 is not answering",
@@ -3193,6 +3195,25 @@ M_SPOT_CR30_GONE = _m(
     "on reading. If it is still not there, this window comes back.\n\n"
     "To finish instead, choose \u201cStop session\u201d. Your readings stay in "
     "the list either way.",
+    approved=True)
+
+# --- PROPOSED: presses from before Ready were not used in a spot session ---
+#
+# Beta 17 review (2026-10-09): a press of the CR30's button right after the
+# spot window said Ready was thrown away, with only a log line to show for it.
+# Fixed: the window now says Ready only once the read is really listening, and
+# every press after that is taken. A press the instrument announced BEFORE
+# Ready (typically while the calibration's last window, which says to press the
+# button, was still open) is still not used; this is what the window's log
+# says then, so nobody waits for a row that will not come. Our words.
+M_SPOT_CR30_EARLY_PRESS = _m(
+    "M-SPOT-CR30-EARLY-PRESS",
+    "A reading taken before Ready was not used",
+    "{n} readings were taken before this window was ready for them, so they "
+    "were not used. Take the reading again.",
+    body_one="One reading was taken before this window was ready for it, so "
+             "it was not used. Take the reading again.",
+    count_key="n",
     approved=False)
 
 # --- PROPOSED: the reference file covers only part of the target -----------
@@ -5191,7 +5212,7 @@ CATALOGUE = {m.id: m for m in (
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
     M_REPORT_NOT_SAVED,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
-    M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE,
+    M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE, M_SPOT_CR30_EARLY_PRESS,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
     M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,

@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "{n} avläsningar tillbakalagda.",
  "Reconnect": "Anslut igen",
  "Undo delete": "Ångra radering",
- "Your CR30 is not answering": "Din CR30 svarar inte"
+ "Your CR30 is not answering": "Din CR30 svarar inte",
+ "A reading taken before Ready was not used": "En avläsning gjord före ”Klar” användes inte",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "En avläsning gjordes innan det här fönstret var redo för den, så den användes inte. Mät igen.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "{n} avläsningar gjordes innan det här fönstret var redo för dem, så de användes inte. Mät igen."
 }

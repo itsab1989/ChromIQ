@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "{n} Messwerte wiederhergestellt.",
  "Reconnect": "Neu verbinden",
  "Undo delete": "Löschen rückgängig",
- "Your CR30 is not answering": "Dein CR30 antwortet nicht"
+ "Your CR30 is not answering": "Dein CR30 antwortet nicht",
+ "A reading taken before Ready was not used": "Eine Messung vor „Bereit“ wurde nicht verwendet",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Eine Messung wurde gemacht, bevor dieses Fenster dafür bereit war, und wurde deshalb nicht verwendet. Miss die Farbe erneut.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "{n} Messungen wurden gemacht, bevor dieses Fenster dafür bereit war, und wurden deshalb nicht verwendet. Miss die Farbe erneut."
 }

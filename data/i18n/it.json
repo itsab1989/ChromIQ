@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "{n} letture ripristinate.",
  "Reconnect": "Riconnetti",
  "Undo delete": "Annulla eliminazione",
- "Your CR30 is not answering": "Il tuo CR30 non risponde"
+ "Your CR30 is not answering": "Il tuo CR30 non risponde",
+ "A reading taken before Ready was not used": "Una lettura acquisita prima di «Pronto» non è stata usata",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Una lettura è stata acquisita prima che questa finestra fosse pronta, quindi non è stata usata. Misura di nuovo.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "{n} letture sono state acquisite prima che questa finestra fosse pronta, quindi non sono state usate. Misura di nuovo."
 }

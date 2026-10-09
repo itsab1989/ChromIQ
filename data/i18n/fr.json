@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "{n} mesures remises en place.",
  "Reconnect": "Reconnecter",
  "Undo delete": "Annuler la suppression",
- "Your CR30 is not answering": "Ton CR30 ne répond pas"
+ "Your CR30 is not answering": "Ton CR30 ne répond pas",
+ "A reading taken before Ready was not used": "Une mesure prise avant « Prêt » n'a pas été utilisée",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Une mesure a été prise avant que cette fenêtre ne soit prête à la recevoir : elle n'a donc pas été utilisée. Mesure à nouveau.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "{n} mesures ont été prises avant que cette fenêtre ne soit prête à les recevoir : elles n'ont donc pas été utilisées. Mesure à nouveau."
 }

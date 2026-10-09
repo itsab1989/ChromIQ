@@ -698,6 +698,16 @@ class DeviceReader:
         #: window's is the session, because there every read is "whatever is
         #: under the aperture now" and they are interchangeable.
         self._arm_token: object | None = None
+        #: The arming whose stale presses have ALREADY been dropped, or None.
+        #:
+        #: Stale presses (announced before a read was armed) are dropped once
+        #: per arming, not at the start of every read. The spot window arms one
+        #: token for the whole session and says Ready after the drop; dropping
+        #: again when each read started threw away a press made after Ready
+        #: (beta 17 review). Cleared whenever the arming or the instrument
+        #: changes, so the Measure tab, which disarms between patches, drops
+        #: exactly as it always did.
+        self._drained_for: object | None = None
         #: Set once by close() and never cleared: a CLOSED reader may not open
         #: the instrument again. It used to, silently: the teach-in window was
         #: handed a reader its window had already closed, `learn_tile` found
@@ -736,6 +746,7 @@ class DeviceReader:
                     "the connection was closed while the instrument was "
                     "being opened")
             self._dev = dev
+            self._drained_for = None
             log.info("CR30: opened over %s", self._dev.kind)
         return self._dev
 
@@ -758,6 +769,25 @@ class DeviceReader:
             except Exception as exc:  # noqa: BLE001 — classified as lost
                 raise DeviceLost(
                     f"the instrument could not be opened ({exc})") from exc
+
+    def drop_stale_presses(self) -> int:
+        """Drop the presses announced so far, for the read that is armed now.
+
+        Called by a host BEFORE it tells anybody to press the button (the spot
+        window's read loop, before Ready). A press after this belongs to the
+        armed read and is collected by it however soon it comes; the reads of
+        the same arming do not drop again. Returns how many were dropped, so
+        the host can say so: to the person who pressed, a dropped press is a
+        press that did nothing.
+        """
+        with self._lock:
+            dev = self._dev
+            if dev is None:
+                return 0
+            dropper = getattr(dev, "drop_stale_presses", None)
+            dropped = dropper() if callable(dropper) else 0
+            self._drained_for = self._arm_token
+            return int(dropped or 0)
 
     #: Where the last Bluetooth address is remembered between sessions.
     REMEMBERED_ADDRESS_KEY = "cr30_ble_address"
@@ -1098,10 +1128,15 @@ class DeviceReader:
             from .device import DeviceLost
             self._reading_in_flight = True
             armed_as = self._arm_token
+            # Stale presses go ONCE per arming (see `_drained_for`). A read
+            # with nothing armed keeps the old rule: it drops, every time.
+            drop_stale = armed_as is None or armed_as is not self._drained_for
+            self._drained_for = armed_as
             try:
                 m = self._dev.read_next_measurement(
                     timeout=self.button_timeout_s,
                     trigger_wanted=self._take_trigger_request,
+                    drop_stale=drop_stale,
                     cancelled=lambda: self._cancelled() or (
                         generation is not None
                         and generation != self._generation))
@@ -1115,6 +1150,7 @@ class DeviceReader:
                 except Exception:          # noqa: BLE001 — it is already gone
                     pass
                 self._dev = None
+                self._drained_for = None
                 raise
             finally:
                 self._reading_in_flight = False
@@ -1233,12 +1269,14 @@ class DeviceReader:
             return
         if token != self._arm_token:
             self._trigger_requested = False
+            self._drained_for = None
         self._arm_token = token
 
     def disarm_trigger(self) -> None:
         """No read is expecting a press any more; anything pending dies here."""
         self._arm_token = None
         self._trigger_requested = False
+        self._drained_for = None
 
     @property
     def trigger_armed(self) -> bool:

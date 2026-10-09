@@ -298,7 +298,8 @@ class _FakeDevice:
 
     def read_next_measurement(self, *, timeout=180.0, cancelled=None,
                               poll=0.01, for_learning=False,
-                              trigger_wanted=None):
+                              trigger_wanted=None,
+                              drop_stale=True):
         if self.lost_next:
             self.lost_next = False
             raise DeviceLost("the Bluetooth link to the instrument dropped")

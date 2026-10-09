@@ -6833,5 +6833,8 @@
  "Put back {n} readings.": "{n} 件の読み取りを元に戻しました。",
  "Reconnect": "再接続",
  "Undo delete": "削除を取り消す",
- "Your CR30 is not answering": "CR30 が応答しません"
+ "Your CR30 is not answering": "CR30 が応答しません",
+ "A reading taken before Ready was not used": "「準備完了」の前の読み取りは使われませんでした",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "このウィンドウの準備が整う前に読み取りが1回行われたため、その読み取りは使われませんでした。もう一度測定してください。",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "このウィンドウの準備が整う前に {n} 回の読み取りが行われたため、それらは使われませんでした。もう一度測定してください。"
 }
