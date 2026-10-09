@@ -11,6 +11,7 @@ target.  Examples: Epson ``EPIJ_CMat=3`` ("No Color Adjustment"), Canon
 """
 from __future__ import annotations
 
+import functools
 import pathlib
 from dataclasses import dataclass
 import re
@@ -57,8 +58,17 @@ _PPD_OPENUI_RE = re.compile(r'^\*OpenUI\s+\*([A-Za-z0-9_]+)\s*/([^:]*):\s*PickOn
 
 
 def parse_ppd_options(text: str):
-    """Yield ``(key, ui_label, [(value, value_label), ...])`` for each PPD
-    ``*OpenUI ... PickOne`` block."""
+    """Yield ``(key, ui_label, ((value, value_label), ...))`` for each PPD
+    ``*OpenUI ... PickOne`` block (parsed once per PPD text)."""
+    yield from _parse_ppd_options_cached(text)
+
+
+@functools.lru_cache(maxsize=16)
+def _parse_ppd_options_cached(text: str) -> tuple:
+    return tuple((k, label, tuple(vals)) for k, label, vals in _parse_ppd_options(text))
+
+
+def _parse_ppd_options(text: str):
     lines = text.splitlines()
     i = 0
     while i < len(lines):
@@ -299,8 +309,16 @@ class PaperProfile:
 
 
 def _ppd_default(text: str, key: str) -> str | None:
-    m = re.search(rf"^\*Default{re.escape(key)}:\s*(\S+)", text, re.M)
-    return m.group(1) if m else None
+    return _ppd_defaults(text).get(key)
+
+
+@functools.lru_cache(maxsize=16)
+def _ppd_defaults(text: str) -> dict[str, str]:
+    """Every ``*Default<key>: value`` of the PPD (the first one counts)."""
+    out: dict[str, str] = {}
+    for k, v in re.findall(r"^\*Default(\S+?):\s*(\S+)", text, re.M):
+        out.setdefault(k, v)
+    return out
 
 
 def _qualifier_index(text: str, option: str) -> int | None:
@@ -394,6 +412,23 @@ def _q_from_type(t: str) -> str | None:
 
 
 def canon_media(ppd_text: str) -> dict[str, CanonMedium]:
+    """See ``_canon_media``; read once per PPD and version of the database."""
+    db = canon_media_database(ppd_text)
+    if db is None or not db.is_dir():
+        return {}
+    try:
+        stamp = max((f.stat().st_mtime for f in db.iterdir()), default=0.0)
+    except OSError:
+        stamp = 0.0
+    return dict(_canon_media_cached(ppd_text, str(db), stamp))
+
+
+@functools.lru_cache(maxsize=32)
+def _canon_media_cached(ppd_text: str, db: str, stamp: float):
+    return tuple(_canon_media(ppd_text).items())
+
+
+def _canon_media(ppd_text: str) -> dict[str, CanonMedium]:
     """{medium value: CanonMedium} from the Canon IJ model's media database:
     XML (``<uuid>.hmi`` per medium, drivers 30.x) or binary (``cnb_*.tbl``,
     the 16.9x drivers of the PRO-100, PRO-10S, iP8700 and iX6800).  {} when
@@ -651,9 +686,17 @@ def epson_pde_variants(ppd_text: str) -> list[tuple[str, pathlib.Path]]:
     return sorted(subs, key=lambda x: int(x[0]))
 
 
+@functools.lru_cache(maxsize=64)
+def _cached_text(path: str, mtime: float, size: int) -> str:
+    return read_text(pathlib.Path(path), lenient=True)
+
+
 def _epson_pde_text(path: pathlib.Path) -> str | None:
+    """The file's text, read once per version of it (the Print Chart tab asks on
+    every option change; an SC-P6000's PDEData.dat is 3 MB)."""
     try:
-        return read_text(path, lenient=True)
+        st = path.stat()
+        return _cached_text(str(path), st.st_mtime, st.st_size)
     except OSError:
         return None
 
@@ -671,6 +714,11 @@ def epson_pde(ppd_text: str, variant: str | None = None) -> tuple[str | None, di
     text = _epson_pde_text(path)
     if text is None:
         return None, {}
+    return _parse_epson_pde(text)
+
+
+@functools.lru_cache(maxsize=32)
+def _parse_epson_pde(text: str) -> tuple[str | None, dict[str, list]]:
     ui = re.search(r'^\*EPIJUIType:\s*"([^"]+)"', text, re.M)
     tables: dict[str, list] = {}
     for key, body in re.findall(r'^\*EPIJConditionValue\s+(\S+?)/:\s*"(.*?)"', text,
@@ -773,6 +821,7 @@ def epson_driver_quality(ppd_text: str, media_value: str,
 EPSON_AUTOMATIC_UIS = ("NewUI_J", "N<2F>A", "N/A")
 
 
+@functools.lru_cache(maxsize=128)
 def _epson_presets(text: str, name: str) -> dict[tuple[str, ...], dict[str, str]]:
     """``*EPIJPreset <name>,k1,k2,.../`` blocks: {(k1, k2, ...): {key: value}}."""
     out = {}
