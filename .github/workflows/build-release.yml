@@ -612,6 +612,7 @@ jobs:
               printf '```\nxattr -dr com.apple.quarantine /Applications/ChromIQ.app\n```\n\n'
               printf 'Then double-click as normal.\n\n'
               printf 'Requires macOS 13+ (Ventura) and ArgyllCMS 3.5.0 at `/Applications/Argyll/bin`.'
+              printf '\n\n**Or install with [Homebrew](https://brew.sh):** `brew install --cask itsab1989/chromiq/chromiq` (stable) or `brew install --cask itsab1989/chromiq/chromiq@beta` (beta). It installs ArgyllCMS too and removes the quarantine, so ChromIQ opens straight away. Switching, updating and uninstalling: [README](https://github.com/itsab1989/ChromIQ#install-with-homebrew).'
               printf '\n\n---\n☕ ChromIQ is free and always will be — if it saves you time or ink, a coffee is a kind way to say thanks. Completely optional, and the app stays fully featured either way.\n\n'
               printf '[![Support ChromIQ on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/itsab1989)\n'
             } > /tmp/release_notes.txt
@@ -654,3 +655,100 @@ jobs:
             mv "ChromIQ-macOS-x86_64.dmg" "$X86_VERSIONED"
             gh release upload "$RELEASE_TAG" "$X86_VERSIONED" --clobber
           fi
+
+  # Homebrew tap (github.com/itsab1989/homebrew-chromiq): once BOTH macOS
+  # builds have uploaded their DMGs (arm64 here; universal2 also uploads the
+  # x86_64 DMG), point the casks at this release with the DMGs' checksums.
+  # A stable tag moves `chromiq` (and `chromiq@beta` when newer than its
+  # beta); a pre-release tag moves `chromiq@beta` only
+  # (scripts/update_homebrew_tap.py). Pushes with a write deploy key that
+  # reaches only the tap repository (secret HOMEBREW_TAP_DEPLOY_KEY).
+  #
+  # `needs: build` waits for every matrix leg, and the job is skipped when
+  # any leg failed, so the tap never points at a release with a DMG missing.
+  # A re-run of the tag re-uploads rebuilt DMGs; the script then refreshes
+  # the checksums of a cask already at that version. A dispatch with an older
+  # tag moves nothing back.
+  homebrew:
+    name: Update Homebrew tap
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      # The script comes from the workflow's own commit, not from the tag:
+      # an older tag dispatched by hand predates scripts/update_homebrew_tap.py.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Checksums of the release's DMGs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dmg
+          # The same names as "Upload DMG(s) to release" above.
+          for a in arm64 x86_64; do
+            gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" \
+              -p "ChromIQ-macOS-${a}_${RELEASE_TAG}.dmg" -D /tmp/dmg --clobber
+          done
+          echo "ARM_SHA=$(sha256sum "/tmp/dmg/ChromIQ-macOS-arm64_${RELEASE_TAG}.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "INTEL_SHA=$(sha256sum "/tmp/dmg/ChromIQ-macOS-x86_64_${RELEASE_TAG}.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - name: Check out the tap
+        env:
+          DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::The secret HOMEBREW_TAP_DEPLOY_KEY is not set; the Homebrew tap was not updated."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          # Written straight to a file, never echoed (GitHub masks it anyway).
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/tap_key
+          chmod 600 ~/.ssh/tap_key
+          # GitHub's published host key (api.github.com/meta), pinned rather
+          # than trusted on first sight from ssh-keyscan.
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> ~/.ssh/known_hosts
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            git clone --depth 1 git@github.com:itsab1989/homebrew-chromiq.git /tmp/tap
+
+      - name: Update the casks and push
+        env:
+          GIT_SSH_COMMAND: ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
+        run: |
+          set -euo pipefail
+          git -C /tmp/tap config user.name "ChromIQ release workflow"
+          git -C /tmp/tap config user.email "itsab1989@users.noreply.github.com"
+          # Two releases close together can both push: on a rejected push,
+          # start again from the tap as it now is and re-run the script, so
+          # the version order decides, never the order of the pushes.
+          for attempt in 1 2 3 4 5; do
+            python3 scripts/update_homebrew_tap.py --tap /tmp/tap --tag "$RELEASE_TAG" \
+              --arm-sha "$ARM_SHA" --intel-sha "$INTEL_SHA"
+            if git -C /tmp/tap diff --quiet; then
+              echo "Tap already up to date for $RELEASE_TAG"
+              exit 0
+            fi
+            git -C /tmp/tap commit -qam "ChromIQ ${RELEASE_TAG#v}: update casks"
+            if git -C /tmp/tap push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt); fetching the tap again"
+            sleep $((attempt * 5))
+            git -C /tmp/tap fetch --depth 1 origin main
+            git -C /tmp/tap reset -q --hard FETCH_HEAD
+          done
+          echo "::error::Could not push the Homebrew tap update after 5 attempts."
+          exit 1
+
+      - name: Remove the deploy key
+        if: always()
+        run: rm -f ~/.ssh/tap_key
