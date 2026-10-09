@@ -1488,6 +1488,10 @@ class TiffPreview(QWidget):
         self._frame_cache = frame_cache()
         self._current: int = 0
         self._active_stripe: int = -1
+        #: the page the active strip is on (beta 16 review, Basti #182
+        #: 6079656873): the arrows belong to the READER's strip, so paging
+        #: away and back must find them again instead of losing them
+        self._active_stripe_page: int = -1
         self._bidirectional: bool = False
         self._stripe_rects: list[QRect] = []
         # #126 chart-reading engine overlays
@@ -2250,9 +2254,22 @@ class TiffPreview(QWidget):
         return f"{text[:head]}…{text[-tail:]}"
 
     def highlight_stripe(self, stripe_index: int) -> None:
-        """Highlight a strip (0-based) in the current preview page."""
+        """Highlight a strip (0-based) in the current preview page.
+
+        The highlight belongs to THAT page: paging away hides it and paging
+        back shows it again (beta 16 review, Basti #182 6079656873). Until
+        then every page change set it to -1, so after the reader had moved to
+        page 2 and the user looked back at page 1, page 2 came back without
+        its "next strip" arrows until a strip was clicked."""
         self._active_stripe = stripe_index
+        self._active_stripe_page = self._current if stripe_index >= 0 else -1
         self._schedule_refresh()
+
+    def active_stripe_on_screen(self) -> int:
+        """The highlighted strip of the page on screen, -1 when it has none."""
+        if self._active_stripe >= 0 and self._active_stripe_page == self._current:
+            return self._active_stripe
+        return -1
 
     def set_bidirectional(self, enabled: bool) -> None:
         """Toggle the second (bottom, upward-pointing) strip arrow."""
@@ -2951,7 +2968,6 @@ class TiffPreview(QWidget):
         """Switch to page by index and repaint."""
         if 0 <= index < len(self._pages) and index != self._current:
             self._current = index
-            self._active_stripe = -1
             self._hide_patch_tile()   # its patch is on the page we just left
             self._update_nav()
             self._schedule_refresh()
@@ -3224,7 +3240,6 @@ class TiffPreview(QWidget):
     def _go_prev(self) -> None:
         if self._current > 0:
             self._current -= 1
-            self._active_stripe = -1
             self._update_nav()
             self._schedule_refresh()
             self.page_changed.emit(self._current)
@@ -3232,7 +3247,6 @@ class TiffPreview(QWidget):
     def _go_next(self) -> None:
         if self._current < len(self._pages) - 1:
             self._current += 1
-            self._active_stripe = -1
             self._update_nav()
             self._schedule_refresh()
             self.page_changed.emit(self._current)
@@ -3340,6 +3354,8 @@ class TiffPreview(QWidget):
     def _update_nav(self) -> None:
         n = len(self._pages)
         visible = n > 1
+        self._hand_over_nav_focus(visible, self._current > 0,
+                                  self._current < n - 1)
         self._prev_btn.setVisible(visible)
         self._next_btn.setVisible(visible)
         self._page_label.setVisible(n > 0)
@@ -3350,6 +3366,36 @@ class TiffPreview(QWidget):
             self._page_label.setText("")
         self._prev_btn.setEnabled(self._current > 0)
         self._next_btn.setEnabled(self._current < n - 1)
+
+    def _hand_over_nav_focus(self, visible: bool, prev_ok: bool,
+                             next_ok: bool) -> None:
+        """Move the keyboard focus off a page button that is about to be
+        disabled or hidden, BEFORE Qt does it (beta 16 review, Basti #182
+        6079656873).
+
+        Qt hands the focus of a widget that is disabled or hidden to the next
+        one in the focus chain, and calls that a Tab (``focusNextChild``, with
+        ``Qt.TabFocusReason``). After the clicked "Next" reached the last page
+        the next one was the preview chip, which opens and rings for keyboard
+        focus (``ui/print_view_chip.py``), so it stayed open on every page
+        until something else took the focus; measured on screen with a
+        simulated measurement. The other page button takes it when it stays
+        usable, otherwise nobody does."""
+        win = self.window()
+        holder = win.focusWidget() if win is not None else None
+        if holder is None:
+            return
+        for btn, ok, other, other_ok in (
+                (self._prev_btn, prev_ok, self._next_btn, next_ok),
+                (self._next_btn, next_ok, self._prev_btn, prev_ok)):
+            if holder is not btn or (visible and ok):
+                continue
+            if visible and other_ok:
+                other.setEnabled(True)
+                other.setFocus(Qt.FocusReason.OtherFocusReason)
+            else:
+                btn.clearFocus()
+            return
 
     # ------------------------------------------------------------------
     # Rendering
@@ -3932,7 +3978,7 @@ class TiffPreview(QWidget):
                             (label_size.width() - _cw) / 2 + B,
                             (label_size.height() - _ch) / 2 + B)
 
-        if (self._active_stripe >= 0 and self._stripe_rects
+        if (self.active_stripe_on_screen() >= 0 and self._stripe_rects
                 and not self._hex_zigzag and not self._no_swipe):
             # sx/sy: device pixels per original image pixel
             sx = scaled.width()  / self._pixmap.width()
