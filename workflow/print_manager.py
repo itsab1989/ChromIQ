@@ -558,13 +558,16 @@ class PrintModule:
         ppd_file = PrintModule._find_ppd_path(printer)
         if not ppd_file:
             return {}
+        from workflow.page_geometry import ppd_text_label
         labels: dict[str, dict[str, str]] = {}
         try:
             pattern = re.compile(r'^\*(\S+)\s+(\S+)/([^:]+):')
             for line in read_text(pathlib.Path(ppd_file), lenient=True).splitlines():
                 m = pattern.match(line)
                 if m:
-                    opt, val, label = m.group(1), m.group(2), m.group(3).strip()
+                    # beta 16 package: hex bytes decoded ("3<2E>5" is "3.5")
+                    opt, val = m.group(1), m.group(2)
+                    label = ppd_text_label(m.group(3)).strip()
                     labels.setdefault(opt, {})[val] = label
         except Exception:
             pass
@@ -613,7 +616,31 @@ class PrintModule:
     def build_config(self, printer: str, options: dict[str, str] | None = None) -> PrintConfig:
         opts = dict(options or {})
         opts = self._resolve_synthetic_options(printer, opts)
+        page = self._page_size_for_vendor_size(printer, opts)
+        if page:
+            opts["PageSize"] = page
         return PrintConfig(printer_name=printer, options=opts)
+
+    def _page_size_for_vendor_size(self, printer: str, options: dict[str, str]) -> str | None:
+        """The PageSize that goes with a size chosen in Epson's own EPIJ_Size
+        row (beta 16 package).  The Epson dialog writes both; lp sent only
+        EPIJ_Size, so the printing system laid the page out on the PPD's
+        DEFAULT PageSize (measured on the PictureMate PM-400: a 10 x 15 cm
+        chart with EPIJ_Size=74 came out on its 9 x 13 cm borderless default,
+        shrunk to 94 x 134 mm).  Found by the translation the two share; None
+        when PageSize is already set, the PPD has no PageSize, or no label
+        matches."""
+        size = options.get("EPIJ_Size", "")
+        if not size or options.get("PageSize"):
+            return None
+        labels = self._parse_ppd_labels(printer)
+        want = labels.get("EPIJ_Size", {}).get(size, "").strip()
+        if not want:
+            return None
+        for value, label in labels.get("PageSize", {}).items():
+            if label.strip() == want:
+                return value
+        return None
 
     def _resolve_synthetic_options(
         self, printer: str, options: dict[str, str],

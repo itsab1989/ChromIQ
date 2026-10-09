@@ -34,6 +34,40 @@ _FIT_TOL_IMAGEABLE = 0.04
 _FIT_TOL_PAPER = 0.08
 
 
+_PPD_HEX_RE = re.compile(r"<([0-9A-Fa-f]{2}(?:[0-9A-Fa-f]{2})*)>")
+
+
+def ppd_text_label(label: str) -> str:
+    """A PPD translation string as it is meant to read.  PPD 4.3 lets a
+    translation string carry bytes in hexadecimal between angle brackets, and
+    Epson uses it for the characters a PPD keyword cannot hold: the PictureMate
+    PPDs label a paper ``9 x 13 cm (3<2E>5 x 5 in)`` and ``16<3A>9 wide size``,
+    which the Print Chart tab showed as written (beta 16 package)."""
+    def _dec(m: "re.Match[str]") -> str:
+        try:
+            return bytes.fromhex(m.group(1)).decode("latin-1")
+        except ValueError:
+            return m.group(0)
+    return _PPD_HEX_RE.sub(_dec, label)
+
+
+def _by_label(text: str, keyword: str, label: str) -> "re.Match[str] | None":
+    """The ``*<keyword> <name>/<translation>: "..."`` line whose translation
+    reads *label* (hex decoded on both sides), the first one: a vendor size
+    option such as Epson's EPIJ_Size names its sizes with codes and keys
+    nothing by them, while *PaperDimension and *ImageableArea are keyed by the
+    PageSize names; the translation is what the two have in common (beta 16
+    package: nine of the PictureMate PM-400's eleven paper sizes had no
+    dimensions at all, so the tab could not compare the chart with them)."""
+    want = ppd_text_label(label).strip()
+    if not want:
+        return None
+    for m in re.finditer(rf'^\*{keyword}\s+\S+?/([^:]+):\s*"([^"]*)"', text, re.M):
+        if ppd_text_label(m.group(1)).strip() == want:
+            return m
+    return None
+
+
 def get_page_size_points(ppd_path: str | None, value: str) -> tuple[float, float] | None:
     """Return (w_pt, h_pt) for a PageSize *value* declared in *ppd_path*.
 
@@ -64,6 +98,13 @@ def get_page_size_points(ppd_path: str | None, value: str) -> tuple[float, float
                 return float(m.group(1)), float(m.group(2))
             except ValueError:
                 continue
+    m = _by_label(text, "PaperDimension", value)
+    if m:
+        nums = m.group(2).split()
+        try:
+            return float(nums[0]), float(nums[1])
+        except (ValueError, IndexError):
+            return None
     return None
 
 
@@ -103,6 +144,14 @@ def get_imageable_area_points(ppd_path: str | None, value: str) -> tuple[float, 
             w, h = urx - llx, ury - lly
             if w > 0 and h > 0:
                 return w, h
+    m = _by_label(text, "ImageableArea", value)
+    if m:
+        try:
+            llx, lly, urx, ury = (float(g) for g in m.group(2).split()[:4])
+        except ValueError:
+            return None
+        if urx - llx > 0 and ury - lly > 0:
+            return urx - llx, ury - lly
     return None
 
 
@@ -221,10 +270,13 @@ def check_size_mismatch(
 
     tiff_mm = (tiff_w_pt * 25.4 / _PT_PER_INCH, tiff_h_pt * 25.4 / _PT_PER_INCH)
     page_mm = (page_w_pt * 25.4 / _PT_PER_INCH, page_h_pt * 25.4 / _PT_PER_INCH)
-    return (
-        f"Possible paper mismatch: the chart raster is "
-        f"{tiff_mm[0]:.0f} × {tiff_mm[1]:.0f} mm but the selected paper is "
-        f"{page_mm[0]:.0f} × {page_mm[1]:.0f} mm — it may have been generated "
-        f"for a different paper size. If you continue, the printer will scale "
-        f"or crop it. Regenerate the chart for this paper to be safe."
-    )
+    # Beta 16: this warning was never translated.  Its words are unchanged
+    # except the em dash (house rule), which became a full stop.
+    from core.i18n import tr
+    return tr(
+        "Possible paper mismatch: the chart raster is {chart_w} × {chart_h} mm but "
+        "the selected paper is {paper_w} × {paper_h} mm. It may have been generated "
+        "for a different paper size. If you continue, the printer will scale or crop "
+        "it. Regenerate the chart for this paper to be safe."
+    ).format(chart_w=f"{tiff_mm[0]:.0f}", chart_h=f"{tiff_mm[1]:.0f}",
+             paper_w=f"{page_mm[0]:.0f}", paper_h=f"{page_mm[1]:.0f}")
