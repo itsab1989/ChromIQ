@@ -4,7 +4,7 @@
 
 ### New
 
-- **ChromIQ can be installed with Homebrew on a Mac, together with ArgyllCMS, in one command.** Use `brew install --cask itsab1989/chromiq/chromiq` for the stable version, or `brew install --cask itsab1989/chromiq/chromiq@beta` for the newest beta. ChromIQ then opens straight away: the cask removes the macOS download quarantine, so there is no "could not verify" warning and no right-click and Open. `brew upgrade --cask chromiq` keeps it up to date, and each release updates the casks automatically. You need [Homebrew](https://brew.sh) itself first. The DMG downloads work as before.
+- **ChromIQ can be installed with Homebrew on a Mac, together with ArgyllCMS, in one command.** Use `brew install --cask itsab1989/chromiq/chromiq` for the stable version, or `brew install --cask itsab1989/chromiq/chromiq@beta` for the newest beta. ChromIQ then opens straight away: the cask removes the macOS download quarantine, so there is no "could not verify" warning and no right-click and Open. `brew upgrade --cask chromiq` keeps it up to date, and each release updates the casks automatically. You need [Homebrew](https://brew.sh) itself first. The DMG downloads work as before. From this release on, each release also lists two Mac files ending in `_homebrew.dmg`: they are the copies Homebrew downloads, so if you download by hand, take the normal DMG.
 
 ### Documentation
 
