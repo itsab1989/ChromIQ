@@ -5516,96 +5516,6 @@
      "label": "SC-P9000_P7000_Series Standard",
      "profile": "1"
     },
-    "101": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumLusterPhotoPaper260",
-     "profile": "4"
-    },
-    "104": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumGlossyPhotoPaper170",
-     "profile": "6"
-    },
-    "105": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumSemiglossPhotoPaper170",
-     "profile": "7"
-    },
-    "106": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EpsonProofingPaperWhiteSemimatte",
-     "profile": "12"
-    },
-    "107": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EnhancedMattePaper_PK",
-     "profile": "18"
-    },
-    "108": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK ArchivalMattePaper_PK",
-     "profile": "19"
-    },
-    "109": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EnhancedMattePosterBoard_PK",
-     "profile": "20"
-    },
-    "110": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK VelvetFineArtPaper_PK",
-     "profile": "21"
-    },
-    "111": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK WatercolorPaper-RadiantWhite_PK",
-     "profile": "25"
-    },
-    "113": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK UltraSmoothFineArtPaper_PK",
-     "profile": "23"
-    },
-    "115": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EpsonProofingPaperCommercial",
-     "profile": "13"
-    },
-    "116": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumSemimattePhotoPaper260",
-     "profile": "5"
-    },
-    "13": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumGlossyPhotoPaper",
-     "profile": "8"
-    },
-    "14": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK ArchivalMattePaper_MK",
-     "profile": "15"
-    },
-    "15": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumSemiglossPhotoPaper",
-     "profile": "9"
-    },
-    "153": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK CanvasSatin",
-     "profile": "27"
-    },
-    "155": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK CanvasMatte",
-     "profile": "26"
-    },
-    "17": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK WatercolorPaper-RadiantWhite_MK",
-     "profile": "24"
-    },
     "1950": {
      "from": "driver",
      "label": "SC-P9000_P7000_Series_LLK Matte Backlit Film",
@@ -5781,11 +5691,6 @@
      "label": "SC-P9000_P7000_Series Standard",
      "profile": "1"
     },
-    "27": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumLusterPhotoPaper",
-     "profile": "10"
-    },
     "38": {
      "from": "driver",
      "label": "SC-P9000_P7000_Series Standard",
@@ -5796,45 +5701,10 @@
      "label": "SC-P9000_P7000_Series Standard",
      "profile": "1"
     },
-    "48": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EnhancedMattePaper_MK",
-     "profile": "14"
-    },
-    "49": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EnhancedMattePosterBoard_MK",
-     "profile": "16"
-    },
-    "50": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumGlossyPhotoPaper250",
-     "profile": "2"
-    },
-    "51": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumSemiglossPhotoPaper250",
-     "profile": "3"
-    },
-    "53": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK VelvetFineArtPaper_MK",
-     "profile": "17"
-    },
     "70": {
      "from": "driver",
      "label": "SC-P9000_P7000_Series Standard",
      "profile": "1"
-    },
-    "88": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK UltraSmoothFineArtPaper_MK",
-     "profile": "22"
-    },
-    "91": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PhotoPaperGloss250",
-     "profile": "11"
     }
    },
    "ppd": "EPSON SC-P7000 Series.gz",
@@ -6511,111 +6381,6 @@
      "label": "SC-P9000_P7000_Series Standard",
      "profile": "1"
     },
-    "101": {
-     "from": "dialog",
-     "keys": {
-      "EPIJ_APri": "1",
-      "EPIJ_CCor": "4",
-      "EPIJ_CMat": "3",
-      "EPIJ_HdofClSp": "0",
-      "EPIJ_MdGropID": "101",
-      "EPIJ_MeInSeNm": "1",
-      "EPIJ_Mode": "3",
-      "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35",
-      "MediaType": "101",
-      "Resolution": "360x360dpi"
-     },
-     "label": "SC-P9000_P7000_Series_LLK PremiumLusterPhotoPaper260",
-     "measured": "2026-10-09",
-     "profile": "4"
-    },
-    "104": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumGlossyPhotoPaper170",
-     "profile": "6"
-    },
-    "105": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumSemiglossPhotoPaper170",
-     "profile": "7"
-    },
-    "106": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EpsonProofingPaperWhiteSemimatte",
-     "profile": "12"
-    },
-    "107": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EnhancedMattePaper_PK",
-     "profile": "18"
-    },
-    "108": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK ArchivalMattePaper_PK",
-     "profile": "19"
-    },
-    "109": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EnhancedMattePosterBoard_PK",
-     "profile": "20"
-    },
-    "110": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK VelvetFineArtPaper_PK",
-     "profile": "21"
-    },
-    "111": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK WatercolorPaper-RadiantWhite_PK",
-     "profile": "25"
-    },
-    "113": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK UltraSmoothFineArtPaper_PK",
-     "profile": "23"
-    },
-    "115": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EpsonProofingPaperCommercial",
-     "profile": "13"
-    },
-    "116": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumSemimattePhotoPaper260",
-     "profile": "5"
-    },
-    "13": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumGlossyPhotoPaper",
-     "profile": "8"
-    },
-    "14": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK ArchivalMattePaper_MK",
-     "profile": "15"
-    },
-    "15": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumSemiglossPhotoPaper",
-     "profile": "9"
-    },
-    "153": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK CanvasSatin",
-     "profile": "27"
-    },
-    "155": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK CanvasMatte",
-     "profile": "26"
-    },
-    "17": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK WatercolorPaper-RadiantWhite_MK",
-     "profile": "24"
-    },
     "1950": {
      "from": "driver",
      "label": "SC-P9000_P7000_Series_LLK Matte Backlit Film",
@@ -6816,11 +6581,6 @@
      "label": "SC-P9000_P7000_Series Standard",
      "profile": "1"
     },
-    "27": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumLusterPhotoPaper",
-     "profile": "10"
-    },
     "38": {
      "from": "driver",
      "label": "SC-P9000_P7000_Series Standard",
@@ -6831,45 +6591,10 @@
      "label": "SC-P9000_P7000_Series Standard",
      "profile": "1"
     },
-    "48": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EnhancedMattePaper_MK",
-     "profile": "14"
-    },
-    "49": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK EnhancedMattePosterBoard_MK",
-     "profile": "16"
-    },
-    "50": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumGlossyPhotoPaper250",
-     "profile": "2"
-    },
-    "51": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PremiumSemiglossPhotoPaper250",
-     "profile": "3"
-    },
-    "53": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK VelvetFineArtPaper_MK",
-     "profile": "17"
-    },
     "70": {
      "from": "driver",
      "label": "SC-P9000_P7000_Series Standard",
      "profile": "1"
-    },
-    "88": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK UltraSmoothFineArtPaper_MK",
-     "profile": "22"
-    },
-    "91": {
-     "from": "driver",
-     "label": "SC-P9000_P7000_Series_LLK PhotoPaperGloss250",
-     "profile": "11"
     }
    },
    "ppd": "EPSON SC-P9000 Series.gz",
@@ -7124,11 +6849,6 @@
      "measured": "2026-10-09",
      "profile": "1"
     },
-    "14": {
-     "from": "driver",
-     "label": "SP2200 Archival Matte_PK",
-     "profile": "2"
-    },
     "15": {
      "from": "driver",
      "label": "SP2200 Premium Semigloss_PK",
@@ -7138,11 +6858,6 @@
      "from": "driver",
      "label": "SP2200 Glossy Paper - PW_PK",
      "profile": "7"
-    },
-    "17": {
-     "from": "driver",
-     "label": "SP2200 Watercolor - RW_PK",
-     "profile": "4"
     },
     "26": {
      "from": "driver",
