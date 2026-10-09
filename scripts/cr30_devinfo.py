@@ -247,7 +247,7 @@ def usb_identify(t, log: Log) -> dict:
 
 def _port_holders(port: str) -> str:
     try:
-        r = subprocess.run(["lsof", "-t", port], capture_output=True, text=True, timeout=10)
+        r = subprocess.run(["lsof", "-t", port], capture_output=True, text=True, encoding="utf-8", timeout=10)
         return r.stdout.strip()
     except Exception:          # noqa: BLE001 — a check, not a requirement
         return ""
