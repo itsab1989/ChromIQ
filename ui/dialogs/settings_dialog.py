@@ -2325,7 +2325,10 @@ class SettingsDialog(QDialog):
         g.setHorizontalSpacing(0)
         g.setVerticalSpacing(0)
         g.setColumnStretch(0, 1)
-        col_w = 136
+        # wide enough for "200,0 ΔE*ab" and the arrows in every language's
+        # font (measured on screen: 124 px clipped "95,0 ΔE*ab" to "ΔE*ak")
+        col_w = max(150, self.fontMetrics().horizontalAdvance(
+            "200,0 ΔE*ab") + 64)
         for c in range(1, 5):
             g.setColumnMinimumWidth(c, col_w)
         self._misread_grid = g
@@ -2355,7 +2358,7 @@ class SettingsDialog(QDialog):
             sp.setSingleStep(1.0)
             sp.setDecimals(1)
             sp.setSuffix(" ΔE*ab")
-            sp.setFixedWidth(col_w - 12)
+            sp.setFixedWidth(col_w - 8)
             return sp
 
         def help_btn(title: str, body: str) -> TooltipButton:
@@ -2524,7 +2527,6 @@ class SettingsDialog(QDialog):
         v.addWidget(frame)
         units = QLabel(tr(MISREAD_UNITS_NOTE), outer)
         units.setWordWrap(True)
-        units.setObjectName("info")
         v.addWidget(units)
         self._misread_table = frame
         return outer

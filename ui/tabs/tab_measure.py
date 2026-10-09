@@ -16074,6 +16074,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """Is the measurement on screen read patch by patch? (the cards say
         "Checked again after each patch is read" then, Knut 6071004702)."""
         try:
+            # during a session, how this session reads; otherwise how the
+            # tab is set to read
+            if getattr(self, "_session_live", False):
+                return bool(getattr(self, "_spot_session", False))
             return bool(self._is_pbp_checked())
         except Exception:      # noqa: BLE001 — a card is never worth a crash
             return False
