@@ -52,6 +52,10 @@
 *cupsICCProfile RGB16.21./Canon PRO-100 series CR1.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO100series.canonicc/Contents/Resources/Canon PRO-100 series CR1.icc"
 *cupsICCProfile RGB16.22./Canon PRO-100 series CR3.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO100series.canonicc/Contents/Resources/Canon PRO-100 series CR3.icc"
 *cupsICCProfile RGB16.23./Canon PRO-100 series PFR2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO100series.canonicc/Contents/Resources/Canon PRO-100 series PFR2.icc"
+*OpenUI *CNIJCartridge/BJ Cartridge: PickOne
+*DefaultCNIJCartridge: 3
+*CNIJCartridge 3/Photo: ""
+*CloseUI: *CNIJCartridge
 *OpenUI *CNIJMediaType/Media Type: PickOne
 *DefaultCNIJMediaType: 67
 *CNIJMediaType 0/Plain Paper: ""
@@ -84,6 +88,12 @@
 *CNIJMediaType 32/Printable disc (bleed-proof): ""
 *CNIJMediaType 18/T-Shirt Transfers: ""
 *CloseUI: *CNIJMediaType
+*OpenUI *CNIJMediaSupply/Paper Source: PickOne
+*DefaultCNIJMediaSupply: 7
+*CNIJMediaSupply 38/Manual Feed: ""
+*CNIJMediaSupply 7/Rear Tray: ""
+*CNIJMediaSupply 26/Disc tray: ""
+*CloseUI: *CNIJMediaSupply
 *OpenUI *CNIJPrintQuality/Quality: PickOne
 *DefaultCNIJPrintQuality: 10
 *CNIJPrintQuality 0/Super Fine: ""

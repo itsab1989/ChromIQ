@@ -89,6 +89,15 @@ from core.i18n import tr
 from core.platform_paths import default_output_root
 from ui.warning_sign import inform, set_warning_icon, warn
 
+#: beta 16: the quality options whose rows follow the driver's own tables
+#: (``ppd_color.quality_choices``) and carry M-PRINT-QUALITY
+_PAPER_QUALITY_OPTS = ("CNIJPrintQuality", "EPIJ_Qual")
+
+
+def _html_escape(text: str) -> str:
+    import html
+    return html.escape(text, quote=False)
+
 
 _TT_TITLE_PRINT = "Step 2 — Print the chart"
 
@@ -483,6 +492,9 @@ class TabPrint(QWidget):
         # Sequential-enabling state — populated in _rebuild_option_rows
         self._ordered_opts: list[tuple[str, list[str], QComboBox]] = []
         self._raw_value_pairs: dict[str, list[tuple[str, str]]] = {}
+        #: beta 16: the note under a Canon/Epson quality row (M-PRINT-QUALITY)
+        self._quality_note: QLabel | None = None
+        self._quality_choices = None
         self._restoring: bool = False
         self._mode: str = "dark"
 
@@ -1531,6 +1543,8 @@ class TabPrint(QWidget):
         self._option_combos.clear()
         self._ordered_opts.clear()
         self._raw_value_pairs.clear()
+        self._quality_note = None
+        self._quality_choices = None
 
         if not printer:
             self._opts_layout.addWidget(QLabel(tr("Select a printer to see its options."), self))
@@ -1605,6 +1619,15 @@ class TabPrint(QWidget):
             combo.currentIndexChanged.connect(
                 lambda _, idx=i: self._on_option_changed(idx)
             )
+            if opt_name in _PAPER_QUALITY_OPTS:
+                # beta 16 (M-PRINT-QUALITY): photos must print at this quality
+                note = QLabel(self)
+                note.setObjectName("printQualityNote")
+                note.setWordWrap(True)
+                note.setTextFormat(Qt.TextFormat.RichText)
+                note.setVisible(False)
+                self._opts_layout.addWidget(note)
+                self._quality_note = note
 
         # Restore saved values in insertion order so each restore re-filters the
         # next combo's value list before that combo is itself restored.
@@ -1616,6 +1639,7 @@ class TabPrint(QWidget):
                 if found >= 0:
                     combo.setCurrentIndex(found)
         self._restoring = False
+        self._refresh_quality_row(keep_current=True)
 
     def _on_option_changed(self, combo_index: int) -> None:
         if not self._ordered_opts:
@@ -1634,6 +1658,89 @@ class TabPrint(QWidget):
         # current preceding selections — not just combo_index + 1.
         for j in range(combo_index, len(self._ordered_opts) - 1):
             self._repopulate_next(j)
+
+        # Beta 16: the quality row follows the paper (the qualities the
+        # driver's dialog allows for it, preselected as the dialog would).
+        if not self._restoring:
+            names = [name for name, _v, _c in self._ordered_opts]
+            q_index = next((k for k, n in enumerate(names) if n in _PAPER_QUALITY_OPTS), None)
+            if q_index is not None and combo_index == q_index:
+                self._update_quality_note()
+            elif q_index is not None:
+                self._refresh_quality_row(keep_current=combo_index > q_index)
+
+    def _refresh_quality_row(self, keep_current: bool) -> None:
+        """Beta 16 (Basti, 2026-10-09): a Canon IJ or Epson quality row offers
+        the qualities the driver's own dialog allows for the chosen paper,
+        the highest included, and preselects the one the user's last print
+        through the macOS dialog used on that paper (``printer_memory``),
+        else the dialog's standard.  *keep_current*: a quality the row
+        already shows stays when the paper allows it (a saved choice, or the
+        user's own).  Any other printer keeps the generic row."""
+        key = next((k for k in self._option_combos if k in _PAPER_QUALITY_OPTS), None)
+        if key is None:
+            return
+        combo = self._option_combos[key]
+        printer = self._printer_combo.currentData() or ""
+        qc = None
+        try:
+            from workflow.ppd_color import ppd_path_for_queue, quality_choices
+            from workflow.printer_memory import PaperProfileMemory
+            ppd = ppd_path_for_queue(printer)
+            if ppd:
+                from core.text_io import read_text
+                opts = {k: (c.currentData() or "") for k, c in self._option_combos.items()}
+                qc = quality_choices(read_text(Path(ppd), lenient=True), opts,
+                                     learned=PaperProfileMemory())
+        except Exception as exc:  # noqa: BLE001 - the generic row still works
+            log.warning("quality row: could not read the driver's qualities: %s", exc)
+            qc = None
+        self._quality_choices = qc if qc is not None and qc.option == key else None
+        qc = self._quality_choices
+        if qc is None:
+            self._update_quality_note()
+            return
+        from workflow import measurement_messages as MM
+        labels = {raw: shown for shown, raw in self._raw_value_pairs.get(key, [])}
+        current = combo.currentData() or ""
+        combo.blockSignals(True)
+        combo.clear()
+        if qc.preselect is None:
+            # the dialog's own choice is not known here (an Epson SC-P900
+            # chooses its quality another way): "Printer Default" stays
+            combo.addItem(tr("Printer Default"), "")
+        for v in qc.values:
+            name = labels.get(v, v)
+            if v == qc.highest:
+                name = tr(MM._PRINT_QUALITY_HIGHEST).format(quality=name)
+            elif v == qc.standard:
+                name = tr(MM._PRINT_QUALITY_STANDARD).format(quality=name)
+            combo.addItem(name, v)
+        want = current if (keep_current and current in qc.values) else qc.preselect
+        idx = combo.findData(want if want is not None else "")
+        combo.setCurrentIndex(max(idx, 0))
+        combo.blockSignals(False)
+        self._update_quality_note()
+
+    def _update_quality_note(self) -> None:
+        """M-PRINT-QUALITY under the quality row, for a Canon or Epson whose
+        qualities the driver lists; hidden otherwise."""
+        note = self._quality_note
+        if note is None:
+            return
+        qc = self._quality_choices
+        if qc is None:
+            note.setVisible(False)
+            return
+        from workflow import measurement_messages as MM
+        key = next((k for k in self._option_combos if k in _PAPER_QUALITY_OPTS), "")
+        current = self._option_combos[key].currentData() if key else None
+        head = tr(MM.M_PRINT_QUALITY.title)
+        text = f"<b>{_html_escape(head)}</b><br>{_html_escape(tr(MM._PRINT_QUALITY_WHY))}"
+        if qc.learned is not None and current == qc.learned:
+            text += "<br>" + _html_escape(tr(MM._PRINT_QUALITY_LEARNED))
+        note.setText(text)
+        note.setVisible(True)
 
     def _repopulate_next(self, combo_index: int) -> None:
         """Repopulate the combo at *combo_index + 1* based on selections 0..combo_index."""

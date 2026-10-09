@@ -6802,5 +6802,11 @@
  "Own colours": "Couleurs propres",
  "From Profile Gamut": "Depuis le gamut du profil",
  "{n} of {total}": "{n} sur {total}",
- "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "Les deux colonnes comptent les métriques couvertes : avec les couleurs propres ou depuis le gamut du profil."
+ "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "Les deux colonnes comptent les métriques couvertes : avec les couleurs propres ou depuis le gamut du profil.",
+ "The profile fits only prints made at the quality its chart was printed with.": "Le profil ne convient qu'aux impressions faites dans la qualité utilisée pour imprimer sa mire.",
+ "Chosen as in your last print on this paper through the macOS print dialog.": "Choisie comme lors de ta dernière impression sur ce papier via le dialogue d'impression macOS.",
+ "{quality} (highest)": "{quality} (la plus haute)",
+ "{quality} (standard)": "{quality} (standard)",
+ "Print your photos at this quality too": "Imprime aussi tes photos dans cette qualité",
+ "The profile fits only prints made at the quality its chart was printed with.\nChosen as in your last print on this paper through the macOS print dialog.\n{quality} (highest)\n{quality} (standard)": "Le profil ne convient qu'aux impressions faites dans la qualité utilisée pour imprimer sa mire.\nChoisie comme lors de ta dernière impression sur ce papier via le dialogue d'impression macOS.\n{quality} (la plus haute)\n{quality} (standard)"
 }

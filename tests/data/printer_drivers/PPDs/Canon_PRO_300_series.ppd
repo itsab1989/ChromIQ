@@ -98,6 +98,12 @@
 *CNIJMediaType 31/Printable disc: ""
 *CNIJMediaType 32/Printable disc (bleed-proof): ""
 *CloseUI: *CNIJMediaType
+*OpenUI *CNIJMediaSupply/Paper Source: PickOne
+*DefaultCNIJMediaSupply: 7
+*CNIJMediaSupply 38/Manual Feed: ""
+*CNIJMediaSupply 7/Top Feed: ""
+*CNIJMediaSupply 75/Multi-purpose Tray: ""
+*CloseUI: *CNIJMediaSupply
 *OpenUI *CNIJPrintQuality/Quality: PickOne
 *DefaultCNIJPrintQuality: 10
 *CNIJPrintQuality 0/Super Fine: ""
@@ -133,3 +139,7 @@
 *CNIJProfileID 17/CN_PRO-300_G1_Canvas-P.icc: ""
 *CNIJProfileID 18/CN_PRO-300_G1_JapanesePaperWashi-P.icc: ""
 *CloseUI: *CNIJProfileID
+*OpenUI *CNIJCartridge/BJ Cartridge: PickOne
+*DefaultCNIJCartridge: 3
+*CNIJCartridge 3/Photo: ""
+*CloseUI: *CNIJCartridge

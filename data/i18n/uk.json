@@ -6802,5 +6802,11 @@
  "Own colours": "Власні кольори",
  "From Profile Gamut": "З гамуту профілю",
  "{n} of {total}": "{n} із {total}",
- "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "Обидва стовпці рахують показники з відповіддю: з власними кольорами або з гамуту профілю."
+ "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "Обидва стовпці рахують показники з відповіддю: з власними кольорами або з гамуту профілю.",
+ "The profile fits only prints made at the quality its chart was printed with.": "Профіль підходить лише для відбитків із тією якістю, з якою було надруковано його діаграму.",
+ "Chosen as in your last print on this paper through the macOS print dialog.": "Вибрано як під час вашого останнього друку на цьому папері через діалогове вікно друку macOS.",
+ "{quality} (highest)": "{quality} (найвища)",
+ "{quality} (standard)": "{quality} (стандартна)",
+ "Print your photos at this quality too": "Друкуйте фотографії теж із цією якістю",
+ "The profile fits only prints made at the quality its chart was printed with.\nChosen as in your last print on this paper through the macOS print dialog.\n{quality} (highest)\n{quality} (standard)": "Профіль підходить лише для відбитків із тією якістю, з якою було надруковано його діаграму.\nВибрано як під час вашого останнього друку на цьому папері через діалогове вікно друку macOS.\n{quality} (найвища)\n{quality} (стандартна)"
 }

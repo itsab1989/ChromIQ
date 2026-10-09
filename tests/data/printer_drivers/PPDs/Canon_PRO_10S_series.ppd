@@ -1,0 +1,88 @@
+*PPD-Adobe: "4.3"
+*ModelName: "Canon PRO-10S series"
+*NickName: "Canon PRO-10S series"
+*CNIJNameTblPath: "/Library/Printers/Canon/BJPrinter/Resources/Database/CIJPRO10Sseries.db/Contents/Resources"
+*cupsICCQualifier2: CNIJProfileID
+*OpenUI *CNIJProfileID/ProfileID: PickOne
+*DefaultCNIJProfileID: 1
+*CNIJProfileID 1/CanonIJPrinter2005.icc: ""
+*CNIJProfileID 2/Canon PRO-10S series MP2.icc: ""
+*CNIJProfileID 3/Canon PRO-10S series SG1.icc: ""
+*CNIJProfileID 4/Canon PRO-10S series SG3.icc: ""
+*CNIJProfileID 5/Canon PRO-10S series FE2.icc: ""
+*CNIJProfileID 6/Canon PRO-10S series FB2.icc: ""
+*CNIJProfileID 7/Canon PRO-10S series GL1.icc: ""
+*CNIJProfileID 8/Canon PRO-10S series GL3.icc: ""
+*CNIJProfileID 9/Canon PRO-10S series PT1.icc: ""
+*CNIJProfileID 10/Canon PRO-10S series FD2.icc: ""
+*CNIJProfileID 11/Canon PRO-10S series GD2.icc: ""
+*CNIJProfileID 12/Canon PRO-10S series LU1.icc: ""
+*CNIJProfileID 13/Canon PRO-10S series LU3.icc: ""
+*CNIJProfileID 14/Canon PRO-10S series PMN2.icc: ""
+*CNIJProfileID 15/Canon PRO-10S series PFS2.icc: ""
+*CNIJProfileID 16/Canon PRO-10S series CR1.icc: ""
+*CNIJProfileID 17/Canon PRO-10S series PFR2.icc: ""
+*CloseUI: *CNIJProfileID
+*cupsICCProfile RGB16.1./CanonIJPrinter2005.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/CanonIJPrinter2005.icc"
+*cupsICCProfile RGB16.2./Canon PRO-10S series MP2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series MP2.icc"
+*cupsICCProfile RGB16.3./Canon PRO-10S series SG1.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series SG1.icc"
+*cupsICCProfile RGB16.4./Canon PRO-10S series SG3.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series SG3.icc"
+*cupsICCProfile RGB16.5./Canon PRO-10S series FE2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series FE2.icc"
+*cupsICCProfile RGB16.6./Canon PRO-10S series FB2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series FB2.icc"
+*cupsICCProfile RGB16.7./Canon PRO-10S series GL1.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series GL1.icc"
+*cupsICCProfile RGB16.8./Canon PRO-10S series GL3.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series GL3.icc"
+*cupsICCProfile RGB16.9./Canon PRO-10S series PT1.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series PT1.icc"
+*cupsICCProfile RGB16.10./Canon PRO-10S series FD2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series FD2.icc"
+*cupsICCProfile RGB16.11./Canon PRO-10S series GD2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series GD2.icc"
+*cupsICCProfile RGB16.12./Canon PRO-10S series LU1.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series LU1.icc"
+*cupsICCProfile RGB16.13./Canon PRO-10S series LU3.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series LU3.icc"
+*cupsICCProfile RGB16.14./Canon PRO-10S series PMN2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series PMN2.icc"
+*cupsICCProfile RGB16.15./Canon PRO-10S series PFS2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series PFS2.icc"
+*cupsICCProfile RGB16.16./Canon PRO-10S series CR1.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series CR1.icc"
+*cupsICCProfile RGB16.17./Canon PRO-10S series PFR2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO10Sseries.canonicc/Contents/Resources/Canon PRO-10S series PFR2.icc"
+*OpenUI *CNIJCartridge/BJ Cartridge: PickOne
+*DefaultCNIJCartridge: 3
+*CNIJCartridge 3/Photo: ""
+*CloseUI: *CNIJCartridge
+*OpenUI *CNIJMediaType/Media Type: PickOne
+*DefaultCNIJMediaType: 51
+*CNIJMediaType 0/Plain Paper: ""
+*CNIJMediaType 50/Photo Paper Plus Glossy II: ""
+*CNIJMediaType 51/Photo Paper Pro Platinum: ""
+*CNIJMediaType 163/Photo Paper Pro Crystal Grade: ""
+*CNIJMediaType 63/Photo Paper Pro Luster: ""
+*CNIJMediaType 42/Photo Paper Plus Semi-gloss: ""
+*CNIJMediaType 28/Matte Photo Paper: ""
+*CNIJMediaType 64/Other Glossy Paper (Wide Margins): ""
+*CNIJMediaType 61/Other Glossy Paper: ""
+*CNIJMediaType 49/Fine Art ""
+*CNIJMediaType 66/Photo Paper Pro Premium Matte: ""
+*CNIJMediaType 158/Premium Fine Art Smooth: ""
+*CNIJMediaType 169/Premium Fine Art Rough: ""
+*CNIJMediaType 58/Other Fine Art Paper 1: ""
+*CNIJMediaType 59/Other Fine Art Paper 2: ""
+*CNIJMediaType 45/Canvas: ""
+*CNIJMediaType 56/Hagaki A: ""
+*CNIJMediaType 27/Ink Jet Hagaki: ""
+*CNIJMediaType 7/Hagaki: ""
+*CNIJMediaType 31/Printable disc: ""
+*CNIJMediaType 32/Printable disc (bleed-proof): ""
+*CloseUI: *CNIJMediaType
+*OpenUI *CNIJMediaSupply/Paper Source: PickOne
+*DefaultCNIJMediaSupply: 7
+*CNIJMediaSupply 38/Manual Feed: ""
+*CNIJMediaSupply 7/Rear Tray: ""
+*CNIJMediaSupply 26/Disc tray: ""
+*CloseUI: *CNIJMediaSupply
+*OpenUI *CNIJPrintQuality/Quality: PickOne
+*DefaultCNIJPrintQuality: 10
+*CNIJPrintQuality 0/Super Fine: ""
+*CNIJPrintQuality 5/Fine: ""
+*CNIJPrintQuality 10/Normal(Fine): ""
+*CNIJPrintQuality 15/Normal(Fast): ""
+*CNIJPrintQuality 20/Fast: ""
+*CloseUI: *CNIJPrintQuality
+*OpenUI *CNIJIntent2/Color Mode: PickOne
+*DefaultCNIJIntent2: 5
+*CNIJIntent2 5/PRO Mode: ""
+*CloseUI: *CNIJIntent2

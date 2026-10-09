@@ -222,6 +222,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PRINT-JOB-NOT-AS-SENT",
                                  "M-PRINT-JOB-UNTAGGED",
                                  "M-PRINT-PAPER-PROFILE-UNKNOWN",
+                                 # beta 16, 2026-10-09: the quality row's note
+                                 # and marks; Basti asked for the behaviour,
+                                 # the words are ours
+                                 "M-PRINT-QUALITY",
                                  "M-REPORT-DELETE-FAILED",
                                  "M-REPORT-NOT-WRITABLE",
                                  # (#182 K49, (b2): the two notes on the

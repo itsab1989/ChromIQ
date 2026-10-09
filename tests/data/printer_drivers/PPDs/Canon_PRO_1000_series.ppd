@@ -90,6 +90,11 @@
 *CNIJMediaType 27/Ink Jet Hagaki: ""
 *CNIJMediaType 7/Hagaki: ""
 *CloseUI: *CNIJMediaType
+*OpenUI *CNIJMediaSupply/Paper Source: PickOne
+*DefaultCNIJMediaSupply: 7
+*CNIJMediaSupply 38/Manual Feed: ""
+*CNIJMediaSupply 7/Top Feed: ""
+*CloseUI: *CNIJMediaSupply
 *OpenUI *CNIJPrintQuality/Quality: PickOne
 *DefaultCNIJPrintQuality: 10
 *CNIJPrintQuality 0/Super Fine: ""
@@ -126,3 +131,7 @@
 *CNIJProfileID 18/CN_PRO-1000_500_Canvas-P.icc: ""
 *CNIJProfileID 19/CN_PRO-1000_500_JapanesePaperWashi-P.icc: ""
 *CloseUI: *CNIJProfileID
+*OpenUI *CNIJCartridge/BJ Cartridge: PickOne
+*DefaultCNIJCartridge: 3
+*CNIJCartridge 3/Photo: ""
+*CloseUI: *CNIJCartridge

@@ -1,0 +1,97 @@
+*PPD-Adobe: "4.3"
+*ModelName: "EPSON Stylus Photo 1400"
+*NickName: "EPSON SP 1400 Series"
+*EPIJMachineBundleName: "EP06C0608W.data"
+*cupsICCProfile ..1/SP1400 1410 Standard: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/SP1400 1410_W.profiles/Contents/Resources/SP1400 1410 Standard.icc"
+*cupsICCProfile ..2/SP1400 1410 Epson MPHW: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/SP1400 1410_W.profiles/Contents/Resources/SP1400 1410 Epson MPHW.icc"
+*cupsICCProfile ..3/SP1400 1410 Epson ARMP: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/SP1400 1410_W.profiles/Contents/Resources/SP1400 1410 Epson ARMP.icc"
+*cupsICCProfile ..4/SP1400 1410 Epson PQIJ: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/SP1400 1410_W.profiles/Contents/Resources/SP1400 1410 Epson PQIJ.icc"
+*cupsICCProfile ..5/SP1400 1410 Epson UPGP: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/SP1400 1410_W.profiles/Contents/Resources/SP1400 1410 Epson UPGP.icc"
+*cupsICCProfile ..6/SP1400 1410 Epson PGPP: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/SP1400 1410_W.profiles/Contents/Resources/SP1400 1410 Epson PGPP.icc"
+*cupsICCProfile ..7/SP1400 1410 Epson PGPS: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/SP1400 1410_W.profiles/Contents/Resources/SP1400 1410 Epson PGPS.icc"
+*cupsICCProfile ..8/SP1400 1410 Epson PSPP: "/Library/Printers/EPSON/InkjetPrinter2/ICCProfiles/SP1400 1410_W.profiles/Contents/Resources/SP1400 1410 Epson PSPP.icc"
+*cupsICCProfile ..0/sRGB Profile: "/System/Library/ColorSync/Profiles/sRGB Profile.icc"
+*cupsICCQualifier3: EPIJProfileSpec
+*OpenUI *EPIJ_Medi/Media Type: PickOne
+*DefaultEPIJ_Medi: 0
+*EPIJ_Medi 0/plain papers: ""
+*EPIJ_Medi 92/Epson Ultra Glossy: ""
+*EPIJ_Medi 13/Epson Premium Glossy: ""
+*EPIJ_Medi 15/Epson Premium Semigloss: ""
+*EPIJ_Medi 97/Epson Glossy: ""
+*EPIJ_Medi 14/Epson Archival Matte: ""
+*EPIJ_Medi 12/Epson Matte: ""
+*EPIJ_Medi 2/Epson Photo Quality Ink Jet: ""
+*EPIJ_Medi 75/Epson Photo Stickers: ""
+*EPIJ_Medi 26/CD<2F>DVD: ""
+*EPIJ_Medi 76/CD<2F>DVD Premium Surface: ""
+*EPIJ_Medi 93/Envelope: ""
+*CloseUI: *EPIJ_Medi
+*OpenUI *EPIJ_Ink_/Color: PickOne
+*DefaultEPIJ_Ink_: 1
+*EPIJ_Ink_ 1/Color: ""
+*EPIJ_Ink_ 0/Grayscale: ""
+*CloseUI: *EPIJ_Ink_
+*OpenUI *EPIJ_Mode/Mode: PickOne
+*DefaultEPIJ_Mode: 0
+*EPIJ_Mode 0/Automatic: ""
+*EPIJ_Mode 3/Advanced: ""
+*CloseUI: *EPIJ_Mode
+*OpenUI *EPIJ_APri/Automatic: PickOne
+*DefaultEPIJ_APri: 1
+*EPIJ_APri 0/Quality: ""
+*EPIJ_APri 1/Standard: ""
+*CloseUI: *EPIJ_APri
+*OpenUI *EPIJ_Qual/Print Quality: PickOne
+*DefaultEPIJ_Qual: 43
+*EPIJ_Qual 40/Economy: ""
+*EPIJ_Qual 43/Normal: ""
+*EPIJ_Qual 44/Fine: ""
+*EPIJ_Qual 46/Photo: ""
+*EPIJ_Qual 48/Photo RPM: ""
+*CloseUI: *EPIJ_Qual
+*OpenUI *EPIJ_Bi_D/High Speed: PickOne
+*DefaultEPIJ_Bi_D: 1
+*EPIJ_Bi_D 0/Off: ""
+*EPIJ_Bi_D 1/On: ""
+*CloseUI: *EPIJ_Bi_D
+*OpenUI *EPIJ_CMat/Color: PickOne
+*DefaultEPIJ_CMat: 0
+*EPIJ_CMat 0/Color Controls: ""
+*EPIJ_CMat 3/Off (No Color Adjustment): ""
+*CloseUI: *EPIJ_CMat
+*OpenUI *EPIJ_CCor/Mode: PickOne
+*DefaultEPIJ_CCor: 3
+*EPIJ_CCor 3/EPSON Vivid: ""
+*EPIJ_CCor 4/EPSON Standard: ""
+*EPIJ_CCor 6/Adobe RGB: ""
+*CloseUI: *EPIJ_CCor
+*OpenUI *EPIJ_OSColMat/ColorMatching: PickOne
+*DefaultEPIJ_OSColMat: 1
+*EPIJ_OSColMat 1/Vendor Color Matching: ""
+*EPIJ_OSColMat 2/ColorSync Matching: ""
+*CloseUI: *EPIJ_OSColMat
+*OpenUI *EPIJ_HdofClSp/Use Generic RGB: PickOne
+*DefaultEPIJ_HdofClSp: 1
+*EPIJ_HdofClSp 0/Off: ""
+*EPIJ_HdofClSp 1/On: ""
+*CloseUI: *EPIJ_HdofClSp
+*OpenUI *EPIJ_OSCMProf/CustomColorMatchingProfile: PickOne
+*DefaultEPIJ_OSCMProf: 0
+*EPIJ_OSCMProf 0/None: ""
+*EPIJ_OSCMProf 1/sRGB: ""
+*EPIJ_OSCMProf 2/AdobeRGB: ""
+*EPIJ_OSCMProf 3/GenericRGB: ""
+*CloseUI: *EPIJ_OSCMProf
+*OpenUI *EPIJProfileSpec/EPSON Profile: PickOne
+*DefaultEPIJProfileSpec: 0
+*EPIJProfileSpec 0/None: ""
+*EPIJProfileSpec 1/SP1400 1410 Standard: ""
+*EPIJProfileSpec 2/SP1400 1410 Epson MPHW: ""
+*EPIJProfileSpec 3/SP1400 1410 Epson ARMP: ""
+*EPIJProfileSpec 4/SP1400 1410 Epson PQIJ: ""
+*EPIJProfileSpec 5/SP1400 1410 Epson UPGP: ""
+*EPIJProfileSpec 6/SP1400 1410 Epson PGPP: ""
+*EPIJProfileSpec 7/SP1400 1410 Epson PGPS: ""
+*EPIJProfileSpec 8/SP1400 1410 Epson PSPP: ""
+*CloseUI: *EPIJProfileSpec

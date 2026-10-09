@@ -532,11 +532,14 @@ def test_an_epson_quality_the_user_chose_is_kept(fixture_drivers):
     assert "EPIJ_Qual" not in pp.keys()   # the tab's own 306 goes, untouched
 
 
-def test_newui_j_epson_gets_no_guessed_quality(fixture_drivers):
-    """SC-P900/P700/P5300 dialogs set quality another way (EPIJ_APri):
-    nothing is sent that was not measured."""
+def test_newui_j_epson_quality_comes_from_its_automatic_preset(fixture_drivers):
+    """SC-P900/P700/P5300 dialogs set quality another way (EPIJ_APri).  Beta 15
+    sent none; beta 16 reads it the way that dialog does (EPIJAutoPreset for
+    the medium and its priority): Premium Glossy 35 at APri 4, Mode 0, which
+    is what the P900 dialog wrote (vendor tests D_P900_13)."""
     pp = pc.paper_profile_for(_fixture_ppd("EPSON_SC_P900_Series.ppd"), {"EPIJ_Medi": "13"})
-    assert "EPIJ_Qual" not in pp.keys()
+    keys = pp.keys()
+    assert (keys["EPIJ_Qual"], keys["EPIJ_APri"], keys.get("EPIJ_Mode", "0")) == ("35", "4", "0")
 
 
 def test_a_damaged_memory_file_never_stops_a_print(tmp_path, fixture_drivers):
