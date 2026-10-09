@@ -114,6 +114,20 @@ ChromIQ can still run from source with an older Qt: install Python 3.12+,
 then `pip install "PyQt6==6.8.*" "PyQt6-WebEngine==6.8.*"` with the other
 requirements and start `python main.py`.
 
+**With Homebrew** (installs ArgyllCMS too, and `brew upgrade` keeps ChromIQ
+up to date):
+
+```bash
+brew install --cask itsab1989/chromiq/chromiq        # latest stable release
+brew install --cask itsab1989/chromiq/chromiq@beta   # or: latest beta
+```
+
+`chromiq` only ever installs stable releases; `chromiq@beta` follows the
+newest release, beta or stable. The cask removes the download quarantine, so
+ChromIQ opens on first launch without the steps below.
+
+**Or by hand:**
+
 1. Download the universal DMG — **`ChromIQ-macOS-universal_<version>.dmg`**
    (works on both Apple Silicon and Intel).
 2. Open the DMG, then drag **ChromIQ** into your **Applications** folder.

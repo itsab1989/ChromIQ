@@ -654,3 +654,66 @@ jobs:
             mv "ChromIQ-macOS-x86_64.dmg" "$X86_VERSIONED"
             gh release upload "$RELEASE_TAG" "$X86_VERSIONED" --clobber
           fi
+
+  # Homebrew tap (github.com/itsab1989/homebrew-chromiq): once BOTH macOS
+  # builds have uploaded their DMGs (arm64 here; universal2 also uploads the
+  # x86_64 DMG), point the casks at this release with the DMGs' checksums.
+  # A stable tag moves `chromiq` (and `chromiq@beta` when newer than its
+  # beta); a pre-release tag moves `chromiq@beta` only
+  # (scripts/update_homebrew_tap.py). Pushes with a write deploy key that
+  # reaches only the tap repository (secret HOMEBREW_TAP_DEPLOY_KEY).
+  homebrew:
+    name: Update Homebrew tap
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Checksums of the release's DMGs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dmg
+          for a in arm64 x86_64; do
+            gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" \
+              -p "ChromIQ-macOS-${a}_${RELEASE_TAG}.dmg" -D /tmp/dmg --clobber
+          done
+          echo "ARM_SHA=$(sha256sum "/tmp/dmg/ChromIQ-macOS-arm64_${RELEASE_TAG}.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "INTEL_SHA=$(sha256sum "/tmp/dmg/ChromIQ-macOS-x86_64_${RELEASE_TAG}.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - name: Check out the tap
+        env:
+          DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/tap_key
+          chmod 600 ~/.ssh/tap_key
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes" \
+            git clone --depth 1 git@github.com:itsab1989/homebrew-chromiq.git /tmp/tap
+
+      - name: Update the casks and push
+        run: |
+          set -euo pipefail
+          python3 scripts/update_homebrew_tap.py --tap /tmp/tap --tag "$RELEASE_TAG" \
+            --arm-sha "$ARM_SHA" --intel-sha "$INTEL_SHA"
+          cd /tmp/tap
+          if git diff --quiet; then
+            echo "Tap already up to date for $RELEASE_TAG"
+            exit 0
+          fi
+          git config user.name "ChromIQ release workflow"
+          git config user.email "itsab1989@users.noreply.github.com"
+          git commit -am "ChromIQ ${RELEASE_TAG#v}: update casks"
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes" git push origin HEAD:main
+
+      - name: Remove the deploy key
+        if: always()
+        run: rm -f ~/.ssh/tap_key
