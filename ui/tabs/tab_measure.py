@@ -1117,34 +1117,32 @@ _OVERLAY_TIP_BODY = (
 #: cannot reach. One paragraph, the same in Preferences ▸ Measurement and in
 #: the Measure tab's hover help (one translation; a test keeps them equal).
 LIMITS_PURPOSE_HELP = (
-    "WHAT THE LIMITS ARE FOR\n"
-    "The red outline is there to catch misreads while you measure, so"
-    " that you read the patch again at once. It is not a mark for "
-    "colours your printer cannot reproduce: when a re-read gives the "
-    "same colour, or similar patches agree, the outline turns yellow,"
-    " and yellow is the answer for such a colour. How low a limit can"
-    " go depends on how close the chart's expected colours are to "
-    "what your printer really prints:\n"
-    "  • A chart with estimated colours (most charts), default ΔE 95:"
-    " the expected colours are only ArgyllCMS's estimate, made "
-    "without a profile of your printer, and lie far from any real "
-    "print, so even a good patch can be 30 to 50 ΔE off. The limit is"
-    " as high as in ArgyllCMS's own chartread and catches only gross "
-    "misreads; the strip test (“Strip test: flag a patch past the "
-    "limit only if it also stands out from its own strip”) and the "
-    "neighbour check (“Neighbour check: flag a patch that does not "
-    "fit the patches nearest to it in colour”) do most of the misread "
-    "hunting on these charts.\n"
-    "  • A chart made with a pre-conditioning profile, default ΔE 20: "
-    "ArgyllCMS marks it (ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
-    " what the printer should print, and a much smaller difference is"
-    " already suspicious.\n"
-    "  • A verification judged against its profile, default ΔE 10: a "
-    "verification chart ChromIQ printed is compared with what the "
-    "run's profile predicts for it, so its expected colours are the "
-    "closest of all. The strip test does not apply to it.\n"
-    "The chart decides which limit applies when you measure, so you "
-    "never have to choose.")
+    "WHAT THE PATCH ERROR LIMIT IS FOR\n"
+    "The red outline is there to catch misreads while you measure, so that "
+    "you read the patch again at once. It is not a mark for colours your "
+    "printer cannot reproduce: when a re-read gives the same colour, or "
+    "similar patches agree, the outline turns yellow, and yellow is the "
+    "answer for such a colour. How low the patch error limit can go depends "
+    "on how close the chart's expected colours are to what your printer "
+    "really prints, so each chart type has its own (ΔE*ab):\n"
+    "  • Profiling charts with estimated colours, default 95: the expected "
+    "colours are only ArgyllCMS's estimate, made without a profile of your "
+    "printer, and lie far from any real print, so even a good patch can be "
+    "30 to 50 off. The limit is as high as in ArgyllCMS's own chartread and "
+    "catches only gross misreads; the strip test and the neighbour check do "
+    "most of the misread hunting on these charts.\n"
+    "  • Profiling charts made with a pre-conditioning profile, default 20: "
+    "ArgyllCMS marks them (ACCURATE_EXPECTED_VALUES), so their expected "
+    "colours are close to what the printer should print, and a much smaller "
+    "difference is already suspicious.\n"
+    "  • Verification charts, default 5: a verification chart ChromIQ "
+    "printed, through the profile or filled From Profile Gamut, is compared "
+    "with what the run's profile predicts for it, so its expected colours "
+    "are the closest of all.\n"
+    "  • Calibration charts, default 95: their expected colours are "
+    "ArgyllCMS's estimate too.\n"
+    "The chart decides which value applies when you measure, so you never "
+    "have to choose.")
 
 #: THE GREEN OUTLINE (Knut, #182 5984277558, "Ok" to 5984237879): a misread
 #: a re-read corrected. One paragraph, the same in Preferences ▸ Measurement
@@ -3267,13 +3265,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # 'likely misread'"; the help names both causes and what to do.
             "A patch outlined in red has a large colour difference (ΔE*ab) "
             "between what the chart asked for and what was measured: it "
-            "reached the limit set in Preferences ▸ Measurement under “Flag a "
-            "patch when its colour error reaches”, and when you read strips "
-            "with “Strip test: flag a patch past the limit only if it also "
-            "stands out from its own strip” on, it also stands out from the "
-            "rest of its strip. Point at it "
-            "and the bottom of the card says so, with the patch's ΔE*ab beside "
-            "your limit.\n\n"
+            "reached the patch error limit set in Preferences ▸ Measurement "
+            "for its chart type, and when you read strips with the strip "
+            "test on, it also stands out from the rest of its strip. Point at "
+            "it and the bottom of the card says so, with the patch's ΔE*ab "
+            "beside the patch error limit.\n\n"
             "A red outline is a reason to look, not proof of a mistake. It "
             "has two possible causes:\n"
             "  • a misread: the instrument slipped, a strip was started on the "
@@ -3292,12 +3288,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # outlines red, below the limit. Its own paragraph, so the one
             # above keeps its translations.
             + "\n\n" + tr(
-            "A patch can also get a red outline below the limit, from the "
-            "neighbour check (“Neighbour check: flag a patch that does not fit "
-            "the patches nearest to it in colour”, also in Preferences ▸ "
-            "Measurement): its reading does not fit the patches nearest to it "
-            "in colour that were read in other strips. Its card then says so. "
-            "Read the patch again to find out whether it was a misread.")
+            "A patch can also get a red outline below the patch error limit, "
+            "from the neighbour check (also in Preferences ▸ Measurement): it "
+            "is further from its expected colour than the patches nearest to "
+            "it in colour are from theirs, by more than the neighbour limit. "
+            "Its card then says so. Read the patch again to find out whether "
+            "it was a misread.")
             # What the limits are for (Knut, #182 5983733592): the same
             # paragraph as Preferences ▸ Measurement's help.
             + "\n\n" + tr(LIMITS_PURPOSE_HELP)
@@ -3310,7 +3306,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "again. A patch turns yellow in one of three ways, and its card "
             "says which:\n"
             "  • confirmed by a re-read: it was read again and gave the same "
-            "colour (within ΔE 3);\n"
+            "colour (within the same-reading tolerance);\n"
             "  • confirmed by similar patches: patches in other strips that "
             "should have nearly the same colour (less than ΔE 6 apart) were "
             "read off in the same way, which is as good as reading it twice;\n"
@@ -15018,10 +15014,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         protection and hides a shifted or wrong strip. The setting is left
         as the user set it, and keeps ruling every other chart.
         """
-        if self._expected_is_predicted():
-            return False
+        # BETA 17 (Knut, #182 6084176226): one Strip test box per chart
+        # type, verification charts included, there off by default
+        # (workflow/misread_settings.py).
+        from workflow.misread_settings import strip_test_on
         try:
-            return bool(self._settings.get("patch_warn_outlier_fence", True))
+            return strip_test_on(self._settings, self._chart_kind())
         except Exception:      # noqa: BLE001
             return True
 
@@ -15620,16 +15618,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return self._chart_flag_facts()[2]
 
     def _patch_warn_limit(self) -> float:
-        """The red-outline limit for the chart on screen (#182 A): the user's
-        limit for a chart with estimated expected colours, or for a chart made
-        from a profile, as the chart's own file says."""
-        from workflow.patch_flags import warn_limit
-        # A verification chart judged against the profile's prediction has
-        # its own limit, default 10 (beta 11, Knut #182 5983470377: "yes, 10,
-        # and own threshold row"); before, it took the limit for a chart
-        # made from a profile (5964384250).
-        return warn_limit(self._settings, self._chart_expected_is_accurate(),
-                          predicted=self._expected_is_predicted())
+        """The Patch error limit for the chart on screen (#182 A, beta 17):
+        the user's value for its chart type (:meth:`_chart_kind`)."""
+        from workflow.misread_settings import patch_error_limit
+        return patch_error_limit(self._settings, self._chart_kind())
+
+    def _chart_is_calibration(self) -> bool:
+        """Is the chart on screen a calibration chart (the project's ``cal``
+        folder)?"""
+        ti1 = getattr(self, "_ti1_path", None)
+        return ti1 is not None and Path(ti1).parent.name == "cal"
+
+    def _chart_kind(self) -> str:
+        """Which chart type the measurement on screen is, for the misread
+        tests' parameters (beta 17, ``workflow/misread_settings.py``): a
+        calibration chart, a verification judged against its profile's
+        prediction, a chart made with a pre-conditioning profile, or one
+        with estimated colours. Decided by the chart, never chosen."""
+        from workflow.misread_settings import ESTIMATED, chart_kind
+        try:
+            return chart_kind(calibration=self._chart_is_calibration(),
+                              predicted=self._expected_is_predicted(),
+                              accurate=self._chart_expected_is_accurate())
+        except Exception:      # noqa: BLE001 — a preview is never worth a crash
+            log.debug("could not tell the chart type", exc_info=True)
+            return ESTIMATED
 
     # ------------------------------------------------------------------
     # The expected colour of a verification patch (#182, Knut 5964173774)
@@ -15720,7 +15733,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         predicted = self._expected_is_predicted()
         accurate = self._chart_expected_is_accurate() or predicted
-        extra = {"accurate": accurate}
+        extra = {"accurate": accurate,
+                 # the chart type, which the card names with the limit
+                 # (beta 17)
+                 "kind": self._chart_kind()}
         if predicted:
             # The card says where "Expected" came from (Knut, #182
             # 5964173774, answer 4).
@@ -15746,7 +15762,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 limit = float(self._patch_warn_limit())
             except Exception:      # noqa: BLE001 — without it the older rules apply
                 limit = None
-            v = self._flag_judge().judge(loc, exp_lab, meas_lab, de,
+            judge = self._flag_judge()
+            # The Same-reading tolerance (beta 17, Knut #182 6082015002),
+            # one value for every chart type.
+            from workflow.misread_settings import same_reading_tolerance
+            judge.set_same_reading_de(same_reading_tolerance(self._settings))
+            v = judge.judge(loc, exp_lab, meas_lab, de,
                                          bool(flagged), standout=standout,
                                          live=live, strip=strip,
                                          reread_only=bool(reread_only),
@@ -15884,21 +15905,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return nc
 
     def _neighbour_check_applies(self) -> bool:
-        """Is the chart on screen one the neighbour check judges? A profiling
-        chart, with estimated expected colours or made with a pre-conditioning
-        profile (Knut, #182 5984174575: "If so, yes"): not a verification (nor
-        any chart judged against a profile's prediction), not a calibration
-        chart."""
-        try:
-            ti1 = getattr(self, "_ti1_path", None)
-            if ti1 is None or Path(ti1).parent.name == "cal":
-                return False
-            return not (self._is_verification_run()
-                        or self._expected_is_predicted())
-        except Exception:      # noqa: BLE001 — a preview is never worth a crash
-            log.debug("could not tell whether the neighbour check applies",
-                      exc_info=True)
-            return False
+        """Is the chart on screen one the neighbour check judges? Since beta
+        17 every chart type: profiling charts (Knut, #182 5984174575),
+        verification charts (6070058549, answer 3: "Yes") and calibration
+        charts (6082015002: "No, add neighbour check for calibration
+        charts"), each with its own Neighbour limit and Colour-neighbour
+        radius. Only a chart on screen is needed."""
+        return getattr(self, "_ti1_path", None) is not None
+
+    def _neighbour_parameters(self) -> "tuple[float, float]":
+        """``(limit, radius)``: the Neighbour limit and the Colour-neighbour
+        radius of the chart on screen's type (beta 17)."""
+        from workflow.misread_settings import (neighbour_limit,
+                                               neighbour_radius)
+        kind = self._chart_kind()
+        return (neighbour_limit(self._settings, kind),
+                neighbour_radius(self._settings, kind))
 
     def _neighbour_feed(self, patches) -> dict:
         """Give the check a batch of readings and judge again; returns
@@ -15909,12 +15931,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return {}
         try:
             nc = self._neighbour_check()
-            # The user's buffer (Knut 5983725218); a new one judges every
-            # patch again. Its own for a chart made with a pre-conditioning
-            # profile (Knut 6059912998, answer 6: default 5, else 10).
-            from workflow.neighbour_check import buffer_from
-            nc.set_buffer(buffer_from(
-                self._settings, accurate=self._chart_expected_is_accurate()))
+            # The user's Neighbour limit and Colour-neighbour radius for this
+            # chart type (beta 17); a new one judges every patch again.
+            _lim, _rad = self._neighbour_parameters()
+            nc.set_limit(_lim)
+            nc.set_radius(_rad)
             nc_on = self._neighbour_check_on()
             aside = self._set_aside_locs()
             for p in patches or ():
@@ -16035,17 +16056,27 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _neighbour_extra(self, f) -> dict:
         """The hover card's facts about a neighbour suspect (None: not one),
-        with the buffer it was judged against."""
+        with the Neighbour limit it was judged against, and the facts every
+        card needs: how this measurement is read (the card's last lines
+        say "after each strip" or "after each patch")."""
+        common = {"nb_compare": self._neighbour_compare,
+                  "pbp": bool(self._card_reads_patch_by_patch())}
         if f is None:
-            return {"neighbour": None, "nb_compare": self._neighbour_compare}
+            return {"neighbour": None, **common}
         nc = getattr(self, "_nb_check", None)
-        from workflow.neighbour_check import BUFFER_DE
+        from workflow.neighbour_check import LIMIT_DE
         return {"neighbour": {"n": len(f.compared), "locs": list(f.compared),
-                              "excess": float(f.excess),
-                              "buffer": float(getattr(nc, "buffer", BUFFER_DE)),
-                              "expected": float(f.expected_de),
-                              "measured": float(f.measured_de)},
-                "nb_compare": self._neighbour_compare}
+                              "further": float(f.further),
+                              "limit": float(getattr(nc, "limit", LIMIT_DE))},
+                **common}
+
+    def _card_reads_patch_by_patch(self) -> bool:
+        """Is the measurement on screen read patch by patch? (the cards say
+        "Checked again after each patch is read" then, Knut 6071004702)."""
+        try:
+            return bool(self._is_pbp_checked())
+        except Exception:      # noqa: BLE001 — a card is never worth a crash
+            return False
 
     def _neighbour_compare(self, loc) -> "tuple[int, float] | None":
         """b15 item 10 (Knut #182 6065640028): the hover card's comparison

@@ -1,15 +1,17 @@
-"""The neighbour check (#182 beta 11, Knut 5983470377 answer 5, approving
-section C of the beta 10 analysis): the rule on its own, on synthetic charts
-and replayed on the real profiling sheets the analysis measured.
+"""The neighbour check (#182): the rule on its own, on synthetic charts and
+replayed on the real profiling sheets the beta 10 analysis measured.
+
+Beta 17 (Knut #182 6071673457, adopted in 6078174421; 6082015002,
+6085694445): Knut's four steps. For each neighbour its error (ΔE*ab between
+reading and expected colour), their median, the patch's own error, and red
+when own minus median is MORE than the neighbour limit. The neighbours are the
+2 to 4 read patches nearest in expected colour within the colour-neighbour
+radius, from ANY strip. Beta 15's first test ("buffer": readings further apart
+than the expected colours) is gone.
 
 The real sheets are in ``tests/data/neighbour_check/`` (location, device RGB,
-expected XYZ, measured XYZ per patch; made from the measurements by
-``make_fixtures.py`` of the 2026-10-04_beta11/neighbours report). The counts
-below were ANALYSIS.md section C's table, row "real profiling", per sheet:
-35 suspects at buffer 10 over the six sheets, none at 15. Re-measured for
-beta 15's B2+ rule (two comparisons are enough, and the patch must be the
-one further from its expected colour, Knut #182 6059912998): 24 at buffer
-10, none at 15; the beta-11 figures are kept beside them.
+expected XYZ, measured XYZ per patch). Their counts below are re-measured with
+the beta 17 rule; beta 15's are kept beside them.
 """
 from __future__ import annotations
 
@@ -34,8 +36,8 @@ def sheet(name):
     return json.loads((DATA / f"{name}.json").read_text(encoding="utf-8"))["patches"]
 
 
-def check_of(patches, buffer=N.BUFFER_DE):
-    nc = NeighbourCheck(buffer=buffer)
+def check_of(patches, limit=N.LIMIT_DE, radius=N.RADIUS_DE):
+    nc = NeighbourCheck(limit=limit, radius=radius)
     for loc, _rgb, exp, meas in patches:
         nc.set_reading(loc, exp, meas, strip_of(loc))
     nc.evaluate()
@@ -47,8 +49,16 @@ def test_the_numbers_are_the_approved_ones():
     assert N.RADIUS_DE == 15.0
     assert N.MAX_COMPARED == 4
     assert N.MIN_COMPARED == 2              # B2+, beta 15 (was 3)
-    assert N.BUFFER_DE == 10.0
-    assert N.BUFFER_ACCURATE_DE == 5.0      # Knut 6059912998, answer 6
+    assert N.LIMIT_DE == 10.0
+    from workflow import misread_settings as MS
+    # Knut 6078174421 / 6082015002 / 6085694445
+    assert MS.NEIGHBOUR_LIMIT_DEFAULTS == {"estimated": 10.0, "accurate": 5.0,
+                                           "verification": 3.0,
+                                           "calibration": 10.0}
+    assert MS.NEIGHBOUR_RADIUS_DEFAULTS == {"estimated": 15.0,
+                                            "accurate": 30.0,
+                                            "verification": 30.0,
+                                            "calibration": 30.0}
 
 
 def test_lab_is_the_engines():
@@ -98,16 +108,16 @@ def test_a_misread_in_the_middle_of_the_colour_space_is_suspected():
     assert nc.suspects() == ["C6"]
     f = nc.finding("C6")
     assert f.suspect and len(f.compared) == 4
-    assert all(strip_of(x) != "C" for x in f.compared)
-    assert f.excess > N.BUFFER_DE
-    assert f.measured_de > f.expected_de
+    # Knut's step 4: own error minus the median of theirs, over the limit
+    assert f.further == pytest.approx(f.own_de - f.median_de)
+    assert f.further > N.LIMIT_DE
     # Its neighbours are not dragged in: the median keeps one bad partner out.
     for other in f.compared:
         assert not nc.is_suspect(other)
 
 
-def test_the_buffer_is_strict():
-    """Over the buffer, not at it."""
+def test_the_limit_is_strict():
+    """Over the neighbour limit, not at it."""
     rows = [("A1", (50, 0, 0), (50, 0, 0), "A"),
             ("B1", (50, 1, 0), (50, 1, 0), "B"),
             ("C1", (50, 2, 0), (50, 2, 0), "C"),
@@ -115,13 +125,14 @@ def test_the_buffer_is_strict():
             ("E1", (60, 0, 0), (60, 0, 0), "E")]
     nc = _check_lab(rows)
     assert nc.suspects() == []
-    # A1 read 12 lower: excesses to B1, C1, D1 and E1 all sit near 10.
-    rows[0] = ("A1", (50, 0, 0), (40, 0, 0), "A")
+    # A1 read 12 lower: its own error 12, its neighbours' 0.
+    rows[0] = ("A1", (50, 0, 0), (38, 0, 0), "A")
     f = _check_lab(rows).finding("A1")
     assert f.compared[0] == "B1"
-    nc = _check_lab(rows, buffer=f.excess)
+    assert f.further == pytest.approx(12.0)
+    nc = _check_lab(rows, limit=f.further)
     assert not nc.is_suspect("A1")
-    nc = _check_lab(rows, buffer=f.excess - 1e-6)
+    nc = _check_lab(rows, limit=f.further - 1e-6)
     assert nc.is_suspect("A1")
 
 
@@ -162,26 +173,57 @@ def test_b2_plus_a_healthy_patch_beside_faulty_ones_stays_unmarked():
             ("D1", (50, 6, 0), (80, 34, 0), "D")]        # ruined
     nc = _check_lab(rows)
     f = nc.finding("A1")
-    assert f.checked and f.excess > N.BUFFER_DE        # it does not fit them
-    assert f.further < 0                               # but it is not off
+    assert f.checked
+    assert f.further < 0                               # it is not the one off
     assert not nc.is_suspect("A1")
 
 
-def test_patches_of_its_own_strip_never_count():
-    """A strip is one pass: a smudge moves its patches alike."""
-    rows = [(f"A{i}", (50, i, 0), (30, i, 0), "A") for i in range(1, 9)]
-    rows += [("B1", (50, 0, 0), (50, 0, 0), "B")]
+def test_neighbours_come_from_any_strip_its_own_included():
+    """Knut 6078174421: "neighbours should come from any strip" (a
+    calibration chart holds its ramps on one strip; patch by patch there is
+    no strip). Beta 15 took only other strips."""
+    rows = [(f"A{i}", (50, i, 0), (50, i, 0), "A") for i in range(1, 9)]
+    rows += [("B1", (50, 0.5, 0), (50, 0.5, 0), "B")]
     nc = _check_lab(rows)
-    assert nc.finding("A1").compared == ("B1",)
-    assert not any(nc.is_suspect(f"A{i}") for i in range(1, 9))
+    assert nc.finding("A1").compared == ("B1", "A2", "A3", "A4")
+    # a single misread on that strip is caught by its strip neighbours
+    rows[3] = ("A4", (50, 4, 0), (70, 4, 0), "A")
+    assert _check_lab(rows).suspects() == ["A4"]
 
 
-def test_only_patches_expected_within_fifteen():
+def test_beta15s_first_test_is_gone():
+    """Readings further apart than the expected colours no longer decide
+    anything: a patch far from its neighbours' READINGS but no further from
+    its own expected colour than they are is not red (Knut 6085694445: no
+    hidden thresholds)."""
+    rows = [("A1", (50, 0, 0), (50, 30, 0), "A"),       # error 30
+            ("B1", (50, 2, 0), (50, -28, 0), "B"),      # error 30
+            ("C1", (50, 4, 0), (80, 4, 0), "C"),        # error 30
+            ("D1", (50, 6, 0), (50, 6, -30), "D")]      # error 30
+    nc = _check_lab(rows)
+    f = nc.finding("A1")
+    assert f.checked and f.further == pytest.approx(0.0)
+    assert nc.suspects() == []
+
+
+def test_only_patches_expected_within_the_radius():
     rows = [("A1", (50, 0, 0), (20, 0, 0), "A"),
             ("B1", (50, 15.5, 0), (50, 15.5, 0), "B"),
             ("C1", (50, -15.5, 0), (50, -15.5, 0), "C"),
             ("D1", (50, 0, 16), (50, 0, 16), "D")]
     assert _check_lab(rows).finding("A1").compared == ()
+    # the colour-neighbour radius is the user's (30 on most chart types)
+    assert _check_lab(rows, radius=30.0).finding("A1").compared == (
+        "B1", "C1", "D1")
+    nc = NeighbourCheck(radius=15.0)
+    for r in rows:
+        nc.set_reading_lab(*r)
+    nc.evaluate()
+    assert nc.finding("A1").compared == ()
+    nc.set_radius(30.0)
+    nc.evaluate()
+    assert nc.finding("A1").compared == ("B1", "C1", "D1")
+    assert nc.is_suspect("A1")
 
 
 def test_at_most_four_the_nearest_first():
@@ -191,10 +233,12 @@ def test_at_most_four_the_nearest_first():
     assert _check_lab(rows).finding("A1").compared == ("B1", "C1", "D1", "E1")
 
 
-def test_an_unknown_strip_never_compares():
+def test_an_unknown_strip_compares_too():
+    """Patch by patch, or a reading whose strip is not known: the strip no
+    longer decides who compares (beta 17)."""
     rows = [(f"A{i}", (50, i, 0), (50, i, 0), "") for i in range(1, 6)]
     nc = _check_lab(rows)
-    assert all(nc.finding(r[0]).compared == () for r in rows)
+    assert all(len(nc.finding(r[0]).compared) == 4 for r in rows)
 
 
 def test_a_reread_that_fits_clears_the_suspect_and_evaluate_says_so():
@@ -270,18 +314,20 @@ def test_four_thousand_patches_are_judged_in_well_under_a_second():
 
 
 # ---- Knut's real charts, as ANALYSIS.md section C measured them ------------
-#: name: (patches, {buffer: suspects}, share with >= 2 comparisons), B2+
-#: (beta 15). Beta 11's rule (3 comparisons, no "further" condition) gave,
-#: in the same order: {5: 43, 8: 9, 10: 4}, 0.779 -> {5: 8, 8: 1, 10: 1},
-#: run4 {all 0} at 0.441, Epson {5: 10, 8: 2, 10: 2} at 0.978, Canon
-#: {5: 259, 8: 81, 10: 28} at 0.985, scanner {5: 14, 8: 4, 10: 0} at 0.467.
+#: name: (patches, {neighbour limit: suspects}, share with >= 2 neighbours),
+#: Knut's four steps (beta 17), radius 15. Beta 15's B2+ (buffer and
+#: "further" above 0, other strips only) gave, at 5 / 8 / 10 / 15:
+#: HP 29 / 7 / 3 / 0 at 1.0, run1 5 / 1 / 1 / 0 at 0.853, run4 all 0 at
+#: 0.599, Epson 8 / 2 / 2 / 0 at 0.999, Canon 115 / 44 / 18 / 0 at 1.0,
+#: scanner chart 9 / 3 / 0 / 0 at 0.711. Without the "buffer" the scanner
+#: chart (a print measured through a scanner profile) has 16 at 10.
 REAL = {
-    "hp_laser_1944": (1944, {5: 29, 8: 7, 10: 3, 15: 0}, 1.0),
-    "knut_run1_648": (648, {5: 5, 8: 1, 10: 1, 15: 0}, 0.853),
-    "knut_run4_324": (324, {5: 0, 8: 0, 10: 0, 15: 0}, 0.599),
-    "epson_p300_924": (924, {5: 8, 8: 2, 10: 2, 15: 0}, 0.999),
-    "canon_pro300_1168": (1168, {5: 115, 8: 44, 10: 18, 15: 0}, 1.0),
-    "knut_scanner_315": (315, {5: 9, 8: 3, 10: 0, 15: 0}, 0.711),
+    "hp_laser_1944": (1944, {5: 59, 8: 3, 10: 0, 15: 0}, 1.0),
+    "knut_run1_648": (648, {5: 22, 8: 2, 10: 0, 15: 0}, 0.858),
+    "knut_run4_324": (324, {5: 9, 8: 1, 10: 0, 15: 0}, 0.62),
+    "epson_p300_924": (924, {5: 17, 8: 6, 10: 2, 15: 1}, 1.0),
+    "canon_pro300_1168": (1168, {5: 81, 8: 22, 10: 14, 15: 0}, 1.0),
+    "knut_scanner_315": (315, {5: 58, 8: 29, 10: 16, 15: 3}, 0.737),
 }
 
 
@@ -290,19 +336,19 @@ def test_real_sheets_give_the_analysis_numbers(name):
     n, counts, coverage = REAL[name]
     patches = sheet(name)
     assert len(patches) == n
-    for buffer, want in counts.items():
-        nc = check_of(patches, buffer)
-        assert len(nc.suspects()) == want, (name, buffer)
+    for limit, want in counts.items():
+        nc = check_of(patches, limit)
+        assert len(nc.suspects()) == want, (name, limit)
     assert nc.checked_count() / n == pytest.approx(coverage, abs=0.001)
 
 
-def test_the_real_suspects_at_buffer_ten():
-    """B2+: 24 of 5,323 patches (0.5 %), 18 of them on the wide-gamut Canon
-    (beta 11's rule: 35, 28 on the Canon)."""
+def test_the_real_suspects_at_limit_ten():
+    """Beta 17: 32 of 5,323 patches (0.6 %), 14 on the wide-gamut Canon and
+    16 on the scanner chart (beta 15's B2+: 24; beta 11: 35)."""
     total = sum(len(check_of(sheet(name)).suspects()) for name in REAL)
-    assert total == 24
-    assert len(check_of(sheet("canon_pro300_1168")).suspects()) == 18
-    assert check_of(sheet("knut_run1_648")).suspects() == ["P27"]
+    assert total == 32
+    assert len(check_of(sheet("canon_pro300_1168")).suspects()) == 14
+    assert check_of(sheet("knut_run1_648")).suspects() == []
     assert check_of(sheet("epson_p300_924")).suspects() == ["AK19", "AM5"]
 
 
@@ -399,7 +445,7 @@ def test_judging_only_what_changed_gives_what_judging_all_gives():
 # ---- review of beta 11: kept comparisons, judged again only where needed ---
 
 def _fresh_copy(nc):
-    fresh = NeighbourCheck(buffer=nc.buffer)
+    fresh = NeighbourCheck(limit=nc.limit, radius=nc.radius)
     for loc, (e, m, s) in nc._rows.items():
         fresh.set_reading_lab(loc, e, m, s)
     fresh.evaluate()
@@ -417,7 +463,7 @@ def test_random_reads_rereads_and_forgets_end_as_a_fresh_judgement(seed):
     cube = {f"{s}-{p}": (rng.uniform(30, 60), rng.uniform(-20, 20),
                          rng.uniform(-20, 20))
             for s in strips for p in range(15)}
-    nc = NeighbourCheck(buffer=4.0)
+    nc = NeighbourCheck(limit=4.0)
     for _ in range(60):
         op = rng.random()
         loc = rng.choice(sorted(cube))
@@ -440,8 +486,8 @@ def test_random_reads_rereads_and_forgets_end_as_a_fresh_judgement(seed):
         for k, f in fresh._findings.items():
             g = nc._findings[k]
             assert g.compared == f.compared, k
-            assert g.excess == pytest.approx(f.excess, abs=1e-9)
-            assert g.measured_de == pytest.approx(f.measured_de, abs=1e-9)
+            assert g.further == pytest.approx(f.further, abs=1e-9)
+            assert g.median_de == pytest.approx(f.median_de, abs=1e-9)
 
 
 def test_a_strip_searches_all_readings_only_for_its_own_patches(monkeypatch):

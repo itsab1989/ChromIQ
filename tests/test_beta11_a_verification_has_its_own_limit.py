@@ -5,6 +5,10 @@ Measurements "Flag a patch when..."*: a verification judged against its
 profile's prediction has its own limit, default ΔE 10, used exactly when the
 expected colours are that prediction. Answer 2: the limit for a chart made
 from a profile is 20, no longer ArgyllCMS's 30.
+
+Beta 17: the verification limit's default is 5 (Knut 6070058549, "Yes, I
+agree"), calibration charts have their own (95), and the strip test has its
+own box per chart type, off by default on verification charts (6084176226).
 """
 from __future__ import annotations
 
@@ -30,12 +34,13 @@ class _S(dict):
 
 
 def test_the_defaults():
-    assert pf.PREDICTION_DEFAULT_DE == 10.0
+    assert pf.PREDICTION_DEFAULT_DE == 5.0
     assert pf.ACCURATE_DEFAULT_DE == 20.0
     assert pf.ESTIMATED_DEFAULT_DE == 95.0
     assert pf.warn_limit(_S(), False) == 95.0
     assert pf.warn_limit(_S(), True) == 20.0
-    assert pf.warn_limit(_S(), False, predicted=True) == 10.0
+    assert pf.warn_limit(_S(), False, predicted=True) == 5.0
+    assert pf.warn_limit(_S(), False, calibration=True) == 95.0
 
 
 @pytest.mark.parametrize("accurate", [False, True])
@@ -49,11 +54,16 @@ def test_the_prediction_decides_whatever_the_chart_file_says(accurate):
 def test_the_tab_uses_the_verification_limit_only_for_a_prediction(qapp, tmp_path):
     import test_k182_verify_expected_prediction as t
     tab = t._tab(tmp_path, {"chartread_engine": "chromiq",
-                            "patch_warn_outlier_fence": True,
+                            "patch_strip_test_estimated": True,
                             "patch_read_warn_de_prediction": 12.0})
     tab._live_expected = ve.LiveExpected(ve.SOURCE_PREDICTION, "t", t.PRED)
     assert tab._patch_warn_limit() == 12.0
-    assert tab._use_outlier_fence() is False          # strip test stays off
+    # its own strip-test box, off by default (Knut 6084176226) ...
+    assert tab._use_outlier_fence() is False
+    # ... and the user's when switched on
+    tab._settings.set("patch_strip_test_verification", True)
+    assert tab._use_outlier_fence() is True
+    tab._settings.set("patch_strip_test_verification", False)
     tab._on_strip_measured(t._shifted_strip("A"))
     assert t._info(tab, "A1")["warn_de"] == 12.0
     # The fallbacks (no record, profile newer) take the chart's own limit.
@@ -73,11 +83,14 @@ def test_preferences_show_and_save_the_third_row(qapp, monkeypatch):
     d = SettingsDialog(s, None)
     try:
         assert d._patch_warn_pred_spin.value() == 14.0
+        assert d._patch_warn_pred_spin is d._patch_limit_spins["verification"]
         texts = {w.text() for w in d.findChildren(QLabel)}
-        assert "on a verification judged against its profile:" in texts
+        assert "Verification charts" in texts
         d._patch_warn_pred_spin.setValue(8.0)
+        d._patch_limit_spins["calibration"].setValue(60.0)
         d._save_and_close()
         assert float(s.get("patch_read_warn_de_prediction")) == 8.0
+        assert float(s.get("patch_read_warn_de_calibration")) == 60.0
     finally:
         d.deleteLater()
 
@@ -88,9 +101,11 @@ def test_the_help_names_three_limits_and_the_new_defaults():
     src = inspect.getsource(settings_dialog)
     assert "TWO LIMITS" not in src and "THREE LIMITS" not in src
     assert "tr(LIMITS_PURPOSE_HELP)" in src
-    # Term: "made with a pre-conditioning profile" (Knut, #182 5984174575).
-    assert ("20 ΔE for a chart made \"\n            \"with a pre-conditioning "
-            "profile, 10 ΔE for a verification") in src
+    # the four chart types and their defaults (beta 17)
+    assert settings_dialog.PATCH_ERROR_LIMIT_DEFAULT == (
+        "**Default:** ΔE*ab 95 on profiling charts with estimated colours, 20 "
+        "on profiling charts made with a pre-conditioning profile, 5 on "
+        "verification charts and 95 on calibration charts")
 
 
 def test_the_limits_say_what_they_are_for_in_both_places():
@@ -102,34 +117,27 @@ def test_the_limits_say_what_they_are_for_in_both_places():
     assert sd.LIMITS_PURPOSE_HELP == tm.LIMITS_PURPOSE_HELP
     text = sd.LIMITS_PURPOSE_HELP
     assert "catch misreads" in text and "not a mark for colours" in text
-    for d in ("default ΔE 95", "default ΔE 20", "default ΔE 10"):
+    for d in ("Profiling charts with estimated colours, default 95",
+              "Profiling charts made with a pre-conditioning profile, "
+              "default 20", "Verification charts, default 5",
+              "Calibration charts, default 95"):
         assert d in text
     assert "\u2014" not in text
     assert "tr(LIMITS_PURPOSE_HELP)" in inspect.getsource(tm)
 
 
-#: k44 (beta 15): the checkbox is named after its function, the strip test
-_STRIP_CHECK_LABEL = ("Strip test: flag a patch past the limit only if it "
-                      "also stands out from its own strip")
-
-
-def test_the_help_quotes_the_strip_check_as_its_checkbox_reads():
-    """The help names the strip check by quoting its Preferences checkbox, so
-    the quote must be the checkbox's own words, in every language (review of
-    beta 11: it quoted "only flag a patch that ALSO stands out", which no
-    checkbox says, and each catalogue its own paraphrase of that)."""
+def test_the_help_names_the_tests_by_their_names():
+    """Knut 6082015002: the proper names, never paraphrases. The purpose
+    paragraph names the strip test and the neighbour check (the rows of the
+    table, no longer long checkbox labels), and every language has it."""
     import glob
-    import inspect
     import json
     from ui.dialogs import settings_dialog as sd
-    assert sd.STRIP_TEST_LABEL == _STRIP_CHECK_LABEL
-    assert "tr(STRIP_TEST_LABEL)" in inspect.getsource(sd)
-    assert f"“{_STRIP_CHECK_LABEL}”" in sd.LIMITS_PURPOSE_HELP
+    assert "the strip test and the neighbour check" in sd.LIMITS_PURPOSE_HELP
     root = os.path.join(os.path.dirname(__file__), "..", "data", "i18n")
     files = sorted(glob.glob(os.path.join(root, "*.json")))
     assert len(files) >= 13
     for f in files:
         with open(f, encoding="utf-8") as fh:
             cat = json.load(fh)
-        label = cat[_STRIP_CHECK_LABEL]
-        assert label in cat[sd.LIMITS_PURPOSE_HELP], os.path.basename(f)
+        assert cat[sd.LIMITS_PURPOSE_HELP], os.path.basename(f)

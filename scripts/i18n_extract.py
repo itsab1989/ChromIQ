@@ -288,6 +288,7 @@ UNTRANSLATED_ON_PURPOSE = {
     " mm",
     " pt",
     " ΔE",
+    " ΔE*ab",
     # The name of a file format, as its own spec spells it. `Excel (XLSX)`
     # above is the same case.
     "CSV",

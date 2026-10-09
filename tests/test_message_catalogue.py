@@ -657,11 +657,12 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-VERIFY-EARLIER-PROFILE-NO-CHART",
                                  "M-VERIFY-CHART-EARLIER-PROFILE",
                                  "M-VERIFY-EARLIER-ARCHIVED-HERE",
-                                 # #182 beta 11: Knut approved the neighbour
-                                 # check (5983470377 answer 5) and its box
-                                 # (5983725218); the card lines and the
-                                 # closing window's summary are our words.
-                                 "M-PATCH-NEIGHBOUR",
+                                 # #182 beta 17: Knut approved the card's
+                                 # neighbour lines (6078174421, 6084176226,
+                                 # M-PATCH-NEIGHBOUR); two lines the mock-ups
+                                 # did not show, and the closing window's
+                                 # summary, are our words.
+                                 "M-PATCH-NEIGHBOUR-VARIANTS",
                                  "M-MEASURED-SUSPECTS",
                                  # Knut approved the green outline and its
                                  # words (5984277558); the limit's middle line

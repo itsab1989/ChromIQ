@@ -1780,145 +1780,250 @@ def measurement_block_text(holder: "str | None") -> str:
 
 
 
-#: k44 (Knut #182 6060201176): the strip test's checkbox, named after the
-#: function it switches. Before beta 15 it read "When reading strips, only
-#: flag a patch that also stands out from its own strip" and its help card
-#: was titled with yet other words, and Knut read it as the neighbour check.
-#: LIMITS_PURPOSE_HELP quotes it word for word, in every language.
-STRIP_TEST_LABEL = ("Strip test: flag a patch past the limit only if it also "
-                    "stands out from its own strip")
+#: BETA 17 (#182): the misread tests in ONE TABLE (Knut 6082015002, layout
+#: approved in 6084176226, the k56 mock-up "prefs_measurement_A_table"):
+#: the chart types as columns, the tests as bold rows with their switch left
+#: of the name, each parameter on a row of its own with a box per chart type,
+#: the same-reading tolerance in one merged box, and the help icons in the
+#: last column. The names are Knut's ("Names for the tests, limits, chart
+#: types are all good", 6082015002). The one-sentence descriptions are the
+#: names' tooltips (6084176226; the k57 drafts, the neighbour check's and
+#: the neighbour limit's adjusted to the colour-neighbour radius, 6085694445).
+MISREAD_TABLE_TEST = "Test"
+PATCH_ERROR_LIMIT_NAME = "Patch error limit"
+STRIP_TEST_NAME = "Strip test"
+NEIGHBOUR_CHECK_NAME = "Neighbour check"
+NEIGHBOUR_LIMIT_NAME = "Neighbour limit"
+NEIGHBOUR_RADIUS_NAME = "Colour-neighbour radius"
+SAME_READING_NAME = "Same-reading tolerance"
+SAME_FOR_ALL_KINDS = "the same for all chart types"
+MISREAD_UNITS_NOTE = ("All values are ΔE*ab (CIE76, L*a*b* D50), the colour "
+                      "difference the patch cards show.")
+PATCH_ERROR_LIMIT_TIP = ("The largest ΔE*ab a patch may be from its expected "
+                         "colour before it is outlined red.")
+STRIP_TEST_TIP = ("A patch past the patch error limit is outlined red only if "
+                  "it also stands out from the other patches of its own "
+                  "strip.")
+NEIGHBOUR_CHECK_TIP = ("Each patch is compared with the 2 to 4 read patches "
+                       "nearest to it in expected colour within the "
+                       "colour-neighbour radius, and outlined red if it is "
+                       "clearly further from its expected colour than they "
+                       "are.")
+NEIGHBOUR_LIMIT_TIP = ("How many ΔE*ab further from its expected colour than "
+                       "the median of its 2 to 4 nearest patches a patch may "
+                       "be.")
+NEIGHBOUR_RADIUS_TIP = ("The largest ΔE*ab between two expected colours for "
+                        "the two patches to be compared.")
+SAME_READING_TIP = ("The largest ΔE*ab between two readings of one patch for "
+                    "a re-read to count as the same colour.")
+#: The table's column headings (``workflow.misread_settings.KIND_NAMES``).
+KIND_ESTIMATED_NAME = "Profiling charts with estimated colours"
+KIND_ACCURATE_NAME = "Profiling charts made with a pre-conditioning profile"
+KIND_VERIFICATION_NAME = "Verification charts"
+KIND_CALIBRATION_NAME = "Calibration charts"
+
+#: The help of the Patch error limit's row. Its paragraphs: the intro, what
+#: the limit is for (LIMITS_PURPOSE_HELP), patch by patch, red and yellow,
+#: green, when the outlines are worked out, and the defaults.
+PATCH_ERROR_LIMIT_DEFAULT = (
+    "**Default:** ΔE*ab 95 on profiling charts with estimated colours, 20 on "
+    "profiling charts made with a pre-conditioning profile, 5 on "
+    "verification charts and 95 on calibration charts")
+RED_AND_YELLOW_HELP = (
+    "RED AND YELLOW\n"
+    "  • Red: the reading is far from the colour the chart expects. It "
+    "may be a misread (a smudge, a skipped row, a strip swiped the "
+    "wrong way) or a colour your printer and paper cannot reach. Read "
+    "it again, its strip or the patch, to find out.\n"
+    "  • Yellow: the difference is real, not a misread. Keep it for "
+    "the profile; there is no need to read it again. A red patch turns "
+    "yellow when a second reading gives the same colour (within the "
+    "same-reading tolerance), "
+    "when similar patches in other strips (expected colours less than "
+    "ΔE 6 apart) are off in the same way, or when its colour range "
+    "(greys by lightness, other colours by hue) has learned from three "
+    "confirmed patches, and this one is off in the same way as a "
+    "confirmed patch of the range, as much or more, without standing "
+    "out from its strip much more than that patch did.\n"
+    "Which patches were confirmed is kept with the measurement.")
+
+#: The help of the Strip test's row. The paragraph on verification charts is
+#: the one Knut approved in #182 6085694445 ("Yes", to question 3 of
+#: 6085123026), without its internal reference line, which he asked to go.
 STRIP_TEST_HELP = (
     "**What it does:** while you read strips, every patch is also compared "
     "with the other patches of its own strip. With the strip test on, a "
-    "patch past the limit above gets the red outline only when its colour "
-    "error also stands clearly above the rest of its strip. A real misread "
-    "(a smudge, a doubled patch, a swipe that slipped onto the next row) "
-    "spikes far above the patches around it, so it is caught; the even "
+    "patch past the patch error limit gets the red outline only when its "
+    "colour error also stands clearly above the rest of its strip. A real "
+    "misread (a smudge, a doubled patch, a swipe that slipped onto the next "
+    "row) spikes far above the patches around it, so it is caught; the even "
     "difference between a good print and the chart's estimated colours "
     "stays quiet. Without it, vivid estimated colours, which a printer does "
     "not reproduce, would light up much of a healthy chart in red.\n\n"
-    "**On:** a patch is flagged by the limit only when it is past the limit "
-    "AND stands out from its own strip.\n\n"
-    "**Off:** every patch past the limit above is flagged. Choose this when "
-    "you already suspect the chart is wrong and want to see everything the "
-    "limit catches. Switching the strip test off never removes a red "
-    "outline; it can only add some.\n\n"
-    "**What it does not do:** it only works with the limit above. It is not "
-    "the neighbour check, which compares a patch with the patches nearest "
-    "to it in colour in other strips and has its own checkbox below. "
-    "Reading patch by patch there is no strip to compare with, and a "
-    "verification judged against its profile does not use it, so there the "
-    "limit is the whole rule.")
-#: k43 / k44: the neighbour check's checkbox and help. The help describes the
-#: rule (B2+, Knut #182 6059912998), what it needs, its limits and the patch
-#: colours, as Knut asked, and carries the sentence he approved in answer 5
-#: whole (:data:`NB_CHECKED_AGAIN`).
-NEIGHBOUR_CHECK_LABEL = ("Neighbour check: flag a patch that does not fit "
-                         "the patches nearest to it in colour")
-NB_CHECKED_AGAIN = ("Checked again after each strip: a patch can turn red "
-                    "later, when patches near it in colour are read")
+    "**On:** a patch is outlined by the patch error limit only when it is "
+    "past the limit AND stands out from its own strip.\n\n"
+    "**Off:** every patch past the patch error limit is outlined. Switching "
+    "the strip test off never removes a red outline; it can only add some."
+    "\n\n"
+    "**By chart type:** each chart type has its own box: on for profiling "
+    "charts with estimated colours, on for profiling charts made with a "
+    "pre-conditioning profile, off for verification charts and on for "
+    "calibration charts.\n\n"
+    "**What it does not do:** it only works with the patch error limit. It "
+    "is not the neighbour check, which compares a patch with the patches "
+    "nearest to it in colour and has its own row. Reading patch by patch "
+    "there is no strip to compare with, so there the patch error limit is "
+    "the whole rule.")
+STRIP_TEST_VERIFICATION_HELP = (
+    "**Strip test on verification charts (off by default)**\n\n"
+    "A verification chart is printed through its profile, so each patch "
+    "should land within a few ΔE*ab of its expected colour, and its patch "
+    "error limit is low (5). On some printers, laser printers above all, a "
+    "whole strip can shift together: the toner density changes across the "
+    "page, and many patches of one strip sit 5 to 10 ΔE*ab off at the same "
+    "time. Each of them crosses the patch error limit and is outlined red, "
+    "although nothing was misread.\n\n"
+    "With the strip test on, a patch past the patch error limit is outlined "
+    "red only if it also stands out from its own strip. ChromIQ takes the "
+    "ΔE*ab of every patch in the strip and works out the strip's own upper "
+    "bound (Tukey's fence: the upper quartile plus 1.5 times the spread "
+    "between the lower and the upper quartile). When a whole strip is off, "
+    "that bound rises with it and its patches stay unmarked; a single "
+    "misread patch still rises above its strip and is outlined red.\n\n"
+    "Measured on four laser verification sheets (HP Color LaserJet, i1Pro "
+    "2), the red patches on a clean sheet fall from 70, 80, 74 and 29 to 38, "
+    "36, 34 and 10, about half (simulated laser sheets: from 30-41 to "
+    "22-25). The price: a misread that is itself only a little off, or that "
+    "hits only part of a strip, can now hide in its strip. Of the misread "
+    "patches, these were still outlined red: small misreads (ΔE*ab 3 to 8) "
+    "60-80 % without the test, 40-80 % with it; part of a strip misread "
+    "74-90 % against 59-75 %; instrument tipped 58-83 % against 33-77 %. A "
+    "strip read out of step or the wrong strip read is still caught "
+    "(98-100 %), because the neighbour check catches those.\n\n"
+    "On an inkjet printer the strip test changes nothing that we could "
+    "measure (0.5 red patches per clean sheet with or without it, the same "
+    "misreads caught), so leave it off there. Turn it on for a printer "
+    "whose verification sheets show many red patches that a re-read does "
+    "not clear.")
+STRIP_TEST_DEFAULT = ("**Default:** on, except on verification charts, where "
+                      "it is off")
+
+#: The help of the Neighbour check's row: Knut's four steps (#182
+#: 6071673457, adopted in 6078174421), the neighbours from any strip within
+#: the colour-neighbour radius (6078174421, 6085694445), the values by
+#: chart type, and his tip for laser printers (6078174421).
 NEIGHBOUR_CHECK_HELP = (
     "**What it does:** patches that are expected to be close in colour "
-    "should also measure close to each other, even when the chart's "
-    "expected colours are only rough estimates. So every patch is compared "
-    "with the 2 to 4 patches nearest to it in expected colour (within "
-    "ΔE 15) that were read in other strips. It gets a red outline, even "
-    "below the limit above, when both are true:\n"
-    "  • its reading is further from their readings than the expected "
-    "colours are from each other, by more than the buffer (the middle value "
-    "over the patches compared), and\n"
-    "  • it is the patch that is off: it is further from its own expected "
-    "colour than they are from theirs. So a good patch next to patches that "
-    "a blocked nozzle or a drying ink has spoiled stays unmarked.\n\n"
-    "**What it needs:** at least 2 such patches, read in strips other than "
-    "its own. A patch with fewer is not judged. It outlines patches only on "
-    "profiling charts, with estimated colours or made with a pre-conditioning "
-    "profile. On a verification or a calibration chart the hover card still "
-    "shows the comparison, but no patch is outlined for it.\n\n"
-    "**When:** Checked again after each strip: a patch can turn red later, "
-    "when patches near it in colour are read. It is also worked out when "
-    "you open a measurement.\n\n"
-    "**Limits:** on a small chart, and early in a measurement, many patches "
-    "do not yet have 2 such patches and cannot be judged: on a chart of "
-    "under about 200 patches, only about a third of them. A misread smaller "
-    "than the buffer is not seen. The limit above and the check “Was a "
-    "strip read twice?” still do that work.\n\n"
+    "should be about as far from their expected colours as each other, even "
+    "when the chart's expected colours are only rough estimates. So every "
+    "patch is compared with the 2 to 4 read patches nearest to it in "
+    "expected colour within the colour-neighbour radius, from any strip, "
+    "its own included, in four steps:\n"
+    "  1. for each of those patches, its error: the ΔE*ab between its "
+    "reading and its expected colour;\n"
+    "  2. the median of their errors;\n"
+    "  3. the patch's own error, the same way;\n"
+    "  4. when its own error minus that median is more than the neighbour "
+    "limit, the patch gets a red outline, even below the patch error "
+    "limit.\n"
+    "The number from step 4 is the one every patch card shows, for example "
+    "“This patch is ΔE 6.2 further from its expected colour than the 4 "
+    "patches nearest in colour (median).”\n\n"
+    "**Neighbour limit:** how much further from its expected colour than "
+    "the median of its neighbours a patch may be. A lower value finds "
+    "smaller misreads and also outlines more real differences; a higher "
+    "value outlines fewer.\n\n"
+    "**Colour-neighbour radius:** how far apart two expected colours may be "
+    "(ΔE*ab) for the two patches to be compared. A wider radius judges more "
+    "patches on a small chart; on profiling charts with estimated colours "
+    "it also outlines more healthy patches, because their expected colours "
+    "are only estimates and patches far apart are off by different "
+    "amounts.\n\n"
+    "**By chart type** (neighbour limit / colour-neighbour radius, ΔE*ab):"
+    "\n"
+    "  • Profiling charts with estimated colours: 10 / 15\n"
+    "  • Profiling charts made with a pre-conditioning profile: 5 / 30\n"
+    "  • Verification charts: 3 / 30\n"
+    "  • Calibration charts: 10 / 30\n\n"
+    "**What it needs:** at least 2 read patches within the colour-neighbour "
+    "radius. A patch with fewer is not judged; on a small chart, and early "
+    "in a measurement, that can be many of them.\n\n"
+    "**When:** checked again after each strip is read (patch by patch: "
+    "after each patch is read) and when you open a measurement, so a patch "
+    "can turn red later, when patches near it in colour are read.\n\n"
     "**Patch colours and states:**\n"
-    "  • Red, “it does not fit its neighbours”: probably a misread. Read the "
-    "patch again.\n"
-    "  • Yellow: its own re-read gave the same colour (within ΔE 3), so the "
-    "difference is real. Keep it for the profile. Only its own re-read does "
-    "that here: similar patches and a learned colour range, which can turn "
-    "a patch past the limit yellow, do not count for this check. It stays "
-    "yellow until the patch is read again.\n"
+    "  • Red: probably a misread. Read the patch again.\n"
+    "  • Yellow: its own re-read gave the same colour (within the "
+    "same-reading tolerance), so the difference is real. Only its own "
+    "re-read does that here: similar patches and a learned colour range, "
+    "which can turn a patch past the patch error limit yellow, do not count "
+    "for this check.\n"
     "  • Green: a re-read that fits replaced the misread. A green patch is "
     "still checked, and turns red again when a later reading of it is a "
     "misread.\n\n"
-    "**The two buffers:** how much further apart the readings may be than "
-    "the expected colours before a patch is flagged. A chart made with a "
-    "pre-conditioning profile has expected colours close to the print, so "
-    "a smaller difference is already suspicious there (default 5 ΔE). A "
-    "chart with estimated colours (most charts) needs more room (default "
-    "10 ΔE). A lower value finds more misreads and also outlines more real "
-    "differences; a higher value outlines fewer.\n\n"
+    "**Tip:** on a laser printer, a neighbour limit of 7 to 15 on "
+    "verification charts may suit better, depending on the printer.\n\n"
     "**Off:** every red outline the neighbour check caused goes at once, "
     "also during a measurement; switched on again, they come back. Which "
     "patches a re-read confirmed (yellow) or corrected (green) is kept.")
-#: beta 15 text pass (Basti: "friendly, complete, easy to understand, and
-#: correct"): the two buffer fields had no tooltip. Each label and its spin box
-#: carry one. "can give": the buffer is one of the two conditions of the rule
-#: (B2+); the patch must also be the one that is off. PROPOSED, not approved.
-NB_BUFFER_ACCURATE_TIP = (
-    "How much further apart a patch's reading may be from its neighbours' "
-    "readings than the expected colours are from each other (the middle value "
-    "over the patches compared), before the neighbour check can give it a red "
-    "outline. This value is for a chart made with a pre-conditioning profile: "
-    "its expected colours are close to the print, so a small difference is "
-    "already suspicious. Default 5 ΔE. A lower value finds more misreads and "
-    "also outlines more real differences; a higher value outlines fewer.")
-NB_BUFFER_ESTIMATED_TIP = (
-    "How much further apart a patch's reading may be from its neighbours' "
-    "readings than the expected colours are from each other (the middle value "
-    "over the patches compared), before the neighbour check can give it a red "
-    "outline. This value is for a chart with estimated colours (most charts): "
-    "those are only ArgyllCMS's estimate, so the readings need more room. "
-    "Default 10 ΔE. A lower value finds more misreads and also outlines more "
-    "real differences; a higher value outlines fewer.")
+NEIGHBOUR_CHECK_DEFAULT = (
+    "**Default:** on, on every chart type; neighbour limit 10 / 5 / 3 / 10 "
+    "and colour-neighbour radius 15 / 30 / 30 / 30 (profiling charts with "
+    "estimated colours / made with a pre-conditioning profile / "
+    "verification charts / calibration charts)")
+
+#: The help of the Same-reading tolerance's row.
+SAME_READING_HELP = (
+    "**What it is:** the largest ΔE*ab between two readings of one patch "
+    "for a re-read to count as the same colour. One value for every chart "
+    "type.\n\n"
+    "**What it decides:**\n"
+    "  • A red patch read again within the tolerance of an earlier reading "
+    "of it turns yellow: the difference is real, not a misread. For the "
+    "neighbour check this is the only way to yellow.\n"
+    "  • A re-read further away than the tolerance that is no longer "
+    "outlined turns green: the misread was corrected.\n"
+    "  • A re-read further away that is still past the patch error limit "
+    "stays red: the readings do not agree, and one more reading shows which "
+    "value is real.\n\n"
+    "**Lower:** a re-read must match more closely before a patch turns "
+    "yellow. **Higher:** readings that differ more count as the same.\n\n"
+    "**Default:** ΔE*ab 3")
 
 
-#: WHAT THE LIMITS ARE FOR (Knut, #182 5983733592, after 5983725218): the red
-#: outline catches misreads; yellow, not red, answers a colour the printer
-#: cannot reach. One paragraph, the same in Preferences ▸ Measurement and in
-#: the Measure tab's hover help (one translation; a test keeps them equal).
+#: WHAT THE PATCH ERROR LIMIT IS FOR (Knut, #182 5983733592, after
+#: 5983725218): the red outline catches misreads; yellow, not red, answers a
+#: colour the printer cannot reach. One paragraph, the same in Preferences ▸
+#: Measurement and in the Measure tab's hover help (one translation; a test
+#: keeps them equal). Beta 17: the values of the four chart types, and the
+#: tests named by their names.
 LIMITS_PURPOSE_HELP = (
-    "WHAT THE LIMITS ARE FOR\n"
-    "The red outline is there to catch misreads while you measure, so"
-    " that you read the patch again at once. It is not a mark for "
-    "colours your printer cannot reproduce: when a re-read gives the "
-    "same colour, or similar patches agree, the outline turns yellow,"
-    " and yellow is the answer for such a colour. How low a limit can"
-    " go depends on how close the chart's expected colours are to "
-    "what your printer really prints:\n"
-    "  • A chart with estimated colours (most charts), default ΔE 95:"
-    " the expected colours are only ArgyllCMS's estimate, made "
-    "without a profile of your printer, and lie far from any real "
-    "print, so even a good patch can be 30 to 50 ΔE off. The limit is"
-    " as high as in ArgyllCMS's own chartread and catches only gross "
-    "misreads; the strip test (“Strip test: flag a patch past the "
-    "limit only if it also stands out from its own strip”) and the "
-    "neighbour check (“Neighbour check: flag a patch that does not "
-    "fit the patches nearest to it in colour”) do most of the misread "
-    "hunting on these charts.\n"
-    "  • A chart made with a pre-conditioning profile, default ΔE 20: "
-    "ArgyllCMS marks it (ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
-    " what the printer should print, and a much smaller difference is"
-    " already suspicious.\n"
-    "  • A verification judged against its profile, default ΔE 10: a "
-    "verification chart ChromIQ printed is compared with what the "
-    "run's profile predicts for it, so its expected colours are the "
-    "closest of all. The strip test does not apply to it.\n"
-    "The chart decides which limit applies when you measure, so you "
-    "never have to choose.")
+    "WHAT THE PATCH ERROR LIMIT IS FOR\n"
+    "The red outline is there to catch misreads while you measure, so that "
+    "you read the patch again at once. It is not a mark for colours your "
+    "printer cannot reproduce: when a re-read gives the same colour, or "
+    "similar patches agree, the outline turns yellow, and yellow is the "
+    "answer for such a colour. How low the patch error limit can go depends "
+    "on how close the chart's expected colours are to what your printer "
+    "really prints, so each chart type has its own (ΔE*ab):\n"
+    "  • Profiling charts with estimated colours, default 95: the expected "
+    "colours are only ArgyllCMS's estimate, made without a profile of your "
+    "printer, and lie far from any real print, so even a good patch can be "
+    "30 to 50 off. The limit is as high as in ArgyllCMS's own chartread and "
+    "catches only gross misreads; the strip test and the neighbour check do "
+    "most of the misread hunting on these charts.\n"
+    "  • Profiling charts made with a pre-conditioning profile, default 20: "
+    "ArgyllCMS marks them (ACCURATE_EXPECTED_VALUES), so their expected "
+    "colours are close to what the printer should print, and a much smaller "
+    "difference is already suspicious.\n"
+    "  • Verification charts, default 5: a verification chart ChromIQ "
+    "printed, through the profile or filled From Profile Gamut, is compared "
+    "with what the run's profile predicts for it, so its expected colours "
+    "are the closest of all.\n"
+    "  • Calibration charts, default 95: their expected colours are "
+    "ArgyllCMS's estimate too.\n"
+    "The chart decides which value applies when you measure, so you never "
+    "have to choose.")
 
 #: THE GREEN OUTLINE (Knut, #182 5984277558, "Ok" to 5984237879): a misread
 #: a re-read corrected. One paragraph, the same in Preferences ▸ Measurement
@@ -2183,11 +2288,276 @@ class SettingsDialog(QDialog):
             handle.screenChanged.connect(self._on_screen_changed)
 
     def _on_neighbour_check_toggled(self, on: bool) -> None:
-        """The two buffers mean nothing while the neighbour check is off."""
-        for sp in (getattr(self, "_patch_neighbour_spin", None),
-                   getattr(self, "_patch_neighbour_acc_spin", None)):
+        """The neighbour limits and radii mean nothing while the neighbour
+        check is off."""
+        for sp in (list(getattr(self, "_neighbour_limit_spins", {}).values())
+                   + list(getattr(self, "_neighbour_radius_spins", {}).values())):
             if sp is not None:
                 sp.setEnabled(bool(on))
+
+    # ---- the misread tests' table (beta 17, #182) --------------------------
+    def _build_misread_table(self) -> QWidget:
+        """Preferences ▸ Measurement's table of the misread tests (Knut,
+        #182 6082015002; the k56 mock-up he approved in 6084176226): the four
+        chart types as columns, each test a bold row with its switch left of
+        its name where it has one, each parameter a row with a box per chart
+        type, the same-reading tolerance one merged box, a help icon per test
+        in the last column. Every value is a setting
+        (``workflow/misread_settings.py``)."""
+        from PyQt6.QtWidgets import QFrame, QGridLayout
+        from workflow import misread_settings as MS
+        kinds = MS.KINDS
+        heads = {MS.ESTIMATED: tr(KIND_ESTIMATED_NAME),
+                 MS.ACCURATE: tr(KIND_ACCURATE_NAME),
+                 MS.VERIFICATION: tr(KIND_VERIFICATION_NAME),
+                 MS.CALIBRATION: tr(KIND_CALIBRATION_NAME)}
+        frame = QFrame(self)
+        frame.setObjectName("misread_table")
+        frame.setStyleSheet(
+            "QFrame#misread_table { border: 1px solid palette(mid);"
+            " border-radius: 6px; }"
+            "QFrame#misread_head, QFrame#misread_group {"
+            " background: palette(alternate-base); border: none; }"
+            "QFrame#misread_merged { border: 1px dashed palette(mid);"
+            " border-radius: 4px; }")
+        g = QGridLayout(frame)
+        g.setContentsMargins(0, 0, 0, 0)
+        g.setHorizontalSpacing(0)
+        g.setVerticalSpacing(0)
+        g.setColumnStretch(0, 1)
+        col_w = 136
+        for c in range(1, 5):
+            g.setColumnMinimumWidth(c, col_w)
+        self._misread_grid = g
+        row = 0
+
+        def cell(w, r, c, span=1, pad=(10, 4, 6, 4), centre=False):
+            box = QWidget(frame)
+            h = QHBoxLayout(box)
+            h.setContentsMargins(*pad)
+            if centre:
+                h.addStretch()
+            h.addWidget(w)
+            h.addStretch()
+            g.addWidget(box, r, c, 1, span)
+            return box
+
+        def bold(text: str, tip: str) -> QLabel:
+            lb = QLabel(f"<b>{text}</b>", frame)
+            lb.setTextFormat(Qt.TextFormat.RichText)
+            lb.setToolTip(tip)
+            return lb
+
+        def spin(rng, name: str) -> NoScrollDoubleSpinBox:
+            sp = NoScrollDoubleSpinBox(frame)
+            sp.setObjectName(name)
+            sp.setRange(*rng)
+            sp.setSingleStep(1.0)
+            sp.setDecimals(1)
+            sp.setSuffix(" ΔE*ab")
+            sp.setFixedWidth(col_w - 12)
+            return sp
+
+        def help_btn(title: str, body: str) -> TooltipButton:
+            return TooltipButton(title, body, frame, min_width=640)
+
+        head = QFrame(frame)
+        head.setObjectName("misread_head")
+        g.addWidget(head, row, 0, 1, 6)
+        cell(bold(tr(MISREAD_TABLE_TEST), ""), row, 0)
+        self._misread_heads = {}
+        for c, k in enumerate(kinds, start=1):
+            lb = QLabel(heads[k], frame)
+            lb.setWordWrap(True)
+            lb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lb.setStyleSheet("font-weight: 600;")
+            lb.setFixedWidth(col_w - 8)
+            self._misread_heads[k] = lb
+            cell(lb, row, c, pad=(4, 6, 4, 6), centre=True)
+        row += 1
+
+        # Patch error limit
+        self._patch_limit_spins = {}
+        cell(bold(tr(PATCH_ERROR_LIMIT_NAME), tr(PATCH_ERROR_LIMIT_TIP)),
+             row, 0, pad=(36, 4, 6, 4))
+        for c, k in enumerate(kinds, start=1):
+            sp = spin(MS.PATCH_ERROR_LIMIT_RANGE, f"patch_error_limit_{k}")
+            sp.setToolTip(tr(PATCH_ERROR_LIMIT_TIP))
+            self._patch_limit_spins[k] = sp
+            cell(sp, row, c, pad=(4, 4, 4, 4), centre=True)
+        cell(help_btn(tr(PATCH_ERROR_LIMIT_NAME), tr(
+            "While you measure with the ChromIQ chart-reading engine, each "
+            "patch you read is shown split against the colour the chart "
+            "expects. A patch whose colour error (ΔE*ab) reaches the limit gets "
+            "a red outline, so a likely misread (a smudge, a skipped row, a "
+            "strip swiped the wrong way) jumps out at you straight away.")
+            # WHAT THE LIMITS ARE FOR (Knut, #182 5983733592)
+            + "\n\n" + tr(LIMITS_PURPOSE_HELP)
+            + "\n\n" + tr(
+            "PATCH-BY-PATCH MODE IS DIFFERENT, ON PURPOSE\n"
+            "Usually, when you read STRIPS with the option below on, a patch is "
+            "flagged "
+            "only when it is past the limit AND stands out from the other "
+            "patches of its strip. Reading patch by patch there is no strip "
+            "to compare with, so there the limit is the whole rule, and more "
+            "patches may be outlined: that comes from having no neighbours to "
+            "compare with, not from the two modes disagreeing about your "
+            "print.")
+            + "\n\n" + tr(RED_AND_YELLOW_HELP)
+            + "\n\n" + tr(GREEN_OUTLINE_HELP)
+            + "\n\n" + tr("The outlines follow your limits in Preferences ▸ Measurement and "
+            "are worked out again whenever something could change them: after "
+            "every strip or patch you read, when a measurement ends, when you "
+            "come back to the Measure tab, and when you change the limits and "
+            "press OK. A lower limit outlines more patches, and can let "
+            "similar patches confirm each other; a higher limit outlines "
+            "fewer. A re-read's confirmation is kept when you change the "
+            "limits: the patch is yellow again whenever the limit outlines it. "
+            "It ends only when you read that patch once more and the new "
+            "reading is not outlined or gives a different colour. The outlines "
+            "never change your measurements.\n"
+            "\n"
+            "Check & Refine judges on its own and ignores these outlines. It "
+            "checks every patch through the profile built from the "
+            "measurement, and every large error it finds counts towards what "
+            "it recommends re-measuring, whether it is outlined red, yellow or "
+            "not at all here.")
+            + "\n\n" + tr(PATCH_ERROR_LIMIT_DEFAULT)), row, 5,
+            pad=(4, 4, 8, 4))
+        row += 1
+
+        # Strip test
+        self._strip_test_checks = {}
+        cell(bold(tr(STRIP_TEST_NAME), tr(STRIP_TEST_TIP)), row, 0,
+             pad=(36, 4, 6, 4))
+        for c, k in enumerate(kinds, start=1):
+            cb = QCheckBox(frame)
+            cb.setObjectName(f"strip_test_{k}")
+            cb.setToolTip(tr(STRIP_TEST_TIP))
+            cb.setAccessibleName(tr(STRIP_TEST_NAME) + ", " + heads[k])
+            self._strip_test_checks[k] = cb
+            cell(cb, row, c, pad=(4, 6, 4, 6), centre=True)
+        cell(help_btn(tr(STRIP_TEST_NAME), tr(STRIP_TEST_HELP) + "\n\n"
+                      + tr(STRIP_TEST_VERIFICATION_HELP) + "\n\n"
+                      + tr(STRIP_TEST_DEFAULT)), row, 5, pad=(4, 4, 8, 4))
+        row += 1
+
+        # Neighbour check: its switch, then its two parameters
+        grp = QFrame(frame)
+        grp.setObjectName("misread_group")
+        g.addWidget(grp, row, 0, 1, 6)
+        self._patch_neighbour_check = QCheckBox(frame)
+        self._patch_neighbour_check.setObjectName("patch_neighbour_check")
+        self._patch_neighbour_check.setToolTip(tr(NEIGHBOUR_CHECK_TIP))
+        self._patch_neighbour_check.setAccessibleName(tr(NEIGHBOUR_CHECK_NAME))
+        nb_box = QWidget(frame)
+        nb_h = QHBoxLayout(nb_box)
+        nb_h.setContentsMargins(10, 6, 6, 6)
+        nb_h.setSpacing(6)
+        nb_h.addWidget(self._patch_neighbour_check)
+        nb_h.addWidget(bold(tr(NEIGHBOUR_CHECK_NAME), tr(NEIGHBOUR_CHECK_TIP)))
+        nb_h.addStretch()
+        g.addWidget(nb_box, row, 0, 1, 5)
+        cell(help_btn(tr(NEIGHBOUR_CHECK_NAME), tr(NEIGHBOUR_CHECK_HELP)
+                      + "\n\n" + tr(NEIGHBOUR_CHECK_DEFAULT)), row, 5,
+             pad=(4, 4, 8, 4))
+        row += 1
+        self._neighbour_limit_spins = {}
+        self._neighbour_radius_spins = {}
+        for name, tip, rng, store, key in (
+                (tr(NEIGHBOUR_LIMIT_NAME), tr(NEIGHBOUR_LIMIT_TIP),
+                 MS.NEIGHBOUR_LIMIT_RANGE, self._neighbour_limit_spins,
+                 "neighbour_limit"),
+                (tr(NEIGHBOUR_RADIUS_NAME), tr(NEIGHBOUR_RADIUS_TIP),
+                 MS.NEIGHBOUR_RADIUS_RANGE, self._neighbour_radius_spins,
+                 "neighbour_radius")):
+            lb = QLabel(name, frame)
+            lb.setToolTip(tip)
+            cell(lb, row, 0, pad=(40, 4, 6, 4))
+            for c, k in enumerate(kinds, start=1):
+                sp = spin(rng, f"{key}_{k}")
+                sp.setToolTip(tip)
+                store[k] = sp
+                cell(sp, row, c, pad=(4, 4, 4, 4), centre=True)
+            row += 1
+
+        # Same-reading tolerance: one box for every chart type
+        sep = QFrame(frame)
+        sep.setObjectName("misread_group")
+        g.addWidget(sep, row, 0, 1, 6)
+        cell(bold(tr(SAME_READING_NAME), tr(SAME_READING_TIP)), row, 0,
+             pad=(36, 4, 6, 4))
+        merged = QFrame(frame)
+        merged.setObjectName("misread_merged")
+        mh = QHBoxLayout(merged)
+        mh.setContentsMargins(8, 3, 8, 3)
+        mh.addStretch()
+        self._same_reading_spin = spin(MS.SAME_READING_RANGE,
+                                       "same_reading_tolerance")
+        self._same_reading_spin.setToolTip(tr(SAME_READING_TIP))
+        mh.addWidget(self._same_reading_spin)
+        note = QLabel(tr(SAME_FOR_ALL_KINDS), merged)
+        note.setStyleSheet("font-style: italic;")
+        mh.addSpacing(8)
+        mh.addWidget(note)
+        mh.addStretch()
+        mbox = QWidget(frame)
+        ml = QHBoxLayout(mbox)
+        ml.setContentsMargins(10, 4, 10, 4)
+        ml.addWidget(merged)
+        g.addWidget(mbox, row, 1, 1, 4)
+        cell(help_btn(tr(SAME_READING_NAME), tr(SAME_READING_HELP)), row, 5,
+             pad=(4, 4, 8, 4))
+        row += 1
+
+        # the names the code and the tests have known these boxes by
+        self._patch_warn_est_spin = self._patch_limit_spins[MS.ESTIMATED]
+        self._patch_warn_acc_spin = self._patch_limit_spins[MS.ACCURATE]
+        self._patch_warn_pred_spin = self._patch_limit_spins[MS.VERIFICATION]
+        self._patch_neighbour_check.toggled.connect(
+            self._on_neighbour_check_toggled)
+
+        outer = QWidget(self)
+        v = QVBoxLayout(outer)
+        v.setContentsMargins(0, 4, 0, 4)
+        v.setSpacing(6)
+        v.addWidget(frame)
+        units = QLabel(tr(MISREAD_UNITS_NOTE), outer)
+        units.setWordWrap(True)
+        units.setObjectName("info")
+        v.addWidget(units)
+        self._misread_table = frame
+        return outer
+
+    def _load_misread_table(self, s) -> None:
+        """Show every value of the misread tests' table (beta 17)."""
+        from workflow import misread_settings as MS
+        for k in MS.KINDS:
+            self._patch_limit_spins[k].setValue(MS.patch_error_limit(s, k))
+            self._strip_test_checks[k].setChecked(MS.strip_test_on(s, k))
+            self._neighbour_limit_spins[k].setValue(MS.neighbour_limit(s, k))
+            self._neighbour_radius_spins[k].setValue(
+                MS.neighbour_radius(s, k))
+        self._same_reading_spin.setValue(MS.same_reading_tolerance(s))
+        on = MS.neighbour_check_on(s)
+        self._patch_neighbour_check.setChecked(on)
+        self._on_neighbour_check_toggled(on)
+
+    def _save_misread_table(self, s) -> None:
+        """Store every value of the misread tests' table (beta 17)."""
+        from workflow import misread_settings as MS
+        for k in MS.KINDS:
+            s.set(MS.PATCH_ERROR_LIMIT_KEYS[k],
+                  float(self._patch_limit_spins[k].value()))
+            s.set(MS.STRIP_TEST_KEYS[k],
+                  bool(self._strip_test_checks[k].isChecked()))
+            s.set(MS.NEIGHBOUR_LIMIT_KEYS[k],
+                  float(self._neighbour_limit_spins[k].value()))
+            s.set(MS.NEIGHBOUR_RADIUS_KEYS[k],
+                  float(self._neighbour_radius_spins[k].value()))
+        s.set(MS.SAME_READING_KEY, float(self._same_reading_spin.value()))
+        s.set(MS.NEIGHBOUR_CHECK_KEY,
+              bool(self._patch_neighbour_check.isChecked()))
 
     def _on_screen_changed(self, _screen) -> None:
         """Dragged to another display (b13c review): the floor that fitted a
@@ -3111,187 +3481,9 @@ class SettingsDialog(QDialog):
             self._calibrate_button_check.setEnabled)
 
 
-        # Patch-reading error limits (#126, Knut; two of them since #182,
-        # Sebastian 5956560815 + Knut 5956552085): the ΔE at which a
-        # just-measured patch gets the red outline in the live split-patch
-        # preview, one for each kind of chart. The chart's own file decides
-        # which applies (workflow/patch_flags.py), so the user never picks.
-        def _limit_spin() -> NoScrollDoubleSpinBox:
-            spin = NoScrollDoubleSpinBox(self)
-            # Up to 200: a chart with estimated colours legitimately reaches
-            # ΔE 100+ (Knut's run1: largest 107), and the default is 95.
-            spin.setRange(1.0, 200.0)
-            spin.setSingleStep(1.0)
-            spin.setDecimals(1)
-            spin.setSuffix(" ΔE")
-            spin.setFixedWidth(110)
-            return spin
-        self._patch_warn_est_spin = _limit_spin()
-        self._patch_warn_acc_spin = _limit_spin()
-        # A verification judged against its profile's prediction has its own
-        # row (beta 11, Knut #182 5983470377: "yes, 10, and own threshold row").
-        self._patch_warn_pred_spin = _limit_spin()
-        _pw_row = QHBoxLayout()
-        _pw_row.addWidget(QLabel(tr("Flag a patch when its colour error reaches:"), self))
-        _pw_row.addStretch()
-        # Knut's option (c) of 2026-07-27: the strip comparison becomes a
-        # switch, on by default, and it now governs BOTH reading modes — which
-        # is what made them disagree so sharply before.
-        # k44 (Knut #182 6060201176): the checkbox is named after the
-        # function it switches, the STRIP TEST, so it cannot be read as the
-        # neighbour check, which has its own checkbox below.
-        self._patch_fence_check = QCheckBox(tr(STRIP_TEST_LABEL), self)
-        # a tooltip shows no bold: the lead-ins without their marks
-        self._patch_fence_check.setToolTip(
-            tr(STRIP_TEST_HELP).replace("**", ""))
-        _pw_row.addWidget(TooltipButton(
-            tr("Patch-reading error limits"),
-            tr("While you measure with the ChromIQ chart-reading engine, each "
-            "patch you read is shown split against the colour the chart "
-            "expects. A patch whose colour error (ΔE*ab) reaches the limit gets "
-            "a red outline, so a likely misread (a smudge, a skipped row, a "
-            "strip swiped the wrong way) jumps out at you straight away.")
-            # WHAT THE LIMITS ARE FOR (Knut, #182 5983733592): to catch
-            # misreads, not to mark colours the printer cannot reach. The
-            # same paragraph as the Measure tab's hover help.
-            + "\n\n" + tr(LIMITS_PURPOSE_HELP)
-            + "\n\n" + tr(
-            "PATCH-BY-PATCH MODE IS DIFFERENT, ON PURPOSE\n"
-            "Usually, when you read STRIPS with the option below on, a patch is "
-            "flagged "
-            "only when it is past the limit AND stands out from the other "
-            "patches of its strip. Reading patch by patch there is no strip "
-            "to compare with, so there the limit is the whole rule, and more "
-            "patches may be outlined: that comes from having no neighbours to "
-            "compare with, not from the two modes disagreeing about your "
-            "print.") + "\n\n"
-            # Knut, #182 5980576263: red and yellow told apart, what the
-            # limits do, and that Check & Refine judges on its own.
-            + tr("RED AND YELLOW\n"
-            "  • Red: the reading is far from the colour the chart expects. It "
-            "may be a misread (a smudge, a skipped row, a strip swiped the "
-            "wrong way) or a colour your printer and paper cannot reach. Read "
-            "it again, its strip or the patch, to find out.\n"
-            "  • Yellow: the difference is real, not a misread. Keep it for "
-            "the profile; there is no need to read it again. A red patch turns "
-            "yellow when a second reading gives the same colour (within ΔE 3), "
-            "when similar patches in other strips (expected colours less than "
-            "ΔE 6 apart) are off in the same way, or when its colour range "
-            "(greys by lightness, other colours by hue) has learned from three "
-            "confirmed patches, and this one is off in the same way as a "
-            "confirmed patch of the range, as much or more, without standing "
-            "out from its strip much more than that patch did.\n"
-            "Which patches were confirmed is kept with the measurement.")
-            + "\n\n" + tr(GREEN_OUTLINE_HELP)
-            + "\n\n" + tr("The outlines follow your limits in Preferences ▸ Measurement and "
-            "are worked out again whenever something could change them: after "
-            "every strip or patch you read, when a measurement ends, when you "
-            "come back to the Measure tab, and when you change the limits and "
-            "press OK. A lower limit outlines more patches, and can let "
-            "similar patches confirm each other; a higher limit outlines "
-            "fewer. A re-read's confirmation is kept when you change the "
-            "limits: the patch is yellow again whenever the limit outlines it. "
-            "It ends only when you read that patch once more and the new "
-            "reading is not outlined or gives a different colour. The outlines "
-            "never change your measurements.\n"
-            "\n"
-            "Check & Refine judges on its own and ignores these outlines. It "
-            "checks every patch through the profile built from the "
-            "measurement, and every large error it finds counts towards what "
-            "it recommends re-measuring, whether it is outlined red, yellow or "
-            "not at all here.")
-            + "\n\n" + tr("**Default:** 95 ΔE for estimated colours, 20 ΔE for a chart made "
-            "with a pre-conditioning profile, 10 ΔE for a verification judged against its "
-            "profile"),
-            self))
-        _meas.addLayout(_pw_row)
-        _lim_labels = [
-            (QLabel(tr("on a chart with estimated colours (most charts):"), self),
-             self._patch_warn_est_spin),
-            (QLabel(tr("on a chart made with a pre-conditioning profile:"), self),
-             self._patch_warn_acc_spin),
-            (QLabel(tr("on a verification judged against its profile:"), self),
-             self._patch_warn_pred_spin)]
-        # The two boxes line up under each other, whatever the language.
-        _lim_w = max(lbl.sizeHint().width() for lbl, _s in _lim_labels)
-        for _lbl, _spin in _lim_labels:
-            _lbl.setMinimumWidth(_lim_w)
-            _lim_row = QHBoxLayout()
-            _lim_row.addSpacing(18)
-            _lim_row.addWidget(_lbl)
-            _lim_row.addWidget(_spin)
-            _lim_row.addStretch()
-            _meas.addLayout(_lim_row)
-        _fence_row = QHBoxLayout()
-        _fence_row.addWidget(self._patch_fence_check)
-        _fence_row.addStretch()
-        _fence_row.addWidget(TooltipButton(
-            tr("Strip test"), tr(STRIP_TEST_HELP)
-            + "\n\n" + tr("**Default:** on"), self))
-        _meas.addLayout(_fence_row)
-
-        # THE NEIGHBOUR CHECK'S BUFFER (#182 beta 11, Knut 5983470377 item 5;
-        # the box itself, Knut 5983725218: "a defined input box in
-        # preferences --> measurement so that the threshold for when this
-        # check triggers a red highlighted patch can be modified by user").
-        from workflow.neighbour_check import BUFFER_MAX_DE, BUFFER_MIN_DE
-
-        def _nb_spin(name: str) -> "NoScrollDoubleSpinBox":
-            sp = NoScrollDoubleSpinBox(self)
-            sp.setObjectName(name)
-            sp.setRange(BUFFER_MIN_DE, BUFFER_MAX_DE)
-            sp.setSingleStep(1.0)
-            sp.setDecimals(1)
-            sp.setSuffix(" ΔE")
-            sp.setFixedWidth(110)
-            return sp
-        # k43 (Knut #182 6059912998, answer 6): one buffer for a chart made
-        # with a pre-conditioning profile (default 5), one for the others
-        # (default 10); k44: the check's own switch.
-        self._patch_neighbour_check = QCheckBox(tr(NEIGHBOUR_CHECK_LABEL),
-                                                self)
-        self._patch_neighbour_check.setObjectName("patch_neighbour_check")
-        # the full help, as the strip test's checkbox has it (a tooltip shows
-        # no bold: the lead-ins without their marks)
-        self._patch_neighbour_check.setToolTip(
-            tr(NEIGHBOUR_CHECK_HELP).replace("**", ""))
-        self._patch_neighbour_spin = _nb_spin("patch_neighbour_buffer")
-        self._patch_neighbour_acc_spin = _nb_spin(
-            "patch_neighbour_buffer_accurate")
-        _nb_row = QHBoxLayout()
-        _nb_row.addWidget(self._patch_neighbour_check)
-        _nb_row.addStretch()
-        _nb_row.addWidget(TooltipButton(
-            tr("Neighbour check"),
-            tr(NEIGHBOUR_CHECK_HELP)
-            + "\n\n" + tr("**Default:** on; buffer 5 ΔE on a chart made "
-                           "with a pre-conditioning profile, 10 ΔE on a "
-                           "chart with estimated colours"),
-            self))
-        _meas.addLayout(_nb_row)
-        _nb_labels = [
-            (QLabel(tr("Buffer on a chart made with a pre-conditioning "
-                       "profile:"), self), self._patch_neighbour_acc_spin),
-            (QLabel(tr("Buffer on a chart with estimated colours (most "
-                       "charts):"), self), self._patch_neighbour_spin)]
-        _nb_w = max(lbl.sizeHint().width() for lbl, _s in _nb_labels)
-        # each buffer's label and its box carry the same tooltip
-        _nb_acc_tip = tr(NB_BUFFER_ACCURATE_TIP)
-        _nb_est_tip = tr(NB_BUFFER_ESTIMATED_TIP)
-        for (_lbl, _spin), _tip in zip(_nb_labels, (_nb_acc_tip, _nb_est_tip)):
-            _lbl.setToolTip(_tip)
-            _spin.setToolTip(_tip)
-        for _lbl, _spin in _nb_labels:
-            _lbl.setMinimumWidth(_nb_w)
-            _r = QHBoxLayout()
-            _r.addSpacing(18)
-            _r.addWidget(_lbl)
-            _r.addWidget(_spin)
-            _r.addStretch()
-            _meas.addLayout(_r)
-        # the buffers mean nothing while the check is off
-        self._patch_neighbour_check.toggled.connect(
-            self._on_neighbour_check_toggled)
+        # THE MISREAD TESTS, ONE TABLE (beta 17, #182: Knut 6082015002, the
+        # layout approved in 6084176226). Built by _build_misread_table.
+        _meas.addWidget(self._build_misread_table())
 
         # Automatic calibration retries (#126, mavtop): how many times a failed
         # instrument calibration is retried before giving up.
@@ -5557,21 +5749,7 @@ class SettingsDialog(QDialog):
             report_title_prefix(s, "report_title_calibration"))
         self._report_add_profile_check.setChecked(
             bool(s.get("report_add_profile_name", True)))
-        self._patch_warn_est_spin.setValue(
-            float(s.get("patch_read_warn_de_estimated", 95.0)))
-        from workflow.patch_flags import (ACCURATE_DEFAULT_DE,
-                                          PREDICTION_DEFAULT_DE)
-        self._patch_warn_acc_spin.setValue(
-            float(s.get("patch_read_warn_de_accurate", ACCURATE_DEFAULT_DE)))
-        self._patch_warn_pred_spin.setValue(
-            float(s.get("patch_read_warn_de_prediction", PREDICTION_DEFAULT_DE)))
-        from workflow.neighbour_check import buffer_from, enabled_from
-        self._patch_neighbour_spin.setValue(buffer_from(s))
-        self._patch_neighbour_acc_spin.setValue(buffer_from(s, accurate=True))
-        self._patch_neighbour_check.setChecked(enabled_from(s))
-        self._on_neighbour_check_toggled(enabled_from(s))
-        self._patch_fence_check.setChecked(
-            bool(s.get("patch_warn_outlier_fence", True)))
+        self._load_misread_table(s)
         self._cal_retries_spin.setValue(int(s.get("cal_auto_retries", 3)))
         self._fast_connect_check.setChecked(
             bool(s.get("fast_instrument_connect", True)))
@@ -6742,20 +6920,7 @@ class SettingsDialog(QDialog):
         s.set("report_title_calibration", report_title_to_store(
             "report_title_calibration", self._report_title_cal_edit.text()))
         s.set("report_add_profile_name", self._report_add_profile_check.isChecked())
-        s.set("patch_read_warn_de_estimated",
-              float(self._patch_warn_est_spin.value()))
-        s.set("patch_read_warn_de_accurate",
-              float(self._patch_warn_acc_spin.value()))
-        s.set("patch_read_warn_de_prediction",
-              float(self._patch_warn_pred_spin.value()))
-        from workflow.neighbour_check import (BUFFER_ACCURATE_KEY,
-                                              BUFFER_KEY, SWITCH_KEY)
-        s.set(BUFFER_KEY, float(self._patch_neighbour_spin.value()))
-        s.set(BUFFER_ACCURATE_KEY,
-              float(self._patch_neighbour_acc_spin.value()))
-        s.set(SWITCH_KEY, bool(self._patch_neighbour_check.isChecked()))
-        s.set("patch_warn_outlier_fence",
-              bool(self._patch_fence_check.isChecked()))
+        self._save_misread_table(s)
         s.set("cal_auto_retries", int(self._cal_retries_spin.value()))
         s.set("fast_instrument_connect", self._fast_connect_check.isChecked())
         s.set("misalign_safenet", self._safenet_check.isChecked())

@@ -521,8 +521,12 @@ def _info(tab, loc):
 
 
 def test_the_fence_is_ignored_and_the_limit_is_10_on_a_predicted_chart(qapp, tmp_path):
+    """Beta 17: a verification chart's own strip-test box, off by default
+    (Knut 6084176226), and its own patch error limit (5 by default since
+    6070058549; 10 set here, as this test always measured at 10)."""
     tab = _tab(tmp_path, {"chartread_engine": "chromiq",
-                          "patch_warn_outlier_fence": True})
+                          "patch_strip_test_estimated": True,
+                          "patch_read_warn_de_prediction": 10.0})
     tab._live_expected = ve.LiveExpected(ve.SOURCE_PREDICTION, "t", PRED)
     assert tab._use_outlier_fence() is False
     assert tab._patch_warn_limit() == 10.0
@@ -546,7 +550,7 @@ def _lab(xyz):
 
 def test_the_fence_still_rules_every_other_chart(qapp, tmp_path):
     tab = _tab(tmp_path, {"chartread_engine": "chromiq",
-                          "patch_warn_outlier_fence": True})
+                          "patch_strip_test_estimated": True})
     tab._live_expected = None
     assert tab._use_outlier_fence() is True
     assert tab._patch_warn_limit() == 95.0
@@ -558,13 +562,13 @@ def test_the_fence_still_rules_every_other_chart(qapp, tmp_path):
     # (test_measurement_report.py read "design" for "device", 2026-10-03).
     (tmp_path / "second").mkdir()
     tab2 = _tab(tmp_path / "second", {"chartread_engine": "chromiq",
-                                      "patch_warn_outlier_fence": False})
+                                      "patch_strip_test_estimated": False})
     assert tab2._use_outlier_fence() is False                  # the user's own choice
     # The same evenly-off strip on a targen -c chart (accurate, NOT a
     # prediction): the user's fence still hides the strip there.
     (tmp_path / "acc").mkdir()
     acc = _tab(tmp_path / "acc", {"chartread_engine": "chromiq",
-                                  "patch_warn_outlier_fence": True})
+                                  "patch_strip_test_estimated": True})
     acc._ti1_path.write_text(_ti2_text().replace(
         'NUMBER_OF_FIELDS', 'ACCURATE_EXPECTED_VALUES "true"\nNUMBER_OF_FIELDS'),
         encoding="utf-8")
@@ -771,8 +775,20 @@ def test_a_failed_prediction_is_remembered_like_a_success():
 def test_a_predicted_card_names_its_limit_for_what_the_chart_is():
     """Knut, #182 5965408335: on a verification chart judged against its
     profile the red card says so, not "made from a profile"."""
-    import inspect
-    import ui.tiff_preview as tp
-    src = inspect.getsource(tp)
-    i = src.index('"(limit for a chart judged against "')
-    assert 'info.get("expected_source") == "prediction"' in src[i - 400:i]
+    # Beta 17: the chart type is named with the limit, "verification charts"
+    # (the k56 card Knut approved in 6084176226).
+    from PyQt6.QtWidgets import QApplication, QWidget
+    from ui.tiff_preview import _PatchInfoTile
+    QApplication.instance() or QApplication([])
+    host = QWidget()
+    tile = _PatchInfoTile(host)
+    tile.set_content({"loc": "H11", "exp_rgb": (60, 90, 160),
+                      "meas_rgb": (70, 92, 150), "exp_lab": (39.1, 8.2, -45.3),
+                      "meas_lab": (40.0, 5.1, -38.9), "de": 7.18,
+                      "warn": True, "warn_de": 5.0, "accurate": True,
+                      "expected_source": "prediction", "kind": "verification"},
+                     "both")
+    text = " ".join(t for _s, t in tile._rows)
+    assert ("ΔE*ab 7.2 reached the patch error limit (5.0, verification "
+            "charts).") in text
+    assert "pre-conditioning" not in text

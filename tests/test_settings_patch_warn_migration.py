@@ -38,9 +38,12 @@ def test_the_defaults():
     # Beta 11 (Knut #182 5983470377): 20, no longer ACC_WERR_TH's 30, and a
     # third limit for a verification judged against its profile.
     assert DEFAULTS["patch_read_warn_de_accurate"] == 20.0
-    assert DEFAULTS["patch_read_warn_de_prediction"] == 10.0
+    # Beta 17 (Knut 6070058549): the verification limit is 5, and calibration
+    # charts have their own limit.
+    assert DEFAULTS["patch_read_warn_de_prediction"] == 5.0
+    assert DEFAULTS["patch_read_warn_de_calibration"] == 95.0
     assert "patch_read_warn_de" not in DEFAULTS
-    assert SETTINGS_SCHEMA >= 26
+    assert SETTINGS_SCHEMA >= 29
 
 
 def test_a_changed_old_limit_becomes_the_estimated_limit(tmp_path):
@@ -122,5 +125,5 @@ def test_the_verification_limit_is_new_and_takes_nobodys_old_value(tmp_path):
     s = _settings26(tmp_path, patch_read_warn_de_accurate=12.0,
                     patch_read_warn_de_estimated=60.0)
     s.migrate()
-    assert float(s.get("patch_read_warn_de_prediction")) == 10.0
+    assert float(s.get("patch_read_warn_de_prediction")) == 5.0   # beta 17
     assert s._qs.value("patch_read_warn_de_prediction", None) is None

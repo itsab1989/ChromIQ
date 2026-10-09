@@ -1,20 +1,29 @@
-"""b15 item 10 (Knut #182 6065640028, approved by Basti): every hover card of
-a patch the neighbour check judges says, under "Measured", how far the patch
-is from its expected colour compared with the patches nearest to it in
-colour, flagged or not. The number is the neighbour check's own B2+ median
-(`NeighbourCheck.comparison`), so the card and the red outline never
-disagree; with fewer than 2 such patches read the card says so."""
+"""b15 item 10 (Knut #182 6065640028), in the words Knut approved for beta 17
+(6078174421, 6084176226): every hover card says, under "Measured", how far
+the patch is from its expected colour compared with the patches nearest to it
+in colour, flagged or not. The number is Knut's four steps' (its own error
+minus the median of its neighbours' errors, `NeighbourCheck.comparison`), so
+the card and the red outline never disagree; with fewer than 2 such patches
+read the card says so. Since beta 17 on every chart type, with outlines."""
 from __future__ import annotations
 
 import pytest
 
 from tests.test_neighbour_check_in_the_measure_tab import (  # noqa: F401
-    _card, _info, _read_all, _strip, _tab, qapp)
+    _card, _info, _read_all, _strip, _tab, _text, qapp)
 from workflow import measurement_messages as M
 
 
 def _lines(tab, loc):
     return _card(_info(tab, loc))
+
+
+def _sentence(n, fu):
+    d = f"{abs(fu):.1f}"
+    if d == "0.0":
+        return M._CARD_NBC_EQUAL_S.format(n=n)
+    return (M._CARD_NBC_CLOSER_S if fu < 0 else M._CARD_NBC_FURTHER_S).format(
+        d=d, n=n)
 
 
 def test_a_clean_patch_shows_its_comparison(qapp, tmp_path):
@@ -23,13 +32,11 @@ def test_a_clean_patch_shows_its_comparison(qapp, tmp_path):
     n, fu = tab._nb_check.comparison("C5")
     assert n >= 2
     lines = _lines(tab, "C5")
-    assert M._CARD_NBC_1.format(n=n) in lines
-    word = (M._CARD_NBC_CLOSER if fu < 0 and f"{abs(fu):.1f}" != "0.0"
-            else M._CARD_NBC_FURTHER)
-    assert word.format(d=f"{abs(fu):.1f}") in lines
-    assert M._CARD_NBC_2 in lines
+    text = _text(lines)
+    assert _sentence(n, fu) in text
     # under the measured colour, above anything about an outline
-    assert lines.index(M._CARD_NBC_1.format(n=n)) > lines.index("Measured")
+    first = next(i for i, l in enumerate(lines) if l.startswith("This patch"))
+    assert first > lines.index("Measured")
 
 
 def test_the_misread_shows_the_figure_the_check_used(qapp, tmp_path):
@@ -37,63 +44,62 @@ def test_the_misread_shows_the_figure_the_check_used(qapp, tmp_path):
     _read_all(tab, {"D6": 0.55})
     f = tab._nb_check.finding("D6")
     assert f.suspect and f.further > 0
-    lines = _lines(tab, "D6")
-    assert M._CARD_NBC_FURTHER.format(d=f"{f.further:.1f}") in lines
+    assert M._CARD_NBC_FURTHER_S.format(
+        d=f"{f.further:.1f}", n=len(f.compared)) in _text(_lines(tab, "D6"))
 
 
 def test_its_neighbours_read_closer_than_it(qapp, tmp_path):
-    """The sign is the word: a neighbour of the misread is LESS far off than
-    the misread is, so its median can only be at or below the clean value."""
+    """The sign is the word (Knut 6078174421: "further from" is replaced
+    with "closer to" when below 0, and at 0.0 no value is shown)."""
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55})
     for loc in tab._nb_check.finding("D6").compared:
         n, fu = tab._nb_check.comparison(loc)
-        lines = _lines(tab, loc)
-        if fu < 0 and f"{abs(fu):.1f}" != "0.0":
-            assert M._CARD_NBC_CLOSER.format(d=f"{abs(fu):.1f}") in lines
-        else:
-            assert M._CARD_NBC_FURTHER.format(d=f"{abs(fu):.1f}") in lines
+        assert _sentence(n, fu) in _text(_lines(tab, loc))
 
 
 def test_too_few_neighbours_says_so(qapp, tmp_path):
-    tab = _tab(tmp_path)
-    tab._on_strip_measured(_strip("A"))          # nothing else read yet
-    lines = _lines(tab, "A6")
-    assert M._CARD_NBC_FEW in lines and M._CARD_NBC_FEW_2 in lines
-    assert not any(l.startswith("Against the") for l in lines)
+    tab = _tab(tmp_path, settings={"patch_neighbour_radius_estimated": 1.0})
+    tab._on_strip_measured(_strip("A"))
+    text = _text(_lines(tab, "A6"))
+    assert M._CARD_NBC_FEW_S in text
+    assert "This patch" not in text
 
 
 def test_the_card_follows_later_strips(qapp, tmp_path):
-    tab = _tab(tmp_path)
+    tab = _tab(tmp_path, settings={"patch_neighbour_radius_estimated": 6.0})
     tab._on_strip_measured(_strip("A"))
+    assert M._CARD_NBC_FEW_S in _text(_lines(tab, "A6"))
     tab._on_strip_measured(_strip("B"))
     tab._on_strip_measured(_strip("C"))
-    n, _ = tab._nb_check.comparison("A6")
+    n, fu = tab._nb_check.comparison("A6")
     assert n >= 2
-    assert M._CARD_NBC_1.format(n=n) in _lines(tab, "A6")
+    assert _sentence(n, fu) in _text(_lines(tab, "A6"))
 
 
 @pytest.mark.parametrize("case", ["verification", "calibration"])
-def test_also_where_the_check_does_not_run_and_without_outlines(
+def test_on_verification_and_calibration_charts_with_outlines(
         qapp, tmp_path, monkeypatch, case):
-    """Review of b15 item 10: Knut asked for the comparison ALWAYS. On a
-    verification or a calibration chart the same B2+ figure is worked out on
-    the measurement's own readings for the card only: the neighbour check
-    still outlines nothing there, not even a gross misread (outlines on a
-    verification are a separate analysis Knut asked to see first)."""
+    """Beta 17 (Knut 6070058549 answer 3, 6082015002): the check runs there,
+    so the card's figure is the check's and a misread is outlined."""
     folder = tmp_path / ("cal" if case == "calibration" else "run1")
     tab = _tab(folder)
     if case == "verification":
         monkeypatch.setattr(type(tab), "_is_verification_run", lambda self: True)
+        monkeypatch.setattr(type(tab), "_expected_is_predicted",
+                            lambda self: True)
     _read_all(tab, {"D6": 0.55})
-    assert not tab._neighbour_check_applies()
-    nc = getattr(tab, "_nb_check", None)
-    assert nc is None or len(nc) == 0
-    n, fu = tab._nb_card.comparison("D6")
+    assert tab._neighbour_check_applies()
+    n, fu = tab._nb_check.comparison("D6")
     assert n >= 2 and fu > 0
-    lines = _lines(tab, "D6")
-    assert M._CARD_NBC_1.format(n=n) in lines
-    assert M._CARD_NBC_FURTHER.format(d=f"{fu:.1f}") in lines
-    assert M._CARD_NB_RED not in lines
-    assert _info(tab, "D6").get("neighbour") is None
-    assert tab.neighbour_summary_facts() is None
+    text = _text(_lines(tab, "D6"))
+    assert _sentence(n, fu) in text
+    nb = _info(tab, "D6")["neighbour"]
+    assert nb is not None
+    limit = 3.0 if case == "verification" else 10.0
+    assert nb["limit"] == limit
+    # red by the neighbour check alone, or (on a verification, whose patch
+    # error limit is 5) by both, with the neighbour line after the limit's
+    kw = dict(d=f"{fu:.1f}", n=n, limit=f"{limit:.1f}")
+    assert (M._CARD_NB_RED_S.format(**kw) in text
+            or M._CARD_NB_ALSO_S.format(**kw) in text)

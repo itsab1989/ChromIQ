@@ -1,68 +1,41 @@
-"""The neighbour check: a patch whose reading does not fit the patches
-nearest to it in colour (#182, beta 11).
+"""The neighbour check: a patch further from its expected colour than the
+patches nearest to it in colour are from theirs (#182).
 
-**The ruling.** Knut, #182 5983470377, answer 5 (*"Build the neighbour check
-for profiling charts?"* "Yes"), approving section C of the beta 10 analysis
-(``2026-10-04_beta10/knut_analysis/ANALYSIS.md``; his own idea, 5982600086,
-in its robust form). The analysis measured it on his real charts and
-recommended it for charts with ESTIMATED expected colours, buffer 10; it is
-not used on verification measurements (their limit of 10 already does the
-work) nor on calibration charts (never measured, and a ramp chart has its
-nearest colours in its own strip).
+**The rule, beta 17: Knut's four steps** (#182 6071673457, adopted in
+6078174421: "I think the 4 steps should be used"):
 
-**The rule.** For each patch with a reading:
+1. for each neighbour, its error: ΔE*ab between its reading and its
+   expected colour;
+2. the MEDIAN of the neighbours' errors;
+3. the patch's own error, the same way;
+4. the patch is a suspected misread (red outline) when its own error minus
+   that median is MORE than the **Neighbour limit**.
 
-1. its comparison patches are up to :data:`MAX_COMPARED` (4) other patches
-   that have a reading, were read in a DIFFERENT strip (one strip is one pass
-   of the reader: a smudge or a slipped strip moves several patches of one
-   strip alike) and whose EXPECTED colours lie within :data:`RADIUS_DE`
-   (ΔE*ab 15) of its own, the nearest first;
-2. with fewer than :data:`MIN_COMPARED` (2 since beta 15, was 3) of them it
-   is not judged at all: a patch is never suspected for lack of comparisons;
-3. for each comparison patch b, the excess is how much further apart the two
-   READINGS are than the two EXPECTED colours:
-   ``|meas_a - meas_b| - |exp_a - exp_b|`` (ΔE*ab, L*a*b* as the engine
-   computes it, D50);
-4. when the MEDIAN excess is over the buffer (:data:`BUFFER_DE`, ΔE 10, on a
-   chart with estimated colours; :data:`BUFFER_ACCURATE_DE`, ΔE 5, on a chart
-   made with a pre-conditioning profile, beta 15),
-5. AND the patch is the one that is off (beta 15, "B2+"): the median of
-   ``|meas_a - exp_a| - |meas_b - exp_b|`` is above 0, so it is further from
-   its own expected colour than its comparison patches are from theirs,
-   the patch is a suspected misread.
+**The neighbours** (6078174421, 6082015002, 6085694445): the 2 to 4 read
+patches nearest to it in EXPECTED colour within the **Colour-neighbour
+radius**, from ANY strip, its own included (calibration charts hold their
+colour ramps on one strip; patch by patch there is no strip). With fewer
+than 2 the patch is not judged at all: a patch is never suspected for lack of
+comparisons. There is nothing else: no hidden threshold, no "twice the
+limit", no "always 4". Beta 15's first test (the readings further apart than
+the expected colours, by more than a "buffer") is gone; the number that is
+compared with the limit is the very number every patch card shows.
 
-**B2+ (beta 15, Knut #182 6059912998, "Use the suggested B2+ method"),**
-measured in ``2026-10-08_neighbour_methods/ANALYSIS.md`` on 3,492 simulated
-measurements: two comparisons are enough (small charts: 34 % of patches
-checked instead of 17 %, gross misreads caught 34 % instead of 19 %), and
-condition 5 keeps a HEALTHY patch beside a nozzle line or a drying ink from
-turning red with the faulty ones (38 and 81 healthy reds per measurement
-before, 3.5 and 5.3 after). Exactly two, never more, was worse; up to four
-stays.
+**Defaults** (``workflow/misread_settings.py``), per chart type: Neighbour
+limit 10 / 5 / 3 / 10 and Colour-neighbour radius 15 / 30 / 30 / 30 (profiling
+charts with estimated colours / made with a pre-conditioning profile /
+verification charts / calibration charts), all ΔE*ab, all configurable in
+Preferences ▸ Measurement.
 
-Estimated expected colours are rough, but they are rough in the same way for
-colours that lie close together, so two patches expected close together are
-read close together on any printer; a reading that lands far from all of its
-colour neighbours is more likely the reader's fault than the printer's. The
-median is what keeps one misread neighbour from making its partners suspect.
+**When.** While a chart is being read most patches have too few neighbours,
+so it is judged again after every completed strip (and after every patch,
+patch by patch) and when a measurement is opened from disk.
+:meth:`NeighbourCheck.evaluate` judges every patch afresh from the readings
+on hand. Only the patch's own re-read (within the Same-reading tolerance)
+turns a suspect yellow; a green patch turns red again when a later reading of
+it is a misread.
 
-Measured on the real profiling sheets of the analysis (Knut's HP laser 1944,
-his run1 648 and run4 324, an Epson P300 924, a Canon Pro300 1168, his
-scanner chart 315): beta 11's rule found 35 suspects at buffer 10 of 5,323
-patches (0.7 %), 28 of them on the wide-gamut Canon; none at buffer 15. B2+,
-re-measured for beta 15 on the same sheets (`tests/test_neighbour_check.py`
-``REAL``): 24 at buffer 10, 18 of them on the Canon, none at 15. Against injected misreads it
-caught 43 % of smudges, 77 % of single glitches and every out-of-step or
-wrong-strip read, most of which no limit can see because they land in the
-middle of the colour space.
-
-**When.** The check is a late one: while a chart is still being read most
-patches have too few comparisons, so it is judged again after every strip
-(and every patch, patch by patch) and when a measurement is opened from
-disk. :meth:`NeighbourCheck.evaluate` judges every patch afresh from the
-readings on hand.
-
-Pure logic: no Qt, numpy only.
+L*a*b* as the engine computes it (D50). Pure logic: no Qt, numpy only.
 """
 from __future__ import annotations
 
@@ -70,55 +43,30 @@ from dataclasses import dataclass
 
 import numpy as np
 
-#: A comparison patch's EXPECTED colour lies within this of the patch's own.
+#: A comparison patch's EXPECTED colour lies within this of the patch's own
+#: (the Colour-neighbour radius on a profiling chart with estimated colours;
+#: the other chart types have their own, ``workflow/misread_settings.py``).
 RADIUS_DE = 15.0
 #: At most this many comparison patches, the nearest by expected colour.
 MAX_COMPARED = 4
-#: Fewer than this, and the patch is not judged (B2+, beta 15: was 3).
+#: Fewer than this, and the patch is not judged.
 MIN_COMPARED = 2
-#: The median excess must be MORE than this for a suspect, on a chart with
-#: estimated colours (most charts).
-BUFFER_DE = 10.0
-#: ... and on a chart made with a pre-conditioning profile, whose expected
-#: colours are close to the print (Knut #182 6059912998, answer 6: "a
-#: separate variable for charts made from a pre-conditioning profile, with 5
-#: as default"). The analysis: 0 to 3 false reds there at 5.
-BUFFER_ACCURATE_DE = 5.0
-BUFFER_ACCURATE_KEY = "patch_neighbour_buffer_de_accurate"
+#: The Neighbour limit on a profiling chart with estimated colours: the
+#: patch's own error may be at most this much above the median of its
+#: neighbours' errors (ΔE*ab). Every chart type has its own
+#: (``workflow/misread_settings.py``).
+LIMIT_DE = 10.0
 #: The neighbour check's own switch (k44, Knut #182 6060201176), on by
 #: default. Off, it judges nothing: no patch is red for it, and its outlines
 #: come back as they were when it is switched on again.
 SWITCH_KEY = "patch_neighbour_check"
-#: The user's buffer (Preferences ▸ Measurement, Knut #182 5983725218:
-#: "a defined input box ... so that the threshold for when this check
-#: triggers a red highlighted patch can be modified by user"), and its range.
-BUFFER_KEY = "patch_neighbour_buffer_de"
-BUFFER_MIN_DE = 1.0
-BUFFER_MAX_DE = 50.0
-
-
-def buffer_from(settings, accurate: bool = False) -> float:
-    """The user's buffer, or the default, kept within its range: the one for
-    a chart made with a pre-conditioning profile when *accurate* (the chart's
-    file says ACCURATE_EXPECTED_VALUES), else the one for other charts."""
-    key, default = ((BUFFER_ACCURATE_KEY, BUFFER_ACCURATE_DE) if accurate
-                    else (BUFFER_KEY, BUFFER_DE))
-    try:
-        v = float(settings.get(key, default))
-    except (TypeError, ValueError, AttributeError):
-        return default
-    if v != v:                      # NaN
-        return default
-    return min(BUFFER_MAX_DE, max(BUFFER_MIN_DE, v))
 
 
 def enabled_from(settings) -> bool:
     """Whether the neighbour check is switched on (Preferences ▸
     Measurement, k44); on when unset or unreadable."""
-    try:
-        return bool(settings.get(SWITCH_KEY, True))
-    except Exception:      # noqa: BLE001
-        return True
+    from workflow.misread_settings import neighbour_check_on
+    return neighbour_check_on(settings)
 
 #: ArgyllCMS's icmD50, the white the engine's L*a*b* is computed against
 #: (``workflow.measurement_report._engine_lab``).
@@ -142,18 +90,16 @@ def engine_lab(xyz100) -> "tuple[float, float, float]":
 class NeighbourFinding:
     """How one patch fared against its comparison patches.
 
-    *compared* are their locations, nearest first. *excess* is the median of
-    the pairs' excess, *expected_de* the median distance between its expected
-    colour and theirs, *measured_de* the median distance between its reading
-    and theirs, *further* the median of how much further its reading is from
-    its own expected colour than theirs are from theirs (all ΔE*ab).
-    *suspect* is the verdict: enough comparisons, the median excess over the
-    buffer, and *further* above 0 (B2+)."""
+    *compared* are their locations, nearest first. *further* is Knut's
+    number: the patch's own error minus the median of its neighbours'
+    errors (ΔE*ab; below 0 it is closer to its expected colour than they
+    are to theirs). *own_de* is its own error and *median_de* the median of
+    theirs. *suspect* is the verdict: at least :data:`MIN_COMPARED`
+    neighbours, and *further* more than the Neighbour limit."""
     loc: str
     compared: tuple = ()
-    excess: float = 0.0
-    expected_de: float = 0.0
-    measured_de: float = 0.0
+    own_de: float = 0.0
+    median_de: float = 0.0
     suspect: bool = False
     further: float = 0.0
 
@@ -172,11 +118,11 @@ class NeighbourCheck:
 
     def __init__(self, radius: float = RADIUS_DE, k: int = MAX_COMPARED,
                  min_compared: int = MIN_COMPARED,
-                 buffer: float = BUFFER_DE) -> None:
+                 limit: float = LIMIT_DE) -> None:
         self.radius = float(radius)
         self.k = int(k)
         self.min_compared = int(min_compared)
-        self.buffer = float(buffer)
+        self.limit = float(limit)
         self.reset()
 
     def reset(self) -> None:
@@ -194,12 +140,21 @@ class NeighbourCheck:
         self._lists: "dict[str, tuple]" = {}
         self._users: "dict[str, set]" = {}
 
-    def set_buffer(self, buffer: float) -> None:
-        """Take the user's buffer (Preferences ▸ Measurement); a new one
-        judges every patch again at the next evaluation."""
-        buffer = float(buffer)
-        if buffer != self.buffer:
-            self.buffer = buffer
+    def set_limit(self, limit: float) -> None:
+        """Take the user's Neighbour limit (Preferences ▸ Measurement); a new
+        one judges every patch again at the next evaluation."""
+        limit = float(limit)
+        if limit != self.limit:
+            self.limit = limit
+            self._changed = None
+            self._arrived, self._left = set(), set()
+
+    def set_radius(self, radius: float) -> None:
+        """Take the user's Colour-neighbour radius; a new one finds every
+        patch's neighbours afresh at the next evaluation."""
+        radius = float(radius)
+        if radius != self.radius:
+            self.radius = radius
             self._changed = None
             self._arrived, self._left = set(), set()
 
@@ -209,7 +164,8 @@ class NeighbourCheck:
     def set_reading(self, loc: str, exp_xyz100, meas_xyz100,
                     strip: "str | None") -> None:
         """Remember the latest reading of *loc* (XYZ 0..100, D50), read in
-        *strip* (None or "": unknown, which never compares with anything)."""
+        *strip* (None or "" when not known; the strip no longer decides who
+        compares with whom, beta 17, but is kept for the callers)."""
         self.set_reading_lab(loc, engine_lab(exp_xyz100),
                              engine_lab(meas_xyz100), strip)
 
@@ -252,8 +208,8 @@ class NeighbourCheck:
         them the first time); ``{loc: finding}`` for every patch whose
         suspect verdict CHANGED since the last evaluation.
 
-        A patch's comparison patches depend only on the expected colours and
-        strips of the patches read, so they are kept between evaluations and
+        A patch's comparison patches depend only on the expected colours of
+        the patches read, so they are kept between evaluations and
         changed only by what changed (review of beta 11: finding them afresh
         for every patch near a new strip cost a distance to every reading per
         patch, 0.1 s a strip at the end of a 4,096-patch chart, growing with
@@ -317,6 +273,9 @@ class NeighbourCheck:
                                      st[new_idx][None, :],
                                      known[lo:lo + _BLOCK, None],
                                      known[new_idx][None, :])
+                    # an arrival is no neighbour of itself
+                    rows_ = np.arange(lo, min(lo + _BLOCK, n))[:, None]
+                    ok &= rows_ != new_idx[None, :]
                     merge.update((lo + np.nonzero(ok.any(axis=1))[0]).tolist())
             merge -= fresh
         if n and fresh:
@@ -371,9 +330,11 @@ class NeighbourCheck:
             self._lists.pop(loc, None)
 
     def _valid(self, d, st_a, st_b, known_a, known_b):
-        """May a and b compare: both strips known, different, and their
-        expected colours within the radius."""
-        return (st_a != st_b) & known_a & known_b & (d <= self.radius)
+        """May a and b compare: their expected colours lie within the
+        Colour-neighbour radius. From ANY strip, its own included (Knut,
+        #182 6078174421: "neighbours should come from any strip"). The
+        strips are still passed, so the search keeps one shape."""
+        return d <= self.radius
 
     def _find_fresh(self, locs, exp, st, known, rows) -> None:
         """Find the comparisons of *rows* among all the readings."""
@@ -389,6 +350,8 @@ class NeighbourCheck:
             d = np.linalg.norm(exp[rr, None, :] - exp[None, :, :], axis=2)
             ok = self._valid(d, st[rr, None], st[None, :], known[rr, None],
                              known[None, :])
+            # never itself
+            ok[np.arange(len(rr)), rr] = False
             d[~ok] = np.inf
             # Equal distances go to the patch first read, whichever rows are
             # judged together (a nudge far below any colour difference).
@@ -419,7 +382,9 @@ class NeighbourCheck:
             self._set_list(locs[i], tuple(locs[j] for j in take))
 
     def _judge_rows(self, locs, pos, exp, meas, rows) -> None:
-        """Work out the medians of *rows* from their comparisons."""
+        """Knut's four steps for *rows*: each neighbour's error, their
+        median, the patch's own error, and own minus median against the
+        Neighbour limit."""
         k = max(1, self.k)
         idx = np.full((len(rows), k), -1, dtype=int)
         for r, i in enumerate(rows):
@@ -428,27 +393,17 @@ class NeighbourCheck:
         ok = idx >= 0
         count = ok.sum(axis=1)
         safe = np.where(ok, idx, 0)
-        de = np.linalg.norm(exp[safe] - exp[rows][:, None, :], axis=2)
-        dm = np.linalg.norm(meas[safe] - meas[rows][:, None, :], axis=2)
-        de[~ok] = np.nan
-        dm[~ok] = np.nan
-        # B2+: how far each reading is from its own expected colour
-        off_own = np.linalg.norm(meas[rows] - exp[rows], axis=1)[:, None]
+        # steps 1 and 3: each reading's distance from its own expected colour
+        own = np.linalg.norm(meas[rows] - exp[rows], axis=1)
         off_nb = np.linalg.norm(meas[safe] - exp[safe], axis=2)
-        fu = off_own - off_nb
-        fu[~ok] = np.nan
+        off_nb[~ok] = np.nan
         has = count > 0
-        med_ex = np.zeros(len(rows))
-        med_de = np.zeros(len(rows))
-        med_dm = np.zeros(len(rows))
-        med_fu = np.zeros(len(rows))
+        med = np.zeros(len(rows))
         if has.any():
-            med_ex[has] = np.nanmedian((dm - de)[has], axis=1)
-            med_de[has] = np.nanmedian(de[has], axis=1)
-            med_dm[has] = np.nanmedian(dm[has], axis=1)
-            med_fu[has] = np.nanmedian(fu[has], axis=1)
-        suspect = (has & (count >= self.min_compared) & (med_ex > self.buffer)
-                   & (med_fu > 0.0))
+            med[has] = np.nanmedian(off_nb[has], axis=1)     # step 2
+        further = own - med
+        # step 4
+        suspect = has & (count >= self.min_compared) & (further > self.limit)
         for r, i in enumerate(rows):
             if not has[r]:
                 self._findings[locs[i]] = NeighbourFinding(locs[i])
@@ -456,11 +411,10 @@ class NeighbourCheck:
             self._findings[locs[i]] = NeighbourFinding(
                 loc=locs[i],
                 compared=tuple(locs[j] for j in idx[r][ok[r]]),
-                excess=float(med_ex[r]),
-                expected_de=float(med_de[r]),
-                measured_de=float(med_dm[r]),
+                own_de=float(own[r]),
+                median_de=float(med[r]),
                 suspect=bool(suspect[r]),
-                further=float(med_fu[r]))
+                further=float(further[r]))
 
     def finding(self, loc: str) -> "NeighbourFinding | None":
         """The last evaluation's finding for *loc* (None: no reading then)."""
@@ -468,11 +422,11 @@ class NeighbourCheck:
 
     def comparison(self, loc: str) -> "tuple[int, float]":
         """b15 item 10 (Knut #182 6065640028): ``(n, further)`` for the hover
-        card: how many read patches of other strips *loc* is compared with
-        (0 to :data:`MAX_COMPARED`), and the median of how much further its
-        reading is from its own expected colour than theirs are from theirs
-        (ΔE*ab; above 0: further off than its neighbours). The very figure
-        B2+ asks to be above 0, so the card and the outline cannot disagree.
+        card: how many read patches *loc* is compared with (0 to
+        :data:`MAX_COMPARED`), and its own error minus the median of theirs
+        (ΔE*ab; above 0: further from its expected colour than they are from
+        theirs). The very figure step 4 compares with the Neighbour limit, so
+        the card and the outline cannot disagree (Knut 6071004702).
         ``(0, 0.0)`` for a patch with no reading or no comparison."""
         f = self._findings.get(str(loc))
         if f is None:

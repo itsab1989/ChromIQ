@@ -8,7 +8,11 @@ profile (default 5). Until then the ONE buffer applied to both kinds of chart.
 A user who had left it at 10 gets the designed pair 10/5. A user who had set
 their own number keeps it for BOTH, so nobody's checking of pre-conditioning-
 profile charts silently becomes stricter (found in the beta 15 review B: a
-user who had raised it to 15 got 5)."""
+user who had raised it to 15 got 5).
+
+Beta 17 (schema 29) carries the pair on into the Neighbour limit of the same
+two chart types and removes the old keys, so the end of the chain is checked
+in the new keys (``workflow/misread_settings.py``)."""
 from pathlib import Path
 
 import pytest
@@ -19,6 +23,8 @@ from core.settings import AppSettings, DEFAULTS, SETTINGS_SCHEMA   # noqa: E402
 
 KEY = "patch_neighbour_buffer_de"
 ACC = "patch_neighbour_buffer_de_accurate"
+NEW_KEY = "patch_neighbour_limit_estimated"
+NEW_ACC = "patch_neighbour_limit_accurate"
 
 
 def _settings(tmp_path: Path, value=None, accurate=None,
@@ -34,12 +40,14 @@ def _settings(tmp_path: Path, value=None, accurate=None,
 
 
 def _pair(s: AppSettings) -> "tuple[float, float]":
-    return float(s.get(KEY)), float(s.get(ACC))
+    assert s._qs.value(KEY, None) is None and s._qs.value(ACC, None) is None
+    return float(s.get(NEW_KEY)), float(s.get(NEW_ACC))
 
 
 def test_the_designed_defaults():
-    assert DEFAULTS[KEY] == 10.0 and DEFAULTS[ACC] == 5.0
-    assert SETTINGS_SCHEMA >= 27
+    assert DEFAULTS[NEW_KEY] == 10.0 and DEFAULTS[NEW_ACC] == 5.0
+    assert KEY not in DEFAULTS and ACC not in DEFAULTS
+    assert SETTINGS_SCHEMA >= 29
 
 
 def test_nothing_stored_gives_the_designed_pair(tmp_path):

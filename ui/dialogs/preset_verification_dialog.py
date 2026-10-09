@@ -775,18 +775,52 @@ def _gamut_state_line(row: PresetRow) -> str:
         "its profile its solid patches are converted.")
 
 
-#: k45 (Knut #182 6060464553): what the two "Metrics answered" columns
-#: count. The header tooltip and the line over the list.
+#: k45 (Knut #182 6060464553): what the two count columns count. Beta 17:
+#: the tooltip of both headings and of the line over the list, as drawn in
+#: the k56 mock-up "presets_tooltip_own_colours" (Knut 6078432080 asked that
+#: it start with what the columns tell; approved in 6085694445, "almost":
+#: only the footer's "own colours" was missing). It begins with what the
+#: columns count and names both ways of filling the chart.
 TWO_COUNTS_NOTE = (
-    "Each preset is counted two ways. Own colours: the chart as the preset "
-    "makes it, with its own patch colours. From Profile Gamut: the preset's "
-    "layout filled with the colours a profile can print, plus the 8 cube "
-    "corners, as Create Chart builds it when you choose the preset under "
-    "FROM PROFILE GAMUT. Only a chart filled From Profile Gamut prints "
-    "its solid patches as they are, so only it can answer the two metrics of "
-    "the solid colours. ChromIQ checks every built-in preset both ways "
-    "before each release; how you will fill the chart decides which count "
-    "applies.")
+    "Report metrics this chart can answer, counted for the two ways a chart "
+    "can be filled with colours.\n"
+    "Own colours: the preset's own patch colours. For a verification the "
+    "chart is printed through the profile; for profiling it is printed raw.\n"
+    "From Profile Gamut: the preset's layout filled with colours your profile "
+    "can print (Create Chart ▸ FROM PROFILE GAMUT). For verification only.\n"
+    "More under ⓘ.")
+
+#: The help (ⓘ) beside the line over the list: the k56 mock-up
+#: "presets_help_own_colours", approved by Knut in 6085694445. The Print
+#: Chart radio buttons are quoted exactly as they read ("Raw — no profile",
+#: "Raw — already converted"; the mock-up wrote them with a comma).
+OWN_COLOURS_HELP_TITLE = "Own colours and From Profile Gamut"
+OWN_COLOURS_HELP = (
+    "**What the two columns count:** how many of the Measurement Report "
+    "metrics asked for above (report type and limit set) the chart can "
+    "answer, once for each way of filling the chart with colours.\n\n"
+    "**Own colours:** the patch colours the preset itself defines, unchanged. "
+    "The same chart is used in two ways:\n"
+    "  • Verification: printed through the profile (Print Chart ▸ Colour: "
+    "“Through the profile”). Your profile converts the preset's colours "
+    "before they are printed, and the measurement is compared with what the "
+    "profile predicts. In Preferences ▸ Measurement this is one of the "
+    "Verification charts.\n"
+    "  • Profiling: printed raw (Print Chart ▸ Colour: “Raw — no profile”). "
+    "The measurement builds the profile. In Preferences ▸ Measurement these "
+    "are the Profiling charts with estimated colours.\n\n"
+    "**From Profile Gamut:** for verification only. Create Chart ▸ FROM "
+    "PROFILE GAMUT keeps the preset's layout and fills it with colours your "
+    "profile can print, plus the 8 corners of the colour cube. The colours "
+    "are converted when the chart is made, so it is printed raw (“Raw — "
+    "already converted”). It is a Verification chart too.\n\n"
+    "**Why the two counts differ:** printed through the profile, the solid "
+    "colours (one ink at 100 %) are converted and no longer print as solids. "
+    "Only a chart filled From Profile Gamut prints its solid patches as they "
+    "are, so only it can answer the two metrics of the solid colours.\n\n"
+    "**Which count applies:** the one for the way you will fill and print the "
+    "chart. ChromIQ checks every built-in preset both ways before each "
+    "release.")
 
 
 #: Beta-15 last fixes: the one line that takes the place of TWO_COUNTS_NOTE's
@@ -1206,6 +1240,13 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         self._two_counts.setAlignment(Qt.AlignmentFlag.AlignLeft
                                       | Qt.AlignmentFlag.AlignVCenter)
         star_row.addWidget(self._two_counts, stretch=1)
+        # Beta 17: the longer explanation behind a help icon (Knut,
+        # 6082015002: "short in tool-tip and longer in help icon").
+        from ui.tooltip_button import TooltipButton
+        self._own_colours_help = TooltipButton(
+            tr(OWN_COLOURS_HELP_TITLE), tr(OWN_COLOURS_HELP), self,
+            min_width=640)
+        star_row.addWidget(self._own_colours_help)
         outer.addLayout(star_row)
 
         # K51 (Knut, #182 5846167083, rule (4) with his modifications;
@@ -1817,10 +1858,12 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         shown = [r for r in self._rows
                  if r.starred or not self._only_star.isChecked()]
         s = PE.summarise(shown)
+        # Beta 17 (Knut, #182 6078432080 and 6085694445): each count says
+        # which way of filling the chart it is for.
         text = tr("Presets listed: {listed}     Made for verification: "
-                  "{starred}     Answering every metric asked: {complete}"
-                  ).format(listed=s["listed"], starred=s["starred"],
-                           complete=s["complete"])
+                  "{starred}     Answering every metric asked, own colours: "
+                  "{complete}").format(listed=s["listed"], starred=s["starred"],
+                                       complete=s["complete"])
         # k45: and the same count laid out From Profile Gamut
         g_full = sum(1 for r in shown
                      if r.gamut_assessment is not None

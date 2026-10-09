@@ -42,8 +42,8 @@ def test_a_neighbour_misread_read_again_and_fitting_is_green(qapp, tmp_path):
 
 def test_a_limit_misread_read_again_and_fitting_is_green(qapp, tmp_path):
     tab = _tab(tmp_path, settings={"patch_read_warn_de_estimated": 8.0,
-                                   "patch_warn_outlier_fence": False,
-                                   "patch_neighbour_buffer_de": 50.0})
+                                   "patch_strip_test_estimated": False,
+                                   "patch_neighbour_limit_estimated": 50.0})
     _read_all(tab, {"B3": 0.6, "E9": 0.6})
     assert _flags(tab)["B3"] is True and _flags(tab)["E9"] is True
     tab._on_strip_measured(_strip("B"))
@@ -99,7 +99,7 @@ def test_green_is_remembered_and_drawn_again_from_the_file(qapp, tmp_path):
 def test_green_on_a_verification_but_no_summary_line(qapp, tmp_path,
                                                      monkeypatch):
     tab = _tab(tmp_path, settings={"patch_read_warn_de_estimated": 8.0,
-                                   "patch_warn_outlier_fence": False})
+                                   "patch_strip_test_estimated": False})
     monkeypatch.setattr(type(tab), "_is_verification_run", lambda self: True)
     _read_all(tab, {"B3": 0.6})
     assert _flags(tab)["B3"] is True

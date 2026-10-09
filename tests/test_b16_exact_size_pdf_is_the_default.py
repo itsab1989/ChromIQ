@@ -220,13 +220,19 @@ def test_a_schema_27_users_own_choices_survive_the_bump(tmp_path):
                   save_measurement_report="false", use_chromiq_layout_engine="false",
                   patch_read_warn_de_accurate=30.0, patch_neighbour_buffer_de=15.0)
     dropped = s.migrate()
-    assert [d for d in dropped if KEY not in d] == []
+    # beta 17's schema-29 step carries the buffer into the new key (its own
+    # test: tests/test_b17_misread_settings_migration.py)
+    assert [d for d in dropped if KEY not in d
+            and not d.startswith("patch_neighbour_buffer_de")] == []
     assert s.get("restore_last_tab") is True
     assert s.get("chartread_engine") == "argyll"
     assert s.get("save_measurement_report") is False
     assert s.get("use_chromiq_layout_engine") is False
     assert float(s.get("patch_read_warn_de_accurate")) == 30.0
     assert s._qs.value("patch_neighbour_buffer_de_accurate") is None
+    # the schema-27 step did not run; the 15 is kept for its own chart type
+    assert float(s.get("patch_neighbour_limit_estimated")) == 15.0
+    assert float(s.get("patch_neighbour_limit_accurate")) == 5.0
 
 
 def test_an_old_install_still_gets_every_step(tmp_path):

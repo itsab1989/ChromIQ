@@ -277,12 +277,13 @@ def _small_tab(tmp_path):
     from tests.test_k182_two_limits_and_the_yellow_outline import KNUT  # noqa: F401
     tab = _tab(tmp_path, settings={"chartread_engine": "chromiq",
                                    pf.ESTIMATED_KEY: 20.0,
-                                   "patch_warn_outlier_fence": False,
+                                   "patch_strip_test_estimated": False,
                                    # The limit's yellow rule alone: F1 is
                                    # also a neighbour suspect at the default
-                                   # buffer, and then only its own re-read
-                                   # clears it (Knut, #182 5984174575).
-                                   "patch_neighbour_buffer_de": 50.0})
+                                   # neighbour limit, and then only its own
+                                   # re-read clears it (Knut, #182
+                                   # 5984174575).
+                                   "patch_neighbour_limit_estimated": 50.0})
     # A grey-neutral D50 chart: the ranges are classified against D50 here.
     tab._ti1_path.write_text(
         tab._ti1_path.read_text(encoding="utf-8").replace(

@@ -93,9 +93,10 @@ def test_a_remembered_overlay_is_painted_when_a_chart_is_loaded():
 
 # ---- the outlier fence is a switch now (his option (c)) --------------------
 def test_the_fence_is_a_setting_that_governs_both_modes():
+    """Beta 17: one Strip test box per chart type (Knut 6084176226)."""
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure._use_outlier_fence)
-    assert '"patch_warn_outlier_fence"' in src
+    assert "strip_test_on(self._settings, self._chart_kind())" in src
     assert "True" in src, "it must default to today's behaviour"
 
 
@@ -105,7 +106,10 @@ def test_the_setting_exists_with_the_right_default(tmp_path):
     from core.settings import AppSettings
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    assert s.get("patch_warn_outlier_fence", None) is True
+    assert s.get("patch_strip_test_estimated", None) is True
+    assert s.get("patch_strip_test_accurate", None) is True
+    assert s.get("patch_strip_test_calibration", None) is True
+    assert s.get("patch_strip_test_verification", None) is False
 
 
 # ---- the hover tile names the standard ------------------------------------
