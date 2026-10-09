@@ -1988,7 +1988,14 @@ class TabPrint(QWidget):
             if choice != "anyway":
                 return
 
-        if self._settings.get("confirm_before_printing", True):
+        # Beta-16 review: a chart LARGER than the paper is shrunk by the
+        # printing system to fit (measured: an A4 chart on a PictureMate's
+        # 9 x 13 cm paper and on a DNP's 6 x 8 in), which moves every patch
+        # out from under the instrument.  The confirmation window, which says
+        # so, then shows even when it was switched off.
+        too_big = bool(mismatch) and self._chart_larger_than_page(
+            first_tiff, getattr(self, "_checked_page_pt", None) or page_size_pt)
+        if self._settings.get("confirm_before_printing", True) or too_big:
             if not self._show_preflight(
                 printer, selected_opts, orientation, page_size_pt,
                 mismatch, len(pages), first_tiff=first_tiff,
@@ -2100,17 +2107,26 @@ class TabPrint(QWidget):
         Any/all may be None if PageSize is unset or the PPD doesn't declare
         physical dimensions (typical for AirPrint/Driverless queues).
         """
+        self._checked_page_pt = None
         size_key = next(
             (k for k in _PAGE_SIZE_KEYS if selected_opts.get(k)),
             None,
         )
+        size_display = ""
         if size_key is None:
-            return None, None, None
-        size_raw = selected_opts[size_key]
+            # Beta-16 review: with the paper size left at "Printer Default"
+            # (or not offered in the tab, as on the PictureMate) the job
+            # prints on the PPD's default paper, so that is what the chart is
+            # compared with.  Before, nothing was compared and an A4 chart
+            # went onto 9 x 13 cm paper shrunk, without a word.
+            size_raw, size_display = self._ppd_default_page(printer)
+            if not size_raw:
+                return None, None, None
+        else:
+            size_raw = selected_opts[size_key]
         # Some vendor drivers (e.g. Epson EPIJ_Size) use opaque integer codes
         # for raw values but key *PaperDimension by display label. Pass both.
-        size_display = ""
-        combo = self._option_combos.get(size_key)
+        combo = self._option_combos.get(size_key) if size_key else None
         if combo is not None:
             size_display = combo.currentText()
         page_dims = self._module.get_page_size_points(printer, size_raw, size_display)
@@ -2127,7 +2143,46 @@ class TabPrint(QWidget):
         mismatch = check_size_mismatch(
             tiff_w_pt, tiff_h_pt, page_w_pt, page_h_pt, imageable_pt=imageable,
         )
+        self._checked_page_pt = page_dims
+        if size_key is None:
+            # only the check: the job itself stays exactly as before (no
+            # PageSize, no orientation, the PostScript page the chart's own)
+            return None, None, mismatch
         return orientation, page_dims, mismatch
+
+    def _ppd_default_page(self, printer: str) -> tuple[str, str]:
+        """(value, label) of the PPD's default paper size, ("", "") when the
+        queue has no PPD or no default."""
+        try:
+            from core.text_io import read_text
+            from workflow.ppd_color import _ppd_default, parse_ppd_options
+            ppd = self._module._find_ppd_path(printer)
+            if not ppd:
+                return "", ""
+            text = read_text(Path(ppd), lenient=True)
+            blocks = {k: dict(v) for k, _l, v in parse_ppd_options(text)}
+            for key in ("PageSize", "EPIJ_Size", "media"):
+                val = _ppd_default(text, key)
+                if val:
+                    return val, blocks.get(key, {}).get(val, "")
+        except Exception as exc:  # noqa: BLE001 - only a check, never a reason not to print
+            log.warning("default paper size of %s not read: %s", printer, exc)
+        return "", ""
+
+    @staticmethod
+    def _chart_larger_than_page(tiff: Path | None,
+                                page_size_pt: tuple[float, float] | None) -> bool:
+        """True when the chart does not fit the paper in either orientation
+        (2 % slack), so the printing system would shrink it."""
+        if tiff is None or not page_size_pt:
+            return False
+        try:
+            w, h = read_tiff_dimensions_points(tiff)
+        except Exception:  # noqa: BLE001
+            return False
+        pw, ph = page_size_pt
+        fits = (w <= pw * 1.02 and h <= ph * 1.02) or (h <= pw * 1.02 and w <= ph * 1.02)
+        return not fits
 
     def _show_preflight(
         self,
