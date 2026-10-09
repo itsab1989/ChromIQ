@@ -6814,5 +6814,5 @@
  "No TIFF files found matching the selected .ti2 file.": "No se encontraron archivos TIFF que correspondan al archivo .ti2 seleccionado.",
  "Cleared 1 job from the queue.": "Se ha quitado 1 trabajo de la cola.",
  "Cleared {n} jobs from the queue.": "Se han quitado {n} trabajos de la cola.",
- "No jobs in the queue to clear.": "No hay trabajos en la cola que vaciar."
+ "No jobs in the queue to clear.": "No hay trabajos en la cola que quitar."
 }
