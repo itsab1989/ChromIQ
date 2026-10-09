@@ -1,8 +1,8 @@
 # Changelog
 
-## v4.3.3-beta.16 (unreleased)
+## v4.3.3-beta.16
 
-**More printers print the chart in the state your photos print in, and the Print Chart tab offers the quality your photos use.**
+**More printers print the chart in the state your photos print in (now measured on 27 Canon, Epson and DNP models), at the resolution and quality their own print dialog uses; the Print Chart tab offers the quality your photos use; ChromIQ's own printing sends the chart at exactly 100 %; and two measuring glitches are fixed (the next-strip arrows after paging back, and the preview's switch staying open). If a setting changed back by itself after an earlier update, set it again once: it now stays.**
 
 ### Fixed
 
