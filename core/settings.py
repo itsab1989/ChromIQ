@@ -111,15 +111,23 @@ DEFAULTS: dict[str, Any] = {
     "confirm_before_printing":   True,
     # ChromIQ lp pipeline only (macOS): when CUPS rejects PostScript (every
     # non-PostScript printer — Apple's CUPS ships no PS→raster chain), retry
-    # with a ChromIQ-generated exact-size PDF instead of the raw TIFF.  The
-    # raw-TIFF route hands placement to Apple's cgimagetopdf, which shrinks
-    # full-page charts ~3% to fit the imageable area and ignores every
-    # ppi/scaling option; the PDF places the chart 1:1 (overhang clips at the
-    # hardware margins, like ColorSync Utility) and stays colour-passthrough
-    # (untagged device RGB, verified no-ink against Canon + Epson PPDs).
-    # Irrelevant while use_native_print_dialog is on (no lp jobs then) —
-    # Settings greys it out accordingly.  Off until hardware-verified.
-    "pdf_print_fallback":        False,
+    # with a ChromIQ-generated exact-size PDF instead of the raw TIFF; a Canon
+    # or Epson's paper-profile job (which never tries PostScript) goes as that
+    # PDF straight away. The raw-TIFF route hands placement to Apple's
+    # cgimagetopdf, which shrinks a full-page chart to the imageable area and
+    # ignores every ppi/scaling option (measured beta 16: PRO-300 A4 at 98.5 %
+    # on "Printer Default" and 96.8 % on "A4", PictureMate 4x6 at 95 %); the
+    # PDF places the chart 1:1 (overhang clips at the hardware margins, like
+    # ColorSync Utility) and stays colour-passthrough (untagged device RGB on
+    # the generic route, the paper profile on the vendor route; pixel-identical
+    # colours measured against the TIFF).
+    # ON by default since beta 16 (Basti, 2026-10-09); schema 28 moves users
+    # who carried the old OFF (_migrate_pdf_print_fallback_default).
+    # It matters ONLY on the lp route, i.e. while "Use default macOS printer
+    # dialog" (use_native_print_dialog, above) is off. The dialog stays the
+    # default route on macOS; this key never changes that, and Settings greys
+    # the box out while the dialog is on.
+    "pdf_print_fallback":        True,
     # Step 3 — measure
     "measure_disable_bidir":       True,
     # Suppresses the "forcing bidirectional on a non-randomised chart" warning
@@ -976,7 +984,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 27
+SETTINGS_SCHEMA = 28
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1181,6 +1189,9 @@ class AppSettings:
         if self._migrate_neighbour_buffer_pair():
             dropped.append("patch_neighbour_buffer_de (a changed buffer now "
                            "also applies to pre-conditioning-profile charts)")
+        if self._migrate_pdf_print_fallback_default():
+            dropped.append("pdf_print_fallback (the exact-size PDF is now on "
+                           "by default for ChromIQ's own lp printing)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
@@ -1319,6 +1330,37 @@ class AppSettings:
             self._qs.remove("use_chromiq_layout_engine")
             return True
         return False
+
+    def _migrate_pdf_print_fallback_default(self) -> bool:
+        """schema 28 (beta 16, Basti 2026-10-09): ChromIQ's own lp printing
+        sends the exact-size PDF by default instead of a TIFF that macOS shrinks
+        into the printable area.
+
+        HOW A DELIBERATE "OFF" WOULD BE TOLD, AND WHY NONE CAN BE: the box has
+        defaulted to OFF since it was added (June 2026, 221e04085), and
+        Preferences → OK writes every key, so a stored ``False`` is what anyone
+        gets who ever pressed OK, whether or not they looked at the box. Leaving
+        it OFF was never an act, and nothing else records one (there is no
+        "changed by the user" marker, and ``use_native_print_dialog`` says only
+        which route is used, not what was thought of this box). So every stored
+        ``False`` is treated as the echo of the old default and dropped, which
+        resolves to the new ``True`` (Basti's standing ruling for better
+        defaults: "our user base is not very big at the moment so i want the
+        better default"). A stored ``True`` was a choice and is already right.
+        From schema 28 on a stored ``False`` is respected: this runs once.
+
+        Only this key moves. ``use_native_print_dialog`` and its default (the
+        macOS print dialog, the default route on macOS and Windows) are not
+        touched, and on the dialog route this key has no effect at all."""
+        raw = self._qs.value("pdf_print_fallback", None)
+        if raw is None:
+            return False
+        is_true = raw is True or (isinstance(raw, str)
+                                  and raw.strip().lower() in ("true", "1", "yes"))
+        if is_true:
+            return False
+        self._qs.remove("pdf_print_fallback")
+        return True
 
     def _migrate_neighbour_buffer_pair(self) -> bool:
         """schema 27 (beta 15, k43, Knut #182 6059912998 answer 6): the

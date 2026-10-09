@@ -2586,7 +2586,7 @@ class TabPrint(QWidget):
             orientation=orientation,
             page_size_pt=page_size_pt,
             pdf_fallback=is_macos() and bool(
-                self._settings.get("pdf_print_fallback", False)
+                self._settings.get("pdf_print_fallback", True)
             ),
         )
         if accepted[0] and is_macos():
@@ -2760,7 +2760,7 @@ class TabPrint(QWidget):
                     "(at least 1 h; 24 h for best accuracy).")
                 )
         else:
-            if is_macos() and bool(self._settings.get("pdf_print_fallback", False)):
+            if is_macos() and bool(self._settings.get("pdf_print_fallback", True)):
                 fallback_sentence = tr(
                     "If CUPS rejects PostScript (most non-PostScript printers), it "
                     "automatically retries with an exact-size PDF that keeps the chart "

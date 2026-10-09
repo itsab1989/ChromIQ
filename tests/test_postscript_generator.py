@@ -217,18 +217,21 @@ def test_pdf_smaller_chart_centred_on_page(tmp_path: Path) -> None:
     assert abs(oy - (841.89 - sy) / 2) < 0.01
 
 
-def test_pdf_landscape_tiff_on_portrait_page_swaps(tmp_path: Path) -> None:
-    # Same aspect-aware swap as the PS path: the MediaBox must agree with the
-    # image we draw, never force a rotation downstream.
+def test_pdf_landscape_tiff_on_portrait_page_is_turned(tmp_path: Path) -> None:
+    # Beta 16 final: the MediaBox keeps the PAPER's orientation and the image
+    # is turned onto it. A swapped (landscape) MediaBox on portrait paper was
+    # printed unturned and cut off by macOS's PDF rasteriser (measured on
+    # four capture queues).
     tiff = tmp_path / "landscape.tif"
     _write_tiff(tiff, w_px=3307, h_px=2339, dpi=200)  # ~1190 × 842 pt landscape
     pdf = PdfGenerator().generate(tiff, page_size_pt=(842, 1191))
     pw, ph = _pdf_media_box(pdf)
-    assert pw > ph, f"expected landscape MediaBox, got {pw}×{ph}"
-    _, _, ox, oy = _pdf_image_ctm(pdf)
-    assert ox >= -_PT_SLOP and oy >= -_PT_SLOP, (
-        f"offsets {ox}, {oy} should be ~non-negative — image must fit the page"
-    )
+    assert (pw, ph) == (842, 1191), f"expected the portrait paper, got {pw}×{ph}"
+    m = re.search(rb"q\n0 (\S+) (\S+) 0 (\S+) (\S+) cm\n/Im Do", pdf)
+    assert m, "the landscape image must be drawn turned"
+    b, c, e, f = (float(m.group(i)) for i in range(1, 5))
+    assert abs(b - 1190.5) < 1 and abs(-c - 842.0) < 1     # 1:1, never scaled
+    assert e + c >= -_PT_SLOP and f >= -_PT_SLOP, "the turned image must fit the page"
 
 
 def test_pdf_no_page_size_defaults_to_tiff_dims(tmp_path: Path) -> None:

@@ -351,17 +351,24 @@ class PdfGenerator:
         pts_w = w * _PT_PER_INCH / actual_dpi
         pts_h = h * _PT_PER_INCH / actual_dpi
 
+        turned = False
         if page_size_pt is None:
             page_w, page_h = pts_w, pts_h
         else:
             page_w, page_h = page_size_pt
-            # Same rule as PostScriptGenerator: if the declared page
-            # orientation contradicts the TIFF's, swap so the MediaBox agrees
-            # with the image we draw instead of forcing a rotation downstream.
-            if (page_w > page_h) != (pts_w > pts_h):
-                page_w, page_h = page_h, page_w
-        x_off = (page_w - pts_w) / 2.0
-        y_off = (page_h - pts_h) / 2.0
+            # Beta 16 final: the MediaBox keeps the PAPER's orientation and a
+            # chart of the other orientation is turned onto it, 90 degrees
+            # counter-clockwise (CUPS' "landscape"). The page used to be swapped
+            # to the chart's orientation, as the PostScript does; but macOS's
+            # PDF rasteriser never turns a landscape page onto portrait paper:
+            # measured on PRO-300, ET-8550, Gutenprint HP and HP DeskJet capture
+            # queues, a landscape A4 chart on "A4" came out unturned, its
+            # middle on the sheet and the rest cut off. (The TIFF route turns
+            # it, through orientation-requested.)
+            turned = (page_w > page_h) != (pts_w > pts_h) and abs(page_w - page_h) > 0.5
+        draw_w, draw_h = (pts_h, pts_w) if turned else (pts_w, pts_h)
+        x_off = (page_w - draw_w) / 2.0
+        y_off = (page_h - draw_h) / 2.0
 
         log.debug(
             "PDF: %s  %dx%d px  %.1f×%.1f pt on %.1f×%.1f pt page  %d dpi  %d-bit  %d-ch",
@@ -371,9 +378,17 @@ class PdfGenerator:
         raw = arr.astype(">u2").tobytes() if bits == 16 else arr.tobytes()
         img_data = zlib.compress(raw, 6)
         cs_str = self._pdf_colorspace(n_ch, ink_channels)
-        content = (
-            f"q\n{pts_w:.4f} 0 0 {pts_h:.4f} {x_off:.4f} {y_off:.4f} cm\n/Im Do\nQ"
-        ).encode("ascii")
+        if turned:
+            # the image's unit square: its width runs up the page, its height
+            # to the left (a 90 degree counter-clockwise turn)
+            content = (
+                f"q\n0 {pts_w:.4f} {-pts_h:.4f} 0 {x_off + pts_h:.4f} {y_off:.4f} cm\n"
+                f"/Im Do\nQ"
+            ).encode("ascii")
+        else:
+            content = (
+                f"q\n{pts_w:.4f} 0 0 {pts_h:.4f} {x_off:.4f} {y_off:.4f} cm\n/Im Do\nQ"
+            ).encode("ascii")
 
         has_tint_fn = n_ch > 4
         tagged = icc_profile is not None and n_ch == 3

@@ -3469,21 +3469,24 @@ class SettingsDialog(QDialog):
         )
         pdf_fallback_tip = TooltipButton(
             tr("Exact-size PDF fallback"),
-            tr("Applies only to ChromIQ's own printing pipeline (the default when "
-            "the macOS printer dialog below is disabled).\n\n"
+            tr("Applies only when \"Use default macOS printer dialog\" is off, so "
+            "that ChromIQ sends the chart straight to the printer queue. The macOS "
+            "printer dialog stays ChromIQ's default way of printing and never uses "
+            "this option.\n\n"
             "ChromIQ first sends a chart as PostScript (a Canon or Epson gets the "
             "TIFF or this PDF directly). Most home and photo printers do not "
             "understand PostScript, so macOS rejects it and ChromIQ resends the "
             "chart in another format:\n\n"
-            "  • OFF: resend as a plain TIFF. macOS then decides the size "
-            "itself and SHRINKS a full-page chart by about 3% so it fits "
-            "inside the printer's margins. The printed patches end up "
-            "slightly smaller and shifted compared to the on-screen layout.\n\n"
-            "  • ON: resend as a PDF built by ChromIQ with the chart placed "
-            "at exactly 100% scale. Anything that would fall into the "
+            "  • ON (the default): resend as a PDF built by ChromIQ with the chart "
+            "placed at exactly 100% scale. Anything that would fall into the "
             "printer's unprintable margin is simply cut off (charts keep "
             "white margins there, so nothing of value is lost). This matches "
             "how Apple's ColorSync Utility prints.\n\n"
+            "  • OFF: resend as a plain TIFF. macOS then decides the size "
+            "itself and SHRINKS a full-page chart so it fits inside the "
+            "printer's margins (measured: by 1.5% to 8.5%, depending on the "
+            "printer and the paper size). The printed patches end up "
+            "slightly smaller and shifted compared to the on-screen layout.\n\n"
             "Colour is unaffected either way: both formats reach the printer "
             "without any colour conversion.\n\n"
             "Greyed out while the macOS printer dialog is enabled, because no "
@@ -5576,7 +5579,7 @@ class SettingsDialog(QDialog):
         self._progress_bar_check.setChecked(
             bool(s.get("measure_progress_bar", True)))
         self._native_print_check.setChecked(bool(s.get("use_native_print_dialog", False)))
-        self._pdf_fallback_check.setChecked(bool(s.get("pdf_print_fallback", False)))
+        self._pdf_fallback_check.setChecked(bool(s.get("pdf_print_fallback", True)))
         self._confirm_print_check.setChecked(bool(s.get("confirm_before_printing", True)))
         self._sync_print_path_options()
         from data.patch_db import I1PRO_DEFAULT_PRESET_KEY

@@ -18,6 +18,69 @@ from workflow.ppd_color import (APPLICATION_COLOUR_MATCHING, PaperProfile,
 
 log = get_logger(__name__)
 
+
+def _tiff_page_pt(tiff_path: Path) -> "tuple[float, float] | None":
+    """The chart page's size in points: the exact-size PDF's MediaBox when no
+    paper size is chosen (PdfGenerator falls back to it)."""
+    try:
+        from workflow.page_geometry import read_tiff_dimensions_points
+        return read_tiff_dimensions_points(tiff_path)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _name_the_default_page(opts: dict[str, str], printer_name: str,
+                           page_size_pt: "tuple[float, float] | None",
+                           ppd_path: "str | None" = None
+                           ) -> "tuple[float, float] | None":
+    """Name the driver's default paper on an exact-size PDF job that names none.
+
+    Beta 16 final (measured on a PRO-300 capture queue): with the paper size
+    at "Printer Default" the job carries no PageSize, and macOS matches the
+    PDF's MediaBox (A4, no margins) to the driver's BORDERLESS twin of the
+    default paper, "A4.FullBleed". The Canon driver then prints borderless
+    and enlarges the page by its borderless extension: the chart came out at
+    101.7 %, borderless. "Printer Default" means the driver's default paper,
+    so that is named, and only when it is the chart's own size (within 2 pt
+    either way round) and not itself a borderless variant; anything else is
+    left to the Print Chart tab's size check, as before. A vendor size key
+    (Epson's EPIJ_Size) is left alone: it brings its own PageSize.
+
+    Returns the named paper's (w, h) in points as the PPD gives it (portrait
+    for A4), so the PDF can be laid out on it; None when nothing was named."""
+    if page_size_pt is None or opts.get("PageSize") or opts.get("EPIJ_Size"):
+        return None
+    try:
+        import re
+        from core.text_io import read_text
+        from workflow.page_geometry import get_page_size_points
+        from workflow.ppd_color import ppd_path_for_queue
+        path = ppd_path or ppd_path_for_queue(printer_name)
+        if not path:
+            return None
+        m = re.search(r"^\*DefaultPageSize:\s*(\S+)", read_text(Path(path), lenient=True),
+                      re.M)
+        if not m:
+            return None
+        name = m.group(1)
+        if any(s in name.lower() for s in ("fullbleed", "borderless")):
+            return None
+        dims = get_page_size_points(path, name)
+        if dims is None:
+            return None
+        w, h = page_size_pt
+        if min(abs(dims[0] - w) + abs(dims[1] - h),
+               abs(dims[0] - h) + abs(dims[1] - w)) > 2.0:
+            return None
+        opts["PageSize"] = name
+        log.info("CUPS print: exact-size PDF on %s names the driver's default "
+                 "paper PageSize=%s, so macOS cannot pick its borderless twin",
+                 printer_name, name)
+        return dims
+    except Exception as exc:  # pragma: no cover - defensive, never stops a print
+        log.warning("default paper lookup failed for %s: %s", printer_name, exc)
+    return None
+
 try:
     import cups as _cups_mod
     CUPS_AVAILABLE = True
@@ -353,8 +416,10 @@ class CupsRawPrinter:
         try:
             os.close(fd)
             if exact:
+                paper = page_size_pt or _name_the_default_page(
+                    opts, config.printer_name, _tiff_page_pt(tiff_path))
                 tmp.write_bytes(PdfGenerator().generate(
-                    tiff_path, page_size_pt=page_size_pt, icc_profile=icc))
+                    tiff_path, page_size_pt=paper, icc_profile=icc))
             else:
                 write_tagged_tiff(tiff_path, tmp, icc)
                 if orientation is not None:
@@ -391,11 +456,15 @@ class CupsRawPrinter:
         content reaching into the hardware margins is clipped, never scaled.
         Falls back to the raw-TIFF path if PDF generation or submission fails.
         """
+        opts = dict(config.options)
+        paper = page_size_pt or _name_the_default_page(
+            opts, config.printer_name, _tiff_page_pt(tiff_path))
+        config = PrintConfig(printer_name=config.printer_name, options=opts)
         try:
             pdf_bytes = PdfGenerator().generate(
                 tiff_path,
                 ink_channels=ink_channels,
-                page_size_pt=page_size_pt,
+                page_size_pt=paper,
             )
         except Exception as exc:
             log.error("PDF generation failed for %s — falling back to TIFF: %s",
