@@ -1,0 +1,21 @@
+*PPD-Adobe: "4.3"
+*ModelName: "Dai Nippon Printing DP-DS820"
+*NickName: "Dai Nippon Printing DP-DS820, 5.2.7 (build 669_EU) (CUPS)"
+*cupsICCProfile .PP./PP Media: "/Library/Printers/DNP/DNP-DS.bundle/Contents/icc/DS820/DS820(PP)_Classic.icc"
+*cupsICCProfile .SD./SD Media: "/Library/Printers/DNP/DNP-DS.bundle/Contents/icc/DS820/DS820(SD)_Classic.icc"
+*cupsICCQualifier2: "MediaClass"
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 300x300dpi
+*Resolution 300x300dpi/300 dpi: ""
+*Resolution 300x600dpi/600 dpi: ""
+*Resolution 600dpi/High Density: ""
+*CloseUI: *Resolution
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/Color: ""
+*CloseUI: *ColorModel
+*OpenUI *MediaClass/MediaClass: PickOne
+*DefaultMediaClass: PP
+*MediaClass PP/PP Media: ""
+*MediaClass SD/SD Media: ""
+*CloseUI: *MediaClass

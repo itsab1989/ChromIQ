@@ -1,0 +1,13 @@
+*PPD-Adobe: "4.3"
+*ModelName: "Dai Nippon Printing DP-DS620"
+*NickName: "Dai Nippon Printing DP-DS620, 5.2.7 (build 669_EU) (CUPS)"
+*cupsICCProfile RGB../PD Media: "/Library/Printers/DNP/DNP-DS.bundle/Contents/icc/DS620/DS620(PD)_Natural.icm"
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 300x300dpi
+*Resolution 300x300dpi/300 DPI: ""
+*Resolution 300x600dpi/600 DPI: ""
+*CloseUI: *Resolution
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/Color: ""
+*CloseUI: *ColorModel

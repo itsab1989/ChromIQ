@@ -906,8 +906,10 @@ FIXTURE_MODELS = {
     "EPSON Stylus Photo 1400": (),      # an automatic dialog (Mode 0, EPIJAutoPreset)
     "EPSON PM-400 Series": (),          # no paper profiles at all
     "EPSON SC-P6000 Series": ("0", "101", "13", "14", "1950"),   # black ink per medium
+    "Dai Nippon Printing DP-DS620": (),   # dye-sub: one device profile
+    "Dai Nippon Printing DP-DS820": (),   # dye-sub: a device profile per media class
 }
-_KEEP_OPTIONS = ("Resolution", "MediaType", "ColorModel", "CNIJMediaType", "CNIJProfileID", "CNIJPrintQuality", "CNIJIntent2",
+_KEEP_OPTIONS = ("Resolution", "MediaType", "ColorModel", "MediaClass", "CNIJMediaType", "CNIJProfileID", "CNIJPrintQuality", "CNIJIntent2",
                  "CNIJMediaSupply", "CNIJCartridge", "CNIJFitRollPaperWidth",
                  "EPIJ_Medi", "EPIJProfileSpec", "EPIJ_Qual", "EPIJ_Mode", "EPIJ_CMat",
                  "EPIJ_CCor", "EPIJ_OSColMat", "EPIJ_OSCMProf", "EPIJ_HdofClSp", "EPIJ_Ink_",

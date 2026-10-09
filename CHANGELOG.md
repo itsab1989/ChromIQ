@@ -15,6 +15,8 @@
 - **Epson Stylus Photo R2400, R2880, 2200 and SC-P7000/P9000** keep their tables in one folder per ink set, which beta 15 did not look into; they were unknown models.
 - **Epson PictureMate PM-400 and PM-520** have no paper profiles and no way to switch the driver's colour off. Their dialog, in application colour matching, sets the custom mode, the paper's quality and the driver's own colour mode (EPSON Vivid on photo papers); the direct route left the driver's automatic mode. It now sends what the dialog sends.
 
+- **DNP dye-sublimation printers (DS620, DS820, QW410, DS-RX1, DS40, DS80) printed the chart with changed colours on the direct route.** They refuse ChromIQ's PostScript, and the fallback sent the chart as a plain image, which macOS converted into the printer's own profile (white 255,255,255 arrived as 235,240,235; measured on all six: none of 21 test colours unchanged). Their driver has no colour setting at all; their print dialog, in application colour matching, tags the job with that same profile, and every colour arrives unchanged. The direct route now does the same: the chart goes tagged with the printer's profile for the media class (for example "DS620(PD)_Natural"), with no other driver setting.
+
 ### Changed
 
 - **The Print Chart tab has a quality row for Canon, and it offers the highest quality** (Basti, 2026-10-09). It lists the qualities the driver's own dialog allows for the chosen paper type, marks the highest and the dialog's standard, and preselects the quality of your last print on that paper through the macOS print dialog, otherwise the standard. A note under the row says to print your photos at the same quality. Epson models get the same row, read from the driver.

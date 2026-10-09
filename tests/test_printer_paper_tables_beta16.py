@@ -473,3 +473,46 @@ def test_canon_resolution_goes_as_the_dialog_sets_it(fixture_drivers, ppd, mediu
     if quality:
         opts["CNIJPrintQuality"] = quality
     assert pc.paper_profile_for(_ppd(ppd), opts).keys()["Resolution"] == res
+
+
+# ---- 9. the DNP dye-sublimation printers -----------------------------------------------------
+@pytest.mark.parametrize("ppd,options,profile", [
+    ("Dai_Nippon_Printing_DP_DS620.ppd", {}, "DS620(PD)_Natural.icm"),
+    ("Dai_Nippon_Printing_DP_DS820.ppd", {}, "DS820(PP)_Classic.icc"),
+    ("Dai_Nippon_Printing_DP_DS820.ppd", {"MediaClass": "SD"}, "DS820(SD)_Classic.icc"),
+])
+def test_a_dnp_job_carries_its_device_profile(ppd, options, profile):
+    """The DNP dialog, in application colour matching, tags the job with the
+    PPD's device profile for the media class (the same one ColorSync
+    registers); the direct route's raw TIFF was converted into it (0 of 21
+    chart colours unchanged, white 235,240,235).  The direct route now tags
+    the chart with that same profile, as the dialog does."""
+    pp = pc.device_profile_without_paper_profiles(_ppd(ppd), options)
+    assert pp is not None and pp.label == profile and pp.known
+    assert pp.keys() == {}            # no driver key at all, as the dialog
+    assert pc.paper_profile_for(_ppd(ppd), options) is None
+
+
+def test_no_device_profile_route_for_other_printers():
+    hp = ('*ModelName: "HP DesignJet Z9"\n*cupsICCProfile RGB../Plain: "/x.icc"\n')
+    assert pc.device_profile_without_paper_profiles(hp) is None
+
+
+def test_the_direct_route_takes_the_dnp_device_profile(monkeypatch, tmp_path):
+    from workflow import cups_printer as cp
+    monkeypatch.setattr(cp.sys, "platform", "darwin")
+    monkeypatch.setattr(pc, "ppd_path_for_queue",
+                        lambda q: str(FIX / "PPDs" / "Dai_Nippon_Printing_DP_DS620.ppd"))
+    icc = tmp_path / "dnp.icc"
+    icc.write_bytes(b"x")
+    real = pc.device_profile_without_paper_profiles
+
+    def with_file(text, options=None):
+        pp = real(text, options)
+        import dataclasses
+        return dataclasses.replace(pp, icc_path=str(icc))
+    monkeypatch.setattr(pc, "device_profile_without_paper_profiles", with_file)
+    monkeypatch.setattr(cp.CupsRawPrinter, "_tiff_n_channels", staticmethod(lambda p: 3))
+    pp = cp.CupsRawPrinter._reference_paper_profile(tmp_path / "c.tif",
+                                                    cp.PrintConfig(printer_name="DNP", options={}))
+    assert pp is not None and pp.rule.vendor == "DNP"

@@ -1298,6 +1298,51 @@ def dialog_keys_without_paper_profile(ppd_text: str,
     return dict(_allowed(ppd_text, blocks, keys))
 
 
+#: The DNP dye-sublimation printers (beta 16): no paper profiles to choose and no
+#: colour option in the driver, but one device profile per media class in the
+#: PPD (``*cupsICCProfile``), which ColorSync registers as the printer's profile.
+#: Their print dialog, in application colour matching, tags the job with it, so
+#: macOS converts nothing (DS620/DS820/QW410/DS40/DS80/DS-RX1: every chart colour
+#: unchanged).  ChromIQ's generic direct route sent PostScript, which the DNP
+#: refuses, and its raw-TIFF fallback was converted into that profile (white
+#: 255 became 235,240,235).  The direct route now sends the chart as the dialog
+#: does: tagged with the same device profile.
+DNP_RULE = PaperProfileRule(
+    vendor="DNP", media_option="MediaClass", profile_option="",
+    evidence="DNP Photo Printer Driver 5.2.7, macOS 27.0.1, 2026-10-09 (report folder "
+             "2026-10-09_vendor_tests2): the dialog route kept 21 of 21 chart colours, the "
+             "direct route's raw TIFF 0 of 21")
+
+
+def _icc_qualifier_names(ppd_text: str) -> list[str]:
+    names = ["ColorModel", "MediaType", "Resolution"]
+    for i in (1, 2, 3):
+        m = re.search(rf'^\*cupsICCQualifier{i}:\s*"?([A-Za-z0-9_]+)"?\s*$', ppd_text, re.M)
+        if m:
+            names[i - 1] = m.group(1)
+    return names
+
+
+def device_profile_without_paper_profiles(ppd_text: str, options: dict[str, str] | None = None
+                                          ) -> PaperProfile | None:
+    """The device profile a DNP's print dialog tags the job with (``DNP_RULE``):
+    the PPD's ``*cupsICCProfile`` whose qualifiers match the job (the media
+    class on the DS820/QW410, any on the DS620).  None for any other printer."""
+    if not ppd_model(ppd_text).startswith("Dai Nippon Printing"):
+        return None
+    options = options or {}
+    names = _icc_qualifier_names(ppd_text)
+    settings = {k: str(options.get(k) or _ppd_default(ppd_text, k) or "") for k in names}
+    for quals, label, path in _icc_profiles(ppd_text):
+        quals = (quals + ["", "", ""])[:3]
+        if all(not q or settings.get(n) == q for q, n in zip(quals, names)):
+            return PaperProfile(rule=DNP_RULE, media_value=settings.get("MediaClass", ""),
+                                media_label=label, option="", value=None,
+                                label=pathlib.Path(path).name, icc_path=str(_driver_path(path)),
+                                is_default=True, source="driver", model=ppd_model(ppd_text))
+    return None
+
+
 def paper_profile_for_queue(queue_name: str, options: dict[str, str] | None = None,
                             learned=None) -> PaperProfile | None:
     path = ppd_path_for_queue(queue_name)
@@ -1307,7 +1352,8 @@ def paper_profile_for_queue(queue_name: str, options: dict[str, str] | None = No
         text = read_text(pathlib.Path(path), lenient=True)
     except OSError:
         return None
-    return paper_profile_for(text, options, learned=learned)
+    return (paper_profile_for(text, options, learned=learned)
+            or device_profile_without_paper_profiles(text, options))
 
 
 def ppd_path_for_queue(queue_name: str) -> str | None:
