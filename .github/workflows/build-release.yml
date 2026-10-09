@@ -613,6 +613,7 @@ jobs:
               printf 'Then double-click as normal.\n\n'
               printf 'Requires macOS 13+ (Ventura) and ArgyllCMS 3.5.0 at `/Applications/Argyll/bin`.'
               printf '\n\n**Or install with [Homebrew](https://brew.sh):** `brew install --cask itsab1989/chromiq/chromiq` (stable) or `brew install --cask itsab1989/chromiq/chromiq@beta` (beta). It installs ArgyllCMS too and removes the quarantine, so ChromIQ opens straight away. Switching, updating and uninstalling: [README](https://github.com/itsab1989/ChromIQ#install-with-homebrew).'
+              printf '\n\nThe two files ending in `_homebrew.dmg` are identical copies that Homebrew downloads, so Homebrew installs can be counted separately. If you download by hand, please take the normal DMG, the one without `_homebrew` in its name.'
               printf '\n\n---\n☕ ChromIQ is free and always will be — if it saves you time or ink, a coffee is a kind way to say thanks. Completely optional, and the app stays fully featured either way.\n\n'
               printf '[![Support ChromIQ on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/itsab1989)\n'
             } > /tmp/release_notes.txt
@@ -655,6 +656,18 @@ jobs:
             mv "ChromIQ-macOS-x86_64.dmg" "$X86_VERSIONED"
             gh release upload "$RELEASE_TAG" "$X86_VERSIONED" --clobber
           fi
+          # The Homebrew casks download their own copy of the arm64 and
+          # x86_64 DMGs: the same bytes (so the same sha256) under a
+          # "_homebrew" name, so the download-stats dashboard can count
+          # Homebrew installs apart from downloads by hand. The homebrew job
+          # below takes its checksums from these copies.
+          for HB_SRC in "ChromIQ-macOS-arm64_${RELEASE_TAG}.dmg" "ChromIQ-macOS-x86_64_${RELEASE_TAG}.dmg"; do
+            if [ -f "$HB_SRC" ]; then
+              HB_COPY="${HB_SRC%.dmg}_homebrew.dmg"
+              cp "$HB_SRC" "$HB_COPY"
+              gh release upload "$RELEASE_TAG" "$HB_COPY" --clobber
+            fi
+          done
 
   # Homebrew tap (github.com/itsab1989/homebrew-chromiq): once BOTH macOS
   # builds have uploaded their DMGs (arm64 here; universal2 also uploads the
@@ -693,13 +706,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/dmg
-          # The same names as "Upload DMG(s) to release" above.
+          # The Homebrew copies "Upload DMG(s) to release" above makes, which
+          # are the files the casks download once the script has run (it
+          # moves their url to the _homebrew name with the version). A
+          # release without them fails here, before the tap is touched.
           for a in arm64 x86_64; do
             gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" \
-              -p "ChromIQ-macOS-${a}_${RELEASE_TAG}.dmg" -D /tmp/dmg --clobber
+              -p "ChromIQ-macOS-${a}_${RELEASE_TAG}_homebrew.dmg" -D /tmp/dmg --clobber
           done
-          echo "ARM_SHA=$(sha256sum "/tmp/dmg/ChromIQ-macOS-arm64_${RELEASE_TAG}.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
-          echo "INTEL_SHA=$(sha256sum "/tmp/dmg/ChromIQ-macOS-x86_64_${RELEASE_TAG}.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "ARM_SHA=$(sha256sum "/tmp/dmg/ChromIQ-macOS-arm64_${RELEASE_TAG}_homebrew.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "INTEL_SHA=$(sha256sum "/tmp/dmg/ChromIQ-macOS-x86_64_${RELEASE_TAG}_homebrew.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
       - name: Check out the tap
         env:

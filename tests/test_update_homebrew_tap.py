@@ -82,7 +82,7 @@ def test_a_stable_release_rewrites_both_casks(tmp_path):
         text = (t / "Casks" / name).read_text(encoding="utf-8")
         assert 'version "9.9.9"' in text
         assert ARM in text and INTEL in text
-        # nothing but the version and the two checksums changed
+        # nothing but the version, the two checksums and the url changed
         orig = (DATA / name).read_text(encoding="utf-8")
         assert len(text.splitlines()) == len(orig.splitlines())
 
@@ -166,13 +166,92 @@ def test_the_tap_job_downloads_the_dmgs_the_build_uploads():
     assert "artifact: ChromIQ-macOS-arm64.dmg" in build
     assert 'VERSIONED="${ART%.dmg}_${RELEASE_TAG}.dmg"' in build
     assert 'X86_VERSIONED="ChromIQ-macOS-x86_64_${RELEASE_TAG}.dmg"' in build
-    assert '-p "ChromIQ-macOS-${a}_${RELEASE_TAG}.dmg"' in job
+    # the Homebrew copy of each, which is the file the cask downloads
+    assert '-p "ChromIQ-macOS-${a}_${RELEASE_TAG}_homebrew.dmg"' in job
+    assert '/tmp/dmg/ChromIQ-macOS-arm64_${RELEASE_TAG}_homebrew.dmg' in job
+    assert '/tmp/dmg/ChromIQ-macOS-x86_64_${RELEASE_TAG}_homebrew.dmg' in job
+    assert '_${RELEASE_TAG}.dmg"' not in job
     assert "for a in arm64 x86_64" in job
-    # and the casks ask for the same files
+    # and the casks the script writes ask for the same files
     for name in ("chromiq.rb", "chromiq@beta.rb"):
         cask = (DATA / name).read_text(encoding="utf-8")
         assert 'arch arm: "arm64", intel: "x86_64"' in cask
+        written = tap.rewrite_cask(cask, "9.9.9", ARM, INTEL)
+        assert "ChromIQ-macOS-#{arch}_v#{version}_homebrew.dmg" in written
+
+
+def _upload_step(wf: str) -> str:
+    return wf.split("- name: Upload DMG(s) to release", 1)[1].split("\n  homebrew:\n", 1)[0]
+
+
+def test_the_build_uploads_a_homebrew_copy_of_both_dmgs_the_casks_use():
+    """Same bytes under a second name: the checksum the tap carries holds."""
+    wf = (ROOT / ".github" / "workflows" / "build-release.yml").read_text(encoding="utf-8")
+    step = _upload_step(wf)
+    assert ('for HB_SRC in "ChromIQ-macOS-arm64_${RELEASE_TAG}.dmg" '
+            '"ChromIQ-macOS-x86_64_${RELEASE_TAG}.dmg"') in step
+    assert 'HB_COPY="${HB_SRC%.dmg}_homebrew.dmg"' in step
+    # a byte copy, never a rebuild or a second convert
+    assert 'cp "$HB_SRC" "$HB_COPY"' in step
+    assert 'gh release upload "$RELEASE_TAG" "$HB_COPY" --clobber' in step
+    # the copies are made after both normal DMGs are in place
+    assert step.index('mv "ChromIQ-macOS-x86_64.dmg"') < step.index("HB_SRC")
+    # the universal DMG has no Homebrew copy: the casks never use it
+    assert "universal_${RELEASE_TAG}_homebrew" not in wf
+
+
+def test_the_casks_on_the_tap_stay_on_the_plain_names_until_a_new_release():
+    """4.3.2 and 4.3.3-beta.16 have no _homebrew files: the tap's casks (the
+    fixtures are copies of them) must still download the normal DMG."""
+    for name in ("chromiq.rb", "chromiq@beta.rb"):
+        cask = (DATA / name).read_text(encoding="utf-8")
         assert "ChromIQ-macOS-#{arch}_v#{version}.dmg" in cask
+        assert "_homebrew" not in cask
+
+
+def test_writing_a_new_version_moves_the_url_to_the_homebrew_copy(tmp_path):
+    t = _tap(tmp_path)
+    assert tap.main(["--tap", str(t), "--tag", "v9.9.9",
+                     "--arm-sha", ARM, "--intel-sha", INTEL]) == 0
+    for name in ("chromiq.rb", "chromiq@beta.rb"):
+        text = (t / "Casks" / name).read_text(encoding="utf-8")
+        urls = [l.strip() for l in text.splitlines() if l.strip().startswith('url "https') and "/download/" in l]
+        assert urls == ['url "https://github.com/itsab1989/ChromIQ/releases/download/'
+                        'v#{version}/ChromIQ-macOS-#{arch}_v#{version}_homebrew.dmg"']
+        # the livecheck url is not the download url and is left alone
+        orig = (DATA / name).read_text(encoding="utf-8")
+        assert text.count("url ") == orig.count("url ")
+
+
+def test_a_cask_already_on_the_homebrew_copy_is_rewritten_unchanged(tmp_path):
+    """The second release after the switch, and a re-run of the first."""
+    t = _tap(tmp_path)
+    args = ["--arm-sha", ARM, "--intel-sha", INTEL]
+    assert tap.main(["--tap", str(t), "--tag", "v9.9.9", *args]) == 0
+    once = {f.name: f.read_text(encoding="utf-8") for f in (t / "Casks").iterdir()}
+    assert tap.main(["--tap", str(t), "--tag", "v9.9.9", *args]) == 0
+    assert {f.name: f.read_text(encoding="utf-8") for f in (t / "Casks").iterdir()} == once
+    assert tap.main(["--tap", str(t), "--tag", "v9.9.10", *args]) == 0
+    for text in ((t / "Casks" / n).read_text(encoding="utf-8") for n in once):
+        assert text.count("_homebrew.dmg") == 1 and "_homebrew_homebrew" not in text
+
+
+def test_a_cask_whose_url_the_script_does_not_know_is_refused():
+    cask = (DATA / "chromiq.rb").read_text(encoding="utf-8")
+    moved = cask.replace("ChromIQ-macOS-#{arch}_v#{version}.dmg",
+                         "ChromIQ-#{arch}-#{version}.dmg")
+    with pytest.raises(ValueError, match="url"):
+        tap.rewrite_cask(moved, "9.9.9", ARM, INTEL)
+
+
+def test_the_release_note_points_people_at_the_normal_dmg():
+    wf = (ROOT / ".github" / "workflows" / "build-release.yml").read_text(encoding="utf-8")
+    line = next(l for l in wf.splitlines() if "_homebrew.dmg`" in l and "printf" in l)
+    assert "Homebrew downloads" in line and "normal DMG" in line
+    assert "\u2014" not in line  # no em dash in new user-facing text
+    # it is part of the note the release is created with
+    notes = wf.split("} > /tmp/release_notes.txt", 1)[0]
+    assert line in notes
 
 
 @pytest.mark.parametrize("doc", [
