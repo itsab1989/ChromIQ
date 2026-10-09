@@ -137,9 +137,10 @@ _VT_QUEUES = {
 
 #: keys a dialog measurement records besides the medium and the profile
 _DIALOG_KEYS = {
-    "Canon IJ": ("CNIJPrintQuality", "CNIJMediaSupply"),
+    "Canon IJ": ("CNIJPrintQuality", "CNIJMediaSupply", "Resolution"),
     "Epson": ("EPIJ_Mode", "EPIJ_CMat", "EPIJ_CCor", "EPIJ_OSColMat", "EPIJ_OSCMProf",
-              "EPIJ_HdofClSp", "EPIJ_Qual", "EPIJ_APri", "EPIJ_MeInSeNm", "EPIJ_MdGropID"),
+              "EPIJ_HdofClSp", "EPIJ_Qual", "EPIJ_APri", "EPIJ_MeInSeNm", "EPIJ_MdGropID",
+              "Resolution", "MediaType"),
 }
 
 
@@ -263,8 +264,10 @@ def import_measurements(folder: Path, data: dict) -> list[str]:
     for f in sorted(folder.glob("*/result.json")):
         r = json.loads(f.read_text(encoding="utf-8"))
         keys = r.get("keys") or {}
-        if not keys and isinstance(r.get("ticket"), dict):
-            keys = r["ticket"]  # the print-fix probes (2026-10-08_print_fix)
+        if isinstance(r.get("ticket"), dict):
+            # the whole ticket (beta 16 probes; the print-fix probes kept only
+            # it): Resolution and MediaType are not EPIJ/CNIJ keys
+            keys = {**r["ticket"], **keys}
         model = r.get("model")
         if not model:
             m = re.match(r"ChromIQ_(?:VT_D|Cap)_(\w+)$", r.get("queue", ""))
@@ -904,7 +907,7 @@ FIXTURE_MODELS = {
     "EPSON PM-400 Series": (),          # no paper profiles at all
     "EPSON SC-P6000 Series": ("0", "101", "13", "14", "1950"),   # black ink per medium
 }
-_KEEP_OPTIONS = ("CNIJMediaType", "CNIJProfileID", "CNIJPrintQuality", "CNIJIntent2",
+_KEEP_OPTIONS = ("Resolution", "MediaType", "ColorModel", "CNIJMediaType", "CNIJProfileID", "CNIJPrintQuality", "CNIJIntent2",
                  "CNIJMediaSupply", "CNIJCartridge", "CNIJFitRollPaperWidth",
                  "EPIJ_Medi", "EPIJProfileSpec", "EPIJ_Qual", "EPIJ_Mode", "EPIJ_CMat",
                  "EPIJ_CCor", "EPIJ_OSColMat", "EPIJ_OSCMProf", "EPIJ_HdofClSp", "EPIJ_Ink_",
@@ -943,12 +946,23 @@ def trim_canon_tbl(data: bytes, cartridge: int, media: tuple[str, ...]) -> bytes
         if key[3] in keep and key[2] == cartridge:
             recs.append(data[k:k + 0x80])
     t2004 = struct.pack("<I", 16 + 0x80 * len(recs)) + b"\0" * 12 + b"".join(recs)
+    o = tables[2001]
+    size, a1, b1, count = struct.unpack_from("<IIII", data, o)
+    stride = round((size - 16) / count)
+    ents = [data[o + 20 + stride * i:o + 20 + stride * (i + 1)] for i in range(count)]
+    ents = [e for e in ents if len(e) == stride
+            and struct.unpack_from("<BBHHH", e)[3] in keep
+            and struct.unpack_from("<BBHHH", e)[2] == cartridge]
+    t2001 = struct.pack("<IIII", 16 + stride * len(ents), a1, b1, len(ents)) \
+        + data[o + 16:o + 20] + b"".join(ents)
     head = bytearray(0x300)
-    d = struct.pack("<I", 2)
-    off2002 = 0x300 + 4 + 24
+    d = struct.pack("<I", 3)
+    off2001 = 0x300 + 4 + 36
+    off2002 = off2001 + len(t2001)
     off2004 = off2002 + len(t2002)
-    d += struct.pack("<III", 8, 2002, off2002) + struct.pack("<III", 8, 2004, off2004)
-    return bytes(head) + d + t2002 + t2004
+    d += (struct.pack("<III", 8, 2001, off2001) + struct.pack("<III", 8, 2002, off2002)
+          + struct.pack("<III", 8, 2004, off2004))
+    return bytes(head) + d + t2001 + t2002 + t2004
 
 
 def trim_ppd(text: str) -> str:
@@ -1022,7 +1036,8 @@ def make_fixtures(dest: Path) -> list[str]:
                            lambda m: m.group(0) if m.group(2) in keep_m or
                            m.group(1) == "EPIJAMMPreset" else "", t, flags=re.M | re.S)
             ui = re.search(r'^\*EPIJUIType:.*$', t, re.M)
-            blocks = [m.group(0) for key in ("EPIJProfileSpec", "Resolution")
+            blocks = [m.group(0) for key in ("EPIJProfileSpec", "Resolution", "MediaType",
+                                             "ColorModel")
                       if (m := re.search(rf'^\*EPIJConditionValue {key}/:\s*".*?"', t,
                                          re.S | re.M))]
             rel = pde.relative_to(pc.MAC_DRIVER_ROOT)

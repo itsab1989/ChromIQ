@@ -95,3 +95,29 @@
 *EPIJProfileSpec 7/SP1400 1410 Epson PGPS: ""
 *EPIJProfileSpec 8/SP1400 1410 Epson PSPP: ""
 *CloseUI: *EPIJProfileSpec
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/RGB: ""
+*ColorModel Mono/Gray: ""
+*CloseUI: *ColorModel
+*OpenUI *MediaType/MediaType: PickOne
+*DefaultMediaType: 0
+*MediaType 0/plain papers: ""
+*MediaType 92/Epson Ultra Glossy: ""
+*MediaType 13/Epson Premium Glossy: ""
+*MediaType 15/Epson Premium Semigloss: ""
+*MediaType 97/Epson Glossy: ""
+*MediaType 14/Epson Archival Matte: ""
+*MediaType 12/Epson Matte: ""
+*MediaType 2/Epson Photo Quality Ink Jet: ""
+*MediaType 75/Epson Photo Stickers: ""
+*MediaType 26/CD<2F>DVD: ""
+*MediaType 76/CD<2F>DVD Premium Surface: ""
+*MediaType 93/Envelope: ""
+*CloseUI: *MediaType
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 360x360dpi
+*Resolution 180x180dpi/180x180dpi: ""
+*Resolution 360x360dpi/360x360dpi: ""
+*Resolution 720x720dpi/720x720dpi: ""
+*CloseUI: *Resolution

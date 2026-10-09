@@ -194,3 +194,22 @@
 *EPIJProfileSpec 6/SP2200 Premium Semigloss_PK: ""
 *EPIJProfileSpec 7/SP2200 Glossy Paper - PW_PK: ""
 *CloseUI: *EPIJProfileSpec
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/RGB: ""
+*ColorModel Mono/Gray: ""
+*CloseUI: *ColorModel
+*OpenUI *MediaType/MediaType: PickOne
+*DefaultMediaType: 0
+*MediaType 0/plain papers: ""
+*MediaType 14/Epson Archival Matte: ""
+*MediaType 15/Epson Premium Semigloss: ""
+*MediaType 16/Glossy Paper - Photo Weight: ""
+*MediaType 17/Watercolor Paper - Radiant White: ""
+*MediaType 26/CD<2F>DVD: ""
+*CloseUI: *MediaType
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 360x360dpi
+*Resolution 360x360dpi/360x360dpi: ""
+*Resolution 720x720dpi/720x720dpi: ""
+*CloseUI: *Resolution

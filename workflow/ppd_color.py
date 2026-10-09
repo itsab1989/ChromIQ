@@ -374,6 +374,13 @@ class CanonMedium:
     #: {CNIJPrintQuality: output ICC} where the database names one per quality
     #: (the binary tables do: PRO-100 Luster is LU1 at Fine, LU3 at Normal)
     icc_by_quality: tuple[tuple[str, str], ...] = ()
+    #: {CNIJPrintQuality: the dialog's Resolution option, "600x600dpi"} (beta 16:
+    #: the Canon dialog sets the PPD's Resolution for the paper and quality,
+    #: PRO-10S 600 or 1200 dpi, imagePROGRAF 300 or 600 dpi)
+    resolution_by_quality: tuple[tuple[str, str], ...] = ()
+
+    def resolution_for(self, quality: str | None) -> str | None:
+        return dict(self.resolution_by_quality).get(quality or self.dialog_quality or "")
 
     def icc_for(self, quality: str | None) -> str:
         """The output ICC the dialog selects at *quality* (its own quality
@@ -436,9 +443,12 @@ def _canon_media_hmi(ppd_text: str, db: pathlib.Path):
         bins = tuple(b.strip() for b in (ib.group(2) if ib else "").split(",") if b.strip())
         by_cnij = tuple((q, v.strip()) for t, v in by_q.items()
                         if (q := _q_from_type(t)) is not None)
+        res = tuple((q, f"{r}x{r}dpi") for t, r in re.findall(
+            r'<printquality_rgb type="(\d+)"[^>]*>.*?<availableresolution default="(\d+)"',
+            body, re.S) if (q := _q_from_type(t)) is not None)
         yield mv, CanonMedium(icc=icc.strip(), qualities=qualities, dialog_quality=pick,
                               bins=bins, bin_default=ib.group(1) if ib else "",
-                              icc_by_quality=by_cnij)
+                              icc_by_quality=by_cnij, resolution_by_quality=res)
 
 
 #: the binary table's quality byte for CNIJPrintQuality 0/5/10/15/20
@@ -501,6 +511,23 @@ def _canon_media_tbl(ppd_text: str, db: pathlib.Path) -> dict[str, CanonMedium]:
             name = d[k + 8:k + 0x48].split(b"\0")[0].decode("latin-1").strip()
             icc.setdefault((mv, str(qb - _TBL_Q0)), name + ".icc")
 
+    # table 2001: the print-mode commands of each mode, 136-byte entries; its
+    # ESC ( d gives the resolution (50 of 50 PRO-10S/iP8700/iX6800 papers)
+    resolution: dict[tuple[int, str], str] = {}
+    if 2001 in tables:
+        o = tables[2001]
+        size, _a, _b, count = struct.unpack_from("<IIII", d, o)
+        stride = round((size - 16) / count) if count else 0
+        for i in range(count if stride >= 16 else 0):
+            k = o + 20 + stride * i
+            if k + stride > len(d):
+                break
+            qb, border, flag, mv, _z = struct.unpack_from("<BBHHH", d, k)
+            m = re.search(rb"\x1b\(d\x04\x00(....)", d[k + 8:k + stride], re.S)
+            if m and border == 0 and flag == cart and _TBL_Q0 <= qb <= _TBL_Q0 + 20:
+                h, v = struct.unpack(">HH", m.group(1))
+                resolution[(mv, str(qb - _TBL_Q0))] = f"{h}x{v}dpi"
+
     values = {key: dict(vals) for key, _l, vals in parse_ppd_options(ppd_text)}
     default_icc = values.get("CNIJProfileID", {}).get(
         _ppd_default(ppd_text, "CNIJProfileID") or "", "")
@@ -513,7 +540,10 @@ def _canon_media_tbl(ppd_text: str, db: pathlib.Path) -> dict[str, CanonMedium]:
         out[mv] = CanonMedium(icc=icc.get((int(mv), pick), default_icc), qualities=qs,
                               dialog_quality=pick,
                               icc_by_quality=tuple((q, icc.get((int(mv), q), default_icc))
-                                                   for q in qs))
+                                                   for q in qs),
+                              resolution_by_quality=tuple(
+                                  (q, resolution[(int(mv), q)]) for q in qs
+                                  if (int(mv), q) in resolution))
     return out
 
 
@@ -849,6 +879,19 @@ def epson_dialog_keys(ppd_text: str, media_value: str) -> dict[str, str]:
                 out.update({k: r[k] for k in ("EPIJ_Qual", "EPIJ_Bi_D", "EPIJ_FDet",
                                               "EPIJ_FWea", "EPIJ_Weav") if k in r})
                 break
+    # The standard CUPS options the dialog sets from its condition tables:
+    # MediaType, ColorModel and, above all, Resolution, the resolution the
+    # chart is rasterised at for the filter (Premium Glossy: 720x720dpi where
+    # the PPD's default is 360x360dpi).  Beta 15 sent none of them.
+    _ui, tables = epson_pde(ppd_text, variant)
+    settings = {k: v for k, v in ((k, _ppd_default(ppd_text, k)) for k, _l, _v in
+                                  parse_ppd_options(ppd_text)) if v is not None}
+    settings.update(out)
+    settings.update({"EPIJ_Medi": media_value, "EPIJ_Ink_": ink})
+    for key in ("MediaType", "ColorModel", "Resolution"):
+        v = epson_condition_value(tables.get(key, []), settings)
+        if v is not None:
+            out[key] = v
     return out
 
 
@@ -1088,6 +1131,19 @@ def paper_profile_for(ppd_text: str, options: dict[str, str] | None = None,
                 q_val = _driver_quality(rule, ppd_text, media_value, keys, options)
                 if q_val is not None:
                     keys[rule.quality_option] = q_val
+        if rule.driver_table == "canon-db" and "Resolution" in blocks \
+                and not str(options.get("Resolution") or ""):
+            # beta 16: the Canon dialog also sets the PPD's Resolution for the
+            # paper and quality, which the chart is rasterised at
+            try:
+                medium = canon_media(ppd_text).get(media_value)
+                job_q = str(options.get(rule.quality_option) or keys.get(rule.quality_option)
+                            or "")
+                res = medium.resolution_for(job_q) if medium is not None else None
+            except Exception:  # noqa: BLE001
+                res = None
+            if res is not None:
+                keys["Resolution"] = res
         if rule.source_option and rule.source_option in blocks:
             if str(options.get(rule.source_option) or ""):
                 # the user chose the paper source in the tab: that one goes

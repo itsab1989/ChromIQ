@@ -117,6 +117,10 @@
 *CNIJIntent2 5/Perceptual (Photo): ""
 *CNIJIntent2 1001/No Color Correction: ""
 *CloseUI: *CNIJIntent2
+*OpenUI *ColorModel/Color Model: PickOne
+*DefaultColorModel: RGB16
+*ColorModel RGB16/RGB 16-bit: ""
+*CloseUI: *ColorModel
 *cupsICCQualifier2: CNIJProfileID
 *OpenUI *CNIJProfileID/ProfileID: PickOne
 *DefaultCNIJProfileID: 1
@@ -139,6 +143,11 @@
 *CNIJProfileID 17/CN_PRO-300_G1_Canvas-P.icc: ""
 *CNIJProfileID 18/CN_PRO-300_G1_JapanesePaperWashi-P.icc: ""
 *CloseUI: *CNIJProfileID
+*OpenUI *Resolution/Output Resolution: PickOne
+*DefaultResolution: 600x600dpi
+*Resolution 300x300dpi/300 x 300 dpi: ""
+*Resolution 600x600dpi/600 x 600 dpi: ""
+*CloseUI: *Resolution
 *OpenUI *CNIJCartridge/BJ Cartridge: PickOne
 *DefaultCNIJCartridge: 3
 *CNIJCartridge 3/Photo: ""

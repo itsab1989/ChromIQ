@@ -443,3 +443,33 @@ def test_every_epson_dialog_measurement_is_reproduced():
                     checked += 1
     if not checked:
         pytest.skip("no Epson driver installed")
+
+
+# ---- 8. the resolution the chart is rasterised at --------------------------------------------
+def test_epson_resolution_and_media_type_go_as_the_dialog_sets_them(fixture_drivers):
+    """The Epson dialog sets the PPD's own Resolution, MediaType and ColorModel
+    from its condition tables.  Beta 15 sent none: the chart reached the Epson
+    filter at the PPD's 360x360dpi where the dialog's job has 720x720dpi on
+    Premium Glossy, and through the full Epson filter chain the ET-8550's
+    stream then differed from the dialog's (ESC/P-R commands and raster);
+    with them it is byte-identical (report folder escp/)."""
+    keys = pc.paper_profile_for(_ppd("EPSON_ET_8550_Series.ppd"), {"EPIJ_Medi": "13"}).keys()
+    assert (keys["Resolution"], keys["MediaType"], keys["ColorModel"]) == (
+        "720x720dpi", "13", "RGB")
+    plain = pc.paper_profile_for(_ppd("EPSON_ET_8550_Series.ppd"), {"EPIJ_Medi": "0"}).keys()
+    assert plain["Resolution"] == "360x360dpi"
+
+
+@pytest.mark.parametrize("ppd,medium,quality,res", [
+    # measured on the real dialogs (this round): 66 of 66 Canon tickets
+    ("Canon_PRO_10S_series.ppd", "169", "", "1200x1200dpi"),
+    ("Canon_PRO_10S_series.ppd", "63", "", "600x600dpi"),
+    ("Canon_PRO_10S_series.ppd", "63", "0", "1200x1200dpi"),   # binary table, Super Fine
+    ("Canon_PRO_2100.ppd", "63", "", "600x600dpi"),
+    ("Canon_PRO_2100.ppd", "0", "", "300x300dpi"),
+])
+def test_canon_resolution_goes_as_the_dialog_sets_it(fixture_drivers, ppd, medium, quality, res):
+    opts = {"CNIJMediaType": medium}
+    if quality:
+        opts["CNIJPrintQuality"] = quality
+    assert pc.paper_profile_for(_ppd(ppd), opts).keys()["Resolution"] == res

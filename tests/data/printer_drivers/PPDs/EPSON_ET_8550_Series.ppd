@@ -247,3 +247,33 @@
 *EPIJProfileSpec 7/EPSON ET-8550 L8180 Series Velvet Fine Art: ""
 *EPIJProfileSpec 8/EPSON ET-8550 L8180 Series Photo Quality Ink Jet: ""
 *CloseUI: *EPIJProfileSpec
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/RGB: ""
+*ColorModel Mono/Gray: ""
+*ColorModel ABWP/ABWP: ""
+*CloseUI: *ColorModel
+*OpenUI *MediaType/MediaType: PickOne
+*DefaultMediaType: 0
+*MediaType 0/Plain paper: ""
+*MediaType 142/Letterhead: ""
+*MediaType 2/Epson Photo Quality Ink Jet: ""
+*MediaType 12/Epson Matte: ""
+*MediaType 53/Velvet Fine Art Paper: ""
+*MediaType 92/Epson Ultra Glossy: ""
+*MediaType 13/Epson Premium Glossy: ""
+*MediaType 15/Epson Premium Semigloss: ""
+*MediaType 145/Photo Paper Glossy: ""
+*MediaType 75/Epson Photo Stickers: ""
+*MediaType 93/Envelope: ""
+*MediaType 26/CD<2F>DVD: ""
+*MediaType 187/Thin paper: ""
+*MediaType 159/Thick paper1 (0<2E>8mm): ""
+*MediaType 160/Thick paper2 (1<2E>3mm): ""
+*CloseUI: *MediaType
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 360x360dpi
+*Resolution 180x180dpi/180x180dpi: ""
+*Resolution 360x360dpi/360x360dpi: ""
+*Resolution 720x720dpi/720x720dpi: ""
+*CloseUI: *Resolution

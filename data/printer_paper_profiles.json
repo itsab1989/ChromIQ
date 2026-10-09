@@ -7,10 +7,11 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
-     "measured": "D_PRO100_0",
+     "measured": "2026-10-09",
      "profile": "1"
     },
     "149": {
@@ -57,10 +58,11 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "38",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-100 series PFR2.icc",
-     "measured": "D_PRO100_169",
+     "measured": "2026-10-09",
      "profile": "23"
     },
     "18": {
@@ -127,10 +129,11 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "38",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-100 series FE2.icc",
-     "measured": "D_PRO100_45",
+     "measured": "2026-10-09",
      "profile": "5"
     },
     "49": {
@@ -157,10 +160,11 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-100 series PT3.icc",
-     "measured": "D_PRO100_51",
+     "measured": "2026-10-09",
      "profile": "10"
     },
     "54": {
@@ -187,10 +191,11 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-100 series FD2.icc",
-     "measured": "D_PRO100_58",
+     "measured": "2026-10-09",
      "profile": "11"
     },
     "59": {
@@ -217,10 +222,11 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-100 series LU3.icc",
-     "measured": "D_PRO100_63",
+     "measured": "2026-10-09",
      "profile": "14"
     },
     "64": {
@@ -302,19 +308,23 @@
     "0": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_IJPrinter_Profile2015.icc",
-     "measured": "D_PRO1000_0",
+     "measured": "2026-10-09",
      "profile": "1"
     },
     "17448": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "38",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-1000_500_BarytaPhotoPaper-P.icc",
-     "measured": "D_PRO1000_17448",
+     "measured": "2026-10-09",
      "profile": "11"
     },
     "27": {
@@ -374,10 +384,12 @@
     "63": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-1000_500_PhotoPaperProLuster.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "5"
     },
     "66": {
@@ -446,10 +458,12 @@
     "78": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "15"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "15",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-1000_500_Canvas-P.icc",
-     "measured": "D_PRO1000_78",
+     "measured": "2026-10-09",
      "profile": "18"
     },
     "79": {
@@ -503,7 +517,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -513,7 +528,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "38",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "1200x1200dpi"
      },
      "label": "Canon PRO-10S series PFS2.icc",
      "measured": "2026-10-09",
@@ -523,7 +539,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "1200x1200dpi"
      },
      "label": "Canon PRO-10S series CR1.icc",
      "measured": "2026-10-09",
@@ -533,7 +550,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "38",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "1200x1200dpi"
      },
      "label": "Canon PRO-10S series PFR2.icc",
      "measured": "2026-10-09",
@@ -543,7 +561,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -553,7 +572,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-10S series MP2.icc",
      "measured": "2026-10-09",
@@ -573,7 +593,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-10S series SG3.icc",
      "measured": "2026-10-09",
@@ -583,7 +604,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "38",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-10S series FE2.icc",
      "measured": "2026-10-09",
@@ -593,7 +615,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "38",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-10S series FB2.icc",
      "measured": "2026-10-09",
@@ -603,7 +626,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-10S series GL3.icc",
      "measured": "2026-10-09",
@@ -613,7 +637,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "1200x1200dpi"
      },
      "label": "Canon PRO-10S series PT1.icc",
      "measured": "2026-10-09",
@@ -623,7 +648,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -633,7 +659,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-10S series FD2.icc",
      "measured": "2026-10-09",
@@ -643,7 +670,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-10S series FE2.icc",
      "measured": "2026-10-09",
@@ -653,7 +681,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "1200x1200dpi"
      },
      "label": "Canon PRO-10S series GD2.icc",
      "measured": "2026-10-09",
@@ -663,7 +692,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon PRO-10S series LU3.icc",
      "measured": "2026-10-09",
@@ -673,7 +703,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "1200x1200dpi"
      },
      "label": "Canon PRO-10S series GD2.icc",
      "measured": "2026-10-09",
@@ -683,7 +714,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "38",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "1200x1200dpi"
      },
      "label": "Canon PRO-10S series PMN2.icc",
      "measured": "2026-10-09",
@@ -693,7 +725,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -834,10 +867,12 @@
     "63": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-1100_510_PhotoPaperProLuster.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "4"
     },
     "7": {
@@ -897,10 +932,12 @@
     "78": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-1100_510_Canvas.icc",
-     "measured": "D_PRO1100_78",
+     "measured": "2026-10-09",
      "profile": "17"
     },
     "79": {
@@ -1089,10 +1126,12 @@
     "63": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-200S_S1MkII_PhotoPaperProLuster.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "4"
     },
     "7": {
@@ -1116,10 +1155,12 @@
     "74": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "5"
+      "CNIJMediaSupply": "38",
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-200S_S1MkII_HeavyweightPhotoPaper-P.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "10"
     },
     "75": {
@@ -1177,7 +1218,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "300x300dpi"
      },
      "label": "CN_IJPrinter_Profile2015.icc",
      "measured": "2026-10-09",
@@ -1217,7 +1259,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2100_521_FineArtPhoto.icc",
      "measured": "2026-10-09",
@@ -1402,7 +1445,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2100_521_BarytaPhotoPaper-P.icc",
      "measured": "2026-10-09",
@@ -1412,7 +1456,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2100_521_PhotoPaperProPlatinum.icc",
      "measured": "2026-10-09",
@@ -1422,7 +1467,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2100_521_PhotoPaperProLuster.icc",
      "measured": "2026-10-09",
@@ -1447,7 +1493,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "20"
+      "CNIJPrintQuality": "20",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2100_521_Canvas-P.icc",
      "measured": "2026-10-09",
@@ -1507,7 +1554,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2100_521_GlossyPhotoPaper170gsm.icc",
      "measured": "2026-10-09",
@@ -1522,7 +1570,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2100_521_PremiumFineArtSmooth.icc",
      "measured": "2026-10-09",
@@ -1603,7 +1652,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "300x300dpi"
      },
      "label": "CN_IJPrinter_Profile2015.icc",
      "measured": "2026-10-09",
@@ -1808,7 +1858,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2600_526_BarytaPhotoPaper.icc",
      "measured": "2026-10-09",
@@ -1818,7 +1869,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "300x300dpi"
      },
      "label": "CN_IJPrinter_Profile2015.icc",
      "measured": "2026-10-09",
@@ -1833,7 +1885,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2600_526_PhotoPaperProLuster.icc",
      "measured": "2026-10-09",
@@ -1853,7 +1906,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-2600_526_HeavyweightFineArtPaper.icc",
      "measured": "2026-10-09",
@@ -2008,10 +2062,12 @@
     "0": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_IJPrinter_Profile2015.icc",
-     "measured": "N_psref_canon_m0",
+     "measured": "2026-10-09",
      "profile": "1"
     },
     "149": {
@@ -2071,10 +2127,12 @@
     "165": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "5"
+      "CNIJMediaSupply": "38",
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-300_G1_BarytaPhotoPaper-P.icc",
-     "measured": "N_psref_canon_m165",
+     "measured": "2026-10-09",
      "profile": "10"
     },
     "169": {
@@ -2098,10 +2156,12 @@
     "28": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-300_G1_MattePhotoPaper-P.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "6"
     },
     "31": {
@@ -2117,19 +2177,23 @@
     "42": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-300_G1_PhotoPaperPlusSemi-gloss.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "5"
     },
     "51": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-300_G1_PhotoPaperProPlatinum.icc",
-     "measured": "N_psref_canon_m51",
+     "measured": "2026-10-09",
      "profile": "3"
     },
     "56": {
@@ -2144,10 +2208,12 @@
     "63": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-300_G1_PhotoPaperProLuster.icc",
-     "measured": "N_psref_canon_m63",
+     "measured": "2026-10-09",
      "profile": "4"
     },
     "7": {
@@ -2294,10 +2360,12 @@
     "165": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "0"
+      "CNIJMediaSupply": "38",
+      "CNIJPrintQuality": "0",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-310_G2_BarytaPhotoPaper.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "11"
     },
     "169": {
@@ -2364,13 +2432,25 @@
      "profile": "6"
     },
     "31": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJMediaSupply": "75",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-09",
      "profile": "1"
     },
     "32": {
-     "from": "driver",
+     "from": "dialog",
+     "keys": {
+      "CNIJMediaSupply": "75",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
+     },
      "label": "CN_IJPrinter_Profile2015.icc",
+     "measured": "2026-10-09",
      "profile": "1"
     },
     "42": {
@@ -2403,10 +2483,12 @@
     "63": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "10"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-310_G2_PhotoPaperProLuster.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "4"
     },
     "7": {
@@ -2457,10 +2539,12 @@
     "77": {
      "from": "dialog",
      "keys": {
-      "CNIJPrintQuality": "5"
+      "CNIJMediaSupply": "7",
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-310_G2_JapanesePaperWashi-P.icc",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "20"
     },
     "78": {
@@ -2491,7 +2575,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "300x300dpi"
      },
      "label": "CN_IJPrinter_Profile2015.icc",
      "measured": "2026-10-09",
@@ -2711,7 +2796,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-4100_541_BarytaPhotoPaper-P.icc",
      "measured": "2026-10-09",
@@ -2726,7 +2812,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "71",
-      "CNIJPrintQuality": "15"
+      "CNIJPrintQuality": "15",
+      "Resolution": "600x600dpi"
      },
      "label": "CN_PRO-4100_541_PhotoPaperProLuster.icc",
      "measured": "2026-10-09",
@@ -2892,7 +2979,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -2902,7 +2990,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -2912,7 +3001,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -2922,7 +3012,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -2932,7 +3023,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iP8700 series MP2.icc",
      "measured": "2026-10-09",
@@ -2952,7 +3044,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -2962,7 +3055,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iP8700 series FC2.icc",
      "measured": "2026-10-09",
@@ -2972,7 +3066,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iP8700 series SG3 LU3.icc",
      "measured": "2026-10-09",
@@ -2982,7 +3077,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iP8700 series GL3.icc",
      "measured": "2026-10-09",
@@ -2992,7 +3088,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iP8700 series PT3.icc",
      "measured": "2026-10-09",
@@ -3002,7 +3099,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3012,7 +3110,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3022,7 +3121,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iP8700 series SG3 LU3.icc",
      "measured": "2026-10-09",
@@ -3032,7 +3132,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3042,7 +3143,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3052,7 +3154,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3068,7 +3171,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3078,7 +3182,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3088,7 +3193,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "5"
+      "CNIJPrintQuality": "5",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3098,7 +3204,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3108,7 +3215,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iX6800 series MP2.icc",
      "measured": "2026-10-09",
@@ -3118,7 +3226,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3128,7 +3237,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iX6800 series SG3 LU3.icc",
      "measured": "2026-10-09",
@@ -3138,7 +3248,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iX6800 series GL3.icc",
      "measured": "2026-10-09",
@@ -3148,7 +3259,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iX6800 series PT3.icc",
      "measured": "2026-10-09",
@@ -3158,7 +3270,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3168,7 +3281,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3178,7 +3292,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "Canon iX6800 series SG3 LU3.icc",
      "measured": "2026-10-09",
@@ -3188,7 +3303,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3198,7 +3314,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3208,7 +3325,8 @@
      "from": "dialog",
      "keys": {
       "CNIJMediaSupply": "7",
-      "CNIJPrintQuality": "10"
+      "CNIJPrintQuality": "10",
+      "Resolution": "600x600dpi"
      },
      "label": "CanonIJPrinter2005.icc",
      "measured": "2026-10-09",
@@ -3326,7 +3444,6 @@
   },
   "EPSON ET-8550 Series": {
    "dialog_keys": {
-    "EPIJ_CCor": "3",
     "EPIJ_CMat": "3",
     "EPIJ_HdofClSp": "0",
     "EPIJ_Mode": "3",
@@ -3337,15 +3454,19 @@
     "0": {
      "from": "dialog",
      "keys": {
+      "EPIJ_APri": "2",
       "EPIJ_CCor": "12",
       "EPIJ_CMat": "3",
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "EPIJ_Qual": "303",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON ET-8550 L8180 Series Standard",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "1"
     },
     "12": {
@@ -3365,29 +3486,37 @@
     "13": {
      "from": "dialog",
      "keys": {
+      "EPIJ_APri": "0",
       "EPIJ_CCor": "3",
       "EPIJ_CMat": "3",
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "EPIJ_Qual": "305",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON ET-8550 L8180 Series Premium Glossy",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "3"
     },
     "142": {
      "from": "dialog",
      "keys": {
+      "EPIJ_APri": "2",
       "EPIJ_CCor": "12",
       "EPIJ_CMat": "3",
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "EPIJ_Qual": "303",
+      "MediaType": "142",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON ET-8550 L8180 Series Standard",
-     "measured": "D_ET8550_142",
+     "measured": "2026-10-09",
      "profile": "1"
     },
     "145": {
@@ -3463,15 +3592,19 @@
     "2": {
      "from": "dialog",
      "keys": {
+      "EPIJ_APri": "0",
       "EPIJ_CCor": "3",
       "EPIJ_CMat": "3",
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "EPIJ_Qual": "305",
+      "MediaType": "2",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON ET-8550 L8180 Series Photo Quality Ink Jet",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "8"
     },
     "26": {
@@ -3482,15 +3615,19 @@
     "53": {
      "from": "dialog",
      "keys": {
+      "EPIJ_APri": "0",
       "EPIJ_CCor": "3",
       "EPIJ_CMat": "3",
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "EPIJ_Qual": "306",
+      "MediaType": "53",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON ET-8550 L8180 Series Velvet Fine Art",
-     "measured": "2026-10-08",
+     "measured": "2026-10-09",
      "profile": "7"
     },
     "75": {
@@ -3788,7 +3925,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "31"
+      "EPIJ_Qual": "31",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "Epson Stylus Pro 3880_3885_3890 Standard",
      "measured": "2026-10-09",
@@ -3816,7 +3955,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "13",
+      "Resolution": "360x360dpi"
      },
      "label": "Epson Stylus Pro 3880_3885_3890 PremiumGlossyPhotoPaper",
      "measured": "2026-10-09",
@@ -3834,7 +3975,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "14",
+      "Resolution": "360x360dpi"
      },
      "label": "Epson Stylus Pro 3880_3885_3890 ArchivalMattePaper",
      "measured": "2026-10-09",
@@ -3867,7 +4010,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "27",
+      "Resolution": "360x360dpi"
      },
      "label": "Epson Stylus Pro 3880_3885_3890 PremiumLusterPhotoPaper",
      "measured": "2026-10-09",
@@ -3916,7 +4061,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "303"
+      "EPIJ_Qual": "303",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON L1800 Series Standard",
      "measured": "2026-10-09",
@@ -3932,7 +4079,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "12",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON L1800 Series Matte",
      "measured": "2026-10-09",
@@ -3948,7 +4097,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON L1800 Series Premium Glossy",
      "measured": "2026-10-09",
@@ -4007,7 +4158,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "43"
+      "EPIJ_Qual": "43",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "L800 Standard",
      "measured": "2026-10-09",
@@ -4023,7 +4176,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "117",
+      "Resolution": "720x720dpi"
      },
      "label": "L800 Epson Photo",
      "measured": "2026-10-09",
@@ -4044,7 +4199,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "L800 Epson Premium Glossy",
      "measured": "2026-10-09",
@@ -4108,7 +4265,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "303"
+      "EPIJ_Qual": "303",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON L805 Series Standard",
      "measured": "2026-10-09",
@@ -4129,7 +4288,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON L805 Series Premium Glossy",
      "measured": "2026-10-09",
@@ -4145,7 +4306,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "145",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON L805 Series Photo Glossy",
      "measured": "2026-10-09",
@@ -4260,7 +4423,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "303"
+      "EPIJ_Qual": "303",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON L850 L810 Series Standard",
      "measured": "2026-10-09",
@@ -4281,7 +4446,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON L850 L810 Series Premium Glossy",
      "measured": "2026-10-09",
@@ -4345,7 +4512,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "43"
+      "EPIJ_Qual": "43",
+      "MediaType": "0",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P400 Series Standard",
      "measured": "2026-10-09",
@@ -4366,7 +4535,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "49"
+      "EPIJ_Qual": "49",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P400 Series Premium Glossy",
      "measured": "2026-10-09",
@@ -4381,7 +4552,9 @@
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "MediaType": "14",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P400 Series Archival Matte",
      "measured": "2026-10-09",
@@ -4406,7 +4579,9 @@
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "MediaType": "1950",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P400 Series Traditional Photo Paper<2E>icm",
      "measured": "2026-10-09",
@@ -4467,7 +4642,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "49"
+      "EPIJ_Qual": "49",
+      "MediaType": "27",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P400 Series Premium Luster",
      "measured": "2026-10-09",
@@ -4679,7 +4856,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "33"
+      "EPIJ_Qual": "33",
+      "MediaType": "0",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P600 Series Standard",
      "measured": "2026-10-09",
@@ -4695,7 +4874,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P600 Series Premium Glossy",
      "measured": "2026-10-09",
@@ -4711,7 +4892,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "36"
+      "EPIJ_Qual": "36",
+      "MediaType": "14",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P600 Series Archival Matte",
      "measured": "2026-10-09",
@@ -4776,7 +4959,9 @@
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "MediaType": "1958",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P600 Series Premium Canvas Satin<2E>icm",
      "measured": "2026-10-09",
@@ -4802,7 +4987,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "27",
+      "Resolution": "720x720dpi"
      },
      "label": "SC-P600 Series Epson Premium Luster",
      "measured": "2026-10-09",
@@ -4853,7 +5040,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "31"
+      "EPIJ_Qual": "31",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "SC-P8000_P6000_Series Standard",
      "measured": "2026-10-09",
@@ -4871,7 +5060,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "101",
+      "Resolution": "360x360dpi"
      },
      "label": "SC-P8000_P6000_Series PremiumLusterPhotoPaper260",
      "measured": "2026-10-09",
@@ -4949,7 +5140,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "14",
+      "Resolution": "360x360dpi"
      },
      "label": "SC-P8000_P6000_Series ArchivalMattePaper_MK",
      "measured": "2026-10-09",
@@ -4986,7 +5179,9 @@
       "EPIJ_MeInSeNm": "2",
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "MediaType": "1950",
+      "Resolution": "360x360dpi"
      },
      "label": "SC-P8000_P6000_Series Matte Backlit Film",
      "measured": "2026-10-09",
@@ -6188,7 +6383,6 @@
   },
   "EPSON SC-P900 Series": {
    "dialog_keys": {
-    "EPIJ_CCor": "4",
     "EPIJ_CMat": "3",
     "EPIJ_HdofClSp": "0",
     "EPIJ_Mode": "0",
@@ -6209,15 +6403,19 @@
     "13": {
      "from": "dialog",
      "keys": {
+      "EPIJ_APri": "4",
       "EPIJ_CCor": "4",
       "EPIJ_CMat": "3",
       "EPIJ_HdofClSp": "0",
       "EPIJ_Mode": "0",
       "EPIJ_OSCMProf": "1",
-      "EPIJ_OSColMat": "2"
+      "EPIJ_OSColMat": "2",
+      "EPIJ_Qual": "35",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "Epson SC-P900_700 Epson Premium Glossy",
-     "measured": "D_P900_53",
+     "measured": "2026-10-09",
      "profile": "2"
     },
     "14": {
@@ -6325,7 +6523,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "101",
+      "Resolution": "360x360dpi"
      },
      "label": "SC-P9000_P7000_Series_LLK PremiumLusterPhotoPaper260",
      "measured": "2026-10-09",
@@ -6694,7 +6894,9 @@
       "EPIJ_Mode": "0",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "43"
+      "EPIJ_Qual": "43",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "SP1390 Standard",
      "measured": "2026-10-09",
@@ -6710,7 +6912,9 @@
       "EPIJ_Mode": "0",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "12",
+      "Resolution": "720x720dpi"
      },
      "label": "SP1390 Epson MPHW",
      "measured": "2026-10-09",
@@ -6726,7 +6930,9 @@
       "EPIJ_Mode": "0",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "SP1390 Epson PGPP",
      "measured": "2026-10-09",
@@ -6785,7 +6991,9 @@
       "EPIJ_Mode": "0",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "43"
+      "EPIJ_Qual": "43",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "SP1400 1410 Standard",
      "measured": "2026-10-09",
@@ -6806,7 +7014,9 @@
       "EPIJ_Mode": "0",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "SP1400 1410 Epson PGPP",
      "measured": "2026-10-09",
@@ -6822,7 +7032,9 @@
       "EPIJ_Mode": "0",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "14",
+      "Resolution": "720x720dpi"
      },
      "label": "SP1400 1410 Epson ARMP",
      "measured": "2026-10-09",
@@ -6873,7 +7085,9 @@
       "EPIJ_Mode": "0",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "97",
+      "Resolution": "720x720dpi"
      },
      "label": "SP1400 1410 Epson PGPS",
      "measured": "2026-10-09",
@@ -6902,7 +7116,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "31"
+      "EPIJ_Qual": "31",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "SP2200 Standard_PK",
      "measured": "2026-10-09",
@@ -6956,7 +7172,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "44"
+      "EPIJ_Qual": "44",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "SPR1800 Standard",
      "measured": "2026-10-09",
@@ -6977,7 +7195,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "SPR1800 Premium Glossy",
      "measured": "2026-10-09",
@@ -6993,7 +7213,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "14",
+      "Resolution": "720x720dpi"
      },
      "label": "SPR1800 Enhanced Matte",
      "measured": "2026-10-09",
@@ -7067,7 +7289,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "43"
+      "EPIJ_Qual": "43",
+      "MediaType": "0",
+      "Resolution": "720x720dpi"
      },
      "label": "SPR1900 Standard",
      "measured": "2026-10-09",
@@ -7088,7 +7312,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "46"
+      "EPIJ_Qual": "46",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "SPR1900 Epson Premium Glossy",
      "measured": "2026-10-09",
@@ -7104,7 +7330,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "49"
+      "EPIJ_Qual": "49",
+      "MediaType": "14",
+      "Resolution": "720x720dpi"
      },
      "label": "SPR1900 Epson Archival Matte",
      "measured": "2026-10-09",
@@ -7183,7 +7411,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "44"
+      "EPIJ_Qual": "44",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "SPR2400 Standard",
      "measured": "2026-10-09",
@@ -7277,7 +7507,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "SPR2880 Epson Premium Glossy",
      "measured": "2026-10-09",
@@ -7363,7 +7595,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "31"
+      "EPIJ_Qual": "31",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "Pro3800 3800C 3850 Standard",
      "measured": "2026-10-09",
@@ -7386,7 +7620,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "14",
+      "Resolution": "360x360dpi"
      },
      "label": "Pro38 ARMP",
      "measured": "2026-10-09",
@@ -7419,7 +7655,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "35"
+      "EPIJ_Qual": "35",
+      "MediaType": "27",
+      "Resolution": "360x360dpi"
      },
      "label": "Pro38 PLPP",
      "measured": "2026-10-09",
@@ -7483,7 +7721,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "303"
+      "EPIJ_Qual": "303",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON XP-15000 Standard",
      "measured": "2026-10-09",
@@ -7499,7 +7739,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "12",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-15000 Matte",
      "measured": "2026-10-09",
@@ -7515,7 +7757,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-15000 Premium Glossy",
      "measured": "2026-10-09",
@@ -7551,7 +7795,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "53",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-15000 Velvet Fine Art",
      "measured": "2026-10-09",
@@ -7595,7 +7841,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "303"
+      "EPIJ_Qual": "303",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON XP-8600 Standard",
      "measured": "2026-10-09",
@@ -7616,7 +7864,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-8600 Premium Glossy",
      "measured": "2026-10-09",
@@ -7632,7 +7882,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "145",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-8600 Photo Glossy",
      "measured": "2026-10-09",
@@ -7691,7 +7943,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "303"
+      "EPIJ_Qual": "303",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON XP-8700 Standard",
      "measured": "2026-10-09",
@@ -7707,7 +7961,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "12",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-8700 Matte",
      "measured": "2026-10-09",
@@ -7723,7 +7979,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-8700 Premium Glossy",
      "measured": "2026-10-09",
@@ -7764,7 +8022,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "92",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-8700 Ultra Glossy",
      "measured": "2026-10-09",
@@ -7798,7 +8058,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "303"
+      "EPIJ_Qual": "303",
+      "MediaType": "0",
+      "Resolution": "360x360dpi"
      },
      "label": "EPSON XP-970 Standard",
      "measured": "2026-10-09",
@@ -7819,7 +8081,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "13",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-970 Premium Glossy",
      "measured": "2026-10-09",
@@ -7840,7 +8104,9 @@
       "EPIJ_Mode": "3",
       "EPIJ_OSCMProf": "1",
       "EPIJ_OSColMat": "2",
-      "EPIJ_Qual": "305"
+      "EPIJ_Qual": "305",
+      "MediaType": "15",
+      "Resolution": "720x720dpi"
      },
      "label": "EPSON XP-970 Premium Semigloss",
      "measured": "2026-10-09",

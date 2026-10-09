@@ -1,5 +1,24 @@
 # Changelog
 
+## v4.3.3-beta.16 (unreleased)
+
+**More printers print the chart in the state your photos print in, and the Print Chart tab offers the quality your photos use.**
+
+### Fixed
+
+- **Canon PIXMA PRO-10S, iP8750 (iP8700 series) and iX6850 (iX6800 series) were unknown models on the direct route, and the PRO-100's table was a hand measurement** (vendor tests round 2, 2026-10-09). These Canon drivers (16.9x) keep their media database as a binary table that beta 15 could not read, so the direct route stopped with "ChromIQ does not know this printer's paper profiles yet". ChromIQ now reads that table: the paper profile of every paper type at every quality, the qualities each paper type allows, and the quality the Canon dialog picks. It reproduces all 29 paper types measured on the PRO-100's dialog and every paper type measured on the PRO-10S, iP8700 and iX6800 dialogs. On these models the paper profile depends on the quality (Photo Paper Pro Luster is "LU1" at Fine, "LU3" at Normal), and the chart now carries the profile of the quality it prints at.
+- **Canon imagePROGRAF PRO-2100, PRO-4100 and PRO-2600** print at the quality their dialog picks for the paper (its own default, for example Photo Paper Pro Luster at the 4th position); the rule ChromIQ used for the PIXMA dialogs (their "Standard" position) gave the next better one.
+- **A Canon on Baryta, fine-art or heavyweight paper is fed from the manual feed**, as the Canon dialog does for those papers; the direct route sent nothing and the driver kept the top feed. Read from the driver's media database (102 paper types measured on five models agree), and measured on the PRO-10S, whose binary table does not say.
+- **Epson: the direct route sends what the Epson dialog writes for the paper, on every model whose driver is installed.** ChromIQ now works the dialog's values out from the driver's own data the way the dialog does: the colour mode for application colour matching (for example the XP-15000 got "EPSON Vivid" off only on plain paper), the quality, the black ink of the SC-P6000 to P9000 (Matte Black on matte papers) and their paper configuration (thickness, platen gap, suction, roll tension). Checked against every Epson dialog measured in both vendor rounds (25 models). Through the Epson driver's own filter, printed to a capture queue, the black ink and the paper configuration change the commands the printer receives; with them the direct route's stream equals the dialog's.
+- **The Stylus Photo 1390 and 1400 dialogs stay in automatic mode.** The direct route switched them to the custom mode and the driver's standard quality; it now sends the dialog's automatic settings and its quality for the paper. The SC-P900, SC-P700 and SC-P5300 also get the quality their dialog picks (beta 15 sent none).
+- **Epson Stylus Photo R2400, R2880, 2200 and SC-P7000/P9000** keep their tables in one folder per ink set, which beta 15 did not look into; they were unknown models.
+- **Epson PictureMate PM-400 and PM-520** have no paper profiles and no way to switch the driver's colour off. Their dialog, in application colour matching, sets the custom mode, the paper's quality and the driver's own colour mode (EPSON Vivid on photo papers); the direct route left the driver's automatic mode. It now sends what the dialog sends.
+
+### Changed
+
+- **The Print Chart tab has a quality row for Canon, and it offers the highest quality** (Basti, 2026-10-09). It lists the qualities the driver's own dialog allows for the chosen paper type, marks the highest and the dialog's standard, and preselects the quality of your last print on that paper through the macOS print dialog, otherwise the standard. A note under the row says to print your photos at the same quality. Epson models get the same row, read from the driver.
+- New models with tables: Canon PIXMA iP8750, iX6850, PRO-10S, imagePROGRAF PRO-2100, PRO-4100, PRO-2600; Epson XP-8700, XP-15000, XP-970, XP-8600, SC-P400, SC-P600, SC-P6000 to P9000, Stylus Photo 1400, 1390, R1900, R2880, R2400, R1800, 2200, Stylus Pro 3880 and 3800, L1800, L800, L805, L810, L850.
+
 ## v4.3.3-beta.15
 
 **Charts print in the state your photos print in: on a Canon or Epson, ChromIQ now sends the chart the way Photoshop sends an image when Photoshop manages colours, and macOS no longer converts the chart's colours on the way (measured on 14 Canon and Epson models). Also: the neighbour check judges with 2 neighbours and only marks the patch that is off, with its own switch and two buffers; a failed Profile accuracy table fails a verification; perceptual and saturation verifications are judged on profile accuracy; Guided charts carry no stamp; the Verification box opens on the latest date; every patch card compares the patch with its neighbours; presets are counted From Profile Gamut too; and the preview's switch waits before it closes.**

@@ -81,3 +81,22 @@
 *DefaultEPIJ_OSCMProf: 0
 *EPIJ_OSCMProf 0/None: ""
 *CloseUI: *EPIJ_OSCMProf
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/RGB: ""
+*ColorModel Mono/Gray: ""
+*CloseUI: *ColorModel
+*OpenUI *MediaType/MediaType: PickOne
+*DefaultMediaType: 13
+*MediaType 0/plain papers: ""
+*MediaType 92/Epson Ultra Glossy: ""
+*MediaType 13/Epson Premium Glossy: ""
+*MediaType 15/Epson Premium Semigloss: ""
+*MediaType 145/Photo Paper Glossy: ""
+*MediaType 93/Envelope: ""
+*CloseUI: *MediaType
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 720x720dpi
+*Resolution 360x360dpi/360x360dpi: ""
+*Resolution 720x720dpi/720x720dpi: ""
+*CloseUI: *Resolution

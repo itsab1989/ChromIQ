@@ -2,6 +2,10 @@
 *ModelName: "Canon PRO-100 series"
 *NickName: "Canon PRO-100 series"
 *CNIJNameTblPath: "/Library/Printers/Canon/BJPrinter/Resources/Database/CIJPRO100series.db/Contents/Resources"
+*OpenUI *ColorModel/Color Model: PickOne
+*DefaultColorModel: RGB16
+*ColorModel RGB16/RGB 16-bit: ""
+*CloseUI: *ColorModel
 *cupsICCQualifier2: CNIJProfileID
 *OpenUI *CNIJProfileID/ProfileID: PickOne
 *DefaultCNIJProfileID: 1
@@ -52,6 +56,12 @@
 *cupsICCProfile RGB16.21./Canon PRO-100 series CR1.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO100series.canonicc/Contents/Resources/Canon PRO-100 series CR1.icc"
 *cupsICCProfile RGB16.22./Canon PRO-100 series CR3.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO100series.canonicc/Contents/Resources/Canon PRO-100 series CR3.icc"
 *cupsICCProfile RGB16.23./Canon PRO-100 series PFR2.icc: "/Library/Printers/Canon/BJPrinter/Resources/ICCProfiles/PRO100series.canonicc/Contents/Resources/Canon PRO-100 series PFR2.icc"
+*OpenUI *Resolution/Output Resolution: PickOne
+*DefaultResolution: 600x600dpi
+*Resolution 300x300dpi/300 x 300 dpi: ""
+*Resolution 600x600dpi/600 x 600 dpi: ""
+*Resolution 1200x1200dpi/1200 x 1200 dpi: ""
+*CloseUI: *Resolution
 *OpenUI *CNIJCartridge/BJ Cartridge: PickOne
 *DefaultCNIJCartridge: 3
 *CNIJCartridge 3/Photo: ""

@@ -263,3 +263,35 @@
 *EPIJProfileSpec 14/Epson SC-P900_700 Canvas Satin: ""
 *EPIJProfileSpec 15/Epson SC-P900_700 Proofing Paper White Semimatte: ""
 *CloseUI: *EPIJProfileSpec
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/RGB: ""
+*ColorModel Mono/Gray: ""
+*ColorModel ABWP/ABWP: ""
+*CloseUI: *ColorModel
+*OpenUI *MediaType/MediaType: PickOne
+*DefaultMediaType: 13
+*MediaType 13/Epson Premium Glossy: ""
+*MediaType 15/Epson Premium Semigloss: ""
+*MediaType 27/Epson Premium Luster Photo Paper: ""
+*MediaType 145/Photo Paper Glossy: ""
+*MediaType 157/Baryta: ""
+*MediaType 53/Velvet Fine Art Paper: ""
+*MediaType 88/Epson UltraSmooth Fine Art Paper: ""
+*MediaType 17/Watercolor Paper Radiant White: ""
+*MediaType 183/Fine Art Matte: ""
+*MediaType 181/Washi: ""
+*MediaType 14/Epson Archival Matte Paper: ""
+*MediaType 2/Epson Photo Quality Ink Jet: ""
+*MediaType 153/Canvas Satin: ""
+*MediaType 155/Canvas Matte: ""
+*MediaType 0/Plain Paper <2F> Bright White Paper: ""
+*MediaType 106/Epson Proofing Paper White Semimatte: ""
+*MediaType 26/Disc Label: ""
+*MediaType 76/Disc Label Premium Surface: ""
+*CloseUI: *MediaType
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 720x720dpi
+*Resolution 360x360dpi/360x360dpi: ""
+*Resolution 720x720dpi/720x720dpi: ""
+*CloseUI: *Resolution

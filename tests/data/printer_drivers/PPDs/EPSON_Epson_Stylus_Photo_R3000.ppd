@@ -346,3 +346,35 @@
 *EPIJProfileSpec 11/SPR3000 Epson Glossy: ""
 *EPIJProfileSpec 12/SPR3000 Epson Premium Luster: ""
 *CloseUI: *EPIJProfileSpec
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/RGB: ""
+*ColorModel Mono/Gray: ""
+*ColorModel ABWP/ABWP: ""
+*ColorModel RGB16/RGB16: ""
+*CloseUI: *ColorModel
+*OpenUI *MediaType/MediaType: PickOne
+*DefaultMediaType: 13
+*MediaType 13/Epson Premium Glossy: ""
+*MediaType 97/Epson Glossy: ""
+*MediaType 15/Epson Premium Semigloss: ""
+*MediaType 27/Epson Premium Luster: ""
+*MediaType 14/Epson Archival Matte: ""
+*MediaType 12/Epson Matte: ""
+*MediaType 2/Epson Photo Quality Ink Jet: ""
+*MediaType 46/Double-Sided Matte Paper: ""
+*MediaType 53/Velvet Fine Art Paper: ""
+*MediaType 88/UltraSmooth Fine Art Paper: ""
+*MediaType 17/Watercolor Paper - Radiant White: ""
+*MediaType 0/plain papers: ""
+*MediaType 98/plain papers: ""
+*MediaType 26/CD<2F>DVD: ""
+*MediaType 127/CD<2F>DVD: ""
+*MediaType 76/CD<2F>DVD Premium Surface: ""
+*MediaType 128/CD<2F>DVD Premium Surface: ""
+*CloseUI: *MediaType
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 720x720dpi
+*Resolution 360x360dpi/360x360dpi: ""
+*Resolution 720x720dpi/720x720dpi: ""
+*CloseUI: *Resolution

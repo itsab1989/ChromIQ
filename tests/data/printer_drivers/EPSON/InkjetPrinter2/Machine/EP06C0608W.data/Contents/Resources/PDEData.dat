@@ -94,6 +94,24 @@
 *EPIJ_Ink_ 0 *EPIJ_Medi 76 *EPIJ_Qual 48 *EPIJ_Bi_D 1|720x720dpi
 *EPIJ_Ink_ 0 *EPIJ_Medi 93 *EPIJ_Qual 43 *EPIJ_Bi_D 0|360x360dpi
 *EPIJ_Ink_ 0 *EPIJ_Medi 93 *EPIJ_Qual 44 *EPIJ_Bi_D 0|720x720dpi"
+
+*EPIJConditionValue MediaType/: "
+*EPIJ_Medi 0|0
+*EPIJ_Medi 92|92
+*EPIJ_Medi 13|13
+*EPIJ_Medi 15|15
+*EPIJ_Medi 97|97
+*EPIJ_Medi 14|14
+*EPIJ_Medi 12|12
+*EPIJ_Medi 2|2
+*EPIJ_Medi 75|75
+*EPIJ_Medi 26|26
+*EPIJ_Medi 76|76
+*EPIJ_Medi 93|93"
+
+*EPIJConditionValue ColorModel/: "
+*EPIJ_Ink_ 1|RGB
+*EPIJ_Ink_ 0|Mono"
 *EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 1
 *EPIJLinkValue: *EPIJ_Medi 92|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 1
 *EPIJLinkValue: *EPIJ_Medi 13|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 1

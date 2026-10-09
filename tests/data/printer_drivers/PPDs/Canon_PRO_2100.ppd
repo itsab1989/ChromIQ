@@ -322,6 +322,10 @@
 *CNIJFitRollPaperWidth 2/On (Bordered): ""
 *CNIJFitRollPaperWidth 3/On (Borderless): ""
 *CloseUI: *CNIJFitRollPaperWidth
+*OpenUI *ColorModel/Color Model: PickOne
+*DefaultColorModel: RGB16
+*ColorModel RGB16/RGB 16-bit: ""
+*CloseUI: *ColorModel
 *cupsICCQualifier2: CNIJProfileID
 *OpenUI *CNIJProfileID/ProfileID: PickOne
 *DefaultCNIJProfileID: 1
@@ -388,6 +392,11 @@
 *CNIJProfileID 61/CN_PRO-2100_521_BackprintFilm-P.icc: ""
 *CNIJProfileID 62/CN_PRO-2100_521_CADClearFilm-P.icc: ""
 *CloseUI: *CNIJProfileID
+*OpenUI *Resolution/Output Resolution: PickOne
+*DefaultResolution: 300x300dpi
+*Resolution 300x300dpi/300 x 300 dpi: ""
+*Resolution 600x600dpi/600 x 600 dpi: ""
+*CloseUI: *Resolution
 *OpenUI *CNIJCartridge/BJ Cartridge: PickOne
 *DefaultCNIJCartridge: 3
 *CNIJCartridge 3/Photo: ""
