@@ -766,6 +766,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._log.setVisible(True)
         self._log.clear()
         self._set_status(tr("Starting instrument…"))
+        # Set by the calibration once it has written "Connected to your CR30
+        # over ..." into this log (ui/cr30_calibration.py).
+        self._cr30_transport_said = ""
         # The shared calibration windows (ui/cr30_calibration.py) — the same
         # ones the Measure tab shows, not a second set that could drift from
         # them. They open the reader through _open_cr30_bridge below.
@@ -777,6 +780,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         from workflow.cr30_spot_manager import Cr30SpotManager
         mgr = self._cr30 = Cr30SpotManager(self)
         mgr.reader = self._cr30_reader
+        # The calibration has just said which way it connected; the session
+        # start would say it again on the very next line.
+        mgr.say_transport_at_start = not self._cr30_transport_said
         mgr.reading_ready.connect(self._on_reading)
         mgr.ready_to_read.connect(self._on_ready)
         mgr.instrument_detected.connect(self._on_instrument_detected)
@@ -882,8 +888,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         often while the calibration's last window was still open, which itself
         says to press the button), so they belong to no reading anybody asked
         for and are dropped. The person who pressed must not be left waiting
-        for a row that will never come. Proposed wording, so it speaks through
-        the window's log, which is visible for the whole of a CR30 session.
+        for a row that will never come. It speaks through the window's log,
+        which is visible for the whole of a CR30 session (wording approved by
+        Basti, 2026-10-10).
         """
         from workflow import measurement_messages as M
         _title, body = M.M_SPOT_CR30_EARLY_PRESS.render(n=int(n))

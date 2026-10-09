@@ -3197,7 +3197,7 @@ M_SPOT_CR30_GONE = _m(
     "the list either way.",
     approved=True)
 
-# --- PROPOSED: presses from before Ready were not used in a spot session ---
+# --- APPROVED: presses from before Ready were not used in a spot session ---
 #
 # Beta 17 review (2026-10-09): a press of the CR30's button right after the
 # spot window said Ready was thrown away, with only a log line to show for it.
@@ -3205,7 +3205,8 @@ M_SPOT_CR30_GONE = _m(
 # every press after that is taken. A press the instrument announced BEFORE
 # Ready (typically while the calibration's last window, which says to press the
 # button, was still open) is still not used; this is what the window's log
-# says then, so nobody waits for a row that will not come. Our words.
+# says then, so nobody waits for a row that will not come. Our words;
+# approved by Basti, 2026-10-10 (both variants).
 M_SPOT_CR30_EARLY_PRESS = _m(
     "M-SPOT-CR30-EARLY-PRESS",
     "A reading taken before Ready was not used",
@@ -3214,7 +3215,7 @@ M_SPOT_CR30_EARLY_PRESS = _m(
     body_one="One reading was taken before this window was ready for it, so "
              "it was not used. Take the reading again.",
     count_key="n",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED: the reference file covers only part of the target -----------
 #: Review 5, 2026-09-03, finding D. A reference file holding the first 48 rows

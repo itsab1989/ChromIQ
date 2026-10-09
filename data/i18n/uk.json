@@ -6834,7 +6834,7 @@
  "Reconnect": "Під’єднати знову",
  "Undo delete": "Скасувати видалення",
  "Your CR30 is not answering": "Ваш CR30 не відповідає",
- "A reading taken before Ready was not used": "Вимірювання, зроблене до «Готовий», не використано",
- "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Одне вимірювання було зроблено до того, як це вікно було готове до нього, тому його не використано. Виміряйте ще раз.",
- "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "Вимірювань зроблено {n} до того, як це вікно було готове до них, тому їх не використано. Виміряйте ще раз."
+ "A reading taken before Ready was not used": "Показання, зняте до «Готовий», не використано",
+ "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Одне показання було знято до того, як це вікно було готове до нього, тому його не використано. Виміряйте ще раз.",
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "Знято показань: {n}. Це вікно ще не було готове до них, тому їх не використано. Виміряйте ще раз."
 }

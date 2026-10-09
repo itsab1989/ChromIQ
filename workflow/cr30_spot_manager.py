@@ -121,6 +121,11 @@ class Cr30SpotManager(QObject):
         #: the read loop has ended but the SESSION has not, so the loop's end
         #: is not reported as the session's.
         self._lost = False
+        #: Whether `start` writes "Connected to your CR30 over ..." into the
+        #: log. The spot window turns it off when its calibration has just
+        #: written that same line, which otherwise appeared twice in a row.
+        #: A reconnect always says it: that is a new connection.
+        self.say_transport_at_start = True
 
     # ------------------------------------------------------------------
     @property
@@ -160,7 +165,8 @@ class Cr30SpotManager(QObject):
             self._reader.button_timeout_s = REARM_SECONDS
         except Exception:      # noqa: BLE001 — a preference, never a blocker
             log.debug("could not set the CR30 re-arm interval", exc_info=True)
-        self._note(_transport_note(self._reader))
+        if self.say_transport_at_start:
+            self._note(_transport_note(self._reader))
         # ARM BEFORE THE THREAD EXISTS, so a "Take reading" request has a read
         # to belong to from the first moment (`DeviceReader.arm_trigger`).
         self._session = object()
@@ -181,7 +187,8 @@ class Cr30SpotManager(QObject):
         # so every press made once Ready is shown is collected.
         self._start_loop(announce_when_open=True)
 
-    def _start_loop(self, announce_when_open: bool = False) -> None:
+    def _start_loop(self, announce_when_open: bool = False,
+                    name_transport: bool = False) -> None:
         # NOT PARENTED TO THIS MANAGER, AND THAT IS THE WHOLE POINT.
         #
         # A QThread parented to the manager is destroyed with it — and a
@@ -199,6 +206,8 @@ class Cr30SpotManager(QObject):
         worker.gated.connect(self._on_gated)
         worker.lost.connect(self._on_lost)
         worker.discarded.connect(self.presses_discarded)
+        if name_transport:
+            worker.opened.connect(self._on_reopened)
         if announce_when_open:
             worker.opened.connect(self.ready_to_read)
         worker.finished.connect(thread.quit)
@@ -327,7 +336,9 @@ class Cr30SpotManager(QObject):
             return
         self._lost = False
         self._running = True
-        self._note(_transport_note(self._reader))
+        # NOT named here: the reader let go of its dead handle, so nothing is
+        # open yet and the note would be empty. It is said once the new link
+        # is open (`_on_reopened`), which may be the other transport.
         self._session = object()
         try:
             self._reader.arm_trigger(self._session)
@@ -336,7 +347,11 @@ class Cr30SpotManager(QObject):
         # NOT "ready" yet: the instrument is still being looked for. The loop
         # says so once the link is really open (`_ReadLoop.opened`), so a
         # press is never invited before anything can collect it.
-        self._start_loop(announce_when_open=True)
+        self._start_loop(announce_when_open=True, name_transport=True)
+
+    def _on_reopened(self) -> None:
+        """After a reconnect: say which way the instrument came back."""
+        self._note(_transport_note(self._reader))
 
     def _on_reading(self, xyz: tuple) -> None:
         # THE SAME PAIR THE READING CAME FROM. `DeviceReader.__call__` returns

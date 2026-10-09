@@ -288,6 +288,10 @@ class Cr30CalibrationMixin:
                     tr("[NOTE] Connected to your CR30 over Bluetooth.")
                     if kind == "ble" else
                     tr("[NOTE] Connected to your CR30 over the USB cable.")))
+                # Remembered, so a host that would say the same thing again
+                # straight after (the spot window's session start) does not:
+                # the line used to appear twice in a row there.
+                self._cr30_transport_said = kind
         except Exception:              # noqa: BLE001 — a note, never fatal
             log.debug("could not name the CR30 transport", exc_info=True)
         self._log.ensureCursorVisible()

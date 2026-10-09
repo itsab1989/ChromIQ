@@ -474,10 +474,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # stopped answering in a spot session, was
                                  # APPROVED by Basti, 2026-10-10, and left
                                  # this list.)
-                                 # Beta 17 review: a press from before the
-                                 # spot window said Ready is not used, and
-                                 # its log says so; our words.
-                                 "M-SPOT-CR30-EARLY-PRESS",
+                                 # (Beta 17 review: M-SPOT-CR30-EARLY-PRESS,
+                                 # a press from before the spot window said
+                                 # Ready is not used and its log says so,
+                                 # was APPROVED by Basti, 2026-10-10, and
+                                 # left this list.)
                                  # 2026-09-03, review 5. Tools > Build
                                  # profile with scanner or camera builds
                                  # a profile from data that is not the

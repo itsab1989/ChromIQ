@@ -6836,5 +6836,5 @@
  "Your CR30 is not answering": "Twój CR30 nie odpowiada",
  "A reading taken before Ready was not used": "Odczyt wykonany przed „Gotowe” nie został użyty",
  "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "Jeden odczyt został wykonany, zanim to okno było na niego gotowe, więc nie został użyty. Zmierz jeszcze raz.",
- "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "Wykonano {n} odczytów, zanim to okno było na nie gotowe, więc nie zostały użyte. Zmierz jeszcze raz."
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "Nie użyto odczytów wykonanych, zanim to okno było na nie gotowe: {n}. Zmierz jeszcze raz."
 }
