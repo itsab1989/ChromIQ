@@ -207,3 +207,33 @@ def test_a_landscape_chart_is_turned_onto_portrait_paper(tmp_path):
     # the turned image (595 wide, 842 tall on the page) covers the page 1:1
     assert abs(b - 842) < 0.5 and abs(-c - 595) < 0.5
     assert abs((e + c) - 0.14) < 0.5 and abs(f) < 0.5
+
+
+# ---- the bump to 28 moves nothing else ------------------------------------
+
+def test_a_schema_27_users_own_choices_survive_the_bump(tmp_path):
+    """migrate() runs on every schema bump. Each step runs only when coming
+    from below its own schema: measured before this, the bump to 28 reset a
+    schema-27 user's Restore last tab, ArgyllCMS reading, report saving off,
+    printtarg layout and a chosen limit of 30."""
+    s = _settings(tmp_path, False, restore_last_tab="true", chartread_engine="argyll",
+                  save_measurement_report="false", use_chromiq_layout_engine="false",
+                  patch_read_warn_de_accurate=30.0, patch_neighbour_buffer_de=15.0)
+    dropped = s.migrate()
+    assert [d for d in dropped if KEY not in d] == []
+    assert s.get("restore_last_tab") is True
+    assert s.get("chartread_engine") == "argyll"
+    assert s.get("save_measurement_report") is False
+    assert s.get("use_chromiq_layout_engine") is False
+    assert float(s.get("patch_read_warn_de_accurate")) == 30.0
+    assert s._qs.value("patch_neighbour_buffer_de_accurate") is None
+
+
+def test_an_old_install_still_gets_every_step(tmp_path):
+    s = _settings(tmp_path, False, schema=9, restore_last_tab="true",
+                  chartread_engine="argyll", save_measurement_report="false")
+    s.migrate()
+    assert s.get("restore_last_tab") is False
+    assert s.get("chartread_engine") == "chromiq"
+    assert s.get("save_measurement_report") is True
+    assert s.get(KEY) is True
