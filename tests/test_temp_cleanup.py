@@ -361,3 +361,22 @@ def test_this_run_s_folder_names_its_controller():
     assert m, name
     owner = os.environ.get("CHROMIQ_SUITE_RUN_TMP_OWNER")
     assert m.group(1) == owner
+
+
+# A file dated in the FUTURE is not a change. One test dates a report in 2096
+# to stand for "changed later"; every red or killed run holding it then looked
+# "changed 0 min ago" for ever, and 34 run folders (45 GB) were never swept
+# (2026-10-10).
+def test_a_file_dated_in_the_future_does_not_keep_a_dead_run(fake_temp):
+    run = _aged(fake_temp / "chromiq-run-99999999-future", _STALE_AFTER_HOURS + 2)
+    deep = run / "pytest-of-x" / "report.json"
+    deep.parent.mkdir(parents=True)
+    deep.write_text("{}", encoding="utf-8")
+    future = time.time() + 70 * 365 * 86400
+    os.utime(deep, (future, future))
+    old = time.time() - (_STALE_AFTER_HOURS + 2) * 3600
+    os.utime(deep.parent, (old, old))
+    os.utime(run, (old, old))
+    folders, _ = _sweep_stale_temp_dirs()
+    assert not run.exists()
+    assert folders == 1

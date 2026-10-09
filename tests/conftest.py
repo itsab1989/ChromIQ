@@ -1227,9 +1227,20 @@ def _held_open_paths() -> "list[str]":
             if ln.startswith("n") and ln[1:2] == "/"]
 
 
+#: A date further ahead than this is not a change, it is a test's fixture:
+#: one test dates a report file in 2096 to stand for "changed later", and that
+#: one file made every red or killed run holding it look "changed 0 min ago"
+#: for ever. Neither sweep took them; 34 such run folders, 45 GB, measured
+#: 2026-10-10. A clock skew of a minute is still a change.
+_FUTURE_SLACK_S = 60
+
+
 def _changed_since(folder: pathlib.Path, since: float) -> bool:
-    """Whether anything in *folder*, at any depth, changed after *since*.
-    Stops at the first such entry."""
+    """Whether anything in *folder*, at any depth, changed after *since*
+    (and not in the future, see :data:`_FUTURE_SLACK_S`). Stops at the first
+    such entry."""
+    import time
+    future = time.time() + _FUTURE_SLACK_S
     stack = [str(folder)]
     while stack:
         here = stack.pop()
@@ -1240,7 +1251,7 @@ def _changed_since(folder: pathlib.Path, since: float) -> bool:
                         st = child.stat(follow_symlinks=False)
                     except OSError:
                         continue
-                    if st.st_mtime > since:
+                    if since < st.st_mtime <= future:
                         return True
                     if child.is_dir(follow_symlinks=False):
                         stack.append(child.path)

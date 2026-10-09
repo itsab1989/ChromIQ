@@ -77,14 +77,28 @@ def something_running() -> list[str]:
     return busy
 
 
+#: A date further ahead than this is a test's fixture, not a change: one test
+#: dates a file in 2096, and every red or killed run holding it read as
+#: "changed 0 min ago" for ever. 34 run folders, 45 GB, kept as "in use"
+#: (2026-10-10). Same rule as tests/conftest.py::_FUTURE_SLACK_S.
+FUTURE_SLACK_S = 60
+
+
 def _newest_mtime(path: Path) -> float:
+    """The newest change date at any depth, ignoring dates in the future."""
+    future = time.time() + FUTURE_SLACK_S
+
+    def _m(p: Path) -> float:
+        m = p.lstat().st_mtime
+        return m if m <= future else 0.0
+
     newest = 0.0
     try:
-        newest = path.lstat().st_mtime
+        newest = _m(path)
         if path.is_dir() and not path.is_symlink():
             for p in path.rglob("*"):
                 try:
-                    newest = max(newest, p.lstat().st_mtime)
+                    newest = max(newest, _m(p))
                 except OSError:
                     pass
     except OSError:

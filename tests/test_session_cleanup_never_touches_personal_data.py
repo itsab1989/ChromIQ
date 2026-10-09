@@ -334,3 +334,14 @@ def test_a_run_folder_named_after_a_live_pytest_is_in_use(tmp_path):
     _age(dead)
     assert "still running" in S.in_use(live, time.time(), [])
     assert S.in_use(dead, time.time(), []) == ""
+
+
+def test_a_file_dated_in_the_future_is_not_a_recent_change(three_folders):
+    """One test dates a file in 2096; a folder holding it read as "changed
+    0 min ago" for ever, and 45 GB of dead run folders were kept as in use
+    (2026-10-10)."""
+    import time
+    idle, _fresh, _held = three_folders
+    future = time.time() + 70 * 365 * 86400
+    os.utime(idle / "f.txt", (future, future))
+    assert S.in_use(idle, time.time(), []) == ""
