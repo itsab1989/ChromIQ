@@ -515,6 +515,23 @@ class CupsRawPrinter:
         for key, val in pairs:
             opts[key] = val
             log.info("CUPS print: driver no-colour option %s=%s", key, val)
+        # Beta 16: an Epson without paper profiles (PictureMate) cannot switch
+        # its colour processing off; its dialog sets Mode, quality and colour
+        # mode for the medium, and the chart must print in that same state.
+        if sys.platform == "darwin":
+            try:
+                from workflow.ppd_color import (dialog_keys_without_paper_profile,
+                                                ppd_path_for_queue)
+                from core.text_io import read_text
+                ppd = ppd_path_for_queue(printer_name)
+                keys = dialog_keys_without_paper_profile(
+                    read_text(Path(ppd), lenient=True), opts) if ppd else {}
+            except Exception as exc:  # pragma: no cover - defensive
+                log.warning("dialog keys for %s: %s", printer_name, exc)
+                keys = {}
+            for key, val in keys.items():
+                opts[key] = val
+                log.info("CUPS print: the print dialog's own %s=%s for this paper", key, val)
 
     @staticmethod
     def _build_lp_command_ps(

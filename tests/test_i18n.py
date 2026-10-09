@@ -1506,18 +1506,18 @@ _IDENTICAL_TO_KEY = {
     # RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: "reports/Verify_Profile_N_{name}.txt" (Verify a profile makes no 3D map) is a bare path, identical to its key in every language, +1 each, all thirteen. COUNTED off the tree, BOTH ledgers.
     "de": 136,
     "es": 118,
-    "fr": 140,
-    "it": 125,
+    "fr": 141,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same
+    "it": 126,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same
     "ja": 96,
     # +2 on 2026-10-03 (strip/patch patterns, #182 5965589190): "1 label" and
     # "{n} labels" are "1 label" and "{n} labels" in Dutch too. Identities,
     # not missing translations; the other 21 new keys are translated.
     "nl": 145,
-    "no": 125,
+    "no": 126,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same
     "pl": 120,
     "pt": 118,
     "ru": 91,
-    "sv": 129,
+    "sv": 130,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same
     "zh_CN": 92,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are

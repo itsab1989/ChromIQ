@@ -6802,5 +6802,11 @@
  "Own colours": "Egna färger",
  "From Profile Gamut": "Från profilens gamut",
  "{n} of {total}": "{n} av {total}",
- "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "Båda kolumnerna räknar besvarade mått: med egna färger eller från profilens gamut."
+ "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "Båda kolumnerna räknar besvarade mått: med egna färger eller från profilens gamut.",
+ "The profile fits only prints made at the quality its chart was printed with.": "Profilen passar bara utskrifter i den kvalitet som dess diagram skrevs ut med.",
+ "Chosen as in your last print on this paper through the macOS print dialog.": "Vald som vid din senaste utskrift på det här papperet via macOS-utskriftsdialogen.",
+ "{quality} (highest)": "{quality} (högsta)",
+ "{quality} (standard)": "{quality} (standard)",
+ "Print your photos at this quality too": "Skriv ut dina foton med den här kvaliteten också",
+ "The profile fits only prints made at the quality its chart was printed with.\nChosen as in your last print on this paper through the macOS print dialog.\n{quality} (highest)\n{quality} (standard)": "Profilen passar bara utskrifter i den kvalitet som dess diagram skrevs ut med.\nVald som vid din senaste utskrift på det här papperet via macOS-utskriftsdialogen.\n{quality} (högsta)\n{quality} (standard)"
 }

@@ -6802,5 +6802,11 @@
  "Own colours": "Colores propios",
  "From Profile Gamut": "Desde la gama del perfil",
  "{n} of {total}": "{n} de {total}",
- "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "Las dos columnas cuentan las métricas respondidas: con colores propios o desde la gama del perfil."
+ "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "Las dos columnas cuentan las métricas respondidas: con colores propios o desde la gama del perfil.",
+ "The profile fits only prints made at the quality its chart was printed with.": "El perfil solo sirve para impresiones hechas con la calidad con la que se imprimió su carta.",
+ "Chosen as in your last print on this paper through the macOS print dialog.": "Elegida como en tu última impresión en este papel desde el diálogo de impresión de macOS.",
+ "{quality} (highest)": "{quality} (la más alta)",
+ "{quality} (standard)": "{quality} (estándar)",
+ "Print your photos at this quality too": "Imprime también tus fotos con esta calidad",
+ "The profile fits only prints made at the quality its chart was printed with.\nChosen as in your last print on this paper through the macOS print dialog.\n{quality} (highest)\n{quality} (standard)": "El perfil solo sirve para impresiones hechas con la calidad con la que se imprimió su carta.\nElegida como en tu última impresión en este papel desde el diálogo de impresión de macOS.\n{quality} (la más alta)\n{quality} (estándar)"
 }

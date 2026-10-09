@@ -90,7 +90,10 @@ class PrintModule:
         ),
         (
             (
-                "EPIJ_Qual", "CNQuality", "BrQuality",
+                # beta 16: CNIJPrintQuality, the Canon IJ quality (label just
+                # "Quality", which no keyword below matches), so the direct
+                # route can print at the quality the photos get
+                "EPIJ_Qual", "CNIJPrintQuality", "CNQuality", "BrQuality",
                 "OutputMode", "HPOutputMode", "PrintoutMode",
                 "cupsPrintQuality", "print-quality",
             ),
@@ -116,7 +119,7 @@ class PrintModule:
 
     # All option names that represent print quality (used by filtering logic).
     _QUALITY_OPT_NAMES: frozenset[str] = frozenset({
-        "print-quality", "EPIJ_Qual", "CNQuality", "BrQuality",
+        "print-quality", "EPIJ_Qual", "CNIJPrintQuality", "CNQuality", "BrQuality",
         "OutputMode", "HPOutputMode", "PrintoutMode", "cupsPrintQuality",
     })
 

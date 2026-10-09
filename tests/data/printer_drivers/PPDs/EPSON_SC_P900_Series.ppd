@@ -51,6 +51,14 @@
 *EPIJ_Mode 0/Automatic: ""
 *EPIJ_Mode 3/Advanced: ""
 *CloseUI: *EPIJ_Mode
+*OpenUI *EPIJ_APri/Automatic: PickOne
+*DefaultEPIJ_APri: 4
+*EPIJ_APri 0/Quality: ""
+*EPIJ_APri 1/Standard: ""
+*EPIJ_APri 2/Speed: ""
+*EPIJ_APri 3/Draft: ""
+*EPIJ_APri 4/High Quality: ""
+*CloseUI: *EPIJ_APri
 *OpenUI *EPIJ_Qual/Print Quality: PickOne
 *DefaultEPIJ_Qual: 35
 *EPIJ_Qual 32/Fine - 360dpi: ""
@@ -59,6 +67,21 @@
 *EPIJ_Qual 36/Photo - 1440dpi: ""
 *EPIJ_Qual 52/SuperPhoto - 5760dpi: ""
 *CloseUI: *EPIJ_Qual
+*OpenUI *EPIJ_Bi_D/High Speed: PickOne
+*DefaultEPIJ_Bi_D: 1
+*EPIJ_Bi_D 0/Off: ""
+*EPIJ_Bi_D 1/On: ""
+*CloseUI: *EPIJ_Bi_D
+*OpenUI *EPIJ_FWea/Super MicroWeave: PickOne
+*DefaultEPIJ_FWea: 0
+*EPIJ_FWea 0/Off: ""
+*EPIJ_FWea 1/On: ""
+*CloseUI: *EPIJ_FWea
+*OpenUI *EPIJ_FDet/Finest Detail: PickOne
+*DefaultEPIJ_FDet: 1
+*EPIJ_FDet 0/Off: ""
+*EPIJ_FDet 1/On: ""
+*CloseUI: *EPIJ_FDet
 *OpenUI *EPIJ_CMat/Color Settings: PickOne
 *DefaultEPIJ_CMat: 0
 *EPIJ_CMat 0/Manual Settings: ""
@@ -70,6 +93,36 @@
 *EPIJ_CCor 4/EPSON Standard (sRGB): ""
 *EPIJ_CCor 6/Adobe RGB: ""
 *CloseUI: *EPIJ_CCor
+*OpenUI *EPIJ_ATon/Scene Correction: PickOne
+*DefaultEPIJ_ATon: 7
+*EPIJ_ATon 7/Automatic: ""
+*EPIJ_ATon 11/People: ""
+*EPIJ_ATon 12/Landscape: ""
+*EPIJ_ATon 15/Backlight: ""
+*EPIJ_ATon 13/Night Scene: ""
+*EPIJ_ATon 4/Sepia: ""
+*EPIJ_ATon 8/Gray: ""
+*CloseUI: *EPIJ_ATon
+*OpenUI *EPIJ_AFil/Sharpen: PickOne
+*DefaultEPIJ_AFil: 0
+*EPIJ_AFil 0/Off: ""
+*EPIJ_AFil 1/On: ""
+*CloseUI: *EPIJ_AFil
+*OpenUI *EPIJ_AGai/Sharpness Option: PickOne
+*DefaultEPIJ_AGai: 1
+*EPIJ_AGai 1/Standard: ""
+*EPIJ_AGai 2/High: ""
+*CloseUI: *EPIJ_AGai
+*OpenUI *EPIJ_ACam/Digital Camera Correction: PickOne
+*DefaultEPIJ_ACam: 0
+*EPIJ_ACam 0/Off: ""
+*EPIJ_ACam 1/On: ""
+*CloseUI: *EPIJ_ACam
+*OpenUI *EPIJ_DCCT/Image Purelyzer Option: PickOne
+*DefaultEPIJ_DCCT: 0
+*EPIJ_DCCT 0/Standard: ""
+*EPIJ_DCCT 1/Smooth Skin: ""
+*CloseUI: *EPIJ_DCCT
 *OpenUI *EPIJ_OSColMat/ColorMatching: PickOne
 *DefaultEPIJ_OSColMat: 1
 *EPIJ_OSColMat 1/Vendor Color Matching: ""
@@ -87,6 +140,110 @@
 *EPIJ_OSCMProf 2/AdobeRGB: ""
 *EPIJ_OSCMProf 3/GenericRGB: ""
 *CloseUI: *EPIJ_OSCMProf
+*OpenUI *EPIJ_IkDt/Color Density: PickOne
+*DefaultEPIJ_IkDt: 0
+*EPIJ_IkDt -50/-50: ""
+*EPIJ_IkDt -49/-49: ""
+*EPIJ_IkDt -48/-48: ""
+*EPIJ_IkDt -47/-47: ""
+*EPIJ_IkDt -46/-46: ""
+*EPIJ_IkDt -45/-45: ""
+*EPIJ_IkDt -44/-44: ""
+*EPIJ_IkDt -43/-43: ""
+*EPIJ_IkDt -42/-42: ""
+*EPIJ_IkDt -41/-41: ""
+*EPIJ_IkDt -40/-40: ""
+*EPIJ_IkDt -39/-39: ""
+*EPIJ_IkDt -38/-38: ""
+*EPIJ_IkDt -37/-37: ""
+*EPIJ_IkDt -36/-36: ""
+*EPIJ_IkDt -35/-35: ""
+*EPIJ_IkDt -34/-34: ""
+*EPIJ_IkDt -33/-33: ""
+*EPIJ_IkDt -32/-32: ""
+*EPIJ_IkDt -31/-31: ""
+*EPIJ_IkDt -30/-30: ""
+*EPIJ_IkDt -29/-29: ""
+*EPIJ_IkDt -28/-28: ""
+*EPIJ_IkDt -27/-27: ""
+*EPIJ_IkDt -26/-26: ""
+*EPIJ_IkDt -25/-25: ""
+*EPIJ_IkDt -24/-24: ""
+*EPIJ_IkDt -23/-23: ""
+*EPIJ_IkDt -22/-22: ""
+*EPIJ_IkDt -21/-21: ""
+*EPIJ_IkDt -20/-20: ""
+*EPIJ_IkDt -19/-19: ""
+*EPIJ_IkDt -18/-18: ""
+*EPIJ_IkDt -17/-17: ""
+*EPIJ_IkDt -16/-16: ""
+*EPIJ_IkDt -15/-15: ""
+*EPIJ_IkDt -14/-14: ""
+*EPIJ_IkDt -13/-13: ""
+*EPIJ_IkDt -12/-12: ""
+*EPIJ_IkDt -11/-11: ""
+*EPIJ_IkDt -10/-10: ""
+*EPIJ_IkDt -9/-9: ""
+*EPIJ_IkDt -8/-8: ""
+*EPIJ_IkDt -7/-7: ""
+*EPIJ_IkDt -6/-6: ""
+*EPIJ_IkDt -5/-5: ""
+*EPIJ_IkDt -4/-4: ""
+*EPIJ_IkDt -3/-3: ""
+*EPIJ_IkDt -2/-2: ""
+*EPIJ_IkDt -1/-1: ""
+*EPIJ_IkDt 0/0: ""
+*EPIJ_IkDt 1/1: ""
+*EPIJ_IkDt 2/2: ""
+*EPIJ_IkDt 3/3: ""
+*EPIJ_IkDt 4/4: ""
+*EPIJ_IkDt 5/5: ""
+*EPIJ_IkDt 6/6: ""
+*EPIJ_IkDt 7/7: ""
+*EPIJ_IkDt 8/8: ""
+*EPIJ_IkDt 9/9: ""
+*EPIJ_IkDt 10/10: ""
+*EPIJ_IkDt 11/11: ""
+*EPIJ_IkDt 12/12: ""
+*EPIJ_IkDt 13/13: ""
+*EPIJ_IkDt 14/14: ""
+*EPIJ_IkDt 15/15: ""
+*EPIJ_IkDt 16/16: ""
+*EPIJ_IkDt 17/17: ""
+*EPIJ_IkDt 18/18: ""
+*EPIJ_IkDt 19/19: ""
+*EPIJ_IkDt 20/20: ""
+*EPIJ_IkDt 21/21: ""
+*EPIJ_IkDt 22/22: ""
+*EPIJ_IkDt 23/23: ""
+*EPIJ_IkDt 24/24: ""
+*EPIJ_IkDt 25/25: ""
+*EPIJ_IkDt 26/26: ""
+*EPIJ_IkDt 27/27: ""
+*EPIJ_IkDt 28/28: ""
+*EPIJ_IkDt 29/29: ""
+*EPIJ_IkDt 30/30: ""
+*EPIJ_IkDt 31/31: ""
+*EPIJ_IkDt 32/32: ""
+*EPIJ_IkDt 33/33: ""
+*EPIJ_IkDt 34/34: ""
+*EPIJ_IkDt 35/35: ""
+*EPIJ_IkDt 36/36: ""
+*EPIJ_IkDt 37/37: ""
+*EPIJ_IkDt 38/38: ""
+*EPIJ_IkDt 39/39: ""
+*EPIJ_IkDt 40/40: ""
+*EPIJ_IkDt 41/41: ""
+*EPIJ_IkDt 42/42: ""
+*EPIJ_IkDt 43/43: ""
+*EPIJ_IkDt 44/44: ""
+*EPIJ_IkDt 45/45: ""
+*EPIJ_IkDt 46/46: ""
+*EPIJ_IkDt 47/47: ""
+*EPIJ_IkDt 48/48: ""
+*EPIJ_IkDt 49/49: ""
+*EPIJ_IkDt 50/50: ""
+*CloseUI: *EPIJ_IkDt
 *OpenUI *EPIJProfileSpec/EPSON Profile: PickOne
 *DefaultEPIJProfileSpec: 0
 *EPIJProfileSpec 0/None: ""
@@ -106,3 +263,35 @@
 *EPIJProfileSpec 14/Epson SC-P900_700 Canvas Satin: ""
 *EPIJProfileSpec 15/Epson SC-P900_700 Proofing Paper White Semimatte: ""
 *CloseUI: *EPIJProfileSpec
+*OpenUI *ColorModel/ColorModel: PickOne
+*DefaultColorModel: RGB
+*ColorModel RGB/RGB: ""
+*ColorModel Mono/Gray: ""
+*ColorModel ABWP/ABWP: ""
+*CloseUI: *ColorModel
+*OpenUI *MediaType/MediaType: PickOne
+*DefaultMediaType: 13
+*MediaType 13/Epson Premium Glossy: ""
+*MediaType 15/Epson Premium Semigloss: ""
+*MediaType 27/Epson Premium Luster Photo Paper: ""
+*MediaType 145/Photo Paper Glossy: ""
+*MediaType 157/Baryta: ""
+*MediaType 53/Velvet Fine Art Paper: ""
+*MediaType 88/Epson UltraSmooth Fine Art Paper: ""
+*MediaType 17/Watercolor Paper Radiant White: ""
+*MediaType 183/Fine Art Matte: ""
+*MediaType 181/Washi: ""
+*MediaType 14/Epson Archival Matte Paper: ""
+*MediaType 2/Epson Photo Quality Ink Jet: ""
+*MediaType 153/Canvas Satin: ""
+*MediaType 155/Canvas Matte: ""
+*MediaType 0/Plain Paper <2F> Bright White Paper: ""
+*MediaType 106/Epson Proofing Paper White Semimatte: ""
+*MediaType 26/Disc Label: ""
+*MediaType 76/Disc Label Premium Surface: ""
+*CloseUI: *MediaType
+*OpenUI *Resolution/Resolution: PickOne
+*DefaultResolution: 720x720dpi
+*Resolution 360x360dpi/360x360dpi: ""
+*Resolution 720x720dpi/720x720dpi: ""
+*CloseUI: *Resolution

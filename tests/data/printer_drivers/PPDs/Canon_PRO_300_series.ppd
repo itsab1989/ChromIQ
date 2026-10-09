@@ -98,6 +98,12 @@
 *CNIJMediaType 31/Printable disc: ""
 *CNIJMediaType 32/Printable disc (bleed-proof): ""
 *CloseUI: *CNIJMediaType
+*OpenUI *CNIJMediaSupply/Paper Source: PickOne
+*DefaultCNIJMediaSupply: 7
+*CNIJMediaSupply 38/Manual Feed: ""
+*CNIJMediaSupply 7/Top Feed: ""
+*CNIJMediaSupply 75/Multi-purpose Tray: ""
+*CloseUI: *CNIJMediaSupply
 *OpenUI *CNIJPrintQuality/Quality: PickOne
 *DefaultCNIJPrintQuality: 10
 *CNIJPrintQuality 0/Super Fine: ""
@@ -111,6 +117,10 @@
 *CNIJIntent2 5/Perceptual (Photo): ""
 *CNIJIntent2 1001/No Color Correction: ""
 *CloseUI: *CNIJIntent2
+*OpenUI *ColorModel/Color Model: PickOne
+*DefaultColorModel: RGB16
+*ColorModel RGB16/RGB 16-bit: ""
+*CloseUI: *ColorModel
 *cupsICCQualifier2: CNIJProfileID
 *OpenUI *CNIJProfileID/ProfileID: PickOne
 *DefaultCNIJProfileID: 1
@@ -133,3 +143,12 @@
 *CNIJProfileID 17/CN_PRO-300_G1_Canvas-P.icc: ""
 *CNIJProfileID 18/CN_PRO-300_G1_JapanesePaperWashi-P.icc: ""
 *CloseUI: *CNIJProfileID
+*OpenUI *Resolution/Output Resolution: PickOne
+*DefaultResolution: 600x600dpi
+*Resolution 300x300dpi/300 x 300 dpi: ""
+*Resolution 600x600dpi/600 x 600 dpi: ""
+*CloseUI: *Resolution
+*OpenUI *CNIJCartridge/BJ Cartridge: PickOne
+*DefaultCNIJCartridge: 3
+*CNIJCartridge 3/Photo: ""
+*CloseUI: *CNIJCartridge

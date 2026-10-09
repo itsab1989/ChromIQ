@@ -5035,6 +5035,29 @@ M_PRINT_PAPER_PROFILE_UNKNOWN = _m(
     "may not be what your prints from Photoshop get on this paper.",
     approved=False)
 
+# --- PROPOSED: the quality row of the Print Chart tab (beta 16) ---------------
+#: Basti, 2026-10-09: he prints his photos at the highest quality the Canon print
+#: dialog allows for the paper (its Custom slider at the top). The direct route
+#: sent the dialog's standard quality and the tab had no Canon quality row. It
+#: now offers the qualities the driver allows for the chosen paper, preselects
+#: the one his last print through the macOS dialog used on that paper (else the
+#: dialog's standard), and says, under the row, that photos must be printed at
+#: the same quality. Line 1 follows the bold headline; line 2 is added when the
+#: preselection came from his last dialog print; lines 3 and 4 mark the
+#: qualities in the list ({quality} is the driver's own name for it).
+_PRINT_QUALITY_WHY = (
+    "The profile fits only prints made at the quality its chart was printed with.")
+_PRINT_QUALITY_LEARNED = (
+    "Chosen as in your last print on this paper through the macOS print dialog.")
+_PRINT_QUALITY_HIGHEST = "{quality} (highest)"
+_PRINT_QUALITY_STANDARD = "{quality} (standard)"
+M_PRINT_QUALITY = _m(
+    "M-PRINT-QUALITY",
+    "Print your photos at this quality too",
+    "\n".join((_PRINT_QUALITY_WHY, _PRINT_QUALITY_LEARNED,
+               _PRINT_QUALITY_HIGHEST, _PRINT_QUALITY_STANDARD)),
+    approved=False)
+
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_CAL_FOUND_ENGINE,
@@ -5061,7 +5084,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
-    M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN,
+    M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
     M_IMPORT_NOT_OPENED, M_IMPORT_FOLDER_EXISTS,

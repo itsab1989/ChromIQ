@@ -1,0 +1,475 @@
+*EPIJUIType: "NewUI_WW"
+
+*EPIJConditionValue EPIJProfileSpec/: "
+*EPIJ_Ink_ 0|0
+*EPIJ_Ink_ 3|0
+*EPIJ_Medi 12|2
+*EPIJ_Medi 14|3
+*EPIJ_Medi 2|4
+*EPIJ_Medi 46|5
+*EPIJ_Medi 88|6
+*EPIJ_Medi 17|7
+*EPIJ_Medi 53|8
+*EPIJ_Medi 0|1"
+
+*EPIJConditionValue Resolution/: "
+*EPIJ_Ink_ 1 *EPIJ_Medi 0 *EPIJ_Qual 40 *EPIJ_FDet 0 *EPIJ_Bi_D 1|360x360dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 0 *EPIJ_Qual 44 *EPIJ_FDet 0 *EPIJ_Bi_D 0|360x360dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 0 *EPIJ_Qual 44 *EPIJ_FDet 0 *EPIJ_Bi_D 1|360x360dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 0 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 0 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 2 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 2 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 14 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 14 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 14 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 14 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 14 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 14 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 12 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 12 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 12 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 12 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 12 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 12 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 13 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 13 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 13 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 13 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 13 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 13 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 13 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 13 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 27 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 27 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 27 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 27 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 27 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 27 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 27 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 27 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 15 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 15 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 15 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 15 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 15 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 15 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 15 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 15 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 53 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 53 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 53 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 53 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 53 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 53 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 17 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 17 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 17 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 17 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 88 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 88 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 88 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 88 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 46 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 46 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 71 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 71 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 71 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 1 *EPIJ_Medi 71 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 0 *EPIJ_Qual 40 *EPIJ_FDet 0 *EPIJ_Bi_D 1|360x360dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 0 *EPIJ_Qual 44 *EPIJ_FDet 0 *EPIJ_Bi_D 0|360x360dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 0 *EPIJ_Qual 44 *EPIJ_FDet 0 *EPIJ_Bi_D 1|360x360dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 0 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 0 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 2 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 2 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 14 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 14 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 14 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 14 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 14 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 14 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 12 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 12 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 12 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 12 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 12 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 12 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 13 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 13 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 13 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 13 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 13 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 13 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 13 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 13 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 27 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 27 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 27 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 27 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 27 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 27 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 27 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 27 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 15 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 15 *EPIJ_Qual 44 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 15 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 15 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 15 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 15 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 15 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 15 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 53 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 53 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 53 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 53 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 53 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 53 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 17 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 17 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 17 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 17 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 88 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 88 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 88 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 88 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 46 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 46 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 71 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 71 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 71 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 0 *EPIJ_Medi 71 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 14 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 14 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 12 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 12 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 13 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 13 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 13 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 13 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 27 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 27 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 27 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 27 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 15 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 15 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 15 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 15 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 53 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 53 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 53 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 53 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 53 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 53 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 17 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 17 *EPIJ_Qual 46 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 17 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 17 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 88 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 88 *EPIJ_Qual 48 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 88 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 88 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 46 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 0|720x720dpi
+*EPIJ_Ink_ 3 *EPIJ_Medi 46 *EPIJ_Qual 49 *EPIJ_FDet 1 *EPIJ_Bi_D 1|720x720dpi"
+
+*EPIJConditionValue MediaType/: "
+*EPIJ_Medi 0|0
+*EPIJ_Medi 2|2
+*EPIJ_Medi 14|14
+*EPIJ_Medi 12|12
+*EPIJ_Medi 53|53
+*EPIJ_Medi 17|17
+*EPIJ_Medi 88|88
+*EPIJ_Medi 46|46"
+
+*EPIJConditionValue ColorModel/: "
+*EPIJ_Ink_ 1|RGB
+*EPIJ_Ink_ 0|Mono
+*EPIJ_Ink_ 3|ABWP"
+*EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 2|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 14|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 1
+*EPIJLinkValue: *EPIJ_Medi 17|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 88|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 1
+*EPIJLinkValue: *EPIJ_Medi 46|*EPIJ_Mode 0 *EPIJ_Ink_ 1|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 0 *EPIJ_Ink_ 0|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 2|*EPIJ_Mode 0 *EPIJ_Ink_ 0|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 14|*EPIJ_Mode 0 *EPIJ_Ink_ 0|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 0 *EPIJ_Ink_ 0|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 0 *EPIJ_Ink_ 0|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 17|*EPIJ_Mode 0 *EPIJ_Ink_ 0|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 88|*EPIJ_Mode 0 *EPIJ_Ink_ 0|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 46|*EPIJ_Mode 0 *EPIJ_Ink_ 0|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 14|*EPIJ_Mode 0 *EPIJ_Ink_ 3|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 0 *EPIJ_Ink_ 3|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 0 *EPIJ_Ink_ 3|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 17|*EPIJ_Mode 0 *EPIJ_Ink_ 3|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 88|*EPIJ_Mode 0 *EPIJ_Ink_ 3|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 46|*EPIJ_Mode 0 *EPIJ_Ink_ 3|*EPIJ_APri 0
+*EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 44 *EPIJ_Bi_D 1 *EPIJ_FDet 0
+*EPIJLinkValue: *EPIJ_Medi 2|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 46 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 14|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 17|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 88|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 46|*EPIJ_Mode 3 *EPIJ_Ink_ 1|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 0|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 44 *EPIJ_Bi_D 1 *EPIJ_FDet 0
+*EPIJLinkValue: *EPIJ_Medi 2|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 46 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 14|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 17|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 88|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 46|*EPIJ_Mode 3 *EPIJ_Ink_ 0|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 14|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 12|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 53|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 17|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 88|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+*EPIJLinkValue: *EPIJ_Medi 46|*EPIJ_Mode 3 *EPIJ_Ink_ 3|*EPIJ_Qual 49 *EPIJ_Bi_D 1 *EPIJ_FDet 1
+
+*EPIJPresetKeywordOrder EPIJColorControlPreset/: "*EPIJ_Medi *EPIJ_Ink_ *EPIJ_Mode *EPIJ_APri *EPIJClientInfo"
+
+*EPIJPreset EPIJColorControlPreset,0,0,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,0,1,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,2,0,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,2,1,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,14,0,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,14,1,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,14,3,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,12,0,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,12,1,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,12,3,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,53,0,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,53,1,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,53,1,0,1,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,53,3,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,17,0,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,17,1,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,17,3,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,88,0,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,88,1,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,88,1,0,1,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,88,3,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,46,0,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,46,1,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPreset EPIJColorControlPreset,46,3,0,0,2/: "
+EPIJ_CMat 0"
+
+*EPIJPresetKeywordOrder EPIJAMMPreset/: "*EPIJ_OSColMat"
+
+*EPIJPreset EPIJAMMPreset,2/: "
+EPIJ_CMat 3"
+
+*EPIJPresetKeywordOrder EPIJAutoPreset/: "*EPIJ_Medi *EPIJ_Ink_ *EPIJ_Mode *EPIJ_APri"
+
+*EPIJPreset EPIJAutoPreset,0,0,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 0
+EPIJ_Qual 44"
+
+*EPIJPreset EPIJAutoPreset,0,1,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 0
+EPIJ_Qual 44"
+
+*EPIJPreset EPIJAutoPreset,2,0,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 46"
+
+*EPIJPreset EPIJAutoPreset,2,1,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 46"
+
+*EPIJPreset EPIJAutoPreset,14,0,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,14,1,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,14,3,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,12,0,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,12,1,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,12,3,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,53,0,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,53,1,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 48"
+
+*EPIJPreset EPIJAutoPreset,53,1,0,1/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,53,3,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,17,0,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,17,1,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,17,3,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,88,0,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,88,1,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 48"
+
+*EPIJPreset EPIJAutoPreset,88,1,0,1/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,88,3,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,46,0,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,46,1,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPreset EPIJAutoPreset,46,3,0,0/: "
+EPIJ_Bi_D 1
+EPIJ_FDet 1
+EPIJ_Qual 49"
+
+*EPIJPresetKeywordOrder EPIJPaperConfigPreset/: "*EPIJ_Medi"
+
+*EPIJPreset EPIJPaperConfigPreset,0/: "
+EPIJ_DrTm 0
+EPIJ_IkDt 0
+EPIJ_PGDt 3"
+
+*EPIJPreset EPIJPaperConfigPreset,2/: "
+EPIJ_DrTm 0
+EPIJ_IkDt 0
+EPIJ_PGDt 3"
+
+*EPIJPreset EPIJPaperConfigPreset,14/: "
+EPIJ_DrTm 0
+EPIJ_IkDt 0
+EPIJ_PGDt 3"
+
+*EPIJPreset EPIJPaperConfigPreset,12/: "
+EPIJ_DrTm 0
+EPIJ_IkDt 0
+EPIJ_PGDt 3"
+
+*EPIJPreset EPIJPaperConfigPreset,53/: "
+EPIJ_DrTm 0
+EPIJ_IkDt 0
+EPIJ_PGDt 3"
+
+*EPIJPreset EPIJPaperConfigPreset,17/: "
+EPIJ_DrTm 0
+EPIJ_IkDt 0
+EPIJ_PGDt 3"
+
+*EPIJPreset EPIJPaperConfigPreset,88/: "
+EPIJ_DrTm 0
+EPIJ_IkDt 0
+EPIJ_PGDt 3"
+
+*EPIJPreset EPIJPaperConfigPreset,46/: "
+EPIJ_DrTm 0
+EPIJ_IkDt 0
+EPIJ_PGDt 3"
