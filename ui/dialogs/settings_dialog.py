@@ -2386,6 +2386,10 @@ class SettingsDialog(QDialog):
         for c, k in enumerate(kinds, start=1):
             sp = spin(MS.PATCH_ERROR_LIMIT_RANGE, f"patch_error_limit_{k}")
             sp.setToolTip(tr(PATCH_ERROR_LIMIT_TIP))
+            # Which box this is, for VoiceOver: the parameter and its column
+            # (review of beta 17: the strip-test boxes said so, the number
+            # boxes read out a bare "95,0 ΔE*ab").
+            sp.setAccessibleName(tr(PATCH_ERROR_LIMIT_NAME) + ", " + heads[k])
             self._patch_limit_spins[k] = sp
             cell(sp, row, c, pad=(4, 4, 4, 4), centre=True)
         cell(help_btn(tr(PATCH_ERROR_LIMIT_NAME), tr(
@@ -2480,6 +2484,7 @@ class SettingsDialog(QDialog):
             for c, k in enumerate(kinds, start=1):
                 sp = spin(rng, f"{key}_{k}")
                 sp.setToolTip(tip)
+                sp.setAccessibleName(name + ", " + heads[k])
                 store[k] = sp
                 cell(sp, row, c, pad=(4, 4, 4, 4), centre=True)
             row += 1
@@ -2498,6 +2503,8 @@ class SettingsDialog(QDialog):
         self._same_reading_spin = spin(MS.SAME_READING_RANGE,
                                        "same_reading_tolerance")
         self._same_reading_spin.setToolTip(tr(SAME_READING_TIP))
+        self._same_reading_spin.setAccessibleName(
+            tr(SAME_READING_NAME) + ", " + tr(SAME_FOR_ALL_KINDS))
         mh.addWidget(self._same_reading_spin)
         note = QLabel(tr(SAME_FOR_ALL_KINDS), merged)
         note.setStyleSheet("font-style: italic;")
