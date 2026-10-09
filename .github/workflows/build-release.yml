@@ -613,7 +613,7 @@ jobs:
               printf 'Then double-click as normal.\n\n'
               printf 'Requires macOS 13+ (Ventura) and ArgyllCMS 3.5.0 at `/Applications/Argyll/bin`.'
               printf '\n\n**Or install with [Homebrew](https://brew.sh):** `brew install --cask itsab1989/chromiq/chromiq` (stable) or `brew install --cask itsab1989/chromiq/chromiq@beta` (beta). It installs ArgyllCMS too and removes the quarantine, so ChromIQ opens straight away. Switching, updating and uninstalling: [README](https://github.com/itsab1989/ChromIQ#install-with-homebrew).'
-              printf '\n\nThe files ending in `_homebrew.dmg` are the copies Homebrew downloads. If you install by hand, please pick the normal DMG instead.'
+              printf '\n\nThe two files ending in `_homebrew.dmg` are identical copies that Homebrew downloads, so Homebrew installs can be counted separately. If you download by hand, please take the normal DMG, the one without `_homebrew` in its name.'
               printf '\n\n---\n☕ ChromIQ is free and always will be — if it saves you time or ink, a coffee is a kind way to say thanks. Completely optional, and the app stays fully featured either way.\n\n'
               printf '[![Support ChromIQ on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/itsab1989)\n'
             } > /tmp/release_notes.txt
