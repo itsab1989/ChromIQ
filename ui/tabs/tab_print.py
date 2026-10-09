@@ -48,6 +48,9 @@ from workflow.print_manager import PrintModule
 # CUPS option names that represent a paper-size selection — used to find which
 # combo value to look up in the PPD when computing orientation / mismatch.
 _PAGE_SIZE_KEYS = {"EPIJ_Size", "media", "PageSize"}
+#: How close (sum of both sides, in points) a paper must be to the chart for
+#: the paper size preselection to call it the chart's own size (~3.5 mm)
+_PRESELECT_CLOSE_PT = 10.0
 # Option names whose "on" value means borderless is enabled (native vendor
 # toggles + the synthetic key surfaced by PrintModule for drivers that
 # encode borderless in PageSize variants or EPIJ_PSrc).
@@ -85,7 +88,7 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 from ui.styles import SPEC_AMBER, TAB_COLORS
-from core.i18n import tr
+from core.i18n import count_phrase, tr
 from core.platform_paths import default_output_root
 from ui.warning_sign import inform, set_warning_icon, warn
 
@@ -122,9 +125,10 @@ _TT_BODY_PRINT_MACOS_BYPASS = (
     "re-profile this printer: the profile only matches that recipe.\n\n"
     "**How to use this screen:**\n"
     "• Pick the printer, paper size and media type. If a quality setting "
-    "is shown, choose the one you will use for real prints. A Canon, and "
-    "usually an Epson left at “Printer Default”, prints at the quality its "
-    "own print dialog picks for that paper type.\n"
+    "is shown, choose the one you will use for real prints. On a Canon or "
+    "Epson the quality row lists the qualities the driver allows for this "
+    "paper; ChromIQ preselects the one you last used in the print dialog for "
+    "it, otherwise the driver's standard.\n"
     "• Click \"Print\". No print dialog will appear: the chart goes "
     "straight to the queue.\n\n"
     "**After printing:** let the print dry fully (at least 1 hour, 24 h for "
@@ -867,6 +871,7 @@ class TabPrint(QWidget):
         self._preview.load_tiff(paths)
         self._set_print_buttons_enabled(bool(paths))
         self._update_colour_row_visible()
+        self._preselect_paper_for_chart()
 
     def has_pages(self) -> bool:
         """Whether this tab currently holds printable page images.
@@ -1640,6 +1645,95 @@ class TabPrint(QWidget):
                     combo.setCurrentIndex(found)
         self._restoring = False
         self._refresh_quality_row(keep_current=True)
+        self._preselect_paper_for_chart()
+
+    def _preselect_paper_for_chart(self) -> None:
+        """Beta 16 package (Basti, 2026-10-09): a paper size row left at
+        "Printer Default" whose paper does not match the chart is set to the
+        driver's paper size that does (PictureMate PM-400/PM-520: the PPD's
+        default is 9 x 13 cm, so every chart of another size was taken for
+        one larger than the paper).  Several that match: the closest.  None
+        that matches: the row stays at the driver's default, and the
+        confirmation window still names the mismatch.  A size the user chose
+        is never touched."""
+        size_key = next((k for k in self._option_combos if k in _PAGE_SIZE_KEYS), None)
+        tiffs = getattr(self, "_tiff_pages", None) or []
+        if size_key is None or not tiffs:
+            return
+        combo = self._option_combos[size_key]
+        if combo.currentData():
+            return
+        printer = self._printer_combo.currentData() or ""
+        try:
+            first = tiffs[0][0] if isinstance(tiffs[0], tuple) else tiffs[0]
+            tw, th = read_tiff_dimensions_points(Path(first))
+        except Exception:  # noqa: BLE001 - only a preselection
+            return
+
+        def _mismatch(raw: str, shown: str):
+            dims = self._module.get_page_size_points(printer, raw, shown)
+            if not dims:
+                return None, None
+            area = self._module.get_imageable_area_points(printer, raw, shown)
+            return check_size_mismatch(tw, th, dims[0], dims[1], imageable_pt=area), dims
+
+        d_raw, d_shown = self._ppd_default_page(printer)
+        if not d_raw:
+            return
+        def _fit(d):
+            return min(abs(d[0] - tw) + abs(d[1] - th), abs(d[0] - th) + abs(d[1] - tw))
+
+        miss, dims = _mismatch(d_raw, d_shown)
+        if dims is None:
+            return
+        # Beta 16 review: the mismatch check forgives up to 8 %, so an A4
+        # chart "matches" the R3000's default US Letter (279 mm for 297) and
+        # was printed shrunk to 95 % onto it. A default paper that matches
+        # only within that tolerance gives way to a paper of the chart's own
+        # size; one within a few points of the chart stays.
+        default_fit = _fit(dims) if miss is None else None
+        if default_fit is not None and default_fit <= _PRESELECT_CLOSE_PT:
+            return          # the driver's default paper is the chart's
+        best = None
+        for i in range(combo.count()):
+            raw = combo.itemData(i) or ""
+            if not raw:
+                continue
+            miss, dims = _mismatch(raw, combo.itemText(i))
+            if dims is None or miss is not None:
+                continue
+            fit = _fit(dims)
+            if best is None or fit < best[0]:
+                best = (fit, i)
+        if best is None or (default_fit is not None
+                            and best[0] > default_fit - _PRESELECT_CLOSE_PT):
+            return
+        # keep the rows after it as they are: the size change re-fills them
+        # (each back at "Printer Default"), so their choices are put back
+        # where the new size still offers them (beta 16 review: a saved
+        # media type was dropped by the preselection)
+        kept = {k: c.currentData() or "" for k, c in self._option_combos.items()
+                if c is not combo}
+        self._restoring = True
+        try:
+            combo.setCurrentIndex(best[1])
+            for k, val in kept.items():
+                c = self._option_combos[k]
+                if val and (c.currentData() or "") != val:
+                    j = c.findData(val)
+                    if j >= 0:
+                        c.setCurrentIndex(j)
+        finally:
+            self._restoring = False
+        # Beta 16 review: the size change re-filled the rows after it (as
+        # "Printer Default") while restoring, which skips the quality row's
+        # own refresh; measured on screen, the ET-8550 quality row then lost
+        # its "Normal (standard)" preselection and the PictureMate kept a
+        # quality note for a row at "Printer Default".
+        self._refresh_quality_row(keep_current=True)
+        log.info("Print: paper size %s=%s preselected for the chart (the "
+                 "driver's default %s does not match it)", size_key,
+                 combo.currentData(), d_raw)
 
     def _on_option_changed(self, combo_index: int) -> None:
         if not self._ordered_opts:
@@ -1724,7 +1818,8 @@ class TabPrint(QWidget):
 
     def _update_quality_note(self) -> None:
         """M-PRINT-QUALITY under the quality row, for a Canon or Epson whose
-        qualities the driver lists; hidden otherwise."""
+        qualities the driver lists, while a quality is chosen in it; hidden
+        otherwise."""
         note = self._quality_note
         if note is None:
             return
@@ -1735,6 +1830,12 @@ class TabPrint(QWidget):
         from workflow import measurement_messages as MM
         key = next((k for k in self._option_combos if k in _PAPER_QUALITY_OPTS), "")
         current = self._option_combos[key].currentData() if key else None
+        if not current:
+            # Beta 16 review: at "Printer Default" there is no quality for
+            # "this quality" to name (PictureMate, SC-P900: the dialog's own
+            # choice is not known, so nothing is preselected)
+            note.setVisible(False)
+            return
         head = tr(MM.M_PRINT_QUALITY.title)
         text = f"<b>{_html_escape(head)}</b><br>{_html_escape(tr(MM._PRINT_QUALITY_WHY))}"
         if qc.learned is not None and current == qc.learned:
@@ -1871,7 +1972,7 @@ class TabPrint(QWidget):
         if tiffs:
             self.load_tiffs(tiffs)
         else:
-            self._set_status("No TIFF files found matching the selected .ti2 file.")
+            self._set_status(tr("No TIFF files found matching the selected .ti2 file."))
 
     def _on_load_image(self) -> None:
         """#117 (Knut): print any TIFF raw. Deliberately print-only — the
@@ -2519,9 +2620,12 @@ class TabPrint(QWidget):
             return
         count = self._module.cancel_all_jobs(printer)
         if count:
-            self._set_status(f"Cleared {count} job{'s' if count != 1 else ''} from the queue.")
+            # beta 16: translated, with a real singular and plural
+            self._set_status(count_phrase(
+                count, tr("Cleared 1 job from the queue."),
+                tr("Cleared {n} jobs from the queue.")))
         else:
-            self._set_status("No jobs in the queue to clear.")
+            self._set_status(tr("No jobs in the queue to clear."))
 
     def _set_status(self, text: str) -> None:
         self._status_lbl.setText(text)
@@ -2541,7 +2645,7 @@ class TabPrint(QWidget):
                 for k, combo in self._option_combos.items()
             )
             s.set(f"print_opts_{printer}", pairs)
-        self._set_status("Print settings saved as defaults.")
+        self._set_status(tr("Print settings saved as defaults."))
 
     def _restore_defaults(self) -> None:
         pass

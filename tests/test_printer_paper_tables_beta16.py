@@ -133,12 +133,51 @@ def test_epson_variant_folders_are_read(fixture_drivers):
     assert pc.paper_profile_for(t, {"EPIJ_Medi": "12"}).source == "driver"
 
 
-def test_a_medium_in_both_black_ink_folders_takes_the_first(fixture_drivers):
+def test_a_medium_the_ink_set_folders_disagree_on_is_never_guessed(fixture_drivers, tmp_path):
     """Stylus Photo 2200: Archival Matte is 2 with Photo Black, 3 with Matte
-    Black; the dialog (no printer to ask) writes the Photo Black one."""
+    Black.  The dialog asks the printer; ChromIQ cannot, so it used to take
+    the first folder's 2 in silence.  Beta 16 package (Basti, 2026-10-09,
+    "never guess"): such a medium is UNKNOWN (the direct route shows
+    M-PRINT-PAPER-PROFILE-UNKNOWN), and one dialog print teaches it."""
     t = _ppd("EPSON_Stylus_Photo_2200.ppd")
-    assert pc.epson_variant_for(t, "14") == "1"
-    assert pc.epson_driver_table(t)["14"] == "2"
+    assert pc.epson_ink_set_profiles(t, "14") == {"1": "2", "2": "3"}
+    assert pc.epson_ink_set_ambiguous(t, "14")
+    assert "14" not in pc.epson_driver_table(t)
+    pp = pc.paper_profile_for(t, {"EPIJ_Medi": "14"})
+    assert pp.source == "unknown" and not pp.known
+    # a medium only one folder names is not ambiguous (Premium Semigloss)
+    assert not pc.epson_ink_set_ambiguous(t, "15")
+    assert pc.paper_profile_for(t, {"EPIJ_Medi": "15"}).source == "driver"
+    # the user's own dialog print answers it, with the printer's own edition
+    mem = PaperProfileMemory(tmp_path / "m.json")
+    mem.record(pc.ppd_model(t), "Epson", "EPIJ_Medi", "14", "EPIJ_Qual", "",
+               "EPIJProfileSpec", "3", label=dict(next(
+                   v for k, _l, v in pc.parse_ppd_options(t) if k == "EPIJProfileSpec"))["3"],
+               keys={})
+    pp = pc.paper_profile_for(t, {"EPIJ_Medi": "14"}, learned=mem)
+    assert (pp.value, pp.source, pp.known) == ("3", "learned", True)
+
+
+def test_a_job_read_back_still_names_its_own_profile(fixture_drivers):
+    """The ambiguity is about what ChromIQ would SEND; a job read back from
+    CUPS carries the profile the dialog chose, and that stays the job's."""
+    t = _ppd("EPSON_Stylus_Photo_2200.ppd")
+    pp = pc.paper_profile_for(t, {"EPIJ_Medi": "14", "EPIJProfileSpec": "3"},
+                              honour_profile_option=True)
+    assert (pp.value, pp.source) == ("3", "job")
+
+
+def test_the_shipped_table_holds_no_ink_set_guess():
+    """data/printer_paper_profiles.json carried the SC-P7000/P9000 rows of one
+    ink-set edition (and a dialog row measured without a printer to say which
+    edition it was).  A built-in row would be used before the learned one, so
+    none may stay for a medium whose editions disagree."""
+    built = _built()
+    for model, mv in (("EPSON SC-P9000 Series", "101"), ("EPSON SC-P9000 Series", "50"),
+                      ("EPSON SC-P7000 Series", "101"), ("EPSON Stylus Photo 2200", "14")):
+        assert mv not in built[model]["media"], (model, mv)
+    # media the editions agree on stay (Standard / plain paper: 1 in both)
+    assert built["EPSON SC-P9000 Series"]["media"]["0"]["profile"] == "1"
 
 
 # ---- 3. the qualities a paper allows -------------------------------------------------------

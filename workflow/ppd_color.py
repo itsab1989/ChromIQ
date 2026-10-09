@@ -771,6 +771,8 @@ def epson_driver_table(ppd_text: str) -> dict[str, str]:
     base = {k: _ppd_default(ppd_text, k) or "" for k in blocks}
     out = {}
     for mv, _label in blocks.get("EPIJ_Medi", []):
+        if epson_ink_set_ambiguous(ppd_text, mv, base):
+            continue        # beta 16 package: never guessed, see the function
         variant = epson_variant_for(ppd_text, mv)
         _ui, tables = epson_pde(ppd_text, variant)
         rules = tables.get("EPIJProfileSpec")
@@ -798,6 +800,51 @@ def epson_variant_for(ppd_text: str, media_value: str,
             if ("EPIJ_Medi", media_value) in pairs:
                 return v
     return names[0]
+
+
+def epson_ink_set_profiles(ppd_text: str, media_value: str,
+                           settings: dict[str, str] | None = None) -> dict[str, str]:
+    """{ink-set folder: EPIJProfileSpec} for *media_value*, over every folder
+    (``epson_pde_variants``) whose table NAMES the medium; empty for a model
+    with one PDEData.dat.  *settings*: the other keys of the job (the PPD's
+    defaults when None)."""
+    variants = epson_pde_variants(ppd_text)
+    if len(variants) <= 1:
+        return {}
+    if settings is None:
+        blocks = {k for k, _l, _v in parse_ppd_options(ppd_text)}
+        settings = {k: _ppd_default(ppd_text, k) or "" for k in blocks}
+    out = {}
+    for v, _path in variants:
+        rules = epson_pde(ppd_text, v)[1].get("EPIJProfileSpec") or []
+        if not any(("EPIJ_Medi", media_value) in pairs for pairs, _r in rules):
+            continue
+        value = epson_condition_value(rules, {**settings, "EPIJ_Medi": media_value})
+        if value is not None:
+            out[v] = value
+    return out
+
+
+def epson_ink_set_ambiguous(ppd_text: str, media_value: str,
+                            settings: dict[str, str] | None = None) -> bool:
+    """True when the Epson driver's ink-set folders give *media_value*
+    DIFFERENT paper profiles (beta 16 package, Basti 2026-10-09).
+
+    The SC-P7000/P9000 driver ships two ink-set editions of the model, each
+    with its own profile numbers (Premium Luster 260: 4 in one, 104 in the
+    other; 64 of 70 media differ on the P9000), and the Stylus Photo 2200
+    lists Archival Matte and Watercolor under both of its black inks, with
+    different profiles.  The print dialog asks the printer which one it has;
+    ChromIQ cannot (the PPD carries nothing, and a queue's marker attributes
+    are only set by a real printer's answer), so it does not guess: such a
+    medium is UNKNOWN, the direct route shows M-PRINT-PAPER-PROFILE-UNKNOWN,
+    and one print through the macOS dialog teaches ChromIQ the answer
+    (``workflow.printer_memory``).  A medium every folder gives the same
+    profile, or only one folder names, is not ambiguous."""
+    try:
+        return len(set(epson_ink_set_profiles(ppd_text, media_value, settings).values())) > 1
+    except Exception:  # noqa: BLE001 - a broken driver file must not stop printing
+        return False
 
 
 def epson_ui_type(ppd_text: str) -> str | None:
@@ -1167,9 +1214,15 @@ def paper_profile_for(ppd_text: str, options: dict[str, str] | None = None,
             if chosen is not None:
                 source = "driver"
         built = built_in_model(model) if model else None
+        # beta 16 package: an Epson ink-set edition ChromIQ cannot tell apart
+        # takes neither the driver's table (``epson_driver_table`` leaves the
+        # medium out) nor a shipped one, which was measured on one edition
+        ambiguous = (rule.driver_table == "epson-pde" and source != "job"
+                     and epson_ink_set_ambiguous(ppd_text, media_value))
         if built is not None and built.get("vendor") == rule.vendor:
             entry = (built.get("media") or {}).get(media_value)
-            if chosen is None and entry and entry.get("profile") in values:
+            if chosen is None and entry and entry.get("profile") in values \
+                    and not ambiguous:
                 chosen, source = entry["profile"], "built-in"
             keys.update(rule.dialog_keys)
             keys.update(built.get("dialog_keys") or {})

@@ -211,6 +211,7 @@ def driver_media(ppd_text: str) -> dict[str, dict]:
 def merge_driver_tables(data: dict) -> list[str]:
     """Bring every installed model's driver table into *data*.  Returns the
     changes, one line each."""
+    from workflow import ppd_color as pc
     changes = []
     models = data.setdefault("models", {})
     for model in MODELS:
@@ -222,6 +223,17 @@ def merge_driver_tables(data: dict) -> list[str]:
         entry["vendor"] = rule.vendor
         entry["ppd"] = MODELS[model]
         media = entry.setdefault("media", {})
+        if rule.driver_table == "epson-pde":
+            # beta 16 package: a medium the driver's ink-set editions give
+            # different profiles (SC-P7000/P9000, Stylus Photo 2200) is never
+            # in the file: whichever edition a row came from, it is a guess
+            # for the other (a dialog row too, measured without a printer to
+            # ask which edition it is)
+            for mv in sorted(media, key=lambda m: (len(m), m)):
+                if pc.epson_ink_set_ambiguous(text, mv):
+                    changes.append(f"{model} medium {mv}: {media[mv].get('profile')} "
+                                   "dropped (the ink-set editions disagree)")
+                    del media[mv]
         for mv, row in driver_media(text).items():
             old = media.get(mv)
             if old and old.get("from") == "dialog":
@@ -246,6 +258,11 @@ def check() -> list[str]:
         if text is None:
             continue
         built = (data.get("models") or {}).get(model, {}).get("media", {})
+        from workflow import ppd_color as pc
+        for mv in built:
+            if pc.epson_ink_set_ambiguous(text, mv):
+                problems.append(f"{model} medium {mv}: in the file, but the driver's "
+                                "ink-set editions give it different profiles")
         for mv, row in driver_media(text).items():
             have = built.get(mv)
             if have is None or have.get("profile") != row["profile"]:

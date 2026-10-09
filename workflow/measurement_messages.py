@@ -5035,7 +5035,7 @@ M_PRINT_PAPER_PROFILE_UNKNOWN = _m(
     "may not be what your prints from Photoshop get on this paper.",
     approved=False)
 
-# --- PROPOSED: the quality row of the Print Chart tab (beta 16) ---------------
+# --- APPROVED: the quality row of the Print Chart tab (beta 16) ---------------
 #: Basti, 2026-10-09: he prints his photos at the highest quality the Canon print
 #: dialog allows for the paper (its Custom slider at the top). The direct route
 #: sent the dialog's standard quality and the tab had no Canon quality row. It
@@ -5056,7 +5056,7 @@ M_PRINT_QUALITY = _m(
     "Print your photos at this quality too",
     "\n".join((_PRINT_QUALITY_WHY, _PRINT_QUALITY_LEARNED,
                _PRINT_QUALITY_HIGHEST, _PRINT_QUALITY_STANDARD)),
-    approved=False)
+    approved=True)  # Sebastian, 2026-10-09 (DECISIONS_beta16_quality.md, rows 1-4)
 
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,

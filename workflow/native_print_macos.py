@@ -178,6 +178,47 @@ else:  # pragma: no cover
     _PM_SESSION_OK = False
 
 
+# Custom paper with the driver's minimum margins (beta 16 package).  Bound on
+# their own so a missing symbol leaves the colour lock above untouched.
+class _PMRect(ctypes.Structure):
+    """PrintCore ``PMRect`` / ``PMPaperMargins``: top, left, bottom, right."""
+    _fields_ = [("top", ctypes.c_double), ("left", ctypes.c_double),
+                ("bottom", ctypes.c_double), ("right", ctypes.c_double)]
+
+
+if _PRINTCORE_OK:
+    try:  # pragma: no cover - macOS only
+        _appsvc.PMSessionGetCurrentPrinter.restype = ctypes.c_int32
+        _appsvc.PMSessionGetCurrentPrinter.argtypes = [ctypes.c_void_p,
+                                                       ctypes.POINTER(ctypes.c_void_p)]
+        _appsvc.PMPaperCreateCustom.restype = ctypes.c_int32
+        _appsvc.PMPaperCreateCustom.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_double,
+            ctypes.c_double, ctypes.POINTER(_PMRect), ctypes.POINTER(ctypes.c_void_p)]
+        _appsvc.PMCreatePageFormatWithPMPaper.restype = ctypes.c_int32
+        _appsvc.PMCreatePageFormatWithPMPaper.argtypes = [ctypes.POINTER(ctypes.c_void_p),
+                                                          ctypes.c_void_p]
+        _appsvc.PMCopyPageFormat.restype = ctypes.c_int32
+        _appsvc.PMCopyPageFormat.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        _appsvc.PMGetPageFormatPaper.restype = ctypes.c_int32
+        _appsvc.PMGetPageFormatPaper.argtypes = [ctypes.c_void_p,
+                                                 ctypes.POINTER(ctypes.c_void_p)]
+        _appsvc.PMPaperGetMargins.restype = ctypes.c_int32
+        _appsvc.PMPaperGetMargins.argtypes = [ctypes.c_void_p, ctypes.POINTER(_PMRect)]
+        _appsvc.PMPaperGetWidth.restype = ctypes.c_int32
+        _appsvc.PMPaperGetWidth.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
+        _appsvc.PMPaperGetHeight.restype = ctypes.c_int32
+        _appsvc.PMPaperGetHeight.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
+        _appsvc.PMRelease.restype = ctypes.c_int32
+        _appsvc.PMRelease.argtypes = [ctypes.c_void_p]
+        _PM_PAPER_OK = True
+    except Exception as _exc3:  # pragma: no cover
+        _PM_PAPER_OK = False
+        log.warning("PrintCore paper APIs unavailable: %s", _exc3)
+else:  # pragma: no cover
+    _PM_PAPER_OK = False
+
+
 def _cfstr(value: str) -> int:
     """Create a CFStringRef (returns its pointer as int).  Caller must CFRelease."""
     return _cf.CFStringCreateWithCString(None, value.encode("utf-8"), _kCFStringEncodingUTF8)
@@ -529,6 +570,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
 
     reps: list = []
     sizes_pt: list[tuple[float, float]] = []
+    content_pt: list = []
     for tiff_path, frame in pages:
         with Image.open(tiff_path) as im:
             n_frames = getattr(im, "n_frames", 1)
@@ -558,6 +600,10 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
         dst[: len(raw)] = raw
         reps.append(rep)
         sizes_pt.append((w_px * _PT_PER_INCH / dpi_x, h_px * _PT_PER_INCH / dpi_y))
+        try:
+            content_pt.append(_solid_box_pt(rgb, dpi_x, dpi_y))
+        except Exception:  # noqa: BLE001 - unknown content: never given margins
+            content_pt.append((0.0, 0.0, sizes_pt[-1][0], sizes_pt[-1][1]))
 
     page_box = (max(s[0] for s in sizes_pt), max(s[1] for s in sizes_pt))
     view = _ChartPrintView.alloc().initWithReps_sizes_pageBox_(reps, sizes_pt, page_box)
@@ -589,6 +635,10 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     last_submission = None
     if printer:
         _preselect_printer(print_info, printer)
+    # beta 16 package: a page no paper of the printer matches gets the Canon
+    # driver's minimum margins, before the dialog and again after it (the
+    # printer may have been changed in it), so its alert never comes
+    give_custom_paper_driver_margins(print_info, page_box, content_pt, sizes_pt)
     _lock_no_color_management(print_info)
 
     panel = AppKit.NSPrintPanel.printPanel()
@@ -606,6 +656,8 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
         log.info("native print: dialog cancelled")
         return False
 
+    if _same_page(print_info, page_box):
+        give_custom_paper_driver_margins(print_info, page_box, content_pt, sizes_pt)
     locked = _lock_no_color_management(print_info)
     # Tag the chart with the profile macOS will convert it into, so the
     # conversion is the identity and the chart's own numbers reach the driver.
@@ -647,6 +699,241 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     last_submission = Submission(display, locked, t_start, dest_icc or b"",
                                  dest_name if dest_icc else None)
     return True
+
+
+# ---- custom paper margins (beta 16 package) -------------------------------------
+#
+# The dialog route sizes the page to the chart (``setPaperSize_``).  When the
+# printer has a paper of that size, macOS picks it; when it has none (an
+# imagePROGRAF PRO-2100/4100/2600 with a 5 x 7 in, 4 x 6 in, roll-width or
+# custom chart) macOS makes a custom paper with NO margins, and the Canon driver
+# then stops the job with its own alert, "The margin settings of the custom
+# paper size are less than the supported minimum values" (vendor tests
+# 2026-10-09).  Nobody can answer that alert from a program.  So such a page
+# gets the driver's minimum margins, the PPD's ``*HWMargins``, and only when no
+# chart content lies inside them: the chart is drawn centred at 1:1, so with
+# margins the outer band of the page is not printed, which a chart's own white
+# border easily covers (printtarg leaves several millimetres).
+
+
+def _canon_min_margins(ppd_text: str) -> tuple[float, float, float, float] | None:
+    """(left, bottom, right, top) in points: a Canon IJ PPD's ``*HWMargins``,
+    the smallest margins its driver accepts on a custom paper; None for any
+    other printer or a PPD without them."""
+    import re
+    if "*OpenUI *CNIJ" not in ppd_text:
+        return None
+    m = re.search(r"^\*HWMargins:\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)",
+                  ppd_text, re.M)
+    if not m:
+        return None
+    vals = tuple(float(x) for x in m.groups())
+    return vals if any(v > 0 for v in vals) else None
+
+
+def _is_named_paper(ppd_text: str, w_pt: float, h_pt: float, tol: float = 1.5) -> bool:
+    """True when the PPD declares a paper of *w_pt* x *h_pt* (either way round),
+    which macOS then picks for the page instead of making a custom one."""
+    import re
+    for a, b in re.findall(r'^\*PaperDimension\s+\S+?(?:/[^:]*)?:\s*"([\d.]+)\s+([\d.]+)"',
+                           ppd_text, re.M):
+        pw, ph = float(a), float(b)
+        if (abs(pw - w_pt) <= tol and abs(ph - h_pt) <= tol) or \
+                (abs(pw - h_pt) <= tol and abs(ph - w_pt) <= tol):
+            return True
+    return False
+
+
+def content_inside_margins(content_pt: list[tuple[float, float, float, float]],
+                           sizes_pt: list[tuple[float, float]],
+                           page_box: tuple[float, float],
+                           margins: tuple[float, float, float, float]) -> bool:
+    """True when every page's content stays printable with *margins*
+    (left, bottom, right, top).  Each page is drawn centred in *page_box*, and
+    the view is centred in the printable area, so the band of the view that
+    is not printed is (left + right) / 2 at each side and (bottom + top) / 2 at
+    top and bottom.  *content_pt*: per page, the non-white box (x0, y0, x1, y1)
+    in points from the page's top left, None for a blank page."""
+    left, bottom, right, top = margins
+    cut_x, cut_y = (left + right) / 2.0, (bottom + top) / 2.0
+    bw, bh = page_box
+    for box, (w, h) in zip(content_pt, sizes_pt):
+        if box is None:
+            continue
+        ox, oy = (bw - w) / 2.0, (bh - h) / 2.0
+        x0, y0, x1, y1 = box
+        if ox + x0 < cut_x - 0.01 or ox + x1 > bw - cut_x + 0.01:
+            return False
+        if oy + y0 < cut_y - 0.01 or oy + y1 > bh - cut_y + 0.01:
+            return False
+    return True
+
+
+def _content_box_pt(rgb, dpi_x: float, dpi_y: float):
+    """The page's non-white box in points (x0, y0, x1, y1) from its top left,
+    None when it is blank.  "White" is 250 or more in every channel."""
+    import numpy as np
+    a = np.asarray(rgb)
+    ink = (a < 250).any(axis=2)
+    rows, cols = np.flatnonzero(ink.any(axis=1)), np.flatnonzero(ink.any(axis=0))
+    if rows.size == 0:
+        return None
+    k_x, k_y = _PT_PER_INCH / dpi_x, _PT_PER_INCH / dpi_y
+    return (cols[0] * k_x, rows[0] * k_y, (cols[-1] + 1) * k_x, (rows[-1] + 1) * k_y)
+
+
+def _solid_box_pt(rgb, dpi_x: float, dpi_y: float, min_mm: float = 1.0):
+    """The box of the page's SOLID ink in points (x0, y0, x1, y1) from its
+    top left, None when there is none: ink at least *min_mm* across both
+    ways, which patches and scan markers are and text and hairlines are not
+    (beta 16 review).  printtarg prints its info line rotated along the
+    chart's side, and on a short page it runs from the top edge to the bottom
+    edge: measured on a 4 x 6 in chart made with -M6, whose patches keep
+    6 mm clear.  Judged by every ink pixel, such a chart could never be given
+    the driver's minimum margins, so the Canon imagePROGRAF alert this was
+    made to prevent came back for it, with no way past it.  The driver's
+    3 mm band may now clip that line; it never clips a patch."""
+    import numpy as np
+    a = np.asarray(rgb)
+    ink = (a < 250).any(axis=2)
+    b = max(1, int(round(min(dpi_x, dpi_y) * 0.3 / 25.4)))      # ~0.3 mm cells
+    h, w = ink.shape[0] // b, ink.shape[1] // b
+    if h == 0 or w == 0:
+        return _content_box_pt(rgb, dpi_x, dpi_y)
+    cells = ink[: h * b, : w * b].reshape(h, b, w, b).all(axis=(1, 3))
+    k = max(2, int(np.ceil(min_mm / (b * 25.4 / min(dpi_x, dpi_y)))))
+    if h < k or w < k:
+        return _content_box_pt(rgb, dpi_x, dpi_y)
+    s = np.zeros((h + 1, w + 1), np.int32)
+    s[1:, 1:] = cells.cumsum(0, dtype=np.int32).cumsum(1, dtype=np.int32)
+    win = s[k:, k:] - s[:-k, k:] - s[k:, :-k] + s[:-k, :-k]
+    solid = win == k * k
+    rows, cols = np.flatnonzero(solid.any(axis=1)), np.flatnonzero(solid.any(axis=0))
+    if rows.size == 0:
+        return None
+    # one cell of slack each side: a patch's edge cell may be part white
+    x0, y0 = max(0, (cols[0] - 1) * b), max(0, (rows[0] - 1) * b)
+    x1 = min(ink.shape[1], (cols[-1] + k + 1) * b)
+    y1 = min(ink.shape[0], (rows[-1] + k + 1) * b)
+    k_x, k_y = _PT_PER_INCH / dpi_x, _PT_PER_INCH / dpi_y
+    return (x0 * k_x, y0 * k_y, x1 * k_x, y1 * k_y)
+
+
+def _ppd_text_of(print_info) -> str | None:
+    try:
+        printer = print_info.printer()
+        display = printer.name() if printer is not None else None
+        if not display:
+            return None
+        from workflow.print_manager import PrintModule
+        ppd = PrintModule.find_ppd_path(_queue_name(str(display)))
+        if not ppd:
+            return None
+        from core.text_io import read_text
+        return read_text(Path(ppd), lenient=True)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def paper_margins(print_info) -> tuple[float, float, float, float, float, float] | None:
+    """(width, height, top, left, bottom, right) of *print_info*'s paper, in
+    points, read back from PrintCore; None when it cannot be read."""
+    import objc
+    if not _PM_PAPER_OK:
+        return None
+    pf = _libobjc.objc_msgSend(ctypes.c_void_p(objc.pyobjc_id(print_info)),
+                               _libobjc.sel_registerName(b"PMPageFormat"))
+    if not pf:
+        return None
+    paper = ctypes.c_void_p()
+    if _appsvc.PMGetPageFormatPaper(ctypes.c_void_p(pf), ctypes.byref(paper)) != 0 \
+            or not paper.value:
+        return None
+    m, w, h = _PMRect(), ctypes.c_double(), ctypes.c_double()
+    if _appsvc.PMPaperGetMargins(paper, ctypes.byref(m)) != 0:
+        return None
+    _appsvc.PMPaperGetWidth(paper, ctypes.byref(w))
+    _appsvc.PMPaperGetHeight(paper, ctypes.byref(h))
+    return (w.value, h.value, m.top, m.left, m.bottom, m.right)
+
+
+def give_custom_paper_driver_margins(print_info, page_box: tuple[float, float],
+                                     content_pt: list, sizes_pt: list) -> bool:
+    """Make *print_info*'s paper a custom paper of *page_box* with the Canon
+    driver's minimum margins, when its printer is a Canon IJ whose PPD has no
+    paper of that size and no chart content lies inside those margins.
+    Returns True when it did.  Never raises: at worst the page stays as it
+    was."""
+    import objc
+    if not _PM_PAPER_OK:
+        return False
+    try:
+        text = _ppd_text_of(print_info)
+        if not text:
+            return False
+        margins = _canon_min_margins(text)
+        if margins is None or _is_named_paper(text, *page_box):
+            return False
+        if not content_inside_margins(content_pt, sizes_pt, page_box, margins):
+            log.warning("native print: chart content reaches into the driver's "
+                        "minimum margins %s; the page keeps no margins", margins)
+            return False
+        have = paper_margins(print_info)
+        if have is not None:
+            w, h, top, left, bottom, right = have
+            if abs(w - page_box[0]) < 0.5 and abs(h - page_box[1]) < 0.5 and all(
+                    got >= want - 0.01 for got, want in
+                    zip((left, bottom, right, top), margins)):
+                return True         # already so
+        pi_id = ctypes.c_void_p(objc.pyobjc_id(print_info))
+        session = _libobjc.objc_msgSend(pi_id, _libobjc.sel_registerName(b"PMPrintSession"))
+        page_format = _libobjc.objc_msgSend(pi_id, _libobjc.sel_registerName(b"PMPageFormat"))
+        if not session or not page_format:
+            return False
+        printer = ctypes.c_void_p()
+        if _appsvc.PMSessionGetCurrentPrinter(ctypes.c_void_p(session),
+                                              ctypes.byref(printer)) != 0 or not printer.value:
+            return False
+        left, bottom, right, top = margins
+        rect = _PMRect(top=top, left=left, bottom=bottom, right=right)
+        w_pt, h_pt = page_box
+        name = f"{w_pt * 25.4 / 72.0:.0f} x {h_pt * 25.4 / 72.0:.0f} mm"
+        pid, pname = _cfstr(f"ChromIQ-chart-{w_pt:.2f}x{h_pt:.2f}"), _cfstr(name)
+        paper, new_pf = ctypes.c_void_p(), ctypes.c_void_p()
+        try:
+            if _appsvc.PMPaperCreateCustom(printer, ctypes.c_void_p(pid), ctypes.c_void_p(pname),
+                                           w_pt, h_pt, ctypes.byref(rect),
+                                           ctypes.byref(paper)) != 0 or not paper.value:
+                return False
+            if _appsvc.PMCreatePageFormatWithPMPaper(ctypes.byref(new_pf), paper) != 0 \
+                    or not new_pf.value:
+                return False
+            if _appsvc.PMCopyPageFormat(new_pf, ctypes.c_void_p(page_format)) != 0:
+                return False
+            print_info.updateFromPMPageFormat()
+        finally:
+            for ref in (pid, pname):
+                if ref:
+                    _cf.CFRelease(ctypes.c_void_p(ref))
+            for obj in (new_pf, paper):
+                if obj.value:
+                    _appsvc.PMRelease(obj)
+        log.info("native print: custom page %s given the driver's minimum margins %s "
+                 "(left, bottom, right, top)", name, margins)
+        return True
+    except Exception as exc:  # noqa: BLE001 - the page then stays as it was
+        log.warning("native print: could not give the custom page margins: %s", exc)
+        return False
+
+
+def _same_page(print_info, page_box: tuple[float, float]) -> bool:
+    """True while *print_info*'s paper is still the chart's own page size (a
+    paper the user picked in the dialog is left alone)."""
+    try:
+        size = print_info.paperSize()
+        return abs(size.width - page_box[0]) < 0.5 and abs(size.height - page_box[1]) < 0.5
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _preselect_printer(print_info, queue: str) -> None:
