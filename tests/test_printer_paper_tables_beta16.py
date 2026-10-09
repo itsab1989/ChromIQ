@@ -516,3 +516,140 @@ def test_the_direct_route_takes_the_dnp_device_profile(monkeypatch, tmp_path):
     pp = cp.CupsRawPrinter._reference_paper_profile(tmp_path / "c.tif",
                                                     cp.PrintConfig(printer_name="DNP", options={}))
     assert pp is not None and pp.rule.vendor == "DNP"
+
+
+# ---- beta-16 review: what the builder's tests did not pin ------------------------------
+def _copy_drivers(tmp_path, monkeypatch):
+    import shutil
+    root = tmp_path / "drivers"
+    shutil.copytree(FIX, root)
+    monkeypatch.setenv(pc.DRIVER_ROOT_ENV, str(root))
+    pc._canon_media_cached.cache_clear()
+    tbl = next(root.glob("Canon/BJPrinter/Resources/Database/CIJPRO10Sseries.db/"
+                         "Contents/Resources/cnb_*.tbl"))
+    return tbl
+
+
+@pytest.mark.parametrize("damage", ["truncated", "half", "header only", "zeros", "garbage"])
+def test_a_damaged_canon_table_is_an_unknown_model_not_a_crash(tmp_path, monkeypatch, damage):
+    """Review: a cut-off cnb_*.tbl decoded 'successfully' with papers whose
+    profile records were lost given the default profile as if the driver said
+    so, and a short file raised struct.error out of ``canon_media``.  Now a
+    table that is not whole is not used at all, and printing goes on."""
+    tbl = _copy_drivers(tmp_path, monkeypatch)
+    d = tbl.read_bytes()
+    tbl.write_bytes({"truncated": d[:-200], "half": d[:len(d) // 2], "header only": d[:0x310],
+                     "zeros": bytes(len(d)), "garbage": bytes(range(256)) * (len(d) // 256)}[damage])
+    t = _ppd("Canon_PRO_10S_series.ppd")
+    assert pc.canon_media(t) == {}
+    pp = pc.paper_profile_for(t, {"CNIJMediaType": "63"})
+    assert pp is not None and pp.source != "driver"
+    assert pc.quality_choices(t, {"CNIJMediaType": "63"}) is None
+
+
+def test_another_models_canon_table_is_not_read_as_this_ones(tmp_path, monkeypatch):
+    """Review: a table that names profiles the PPD does not offer (another
+    model's, or a driver update's new layout) is not this driver's table."""
+    tbl = _copy_drivers(tmp_path, monkeypatch)
+    d = bytearray(tbl.read_bytes())
+    d[:] = d.replace(b"Canon PRO-10S series", b"Canon PRO-99X series")
+    tbl.write_bytes(bytes(d))
+    assert pc.canon_media(_ppd("Canon_PRO_10S_series.ppd")) == {}
+
+
+@pytest.mark.parametrize("ppd,medium,quality,res", [
+    ("EPSON_ET_8550_Series.ppd", "0", "307", "720x720dpi"),    # plain, Best Quality
+    ("EPSON_ET_8550_Series.ppd", "0", "302", "180x180dpi"),    # plain, Economy
+    ("EPSON_ET_8550_Series.ppd", "13", "308", "360x360dpi"),   # photo paper, Draft
+])
+def test_the_epson_resolution_follows_the_chosen_quality(fixture_drivers, ppd, medium,
+                                                         quality, res):
+    """Review: the Epson Resolution table depends on the quality as well as the
+    paper.  The direct route sent the resolution of the dialog's OWN quality
+    whatever the quality row said (ET-8550 plain paper at Best Quality: 360
+    dpi where the dialog writes 720); 623 paper/quality pairs over the
+    installed Epson drivers disagreed with the dialog."""
+    pp = pc.paper_profile_for(_ppd(ppd), {"EPIJ_Medi": medium, "EPIJ_Qual": quality})
+    assert dict(pp.dialog_keys).get("Resolution") == res
+
+
+def test_a_picturemate_quality_gets_its_own_resolution(fixture_drivers):
+    """The same for the PictureMate keys (no paper profiles): plain paper at
+    Fine prints at 720 dpi in the dialog, Normal at 360."""
+    t = _ppd("EPSON_PM_400_Series.ppd")
+    assert pc.dialog_keys_without_paper_profile(t, {"EPIJ_Medi": "0"}).get("Resolution") \
+        == "360x360dpi"
+    assert pc.dialog_keys_without_paper_profile(
+        t, {"EPIJ_Medi": "0", "EPIJ_Qual": "304"}).get("Resolution") == "720x720dpi"
+
+
+# ---- beta-16 review: a chart larger than the paper is never shrunk in silence -------------
+def _a4_tiff(path):
+    from PIL import Image
+    Image.new("RGB", (2480, 3508), (255, 255, 255)).save(path, format="TIFF", dpi=(300, 300))
+    return path
+
+
+_PAPER_BLOCKS = {
+    "EPSON_PM_400_Series.ppd": (
+        '*PPD-Adobe: "4.3"\n*ModelName: "EPSON PM-400 Series"\n'
+        '*OpenUI *PageSize/Paper Size: PickOne\n*DefaultPageSize: EPPhotoPaperLRoll\n'
+        '*PageSize EPKG/10 x 15 cm (4 x 6 in): ""\n*PageSize EPPhotoPaperLRoll/9 x 13 cm: ""\n'
+        '*CloseUI: *PageSize\n'
+        '*PaperDimension EPKG/10 x 15 cm (4 x 6 in): "288.00 432.00"\n'
+        '*PaperDimension EPPhotoPaperLRoll/9 x 13 cm: "252.20 360.00"\n'),
+    "Dai_Nippon_Printing_DP_DS620.ppd": (
+        '*PPD-Adobe: "4.3"\n*ModelName: "Dai Nippon Printing DP-DS620"\n'
+        '*OpenUI *PageSize/Media Size: PickOne\n*DefaultPageSize: dnp6x4\n'
+        '*PageSize dnp6x4/6 x 4: ""\n*PageSize dnp6x8/6 x 8: ""\n*CloseUI: *PageSize\n'
+        '*PaperDimension dnp6x4/6 x 4: "442.56 297.6"\n'
+        '*PaperDimension dnp6x8/6 x 8: "442.56 584.64"\n'),
+}
+
+
+def _small_paper_tab(qapp, tmp_path, monkeypatch, ppd_name, *, preflight):
+    from core.settings import AppSettings
+    from ui.tabs.tab_print import TabPrint
+    s = AppSettings()
+    s.set("use_native_print_dialog", False)
+    s.set("confirm_before_printing", preflight)
+    tab = TabPrint(s)
+    # the paper-size block of the installed PPD (the fixtures are trimmed to
+    # the colour options): PM-400 default 9 x 13 cm, DS620 default 6 x 4 in
+    ppd = tmp_path / ppd_name
+    ppd.write_text(_PAPER_BLOCKS[ppd_name], encoding="latin-1")
+    monkeypatch.setattr(type(tab._module), "_find_ppd_path", staticmethod(lambda _p: str(ppd)))
+    return tab
+
+
+@pytest.mark.parametrize("ppd_name", ["EPSON_PM_400_Series.ppd", "Dai_Nippon_Printing_DP_DS620.ppd"])
+def test_printer_default_paper_is_compared_with_the_chart(qapp, tmp_path, monkeypatch, ppd_name):
+    """Measured on screen (capture queues): an A4 chart went to a PM-400 with
+    the paper size at "Printer Default" (its 9 x 13 cm) shrunk to fit, and the
+    confirmation window said nothing, because nothing was compared.  The
+    PPD's default paper is now what the chart is compared with; the job
+    itself is unchanged (no page size, no orientation added)."""
+    tab = _small_paper_tab(qapp, tmp_path, monkeypatch, ppd_name, preflight=True)
+    tif = _a4_tiff(tmp_path / "c.tif")
+    orientation, page, mismatch = tab._compute_geometry("Q", {}, tif)
+    assert orientation is None and page is None
+    assert mismatch and "mismatch" in mismatch
+    assert tab._chart_larger_than_page(tif, tab._checked_page_pt)
+
+
+def test_a_chart_that_fits_is_not_called_too_big(qapp, tmp_path, monkeypatch):
+    from ui.tabs.tab_print import TabPrint
+    tif = _a4_tiff(tmp_path / "c.tif")
+    assert not TabPrint._chart_larger_than_page(tif, (595.0, 842.0))     # A4 on A4
+    assert not TabPrint._chart_larger_than_page(tif, (842.0, 1191.0))    # A4 on A3
+    assert TabPrint._chart_larger_than_page(tif, (288.0, 432.0))         # A4 on 4 x 6 in
+
+
+def test_a_too_big_chart_shows_the_confirmation_even_when_it_is_off():
+    """The decision in ``_print_pages``: the window that names the mismatch
+    shows when the chart would be shrunk, whatever the preflight setting."""
+    import inspect
+    from ui.tabs.tab_print import TabPrint
+    src = inspect.getsource(TabPrint._print_pages)
+    assert "_chart_larger_than_page(" in src
+    assert 'self._settings.get("confirm_before_printing", True) or too_big' in src

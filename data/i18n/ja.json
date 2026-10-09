@@ -6803,10 +6803,10 @@
  "From Profile Gamut": "プロファイルの色域から",
  "{n} of {total}": "{total} 個中 {n} 個",
  "Both columns count the metrics the chart answers: with the preset’s own colours, or filled From Profile Gamut.": "どちらの列も答えられる指標を数えます: 独自の色の場合と、プロファイルの色域から埋めた場合です。",
- "The profile fits only prints made at the quality its chart was printed with.": "プロファイルが合うのは、チャートを印刷したときと同じ品位で印刷したものだけです。",
- "Chosen as in your last print on this paper through the macOS print dialog.": "この用紙でmacOSの印刷ダイアログから前回印刷したときと同じ品位を選んでいます。",
+ "The profile fits only prints made at the quality its chart was printed with.": "プロファイルが合うのは、チャートを印刷したときと同じ品質で印刷したものだけです。",
+ "Chosen as in your last print on this paper through the macOS print dialog.": "この用紙でmacOSの印刷ダイアログから前回印刷したときと同じ品質を選んでいます。",
  "{quality} (highest)": "{quality}（最高）",
  "{quality} (standard)": "{quality}（標準）",
- "Print your photos at this quality too": "写真もこの品位で印刷してください",
- "The profile fits only prints made at the quality its chart was printed with.\nChosen as in your last print on this paper through the macOS print dialog.\n{quality} (highest)\n{quality} (standard)": "プロファイルが合うのは、チャートを印刷したときと同じ品位で印刷したものだけです。\nこの用紙でmacOSの印刷ダイアログから前回印刷したときと同じ品位を選んでいます。\n{quality}（最高）\n{quality}（標準）"
+ "Print your photos at this quality too": "写真もこの品質で印刷してください",
+ "The profile fits only prints made at the quality its chart was printed with.\nChosen as in your last print on this paper through the macOS print dialog.\n{quality} (highest)\n{quality} (standard)": "プロファイルが合うのは、チャートを印刷したときと同じ品質で印刷したものだけです。\nこの用紙でmacOSの印刷ダイアログから前回印刷したときと同じ品質を選んでいます。\n{quality}（最高）\n{quality}（標準）"
 }
