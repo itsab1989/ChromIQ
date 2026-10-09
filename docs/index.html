@@ -244,6 +244,20 @@ section.band{padding:64px 0;border-top:1px solid var(--line-soft)}
 .download h2{position:relative;font-weight:600;font-size:clamp(1.8rem,3.6vw,2.6rem);margin:0;letter-spacing:-.01em;text-wrap:balance}
 .download p{position:relative;color:var(--dim);margin:.8rem auto 0;max-width:32em}
 .oslist{position:relative;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:26px}
+.brew{position:relative;text-align:left;max-width:40em;margin:38px auto 0;padding:26px 26px 22px;
+  background:var(--surface);border:1px solid var(--line-soft);border-radius:14px}
+.brew h3{margin:0;font-size:1.15rem;font-weight:600;color:var(--ink)}
+.download .brew p{margin:.7rem 0 0;max-width:none}
+.brew pre{margin:.8rem 0 0;padding:12px 14px;background:var(--panel);border:1px solid var(--line);
+  border-radius:8px;font-size:.95rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.brew pre code{background:none;border:0;padding:0;font-size:inherit}
+.brew details{margin-top:1rem;color:var(--dim)}
+.brew summary{cursor:pointer;color:var(--ink);font-weight:600}
+.brew dl{margin:.6rem 0 0}
+.brew dt{color:var(--ink);margin-top:.7rem}
+.brew dd{margin:.25rem 0 0;overflow-x:auto}
+.brew dd code{overflow-wrap:anywhere}
+@media (max-width:600px){.brew{padding:18px 16px 16px;margin-top:28px}.download .inner{padding-left:16px;padding-right:16px}}
 
 footer{border-top:1px solid var(--line-soft);padding:36px 0 60px;color:var(--dim);font-size:.9rem}
 footer .wrap{display:flex;flex-wrap:wrap;gap:16px 30px;align-items:center}
@@ -281,7 +295,9 @@ footer .sp{flex:1}
       <a class="btn line" href="https://github.com/itsab1989/ChromIQ">View on GitHub</a>
     </div>
     <p class="fineprint">Free under the GPLv3. Needs ArgyllCMS 3.5.0 — ChromIQ finds it for you on first launch.</p>
-    <p class="fineprint">Trying what is next? <a href="https://github.com/itsab1989/ChromIQ/releases/tag/v4.3.3-beta.5">The newest 4.3 beta</a>
+    <p class="fineprint">On a Mac, <a href="#homebrew">Homebrew</a> installs ChromIQ and ArgyllCMS together:
+      <code>brew install --cask itsab1989/chromiq/chromiq</code></p>
+    <p class="fineprint">Trying what is next? <a href="https://github.com/itsab1989/ChromIQ/releases/tag/v4.3.3-beta.16">The newest 4.3 beta</a>
       judges the i1Pro 2, 3 and 3 Plus by their own reading speed, timed from the beep, saves reports and inspections where they belong,
       and runs again on older Macs. It carries the whole of 4.3.2 as well. Design and open questions on
       <a href="https://github.com/itsab1989/ChromIQ/issues/182">issue #182</a> and
@@ -759,7 +775,7 @@ footer .sp{flex:1}
     </div>
     <dl class="specs">
       <div class="spec"><dt>Instruments</dt><dd>i1Pro · i1Pro 2 · i1Pro 3 · i1Pro 3 Plus · ColorMunki (i1Studio / ColorChecker Studio) · SpectroScan · ChnSpec CR30 (driven by ChromIQ itself, USB and Bluetooth). Also i1iSis charts via i1Profiler (ChromIQ makes the chart and imports the measurement; i1Profiler does the reading)</dd></div>
-<div class="spec"><dt>Colour engine</dt><dd>ArgyllCMS 3.5.0 — not bundled; ChromIQ finds it for you on first launch</dd></div>
+<div class="spec"><dt>Colour engine</dt><dd>ArgyllCMS 3.5.0, installed separately (on a Mac, <a href="#homebrew">Homebrew</a> installs it together with ChromIQ); ChromIQ finds it for you on first launch</dd></div>
 <div class="spec"><dt>ChromIQ's own engines</dt><dd>189 ready-made chart presets for every common instrument, paper and patch count (154 in 4.2) · a chart layout engine that sizes patches by minimum width or by columns and rows, with instrument-safe margins and a live preview of the exact sheet · a strip-reading engine with sounds, live pace feedback and per-strip re-reads · more than a dozen combinable patch-set generators · a verification target built from your profile's own gamut</dd></div>
 <div class="spec"><dt>Platforms</dt><dd>macOS · Windows · Linux (x86_64 &amp; aarch64, beta) · Windows installs the instrument drivers from inside the app</dd></div>
 <div class="spec"><dt>Report limits</dt><dd>New in 4.3: ChromIQ default, tight and Quick check · the published values of ISO 12647-7:2016 and ISO 12647-8:2021, read-only · Custom ISO 12647-7 and -8 from industry practice. Measured against, never certified</dd></div>
@@ -781,6 +797,43 @@ footer .sp{flex:1}
         <a class="btn primary" href="https://github.com/itsab1989/ChromIQ/releases/latest">Download the latest release</a>
         <a class="btn line" href="https://github.com/itsab1989/ChromIQ">Source &amp; issues on GitHub</a>
         <a class="btn kofi" href="https://ko-fi.com/itsab1989">&#9749; Support ChromIQ on Ko-fi</a>
+      </div>
+      <div class="brew" id="homebrew">
+        <h3>On a Mac? Install it with Homebrew.</h3>
+        <p>One command installs ChromIQ <b>and ArgyllCMS</b>, so there is nothing else to set up, and
+          ChromIQ opens straight away: it is not notarised by Apple, so the Homebrew cask removes the macOS
+          download block (the &ldquo;quarantine&rdquo;) for you. No warning, no right-click &rarr; Open.
+          It picks the right build for Apple Silicon or Intel and needs macOS 13 Ventura or newer.</p>
+        <p>You need <a href="https://brew.sh">Homebrew</a> itself first: copy the one-line command from
+          <a href="https://brew.sh">brew.sh</a> into Terminal. Then:</p>
+        <pre><code>brew install --cask itsab1989/chromiq/chromiq</code></pre>
+        <p>Want the newest beta instead? Install <code>chromiq@beta</code>. It follows the newest release,
+          beta or stable; <code>chromiq</code> only ever gets stable ones. Only one of the two can be
+          installed at a time.</p>
+        <pre><code>brew install --cask itsab1989/chromiq/chromiq@beta</code></pre>
+        <details>
+          <summary>Update, switch between stable and beta, uninstall</summary>
+          <dl>
+            <dt>Update</dt>
+            <dd><code>brew upgrade --cask chromiq</code> (or <code>chromiq@beta</code>)</dd>
+            <dt>Switch from stable to beta</dt>
+            <dd><code>brew uninstall --cask chromiq</code>, then
+              <code>brew install --cask itsab1989/chromiq/chromiq@beta</code></dd>
+            <dt>Switch from beta back to stable</dt>
+            <dd><code>brew uninstall --cask chromiq@beta</code>, then
+              <code>brew install --cask itsab1989/chromiq/chromiq</code></dd>
+            <dt>Uninstall</dt>
+            <dd><code>brew uninstall --cask chromiq</code>. Add <code>--zap</code> to remove ChromIQ&rsquo;s
+              settings, logs and caches as well. ArgyllCMS stays; <code>brew uninstall argyll-cms</code>
+              removes it.</dd>
+          </dl>
+          <p>Your projects in <code>~/ChromIQ</code> are always kept: by updates, by switching, by
+            uninstalling and by <code>--zap</code>. Already have ChromIQ in Applications from a download?
+            Move it to the Trash first; your projects and settings are not inside the app.
+            All the details are in the
+            <a href="https://github.com/itsab1989/ChromIQ#install-with-homebrew">README</a>.</p>
+        </details>
+        <p>Prefer the plain download? The DMG from the latest release works just as before.</p>
       </div>
     </div>
   </div>

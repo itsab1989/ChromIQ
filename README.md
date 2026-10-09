@@ -114,6 +114,79 @@ ChromIQ can still run from source with an older Qt: install Python 3.12+,
 then `pip install "PyQt6==6.8.*" "PyQt6-WebEngine==6.8.*"` with the other
 requirements and start `python main.py`.
 
+There are two ways to install ChromIQ on a Mac. Homebrew is the easiest:
+one command installs ChromIQ and ArgyllCMS together and keeps both up to
+date. Prefer a plain download? See [Install by hand](#install-by-hand) below.
+
+#### Install with Homebrew
+
+[Homebrew](https://brew.sh) is a free, widely used package manager for
+macOS. If you don't have it yet, install it first: copy the one-line command
+from [brew.sh](https://brew.sh) into Terminal and follow what it says.
+
+Then install ChromIQ:
+
+```bash
+brew install --cask itsab1989/chromiq/chromiq
+```
+
+That's it. What this does for you:
+
+- **ArgyllCMS comes with it.** Homebrew installs it as `argyll-cms`, and
+  ChromIQ finds it on first launch, so there is nothing to set up.
+- **ChromIQ opens straight away.** ChromIQ is not notarised by Apple, so
+  macOS would normally block it the first time you open it. The Homebrew
+  cask removes that download block (the "quarantine") from the installed
+  app, so there is no warning and no right-click → Open step.
+- **Your Mac's architecture is picked for you**: the Apple Silicon build on
+  an M-series Mac, the Intel build on an Intel Mac.
+
+Want to try the newest beta? Install `chromiq@beta` instead:
+
+```bash
+brew install --cask itsab1989/chromiq/chromiq@beta
+```
+
+`chromiq` only ever installs stable releases. `chromiq@beta` always follows
+the newest release, beta or stable, so when a stable version comes out after
+its betas, beta users get it too. Only one of the two can be installed at a
+time.
+
+Everyday commands (use `chromiq@beta` in place of `chromiq` if that is the
+one you installed):
+
+| To | Run in Terminal |
+|----|-----------------|
+| Update ChromIQ | `brew upgrade --cask chromiq` |
+| Switch from stable to beta | `brew uninstall --cask chromiq` and then `brew install --cask itsab1989/chromiq/chromiq@beta` |
+| Switch from beta back to stable | `brew uninstall --cask chromiq@beta` and then `brew install --cask itsab1989/chromiq/chromiq` |
+| Uninstall ChromIQ | `brew uninstall --cask chromiq` |
+| Uninstall and also remove ChromIQ's settings, logs and caches | `brew uninstall --zap --cask chromiq` |
+
+Good to know:
+
+- **Your projects are always kept.** Nothing Homebrew does touches your
+  projects in `~/ChromIQ`: not an update, not switching between stable and
+  beta, not uninstalling, and not `--zap`. Switching and plain uninstalling
+  keep your settings too.
+- **ArgyllCMS stays installed** when you uninstall ChromIQ. If you no longer
+  need it, remove it with `brew uninstall argyll-cms`.
+- **When ChromIQ tells you a new version is out**, update with
+  `brew upgrade --cask chromiq` rather than downloading the DMG, so Homebrew
+  stays in charge of the app. Homebrew gets each release shortly after it
+  is published.
+- **ChromIQ already in your Applications folder?** If you installed it by
+  hand before, Homebrew stops with *"It seems there is already an App at
+  '/Applications/ChromIQ.app'"*. Move the old ChromIQ to the Trash and run
+  the install command again. Your projects and settings are not stored inside
+  the app, so nothing is lost. (Adding `--force` to the install command
+  replaces the old app in one step instead.)
+- The Homebrew casks live in
+  [itsab1989/homebrew-chromiq](https://github.com/itsab1989/homebrew-chromiq)
+  and are updated automatically with every release.
+
+#### Install by hand
+
 1. Download the universal DMG — **`ChromIQ-macOS-universal_<version>.dmg`**
    (works on both Apple Silicon and Intel).
 2. Open the DMG, then drag **ChromIQ** into your **Applications** folder.
@@ -164,12 +237,14 @@ via [Discussions](https://github.com/itsab1989/ChromIQ/discussions) or the
 
 ### Installing ArgyllCMS
 
-ChromIQ needs ArgyllCMS 3.5.0 to do the colour work. **It is not bundled with
-ChromIQ** — you install it once, separately, and ChromIQ finds it automatically.
+ChromIQ needs ArgyllCMS 3.5.0 to do the colour work. **It is not inside the
+ChromIQ download**: you install it once, separately, and ChromIQ finds it
+automatically. If you installed ChromIQ on a Mac
+[with Homebrew](#install-with-homebrew), this is already done for you.
 
 | OS | How to install |
 |----|----------------|
-| **macOS** | Download from [argyllcms.com](https://www.argyllcms.com/downloadmac.html), unzip, and move the folder into `/Applications` (e.g. `/Applications/Argyll_V3.5.0/`). |
+| **macOS** | Installed ChromIQ with Homebrew? Then ArgyllCMS is already there. Otherwise run `brew install argyll-cms`, or download from [argyllcms.com](https://www.argyllcms.com/downloadmac.html), unzip, and move the folder into `/Applications` (e.g. `/Applications/Argyll_V3.5.0/`). |
 | **Windows** | Download the `win64` build from [argyllcms.com](https://www.argyllcms.com/downloadwin.html) and extract to `C:\Program Files\ArgyllCMS\`. |
 | **Linux** | `sudo apt install argyll` · `sudo dnf install argyllcms` · `sudo pacman -S argyllcms`, or download from [argyllcms.com](https://www.argyllcms.com/downloadlinux.html). |
 
