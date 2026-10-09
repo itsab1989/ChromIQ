@@ -165,6 +165,9 @@ class _Combo:
     def setCurrentIndex(self, i):
         self.cur = i
 
+    def findData(self, v):
+        return next((i for i, (_t, d) in enumerate(self.items) if d == v), -1)
+
 
 def _preselect_stub(pm400, chart, current=0):
     from ui.tabs.tab_print import TabPrint
@@ -179,7 +182,8 @@ def _preselect_stub(pm400, chart, current=0):
         _find_ppd_path=lambda p: pm400)
     stub = SimpleNamespace(_option_combos={"EPIJ_Size": combo}, _tiff_pages=[chart],
                            _printer_combo=SimpleNamespace(currentData=lambda: "Q"),
-                           _module=module, _restoring=False)
+                           _module=module, _restoring=False,
+                           _refresh_quality_row=lambda keep_current: None)
     stub._ppd_default_page = lambda printer: TabPrint._ppd_default_page(stub, printer)
     TabPrint._preselect_paper_for_chart(stub)
     return combo

@@ -336,13 +336,23 @@ class CupsRawPrinter:
         opts = self.reference_options(config, pp)
         log.info("CUPS print: reference job, %s=%s (%s), chart tagged with %s",
                  pp.option, pp.value, pp.label, pp.icc_path)
-        suffix = ".pdf" if pdf_fallback else ".tif"
+        # Beta 16 review: an Epson job whose EPIJ_Size now carries its PageSize
+        # (``PrintModule._page_size_for_vendor_size``) goes as the exact-size
+        # PDF. macOS fits a TIFF into the PageSize's printable area: measured
+        # on ET-8550, SC-P900, R3000 and XP-15000 capture queues, an A4 chart
+        # on "A4" came out at 97 % (beta 15, without the PageSize: 100 %), and
+        # no lp option (print-scaling, ppi, scaling, natural-scaling,
+        # fit-to-page) changes that. The PDF places it 1:1.
+        exact = pdf_fallback or (page_size_pt is not None
+                                 and bool(opts.get("EPIJ_Size"))
+                                 and bool(opts.get("PageSize")))
+        suffix = ".pdf" if exact else ".tif"
         fd, tmp_str = tempfile.mkstemp(suffix=suffix)
         tmp = Path(tmp_str)
         code = -1
         try:
             os.close(fd)
-            if pdf_fallback:
+            if exact:
                 tmp.write_bytes(PdfGenerator().generate(
                     tiff_path, page_size_pt=page_size_pt, icc_profile=icc))
             else:

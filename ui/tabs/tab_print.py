@@ -48,6 +48,9 @@ from workflow.print_manager import PrintModule
 # CUPS option names that represent a paper-size selection — used to find which
 # combo value to look up in the PPD when computing orientation / mismatch.
 _PAGE_SIZE_KEYS = {"EPIJ_Size", "media", "PageSize"}
+#: How close (sum of both sides, in points) a paper must be to the chart for
+#: the paper size preselection to call it the chart's own size (~3.5 mm)
+_PRESELECT_CLOSE_PT = 10.0
 # Option names whose "on" value means borderless is enabled (native vendor
 # toggles + the synthetic key surfaced by PrintModule for drivers that
 # encode borderless in PageSize variants or EPIJ_PSrc).
@@ -1677,8 +1680,19 @@ class TabPrint(QWidget):
         d_raw, d_shown = self._ppd_default_page(printer)
         if not d_raw:
             return
+        def _fit(d):
+            return min(abs(d[0] - tw) + abs(d[1] - th), abs(d[0] - th) + abs(d[1] - tw))
+
         miss, dims = _mismatch(d_raw, d_shown)
-        if dims is None or miss is None:
+        if dims is None:
+            return
+        # Beta 16 review: the mismatch check forgives up to 8 %, so an A4
+        # chart "matches" the R3000's default US Letter (279 mm for 297) and
+        # was printed shrunk to 95 % onto it. A default paper that matches
+        # only within that tolerance gives way to a paper of the chart's own
+        # size; one within a few points of the chart stays.
+        default_fit = _fit(dims) if miss is None else None
+        if default_fit is not None and default_fit <= _PRESELECT_CLOSE_PT:
             return          # the driver's default paper is the chart's
         best = None
         for i in range(combo.count()):
@@ -1688,17 +1702,35 @@ class TabPrint(QWidget):
             miss, dims = _mismatch(raw, combo.itemText(i))
             if dims is None or miss is not None:
                 continue
-            fit = min(abs(dims[0] - tw) + abs(dims[1] - th),
-                      abs(dims[0] - th) + abs(dims[1] - tw))
+            fit = _fit(dims)
             if best is None or fit < best[0]:
                 best = (fit, i)
-        if best is None:
+        if best is None or (default_fit is not None
+                            and best[0] > default_fit - _PRESELECT_CLOSE_PT):
             return
-        self._restoring = True      # keep the rows after it as they are
+        # keep the rows after it as they are: the size change re-fills them
+        # (each back at "Printer Default"), so their choices are put back
+        # where the new size still offers them (beta 16 review: a saved
+        # media type was dropped by the preselection)
+        kept = {k: c.currentData() or "" for k, c in self._option_combos.items()
+                if c is not combo}
+        self._restoring = True
         try:
             combo.setCurrentIndex(best[1])
+            for k, val in kept.items():
+                c = self._option_combos[k]
+                if val and (c.currentData() or "") != val:
+                    j = c.findData(val)
+                    if j >= 0:
+                        c.setCurrentIndex(j)
         finally:
             self._restoring = False
+        # Beta 16 review: the size change re-filled the rows after it (as
+        # "Printer Default") while restoring, which skips the quality row's
+        # own refresh; measured on screen, the ET-8550 quality row then lost
+        # its "Normal (standard)" preselection and the PictureMate kept a
+        # quality note for a row at "Printer Default".
+        self._refresh_quality_row(keep_current=True)
         log.info("Print: paper size %s=%s preselected for the chart (the "
                  "driver's default %s does not match it)", size_key,
                  combo.currentData(), d_raw)
