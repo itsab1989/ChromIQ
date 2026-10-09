@@ -471,107 +471,17 @@ def measure_dialog(model: str, media: list[str], out: Path,
         sink.sock.close()
 
 
-#: The sheet watcher (beta 16).  Vendor drivers raise their own alerts over the
-#: print panel; the Canon PRO-2100's "The margin settings of the custom paper
-#: size are less than the supported minimum values ... Click [OK] to start
-#: printing." is one, and the in-process timer never sees it.  System Events
-#: reaches every window of the probe's process by its pid, and AXPress presses a
-#: button without the mouse and without taking focus.  OK (the default) is
-#: pressed only when the panel's printer is a capture queue; otherwise Cancel.
-_AX_JXA = r"""
-function run(argv) {
-  var pid = parseInt(argv[0]), act = argv[1] || '';
-  var se = Application('System Events');
-  var ps = se.processes.whose({unixId: pid});
-  if (ps.length === 0) return JSON.stringify({gone: true});
-  var p = ps[0];
-  function g(e, f) { try { var v = e[f](); return v === null || v === undefined ? '' : String(v); } catch (x) { return ''; } }
-  var popups = [], dialogs = [];
-  function walk(e, d, acc) {
-    var role = g(e, 'role');
-    if (role === 'AXPopUpButton') popups.push(g(e, 'value'));
-    if (role === 'AXStaticText' || role === 'AXTextField') { var t = g(e, 'value') || g(e, 'name'); if (t) acc.texts.push(t); }
-    if (role === 'AXButton') acc.buttons.push(e);
-    if (d > 9) return;
-    var kids; try { kids = e.uiElements(); } catch (x) { return; }
-    for (var i = 0; i < kids.length; i++) {
-      var r = g(kids[i], 'role');
-      if (r === 'AXSheet') { var s = {texts: [], buttons: []}; walk(kids[i], 0, s); dialogs.push(s); }
-      else walk(kids[i], d + 1, acc);
-    }
-  }
-  var ws = p.windows(), found = [];
-  for (var w = 0; w < ws.length; w++) {
-    var acc = {texts: [], buttons: []};
-    walk(ws[w], 0, acc);
-    var names = acc.buttons.map(function (b) { return g(b, 'name'); });
-    var isPanel = names.indexOf('Drucken') >= 0 || names.indexOf('Print') >= 0;
-    if (!isPanel && acc.buttons.length > 0 && acc.texts.length > 0) dialogs.push(acc);
-  }
-  var out = {popups: popups, dialogs: []};
-  for (var k = 0; k < dialogs.length; k++) {
-    var dg = dialogs[k], bn = dg.buttons.map(function (b) { return g(b, 'name'); });
-    var rec = {texts: dg.texts, buttons: bn, pressed: ''};
-    if (act) {
-      var want = act === 'ok' ? ['OK', 'Drucken', 'Print', 'Fortfahren', 'Continue'] : ['Abbrechen', 'Cancel', 'OK'];
-      for (var j = 0; j < want.length && !rec.pressed; j++) {
-        var at = bn.indexOf(want[j]);
-        if (at >= 0) { try { dg.buttons[at].actions['AXPress'].perform(); rec.pressed = want[j]; } catch (x) { rec.error = String(x); } }
-      }
-    }
-    out.dialogs.push(rec);
-  }
-  return JSON.stringify(out);
-}
-"""
-
-
-class _SheetWatcher(threading.Thread):
-    """Answers every vendor alert or sheet the probe *pid* shows, within about a
-    second: OK when its panel's printer is a capture queue (``CAPTURE_MARK``
-    in the panel's printer popup), Cancel otherwise.  Every answer is logged."""
-
-    CAPTURE_MARK = "(capture, no printer)"
-
-    def __init__(self, pid: int, out: Path, log) -> None:
-        super().__init__(daemon=True)
-        self.pid, self.out, self.log = pid, out, log
-        self.answered: list[dict] = []
-        self.stop = threading.Event()
-        self.script = out / "_sheet_watch.js"
-        self.script.write_text(_AX_JXA, encoding="utf-8")
-
-    def _ask(self, act: str = "") -> dict:
-        r = subprocess.run(["osascript", "-l", "JavaScript", str(self.script), str(self.pid), act],
-                           capture_output=True, text=True, timeout=20)
-        try:
-            return json.loads(r.stdout.strip() or "{}")
-        except ValueError:
-            return {"error": r.stderr.strip()[:300]}
-
-    def run(self) -> None:
-        first = None
-        while not self.stop.is_set():
-            seen = self._ask()
-            if seen.get("gone"):
-                return
-            # the panel driver inside the probe answers first; this is the
-            # backstop for a window it has not answered within 3 s
-            first = (first or time.time()) if seen.get("dialogs") else None
-            if first is not None and time.time() - first >= 3:
-                shots = _photograph_windows_of(self.pid, self.out)
-                capture = any(self.CAPTURE_MARK in p for p in seen.get("popups", []))
-                done = self._ask("ok" if capture else "cancel")
-                for d in done.get("dialogs", []):
-                    if not d.get("pressed"):
-                        continue
-                    d.update(capture_queue=capture, shots=shots, at=time.strftime("%H:%M:%S"))
-                    self.answered.append(d)
-                    self.log(f"sheet answered '{d['pressed']}' (printer is "
-                             f"{'a capture queue' if capture else 'NOT a capture queue'}): "
-                             f"{' | '.join(d.get('texts', []))[:400]}")
-            self.stop.wait(0.4)
-
+#: Vendor alerts (beta 16).  The Canon PRO-2100 driver raised "The margin
+#: settings of the custom paper size are less than the supported minimum values
+#: ... Click [OK] to start printing." over the panel.  Measured 2026-10-09: it is
+#: drawn by the driver's extension service (com.apple.RemotePDEServiceARM) in a
+#: ViewBridge window, and the probe's main thread waits on it, so neither the
+#: probe's own timer nor Accessibility (System Events and AXUIElement both:
+#: no windows, error -25204) can press its buttons.  The probe therefore
+#: photographs it and the parent ends the probe within half a second (nothing
+#: is released to the queue); alerts the probe's own AppKit draws are answered
+#: in-process (``_PanelDriver``).  The probe page is A4, which the driver
+#: accepts; the 30 x 20 mm page of the first probes caused that alert.
 
 #: a probe normally ends within 15 s; one still running after this is held by
 #: a window nobody answers (2026-10-09: the Canon PRO-2100 driver's own
@@ -584,8 +494,6 @@ PROBE_GUARD_S = 30
 def _run_probe_guarded(cmd: list[str], env: dict, probe: Path, log) -> subprocess.CompletedProcess:
     proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             text=True, encoding="utf-8", errors="replace")
-    watcher = _SheetWatcher(proc.pid, probe, log)
-    watcher.start()
     marker = probe / "REMOTE_ALERT"
     marker.unlink(missing_ok=True)
     t0 = time.time()
@@ -595,7 +503,6 @@ def _run_probe_guarded(cmd: list[str], env: dict, probe: Path, log) -> subproces
             shots = _photograph_windows_of(proc.pid, probe)
             proc.kill()
             out, err = proc.communicate()
-            watcher.stop.set()
             log(f"probe pid {proc.pid}: the driver raised its own alert "
                 f"({marker.read_text(encoding='utf-8')}), which no program can answer; "
                 f"photographed ({', '.join(shots)}) and the probe ended at once, "
@@ -604,13 +511,8 @@ def _run_probe_guarded(cmd: list[str], env: dict, probe: Path, log) -> subproces
         time.sleep(0.15)
     try:
         out, err = proc.communicate(timeout=0.1 if proc.poll() is not None else 0.01)
-        watcher.stop.set()
-        if watcher.answered:
-            (probe / "sheets.json").write_text(json.dumps(watcher.answered, indent=1),
-                                               encoding="utf-8")
         return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
     except subprocess.TimeoutExpired:
-        watcher.stop.set()
         shots = _photograph_windows_of(proc.pid, probe)
         proc.kill()
         out, err = proc.communicate()
