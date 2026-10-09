@@ -92,6 +92,11 @@ class Cr30SpotManager(QObject):
     #: so ChromIQ cannot tell a covered opening from a patch and will not fire
     #: the instrument itself (M-CR30-TRIGGER-NOT-ARMED).
     trigger_not_armed       = pyqtSignal()
+    #: The instrument stopped answering: unplugged, switched off, or the
+    #: Bluetooth link dropped. The session is PAUSED, not ended: the window
+    #: asks whether to look for the instrument again (`reconnect`) or to
+    #: stop. The reason is the reader's own words, for the log.
+    instrument_lost         = pyqtSignal(str)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -107,6 +112,10 @@ class Cr30SpotManager(QObject):
         #: The Measure tab's token is a patch id, which is not interchangeable
         #: at all -- see `DeviceReader.arm_trigger`.
         self._session: "object | None" = None
+        #: True between a lost instrument and the window's answer. While set,
+        #: the read loop has ended but the SESSION has not, so the loop's end
+        #: is not reported as the session's.
+        self._lost = False
 
     # ------------------------------------------------------------------
     @property
@@ -163,7 +172,7 @@ class Cr30SpotManager(QObject):
         self._start_loop()
         self.ready_to_read.emit()
 
-    def _start_loop(self) -> None:
+    def _start_loop(self, announce_when_open: bool = False) -> None:
         # NOT PARENTED TO THIS MANAGER, AND THAT IS THE WHOLE POINT.
         #
         # A QThread parented to the manager is destroyed with it — and a
@@ -180,6 +189,8 @@ class Cr30SpotManager(QObject):
         worker.refused.connect(self.read_refused)
         worker.gated.connect(self._on_gated)
         worker.lost.connect(self._on_lost)
+        if announce_when_open:
+            worker.opened.connect(self.ready_to_read)
         worker.finished.connect(thread.quit)
         worker.finished.connect(self._on_loop_finished)
         self._thread, self._worker = thread, worker
@@ -225,7 +236,8 @@ class Cr30SpotManager(QObject):
         for sig in (self.reading_ready, self.ready_to_read,
                     self.instrument_detected, self.read_refused,
                     self.magnet_gated, self.trigger_not_armed,
-                    self.instrument_disconnected, self.session_ended):
+                    self.instrument_disconnected, self.instrument_lost,
+                    self.session_ended):
             try:
                 sig.disconnect()
             except (TypeError, RuntimeError):
@@ -244,6 +256,7 @@ class Cr30SpotManager(QObject):
         worker, self._worker = self._worker, None
         thread, self._thread = self._thread, None
         self._session = None
+        was_lost, self._lost = self._lost, False
         if worker is not None:
             worker.stop()
         if self._reader is not None:
@@ -264,11 +277,56 @@ class Cr30SpotManager(QObject):
             # left, and joining it on the GUI thread is the beachball. It is
             # kept alive by `_LIVE` until it really stops.
             thread.quit()
+        if was_lost and self._running:
+            # Paused on a lost instrument, so no loop is left to report the
+            # end. Say it here, or Stop would leave the window saying
+            # "Stop session" for ever.
+            self._running = False
+            self.session_ended.emit(-1)
+            return
         self._running = False
 
     def _on_loop_finished(self, code: int) -> None:
+        sender = self.sender()
+        if (self._worker is not None and sender is not None
+                and sender is not self._worker):
+            # A loop from BEFORE a reconnect, reporting late. The session it
+            # belonged to carries on in the new loop; its end is not news.
+            return
+        if self._lost:
+            # The loop ended because the instrument went away, and the window
+            # is asking what to do about it. That is not the end of the
+            # session: "Look again" starts a new loop on the same reader.
+            return
         self._running = False
         self.session_ended.emit(code)
+
+    def reconnect(self) -> None:
+        """Look for the instrument again and carry on reading.
+
+        The reader let go of its dead handle when the loss was reported
+        (`DeviceReader.__call__`), so the first read of the new loop opens the
+        instrument afresh -- the remembered Bluetooth address first, then a
+        search. If it is still not there, that read reports the loss again
+        and the window asks again: nobody is left waiting in silence.
+        """
+        if self._reader is None:
+            self._lost = False
+            self._running = False
+            self.session_ended.emit(-1)
+            return
+        self._lost = False
+        self._running = True
+        self._note(_transport_note(self._reader))
+        self._session = object()
+        try:
+            self._reader.arm_trigger(self._session)
+        except AttributeError:
+            pass
+        # NOT "ready" yet: the instrument is still being looked for. The loop
+        # says so once the link is really open (`_ReadLoop.opened`), so a
+        # press is never invited before anything can collect it.
+        self._start_loop(announce_when_open=True)
 
     def _on_reading(self, xyz: tuple) -> None:
         # THE SAME PAIR THE READING CAME FROM. `DeviceReader.__call__` returns
@@ -296,8 +354,32 @@ class Cr30SpotManager(QObject):
         self.magnet_gated.emit(reason)
 
     def _on_lost(self, reason: str) -> None:
-        self._stop_loop()
+        """The instrument went away. Pause, and let the window ask.
+
+        It used to END the session here, through `_stop_loop`, which also
+        CANCELS the reader for good -- so even a window that wanted to look
+        again had nothing left to look with, and a CR30 switched back on was
+        ignored until the window was closed (Basti, beta 16). Now the loop is
+        simply over (it returned by itself), the reader stays usable, and
+        `instrument_lost` asks the window. A host that does not listen for it
+        gets the old ending.
+        """
+        log.info("CR30: the instrument stopped answering (%s)", reason)
+        worker, self._worker = self._worker, None
+        self._thread = None
+        if worker is not None:
+            worker.stop()
+        try:
+            if self._reader is not None:
+                self._reader.disarm_trigger()
+        except Exception:      # noqa: BLE001 — a press must not be kept
+            log.debug("CR30: disarm failed", exc_info=True)
         self.instrument_disconnected.emit()
+        if self.receivers(self.instrument_lost) > 0:
+            self._lost = True
+            self.instrument_lost.emit(reason)
+            return
+        self._stop_loop()
         self.inst_init_failed.emit(reason)
 
     def _note(self, text: str) -> None:
@@ -350,6 +432,8 @@ class _ReadLoop(QObject):
     refused  = pyqtSignal(str)
     gated    = pyqtSignal(str)
     lost     = pyqtSignal(str)
+    #: The instrument is open and the first read is about to wait for it.
+    opened   = pyqtSignal()
     finished = pyqtSignal(int)
 
     def __init__(self, reader) -> None:
@@ -364,6 +448,22 @@ class _ReadLoop(QObject):
         from workflow.cr30.device import DeviceLost
         from workflow.cr30.measurement import MagnetGated, MeasurementError
         code = 0
+        opener = getattr(self._reader, "open_now", None)
+        if callable(opener):
+            try:
+                opener()
+            except DeviceLost as exc:
+                if not self._stop:
+                    self.lost.emit(str(exc))
+                self.finished.emit(-1)
+                return
+            except Exception as exc:      # noqa: BLE001 — reported, not raised
+                if not self._stop:
+                    self.lost.emit(str(exc) or type(exc).__name__)
+                self.finished.emit(-1)
+                return
+        if not self._stop:
+            self.opened.emit()
         while not self._stop:
             try:
                 xyz = self._reader()

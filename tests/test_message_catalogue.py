@@ -470,6 +470,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # found the first by pressing the spacebar,
                                  # which is the Measure tab's reading trigger.
                                  "M-SPOT-CLEAR", "M-SPOT-UNSAVED",
+                                 # beta 17: the CR30 stopped answering in a
+                                 # spot session (Basti, beta 16); our words.
+                                 "M-SPOT-CR30-GONE",
                                  # 2026-09-03, review 5. Tools > Build
                                  # profile with scanner or camera builds
                                  # a profile from data that is not the
@@ -812,6 +815,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_confirm_clear"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),
+    ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_on_cr30_lost"),
     # Auto align. Not a modal window but the window's own log, which is where
     # a placement message belongs — and the same two rules apply: the text is
     # the catalogue's, and the method writes no prose of its own. That second
@@ -930,6 +934,7 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_SCAN_ALIGN_DONE.render(rho="0.97"),
         M.M_SCAN_ALIGN_NO_INPUT.render(),
         M.M_REPORT_NOT_SAVED.render(),
+        M.M_SPOT_CR30_GONE.render(),
         M.M_SCAN_DIAGNOSTIC.render(),
         M.M_SCAN_LOADED.render(file="scan.tif", w=2078, h=1470,
                                target="Wolf Faust IT8", n=288),

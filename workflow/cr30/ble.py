@@ -58,6 +58,28 @@ def frame(cmd: int, sub: int = 0, param: int = 0, data: bytes = b"") -> bytes:
 
 READ_MEASUREMENT = frame(0x02, 0x10)
 
+#: The vendor app's read-only device-info question (`getDeviceInfo`). Read from
+#: the owner's unit on 2026-10-09 with `scripts/cr30_devinfo.py`: a 200-byte
+#: reply in 0.3 s after the wake byte, and the unit advertised again after the
+#: disconnect. Decoded by `device_info.parse_ble_reply`. Asked ONCE per
+#: connection, and never anything else new.
+DEVICE_INFO = frame(0x12, 0x01)
+
+#: How long the device-info question may take before ChromIQ gives up on it
+#: and carries on. It is a log line, never a reason not to measure.
+DEVICE_INFO_TIMEOUT_S = 5.0
+
+
+class LinkLost(ConnectionError):
+    """The Bluetooth link to the instrument has gone: it switched itself off,
+    went out of range, or its battery ran down.
+
+    Raised by the waits as soon as the radio says so, instead of letting a
+    session listen for ever to an instrument that is no longer there (Basti,
+    beta 16: the CR30 powered itself off, Stop did nothing, and switching it
+    back on did nothing either until the window was closed).
+    """
+
 # ⚠ THIS IS THE TRIGGER. It is not a status query, whatever the name says.
 #
 # `bb 01 00` is the USB TRIGGER (usb_measure.trigger_frame), and EXP-BLE-012
@@ -202,6 +224,10 @@ def _connected_name(client) -> "str | None":
 class BleTransport:
     """Poll-driven BLE link. Synchronous facade over bleak's async API."""
 
+    #: Class default, so a transport built without `__init__` (the tests'
+    #: stand-ins do) still reads as "not lost".
+    _lost = False
+
     def __init__(self, name: str | None = None, *, address: str | None = None,
                  timeout: float = 20.0):
         """`address` selects a remembered unit; `name` is an optional hint.
@@ -218,8 +244,27 @@ class BleTransport:
         from collections import deque
         self._events: "deque[bytes]" = deque(maxlen=64)
         self._loop = None
+        #: Set by the radio when the link drops. Read by every wait, so a
+        #: session stops listening to an instrument that has gone.
+        self._lost = False
 
     # -- lifecycle -------------------------------------------------------
+    def _on_disconnect(self, _client=None) -> None:
+        """bleak's disconnected callback: the link has gone.
+
+        Not raised from here -- this runs on whatever thread the backend
+        delivers on. It sets a flag the waits read, which is all a waiting
+        reader needs to stop waiting.
+        """
+        if not self._lost:
+            log.info("CR30 BLE: the instrument disconnected (switched off, out "
+                     "of range, or another device took it)")
+        self._lost = True
+
+    @property
+    def is_lost(self) -> bool:
+        """Has the radio reported this link gone?"""
+        return bool(self._lost)
     def _run(self, coro):
         if self._loop is None:
             self._loop = asyncio.new_event_loop()
@@ -291,7 +336,9 @@ class BleTransport:
             # The scan is the whole of his "it takes a while", and an address
             # makes it unnecessary.
             self.address = target
-            c = BleakClient(target, timeout=self.timeout)
+            self._lost = False
+            c = _client_for(BleakClient, target, self.timeout,
+                            self._on_disconnect)
             t0 = time.monotonic()
             await c.connect()
             t1 = time.monotonic()
@@ -336,19 +383,42 @@ class BleTransport:
         t_start = time.monotonic()
         self._client = self._run(_open())
 
+    #: How long closing may take. A link to a switched-off instrument must not
+    #: be able to hold the window that is closing it.
+    CLOSE_TIMEOUT_S = 5.0
+
     def close(self) -> None:
-        if self._client is None:
+        """Stop notifications and disconnect. Bounded, and safe from any thread.
+
+        TWO THREADS, ONE EVENT LOOP, AND IT USED TO LEAK THE LINK. The reader
+        thread runs this transport's loop for the whole of a wait. A close
+        from the GUI thread called `run_until_complete` on that same loop,
+        which raises "This event loop is already running" -- and the caller
+        swallowed it, so the instrument was never disconnected. Over Bluetooth
+        a CR30 that is still held stops advertising, and the next session
+        cannot find it. Now a close on a running loop is handed TO that loop.
+        """
+        client, self._client = self._client, None
+        if client is None:
             return
 
         async def _close():
             try:
-                await self._client.stop_notify(FFE1)
-            except Exception:
+                await client.stop_notify(FFE1)
+            except Exception:            # noqa: BLE001 — closing anyway
                 pass
-            await self._client.disconnect()
+            await client.disconnect()
 
-        self._run(_close())
-        self._client = None
+        loop = self._loop
+        try:
+            if loop is not None and loop.is_running():
+                fut = asyncio.run_coroutine_threadsafe(_close(), loop)
+                fut.result(timeout=self.CLOSE_TIMEOUT_S)
+            else:
+                self._run(asyncio.wait_for(_close(), self.CLOSE_TIMEOUT_S))
+        except Exception as exc:          # noqa: BLE001 — say so, never hang
+            log.warning("CR30 BLE: disconnecting did not finish cleanly (%s: "
+                        "%s)", type(exc).__name__, exc)
 
     def __enter__(self) -> "BleTransport":
         self.open(); return self
@@ -420,6 +490,9 @@ class BleTransport:
             while True:
                 if self._events:
                     return self._events.popleft()
+                if self._lost:
+                    raise LinkLost("the Bluetooth link to the instrument "
+                                   "dropped (it may have switched itself off)")
                 if cancelled is not None and cancelled():
                     return None
                 if _t.monotonic() > deadline:
@@ -507,6 +580,9 @@ class BleTransport:
 
     async def _ask(self, req: bytes, polls: int, wait: float,
                    done=None) -> bytes:
+        if self._lost:
+            raise LinkLost("the Bluetooth link to the instrument dropped "
+                           "(it may have switched itself off)")
         await self._drain()
         await self._client.write_gatt_char(FFE1, req, response=False)
         await asyncio.sleep(wait)
@@ -549,3 +625,54 @@ class BleTransport:
         if self._client is None:
             raise ConnectionError("BLE transport is not open")
         return self._run(self._ask(req, polls, wait, done))
+
+    def read_device_info(self, timeout: float = DEVICE_INFO_TIMEOUT_S) -> bytes:
+        """Ask `BB 12 01` once and return what arrived (may be incomplete).
+
+        The vendor app's order, as verified on the owner's unit: the wake byte
+        `01`, 100 ms, the question, then wait -- polling with `01`, ChromIQ's
+        own poll byte, only while the reply is still incomplete. Nothing else
+        is sent. Bounded by *timeout*; the caller logs a failure and carries
+        on, because this is a log line and never a reason not to measure.
+        """
+        if self._client is None:
+            raise ConnectionError("BLE transport is not open")
+        from .device_info import ble_reply_complete
+
+        async def _go() -> bytes:
+            import time as _t
+            if self._lost:
+                raise LinkLost("the Bluetooth link to the instrument dropped")
+            self._buf.clear()
+            await self._client.write_gatt_char(FFE1, POLL, response=False)
+            await asyncio.sleep(0.1)
+            await self._client.write_gatt_char(FFE1, DEVICE_INFO,
+                                               response=False)
+            deadline = _t.monotonic() + timeout
+            await asyncio.sleep(0.3)
+            while (_t.monotonic() < deadline
+                   and not ble_reply_complete(bytes(self._buf))):
+                if self._lost:
+                    break
+                await self._client.write_gatt_char(FFE1, POLL, response=False)
+                await asyncio.sleep(0.35)
+            raw = bytes(self._buf)
+            # Leave nothing behind to prefix the next reply.
+            self._buf.clear()
+            return raw
+
+        return self._run(asyncio.wait_for(_go(), timeout + 1.0))
+
+
+def _client_for(factory, target, timeout, on_disconnect):
+    """A BleakClient that tells us when the link drops.
+
+    `disconnected_callback` is bleak's own argument (bleak 3). A stand-in that
+    does not take it -- an older bleak, or a test's fake radio -- still gets a
+    client; it simply cannot report a lost link, which is today's behaviour.
+    """
+    try:
+        return factory(target, timeout=timeout,
+                       disconnected_callback=on_disconnect)
+    except TypeError:
+        return factory(target, timeout=timeout)

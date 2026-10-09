@@ -153,8 +153,31 @@ def adopt_address_key(address: str | None, unit_id: str | None) -> bool:
     """
     if not address or not unit_id:
         return False
-    legacy = f"ble:{address}"
-    if legacy == str(unit_id):
+    return adopt_legacy_key(f"ble:{address}", unit_id)
+
+
+def adopt_legacy_key(legacy: str | None, unit_id: str | None) -> bool:
+    """Re-file a signature kept under an older key under the unit's serial.
+
+    THE KEY IS THE SERIAL THE UNIT STATES ITSELF (beta 17). Both transports
+    can now ask: `AA 0A 01` over USB and the vendor's `BB 12 01` over
+    Bluetooth return the same serial, and on the owner's unit that serial is
+    also the advertised Bluetooth name (CM454M0223, doc 56 §1). Keys written
+    before that came from the ADVERTISEMENT (or, with no name, from
+    `ble:<address>`). Each is moved here only at the one moment it can be
+    moved with proof: connected over that very link, with the unit having
+    just stated its serial. Same link, same instrument, no guess.
+
+    Never offline. A stored key alone does not say which unit it belongs to,
+    and adopting the wrong one would make the guard look armed while it
+    matched nothing. A key that already IS the serial -- every key the owner
+    has, because his unit advertises its serial -- is left exactly where it
+    is, so nobody has to teach the tile again.
+    """
+    if not legacy or not unit_id:
+        return False
+    legacy, unit_id = str(legacy), str(unit_id)
+    if legacy == unit_id:
         return False
     try:
         store = _load()
@@ -166,7 +189,7 @@ def adopt_address_key(address: str | None, unit_id: str | None) -> bool:
             # than leave two keys for one instrument to drift apart.
             store.pop(legacy, None)
             _settings().set(SIGNATURE_KEY, json.dumps(store))
-            log.info("CR30: dropped the stale address key %s -- unit %s has "
+            log.info("CR30: dropped the stale key %s -- unit %s has "
                      "its own learned signature", legacy, unit_id)
             return False
         store[str(unit_id)] = values

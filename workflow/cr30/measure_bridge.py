@@ -698,6 +698,66 @@ class DeviceReader:
         #: window's is the session, because there every read is "whatever is
         #: under the aperture now" and they are interchangeable.
         self._arm_token: object | None = None
+        #: Set once by close() and never cleared: a CLOSED reader may not open
+        #: the instrument again. It used to, silently: the teach-in window was
+        #: handed a reader its window had already closed, `learn_tile` found
+        #: `_dev` empty and opened a fresh Bluetooth link on it -- one nobody
+        #: held any more, so nobody ever closed it. A CR30 that is still
+        #: connected stops advertising, and the next session reported "No
+        #: CR30 found over Bluetooth" (Basti, beta 16, his log of 20:59:12).
+        self._closed = False
+        _LIVE_READERS.add(self)
+
+    def _ensure_open(self):
+        """The open device, opening it if this reader is still in use.
+
+        Every path that talks to the instrument comes through here, so a
+        closed reader refuses in ONE place rather than in each caller.
+        """
+        if self._closed:
+            raise ConnectionError(
+                "this connection to the instrument has already been closed")
+        if self._dev is None:
+            dev = self._open()
+            if self._closed:
+                # CLOSED WHILE IT WAS OPENING. Over Bluetooth an open can take
+                # twenty seconds, and the window's close waits two for this
+                # lock before it gives up and closes whatever is there -- which
+                # was nothing yet. The link that arrives afterwards belongs to
+                # nobody, so it is let go here, the moment it exists. Measured
+                # on screen with a simulated radio: without this, a window
+                # closed during the open left the instrument connected.
+                try:
+                    dev.close()
+                except Exception:    # noqa: BLE001 — closing anyway
+                    log.debug("CR30: could not close a late link",
+                              exc_info=True)
+                raise ConnectionError(
+                    "the connection was closed while the instrument was "
+                    "being opened")
+            self._dev = dev
+            log.info("CR30: opened over %s", self._dev.kind)
+        return self._dev
+
+    def open_now(self) -> None:
+        """Open the instrument if it is not open yet, and say so if it cannot be.
+
+        For a session that has to know the instrument is THERE before it tells
+        anybody to press its button: after a reconnect the window must not say
+        "Ready" while the link is still being found, because a press made in
+        that time is not collected (a press made before its read is armed is
+        dropped on purpose, so it can never be filed under the wrong patch).
+        """
+        from .device import DeviceLost
+        with self._lock:
+            if self._dev is not None:
+                return
+            try:
+                self._ensure_open()
+                self._dev.on_dropped = self.on_dropped
+            except Exception as exc:  # noqa: BLE001 — classified as lost
+                raise DeviceLost(
+                    f"the instrument could not be opened ({exc})") from exc
 
     #: Where the last Bluetooth address is remembered between sessions.
     REMEMBERED_ADDRESS_KEY = "cr30_ble_address"
@@ -891,6 +951,58 @@ class DeviceReader:
         address = getattr(getattr(dev, "_t", None), "address", None)
         return f"ble:{address}" if address else None
 
+    def _note_device(self, dev) -> None:
+        """Log what the unit says about itself, once per connection.
+
+        Model, serial, internal id, software and hardware version (Basti,
+        2026-10-09), so a bug report can say which unit and which firmware it
+        came from, with a marked line when the firmware is not the one ChromIQ
+        was tested with. Never on screen: there is no way for an owner to
+        update the firmware, so a note would only worry them.
+
+        AND THE SERIAL BECOMES THE UNIT'S KEY. The learned white-tile signature
+        is filed under the serial the unit states itself -- over USB from
+        `AA 0A 01`, over Bluetooth from `BB 12 01` -- rather than under the
+        advertised name, which a connection by address may not even have. A
+        signature kept under the older key is re-filed here, over this very
+        link (`tile_learning.adopt_legacy_key`).
+
+        A failure is logged and ignored. Over Bluetooth the question is bounded
+        at five seconds; nobody is ever kept from measuring by it.
+        """
+        try:
+            from .device_info import log_connect, remember_last
+            from .tile_learning import adopt_legacy_key
+        except Exception:            # noqa: BLE001 — a log line, never a need
+            log.debug("CR30: device info support unavailable", exc_info=True)
+            return
+        reader = getattr(dev, "read_device_info", None)
+        if reader is None:
+            return
+        import time as _t
+        t0 = _t.monotonic()
+        try:
+            info = reader()
+        except Exception as exc:     # noqa: BLE001 — logged, never fatal
+            log.info("CR30: the instrument did not describe itself over %s "
+                     "(%s after %.1f s); carrying on without it",
+                     "Bluetooth" if getattr(dev, "kind", "") == "ble"
+                     else "USB", exc or type(exc).__name__,
+                     _t.monotonic() - t0)
+            return
+        log_connect(info)
+        remember_last(info)
+        serial = (getattr(info, "serial", "") or "").strip()
+        if not serial:
+            return
+        before = getattr(dev, "unit_id", None)
+        address = getattr(getattr(dev, "_t", None), "address", None)
+        for legacy in (before, getattr(info, "internal_id", None),
+                       f"ble:{address}" if address else None):
+            if legacy and legacy != serial:
+                adopt_legacy_key(legacy, serial)
+        dev.unit_id = serial
+
     def _arm_tile_guard(self, dev):
         """Give the instrument its OWN tile constant, if we have learned it.
 
@@ -903,6 +1015,7 @@ class DeviceReader:
         different unit, so the failure direction stays "unarmed", never "a real
         patch refused".
         """
+        self._note_device(dev)
         try:
             from .tile_learning import adopt_address_key, learned_signature
             # THE IDENTITY IS THE UNIT, THE ADDRESS IS A LOCATOR.
@@ -968,7 +1081,7 @@ class DeviceReader:
         with self._lock:
             if self._dev is None:
                 try:
-                    self._dev = self._open()
+                    self._ensure_open()
                     self._dev.on_dropped = self.on_dropped
                 except Exception as exc:      # noqa: BLE001 — classified below
                     # AN INSTRUMENT THAT CANNOT BE OPENED IS A LOST ONE.
@@ -982,7 +1095,6 @@ class DeviceReader:
                     from .device import DeviceLost
                     raise DeviceLost(
                         f"the instrument could not be opened ({exc})") from exc
-                log.info("CR30: opened over %s", self._dev.kind)
             from .device import DeviceLost
             self._reading_in_flight = True
             armed_as = self._arm_token
@@ -1078,9 +1190,7 @@ class DeviceReader:
         from .tile_learning import TileLearner, remember_signature
         learner, presses = TileLearner(), 0
         with self._lock:
-            if self._dev is None:
-                self._dev = self._open()
-                log.info("CR30: opened over %s", self._dev.kind)
+            self._ensure_open()
             for _ in range(self.MAX_LEARNING_PRESSES):
                 if cancelled is not None and cancelled():
                     break
@@ -1201,8 +1311,7 @@ class DeviceReader:
         """
         from .measurement import MeasurementError
         with self._lock:
-            if self._dev is None:
-                self._dev = self._open()
+            self._ensure_open()
             if not self.trigger_allowed():
                 raise MeasurementError(
                     "ChromIQ will not take a reading for you on this "
@@ -1248,9 +1357,7 @@ class DeviceReader:
         precisely the dead session this work has been removing.
         """
         with self._lock:
-            if self._dev is None:
-                self._dev = self._open()
-                log.info("CR30: opened over %s", self._dev.kind)
+            self._ensure_open()
             self._dev.calibrate(black=black)
             if black:
                 # The dark reference leaves nothing we want to keep as the
@@ -1373,6 +1480,7 @@ class DeviceReader:
         # normal and goes round again. Cancelling is what the loop actually
         # checks.
         self._cancel = True
+        self._closed = True
         self.disarm_trigger()
         got = self._lock.acquire(timeout=2.0)
         try:
@@ -1391,3 +1499,33 @@ class DeviceReader:
                 dev.close()
             except Exception:             # noqa: BLE001 — teardown only
                 log.debug("CR30: close failed", exc_info=True)
+
+
+#: Every reader that has not been closed yet, so quitting the app can let go of
+#: the instrument even if a window forgot to. Weak, so a reader nobody holds is
+#: not kept alive by this list.
+import weakref as _weakref                                   # noqa: E402
+_LIVE_READERS: "_weakref.WeakSet[DeviceReader]" = _weakref.WeakSet()
+
+
+def close_all_readers() -> int:
+    """Close every reader still open. Returns how many held an instrument.
+
+    Connected to the application's quit, so the last path out of ChromIQ also
+    disconnects: a CR30 still held over Bluetooth stops advertising, and the
+    next program to look for it -- ChromIQ started again, or the phone app --
+    would not find it.
+    """
+    n = 0
+    for reader in list(_LIVE_READERS):
+        if getattr(reader, "_closed", False):
+            continue
+        if getattr(reader, "_dev", None) is not None:
+            n += 1
+        try:
+            reader.close()
+        except Exception:            # noqa: BLE001 — quitting regardless
+            log.debug("CR30: closing a reader at quit failed", exc_info=True)
+    if n:
+        log.info("CR30: let go of the instrument on the way out")
+    return n

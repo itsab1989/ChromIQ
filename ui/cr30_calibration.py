@@ -225,6 +225,21 @@ class Cr30CalibrationMixin:
 
         _run_calibration(black=False)
 
+        # THE WINDOW MAY HAVE LET GO WHILE THE CALIBRATION RAN. Waiting above
+        # is a nested event loop, so Close, Escape or Stop is delivered in the
+        # middle of it -- and on Bluetooth the open alone can take twenty
+        # seconds with nothing on screen, which is exactly when somebody gives
+        # up and closes the window. That closes this reader. Carrying on
+        # offered the teach-in on the closed reader, which quietly opened a
+        # NEW Bluetooth link that nothing held and nothing ever closed: the
+        # CR30 stayed connected, stopped advertising, and the next session
+        # could not find it (Basti, beta 16, 20:59:12 in his log). The host
+        # holding a different reader, or none, is the end of this calibration.
+        if getattr(self, "_cr30_reader", None) is not reader:
+            log.info("CR30: the window let go of the instrument during the "
+                     "calibration; not continuing it")
+            return False
+
         if "error" in result:
             self._log.appendPlainText("\n" + tr(
                 "The instrument could not be calibrated: {error}"
@@ -281,6 +296,8 @@ class Cr30CalibrationMixin:
         # The black step is next and it asks for the cap OFF, so the learning
         # press has to happen here or not at all this session.
         self._offer_cr30_tile_learning(reader)
+        if getattr(self, "_cr30_reader", None) is not reader:
+            return False          # let go during the teach-in; see above
 
         if want_black and not self._run_cr30_black_calibration():
             return False

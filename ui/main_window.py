@@ -3255,6 +3255,16 @@ class MainWindow(QMainWindow):
         # MeasureManager.note_app_quitting.
         self._mark_quit_on_the_measurement()
         self._runner.cleanup()
+        # LET GO OF A CR30 ON THE WAY OUT. ChromIQ's own reader holds the
+        # instrument in this process, and `_hard_exit` skips every destructor,
+        # so a Bluetooth link a window still held was dropped only when the OS
+        # noticed the process had gone. Disconnecting here lets the unit
+        # advertise again at once, for ChromIQ's next start or the phone app.
+        try:
+            from workflow.cr30.measure_bridge import close_all_readers
+            close_all_readers()
+        except Exception:              # noqa: BLE001 — quitting regardless
+            log.debug("could not let go of the CR30 at quit", exc_info=True)
         # LAST, and while the event loop is still alive: main._hard_exit calls
         # os._exit, which skips the flush QSettings would otherwise do on
         # destruction. Without this everything written above — the active tab,

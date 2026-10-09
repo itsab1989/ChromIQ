@@ -261,6 +261,16 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         #: What the last Clear took away, kept so it can be put back. Nothing
         #: the user made is destroyed without a way back; see `_on_clear`.
         self._cleared: list[SpotReading] = []
+        #: The patch number the last automatic name used. Names are never
+        #: re-used: deleting "Patch 2" of three makes the next reading
+        #: "Patch 4", not a second "Patch 3".
+        self._patch_counter = 0
+        #: What each Delete took away, newest last, as (row, reading) pairs,
+        #: so "Undo delete" and Cmd+Z put them back where they were. Forgotten
+        #: by the next reading, like the Clear undo.
+        self._deleted: "list[list[tuple[int, SpotReading]]]" = []
+        #: The counter Clear wiped, kept with `_cleared` for its undo.
+        self._cleared_counter = 0
         #: True once a reading exists that has not been written to a file, so
         #: closing the window can say so instead of binning a session.
         self._unsaved = False
@@ -435,6 +445,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._table.setColumnWidth(7, 128)          # Colour swatch (bigger)
         self._table.itemChanged.connect(self._on_item_changed)
         self._table.itemSelectionChanged.connect(self._update_average_btn)
+        # A reading can be deleted from where it is: right-click, as well as
+        # the Delete button and the Backspace / Delete keys (eventFilter).
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_table_menu)
         outer.addWidget(self._table, 1)
 
         # --- Session notes -------------------------------------------------
@@ -482,6 +496,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         )
         self._avg_btn.clicked.connect(self._on_average_selected)
         bottom.addWidget(self._avg_btn)
+
+        self._del_btn = QPushButton(tr("Delete"), self)
+        self._del_btn.setEnabled(False)
+        self._del_btn.setToolTip(tr(
+            "Delete the selected readings. The Backspace and Delete keys do "
+            "the same while the list has the focus, and Undo delete puts "
+            "them back."))
+        self._del_btn.clicked.connect(self._on_delete_button)
+        bottom.addWidget(self._del_btn)
 
         self._clear_btn = QPushButton(tr("Clear"), self)
         self._clear_btn.setEnabled(False)
@@ -696,6 +719,16 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         super().hideEvent(event)
 
     def _on_start_stop(self) -> None:
+        if self._cr30 is not None and self._cr30.is_running:
+            # STOP MEANS STOPPED, AT ONCE, WHATEVER THE INSTRUMENT IS DOING.
+            # This used to ask the read loop to finish and then wait for it to
+            # say so -- and a loop listening to a CR30 that had switched
+            # itself off never said anything, so Stop did nothing at all
+            # (Basti, beta 16). The session ends here, the instrument is let
+            # go (over Bluetooth that is what lets it advertise again), and
+            # the loop is left to finish in the background.
+            self._end_cr30_session()
+            return
         active = self._active_manager()
         if active.is_running:
             active.quit()
@@ -751,6 +784,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         mgr.read_refused.connect(self._on_cr30_refused)
         mgr.magnet_gated.connect(self._on_cr30_magnet)
         mgr.trigger_not_armed.connect(self._on_cr30_trigger_not_armed)
+        mgr.instrument_lost.connect(self._on_cr30_lost)
         mgr.session_ended.connect(self._on_session_ended)
         mgr.start(None, self._note)
 
@@ -839,6 +873,49 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
+
+    def _on_cr30_lost(self, reason: str) -> None:
+        """M-SPOT-CR30-GONE. The instrument stopped answering mid-session.
+
+        Basti, beta 16: the CR30 switched itself off, and once it was on again
+        nothing happened until the window was closed. The session is paused
+        rather than ended, every reading stays in the list, and the window
+        asks: reconnect, which looks for the instrument again and carries on,
+        or stop. A reconnect that still finds nothing comes back here.
+        """
+        if self.__dict__.get("_lost_window_open"):
+            return
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
+        log.info("spot read: the CR30 stopped answering (%s)", reason)
+        self._set_read_enabled(False)
+        self._note(reason)
+        title, body = M.M_SPOT_CR30_GONE.render()
+        self._set_status(title)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        again = box.addButton(tr("Reconnect"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        stop = box.addButton(tr("Stop session"),
+                             QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(again)
+        fit_message_box_buttons(box)
+        order_message_box_buttons(box, [again, stop])
+        self._lost_window_open = True
+        try:
+            clicked = self._ask(box)
+        finally:
+            self._lost_window_open = False
+        mgr = self._cr30
+        if clicked is again and mgr is not None:
+            self._set_status(tr("Looking for your CR30…"))
+            mgr.reconnect()
+            return
+        self._end_cr30_session()
 
     def _end_cr30_session(self) -> None:
         mgr, self._cr30 = self._cr30, None
@@ -979,6 +1056,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             return False
         if not (obj is self or (isinstance(obj, QWidget) and self.isAncestorOf(obj))):
             return False
+        if self._delete_key(obj, event):
+            return True
         if event.key() != Qt.Key.Key_Space:
             return False
         if event.modifiers() & (Qt.KeyboardModifier.ControlModifier
@@ -998,6 +1077,32 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             return False
         self._on_take_reading()
         return True
+
+    def _delete_key(self, obj, event) -> bool:
+        """Backspace / Delete remove the selected readings, Cmd+Z puts them
+        back -- ONLY while the readings list itself has the focus.
+
+        Not while a name is being edited (the editor is a QLineEdit, and a
+        Backspace there deletes a character), and not anywhere else in the
+        window, where the keys mean nothing to the list.
+        """
+        from PyQt6.QtGui import QKeySequence
+        # The key's RECEIVER, which is the focus widget: the list itself, and
+        # never the name editor (a QLineEdit inside it) or another control.
+        table = self.__dict__.get("_table")
+        if table is None or obj is not table:
+            return False
+        if table.state() == QAbstractItemView.State.EditingState:
+            return False
+        if event.matches(QKeySequence.StandardKey.Undo):
+            return self._undo_delete()
+        if event.key() not in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            return False
+        if event.modifiers() & (Qt.KeyboardModifier.ControlModifier
+                                | Qt.KeyboardModifier.MetaModifier
+                                | Qt.KeyboardModifier.AltModifier):
+            return False
+        return self._delete_selected() > 0
 
     def showEvent(self, event) -> None:   # noqa: N802, D102
         super().showEvent(event)
@@ -1111,8 +1216,20 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     # ------------------------------------------------------------------
     # Readings
     # ------------------------------------------------------------------
+    def _next_patch_number(self) -> int:
+        """The number for the next automatic name, never one already used.
+
+        It was `len(readings) + 1`, which was right only while nothing could
+        leave the list: with readings deletable, "Patch 2" of three deleted
+        would have made the next reading a second "Patch 3". Taking the larger
+        of the two keeps every earlier behaviour (an Average still counts as a
+        place in the list) and never repeats a number.
+        """
+        self._patch_counter = max(self._patch_counter, len(self._readings)) + 1
+        return self._patch_counter
+
     def _on_reading(self, xyz: tuple, lab: tuple) -> None:
-        name = tr("Patch {n}").format(n=len(self._readings) + 1)
+        name = tr("Patch {n}").format(n=self._next_patch_number())
         reading = SpotReading(name=name, xyz=tuple(xyz), lab=tuple(lab))
         self._readings.append(reading)
         self._append_row(reading)
@@ -1124,7 +1241,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                 name=name, l=lab[0], a=lab[1], b=lab[2])
         )
 
-    def _append_row(self, r: SpotReading) -> None:
+    def _append_row(self, r: SpotReading, row: "int | None" = None) -> None:
         # Follow the newest reading only while the reader is already looking at
         # it — the same rule as the log panes (`ui.widgets.TailFollowLog`), and
         # asked BEFORE the row exists, because a row added first makes the
@@ -1132,7 +1249,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         sb = self._table.verticalScrollBar()
         at_bottom = sb.value() >= sb.maximum()
         self._table.blockSignals(True)
-        row = self._table.rowCount()
+        if row is None or not 0 <= row <= self._table.rowCount():
+            row = self._table.rowCount()
         self._table.insertRow(row)
 
         name_item = QTableWidgetItem(r.name)
@@ -1168,6 +1286,112 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
 
     def _update_average_btn(self) -> None:
         self._avg_btn.setEnabled(len(self._selected_rows()) >= 2)
+        self._sync_delete_btn()
+
+    # ------------------------------------------------------------------
+    # Deleting single readings
+    # ------------------------------------------------------------------
+    def _sync_delete_btn(self) -> None:
+        """Delete while something is selected; Undo delete while nothing is
+        and a delete can still be put back. The Clear button's pattern."""
+        btn = self.__dict__.get("_del_btn")
+        if btn is None:
+            return
+        if self._selected_rows():
+            btn.setText(tr("Delete"))
+            btn.setEnabled(True)
+        elif self._deleted:
+            btn.setText(tr("Undo delete"))
+            btn.setEnabled(True)
+        else:
+            btn.setText(tr("Delete"))
+            btn.setEnabled(False)
+
+    def _on_delete_button(self) -> None:
+        if self._selected_rows():
+            self._delete_selected()
+        elif self._deleted:
+            self._undo_delete()
+
+    def _delete_selected(self) -> int:
+        """Remove the selected readings from the list and the table.
+
+        No question first, because nothing is lost: Undo delete (or Cmd+Z in
+        the list) puts them back in their places until the next reading. The
+        names of the readings that stay are not touched, so a number written
+        down beside a sample still points at the same reading, and the next
+        reading never re-uses a number (`_next_patch_number`). Returns how
+        many went.
+        """
+        rows = self._selected_rows()
+        if not rows:
+            return 0
+        # Remember the counter before anything leaves, so a later reading
+        # cannot take the number of one that was deleted.
+        self._patch_counter = max(self._patch_counter, len(self._readings))
+        batch = [(r, self._readings[r]) for r in rows
+                 if 0 <= r < len(self._readings)]
+        self._table.blockSignals(True)
+        try:
+            for r, _reading in sorted(batch, reverse=True):
+                del self._readings[r]
+                self._table.removeRow(r)
+        finally:
+            self._table.blockSignals(False)
+        self._table.clearSelection()
+        self._deleted.append(batch)
+        # The list no longer matches anything saved, so closing asks again
+        # while there is something left to lose.
+        self._unsaved = bool(self._readings)
+        self._save_btn.setEnabled(bool(self._readings))
+        self._avg_btn.setEnabled(False)
+        self._sync_clear_btn()
+        self._sync_delete_btn()
+        if len(batch) == 1:
+            self._set_status(tr("Deleted {name}.").format(name=batch[0][1].name))
+        else:
+            self._set_status(tr("Deleted {n} readings.").format(n=len(batch)))
+        return len(batch)
+
+    def _undo_delete(self) -> bool:
+        """Put the last deleted readings back where they were."""
+        if not self._deleted:
+            return False
+        batch = self._deleted.pop()
+        for r, reading in sorted(batch):
+            r = min(r, len(self._readings))
+            self._readings.insert(r, reading)
+            self._append_row(reading, r)
+        self._unsaved = True
+        self._save_btn.setEnabled(True)
+        self._sync_clear_btn()
+        self._sync_delete_btn()
+        if len(batch) == 1:
+            self._set_status(tr("Put back {name}.").format(name=batch[0][1].name))
+        else:
+            self._set_status(tr("Put back {n} readings.").format(n=len(batch)))
+        return True
+
+    def _table_menu(self):
+        """The list's right-click menu. Built here, shown by the caller, so a
+        test can read it without opening a popup."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self._table)
+        act = menu.addAction(tr("Delete"))
+        act.setEnabled(bool(self._selected_rows()))
+        act.triggered.connect(self._delete_selected)
+        if self._deleted:
+            undo = menu.addAction(tr("Undo delete"))
+            undo.triggered.connect(self._undo_delete)
+        return menu
+
+    def _on_table_menu(self, pos) -> None:
+        # A right-click on a row that is not selected acts on THAT row, the
+        # way a list in Finder does, rather than on a selection elsewhere.
+        idx = self._table.indexAt(pos)
+        if idx.isValid() and idx.row() not in self._selected_rows():
+            self._table.selectRow(idx.row())
+        self._table_menu().exec(self._table.viewport().mapToGlobal(pos))
 
     def _on_average_selected(self) -> None:
         rows = self._selected_rows()
@@ -1197,7 +1421,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         """A new reading replaces what Undo would put back."""
         if self._cleared:
             self._cleared = []
+        self._deleted = []
         self._sync_clear_btn()
+        self._sync_delete_btn()
 
     def _on_clear(self) -> None:
         """Clear the list, or put back the list that was cleared.
@@ -1212,6 +1438,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         """
         if not self._readings and self._cleared:
             restored, self._cleared = self._cleared, []
+            self._patch_counter = max(self._patch_counter,
+                                      self._cleared_counter)
             for r in restored:
                 self._readings.append(r)
                 self._append_row(r)
@@ -1226,11 +1454,17 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         if not self._confirm_clear():
             return
         self._cleared = list(self._readings)
+        # A cleared list starts again at "Patch 1", as it always has; the
+        # count is kept with the readings so Undo clear restores both.
+        self._cleared_counter = max(self._patch_counter, len(self._readings))
+        self._patch_counter = 0
+        self._deleted = []
         self._readings.clear()
         self._table.setRowCount(0)
         self._save_btn.setEnabled(False)
         self._avg_btn.setEnabled(False)
         self._sync_clear_btn()
+        self._sync_delete_btn()
 
     def _ask(self, box: QMessageBox):
         """Show a question window and return the button that was pressed.

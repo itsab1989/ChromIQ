@@ -339,6 +339,9 @@ def test_no_product_call_site_decodes_with_a_hard_coded_replace():
     allowed = {
         "core/icc_text.py", "workflow/icc_info.py", "workflow/tiff_metadata.py",
         "workflow/cr30/identity.py", "workflow/native_print_macos.py",
+        # the CR30 device-info research script (beta 3 merge): the vendor
+        # protocol's own fixed-width fields, read the same way as identity.py
+        "scripts/cr30_devinfo.py",
         "core/proc_text.py", "core/text_io.py",
         "ui/tabs/tab_chart.py",   # compares two .ti2 blobs ChromIQ itself wrote
     }

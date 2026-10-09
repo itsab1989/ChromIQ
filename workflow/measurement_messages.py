@@ -3175,6 +3175,26 @@ M_SPOT_UNSAVED = _m(
     count_key="n",
     approved=False)
 
+# --- PROPOSED: the CR30 stopped answering during a spot session ------------
+#
+# Basti, beta 16 (2026-10-09): the CR30 switched itself off during a session
+# in Tools ▸ Read single patches, Stop did nothing, and once it was on again
+# nothing happened until the window was closed. The session now pauses, keeps
+# every reading, and asks. The mechanism is in `ui/dialogs/spot_read_dialog.py`
+# and `workflow/cr30_spot_manager.py`; the WORDING waits here.
+M_SPOT_CR30_GONE = _m(
+    "M-SPOT-CR30-GONE",
+    "Your CR30 is not answering",
+    "ChromIQ has lost the connection to your CR30. Usually it has switched "
+    "itself off to save its battery, its USB cable has come out, or it is out "
+    "of Bluetooth range.\n\nEvery reading in this window is kept.\n\n"
+    "Switch the instrument on again (press its button once) or plug it back "
+    "in, then choose \u201cReconnect\u201d. ChromIQ looks for it and you carry "
+    "on reading. If it is still not there, this window comes back.\n\n"
+    "To finish instead, choose \u201cStop session\u201d. Your readings stay in "
+    "the list either way.",
+    approved=False)
+
 # --- PROPOSED: the reference file covers only part of the target -----------
 #: Review 5, 2026-09-03, finding D. A reference file holding the first 48 rows
 #: of the target's own correct 288-row reference builds a profile from a sixth
@@ -5171,7 +5191,7 @@ CATALOGUE = {m.id: m for m in (
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
     M_REPORT_NOT_SAVED,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
-    M_SPOT_CLEAR, M_SPOT_UNSAVED,
+    M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
     M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,
