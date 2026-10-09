@@ -65,11 +65,11 @@ def _tap(tmp_path: Path) -> Path:
 
 def test_a_beta_release_rewrites_only_the_beta_cask(tmp_path):
     t = _tap(tmp_path)
-    before = (t / "Casks" / "chromiq.rb").read_text()
+    before = (t / "Casks" / "chromiq.rb").read_text(encoding="utf-8")
     assert tap.main(["--tap", str(t), "--tag", "v9.9.9-beta.1",
                      "--arm-sha", ARM, "--intel-sha", INTEL]) == 0
-    assert (t / "Casks" / "chromiq.rb").read_text() == before
-    beta = (t / "Casks" / "chromiq@beta.rb").read_text()
+    assert (t / "Casks" / "chromiq.rb").read_text(encoding="utf-8") == before
+    beta = (t / "Casks" / "chromiq@beta.rb").read_text(encoding="utf-8")
     assert 'version "9.9.9-beta.1"' in beta
     assert f'sha256 arm:   "{ARM}"' in beta and f'intel: "{INTEL}"' in beta
 
@@ -79,31 +79,31 @@ def test_a_stable_release_rewrites_both_casks(tmp_path):
     assert tap.main(["--tap", str(t), "--tag", "v9.9.9",
                      "--arm-sha", ARM, "--intel-sha", INTEL]) == 0
     for name in ("chromiq.rb", "chromiq@beta.rb"):
-        text = (t / "Casks" / name).read_text()
+        text = (t / "Casks" / name).read_text(encoding="utf-8")
         assert 'version "9.9.9"' in text
         assert ARM in text and INTEL in text
         # nothing but the version and the two checksums changed
-        orig = (DATA / name).read_text()
+        orig = (DATA / name).read_text(encoding="utf-8")
         assert len(text.splitlines()) == len(orig.splitlines())
 
 
 def test_a_rerun_with_rebuilt_dmgs_refreshes_the_checksums(tmp_path):
     t = _tap(tmp_path)
-    beta_now = tap.cask_version((t / "Casks" / "chromiq@beta.rb").read_text())
-    stable_before = (t / "Casks" / "chromiq.rb").read_text()
+    beta_now = tap.cask_version((t / "Casks" / "chromiq@beta.rb").read_text(encoding="utf-8"))
+    stable_before = (t / "Casks" / "chromiq.rb").read_text(encoding="utf-8")
     assert tap.main(["--tap", str(t), "--tag", f"v{beta_now}",
                      "--arm-sha", ARM, "--intel-sha", INTEL]) == 0
-    beta = (t / "Casks" / "chromiq@beta.rb").read_text()
+    beta = (t / "Casks" / "chromiq@beta.rb").read_text(encoding="utf-8")
     assert f'version "{beta_now}"' in beta and ARM in beta and INTEL in beta
-    assert (t / "Casks" / "chromiq.rb").read_text() == stable_before
+    assert (t / "Casks" / "chromiq.rb").read_text(encoding="utf-8") == stable_before
 
 
 def test_an_older_tag_changes_no_file(tmp_path):
     t = _tap(tmp_path)
-    before = {f.name: f.read_text() for f in (t / "Casks").iterdir()}
+    before = {f.name: f.read_text(encoding="utf-8") for f in (t / "Casks").iterdir()}
     assert tap.main(["--tap", str(t), "--tag", "v1.0.0",
                      "--arm-sha", ARM, "--intel-sha", INTEL]) == 0
-    assert {f.name: f.read_text() for f in (t / "Casks").iterdir()} == before
+    assert {f.name: f.read_text(encoding="utf-8") for f in (t / "Casks").iterdir()} == before
 
 
 @pytest.mark.parametrize("tag", ["4.3.4", "garbage", "research-integration-6", ""])
@@ -124,8 +124,8 @@ def test_a_bad_checksum_is_refused(tmp_path, bad):
 
 
 def test_the_casks_keep_their_safeguards():
-    stable = (DATA / "chromiq.rb").read_text()
-    beta = (DATA / "chromiq@beta.rb").read_text()
+    stable = (DATA / "chromiq.rb").read_text(encoding="utf-8")
+    beta = (DATA / "chromiq@beta.rb").read_text(encoding="utf-8")
     assert 'conflicts_with cask: "chromiq@beta"' in stable
     assert 'conflicts_with cask: "chromiq"' in beta
     assert "strategy :github_latest" in stable  # stable cask: no pre-releases
@@ -141,7 +141,7 @@ def test_the_casks_keep_their_safeguards():
 
 
 def test_the_release_workflow_updates_the_tap_after_every_macos_build():
-    wf = (ROOT / ".github" / "workflows" / "build-release.yml").read_text()
+    wf = (ROOT / ".github" / "workflows" / "build-release.yml").read_text(encoding="utf-8")
     job = wf.split("\n  homebrew:\n", 1)[1]
     assert "needs: build" in job
     assert "!inputs.dry_run" in job
@@ -161,7 +161,7 @@ def test_the_release_workflow_updates_the_tap_after_every_macos_build():
 
 def test_the_tap_job_downloads_the_dmgs_the_build_uploads():
     """The names the homebrew job downloads are the names the build uploads."""
-    wf = (ROOT / ".github" / "workflows" / "build-release.yml").read_text()
+    wf = (ROOT / ".github" / "workflows" / "build-release.yml").read_text(encoding="utf-8")
     build, job = wf.split("\n  homebrew:\n", 1)
     assert "artifact: ChromIQ-macOS-arm64.dmg" in build
     assert 'VERSIONED="${ART%.dmg}_${RELEASE_TAG}.dmg"' in build
@@ -170,7 +170,7 @@ def test_the_tap_job_downloads_the_dmgs_the_build_uploads():
     assert "for a in arm64 x86_64" in job
     # and the casks ask for the same files
     for name in ("chromiq.rb", "chromiq@beta.rb"):
-        cask = (DATA / name).read_text()
+        cask = (DATA / name).read_text(encoding="utf-8")
         assert 'arch arm: "arm64", intel: "x86_64"' in cask
         assert "ChromIQ-macOS-#{arch}_v#{version}.dmg" in cask
 
