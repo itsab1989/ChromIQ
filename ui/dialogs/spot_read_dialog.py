@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from core.stem_paths import artefact, without_ext
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtGui import QColor, QPen
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QAbstractSpinBox,
@@ -35,6 +35,8 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QSplitter,
+    QStyle,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -102,6 +104,43 @@ def _ink_on(hex_colour: str) -> str:
     on_white = 1.05 / (lum + 0.05)
     return "#0a0a0a" if on_dark >= on_white else "#ffffff"
 
+
+
+class _SwatchCellDelegate(QStyledItemDelegate):
+    """The Colour cell keeps its own colour when its row is selected.
+
+    The row's selection fill used to cover the swatch too, so the selected
+    reading's colour was the one colour the list did not show (#d43d49 came
+    up green; review of beta 17's hand-test fixes). The cell is painted as if
+    unselected, swatch and contrast ink intact, and the selection is drawn as
+    a frame in the selection colour around it, so the band across the row
+    still runs through the cell.
+    """
+
+    _FRAME = 3
+
+    def __init__(self, frame_colour: str, parent=None) -> None:
+        super().__init__(parent)
+        self._frame_colour = QColor(frame_colour)
+
+    def initStyleOption(self, option, index) -> None:  # noqa: N802
+        super().initStyleOption(option, index)
+        option.state &= ~QStyle.StateFlag.State_Selected
+
+    def paint(self, painter, option, index) -> None:  # noqa: D102
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        super().paint(painter, option, index)
+        if not selected:
+            return
+        painter.save()
+        pen = QPen(self._frame_colour)
+        pen.setWidth(self._FRAME)
+        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        half = self._FRAME // 2
+        painter.drawRect(option.rect.adjusted(half, half, -half - 1, -half - 1))
+        painter.restore()
 
 #: The instruments this window can read with, in the app's own vocabulary.
 #:
@@ -344,6 +383,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         outer.setContentsMargins(22, 14, 22, 16)
         outer.setSpacing(12)
         root.addLayout(outer)
+        self._outer = outer
 
         body = QLabel(
             tr("Measure single colours off any material and save their L*a*b* values."),
@@ -576,8 +616,13 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         close_btn = QPushButton(tr("Close"), self)
         close_btn.clicked.connect(self.reject)
         bottom.addWidget(close_btn)
+        self._close_btn = close_btn
 
         outer.addLayout(bottom)
+        #: The button row, and whether Save / Close were moved to a second
+        #: row because the whole row is wider than the screen (_settle_size).
+        self._bottom = bottom
+        self._row_wrapped = False
 
         # THREE BUTTONS CHANGE THEIR WORDS, SO EACH IS AS WIDE AS ITS LONGEST.
         # Fitted to "Delete" when the window opened, the button then painted
@@ -597,6 +642,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # the main window's rule for a tab's lists (`_apply_tab_widget_styling`):
         # only the two selection properties, nothing else of the sheet moves.
         _sel_bg, _sel_fg = _popup_pair(_ACCENT)
+        # The Colour cell is the reading itself: selected, it keeps its own
+        # colour and shows the selection as a frame (_SwatchCellDelegate).
+        self._table.setItemDelegateForColumn(
+            7, _SwatchCellDelegate(_sel_bg, self._table))
         self.setStyleSheet(
             neutral_controls_qss(_indicator_color(settings), popup=_ACCENT)
             + f"QTableView, QMenu {{ selection-background-color: {_sel_bg};"
@@ -1242,6 +1291,34 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             want = min(want, screen.availableGeometry().height() - _TITLE_BAR)
         return max(want, self.minimumSizeHint().height())
 
+    def _work_area_width(self) -> int:
+        """The width of the screen this window opens on, menu bar and Dock
+        taken off; 0 when there is no screen to ask."""
+        screen = self.screen()
+        return screen.availableGeometry().width() if screen is not None else 0
+
+    def _wrap_button_row(self) -> None:
+        """Move Save and Close from the end of the button row to a row of
+        their own under it, right-aligned as before."""
+        bottom = self._bottom
+        for i in reversed(range(bottom.count())):
+            item = bottom.itemAt(i)
+            if item.widget() is None:          # the stretch before Save
+                bottom.takeAt(i)
+        bottom.removeWidget(self._save_btn)
+        bottom.removeWidget(self._close_btn)
+        bottom.addStretch(1)
+        second = QHBoxLayout()
+        second.setSpacing(bottom.spacing())
+        second.addStretch(1)
+        second.addWidget(self._save_btn)
+        second.addWidget(self._close_btn)
+        outer = self._outer
+        at = next(i for i in range(outer.count())
+                  if outer.itemAt(i).layout() is bottom)
+        outer.insertLayout(at + 1, second)
+        self._row_wrapped = True
+
     def _settle_size(self) -> None:
         """Floors and the first size, measured once the buttons and the list
         carry the fonts they are painted in."""
@@ -1251,10 +1328,22 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # below what the row needs, so at the minimum width "Average selected"
         # and "Delete" were painted over each other; in French and German the
         # row needs more again.
+        #
+        # …NOR WIDER THAN THE SCREEN IT OPENS ON. French needs 1283 px for the
+        # row, more than a 1280-wide screen has. Then Save and Close move to a
+        # second row under the others, and only if even that is too wide is
+        # the minimum held to the screen.
         lay = self.layout()
         if lay is not None:
             lay.activate()
             need = lay.minimumSize().width()
+            avail = self._work_area_width()
+            if avail and need > avail and not self._row_wrapped:
+                self._wrap_button_row()
+                lay.activate()
+                need = lay.minimumSize().width()
+            if avail:
+                need = min(need, avail)
             if need > self.minimumWidth():
                 self.setMinimumWidth(need)
         # A window nobody has sized gets the default height. Qt's own first

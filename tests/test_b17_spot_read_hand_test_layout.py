@@ -42,6 +42,18 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
+#: The offscreen platform's screen is 800 px wide, narrower than this window
+#: in every language, so the tests give it the work area of the Mac the
+#: on-screen drives ran on unless a test asks for another.
+_WORK_AREA_W = 1728
+
+
+@pytest.fixture(autouse=True)
+def _a_mac_sized_screen(monkeypatch):
+    monkeypatch.setattr(SpotReadDialog, "_work_area_width",
+                        lambda self: _WORK_AREA_W)
+
+
 def _build(qapp, lang="en"):
     i18n.set_language(lang)
     s = AppSettings()
@@ -234,5 +246,120 @@ def test_default_height_is_capped_by_a_short_screen(qapp, monkeypatch):
         monkeypatch.setattr(d, "screen", lambda: _Screen())
         assert d._default_height() <= max(500 - srd._TITLE_BAR,
                                           d.minimumSizeHint().height())
+    finally:
+        _close(d)
+
+
+# --- review: the selected reading keeps its own colour ---------------------------
+def test_selected_row_keeps_its_swatch_colour_and_frames_it(qapp):
+    """The row's green selection fill painted over the Colour cell too, so
+    the selected reading's own colour was hidden (#d43d49 showed green). The
+    cell keeps its colour and its contrast ink; the selection is a frame."""
+    d = _build(qapp)
+    try:
+        bg, _fg = _popup_pair(srd._ACCENT)
+        d._on_reading((10.0, 10.0, 10.0), (60.0, 0.0, 0.0))
+        d._on_reading((12.0, 11.0, 12.0), (50.0, 60.0, 30.0))
+        t = d._table
+        assert t.item(1, 7).text() == "#d43d49"
+        t.selectRow(1)
+        t.setCurrentCell(0, 0)          # no focus frame on the cell we sample
+        t.selectRow(1)
+        QApplication.processEvents()
+        img = t.viewport().grab().toImage()
+        dpr = img.devicePixelRatio()
+
+        def px(x, y):
+            return img.pixelColor(int(x * dpr), int(y * dpr))
+
+        def near(c, hex_):
+            want = QColor(hex_)
+            return max(abs(c.red() - want.red()), abs(c.green() - want.green()),
+                       abs(c.blue() - want.blue())) <= 6
+
+        sw = t.visualRect(t.model().index(1, 7))
+        name = t.visualRect(t.model().index(1, 0))
+        # inside the frame, clear of the centred hex code: the reading's red
+        inner = px(sw.left() + 10, sw.center().y())
+        assert near(inner, "#d43d49"), inner.name()
+        # the frame itself: the selection colour
+        edge = px(sw.left() + 1, sw.center().y())
+        assert near(edge, bg), edge.name()
+        # the other cells of the row still show the selection fill
+        assert near(px(name.right() - 4, name.center().y()), bg)
+        # unselected, the cell has no frame
+        t.clearSelection()
+        QApplication.processEvents()
+        img = t.viewport().grab().toImage()
+        assert near(px(sw.left() + 1, sw.center().y()), "#d43d49")
+        # the ink is still the contrast ink
+        assert t.item(1, 7).foreground().color() == QColor(srd._ink_on("#d43d49"))
+    finally:
+        _close(d)
+
+
+# --- review: never wider than the screen it opens on ----------------------------
+_LANGS = ["en"] + sorted(p.stem for p in __import__("pathlib").Path(
+    srd.__file__).resolve().parents[2].joinpath("data", "i18n").glob("*.json"))
+
+
+def _build_on_screen_of_width(qapp, monkeypatch, lang, width):
+    i18n.set_language(lang)
+    s = AppSettings()
+    d = SpotReadDialog(ArgyllRunner(s), s)
+    monkeypatch.setattr(d, "_work_area_width", lambda: width)
+    d.show()
+    QTest.qWaitForWindowExposed(d, 2000)
+    return d
+
+
+def _rows_do_not_overlap(d):
+    btns = [d._start_btn, d._read_btn, d._avg_btn, d._del_btn,
+            d._clear_btn, d._save_btn, d._close_btn]
+    for b in btns:
+        assert b.width() >= b.minimumWidth(), b.text()
+    for a, b in zip(btns, btns[1:]):
+        if a.geometry().top() < b.geometry().bottom() \
+                and b.geometry().top() < a.geometry().bottom():      # same row
+            assert a.geometry().right() < b.geometry().left(), (a.text(), b.text())
+
+
+@pytest.mark.parametrize("lang", _LANGS)
+@pytest.mark.parametrize("screen_w", [1280, 1440])
+def test_window_is_never_wider_than_its_screen(qapp, monkeypatch, lang, screen_w):
+    d = _build_on_screen_of_width(qapp, monkeypatch, lang, screen_w)
+    try:
+        d._on_reading((10.0, 10.0, 10.0), (40.0, 0.0, 0.0))
+        d._table.selectRow(0)
+        d._delete_selected()                     # "Undo delete", the longest
+        d._start_btn.setText(i18n.tr("Stop session"))
+        assert d.minimumWidth() <= screen_w, (lang, d.minimumWidth())
+        assert d.width() <= screen_w, (lang, d.width())
+        d.resize(d.minimumWidth(), d.height())
+        QApplication.processEvents()
+        _rows_do_not_overlap(d)
+        # the row only wraps when it has to
+        one_row = d._save_btn.geometry().top() < d._start_btn.geometry().bottom()
+        assert one_row != d._row_wrapped
+    finally:
+        _close(d)
+
+
+def test_a_row_wider_than_the_screen_moves_save_and_close_to_a_second_row(
+        qapp, monkeypatch):
+    """On screen, French needs 1283 px on a 1280-wide screen. The offscreen
+    fonts differ, so the screen is made 3 px narrower than the row here."""
+    d = _build_on_screen_of_width(qapp, monkeypatch, "fr", _WORK_AREA_W)
+    need = d.minimumWidth()
+    assert not d._row_wrapped
+    _close(d)
+    d = _build_on_screen_of_width(qapp, monkeypatch, "fr", need - 3)
+    try:
+        assert d._row_wrapped
+        assert d.minimumWidth() <= need - 3 and d.width() <= need - 3
+        assert d._save_btn.geometry().top() > d._start_btn.geometry().bottom()
+        # still right-aligned, Close last
+        assert d._close_btn.geometry().right() > d._save_btn.geometry().right()
+        _rows_do_not_overlap(d)
     finally:
         _close(d)

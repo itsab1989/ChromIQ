@@ -794,6 +794,22 @@ class TailFollowLog(QPlainTextEdit):
     def insertPlainText(self, text: str) -> None:          # noqa: N802
         self._append_through(super().insertPlainText, text)
 
+    # -- a pane made shorter is not a reader scrolling away ----------------
+    def resizeEvent(self, event) -> None:                  # noqa: N802
+        """Keep showing the newest line through a resize.
+
+        Qt keeps the FIRST visible line when the viewport changes height, so
+        a pane at the bottom that is made shorter (a splitter dragged, the
+        window shrunk) was left above its own end, and every later line
+        landed out of sight: measured on screen in Read single patches,
+        beta 17, value 27 of 29 after one drag of its divider.
+        """
+        follow = self.is_at_bottom()
+        super().resizeEvent(event)
+        if follow:
+            sb = self.verticalScrollBar()
+            sb.setValue(sb.maximum())
+
     # -- a fresh document starts at the top, which is also its bottom ------
     def clear(self) -> None:
         self._following_tail = True
