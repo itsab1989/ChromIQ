@@ -3601,15 +3601,18 @@ ROWS_ORDINARY = (
     # so it is expected on the date after a swing, never on a first date.
     "repeat_patches_de00_max",
 )
-#: **AND THE 95TH-PERCENTILE CONTROL-STRIP ROW IS NOT IN THE SECOND LIST.**
-#: ChromIQ's ladder has 29 rungs and a FROM PROFILE GAMUT chart fills 17 of
-#: them (measured 2026-09-19: the eight corners, three greys and six tints;
-#: the twelve it misses are single-ink and two-ink tints, which a selection
-#: made out of a profile's own gamut simply does not contain). Seventeen is
-#: past the eight a strip needs and short of the twenty the 95th percentile
-#: needs, so that row reads `control_strip_too_small` on this kind of chart
-#: however well it measures. The row's cell in the matrix is filled by the
-#: ORDINARY run of the same set, which is the pair each set has.
+#: **THE 95TH-PERCENTILE CONTROL-STRIP ROW IS IN THE SECOND LIST SINCE
+#: 4.3.4 BETA 1.** ChromIQ's ladder has 29 rungs. Until then a FROM PROFILE
+#: GAMUT chart filled 17 of them (measured 2026-09-19: the eight corners,
+#: three greys and six tints; the twelve it missed were single-ink and two-ink
+#: tints, which the first reachable master colours in master order did not
+#: contain), short of the twenty the 95th percentile needs, and the row read
+#: `control_strip_too_small` on this kind of chart. Since the chart's colours
+#: are spread over the profile's gamut (B4, Knut #182 6096108924) the same
+#: charts fill 22 to 25 rungs (measured 2026-10-10, review R4: every From
+#: Profile Gamut run of this package), so the row is answered here as well.
+#: A strip too short for the row is still shown, by Report-Limits-Border-
+#: Conditions run1 (8 rungs).
 ROWS_GAMUT = (
     "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
     "all_de00_p95",
@@ -3624,6 +3627,7 @@ ROWS_GAMUT = (
     "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
     "substrate_de00_max", "solids_de00_max",
     "cmy_solids_dhab_max", "control_strip_de00_avg", "control_strip_de00_max",
+    "control_strip_de00_p95",
     "surface_gamut_de00_avg", "outer_gamut_226_de00_avg",
 )
 #: Every row an isolation run is NOT about, relaxed so the one it is about
@@ -3885,14 +3889,9 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
                "it has no value to judge here and is exercised on the "
                "ordinary charts instead, and neither is ChromIQ's row for "
                "repeat patches on one sheet, because this chart repeats no "
-               "colour. 'Control-strip patches, 95th percentile' is "
-               "withheld too, and for a reason this chart shows better than "
-               "any other: ChromIQ declares a control strip on it, of "
-               "seventeen of the twenty-nine rungs it looks for, and the "
-               "95th percentile needs twenty before its nearest rank stops "
-               "being the largest patch again. The other two strip rows are "
-               "judged here; that one is judged on the ordinary chart of the "
-               "same column."
+               "colour. All three control-strip rows are judged here: "
+               "ChromIQ declares a control strip on this chart of more than "
+               "the twenty rungs the 95th percentile needs."
                if kind == "gamut" else
                "The two solid-colour rows have no value here: this chart is "
                "printed through the profile, so its solids are not the "
@@ -4585,10 +4584,10 @@ PROJECTS = [
                 "one at a time, isolated by limits edited for its reports.",
                 CHART_MEDIUM, CHART_GAMUT, "chromiq_default",
                 GAMUT_ISOLATION,
-                # 17 of the 29 rungs, measured: the eight corners, three
-                # greys and six tints. Enough to declare, three short of the
-                # twenty the 95th-percentile row needs.
-                expect_strip_p95=False,
+                # 24 of the 29 rungs since 4.3.4 beta 1 (measured, review
+                # R4), enough for the 95th-percentile row; 17 before, when
+                # the chart's colours were taken in master order.
+                expect_strip_p95=True,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("substrate_de00_max", "solids_de00_max",
@@ -4600,7 +4599,7 @@ PROJECTS = [
         RunPlan("The same kind of chart under Custom ISO 12647-7, which "
                 "already puts a number on every judgeable row.",
                 CHART_MEDIUM, CHART_GAMUT, "custom_iso_12647_7",
-                matrix_dates("custom_iso_12647_7", "gamut"), expect_strip_p95=False,
+                matrix_dates("custom_iso_12647_7", "gamut"), expect_strip_p95=True,
                 note="The limits of this column are not edited by this "
                      "package and must not be: they are the column's own "
                      "starting numbers, researched industry figures and "
@@ -4738,7 +4737,7 @@ PROJECTS = [
                     f"chart can answer{_that_it_limits(set_id)}: over on one "
                     f"date, inside on the next.",
                     CHART_SMALL, CHART_GAMUT, set_id,
-                    matrix_dates(set_id, "gamut"), expect_strip_p95=False,
+                    matrix_dates(set_id, "gamut"), expect_strip_p95=True,
                     edited_limits=matrix_edited_limits(set_id)),
         )
     ]),
@@ -4772,7 +4771,7 @@ PROJECTS = [
         RunPlan("A From Profile Gamut chart on brightened glossy paper, the "
                 "paper white isolated by limits edited for its reports.",
                 CHART_MEDIUM, CHART_GAMUT_SMALL, "chromiq_default",
-                PAPER_GAMUT_WHITE, paper_class="glossy_oba", expect_strip_p95=False,
+                PAPER_GAMUT_WHITE, paper_class="glossy_oba", expect_strip_p95=True,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("substrate_de00_max",))),
@@ -4821,7 +4820,7 @@ PROJECTS = [
                     f"{PAPER_CLASSES[_SECOND_PAPER[set_id][1]].name.lower()}.",
                     CHART_SMALL, CHART_GAMUT_SMALL, set_id,
                     _second_route(set_id, "gamut"),
-                    paper_class=_SECOND_PAPER[set_id][1], expect_strip_p95=False,
+                    paper_class=_SECOND_PAPER[set_id][1], expect_strip_p95=True,
                     edited_limits=matrix_edited_limits(set_id)),
         )
     ]),
