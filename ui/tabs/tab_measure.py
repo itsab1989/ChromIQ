@@ -7194,6 +7194,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Strip readings held, unjudged, while "Was a strip read twice?"
         # asks about them (#182 6094941512, 4.3.4 beta 1).
         self._read_twice_held = {}
+        self._all_done_after_answer = False
 
         # #130 Hole 1: don't start a verification of a run that has no profile.
         block = self._verification_guard()
@@ -7958,6 +7959,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             while pending():
                 mgr.answer_read_twice(None)
             self._read_twice_held = {}
+            self._all_done_after_answer = False
             return
         if self._a_question_is_open():
             return              # that window's release asks again
@@ -7977,6 +7979,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # beta 11), so it is neither a suspect in the closing window nor a
         # comparison for the patches of other strips.
         self._neighbour_forget(self._set_aside_locs())
+        # "Every strip read" came while the reading was held (the window
+        # opened on the last strip): decided now, with the answer in
+        # (review R1 of 4.3.4 beta 1).
+        if (getattr(self, "_all_done_after_answer", False)
+                and not getattr(self, "_read_twice_held", None)):
+            self._all_done_after_answer = False
+            self._on_all_stripes_done()
 
     # ---- A reading "Was a strip read twice?" asks about waits for the answer
     #
@@ -8017,11 +8026,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         replaces the held one: the answer is about the strip's latest
         reading, as the manager's is."""
         strip = str(ev.get("strip", "") or "")
-        if not strip or not self._read_twice_waiting(strip):
+        if not strip:
             return False
         held = getattr(self, "_read_twice_held", None)
         if held is None:
             held = self._read_twice_held = {}
+        if not self._read_twice_waiting(strip):
+            # A newer reading of the strip the manager did NOT find suspect
+            # replaces the one the window asks about: that one is no longer
+            # the engine's, so it is never judged, and this one is judged
+            # now, as the file will keep it (review R1 of 4.3.4 beta 1).
+            held.pop(strip, None)
+            return False
         held[strip] = ev
         log.info("strip %s: its reading waits for the answer to \"Was a "
                  "strip read twice?\" before it is judged", strip)
@@ -11169,6 +11185,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._skip_next_all_done = False
             return
         if self._all_done_shown:
+            return
+        if (getattr(self, "_session_live", False)
+                and getattr(self, "_read_twice_held", None)):
+            # The last strip's reading waits for "Was a strip read twice?"
+            # (Knut, #182 6094941512), so it is not counted yet: whether the
+            # chart is finished is decided once it is answered, never with a
+            # strip missing that is only waiting (review R1 of 4.3.4 beta 1:
+            # "8 patches still have no reading" was logged, and after Keep
+            # the finished window never came).
+            self._all_done_after_answer = True
             return
         # ALL STRIPS IS NOT ALL PATCHES (#156, Knut).
         #

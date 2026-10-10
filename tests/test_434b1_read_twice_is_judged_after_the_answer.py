@@ -77,10 +77,30 @@ CHECKS = {
                   "patch_neighbour_limit_estimated": 3.0},
 }
 
+#: Every chart type the window can appear on (any chart ChromIQ's engine
+#: reads by strips): each is judged with its own column of Preferences ▸
+#: Measurement (review R1 of 4.3.4 beta 1: the first version tested only
+#: profiling charts with estimated colours; Knut's was a verification).
+KINDS = ("estimated", "accurate", "verification", "calibration")
 
-@pytest.fixture(params=list(CHECKS))
+
+def _for_kind(check: str, kind: str) -> dict:
+    """CHECKS[*check*] in *kind*'s own column of the table."""
+    from workflow import misread_settings as MS
+    out = {MS.PATCH_ERROR_LIMIT_KEYS[kind]: 5.0,
+           MS.STRIP_TEST_KEYS[kind]: False}
+    if check == "neighbour":
+        out.update({MS.PATCH_ERROR_LIMIT_KEYS[kind]: 200.0,
+                    MS.NEIGHBOUR_RADIUS_KEYS[kind]: 100.0,
+                    MS.NEIGHBOUR_LIMIT_KEYS[kind]: 3.0})
+    return out
+
+
+@pytest.fixture(params=[(c, k) for c in CHECKS for k in KINDS],
+                ids=[f"{c}-{k}" for c in CHECKS for k in KINDS])
 def checks(request):
-    return CHECKS[request.param]
+    check, kind = request.param
+    return {**_for_kind(check, kind), "_kind": kind}
 
 
 @pytest.fixture
@@ -169,8 +189,20 @@ def _chart(tmp):
 def _tab(tmp, monkeypatch, settings=None):
     from core.argyll_runner import ArgyllRunner
     from ui.tabs.tab_measure import TabMeasure
+    settings = dict(settings or {})
+    kind = settings.pop("_kind", None)
     s = _Settings(settings)
     t = TabMeasure(ArgyllRunner(s), s)
+    if kind is not None:
+        # The chart type, as the chart would decide it (a calibration chart,
+        # a verification judged against its profile, ...). The real one
+        # still runs: reading the chart's facts sets up the yellow memory.
+        real_kind = t._chart_kind
+
+        def _kind():
+            real_kind()
+            return kind
+        t._chart_kind = _kind
     mgr = t._manager
     sent: "list[str]" = []
     mgr._runner.write_stdin = sent.append
@@ -377,3 +409,79 @@ def test_a_question_left_open_when_the_session_ends_draws_nothing(
         qapp.processEvents()
     assert opened == []
     assert _overlay(tab) == before
+
+
+# --- Review R1 of 4.3.4 beta 1: the window on the LAST strip, and a newer
+# reading of the strip while the window is open ---------------------------
+
+
+def _answering(monkeypatch, choice, during=None):
+    """Answer "Was a strip read twice?" with *choice*; *during* runs while
+    it is open (the instrument can read while a window asks)."""
+    real = QDialog.exec
+
+    def _exec(dlg):
+        if dlg.objectName() != "strip_read_twice_window":
+            return real(dlg)
+        if during is not None:
+            during()
+        button = CHOICES[choice][0]
+        if button is None:
+            dlg.reject()
+            return 0
+        dlg.findChildren(QPushButton)[button].click()
+        return 1
+    monkeypatch.setattr(QDialog, "exec", _exec)
+
+
+@pytest.mark.parametrize("choice", list(CHOICES))
+def test_the_window_on_the_last_strip(qapp, tmp_path, monkeypatch, choice):
+    """A, B, C read, the reader on D (the last strip), C's colours swiped
+    there, and the engine says every strip is read before the answer. The
+    held reading is not a missing one: no "patches still have no reading"
+    line, and the finished window comes after Keep (and closing), never
+    after Re-read or I read strip C, which leave D to be read again."""
+    tab = _tab(tmp_path, monkeypatch)
+    _run(qapp, tab, [_sread("A"), _sready("B"), _sread("B"), _sready("C"),
+                     _sread("C"), _sready("D")])
+    _answering(monkeypatch, choice)
+    lines: "list[str]" = []
+    monkeypatch.setattr(tab._log, "appendPlainText", lines.append)
+    shown: list = []
+    monkeypatch.setattr(tab, "_show_all_stripes_done",
+                        lambda: shown.append(True))
+    _run(qapp, tab, [_sread("D", like="C"),
+                     {"event": "strip_ready", "strip": "D", "read": True,
+                      "all_done": True}])
+    from PyQt6.QtTest import QTest
+    QTest.qWait(1200)           # the finished window's sound gap
+    assert not [x for x in lines if "no reading" in x], lines
+    if choice in ("keep", "closed"):
+        assert shown == [True]
+        assert tab._unread_patch_count() == 0
+    else:
+        assert shown == []
+        assert tab._unread_patch_count() == PER
+
+
+@pytest.mark.parametrize("choice", list(CHOICES))
+def test_a_newer_reading_while_the_window_is_open(qapp, tmp_path, monkeypatch,
+                                                  choice):
+    """The window asks about C; before it is answered, C is read properly.
+    That reading is the engine's now and the one the file keeps, whatever the
+    answer: it is judged as C at once, and the answer about the older one
+    never takes it off the screen."""
+    tab = _tab(tmp_path, monkeypatch)
+    _run(qapp, tab, [_sread("A"), _sready("B"), _sread("B"), _sready("C")])
+
+    def _read_c_properly():
+        _feed(tab._manager, _sread("C"))
+        for _ in range(4):
+            qapp.processEvents()
+    _answering(monkeypatch, choice, during=_read_c_properly)
+    _run(qapp, tab, [_sread("C", like="B")])
+    ov = _overlay(tab)
+    assert tab._manager.set_aside_locs() == set()     # the file keeps C
+    assert all(x in ov and ov[x][0] in (False, None, 0) for x in _locs("C"))
+    assert tab._progress_measured() == 3 * PER - 1    # C's fill-up square
+    assert not tab._read_twice_held

@@ -1588,8 +1588,12 @@ class MeasureManager(QObject):
     def read_twice_waiting_strips(self) -> "set[str]":
         """Every strip a question of "Was a strip read twice?" is waiting
         about (on screen or queued): the tab holds those readings unjudged
-        until the answer (Knut, #182 6094941512)."""
-        return {str(s) for s, _like in self._read_twice_pending}
+        until the answer (Knut, #182 6094941512). Only while the strip's
+        LATEST reading is the one in question: a newer reading the check did
+        not find suspect replaces it in the engine and in the saved file, so
+        that one is judged at once (review R1 of 4.3.4 beta 1)."""
+        return {str(s) for s, _like in self._read_twice_pending
+                if s in self._suspect_strips}
 
     def read_twice_pending(self) -> "tuple[str, str] | None":
         """(strip, like) of the question to ask (the oldest waiting), or None."""
