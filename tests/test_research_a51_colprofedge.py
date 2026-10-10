@@ -217,3 +217,17 @@ def test_a51b_moves_targets_below_the_black_along_their_ray():
     assert np.all(np.diff(out[:, 0]) <= 0.3)                     # never lighter toward black
     c = np.hypot(out[:, 1], out[:, 2])
     assert np.all(np.diff(c[below]) <= 0.3)
+
+
+def test_a51_acts_on_rgb_only_unless_asked_for_every_device():
+    b2a.set_research_tokens(frozenset({"a25-oog", oog_clip.A51_TOKEN}), is_additive=False)
+    oog_clip.set_colorimetric(True)
+    assert oog_clip.table_params() is oog_clip.PARAMS            # CMYK: unchanged
+    b2a.set_research_tokens(frozenset({"a25-oog", oog_clip.A51_TOKEN, "a51-colprofedge-all"}),
+                            is_additive=False)
+    oog_clip.set_colorimetric(True)
+    assert oog_clip.table_params()["space"] == "cam02"
+    b2a.set_research_tokens(frozenset({"a25-oog", oog_clip.A51_TOKEN}), is_additive=True)
+    oog_clip.set_colorimetric(True)
+    assert oog_clip.table_params()["space"] == "cam02"
+    assert "a51-colprofedge-all" in ENGINE_CANDIDATE_TOKENS

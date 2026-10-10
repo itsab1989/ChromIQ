@@ -2135,7 +2135,12 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     oog_clip.set_dark_floor(None)       # the builder sets it per table
     # Agent 51 (a51-colprofedge*): colprof's CIECAM02 Jab clip metric for the
     # colorimetric table (oog_clip.A51_PARAMS); acts with a25-oog only.
-    p["a51"] = any(x.startswith(oog_clip.A51_TOKEN) for x in t) or oog_clip.A51B_TOKEN in t
+    # Agent 51 verdict (Findings agent51-01 s6): colprof's metric wins on RGB
+    # printers (even_dark_r 29 won / 1 lost, contours 11 / 0) but adds contour
+    # and ramp-reversal losses on ink devices (X3 pess 4 -> 142, XKB 10 -> 40):
+    # RGB only, unless "a51-colprofedge-all" asks for every device.
+    p["a51"] = ((any(x.startswith(oog_clip.A51_TOKEN) for x in t) or oog_clip.A51B_TOKEN in t)
+                and (is_additive is True or "a51-colprofedge-all" in t))
     p["a51_ray"] = oog_clip.A51B_TOKEN in t
     p["a51_band"] = 1.5 if oog_clip.A51_BAND_TOKEN in t else 0.0
     p["a51_ownhue"] = oog_clip.A51_OWNHUE_TOKEN in t
