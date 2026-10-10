@@ -380,3 +380,17 @@ def test_a_file_dated_in_the_future_does_not_keep_a_dead_run(fake_temp):
     folders, _ = _sweep_stale_temp_dirs()
     assert not run.exists()
     assert folders == 1
+
+
+def test_a_file_dated_an_hour_ahead_still_keeps_its_folder(fake_temp):
+    """The other side of the rule above (review of beta 18): a clock put back
+    dates recent work in the future, and that work is still in use. Only a
+    date more than a day ahead is ignored."""
+    from tests.conftest import _FUTURE_SLACK_S
+    assert _FUTURE_SLACK_S >= 3600
+    run = _aged(fake_temp / "chromiq-run-99999999-clock", _STALE_AFTER_HOURS + 2)
+    soon = time.time() + 3600
+    os.utime(run / "a-file.txt", (soon, soon))
+    folders, _ = _sweep_stale_temp_dirs()
+    assert run.exists()
+    assert folders == 0

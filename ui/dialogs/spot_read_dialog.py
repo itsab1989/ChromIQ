@@ -277,6 +277,24 @@ def cr30_is_remembered_over_bluetooth() -> bool:
         log.debug("could not look for a remembered CR30 address", exc_info=True)
         return False
 
+
+def usb_fingerprint_now() -> "tuple | None":
+    """What the label's 2-second tick asks: did anything on USB change?
+
+    `core.argyll_instruments.usb_fingerprint`, an in-process read of the
+    operating system's USB list (macOS: IOKit, about 0.03 ms). It starts no
+    program, so no `ioreg` and never an ArgyllCMS tool, opens no device and
+    touches no serial port and no Bluetooth. Only when the answer changes does
+    the window ask the full question (:meth:`SpotReadDialog._automatic_reader`,
+    an `ioreg` run of 25 to 40 ms). Module level so a test can plug a device in.
+    """
+    try:
+        from core.argyll_instruments import usb_fingerprint
+        return usb_fingerprint()
+    except Exception:      # noqa: BLE001 — a change detector, never an error
+        log.debug("could not fingerprint the USB devices", exc_info=True)
+        return None
+
 _HELP = tr(
     "Read individual colour patches with your measuring instrument, off any "
     "material — printed sheets, fabric, paint chips, or even a display.\n\n"
@@ -331,9 +349,16 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         #: Keeps the "→ <reader>" label honest while a cable is plugged in or
         #: pulled out under an open window. A bound method, never a lambda —
         #: see CLAUDE.md on `ui/fade_scroll.py`.
+        #:
+        #: Each tick asks only whether the USB device list CHANGED
+        #: (`usb_fingerprint_now`, in process, no program started); the full
+        #: question, which runs `ioreg`, is asked only when it did. Runs while
+        #: the window is shown and no session owns the instrument.
         self._auto_timer = QTimer(self)
         self._auto_timer.setInterval(2000)
-        self._auto_timer.timeout.connect(self._refresh_auto_choice)
+        self._auto_timer.timeout.connect(self._on_auto_tick)
+        #: The USB list the label was last worked out against.
+        self._usb_fingerprint: "tuple | None" = None
         self._readings: list[SpotReading] = []
         #: What the last Clear took away, kept so it can be put back. Nothing
         #: the user made is destroyed without a way back; see `_on_clear`.
@@ -817,6 +842,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             # is greyed, and nothing may be asked of the device list under a
             # running measurement.
             return
+        self._usb_fingerprint = usb_fingerprint_now()
         chosen, argyll, on_usb, over_bt = self._automatic_reader()
         label = _instrument_labels()[_INSTRUMENT_KEYS.index(chosen)]
         self._auto_choice.setText(f"→ {label}")
@@ -828,18 +854,26 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                      "reached over Bluetooth before: %s)",
                      chosen, argyll, on_usb, over_bt)
 
-    def showEvent(self, event) -> None:  # noqa: N802, D102
-        super().showEvent(event)
-        self._refresh_auto_choice()
-        # A window that names the reader has to keep naming the right one: he
-        # can plug the ColorMunki in while this is open, and a label that went
-        # stale would be worse than no label. Idle only — nothing is asked of
-        # the operating system while a session owns the instrument.
-        self._auto_timer.start()
+    def _on_auto_tick(self) -> None:
+        """The 2-second tick: re-decide the label only when USB changed.
 
-    def hideEvent(self, event) -> None:  # noqa: N802, D102
-        self._auto_timer.stop()
-        super().hideEvent(event)
+        A cheap in-process look at the USB list (`usb_fingerprint_now`); the
+        `ioreg` run behind :meth:`_refresh_auto_choice` follows only when a
+        device was plugged in or pulled out. Nothing at all while a session
+        owns the instrument or a reader is chosen by hand.
+        """
+        if (_INSTRUMENT_KEYS[self._instrument.currentIndex()] != "auto"
+                or not self._instrument.isEnabled()):
+            return
+        if usb_fingerprint_now() != self._usb_fingerprint:
+            self._refresh_auto_choice()
+
+    def _keep_auto_choice_fresh(self) -> None:
+        """Start the tick when the window is shown and idle; stop it otherwise."""
+        if self.isVisible() and self._instrument.isEnabled():
+            self._auto_timer.start()
+        else:
+            self._auto_timer.stop()
 
     def _on_start_stop(self) -> None:
         if self._cr30 is not None and self._cr30.is_running:
@@ -1354,6 +1388,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                         max(self.height(), self._default_height()))
             self.setAttribute(Qt.WidgetAttribute.WA_Resized, False)
 
+    # ONE showEvent and ONE hideEvent. Until beta 18 this class defined each
+    # twice (2026-09-03, eae7bc5bf and f0d6d24cd); Python keeps only the last
+    # definition, so the earlier pair, which started the "→ <reader>" label's
+    # refresh, never ran and the label could go stale with the window open.
+    # `tests/test_b18_spot_reader_label_follows_usb.py` holds them together.
     def showEvent(self, event) -> None:   # noqa: N802, D102
         if not event.spontaneous():
             self._settle_size()
@@ -1365,8 +1404,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             # Qt moves an already-installed filter to the front rather than
             # installing it twice, so a reopened window cannot stack them.
             app.installEventFilter(self)
+        # A window that names the reader has to keep naming the right one: he
+        # can plug the ColorMunki in while this is open, and a label that went
+        # stale would be worse than no label. Idle only: nothing is asked of
+        # the operating system while a session owns the instrument.
+        self._refresh_auto_choice()
+        self._keep_auto_choice_fresh()
 
     def hideEvent(self, event) -> None:   # noqa: N802, D102
+        self._auto_timer.stop()
         app = QApplication.instance()
         if app is not None:
             app.removeEventFilter(self)
@@ -1381,6 +1427,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self._set_read_enabled(False)
             self._apply_reader_capabilities()
             self._refresh_auto_choice()
+        self._keep_auto_choice_fresh()
 
     def _on_session_ended(self, code: int) -> None:
         self._set_session_running(False)

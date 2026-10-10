@@ -80,8 +80,10 @@ def something_running() -> list[str]:
 #: A date further ahead than this is a test's fixture, not a change: one test
 #: dates a file in 2096, and every red or killed run holding it read as
 #: "changed 0 min ago" for ever. 34 run folders, 45 GB, kept as "in use"
-#: (2026-10-10). Same rule as tests/conftest.py::_FUTURE_SLACK_S.
-FUTURE_SLACK_S = 60
+#: (2026-10-10). Up to a day ahead still counts as a change: a clock put
+#: back dates recent work in the future, and this sweep has no top-folder age
+#: check behind it. Same rule as tests/conftest.py::_FUTURE_SLACK_S.
+FUTURE_SLACK_S = 24 * 3600
 
 
 def _newest_mtime(path: Path) -> float:

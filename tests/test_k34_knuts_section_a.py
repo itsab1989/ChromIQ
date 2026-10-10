@@ -431,7 +431,10 @@ def test_the_window_lists_a_copied_report_by_its_own_date(tmp_path, qapp):
         d = json.loads(f.read_text(encoding="utf-8"))
         d["document"]["created"] = when
         f.write_text(json.dumps(d), encoding="utf-8")
-    os.utime(files[0], (4_000_000_000, 4_000_000_000))   # the older, touched
+    # The older one touched later. A date in the PAST: this used to be
+    # 4_000_000_000 (2096), and a red run's folder holding that file read as
+    # "changed 0 min ago" to both temp sweeps for ever (45 GB, 2026-10-10).
+    os.utime(files[0], (1_700_000_000, 1_700_000_000))   # the older, touched
     os.utime(files[1], (1_000_000_000, 1_000_000_000))
     dlg = _window(_settings(), v1.measurement_ti3, qapp, "verification")
     try:

@@ -44,7 +44,8 @@ from ui.tooltip_button import TooltipButton
 from ui.widgets import (CollapsibleGroupBox, ElidingComboBox, NoScrollSpinBox,
                         ValueWidthComboBox, disabled_primary_qss,
                         fit_message_box_buttons, make_browse_button,
-                        primary_hover, primary_label, open_file_dialog)
+                        primary_hover, primary_label, open_file_dialog,
+                        reserve_button_labels)
 from workflow.profile_builder import ProfileBuilder, ProfileParams
 from workflow.scanin_runner import ScaninParams, ScaninRunner
 from workflow.ti3_average import Ti3AverageError, average_scanner_ti3
@@ -872,6 +873,18 @@ class ScannerProfileDialog(_ToolDialogBase):
                 dir=str(_user_profile_dir())))
         self._install_btn.clicked.connect(self._install_profile)
         self._install_btn.setVisible(False)
+        # Both buttons change their words at runtime (`_apply_mode_title`,
+        # `_offer_install`): the build button between the printer and the
+        # scanner title (cut in eight languages when the window opened in one
+        # mode and was switched to the other), Install to "Install Profile
+        # Anyway" (cut in Russian). Each keeps room for every label (beta 18).
+        reserve_button_labels(self._run_btn, (
+            tr("Build printer profile"),
+            tr("Build profile with scanner or camera")))
+        reserve_button_labels(self._install_btn, (
+            tr("Install profile"), tr("Install Profile Anyway")))
+        reserve_button_labels(self._reveal_btn, (
+            tr("Reveal profile"), tr("Reveal folder")))
         self.setStyleSheet(self.styleSheet() + neutral_controls_qss(SPEC_GREEN))
         self._style_primary_button()
         self._refresh()
@@ -2291,6 +2304,14 @@ class ScannerProfileDialog(_ToolDialogBase):
         for _b in (self._rotate_btn, self._auto_align_btn, self._reset_btn,
                    self._reset_grid_btn, self._popout_btn):
             _b.setStyleSheet(_COMPACT_BTN)
+        # A label that changes with the window's state keeps room for each of
+        # them (beta 18): "Undo auto align" was cut to "NDO AUTO ALIG" at the
+        # window's minimum width, the button having been fitted to "Auto align"
+        # when the window opened, as "Undo delete" was in beta 17.
+        reserve_button_labels(self._auto_align_btn,
+                              (tr("Auto align"), tr("Undo auto align")))
+        reserve_button_labels(self._popout_btn,
+                              (tr("⤢ Pop out"), tr("⤢ Dock back")))
         # Pre-build alignment check (Knut, #108): a scanin dry-run for the
         # page on screen, into a temporary folder — verdict + diagnostic image
         # in a window, nothing left on disk.
