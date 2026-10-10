@@ -1,6 +1,8 @@
 # Changelog
 
-## v4.3.4-beta.1 (unreleased)
+## v4.3.4
+
+**Fixes from Knut's tests of 4.3.3.** Misread outlines are judged only after "Was a strip read twice?" is answered, and a value exactly on a threshold no longer counts as over it. Install Profile on the Build Profile tab works again, printing a chart again no longer makes it look changed, and From Profile Gamut charts cover the printer's strongest colours. Printing a verification chart through the macOS print dialog is explained on the Print Chart tab and checked more closely, including Epson's own colour matching.
 
 ### Fixed
 
