@@ -131,6 +131,48 @@ def test_both_buttons_say_the_same_thing_after_installing():
         inspect.getsource(PB.install_profile_file)
 
 
+def test_a_build_that_made_no_profile_offers_the_runs_profile(build_tab):
+    """Review R2: every build switches Install off; a failed, cancelled or
+    never-started build left it off with the run's own profile on disk (a
+    failed refinement-merge build leaves the plain profile beside it)."""
+    tab, ctl, run1, run2, installed = build_tab
+    ctl.set_profile_run(run1.id)
+    tab.set_icc_path(run1.merged_icc)        # what the merge build was writing
+    tab._install_btn.setEnabled(False)       # the busy UI
+    tab._reset_build_ui()                    # every ending goes through here
+    assert tab.icc_path == run1.profile_icc
+    assert tab._install_btn.isEnabled()
+
+
+def test_a_zero_byte_profile_is_not_offered(build_tab):
+    tab, ctl, run1, run2, installed = build_tab
+    ctl.set_profile_run(run1.id)
+    run1.profile_icc.write_bytes(b"")        # what a truncating colprof leaves
+    tab.set_icc_path(run1.profile_icc)
+    assert not tab._install_btn.isEnabled()
+
+
+def test_both_buttons_name_a_merged_profile_after_the_project(build_tab):
+    """Review R2: Build Profile installed ``merged.icc`` under that name,
+    Check & Refine under the project's (``fallback_stem``)."""
+    tab, ctl, run1, run2, installed = build_tab
+    run1.merged_icc.write_bytes(b"merged profile")
+    ctl.set_profile_run(run2.id)
+    ctl.set_profile_run(run1.id)
+    assert tab.icc_path == run1.merged_icc
+    tab._install_btn.click()
+    assert sorted(p.name for p in installed.iterdir()) == [f"{run1.stem}.icc"]
+
+
+def test_a_profile_gone_from_disk_switches_install_off(build_tab):
+    tab, ctl, run1, run2, installed = build_tab
+    ctl.set_profile_run(run1.id)
+    run1.profile_icc.unlink()
+    tab._install_btn.click()
+    assert "[ERROR] Install failed" in tab._log.toPlainText()
+    assert not tab._install_btn.isEnabled()
+
+
 # ===========================================================================
 # B. Printing the same chart again is not a different chart
 # ===========================================================================

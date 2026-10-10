@@ -325,6 +325,29 @@ def _align_form_labels(panel: QWidget) -> None:
         w.setFixedWidth(col)
 
 
+_ROLE_NAMED_PROFILES = ("merged.icc", "calibrated.icc", "preconditioning.icc")
+
+
+def _role_named_fallback(icc_path) -> "str | None":
+    """The project's stem for a ROLE-named profile (``merged.icc``,
+    ``calibrated.icc``), so the installed copy is not called "merged"; None
+    for a profile that already carries its own name.
+
+    Check and Refine's Install has passed the run's stem since the two buttons
+    were joined in :func:`workflow.profile_builder.install_profile_file`; Build
+    Profile's did not, so after a refinement merge the same profile went into
+    the system folder as ``test.icc`` from one button and ``merged.icc`` from
+    the other (review R2 of e0ad96976).
+    """
+    try:
+        p = Path(icc_path)
+        if p.name.lower() in _ROLE_NAMED_PROFILES:
+            return Run.for_dir(p.parent).stem
+    except Exception:      # noqa: BLE001 — a name must never break an install
+        pass
+    return None
+
+
 class TabProfile(QWidget):
     """Step 4: build and install ICC profile from .ti3 measurements."""
 
@@ -1009,10 +1032,48 @@ class TabProfile(QWidget):
             return
         icc = self._icc_path
         try:
-            ok = bool(icc) and Path(icc).is_file()
+            # A zero-byte file is what colprof leaves when a build it truncated
+            # the profile for fails (R26-F1): there is nothing to install.
+            ok = bool(icc) and Path(icc).is_file() and Path(icc).stat().st_size > 0
         except OSError:
             ok = False
         btn.setEnabled(ok)
+
+    def _profile_follows_the_bar(self, run) -> None:
+        """Point the tab's profile at *run*'s own built profile, or at nothing
+        when the profile it holds lives in another run's folder, and set
+        Install Profile to match. Never touches the measurement."""
+        built = getattr(run, "built_profile_icc", None)
+        icc = built() if callable(built) else None
+        if icc is not None and icc.is_file():
+            if icc != self._icc_path:
+                self.set_icc_path(icc)
+                log.info("Build Profile: profile follows the bar → %s", icc)
+        elif self._icc_path and Path(self._icc_path).parent != run.dir:
+            self.set_icc_path(None)
+        self._sync_install_button()
+
+    def _profile_after_a_build_that_made_none(self) -> None:
+        """A build that failed, was cancelled or never started leaves the tab
+        pointing at the file it was going to write. When that is not on disk,
+        the selected run may still have a profile of its own (a failed
+        refinement-merge build leaves the plain profile beside it), and that
+        is the one Install Profile offers (review R2 of e0ad96976: the button
+        stayed disabled with the run's profile on disk)."""
+        try:
+            icc = self._icc_path
+            if icc and Path(icc).is_file() and Path(icc).stat().st_size > 0:
+                return
+            ctl = getattr(self, "_target_ctl", None)
+            proj = ctl.project_or_none() if ctl is not None else None
+            if proj is not None and not ctl.target.is_verification():
+                from core.measurement_target import resolve_run
+                self._profile_follows_the_bar(resolve_run(proj, ctl.target))
+        except Exception:      # noqa: BLE001 — never break the end of a build
+            log.warning("Could not re-read the run's profile after a build",
+                        exc_info=True)
+        finally:
+            self._sync_install_button()
 
     def set_preconditioning_source(self, path: Path | None) -> None:
         """Pre-conditioning measurement data (the run's preconditioning.ti3) to
@@ -1976,8 +2037,9 @@ class TabProfile(QWidget):
         def _on_install() -> None:
             dlg.accept()
             try:
-                dest = self._builder.install_profile(icc_path,
-                                                     self._install_name())
+                dest = self._builder.install_profile(
+                    icc_path, self._install_name(),
+                    fallback_stem=_role_named_fallback(icc_path))
                 self._ac_log.appendPlainText(f"[OK] Profile installed to {dest}")
             except Exception as exc:
                 self._ac_log.appendPlainText(f"[ERROR] Install failed: {exc}")
@@ -5323,16 +5385,7 @@ class TabProfile(QWidget):
             # install (Knut, 4.3.3 run5: see `_sync_install_button`). The
             # selected run's own built profile when it has one; a profile from
             # another run's folder is not offered under this run's name.
-            built = getattr(run, "built_profile_icc", None)
-            icc = built() if callable(built) else None
-            if icc is not None and icc.is_file():
-                if icc != self._icc_path:
-                    self.set_icc_path(icc)
-                    log.info("Build Profile: profile follows the bar → %s", icc)
-            elif self._icc_path and Path(self._icc_path).parent != run.dir:
-                self.set_icc_path(None)
-            else:
-                self._sync_install_button()
+            self._profile_follows_the_bar(run)
         except Exception:      # noqa: BLE001 — never break a selection change
             log.warning("Could not follow the bar in Build Profile", exc_info=True)
 
@@ -5782,6 +5835,10 @@ class TabProfile(QWidget):
         self._progress_bar.set_value(0)
         self._colprof_phase = ""
         self._building_with = ""
+        # Install Profile was switched off for the build; a successful build
+        # switches it on again below, and every other ending gets the state
+        # the disk says (review R2 of e0ad96976).
+        self._profile_after_a_build_that_made_none()
 
     def _on_engine_done(self, code: int) -> None:
         """Finish path for ChromIQ-engine builds (#122)."""
@@ -6179,8 +6236,9 @@ class TabProfile(QWidget):
             self._sync_install_button()
             return
         try:
-            dest = self._builder.install_profile(self._icc_path,
-                                                 self._install_name())
+            dest = self._builder.install_profile(
+                self._icc_path, self._install_name(),
+                fallback_stem=_role_named_fallback(self._icc_path))
             self._log.appendPlainText(f"[OK] Profile installed to {dest}")
             self._log.ensureCursorVisible()
         except Exception as exc:
@@ -6188,6 +6246,9 @@ class TabProfile(QWidget):
                         self._icc_path, exc)
             self._log.appendPlainText(f"[ERROR] Install failed: {exc}")
             self._log.ensureCursorVisible()
+            # The file went away under the button (deleted or renamed on
+            # disk): the button follows it.
+            self._sync_install_button()
 
     # ------------------------------------------------------------------
     # Param collection
