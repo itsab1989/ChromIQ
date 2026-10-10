@@ -222,6 +222,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PRINT-JOB-NOT-AS-SENT",
                                  "M-PRINT-JOB-UNTAGGED",
                                  "M-PRINT-PAPER-PROFILE-UNKNOWN",
+                                 # B3, 2026-10-10 (Knut 6095262115): what a
+                                 # verification print needs, and the status
+                                 # line for a chart tagged with the job's own
+                                 # profile on a printer without paper
+                                 # profiles. Shown nowhere until approved.
+                                 "M-PRINT-VERIFY-ROUTE",
+                                 "M-PRINT-JOB-TAGGED-INTENT",
                                  # (beta 16, 2026-10-09: the quality row's note
                                  # and marks, M-PRINT-QUALITY, were APPROVED
                                  # by Sebastian, 2026-10-09,
@@ -819,7 +826,8 @@ WINDOW_SOURCES = [
     # The verification pre-flight (#182, Knut, 2026-09-21). Its frame is
     # M-VERIFY-PREFLIGHT; the metric list under it is the presets window's own
     # `summary_lines`, which is not prose this method writes.
-    ("ui.tabs.tab_measure", "TabMeasure", "_verification_preflight_message"),
+    # k65: the blocks the plain and the rich-text window are both made of
+    ("ui.tabs.tab_measure", "TabMeasure", "_verification_preflight_blocks"),
     ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_confirm_clear"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),

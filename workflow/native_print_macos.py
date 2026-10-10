@@ -454,7 +454,8 @@ class Submission:
     judge it in CUPS later (off the GUI thread)."""
 
     def __init__(self, printer_display: str | None, expected: dict,
-                 started: float, tagged_icc: bytes, tagged_with: str | None) -> None:
+                 started: float, tagged_icc: bytes, tagged_with: str | None,
+                 output_intent: str | None = None) -> None:
         self.printer_display = printer_display
         self.queue: str | None = None
         self.ppd_text: str | None = None
@@ -462,6 +463,9 @@ class Submission:
         self.started = started
         self.tagged_icc = tagged_icc
         self.tagged_with = tagged_with
+        #: the name of the profile macOS converts this job's colour into
+        #: (its output intent), or None when none could be read
+        self.output_intent = output_intent
 
 
 def read_back(sub: "Submission"):
@@ -483,7 +487,16 @@ def read_back(sub: "Submission"):
     rep = check_job(sub.queue or "?", job, sub.expected, ppd_text=sub.ppd_text,
                     tagged_with=sub.tagged_with, tagged_icc=sub.tagged_icc)
     if (not sub.tagged_icc and rep.read and rep.tag_matches_job is None
-            and sub.ppd_text and "*cupsICCProfile" in sub.ppd_text):
+            and (sub.output_intent
+                 or (sub.ppd_text and "*cupsICCProfile" in sub.ppd_text))):
+        # …AND ANY JOB WITH AN OUTPUT INTENT THE CHART DID NOT GET (B3,
+        # 2026-10-10). A generic PostScript queue declares no profile in its
+        # PPD, but a profile assigned to the printer in ColorSync Utility (as
+        # on Knut's HP CLJ5550) is its output intent all the same. Measured on
+        # a capture queue set up like his, with the re-tag withheld: macOS
+        # changed the chart's numbers by 18.6 levels on average (max 107),
+        # and the status line still said nothing but "application colour
+        # matching".
         # Any printer whose PPD names profiles macOS can match to (HP DesignJet
         # and the like, not only Canon/Epson): the chart went untagged, so macOS
         # may convert it, and the status line must not say otherwise. A PPD
@@ -662,6 +675,10 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     # Tag the chart with the profile macOS will convert it into, so the
     # conversion is the identity and the chart's own numbers reach the driver.
     dest_icc, dest_name = _destination_rgb_profile(print_info)
+    # The profile macOS converts this job INTO, kept even when the chart could
+    # not be given it: then macOS converts the chart, and the read-back must
+    # say so whatever the PPD declares (B3, 2026-10-10).
+    output_intent = dest_name if dest_icc else None
     if dest_icc:
         tagged = _retag_reps(view._reps, dest_icc)
         if tagged is not None:
@@ -697,7 +714,8 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     except Exception:  # noqa: BLE001
         display = None
     last_submission = Submission(display, locked, t_start, dest_icc or b"",
-                                 dest_name if dest_icc else None)
+                                 dest_name if dest_icc else None,
+                                 output_intent=output_intent)
     return True
 
 

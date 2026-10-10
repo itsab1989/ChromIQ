@@ -1295,7 +1295,16 @@ def _cgats_has_no_readings(path) -> bool:
 #: (`~/Desktop/ChromIQ-beta36-proof/design-R3-R2-R1/`): a spacer of 920 gives
 #: a box 968 px wide whose German frame, the longer language, is 875 px tall;
 #: re-measured for beta 39 in `~/Desktop/ChromIQ-beta39-proof/k28-a/`.
-PREFLIGHT_TEXT_WIDTH = 920
+#:
+#: **k65 (Knut, #182 6095388856, 2026-10-10): "The window is also a bit too
+#: wide and could be reduced 20-25%, providing it can fit on all supported
+#: screen resolutions."** 920 became 720: the box went from 968 to 768 px
+#: (-21 %), measured on screen in all 14 languages with the body no longer
+#: bold, 691 (no, zh_CN) to 786 (ja) px tall; on a work area of 705 px (a
+#: 1280x800 screen with the Dock) every language but no and zh_CN shows the
+#: one-line version, 527 to 636 px tall
+#: (`~/Desktop/ChromIQ-work/2026-10-10_434b1_B3/shots/k65/geometry.jsonl`).
+PREFLIGHT_TEXT_WIDTH = 720
 #: Qt's own ceiling on a QMessageBox's width is the screen's width less 480
 #: (and never over 1000). Asked for more, Qt wraps the label ANYWHERE, words
 #: broken mid-word; this keeps the spacer inside it, with the box's margins.
@@ -1314,6 +1323,40 @@ def preflight_text_width(box) -> int:
         return PREFLIGHT_TEXT_WIDTH
     room = screen.availableGeometry().width() - _MESSAGE_BOX_QT_MARGIN
     return max(360, min(PREFLIGHT_TEXT_WIDTH, room))
+
+
+def preflight_html(blocks: "list[tuple[bool, str]]") -> str:
+    """*blocks* ((is_heading, text), …) as rich text for the pre-flight
+    window: a heading in bold, every other line in the normal weight set
+    explicitly (k65: macOS draws a message box's text bold).
+
+    Every line is a paragraph of its own, so a blank line and the gap between
+    two blocks are the same gap, and an indented line of the metric list keeps
+    its indent when it wraps (spaces at the start of a line did not: the
+    second line of a reason started at the left edge)."""
+    out = []
+    gap = False
+    for heading, text in blocks:
+        gap = bool(out)
+        for line in text.split("\n"):
+            stripped = line.lstrip(" ")
+            if not stripped:
+                gap = True
+                continue
+            indent = (len(line) - len(stripped)) * _PREFLIGHT_INDENT_PX
+            top = _PREFLIGHT_GAP_PX if gap else 0
+            weight = 700 if heading else 400
+            out.append(f'<p style="margin-top:{top}px; margin-bottom:0px; '
+                       f'margin-left:{indent}px; font-weight:{weight}">'
+                       f"{html.escape(stripped)}</p>")
+            gap = False
+    return "".join(out)
+
+
+#: k65: the gap a blank line makes in the pre-flight, and the width one space
+#: of a metric line's indent becomes (`preflight_html`).
+_PREFLIGHT_GAP_PX = 12
+_PREFLIGHT_INDENT_PX = 4
 
 
 def _preflight_work_height(box) -> int:
@@ -17210,7 +17253,29 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _verification_preflight_message(self, row, short: bool = False
                                         ) -> "tuple[str, str]":
-        """§M's frame, with this chart's own answer set into it.
+        """The pre-flight as plain text: its blocks (see
+        `_verification_preflight_blocks`) one blank line apart."""
+        title, blocks = self._verification_preflight_blocks(row, short)
+        return title, "\n\n".join(text for _heading, text in blocks)
+
+    def _verification_preflight_html(self, row, short: bool = False
+                                     ) -> "tuple[str, str]":
+        """The pre-flight as the window shows it: the headings bold, every
+        other block in the normal weight.
+
+        **k65 (Knut, #182 6095388856): "All text is bold, but only headings in
+        the text, which has some describing text under it, should stand out."**
+        macOS draws a QMessageBox's main text in the bold system font, so a
+        plain-text body came out bold from its first line to its last. Rich
+        text with an explicit weight on every block overrides that on macOS
+        and changes nothing where the label is not bold."""
+        title, blocks = self._verification_preflight_blocks(row, short)
+        return title, preflight_html(blocks)
+
+    def _verification_preflight_blocks(self, row, short: bool = False
+                                       ) -> "tuple[str, list[tuple[bool, str]]]":
+        """§M's frame, with this chart's own answer set into it, as
+        (is_heading, text) blocks.
 
         The frame is **M-VERIFY-PREFLIGHT** and nothing else in here writes a
         sentence. The metric list is
@@ -17244,7 +17309,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if block and not line.indent:
                 block.append("")
             block.append(" " * line.indent + line.text)
-        parts = [title, body, "\n".join(block)]
+        parts: "list[tuple[bool, str]]" = [(True, title), (False, body),
+                                           (False, "\n".join(block))]
         # **UNTIL BETA 39: ONE LINE HERE, THE PARAGRAPH IN THE PRESETS
         # WINDOW** (superseded by R2 below, kept as the reason for the
         # 13-inch guard). Knut asked
@@ -17271,13 +17337,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         _short = (row is not None and row.assessment.checked
                   and row.assessment.missing)
         if _short and short:
-            parts.append(tr(M.M_VERIFY_PREFLIGHT_UNCHECKED))
+            parts.append((False, tr(M.M_VERIFY_PREFLIGHT_UNCHECKED)))
         elif _short:
             u_title, u_body = M.M_VERIFY_UNCHECKED_METRICS.render()
-            parts.append(u_title + "\n\n" + u_body)
+            parts.append((True, u_title))
+            parts.append((False, u_body))
         if gamut_only_shortfalls(row):
-            parts.append(tr(M.M_VERIFY_PREFLIGHT_GAMUT))
-        return title, "\n\n".join(parts)
+            parts.append((False, tr(M.M_VERIFY_PREFLIGHT_GAMUT)))
+        return title, parts
 
     def _queue_verification_preflight(self) -> None:
         """Ask for the pre-flight on the next turn of the event loop, once.
@@ -17350,10 +17417,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                         exc_info=True)
             return
         from PyQt6.QtWidgets import QCheckBox, QMessageBox
-        title, text = self._verification_preflight_message(row)
+        title, text = self._verification_preflight_html(row)
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
         box.setWindowTitle(title)
+        box.setTextFormat(Qt.TextFormat.RichText)
         box.setText(text)
         # ONE BUTTON, AND ESCAPE CLOSES IT. Knut: *"The pop-up window only
         # needs one button saying 'OK', which closes the window (ESC button
@@ -17385,7 +17453,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             try:
                 if _preflight_fits(box):
                     return
-                _t, short_text = self._verification_preflight_message(
+                _t, short_text = self._verification_preflight_html(
                     row, short=True)
                 box.setText(short_text)
                 if box.layout() is not None:

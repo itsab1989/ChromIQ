@@ -336,14 +336,16 @@ class _Box:
 
 def test_the_width_is_held_inside_qts_own_ceiling():
     """Qt caps a message box at the screen width less 480, and past it wraps
-    the text anywhere, words broken. A 13-inch Air (1470) keeps the full 920;
-    a 1280 screen gets 752.
+    the text anywhere, words broken. A 13-inch Air (1470) and the smallest
+    supported screen (1280) keep the full width (720 since k65, 2026-10-10;
+    it was 920, and a 1280 screen then got 752); a narrower one is clamped.
 
-    MUTATION: return PREFLIGHT_TEXT_WIDTH unclamped and the second assertion
+    MUTATION: return PREFLIGHT_TEXT_WIDTH unclamped and the third assertion
     goes red."""
     from ui.tabs import tab_measure as TM
     assert TM.preflight_text_width(_Box(1470, 918)) == TM.PREFLIGHT_TEXT_WIDTH
-    assert TM.preflight_text_width(_Box(1280, 760)) == 1280 - 480 - 48
+    assert TM.preflight_text_width(_Box(1280, 760)) == TM.PREFLIGHT_TEXT_WIDTH
+    assert TM.preflight_text_width(_Box(1200, 760)) == 1200 - 480 - 48
 
 
 def test_a_screen_too_short_for_the_wide_box_gets_the_one_line(qapp,

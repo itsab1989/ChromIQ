@@ -1405,7 +1405,7 @@ def keep_message_box_inside_the_work_area(box) -> None:
     something has already gone wrong, and it must not be the thing that fails.
     """
     try:
-        from PyQt6.QtCore import QTimer
+        from PyQt6.QtCore import Qt, QTimer
         from PyQt6.QtGui import QFontMetrics, QGuiApplication
         from PyQt6.QtWidgets import QLabel, QSizePolicy, QSpacerItem
 
@@ -1422,7 +1422,13 @@ def keep_message_box_inside_the_work_area(box) -> None:
             if child.text() == text:
                 label = child
                 break
-        if lay is not None and text:
+        # NOT FOR RICH TEXT (k65, 2026-10-10). Its "lines" are markup: the
+        # verification pre-flight's whole body is one line of HTML, so the
+        # longest line was the whole message and the box was widened to the
+        # cap (998 px measured, against the 768 its own spacer asks for). A
+        # rich-text box wraps its paragraphs at the width it was given.
+        rich = label is not None and label.textFormat() == Qt.TextFormat.RichText
+        if lay is not None and text and not rich:
             fm = QFontMetrics(label.font() if label is not None else box.font())
             longest = max((fm.horizontalAdvance(ln) for ln in text.splitlines()),
                           default=0)

@@ -5082,6 +5082,52 @@ M_PRINT_JOB_UNTAGGED = _m(
     "dialog\u201d in Preferences and print from the Print Chart tab directly.",
     approved=False)
 
+# --- PROPOSED: printing a verification chart, the Print Chart tab (B3) ------
+#: Knut, #182 6095262115 (2026-10-10): with Run type Verification, the Print
+#: Chart tab's notice "seems to describe a profiling run". It is the same
+#: notice for every run type; nothing in §M or the verification specification
+#: says what a verification print needs. Measured for this proposal on capture
+#: queues set up like Knut's HP CLJ5550 (generic PostScript PPD, his own profile
+#: assigned in ColorSync): the chart's numbers reach the printer unchanged on
+#: both routes, whether the dialog's Color Matching panel is left alone or
+#: another profile is chosen in it; but the dialog route hands a PostScript
+#: printer the chart as calibrated RGB (CIEBasedABC) where the direct route
+#: sends device RGB. Not shown anywhere until approved.
+M_PRINT_VERIFY_ROUTE = _m(
+    "M-PRINT-VERIFY-ROUTE",
+    "Printing a verification chart",
+    "Print this chart on the same printer, paper, media type and quality as "
+    "the profiling chart this profile was made from, and by the same route "
+    "(the macOS print dialog, or straight to the printer). The profile "
+    "describes the printer only in that state.\n\n"
+    "Leave the colour settings in the macOS print dialog as they are. If its "
+    "Color Matching panel names a profile, ChromIQ gives the chart that same "
+    "profile after you close the dialog, so macOS does not change the "
+    "chart\u2019s colours. Choosing another profile there does not apply it "
+    "to the chart either.\n\n"
+    "On a PostScript printer the two routes do not reach the printer in the "
+    "same form: the dialog sends the chart as calibrated RGB, which the printer "
+    "converts with its own colour rendering, and the direct route sends it as "
+    "the printer\u2019s own RGB. Print the profiling chart and its "
+    "verification charts the same way.",
+    approved=False)
+
+# --- PROPOSED: the status line when the chart got the job's own profile and
+# the job names no paper profile (B3) ---------------------------------------
+#: M-PRINT-JOB-CONFIRMED line 3 ("The chart went with that same profile
+#: attached…") follows only line 1, which names a paper profile. On a printer
+#: without paper profiles (Knut's HP CLJ5550: a generic PostScript queue with
+#: his own ColorSync profile) ChromIQ did tag the chart with the job's output
+#: profile, and the status line said only "application colour matching", while
+#: the dialog he had just closed showed ColorSync and his profile. The headline
+#: names the case and is not shown; the body is added after line 2.
+M_PRINT_JOB_TAGGED_INTENT = _m(
+    "M-PRINT-JOB-TAGGED-INTENT",
+    "The chart went with the profile its job prints with",
+    "The chart went with the profile macOS prints this job with ({profile}) "
+    "attached, so macOS leaves its colours unchanged.",
+    approved=False)
+
 # --- PROPOSED: a printer whose paper profiles ChromIQ does not know (beta 15)
 #: Basti, 2026-10-08: on the direct route ChromIQ sends the paper profile the
 #: vendor's print dialog would choose for the medium. It knows that for the
@@ -5160,6 +5206,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPLACE_UNCOUNTABLE,
     M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
     M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
+    M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
     M_IMPORT_NOT_OPENED, M_IMPORT_FOLDER_EXISTS,

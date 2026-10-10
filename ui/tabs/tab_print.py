@@ -2323,14 +2323,22 @@ class TabPrint(QWidget):
         # Beta 15: every row name and fixed value goes through tr(); until now
         # only the colour rows did, so a German window was half English.
         rows: list[tuple[str, str]] = [(tr("Printer"), printer)]
+        size_mm = None
+        if page_size_pt is not None:
+            w_mm = page_size_pt[0] * 25.4 / 72.0
+            h_mm = page_size_pt[1] * 25.4 / 72.0
+            size_mm = f"{w_mm:.0f} × {h_mm:.0f} mm"
         # Per-option rows, using the human-readable category label and the
         # selected combo's display text (not the raw CUPS value).
+        size_row = None
         for opt_name, combo in self._option_combos.items():
             raw = combo.currentData() or ""
             if not raw:
                 continue
             # Get the category label from the layout row's QLabel.
             label = self._option_label_for(opt_name)
+            if size_row is None and _is_paper_size_option(opt_name, label):
+                size_row = len(rows)
             rows.append((label, combo.currentText()))
         if orientation is not None:
             rows.append((
@@ -2338,10 +2346,15 @@ class TabPrint(QWidget):
                 tr("Landscape (auto)") if orientation == ORIENTATION_LANDSCAPE
                 else tr("Portrait (auto)"),
             ))
-        if page_size_pt is not None:
-            w_mm = page_size_pt[0] * 25.4 / 72.0
-            h_mm = page_size_pt[1] * 25.4 / 72.0
-            rows.append((tr("Media size"), f"{w_mm:.0f} × {h_mm:.0f} mm"))
+        if size_mm is not None and size_row is not None:
+            # ONE ROW FOR THE PAPER (B3, Knut's screenshot of 2026-10-10): the
+            # driver's "Media Size: A4" and ChromIQ's own "Media size: 210 ×
+            # 297 mm" stood two rows apart under nearly the same name. The
+            # millimetres now follow the paper's name in its own row.
+            name, value = rows[size_row]
+            rows[size_row] = (name, f"{value} ({size_mm})")
+        elif size_mm is not None:
+            rows.append((tr("Media size"), size_mm))
         rows.append((tr("Duplex"), tr("Off (forced)")))
         rows.extend(self._colour_rows(printer, selected_opts, first_tiff))
 
@@ -2924,3 +2937,15 @@ class TabPrint(QWidget):
         # A record only if a page really went onto the QPrinter: every page
         # failing to render leaves an empty job and nothing to describe.
         self._commit_print_record(drawn > 0)
+
+
+#: The paper-size option of a queue, as `PrintModule._CATEGORY_SEARCHES`
+#: finds it: by name, else by its label.
+_PAPER_SIZE_OPTIONS = ("EPIJ_Size", "media", "PageSize")
+_PAPER_SIZE_WORDS = ("paper size", "media size", "page size")
+
+
+def _is_paper_size_option(opt_name: str, label: str) -> bool:
+    return opt_name in _PAPER_SIZE_OPTIONS or any(
+        w in (label or "").lower() for w in _PAPER_SIZE_WORDS)
+
