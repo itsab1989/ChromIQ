@@ -1504,6 +1504,11 @@ def dialog_route_colour_locks(ppd_text: str) -> dict[str, str]:
 
 _CUPS_FILTER = re.compile(r'^\*cupsFilter(2?):\s*"([^"]*)"', re.M)
 _POSTSCRIPT_TYPES = ("application/vnd.cups-postscript", "application/postscript")
+#: CUPS command files (head cleaning, nozzle checks, ``lpadmin`` queries) are
+#: not print data: a filter for them says nothing about what a print reaches
+#: the printer as. Vendor PostScript PPDs commonly carry one beside their
+#: PostScript filter (review R5, 2026-10-10).
+_IGNORED_SOURCE_TYPES = ("application/vnd.cups-command",)
 
 
 def is_postscript_queue(ppd_text: str | None) -> bool:
@@ -1512,7 +1517,8 @@ def is_postscript_queue(ppd_text: str | None) -> bool:
 
     A PPD whose filter takes CUPS raster (``application/vnd.cups-raster``:
     the CUPS sample drivers, Gutenprint, Canon IJ and Epson inkjets, other
-    raster drivers) or PDF, URF or anything else is not. Review R3,
+    raster drivers) or PDF, URF or anything else is not; a filter for CUPS
+    command files is not one for print data and is left out. Review R3,
     2026-10-10: on a generic CMYK raster queue with a ColorSync profile macOS
     converts from the chart's own tag and ignores the job's profile, so what
     holds for a PostScript queue must not be said there. None (no PPD) is
@@ -1521,6 +1527,8 @@ def is_postscript_queue(ppd_text: str | None) -> bool:
         return False
     for two, spec in _CUPS_FILTER.findall(ppd_text):
         source = spec.split()[0] if spec.split() else ""
+        if source in _IGNORED_SOURCE_TYPES:
+            continue
         if source not in _POSTSCRIPT_TYPES:
             return False
     return True

@@ -95,6 +95,14 @@ def test_the_epson_texts_wait_for_approval_and_are_shown_nowhere():
     ('*cupsFilter2: "image/urf image/urf 100 -"\n', False),
     (GENERIC_PS + '*cupsFilter: "application/vnd.cups-postscript 0 a"\n'
      '*cupsFilter: "application/vnd.cups-raster 0 b"\n', False),
+    # R5: a filter for CUPS command files (cleaning, nozzle check) is not one
+    # for print data; a PostScript PPD with one is still a PostScript queue,
+    # and the Canon IJ / Epson PPDs, which carry one too, still are not
+    (GENERIC_PS + '*cupsFilter: "application/vnd.cups-postscript 0 hpps"\n'
+     '*cupsFilter: "application/vnd.cups-command 0 commandtops"\n', True),
+    (GENERIC_PS + '*cupsFilter2: "application/vnd.cups-command application/postscript 0 commandtops"\n', True),
+    ('*cupsFilter: "application/vnd.cups-raster 0 Raster2CanonIJ2S"\n'
+     '*cupsFilter: "application/vnd.cups-command 0 Command2CanonIJ2"\n', False),
     (None, False), ("", False),
 ])
 def test_a_postscript_queue_is_one_whose_ppd_takes_postscript(text, expected):
