@@ -328,6 +328,16 @@ def ramp_positioning_curves_mixed(device: np.ndarray, lab: np.ndarray, *,
 # the model (a light band at printed L* 31-33). Set per build by
 # b2a.set_research_tokens.
 SHAPER_FLOOR: dict = {"slope": None}
+# Agent 51 (token a51-shapersmooth): colprof's input curves cannot fold a
+# single knot interval flat, because xfit builds them from a few harmonics
+# whose higher orders are penalised (xicc/xfit.c SHAPE_WEIGHT, SHAPE_HW01,
+# SHAPE_HWBR, SHAPE_HWINC); a stretch of ink no patch constrains (i1iSis:
+# K 0.5 to 0.69) is filled smoothly. Here the same idea as a curvature
+# penalty on the shaper refit: mu x (the fit error at the start of the
+# refit, mu 0.01: Agent 51 sweep) x the sum of squared changes of the knot slopes, relative to the
+# curve the refit started from (so measured curvature stays free; a new
+# fold costs). None = off (the plain refit).
+SHAPER_SMOOTH: dict = {"mu": None}
 
 
 def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
@@ -343,12 +353,23 @@ def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
     shaped = model.shape_device(device)
     wts = None if weights is None else np.asarray(weights, float)
 
-    def err(kn: np.ndarray) -> float:
+    def fit_err(kn: np.ndarray) -> float:
         model.curves[channel] = kn
         shaped[:, channel] = np.interp(device[:, channel], xp, kn)
         w, cols = _interp_weights(shaped, model.grid, n)
         r2 = (((w[:, :, None] * model.nodes[cols]).sum(1) - lab) ** 2).sum(1)
         return float(r2.sum() if wts is None else (wts * r2).sum())
+
+    mu = SHAPER_SMOOTH["mu"]
+    if mu is None:
+        err = fit_err
+    else:
+        d2_0 = np.diff(knots, 2) * (k - 1)
+        scale = float(mu) * max(fit_err(knots), 1e-12)
+
+        def err(kn: np.ndarray) -> float:
+            d2 = np.diff(kn, 2) * (k - 1) - d2_0
+            return fit_err(kn) + scale * float((d2 * d2).sum())
 
     base = err(knots)
     step = 1.0 / (k - 1) / 2.0

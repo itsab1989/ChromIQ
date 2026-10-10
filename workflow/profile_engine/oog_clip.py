@@ -89,6 +89,10 @@ PARAMS: dict = {
                            # lightness, so printed L* follows the (monotone)
                            # target L* whatever the target's chroma does
         # re-aim the frame at the pass-1 result's chroma    # also start from the integration-2 hue-gated seed
+    # Agent 51 (a51-colprofedge*): colprof's clip metric for the
+    # colorimetric table (table_params), set by b2a.set_research_tokens
+    "a51": False, "a51_band": 0.0, "a51_ownhue": False, "a51_nofloor": False,
+    "a51_lab": False, "a51_soft": 0.0,
 }
 
 DEFAULTS = dict(PARAMS)
@@ -257,6 +261,8 @@ def _space_fn(space: str):
         return lab_to_oklab
     if space == "ipt":
         return lab_to_ipt
+    if space == "cam02":
+        return lab_to_argyll_jab
     if space == "jab":
         # CAM16 J, a, b from CHROMA C (Argyll's CAM clip space is CIECAM02
         # Jab, xicc/xcam.c): the hue of CAM16 with the plain J / C scales.
@@ -271,6 +277,71 @@ def _space_fn(space: str):
             return np.stack([jmh[:, 0], c * np.cos(h), c * np.sin(h)], 1)
         return jab
     raise ValueError(space)
+
+
+# --- Agent 51 (token a51-colprofedge): colprof's own clip metric -----------
+# What colprof does for the colorimetric B2A (Argyll 3.5.0; Findings
+# agent51-01 s1): every out-of-gamut node is inverted per node to the
+# nearest printable colour, first in PCS Lab (plain Euclidean), and beyond
+# CAMCLIPTRANS = 1 dE of clip distance the answer is the nearest point in
+# CIECAM02 Jab under the output viewing conditions (profout.c
+# USE_CAM_CLIP_OPT -> ICX_CAM_CLIP; xlut.c icxLuLut_inv_clut_aux,
+# icxLuLut_init_clut_camclip), with the squared LCh weights of rspl/rev.c
+# LCHW_SQ: J 2.0^2, C 1.0^2, H 2.2^2 (xlut.c JCCWEIGHT, CCCWEIGHT,
+# HCCWEIGHT). Argyll's CIECAM02 adds a Helmholtz-Kohlrausch lift to J
+# (xicc/cam02.c HHKR_MUL 0.25, HKLIMIT 0.7; XICC_USE_HK 1). Measured on
+# Knut's laser (agent51 clipmetric51.py): that metric reproduces colprof's
+# colour-to-black ramps within a few L* / C*, and ours (CIELAB, J 4 /
+# C 0.35 / H 8) reproduces int-6's: the difference is the metric.
+A51_TOKEN = "a51-colprofedge"
+A51_BAND_TOKEN = "a51-colprofedge-band"
+A51_NOHK_TOKEN = "a51-colprofedge-nohk"
+A51_OWNHUE_TOKEN = "a51-colprofedge-ownhue"
+A51_NOFLOOR_TOKEN = "a51-colprofedge-nofloor"
+A51_LAB_TOKEN = "a51-colprofedge-lab"
+A51_SOFT_TOKEN = "a51-colprofedge-soft"
+A51_PARAMS = {"space": "cam02", "wj": 4.0, "wc": 1.0, "wh": 4.84}
+_HK = {"on": True}
+_REL = threading.local()
+
+
+def set_colorimetric(flag: bool) -> None:
+    """The builder marks the thread that builds the colorimetric table:
+    the a51 metric acts there only (perceptual / saturation unchanged)."""
+    _REL.on = bool(flag)
+
+
+def table_params(p: dict = None) -> dict:
+    """PARAMS with the a51 overrides when the a51 token is on and this
+    thread builds the colorimetric table; otherwise PARAMS itself."""
+    p = PARAMS if p is None else p
+    if not p.get("a51") or not getattr(_REL, "on", False):
+        return p
+    q = dict(p)
+    q.update(A51_PARAMS)
+    if p.get("a51_ownhue"):
+        q["hue_from"] = ""
+    if p.get("a51_band"):
+        q["blend_hi"] = float(p["a51_band"])
+    if p.get("a51_lab"):
+        q["space"] = "lab"
+    if p.get("a51_soft"):
+        # the dark floor as a smooth map (a29's -bpc band) instead of the
+        # hard max(L*, black): targets below the black keep their order
+        q["dm_band"], q["dm_wj"] = float(p["a51_soft"]), 1.0
+    if p.get("a51_nofloor"):
+        q["dm_off"] = True
+    return q
+
+
+def lab_to_argyll_jab(lab: np.ndarray) -> np.ndarray:
+    """CIECAM02 Jab exactly as Argyll computes it (argyll_cam02, a port of
+    xicc/cam02.c checked against ``xicclu -pj``: median 0.08, max 0.2 Jab
+    over 390 colours of a colprof profile), for D50-relative Lab, under
+    the viewing conditions xicclu and colprof default to for a print
+    (La 40 cd/m^2, Yb 20 %, average surround, 1 % flare)."""
+    from workflow.profile_engine.argyll_cam02 import lab_to_jab
+    return lab_to_jab(lab, La=40.0, Yb=0.2, Yf=0.01, Yg=0.0, hk=bool(_HK["on"]))
 
 
 class SpaceView:
@@ -456,7 +527,7 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
     ``d_near``: the nearest-clip answer (first pass + retry) for ALL nodes;
     returns a full copy with the clipped rows replaced."""
     from workflow.profile_engine import b2a
-    p = PARAMS
+    p = table_params()
     out = d_near.copy()
     sel = np.flatnonzero(residual > p["blend_lo"])
     if not len(sel):
@@ -465,7 +536,7 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
     view = SpaceView(model, fn)
     t_lab = target_lab[sel]
     lift = None
-    floor = dark_floor()
+    floor = None if p.get("dm_off") else dark_floor()
     if floor is not None:
         # Agent 29b: below the table's black the clip aims at the black's
         # L* (with the target's own a*, b*), so lightness along a ramp into

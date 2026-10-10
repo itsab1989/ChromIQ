@@ -136,6 +136,14 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 43: the perceptual hand-over band no wider than the path needs,
      # and the perceptual black no deeper than the measured data
      "a43-shadowdetail", "a43-shadowdetail-width",
+     # Agent 51: colprof's colorimetric clip metric (CIECAM02 Jab, LCh
+     # weights J 2 / C 1 / H 2.2, Helmholtz-Kohlrausch); research, opt-in
+     "a51-colprofedge", "a51-colprofedge-band", "a51-colprofedge-nohk",
+     "a51-colprofedge-ownhue", "a51-colprofedge-nofloor",
+     "a51-colprofedge-lab", "a51-colprofedge-soft",
+     # Agent 51: shaper refit with a curvature penalty (xfit-like input
+     # curves; changes the A2B); research, opt-in
+     "a51-shapersmooth",
      # Agent 45: the perceptual dark end C1 and monotone (a C1 B2A curve
      # space; with the held black, one planned device path to the oracle black)
      "a45-c1space", "a45-darkend",
@@ -1378,6 +1386,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if _floor is not None:
             _emit(settings, f"Out-of-gamut clip floor at the black: "
                             f"L* {_floor:.1f}.")
+    from workflow.profile_engine import oog_clip as _oog51
+    _oog51.set_colorimetric(True)       # Agent 51: this thread, this table
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
@@ -1488,6 +1498,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                if "b2a33s" in candidates else {}))
     from workflow.profile_engine import oog_clip as _oogc
     _oogc.set_dark_floor(None)          # Agent 29b: colorimetric table done
+    _oogc.set_colorimetric(False)       # Agent 51: colorimetric table done
     if (_a40_on and fixed_nodes is not None and len(fixed_nodes)):
         # Research (Agent 38 s6, a40-knut-grey): with the gentler curves the
         # neutral black of a noisy chart can land on a cube face (Knut: RGB

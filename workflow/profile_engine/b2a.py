@@ -22,6 +22,8 @@ doubles as the ``gamt`` gamut-distance table (ColorSync requires that tag).
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 
 from workflow.profile_engine.forward_model import ForwardModel
@@ -2086,6 +2088,11 @@ def monotone_channels(dev: np.ndarray) -> np.ndarray:
     return out
 
 
+# Agent 51 (a51-shapersmooth): weight of the shaper curvature penalty
+# (forward_model.SHAPER_SMOOTH); CHROMIQ_A51_MU overrides it for a sweep.
+A51_SMOOTH_MU = float(os.environ.get("CHROMIQ_A51_MU", "0.01"))
+
+
 def set_research_tokens(tokens, *, is_additive) -> None:
     """Module switches for one build (research tokens a21-*, a25-*).
     Called by the builder before the first inversion and with an empty set
@@ -2095,6 +2102,8 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     # Agent 45 (a45b-shaperfloor): the shaper refit keeps every interval at
     # least A42_FLOOR of the identity's slope
     _fm.SHAPER_FLOOR["slope"] = (A42_FLOOR if A45B_TOKEN in t else None)
+    # Agent 51 (a51-shapersmooth): curvature penalty on the shaper refit
+    _fm.SHAPER_SMOOTH["mu"] = (A51_SMOOTH_MU if "a51-shapersmooth" in t else None)
     LIGHT_CLOUD["on"] = bool(("a21-lightcloud" in t and is_additive is False)
                              or "a21-lightcloud-all" in t)
     # a25-oog carries Agent 21's L* >= 60 variant (a21-lightcloud60): the
@@ -2124,6 +2133,16 @@ def set_research_tokens(tokens, *, is_additive) -> None:
         # so each one still builds exactly as on its own branch.
         p["dm_wj"] = 1.0
     oog_clip.set_dark_floor(None)       # the builder sets it per table
+    # Agent 51 (a51-colprofedge*): colprof's CIECAM02 Jab clip metric for the
+    # colorimetric table (oog_clip.A51_PARAMS); acts with a25-oog only.
+    p["a51"] = any(x.startswith(oog_clip.A51_TOKEN) for x in t)
+    p["a51_band"] = 1.5 if oog_clip.A51_BAND_TOKEN in t else 0.0
+    p["a51_ownhue"] = oog_clip.A51_OWNHUE_TOKEN in t
+    p["a51_nofloor"] = oog_clip.A51_NOFLOOR_TOKEN in t
+    p["a51_lab"] = oog_clip.A51_LAB_TOKEN in t
+    p["a51_soft"] = 15.0 if oog_clip.A51_SOFT_TOKEN in t else 0.0
+    oog_clip._HK["on"] = oog_clip.A51_NOHK_TOKEN not in t
+    oog_clip.set_colorimetric(False)
     for tok in t:
         if tok.startswith("a25-space-"):
             p["space"] = tok[len("a25-space-"):]
