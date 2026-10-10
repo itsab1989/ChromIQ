@@ -26,7 +26,7 @@ GENERIC_PS = '*ModelName: "Generic PostScript Printer"\n*ColorDevice: True\n'
 @pytest.fixture
 def no_cups(monkeypatch, tmp_path):
     ppd = tmp_path / "q.ppd"
-    ppd.write_text(GENERIC_PS)
+    ppd.write_text(GENERIC_PS, encoding="utf-8")
     from workflow.print_manager import PrintModule
     monkeypatch.setattr(PrintModule, "find_ppd_path", staticmethod(lambda q: str(ppd)))
     monkeypatch.setattr(npm, "_queue_name", lambda d: "HP_CLJ5550_PostScript")
@@ -124,3 +124,19 @@ def test_the_paper_is_named_once_with_its_millimetres(monkeypatch):
 def test_a_queue_without_a_size_option_keeps_the_millimetre_row(monkeypatch):
     rows = _rows_of_the_window(monkeypatch, {}, {})
     assert ("Media size", "210 × 297 mm") in rows
+
+
+def test_the_millimetres_go_to_the_page_size_option_not_to_a_lookalike(monkeypatch):
+    """R3: the row is found by the option's NAME, as the page size is. A Xerox
+    PPD has "Booklet Paper Size" and a generic one PageRegion/"Media Size";
+    matched by label, the millimetres landed on whichever came first.
+    MUTATION: match by label again and this goes red."""
+    rows = _rows_of_the_window(
+        monkeypatch,
+        {"XRBookletSize": _Combo("A4", "A4"), "PageRegion": _Combo("Letter", "Letter"),
+         "PageSize": _Combo("A4", "A4")},
+        {"XRBookletSize": "Booklet Paper Size", "PageRegion": "Media Size",
+         "PageSize": "Paper Size"})
+    assert ("Paper Size", "A4 (210 × 297 mm)") in rows
+    assert ("Booklet Paper Size", "A4") in rows
+    assert ("Media Size", "Letter") in rows

@@ -2337,7 +2337,11 @@ class TabPrint(QWidget):
                 continue
             # Get the category label from the layout row's QLabel.
             label = self._option_label_for(opt_name)
-            if size_row is None and _is_paper_size_option(opt_name, label):
+            if size_row is None and opt_name in _PAGE_SIZE_KEYS:
+                # BY NAME, AS THE PAGE SIZE ITSELF IS FOUND (R3): the
+                # millimetres are those of this option's paper, and a label
+                # with "paper size" in it can belong to another option (Xerox:
+                # "Booklet Paper Size"; generic PPDs: PageRegion, "Media Size")
                 size_row = len(rows)
             rows.append((label, combo.currentText()))
         if orientation is not None:
@@ -2937,15 +2941,3 @@ class TabPrint(QWidget):
         # A record only if a page really went onto the QPrinter: every page
         # failing to render leaves an empty job and nothing to describe.
         self._commit_print_record(drawn > 0)
-
-
-#: The paper-size option of a queue, as `PrintModule._CATEGORY_SEARCHES`
-#: finds it: by name, else by its label.
-_PAPER_SIZE_OPTIONS = ("EPIJ_Size", "media", "PageSize")
-_PAPER_SIZE_WORDS = ("paper size", "media size", "page size")
-
-
-def _is_paper_size_option(opt_name: str, label: str) -> bool:
-    return opt_name in _PAPER_SIZE_OPTIONS or any(
-        w in (label or "").lower() for w in _PAPER_SIZE_WORDS)
-

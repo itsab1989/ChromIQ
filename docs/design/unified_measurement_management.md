@@ -2711,7 +2711,7 @@ approved one is left sitting in it.*
 
 ### M-PRINT-JOB-NOT-AS-SENT · PROPOSED · a window when the job read back from the printing system does not carry what ChromIQ sent, beta 15
 
-*New 2026-10-08 (beta 15). Replaces the beta 14 window "Colour Management Lock Not Verified". {details} is one line per key, "{key}: {got} (ChromIQ sent {want})"; the line "The chart could not be given the job's own paper profile, so macOS may convert its colours." is added when, besides, the chart on the macOS dialog route could not be given the job's paper profile. When that is the only problem, M-PRINT-JOB-UNTAGGED is shown instead. Sebastian, 2026-10-08, did not approve this wording: "the reviewer said it is wrong. so i probably can't approve this" (the opening sentence was wrong for the untagged case, which now has its own window).*
+*New 2026-10-08 (beta 15). Replaces the beta 14 window "Colour Management Lock Not Verified". {details} is one line per key, "{key}: {got} (ChromIQ sent {want})"; the line "The chart could not be given the job's own profile, so macOS may convert its colours." is added when, besides, the chart on the macOS dialog route could not be given the job's paper profile. When that is the only problem, M-PRINT-JOB-UNTAGGED is shown instead. Sebastian, 2026-10-08, did not approve this wording: "the reviewer said it is wrong. so i probably can't approve this" (the opening sentence was wrong for the untagged case, which now has its own window).*
 
 > **The print job is not what ChromIQ sent**
 >
@@ -2727,7 +2727,7 @@ approved one is left sitting in it.*
 
 > **The chart may not print with its own colours**
 >
-> The job was sent, but ChromIQ could not give the chart the paper profile this job prints with. macOS may therefore change the chart’s colours on the way to the printer, and a measurement of that sheet would not describe your printer.
+> The job was sent, but ChromIQ could not give the chart the profile this job prints with. macOS may therefore change the chart’s colours on the way to the printer, and a measurement of that sheet would not describe your printer.
 >
 > If it has not printed yet, cancel it in the printer’s queue and print again. If this message comes back, turn off “Use default macOS printer dialog” in Preferences and print from the Print Chart tab directly.
 
@@ -2747,17 +2747,21 @@ approved one is left sitting in it.*
 
 *New 2026-10-10. Knut, #182 [6095262115](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6095262115): with Run type Verification and the macOS print dialog on, the notice on the Print Chart tab "seems to describe a profiling run, not a verification run". It is the one notice of the macOS dialog route, the same for every run type; neither §M nor `verification_printing_and_target.md` has a text for a verification print. Measured for this proposal (report folder `2026-10-10_434b1_B3`, capture queues with a generic PostScript PPD and a profile assigned in ColorSync, as on Knut's HP CLJ5550): the chart's numbers reach the printer unchanged on both routes, 1,372,807 of 1,372,807 chart pixels identical, with the dialog's Color Matching panel left alone and with another profile chosen in it, because ChromIQ gives the chart whichever profile the job prints with; but the dialog route hands a PostScript printer the chart as calibrated RGB (CIEBasedABC) and the direct route as device RGB, which a PostScript interpreter renders differently (Ghostscript: 2.3 levels mean, 26 max, on the patches). Proposed to be shown under the Print Chart tab's notice for a verification run on macOS, both routes; the second paragraph only on the dialog route. Not shown anywhere until approved.*
 
+*Review R3, 2026-10-10 (report folder `2026-10-10_434b1_R3`): Sebastian approved this text on condition that every statement in it is true. Two were not. Choices made in the dialog's own Color Matching sheet (driven on screen, not injected into the settings) left the chart unchanged on a PostScript queue with a ColorSync profile, a Canon PRO-300 and an Epson ET-8550 (another profile picked; the vendor's matching chosen on the PostScript queue and the Canon), but the Epson's "EPSON colour matching" reaches the job as EPIJ_OSColMat=1, which ChromIQ neither sets back nor checks, so "Choosing another profile there does not apply it to the chart either" could not be kept as a promise about the panel. And on a generic CMYK raster queue (the CUPS sample HP DeskJet driver) with a ColorSync profile, macOS ignores the output intent and converts from the chart's tag, so the re-tag changes the raster: "If its Color Matching panel names a profile, ChromIQ gives the chart that same profile … so macOS does not change the chart's colours" is untrue there. The second paragraph now names only the printers where it was measured, and the third says what the PostScript stream carries (a CIEBasedABC colour space with sRGB's D65 white point and Rec. 709 matrix) instead of "calibrated RGB". Not approved: back to Sebastian in these words.*
+
 > **Printing a verification chart**
 >
 > Print this chart on the same printer, paper, media type and quality as the profiling chart this profile was made from, and by the same route (the macOS print dialog, or straight to the printer). The profile describes the printer only in that state.
 >
-> Leave the colour settings in the macOS print dialog as they are. If its Color Matching panel names a profile, ChromIQ gives the chart that same profile after you close the dialog, so macOS does not change the chart’s colours. Choosing another profile there does not apply it to the chart either.
+> Leave the colour settings in the macOS print dialog as they are, including its Color Matching panel. When macOS prints the job with a Canon or Epson paper profile, or with a profile set for a PostScript printer in ColorSync Utility, ChromIQ gives the chart that same profile after you close the dialog, so macOS does not change the chart’s colours.
 >
-> On a PostScript printer the two routes do not reach the printer in the same form: the dialog sends the chart as calibrated RGB, which the printer converts with its own colour rendering, and the direct route sends it as the printer’s own RGB. Print the profiling chart and its verification charts the same way.
+> On a PostScript printer the two routes do not reach the printer in the same form: the dialog sends the chart’s colour values marked as sRGB, which the printer converts with its own colour rendering, and the direct route sends them as the printer’s own RGB. Print the profiling chart and its verification charts the same way.
 
 ### M-PRINT-JOB-TAGGED-INTENT · PROPOSED · the status line when the chart went with the job's own profile and the job names no paper profile, macOS dialog route, B3 (4.3.4 beta 1)
 
 *New 2026-10-10. M-PRINT-JOB-CONFIRMED line 3 ("The chart went with that same profile attached…") follows only its line 1, which names a paper profile. On a printer without paper profiles, such as Knut's HP CLJ5550 on a generic PostScript queue with his own profile assigned in ColorSync, ChromIQ did give the chart the job's profile, and the status line said only "Sent as job 50. The printing system confirms it carries application colour matching." while the dialog he had just closed showed ColorSync and his profile. Proposed to follow M-PRINT-JOB-CONFIRMED line 2 in that case. The headline names the case and is not shown; {profile} is the profile's name as ColorSync gives it. Not shown anywhere until approved.*
+
+*Review R3, 2026-10-10: Sebastian approved this text on condition that every statement in it is true. It is true on a PostScript queue with a ColorSync profile (1,372,807 of 1,372,807 chart pixels unchanged in the PostScript the printer receives, the Color Matching sheet untouched, another profile picked, or "In printer" chosen) and untrue on a generic CMYK raster queue with a ColorSync profile, where the chart's tag changes the raster (its md5 differs from the untagged job's, which equals a job with no profile at all). The words stay; where it may be shown is restricted to PostScript queues (a PPD with no CUPS raster filter). Not approved and not shown: back to Sebastian with that restriction.*
 
 > **The chart went with the profile its job prints with**
 >

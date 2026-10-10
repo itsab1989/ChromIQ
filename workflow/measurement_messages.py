@@ -5052,8 +5052,8 @@ M_PRINT_JOB_CONFIRMED = _m(
 #: window, M-PRINT-JOB-UNTAGGED.
 _PRINT_JOB_DIFFERS_LINE = "{key}: {got} (ChromIQ sent {want})"
 _PRINT_JOB_UNTAGGED_LINE = (
-    "The chart could not be given the job's own paper profile, so macOS may "
-    "convert its colours.")
+    "The chart could not be given the job's own profile, so macOS may convert "
+    "its colours.")
 M_PRINT_JOB_NOT_AS_SENT = _m(
     "M-PRINT-JOB-NOT-AS-SENT",
     "The print job is not what ChromIQ sent",
@@ -5073,8 +5073,8 @@ M_PRINT_JOB_NOT_AS_SENT = _m(
 M_PRINT_JOB_UNTAGGED = _m(
     "M-PRINT-JOB-UNTAGGED",
     "The chart may not print with its own colours",
-    "The job was sent, but ChromIQ could not give the chart the paper profile "
-    "this job prints with. macOS may therefore change the chart\u2019s colours "
+    "The job was sent, but ChromIQ could not give the chart the profile this "
+    "job prints with. macOS may therefore change the chart\u2019s colours "
     "on the way to the printer, and a measurement of that sheet would not "
     "describe your printer.\n\n"
     "If it has not printed yet, cancel it in the printer\u2019s queue and print "
@@ -5093,6 +5093,18 @@ M_PRINT_JOB_UNTAGGED = _m(
 #: another profile is chosen in it; but the dialog route hands a PostScript
 #: printer the chart as calibrated RGB (CIEBasedABC) where the direct route
 #: sends device RGB. Not shown anywhere until approved.
+#: REVIEW R3 (2026-10-10), on capture queues, choices made in the panel's own
+#: Color Matching sheet: a PostScript queue with a ColorSync profile, a Canon
+#: PRO-300 and an Epson ET-8550 queue printed the chart unchanged with the
+#: sheet untouched, with another profile picked in it, and (Canon, PostScript)
+#: with the vendor's matching chosen. The Epson's "EPSON colour matching"
+#: reaches the job as EPIJ_OSColMat=1 (2 otherwise), which ChromIQ does not
+#: check, and on a generic CMYK raster queue (CUPS sample HP DeskJet) with a
+#: ColorSync profile the re-tag CHANGES the raster (macOS converts from the
+#: tag and ignores the output intent there), so the body promises nothing
+#: about the sheet and names only the printers where the same profile was
+#: measured to leave the chart unchanged. "Calibrated RGB" became "marked as
+#: sRGB": the CIEBasedABC is sRGB's (D65 white, Rec. 709 matrix).
 M_PRINT_VERIFY_ROUTE = _m(
     "M-PRINT-VERIFY-ROUTE",
     "Printing a verification chart",
@@ -5100,16 +5112,17 @@ M_PRINT_VERIFY_ROUTE = _m(
     "the profiling chart this profile was made from, and by the same route "
     "(the macOS print dialog, or straight to the printer). The profile "
     "describes the printer only in that state.\n\n"
-    "Leave the colour settings in the macOS print dialog as they are. If its "
-    "Color Matching panel names a profile, ChromIQ gives the chart that same "
-    "profile after you close the dialog, so macOS does not change the "
-    "chart\u2019s colours. Choosing another profile there does not apply it "
-    "to the chart either.\n\n"
+    "Leave the colour settings in the macOS print dialog as they are, "
+    "including its Color Matching panel. When macOS prints the job with a "
+    "Canon or Epson paper profile, or with a profile set for a PostScript "
+    "printer in ColorSync Utility, ChromIQ gives the chart that same profile "
+    "after you close the dialog, so macOS does not change the chart\u2019s "
+    "colours.\n\n"
     "On a PostScript printer the two routes do not reach the printer in the "
-    "same form: the dialog sends the chart as calibrated RGB, which the printer "
-    "converts with its own colour rendering, and the direct route sends it as "
-    "the printer\u2019s own RGB. Print the profiling chart and its "
-    "verification charts the same way.",
+    "same form: the dialog sends the chart\u2019s colour values marked as "
+    "sRGB, which the printer converts with its own colour rendering, and the "
+    "direct route sends them as the printer\u2019s own RGB. Print the "
+    "profiling chart and its verification charts the same way.",
     approved=False)
 
 # --- PROPOSED: the status line when the chart got the job's own profile and
@@ -5121,6 +5134,11 @@ M_PRINT_VERIFY_ROUTE = _m(
 #: profile, and the status line said only "application colour matching", while
 #: the dialog he had just closed showed ColorSync and his profile. The headline
 #: names the case and is not shown; the body is added after line 2.
+#: REVIEW R3 (2026-10-10): true where measured (a PostScript queue with a
+#: ColorSync profile: 1,372,807 of 1,372,807 pixels unchanged), FALSE on a
+#: generic CMYK raster queue with a ColorSync profile, where the tag changes the
+#: raster. To be shown on PostScript queues only (a PPD without a CUPS raster
+#: filter); not approved, back to Basti with that restriction.
 M_PRINT_JOB_TAGGED_INTENT = _m(
     "M-PRINT-JOB-TAGGED-INTENT",
     "The chart went with the profile its job prints with",
