@@ -315,6 +315,30 @@ def _a21_cached_fit(fn):
 A19_ORDER_MU = 0.3
 
 
+def pin_black_cell(b2a: bytes, black_lab) -> bytes:
+    """A copy of the Lab-PCS B2A lut16 ``b2a`` whose eight nodes around
+    ``black_lab`` (the Lab of the device black) all hold the value of the
+    L* 0 corner, which the engine pins to the device black. A CMM that asks
+    for the device's own black Lab (lcms with black point compensation does,
+    for the perceptual intents) then gets the black back instead of an
+    interpolation with clipped neighbour nodes."""
+    from workflow.profile_engine.v4_prm import parse_mft2
+    t = parse_mft2(b2a)
+    g = t["grid"]
+    ls, ab = icw.lab_grid_axes(g)
+    i0 = int(np.argmin(np.abs(ab)))
+    clut = np.array(t["clut"]).reshape(g, g, g, t["n_out"])
+    black = clut[0, i0, i0, :].copy()
+
+    def cell(axis, v):
+        k = int(np.floor(np.interp(v, axis, np.arange(g))))
+        return slice(max(0, min(k, g - 2)), max(0, min(k, g - 2)) + 2)
+    lab = np.asarray(black_lab, float)
+    clut[cell(ls, lab[0]), cell(ab, lab[1]), cell(ab, lab[2]), :] = black
+    return icw.make_mft2(3, t["n_out"], g, clut.reshape(-1, t["n_out"]),
+                         in_tables=t["in"], out_tables=t["out"])
+
+
 def accurate_candidates(tokens) -> frozenset:
     """The candidate set a Maximum accuracy build runs with: the requested
     tokens plus ACCURATE_DEFAULT_TOKENS (plus GP_FIN3_TOKENS when "fin3" is
@@ -1734,6 +1758,22 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         luts["B2A0"] = "B2A1"
     if "B2A2" not in luts:
         luts["B2A2"] = "B2A1"
+    if (accurate and codec.signature == b"Lab "
+            and luts["B2A0"] == "B2A1" and luts["B2A2"] == "B2A1"
+            and "a51-colprofedge" in candidates
+            and (meas.is_additive or "a51-colprofedge-all" in candidates)):
+        # Integration 7 (a51-colprofedge default): with no mapped table the
+        # perceptual intents alias the colorimetric B2A1, and lcms feeds them
+        # the device black's own Lab (black point compensation). The
+        # perceptual tables hold the cell around the device black's own
+        # Lab on the black (lcms feeds exactly that Lab, with black point
+        # compensation, and the clipped neighbour nodes of a51 lifted the
+        # answer: X1 sRGB black 0.39 L* lighter than the device black). The
+        # colorimetric B2A1 is untouched.
+        pinned = pin_black_cell(luts["B2A1"],
+                                model.predict(device_black[None, :])[0])
+        luts["B2A0"] = pinned
+        luts["B2A2"] = "B2A0"
 
     out = Path(out_path)
     attributes = 0

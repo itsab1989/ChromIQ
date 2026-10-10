@@ -237,3 +237,25 @@ def test_a51_acts_on_rgb_only_unless_asked_for_every_device():
     oog_clip.set_colorimetric(True)
     assert oog_clip.table_params()["space"] == "cam02"
     assert "a51-colprofedge-all" in ENGINE_CANDIDATE_TOKENS
+
+
+def test_the_cell_around_the_device_black_holds_the_black():
+    """Integration 7: with no mapped table the perceptual B2A0 is a copy of
+    B2A1 whose cell around the device black's Lab holds the black, so a CMM
+    that asks for that Lab (lcms with black point compensation) gets the
+    black (X1 through lcms printed it 0.39 L* lighter with a51 on)."""
+    from workflow.profile_engine import icc_writer as icw, v4_prm
+    g = 17
+    ls, ab = icw.lab_grid_axes(g)
+    mesh = np.stack(np.meshgrid(ls, ab, ab, indexing="ij"), -1).reshape(-1, 3)
+    clut = np.clip(mesh[:, :1] / 100.0 * 0xFFFF + 5000.0, 0, 0xFFFF)
+    i0 = int(np.argmin(np.abs(ab)))
+    clut[i0 * g + i0] = 0.0                                # the pinned L* 0 corner
+    blob = icw.make_mft2(3, 1, g, clut.round().astype(">u2"),
+                         in_tables=icw.lab_b2a_in_tables(1024))
+    out = builder.pin_black_cell(blob, np.array([8.0, 3.5, -12.0]))
+    t0, t1 = v4_prm.parse_mft2(blob), v4_prm.parse_mft2(out)
+    a, b = np.array(t0["clut"]), np.array(t1["clut"])
+    changed = np.flatnonzero((a != b).any(1))
+    assert 1 <= len(changed) <= 8                          # one cell, nothing else
+    assert (b[changed] == 0).all()
