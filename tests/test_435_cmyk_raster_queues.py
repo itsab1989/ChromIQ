@@ -155,7 +155,7 @@ def test_an_lpoptions_value_that_is_not_cmyk_makes_it_unsure(monkeypatch, tmp_pa
     option, so either value counts: Gray beside the CMYK default is not CMYK."""
     home = tmp_path / "home"
     (home / ".cups").mkdir(parents=True)
-    (home / ".cups" / "lpoptions").write_text("Dest DJ ColorModel=Gray\n")
+    (home / ".cups" / "lpoptions").write_text("Dest DJ ColorModel=Gray\n", encoding="utf-8")
     monkeypatch.setattr("pathlib.Path.home", lambda: home)
     assert raster_colour(DESKJET, {}, "DJ").cmyk is None
     assert raster_colour(DESKJET, {}, "OTHER").cmyk == "KCMY"
