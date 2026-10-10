@@ -373,3 +373,143 @@ def test_the_engine_files_the_reading_as_b_and_saves_it_there(tmp_path):
     for p in moved["patches"]:
         if p["loc"] in by_loc:
             assert by_loc[p["loc"]] == pytest.approx(p["xyz"], abs=1e-3)
+
+
+# ---- the engine takes file_as only at its strip menu (review of fd8415715) --
+#
+# An instrument reads while "Was a strip read twice?" is open, so when the
+# answer comes the engine can be mid-swipe or at a question (a misread's
+# retry, an unexpected response, "Done?"). There chromiq-chartread consumes
+# the command and drops it (cq_wait_char), measured on the replay instrument:
+# no strip_filed_as, no file_as_refused, the reading still under C and B's
+# old reading kept, while the window had said "counted as strip B". The
+# manager holds the answer and sends it at the next strip menu.
+
+def _bare_manager():
+    from workflow.measure_manager import MeasureManager
+
+    class _R:
+        is_running = True
+
+        def __init__(self):
+            self.sent = []
+
+        def write_stdin(self, text):
+            self.sent.append(text)
+    r = _R()
+    m = MeasureManager(r)
+    m._engine_active = True
+    m._spot_mode = False
+    m._guided_state = "disabled"
+    m._engine_files_as = True
+    return m, r
+
+
+@pytest.mark.parametrize("question", [
+    {"event": "error", "kind": "misread", "detail": "x"},
+    {"event": "strip_warning", "kind": "unexpected_response",
+     "worst_de": 40.0},
+    {"event": "scan_started"},
+])
+def test_file_as_waits_for_the_strip_menu(question):
+    m, r = _bare_manager()
+    _feed(m, {"event": "strip_ready", "strip": "D", "read": False,
+              "all_done": False}, question)
+    m._read_twice_pending = [("C", "B")]
+    m.answer_read_twice("was_like")
+    assert not [x for x in r.sent if '"file_as"' in x], \
+        "sent while the engine could not take it"
+    _feed(m, {"event": "strip_ready", "strip": "D", "read": False,
+              "all_done": False})
+    assert [json.loads(x) for x in r.sent if '"file_as"' in x] == [
+        {"cmd": "file_as", "strip": "C", "as": "B"}]
+
+
+def test_a_held_file_as_waits_while_that_menu_takes_another_key():
+    m, r = _bare_manager()
+    _feed(m, {"event": "strip_ready", "strip": "D", "read": False,
+              "all_done": False},
+          {"event": "error", "kind": "misread", "detail": "x"})
+    m._read_twice_pending = [("C", "B")]
+    m.answer_read_twice("was_like")
+    m._pending_post_retry_key = "n"     # this menu answers with a key first
+    _feed(m, {"event": "strip_ready", "strip": "D", "read": False,
+              "all_done": False})
+    assert not [x for x in r.sent if '"file_as"' in x]
+    _feed(m, {"event": "strip_ready", "strip": "E", "read": False,
+              "all_done": False})
+    assert [json.loads(x) for x in r.sent if '"file_as"' in x] == [
+        {"cmd": "file_as", "strip": "C", "as": "B"}]
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not HELPER.exists(),
+                    reason="chromiq-chartread helper not built")
+def test_the_engine_files_it_after_a_misread_of_the_next_strip(tmp_path):
+    """The real engine: B's colours swiped on C, then D misread while the
+    window is open, then "I read strip B". The manager waits for the menu
+    the misread's retry brings, and the engine moves the reading to B."""
+    from workflow.measure_manager import MeasureManager
+    from workflow.ti3_analysis import parse_ti3
+    targen = shutil.which("targen") or "/Applications/Argyll/bin/targen"
+    if not Path(targen).exists():
+        pytest.skip("Argyll targen not available")
+    base = tmp_path / "chart"
+    subprocess.run([targen, "-v0", "-d2", "-G", "-f100", str(base)],
+                   check=True, capture_output=True, cwd=tmp_path, timeout=120)
+    from workflow.layout_engine.chart import build_chart
+    build_chart(base.with_suffix(".ti1"), base, instrument="i1", paper="A4",
+                randomize=True)
+    replay = tmp_path / "replay.txt"
+    write_replay_script(base.with_suffix(".ti2"), replay)
+
+    class _Runner:
+        is_running = True
+
+        def __init__(self, s):
+            self.s = s
+            self.sent = []
+
+        def write_stdin(self, text):        # straight to the engine
+            self.sent.append(text)
+            self.s.proc.stdin.write(text)
+            self.s.proc.stdin.flush()
+    s = ReplaySession(base, replay, ["-S"])
+    r = _Runner(s)
+    m = MeasureManager(r)
+    m._engine_active = True
+    m._spot_mode = False
+    m._is_resume = False
+    m._guided_state = "disabled"
+    asked = []
+    m.strip_read_twice.connect(lambda st, like: asked.append((st, like)))
+    try:
+        start = s.wait_event("session_start", timeout=60)
+        _feed(m, start)
+        a, b, c, d = [x["strip"] for x in start["strips"]][:4]
+        for k in range(3):
+            i = s.event_index()
+            s.send(cmd="swipe", **({"as": b} if k == 2 else {}))
+            _feed(m, s.wait_event("strip_read", after=i, timeout=60))
+            _feed(m, s.wait_event("strip_ready", after=i, timeout=60))
+        assert asked == [(c, b)]
+        # D swiped while the window is open, and misread.
+        i = s.event_index()
+        s.send(cmd="swipe", fault="misread")
+        _feed(m, s.wait_event("error", after=i, timeout=60))
+        m.answer_read_twice("was_like")
+        assert not [x for x in r.sent if '"file_as"' in x]
+        # The misread's retry: the engine is back at its menu.
+        i = s.event_index()
+        s.send(cmd="retry")
+        _feed(m, s.wait_event("strip_ready", after=i, timeout=60))
+        moved = s.wait_event("strip_filed_as", after=i, timeout=60)
+        ready = s.wait_event("strip_ready", after=i, strip=c, timeout=60)
+        assert moved["strip"] == b and moved["from"] == c
+        assert ready["read"] is False
+    finally:
+        s.proc.kill()
+        s.finish()
+    locs = list(parse_ti3(base.with_suffix(".ti3")).sample_locs)
+    assert not [x for x in locs if x.startswith(c)]
+    assert len([x for x in locs if x.startswith(b)]) > 0

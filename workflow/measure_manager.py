@@ -471,6 +471,13 @@ class MeasureManager(QObject):
         #: Whether the engine understands {"cmd":"file_as"} (its session_start
         #: says so): "I read strip B" then moves the reading onto B.
         self._engine_files_as: bool = False
+        #: file_as answers waiting for the engine's strip menu, as
+        #: [(strip, as)] (see answer_read_twice).
+        self._held_file_as: "list[tuple[str, str]]" = []
+        #: Commands sent so far: a held file_as goes out only at a strip menu
+        #: where nothing else was sent, because the engine keeps ONE pending
+        #: key and a second command would overwrite the first.
+        self._commands_sent: int = 0
         #: Strips whose latest reading was asked about and not kept, as
         #: {strip: the strip it looked like}. Such a reading is very likely
         #: ANOTHER strip's (Knut, #182 5969949735: strip B swiped with the
@@ -652,6 +659,10 @@ class MeasureManager(QObject):
         self._read_twice_pending = []
         self._suspect_strips = {}
         self._wrong_strip_warned = False
+        # Learnt again from this session's session_start (an engine without
+        # file_as never says so, and must not inherit the last one's word).
+        self._engine_files_as = False
+        self._held_file_as = []
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
@@ -1145,6 +1156,7 @@ class MeasureManager(QObject):
         self._just_read_strip = None
         self._just_read_patch = None
         self._held_after_read = None
+        self._commands_sent += 1
         self._runner.write_stdin(_json.dumps(cmd) + "\n")
 
     # ------------------------------------------------------------------
@@ -1648,6 +1660,21 @@ class MeasureManager(QObject):
                 log.info("read twice: strip %s's reading is strip %s's; the "
                          "engine files it there, the reader stays on %s",
                          strip, like, strip)
+                if self._file_as_must_wait():
+                    # THE ENGINE TAKES file_as ONLY AT ITS STRIP MENU (review
+                    # of fd8415715). An instrument reads while this window is
+                    # open, so the engine can be mid-swipe or at a question
+                    # (a misread's retry, an unexpected response, "Done?"),
+                    # where the command is consumed and dropped: measured on
+                    # the replay instrument, no strip_filed_as, no
+                    # file_as_refused, the reading still under {strip} and
+                    # {like}'s old one kept. Held, and sent at the next strip
+                    # menu (_flush_held_file_as), like a held calibration.
+                    self._held_file_as.append((strip, like))
+                    log.info("read twice: the engine is not at its strip "
+                             "menu; file_as %s -> %s is held until it is",
+                             strip, like)
+                    return
                 self.send_command({"cmd": "file_as", "strip": strip,
                                    "as": like})
                 return
@@ -1659,6 +1686,32 @@ class MeasureManager(QObject):
             self._suspect_strips.pop(strip, None)
             log.info("read twice: strip %s kept as read (%s)", strip,
                      choice or "dismissed")
+
+    def _file_as_must_wait(self) -> bool:
+        """Is the engine anywhere but its strip menu (mid-swipe, or at a
+        question), so that a file_as would be swallowed there?"""
+        return bool(self._scan_in_progress
+                    or self._at_retry_prompt
+                    or self._at_unread_prompt
+                    or getattr(self, "_sensor_warning_open", False))
+
+    def _flush_held_file_as(self) -> None:
+        """Send the oldest held file_as now that the engine is at its strip
+        menu. One per menu: the engine answers it with another strip_ready,
+        which sends the next."""
+        if not self._held_file_as or self._file_as_must_wait():
+            return
+        if self._an_ending_is_under_way():
+            for strip, like in self._held_file_as:
+                log.warning("read twice: the measurement is ending; strip "
+                            "%s's reading was never filed as strip %s and "
+                            "stays set aside", strip, like)
+            self._held_file_as = []
+            return
+        strip, like = self._held_file_as.pop(0)
+        log.info("read twice: the engine is at its strip menu; file_as %s "
+                 "-> %s sent", strip, like)
+        self.send_command({"cmd": "file_as", "strip": strip, "as": like})
 
     def set_aside_locs(self) -> "set[str]":
         """Patches whose reading was asked about and NOT kept, and that have
@@ -2299,6 +2352,7 @@ class MeasureManager(QObject):
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
+            _sent_before = self._commands_sent
             self._scan_in_progress = False
             self._saw_reader_prompt = True
             self._at_retry_prompt = False        # back at the menu
@@ -2339,6 +2393,11 @@ class MeasureManager(QObject):
             # K pressed during the swipe or at a question: the menu is
             # listening again, so it goes out now (challenge 1e).
             self._flush_held_calibration()
+            # "I read strip B" answered while the engine was not at this
+            # menu: it goes out now, unless this menu already took a key
+            # (the engine keeps one; the next strip_ready sends it).
+            if self._commands_sent == _sent_before:
+                self._flush_held_file_as()
 
         elif kind == "scan_started":
             # The instrument has fired: the swipe starts NOW (#131). In strip
@@ -2421,6 +2480,9 @@ class MeasureManager(QObject):
                 if labs:
                     self._measured_strips[_to] = labs
                 self._measured_strips.pop(_fr, None)
+                # B has a reading now, whatever it had before (review of
+                # fd8415715: an unread B kept counting as unread).
+                self._mark_read(vals.keys())
             except Exception:      # noqa: BLE001 — never block a measurement
                 log.warning("could not learn strip %s's moved reading", _to,
                             exc_info=True)
