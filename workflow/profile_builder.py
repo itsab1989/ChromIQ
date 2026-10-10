@@ -346,10 +346,17 @@ def installed_profile_name(description: "str | None", settings) -> "str | None":
 
 def install_destination(icc_path: Path,
                         install_name: "str | None" = None,
-                        *, fallback_stem: "str | None" = None) -> Path:
+                        *, fallback_stem: "str | None" = None,
+                        dest_name: "str | None" = None) -> Path:
     """Where :func:`install_profile_file` would put *icc_path*, without
     copying anything: the Install buttons ask it first, so they can say when
-    a profile of that name is installed already (Knut, #182 6102031563)."""
+    a profile of that name is installed already (Knut, #182 6102031563).
+
+    *dest_name* (a file name with its extension) is the name the person
+    typed in the install window (``ui.install_profile``): it wins over every
+    other rule."""
+    if dest_name:
+        return _profile_dir() / Path(dest_name).name
     if install_name:
         name = f"{install_name}.icc"
     elif fallback_stem:
@@ -362,7 +369,8 @@ def install_destination(icc_path: Path,
 def install_profile_file(icc_path: Path,
                          install_name: "str | None" = None,
                          *, fallback_stem: "str | None" = None,
-                         description: "str | None" = None) -> Path:
+                         description: "str | None" = None,
+                         dest_name: "str | None" = None) -> Path:
     """Copy *icc_path* into the system ICC profile folder; return where it went.
 
     **THE ONE DOOR.** ChromIQ has two Install buttons — Build ICC profile's and
@@ -393,8 +401,9 @@ def install_profile_file(icc_path: Path,
     file name; the project's own file is never touched.
 
     An installed profile of the same name is replaced, which is the normal way
-    to update one. The Install buttons ask before that happens once the
-    window for it is approved (``ui.install_profile.confirm_replace``).
+    to update one. The Install buttons ask before that happens, and the
+    person may give the installed copy another name there
+    (``ui.install_profile.ask_install_path``, *dest_name*).
     """
     profile_dir = _profile_dir()
     try:
@@ -404,7 +413,7 @@ def install_profile_file(icc_path: Path,
                     profile_dir)
         raise
     dest = install_destination(icc_path, install_name,
-                               fallback_stem=fallback_stem)
+                               fallback_stem=fallback_stem, dest_name=dest_name)
     shutil.copy2(icc_path, dest)
     if description:
         from core.icc_text import set_description
@@ -669,7 +678,8 @@ class ProfileBuilder:
     def install_profile(self, icc_path: Path,
                         install_name: "str | None" = None,
                         *, fallback_stem: "str | None" = None,
-                        description: "str | None" = None) -> Path:
+                        description: "str | None" = None,
+                        dest_name: "str | None" = None) -> Path:
         """Copy .icc file to the system ICC profile folder. Returns the installed path.
 
         **THE ONE DOOR.** Both Install buttons come through here, so the name
@@ -692,7 +702,8 @@ class ProfileBuilder:
         """
         return install_profile_file(icc_path, install_name,
                                     fallback_stem=fallback_stem,
-                                    description=description)
+                                    description=description,
+                                    dest_name=dest_name)
 
     def sanity_check(self, icc_path: Path, log_output: str = "") -> list[str]:
         """Return list of warning strings; empty = pass."""

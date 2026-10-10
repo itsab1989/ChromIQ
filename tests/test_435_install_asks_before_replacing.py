@@ -8,12 +8,13 @@ after it was built (#182, Knut 6102031563, answer 3).
     selected the option that the description is same as file name), when
     clicking the install button."
 
-* Every Install button asks ``ui.install_profile.confirm_replace`` with the
+* Every Install button asks ``ui.install_profile.ask_install_path`` with the
   file it would write, before writing it: Build Profile, Apply Calibration,
   Check & Refine's "Install Profile As Is" and the scanner window.
-* The question's words (M-PROFILE-INSTALL-REPLACE) wait in §M-PROPOSED, so
-  the window is not shown until they are approved and an Install replaces as
-  it always has. Once approved: Replace installs, Cancel installs nothing.
+* The window is Basti's design (2026-10-11, M-PROFILE-INSTALL-REPLACE
+  approved): an editable name, Replace while it is unchanged, Install once
+  it is edited (Replace again when that name is installed too), Cancel
+  installs nothing. Only the installed copy takes the new name.
 * With "Name the installed copy after the description" ticked, the copy is
   named after the description as it reads when Install is clicked, and its
   ``desc`` tag says the same; the project's own file is never touched.
@@ -31,7 +32,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSettings                       # noqa: E402
-from PyQt6.QtWidgets import QApplication, QMessageBox    # noqa: E402
+from PyQt6.QtWidgets import QApplication                 # noqa: E402
 
 from workflow import measurement_messages as M          # noqa: E402
 from workflow import profile_builder as PB              # noqa: E402
@@ -53,26 +54,26 @@ def installed(tmp_path, monkeypatch):
     return d
 
 
-@pytest.fixture
-def approved(monkeypatch):
-    """The question as it will be once its words are approved."""
-    monkeypatch.setattr(M, "M_PROFILE_INSTALL_REPLACE", dataclasses.replace(
-        M.M_PROFILE_INSTALL_REPLACE, approved=True))
 
-
-def _answer(monkeypatch, which):
-    """Answer the window with *which* ("Replace" / "Cancel"); returns the
-    list of windows shown."""
+def _answer(monkeypatch, which, name=None):
+    """Answer the install window: optionally type *name* into its field,
+    then press *which* ("Replace" / "Install" / "Cancel"). Returns what each
+    window showed before the press: (button text, note, button enabled)."""
+    from ui import install_profile as IP
+    cls = IP._install_name_dialog_class()
     shown = []
 
-    def _exec(box):
-        shown.append(box.objectName())
-        for b in box.buttons():
-            if b.text().replace("&", "") == which:
-                b.click()
-                return 0
-        raise AssertionError([b.text() for b in box.buttons()])
-    monkeypatch.setattr(QMessageBox, "exec", _exec)
+    def _exec(dlg):
+        if name is not None:
+            dlg.name_edit.setText(name)
+        shown.append((dlg.ok_btn.text(), dlg.note.text(), dlg.ok_btn.isEnabled()))
+        if which == "Cancel":
+            dlg.cancel_btn.click()
+        else:
+            assert dlg.ok_btn.text() == which, dlg.ok_btn.text()
+            dlg.ok_btn.click()
+        return 0
+    monkeypatch.setattr(cls, "exec", _exec)
     return shown
 
 
@@ -81,58 +82,118 @@ def _desc(path: Path) -> str:
     return read_icc(path).description
 
 
-# ---- the question -----------------------------------------------------------
+# ---- the window (Basti's design, 2026-10-11) ----------------------------------
 
-def test_the_question_waits_for_approval():
+def test_the_window_is_approved_in_basti_s_words():
     msg = M.CATALOGUE["M-PROFILE-INSTALL-REPLACE"]
-    assert not msg.approved
-    title, body = msg.render(path="/x/Profile.icc")
+    assert msg.approved
+    title, body = msg.render()
     assert title == "A profile with this name is already installed"
-    assert body == ("/x/Profile.icc is already in your profile folder.\n\n"
-                    "Replace it with this profile, or cancel and give this "
-                    "profile another name before you install it.")
+    assert body == ("Keep the name to replace the installed profile, or give "
+                    "this profile another name.")
 
 
-def test_until_approved_nothing_is_asked_and_it_replaces(qapp, tmp_path,
-                                                         monkeypatch):
-    from ui.install_profile import confirm_replace
+def test_nothing_installed_nothing_asked(qapp, tmp_path, monkeypatch):
+    from ui.install_profile import ask_install_path
     shown = _answer(monkeypatch, "Cancel")
     dest = tmp_path / "P.icc"
-    assert confirm_replace(None, dest) is True        # nothing there
-    dest.write_bytes(b"old")
-    assert confirm_replace(None, dest) is True        # today's behaviour
+    assert ask_install_path(None, dest) == dest
     assert shown == []
 
 
-def test_once_approved_replace_and_cancel(qapp, tmp_path, monkeypatch,
-                                          approved):
-    from ui.install_profile import confirm_replace
+def test_keeping_the_name_replaces(qapp, tmp_path, monkeypatch):
+    from ui.install_profile import ask_install_path
     dest = tmp_path / "P.icc"
-    shown = _answer(monkeypatch, "Cancel")
-    assert confirm_replace(None, dest) is True and shown == []
     dest.write_bytes(b"old")
-    assert confirm_replace(None, dest) is False
-    assert shown == ["profile_install_replace"]
-    _answer(monkeypatch, "Replace")
-    assert confirm_replace(None, dest) is True
+    shown = _answer(monkeypatch, "Replace")
+    assert ask_install_path(None, dest) == dest
+    assert shown == [("Replace", "", True)]
+
+
+def test_a_new_name_installs_beside_it_and_keeps_the_extension(
+        qapp, tmp_path, monkeypatch):
+    from ui.install_profile import ask_install_path
+    dest = tmp_path / "P.icm"
+    dest.write_bytes(b"old")
+    shown = _answer(monkeypatch, "Install", name="Müller Baryta 310 v2")
+    assert ask_install_path(None, dest) == tmp_path / "Müller Baryta 310 v2.icm"
+    assert shown == [("Install", "", True)]
+
+
+def test_a_new_name_that_is_installed_too_says_so_and_replaces(
+        qapp, tmp_path, monkeypatch):
+    from ui.install_profile import ask_install_path
+    dest = tmp_path / "P.icc"
+    dest.write_bytes(b"old")
+    (tmp_path / "Other.icc").write_bytes(b"other")
+    shown = _answer(monkeypatch, "Replace", name="Other")
+    assert ask_install_path(None, dest) == tmp_path / "Other.icc"
+    assert shown[0][1] == ("A profile named Other.icc is installed too. "
+                           "Replace overwrites it.")
+
+
+def test_the_same_name_in_another_case_is_the_same_file(qapp, tmp_path,
+                                                        monkeypatch):
+    from ui.install_profile import ask_install_path
+    dest = tmp_path / "Profile.icc"
+    dest.write_bytes(b"old")
+    shown = _answer(monkeypatch, "Replace", name="PROFILE")
+    ask_install_path(None, dest)
+    assert shown[0][0] == "Replace"
+
+
+def test_cancel_installs_nothing_in_the_window(qapp, tmp_path, monkeypatch):
+    from ui.install_profile import ask_install_path
+    dest = tmp_path / "P.icc"
+    dest.write_bytes(b"old")
+    _answer(monkeypatch, "Cancel", name="Something")
+    assert ask_install_path(None, dest) is None
+
+
+@pytest.mark.parametrize("name, ok", [
+    ("", False), ("   ", False), ("a/b", False), ("a:b", False),
+    ("a\\b", False), ('a"b', False), (".hidden", False), ("x" * 101, False),
+    ("x" * 100, True), ("Müller Барита 光沢", True), ("RR ColorJet v5", True)])
+def test_names_are_checked(name, ok):
+    from ui.install_profile import name_problem
+    assert (name_problem(name) is None) is ok
+
+
+def test_an_unusable_name_turns_the_button_off(qapp, tmp_path, monkeypatch):
+    from ui.install_profile import ask_install_path
+    dest = tmp_path / "P.icc"
+    dest.write_bytes(b"old")
+    shown = _answer(monkeypatch, "Cancel", name="a/b")
+    ask_install_path(None, dest)
+    assert shown[0][2] is False and "cannot contain" in shown[0][1]
+
+
+def test_replace_is_the_default_and_the_field_holds_the_name(qapp, tmp_path):
+    from ui.install_profile import InstallNameDialog
+    dest = tmp_path / "P.icc"
+    dest.write_bytes(b"old")
+    dlg = InstallNameDialog(None, dest)
+    assert dlg.ok_btn.isDefault() and dlg.ok_btn.text() == "Replace"
+    assert dlg.name_edit.text() == "P"
 
 
 def test_every_install_button_asks_first():
     """The four Install buttons: each asks with the file it would write,
-    before it writes."""
+    before it writes, and writes the file it is answered."""
     from ui.dialogs import scanin_dialog
     from ui.tabs import tab_check_refine, tab_profile
-    src = inspect.getsource(tab_profile.TabProfile._on_install)
-    assert src.index("_may_install_over") < src.index("install_profile(")
-    src = inspect.getsource(
-        tab_profile.TabProfile._show_applycal_result_dialog)
-    assert src.index("_may_install_over(icc_path, name, fallback)") < \
-        src.index("install_profile(")
+    src = inspect.getsource(tab_profile.TabProfile._install_with_name_check)
+    assert src.index("ask_install_path(self, planned)") < src.index("install_profile(")
+    assert "dest_name=dest.name" in src
+    for fn in (tab_profile.TabProfile._on_install,
+               tab_profile.TabProfile._show_applycal_result_dialog):
+        assert "_install_with_name_check(" in inspect.getsource(fn)
     src = inspect.getsource(tab_check_refine)
-    assert src.index("confirm_replace(dlg, install_destination(") < \
-        src.index("dest = install_profile_file(icc, name,")
+    assert src.index("chosen = ask_install_path(dlg, planned)") < \
+        src.index("dest = install_profile_file(")
+    assert "dest_name=chosen.name" in src
     src = inspect.getsource(scanin_dialog.ScannerProfileDialog._install_profile)
-    assert src.index("confirm_replace(") < src.index("shutil.copy2(")
+    assert src.index("ask_install_path(") < src.index("shutil.copy2(")
 
 
 # ---- Build Profile, on its own tab -------------------------------------------
@@ -153,29 +214,41 @@ def build_tab(qapp, tmp_path, monkeypatch, installed):
     return tab, s, icc
 
 
-def test_cancel_installs_nothing(build_tab, installed, monkeypatch, approved):
+
+
+def test_cancel_installs_nothing(build_tab, installed, monkeypatch):
     tab, _s, icc = build_tab
     installed.mkdir(parents=True)
     old = installed / icc.name
     old.write_bytes(b"the profile installed before")
-    shown = _answer(monkeypatch, "Cancel")
+    _answer(monkeypatch, "Cancel")
     tab._on_install()
-    assert shown == ["profile_install_replace"]
     assert old.read_bytes() == b"the profile installed before"
+    assert sorted(p.name for p in installed.iterdir()) == [icc.name]
     _answer(monkeypatch, "Replace")
     tab._on_install()
     assert old.read_bytes() == icc.read_bytes()
 
 
-def test_today_it_replaces_without_a_window(build_tab, installed,
-                                            monkeypatch):
-    tab, _s, icc = build_tab
+@pytest.mark.parametrize("tick", [True, False])
+def test_a_name_typed_in_the_window_names_the_installed_copy_only(
+        build_tab, installed, monkeypatch, tick):
+    """Basti, 2026-10-11: only the INSTALLED copy takes the new name; with
+    the tick, its description follows it."""
+    tab, s, icc = build_tab
+    s.set("install_named_by_description", tick)
+    tab._desc_edit.setText("Demo-Report-Matrix")
+    tab._m_desc_edit.setText("Demo-Report-Matrix")
     installed.mkdir(parents=True)
-    (installed / icc.name).write_bytes(b"old")
-    shown = _answer(monkeypatch, "Cancel")
+    (installed / "Demo-Report-Matrix.icc").write_bytes(b"installed earlier")
+    before = icc.read_bytes()
+    _answer(monkeypatch, "Install", name="Demo v2")
     tab._on_install()
-    assert shown == []
-    assert (installed / icc.name).read_bytes() == icc.read_bytes()
+    new = installed / "Demo v2.icc"
+    assert new.is_file()
+    assert (installed / "Demo-Report-Matrix.icc").read_bytes() == b"installed earlier"
+    assert _desc(new) == ("Demo v2" if tick else "Demo-Report-Matrix")
+    assert icc.read_bytes() == before and icc.name == "Demo-Report-Matrix.icc"
 
 
 @pytest.mark.parametrize("mode", ["guided", "manual"])

@@ -2039,11 +2039,10 @@ class TabProfile(QWidget):
             try:
                 name = self._install_name()
                 fallback = _role_named_fallback(icc_path)
-                if not self._may_install_over(icc_path, name, fallback):
+                dest = self._install_with_name_check(
+                    icc_path, name, fallback, self._install_description(name))
+                if dest is None:
                     return
-                dest = self._builder.install_profile(
-                    icc_path, name, fallback_stem=fallback,
-                    description=self._install_description(name))
                 self._ac_log.appendPlainText(f"[OK] Profile installed to {dest}")
             except Exception as exc:
                 self._ac_log.appendPlainText(f"[ERROR] Install failed: {exc}")
@@ -6242,13 +6241,26 @@ class TabProfile(QWidget):
                 else self._m_desc_edit)
         return edit.text().strip() or None
 
-    def _may_install_over(self, icc_path, name, fallback) -> bool:
-        """Ask before an installed profile of the same file name is replaced
-        (Knut, #182 6102031563; ``ui.install_profile.confirm_replace``)."""
-        from ui.install_profile import confirm_replace
+    def _install_with_name_check(self, icc_path, name, fallback,
+                                 description) -> "Path | None":
+        """Install *icc_path*, asking first when a profile of the same file
+        name is installed (Knut, #182 6102031563; Basti's window,
+        ``ui.install_profile.ask_install_path``). Returns where it went, or
+        None when the person cancelled. A name typed in the window names the
+        INSTALLED COPY only, and with "Name the installed copy after the
+        description" ticked its description says the same."""
+        from ui.install_profile import ask_install_path
         from workflow.profile_builder import install_destination
-        return confirm_replace(self, install_destination(
-            Path(icc_path), name, fallback_stem=fallback))
+        planned = install_destination(Path(icc_path), name,
+                                      fallback_stem=fallback)
+        dest = ask_install_path(self, planned)
+        if dest is None:
+            return None
+        if dest.name != planned.name and description is not None:
+            description = dest.stem
+        return self._builder.install_profile(
+            icc_path, name, fallback_stem=fallback, description=description,
+            dest_name=dest.name)
 
     def _on_install(self) -> None:
         if not self._icc_path:
@@ -6262,11 +6274,11 @@ class TabProfile(QWidget):
         try:
             name = self._install_name()
             fallback = _role_named_fallback(self._icc_path)
-            if not self._may_install_over(self._icc_path, name, fallback):
+            dest = self._install_with_name_check(
+                self._icc_path, name, fallback,
+                self._install_description(name))
+            if dest is None:
                 return
-            dest = self._builder.install_profile(
-                self._icc_path, name, fallback_stem=fallback,
-                description=self._install_description(name))
             self._log.appendPlainText(f"[OK] Profile installed to {dest}")
             self._log.ensureCursorVisible()
         except Exception as exc:

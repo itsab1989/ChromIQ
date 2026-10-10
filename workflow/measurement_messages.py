@@ -2827,22 +2827,21 @@ M_PROJECT_REPLACE_CONFIRM = _m(
     "Everything this project holds is about to be moved into its own “old” folder, with today’s date on it:\n\n{folder}\n\nNothing is deleted. That “old” folder stays inside the project, so you can open it at any time and take anything back out of it: the charts, the measurements, the profiles, all of it.\n\nAfter that, a new and completely empty project of the same name is started in the same place, and your new chart is made in its first run.\n\nIf what you wanted was to ADD to this project rather than start it again, go back and choose “Continue this project” instead. That leaves everything where it is.",
     approved=False)
 
-# --- PROPOSED: installing over a profile of the same file name -------------
+# --- APPROVED (Basti, 2026-10-11): installing over a profile of the same name
 #: Knut, #182 6102031563, answer 3 ("Installing replaces an installed profile
 #: of the same name without asking. Should ChromIQ ask first?"): "Yes. Ask if
 #: user wants to replace existing or cancel to rename the profile before
 #: trying to install it again." Every Install button asks through
-#: ui/install_profile.confirm_replace. The words are ours, so the window is
-#: NOT shown until they are approved: until then an Install replaces the
-#: installed profile as it always has.
+#: ui/install_profile.ask_install_path; the window's design (an editable
+#: name, Replace / Install, Cancel) and these words are Basti's, 2026-10-11.
 _INSTALL_REPLACE = "Replace"
+_INSTALL_INSTALL = "Install"
 M_PROFILE_INSTALL_REPLACE = _m(
     "M-PROFILE-INSTALL-REPLACE",
     "A profile with this name is already installed",
-    "{path} is already in your profile folder.\n\n"
-    "Replace it with this profile, or cancel and give this profile another "
-    "name before you install it.",
-    approved=False)
+    "Keep the name to replace the installed profile, or give this profile "
+    "another name.",
+    approved=True)  # Basti, 2026-10-11 (design and wording)
 
 # --- PROPOSED: the Replace that could not be carried out -------------------
 # "Replace it" promises that everything is moved into the project's own "old"

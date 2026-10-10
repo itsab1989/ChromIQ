@@ -900,14 +900,14 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         import shutil
         dest_dir = _user_profile_dir()
-        # Ask before replacing an installed profile of that name (Knut, #182
-        # 6102031563).
-        from ui.install_profile import confirm_replace
-        if not confirm_replace(self, dest_dir / self._last_profile.name):
+        # Ask before replacing an installed profile of that name, and let the
+        # installed copy take another (Knut, #182 6102031563; Basti's window).
+        from ui.install_profile import ask_install_path
+        dest = ask_install_path(self, dest_dir / self._last_profile.name)
+        if dest is None:
             return
         try:
             dest_dir.mkdir(parents=True, exist_ok=True)
-            dest = dest_dir / self._last_profile.name
             shutil.copy2(self._last_profile, dest)
         except OSError as exc:
             self._log.appendPlainText(

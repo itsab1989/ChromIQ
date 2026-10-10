@@ -428,10 +428,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # …and the second look before it runs, which
                                  # Basti asked for on 2026-08-27.
                                  "M-PROJECT-REPLACE-CONFIRM",
-                                 # Knut, #182 6102031563 answer 3: ask before
-                                 # installing over a profile of the same
-                                 # name. Not shown until approved.
-                                 "M-PROFILE-INSTALL-REPLACE",
                                  # #159, 2026-08-28: a CR30 chart carries the
                                  # honest name the device reports for itself,
                                  # which stock ArgyllCMS chartread refuses. The

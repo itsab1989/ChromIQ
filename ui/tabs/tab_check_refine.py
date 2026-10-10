@@ -2217,7 +2217,7 @@ class TabCheckRefine(QWidget):
                     # when this profile was built, and it is the name other
                     # applications list the profile under. the tester's point was
                     # exactly that the two should match.
-                    from ui.install_profile import confirm_replace
+                    from ui.install_profile import ask_install_path
                     from workflow.profile_builder import (
                         install_destination, install_profile_file,
                         installed_profile_name)
@@ -2233,12 +2233,19 @@ class TabCheckRefine(QWidget):
                     name = installed_profile_name(desc, self._settings)
                     fallback = Run.for_dir(icc.parent).stem
                     # Ask before replacing an installed profile of that
-                    # name (Knut, #182 6102031563).
-                    if not confirm_replace(dlg, install_destination(
-                            icc, name, fallback_stem=fallback)):
+                    # name, and let the installed copy take another (Knut,
+                    # #182 6102031563; Basti's window). With the tick on, a
+                    # copy renamed there says its new name inside too.
+                    planned = install_destination(icc, name,
+                                                  fallback_stem=fallback)
+                    chosen = ask_install_path(dlg, planned)
+                    if chosen is None:
                         return
-                    dest = install_profile_file(icc, name,
-                                                fallback_stem=fallback)
+                    renamed = chosen.name != planned.name
+                    dest = install_profile_file(
+                        icc, name, fallback_stem=fallback,
+                        description=(chosen.stem if renamed and name else None),
+                        dest_name=chosen.name)
                     dlg.accept()
                     self._log.appendPlainText(f"[OK] Profile installed to {dest}")
                 except Exception as exc:
