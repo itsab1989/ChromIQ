@@ -5225,22 +5225,34 @@ M_PRINT_PAPER_PROFILE_UNKNOWN = _m(
 #: Review R3 and B5 (4.3.4 beta 1) measured on capture queues that on a queue
 #: whose driver takes CUPS raster in CMYK (the CUPS sample HP DeskJet driver,
 #: Gutenprint with its CMYK colour model) macOS converts the chart into CMYK
-#: from its own tag and ignores the profile assigned in ColorSync. Since 4.3.5
-#: the dialog route leaves the chart untagged on such a job
-#: (``native_print_macos.cmyk_raster_job``). Proposed: a note on the Print Chart
-#: tab, under its notice, while the macOS print dialog route is on and the
-#: printer the dialog opens on is such a queue by its PPD. {printer} is the
-#: printer's name as macOS shows it. Not shown anywhere until approved
-#: (``ui.tabs.tab_print._update_cmyk_route_note`` reads ``approved``).
+#: itself and ignores an RGB profile assigned in ColorSync. Since 4.3.5 the
+#: dialog route leaves the chart untagged on such a job
+#: (``native_print_macos.cmyk_raster_job``). {printer} is the printer's name
+#: as macOS shows it.
+#: Basti, 2026-10-10: approved "as written only if every statement is true",
+#: and, once shown, it takes the place of the general dialog-route notice's
+#: paragraphs that promise the paper profile is attached so macOS does not
+#: change the colours ("This works with any printer…"), on such a queue only
+#: (``ui.tabs.tab_print._macos_dialog_notice``).
+#: REVIEW R1 (4.3.5, report 2026-10-10_435_R1): one statement was not true.
+#: "the profile set for this printer in ColorSync Utility does not change
+#: that" holds for an RGB profile only: with a CMYK profile assigned (Argyll's
+#: ref/cmyk.icm) the same untagged chart came out as a different raster on the
+#: sample DeskJet and on Gutenprint CMYK (20 % of the bytes, three runs, the
+#: same in 4.3.4); Generic CMYK Profile and two RGB profiles left it as with
+#: none. Corrected below, so it is PROPOSED again and not shown anywhere until
+#: approved (``_macos_dialog_notice`` reads ``approved``).
 M_PRINT_CMYK_RASTER_ROUTE = _m(
     "M-PRINT-CMYK-RASTER-ROUTE",
     "This printer\u2019s driver works in CMYK",
     "The driver of {printer} takes the chart in CMYK. On such a printer macOS "
-    "converts the chart\u2019s colours into CMYK itself, and the profile set "
-    "for this printer in ColorSync Utility does not change that, so ChromIQ "
-    "sends the chart as it is. Print the profiling chart, its verification "
-    "charts and your photos by this same route, the macOS print dialog, with "
-    "the same settings in it.",
+    "converts the chart\u2019s colours into CMYK itself. A CMYK profile set "
+    "for this printer in ColorSync Utility changes that conversion; an RGB "
+    "profile set there does not. ChromIQ sends the chart as it is, without "
+    "attaching a profile. Print the profiling chart, its verification charts "
+    "and your photos by this same route, the macOS print dialog, with the same "
+    "settings in it, and keep the same profile set for this printer in "
+    "ColorSync Utility.",
     approved=False)
 
 # --- APPROVED: the quality row of the Print Chart tab (beta 16) ---------------

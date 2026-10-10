@@ -2,8 +2,9 @@
 
 Review R3 and B5 (4.3.4 beta 1) measured on capture queues that on such a
 queue (the CUPS sample HP DeskJet driver) macOS converts the chart from its own
-tag into CMYK and ignores the profile assigned to the printer in ColorSync, so
-ChromIQ's re-tag made the printed colours depend on the assigned profile. Basti
+tag into CMYK and ignores an RGB profile assigned to the printer in ColorSync,
+so ChromIQ's re-tag made the printed colours depend on the assigned profile
+(review R1: a CMYK profile assigned there IS used for the conversion). Basti
 chose (2026-10-10, B5's option 3) to leave the chart untagged there, on
 condition that the detection is accurate and nothing else changes. So:
 
@@ -238,54 +239,120 @@ def test_the_job_options_are_read_back():
     assert "rep.options = " in src
 
 
-# ---- the Print Chart tab's note: wired, hidden until approved --------------
+# ---- the Print Chart tab's notice: the hint in place of the wrong claims ---
+# Basti, 2026-10-10: on a CMYK raster queue M-PRINT-CMYK-RASTER-ROUTE takes the
+# place of the notice's sentences promising the paper profile is attached so
+# macOS does not change the colours, and of "This works with any printer";
+# everything else stays. Review R1 found one statement of the hint untrue (a
+# CMYK profile set in ColorSync DOES change the conversion) and corrected it,
+# so the hint is PROPOSED and the notice is unchanged everywhere until then.
 @pytest.fixture
 def qapp():
     from PyQt6.QtWidgets import QApplication
     return QApplication.instance() or QApplication(sys.argv[:1])
 
 
-def _note(monkeypatch, *, approved, queue_cmyk=True, native=True, mac=True):
-    from PyQt6.QtWidgets import QLabel
+WRONG_HERE = ("it attaches the paper profile of the medium you chose to the chart",
+              "so macOS does not change its colours",
+              "the paper profile follows it",
+              "This works with any printer")
+
+
+def _notice(monkeypatch, *, approved, queue_cmyk=True):
     from ui.tabs import tab_print as tp
     if approved:
         monkeypatch.setattr(MM, "M_PRINT_CMYK_RASTER_ROUTE", dataclasses.replace(
             MM.M_PRINT_CMYK_RASTER_ROUTE, approved=True))
-    monkeypatch.setattr(tp, "is_macos", lambda: mac)
     monkeypatch.setattr(tp, "_dialog_printer", lambda: ("DJ", "Sample DeskJet"))
     monkeypatch.setattr(tp, "_queue_cmyk_raster", lambda q: "KCMY" if queue_cmyk else None)
     tab = tp.TabPrint.__new__(tp.TabPrint)
-    tab._cmyk_route_lbl = QLabel()
-    tab._settings = {"use_native_print_dialog": native}
-    tp.TabPrint._update_cmyk_route_note(tab)
-    return (not tab._cmyk_route_lbl.isHidden()), tab._cmyk_route_lbl.text()
+    return tp.TabPrint._macos_dialog_notice(tab)
 
 
-def test_the_note_is_proposed_and_not_shown(qapp, monkeypatch):
+def test_the_hint_is_proposed_and_the_notice_unchanged(qapp, monkeypatch):
+    """Review R1: one statement was untrue, so the corrected hint waits for
+    approval, and until then a CMYK queue gets the approved notice as is."""
     assert not MM.M_PRINT_CMYK_RASTER_ROUTE.approved
     assert "M-PRINT-CMYK-RASTER-ROUTE" in MM.PROPOSED
-    shown, _ = _note(monkeypatch, approved=False)
-    assert not shown
+    assert _notice(monkeypatch, approved=False) == _notice(
+        monkeypatch, approved=False, queue_cmyk=False)
+    assert "This works with any printer" in _notice(monkeypatch, approved=False)
 
 
-def test_once_approved_it_shows_on_a_cmyk_raster_queue(qapp, monkeypatch):
-    shown, text = _note(monkeypatch, approved=True)
-    assert shown
-    assert "<b>This printer’s driver works in CMYK</b>" in text
-    assert "The driver of Sample DeskJet takes the chart in CMYK." in text
+def test_the_corrected_hint_says_a_cmyk_profile_changes_the_conversion():
+    """MUTATION: put back "the profile set for this printer in ColorSync
+    Utility does not change that" and this goes red. Measured (R1): a CMYK
+    profile assigned in ColorSync changes the raster; RGB profiles do not."""
+    body = MM.M_PRINT_CMYK_RASTER_ROUTE.body
+    assert "does not change that" not in body
+    assert "A CMYK profile set for this printer in ColorSync Utility changes that conversion" in body
+    assert "an RGB profile set there does not" in body
 
 
-@pytest.mark.parametrize("kw", [dict(queue_cmyk=False), dict(native=False), dict(mac=False)])
-def test_once_approved_nowhere_else(qapp, monkeypatch, kw):
-    shown, _ = _note(monkeypatch, approved=True, **kw)
-    assert not shown
+def test_once_approved_a_cmyk_queue_gets_the_hint_instead_of_the_wrong_claims(qapp, monkeypatch):
+    text = _notice(monkeypatch, approved=True)
+    for wrong in WRONG_HERE:
+        assert wrong not in text, wrong
+    assert "This printer\u2019s driver works in CMYK\nThe driver of Sample DeskJet takes the chart in CMYK." in text
+    paras = text.split("\n\n")
+    assert len(paras) == 5
+    assert paras[0].startswith("\u26a0  You are printing via the macOS printer dialog.")
+    assert paras[1] == ("ChromIQ asks for application colour matching, as Photoshop does. "
+                        "Afterwards the Print Chart tab says what the printing system holds "
+                        "for the job.")
+    assert paras[3].startswith("Prefer no dialog at all?")
+    assert paras[4].startswith("Allow pigment inks")
 
 
-def test_the_tab_updates_it_with_the_route_and_on_show():
+def test_once_approved_every_other_printer_keeps_the_notice_exactly(qapp, monkeypatch):
+    unchanged = _notice(monkeypatch, approved=False)
+    assert _notice(monkeypatch, approved=True, queue_cmyk=False) == unchanged
+
+
+@pytest.mark.parametrize("code", ["de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt",
+                                  "ru", "sv", "uk", "zh_CN"])
+def test_every_language_can_be_cut_the_same_way(code):
+    """The notice is cut by its paragraphs, so every translation must keep five;
+    the kept sentences are that language's own first and last sentence of the
+    second paragraph, word for word."""
+    import json
+    from pathlib import Path
     from ui.tabs import tab_print as tp
-    assert "self._update_cmyk_route_note(native=enabled)" in inspect.getsource(
-        tp.TabPrint._set_native_mode)
+    src = inspect.getsource(tp.TabPrint._macos_dialog_notice)
+    d = json.loads((Path(tp.__file__).resolve().parents[2] / "data" / "i18n" / f"{code}.json")
+                   .read_text(encoding="utf-8"))
+    key = next(k for k in d if k.startswith("\u26a0  You are printing via the macOS printer dialog."))
+    paras = d[key].split("\n\n")
+    assert len(paras) == 5
+    kept = d["ChromIQ asks for application colour matching, as Photoshop does. "
+             "Afterwards the Print Chart tab says what the printing system holds for the job."]
+    sep = "" if code in ("ja", "zh_CN") else " "
+    first, _, rest = kept.partition("\u3002" if not sep else ". ")
+    assert paras[1].startswith(first)
+    assert paras[1].endswith(rest)
+    assert "paras[3], paras[4]" in src
+
+
+def test_the_tab_rewords_the_notice_with_the_route_and_on_show():
+    from ui.tabs import tab_print as tp
+    assert "self._macos_dialog_notice()" in inspect.getsource(tp.TabPrint._set_native_mode)
     assert "self._update_cmyk_route_note()" in inspect.getsource(tp.TabPrint.showEvent)
+    assert "self._macos_dialog_notice()" in inspect.getsource(tp.TabPrint._update_cmyk_route_note)
+
+
+@pytest.mark.parametrize("opt", ["Print-Mode", "HP.Mode", "EPIJ_Mode"])
+def test_an_rgb_option_with_any_keyword_beside_a_cmyk_colour_model_is_not_cmyk(opt):
+    """Review R1: option keywords may carry a hyphen or a dot. An RGB colour
+    space set by such an option was skipped and the job read as CMYK."""
+    text = DESKJET + (f'*OpenUI *{opt}/Mode: PickOne\n*Default{opt}: Photo\n'
+                      f'*{opt} Photo/Photo: "<</cupsColorSpace 1>>setpagedevice"\n'
+                      f'*CloseUI: *{opt}\n')
+    assert cmyk_raster_space(text) is None
+
+
+def test_a_localised_line_is_not_an_option():
+    text = DESKJET + '*de.ColorModel CMYK/Farbe: "<</cupsColorSpace 1>>setpagedevice"\n'
+    assert cmyk_raster_space(text) == "KCMY"
 
 
 def test_the_tab_judges_the_queue_by_its_default_colour_mode(tmp_path, monkeypatch):

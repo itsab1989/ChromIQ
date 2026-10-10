@@ -1549,10 +1549,12 @@ def is_postscript_queue(ppd_text: str | None) -> bool:
 #
 # Review R3 and B5 (4.3.4 beta 1), measured on capture queues: on a queue whose
 # driver takes CUPS raster in a CMYK-family colour space, macOS converts the
-# chart from its own tag into CMYK and IGNORES the profile assigned to the
+# chart from its own tag into CMYK and IGNORES an RGB profile assigned to the
 # printer in ColorSync, so the dialog route's re-tag (which is what keeps the
 # chart's numbers unchanged on a Canon, an Epson or a PostScript queue) there
 # only makes the printed colours depend on whichever profile is assigned.
+# (Review R1, 4.3.5: a CMYK profile assigned there IS used for that conversion;
+# the re-tag never applied with one, as it is not an RGB profile.)
 # Basti chose (2026-10-10) to leave the chart untagged on such a queue, on
 # condition that the detection is accurate. So it is STRICT: anything it cannot
 # establish from the PPD and the job's own options counts as NOT CMYK, which is
@@ -1575,7 +1577,13 @@ CUPS_SPACE_NAMES: dict[int, str] = {
 }
 _RASTER_TYPE = "application/vnd.cups-raster"
 _CHOICE_CODE = re.compile(
-    r'^\*([A-Za-z0-9_]+)\s+([^\s/:]+)(?:/[^:\n]*)?:\s*"([^"]*)"', re.M)
+    r'^\*([^\s/:*%?]+)\s+([^\s/:]+)(?:/[^:\n]*)?:\s*"([^"]*)"', re.M)
+#: A localised line (``*de.ColorModel``, ``*zh_CN.ColorModel``): its code is
+#: the translation, never PostScript. Review R1 (4.3.5): option keywords may
+#: carry a hyphen or a dot themselves (``*Print-Mode``, ``*HP.Mode``), and one
+#: that sets cupsColorSpace must count, or a CMYK ColorModel beside an RGB
+#: ``*Print-Mode`` read as CMYK.
+_LOCALISED_KEYWORD = re.compile(r'^[a-z]{2,3}(?:_[A-Za-z]{2,4})?\.')
 _COLOUR_SPACE_IN_CODE = re.compile(r'/cupsColorSpace\s+(-?\d+)')
 
 
@@ -1598,7 +1606,7 @@ def raster_colour_options(ppd_text: str | None) -> dict[str, dict[str, int]]:
     and choices that set no colour space are left out."""
     out: dict[str, dict[str, int]] = {}
     for opt, choice, code in _CHOICE_CODE.findall(ppd_text or ""):
-        if opt.startswith("Default"):
+        if opt.startswith("Default") or _LOCALISED_KEYWORD.match(opt):
             continue
         m = _COLOUR_SPACE_IN_CODE.search(code)
         if m:

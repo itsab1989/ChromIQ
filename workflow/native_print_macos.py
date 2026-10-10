@@ -530,9 +530,11 @@ def cmyk_raster_job(ppd_text: "str | None", settings: dict,
 
     4.3.5 (Basti, 2026-10-10, option 3 of B5's analysis): on a queue whose
     driver takes CUPS raster in a CMYK-family colour space, macOS converts the
-    chart from its own tag into CMYK and ignores the profile assigned to the
-    printer in ColorSync (review R3 and B5, measured on capture queues), so
-    the re-tag would make the sheet depend on that profile. Strict: the PPD
+    chart from its own tag into CMYK and ignores an RGB profile assigned to
+    the printer in ColorSync (review R3 and B5, measured on capture queues),
+    so the re-tag would make the sheet depend on that profile. (A CMYK profile
+    assigned there is used for the conversion, review R1; it was never a
+    re-tag, which takes an RGB profile only.) Strict: the PPD
     must declare it for the job's own colour mode
     (``ppd_color.raster_colour``), and macOS's own colour space model of the
     job, when it states one, must be CMYK too."""
@@ -789,7 +791,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     cmyk = cmyk_raster_job(_ppd_now, _settings_now, _queue_of(print_info))
     if cmyk and dest_icc:
         # 4.3.5: a CMYK raster job. macOS converts the chart from its tag into
-        # CMYK and ignores the queue's ColorSync profile there, so the chart
+        # CMYK and ignores an RGB ColorSync profile of the queue, so the chart
         # keeps the tag every other print from an application gets (sRGB),
         # and the sheet no longer depends on which profile is assigned.
         log.info("native print: %s raster job, chart left untagged (output "

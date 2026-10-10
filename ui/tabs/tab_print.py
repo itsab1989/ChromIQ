@@ -736,16 +736,6 @@ class TabPrint(QWidget):
         self._verify_route_lbl.setVisible(False)
         scl.addWidget(self._verify_route_lbl)
 
-        # M-PRINT-CMYK-RASTER-ROUTE (4.3.5, PROPOSED): a printer whose driver
-        # takes CMYK raster gets the chart untagged on the macOS dialog route
-        # (``_update_cmyk_route_note``); hidden until the text is approved.
-        self._cmyk_route_lbl = QLabel("", scroll_content)
-        self._cmyk_route_lbl.setObjectName("warning")
-        self._cmyk_route_lbl.setWordWrap(True)
-        self._cmyk_route_lbl.setTextFormat(Qt.TextFormat.RichText)
-        self._cmyk_route_lbl.setVisible(False)
-        scl.addWidget(self._cmyk_route_lbl)
-
         scl.addStretch()
         scroll.setWidget(scroll_content)
         ll.addWidget(scroll, stretch=1)
@@ -2887,32 +2877,59 @@ class TabPrint(QWidget):
         lbl.setVisible(True)
 
     def _update_cmyk_route_note(self, native: "bool | None" = None) -> None:
-        """M-PRINT-CMYK-RASTER-ROUTE (4.3.5, PROPOSED, so not shown until it
-        is approved): on macOS, while the macOS print dialog route is on and
-        the printer the dialog opens on takes CMYK raster by its PPD and its
-        default colour mode (``ppd_color.raster_colour``), say that the chart
-        goes as it is and that photos must go the same way."""
-        lbl = getattr(self, "_cmyk_route_lbl", None)
-        if lbl is None:
-            return
-        from workflow import measurement_messages as MM
+        """Re-word the macOS dialog route's notice for the printer the dialog
+        opens on now (``_macos_dialog_notice``). Called on every entry to the
+        tab: the printer may have changed while the tab was hidden."""
         if native is None:
             native = bool(self._settings.get("use_native_print_dialog", False))
-        if not (MM.M_PRINT_CMYK_RASTER_ROUTE.approved and is_macos() and native):
-            lbl.setVisible(False)
-            return
+        if native and is_macos():
+            self._warn_lbl.setText(self._macos_dialog_notice())
+
+    def _macos_dialog_notice(self) -> str:
+        """The notice of the macOS print dialog route.
+
+        M-PRINT-CMYK-RASTER-ROUTE (4.3.5; PROPOSED, so not shown until it is
+        approved): Basti, 2026-10-10, on a printer whose driver takes CMYK
+        raster by its PPD and default colour mode (``ppd_color.raster_colour``)
+        that message takes the place of the sentences promising that ChromIQ
+        attaches the paper profile so macOS does not change the colours, and
+        of "This works with any printer…". Everything else, and the whole
+        notice on every other printer, stays as approved."""
+        full = tr("⚠  You are printing via the macOS printer dialog. Verify that the "
+                  "paper, media type, and quality you pick match the media you are "
+                  "printing on: wrong settings cause incorrect ink laydown and invalid "
+                  "colour measurements.\n\n"
+                  "ChromIQ asks for application colour matching, as Photoshop does. "
+                  "After you close the dialog it attaches the paper profile of the "
+                  "medium you chose to the chart, so macOS does not change its "
+                  "colours. Pick the right media type: the paper profile follows it. "
+                  "Afterwards the Print Chart tab says what the printing system holds "
+                  "for the job.\n\n"
+                  "This works with any printer: where the driver has paper "
+                  "profiles, its own dialog chooses one. You don't need to change "
+                  "any colour setting.\n\n"
+                  "Prefer no dialog at all? Untick \"Use default macOS printer dialog\" "
+                  "in Preferences to send the chart straight to the queue via lp.\n\n"
+                  "Allow pigment inks to dry fully before measuring "
+                  "(at least 1 h; 24 h for best accuracy).")
+        from workflow import measurement_messages as MM
+        if not MM.M_PRINT_CMYK_RASTER_ROUTE.approved:
+            return full
+        paras = full.split("\n\n")
+        if len(paras) != 5:
+            return full
         queue, display = _dialog_printer()
         if not queue or _queue_cmyk_raster(queue) is None:
-            lbl.setVisible(False)
-            return
+            return full
         title, body = MM.M_PRINT_CMYK_RASTER_ROUTE.render(printer=display or queue)
-        lbl.setText(f"<b>{_html_escape(title)}</b><br><br>{_html_escape(body)}")
-        lbl.setVisible(True)
+        kept = tr("ChromIQ asks for application colour matching, as Photoshop does. "
+                  "Afterwards the Print Chart tab says what the printing system holds "
+                  "for the job.")
+        return "\n\n".join([paras[0], kept, f"{title}\n{body}", paras[3], paras[4]])
 
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
         self._update_verify_route_note(native=enabled)
-        self._update_cmyk_route_note(native=enabled)
         self._printer_grp.setVisible(not enabled)
         self._opts_grp.setVisible(not enabled)
         # The spacer used to centre the warning label between the scroll area
@@ -2940,25 +2957,7 @@ class TabPrint(QWidget):
                     "(at least 1 h; 24 h for best accuracy).")
                 )
             else:
-                self._warn_lbl.setText(
-                    tr("⚠  You are printing via the macOS printer dialog. Verify that the "
-                    "paper, media type, and quality you pick match the media you are "
-                    "printing on: wrong settings cause incorrect ink laydown and invalid "
-                    "colour measurements.\n\n"
-                    "ChromIQ asks for application colour matching, as Photoshop does. "
-                    "After you close the dialog it attaches the paper profile of the "
-                    "medium you chose to the chart, so macOS does not change its "
-                    "colours. Pick the right media type: the paper profile follows it. "
-                    "Afterwards the Print Chart tab says what the printing system holds "
-                    "for the job.\n\n"
-                    "This works with any printer: where the driver has paper "
-                    "profiles, its own dialog chooses one. You don't need to change "
-                    "any colour setting.\n\n"
-                    "Prefer no dialog at all? Untick \"Use default macOS printer dialog\" "
-                    "in Preferences to send the chart straight to the queue via lp.\n\n"
-                    "Allow pigment inks to dry fully before measuring "
-                    "(at least 1 h; 24 h for best accuracy).")
-                )
+                self._warn_lbl.setText(self._macos_dialog_notice())
         else:
             if is_macos() and bool(self._settings.get("pdf_print_fallback", True)):
                 fallback_sentence = tr(
