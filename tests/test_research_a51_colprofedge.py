@@ -185,3 +185,35 @@ def test_shapersmooth_keeps_a_flat_stretch_from_collapsing():
     assert fm.SHAPER_SMOOTH["mu"] is None
     assert "a51-shapersmooth" in ENGINE_CANDIDATE_TOKENS
     assert "a51-shapersmooth" not in ACCURATE_DEFAULT_TOKENS
+
+
+def test_a51b_moves_targets_below_the_black_along_their_ray():
+    """a51b: below the black the clip target keeps L* = black and its chroma
+    shrinks with L*target / L*black: the toy ramp into black is monotone
+    in L* and C*, and nodes above the black are untouched."""
+    from workflow.profile_engine import builder as _b
+    assert "a51b-colprofedge" in _b.ENGINE_CANDIDATE_TOKENS
+    assert "a51b-colprofedge" not in _b.ACCURATE_DEFAULT_TOKENS
+    b2a.set_research_tokens(frozenset({"a25-oog", oog_clip.A51B_TOKEN, "a29-oog-darkmono-floor"}),
+                            is_additive=True)
+    oog_clip.set_colorimetric(True)
+    p = oog_clip.table_params()
+    assert p["space"] == "cam02" and p.get("dm_ray")
+    oog_clip.set_dark_floor(20.0)
+    try:
+        model = _ToyPrinter()
+        t = np.linspace(0.55, 0.95, 9)
+        src = model.predict(np.outer(1 - t, (1.0, 0.0, 0.0)))
+        src[:, 1:] /= 0.45
+        src[:, 0] = (src[:, 0] - 20.0) / 0.8
+        d = oog_clip.clip_nodes(model, src, np.tile([[0.2, 0.0, 0.0]], (len(src), 1)), np.full(len(src), 20.0),
+                                free=np.arange(3), limit=None, channel_max=None, prior=None, prior_w=None,
+                                gn_kw={}, damping=1e-3)
+        out = model.predict(d)
+    finally:
+        oog_clip.set_dark_floor(None)
+    below = src[:, 0] < 20.0
+    assert below.any()
+    assert np.all(np.diff(out[:, 0]) <= 0.3)                     # never lighter toward black
+    c = np.hypot(out[:, 1], out[:, 2])
+    assert np.all(np.diff(c[below]) <= 0.3)

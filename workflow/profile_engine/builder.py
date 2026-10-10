@@ -144,6 +144,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 51: shaper refit with a curvature penalty (xfit-like input
      # curves; changes the A2B); research, opt-in
      "a51-shapersmooth",
+     # Agent 51 round 2: a51 with targets below the black moved along their
+     # ray toward the black (no darker-then-lighter); research, opt-in
+     "a51b-colprofedge",
      # Agent 45: the perceptual dark end C1 and monotone (a C1 B2A curve
      # space; with the held black, one planned device path to the oracle black)
      "a45-c1space", "a45-darkend",

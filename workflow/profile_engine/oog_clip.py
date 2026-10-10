@@ -92,7 +92,7 @@ PARAMS: dict = {
     # Agent 51 (a51-colprofedge*): colprof's clip metric for the
     # colorimetric table (table_params), set by b2a.set_research_tokens
     "a51": False, "a51_band": 0.0, "a51_ownhue": False, "a51_nofloor": False,
-    "a51_lab": False, "a51_soft": 0.0,
+    "a51_lab": False, "a51_soft": 0.0, "a51_ray": False,
 }
 
 DEFAULTS = dict(PARAMS)
@@ -300,6 +300,15 @@ A51_OWNHUE_TOKEN = "a51-colprofedge-ownhue"
 A51_NOFLOOR_TOKEN = "a51-colprofedge-nofloor"
 A51_LAB_TOKEN = "a51-colprofedge-lab"
 A51_SOFT_TOKEN = "a51-colprofedge-soft"
+# a51b: a target darker than the table's black is lifted to the black's L*
+# (a29 floor) with its chroma scaled by L*target / L*black, i.e. moved along
+# its own ray toward the black instead of straight up. With colprof's
+# chroma-keeping metric the plain lift made every colour below the black
+# print at the black's lightness with its full chroma: lighter than the
+# colours just above it ("darker then lighter", Basti RESUME s57). Only
+# nodes below the black move (no printable colour lies there), the map is
+# continuous at the black and monotone toward it.
+A51B_TOKEN = "a51b-colprofedge"
 A51_PARAMS = {"space": "cam02", "wj": 4.0, "wc": 1.0, "wh": 4.84}
 _HK = {"on": True}
 _REL = threading.local()
@@ -331,6 +340,8 @@ def table_params(p: dict = None) -> dict:
         q["dm_band"], q["dm_wj"] = float(p["a51_soft"]), 1.0
     if p.get("a51_nofloor"):
         q["dm_off"] = True
+    if p.get("a51_ray"):
+        q["dm_ray"] = True
     return q
 
 
@@ -545,6 +556,9 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         lift = new_l - t_lab[:, 0]
         if (lift > 0).any():
             t_lab = t_lab.copy()
+            if p.get("dm_ray"):
+                k = np.clip(t_lab[:, 0] / np.maximum(new_l, 1e-9), 0.0, 1.0)
+                t_lab[:, 1:] *= k[:, None]
             t_lab[:, 0] = new_l
         else:
             lift = None
