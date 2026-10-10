@@ -1728,3 +1728,41 @@ def cmyk_raster_space(ppd_text: str | None, settings: dict | None = None,
     ...), or None when it is not, or not certainly, CMYK raster
     (``raster_colour``)."""
     return raster_colour(ppd_text, settings, queue).cmyk
+
+
+#: CUPS raster colour spaces that carry RGB (4.3.5 B2).
+CUPS_RGB_SPACES = frozenset({1, 2, 17, 19, 20})
+
+
+def ink_route(ppd_text: str | None, space: str, settings: dict | None = None,
+              queue: str | None = None) -> str | None:
+    """What becomes of a chart that is NOT RGB on this queue, through the direct
+    route (4.3.5 B2). *space*: ``"DeviceCMYK"`` (CMYK, or CMY with K = 0) or
+    ``"DeviceN"`` (any other ink set). Returns
+
+    * ``"converted"``: every print-data filter takes CUPS raster and every
+      colour space the job's choices set is an RGB one, so macOS turns the
+      chart's ink values into RGB on the way (measured on capture queues);
+    * ``"approximate"``: a DeviceN chart on a PostScript queue (a printer or
+      RIP without inks of those names takes the PostScript's alternate, an
+      approximate CMYK mix) or on a CMYK raster queue (always the alternate);
+    * None: nothing to say (a CMYK chart on a PostScript or CMYK raster queue,
+      or a queue this cannot classify for certain, such as one whose driver
+      takes PDF).
+    """
+    if not ppd_text:
+        return None
+    if is_postscript_queue(ppd_text):
+        return "approximate" if space == "DeviceN" else None
+    rc = raster_colour(ppd_text, settings, queue)
+    if rc.cmyk:
+        return "approximate" if space == "DeviceN" else None
+    # raster_colour reached its end (every filter takes raster, every option
+    # resolved) and found colour spaces that are not CMYK: only then are the
+    # spaces known for certain.
+    if not rc.why.startswith("colour space "):
+        return None
+    spaces = {cs for _o, _c, cs, _src in rc.modes if cs is not None}
+    if spaces and spaces <= CUPS_RGB_SPACES:
+        return "converted"
+    return None

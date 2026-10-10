@@ -3342,6 +3342,19 @@ def build_device_pages(result: RenderResult, target, *, bit16: bool = False
     return arrays
 
 
+def is_cmy_target(target) -> bool:
+    """A three-ink CMY target (targen ``-d5``, ``COLOR_REP "CMY"``)."""
+    return (target.n_channels == 3 and [f.split("_")[-1].upper()
+                                        for f in target.device_fields] == ["C", "M", "Y"])
+
+
+def cmy_with_empty_k(arr: np.ndarray) -> np.ndarray:
+    """A CMY page as printtarg writes it: four channels, K = 0 everywhere
+    (4.3.5 B2). Furniture stays rich CMY black, as in printtarg's CMY chart."""
+    k = np.zeros(arr.shape[:2] + (1,), dtype=arr.dtype)
+    return np.ascontiguousarray(np.concatenate([arr, k], axis=2))
+
+
 def save_separated_tiffs(arrays: list[np.ndarray], base_path: str | Path,
                          dpi: int = 300, *, ink_names: list[str],
                          compression: str = "lzw") -> list[Path]:
@@ -3370,7 +3383,12 @@ def save_separated_tiffs(arrays: list[np.ndarray], base_path: str | Path,
             (334, "H", 1, n, True),                       # NumberOfInks
             (333, "s", 0, names, True),                   # InkNames (NUL-joined)
         ]
-        if n == 4:
+        # InkSet = CMYK only for inks that ARE CMYK, or CMY (whose fourth
+        # channel is the empty K, as in printtarg's CMY chart). Four other inks
+        # (CMY + orange) carried InkSet = CMYK until 4.3.5 B2, which told a RIP
+        # to print orange as black; printtarg writes no InkSet for them.
+        if n == 4 and [nm.lower() for nm in ink_names[:4]] in (
+                ["cyan", "magenta", "yellow", "black"], ["cyan", "magenta", "yellow"]):
             extratags.append((332, "H", 1, 1, True))      # InkSet = CMYK
         kwargs = dict(photometric="separated", resolution=(res, res),
                       resolutionunit=3, compression=comp, extratags=extratags,

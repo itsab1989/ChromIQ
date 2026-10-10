@@ -562,10 +562,21 @@ def build_chart(
         # RGB/CMY/Gray keep the exact display-RGB raster. n>=4 ⇒ the display path
         # would only approximate the ink values, so collect the real device grid.
         # A vector-PDF export also needs the collected display list (#72).
-        collect_device_geom=(target.n_channels >= 4 or export_pdf),
+        # 4.3.5 B2: a CMY chart too. It was an RGB TIFF of the inverted ink
+        # values (255 - ink), which every printing path sent as RGB colours;
+        # printtarg writes it as CMYK with K = 0, and so does the engine now.
+        collect_device_geom=(target.n_channels >= 4 or export_pdf
+                             or raster.is_cmy_target(target)),
     )
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, printed, bit16=bit16)
+        tiff_paths = raster.save_separated_tiffs(
+            device_pages, artefact(stem, ".tif"), dpi=dpi,
+            ink_names=raster.ink_names_from_fields(target.device_fields),
+            compression=compression)
+    elif raster.is_cmy_target(target):
+        device_pages = [raster.cmy_with_empty_k(a) for a in
+                        raster.build_device_pages(render, printed, bit16=bit16)]
         tiff_paths = raster.save_separated_tiffs(
             device_pages, artefact(stem, ".tif"), dpi=dpi,
             ink_names=raster.ink_names_from_fields(target.device_fields),

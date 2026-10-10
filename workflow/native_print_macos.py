@@ -304,6 +304,24 @@ def _is_reference_vendor(ppd_path: str) -> bool:
         return False
 
 
+def _refuse_unless_rgb(tiff_path: Path, frame: int) -> None:
+    """Raise :class:`ChartIsNotRGB`, naming the chart's inks, for any page that
+    is not RGB in its file and in its ink list (``chart_inks.is_rgb_page``)."""
+    from workflow import chart_inks
+    try:
+        if chart_inks.is_rgb_page(tiff_path, frame):
+            return
+        n, _phot = chart_inks.page_photometric(tiff_path, frame)
+    except Exception:  # noqa: BLE001 - unreadable by tifffile: PIL decides below
+        return
+    codes = chart_inks.sidecar_ink_codes(tiff_path)
+    if n == 1 and not codes:
+        raise ChartIsNotRGB(chart_inks.ink_set_label(["k"]))
+    plan = chart_inks.plan_for_file(tiff_path, frame, codes)
+    raise ChartIsNotRGB(chart_inks.ink_set_label(
+        plan.codes if plan is not None else codes, n))
+
+
 class ChartIsNotRGB(RuntimeError):
     """The chart's own pixels are not RGB, and this route can only carry RGB.
 
@@ -689,6 +707,13 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     sizes_pt: list[tuple[float, float]] = []
     content_pt: list = []
     for tiff_path, frame in pages:
+        # 4.3.5 B2: ASKED OF THE FILE AND ITS INK LIST, BEFORE PIL OPENS IT.
+        # PIL cannot open a chart of five or more inks (the refusal below then
+        # never came, only "Could not open the macOS print dialog"), and a CMY
+        # chart the layout engine wrote before 4.3.5 is an RGB TIFF of inverted
+        # ink values, which went through as RGB colours. An RGB chart passes
+        # this test and goes on exactly as before.
+        _refuse_unless_rgb(tiff_path, frame)
         with Image.open(tiff_path) as im:
             n_frames = getattr(im, "n_frames", 1)
             im.seek(min(frame, n_frames - 1))
@@ -697,7 +722,9 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
             # conversion for any other, and this route's whole promise is that
             # "pixel values reach the driver unchanged".
             if im.mode != "RGB":
-                raise ChartIsNotRGB(im.mode)
+                from workflow.chart_inks import ink_set_label
+                raise ChartIsNotRGB(ink_set_label(
+                    None, {"CMYK": 4, "L": 1}.get(im.mode, len(im.getbands()))))
             rgb = im.convert("RGB")
             w_px, h_px = rgb.size
             dpi = rgb.info.get("dpi") or (300.0, 300.0)

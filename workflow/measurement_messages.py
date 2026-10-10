@@ -5242,17 +5242,68 @@ M_PRINT_PAPER_PROFILE_UNKNOWN = _m(
 #: same in 4.3.4); Generic CMYK Profile and two RGB profiles left it as with
 #: none. Corrected below, so it is PROPOSED again and not shown anywhere until
 #: approved (``_macos_dialog_notice`` reads ``approved``).
+#: 4.3.5 B2: Basti, 2026-10-10, replaced the last two sentences with his own
+#: wording, "approved if true". Each statement was checked against the capture
+#: runs of report 2026-10-10_435_photoshop_cmyk (re-measured in
+#: 2026-10-10_435_B2): the chart's job is spooled tagged sRGB IEC61966-2.1;
+#: Photoshop with the document converted to the profile, untagged and printed
+#: with Printer Manages Colors gives the chart's raster (Gutenprint CMYK: 0.0 %
+#: per patch; sample DeskJet: within its dither), while Photoshop Manages
+#: Colors spools the photo tagged with the profile (4.9 % mean, 48 % max on
+#: the chart); Preview with Color Matching on ColorSync gives the chart's
+#: raster (0.0 %) where its default on a queue with a CMYK profile did not
+#: (14 % mean). APPROVED, and switched on with the notice it replaces.
 M_PRINT_CMYK_RASTER_ROUTE = _m(
     "M-PRINT-CMYK-RASTER-ROUTE",
     "This printer\u2019s driver works in CMYK",
     "The driver of {printer} takes the chart in CMYK. On such a printer macOS "
     "converts the chart\u2019s colours into CMYK itself. A CMYK profile set "
     "for this printer in ColorSync Utility changes that conversion; an RGB "
-    "profile set there does not. ChromIQ sends the chart as it is, without "
-    "attaching a profile. Print the profiling chart, its verification charts "
-    "and your photos by this same route, the macOS print dialog, with the same "
-    "settings in it, and keep the same profile set for this printer in "
+    "profile set there does not. macOS treats the chart\u2019s numbers as "
+    "sRGB colours when it converts them to CMYK. Your photos must reach it the "
+    "same way, or the profile will not fit them. In Photoshop, do not print "
+    "with \u201cPhotoshop Manages Colors\u201d and this profile. Instead use "
+    "Edit > Convert to Profile with this profile, then Edit > Assign Profile > "
+    "Don\u2019t Color Manage This Document, and print with \u201cPrinter "
+    "Manages Colors\u201d. In Preview, set Colour Matching to ColorSync in "
+    "the print dialog. Keep the same profile set for this printer in "
     "ColorSync Utility.",
+    approved=True)  # Basti, 2026-10-10 ("approved if true"; checked, 4.3.5 B2)
+
+# --- PROPOSED: a chart that is not RGB on a queue that changes its inks -------
+#: 4.3.5 B2 (Basti, 2026-10-10: "when a CMYK/multi-ink chart goes to an
+#: RGB-raster queue (macOS converts it), and when DeviceN reaches a printer
+#: that cannot honour it ... tell the user plainly"). The direct route asks
+#: before sending, with "Print Anyway" and "Cancel" (Cancel the default), and
+#: the status line after sending says the title instead of "The printing
+#: system confirms ...". {printer} is the queue's name as macOS shows it,
+#: {inks} the chart's inks in words (``chart_inks.ink_set_label``: "CMYK,
+#: 4 inks", "CMY + Orange, 4 inks"), {extra} the inks past CMYK or CMY
+#: ("Orange", "Orange, Green"). Decided by ``ppd_color.ink_route``. PROPOSED:
+#: neither window nor status line is shown until approved; until then the
+#: status line after such a job is the neutral "Print job submitted
+#: successfully." and nothing is asked.
+M_PRINT_INKS_CONVERTED = _m(
+    "M-PRINT-INKS-CONVERTED",
+    "macOS converts this chart’s colours",
+    "The driver of {printer} takes RGB, not ink values. macOS therefore turns "
+    "the chart’s ink values ({inks}) into RGB colours on the way, and the "
+    "driver works out its own ink amounts from those. The sheet would not "
+    "carry the chart’s values, and a measurement of it would not describe "
+    "your printer’s inks.\n\n"
+    "Print this chart on a printer whose driver takes these inks, or through "
+    "a RIP that does.",
+    approved=False)
+M_PRINT_INKS_APPROXIMATE = _m(
+    "M-PRINT-INKS-APPROXIMATE",
+    "The chart’s extra inks may be printed as a mix",
+    "The chart has {inks}. ChromIQ sends it to {printer} with every ink named, "
+    "and a printer or RIP that has inks of those names prints it as it is. "
+    "One without them, which includes every printer whose driver takes CMYK, "
+    "prints {extra} as an approximate mix of cyan, magenta, yellow and black "
+    "on top of the other inks. Patches with {extra} would then not carry the "
+    "chart’s values, and a measurement of them would not describe your "
+    "printer’s inks.",
     approved=False)
 
 # --- APPROVED: the quality row of the Print Chart tab (beta 16) ---------------
@@ -5305,7 +5356,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPLACE_UNCOUNTABLE,
     M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
     M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
-    M_PRINT_CMYK_RASTER_ROUTE,
+    M_PRINT_CMYK_RASTER_ROUTE, M_PRINT_INKS_CONVERTED, M_PRINT_INKS_APPROXIMATE,
     M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

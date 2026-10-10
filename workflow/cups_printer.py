@@ -368,7 +368,15 @@ class CupsRawPrinter:
                 return None
         except Exception:
             return None
-        return pp
+        # 4.3.5 B2: three channels is not yet RGB. A CMY chart the layout
+        # engine wrote before 4.3.5 is an RGB TIFF of inverted ink values, and
+        # must not be tagged as an RGB image (``chart_inks``).
+        try:
+            from workflow.chart_inks import plan_for_file
+            not_rgb = plan_for_file(tiff_path) is not None
+        except Exception:  # noqa: BLE001 - unreadable here: as before 4.3.5
+            not_rgb = False
+        return None if not_rgb else pp
 
     @staticmethod
     def reference_options(cfg: PrintConfig, pp: PaperProfile) -> dict[str, str]:
@@ -510,9 +518,54 @@ class CupsRawPrinter:
         only used on PostScript-capable RIPs that accept the PS path above.
         """
         n_ch = self._tiff_n_channels(tiff_path)
+        try:
+            from workflow.chart_inks import ink_set_label, plan_for_file
+            plan = plan_for_file(tiff_path)
+        except Exception:  # noqa: BLE001 - unreadable: as before
+            plan = None
+        if plan is not None and not plan.is_cmy:
+            # 4.3.5 B2: a raster option can only say CMYK, so a chart of other
+            # inks (CMY + orange, CMYK + orange + green, ...) would print its
+            # fourth ink as black or its extra inks not at all.
+            log.error("CUPS TIFF print refused: the chart's inks (%s) cannot be "
+                      "sent as a raster TIFF; nothing was submitted",
+                      ink_set_label(plan.codes))
+            if on_finish:
+                on_finish(-1)
+            return
+        if plan is not None and plan.legacy_engine_cmy:
+            self._print_job_tiff_converted(tiff_path, config, plan, on_finish, orientation)
+            return
         cmd = self._build_lp_command_tiff(tiff_path, config, n_ch, orientation)
         log.info("CUPS TIFF print (fallback, %d-ch): %s", n_ch, " ".join(str(c) for c in cmd))
         self._run_lp(cmd, on_finish)
+
+    def _print_job_tiff_converted(self, tiff_path, config, plan, on_finish,
+                                  orientation) -> None:
+        """The TIFF fallback for a CMY chart the layout engine wrote as RGB
+        before 4.3.5: sent as the CMYK TIFF (K = 0) printtarg writes."""
+        import tifffile
+        from workflow.chart_inks import device_array
+        with tifffile.TiffFile(str(tiff_path)) as tif:
+            page = tif.pages[0]
+            arr = device_array(page.asarray(), plan)
+            xr, yr = page.tags.get("XResolution"), page.tags.get("YResolution")
+            unit = page.tags.get("ResolutionUnit")
+            resolution = ((xr.value[0] / xr.value[1], yr.value[0] / yr.value[1])
+                          if xr is not None and yr is not None else None)
+            unit_v = unit.value if unit is not None else 2
+        fd, tmp_str = tempfile.mkstemp(suffix=".tif")
+        os.close(fd)
+        tmp = Path(tmp_str)
+        try:
+            tifffile.imwrite(str(tmp), arr, photometric="separated",
+                             resolution=resolution, resolutionunit=unit_v)
+            cmd = self._build_lp_command_tiff(tmp, config, 4, orientation)
+            log.info("CUPS TIFF print (fallback, CMY chart as CMYK, K = 0): %s",
+                     " ".join(str(c) for c in cmd))
+            self._run_lp(cmd, on_finish)
+        finally:
+            tmp.unlink(missing_ok=True)
 
     # Superseded by print_job_ps() — kept temporarily for reference.
     def print_job(

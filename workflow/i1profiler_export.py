@@ -187,12 +187,19 @@ def parse_ti1(ti1_path: Path) -> Target:
     return Target(color_rep=color_rep, kind=kind, channels=channels, rows=rows)
 
 
+class UnsupportedInkSet(ValueError):
+    """i1Profiler patch sets carry RGB, CMYK or CMYK plus extra inks; a chart of
+    other inks (CMY, CMY + orange, ...) has none (4.3.5 B2). Writing CMY as
+    CMYK with K = 0 would make a CMYK patch set, whose measurement would carry
+    four inks against the run's three, so the export is skipped instead."""
+
+
 def _detect_kind(channels: list[str], color_rep: str) -> str:
     if set(channels) == {"R", "G", "B"}:
         return "RGB"
     if channels[:4] == ["C", "M", "Y", "K"]:
         return "CMYK" if len(channels) == 4 else "CMYKPLUSN"
-    raise ValueError(
+    raise UnsupportedInkSet(
         f"unsupported colorspace for i1Profiler export: COLOR_REP {color_rep!r} "
         f"channels {channels!r} (RGB, CMYK and CMYK+N are supported)"
     )

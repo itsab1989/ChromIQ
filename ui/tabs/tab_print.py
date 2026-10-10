@@ -137,6 +137,22 @@ def _queue_cmyk_raster(queue: str) -> "str | None":
     return cmyk_raster_space(text, {}, queue)
 
 
+def _ink_conversion_message(conv):
+    """The §M message for an ``_ink_conversion`` result (4.3.5 B2)."""
+    from workflow import measurement_messages as MM
+    return (MM.M_PRINT_INKS_CONVERTED if conv[0] == "converted"
+            else MM.M_PRINT_INKS_APPROXIMATE)
+
+
+def _printer_display_name(queue: str) -> str:
+    """The queue's name as macOS shows it (its printer-info), else the queue."""
+    try:
+        import cups
+        return cups.Connection().getPrinters().get(queue, {}).get("printer-info") or queue
+    except Exception:  # noqa: BLE001
+        return queue
+
+
 def _html_escape(text: str) -> str:
     import html
     return html.escape(text, quote=False)
@@ -2185,6 +2201,15 @@ class TabPrint(QWidget):
             if choice != "anyway":
                 return
 
+        # 4.3.5 B2: a chart that is not RGB on a queue that converts its inks
+        # (RGB raster) or may print them as a mix (DeviceN). None, and no
+        # question, for every RGB chart.
+        self._pending_ink_conversion = self._ink_conversion(
+            printer, selected_opts, first_tiff, pages[0][1])
+        if (self._pending_ink_conversion is not None
+                and not self._ask_ink_conversion(printer, self._pending_ink_conversion)):
+            return
+
         # Beta-16 review: a chart LARGER than the paper is shrunk by the
         # printing system to fit (measured: an A4 chart on a PictureMate's
         # 9 x 13 cm paper and on a DNP's 6 x 8 in), which moves every patch
@@ -2531,7 +2556,7 @@ class TabPrint(QWidget):
         return ""
 
     # -- the read-back, off the GUI thread ------------------------------------------
-    def _start_read_back(self, work) -> None:
+    def _start_read_back(self, work, ink_conversion=None) -> None:
         """Run *work* (a blocking read-back returning a TicketReport) on a
         background thread and report it when it is done, or say it could not be
         read after ``print_ticket.READ_BACK_TIMEOUT_S`` (review 2026-10-08: it
@@ -2542,7 +2567,11 @@ class TabPrint(QWidget):
             self._read_back_timer = QTimer(self)
             self._read_back_timer.setInterval(100)
             self._read_back_timer.timeout.connect(self._poll_read_backs)
-        self._read_backs.append(BackgroundReadBack(work, READ_BACK_TIMEOUT_S))
+        rb = BackgroundReadBack(work, READ_BACK_TIMEOUT_S)
+        # 4.3.5 B2: what ``_ink_conversion`` found for the chart of this job
+        # (None for every RGB chart, so their status lines are unchanged).
+        rb.ink_conversion = ink_conversion
+        self._read_backs.append(rb)
         if not self._read_back_timer.isActive():
             self._read_back_timer.start()
 
@@ -2566,18 +2595,30 @@ class TabPrint(QWidget):
                                 "timed out" if state == "timeout" else rb.error)
                     self._set_status(tr(MM._PRINT_JOB_UNREAD))
                     continue
-                self._report_job_ticket(rb.report)
+                conv = getattr(rb, "ink_conversion", None)
+                if conv is None:
+                    self._report_job_ticket(rb.report)
+                else:
+                    self._report_job_ticket(rb.report, conv)
         finally:
             self._reporting_read_back = False
         if not self._read_backs:
             self._read_back_timer.stop()
 
-    def _report_job_ticket(self, rep) -> None:
+    def _report_job_ticket(self, rep, ink_conversion=None) -> None:
         """Say what the job read back from the printing system carries
         (M-PRINT-JOB-CONFIRMED), or show M-PRINT-JOB-NOT-AS-SENT /
         M-PRINT-JOB-UNTAGGED."""
         from workflow import measurement_messages as MM
         if rep is None:
+            return
+        if ink_conversion is not None and rep.read and rep.ok:
+            # 4.3.5 B2: the job carries what ChromIQ sent, but the chart's
+            # colours are converted on the way, so "The printing system
+            # confirms ..." would read as if they were not.
+            msg = _ink_conversion_message(ink_conversion)
+            self._set_status(tr(msg.title) if msg.approved
+                             else tr("Print job submitted successfully."))
             return
         if not rep.read:
             self._set_status(tr(MM._PRINT_JOB_UNREAD))
@@ -2674,24 +2715,48 @@ class TabPrint(QWidget):
 
         # Extract the target frame to a temporary single-page TIFF when needed.
         tmp_path: Path | None = None
+        # 4.3.5 B2: a chart that is not RGB is read and split with tifffile,
+        # which keeps every channel and the separated photometric; PIL cannot
+        # open a 5-7 ink chart at all. An RGB chart goes on exactly as before.
+        ink_plan, rgb_page = None, True
         try:
-            img = Image.open(tiff_path)
-            n_frames = getattr(img, "n_frames", 1)
-            if n_frames > 1 or frame > 0:
-                img.seek(min(frame, n_frames - 1))
-                fd, tmp_str = tempfile.mkstemp(suffix=".tif")
-                os.close(fd)
-                tmp_path = Path(tmp_str)
-                img.save(tmp_path, format="TIFF")
-                print_path = tmp_path
-            else:
-                print_path = tiff_path
-        except Exception as exc:
-            QMessageBox.critical(
-                self, tr("TIFF Error"),
-                tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
-            )
-            return False
+            from workflow.chart_inks import is_rgb_page, plan_for_file
+            _codes = _find_sidecar_channels(tiff_path)
+            rgb_page = is_rgb_page(tiff_path, frame, _codes)
+            if not rgb_page:
+                ink_plan = plan_for_file(tiff_path, frame, _codes)
+        except Exception:  # noqa: BLE001 - unreadable here: the old path says why
+            ink_plan, rgb_page = None, True
+        if not rgb_page:
+            try:
+                from workflow.chart_inks import split_page
+                tmp_path = split_page(tiff_path, frame)
+                print_path = tmp_path or tiff_path
+            except Exception as exc:
+                QMessageBox.critical(
+                    self, tr("TIFF Error"),
+                    tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
+                )
+                return False
+        else:
+            try:
+                img = Image.open(tiff_path)
+                n_frames = getattr(img, "n_frames", 1)
+                if n_frames > 1 or frame > 0:
+                    img.seek(min(frame, n_frames - 1))
+                    fd, tmp_str = tempfile.mkstemp(suffix=".tif")
+                    os.close(fd)
+                    tmp_path = Path(tmp_str)
+                    img.save(tmp_path, format="TIFF")
+                    print_path = tmp_path
+                else:
+                    print_path = tiff_path
+            except Exception as exc:
+                QMessageBox.critical(
+                    self, tr("TIFF Error"),
+                    tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
+                )
+                return False
 
         selected_opts = {k: (c.currentData() or "") for k, c in self._option_combos.items()}
         config = self._module.build_config(printer=printer, options=selected_opts)
@@ -2713,6 +2778,9 @@ class TabPrint(QWidget):
             self._on_print_done(code)
 
         ink_channels = _find_sidecar_channels(tiff_path)
+        if ink_channels is None and not rgb_page:
+            from workflow.chart_inks import sidecar_ink_codes
+            ink_channels = sidecar_ink_codes(tiff_path)
         self._printer.last_job_id = None
         self._printer.print_job_ps(
             print_path, config,
@@ -2734,7 +2802,62 @@ class TabPrint(QWidget):
         and report it."""
         self._start_read_back(_LpReadBack(
             printer, getattr(self._printer, "last_job_id", None),
-            dict(getattr(self._printer, "last_expected", {}) or {})))
+            dict(getattr(self._printer, "last_expected", {}) or {})),
+            ink_conversion=getattr(self, "_pending_ink_conversion", None))
+
+    def _ink_conversion(self, printer: str, options: dict,
+                        tiff_path: Path, frame: int = 0):
+        """4.3.5 B2: ``(route, inks, extra)`` when the chart is NOT RGB and this
+        queue changes its inks (``ppd_color.ink_route``: "converted" or
+        "approximate"), else None. Always None for an RGB or grey chart."""
+        try:
+            from workflow import chart_inks
+            from workflow.ppd_color import ink_route
+            codes = _find_sidecar_channels(tiff_path) or chart_inks.sidecar_ink_codes(tiff_path)
+            if chart_inks.is_rgb_page(tiff_path, frame, codes):
+                return None
+            n, phot = chart_inks.page_photometric(tiff_path, frame)
+            if n < 3:
+                return None
+            plan = chart_inks.plan_for(n, phot, codes)
+            space = plan.space if plan is not None else (
+                "DeviceCMYK" if n == 4 else "DeviceN")
+            ppd = PrintModule.find_ppd_path(printer)
+            if not ppd:
+                return None
+            from core.text_io import read_text
+            route = ink_route(read_text(Path(ppd), lenient=True), space,
+                              options, printer)
+            if route is None:
+                return None
+            ink_codes = list(plan.codes) if plan is not None else codes
+            return (route, chart_inks.ink_set_label(ink_codes, n),
+                    chart_inks.extra_ink_label(ink_codes))
+        except Exception:  # noqa: BLE001 - nothing certain to say
+            log.debug("ink conversion check failed", exc_info=True)
+            return None
+
+    def _ask_ink_conversion(self, printer: str, conv) -> bool:
+        """M-PRINT-INKS-CONVERTED / -APPROXIMATE before sending: False to
+        cancel. PROPOSED, so until approved it only logs and prints."""
+        route, inks, extra = conv
+        msg = _ink_conversion_message(conv)
+        log.warning("Print: %s chart (%s) on %s: %s", route, inks, printer,
+                    "asked" if msg.approved else "not asked (text not approved)")
+        if not msg.approved:
+            return True
+        title, body = msg.render(printer=_printer_display_name(printer),
+                                 inks=inks, extra=extra)
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        set_warning_icon(dlg)
+        dlg.setText(body)
+        anyway_btn = dlg.addButton(tr("Print Anyway"),
+                                   QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(cancel_btn)
+        dlg.exec()
+        return dlg.clickedButton() is anyway_btn
 
     def _on_print_done(self, code: int) -> None:
         if code == 0:

@@ -700,6 +700,68 @@ def resolve_ink_channels(device_type: str, extra_targen_args: str = "") -> list[
     return base
 
 
+class _OneLineFirstLabel(QLabel):
+    """A one-line label that asks for its whole text and, only when the row
+    is genuinely too narrow for it, shortens it with an ellipsis (the whole
+    text then in its tooltip).
+
+    A word-wrapping QLabel asked for a width of its own choosing (a fraction
+    of the text), so in a row with plenty of room it still broke onto two lines
+    (Basti, 2026-10-11, the Print Chart tab at about 1000 points); and in a
+    really narrow row it grew to five lines and took the height from the
+    picture above it. One line, elided when it must be, keeps the Inks row one
+    line high everywhere."""
+
+    def __init__(self, *a, **kw) -> None:
+        super().__init__(*a, **kw)
+        from PyQt6.QtWidgets import QSizePolicy
+        self._full = super().text()
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+    def full_text(self) -> str:
+        return self._full
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt API
+        self._full = text or ""
+        super().setText(self._full)
+        self.updateGeometry()
+        self._fit()
+
+    def _single_line(self, text: str):
+        """The size a label of this style and font needs for *text* on one
+        line, style-sheet padding included."""
+        probe = self.__dict__.get("_probe")
+        if probe is None:
+            probe = self.__dict__["_probe"] = QLabel()
+        probe.setStyleSheet(self.styleSheet())
+        probe.setFont(self.font())
+        probe.setText(text)
+        return probe.sizeHint()
+
+    def sizeHint(self):
+        return self._single_line(self._full)
+
+    def minimumSizeHint(self):
+        words = self._full.split()
+        return self._single_line((words[0] + " …") if words else "")
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().resizeEvent(event)
+        self._fit()
+
+    def _fit(self) -> None:
+        if not self._full:
+            return
+        fm = self.fontMetrics()
+        pad = self._single_line(self._full).width() - fm.horizontalAdvance(self._full)
+        room = self.width() - pad
+        shown = (self._full if fm.horizontalAdvance(self._full) <= room
+                 else fm.elidedText(self._full, Qt.TextElideMode.ElideRight, max(0, room)))
+        if shown != super().text():
+            QLabel.setText(self, shown)
+        self.setToolTip("" if shown == self._full else self._full)
+
+
 def _find_sidecar_channels(path: Path) -> list[str] | None:
     """Return ink channels from a ChromIQ sidecar file next to path, or None."""
     stem = path.stem
@@ -3262,11 +3324,18 @@ class TiffPreview(QWidget):
         # The honesty badge shares this line whenever the ink row is shown
         # (Basti) — the floating overlay is only the fallback for
         # device-native pages without a known ink set.
-        self._ink_badge = QLabel("", self._ink_row)
+        self._ink_badge = _OneLineFirstLabel("", self._ink_row)
         self._ink_badge.setStyleSheet(
             "QLabel { background: rgba(30, 30, 30, 185); color: #f4f2ef;"
             " border-radius: 4px; padding: 2px 8px; font-size: 11px; }")
         self._ink_badge.setVisible(False)
+        # ONE LINE WHENEVER THE ROW HAS ROOM (Basti, 2026-10-11): it asks for
+        # its whole text on one line and the row gives it that from its free
+        # width; only a row genuinely too narrow (many inks in a narrow window,
+        # a long language) shortens it with an ellipsis, beside the ink chips,
+        # never over them and never out of the pane, the whole text in its
+        # tooltip. Right-aligned, like the floating badge it replaces.
+        self._ink_badge.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         _ink_l.addWidget(self._ink_badge)
         self._ink_row.setVisible(False)
         layout.addWidget(self._ink_row)
@@ -3357,6 +3426,24 @@ class TiffPreview(QWidget):
             return None
         path = self._pages[0][0]
         codes = self._ink_channels or _find_sidecar_channels(path)
+        if codes and list(codes) == ["c", "m", "y"]:
+            # A CMY chart (printtarg's, and the layout engine's since 4.3.5) is
+            # CMYK with an empty K: its Inks row carries the badge too (Basti,
+            # 4.3.5). A CMY chart the engine wrote earlier is an RGB page,
+            # shown as RGB, with no ink row and no badge.
+            cache = self.__dict__.setdefault("_cmy_separated_cache", {})
+            try:
+                key = (str(path), Path(path).stat().st_mtime_ns)
+            except OSError:
+                return None
+            if key not in cache:
+                try:
+                    import tifffile
+                    with tifffile.TiffFile(key[0]) as tif:
+                        cache[key] = int(tif.pages[0].photometric) == 5  # SEPARATED
+                except Exception:  # noqa: BLE001 - unreadable: no ink row
+                    cache[key] = False
+            return list(codes) if cache[key] else None
         return codes if codes and len(codes) >= 4 else None
 
     def _rebuild_ink_row(self) -> None:
@@ -3856,7 +3943,11 @@ class TiffPreview(QWidget):
             return
         self._hide_print_chip()
         tip = ""
-        if self._ink_row.isVisible():
+        # isHidden, not isVisible (4.3.5 B2, Basti): isVisible is False for
+        # every widget of a tab that is not on screen, so a chart loaded while
+        # the Print Chart or Measure tab was in the background got the floating
+        # badge over the column letters although its Inks row was there.
+        if not self._ink_row.isHidden():
             # Share the ink-options line (Basti) — no floating overlay then.
             self._ink_badge.setText(text)
             self._ink_badge.setVisible(bool(text))

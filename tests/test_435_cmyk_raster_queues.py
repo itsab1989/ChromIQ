@@ -15,8 +15,8 @@ condition that the detection is accurate and nothing else changes. So:
   ``2026-10-10_435_B1``, ``runs/detector_table.txt``, 46 PPDs);
 * a CMYK raster job is not re-tagged and gets no M-PRINT-JOB-UNTAGGED window,
   but only if the job READ BACK from CUPS is CMYK raster too;
-* M-PRINT-CMYK-RASTER-ROUTE is PROPOSED: wired on the Print Chart tab and
-  hidden until it is approved.
+* M-PRINT-CMYK-RASTER-ROUTE was APPROVED by Basti (2026-10-10, B2) with his
+  own last sentences, and is shown on a CMYK raster queue.
 """
 from __future__ import annotations
 
@@ -244,8 +244,8 @@ def test_the_job_options_are_read_back():
 # place of the notice's sentences promising the paper profile is attached so
 # macOS does not change the colours, and of "This works with any printer";
 # everything else stays. Review R1 found one statement of the hint untrue (a
-# CMYK profile set in ColorSync DOES change the conversion) and corrected it,
-# so the hint is PROPOSED and the notice is unchanged everywhere until then.
+# CMYK profile set in ColorSync DOES change the conversion) and corrected it;
+# B2 put in Basti's last sentences, checked each, and switched it on.
 @pytest.fixture
 def qapp():
     from PyQt6.QtWidgets import QApplication
@@ -269,14 +269,34 @@ def _notice(monkeypatch, *, approved, queue_cmyk=True):
     return tp.TabPrint._macos_dialog_notice(tab)
 
 
-def test_the_hint_is_proposed_and_the_notice_unchanged(qapp, monkeypatch):
-    """Review R1: one statement was untrue, so the corrected hint waits for
-    approval, and until then a CMYK queue gets the approved notice as is."""
-    assert not MM.M_PRINT_CMYK_RASTER_ROUTE.approved
-    assert "M-PRINT-CMYK-RASTER-ROUTE" in MM.PROPOSED
-    assert _notice(monkeypatch, approved=False) == _notice(
-        monkeypatch, approved=False, queue_cmyk=False)
-    assert "This works with any printer" in _notice(monkeypatch, approved=False)
+def test_the_hint_is_approved_and_shown_on_a_cmyk_queue_only(qapp, monkeypatch):
+    """B2: Basti approved the hint with his own last sentences ("approved if
+    true", every statement checked). A CMYK queue gets it in place of the
+    wrong claims; every other queue keeps the approved notice word for word.
+    MUTATION: set approved=False and the first assertion goes red."""
+    assert MM.M_PRINT_CMYK_RASTER_ROUTE.approved
+    assert "M-PRINT-CMYK-RASTER-ROUTE" not in MM.PROPOSED
+    other = _notice(monkeypatch, approved=False, queue_cmyk=False)
+    assert "This works with any printer" in other
+    assert MM.M_PRINT_CMYK_RASTER_ROUTE.title not in other
+    assert _notice(monkeypatch, approved=False) != other
+
+
+def test_bastis_last_sentences_replace_the_old_two():
+    """MUTATION: put back "ChromIQ sends the chart as it is, without attaching
+    a profile." and this goes red."""
+    body = MM.M_PRINT_CMYK_RASTER_ROUTE.body
+    assert "without attaching a profile" not in body
+    assert "by this same route" not in body
+    assert body.endswith(
+        "macOS treats the chart’s numbers as sRGB colours when it converts "
+        "them to CMYK. Your photos must reach it the same way, or the profile "
+        "will not fit them. In Photoshop, do not print with “Photoshop "
+        "Manages Colors” and this profile. Instead use Edit > Convert to "
+        "Profile with this profile, then Edit > Assign Profile > Don’t Color "
+        "Manage This Document, and print with “Printer Manages Colors”. "
+        "In Preview, set Colour Matching to ColorSync in the print dialog. Keep "
+        "the same profile set for this printer in ColorSync Utility.")
 
 
 def test_the_corrected_hint_says_a_cmyk_profile_changes_the_conversion():
@@ -305,8 +325,10 @@ def test_once_approved_a_cmyk_queue_gets_the_hint_instead_of_the_wrong_claims(qa
 
 
 def test_once_approved_every_other_printer_keeps_the_notice_exactly(qapp, monkeypatch):
-    unchanged = _notice(monkeypatch, approved=False)
-    assert _notice(monkeypatch, approved=True, queue_cmyk=False) == unchanged
+    unchanged = _notice(monkeypatch, approved=True, queue_cmyk=False)
+    monkeypatch.setattr(MM, "M_PRINT_CMYK_RASTER_ROUTE", dataclasses.replace(
+        MM.M_PRINT_CMYK_RASTER_ROUTE, approved=False))
+    assert _notice(monkeypatch, approved=False) == unchanged
 
 
 @pytest.mark.parametrize("code", ["de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt",

@@ -14,6 +14,8 @@ import numpy as np
 import tifffile
 
 from core.logger import get_logger
+from workflow.chart_inks import (InkPlan, device_array, page_photometric,
+                                 plan_for, sidecar_ink_codes)
 
 log = get_logger(__name__)
 
@@ -64,6 +66,22 @@ _INK_TO_CMYK: dict[str, tuple[float, float, float, float]] = {
 }
 
 
+def _ink_plan(tiff_path: Path, arr: np.ndarray,
+              ink_channels: list[str] | None) -> InkPlan | None:
+    """The chart's ink plan (``chart_inks.plan_for``), or None for an RGB or
+    grey chart, whose path stays as it was. *ink_channels* as the caller found
+    them (the ``.channels.json``); when it has none, the chart's ``.ti2``."""
+    n_ch = arr.shape[2] if arr.ndim == 3 else 1
+    if n_ch < 3:
+        return None
+    try:
+        _n, phot = page_photometric(tiff_path)
+    except Exception:  # noqa: BLE001 - unreadable tags: keep the old path
+        return None
+    codes = ink_channels if ink_channels else sidecar_ink_codes(tiff_path)
+    return plan_for(n_ch, phot, codes)
+
+
 class PostScriptGenerator:
     """Convert a TIFF profiling target to a PostScript Level 2/3 document."""
 
@@ -85,6 +103,12 @@ class PostScriptGenerator:
         `lp -o PageSize=...` agree. Defaults to the TIFF's own dimensions.
         """
         arr, actual_dpi = self._read_tiff(tiff_path, fallback_dpi=dpi)
+        # 4.3.5 B2: a chart that is not RGB gets the colour space of its INKS
+        # (``workflow.chart_inks``); an RGB or grey chart gets None and goes on
+        # exactly as before.
+        plan = _ink_plan(tiff_path, arr, ink_channels)
+        if plan is not None:
+            arr = device_array(arr, plan)
         # Downcast 16-bit TIFFs (printtarg -T) to 8-bit before encoding.
         # Older PostScript interpreters (e.g. HP CLJ 5550, firmware ~2005)
         # silently drop jobs whose `colorimage` uses BitsPerComponent=16, even
@@ -112,7 +136,12 @@ class PostScriptGenerator:
             if page_rotated:
                 page_w, page_h = page_h, page_w
 
-        cs_block = self._colorspace_block(n_ch, ink_channels)
+        if plan is None:
+            cs_block = self._colorspace_block(n_ch, ink_channels)
+        elif plan.space == "DeviceCMYK":
+            cs_block = "/DeviceCMYK setcolorspace"
+        else:
+            cs_block = self._devicen_block(n_ch, list(plan.codes))
         encoded, raw_len, encoded_len = self._encode_flate_a85(arr, bits)
 
         log.debug(
@@ -346,6 +375,11 @@ class PdfGenerator:
         this path exists to avoid.) Defaults to the TIFF's own dimensions.
         """
         arr, actual_dpi = PostScriptGenerator._read_tiff(tiff_path, fallback_dpi=dpi)
+        # 4.3.5 B2: the colour space of the chart's inks, as in the PostScript;
+        # None for an RGB or grey chart, which goes on exactly as before.
+        plan = None if icc_profile is not None else _ink_plan(tiff_path, arr, ink_channels)
+        if plan is not None:
+            arr = device_array(arr, plan)
         h, w, n_ch = arr.shape
         bits = 16 if arr.dtype == np.uint16 else 8
         pts_w = w * _PT_PER_INCH / actual_dpi
@@ -377,7 +411,13 @@ class PdfGenerator:
 
         raw = arr.astype(">u2").tobytes() if bits == 16 else arr.tobytes()
         img_data = zlib.compress(raw, 6)
-        cs_str = self._pdf_colorspace(n_ch, ink_channels)
+        if plan is None:
+            cs_str = self._pdf_colorspace(n_ch, ink_channels)
+        elif plan.space == "DeviceCMYK":
+            cs_str = "/DeviceCMYK"
+        else:
+            ink_channels = list(plan.codes)
+            cs_str = self._pdf_colorspace_devicen(n_ch, ink_channels)
         if turned:
             # the image's unit square: its width runs up the page, its height
             # to the left (a 90 degree counter-clockwise turn)
@@ -390,7 +430,7 @@ class PdfGenerator:
                 f"q\n{pts_w:.4f} 0 0 {pts_h:.4f} {x_off:.4f} {y_off:.4f} cm\n/Im Do\nQ"
             ).encode("ascii")
 
-        has_tint_fn = n_ch > 4
+        has_tint_fn = n_ch > 4 or (plan is not None and plan.space == "DeviceN")
         tagged = icc_profile is not None and n_ch == 3
         if tagged:
             cs_str = "[/ICCBased 6 0 R]"
@@ -452,6 +492,10 @@ class PdfGenerator:
             return "/DeviceRGB"
         if n_ch == 4:
             return "/DeviceCMYK"
+        return self._pdf_colorspace_devicen(n_ch, ink_channels)
+
+    @staticmethod
+    def _pdf_colorspace_devicen(n_ch: int, ink_channels: list[str] | None) -> str:
         channels = (
             list(ink_channels[:n_ch]) if ink_channels and len(ink_channels) >= n_ch
             else [f"ink{i + 1}" for i in range(n_ch)]
