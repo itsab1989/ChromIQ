@@ -1543,3 +1543,226 @@ def is_postscript_queue(ppd_text: str | None) -> bool:
         if source not in _POSTSCRIPT_TYPES:
             return False
     return True
+
+
+# ---- CMYK raster queues (4.3.5) ----------------------------------------------
+#
+# Review R3 and B5 (4.3.4 beta 1), measured on capture queues: on a queue whose
+# driver takes CUPS raster in a CMYK-family colour space, macOS converts the
+# chart from its own tag into CMYK and IGNORES an RGB profile assigned to the
+# printer in ColorSync, so the dialog route's re-tag (which is what keeps the
+# chart's numbers unchanged on a Canon, an Epson or a PostScript queue) there
+# only makes the printed colours depend on whichever profile is assigned.
+# (Review R1, 4.3.5: a CMYK profile assigned there IS used for that conversion;
+# the re-tag never applied with one, as it is not an RGB profile.)
+# Basti chose (2026-10-10) to leave the chart untagged on such a queue, on
+# condition that the detection is accurate. So it is STRICT: anything it cannot
+# establish from the PPD and the job's own options counts as NOT CMYK, which is
+# the behaviour before 4.3.5.
+
+#: ``cups_cspace_t`` (cups/raster.h) values that are CMYK-family raster: the
+#: three process inks, with or without black, in any order, and the six-colour
+#: KCMYcm. Not included: the gold/silver spaces GMCK (10) and GMCS (11), the
+#: DeviceN spaces 48-62 and the ICC spaces 32-46, whose channels say nothing
+#: certain about the inks, and every grey, RGB, CIE and named space.
+CUPS_CMYK_SPACES: dict[int, str] = {
+    4: "CMY", 5: "YMC", 6: "CMYK", 7: "YMCK", 8: "KCMY", 9: "KCMYcm",
+}
+#: The colour spaces the table names, for a readable verdict.
+CUPS_SPACE_NAMES: dict[int, str] = {
+    0: "W (grey)", 1: "RGB", 2: "RGBA", 3: "K", **CUPS_CMYK_SPACES,
+    10: "GMCK", 11: "GMCS", 12: "WHITE", 13: "GOLD", 14: "SILVER",
+    15: "CIEXYZ", 16: "CIELab", 17: "RGBW", 18: "sGray", 19: "sRGB",
+    20: "AdobeRGB",
+}
+_RASTER_TYPE = "application/vnd.cups-raster"
+_CHOICE_CODE = re.compile(
+    r'^\*([^\s/:*%?]+)\s+([^\s/:]+)(?:/[^:\n]*)?:\s*"([^"]*)"', re.M)
+#: A localised line (``*de.ColorModel``, ``*zh_CN.ColorModel``): its code is
+#: the translation, never PostScript. Review R1 (4.3.5): option keywords may
+#: carry a hyphen or a dot themselves (``*Print-Mode``, ``*HP.Mode``), and one
+#: that sets cupsColorSpace must count, or a CMYK ColorModel beside an RGB
+#: ``*Print-Mode`` read as CMYK.
+_LOCALISED_KEYWORD = re.compile(r'^[a-z]{2,3}(?:_[A-Za-z]{2,4})?\.')
+_COLOUR_SPACE_IN_CODE = re.compile(r'/cupsColorSpace\s+(-?\d+)')
+
+
+def print_data_filter_inputs(ppd_text: str | None) -> list[str]:
+    """The MIME types the PPD's print-data filters take (``*cupsFilter`` and
+    ``*cupsFilter2``, first field), CUPS command filters left out; [] when
+    the PPD declares none (a PostScript queue)."""
+    out = []
+    for _two, spec in _CUPS_FILTER.findall(ppd_text or ""):
+        source = spec.split()[0] if spec.split() else ""
+        if source and source not in _IGNORED_SOURCE_TYPES:
+            out.append(source)
+    return out
+
+
+def raster_colour_options(ppd_text: str | None) -> dict[str, dict[str, int]]:
+    """{option: {choice: cupsColorSpace}} for every PPD option one of whose
+    choices sets ``cupsColorSpace`` in its code (``ColorModel`` on most
+    drivers, ``BRResolution`` on a Brother). Localised lines (``*nl.Option``)
+    and choices that set no colour space are left out."""
+    out: dict[str, dict[str, int]] = {}
+    for opt, choice, code in _CHOICE_CODE.findall(ppd_text or ""):
+        if opt.startswith("Default") or _LOCALISED_KEYWORD.match(opt):
+            continue
+        m = _COLOUR_SPACE_IN_CODE.search(code)
+        if m:
+            out.setdefault(opt, {})[choice] = int(m.group(1))
+    return out
+
+
+def _lpoptions_values(queue: str | None, option: str) -> list[str]:
+    """Values the user's or the system's lpoptions file sets for *option* on
+    *queue* (exact queue, no instance). CUPS may apply them to a job that does
+    not carry the option itself, so they count as possible modes."""
+    if not queue:
+        return []
+    import shlex
+    vals = []
+    for f in (pathlib.Path.home() / ".cups" / "lpoptions",
+              pathlib.Path("/etc/cups/lpoptions")):
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            try:
+                parts = shlex.split(line)
+            except ValueError:
+                continue
+            if len(parts) < 2 or parts[0].lower() not in ("dest", "default"):
+                continue
+            if parts[1] != queue:
+                continue
+            for p in parts[2:]:
+                k, _, v = p.partition("=")
+                if k == option and v:
+                    vals.append(v)
+    return vals
+
+
+@dataclass(frozen=True)
+class RasterColour:
+    """What ``cmyk_raster_space`` found, for the log and the table."""
+    filter_inputs: tuple[str, ...]
+    #: (option, choice, cupsColorSpace or None, where the choice came from)
+    modes: tuple[tuple[str, str, int | None, str], ...]
+    #: the CMYK family name, or None: not a CMYK raster job
+    cmyk: str | None
+    why: str
+
+
+def raster_colour(ppd_text: str | None, settings: dict | None = None,
+                  queue: str | None = None) -> RasterColour:
+    """Decide whether a job on this queue reaches its driver as CMYK-family
+    CUPS raster. *settings*: the job's own options (the print settings after
+    the macOS dialog, or the job read back from CUPS); an option the job does
+    not carry takes the PPD's default, and any value an lpoptions file sets
+    for the queue counts as possible too.
+
+    CMYK only when ALL of these hold, else not CMYK:
+
+    * the PPD declares print-data filters and every one of them takes
+      ``application/vnd.cups-raster`` (not PostScript, PDF, URF, PWG raster
+      or a vendor type, and no second route beside the raster one);
+    * at least one option sets ``cupsColorSpace``, and every option that does
+      resolves, for this job, to a choice the PPD defines;
+    * every colour space those choices set is in ``CUPS_CMYK_SPACES``.
+    """
+    inputs = tuple(print_data_filter_inputs(ppd_text))
+
+    def no(why, modes=()):
+        return RasterColour(inputs, tuple(modes), None, why)
+
+    if not ppd_text:
+        return no("no PPD")
+    if not inputs:
+        return no("no print-data filter (PostScript queue)")
+    if any(t != _RASTER_TYPE for t in inputs):
+        return no("a print-data filter takes " + ", ".join(
+            sorted({t for t in inputs if t != _RASTER_TYPE})))
+    options = raster_colour_options(ppd_text)
+    if not options:
+        return no("no option sets cupsColorSpace")
+    settings = settings or {}
+    modes = []
+    spaces: set[int] = set()
+    for opt, choices in sorted(options.items()):
+        given = settings.get(opt)
+        if given is not None and str(given) != "":
+            cands = [(str(given), "job")]
+        else:
+            cands = [(c, "PPD default") for c in [_ppd_default(ppd_text, opt)] if c]
+            cands += [(v, "lpoptions") for v in _lpoptions_values(queue, opt)]
+            if not cands:
+                # no default: CUPS would apply whichever choice comes first,
+                # which nothing here should rely on
+                modes.append((opt, "?", None, "unresolved"))
+                return no(f"{opt}: the job's choice cannot be resolved", modes)
+        for choice, src in cands:
+            all_choices = {c for _o, c, _code in _CHOICE_CODE.findall(ppd_text)
+                           if _o == opt}
+            if choice not in all_choices:
+                modes.append((opt, choice, None, src))
+                return no(f"{opt}={choice} ({src}) is not a choice of the PPD", modes)
+            cs = choices.get(choice)
+            modes.append((opt, choice, cs, src))
+            if cs is not None:
+                spaces.add(cs)
+    if not spaces:
+        return no("the job's choices set no colour space", modes)
+    if not spaces <= set(CUPS_CMYK_SPACES):
+        return no("colour space " + ", ".join(
+            CUPS_SPACE_NAMES.get(s, str(s)) for s in sorted(spaces)), modes)
+    names = sorted({CUPS_CMYK_SPACES[s] for s in spaces})
+    return RasterColour(inputs, tuple(modes), "/".join(names),
+                        "CUPS raster in " + "/".join(names))
+
+
+def cmyk_raster_space(ppd_text: str | None, settings: dict | None = None,
+                      queue: str | None = None) -> str | None:
+    """The CMYK family a job on this queue is rasterised in ("KCMY", "CMYK",
+    ...), or None when it is not, or not certainly, CMYK raster
+    (``raster_colour``)."""
+    return raster_colour(ppd_text, settings, queue).cmyk
+
+
+#: CUPS raster colour spaces that carry RGB (4.3.5 B2).
+CUPS_RGB_SPACES = frozenset({1, 2, 17, 19, 20})
+
+
+def ink_route(ppd_text: str | None, space: str, settings: dict | None = None,
+              queue: str | None = None) -> str | None:
+    """What becomes of a chart that is NOT RGB on this queue, through the direct
+    route (4.3.5 B2). *space*: ``"DeviceCMYK"`` (CMYK, or CMY with K = 0) or
+    ``"DeviceN"`` (any other ink set). Returns
+
+    * ``"converted"``: every print-data filter takes CUPS raster and every
+      colour space the job's choices set is an RGB one, so macOS turns the
+      chart's ink values into RGB on the way (measured on capture queues);
+    * ``"approximate"``: a DeviceN chart on a PostScript queue (a printer or
+      RIP without inks of those names takes the PostScript's alternate, an
+      approximate CMYK mix) or on a CMYK raster queue (always the alternate);
+    * None: nothing to say (a CMYK chart on a PostScript or CMYK raster queue,
+      or a queue this cannot classify for certain, such as one whose driver
+      takes PDF).
+    """
+    if not ppd_text:
+        return None
+    if is_postscript_queue(ppd_text):
+        return "approximate" if space == "DeviceN" else None
+    rc = raster_colour(ppd_text, settings, queue)
+    if rc.cmyk:
+        return "approximate" if space == "DeviceN" else None
+    # raster_colour reached its end (every filter takes raster, every option
+    # resolved) and found colour spaces that are not CMYK: only then are the
+    # spaces known for certain.
+    if not rc.why.startswith("colour space "):
+        return None
+    spaces = {cs for _o, _c, cs, _src in rc.modes if cs is not None}
+    if spaces and spaces <= CUPS_RGB_SPACES:
+        return "converted"
+    return None

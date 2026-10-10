@@ -63,6 +63,12 @@ class TicketReport:
     #: k81, macOS dialog route on a PostScript printer: ChromIQ sent its own
     #: PostScript, the chart as DeviceRGB (no tag to compare)
     device_rgb: bool = False
+    #: every option of the job as CUPS holds it, as text (4.3.5: the macOS
+    #: dialog route checks the colour model the job really carries)
+    options: dict[str, str] = field(default_factory=dict)
+    #: macOS dialog route: the CMYK family the job is rasterised in, when the
+    #: route left the chart untagged for it (``ppd_color.cmyk_raster_space``)
+    cmyk_raster: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -150,6 +156,7 @@ def check_job(queue: str, job_id: int | None, expected: dict[str, str],
     if not attrs:
         return rep
     rep.carried = _colour_keys(attrs)
+    rep.options = {k: str(v) for k, v in attrs.items() if isinstance(v, (str, int))}
     for k, want in expected.items():
         raw = attrs.get(k)
         if not _same_value(raw, want):

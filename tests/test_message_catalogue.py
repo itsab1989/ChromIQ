@@ -222,6 +222,17 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PRINT-JOB-NOT-AS-SENT",
                                  "M-PRINT-JOB-UNTAGGED",
                                  "M-PRINT-PAPER-PROFILE-UNKNOWN",
+                                 # (4.3.5: the Print Chart tab's note that a
+                                 # driver works in CMYK, M-PRINT-CMYK-RASTER-
+                                 # ROUTE, was APPROVED by Basti, 2026-10-10,
+                                 # with his own last sentences, every one
+                                 # checked by B2, and left this list.)
+                                 # 4.3.5 B2 (Basti, 2026-10-10): a chart that
+                                 # is not RGB on a queue that converts its
+                                 # inks, or may print its extra inks as a mix.
+                                 # Our words.
+                                 "M-PRINT-INKS-CONVERTED",
+                                 "M-PRINT-INKS-APPROXIMATE",
                                  # (B3, 2026-10-10, Knut 6095262115: what a
                                  # verification print needs, M-PRINT-VERIFY-
                                  # ROUTE, and the status line for a chart

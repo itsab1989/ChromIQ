@@ -571,3 +571,55 @@ def test_a_tab_heading_is_wide_enough_for_its_INK(qapp, code):
         f"{ink - room} px of its last letter is outside the label. Advance is "
         f"{fm.horizontalAdvance(text)}, which is why every width check says it "
         "fits")
+
+
+# ---------------------------------------------------------------------------
+# Print Chart ▸ "How this chart is printed", a verification run (4.3.5, k74)
+# ---------------------------------------------------------------------------
+
+#: The width the box gets inside the Print Chart pane's scroll area: the pane
+#: is fixed at 580 px, less its 16 px side margins and the scroll bar's lane.
+#: Measured on screen at 1280 x 740 (review R5, 4.3.4 beta 1): 534.
+PRINT_PANE_VIEWPORT = 534
+ALL_LANGS = ("en", "de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru",
+             "sv", "uk", "zh_CN")
+
+
+@pytest.mark.parametrize("code", ALL_LANGS)
+def test_how_this_chart_is_printed_fits_the_print_pane(qapp, code, tmp_path):
+    """All three rows shown, as for a verification run, with the Colour row's
+    longest state ("Raw — already converted", a chart converted when it was
+    made): the box must fit the pane in every language.
+
+    Review R5 measured the Russian box at 582 px in a 534 px viewport: the
+    intent list's "Относительный колориметрический (рекомендуется)" and the
+    Colour radios each made their row wider than the pane, and the right edge
+    with its help buttons and the text under it was cut off. Each row is now a
+    one-row form that puts the control under its label when the two do not fit
+    side by side.
+
+    MUTATION: give `row()` in `_build_cm_section` its old QHBoxLayout back and
+    this goes red for ru (and uk).
+    """
+    i18n.set_language(code)
+    from ui.tabs.tab_print import TabPrint
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "out"))
+    tab = TabPrint(s)
+    tab.resize(1280, 740)
+    tab.show()
+    qapp.processEvents()
+    # after the show: showing the tab re-decides the rows for its own
+    # (profiling) target, which hides the two verification rows
+    tab._cm_raw_rb.setText(i18n.tr("Raw — already converted"))
+    for row in (tab._cm_colour_row, tab._cm_intent_row, tab._cm_route_row):
+        row.setVisible(True)
+    tab._cm_grp.setVisible(True)
+    qapp.processEvents()
+    assert tab._cm_colour_row.isVisibleTo(tab._cm_grp)
+    need = tab._cm_grp.minimumSizeHint().width()
+    tab.hide()
+    assert need <= PRINT_PANE_VIEWPORT, (
+        f"[{code}] 'How this chart is printed' needs {need} px of a "
+        f"{PRINT_PANE_VIEWPORT} px pane: its right edge is cut off")

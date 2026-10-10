@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QFileDialog,
+    QFormLayout,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -106,6 +107,50 @@ def _with_plain_paper(body: str) -> str:
     extra = tr(_TT_PLAIN_PAPER)
     at = 2 if len(paras) > 2 else len(paras)
     return "\n\n".join(paras[:at] + [extra] + paras[at:])
+
+
+def _dialog_printer() -> "tuple[str | None, str | None]":
+    """(CUPS queue, name as macOS shows it) of the printer the macOS print
+    dialog opens on; (None, None) off macOS or when it cannot be told."""
+    if not is_macos():
+        return None, None
+    try:
+        from workflow.native_print_macos import dialog_printer
+        return dialog_printer()
+    except Exception:  # noqa: BLE001
+        log.debug("could not tell the macOS dialog's printer", exc_info=True)
+        return None, None
+
+
+def _queue_cmyk_raster(queue: str) -> "str | None":
+    """The CMYK family *queue* rasterises a job in at its default colour mode
+    (``ppd_color.cmyk_raster_space``), else None."""
+    from workflow.ppd_color import cmyk_raster_space
+    ppd = PrintModule.find_ppd_path(queue)
+    if not ppd:
+        return None
+    from core.text_io import read_text
+    try:
+        text = read_text(Path(ppd), lenient=True)
+    except OSError:
+        return None
+    return cmyk_raster_space(text, {}, queue)
+
+
+def _ink_conversion_message(conv):
+    """The §M message for an ``_ink_conversion`` result (4.3.5 B2)."""
+    from workflow import measurement_messages as MM
+    return (MM.M_PRINT_INKS_CONVERTED if conv[0] == "converted"
+            else MM.M_PRINT_INKS_APPROXIMATE)
+
+
+def _printer_display_name(queue: str) -> str:
+    """The queue's name as macOS shows it (its printer-info), else the queue."""
+    try:
+        import cups
+        return cups.Connection().getPrinters().get(queue, {}).get("printer-info") or queue
+    except Exception:  # noqa: BLE001
+        return queue
 
 
 def _html_escape(text: str) -> str:
@@ -898,6 +943,10 @@ class TabPrint(QWidget):
             self._update_colour_row_visible()
         except Exception:      # noqa: BLE001 — never break tab switching
             log.warning("colour row refresh on show failed", exc_info=True)
+        try:
+            self._update_cmyk_route_note()
+        except Exception:      # noqa: BLE001 — never break tab switching
+            log.warning("CMYK route note refresh on show failed", exc_info=True)
 
     def reload_printers(self) -> None:
         """Ask CUPS again — for callers that need the list refreshed on demand."""
@@ -956,15 +1005,34 @@ class TabPrint(QWidget):
 
         def row(label: str, control: QWidget, tip_title: str,
                 tip_body: str) -> QWidget:
+            # A one-row form that puts the control UNDER its label when the
+            # two do not fit side by side (4.3.5, review R5 k74): in Russian
+            # the intent list ("Относительный колориметрический
+            # (рекомендуется)") and the Colour radios of a chart that is
+            # already converted made this box 582 points wide in a 534-point
+            # pane at 1280 wide, and its right edge was cut off. Where they
+            # fit, the row is laid out exactly as before.
             r = QWidget(self._cm_grp)
-            lay = QHBoxLayout(r)
-            lay.setContentsMargins(0, 0, 0, 0)
-            lay.setSpacing(10)
+            form = QFormLayout(r)
+            form.setContentsMargins(0, 0, 0, 0)
+            form.setHorizontalSpacing(10)
+            form.setVerticalSpacing(4)
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+            form.setFieldGrowthPolicy(
+                QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft
+                                   | Qt.AlignmentFlag.AlignVCenter)
+            form.setFormAlignment(Qt.AlignmentFlag.AlignLeft
+                                  | Qt.AlignmentFlag.AlignTop)
             text = QLabel(label, r)
             text.setMinimumWidth(130)
-            lay.addWidget(text)
-            lay.addWidget(control, 1)
-            lay.addWidget(TooltipButton(tip_title, tip_body, r))
+            field = QWidget(r)
+            fl = QHBoxLayout(field)
+            fl.setContentsMargins(0, 0, 0, 0)
+            fl.setSpacing(10)
+            fl.addWidget(control, 1)
+            fl.addWidget(TooltipButton(tip_title, tip_body, field))
+            form.addRow(text, field)
             return r
 
         # -- Colour: through the profile, or raw (verification only) --------
@@ -2135,6 +2203,15 @@ class TabPrint(QWidget):
             if choice != "anyway":
                 return
 
+        # 4.3.5 B2: a chart that is not RGB on a queue that converts its inks
+        # (RGB raster) or may print them as a mix (DeviceN). None, and no
+        # question, for every RGB chart.
+        self._pending_ink_conversion = self._ink_conversion(
+            printer, selected_opts, first_tiff, pages[0][1])
+        if (self._pending_ink_conversion is not None
+                and not self._ask_ink_conversion(printer, self._pending_ink_conversion)):
+            return
+
         # Beta-16 review: a chart LARGER than the paper is shrunk by the
         # printing system to fit (measured: an A4 chart on a PictureMate's
         # 9 x 13 cm paper and on a DNP's 6 x 8 in), which moves every patch
@@ -2481,7 +2558,7 @@ class TabPrint(QWidget):
         return ""
 
     # -- the read-back, off the GUI thread ------------------------------------------
-    def _start_read_back(self, work) -> None:
+    def _start_read_back(self, work, ink_conversion=None) -> None:
         """Run *work* (a blocking read-back returning a TicketReport) on a
         background thread and report it when it is done, or say it could not be
         read after ``print_ticket.READ_BACK_TIMEOUT_S`` (review 2026-10-08: it
@@ -2492,7 +2569,11 @@ class TabPrint(QWidget):
             self._read_back_timer = QTimer(self)
             self._read_back_timer.setInterval(100)
             self._read_back_timer.timeout.connect(self._poll_read_backs)
-        self._read_backs.append(BackgroundReadBack(work, READ_BACK_TIMEOUT_S))
+        rb = BackgroundReadBack(work, READ_BACK_TIMEOUT_S)
+        # 4.3.5 B2: what ``_ink_conversion`` found for the chart of this job
+        # (None for every RGB chart, so their status lines are unchanged).
+        rb.ink_conversion = ink_conversion
+        self._read_backs.append(rb)
         if not self._read_back_timer.isActive():
             self._read_back_timer.start()
 
@@ -2516,18 +2597,30 @@ class TabPrint(QWidget):
                                 "timed out" if state == "timeout" else rb.error)
                     self._set_status(tr(MM._PRINT_JOB_UNREAD))
                     continue
-                self._report_job_ticket(rb.report)
+                conv = getattr(rb, "ink_conversion", None)
+                if conv is None:
+                    self._report_job_ticket(rb.report)
+                else:
+                    self._report_job_ticket(rb.report, conv)
         finally:
             self._reporting_read_back = False
         if not self._read_backs:
             self._read_back_timer.stop()
 
-    def _report_job_ticket(self, rep) -> None:
+    def _report_job_ticket(self, rep, ink_conversion=None) -> None:
         """Say what the job read back from the printing system carries
         (M-PRINT-JOB-CONFIRMED), or show M-PRINT-JOB-NOT-AS-SENT /
         M-PRINT-JOB-UNTAGGED."""
         from workflow import measurement_messages as MM
         if rep is None:
+            return
+        if ink_conversion is not None and rep.read and rep.ok:
+            # 4.3.5 B2: the job carries what ChromIQ sent, but the chart's
+            # colours are converted on the way, so "The printing system
+            # confirms ..." would read as if they were not.
+            msg = _ink_conversion_message(ink_conversion)
+            self._set_status(tr(msg.title) if msg.approved
+                             else tr("Print job submitted successfully."))
             return
         if not rep.read:
             self._set_status(tr(MM._PRINT_JOB_UNREAD))
@@ -2628,24 +2721,48 @@ class TabPrint(QWidget):
 
         # Extract the target frame to a temporary single-page TIFF when needed.
         tmp_path: Path | None = None
+        # 4.3.5 B2: a chart that is not RGB is read and split with tifffile,
+        # which keeps every channel and the separated photometric; PIL cannot
+        # open a 5-7 ink chart at all. An RGB chart goes on exactly as before.
+        ink_plan, rgb_page = None, True
         try:
-            img = Image.open(tiff_path)
-            n_frames = getattr(img, "n_frames", 1)
-            if n_frames > 1 or frame > 0:
-                img.seek(min(frame, n_frames - 1))
-                fd, tmp_str = tempfile.mkstemp(suffix=".tif")
-                os.close(fd)
-                tmp_path = Path(tmp_str)
-                img.save(tmp_path, format="TIFF")
-                print_path = tmp_path
-            else:
-                print_path = tiff_path
-        except Exception as exc:
-            QMessageBox.critical(
-                self, tr("TIFF Error"),
-                tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
-            )
-            return False
+            from workflow.chart_inks import is_rgb_page, plan_for_file
+            _codes = _find_sidecar_channels(tiff_path)
+            rgb_page = is_rgb_page(tiff_path, frame, _codes)
+            if not rgb_page:
+                ink_plan = plan_for_file(tiff_path, frame, _codes)
+        except Exception:  # noqa: BLE001 - unreadable here: the old path says why
+            ink_plan, rgb_page = None, True
+        if not rgb_page:
+            try:
+                from workflow.chart_inks import split_page
+                tmp_path = split_page(tiff_path, frame)
+                print_path = tmp_path or tiff_path
+            except Exception as exc:
+                QMessageBox.critical(
+                    self, tr("TIFF Error"),
+                    tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
+                )
+                return False
+        else:
+            try:
+                img = Image.open(tiff_path)
+                n_frames = getattr(img, "n_frames", 1)
+                if n_frames > 1 or frame > 0:
+                    img.seek(min(frame, n_frames - 1))
+                    fd, tmp_str = tempfile.mkstemp(suffix=".tif")
+                    os.close(fd)
+                    tmp_path = Path(tmp_str)
+                    img.save(tmp_path, format="TIFF")
+                    print_path = tmp_path
+                else:
+                    print_path = tiff_path
+            except Exception as exc:
+                QMessageBox.critical(
+                    self, tr("TIFF Error"),
+                    tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
+                )
+                return False
 
         selected_opts = {k: (c.currentData() or "") for k, c in self._option_combos.items()}
         config = self._module.build_config(printer=printer, options=selected_opts)
@@ -2667,6 +2784,9 @@ class TabPrint(QWidget):
             self._on_print_done(code)
 
         ink_channels = _find_sidecar_channels(tiff_path)
+        if ink_channels is None and not rgb_page:
+            from workflow.chart_inks import sidecar_ink_codes
+            ink_channels = sidecar_ink_codes(tiff_path)
         self._printer.last_job_id = None
         self._printer.print_job_ps(
             print_path, config,
@@ -2688,7 +2808,62 @@ class TabPrint(QWidget):
         and report it."""
         self._start_read_back(_LpReadBack(
             printer, getattr(self._printer, "last_job_id", None),
-            dict(getattr(self._printer, "last_expected", {}) or {})))
+            dict(getattr(self._printer, "last_expected", {}) or {})),
+            ink_conversion=getattr(self, "_pending_ink_conversion", None))
+
+    def _ink_conversion(self, printer: str, options: dict,
+                        tiff_path: Path, frame: int = 0):
+        """4.3.5 B2: ``(route, inks, extra)`` when the chart is NOT RGB and this
+        queue changes its inks (``ppd_color.ink_route``: "converted" or
+        "approximate"), else None. Always None for an RGB or grey chart."""
+        try:
+            from workflow import chart_inks
+            from workflow.ppd_color import ink_route
+            codes = _find_sidecar_channels(tiff_path) or chart_inks.sidecar_ink_codes(tiff_path)
+            if chart_inks.is_rgb_page(tiff_path, frame, codes):
+                return None
+            n, phot = chart_inks.page_photometric(tiff_path, frame)
+            if n < 3:
+                return None
+            plan = chart_inks.plan_for(n, phot, codes)
+            space = plan.space if plan is not None else (
+                "DeviceCMYK" if n == 4 else "DeviceN")
+            ppd = PrintModule.find_ppd_path(printer)
+            if not ppd:
+                return None
+            from core.text_io import read_text
+            route = ink_route(read_text(Path(ppd), lenient=True), space,
+                              options, printer)
+            if route is None:
+                return None
+            ink_codes = list(plan.codes) if plan is not None else codes
+            return (route, chart_inks.ink_set_label(ink_codes, n),
+                    chart_inks.extra_ink_label(ink_codes))
+        except Exception:  # noqa: BLE001 - nothing certain to say
+            log.debug("ink conversion check failed", exc_info=True)
+            return None
+
+    def _ask_ink_conversion(self, printer: str, conv) -> bool:
+        """M-PRINT-INKS-CONVERTED / -APPROXIMATE before sending: False to
+        cancel. PROPOSED, so until approved it only logs and prints."""
+        route, inks, extra = conv
+        msg = _ink_conversion_message(conv)
+        log.warning("Print: %s chart (%s) on %s: %s", route, inks, printer,
+                    "asked" if msg.approved else "not asked (text not approved)")
+        if not msg.approved:
+            return True
+        title, body = msg.render(printer=_printer_display_name(printer),
+                                 inks=inks, extra=extra)
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        set_warning_icon(dlg)
+        dlg.setText(body)
+        anyway_btn = dlg.addButton(tr("Print Anyway"),
+                                   QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(cancel_btn)
+        dlg.exec()
+        return dlg.clickedButton() is anyway_btn
 
     def _on_print_done(self, code: int) -> None:
         if code == 0:
@@ -2845,6 +3020,57 @@ class TabPrint(QWidget):
                     + "<br><br>".join(_html_escape(p) for p in paras))
         lbl.setVisible(True)
 
+    def _update_cmyk_route_note(self, native: "bool | None" = None) -> None:
+        """Re-word the macOS dialog route's notice for the printer the dialog
+        opens on now (``_macos_dialog_notice``). Called on every entry to the
+        tab: the printer may have changed while the tab was hidden."""
+        if native is None:
+            native = bool(self._settings.get("use_native_print_dialog", False))
+        if native and is_macos():
+            self._warn_lbl.setText(self._macos_dialog_notice())
+
+    def _macos_dialog_notice(self) -> str:
+        """The notice of the macOS print dialog route.
+
+        M-PRINT-CMYK-RASTER-ROUTE (4.3.5; PROPOSED, so not shown until it is
+        approved): Basti, 2026-10-10, on a printer whose driver takes CMYK
+        raster by its PPD and default colour mode (``ppd_color.raster_colour``)
+        that message takes the place of the sentences promising that ChromIQ
+        attaches the paper profile so macOS does not change the colours, and
+        of "This works with any printer…". Everything else, and the whole
+        notice on every other printer, stays as approved."""
+        full = tr("⚠  You are printing via the macOS printer dialog. Verify that the "
+                  "paper, media type, and quality you pick match the media you are "
+                  "printing on: wrong settings cause incorrect ink laydown and invalid "
+                  "colour measurements.\n\n"
+                  "ChromIQ asks for application colour matching, as Photoshop does. "
+                  "After you close the dialog it attaches the paper profile of the "
+                  "medium you chose to the chart, so macOS does not change its "
+                  "colours. Pick the right media type: the paper profile follows it. "
+                  "Afterwards the Print Chart tab says what the printing system holds "
+                  "for the job.\n\n"
+                  "This works with any printer: where the driver has paper "
+                  "profiles, its own dialog chooses one. You don't need to change "
+                  "any colour setting.\n\n"
+                  "Prefer no dialog at all? Untick \"Use default macOS printer dialog\" "
+                  "in Preferences to send the chart straight to the queue via lp.\n\n"
+                  "Allow pigment inks to dry fully before measuring "
+                  "(at least 1 h; 24 h for best accuracy).")
+        from workflow import measurement_messages as MM
+        if not MM.M_PRINT_CMYK_RASTER_ROUTE.approved:
+            return full
+        paras = full.split("\n\n")
+        if len(paras) != 5:
+            return full
+        queue, display = _dialog_printer()
+        if not queue or _queue_cmyk_raster(queue) is None:
+            return full
+        title, body = MM.M_PRINT_CMYK_RASTER_ROUTE.render(printer=display or queue)
+        kept = tr("ChromIQ asks for application colour matching, as Photoshop does. "
+                  "Afterwards the Print Chart tab says what the printing system holds "
+                  "for the job.")
+        return "\n\n".join([paras[0], kept, f"{title}\n{body}", paras[3], paras[4]])
+
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
         self._update_verify_route_note(native=enabled)
@@ -2875,25 +3101,7 @@ class TabPrint(QWidget):
                     "(at least 1 h; 24 h for best accuracy).")
                 )
             else:
-                self._warn_lbl.setText(
-                    tr("⚠  You are printing via the macOS printer dialog. Verify that the "
-                    "paper, media type, and quality you pick match the media you are "
-                    "printing on: wrong settings cause incorrect ink laydown and invalid "
-                    "colour measurements.\n\n"
-                    "ChromIQ asks for application colour matching, as Photoshop does. "
-                    "After you close the dialog it attaches the paper profile of the "
-                    "medium you chose to the chart, so macOS does not change its "
-                    "colours. Pick the right media type: the paper profile follows it. "
-                    "Afterwards the Print Chart tab says what the printing system holds "
-                    "for the job.\n\n"
-                    "This works with any printer: where the driver has paper "
-                    "profiles, its own dialog chooses one. You don't need to change "
-                    "any colour setting.\n\n"
-                    "Prefer no dialog at all? Untick \"Use default macOS printer dialog\" "
-                    "in Preferences to send the chart straight to the queue via lp.\n\n"
-                    "Allow pigment inks to dry fully before measuring "
-                    "(at least 1 h; 24 h for best accuracy).")
-                )
+                self._warn_lbl.setText(self._macos_dialog_notice())
         else:
             if is_macos() and bool(self._settings.get("pdf_print_fallback", True)):
                 fallback_sentence = tr(

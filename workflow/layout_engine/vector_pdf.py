@@ -110,9 +110,13 @@ class _Obj:
         return b"".join(parts)
 
 
-def _fill_color_op(dev01: tuple[float, ...], n: int) -> str:
-    """Non-stroking colour operator for an n-channel device tuple in 0..1."""
+def _fill_color_op(dev01: tuple[float, ...], n: int, devicen: bool = False) -> str:
+    """Non-stroking colour operator for an n-channel device tuple in 0..1.
+    *devicen*: the DeviceN space is selected (always for > 4 inks; for four
+    inks that are not CMYK, 4.3.5 B2)."""
     vals = " ".join(f"{v:.4f}" for v in dev01)
+    if devicen:
+        return f"{vals} scn"
     if n == 1:
         return f"{vals} g"
     if n == 3:
@@ -125,13 +129,15 @@ def _fill_color_op(dev01: tuple[float, ...], n: int) -> str:
 def _page_content(page_elems: list[tuple], device_fields: list[str],
                   paper_w_mm: float, paper_h_mm: float, dpi: float,
                   cs_selected_name: str | None,
-                  paper_dev01: tuple[float, ...]) -> tuple[bytes, list[dict]]:
+                  paper_dev01: tuple[float, ...],
+                  pad_k: bool = False) -> tuple[bytes, list[dict]]:
     """Build one page's content stream from its collected display list.
 
     Returns ``(content_bytes, image_requests)`` — image_requests describes any
     clip-strip rasters the page needs so the caller can add XObjects.
     """
     n = len(device_fields)
+    devicen = cs_selected_name is not None
     px2pt = 72.0 / dpi
     page_w_pt = paper_w_mm * _PT_PER_MM
     page_h_pt = paper_h_mm * _PT_PER_MM
@@ -146,12 +152,19 @@ def _page_content(page_elems: list[tuple], device_fields: list[str],
 
     # Explicit paper background (the media patch's device value = white paper),
     # so undrawn areas print as paper and preview white in every viewer.
-    ops.append(_fill_color_op(paper_dev01, n))
+    if pad_k:
+        # 4.3.5 B2: a CMY chart is CMYK with K = 0, as printtarg writes it
+        n_out = 4
+        fill = lambda dev01: _fill_color_op(tuple(dev01) + (0.0,), 4)  # noqa: E731
+    else:
+        n_out = n
+        fill = lambda dev01: _fill_color_op(dev01, n, devicen)  # noqa: E731
+    ops.append(_fill_color_op(paper_dev01, n_out, devicen))
     ops.append(f"0 0 {page_w_pt:.3f} {page_h_pt:.3f} re f")
 
     def dev01_from_values(values, kind) -> tuple[float, ...]:
         if kind == "spacer":                  # spacer stored as display RGB (0..255)
-            if n == 3:                         # RGB chart: display RGB *is* device
+            if n == 3 and not pad_k:           # RGB chart: display RGB *is* device
                 return tuple(max(0.0, min(1.0, c / 255.0)) for c in values)
             if n == 1:                         # Gray: use luminance
                 return (colorants.luminance(values) / 255.0,)
@@ -180,12 +193,12 @@ def _page_content(page_elems: list[tuple], device_fields: list[str],
             Yb = y_pt(y1p)
             W = (x1p - x0p) * px2pt
             H = (y1p - y0p) * px2pt
-            ops.append(_fill_color_op(dev01, n))
+            ops.append(fill(dev01))
             ops.append(f"{X:.3f} {Yb:.3f} {W:.3f} {H:.3f} re f")
         elif kind == "hex":
             _, pts, values = elem
             dev01 = dev01_from_values(values, kind)
-            ops.append(_fill_color_op(dev01, n))
+            ops.append(fill(dev01))
             p0 = pts[0]
             ops.append(f"{p0[0] * px2pt:.3f} {y_pt(p0[1]):.3f} m")
             for px_, py_ in pts[1:]:
@@ -231,7 +244,13 @@ def save_vector_pdf(result, target, out_path: str | Path, *,
     page_h_pt = paper_h_mm * _PT_PER_MM
     # White paper, matching the TIFF (which always renders on white): additive
     # spaces (RGB/Gray) → full 1.0; subtractive (CMYK/DeviceN) → 0 ink.
-    paper_dev01 = (1.0,) * n if n in (1, 3) else (0.0,) * n
+    suffixes = [f.split("_")[-1].upper() for f in device_fields]
+    # 4.3.5 B2: CMY is CMYK with K = 0 (as printtarg writes it), and four inks
+    # that are not CMYK (CMY + orange) are DeviceN, never DeviceCMYK.
+    pad_k = n == 3 and suffixes == ["C", "M", "Y"]
+    devicen_4 = n == 4 and suffixes != ["C", "M", "Y", "K"]
+    paper_dev01 = ((0.0,) * 4 if pad_k
+                   else (1.0,) * n if n in (1, 3) else (0.0,) * n)
 
     objs = _Obj()
     catalog = objs.reserve()
@@ -240,7 +259,7 @@ def save_vector_pdf(result, target, out_path: str | Path, *,
     # DeviceN colour space object (only for >4 inks), shared by every page.
     cs_selected = None
     devicen_obj = None
-    if n > 4:
+    if n > 4 or devicen_4:
         tint = _tint_fn_body(device_fields).encode("ascii")
         domain = " ".join(["0 1"] * n)
         fn_obj = objs.add(
@@ -258,7 +277,7 @@ def save_vector_pdf(result, target, out_path: str | Path, *,
     for pi, page_elems in enumerate(result.patch_geom):
         content, image_reqs = _page_content(
             page_elems, device_fields, paper_w_mm, paper_h_mm, dpi, cs_selected,
-            paper_dev01)
+            paper_dev01, pad_k=pad_k)
         content_z = zlib.compress(content, 6)
         content_obj = objs.add(
             (f"{len(objs.bodies)} 0 obj\n<< /Length {len(content_z)} "

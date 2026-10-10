@@ -6866,5 +6866,22 @@
  "Install": "Installera",
  "Keep the name to replace the installed profile, or give this profile another name.": "Behåll namnet för att ersätta den installerade profilen, eller ge den här profilen ett annat namn.",
  "Name of the installed profile": "Namn på den installerade profilen",
- "Type a name for the installed profile.": "Skriv ett namn på den installerade profilen."
+ "Type a name for the installed profile.": "Skriv ett namn på den installerade profilen.",
+ "This printer’s driver works in CMYK": "Drivrutinen för den här skrivaren arbetar i CMYK",
+ "ChromIQ asks for application colour matching, as Photoshop does. Afterwards the Print Chart tab says what the printing system holds for the job.": "ChromIQ begär färgmatchning från programmet, precis som Photoshop. Efteråt visar fliken Skriv ut diagram vad utskriftssystemet har för jobbet.",
+ "The driver of {printer} takes the chart in CMYK. On such a printer macOS converts the chart’s colours into CMYK itself. A CMYK profile set for this printer in ColorSync Utility changes that conversion; an RGB profile set there does not. macOS treats the chart’s numbers as sRGB colours when it converts them to CMYK. Your photos must reach it the same way, or the profile will not fit them. In Photoshop, do not print with “Photoshop Manages Colors” and this profile. Instead use Edit > Convert to Profile with this profile, then Edit > Assign Profile > Don’t Color Manage This Document, and print with “Printer Manages Colors”. In Preview, set Colour Matching to ColorSync in the print dialog. Keep the same profile set for this printer in ColorSync Utility.": "Drivrutinen för {printer} tar emot diagrammet i CMYK. På en sådan skrivare omvandlar macOS själv diagrammets färger till CMYK. En CMYK-profil som har tilldelats skrivaren i ColorSync-verktyget ändrar den omvandlingen; en RGB-profil där gör det inte. macOS behandlar diagrammets tal som sRGB-färger när det omvandlar dem till CMYK. Dina foton måste komma fram på samma sätt, annars passar profilen inte till dem. Skriv inte ut i Photoshop med ”Photoshop hanterar färger” (Photoshop Manages Colors) och den här profilen. Använd i stället Redigera > Konvertera till profil (Convert to Profile) med den här profilen, sedan Redigera > Tilldela profil > ”Använd inte färghantering för det här dokumentet” (Don’t Color Manage This Document), och skriv ut med ”Skrivaren hanterar färger” (Printer Manages Colors). I Förhandsvisning ställer du in ”Färgmatchning” på ColorSync i utskriftsdialogen. Behåll samma profil för skrivaren i ColorSync-verktyget.",
+ "1 ink": "1 bläck",
+ "2 inks": "2 bläck",
+ "3 inks": "3 bläck",
+ "4 inks": "4 bläck",
+ "5 inks": "5 bläck",
+ "6 inks": "6 bläck",
+ "7 inks": "7 bläck",
+ "8 inks": "8 bläck",
+ "{n} inks": "{n} bläck",
+ "{inks}, {count}": "{inks}, {count}",
+ "macOS converts this chart’s colours": "macOS omvandlar färgerna i det här diagrammet",
+ "The driver of {printer} takes RGB, not ink values. macOS therefore turns the chart’s ink values ({inks}) into RGB colours on the way, and the driver works out its own ink amounts from those. The sheet would not carry the chart’s values, and a measurement of it would not describe your printer’s inks.\n\nPrint this chart on a printer whose driver takes these inks, or through a RIP that does.": "Drivrutinen för {printer} tar emot RGB, inte bläckvärden. macOS gör därför på vägen om diagrammets bläckvärden ({inks}) till RGB-färger, och drivrutinen räknar ut sina egna bläckmängder från dem. Arket skulle inte bära diagrammets värden, och en mätning av det skulle inte beskriva skrivarens bläck.\n\nSkriv ut det här diagrammet på en skrivare vars drivrutin tar emot de här bläcken, eller via en RIP som gör det.",
+ "The chart’s extra inks may be printed as a mix": "Diagrammets extra bläck kan skrivas ut som en blandning",
+ "The chart has {inks}. ChromIQ sends it to {printer} with every ink named, and a printer or RIP that has inks of those names prints it as it is. One without them, which includes every printer whose driver takes CMYK, prints {extra} as an approximate mix of cyan, magenta, yellow and black on top of the other inks. Patches with {extra} would then not carry the chart’s values, and a measurement of them would not describe your printer’s inks.": "Diagrammet har {inks}. ChromIQ skickar det till {printer} med varje bläck namngivet, och en skrivare eller RIP som har bläck med de namnen skriver ut det som det är. En utan dem, vilket gäller varje skrivare vars drivrutin tar emot CMYK, skriver ut {extra} som en ungefärlig blandning av cyan, magenta, gult och svart ovanpå de andra bläcken. Fälten med {extra} skulle då inte bära diagrammets värden, och en mätning av dem skulle inte beskriva skrivarens bläck."
 }

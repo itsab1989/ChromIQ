@@ -42,8 +42,8 @@ from pathlib import Path
 from PIL import Image
 
 from core.logger import get_logger
-from workflow.ppd_color import (is_postscript_queue, paper_profile_for,
-                                vendor_no_cm_settings)
+from workflow.ppd_color import (cmyk_raster_space, is_postscript_queue,
+                                paper_profile_for, vendor_no_cm_settings)
 
 log = get_logger(__name__)
 
@@ -307,6 +307,24 @@ def _is_reference_vendor(ppd_path: str) -> bool:
         return False
 
 
+def _refuse_unless_rgb(tiff_path: Path, frame: int) -> None:
+    """Raise :class:`ChartIsNotRGB`, naming the chart's inks, for any page that
+    is not RGB in its file and in its ink list (``chart_inks.is_rgb_page``)."""
+    from workflow import chart_inks
+    try:
+        if chart_inks.is_rgb_page(tiff_path, frame):
+            return
+        n, _phot = chart_inks.page_photometric(tiff_path, frame)
+    except Exception:  # noqa: BLE001 - unreadable by tifffile: PIL decides below
+        return
+    codes = chart_inks.sidecar_ink_codes(tiff_path)
+    if n == 1 and not codes:
+        raise ChartIsNotRGB(chart_inks.ink_set_label(["k"]))
+    plan = chart_inks.plan_for_file(tiff_path, frame, codes)
+    raise ChartIsNotRGB(chart_inks.ink_set_label(
+        plan.codes if plan is not None else codes, n))
+
+
 class ChartIsNotRGB(RuntimeError):
     """The chart's own pixels are not RGB, and this route can only carry RGB.
 
@@ -509,6 +527,51 @@ class Submission:
         #: k81: ChromIQ's own PostScript went to a PostScript printer, the
         #: chart as DeviceRGB (no tag, no output intent to match)
         self.device_rgb = False
+        #: the CMYK family the job is rasterised in when the chart was left
+        #: untagged for it (4.3.5, ``cmyk_raster_job``), else None
+        self.cmyk_raster: str | None = None
+
+
+#: PrintCore's colour space model of a job (``PMColorSpaceModel``): 3 is
+#: kPMCMYKColorSpaceModel. macOS writes it into the print settings and the job
+#: ticket from the queue's PPD; it is used only to VETO a CMYK verdict.
+_PM_CMYK_COLOR_SPACE_MODEL = 3
+
+
+def _pm_colour_space_model(settings: dict) -> "int | None":
+    for k, v in settings.items():
+        if "PMColorSpaceModel" in str(k):
+            try:
+                return int(str(v))
+            except ValueError:
+                return None
+    return None
+
+
+def cmyk_raster_job(ppd_text: "str | None", settings: dict,
+                    queue: "str | None") -> "str | None":
+    """The CMYK family a job with these options is rasterised in, or None.
+
+    4.3.5 (Basti, 2026-10-10, option 3 of B5's analysis): on a queue whose
+    driver takes CUPS raster in a CMYK-family colour space, macOS converts the
+    chart from its own tag into CMYK and ignores an RGB profile assigned to
+    the printer in ColorSync (review R3 and B5, measured on capture queues),
+    so the re-tag would make the sheet depend on that profile. (A CMYK profile
+    assigned there is used for the conversion, review R1; it was never a
+    re-tag, which takes an RGB profile only.) Strict: the PPD
+    must declare it for the job's own colour mode
+    (``ppd_color.raster_colour``), and macOS's own colour space model of the
+    job, when it states one, must be CMYK too."""
+    settings = {str(k): v for k, v in (settings or {}).items()}
+    cmyk = cmyk_raster_space(ppd_text, settings, queue)
+    if cmyk is None:
+        return None
+    pm = _pm_colour_space_model(settings)
+    if pm is not None and pm != _PM_CMYK_COLOR_SPACE_MODEL:
+        log.info("native print: the PPD declares %s raster, macOS's colour space "
+                 "model is %s: not treated as CMYK", cmyk, pm)
+        return None
+    return cmyk
 
 
 def read_back(sub: "Submission"):
@@ -529,9 +592,21 @@ def read_back(sub: "Submission"):
     job = find_job(sub.queue, sub.started) if sub.queue else None
     rep = check_job(sub.queue or "?", job, sub.expected, ppd_text=sub.ppd_text,
                     tagged_with=sub.tagged_with, tagged_icc=sub.tagged_icc)
+    if sub.cmyk_raster and rep.read:
+        # 4.3.5: the chart was left untagged because the options after the
+        # dialog put the job into CMYK raster. Decided again from the colour
+        # mode the job READ BACK carries: only if that is CMYK raster too is
+        # the untagged chart expected; otherwise the window below says that
+        # macOS may convert it, as before 4.3.5.
+        rep.cmyk_raster = cmyk_raster_job(sub.ppd_text, rep.options, sub.queue)
+        if rep.cmyk_raster is None:
+            log.warning("native print: the job read back is not CMYK raster, "
+                        "although its options after the dialog were (%s)",
+                        sub.cmyk_raster)
     rep.device_rgb = bool(getattr(sub, "device_rgb", False))
     if (not rep.device_rgb and not sub.tagged_icc and rep.read
             and rep.tag_matches_job is None
+            and not rep.cmyk_raster
             and (sub.output_intent
                  or (sub.ppd_text and "*cupsICCProfile" in sub.ppd_text))):
         # …AND ANY JOB WITH AN OUTPUT INTENT THE CHART DID NOT GET (B3,
@@ -640,6 +715,13 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     sizes_pt: list[tuple[float, float]] = []
     content_pt: list = []
     for tiff_path, frame in pages:
+        # 4.3.5 B2: ASKED OF THE FILE AND ITS INK LIST, BEFORE PIL OPENS IT.
+        # PIL cannot open a chart of five or more inks (the refusal below then
+        # never came, only "Could not open the macOS print dialog"), and a CMY
+        # chart the layout engine wrote before 4.3.5 is an RGB TIFF of inverted
+        # ink values, which went through as RGB colours. An RGB chart passes
+        # this test and goes on exactly as before.
+        _refuse_unless_rgb(tiff_path, frame)
         with Image.open(tiff_path) as im:
             n_frames = getattr(im, "n_frames", 1)
             im.seek(min(frame, n_frames - 1))
@@ -648,7 +730,9 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
             # conversion for any other, and this route's whole promise is that
             # "pixel values reach the driver unchanged".
             if im.mode != "RGB":
-                raise ChartIsNotRGB(im.mode)
+                from workflow.chart_inks import ink_set_label
+                raise ChartIsNotRGB(ink_set_label(
+                    None, {"CMYK": 4, "L": 1}.get(im.mode, len(im.getbands()))))
             rgb = im.convert("RGB")
             w_px, h_px = rgb.size
             dpi = rgb.info.get("dpi") or (300.0, 300.0)
@@ -748,7 +832,21 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     # not be given it: then macOS converts the chart, and the read-back must
     # say so whatever the PPD declares (B3, 2026-10-10).
     output_intent = dest_name if dest_icc else None
-    if dest_icc:
+    try:
+        _settings_now = dict(print_info.printSettings())
+    except Exception:  # noqa: BLE001
+        _settings_now = {}
+    _ppd_now = _ppd_text_of(print_info)
+    cmyk = cmyk_raster_job(_ppd_now, _settings_now, _queue_of(print_info))
+    if cmyk and dest_icc:
+        # 4.3.5: a CMYK raster job. macOS converts the chart from its tag into
+        # CMYK and ignores an RGB ColorSync profile of the queue, so the chart
+        # keeps the tag every other print from an application gets (sRGB),
+        # and the sheet no longer depends on which profile is assigned.
+        log.info("native print: %s raster job, chart left untagged (output "
+                 "profile %r not used)", cmyk, dest_name)
+        dest_icc, dest_name = None, None
+    elif dest_icc:
         tagged = _retag_reps(view._reps, dest_icc)
         if tagged is not None:
             view._reps = tagged
@@ -758,7 +856,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
             log.warning("native print: output profile %r not usable as a colour space",
                         dest_name)
             dest_icc, dest_name = None, None
-    else:
+    elif not cmyk:
         log.warning("native print: no output profile could be read; macOS may "
                     "convert the chart's colours")
 
@@ -786,6 +884,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
                                  dest_name if dest_icc else None,
                                  output_intent=output_intent)
     last_submission.reset_by_chromiq = dict(last_reset_by_chromiq)
+    last_submission.cmyk_raster = cmyk
     return True
 
 
@@ -989,6 +1088,24 @@ def _solid_box_pt(rgb, dpi_x: float, dpi_y: float, min_mm: float = 1.0):
     y1 = min(ink.shape[0], (rows[-1] + k + 1) * b)
     k_x, k_y = _PT_PER_INCH / dpi_x, _PT_PER_INCH / dpi_y
     return (x0 * k_x, y0 * k_y, x1 * k_x, y1 * k_y)
+
+
+def dialog_printer() -> tuple[str | None, str | None]:
+    """(CUPS queue, display name) of the printer the macOS print dialog opens
+    on: ``print_frames`` shows it a copy of the shared print info."""
+    import AppKit
+    pr = AppKit.NSPrintInfo.sharedPrintInfo().printer()
+    display = str(pr.name()) if pr is not None and pr.name() else None
+    return (_queue_name(display) if display else None), display
+
+
+def _queue_of(print_info) -> str | None:
+    try:
+        printer = print_info.printer()
+        display = printer.name() if printer is not None else None
+        return _queue_name(str(display)) if display else None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _ppd_text_of(print_info) -> str | None:

@@ -6866,5 +6866,22 @@
  "Install": "安装",
  "Keep the name to replace the installed profile, or give this profile another name.": "保留名称即可替换已安装的配置文件，或为此配置文件另起一个名称。",
  "Name of the installed profile": "已安装配置文件的名称",
- "Type a name for the installed profile.": "请为已安装的配置文件输入名称。"
+ "Type a name for the installed profile.": "请为已安装的配置文件输入名称。",
+ "This printer’s driver works in CMYK": "此打印机的驱动程序以 CMYK 工作",
+ "ChromIQ asks for application colour matching, as Photoshop does. Afterwards the Print Chart tab says what the printing system holds for the job.": "ChromIQ 会像 Photoshop 一样请求由应用程序进行的颜色匹配。之后「打印色卡」选项卡会显示打印系统为此任务保存的内容。",
+ "The driver of {printer} takes the chart in CMYK. On such a printer macOS converts the chart’s colours into CMYK itself. A CMYK profile set for this printer in ColorSync Utility changes that conversion; an RGB profile set there does not. macOS treats the chart’s numbers as sRGB colours when it converts them to CMYK. Your photos must reach it the same way, or the profile will not fit them. In Photoshop, do not print with “Photoshop Manages Colors” and this profile. Instead use Edit > Convert to Profile with this profile, then Edit > Assign Profile > Don’t Color Manage This Document, and print with “Printer Manages Colors”. In Preview, set Colour Matching to ColorSync in the print dialog. Keep the same profile set for this printer in ColorSync Utility.": "{printer} 的驱动程序以 CMYK 接收色卡。在这类打印机上，macOS 会自行把色卡的颜色转换为 CMYK。在「ColorSync 实用工具」中为此打印机设置的 CMYK 配置文件会改变这一转换；在那里设置的 RGB 配置文件则不会。macOS 在把色卡的数值转换为 CMYK 时，会把它们当作 sRGB 颜色。您的照片必须以同样的方式到达，否则该配置文件将不适合它们。在 Photoshop 中，不要用“Photoshop 管理颜色”（Photoshop Manages Colors）加此配置文件来打印。请改用 编辑 > 转换为配置文件（Convert to Profile）转换为此配置文件，然后 编辑 > 指定配置文件 > “不对此文档应用色彩管理”（Don’t Color Manage This Document），并以“打印机管理颜色”（Printer Manages Colors）打印。在“预览”中，请在打印对话框里把「颜色匹配」设为 ColorSync。在「ColorSync 实用工具」中为此打印机保持同一个配置文件。",
+ "1 ink": "1 种墨水",
+ "2 inks": "2 种墨水",
+ "3 inks": "3 种墨水",
+ "4 inks": "4 种墨水",
+ "5 inks": "5 种墨水",
+ "6 inks": "6 种墨水",
+ "7 inks": "7 种墨水",
+ "8 inks": "8 种墨水",
+ "{n} inks": "{n} 种墨水",
+ "{inks}, {count}": "{inks}，{count}",
+ "macOS converts this chart’s colours": "macOS 会转换此色卡的颜色",
+ "The driver of {printer} takes RGB, not ink values. macOS therefore turns the chart’s ink values ({inks}) into RGB colours on the way, and the driver works out its own ink amounts from those. The sheet would not carry the chart’s values, and a measurement of it would not describe your printer’s inks.\n\nPrint this chart on a printer whose driver takes these inks, or through a RIP that does.": "{printer} 的驱动程序接收的是 RGB，而不是墨水值。因此 macOS 会在途中把色卡的墨水值（{inks}）变成 RGB 颜色，驱动程序再据此算出自己的墨水量。打印出的纸张不会带有色卡的数值，测量它也无法描述您打印机的墨水。\n\n请在驱动程序接收这些墨水的打印机上打印此色卡，或通过能做到这一点的 RIP 打印。",
+ "The chart’s extra inks may be printed as a mix": "色卡的附加墨水可能会以混合色打印",
+ "The chart has {inks}. ChromIQ sends it to {printer} with every ink named, and a printer or RIP that has inks of those names prints it as it is. One without them, which includes every printer whose driver takes CMYK, prints {extra} as an approximate mix of cyan, magenta, yellow and black on top of the other inks. Patches with {extra} would then not carry the chart’s values, and a measurement of them would not describe your printer’s inks.": "此色卡使用 {inks}。ChromIQ 把它发送到 {printer} 时会标明每种墨水的名称，拥有这些名称墨水的打印机或 RIP 会按原样打印。没有这些墨水的设备（所有驱动程序接收 CMYK 的打印机都属于此类）会把 {extra} 以青、品红、黄、黑的近似混合叠加在其他墨水上打印。这样含有 {extra} 的色块就不会带有色卡的数值，测量它们也无法描述您打印机的墨水。"
 }

@@ -6866,5 +6866,22 @@
  "Install": "Zainstaluj",
  "Keep the name to replace the installed profile, or give this profile another name.": "Zostaw nazwę, aby zastąpić zainstalowany profil, albo nadaj temu profilowi inną nazwę.",
  "Name of the installed profile": "Nazwa zainstalowanego profilu",
- "Type a name for the installed profile.": "Wpisz nazwę zainstalowanego profilu."
+ "Type a name for the installed profile.": "Wpisz nazwę zainstalowanego profilu.",
+ "This printer’s driver works in CMYK": "Sterownik tej drukarki pracuje w CMYK",
+ "ChromIQ asks for application colour matching, as Photoshop does. Afterwards the Print Chart tab says what the printing system holds for the job.": "ChromIQ prosi o dopasowanie kolorów przez aplikację, tak jak Photoshop. Potem karta Wydrukuj wzorzec pokazuje, co system drukowania ma zapisane dla tego zadania.",
+ "The driver of {printer} takes the chart in CMYK. On such a printer macOS converts the chart’s colours into CMYK itself. A CMYK profile set for this printer in ColorSync Utility changes that conversion; an RGB profile set there does not. macOS treats the chart’s numbers as sRGB colours when it converts them to CMYK. Your photos must reach it the same way, or the profile will not fit them. In Photoshop, do not print with “Photoshop Manages Colors” and this profile. Instead use Edit > Convert to Profile with this profile, then Edit > Assign Profile > Don’t Color Manage This Document, and print with “Printer Manages Colors”. In Preview, set Colour Matching to ColorSync in the print dialog. Keep the same profile set for this printer in ColorSync Utility.": "Sterownik drukarki {printer} przyjmuje wzorzec w CMYK. W takiej drukarce macOS sam przelicza kolory wzorca na CMYK. Profil CMYK przypisany tej drukarce w Narzędziu ColorSync zmienia to przeliczenie; profil RGB przypisany tam go nie zmienia. macOS traktuje liczby wzorca jako kolory sRGB, gdy przelicza je na CMYK. Twoje zdjęcia muszą docierać do niego tak samo, inaczej profil nie będzie do nich pasował. W Photoshopie nie drukuj z ustawieniem „Kolorami zarządza Photoshop” (Photoshop Manages Colors) i tym profilem. Zamiast tego użyj Edycja > Konwertuj na profil (Convert to Profile) z tym profilem, potem Edycja > Przypisz profil > „Nie zarządzaj kolorami w tym dokumencie” (Don’t Color Manage This Document), i drukuj z ustawieniem „Kolorami zarządza drukarka” (Printer Manages Colors). W Podglądzie ustaw w oknie drukowania „Dopasowanie kolorów” na ColorSync. Pozostaw tej drukarce w Narzędziu ColorSync ten sam profil.",
+ "1 ink": "1 atrament",
+ "2 inks": "2 atramenty",
+ "3 inks": "3 atramenty",
+ "4 inks": "4 atramenty",
+ "5 inks": "5 atramentów",
+ "6 inks": "6 atramentów",
+ "7 inks": "7 atramentów",
+ "8 inks": "8 atramentów",
+ "{n} inks": "atramenty: {n}",
+ "{inks}, {count}": "{inks}, {count}",
+ "macOS converts this chart’s colours": "macOS przelicza kolory tego wzorca",
+ "The driver of {printer} takes RGB, not ink values. macOS therefore turns the chart’s ink values ({inks}) into RGB colours on the way, and the driver works out its own ink amounts from those. The sheet would not carry the chart’s values, and a measurement of it would not describe your printer’s inks.\n\nPrint this chart on a printer whose driver takes these inks, or through a RIP that does.": "Sterownik drukarki {printer} przyjmuje RGB, a nie wartości atramentów. macOS po drodze zamienia więc wartości atramentów wzorca ({inks}) na kolory RGB, a sterownik wylicza z nich własne ilości atramentu. Arkusz nie miałby wartości wzorca, a jego pomiar nie opisywałby atramentów twojej drukarki.\n\nWydrukuj ten wzorzec na drukarce, której sterownik przyjmuje te atramenty, albo przez RIP, który to potrafi.",
+ "The chart’s extra inks may be printed as a mix": "Dodatkowe atramenty wzorca mogą zostać wydrukowane jako mieszanka",
+ "The chart has {inks}. ChromIQ sends it to {printer} with every ink named, and a printer or RIP that has inks of those names prints it as it is. One without them, which includes every printer whose driver takes CMYK, prints {extra} as an approximate mix of cyan, magenta, yellow and black on top of the other inks. Patches with {extra} would then not carry the chart’s values, and a measurement of them would not describe your printer’s inks.": "Wzorzec ma {inks}. ChromIQ wysyła go do drukarki {printer} z nazwą każdego atramentu, a drukarka lub RIP mające atramenty o tych nazwach drukują go takim, jaki jest. Te, które ich nie mają, a należy do nich każda drukarka, której sterownik przyjmuje CMYK, drukują {extra} jako przybliżoną mieszankę cyjanu, magenty, żółtego i czarnego na pozostałych atramentach. Pola z {extra} nie miałyby wtedy wartości wzorca, a ich pomiar nie opisywałby atramentów twojej drukarki."
 }

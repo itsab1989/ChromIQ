@@ -91,6 +91,12 @@ def write_sidecars(ti1_path: str | Path, out_dir: str | Path,
                 shuf = out_dir / f"{base_name}-i1profiler-shuffled{suffix}"
                 if shuf.is_file():
                     written.append(shuf)
-    except Exception:  # noqa: BLE001 — never block on the i1Profiler export
-        log.warning("i1Profiler export failed", exc_info=True)
+    except Exception as exc:  # noqa: BLE001 — never block on the i1Profiler export
+        from workflow.i1profiler_export import UnsupportedInkSet
+        if isinstance(exc, UnsupportedInkSet):
+            # 4.3.5 B2: CMY, CMY + orange, ...: i1Profiler has no patch set
+            # for these inks. One line, no traceback: nothing went wrong.
+            log.info("i1Profiler export skipped: %s", exc)
+        else:
+            log.warning("i1Profiler export failed", exc_info=True)
     return written

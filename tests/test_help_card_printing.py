@@ -269,9 +269,17 @@ def test_landscape_fits_the_width_and_may_run_on(qapp, tmp_path):
     assert _image_draws(out.read_bytes()) >= 1
 
 
-def test_the_page_size_comes_from_the_printer(qapp):
+def test_the_page_size_comes_from_the_printer(qapp, tmp_path):
     """`print_card` must ASK the printer, not assume A4 — that assumption is
-    what made this an A4-only fix the first time round."""
+    what made this an A4-only fix the first time round.
+
+    The printer is a PDF device, not the machine's default printer (4.3.5,
+    review R5 k75): a native QPrinter is the system default queue, and its
+    driver's hardware margins are added to the ones set here, so the test
+    measured 128 x 185 mm and failed whenever the default was a queue with
+    larger margins (a capture queue the macOS print dialog had made the
+    default, as "last printer used"). What is under test is that the size is
+    read from the device, which a PDF device answers the same everywhere."""
     import inspect
 
     from PyQt6.QtCore import QMarginsF
@@ -284,6 +292,8 @@ def test_the_page_size_comes_from_the_printer(qapp):
     assert "printable_size_mm" in src, "the card is not measured against the device"
 
     printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+    printer.setOutputFileName(str(tmp_path / "a5.pdf"))
     printer.setPageSize(QPageSize(QPageSize.PageSizeId.A5))
     printer.setPageMargins(QMarginsF(10, 10, 10, 10), QPageLayout.Unit.Millimeter)
     w_mm, h_mm = help_card_print.printable_size_mm(printer)
