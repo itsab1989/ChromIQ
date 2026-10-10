@@ -46,6 +46,10 @@ APPROVED_VERIFY_ROUTE = (
     "converts with its own colour rendering, and the direct route sends them as "
     "the printer's own RGB. Print the profiling chart and its verification charts "
     "the same way.")
+APPROVED_EPSON_RESET = (
+    "In the Color Matching panel the Epson colour matching was chosen instead "
+    "of ColorSync. ChromIQ set it back to ColorSync, as a print from Photoshop "
+    "is sent, so the job is the same as with the panel left alone.")
 APPROVED_TAGGED_INTENT = (
     "The chart went with the profile macOS prints this job with ({profile}) "
     "attached, so macOS leaves its colours unchanged.")
@@ -72,17 +76,15 @@ def test_the_tagged_intent_text_is_unchanged_and_approved():
     assert "M-PRINT-JOB-TAGGED-INTENT" not in MM.PROPOSED
 
 
-def test_the_epson_texts_wait_for_approval_and_are_shown_nowhere():
-    """New words go to §M-PROPOSED and are not written into a tab until
-    approved (CLAUDE.md, §M)."""
-    from pathlib import Path
-    root = Path(__file__).resolve().parent.parent
+def test_the_epson_texts_are_approved_in_their_proposed_words():
+    """Basti, 2026-10-10 ("text approved"): both Epson texts exactly as B5
+    proposed them; they left §M-PROPOSED and are shown (see the tests at the
+    end of this file for where)."""
     for mid in ("M-PRINT-JOB-EPSON-MATCHING-RESET", "M-PRINT-JOB-EPSON-MATCHING"):
-        assert mid in MM.PROPOSED
-    for py in list((root / "ui").rglob("*.py")):
-        text = py.read_text(encoding="utf-8")
-        assert "M_PRINT_JOB_EPSON_MATCHING" not in text, py
-        assert "_PRINT_JOB_EPSON_MATCHING_RESET" not in text, py
+        assert mid not in MM.PROPOSED and MM.CATALOGUE[mid].approved
+    assert MM.M_PRINT_JOB_EPSON_MATCHING_RESET.body == APPROVED_EPSON_RESET
+    assert MM.M_PRINT_JOB_EPSON_MATCHING.title == (
+        "The Epson driver may change this chart\u2019s colours")
 
 
 # ---- which queue is a PostScript queue -------------------------------------
@@ -332,3 +334,92 @@ def test_a_job_that_still_carries_the_epson_choice_is_not_confirmed(tmp_path, mo
     rep = pt.check_job("Q", 7, {"AP_ColorMatchingMode": "AP_ApplicationColorMatching",
                                 "EPIJ_OSColMat": "2"}, ppd_text=text)
     assert not rep.ok and rep.mismatches == {"EPIJ_OSColMat": ("1", "2")}
+
+
+# ---- the two approved Epson texts, shown exactly then (driver round) -------
+def _shown(rep, monkeypatch):
+    """(status line, window title or None) for *rep* on the Print Chart tab."""
+    from ui.tabs import tab_print as tp
+    seen = {"window": None}
+    monkeypatch.setattr(tp, "warn", lambda parent, title, body: seen.update(window=(title, body)))
+    tab = tp.TabPrint.__new__(tp.TabPrint)
+    tab._set_status = lambda text: seen.update(status=text)
+    tp.TabPrint._report_job_ticket(tab, rep)
+    return seen["status"], seen["window"]
+
+
+def _epson_rep(**kw):
+    return pt.TicketReport(queue="Q", job_id=7, read=True,
+                           expected={"EPIJ_OSColMat": "2"}, **kw)
+
+
+def test_the_reset_sentence_follows_the_status_line_when_chromiq_set_it_back(monkeypatch):
+    """MUTATION: drop the `_reset_vendors(rep) == {"Epson"}` block in
+    `_report_job_ticket` and this goes red."""
+    rep = _epson_rep(reset_by_chromiq={"EPIJ_OSColMat": ("1", "2")})
+    status, window = _shown(rep, monkeypatch)
+    assert window is None
+    assert status == ("Sent as job 7. The printing system confirms it carries "
+                      "application colour matching. " + APPROVED_EPSON_RESET)
+
+
+def test_no_reset_sentence_when_the_panel_was_left_alone(monkeypatch):
+    status, window = _shown(_epson_rep(), monkeypatch)
+    assert APPROVED_EPSON_RESET not in status and window is None
+
+
+def test_no_epson_sentence_for_a_key_no_epson_rule_sets_back(monkeypatch):
+    """The sentence names Epson: a set-back of any other key never shows it."""
+    rep = _epson_rep(reset_by_chromiq={"SomeOtherKey": ("1", "2")})
+    status, _window = _shown(rep, monkeypatch)
+    assert APPROVED_EPSON_RESET not in status
+
+
+def test_the_epson_window_when_the_job_still_carries_the_epson_choice(monkeypatch):
+    """MUTATION: drop the Epson branch of `_show_job_not_as_sent` and this
+    shows M-PRINT-JOB-NOT-AS-SENT instead."""
+    rep = _epson_rep(mismatches={"EPIJ_OSColMat": ("1", "2")})
+    status, window = _shown(rep, monkeypatch)
+    assert window == MM.M_PRINT_JOB_EPSON_MATCHING.render()
+    assert status == MM.M_PRINT_JOB_EPSON_MATCHING.title
+
+
+def test_with_other_differences_too_every_key_is_listed(monkeypatch):
+    rep = _epson_rep(mismatches={"EPIJ_OSColMat": ("1", "2"),
+                                 "AP_ColorMatchingMode": ("x", "AP_ApplicationColorMatching")})
+    _status, window = _shown(rep, monkeypatch)
+    assert window[0] == MM.M_PRINT_JOB_NOT_AS_SENT.title
+    assert "EPIJ_OSColMat: 1" in window[1] and "AP_ColorMatchingMode: x" in window[1]
+
+
+# ---- the driver round (2026-10-10): who else writes a key ------------------
+#: Trimmed from the PPDs measured in ~/Desktop/ChromIQ-work/
+#: 2026-10-10_434b1_drivers: the colour options each driver's PPD offers.
+_BROTHER_9460 = ('*PPD-Adobe: "4.3"\n*APSupportsCustomColorMatching: True\n'
+                 '*APCustomColorMatchingName name/Brother Color: ""\n'
+                 '*OpenUI *BRColorMatching/Color Mode: PickOne\n*DefaultBRColorMatching: Normal\n'
+                 '*BRColorMatching Normal/Normal: ""\n*BRColorMatching Vivid/Vivid: ""\n'
+                 '*BRColorMatching None/None: ""\n*CloseUI: *BRColorMatching\n')
+_HP_B9100 = ('*PPD-Adobe: "4.3"\n*APSupportsCustomColorMatching: True\n'
+             '*APCustomColorMatchingProfile: sRGB\n'
+             '*OpenUI *HPColorMode/Color: PickOne\n*DefaultHPColorMode: colorsmart\n'
+             '*HPColorMode colorsmart/ColorSmart: ""\n'
+             '*HPColorMode application-managed/Application Managed Colors: ""\n'
+             '*CloseUI: *HPColorMode\n')
+
+
+@pytest.mark.parametrize("text", [_BROTHER_9460, _HP_B9100, GENERIC_PS])
+def test_no_other_driver_has_a_key_to_set_back(text):
+    """Measured on screen: Brother's "Brother Color", HP's and Gutenprint's
+    vendor matching and the Canon PIXMA/PRO-100 "Canon colour matching" wrote
+    only AP_ColorMatchingMode=AP_VendorColorMatching, which ChromIQ locks on
+    every queue; the job and its data were identical to the untouched one's.
+    Only the Epson rule sets a driver key back."""
+    assert dialog_route_colour_locks(text) == {}
+
+
+def test_the_lock_names_its_vendor_and_nothing_else():
+    from workflow.ppd_color import dialog_route_lock_vendor
+    assert dialog_route_lock_vendor("EPIJ_OSColMat") == "Epson"
+    assert dialog_route_lock_vendor("BRColorMatching") is None
+    assert dialog_route_lock_vendor("AP_ColorMatchingMode") is None

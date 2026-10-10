@@ -1502,6 +1502,17 @@ def dialog_route_colour_locks(ppd_text: str) -> dict[str, str]:
     return {}
 
 
+
+def dialog_route_lock_vendor(key: str) -> str | None:
+    """The vendor (``PaperProfileRule.vendor``) whose dialog-route lock *key*
+    is, or None for a key no rule sets back. The status line and the window
+    that speak of a set-back name the vendor, so they are shown only for the
+    vendor they name (M-PRINT-JOB-EPSON-MATCHING-RESET / -MATCHING: "Epson")."""
+    for rule in PAPER_PROFILE_RULES:
+        if any(k == key for k, _v in rule.dialog_route_locks):
+            return rule.vendor
+    return None
+
 _CUPS_FILTER = re.compile(r'^\*cupsFilter(2?):\s*"([^"]*)"', re.M)
 _POSTSCRIPT_TYPES = ("application/vnd.cups-postscript", "application/postscript")
 #: CUPS command files (head cleaning, nozzle checks, ``lpadmin`` queries) are

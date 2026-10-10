@@ -229,14 +229,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # PostScript queue, M-PRINT-JOB-TAGGED-
                                  # INTENT, were APPROVED by Basti, 2026-10-10,
                                  # in review R3's words, and left this list.)
-                                 # B5, 2026-10-10 (review R3): the Epson's
-                                 # own colour matching chosen in the dialog's
-                                 # Color Matching panel. ChromIQ sets it back;
-                                 # the status line saying so, and the window
-                                 # when it could not, are our words. Shown
-                                 # nowhere until approved.
-                                 "M-PRINT-JOB-EPSON-MATCHING-RESET",
-                                 "M-PRINT-JOB-EPSON-MATCHING",
+                                 # (B5's two Epson colour-matching texts,
+                                 # M-PRINT-JOB-EPSON-MATCHING-RESET and
+                                 # M-PRINT-JOB-EPSON-MATCHING, were APPROVED by
+                                 # Basti, 2026-10-10, and left this list.)
                                  # (beta 16, 2026-10-09: the quality row's note
                                  # and marks, M-PRINT-QUALITY, were APPROVED
                                  # by Sebastian, 2026-10-09,

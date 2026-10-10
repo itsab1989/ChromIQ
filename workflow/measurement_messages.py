@@ -5150,8 +5150,8 @@ M_PRINT_JOB_TAGGED_INTENT = _m(
     "attached, so macOS leaves its colours unchanged.",
     approved=True)  # Basti, 2026-10-10 ("text approved"); PostScript queues only
 
-# --- PROPOSED: Epson colour matching chosen in the dialog's Color Matching
-# panel (B5, 4.3.4 beta 1) ------------------------------------------------------
+# --- APPROVED (Basti, 2026-10-10, "text approved"): Epson colour matching
+# chosen in the dialog's Color Matching panel (B5, 4.3.4 beta 1) ---------------
 #: Review R3 and B5, 2026-10-10, an ET-8550 capture queue with the panel driven
 #: on screen: choosing the Epson option there instead of ColorSync puts
 #: EPIJ_OSColMat=1 on the job (2 with the panel left alone, as a Photoshop print
@@ -5164,8 +5164,12 @@ M_PRINT_JOB_TAGGED_INTENT = _m(
 #: carries the Epson option (in place of M-PRINT-JOB-NOT-AS-SENT's line for
 #: that key). Whether Epson's filter changes the printed colours with 1 could
 #: not be measured (its filter produced nothing outside a real print, R3 and
-#: B5), hence "may". Not shown anywhere until approved; meanwhile the read-back
-#: shows M-PRINT-JOB-NOT-AS-SENT with "EPIJ_OSColMat: 1 (ChromIQ sent 2)".
+#: B5), hence "may". Approved by Basti on 2026-10-10 and shown since (driver
+#: round, 4.3.4 beta 1): line 1 after the status line whenever ChromIQ set the
+#: Epson key back (``ui.tabs.tab_print._report_job_ticket``); the window when
+#: the job read back still carries the Epson value and nothing else differs
+#: (``_show_job_not_as_sent``). With other differences too, M-PRINT-JOB-NOT-AS-
+#: SENT keeps listing every key.
 _PRINT_JOB_EPSON_MATCHING_RESET = (
     "In the Color Matching panel the Epson colour matching was chosen instead "
     "of ColorSync. ChromIQ set it back to ColorSync, as a print from Photoshop "
@@ -5174,7 +5178,7 @@ M_PRINT_JOB_EPSON_MATCHING_RESET = _m(
     "M-PRINT-JOB-EPSON-MATCHING-RESET",
     "Epson colour matching set back to ColorSync",
     _PRINT_JOB_EPSON_MATCHING_RESET,
-    approved=False)
+    approved=True)  # Basti, 2026-10-10 ("text approved")
 M_PRINT_JOB_EPSON_MATCHING = _m(
     "M-PRINT-JOB-EPSON-MATCHING",
     "The Epson driver may change this chart’s colours",
@@ -5187,7 +5191,7 @@ M_PRINT_JOB_EPSON_MATCHING = _m(
     "again and leave the Color Matching panel at ColorSync, or turn off "
     "“Use default macOS printer dialog” in Preferences and print from "
     "the Print Chart tab directly.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-10 ("text approved")
 
 # --- PROPOSED: a printer whose paper profiles ChromIQ does not know (beta 15)
 #: Basti, 2026-10-08: on the direct route ChromIQ sends the paper profile the

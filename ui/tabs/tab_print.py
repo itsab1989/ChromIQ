@@ -493,6 +493,15 @@ class _DialogReadBack:
         return rep
 
 
+
+def _reset_vendors(rep) -> set:
+    """The vendors (``ppd_color.dialog_route_lock_vendor``) of the driver
+    options the macOS dialog route set back for *rep*'s job."""
+    from workflow.ppd_color import dialog_route_lock_vendor
+    reset = getattr(rep, "reset_by_chromiq", None) or {}
+    return {dialog_route_lock_vendor(k) for k in reset} - {None}
+
+
 class TabPrint(QWidget):
 
     ti2_loaded         = pyqtSignal(Path)  # emitted when the user loads a .ti2 file
@@ -2543,11 +2552,27 @@ class TabPrint(QWidget):
             # sets it there and nowhere else).
             text += " " + MM.M_PRINT_JOB_TAGGED_INTENT.render(
                 profile=rep.tagged_intent)[1]
+        if _reset_vendors(rep) == {"Epson"}:
+            # M-PRINT-JOB-EPSON-MATCHING-RESET (approved by Basti, 2026-10-10):
+            # the Color Matching sheet had chosen the Epson's own matching and
+            # ChromIQ set it back after the dialog; the job read back carries
+            # the value ChromIQ set (``rep.ok``), so say what happened.
+            text += " " + MM.M_PRINT_JOB_EPSON_MATCHING_RESET.render()[1]
         self._set_status(text)
 
     def _show_job_not_as_sent(self, rep) -> None:
         """M-PRINT-JOB-NOT-AS-SENT, with one line per key that differs."""
         from workflow import measurement_messages as MM
+        from workflow.ppd_color import dialog_route_lock_vendor
+        if (rep.mismatches and rep.tag_matches_job is not False
+                and all(dialog_route_lock_vendor(k) == "Epson" for k in rep.mismatches)):
+            # M-PRINT-JOB-EPSON-MATCHING (approved by Basti, 2026-10-10): the
+            # only difference is the Epson colour matching the Color Matching
+            # sheet chose, which ChromIQ set back and the job still carries.
+            title, body = MM.M_PRINT_JOB_EPSON_MATCHING.render()
+            self._set_status(title)
+            warn(self, title, body)
+            return
         lines = [tr(MM._PRINT_JOB_DIFFERS_LINE).format(
                      key=k, got=got if got is not None else "\u2013", want=want)
                  for k, (got, want) in sorted(rep.mismatches.items())]
