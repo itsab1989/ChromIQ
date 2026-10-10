@@ -688,6 +688,16 @@ class TabPrint(QWidget):
         self._warn_lbl.setWordWrap(True)
         scl.addWidget(self._warn_lbl)
 
+        # M-PRINT-VERIFY-ROUTE (approved by Basti, 2026-10-10): what a
+        # verification print needs, under the notice above, on macOS, for a
+        # verification run with a chart loaded (``_update_verify_route_note``).
+        self._verify_route_lbl = QLabel("", scroll_content)
+        self._verify_route_lbl.setObjectName("warning")
+        self._verify_route_lbl.setWordWrap(True)
+        self._verify_route_lbl.setTextFormat(Qt.TextFormat.RichText)
+        self._verify_route_lbl.setVisible(False)
+        scl.addWidget(self._verify_route_lbl)
+
         scl.addStretch()
         scroll.setWidget(scroll_content)
         ll.addWidget(scroll, stretch=1)
@@ -1075,6 +1085,7 @@ class TabPrint(QWidget):
         ctl = getattr(self, "_target_ctl", None)
         has_pages = bool(self._tiff_pages)
         is_verif = ctl is not None and ctl.target.is_verification()
+        self._update_verify_route_note()
         # A6: with no chart the tab shows its existing empty state — no rows.
         self._cm_grp.setVisible(has_pages)
         self._cm_colour_row.setVisible(is_verif)
@@ -2526,6 +2537,12 @@ class TabPrint(QWidget):
             text = tr(MM._PRINT_JOB_SENT_PLAIN).format(job=rep.job_id)
         if rep.tag_matches_job:
             text += " " + tr(MM._PRINT_JOB_SENT_TAGGED)
+        elif getattr(rep, "tagged_intent", None) and (pp is None or pp.option not in rep.carried):
+            # M-PRINT-JOB-TAGGED-INTENT (approved by Basti, 2026-10-10): after
+            # line 2, on a PostScript queue only (``native_print_macos.read_back``
+            # sets it there and nowhere else).
+            text += " " + MM.M_PRINT_JOB_TAGGED_INTENT.render(
+                profile=rep.tagged_intent)[1]
         self._set_status(text)
 
     def _show_job_not_as_sent(self, rep) -> None:
@@ -2755,8 +2772,36 @@ class TabPrint(QWidget):
         return tr(_TT_TITLE_PRINT), _with_plain_paper(
             tr(_TT_BODY_PRINT_MACOS_BYPASS))
 
+    def _update_verify_route_note(self, native: "bool | None" = None) -> None:
+        """M-PRINT-VERIFY-ROUTE (approved by Basti, 2026-10-10): shown on
+        macOS for a verification run with a chart loaded, on BOTH routes,
+        because its first and last paragraphs are about which route to print
+        by and hold whichever is set; its second paragraph speaks of the macOS
+        print dialog and is shown only while that route is on (*native*, else
+        the setting)."""
+        lbl = getattr(self, "_verify_route_lbl", None)
+        if lbl is None:
+            return
+        ctl = getattr(self, "_target_ctl", None)
+        show = (is_macos() and bool(getattr(self, "_tiff_pages", None))
+                and ctl is not None and ctl.target.is_verification())
+        if not show:
+            lbl.setVisible(False)
+            return
+        from workflow import measurement_messages as MM
+        if native is None:
+            native = bool(self._settings.get("use_native_print_dialog", False))
+        title, body = MM.M_PRINT_VERIFY_ROUTE.render()
+        paras = body.split("\n\n")
+        if not native and len(paras) == 3:
+            paras = [paras[0], paras[2]]
+        lbl.setText(f"<b>{_html_escape(title)}</b><br><br>"
+                    + "<br><br>".join(_html_escape(p) for p in paras))
+        lbl.setVisible(True)
+
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
+        self._update_verify_route_note(native=enabled)
         self._printer_grp.setVisible(not enabled)
         self._opts_grp.setVisible(not enabled)
         # The spacer used to centre the warning label between the scroll area

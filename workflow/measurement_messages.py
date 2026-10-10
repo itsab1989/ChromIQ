@@ -5082,7 +5082,7 @@ M_PRINT_JOB_UNTAGGED = _m(
     "dialog\u201d in Preferences and print from the Print Chart tab directly.",
     approved=False)
 
-# --- PROPOSED: printing a verification chart, the Print Chart tab (B3) ------
+# --- APPROVED (Basti, 2026-10-10, "text approved"): printing a verification chart, the Print Chart tab (B3)
 #: Knut, #182 6095262115 (2026-10-10): with Run type Verification, the Print
 #: Chart tab's notice "seems to describe a profiling run". It is the same
 #: notice for every run type; nothing in §M or the verification specification
@@ -5123,10 +5123,14 @@ M_PRINT_VERIFY_ROUTE = _m(
     "sRGB, which the printer converts with its own colour rendering, and the "
     "direct route sends them as the printer\u2019s own RGB. Print the "
     "profiling chart and its verification charts the same way.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-10 ("text approved"), B5 switched it on
+#: Shown (B5) on the Print Chart tab under its notice, on macOS, for a
+#: verification run with a chart loaded, on BOTH routes: paragraphs 1 and 3
+#: are about choosing the route and hold whichever route is set; paragraph 2
+#: is about the macOS print dialog and is shown only while that route is on.
 
-# --- PROPOSED: the status line when the chart got the job's own profile and
-# the job names no paper profile (B3) ---------------------------------------
+# --- APPROVED (Basti, 2026-10-10, "text approved"): the status line when the
+# chart got the job's own profile and the job names no paper profile (B3) ----
 #: M-PRINT-JOB-CONFIRMED line 3 ("The chart went with that same profile
 #: attached…") follows only line 1, which names a paper profile. On a printer
 #: without paper profiles (Knut's HP CLJ5550: a generic PostScript queue with
@@ -5144,6 +5148,45 @@ M_PRINT_JOB_TAGGED_INTENT = _m(
     "The chart went with the profile its job prints with",
     "The chart went with the profile macOS prints this job with ({profile}) "
     "attached, so macOS leaves its colours unchanged.",
+    approved=True)  # Basti, 2026-10-10 ("text approved"); PostScript queues only
+
+# --- PROPOSED: Epson colour matching chosen in the dialog's Color Matching
+# panel (B5, 4.3.4 beta 1) ------------------------------------------------------
+#: Review R3 and B5, 2026-10-10, an ET-8550 capture queue with the panel driven
+#: on screen: choosing the Epson option there instead of ColorSync puts
+#: EPIJ_OSColMat=1 on the job (2 with the panel left alone, as a Photoshop print
+#: carries it), and the status line still said the job was confirmed. Since B5
+#: the macOS dialog route sets it back to 2 after the dialog
+#: (`ppd_color.dialog_route_colour_locks`) and reads it back like every key it
+#: sets: the corrected job's raster was byte-identical to the untouched one's.
+#: Line 1 is proposed to follow M-PRINT-JOB-CONFIRMED when ChromIQ set it back
+#: (`TicketReport.reset_by_chromiq`); the window when the job read back still
+#: carries the Epson option (in place of M-PRINT-JOB-NOT-AS-SENT's line for
+#: that key). Whether Epson's filter changes the printed colours with 1 could
+#: not be measured (its filter produced nothing outside a real print, R3 and
+#: B5), hence "may". Not shown anywhere until approved; meanwhile the read-back
+#: shows M-PRINT-JOB-NOT-AS-SENT with "EPIJ_OSColMat: 1 (ChromIQ sent 2)".
+_PRINT_JOB_EPSON_MATCHING_RESET = (
+    "In the Color Matching panel the Epson colour matching was chosen instead "
+    "of ColorSync. ChromIQ set it back to ColorSync, as a print from Photoshop "
+    "is sent, so the job is the same as with the panel left alone.")
+M_PRINT_JOB_EPSON_MATCHING_RESET = _m(
+    "M-PRINT-JOB-EPSON-MATCHING-RESET",
+    "Epson colour matching set back to ColorSync",
+    _PRINT_JOB_EPSON_MATCHING_RESET,
+    approved=False)
+M_PRINT_JOB_EPSON_MATCHING = _m(
+    "M-PRINT-JOB-EPSON-MATCHING",
+    "The Epson driver may change this chart’s colours",
+    "The job was sent with the Epson colour matching chosen in the Color "
+    "Matching panel of the macOS print dialog, not with ColorSync, and ChromIQ "
+    "could not set it back. The Epson driver may then adjust the chart’s "
+    "colours, and a measurement of that sheet would not describe your printer "
+    "as your prints from Photoshop use it.\n\n"
+    "If it has not printed yet, cancel it in the printer’s queue. Print "
+    "again and leave the Color Matching panel at ColorSync, or turn off "
+    "“Use default macOS printer dialog” in Preferences and print from "
+    "the Print Chart tab directly.",
     approved=False)
 
 # --- PROPOSED: a printer whose paper profiles ChromIQ does not know (beta 15)
@@ -5225,6 +5268,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
     M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
     M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT,
+    M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
     M_IMPORT_NOT_OPENED, M_IMPORT_FOLDER_EXISTS,

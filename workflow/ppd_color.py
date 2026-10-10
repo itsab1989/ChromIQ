@@ -219,6 +219,10 @@ class PaperProfileRule:
     dialog_keys: tuple[tuple[str, str], ...] = ()
     #: which installed table to read: "canon-db" or "epson-pde"
     driver_table: str = ""
+    #: keys the macOS dialog route sets back (locked) after the dialog: the
+    #: value a Photoshop print carries, where the dialog's own Color Matching
+    #: sheet can write another one into the driver's options (B5, 2026-10-10)
+    dialog_route_locks: tuple[tuple[str, str], ...] = ()
     evidence: str = ""
 
 
@@ -250,6 +254,15 @@ PAPER_PROFILE_RULES: tuple[PaperProfileRule, ...] = (
         driver_table="epson-pde",
         dialog_keys=(("EPIJ_CMat", "3"), ("EPIJ_OSColMat", "2"), ("EPIJ_OSCMProf", "1"),
                      ("EPIJ_HdofClSp", "0")),
+        # EPSON COLOUR MATCHING IN THE COLOR MATCHING SHEET (review R3 and B5,
+        # 2026-10-10, ET-8550 capture queue, the sheet driven on screen):
+        # choosing "EPSON Color Matching" there instead of ColorSync puts
+        # EPIJ_OSColMat=1 on the ticket and changes nothing else; a Photoshop
+        # print, and the sheet left alone, carry 2. The Canon sheet's "Canon
+        # Color Matching" and a PostScript queue's "printer specific" leave
+        # the ticket unchanged (AP_ColorMatchingMode, which ChromIQ locks,
+        # decides there).
+        dialog_route_locks=(("EPIJ_OSColMat", "2"),),
         evidence=(
             "Epson ET-8550 driver 13.45, macOS 27.0.1, 2026-10-08: in application "
             "colour matching the PDE wrote the medium's EPIJProfileSpec and "
@@ -1476,3 +1489,38 @@ def ppd_path_for_queue(queue_name: str) -> str | None:
 
 #: The one key Photoshop itself puts on a job when it manages colours.
 APPLICATION_COLOUR_MATCHING = {"AP_ColorMatchingMode": "AP_ApplicationColorMatching"}
+
+
+def dialog_route_colour_locks(ppd_text: str) -> dict[str, str]:
+    """The driver options the macOS dialog route sets back after the dialog
+    for this PPD (``PaperProfileRule.dialog_route_locks``), only those the
+    PPD offers with that value; {} for any printer outside the rules."""
+    blocks = {key: values for key, _label, values in parse_ppd_options(ppd_text)}
+    for rule in PAPER_PROFILE_RULES:
+        if rule.media_option in blocks and rule.profile_option in blocks:
+            return dict(_allowed(ppd_text, blocks, dict(rule.dialog_route_locks)))
+    return {}
+
+
+_CUPS_FILTER = re.compile(r'^\*cupsFilter(2?):\s*"([^"]*)"', re.M)
+_POSTSCRIPT_TYPES = ("application/vnd.cups-postscript", "application/postscript")
+
+
+def is_postscript_queue(ppd_text: str | None) -> bool:
+    """True for a PostScript queue: a PPD with no CUPS filter at all (CUPS
+    hands the printer PostScript), or only filters that take PostScript.
+
+    A PPD whose filter takes CUPS raster (``application/vnd.cups-raster``:
+    the CUPS sample drivers, Gutenprint, Canon IJ and Epson inkjets, other
+    raster drivers) or PDF, URF or anything else is not. Review R3,
+    2026-10-10: on a generic CMYK raster queue with a ColorSync profile macOS
+    converts from the chart's own tag and ignores the job's profile, so what
+    holds for a PostScript queue must not be said there. None (no PPD) is
+    not a PostScript queue."""
+    if not ppd_text:
+        return False
+    for two, spec in _CUPS_FILTER.findall(ppd_text):
+        source = spec.split()[0] if spec.split() else ""
+        if source not in _POSTSCRIPT_TYPES:
+            return False
+    return True

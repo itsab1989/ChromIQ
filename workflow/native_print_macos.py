@@ -42,7 +42,7 @@ from pathlib import Path
 from PIL import Image
 
 from core.logger import get_logger
-from workflow.ppd_color import (paper_profile_for,
+from workflow.ppd_color import (is_postscript_queue, paper_profile_for,
                                 vendor_no_cm_settings)
 
 log = get_logger(__name__)
@@ -253,11 +253,15 @@ def _queue_name(display_name: str) -> str:
     return display_name
 
 
-def _locked_settings_for(print_info) -> dict[str, str]:
+def _locked_settings_for(print_info, after_dialog: bool = False) -> dict[str, str]:
     """The full set of (key, value) pairs to lock for *print_info* — the
     vendor-neutral base plus, if found, the selected printer's own no-colour
     options (all of them: HP colour lasers split the choice over per-object
-    options like HPTextRGB / HPGraphicsRGB / HPPhotoRGB)."""
+    options like HPTextRGB / HPGraphicsRGB / HPPhotoRGB).
+
+    *after_dialog*: for a Canon IJ / Epson queue, also the driver options the
+    dialog's Color Matching sheet can set away from a Photoshop print's
+    (``ppd_color.dialog_route_colour_locks``: Epson's EPIJ_OSColMat)."""
     settings = dict(_LOCKED_COLOR_SETTINGS)
     try:
         printer = print_info.printer()
@@ -269,6 +273,18 @@ def _locked_settings_for(print_info) -> dict[str, str]:
                 # Canon IJ / Epson (ppd_color.PAPER_PROFILE_RULES): the job
                 # carries what a Photoshop print carries, the Apple key alone;
                 # the driver's dialog writes the medium and its paper profile.
+                if after_dialog:
+                    # …except where the Color Matching sheet wrote another
+                    # value than a Photoshop print carries: B5, 2026-10-10,
+                    # "EPSON Color Matching" chosen there reached the job as
+                    # EPIJ_OSColMat=1 and the status line still confirmed it.
+                    # Set back to the Photoshop print's value after the
+                    # dialog (before it, the sheet shows what the user had),
+                    # and read back like every other locked key.
+                    from core.text_io import read_text
+                    from workflow.ppd_color import dialog_route_colour_locks
+                    settings.update(dialog_route_colour_locks(
+                        read_text(Path(ppd), lenient=True)))
                 return settings
             if ppd:
                 for key, val in vendor_no_cm_settings(ppd):
@@ -315,20 +331,38 @@ class ChartIsNotRGB(RuntimeError):
     """
 
 
-def _lock_no_color_management(print_info) -> dict[str, str]:
+#: What the last ``_lock_no_color_management(after_dialog=True)`` found the
+#: dialog had written for a key it then set back: {key: (dialog's, ChromIQ's)}.
+last_reset_by_chromiq: dict[str, tuple[str, str]] = {}
+
+
+def _lock_no_color_management(print_info, after_dialog: bool = False) -> dict[str, str]:
     """Set the application-colour-matching keys (locked) on *print_info*'s
     PrintCore ``PMPrintSettings`` and sync them back into the Cocoa layer.
 
     Also mirrors the keys into the Cocoa ``printSettings`` dict as a fallback.
     Best-effort: logs and continues if PrintCore is unavailable.  Returns the
     keys it set (what the read-back expects the job to carry).
+    *after_dialog*: see ``_locked_settings_for``; a key the dialog had set
+    to another value is logged and kept in ``last_reset_by_chromiq``.
     """
     import objc
 
-    locked = _locked_settings_for(print_info)
+    global last_reset_by_chromiq
+    locked = _locked_settings_for(print_info, after_dialog=after_dialog)
 
     # Cocoa-dict fallback first (cheap, always works).
     cocoa = print_info.printSettings()
+    if after_dialog:
+        last_reset_by_chromiq = {}
+        for key, value in locked.items():
+            if key in _LOCKED_COLOR_SETTINGS:
+                continue
+            had = cocoa.get(key) if hasattr(cocoa, "get") else None
+            if had is not None and str(had) != value:
+                last_reset_by_chromiq[key] = (str(had), value)
+                log.warning("native print: the dialog set %s=%s; set back to %s, "
+                            "as a Photoshop print carries it", key, had, value)
     for key, value in locked.items():
         cocoa[key] = value
 
@@ -466,6 +500,9 @@ class Submission:
         #: the name of the profile macOS converts this job's colour into
         #: (its output intent), or None when none could be read
         self.output_intent = output_intent
+        #: driver options the dialog had set away from a Photoshop print's
+        #: and ChromIQ set back: {key: (dialog's, ChromIQ's)} (B5)
+        self.reset_by_chromiq: dict[str, tuple[str, str]] = {}
 
 
 def read_back(sub: "Submission"):
@@ -503,6 +540,16 @@ def read_back(sub: "Submission"):
         # without profiles (no output intent at all) stays quiet: measured on
         # the sample HP DeskJet queue, its raster is byte-identical to beta 14's.
         rep.tag_matches_job = False
+    rep.reset_by_chromiq = dict(sub.reset_by_chromiq)
+    if (sub.tagged_icc and sub.tagged_with and rep.read and rep.paper_profile is None
+            and is_postscript_queue(sub.ppd_text)):
+        # M-PRINT-JOB-TAGGED-INTENT (approved by Basti, 2026-10-10), on
+        # PostScript queues ONLY: there the chart's numbers were measured to
+        # reach the printer unchanged with the job's profile attached (review
+        # R3, 1,372,807 of 1,372,807 pixels). On a raster queue (the CUPS
+        # sample HP DeskJet, CMYK) macOS converts from the chart's tag and
+        # ignores the job's profile, so the sentence would be untrue there.
+        rep.tagged_intent = sub.tagged_with
     return rep
 
 
@@ -671,7 +718,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
 
     if _same_page(print_info, page_box):
         give_custom_paper_driver_margins(print_info, page_box, content_pt, sizes_pt)
-    locked = _lock_no_color_management(print_info)
+    locked = _lock_no_color_management(print_info, after_dialog=True)
     # Tag the chart with the profile macOS will convert it into, so the
     # conversion is the identity and the chart's own numbers reach the driver.
     dest_icc, dest_name = _destination_rgb_profile(print_info)
@@ -716,6 +763,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     last_submission = Submission(display, locked, t_start, dest_icc or b"",
                                  dest_name if dest_icc else None,
                                  output_intent=output_intent)
+    last_submission.reset_by_chromiq = dict(last_reset_by_chromiq)
     return True
 
 

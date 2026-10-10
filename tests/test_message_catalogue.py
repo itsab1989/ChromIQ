@@ -222,13 +222,21 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PRINT-JOB-NOT-AS-SENT",
                                  "M-PRINT-JOB-UNTAGGED",
                                  "M-PRINT-PAPER-PROFILE-UNKNOWN",
-                                 # B3, 2026-10-10 (Knut 6095262115): what a
-                                 # verification print needs, and the status
-                                 # line for a chart tagged with the job's own
-                                 # profile on a printer without paper
-                                 # profiles. Shown nowhere until approved.
-                                 "M-PRINT-VERIFY-ROUTE",
-                                 "M-PRINT-JOB-TAGGED-INTENT",
+                                 # (B3, 2026-10-10, Knut 6095262115: what a
+                                 # verification print needs, M-PRINT-VERIFY-
+                                 # ROUTE, and the status line for a chart
+                                 # tagged with the job's own profile on a
+                                 # PostScript queue, M-PRINT-JOB-TAGGED-
+                                 # INTENT, were APPROVED by Basti, 2026-10-10,
+                                 # in review R3's words, and left this list.)
+                                 # B5, 2026-10-10 (review R3): the Epson's
+                                 # own colour matching chosen in the dialog's
+                                 # Color Matching panel. ChromIQ sets it back;
+                                 # the status line saying so, and the window
+                                 # when it could not, are our words. Shown
+                                 # nowhere until approved.
+                                 "M-PRINT-JOB-EPSON-MATCHING-RESET",
+                                 "M-PRINT-JOB-EPSON-MATCHING",
                                  # (beta 16, 2026-10-09: the quality row's note
                                  # and marks, M-PRINT-QUALITY, were APPROVED
                                  # by Sebastian, 2026-10-09,

@@ -54,6 +54,12 @@ class TicketReport:
     tag_matches_job: bool | None = None
     #: Canon rule: "off" / "on" for the printer's own colour processing
     own_colour_processing: str | None = None
+    #: macOS dialog route, PostScript queue, no paper profile: the name of the
+    #: job's own profile the chart went with (M-PRINT-JOB-TAGGED-INTENT)
+    tagged_intent: str | None = None
+    #: macOS dialog route: driver options the dialog had set away from a
+    #: Photoshop print's and ChromIQ set back, {key: (dialog's, ChromIQ's)}
+    reset_by_chromiq: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
