@@ -126,8 +126,7 @@ def test_the_defaults_show(qapp, tmp_path):
         dlg.close()
 
 
-def test_every_value_is_saved_and_read_back(qapp, tmp_path):
-    from PyQt6.QtWidgets import QDialog
+def test_every_value_is_saved_and_read_back(qapp, tmp_path, monkeypatch):
     s, dlg = _dialog(tmp_path)
     try:
         for i, k in enumerate(MS.KINDS):
@@ -137,7 +136,13 @@ def test_every_value_is_saved_and_read_back(qapp, tmp_path):
             dlg._neighbour_radius_spins[k].setValue(20.0 + i)
         dlg._same_reading_spin.setValue(4.5)
         dlg._patch_neighbour_check.setChecked(False)
-        QDialog.accept = lambda self: None
+        # ON THIS DIALOG ONLY, and undone by monkeypatch. This line used to
+        # be `QDialog.accept = lambda self: None`, never put back: every
+        # QDialog that ran later in the same worker could no longer be
+        # accepted, and tests/test_the_calibration_prompt_survives_every_exit
+        # failed whenever it was scheduled after this file (review of
+        # afa1aaf81: two gates in a row).
+        monkeypatch.setattr(dlg, "accept", lambda: None)
         dlg._save_and_close()
     finally:
         dlg.close()
