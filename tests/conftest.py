@@ -1231,8 +1231,13 @@ def _held_open_paths() -> "list[str]":
 #: one test dates a report file in 2096 to stand for "changed later", and that
 #: one file made every red or killed run holding it look "changed 0 min ago"
 #: for ever. Neither sweep took them; 34 such run folders, 45 GB, measured
-#: 2026-10-10. A clock skew of a minute is still a change.
-_FUTURE_SLACK_S = 60
+#: 2026-10-10. Up to a day ahead still counts as a change (review of beta 18):
+#: a clock put back by hand, or a VM's clock corrected after a resume, dates
+#: everything written in the last hour "in the future", and with a one-minute
+#: slack a folder somebody was still using read as idle. A day is wide enough
+#: for any clock correction and still far short of 2096; a date inside it
+#: stops counting once real time has caught up with it.
+_FUTURE_SLACK_S = 24 * 3600
 
 
 def _changed_since(folder: pathlib.Path, since: float) -> bool:

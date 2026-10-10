@@ -345,3 +345,14 @@ def test_a_file_dated_in_the_future_is_not_a_recent_change(three_folders):
     future = time.time() + 70 * 365 * 86400
     os.utime(idle / "f.txt", (future, future))
     assert S.in_use(idle, time.time(), []) == ""
+
+
+def test_a_file_dated_an_hour_ahead_is_still_a_recent_change(three_folders):
+    """A clock put back dates recent work in the future (review of beta 18);
+    only a date more than a day ahead is ignored, and this sweep has no
+    top-folder age check behind it."""
+    import time
+    idle, _fresh, _held = three_folders
+    soon = time.time() + 3600
+    os.utime(idle / "f.txt", (soon, soon))
+    assert "changed" in S.in_use(idle, time.time(), [])
