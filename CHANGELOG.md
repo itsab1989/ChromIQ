@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.3.3-beta.17 (unreleased)
+## v4.3.3-beta.17
 
 ### New
 
@@ -11,8 +11,11 @@
 ### Fixed
 
 - **A CR30 taught over Bluetooth could not be found by the next session** (Basti, beta 16). Closing Read single patches while the calibration was still connecting let go of the instrument, but the teach-in window then opened a new Bluetooth link on the closed connection, and nothing ever closed it; a CR30 that is still connected stops advertising. A closed connection can no longer open the instrument again, a link that arrives after the window closed is let go at once, the calibration ends when its window has let go, closing from the window really disconnects (it failed on a busy event loop before), and quitting ChromIQ lets go of the instrument.
-- **Stop did nothing while the CR30 had switched itself off, and switching it on again did nothing until the window was closed** (Basti, beta 16). The Bluetooth link is now watched: when it drops, the session pauses, keeps every reading and asks "Your CR30 is not answering" with Reconnect and Stop session (new text, §M-PROPOSED M-SPOT-CR30-GONE). Reconnect finds the instrument again and says Ready only once it is connected. Stop ends the session at once and lets go of the instrument, whatever the link is doing.
+- **Stop did nothing while the CR30 had switched itself off, and switching it on again did nothing until the window was closed** (Basti, beta 16). The Bluetooth link is now watched: when it drops, the session pauses, keeps every reading and asks "Your CR30 is not answering" with Reconnect and Stop session. Reconnect finds the instrument again and says Ready only once it is connected. Stop ends the session at once and lets go of the instrument, whatever the link is doing.
 - **One Bluetooth reading arriving later than the others** (Basti, beta 16): his log recorded no timing, so the cause could not be read from it. Every Bluetooth reading now logs how long it took after the instrument signalled the press, and a reading the instrument was not ready with yet says so, so the next slow one names its cause.
+- **A CR30 press made right after Read single patches says Ready could be lost over Bluetooth** (Basti, beta 16). The window said Ready a moment before ChromIQ was listening, and every read threw away the presses the instrument had announced so far, so a press within about a second of Ready, or across the window's 30-second refresh, was dropped without a word. Old presses are now cleared once, before Ready appears, and never afterwards. A press made before Ready (while "Calibration Complete" is still open) is still not used, and the window's notes now say so: "One reading was taken before this window was ready for it, so it was not used. Take the reading again." USB was never affected.
+- **Read single patches looks as it should after Basti's hand test of beta 17.** The "Undo delete" text fits its button in every language; the selected reading and the right-click menu use the window's green instead of the system blue, and a selected reading keeps its own colour swatch, framed; the hex code on a swatch is white on dark colours and black on light ones; a divider between the list and the notes lets you make the notes smaller, and the notes keep following new lines after it is moved; the window opens taller, so eight readings fit; and where the buttons are wider than the screen (French on a 1280-pixel screen) Save and Close move to a second row.
+- **"Connected to your CR30 over Bluetooth." is said once**, not twice, in Read single patches, and it is said again after Reconnect, for the new connection.
 - **The learned white-tile value is filed under the serial the instrument states itself** (over USB and Bluetooth alike) instead of the Bluetooth name. On every unit we know of the name is the serial, so nothing has to be taught again; a value kept under the Bluetooth address or under a different name moves to the serial the next time the instrument connects over that link.
 
 ### Changed
