@@ -31,7 +31,7 @@ def test_a_neighbour_misread_read_again_and_fitting_is_green(qapp, tmp_path):
     lines = _card(info)
     i = lines.index(M._CARD_GREEN_HEAD)
     assert lines[i + 1:i + 4] == [
-        M._CARD_GREEN_1.format(de=f"{first:.0f}"), M._CARD_GREEN_NB,
+        M._CARD_GREEN_1.format(de=f"{first:.2f}"), M._CARD_GREEN_NB,
         M._CARD_GREEN_END]
     assert not any("Red outline" in x for x in lines)
     assert tab.corrected_locs() == ["D6"]

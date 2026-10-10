@@ -296,10 +296,10 @@ def _strip_outlier_fence(des: "list[float]") -> float:
 
 def _past_limit(de: float, limit: float, fence: float = 0.0) -> bool:
     """The red rule of the patch error limit: the patch's ΔE*ab is ABOVE the
-    limit, both at one decimal as the card prints them, and, with the strip
+    limit, both at two decimals as the card prints them, and, with the strip
     test on (*fence* above 0), above its strip's fence the same way (Knut,
-    #182 6094941512: "errors shall happen if ABOVE the threshold", compared
-    "rounded to the closest value with one decimal")."""
+    #182 6094941512: "errors shall happen if ABOVE the threshold"; 6102031563:
+    "rounding to two decimals")."""
     from workflow.misread_settings import above
     if not above(de, limit):
         return False
@@ -1573,6 +1573,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # whether that strip was read twice (#182, Knut 5963903650 Q5).
         if hasattr(self._manager, "strip_read_twice"):
             self._manager.strip_read_twice.connect(self._on_strip_read_twice)
+        # "I read strip B": the engine moved the reading onto B, and it is
+        # judged as B's (Knut, #182 6102031563).
+        if hasattr(self._manager, "strip_filed_as"):
+            self._manager.strip_filed_as.connect(self._on_strip_filed_as)
         if hasattr(self._manager, "set_before_goto_patch"):
             self._manager.set_before_goto_patch(self._note_patch_goto)
         # Opt-in scanner target: (re)build .cht + .cie from every finalised
@@ -8041,6 +8045,25 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._all_done_after_answer = False
             self._on_all_stripes_done()
 
+    def _on_strip_filed_as(self, ev: dict) -> None:
+        """"I read strip B", carried out (Knut, #182 6102031563): *ev* is the
+        reading the engine filed under the strip that was due, now under B's
+        locations and B's expected colours. "those values should be counted
+        as strip B values and judged in the neighbour check for the strip B
+        values": counted and judged exactly as a reading of B taken with the
+        reader on B (the patch error limit, the strip test, the neighbour
+        check, the yellow and green memory, the outlines and the cards). The
+        strip it came off was cleared when the answer came
+        (``_release_read_twice_hold``) and is unread until it is read."""
+        if not getattr(self, "_session_live", False):
+            return
+        try:
+            self._count_strip_progress(ev)
+            self._on_strip_measured(ev)
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.warning("could not judge strip %s's moved reading",
+                        ev.get("strip"), exc_info=True)
+
     # ---- A reading "Was a strip read twice?" asks about waits for the answer
     #
     # Knut, #182 6094941512 (4.3.4 beta 1): strips A and B read, the reader on
@@ -8057,9 +8080,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     # "Keep, it is strip C" and closing the window judge it as strip C,
     # exactly as a reading with no question; "Re-read strip C" and "I read
     # strip B" set it aside (the manager counts C as unread), so it is never
-    # judged, and strip C shows no reading until it is read again (the
+    # judged as C, and strip C shows no reading until it is read again (the
     # engine's reading of C is now this one, which the saved file leaves
-    # out).
+    # out). Since 4.3.5 "I read strip B" then has the engine move the
+    # reading onto B, and it is judged as B's when the engine says so
+    # (_on_strip_filed_as; Knut, #182 6102031563).
 
     def _read_twice_waiting(self, strip: str) -> bool:
         """Is "Was a strip read twice?" asking, or about to ask, about
@@ -8101,8 +8126,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                  choice: "str | None") -> None:
         """The answer about *strip* came: judge its held reading as that
         strip (Keep, or the window closed), or drop it and show the strip as
-        unread (Re-read, I read strip X). A reading still asked about by a
-        question waiting behind this one stays held for that one."""
+        unread (Re-read, I read strip X; the latter's reading comes back as
+        strip X's through _on_strip_filed_as). A reading still asked about by
+        a question waiting behind this one stays held for that one."""
         held = getattr(self, "_read_twice_held", None) or {}
         if strip not in held or self._read_twice_waiting(strip):
             return

@@ -405,9 +405,9 @@ class NeighbourCheck:
         if has.any():
             med[has] = np.nanmedian(off_nb[has], axis=1)     # step 2
         further = own - med
-        # step 4: ABOVE the Neighbour limit, both at one decimal as the card
-        # prints them (Knut, #182 6094941512: 3.0 at a limit of 3.0 is not
-        # flagged, 3.1 is)
+        # step 4: ABOVE the Neighbour limit, both at two decimals as the card
+        # prints them (Knut, #182 6094941512 and 6102031563: 3.00 at a limit
+        # of 3.00 is not flagged, 3.01 is)
         from workflow.misread_settings import above
         over = np.array([above(x, self.limit) for x in further], dtype=bool)
         suspect = has & (count >= self.min_compared) & over

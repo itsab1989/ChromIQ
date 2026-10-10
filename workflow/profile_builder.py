@@ -344,9 +344,25 @@ def installed_profile_name(description: "str | None", settings) -> "str | None":
     return sanitise_install_stem((description or "").strip())
 
 
+def install_destination(icc_path: Path,
+                        install_name: "str | None" = None,
+                        *, fallback_stem: "str | None" = None) -> Path:
+    """Where :func:`install_profile_file` would put *icc_path*, without
+    copying anything: the Install buttons ask it first, so they can say when
+    a profile of that name is installed already (Knut, #182 6102031563)."""
+    if install_name:
+        name = f"{install_name}.icc"
+    elif fallback_stem:
+        name = f"{fallback_stem}{icc_path.suffix}"
+    else:
+        name = icc_path.name
+    return _profile_dir() / name
+
+
 def install_profile_file(icc_path: Path,
                          install_name: "str | None" = None,
-                         *, fallback_stem: "str | None" = None) -> Path:
+                         *, fallback_stem: "str | None" = None,
+                         description: "str | None" = None) -> Path:
     """Copy *icc_path* into the system ICC profile folder; return where it went.
 
     **THE ONE DOOR.** ChromIQ has two Install buttons — Build ICC profile's and
@@ -366,8 +382,19 @@ def install_profile_file(icc_path: Path,
     source file's own name is kept, which is the long-standing behaviour for a
     normal ``<project>.icc``.
 
+    ``description``, when given, is what the INSTALLED COPY's ``desc`` tag
+    says: a profile renamed after it was built is installed with its new
+    name inside as well as on the file (Knut, #182 6102031563: "Giving a new
+    name to the profile, after a profile is built, should still rename that
+    profile file name (and the profile description field inside the ICC
+    profile (if selected the option that the description is same as file
+    name), when clicking the install button"). Given only with "Name the
+    installed copy after the description" ticked, so it always matches the
+    file name; the project's own file is never touched.
+
     An installed profile of the same name is replaced, which is the normal way
-    to update one.
+    to update one. The Install buttons ask before that happens once the
+    window for it is approved (``ui.install_profile.confirm_replace``).
     """
     profile_dir = _profile_dir()
     try:
@@ -376,14 +403,16 @@ def install_profile_file(icc_path: Path,
         log.warning("Cannot create profile dir %s — elevation may be required",
                     profile_dir)
         raise
-    if install_name:
-        name = f"{install_name}.icc"
-    elif fallback_stem:
-        name = f"{fallback_stem}{icc_path.suffix}"
-    else:
-        name = icc_path.name
-    dest = profile_dir / name
+    dest = install_destination(icc_path, install_name,
+                               fallback_stem=fallback_stem)
     shutil.copy2(icc_path, dest)
+    if description:
+        from core.icc_text import set_description
+        data = dest.read_bytes()
+        renamed = set_description(data, description)
+        if renamed is not data:
+            dest.write_bytes(renamed)
+            log.info("Installed copy's description set to %r", description)
     log.info("Profile installed: %s", dest)
     return dest
 
@@ -639,7 +668,8 @@ class ProfileBuilder:
 
     def install_profile(self, icc_path: Path,
                         install_name: "str | None" = None,
-                        *, fallback_stem: "str | None" = None) -> Path:
+                        *, fallback_stem: "str | None" = None,
+                        description: "str | None" = None) -> Path:
         """Copy .icc file to the system ICC profile folder. Returns the installed path.
 
         **THE ONE DOOR.** Both Install buttons come through here, so the name
@@ -661,7 +691,8 @@ class ProfileBuilder:
         tab holds a builder and reads better for it.
         """
         return install_profile_file(icc_path, install_name,
-                                    fallback_stem=fallback_stem)
+                                    fallback_stem=fallback_stem,
+                                    description=description)
 
     def sanity_check(self, icc_path: Path, log_output: str = "") -> list[str]:
         """Return list of warning strings; empty = pass."""

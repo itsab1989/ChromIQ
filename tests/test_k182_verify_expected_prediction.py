@@ -789,6 +789,6 @@ def test_a_predicted_card_names_its_limit_for_what_the_chart_is():
                       "expected_source": "prediction", "kind": "verification"},
                      "both")
     text = " ".join(t for _s, t in tile._rows)
-    assert ("ΔE*ab 7.2 reached the patch error limit (5.0, verification "
+    assert ("ΔE*ab 7.18 reached the patch error limit (5.00, verification "
             "charts).") in text
     assert "pre-conditioning" not in text

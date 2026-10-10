@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-03 legacy-labels+calibrate-on-request"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-10 legacy-labels+calibrate-on-request+file-as"
 const char *cq_helper_build_string(void);
 
 
@@ -65,6 +65,12 @@ const char *cq_helper_build_string(void);
  * valid when the last taken key was CQ_KEY_GOTO. */
 #define CQ_KEY_NONE  0
 #define CQ_KEY_GOTO  1000  /* internal pseudo-key for {"cmd":"goto"} */
+/* {"cmd":"file_as","strip":"C","as":"B"} (strip mode, Knut #182 6102031563):
+ * the reading the engine filed under strip C was strip B. The strip loop
+ * moves C's values to B, leaves C unread and puts the reader on C. */
+#define CQ_KEY_FILE_AS 1001
+const char *cq_take_file_as(void); /* "as" label for CQ_KEY_FILE_AS; the
+                                      "strip" label is cq_take_goto()'s */
 void  cq_cmd_start(void);          /* start the stdin command thread */
 int   cq_cmd_take_key(void);       /* CQ_KEY_NONE if no command pending */
 const char *cq_take_goto(void);    /* target strip label for CQ_KEY_GOTO */

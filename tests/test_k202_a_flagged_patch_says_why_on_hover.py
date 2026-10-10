@@ -42,7 +42,7 @@ def test_a_flagged_patch_explains_itself_at_the_bottom(qapp):
     # beta 17: the patch error limit by its name, its value and its chart
     # type, and the strip test by its name (Knut 6082015002, 6084176226)
     assert " ".join(tail[1:5]) == (
-        "ΔE*ab 61.2 reached the patch error limit (50.0, profiling charts "
+        "ΔE*ab 61.25 reached the patch error limit (50.00, profiling charts "
         "with estimated colours), and it stands out from its strip (strip "
         "test).")
     assert "Either a misread, or a colour" in tail

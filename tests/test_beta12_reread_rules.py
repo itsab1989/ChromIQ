@@ -260,9 +260,9 @@ def _info(**kw):
 def test_the_card_of_a_and_c_says_the_readings_disagree(qapp):
     lines = _card_lines(qapp, _info(unsettled=[120.3]))
     assert M._CARD_UNSETTLED_HEAD in lines
-    assert M._CARD_UNSETTLED_DE.format(de="150.4", prevs="120.3") in lines
+    assert M._CARD_UNSETTLED_DE.format(de="150.40", prevs="120.30") in lines
     assert M._CARD_UNSETTLED_TWO_1 in lines
-    assert M._CARD_UNSETTLED_TWO_2.format(limit="95.0") in lines
+    assert M._CARD_UNSETTLED_TWO_2.format(limit="95.00") in lines
     assert M._CARD_UNSETTLED_3 in lines and M._CARD_UNSETTLED_4 in lines
     # Not the plain red card's "a large difference".
     assert "Red outline: a large difference" not in lines
@@ -271,9 +271,9 @@ def test_the_card_of_a_and_c_says_the_readings_disagree(qapp):
 def test_the_card_after_three_disagreeing_readings(qapp):
     lines = _card_lines(qapp, _info(unsettled=[120.3, 200.0]))
     assert M._CARD_UNSETTLED_MANY_1.format(n=3) in lines
-    assert M._CARD_UNSETTLED_MANY_2.format(limit="95.0") in lines
-    assert M._CARD_UNSETTLED_DE.format(de="150.4",
-                                       prevs="120.3, 200.0") in lines
+    assert M._CARD_UNSETTLED_MANY_2.format(limit="95.00") in lines
+    assert M._CARD_UNSETTLED_DE.format(de="150.40",
+                                       prevs="120.30, 200.00") in lines
 
 
 def test_a_plain_red_card_is_unchanged(qapp):

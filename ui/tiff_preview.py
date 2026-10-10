@@ -885,6 +885,10 @@ class _PatchInfoTile(QWidget):
 
     def set_content(self, info: dict, view_mode: str) -> None:
         """Build the rows for one patch and resize to fit them exactly."""
+        # Every value a card compares with a threshold of Preferences ▸
+        # Measurement is printed as the comparison takes it: two decimals
+        # (Knut, #182 6102031563).
+        from workflow.misread_settings import shown as _shown
         from PyQt6.QtGui import QFontMetrics
 
         rows: list[tuple["QColor | None", str]] = []
@@ -939,8 +943,10 @@ class _PatchInfoTile(QWidget):
             n_c, fu = int(cmp_[0]), float(cmp_[1])
             rows.append((None, ""))
             if n_c >= _NB_MIN:
-                d = f"{abs(fu):.1f}"
-                if d == "0.0":
+                # Two decimals, the figure the Neighbour limit is compared
+                # at (Knut, #182 6102031563).
+                d = _shown(abs(fu))
+                if float(d) == 0.0:
                     add_text(tr(_mmc._CARD_NBC_EQUAL_S).format(n=n_c))
                 else:
                     add_text(tr(_mmc._CARD_NBC_CLOSER_S if fu < 0
@@ -1025,9 +1031,9 @@ class _PatchInfoTile(QWidget):
             """A neighbour-check sentence with the patch's figures: Knut's
             four steps' number and the Neighbour limit it passed."""
             return tr(text).format(
-                d=f"{abs(float(nb.get('further', 0.0))):.1f}",
+                d=_shown(abs(float(nb.get('further', 0.0)))),
                 n=int(nb.get("n", 0)),
-                limit=f"{float(nb.get('limit', 0.0)):.1f}")
+                limit=_shown(float(nb.get('limit', 0.0))))
 
         kind = str(info.get("kind", "") or "")
         if kind not in _mm.CARD_KIND_PHRASES:
@@ -1040,8 +1046,8 @@ class _PatchInfoTile(QWidget):
             in 6084176226)."""
             return tr(_mm._CARD_LIMIT_FENCED_S if fenced
                       else _mm._CARD_LIMIT_S).format(
-                de=f"{float(info.get('de', 0.0)):.1f}",
-                limit=f"{float(info.get('warn_de', 0.0)):.1f}",
+                de=_shown(float(info.get('de', 0.0))),
+                limit=_shown(float(info.get('warn_de', 0.0))),
                 kind={"estimated": tr(_mm._CARD_KIND_ESTIMATED),
                       "accurate": tr(_mm._CARD_KIND_ACCURATE),
                       "verification": tr(_mm._CARD_KIND_VERIFICATION),
@@ -1078,7 +1084,7 @@ class _PatchInfoTile(QWidget):
             # the same colour twice. Set apart at the bottom like the red text.
             rows.append((None, "─" * 30))
             rows.append((None, tr("Yellow outline: confirmed by a re-read")))
-            rows.append((None, tr("ΔE*ab {de:.1f}, the reading before {prev:.1f}"
+            rows.append((None, tr("ΔE*ab {de:.2f}, the reading before {prev:.2f}"
                                   ).format(de=float(info.get("de", 0.0)),
                                            prev=float(info.get("prev_de") or 0.0))))
             # why it was red (the k56 yellow card, approved 6084176226)
@@ -1124,12 +1130,12 @@ class _PatchInfoTile(QWidget):
             # readings, which were past it too. Words M-PATCH-UNSETTLED
             # (§M-PROPOSED).
             prevs = [float(x) for x in info.get("unsettled") or ()]
-            limit_txt = f"{float(info.get('warn_de', 0.0)):.1f}"
+            limit_txt = _shown(float(info.get('warn_de', 0.0)))
             rows.append((None, "─" * 30))
             rows.append((None, tr(_mm._CARD_UNSETTLED_HEAD)))
             rows.append((None, tr(_mm._CARD_UNSETTLED_DE).format(
-                de=f"{float(info.get('de', 0.0)):.1f}",
-                prevs=", ".join(f"{x:.1f}" for x in prevs))))
+                de=_shown(float(info.get('de', 0.0))),
+                prevs=", ".join(_shown(x) for x in prevs))))
             if nb:
                 rows.append((None, ""))
                 add_text(nb_fmt(_mm._CARD_NB_ALSO_S))
@@ -1215,7 +1221,7 @@ class _PatchInfoTile(QWidget):
             rows.append((None, "─" * 30))
             rows.append((None, tr(_mm._CARD_GREEN_HEAD)))
             rows.append((None, tr(_mm._CARD_GREEN_1).format(
-                de=f"{float(info.get('prev_de') or 0.0):.0f}")))
+                de=_shown(float(info.get('prev_de') or 0.0)))))
             rows.append((None, tr(_mm._CARD_GREEN_NB
                                   if info.get("corrected_by") == "neighbour"
                                   else _mm._CARD_GREEN_LIMIT)))

@@ -155,8 +155,8 @@ def test_a_misread_below_the_limit_is_red_with_its_own_card(qapp, tmp_path):
     # neighbour limit is compared with, and the neighbour limit
     f = tab._nb_check.finding("D6")
     assert f.further > 10.0
-    assert M._CARD_NB_RED_S.format(d=f"{f.further:.1f}", n=f.compared and
-                                   len(f.compared), limit="10.0") in text
+    assert M._CARD_NB_RED_S.format(d=f"{f.further:.2f}", n=f.compared and
+                                   len(f.compared), limit="10.00") in text
     assert M._CARD_NB_MISREAD_S in text
     assert "buffer" not in text.lower() and "other strips" not in text
     assert text.endswith(M._CARD_LATER_STRIP_S + " " + M._CARD_SEE_PREFS_S)
@@ -342,7 +342,7 @@ def test_the_card_follows_its_comparisons_after_later_strips(qapp, tmp_path):
 def test_the_card_shows_the_users_neighbour_limit(qapp, tmp_path):
     tab = _tab(tmp_path, settings={"patch_neighbour_limit_estimated": 7.5})
     _read_all(tab, {"D6": 0.55})
-    assert "passing the neighbour limit (7.5)." in _text(_card(_info(tab, "D6")))
+    assert "passing the neighbour limit (7.50)." in _text(_card(_info(tab, "D6")))
 
 
 def test_nothing_checked_is_not_called_no_misreads(qapp, tmp_path):
@@ -460,11 +460,11 @@ def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
     text = _text(lines)
     assert "Red outline: a large difference" in lines
     assert M._CARD_LIMIT_S.format(
-        de=f"{info['de']:.1f}", limit="15.0",
+        de=f"{info['de']:.2f}", limit="15.00",
         kind=M._CARD_KIND_ESTIMATED) in text
     nb = info["neighbour"]
-    also = M._CARD_NB_ALSO_S.format(d=f"{nb['further']:.1f}", n=nb["n"],
-                                    limit=f"{nb['limit']:.1f}")
+    also = M._CARD_NB_ALSO_S.format(d=f"{nb['further']:.2f}", n=nb["n"],
+                                    limit=f"{nb['limit']:.2f}")
     assert also in text
     assert text.index(also) < text.index(M._CARD_NB_REREAD_1)
     assert M._CARD_RANGE_RED_LEARNED_1 not in lines

@@ -900,6 +900,11 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         import shutil
         dest_dir = _user_profile_dir()
+        # Ask before replacing an installed profile of that name (Knut, #182
+        # 6102031563).
+        from ui.install_profile import confirm_replace
+        if not confirm_replace(self, dest_dir / self._last_profile.name):
+            return
         try:
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest = dest_dir / self._last_profile.name
