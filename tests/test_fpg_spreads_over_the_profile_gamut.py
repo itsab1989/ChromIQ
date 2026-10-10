@@ -109,14 +109,6 @@ def test_the_same_profile_and_count_give_the_same_chart(stand_in_printer):
     assert [t[2] for t in a.targets] == [t[2] for t in b.targets]
 
 
-def test_a_smaller_chart_is_inside_a_larger_one(stand_in_printer):
-    ids = [{t[0] for t in _select(stand_in_printer, n,
-                                  bin_dir="/nowhere").targets}
-           for n in (40, 100, 316, 600)]
-    for small, large in zip(ids, ids[1:]):
-        assert small <= large
-
-
 def test_the_eight_corners_are_always_there_and_last(stand_in_printer):
     for n in (10, 100, 316):
         sel = _select(stand_in_printer, n, bin_dir="/nowhere")
@@ -124,21 +116,6 @@ def test_the_eight_corners_are_always_there_and_last(stand_in_printer):
         rows = gt.reference_rows(sel)
         assert [dev for _sid, dev, _lab in rows[-8:]] == list(gt.CORNER_DEVICES)
         assert gt.corner_sample_ids(sel) == list(range(n + 1, n + 9))
-
-
-def test_the_spread_order_is_a_prefix_order_and_keeps_away_from_seeds():
-    pts = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (10.0, 0.0, 0.0),
-           (20.0, 0.0, 0.0), (20.0, 0.0, 0.0)]
-    cands = [0, 1, 2, 3, 4]
-    full = gt._farthest_point_order(pts, cands, [(0.0, 0.0, 0.0)], 5)
-    # Furthest from the seed first, the tie (3 and 4 are the same colour)
-    # going to the earlier one; then whatever is furthest from everything
-    # taken; the two colours with nothing left between them come last,
-    # earlier first.
-    assert full == [3, 2, 1, 0, 4]
-    for k in range(1, 6):
-        assert gt._farthest_point_order(pts, cands, [(0.0, 0.0, 0.0)],
-                                        k) == full[:k]
 
 
 @pytest.mark.skipif(shutil.which("xicclu") is None

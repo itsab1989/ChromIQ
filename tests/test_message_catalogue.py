@@ -699,6 +699,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # beta 12: the slow-chart window of a chart
                                  # built without a pre-conditioning profile
                                  "M-CHART-SLOW-NO-PROFILE",
+                                 # 4.3.5, k82: two paragraphs of the FROM
+                                 # PROFILE GAMUT count help
+                                 "M-HELP-GAMUT-SIZE-SPREAD",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

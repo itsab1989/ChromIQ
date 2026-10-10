@@ -49,8 +49,9 @@ from workflow.measurement_report import (CUBE_CORNERS,    # noqa: E402
 from workflow.ti3_analysis import parse_ti3               # noqa: E402
 
 ARGYLL = Path("/Applications/Argyll/bin")
-#: Big enough that the master set's own black patch is in the body — which is
-#: the patch the corner search used to read the composite black off.
+#: A few hundred patches, as a user's verification chart has. The body patch
+#: at device (0,0,0) that the corner search used to read the composite black
+#: off is put into the chart by the fixture (4.3.5 no longer picks one).
 COUNT = 200
 
 
@@ -129,6 +130,17 @@ def gamut_chart(qapp, tmp_path_factory):
     assert built, "Generate did not route through the gamut module"
     selection = tab._pending_gamut_selection
     assert selection is not None and selection.achieved == COUNT
+    # A chart chosen by 4.3.4 or earlier carried the master's own black in
+    # its body, at device (0,0,0) beside the black corner. Since 4.3.5 (k82)
+    # the even spread keeps every patch away from the corners, so that patch
+    # is put back here: such charts exist on disk, and they are what F2 is
+    # about.
+    from workflow.xicclu_runner import forward_lab
+    black = tuple(forward_lab([(0.0, 0.0, 0.0)], profile, ARGYLL,
+                              intent="a")[0])
+    idx, _lab, _dev = selection.targets[-1]
+    selection.targets[-1] = (idx, black, (0.0, 0.0, 0.0))
+    gt.write_gamut_ti1(selection, built[0])
 
     # The sheet, and then the adopt hook's own reference beside it.
     run.verifications_dir.mkdir(parents=True, exist_ok=True)

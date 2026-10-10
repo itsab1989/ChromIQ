@@ -24,7 +24,7 @@ import pytest                                                  # noqa: E402
 from ui.tabs import tab_chart as TC                            # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-TEXTS = ("_GAMUT_MODULE_HELP_BODY", "_GAMUT_SIZE_HELP_BODY")
+TEXTS = ("_GAMUT_MODULE_HELP_BODY", "_GAMUT_SIZE_HELP_P6_GREYS")
 
 
 def _catalogue(code: str) -> dict:
@@ -40,7 +40,7 @@ def test_the_help_says_change_not_drift(name):
 
 def test_the_module_help_asks_what_changed():
     assert "has anything changed since I made this profile?" in TC._GAMUT_MODULE_HELP_BODY
-    assert "A change in the printer shows in the greys first" in TC._GAMUT_SIZE_HELP_BODY
+    assert "A change in the printer shows in the greys first" in TC._GAMUT_SIZE_HELP_P6_GREYS
 
 
 @pytest.mark.parametrize("name", TEXTS)

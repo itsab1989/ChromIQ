@@ -5733,35 +5733,75 @@ _GAMUT_MODULE_HELP_BODY = (
 _GAMUT_CORNER_PATCHES = 8
 
 _GAMUT_SIZE_HELP_TITLE = "How many colours to test"
-_GAMUT_SIZE_HELP_BODY = (
-    "How many of the reference colours this chart will test. More colours "
-    "means a finer picture of your profile, and more patches to print and "
-    "measure, which is where the real cost sits: the same 1 500 colours are "
-    "a few sheets on an i1Pro and a long afternoon on a ColorMunki.\n\n"
-    "The line under these options does the arithmetic for you: it shows how "
-    "many of the reference colours your profile can print at all, what your "
-    "chart will hold, and roughly how many sheets that is with the layout "
-    "you have set in the MANUAL module.\n\n"
-    "**A guide from practice:** around 400 colours is a solid everyday check, "
-    "800–1 000 matches what professional packages use with a handheld "
-    "instrument, and beyond that is worth it mainly with an automated "
-    "table or the scanner workflow, where reading costs you nothing.\n\n"
-    "**Smaller checks stay comparable with larger ones:** every colour of a "
-    "400-colour chart is also part of a 1 000-colour chart made from the "
-    "same profile, so their figures describe the same patches. The eight "
-    "cube corners are always added on top, whatever you choose here.\n\n"
-    "**Auto:** fill the pages. Tick this and ChromIQ works the number out for "
-    "you: it takes the page count and the layout you set in the section "
-    "below, fills those pages completely, and keeps the 8 cube corners "
-    "inside the total. The box shows the computed number and follows "
-    "every layout change.\n\n"
-    "**Greys have a fixed share:** about one patch in eight goes to white, "
-    "black and evenly spaced grey steps. A change in the printer shows in "
-    "the greys first, so every chart keeps a proper grey wedge without letting "
-    "it crowd out the colours. Everything else is spread through every hue "
-    "region your profile can print.\n\n"
+#: The help is built from paragraphs (k82, 4.3.5). Two paragraphs of the
+#: 4.3.4 text stopped being true when the chart's colours became spread
+#: evenly for each count (smaller charts are no longer part of larger ones,
+#: and the greys no longer take a fixed share): they are left out, and their
+#: replacements below wait for approval (§M-PROPOSED of the UMM,
+#: M-HELP-GAMUT-SIZE-SPREAD), shown only once it is given.
+_GAMUT_SIZE_HELP_P1 = (
+    "How many of the reference colours this chart will test. More "
+    "colours means a finer picture of your profile, and more patches to "
+    "print and measure, which is where the real cost sits: the same 1 "
+    "500 colours are a few sheets on an i1Pro and a long afternoon on a "
+    "ColorMunki."
+)
+_GAMUT_SIZE_HELP_P2 = (
+    "The line under these options does the arithmetic for you: it shows "
+    "how many of the reference colours your profile can print at all, "
+    "what your chart will hold, and roughly how many sheets that is "
+    "with the layout you have set in the MANUAL module."
+)
+_GAMUT_SIZE_HELP_P3 = (
+    "**A guide from practice:** around 400 colours is a solid everyday "
+    "check, 800–1 000 matches what professional packages use with a "
+    "handheld instrument, and beyond that is worth it mainly with an "
+    "automated table or the scanner workflow, where reading costs you "
+    "nothing."
+)
+_GAMUT_SIZE_HELP_P4_SPREAD = (
+    "**Each chart is spread for its own size:** the colours are spread "
+    "evenly over everything your profile can print, so a 400-colour "
+    "chart and a 1 000-colour chart made from the same profile do not "
+    "share all their colours. Compare figures from charts of the same "
+    "size. The eight cube corners are always added on top, whatever you "
+    "choose here."
+)
+_GAMUT_SIZE_HELP_P5 = (
+    "**Auto:** fill the pages. Tick this and ChromIQ works the number "
+    "out for you: it takes the page count and the layout you set in the "
+    "section below, fills those pages completely, and keeps the 8 cube "
+    "corners inside the total. The box shows the computed number and "
+    "follows every layout change."
+)
+_GAMUT_SIZE_HELP_P6_GREYS = (
+    "**Grey steps:** evenly spaced grey steps run along the neutral "
+    "axis from the black to the white corner, at least eight of them "
+    "and never more than about one patch in eight. A change in the "
+    "printer shows in the greys first. All other colours are spread "
+    "evenly through the whole range your profile can print: the more "
+    "colours you choose, the closer together they sit, and none sits "
+    "closer to another than it needs to."
+)
+_GAMUT_SIZE_HELP_P7 = (
     "**Default:** 400 colours."
 )
+
+
+def _gamut_size_help_body() -> str:
+    """The "How many colours to test" help, translated paragraph by
+    paragraph; the two 4.3.5 paragraphs only once M-HELP-GAMUT-SIZE-SPREAD is
+    approved."""
+    from workflow.measurement_messages import M_HELP_GAMUT_SIZE_SPREAD
+    paras = [tr(_GAMUT_SIZE_HELP_P1), tr(_GAMUT_SIZE_HELP_P2),
+             tr(_GAMUT_SIZE_HELP_P3)]
+    if M_HELP_GAMUT_SIZE_SPREAD.approved:
+        paras.append(tr(_GAMUT_SIZE_HELP_P4_SPREAD))
+    paras.append(tr(_GAMUT_SIZE_HELP_P5))
+    if M_HELP_GAMUT_SIZE_SPREAD.approved:
+        paras.append(tr(_GAMUT_SIZE_HELP_P6_GREYS))
+    paras.append(tr(_GAMUT_SIZE_HELP_P7))
+    return "\n\n".join(paras)
 
 _GAMUT_MARGIN_HELP_TITLE = "How close to the edge of the printable range to go"
 _GAMUT_MARGIN_HELP_BODY = (
@@ -22602,7 +22642,7 @@ class TabChart(QWidget):
             bool(self._settings.get("gamut_target_auto", False)))
         cw.addWidget(self._gamut_auto_check)
         gl.addWidget(row(tr("Colours to test"), count_w,
-                         tr(_GAMUT_SIZE_HELP_TITLE), tr(_GAMUT_SIZE_HELP_BODY)))
+                         tr(_GAMUT_SIZE_HELP_TITLE), _gamut_size_help_body()))
 
         self._gamut_margin_combo = NoScrollComboBox(self._gamut_grp)
         self._gamut_margin_combo.setObjectName("compact_input")
@@ -22825,9 +22865,11 @@ class TabChart(QWidget):
         if key in self._gamut_coverage_cache:
             return self._gamut_coverage_cache[key]
         try:
-            from workflow.gamut_target import select_gamut_targets
-            sel = select_gamut_targets(
-                profile, 1, margin, intent,
+            # Only the count: choosing a chart (k82's even spread) is the
+            # build's work, not the count line's.
+            from workflow.gamut_target import gamut_coverage
+            reach, total = gamut_coverage(
+                profile, margin, intent,
                 bin_dir=self._settings.get("argyll_bin_path",
                                            "/Applications/Argyll/bin"))
         except Exception:      # noqa: BLE001 — the count line must never crash
@@ -22837,9 +22879,9 @@ class TabChart(QWidget):
             # window for its whole timeout on every run you select.
             self._gamut_coverage_cache[key] = None
             return None
-        self._gamut_coverage_cache[key] = sel.in_gamut_total
-        self._gamut_master_total = sel.master_total
-        return sel.in_gamut_total
+        self._gamut_coverage_cache[key] = reach
+        self._gamut_master_total = total
+        return reach
 
     def _update_gamut_count_line(self) -> None:
         """The live figures of #133 §10: coverage (which needs the profile) and

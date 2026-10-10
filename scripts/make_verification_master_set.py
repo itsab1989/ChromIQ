@@ -38,7 +38,8 @@ sys.path.insert(0, str(ROOT))
 
 from core.proc_text import run_text
 
-from workflow.gamut_target import MASTER_SET_ASSET, MASTER_SET_VERSION  # noqa: E402
+from workflow.gamut_target import MASTER_SET_ASSET  # noqa: E402
+from workflow.gamut_target import SRGB_SET_VERSION as MASTER_SET_VERSION  # noqa: E402
 
 RECIPE = ["-d2", "-e4", "-B4", "-g32", "-t", "-f5960"]
 

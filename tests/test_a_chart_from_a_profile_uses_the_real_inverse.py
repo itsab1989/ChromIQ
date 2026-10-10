@@ -111,6 +111,11 @@ def test_neither_entry_point_inverts_behind_the_round_trips_back(fn):
     a second copy to live.
     """
     src = inspect.getsource(getattr(gamut_target, fn))
+    if "_round_trip_near(" in src:
+        # 4.3.5: the chart asks only about the colours near the gamut, through
+        # the same one round trip.
+        assert "_round_trip(" in inspect.getsource(gamut_target._round_trip_near)
+        src = src.replace("_round_trip_near(", "_round_trip(")
     assert "_round_trip(" in src, (
         f"{fn} no longer shares the one round trip, so the question it asks "
         "the profile can drift from the other entry point's")

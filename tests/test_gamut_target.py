@@ -271,25 +271,23 @@ def test_small_chart_caps_the_neutral_block(tmp_path, monkeypatch):
     _stub_xicclu(monkeypatch, {})
     sel = _select(tmp_path, master, 16)
     ids = [t[0] for t in sel.targets]
-    # Budget min(max(6, 2), 8) = 6: one white, one black, all four greys;
-    # the other ten are chromatic body (spread over the gamut, so which ten
-    # of the sixteen is the spreading pass's choice, 4.3.4).
-    assert ids[:6] == [0, 2, 4, 5, 6, 7]
-    assert len(ids) == 16 and all(8 <= i < 24 for i in ids[6:])
-    # The duplicate white/black (indices 1 and 3) stayed out.
-    assert 1 not in ids and 3 not in ids
+    greys = [i for i in ids if i < 8]
+    # Budget min(max(6, 2), 8) = 6, and only four real grey steps exist:
+    # the duplicate whites and blacks (0 to 3) repeat the white and black
+    # corners, which are the neutral axis' ends, so they are never steps
+    # (4.3.5, k82).
+    assert greys == [4, 5, 6, 7]
+    assert len(ids) == 16 and all(8 <= i < 24 for i in ids if i not in greys)
 
 
-def test_selection_is_deterministic_and_nested_across_counts(tmp_path, monkeypatch):
+def test_the_same_profile_and_count_give_the_same_chart(tmp_path, monkeypatch):
     master = _wedge_master(tmp_path)
     labs = gt.load_master_labs(master)
     _stub_xicclu.labs = labs
     _stub_xicclu(monkeypatch, {})
-    a = {t[0] for t in _select(tmp_path, master, 10).targets}
-    b = {t[0] for t in _select(tmp_path, master, 16).targets}
-    assert a <= b
-    again = {t[0] for t in _select(tmp_path, master, 10).targets}
-    assert again == a
+    a = [t[0] for t in _select(tmp_path, master, 10).targets]
+    again = [t[0] for t in _select(tmp_path, master, 10).targets]
+    assert again == a and len(a) == 10
 
 
 def test_clipped_greys_release_their_budget_to_the_body(tmp_path, monkeypatch):
@@ -304,9 +302,9 @@ def test_clipped_greys_release_their_budget_to_the_body(tmp_path, monkeypatch):
     assert sel.in_gamut_total == 20
     for clipped in (0, 1, 5, 6):
         assert clipped not in ids
-    # Budget 6 → black + the two surviving greys; the freed slots went to
-    # the chromatic body.
-    assert [i for i in ids if i < 8] == [2, 4, 7]
+    # The two surviving grey steps; the freed slots went to the chromatic
+    # body, and the chart is the size asked for.
+    assert [i for i in ids if i < 8] == [4, 7]
     assert len(ids) == 16
 
 

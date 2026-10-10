@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.3.5 (unreleased)
+
+### Changed
+
+- **A From Profile Gamut chart is spread evenly over everything your printer can print** (#182, Knut). Its colours now fill the profile's whole range evenly, the spacing follows the number of colours you choose, no two sit closer together than they need to, and evenly spaced grey steps run from black to white. On Basti's Epson ET-8550 324-patch chart the largest empty place in the printer's range went from 35.7 to 13.0 ΔE, and the closest two colours from 2.9 to 11.2 ΔE apart (grey steps aside). Each chart size is spread on its own, so a smaller chart is no longer part of a larger one. Charts you already made stay as they are.
+- **The colours a From Profile Gamut chart is chosen from now reach beyond sRGB and Adobe RGB** (#182, Knut). ChromIQ's list of 5,960 colours, chosen in sRGB, is joined by a whole 22 × 22 × 22 cube in ProPhoto RGB (10,648 colours), so wide-gamut printers are tested in their strongest colours too. Building a chart takes about a second longer on a large profile.
+
 ## v4.3.4
 
 **Fixes from Knut's tests of 4.3.3.** Misread outlines are judged only after "Was a strip read twice?" is answered, and a value exactly on a threshold no longer counts as over it. Install Profile on the Build Profile tab works again, printing a chart again no longer makes it look changed, and From Profile Gamut charts cover the printer's strongest colours. Printing a verification chart through the macOS print dialog is explained on the Print Chart tab and checked more closely, including Epson's own colour matching.

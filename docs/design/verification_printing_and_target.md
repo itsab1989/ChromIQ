@@ -1452,6 +1452,57 @@ without a second number to misread.
    B2A round trip) chooses the reference base deliberately. Revisit only
    if a second, printer-local chart type is ever wanted *alongside* the
    fixed one — never as a replacement.
+   *(4.3.5: the fixed set is no longer sampled in sRGB only; see 9a. The
+   reference base this answer chose stays: one fixed list for every
+   printer.)*
+
+9a. **The candidate list and how a chart is spread over the gamut (k83 and
+    k82, 4.3.5).**
+
+#### ✅ Confirmed behaviour (k83, k82)
+
+**Confirmed by:** Knut, 2026-10-10, #182 [6102031563](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6102031563), answers to questions 5 and 6 of [6099862394](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6099862394); agreed by Sebastian, 2026-10-11 (Knut: *"Confirm with Sebastian."*).
+
+| # | What | Knut's words |
+|---|---|---|
+| k83 | The list the chart's colours are chosen from holds colours any professional printer may achieve, more than sRGB and Adobe RGB (1998): a whole 22 × 22 × 22 cube (10,648 colours) in a wide colour space. It is still filtered by the profile's gamut, by the round trip in the print's intent, as before. | *"That list of colors should contain colors that any professional printer may achieve. That possibly means even larger than AdobeRGB1998 color space. And, I think the color list is a bit small. Can't you make the list covering a whole cube of 22x22x22 (10648 colors) covering more than sRGB, AdobeRGB1998 and possibly an even bigger colour space?"* |
+| k82 | The chart's colours are spread evenly over the profile's whole gamut volume: they follow the profile's shape, fill all gaps, and are not too close together. The spacing follows the number of colours (fewer colours, larger distance). The grey steps follow the neutral line in addition, and the 8 cube corners as always. The chart holds exactly the number asked for (324 = 316 + 8 corners). | *"I would expect selected colors would be randomly but almost evenly spread over the full gamut of the profile (plus the gray steps following the neutral line), with the number of colors selected. For the 324 patch chart, that would be 316+8 cube corners."*; *"Colors should also not be allowed to be too close together... they shall be spread out. Why can't they be spread evenly out for the whole gamut volume, so that the chosen numbers follow the profiles shape and spreads evenly out filling all gaps, and all colors having the same distance from each other, adapted so that the selected number always fits the whole gamut."* |
+
+#### ⏳ Awaiting confirmation: how k83 and k82 are built (4.3.5)
+
+**Confirmed by:** *nobody yet.*
+
+| # | Choice | Why, measured (report folder `2026-10-11_435_fpg_verify/k83`) |
+|---|---|---|
+| L1 | The wide space is **ProPhoto RGB** (ROMM RGB, ISO 22028-2, D50, its own transfer curve), steps 0, 1/21 … 1 per channel (`gamut_target.wide_cube_labs`). | It contains sRGB and Adobe RGB (1998) (every primary of both is inside its cube) and every surface colour a printer can put on paper. Share of each printer's gamut VOLUME outside a space: ET-8550 glossy 21.8 % outside sRGB, 6.9 % outside Adobe RGB, 2.9 % outside ECI-RGB v2, 0 % outside ProPhoto RGB. ECI-RGB v2 does not contain Adobe RGB's blue. |
+| L2 | The list (`PROVISIONAL-r2`, 16,608 colours) is the r1 sRGB set (5,960, unchanged, still read from its file) **plus** the cube. | The cube alone is coarse where most printers are: of its 10,648 colours Knut's run 5 profile reaches 731 (safe margin, ProPhoto with an L* curve) to 856 (ProPhoto's own curve), too few for a 1,000-patch chart, against 2,357 of r1. Together: 3,213 for Knut, 5,950 for the ET-8550 (r1: 4,132), 1,418 for a small plain-paper gamut (r1: 1,055). |
+| L3 | The cube's colours that are no surface colour (outside the D50 optimal-colour solid, 4,140 of them) stay in the list. | In absolute colorimetry no profile reaches them (0 on four profiles), but in RELATIVE colorimetry 5 to 15 of them are reached, so dropping them would change charts. |
+| L4 | Only colours that can be near the gamut are asked about: a colour further from every point of a 25-step device grid read through the profile than the grid's largest cell plus the wider margin's threshold plus 1 ΔE76 cannot pass the round trip and is not sent to xicclu (`_round_trip_near`). | Same charts, patch for patch, over 36 cases (three profiles, both intents, both margins, 100/324/1000). The inverse costs about 0.5 ms a colour: Knut's profile 3.6 to 4.4 s a chart against 8.3 to 9.5 s without it (4.3.4: 2.6 s); ET-8550 1.9 to 2.7 s (0.7 s); small gamut 1.2 to 1.7 s (1.0 s). |
+| S1 | The spread (`_even_spread`): farthest point from the corners and grey steps as a start; then **Lloyd's relaxation** over the gamut VOLUME (each patch moves to the centre of the part of the gamut it is nearest to; the volume is the 25-step device grid's 13,824 cells, each weighted by its Lab volume); each patch then takes the nearest free candidate colour; then a **maximin exchange** (the patch in the tightest spot moves to a free candidate further from every other patch, while one exists). ΔE76 in the print's intent. | Compared on three profiles at 100/324/500/1000: farthest point alone (4.3.4's method) over-samples the gamut's shell and leaves near pairs; Lloyd alone spreads by volume but snapping to the list leaves pairs 1.4 ΔE apart; both together gave the most even spacing (nearest-neighbour spread 0.06 to 0.10 of its mean, 4.3.4: 0.13 to 0.32). Argyll targen's own optimiser was not used: it places colours in device space, not from the fixed list. |
+| S2 | **Grey steps**: evenly spaced in L* in the middle of equal slices between the black and the white corner as printed (half a step from each corner), as many as fit at the chart's spacing ((gamut volume / patches)^1/3), never fewer than 8 (the report's grey ramp needs 8, K31) and never more than about one patch in eight (Sebastian, 2026-08-12). The candidate's whites and blacks that would only repeat a corner are never steps. | With whole steps from the ends, 22 built-in presets lost the grey ramp rows (*"neutral_aims_no_white"*); with half steps none does. |
+| S3 | **Control strip rungs**: a rung of the strip ladder (`control_strip.py`) the spread leaves empty is filled by exchanging the nearest chosen patch for a candidate within the rung's tolerance, only when that candidate is no closer to any other patch than the spread's closest pair. | Without it four built-in presets (84 to 192 patches) fell below the 20 rungs the 95th-percentile row needs. |
+| S4 | **Nesting is given up**: a smaller chart is no longer a subset of a larger one for the same profile; each count is spread on its own. Same profile, settings and count still give the same chart. Charts already made keep their files and are read as before. | k82 asks for the spacing to follow the count. |
+
+Measured, absolute intent, safe margin unless named, chart + 8 corners as the profile predicts them printed (`eval_impl.txt`; ΔE76 unless named):
+
+| Profile, patches | closest pair 4.3.4 → 4.3.5 | median nearest neighbour | closest pair ΔE00 | largest empty place in the gamut | share of patches vs share of volume, worst band |
+|---|---|---|---|---|---|
+| Knut run 5, 100 | 1.12 → 4.66 | 14.70 → 14.06 | 1.22 → 3.42 | 14.44 → 14.12 | 12.5 → 5.5 pp |
+| Knut run 5, 324 | 1.12 → 4.66 | 9.05 → 8.85 | 1.22 → 2.46 | 10.80 → 10.67 | 7.9 → 3.8 pp |
+| Knut run 5, 324 full | 1.12 → 4.66 | 9.17 → 9.02 | 1.22 → 2.12 | 10.59 → 9.92 | 9.7 → 3.1 pp |
+| Knut run 5, 500 | 1.12 → 4.66 | 7.49 → 7.43 | 1.22 → 1.69 | 9.78 → 8.23 | 5.3 → 4.2 pp |
+| Knut run 5, 1000 | 1.12 → 4.66 | 5.64 → 5.64 | 1.22 → 1.33 | 7.43 → 7.24 | 3.8 → 2.8 pp |
+| ET-8550, 100 | 2.90 → 5.68 | 19.19 → 20.37 | 1.82 → 4.19 | **36.88 → 18.68** | 10.3 → 12.1 pp |
+| ET-8550, 324 | 2.90 → 5.68 | 11.59 → 12.43 | 1.82 → 3.24 | **35.70 → 13.00** | 7.5 → 4.9 pp |
+| ET-8550, 500 | 2.52 → 5.68 | 9.78 → 10.44 | 1.82 → 2.49 | **34.41 → 11.89** | 6.8 → 3.5 pp |
+| ET-8550, 1000 | 2.52 → 5.68 | 7.23 → 7.88 | 1.70 → 1.77 | **33.34 → 10.25** | 5.2 → 2.4 pp |
+| small gamut, 100 | 2.92 → 4.72 | 10.08 → 9.98 | 1.88 → 4.01 | 9.99 → 11.04 | 12.6 → 8.9 pp |
+| small gamut, 324 | 2.52 → 4.72 | 6.03 → 6.11 | 1.88 → 2.22 | 7.31 → 6.72 | 6.4 → 5.3 pp |
+| small gamut, 1000 | 2.52 → 3.23 | 4.01 → 4.02 | 1.47 → 1.44 | 4.93 → 5.07 | 4.7 → 4.5 pp |
+
+The closest pair of 4.3.5 is the grey axis (a step half a step from a corner); among the colours spread over the volume the closest pair is at least 0.75 of their median spacing (`tests/test_k82_k83_fpg_even_spread_and_wide_list.py`). Everything that reads these charts was checked: the built-in presets' FROM PROFILE GAMUT certificates (`scripts/make_preset_certificates.py`, 189 presets: none loses a metric, one gains the control strip's 95th percentile), the strip layout (no low-contrast pass in 20 layouts of each chart), the neighbour check on simulated readings (false reds unchanged within the simulation's own scatter), the report (no in/out-of-gamut split on these charts, see k71 below).
+
+**k71 (analysis only, nothing changed).** A FROM PROFILE GAMUT sheet is judged against its colorimetric reference and the report makes **no** in/out-of-gamut split for it (`measurement_report.build_report`, the split runs only for the `design` and `source` references); all of its colours are judged. Measured on Knut's run 5 profile, a full-margin 316-colour chart built and read through the profile: `reference_source` colorimetric, no `gamut_split`. The "safe" split applies to regular verification charts only, which carry no margin of their own. Were a split ever made for a full-margin chart, the safe test would put 26 of its 316 colours outside (4.3.4's selection: 39 of 324). Recommendation: no change; if a split is ever added for these charts, use the margin the chart records (`CHROMIQ_MARGIN` in its reference). **Confirmed by:** *nobody yet.*
 
 ## 12. Rating
 

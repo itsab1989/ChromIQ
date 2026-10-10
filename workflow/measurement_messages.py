@@ -5129,6 +5129,19 @@ M_PRINT_VERIFY_ROUTE = _m(
 #: are about choosing the route and hold whichever route is set; paragraph 2
 #: is about the macOS print dialog and is shown only while that route is on.
 
+
+# --- PROPOSED: the count help of FROM PROFILE GAMUT, k82 (4.3.5) ------------
+#: The two paragraphs that replace the 4.3.4 help's "smaller charts are part
+#: of larger ones" and "greys have a fixed share", both untrue since the even
+#: spread. Hidden (left out of the help) until approved:
+#: `ui/tabs/tab_chart._gamut_size_help_body`. The help shows the two lead-ins in
+#: bold (its own Markdown); the catalogue holds the words.
+M_HELP_GAMUT_SIZE_SPREAD = _m(
+    "M-HELP-GAMUT-SIZE-SPREAD",
+    "How many colours to test",
+    "Each chart is spread for its own size: the colours are spread evenly over everything your profile can print, so a 400-colour chart and a 1 000-colour chart made from the same profile do not share all their colours. Compare figures from charts of the same size. The eight cube corners are always added on top, whatever you choose here.\n\nGrey steps: evenly spaced grey steps run along the neutral axis from the black to the white corner, at least eight of them and never more than about one patch in eight. A change in the printer shows in the greys first. All other colours are spread evenly through the whole range your profile can print: the more colours you choose, the closer together they sit, and none sits closer to another than it needs to.",
+    approved=False)
+
 # --- APPROVED (Basti, 2026-10-10, "text approved"): the status line when the
 # chart got the job's own profile and the job names no paper profile (B3) ----
 #: M-PRINT-JOB-CONFIRMED line 3 ("The chart went with that same profile
@@ -5271,7 +5284,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPLACE_UNCOUNTABLE,
     M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
     M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
-    M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT,
+    M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT, M_HELP_GAMUT_SIZE_SPREAD,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
