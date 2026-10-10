@@ -94,6 +94,15 @@ async def collect(scan_seconds: float = 20.0, serial: str = "") -> "Report":
         say(f"ChromIQ : {APP_VERSION}")
     except Exception:                                   # noqa: BLE001
         pass
+    # THE LAST UNIT THIS COMPUTER TALKED TO (beta 17): which instrument and
+    # which firmware, for a report that has to say what it is about. Kept
+    # from the last connect; nothing is asked of the instrument here.
+    try:
+        from .device_info import report_lines
+        for line in report_lines():
+            say(line)
+    except Exception:                                   # noqa: BLE001
+        pass
     say("")
 
     # ---- 1. can this machine scan at all? ------------------------------

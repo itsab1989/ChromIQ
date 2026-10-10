@@ -63,6 +63,25 @@ _FITTED_WIDTH_MARK = "/* chromiq-fitted-width */"
 #: replace its own number instead of treating it as somebody's decision.
 _FITTED_MIN_PROP = "chromiq_fitted_min"
 
+#: Every label a button can switch to ("Delete" / "Undo delete"), set with
+#: :func:`reserve_button_labels`. :func:`fit_button_width` then fits the
+#: WIDEST of them, whatever the button says at that moment, so a label that
+#: arrives later by ``setText`` is never painted into a width measured for a
+#: shorter one. Basti's beta-17 hand test: "NDO DELET", in Read single patches.
+_LABELS_PROP = "chromiq_fit_labels"
+
+
+def reserve_button_labels(btn, labels) -> None:
+    """Keep *btn* wide enough for each of *labels*, not only its current text.
+
+    For a button whose text changes with the state of its window (Start
+    session / Stop session, Delete / Undo delete). Pass the labels already
+    translated. The width is fitted at once and on every later re-fit
+    (:class:`ButtonFontFilter` runs one on each Show and style change).
+    """
+    btn.setProperty(_LABELS_PROP, [str(t) for t in labels if t])
+    fit_button_width(btn)
+
 
 def _without_fitted_width(sheet: str) -> str:
     """*sheet* with any rule this module previously added removed."""
@@ -140,8 +159,12 @@ def fit_button_width(btn) -> None:
     from PyQt6.QtGui import QFontMetrics
     from PyQt6.QtWidgets import QStyle, QStyleOptionButton
 
-    text = btn.text().replace("&&", "\x00").replace("&", "").replace("\x00", "&")
-    if not text:
+    def _plain(s: str) -> str:
+        return s.replace("&&", "\x00").replace("&", "").replace("\x00", "&")
+
+    text = _plain(btn.text())
+    alternatives = [_plain(t) for t in (btn.property(_LABELS_PROP) or [])]
+    if not text and not alternatives:
         return
     # A width the code fixed deliberately is not ours to argue with. The "✕"
     # that clears the gamut comparison is `setFixedWidth(28)` so it matches the
@@ -159,6 +182,7 @@ def fit_button_width(btn) -> None:
         # QFontMetrics measures the characters given, not the capitalisation the
         # painter will apply — so measure what will really be drawn.
         text = text.upper()
+        alternatives = [t.upper() for t in alternatives]
     # Measure against the WIDEST font this label could be painted in, not only
     # the one the widget currently has.
     #
@@ -221,11 +245,14 @@ def fit_button_width(btn) -> None:
     # string made "Print\nCurrent Page" ask for the width of "PrintCurrent
     # Page", which forced the Print Chart buttons far wider than they should be
     # and threw their text out of alignment (Knut, #131 2026-07-28).
-    needed = max(fm.horizontalAdvance(line) for line in text.split("\n"))
+    # Every label the button can show (reserve_button_labels), the current
+    # one included: the widest decides.
+    lines = [ln for t in [text, *alternatives] for ln in t.split("\n")]
+    needed = max(fm.horizontalAdvance(line) for line in lines)
     try:
         opt = QStyleOptionButton()
         opt.initFrom(btn)
-        opt.text = max(text.split("\n"), key=len)
+        opt.text = max(lines, key=fm.horizontalAdvance)
         want = btn.style().sizeFromContents(
             QStyle.ContentsType.CT_PushButton, opt,
             QSize(needed, fm.height()), btn).width()
@@ -766,6 +793,22 @@ class TailFollowLog(QPlainTextEdit):
 
     def insertPlainText(self, text: str) -> None:          # noqa: N802
         self._append_through(super().insertPlainText, text)
+
+    # -- a pane made shorter is not a reader scrolling away ----------------
+    def resizeEvent(self, event) -> None:                  # noqa: N802
+        """Keep showing the newest line through a resize.
+
+        Qt keeps the FIRST visible line when the viewport changes height, so
+        a pane at the bottom that is made shorter (a splitter dragged, the
+        window shrunk) was left above its own end, and every later line
+        landed out of sight: measured on screen in Read single patches,
+        beta 17, value 27 of 29 after one drag of its divider.
+        """
+        follow = self.is_at_bottom()
+        super().resizeEvent(event)
+        if follow:
+            sb = self.verticalScrollBar()
+            sb.setValue(sb.maximum())
 
     # -- a fresh document starts at the top, which is also its bottom ------
     def clear(self) -> None:

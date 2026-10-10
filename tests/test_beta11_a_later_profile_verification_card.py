@@ -75,8 +75,9 @@ def test_the_red_card_says_knuts_sentence(qapp):
             "the chart's estimate here.") in text
     # The approved sentence ends with its own "read it again".
     assert mm._CARD_RED_READ_AGAIN not in text.split("\n")
-    # Judged at the limit for estimated colours, and named so.
-    assert "(limit for a chart with estimated colours)" in text
+    # Judged at the limit for estimated colours, and named so (beta 17: the
+    # patch error limit with its chart type).
+    assert "(95.0, profiling charts with estimated\ncolours)." in text
 
 
 @pytest.mark.parametrize("case", ["re-read", "similar"])

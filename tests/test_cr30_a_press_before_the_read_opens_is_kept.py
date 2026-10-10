@@ -129,7 +129,8 @@ class FakeDevice:
 
     def read_next_measurement(self, *, timeout=180.0, cancelled=None,
                               poll=0.01, for_learning=False,
-                              trigger_wanted=None):
+                              trigger_wanted=None,
+                              drop_stale=True):
         if self._refuse_first:
             self._refuse_first = False
             self.refusals += 1
@@ -256,8 +257,17 @@ class _HoldsTheLock:
 # 1. The spot window: the press the owner makes the instant "Ready" appears
 # ---------------------------------------------------------------------------
 def test_the_spot_window_keeps_a_press_made_before_the_read_opens(qapp):
-    """Click "Take reading" the moment the button goes live, with the reader
-    still short of its wait. The reading must arrive."""
+    """Click "Take reading" the moment the button goes live. The reading must
+    arrive.
+
+    Since the review of beta 17 the button does NOT go live while the reader is
+    still short of its wait: the read loop drops the stale presses under the
+    reader's lock first and only then says Ready, because a press of the
+    instrument's own button in that gap was thrown away. So the gap is held
+    open here, the window must keep the button dead through it, and the click
+    comes the instant it goes live, which is the narrowest gap left: between
+    Ready and the read entering its wait. The arm made before the thread
+    exists is what still covers that one."""
     device = FakeDevice()
     dlg = _Dialog(_Runner(), AppSettings(), device=device)
     dlg._instrument.setCurrentIndex(2)          # the CR30 entry
@@ -267,12 +277,13 @@ def test_the_spot_window_keeps_a_press_made_before_the_read_opens(qapp):
     try:
         with _HoldsTheLock(dlg._cr30_reader):
             dlg._on_start_stop()
-            assert _wait(qapp, lambda: dlg._read_btn.isEnabled(), 5.0), \
-                "the window never offered Take reading"
-            assert dlg._cr30_reader._reading_in_flight is False, (
-                "the reader reached its wait anyway, so this run never "
-                "entered the window under test — the harness is broken")
-            dlg._on_take_reading()
+            _wait(qapp, lambda: False, HOLD_S / 2)
+            assert not dlg._read_btn.isEnabled(), (
+                "the window offered Take reading while the reader was still "
+                "short of its wait")
+        assert _wait(qapp, lambda: dlg._read_btn.isEnabled(), 5.0), \
+            "the window never offered Take reading"
+        dlg._on_take_reading()
         assert _wait(qapp, lambda: len(dlg._readings) == 1), (
             "the press made while the button said it was live produced no "
             "reading at all — it was dropped in silence, which is what the "

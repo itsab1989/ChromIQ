@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from core.stem_paths import artefact, without_ext
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QPen
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QAbstractSpinBox,
@@ -34,6 +34,9 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSplitter,
+    QStyle,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -43,11 +46,12 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from ui.cr30_calibration import Cr30CalibrationMixin
-from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
+from ui.dialogs.tools_dialogs import _indicator_color, _popup_pair, neutral_controls_qss
 from ui.styles import SPEC_GREEN
 from ui.tab_header import dialog_masthead
 from ui.warning_sign import inform, set_warning_icon, warn
-from ui.widgets import NoScrollComboBox, TailFollowLog, set_ink, tint_dialog_primary
+from ui.widgets import (NoScrollComboBox, TailFollowLog, reserve_button_labels,
+                        set_ink, tint_dialog_primary)
 from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams
 
@@ -64,6 +68,79 @@ if TYPE_CHECKING:
 
 _ACCENT = "#56d6a5"   # share the Measure tab's accent — this is measurement work
 
+#: The list and the notes under it share a splitter. Neither may be dragged
+#: smaller than these: the list keeps its heading and two readings, the notes
+#: two lines (the app's own floor for a log, `ui.widgets.LOG_MIN_LINES`).
+_MIN_LIST_ROWS = 2
+_MIN_LOG_LINES = 2
+#: The height the notes get when they first appear; after that, the user's.
+_INITIAL_LOG_LINES = 4
+#: How many readings the list shows at the window's default size, with the
+#: notes open at their first height (Basti's beta-17 hand test: "about 7").
+_DEFAULT_LIST_ROWS = 7
+#: What a macOS title bar adds above the window's own height.
+_TITLE_BAR = 32
+
+
+def _ink_on(hex_colour: str) -> str:
+    """The text colour that reads on a swatch of *hex_colour*: near-black on a
+    light swatch, white on a dark one, whichever has the higher contrast.
+
+    The hex code is written ON its own colour, so the window's ink colour
+    cannot be used: white on a pale swatch and black on #34312e (Basti's
+    beta-17 hand test) both vanish.
+    """
+    c = QColor(hex_colour)
+    if not c.isValid():
+        return "#0a0a0a"
+
+    def _lin(v: float) -> float:
+        return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+
+    lum = (0.2126 * _lin(c.redF()) + 0.7152 * _lin(c.greenF())
+           + 0.0722 * _lin(c.blueF()))
+    dark = 0.0030   # relative luminance of #0a0a0a
+    on_dark = (lum + 0.05) / (dark + 0.05)
+    on_white = 1.05 / (lum + 0.05)
+    return "#0a0a0a" if on_dark >= on_white else "#ffffff"
+
+
+
+class _SwatchCellDelegate(QStyledItemDelegate):
+    """The Colour cell keeps its own colour when its row is selected.
+
+    The row's selection fill used to cover the swatch too, so the selected
+    reading's colour was the one colour the list did not show (#d43d49 came
+    up green; review of beta 17's hand-test fixes). The cell is painted as if
+    unselected, swatch and contrast ink intact, and the selection is drawn as
+    a frame in the selection colour around it, so the band across the row
+    still runs through the cell.
+    """
+
+    _FRAME = 3
+
+    def __init__(self, frame_colour: str, parent=None) -> None:
+        super().__init__(parent)
+        self._frame_colour = QColor(frame_colour)
+
+    def initStyleOption(self, option, index) -> None:  # noqa: N802
+        super().initStyleOption(option, index)
+        option.state &= ~QStyle.StateFlag.State_Selected
+
+    def paint(self, painter, option, index) -> None:  # noqa: D102
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        super().paint(painter, option, index)
+        if not selected:
+            return
+        painter.save()
+        pen = QPen(self._frame_colour)
+        pen.setWidth(self._FRAME)
+        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        half = self._FRAME // 2
+        painter.drawRect(option.rect.adjusted(half, half, -half - 1, -half - 1))
+        painter.restore()
 
 #: The instruments this window can read with, in the app's own vocabulary.
 #:
@@ -261,6 +338,16 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         #: What the last Clear took away, kept so it can be put back. Nothing
         #: the user made is destroyed without a way back; see `_on_clear`.
         self._cleared: list[SpotReading] = []
+        #: The patch number the last automatic name used. Names are never
+        #: re-used: deleting "Patch 2" of three makes the next reading
+        #: "Patch 4", not a second "Patch 3".
+        self._patch_counter = 0
+        #: What each Delete took away, newest last, as (row, reading) pairs,
+        #: so "Undo delete" and Cmd+Z put them back where they were. Forgotten
+        #: by the next reading, like the Clear undo.
+        self._deleted: "list[list[tuple[int, SpotReading]]]" = []
+        #: The counter Clear wiped, kept with `_cleared` for its undo.
+        self._cleared_counter = 0
         #: True once a reading exists that has not been written to a file, so
         #: closing the window can say so instead of binning a session.
         self._unsaved = False
@@ -296,6 +383,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         outer.setContentsMargins(22, 14, 22, 16)
         outer.setSpacing(12)
         root.addLayout(outer)
+        self._outer = outer
 
         body = QLabel(
             tr("Measure single colours off any material and save their L*a*b* values."),
@@ -435,7 +523,26 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._table.setColumnWidth(7, 128)          # Colour swatch (bigger)
         self._table.itemChanged.connect(self._on_item_changed)
         self._table.itemSelectionChanged.connect(self._update_average_btn)
-        outer.addWidget(self._table, 1)
+        # A reading can be deleted from where it is: right-click, as well as
+        # the Delete button and the Backspace / Delete keys (eventFilter).
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_table_menu)
+
+        # THE LIST AND THE NOTES SHARE ONE COLUMN, AND THE USER SETS THE
+        # DIVIDE (Basti's beta-17 hand test: the notes "take a lot of space").
+        # A splitter, neither side collapsible: the list keeps its heading and
+        # two readings, the notes two lines. Not remembered across openings,
+        # because this window does not remember its size either.
+        self._split = QSplitter(Qt.Orientation.Vertical, self)
+        self._split.setObjectName("spotListLogSplit")
+        self._split.setChildrenCollapsible(False)
+        self._split.setHandleWidth(8)
+        self._split.addWidget(self._table)
+        self._table.setMinimumHeight(self._rows_height(_MIN_LIST_ROWS))
+        #: True once the notes have been given their first height; after that
+        #: the divide is the user's.
+        self._log_sized = False
+        outer.addWidget(self._split, 1)
 
         # --- Session notes -------------------------------------------------
         # The same status pane every other tool window carries
@@ -445,13 +552,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # window it was. The CR30's calibration writes the notes that matter —
         # which way it connected, what the dark reference read back at — and
         # they have to be readable somewhere.
-        self._log = TailFollowLog(self)
+        self._log = TailFollowLog(self._split)
         self._log.setReadOnly(True)
         self._log.setMaximumBlockCount(2000)
-        self._log.setFixedHeight(120)
+        self._log.setMinimumHeight(self._log_lines_height(_MIN_LOG_LINES))
         self._log.setPlaceholderText(tr("Status messages will appear here."))
         self._log.setVisible(False)
-        outer.addWidget(self._log)
+        self._split.addWidget(self._log)
+        self._split.setStretchFactor(0, 1)
+        self._split.setStretchFactor(1, 0)
 
         # --- Bottom buttons ------------------------------------------------
         # Session controls (Start / Take reading) live on the far left next to
@@ -483,6 +592,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._avg_btn.clicked.connect(self._on_average_selected)
         bottom.addWidget(self._avg_btn)
 
+        self._del_btn = QPushButton(tr("Delete"), self)
+        self._del_btn.setEnabled(False)
+        self._del_btn.setToolTip(tr(
+            "Delete the selected readings. The Backspace and Delete keys do "
+            "the same while the list has the focus, and Undo delete puts "
+            "them back."))
+        self._del_btn.clicked.connect(self._on_delete_button)
+        bottom.addWidget(self._del_btn)
+
         self._clear_btn = QPushButton(tr("Clear"), self)
         self._clear_btn.setEnabled(False)
         self._clear_btn.clicked.connect(self._on_clear)
@@ -498,12 +616,40 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         close_btn = QPushButton(tr("Close"), self)
         close_btn.clicked.connect(self.reject)
         bottom.addWidget(close_btn)
+        self._close_btn = close_btn
 
         outer.addLayout(bottom)
+        #: The button row, and whether Save / Close were moved to a second
+        #: row because the whole row is wider than the screen (_settle_size).
+        self._bottom = bottom
+        self._row_wrapped = False
 
-        # Neutral indicators, but the dropdown wears this tool's own green.
+        # THREE BUTTONS CHANGE THEIR WORDS, SO EACH IS AS WIDE AS ITS LONGEST.
+        # Fitted to "Delete" when the window opened, the button then painted
+        # "Undo delete" into that width ("NDO DELET", Basti's beta-17 hand
+        # test). Reserving every label also keeps the row from shifting.
+        reserve_button_labels(self._start_btn,
+                              (tr("Start session"), tr("Stop session")))
+        reserve_button_labels(self._del_btn, (tr("Delete"), tr("Undo delete")))
+        reserve_button_labels(self._clear_btn, (tr("Clear"), tr("Undo clear")))
+
+        # Neutral indicators, but the dropdown wears this tool's own green…
+        #
+        # …AND SO DO THE LIST'S SELECTED ROW AND ITS RIGHT-CLICK MENU. Both
+        # wore the appearance's own selection colour, blue in Light and cyan
+        # in Dark, which belongs to no window (Basti's beta-17 hand test). The
+        # same pair the dropdown's hovered row uses, so all three agree, and
+        # the main window's rule for a tab's lists (`_apply_tab_widget_styling`):
+        # only the two selection properties, nothing else of the sheet moves.
+        _sel_bg, _sel_fg = _popup_pair(_ACCENT)
+        # The Colour cell is the reading itself: selected, it keeps its own
+        # colour and shows the selection as a frame (_SwatchCellDelegate).
+        self._table.setItemDelegateForColumn(
+            7, _SwatchCellDelegate(_sel_bg, self._table))
         self.setStyleSheet(
-            neutral_controls_qss(_indicator_color(settings), popup=_ACCENT))
+            neutral_controls_qss(_indicator_color(settings), popup=_ACCENT)
+            + f"QTableView, QMenu {{ selection-background-color: {_sel_bg};"
+              f" selection-color: {_sel_fg}; }}")
         # Tint the Start button with the Measure tab's green accent — this tool
         # is measurement work and reads as part of that family.
         tint_dialog_primary(self, _ACCENT)
@@ -696,6 +842,16 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         super().hideEvent(event)
 
     def _on_start_stop(self) -> None:
+        if self._cr30 is not None and self._cr30.is_running:
+            # STOP MEANS STOPPED, AT ONCE, WHATEVER THE INSTRUMENT IS DOING.
+            # This used to ask the read loop to finish and then wait for it to
+            # say so -- and a loop listening to a CR30 that had switched
+            # itself off never said anything, so Stop did nothing at all
+            # (Basti, beta 16). The session ends here, the instrument is let
+            # go (over Bluetooth that is what lets it advertise again), and
+            # the loop is left to finish in the background.
+            self._end_cr30_session()
+            return
         active = self._active_manager()
         if active.is_running:
             active.quit()
@@ -730,9 +886,12 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self._show_instrument_busy(elsewhere)
             return
         self._set_session_running(True)
-        self._log.setVisible(True)
+        self._show_log()
         self._log.clear()
         self._set_status(tr("Starting instrument…"))
+        # Set by the calibration once it has written "Connected to your CR30
+        # over ..." into this log (ui/cr30_calibration.py).
+        self._cr30_transport_said = ""
         # The shared calibration windows (ui/cr30_calibration.py) — the same
         # ones the Measure tab shows, not a second set that could drift from
         # them. They open the reader through _open_cr30_bridge below.
@@ -744,6 +903,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         from workflow.cr30_spot_manager import Cr30SpotManager
         mgr = self._cr30 = Cr30SpotManager(self)
         mgr.reader = self._cr30_reader
+        # The calibration has just said which way it connected; the session
+        # start would say it again on the very next line.
+        mgr.say_transport_at_start = not self._cr30_transport_said
         mgr.reading_ready.connect(self._on_reading)
         mgr.ready_to_read.connect(self._on_ready)
         mgr.instrument_detected.connect(self._on_instrument_detected)
@@ -751,13 +913,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         mgr.read_refused.connect(self._on_cr30_refused)
         mgr.magnet_gated.connect(self._on_cr30_magnet)
         mgr.trigger_not_armed.connect(self._on_cr30_trigger_not_armed)
+        mgr.instrument_lost.connect(self._on_cr30_lost)
+        mgr.presses_discarded.connect(self._on_cr30_early_press)
         mgr.session_ended.connect(self._on_session_ended)
         mgr.start(None, self._note)
 
     def _note(self, text: str) -> None:
         if not text:
             return
-        self._log.setVisible(True)
+        self._show_log()
         self._log.appendPlainText(text)
         self._log.ensureCursorVisible()
 
@@ -839,6 +1003,64 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
+
+    def _on_cr30_early_press(self, n: int) -> None:
+        """M-SPOT-CR30-EARLY-PRESS. Presses from before Ready were not used.
+
+        The instrument announced them before the session was listening (most
+        often while the calibration's last window was still open, which itself
+        says to press the button), so they belong to no reading anybody asked
+        for and are dropped. The person who pressed must not be left waiting
+        for a row that will never come. It speaks through the window's log,
+        which is visible for the whole of a CR30 session (wording approved by
+        Basti, 2026-10-10).
+        """
+        from workflow import measurement_messages as M
+        _title, body = M.M_SPOT_CR30_EARLY_PRESS.render(n=int(n))
+        self._note(body)
+
+    def _on_cr30_lost(self, reason: str) -> None:
+        """M-SPOT-CR30-GONE. The instrument stopped answering mid-session.
+
+        Basti, beta 16: the CR30 switched itself off, and once it was on again
+        nothing happened until the window was closed. The session is paused
+        rather than ended, every reading stays in the list, and the window
+        asks: reconnect, which looks for the instrument again and carries on,
+        or stop. A reconnect that still finds nothing comes back here.
+        """
+        if self.__dict__.get("_lost_window_open"):
+            return
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
+        log.info("spot read: the CR30 stopped answering (%s)", reason)
+        self._set_read_enabled(False)
+        self._note(reason)
+        title, body = M.M_SPOT_CR30_GONE.render()
+        self._set_status(title)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        again = box.addButton(tr("Reconnect"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        stop = box.addButton(tr("Stop session"),
+                             QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(again)
+        fit_message_box_buttons(box)
+        order_message_box_buttons(box, [again, stop])
+        self._lost_window_open = True
+        try:
+            clicked = self._ask(box)
+        finally:
+            self._lost_window_open = False
+        mgr = self._cr30
+        if clicked is again and mgr is not None:
+            self._set_status(tr("Looking for your CR30…"))
+            mgr.reconnect()
+            return
+        self._end_cr30_session()
 
     def _end_cr30_session(self) -> None:
         mgr, self._cr30 = self._cr30, None
@@ -979,6 +1201,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             return False
         if not (obj is self or (isinstance(obj, QWidget) and self.isAncestorOf(obj))):
             return False
+        if self._delete_key(obj, event):
+            return True
         if event.key() != Qt.Key.Key_Space:
             return False
         if event.modifiers() & (Qt.KeyboardModifier.ControlModifier
@@ -999,7 +1223,140 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._on_take_reading()
         return True
 
+    def _delete_key(self, obj, event) -> bool:
+        """Backspace / Delete remove the selected readings, Cmd+Z puts them
+        back -- ONLY while the readings list itself has the focus.
+
+        Not while a name is being edited (the editor is a QLineEdit, and a
+        Backspace there deletes a character), and not anywhere else in the
+        window, where the keys mean nothing to the list.
+        """
+        from PyQt6.QtGui import QKeySequence
+        # The key's RECEIVER, which is the focus widget: the list itself, and
+        # never the name editor (a QLineEdit inside it) or another control.
+        table = self.__dict__.get("_table")
+        if table is None or obj is not table:
+            return False
+        if table.state() == QAbstractItemView.State.EditingState:
+            return False
+        if event.matches(QKeySequence.StandardKey.Undo):
+            return self._undo_delete()
+        if event.key() not in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            return False
+        if event.modifiers() & (Qt.KeyboardModifier.ControlModifier
+                                | Qt.KeyboardModifier.MetaModifier
+                                | Qt.KeyboardModifier.AltModifier):
+            return False
+        return self._delete_selected() > 0
+
+    def _rows_height(self, rows: int) -> int:
+        """How tall the list is when it shows its heading and *rows* readings."""
+        t = self._table
+        return (t.horizontalHeader().sizeHint().height()
+                + t.verticalHeader().defaultSectionSize() * rows
+                + 2 * t.frameWidth())
+
+    def _log_lines_height(self, lines: int) -> int:
+        """How tall the notes are when they show *lines* lines."""
+        log_ = self._log
+        return (log_.fontMetrics().lineSpacing() * lines
+                + int(log_.document().documentMargin()) * 2
+                + 2 * log_.frameWidth())
+
+    def _show_log(self) -> None:
+        """Open the notes under the list. The first time, at a modest height
+        taken from the list; after that wherever the user left the divide."""
+        if self._log.isHidden():
+            self._log.setVisible(True)
+        if not self._log_sized:
+            self._log_sized = True
+            want = self._log_lines_height(_INITIAL_LOG_LINES)
+            total = sum(self._split.sizes())
+            if total > 0:
+                self._split.setSizes([max(total - want, 1), want])
+
+    def _default_height(self) -> int:
+        """The window's height at first show: the list shows
+        `_DEFAULT_LIST_ROWS` readings with the notes open at their first
+        height, and the window still fits the screen it opens on (a 13-inch
+        MacBook's 1440x900, menu bar and Dock taken off, is the smallest this
+        is held to)."""
+        lay = self.layout()
+        others = lay.sizeHint().height() - self._split.sizeHint().height()
+        want = (others + self._rows_height(_DEFAULT_LIST_ROWS)
+                + self._split.handleWidth()
+                + self._log_lines_height(_INITIAL_LOG_LINES))
+        screen = self.screen()
+        if screen is not None:
+            want = min(want, screen.availableGeometry().height() - _TITLE_BAR)
+        return max(want, self.minimumSizeHint().height())
+
+    def _work_area_width(self) -> int:
+        """The width of the screen this window opens on, menu bar and Dock
+        taken off; 0 when there is no screen to ask."""
+        screen = self.screen()
+        return screen.availableGeometry().width() if screen is not None else 0
+
+    def _wrap_button_row(self) -> None:
+        """Move Save and Close from the end of the button row to a row of
+        their own under it, right-aligned as before."""
+        bottom = self._bottom
+        for i in reversed(range(bottom.count())):
+            item = bottom.itemAt(i)
+            if item.widget() is None:          # the stretch before Save
+                bottom.takeAt(i)
+        bottom.removeWidget(self._save_btn)
+        bottom.removeWidget(self._close_btn)
+        bottom.addStretch(1)
+        second = QHBoxLayout()
+        second.setSpacing(bottom.spacing())
+        second.addStretch(1)
+        second.addWidget(self._save_btn)
+        second.addWidget(self._close_btn)
+        outer = self._outer
+        at = next(i for i in range(outer.count())
+                  if outer.itemAt(i).layout() is bottom)
+        outer.insertLayout(at + 1, second)
+        self._row_wrapped = True
+
+    def _settle_size(self) -> None:
+        """Floors and the first size, measured once the buttons and the list
+        carry the fonts they are painted in."""
+        self._table.setMinimumHeight(self._rows_height(_MIN_LIST_ROWS))
+        self._log.setMinimumHeight(self._log_lines_height(_MIN_LOG_LINES))
+        # THE WINDOW MAY NOT BE NARROWER THAN ITS BUTTON ROW. A fixed 960 sat
+        # below what the row needs, so at the minimum width "Average selected"
+        # and "Delete" were painted over each other; in French and German the
+        # row needs more again.
+        #
+        # …NOR WIDER THAN THE SCREEN IT OPENS ON. French needs 1283 px for the
+        # row, more than a 1280-wide screen has. Then Save and Close move to a
+        # second row under the others, and only if even that is too wide is
+        # the minimum held to the screen.
+        lay = self.layout()
+        if lay is not None:
+            lay.activate()
+            need = lay.minimumSize().width()
+            avail = self._work_area_width()
+            if avail and need > avail and not self._row_wrapped:
+                self._wrap_button_row()
+                lay.activate()
+                need = lay.minimumSize().width()
+            if avail:
+                need = min(need, avail)
+            if need > self.minimumWidth():
+                self.setMinimumWidth(need)
+        # A window nobody has sized gets the default height. Qt's own first
+        # size is capped at two thirds of the screen, which on a 13-inch
+        # screen left the list room for five readings.
+        if not self.testAttribute(Qt.WidgetAttribute.WA_Resized):
+            self.resize(max(self.width(), self.minimumWidth()),
+                        max(self.height(), self._default_height()))
+            self.setAttribute(Qt.WidgetAttribute.WA_Resized, False)
+
     def showEvent(self, event) -> None:   # noqa: N802, D102
+        if not event.spontaneous():
+            self._settle_size()
         super().showEvent(event)
         # A window shown again is a new session's worth of work to protect.
         self._closing = False
@@ -1111,8 +1468,20 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     # ------------------------------------------------------------------
     # Readings
     # ------------------------------------------------------------------
+    def _next_patch_number(self) -> int:
+        """The number for the next automatic name, never one already used.
+
+        It was `len(readings) + 1`, which was right only while nothing could
+        leave the list: with readings deletable, "Patch 2" of three deleted
+        would have made the next reading a second "Patch 3". Taking the larger
+        of the two keeps every earlier behaviour (an Average still counts as a
+        place in the list) and never repeats a number.
+        """
+        self._patch_counter = max(self._patch_counter, len(self._readings)) + 1
+        return self._patch_counter
+
     def _on_reading(self, xyz: tuple, lab: tuple) -> None:
-        name = tr("Patch {n}").format(n=len(self._readings) + 1)
+        name = tr("Patch {n}").format(n=self._next_patch_number())
         reading = SpotReading(name=name, xyz=tuple(xyz), lab=tuple(lab))
         self._readings.append(reading)
         self._append_row(reading)
@@ -1124,7 +1493,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                 name=name, l=lab[0], a=lab[1], b=lab[2])
         )
 
-    def _append_row(self, r: SpotReading) -> None:
+    def _append_row(self, r: SpotReading, row: "int | None" = None) -> None:
         # Follow the newest reading only while the reader is already looking at
         # it — the same rule as the log panes (`ui.widgets.TailFollowLog`), and
         # asked BEFORE the row exists, because a row added first makes the
@@ -1132,7 +1501,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         sb = self._table.verticalScrollBar()
         at_bottom = sb.value() >= sb.maximum()
         self._table.blockSignals(True)
-        row = self._table.rowCount()
+        if row is None or not 0 <= row <= self._table.rowCount():
+            row = self._table.rowCount()
         self._table.insertRow(row)
 
         name_item = QTableWidgetItem(r.name)
@@ -1149,6 +1519,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         swatch = QTableWidgetItem(r.hex)
         swatch.setFlags(swatch.flags() & ~Qt.ItemFlag.ItemIsEditable)
         swatch.setBackground(QColor(r.hex))
+        swatch.setForeground(QColor(_ink_on(r.hex)))
         swatch.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.setItem(row, 7, swatch)
 
@@ -1168,6 +1539,112 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
 
     def _update_average_btn(self) -> None:
         self._avg_btn.setEnabled(len(self._selected_rows()) >= 2)
+        self._sync_delete_btn()
+
+    # ------------------------------------------------------------------
+    # Deleting single readings
+    # ------------------------------------------------------------------
+    def _sync_delete_btn(self) -> None:
+        """Delete while something is selected; Undo delete while nothing is
+        and a delete can still be put back. The Clear button's pattern."""
+        btn = self.__dict__.get("_del_btn")
+        if btn is None:
+            return
+        if self._selected_rows():
+            btn.setText(tr("Delete"))
+            btn.setEnabled(True)
+        elif self._deleted:
+            btn.setText(tr("Undo delete"))
+            btn.setEnabled(True)
+        else:
+            btn.setText(tr("Delete"))
+            btn.setEnabled(False)
+
+    def _on_delete_button(self) -> None:
+        if self._selected_rows():
+            self._delete_selected()
+        elif self._deleted:
+            self._undo_delete()
+
+    def _delete_selected(self) -> int:
+        """Remove the selected readings from the list and the table.
+
+        No question first, because nothing is lost: Undo delete (or Cmd+Z in
+        the list) puts them back in their places until the next reading. The
+        names of the readings that stay are not touched, so a number written
+        down beside a sample still points at the same reading, and the next
+        reading never re-uses a number (`_next_patch_number`). Returns how
+        many went.
+        """
+        rows = self._selected_rows()
+        if not rows:
+            return 0
+        # Remember the counter before anything leaves, so a later reading
+        # cannot take the number of one that was deleted.
+        self._patch_counter = max(self._patch_counter, len(self._readings))
+        batch = [(r, self._readings[r]) for r in rows
+                 if 0 <= r < len(self._readings)]
+        self._table.blockSignals(True)
+        try:
+            for r, _reading in sorted(batch, reverse=True):
+                del self._readings[r]
+                self._table.removeRow(r)
+        finally:
+            self._table.blockSignals(False)
+        self._table.clearSelection()
+        self._deleted.append(batch)
+        # The list no longer matches anything saved, so closing asks again
+        # while there is something left to lose.
+        self._unsaved = bool(self._readings)
+        self._save_btn.setEnabled(bool(self._readings))
+        self._avg_btn.setEnabled(False)
+        self._sync_clear_btn()
+        self._sync_delete_btn()
+        if len(batch) == 1:
+            self._set_status(tr("Deleted {name}.").format(name=batch[0][1].name))
+        else:
+            self._set_status(tr("Deleted {n} readings.").format(n=len(batch)))
+        return len(batch)
+
+    def _undo_delete(self) -> bool:
+        """Put the last deleted readings back where they were."""
+        if not self._deleted:
+            return False
+        batch = self._deleted.pop()
+        for r, reading in sorted(batch):
+            r = min(r, len(self._readings))
+            self._readings.insert(r, reading)
+            self._append_row(reading, r)
+        self._unsaved = True
+        self._save_btn.setEnabled(True)
+        self._sync_clear_btn()
+        self._sync_delete_btn()
+        if len(batch) == 1:
+            self._set_status(tr("Put back {name}.").format(name=batch[0][1].name))
+        else:
+            self._set_status(tr("Put back {n} readings.").format(n=len(batch)))
+        return True
+
+    def _table_menu(self):
+        """The list's right-click menu. Built here, shown by the caller, so a
+        test can read it without opening a popup."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self._table)
+        act = menu.addAction(tr("Delete"))
+        act.setEnabled(bool(self._selected_rows()))
+        act.triggered.connect(self._delete_selected)
+        if self._deleted:
+            undo = menu.addAction(tr("Undo delete"))
+            undo.triggered.connect(self._undo_delete)
+        return menu
+
+    def _on_table_menu(self, pos) -> None:
+        # A right-click on a row that is not selected acts on THAT row, the
+        # way a list in Finder does, rather than on a selection elsewhere.
+        idx = self._table.indexAt(pos)
+        if idx.isValid() and idx.row() not in self._selected_rows():
+            self._table.selectRow(idx.row())
+        self._table_menu().exec(self._table.viewport().mapToGlobal(pos))
 
     def _on_average_selected(self) -> None:
         rows = self._selected_rows()
@@ -1197,7 +1674,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         """A new reading replaces what Undo would put back."""
         if self._cleared:
             self._cleared = []
+        self._deleted = []
         self._sync_clear_btn()
+        self._sync_delete_btn()
 
     def _on_clear(self) -> None:
         """Clear the list, or put back the list that was cleared.
@@ -1212,6 +1691,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         """
         if not self._readings and self._cleared:
             restored, self._cleared = self._cleared, []
+            self._patch_counter = max(self._patch_counter,
+                                      self._cleared_counter)
             for r in restored:
                 self._readings.append(r)
                 self._append_row(r)
@@ -1226,11 +1707,17 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         if not self._confirm_clear():
             return
         self._cleared = list(self._readings)
+        # A cleared list starts again at "Patch 1", as it always has; the
+        # count is kept with the readings so Undo clear restores both.
+        self._cleared_counter = max(self._patch_counter, len(self._readings))
+        self._patch_counter = 0
+        self._deleted = []
         self._readings.clear()
         self._table.setRowCount(0)
         self._save_btn.setEnabled(False)
         self._avg_btn.setEnabled(False)
         self._sync_clear_btn()
+        self._sync_delete_btn()
 
     def _ask(self, box: QMessageBox):
         """Show a question window and return the button that was pressed.

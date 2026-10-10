@@ -1988,6 +1988,12 @@ _SKIP_BUCKETS: tuple = (
         "nothing to scroll", "not translated in this catalogue",
         "no recorded count",
     )),
+    # The vendor-driver checks read the installed Canon/Epson PPDs and media
+    # databases; CI has none, and this Mac keeps only the PRO-300 and
+    # ET-8550 drivers since the test drivers were removed (2026-10-10).
+    ("a printer driver is not installed here", (
+        "no ppd for", "no canon driver installed",
+    )),
     ("ArgyllCMS is not installed here", (
         "argyll", "targen", "printtarg", "colprof", "scanin", "colverify",
         "ref/",

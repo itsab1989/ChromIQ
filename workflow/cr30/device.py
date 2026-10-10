@@ -87,6 +87,8 @@ class CR30:
         #: inherits the first one's.
         self.unit_id: "str | None" = None
         self.last_identity = None
+        #: What the unit said about itself at connect (`read_device_info`).
+        self.device_info = None
 
     # -- construction ----------------------------------------------------
     @classmethod
@@ -269,6 +271,31 @@ class CR30:
                         or None)
         return ident
 
+    def read_device_info(self, timeout: float = ble.DEVICE_INFO_TIMEOUT_S):
+        """Model, serial, internal id, software and hardware version.
+
+        USB: from the identity query ChromIQ already sends (asked here only
+        if this connection has not asked it yet). Bluetooth: the vendor app's
+        read-only `BB 12 01`, once, bounded by *timeout*. Raises on failure;
+        the caller logs it and carries on -- this must never stop anybody
+        measuring.
+        """
+        from . import device_info as _di
+        if self.kind == "usb":
+            ident = self.last_identity
+            if ident is None or isinstance(ident, dict):
+                ident = self.identify()
+            info = _di.from_identity(ident, "usb")
+        else:
+            reader = getattr(self._t, "read_device_info", None)
+            if reader is None:
+                raise MeasurementError(
+                    "this Bluetooth transport cannot ask for device info")
+            raw = reader(timeout=timeout)
+            info = _di.parse_ble_reply(raw)
+        self.device_info = info
+        return info
+
     def trigger_unsafe(self) -> None:
         """Send the raw "measure now" command. Not for casual use.
 
@@ -397,7 +424,8 @@ class CR30:
     def read_next_measurement(self, *, timeout: float = 180.0,
                               cancelled=None, poll: float = 0.25,
                               for_learning: bool = False,
-                              trigger_wanted=None) -> Measurement:
+                              trigger_wanted=None,
+                              drop_stale: bool = True) -> Measurement:
         """Wait for the operator to press the instrument's button, then read it.
 
         THIS, not :meth:`read_measurement`, is the spot workflow. The CR30 holds
@@ -420,6 +448,12 @@ class CR30:
 
         *cancelled* is called between polls; return True from it to abort a wait
         the user has given up on.
+
+        *drop_stale* False keeps the presses the instrument has announced so
+        far (Bluetooth only; see :meth:`drop_stale_presses`). The caller passes
+        it when it has ALREADY dropped them for the arming this read belongs
+        to, so a press made after the window said Ready is collected instead
+        of being thrown away as stale.
         """
         import time
         deadline = time.monotonic() + timeout
@@ -538,7 +572,40 @@ class CR30:
         # exactly the press it had just asked for, then waited ninety seconds
         # in silence. Over Bluetooth, where learning needs two presses and
         # there is no gate flag, that made the feature impossible as written.
-        dropped = 0 if for_learning else self._t.drop_events()
+        if not for_learning and drop_stale:
+            self.drop_stale_presses()
+
+        try:
+            return self._ble_wait_and_read(
+                deadline, timeout, cancelled, for_learning, trigger_wanted,
+                wait_for_event)
+        except ble.LinkLost as exc:
+            # THE RADIO SAID THE LINK HAS GONE, so say so -- at once. Before
+            # this the wait never looked: a CR30 that switched itself off was
+            # waited for until the re-arm and then waited for again, for ever,
+            # and nothing on screen changed (Basti, beta 16). DeviceLost is the
+            # one exception every caller already treats as "the instrument is
+            # not there any more".
+            raise DeviceLost(str(exc)) from exc
+
+    def drop_stale_presses(self) -> int:
+        """Forget the presses the instrument announced before now; how many.
+
+        Bluetooth only: over USB a press is an unsolicited frame in the serial
+        buffer and nothing is dropped here (the count is 0).
+
+        WHEN this runs is the whole point. It used to run only at the start of
+        every read, which is AFTER the window had said Ready -- the read
+        thread had still to be scheduled -- so a press made in that gap was the
+        first thing thrown away (beta 17 review: up to about a second, and
+        "discarded 1 reading taken before this patch was armed" in the log
+        while the window said nothing). A host that says Ready calls this
+        first and then reads with ``drop_stale=False``.
+        """
+        drop = getattr(self._t, "drop_events", None)
+        if self.kind == "usb" or not callable(drop):
+            return 0
+        dropped = drop()
         if dropped:
             # Reported, not merely logged: to the operator this is a press that
             # did nothing, and silence is what made every earlier version of
@@ -549,7 +616,12 @@ class CR30:
             report = getattr(self, "on_dropped", None)
             if callable(report):
                 report(dropped)
+        return dropped
 
+    def _ble_wait_and_read(self, deadline, timeout, cancelled, for_learning,
+                           trigger_wanted, wait_for_event) -> Measurement:
+        """The Bluetooth half of :meth:`read_next_measurement`."""
+        import time
         while True:
             if cancelled is not None and cancelled():
                 raise MeasurementError("cancelled while waiting for the "
@@ -584,7 +656,15 @@ class CR30:
             # It has acted. Read what it now holds — `_read_when_ready` waits
             # out the zero-filled "not finished yet" reply rather than guessing
             # at a sleep long enough to cover every case.
+            t_event = time.monotonic()
             m = self._read_when_ready(deadline)
+            # TIMED, for Basti's "one reading arrived noticeably later than
+            # the others" (beta 16). His log could not answer it: nothing
+            # recorded when a press was signalled or when its reading was in
+            # hand. A slow one now names itself, and `_read_when_ready` says
+            # when the instrument was still busy and had to be asked again.
+            log.info("CR30 BLE: reading collected %.2f s after the instrument "
+                     "signalled the press", time.monotonic() - t_event)
             # `for_learning` reads a press that is SUPPOSED to be gated: the
             # capped press that teaches this unit its own tile constant. The
             # magnet guard would refuse exactly that, so it is skipped -- but
@@ -619,6 +699,8 @@ class CR30:
                 last = exc
                 if _time.monotonic() > deadline:
                     break
+                log.info("CR30: the instrument was not ready with its "
+                         "reading yet (%s); asking again", exc)
                 _time.sleep(0.5)
             except Exception as exc:
                 # A link that has GONE, as opposed to one that is busy. bleak

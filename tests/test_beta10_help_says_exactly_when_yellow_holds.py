@@ -22,9 +22,14 @@ LEARNED = ("off in the same way as a confirmed patch of the range, as much or "
 
 
 def _flat(src: str) -> str:
-    """The source's string literals joined, as the reader sees the text."""
-    import re
-    return "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', src))
+    """The source's string literals, as the reader sees the text, one per
+    line. Read with ``ast`` (beta 17): a regex over the quote marks lost its
+    place at the first docstring with a quotation in it, and only matched the
+    texts after it by the luck of how many quote marks came before."""
+    import ast
+    return "\n\n".join(n.value for n in ast.walk(ast.parse(src))
+                       if isinstance(n, ast.Constant)
+                       and isinstance(n.value, str))
 
 
 def test_no_help_says_a_confirmation_is_never_forgotten():
@@ -38,8 +43,7 @@ def test_the_limits_help_says_what_ends_a_confirmation():
     assert ("It ends only when you read that patch once more and the new "
             "reading is not outlined or gives a different colour.") in limits
     # Preferences carries the same paragraph, word for word (one translation).
-    assert limits.replace("\n", "\\n") in _flat(
-        inspect.getsource(settings_dialog))
+    assert limits in _flat(inspect.getsource(settings_dialog))
 
 
 def test_the_learned_rule_is_the_same_in_the_hover_help_and_preferences():

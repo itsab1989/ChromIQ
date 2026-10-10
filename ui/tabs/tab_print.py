@@ -97,6 +97,17 @@ from ui.warning_sign import inform, set_warning_icon, warn
 _PAPER_QUALITY_OPTS = ("CNIJPrintQuality", "EPIJ_Qual")
 
 
+def _with_plain_paper(body: str) -> str:
+    """A macOS Print Chart help, with the plain-paper paragraph after the
+    paragraph that explains the paper types (beta 17). In both macOS helps
+    that is the second paragraph (the paper profile and the media type), so
+    it goes third; a shorter help gets it at the end."""
+    paras = body.split("\n\n")
+    extra = tr(_TT_PLAIN_PAPER)
+    at = 2 if len(paras) > 2 else len(paras)
+    return "\n\n".join(paras[:at] + [extra] + paras[at:])
+
+
 def _html_escape(text: str) -> str:
     import html
     return html.escape(text, quote=False)
@@ -138,6 +149,19 @@ _TT_BODY_PRINT_MACOS_BYPASS = (
     "paper feed), enable \"Use default macOS printer dialog\" in Preferences. "
     "The dialog works with any printer."
 )
+
+#: Beta 17 (Basti, 2026-10-09, approving the help drafted in
+#: ~/Desktop/ChromIQ-work/2026-10-09_plain_paper_apps/REPORT.md): measured on
+#: a Canon PRO-300, every macOS app puts plain paper into the same printer
+#: state, Canon's own colour processing on, and so does ChromIQ. Added after
+#: the paragraph that explains the paper types, on both macOS routes.
+_TT_PLAIN_PAPER = (
+    "On plain paper the Canon driver always uses its own colour processing, "
+    "whatever program prints. ChromIQ prints the chart the same way. The "
+    "profile therefore fits prints from Photoshop (\"Photoshop manages "
+    "colours\"), Preview and other programs where you choose this profile in "
+    "the colour settings, as long as you pick Plain Paper and the same print "
+    "quality there.")
 
 _TT_BODY_PRINT_MACOS_NATIVE = (
     "This step opens macOS's standard print dialog so you can pick paper "
@@ -2707,9 +2731,12 @@ class TabPrint(QWidget):
             return tr(_TT_TITLE_PRINT), tr(_TT_BODY_PRINT_LINUX)
         if is_macos():
             if bool(self._settings.get("use_native_print_dialog", False)):
-                return tr(_TT_TITLE_PRINT), tr(_TT_BODY_PRINT_MACOS_NATIVE)
-            return tr(_TT_TITLE_PRINT), tr(_TT_BODY_PRINT_MACOS_BYPASS)
-        return tr(_TT_TITLE_PRINT), tr(_TT_BODY_PRINT_MACOS_BYPASS)
+                return tr(_TT_TITLE_PRINT), _with_plain_paper(
+                    tr(_TT_BODY_PRINT_MACOS_NATIVE))
+            return tr(_TT_TITLE_PRINT), _with_plain_paper(
+                tr(_TT_BODY_PRINT_MACOS_BYPASS))
+        return tr(_TT_TITLE_PRINT), _with_plain_paper(
+            tr(_TT_BODY_PRINT_MACOS_BYPASS))
 
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys

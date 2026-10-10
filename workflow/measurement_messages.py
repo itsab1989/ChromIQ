@@ -1994,73 +1994,107 @@ M_PATCH_EXPECTED_PREDICTED = _m(
     _CARD_EXPECTED_PREDICTED,
     approved=True)
 
-# --- PROPOSED: the neighbour check on a patch's hover card ------------------
-#: #182 beta 11. Knut approved the check itself in 5983470377 (answer 5,
-#: "Build the neighbour check for profiling charts?" "Yes"), on section C of
-#: the beta 10 analysis: a patch whose reading does not fit the patches
-#: nearest to it in expected colour is drawn red, even below the limit
-#: (workflow/neighbour_check.py). The words are ours and wait here. The card
-#: breaks its lines by hand, so each line is one line on the card. {n} is 2,
-#: 3 or 4 (never fewer: a patch with fewer comparisons is not judged; 2 since
-#: beta 15's B2+), so no language needs a singular form. {excess} is the median of how much further
-#: its reading is from each of theirs than its expected colour is from theirs,
-#: the very figure the buffer is compared with, and {buffer} the user's buffer
-#: (ΔE*ab, one decimal each). The review of beta 11 replaced "they should read
-#: within ΔE {expected} of it, / but it reads ΔE {measured} away from them.":
-#: two separate medians, whose difference was not over the buffer on 180 of
-#: 466 suspects of the real sheets, so the card seemed to contradict itself.
-_CARD_NB_RED = "Red outline: it does not fit its neighbours"
-_CARD_NB_1 = "Its reading does not fit the {n} patches"
-_CARD_NB_1_ALSO = "It also does not fit the {n} patches"
-_CARD_NB_2 = "nearest in colour, read in other strips:"
-_CARD_NB_3 = "it is ΔE {excess} further from their readings"
-_CARD_NB_4 = "than the expected colours are (your buffer {buffer})."
-_CARD_NB_5 = "Probably a misread."
-#: A yellow card (a re-read gave the same colour, similar patches, or a
-#: learned range) of a patch the limit did not flag: instead of "ΔE*ab ...
-#: reached your limit ...".
-_CARD_NB_YELLOW = "Red before: it did not fit its neighbours"
+# --- APPROVED: the neighbour check on a patch's hover card (beta 17) -------
+#: Knut's four steps (#182 6071673457, adopted in 6078174421) and his card
+#: wording, 6078174421 ("This should be clear enough"), drawn in the k56
+#: mock-ups and approved in 6084176226 (Question 5, "Are these the cards you
+#: want?" "Yes, good."). Whole sentences: the card wraps them to its width
+#: (``ui.tiff_preview.card_wrap``), so a translation is one sentence too.
+#: {d}: ΔE*ab, one decimal, never negative (the sign is the word: further /
+#: closer; at 0.0 no value is shown); {n}: 2 to 4, never fewer (a patch with
+#: fewer neighbours is not judged), so no language needs a singular form;
+#: {limit}: the Neighbour limit of the chart type, one decimal.
+#:
+#: Line 1, 2 or 3 stand on EVERY card of a patch with at least 2 neighbours,
+#: under "Measured". The headline is the red card's, under the separator,
+#: followed by the two re-read lines and "Same value after a re-read:". Line 4
+#: replaces "ΔE*ab ... reached the patch error limit ..." on the yellow card
+#: of a patch its re-read confirmed. Lines 7 and 8 (strips) or 7b and 8
+#: (patch by patch) end EVERY card (Knut 6071004702, 6082015002).
+_CARD_NB_RED_S = ("Red outline: ΔE {d} further from its expected colour than "
+                  "the {n} patches nearest in colour (median), passing the "
+                  "neighbour limit ({limit}).")
+#: The red card's second sentence, on a line of its own as in the mock-up.
+_CARD_NB_MISREAD_S = "Probably a misread: read it again."
+_CARD_NBC_FURTHER_S = ("This patch is ΔE {d} further from its expected colour "
+                       "than the {n} patches nearest in colour (median).")
+_CARD_NBC_CLOSER_S = ("This patch is ΔE {d} closer to its expected colour "
+                      "than the {n} patches nearest in colour (median).")
+_CARD_NBC_EQUAL_S = ("This patch has equal distance from its expected colour "
+                     "as the {n} patches nearest in colour (median).")
+_CARD_NB_YELLOW_S = ("Red before: ΔE {d} further from its expected colour "
+                     "than the {n} patches nearest in colour (median), passing "
+                     "the neighbour limit ({limit}).")
 #: Knut, #182 5984174575: "The neighbour check needs a re-read to confirm";
-#: similar patches and a learned colour range apply only to the limit. On
-#: the card of a neighbour suspect, and of a patch red for both reasons
-#: instead of its colour range's lines.
+#: similar patches and a learned colour range apply only to the patch error
+#: limit. Two lines, as the card has always shown them.
 _CARD_NB_REREAD_1 = "Only its own re-read can turn it yellow,"
 _CARD_NB_REREAD_2 = "not similar patches or its colour range."
-#: k43, APPROVED by Knut in #182 6059912998, answer 5: *"May the help and
-#: hover card say: 'Checked again after each strip: a patch can turn red
-#: later, when patches near it in colour are read'?"* "Yes". The card breaks
-#: it in three, at the colon and the comma, so no line is wider than the
-#: card's others (beta 15 follow-up: broken only at the comma, its first
-#: half made the red card about 500 px wide in every language); the words
-#: are unchanged. The Preferences help carries it whole
-#: (:data:`NB_CHECKED_AGAIN`). Lines 10 to 12 of M-PATCH-NEIGHBOUR.
-NB_CHECKED_AGAIN = ("Checked again after each strip: a patch can turn red "
-                    "later, when patches near it in colour are read")
-_CARD_NB_LATER_1 = "Checked again after each strip:"
-_CARD_NB_LATER_1B = "a patch can turn red later,"
-_CARD_NB_LATER_2 = "when patches near it in colour are read."
-#: b15 item 10 (Knut #182 6065640028, approved by Basti): on EVERY card of
-#: a patch the neighbour check judges, under "Measured", whether flagged or
-#: not: how far the patch is from its expected colour compared with the
-#: patches nearest to it in colour (`NeighbourCheck.comparison`, the B2+
-#: median). {n}: 2 to 4; {d}: ΔE*ab, one decimal, never negative (the sign
-#: is the word: further / closer). Lines 13 to 18 of M-PATCH-NEIGHBOUR.
-_CARD_NBC_1 = "Against the {n} patches nearest in colour:"
-_CARD_NBC_FURTHER = "ΔE {d} further from its expected colour"
-_CARD_NBC_CLOSER = "ΔE {d} closer to its expected colour"
-_CARD_NBC_2 = "than they are from theirs (median)."
-_CARD_NBC_FEW = "Not compared with its neighbours yet:"
-_CARD_NBC_FEW_2 = "fewer than 2 near it in colour are read."
+_CARD_LATER_STRIP_S = ("Checked again after each strip is read: a patch can "
+                       "turn red later, when patches near it in colour are "
+                       "read.")
+_CARD_LATER_PATCH_S = ("Checked again after each patch is read: a patch can "
+                       "turn red later, when patches near it in colour are "
+                       "read.")
+_CARD_SEE_PREFS_S = "See Preferences ▸ Measurement for threshold values."
+#: The headline names the block in the model; the card never shows it.
+_CARD_NB_HEADLINE = "Neighbour check on the patch card"
 M_PATCH_NEIGHBOUR = _m(
     "M-PATCH-NEIGHBOUR",
-    _CARD_NB_RED,
-    "\n".join((_CARD_NB_1, _CARD_NB_1_ALSO, _CARD_NB_2, _CARD_NB_3,
-               _CARD_NB_4, _CARD_NB_5, _CARD_NB_YELLOW, _CARD_NB_REREAD_1,
-               _CARD_NB_REREAD_2, _CARD_NB_LATER_1, _CARD_NB_LATER_1B,
-               _CARD_NB_LATER_2,
-               _CARD_NBC_1, _CARD_NBC_FURTHER, _CARD_NBC_CLOSER, _CARD_NBC_2,
-               _CARD_NBC_FEW, _CARD_NBC_FEW_2)),
+    _CARD_NB_HEADLINE,
+    "\n".join((_CARD_NB_RED_S, _CARD_NB_MISREAD_S, _CARD_NBC_FURTHER_S, _CARD_NBC_CLOSER_S,
+               _CARD_NBC_EQUAL_S,
+               _CARD_NB_YELLOW_S, _CARD_NB_REREAD_1, _CARD_NB_REREAD_2,
+               _CARD_LATER_STRIP_S, _CARD_LATER_PATCH_S, _CARD_SEE_PREFS_S)),
+    approved=True)
+
+# --- PROPOSED: the neighbour check's lines the mock-ups did not show -------
+#: Beta 17, ours. Text approved by Basti, 2026-10-10; waiting for Knut,
+#: so still PROPOSED. Line 1 (the headline): a patch past the patch
+#: error limit that ALSO fails the neighbour check, after the limit's lines.
+#: Line 2: a patch with fewer than 2 read patches within the colour-neighbour
+#: radius, instead of line 1, 2 or 3 of M-PATCH-NEIGHBOUR.
+_CARD_NB_ALSO_S = ("It is also ΔE {d} further from its expected colour than "
+                   "the {n} patches nearest in colour (median), passing the "
+                   "neighbour limit ({limit}).")
+_CARD_NBC_FEW_S = ("Not compared with the patches nearest in colour yet: "
+                   "fewer than 2 within the colour-neighbour radius are read.")
+_CARD_NB_VARIANTS_HEADLINE = "Neighbour check on the patch card, two more lines"
+M_PATCH_NEIGHBOUR_VARIANTS = _m(
+    "M-PATCH-NEIGHBOUR-VARIANTS",
+    _CARD_NB_VARIANTS_HEADLINE,
+    "\n".join((_CARD_NB_ALSO_S, _CARD_NBC_FEW_S)),
     approved=False)
+
+# --- APPROVED: the patch error limit on a patch's hover card (beta 17) -----
+#: The k56 mock-ups card_red_patch_error_limit and card_red_verification_limit,
+#: approved by Knut in #182 6084176226 ("Yes, good."): the limit is named by
+#: its proper name, with its value and the chart type it belongs to, and the
+#: strip test by its name. {de}: the patch's ΔE*ab, {limit}: the Patch error
+#: limit, one decimal each; {kind}: one of the four chart-type phrases below.
+#: Line 1 or 2 follows the headline; line 1 alone also stands on a yellow
+#: card instead of the old "reached your limit".
+_CARD_LIMIT_HEAD = "Red outline: a large difference"
+_CARD_LIMIT_S = "ΔE*ab {de} reached the patch error limit ({limit}, {kind})."
+_CARD_LIMIT_FENCED_S = ("ΔE*ab {de} reached the patch error limit ({limit}, "
+                        "{kind}), and it stands out from its strip (strip "
+                        "test).")
+_CARD_KIND_ESTIMATED = "profiling charts with estimated colours"
+_CARD_KIND_ACCURATE = "profiling charts made with a pre-conditioning profile"
+_CARD_KIND_VERIFICATION = "verification charts"
+_CARD_KIND_CALIBRATION = "calibration charts"
+CARD_KIND_PHRASES = {
+    "estimated": _CARD_KIND_ESTIMATED, "accurate": _CARD_KIND_ACCURATE,
+    "verification": _CARD_KIND_VERIFICATION,
+    "calibration": _CARD_KIND_CALIBRATION,
+}
+M_PATCH_LIMIT = _m(
+    "M-PATCH-LIMIT",
+    _CARD_LIMIT_HEAD,
+    "\n".join((_CARD_LIMIT_S, _CARD_LIMIT_FENCED_S, _CARD_KIND_ESTIMATED,
+               _CARD_KIND_ACCURATE, _CARD_KIND_VERIFICATION,
+               _CARD_KIND_CALIBRATION)),
+    approved=True)
 
 # --- APPROVED: the green outline of a misread a re-read corrected ----------
 #: Knut, #182 5984277558 ("Ok") to our 5984237879: "Green outline: corrected
@@ -2083,7 +2117,7 @@ M_PATCH_CORRECTED = _m(
 #: Not in Knut's example, so ours and waiting: the middle line when the LIMIT
 #: flagged the first reading (his line is the neighbour check's), and the
 #: closing window's line for one patch.
-_CARD_GREEN_LIMIT = "reached your limit; the new one is below it."
+_CARD_GREEN_LIMIT = "reached the patch error limit; the new one is below it."
 _SUM_CORRECTED_ONE = "1 misread corrected by a re-read: patch {locs}."
 M_PATCH_CORRECTED_VARIANTS = _m(
     "M-PATCH-CORRECTED-VARIANTS",
@@ -2105,9 +2139,9 @@ M_PATCH_CORRECTED_VARIANTS = _m(
 _CARD_UNSETTLED_HEAD = "Red outline: the readings do not agree"
 _CARD_UNSETTLED_DE = "ΔE*ab {de} now; before: {prevs}"
 _CARD_UNSETTLED_TWO_1 = "The two readings are not similar,"
-_CARD_UNSETTLED_TWO_2 = "and both are past your limit {limit}."
+_CARD_UNSETTLED_TWO_2 = "and both are past the patch error limit ({limit})."
 _CARD_UNSETTLED_MANY_1 = "The {n} readings are not similar,"
-_CARD_UNSETTLED_MANY_2 = "and all are past your limit {limit}."
+_CARD_UNSETTLED_MANY_2 = "and all are past the patch error limit ({limit})."
 _CARD_UNSETTLED_3 = "Read it again: a reading that matches"
 _CARD_UNSETTLED_4 = "one of them shows which value is real."
 M_PATCH_UNSETTLED = _m(
@@ -3141,6 +3175,47 @@ M_SPOT_UNSAVED = _m(
              "exactly as it is, with the reading still in the list.",
     count_key="n",
     approved=False)
+
+# --- APPROVED: the CR30 stopped answering during a spot session ------------
+#
+# Basti, beta 16 (2026-10-09): the CR30 switched itself off during a session
+# in Tools ▸ Read single patches, Stop did nothing, and once it was on again
+# nothing happened until the window was closed. The session now pauses, keeps
+# every reading, and asks. The mechanism is in `ui/dialogs/spot_read_dialog.py`
+# and `workflow/cr30_spot_manager.py`. Wording approved by Basti, 2026-10-10,
+# who also confirmed that one short press of the button switches a CR30 on.
+M_SPOT_CR30_GONE = _m(
+    "M-SPOT-CR30-GONE",
+    "Your CR30 is not answering",
+    "ChromIQ has lost the connection to your CR30. Usually it has switched "
+    "itself off to save its battery, its USB cable has come out, or it is out "
+    "of Bluetooth range.\n\nEvery reading in this window is kept.\n\n"
+    "Switch the instrument on again (press its button once) or plug it back "
+    "in, then choose \u201cReconnect\u201d. ChromIQ looks for it and you carry "
+    "on reading. If it is still not there, this window comes back.\n\n"
+    "To finish instead, choose \u201cStop session\u201d. Your readings stay in "
+    "the list either way.",
+    approved=True)
+
+# --- APPROVED: presses from before Ready were not used in a spot session ---
+#
+# Beta 17 review (2026-10-09): a press of the CR30's button right after the
+# spot window said Ready was thrown away, with only a log line to show for it.
+# Fixed: the window now says Ready only once the read is really listening, and
+# every press after that is taken. A press the instrument announced BEFORE
+# Ready (typically while the calibration's last window, which says to press the
+# button, was still open) is still not used; this is what the window's log
+# says then, so nobody waits for a row that will not come. Our words;
+# approved by Basti, 2026-10-10 (both variants).
+M_SPOT_CR30_EARLY_PRESS = _m(
+    "M-SPOT-CR30-EARLY-PRESS",
+    "A reading taken before Ready was not used",
+    "{n} readings were taken before this window was ready for them, so they "
+    "were not used. Take the reading again.",
+    body_one="One reading was taken before this window was ready for it, so "
+             "it was not used. Take the reading again.",
+    count_key="n",
+    approved=True)
 
 # --- PROPOSED: the reference file covers only part of the target -----------
 #: Review 5, 2026-09-03, finding D. A reference file holding the first 48 rows
@@ -5104,7 +5179,8 @@ CATALOGUE = {m.id: m for m in (
     M_PATCHSET_CAL_INKS, M_VIEW_RGB_ONLY,
     M_PATCH_COLOUR_RANGE,
     M_PATCH_EXPECTED_PREDICTED,
-    M_PATCH_NEIGHBOUR, M_MEASURED_SUSPECTS,
+    M_PATCH_NEIGHBOUR, M_PATCH_NEIGHBOUR_VARIANTS, M_PATCH_LIMIT,
+    M_MEASURED_SUSPECTS,
     M_PATCH_CORRECTED, M_PATCH_CORRECTED_VARIANTS, M_PATCH_UNSETTLED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
@@ -5137,7 +5213,7 @@ CATALOGUE = {m.id: m for m in (
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
     M_REPORT_NOT_SAVED,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
-    M_SPOT_CLEAR, M_SPOT_UNSAVED,
+    M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE, M_SPOT_CR30_EARLY_PRESS,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
     M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,

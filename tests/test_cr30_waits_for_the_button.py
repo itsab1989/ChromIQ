@@ -38,7 +38,8 @@ class FakeDevice:
         self._pending = Measurement(WL, [float(level)] * 31)
 
     def read_next_measurement(self, *, timeout=180.0, cancelled=None, poll=0.01,
-                              for_learning=False, trigger_wanted=None):
+                              for_learning=False, trigger_wanted=None,
+                              drop_stale=True):
         # MIRROR THE REAL SIGNATURE. A stub that accepts fewer arguments than
         # the object it stands in for reports the caller broken the moment the
         # real one grows a parameter -- which is what happened when the

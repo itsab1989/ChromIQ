@@ -5,9 +5,11 @@ Knut, #182 5984174575: the charts whose file carries ArgyllCMS's
 (``targen -c``). Beta 11 called them "a chart made from a profile", which
 reads like a FROM PROFILE GAMUT chart, a different thing that never carries
 the keyword. This keeps the wrong name out of every user-facing string and
-keeps the right one, in every catalogue, on the four places that name them:
-the Preferences ▸ Measurement row and its tooltip, the limits help paragraph
-(Preferences and the Measure tab) and the hover card.
+keeps the right one, in every catalogue, on the places that name them: since
+beta 17 the Preferences ▸ Measurement table's column (Knut 6078174421:
+"Profiling charts made with a pre-conditioning profile"), the defaults line,
+the limits help paragraph (Preferences and the Measure tab) and the hover
+card's chart-type phrase.
 
 FROM PROFILE GAMUT ("built from the profile's gamut") and "a verification
 judged against its profile" are different charts and keep their names.
@@ -31,12 +33,12 @@ _WRONG = re.compile(
     r"\b(?:chart|charts|target|targets)\s+(?:made|generated|created)\s+"
     r"(?:from|with)\s+(?:a|the|its|your)\s+profile\b(?!'s)", re.I)
 
-#: The four strings that name these charts.
-CARD = "(limit for a chart made with a pre-conditioning profile)"
-LABEL = "on a chart made with a pre-conditioning profile:"
-DEFAULT = ("**Default:** 95 ΔE for estimated colours, 20 ΔE for a chart made "
-           "with a pre-conditioning profile, 10 ΔE for a verification judged "
-           "against its profile")
+#: The strings that name these charts (beta 17).
+CARD = "profiling charts made with a pre-conditioning profile"
+LABEL = "Profiling charts made with a pre-conditioning profile"
+DEFAULT = ("**Default:** ΔE*ab 95 on profiling charts with estimated colours, "
+           "20 on profiling charts made with a pre-conditioning profile, 5 on "
+           "verification charts and 95 on calibration charts")
 
 #: How each catalogue already renders "pre-conditioning profile" (its
 #: "Select pre-conditioning profile" and kin), stem only.
@@ -69,8 +71,8 @@ def test_the_four_places_use_the_term():
         assert k in keys, k
     help_ = _limits_help()
     assert help_ in keys
-    assert "  • A chart made with a pre-conditioning profile, default ΔE 20:" \
-        in help_
+    assert ("  • Profiling charts made with a pre-conditioning profile, "
+            "default 20:") in help_
 
 
 def test_the_measure_tab_shows_the_same_paragraph():
@@ -97,4 +99,4 @@ def test_from_profile_gamut_keeps_its_name():
     from i18n_extract import extract_keys
     keys = extract_keys()
     assert any("built from the profile's gamut" in k for k in keys)
-    assert "(limit for a chart judged against its profile)" in keys
+    assert "Verification charts" in keys

@@ -191,7 +191,7 @@ def test_reading_then_ending_leaves_every_outline_as_it_was(tmp_path):
 def test_the_repaint_applies_the_strip_test_in_strip_mode(tmp_path):
     # A low limit: many patches pass it, only strip outliers are flagged live.
     settings = {"chartread_engine": "chromiq",
-                pf.ESTIMATED_KEY: 25.0, "patch_warn_outlier_fence": True}
+                pf.ESTIMATED_KEY: 25.0, "patch_strip_test_estimated": True}
     tab = _tab(tmp_path, settings)
     _live_session(tab)
     for c in "AFO":
@@ -208,7 +208,7 @@ def test_the_repaint_applies_the_strip_test_in_strip_mode(tmp_path):
 
 def test_patch_by_patch_repaint_has_no_strip_test(tmp_path):
     settings = {"chartread_engine": "chromiq",
-                pf.ESTIMATED_KEY: 25.0, "patch_warn_outlier_fence": True}
+                pf.ESTIMATED_KEY: 25.0, "patch_strip_test_estimated": True}
     tab = _tab(tmp_path, settings)
     ti3 = _write_ti3(tmp_path)
     cp.write(ti3, {}, "patch")

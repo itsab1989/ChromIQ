@@ -145,6 +145,32 @@ def test_an_append_with_no_ensure_cursor_visible_still_holds_the_bottom(pane,
     assert sb.value() == sb.maximum()
 
 
+def test_a_pane_at_the_bottom_made_shorter_still_shows_its_end(pane, qapp):
+    """Qt keeps the first visible line through a resize, so a pane at its
+    end that was made shorter (Read single patches' divider, beta 17) sat
+    above its own end and every later line arrived out of sight."""
+    sb = pane.verticalScrollBar()
+    sb.setValue(sb.maximum())
+    qapp.processEvents()
+    pane.resize(320, 30)
+    qapp.processEvents()
+    assert sb.value() == sb.maximum(), (sb.value(), sb.maximum())
+    pane.appendPlainText("after the resize")
+    pane.ensureCursorVisible()
+    qapp.processEvents()
+    assert sb.value() == sb.maximum()
+    assert pane.is_following_tail() is True
+
+
+def test_a_reader_scrolled_up_is_left_where_he_is_through_a_resize(pane, qapp):
+    sb = pane.verticalScrollBar()
+    sb.setValue(5)
+    qapp.processEvents()
+    pane.resize(320, 30)
+    qapp.processEvents()
+    assert sb.value() == 5
+
+
 def test_a_reader_one_line_up_is_not_at_the_bottom(pane, qapp):
     """No tolerance, and the measurement that rules one out.
 

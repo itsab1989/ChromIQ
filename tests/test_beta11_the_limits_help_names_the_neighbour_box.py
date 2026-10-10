@@ -1,11 +1,12 @@
-"""The limits' purpose paragraph names the neighbour check by its box
-(review of beta 11).
+"""The limits' purpose paragraph names the neighbour check and the strip test
+by their names (review of beta 11; beta 17).
 
 The reviewed limits help (Knut, #182 5983733592) said "another check, which
-compares each patch with its neighbours" while the neighbour check was on
-another branch. Merged, the check has a box in Preferences ▸ Measurement, so
-the paragraph names it by the box's own words, as it already names the strip
-check by its checkbox's, in English and in every catalogue.
+compares each patch with its neighbours". Since beta 17 the two tests are
+rows of Preferences ▸ Measurement's table, named "Strip test" and "Neighbour
+check" (Knut 6082015002: "Names for the tests, limits, chart types are all
+good"; the proper names everywhere), so the paragraph names them so, in
+English and in every catalogue.
 """
 from __future__ import annotations
 
@@ -15,9 +16,6 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-#: k44 (beta 15): the neighbour check's own checkbox, named after it
-LABEL = ("Neighbour check: flag a patch that does not fit the patches "
-         "nearest to it in colour")
 
 
 def _codes():
@@ -30,10 +28,10 @@ def _help():
     return LIMITS_PURPOSE_HELP
 
 
-def test_the_english_names_the_box():
+def test_the_english_names_both_tests():
     text = _help()
     assert "another check" not in text
-    assert "the neighbour check (“" + LABEL.rstrip(":") + "”)" in text
+    assert "the strip test and the neighbour check" in text
 
 
 def test_both_copies_are_the_same():
@@ -42,8 +40,9 @@ def test_both_copies_are_the_same():
 
 
 @pytest.mark.parametrize("code", _codes())
-def test_every_language_quotes_its_own_box_label(code):
+def test_every_language_names_the_neighbour_check_by_its_name(code):
     cat = json.loads((ROOT / "data" / "i18n" / f"{code}.json").read_text(
         encoding="utf-8"))
-    label = cat[LABEL].rstrip(":： ").strip()
-    assert label in cat[_help()], code
+    for name in ("Neighbour check", "Strip test"):
+        label = cat[name].lower()
+        assert label in cat[_help()].lower(), (code, name)

@@ -322,23 +322,34 @@ DEFAULTS: dict[str, Any] = {
     # 30 until beta 11 (schema 26, Knut #182 5983470377): see
     # workflow/patch_flags.py ACCURATE_DEFAULT_DE.
     "patch_read_warn_de_accurate":  20.0,
-    # A verification judged against its profile's prediction (beta 11, Knut
-    # #182 5983470377: "yes, 10, and own threshold row"). New in schema 26:
-    # nobody has a stored value, and no old limit is carried into it.
-    "patch_read_warn_de_prediction": 10.0,
-    # Whether a patch must ALSO be unusual for its own strip to be flagged
-    # (Knut's option (c), #131 2026-07-27). On = today's behaviour.
-    "patch_warn_outlier_fence":  True,
-    # The neighbour check's buffer (#182 beta 11, Knut 5983470377 item 5 and
-    # 5983725218): a patch whose reading is further from the patches nearest
-    # to it in colour than their expected colours are, by more than this
-    # (median over 2 to 4 of them since beta 15's B2+, ΔE*ab), gets the red
-    # outline (workflow/neighbour_check.py). This one is for charts with
-    # estimated colours; a chart made with a pre-conditioning profile has its
-    # own, default 5 (Knut #182 6059912998, answer 6).
-    "patch_neighbour_buffer_de": 10.0,
-    "patch_neighbour_buffer_de_accurate": 5.0,
-    # The neighbour check's own switch (k44, Knut #182 6060201176).
+    # Verification charts, judged against the profile's prediction (beta 11,
+    # Knut #182 5983470377: "own threshold row"); 10 until beta 17, 5 since
+    # (Knut 6070058549; schema 29 drops a stored echo of 10).
+    "patch_read_warn_de_prediction": 5.0,
+    # BETA 17 (#182, Knut 6082015002 / 6084176226 / 6085694445): every
+    # parameter of the misread tests is visible and configurable per chart
+    # type, in one table in Preferences ▸ Measurement: the patch error limit
+    # for calibration charts, the strip test, the neighbour limit and the
+    # colour-neighbour radius for each chart type, and one same-reading
+    # tolerance. Keys and defaults: workflow/misread_settings.py. The old
+    # "patch_warn_outlier_fence" and "patch_neighbour_buffer_de(_accurate)"
+    # are carried over by _migrate_misread_parameters (schema 29).
+    "patch_read_warn_de_calibration": 95.0,
+    "patch_strip_test_estimated":    True,
+    "patch_strip_test_accurate":     True,
+    "patch_strip_test_verification": False,
+    "patch_strip_test_calibration":  True,
+    "patch_neighbour_limit_estimated":    10.0,
+    "patch_neighbour_limit_accurate":     5.0,
+    "patch_neighbour_limit_verification": 3.0,
+    "patch_neighbour_limit_calibration":  10.0,
+    "patch_neighbour_radius_estimated":    15.0,
+    "patch_neighbour_radius_accurate":     30.0,
+    "patch_neighbour_radius_verification": 30.0,
+    "patch_neighbour_radius_calibration":  30.0,
+    "patch_same_reading_de": 3.0,
+    # The neighbour check's own switch (k44, Knut #182 6060201176), one for
+    # every chart type.
     "patch_neighbour_check": True,
     # Measurement sound feedback (#131, Phase 1). Master switch lives on the
     # Measure tab; per-event choices and the optional user sounds folder on the
@@ -984,7 +995,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 28
+SETTINGS_SCHEMA = 29
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1070,6 +1081,10 @@ _SUPERSEDED_DEFAULTS: dict[str, tuple[float, ...]] = {
     # Preferences writes every key) falls through to 20; a value the user
     # chose is kept.
     "patch_read_warn_de_accurate": (30.0,),
+    # schema 29 (beta 17, Knut #182 6070058549): the Patch error limit of
+    # verification charts moved 10 -> 5. A stored echo of 10 falls through
+    # to 5; a value the user chose is kept.
+    "patch_read_warn_de_prediction": (10.0,),
     # schema 15 (#130, Knut 2026-07-29): the minimum readings per patch were
     # re-derived alongside the new per-instrument strip lengths. A stored echo
     # of a shipped default falls through to the new one; a number the user
@@ -1093,6 +1108,7 @@ _SUPERSEDED_SCHEMA: dict[str, int] = {
     "scanner_flank_min_boxes": 3,
     "patch_read_warn_de": 9,
     "patch_read_warn_de_accurate": 26,
+    "patch_read_warn_de_prediction": 29,
     "pace_min_samples_i1pro3": 15,
     "pace_min_samples_i1pro3plus": 15,
     "pace_min_samples_colormunki": 15,
@@ -1214,6 +1230,9 @@ class AppSettings:
         if stored_schema < 27 and self._migrate_neighbour_buffer_pair():
             dropped.append("patch_neighbour_buffer_de (a changed buffer now "
                            "also applies to pre-conditioning-profile charts)")
+        if stored_schema < 29:
+            for _k in self._migrate_misread_parameters():
+                dropped.append(_k)
         if stored_schema < 28 and self._migrate_pdf_print_fallback_default():
             dropped.append("pdf_print_fallback (the exact-size PDF is now on "
                            "by default for ChromIQ's own lp printing)")
@@ -1386,6 +1405,93 @@ class AppSettings:
             return False
         self._qs.remove("pdf_print_fallback")
         return True
+
+    def _migrate_misread_parameters(self) -> list[str]:
+        """schema 29 (beta 17, #182, Knut 6082015002, 6084176226 and
+        6085694445): the misread tests' parameters become one table, one value
+        per chart type (``workflow/misread_settings.py``). Runs only for
+        settings stored before schema 29, like every step since beta 16.
+
+        Carried over, where an old value corresponds to a new one (a value
+        that merely echoes an old default is not a choice: Preferences ▸ OK
+        writes every key):
+
+        * **The strip test** ("patch_warn_outlier_fence"): one switch ruled
+          every chart but a verification judged against its profile, where
+          it was always off. A user who switched it OFF keeps it off for
+          profiling charts (both kinds) and calibration charts; the new
+          verification box starts at its default, off. A stored "on" was the
+          default. The old key is removed.
+        * **The neighbour check's "buffers"** ("patch_neighbour_buffer_de",
+          "patch_neighbour_buffer_de_accurate") become the Neighbour limit of
+          profiling charts with estimated colours and of those made with a
+          pre-conditioning profile, when changed from their defaults 10 and
+          5. They measured something else (how much further apart the
+          readings were than the expected colours), but they were the one
+          number a user turned to make the check stricter or looser, so a
+          user's number stays where it was. Verification and calibration
+          charts were never judged by it: their limits start at the
+          defaults. The old keys are removed.
+        * **The Patch error limit of calibration charts** is new: until now a
+          calibration chart took the limit of charts with estimated colours,
+          so a user who changed that one gets the same number for
+          calibration charts.
+
+        A value already in a new key is never overwritten. The verification
+        limit's default 10 -> 5 is a superseded default
+        (``_SUPERSEDED_DEFAULTS``)."""
+        from workflow import misread_settings as MS
+        done: list[str] = []
+
+        def _num(raw):
+            try:
+                return float(str(raw).replace(",", "."))
+            except (TypeError, ValueError):
+                return None
+
+        def _is_false(raw) -> bool:
+            return raw is False or (isinstance(raw, str)
+                                    and raw.strip().lower() in ("false", "0",
+                                                                "no"))
+
+        raw = self._qs.value(MS.OLD_STRIP_TEST_KEY, None)
+        if raw is not None:
+            if _is_false(raw):
+                for kind in (MS.ESTIMATED, MS.ACCURATE, MS.CALIBRATION):
+                    key = MS.STRIP_TEST_KEYS[kind]
+                    if self._qs.value(key, None) is None:
+                        self._qs.setValue(key, False)
+                done.append("patch_warn_outlier_fence (off: the strip test "
+                            "stays off on profiling and calibration charts)")
+            else:
+                done.append("patch_warn_outlier_fence (now one box per "
+                            "chart type)")
+            self._qs.remove(MS.OLD_STRIP_TEST_KEY)
+        for kind, old_key in MS.OLD_NEIGHBOUR_KEYS.items():
+            raw = self._qs.value(old_key, None)
+            if raw is None:
+                continue
+            val = _num(raw)
+            new_key = MS.NEIGHBOUR_LIMIT_KEYS[kind]
+            if (val is not None
+                    and abs(val - MS.OLD_NEIGHBOUR_DEFAULTS[kind]) > 1e-9
+                    and self._qs.value(new_key, None) is None):
+                lo, hi = MS.NEIGHBOUR_LIMIT_RANGE
+                self._qs.setValue(new_key, min(hi, max(lo, val)))
+                done.append(f"{old_key} -> {new_key} ({val:g})")
+            else:
+                done.append(f"{old_key} (now {new_key})")
+            self._qs.remove(old_key)
+        raw = self._qs.value(MS.PATCH_ERROR_LIMIT_KEYS[MS.ESTIMATED], None)
+        cal_key = MS.PATCH_ERROR_LIMIT_KEYS[MS.CALIBRATION]
+        val = _num(raw) if raw is not None else None
+        if (val is not None
+                and abs(val - MS.PATCH_ERROR_LIMIT_DEFAULTS[MS.ESTIMATED]) > 1e-9
+                and self._qs.value(cal_key, None) is None):
+            self._qs.setValue(cal_key, val)
+            done.append(f"{cal_key} ({val:g}, from the limit of charts with "
+                        "estimated colours)")
+        return done
 
     def _migrate_neighbour_buffer_pair(self) -> bool:
         """schema 27 (beta 15, k43, Knut #182 6059912998 answer 6): the

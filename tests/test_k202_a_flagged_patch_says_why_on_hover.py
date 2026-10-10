@@ -39,18 +39,23 @@ def test_a_flagged_patch_explains_itself_at_the_bottom(qapp):
     assert i > next(i for i, r in enumerate(rows) if "ΔE*ab  61.25" in r)
     tail = rows[i + 1:]
     assert tail[0] == "Red outline: a large difference"
-    assert tail[1] == "ΔE*ab 61.2 reached your limit 50.0"
-    assert tail[2] == "and stands out from its strip"
+    # beta 17: the patch error limit by its name, its value and its chart
+    # type, and the strip test by its name (Knut 6082015002, 6084176226)
+    assert " ".join(tail[1:5]) == (
+        "ΔE*ab 61.2 reached the patch error limit (50.0, profiling charts "
+        "with estimated colours), and it stands out from its strip (strip "
+        "test).")
     assert "Either a misread, or a colour" in tail
     assert "it is real, keep it for the profile." in tail
-    assert "Flag a patch" in tail[-1]
+    assert " ".join(tail[-2:]) == ("See Preferences ▸ Measurement for "
+                                   "threshold values.")
 
 
 @pytest.mark.parametrize("mode", ["expected", "measured"])
 def test_the_reason_shows_in_every_view_mode(qapp, mode):
     rows = _rows(qapp, {"warn": True, "warn_de": 50.0, "fenced": False}, mode)
     assert "Red outline: a large difference" in rows
-    assert "and stands out from its strip" not in rows
+    assert "stands out from its strip" not in " ".join(rows)
 
 
 def test_an_unflagged_patch_says_nothing_extra(qapp):
@@ -84,7 +89,7 @@ def test_the_card_and_the_help_name_the_tab_the_limit_is_on(qapp):
     d = SettingsDialog(AppSettings(), None)
     try:
         label = next(w for w in d.findChildren(QLabel)
-                     if w.text() == "Flag a patch when its colour error reaches:")
+                     if w.text() == "<b>Patch error limit</b>")
         tab = None
         for i in range(d._tabs.count()):
             if d._tabs.widget(i).isAncestorOf(label):
@@ -93,9 +98,9 @@ def test_the_card_and_the_help_name_the_tab_the_limit_is_on(qapp):
     finally:
         d.deleteLater()
     rows = _rows(qapp, {"warn": True, "warn_de": 50.0})
-    assert f"(Preferences ▸ {tab}, “Flag a patch…”)" in rows, rows
+    assert f"See Preferences ▸ {tab} for" in rows, rows
     help_src = inspect.getsource(TabMeasure)
-    assert f"Preferences ▸ {tab} under “Flag a" in help_src
+    assert f"set in Preferences ▸ {tab} \"" in help_src
 
 
 def test_the_sentences_are_separated_by_blank_lines(qapp):
@@ -105,4 +110,4 @@ def test_the_sentences_are_separated_by_blank_lines(qapp):
     i = rows.index("Either a misread, or a colour")
     j = rows.index("Same value after a re-read:")
     assert rows[i - 1] == "" and rows[j - 1] == ""
-    assert rows[rows.index("(Preferences ▸ Measurement, “Flag a patch…”)") - 1] == ""
+    assert rows[rows.index("See Preferences ▸ Measurement for") - 1] == ""

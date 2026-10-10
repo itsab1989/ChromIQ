@@ -155,15 +155,17 @@ ACCURATE_DEFAULT_DE = 20.0
 ESTIMATED_KEY = "patch_read_warn_de_estimated"
 ACCURATE_KEY = "patch_read_warn_de_accurate"
 #: A VERIFICATION judged against the run profile's prediction
-#: (workflow/verify_expected.py) has its own limit, default ΔE 10 (Knut, #182
-#: 5983470377, answer 1: "yes, 10, and own threshold row"). Used exactly when
+#: (workflow/verify_expected.py) has its own limit (Knut, #182 5983470377,
+#: answer 1: "own threshold row"), default ΔE 5 since beta 17 (Knut
+#: 6070058549: "Lower ... from 10 to 5?" "Yes, I agree"). Used exactly when
 #: the expected colours are the profile's prediction, whatever the chart file
-#: says; the strip outlier test stays off for it (5964384250).
-PREDICTION_DEFAULT_DE = 10.0
+#: says. Its strip test has its own box, off by default (6084176226).
+PREDICTION_DEFAULT_DE = 5.0
 PREDICTION_KEY = "patch_read_warn_de_prediction"
 
 #: Two readings of one patch this close (ΔE*ab between the two MEASURED
-#: colours) are the same reading. Stricter than comparing the two ΔE values,
+#: colours) are the same reading. The default of the Same-reading tolerance
+#: (configurable since beta 17, ``workflow/misread_settings.py``). Stricter than comparing the two ΔE values,
 #: which could agree while the colours do not; it implies they agree within 3.
 SAME_READING_DE = 3.0
 #: The learning rule's "off in the same way" numbers; see the module text.
@@ -284,21 +286,16 @@ def chart_has_accurate_expected_values(chart: "str | Path | None") -> bool:
     return bool(_ACCURATE_RE.search(_header(ti2.with_suffix(".ti1"))))
 
 
-def warn_limit(settings, accurate: bool, predicted: bool = False) -> float:
-    """The user's limit for this kind of chart (Preferences ▸ Measurement):
-    a verification judged against its profile's prediction (*predicted*)
-    first, then a chart made from a profile (*accurate*), else a chart with
-    estimated colours."""
-    if predicted:
-        key, default = PREDICTION_KEY, PREDICTION_DEFAULT_DE
-    elif accurate:
-        key, default = ACCURATE_KEY, ACCURATE_DEFAULT_DE
-    else:
-        key, default = ESTIMATED_KEY, ESTIMATED_DEFAULT_DE
-    try:
-        return float(settings.get(key, default))
-    except (TypeError, ValueError):
-        return default
+def warn_limit(settings, accurate: bool, predicted: bool = False,
+               calibration: bool = False) -> float:
+    """The user's Patch error limit for this chart type (Preferences ▸
+    Measurement): a calibration chart first, then a verification judged
+    against its profile's prediction (*predicted*), then a chart made with
+    a pre-conditioning profile (*accurate*), else a chart with estimated
+    colours (``workflow.misread_settings.chart_kind``)."""
+    from workflow.misread_settings import chart_kind, patch_error_limit
+    return patch_error_limit(settings, chart_kind(
+        calibration=calibration, predicted=predicted, accurate=accurate))
 
 
 def chart_white(chart: "str | Path | None") -> tuple:
@@ -625,10 +622,20 @@ class FlagJudge:
     teaches), so one judge never mixes the two classifications.
     """
 
-    def __init__(self, white=None, device_ranges=None) -> None:
+    def __init__(self, white=None, device_ranges=None,
+                 same_reading_de: float = SAME_READING_DE) -> None:
         self._white = D50_WHITE
         self._device_ranges: "dict[str, str] | None" = None
+        #: The Same-reading tolerance (beta 17, Knut #182 6082015002: one
+        #: value, configurable, common to every chart type).
+        self.same_reading_de = float(same_reading_de)
         self.reset(white, device_ranges=device_ranges)
+
+    def set_same_reading_de(self, value: float) -> None:
+        """Take the user's Same-reading tolerance (Preferences ▸
+        Measurement). It decides the next judgement; nothing already
+        decided is undone."""
+        self.same_reading_de = float(value)
 
     @property
     def white(self) -> tuple:
@@ -1190,7 +1197,7 @@ class FlagJudge:
         lim = None if limit is None else float(limit)
 
         def same(a, b) -> bool:
-            return _norm(_sub(a, b)) <= SAME_READING_DE
+            return _norm(_sub(a, b)) <= self.same_reading_de
 
         def by_of(r) -> str:
             return "neighbour" if r.reread_only else "limit"

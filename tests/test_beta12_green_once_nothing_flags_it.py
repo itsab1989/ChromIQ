@@ -146,10 +146,14 @@ def test_bastis_readings_aa5_and_aa16_turn_green():
     assert pf.is_corrected(final["AA5"])
     assert pf.is_corrected(final["AA16"])
     # J28: its third reading matches its FIRST (69.5), not the misread in
-    # between (150.4), and the neighbour check still suspects it: yellow,
-    # confirmed by a re-read (Knut, #182 6045500910). Red before beta 12.
-    assert final["J28"] == pf.FLAG_CONFIRMED
-    assert [loc for loc, f in final.items() if not pf.is_corrected(f)] == ["J28"]
+    # between (150.4). Until beta 16 the neighbour check still suspected it,
+    # so it was yellow, confirmed by a re-read (Knut, #182 6045500910). With
+    # Knut's four steps (beta 17) that reading is no further from its
+    # expected colour than its neighbours are from theirs, so nothing flags
+    # it and the re-read under the limit after one past it is green (10.10a
+    # (d)).
+    assert pf.is_corrected(final["J28"])
+    assert all(pf.is_corrected(f) for f in final.values())
     assert len(final) == 32
 
 

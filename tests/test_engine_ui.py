@@ -432,19 +432,29 @@ def test_patch_info_tile_builds_rows_per_mode():
     texts = " | ".join(t for _s, t in tile._rows)
     # header + 3 exp + 3 meas + ΔE + the line naming which ΔE it is (Knut, #131
     # 2026-07-27: "please show what the value means, which standard it is
-    # calculated with").
-    assert len(tile._rows) == 9
+    # calculated with"), then, since beta 17, the two closing topics every
+    # card ends with (Knut #182 6071004702, 6082015002): when the patches are
+    # checked again and where the threshold values are.
+    from workflow import measurement_messages as M
+    assert [t for _s, t in tile._rows[:9]][0] == "Patch B4"
+    assert texts.endswith(M._CARD_SEE_PREFS_S.split(" ")[-1])
+    assert "Checked again after each strip is read:" in texts
     assert "B4" in texts and "2.34" in texts
     assert "CIE76" in texts and "D50" in texts
     assert tile.width() > 0 and tile.height() > 0
 
+    def body(rows):
+        """The rows before the card's closing topics."""
+        texts = [t for _s, t in rows]
+        return texts[:texts.index("")]
+
     tile.set_content(info, "expected")
     texts = " | ".join(t for _s, t in tile._rows)
-    assert len(tile._rows) == 4            # header + 3 (expected only)
+    assert len(body(tile._rows)) == 4      # header + 3 (expected only)
     assert "2.34" not in texts             # ΔE needs both colours on screen
 
     tile.set_content(info, "measured")
-    assert len(tile._rows) == 4
+    assert len(body(tile._rows)) == 4
 
 
 def test_patch_info_accumulates_and_replaces_like_overlay():

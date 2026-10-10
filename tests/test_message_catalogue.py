@@ -470,6 +470,15 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # found the first by pressing the spacebar,
                                  # which is the Measure tab's reading trigger.
                                  "M-SPOT-CLEAR", "M-SPOT-UNSAVED",
+                                 # (beta 17: M-SPOT-CR30-GONE, the CR30
+                                 # stopped answering in a spot session, was
+                                 # APPROVED by Basti, 2026-10-10, and left
+                                 # this list.)
+                                 # (Beta 17 review: M-SPOT-CR30-EARLY-PRESS,
+                                 # a press from before the spot window said
+                                 # Ready is not used and its log says so,
+                                 # was APPROVED by Basti, 2026-10-10, and
+                                 # left this list.)
                                  # 2026-09-03, review 5. Tools > Build
                                  # profile with scanner or camera builds
                                  # a profile from data that is not the
@@ -657,11 +666,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-VERIFY-EARLIER-PROFILE-NO-CHART",
                                  "M-VERIFY-CHART-EARLIER-PROFILE",
                                  "M-VERIFY-EARLIER-ARCHIVED-HERE",
-                                 # #182 beta 11: Knut approved the neighbour
-                                 # check (5983470377 answer 5) and its box
-                                 # (5983725218); the card lines and the
-                                 # closing window's summary are our words.
-                                 "M-PATCH-NEIGHBOUR",
+                                 # #182 beta 17: Knut approved the card's
+                                 # neighbour lines (6078174421, 6084176226,
+                                 # M-PATCH-NEIGHBOUR); two lines the mock-ups
+                                 # did not show, and the closing window's
+                                 # summary, are our words. (The two lines'
+                                 # English was approved by Basti, 2026-10-10;
+                                 # they wait for Knut.)
+                                 "M-PATCH-NEIGHBOUR-VARIANTS",
                                  "M-MEASURED-SUSPECTS",
                                  # Knut approved the green outline and its
                                  # words (5984277558); the limit's middle line
@@ -811,6 +823,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_confirm_clear"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),
+    ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_on_cr30_lost"),
     # Auto align. Not a modal window but the window's own log, which is where
     # a placement message belongs — and the same two rules apply: the text is
     # the catalogue's, and the method writes no prose of its own. That second
@@ -929,6 +942,9 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_SCAN_ALIGN_DONE.render(rho="0.97"),
         M.M_SCAN_ALIGN_NO_INPUT.render(),
         M.M_REPORT_NOT_SAVED.render(),
+        M.M_SPOT_CR30_GONE.render(),
+        M.M_SPOT_CR30_EARLY_PRESS.render(n=1),
+        M.M_SPOT_CR30_EARLY_PRESS.render(n=3),
         M.M_SCAN_DIAGNOSTIC.render(),
         M.M_SCAN_LOADED.render(file="scan.tif", w=2078, h=1470,
                                target="Wolf Faust IT8", n=288),
