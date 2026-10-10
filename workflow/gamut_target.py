@@ -19,8 +19,8 @@ trips perfectly and is still unprintable (:func:`device_is_printable`). Two
 numbers fall out, answering two different questions (§5.1):
 
 * **coverage** — how many of the master set this profile can print at all;
-* the **chart** — reachable colours in master order, with one adjustment for
-  small charts: the master list opens with a 38-entry neutral block (4 white,
+* the **chart** — reachable colours, in two parts. The **neutral block**: the
+  master list opens with a 38-entry neutral block (4 white,
   4 black, a 30-step grey wedge — the ``-e4 -B4 -g32`` of its recipe), and
   taking it whole meant a ~100-colour chart was more than a third neutral
   (Sebastian, on his ColorMunki plain-paper chart, 2026-08-12). The neutral
@@ -29,12 +29,20 @@ numbers fall out, answering two different questions (§5.1):
   fixed ends-first bisection order — so every prefix of the wedge is evenly
   spaced AND a subset of every longer one. The master's duplicate white/black
   patches are never budget picks (the unconditional corners already anchor
-  both ends); unused budget flows to the body. The remaining slots go to the
-  first reachable chromatic colours in master order, unchanged. From about
-  260 colours up the budget covers white, black and every grey step.
+  both ends); unused budget flows to the body. From about 260 colours up the
+  budget covers white, black and every grey step. The **body**, the remaining slots, is spread over THIS profile's gamut by
+  a farthest-point pass over the reachable chromatic master colours
+  (:func:`_farthest_point_order`). Until 4.3.4 it was the first reachable
+  colours in master order, which are well spread over sRGB, the space the
+  master was cut in, but know nothing about where this printer's gamut ends:
+  the outer shell of the gamut came out thin and the largest empty places
+  sat on it (Knut, #182 6096108924: up to 16.1 dE76 from the nearest patch on
+  his 324-patch chart, 24 at 100 patches; 10.6 and 14.9 now). The pass is
+  seeded with the eight corners as the profile prints them and with white
+  and black, so it never spends a slot next to a patch the chart has anyway.
   Everything stays deterministic (same profile + same count = same chart),
   and any smaller chart's colours are a subset of any larger chart's for the
-  same profile.
+  same profile: the body order does not depend on the count.
 
 The eight cube corners are appended **unconditionally, outside the filter**
 (§9a): they measure how far the ink and paper reach, which is a property the
@@ -386,6 +394,51 @@ def _round_trip(
     return device, back
 
 
+def _farthest_point_order(points, candidates: "list[int]", seeds,
+                          needed: int) -> "list[int]":
+    """The first *needed* of *candidates* in farthest-point order: each pick
+    is the candidate furthest (dE76, in *points*' Lab) from every seed and
+    every earlier pick.
+
+    The order does not depend on *needed*, so a shorter run is a prefix of a
+    longer one (charts stay nested), and ties go to the earliest candidate
+    in master order, so the same input always gives the same order."""
+    import numpy as np
+    if needed <= 0 or not candidates:
+        return []
+    pts = np.asarray([points[i] for i in candidates], dtype=float)
+    dist = np.full(len(candidates), np.inf)
+    for s in seeds:
+        dist = np.minimum(dist, np.linalg.norm(pts - np.asarray(s, float),
+                                               axis=1))
+    order: "list[int]" = []
+    for _ in range(min(needed, len(candidates))):
+        j = int(np.argmax(dist))
+        order.append(candidates[j])
+        dist = np.minimum(dist, np.linalg.norm(pts - pts[j], axis=1))
+        dist[j] = -1.0                      # taken: never the furthest again
+    return order
+
+
+def _corner_seed_labs(profile: Path, bin_dir: "str | Path", letter: str,
+                      runner: "Callable[..., subprocess.CompletedProcess]"
+                      ) -> "list[tuple[float, float, float]]":
+    """Where the eight corners land on paper, as the profile says, for the
+    spreading pass to keep its distance from. Only a spacing hint, never
+    written to any file, so when the profile cannot be asked the ideal
+    corners stand in (and the log says so)."""
+    from workflow.xicclu_runner import forward_lab
+    try:
+        labs = forward_lab(list(CORNER_DEVICES), profile, bin_dir,
+                           intent=letter, runner=runner)
+        if len(labs) == len(CORNER_DEVICES):
+            return [tuple(float(v) for v in lab) for lab in labs]
+    except Exception:                                  # noqa: BLE001
+        log.info("gamut selection: corners not read through the profile; "
+                 "spacing from the ideal corners", exc_info=True)
+    return _corner_ideal_labs()
+
+
 def select_gamut_targets(
     profile: Path,
     count: int,
@@ -406,12 +459,13 @@ def select_gamut_targets(
     whatever the round trip says (:func:`device_is_printable`), so it counts
     against neither ``in_gamut_total`` nor the chart.
 
-    The pick is the first *count* reachable colours in master order, EXCEPT
-    that the master's opening neutral block (white, black, grey wedge — read
-    from the set's own header) is capped at :func:`_neutral_budget` so a
-    small chart is not swallowed by greys; see the module docstring. The
-    result is deterministic, and a smaller chart's colours are a subset of a
-    larger chart's for the same profile.
+    The master's opening neutral block (white, black, grey wedge, read from
+    the set's own header) is capped at :func:`_neutral_budget` so a small
+    chart is not swallowed by greys; the rest of the chart is the reachable
+    chromatic colours in farthest-point order through this profile
+    (:func:`_farthest_point_order`); see the module docstring. The result is
+    deterministic, and a smaller chart's colours are a subset of a larger
+    chart's for the same profile.
     """
     profile = Path(profile)
     if not profile.is_file():
@@ -442,7 +496,7 @@ def select_gamut_targets(
     # over the whole master set, 238 such colours, mean 2.34). Keeping the
     # patch and clamping it writes an aim the print provably cannot hit, and
     # the verification report then charges that error to the printer. Dropping
-    # it costs nothing: the next reachable colour in master order takes the
+    # it costs nothing: another reachable colour takes the
     # slot, every prefix stays nested, and the chart is the size asked for.
     passing = []
     unprintable = 0
@@ -492,8 +546,15 @@ def select_gamut_targets(
             picks = _spread_order(len(greys))[:g_room]
             chosen.extend(greys[j] for j in sorted(picks))
 
+    # THE BODY IS SPREAD OVER THIS PROFILE'S GAMUT, not taken in master
+    # order (Knut, #182 6096108924). Seeded with the corners as printed and
+    # with white and black, which the chart carries whatever the count, so
+    # the order is the same for every count and charts stay nested.
     body = [i for i in passing if i not in neutral_all]
-    chosen.extend(body[:count - len(chosen)])
+    seeds = _corner_seed_labs(profile, bin_dir, letter, runner)
+    seeds += [back[i] for i in (whites[:1] + blacks[:1])]
+    chosen.extend(_farthest_point_order(back, body, seeds,
+                                        count - len(chosen)))
     if len(chosen) < count:
         # A gamut so small (or a chart so large) that the body runs dry:
         # top up with the remaining reachable neutrals rather than shipping

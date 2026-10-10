@@ -84,10 +84,13 @@ def test_no_relayoutable_preset_is_certified_below_its_gamut_capability(
 
 
 def test_most_presets_now_answer_every_metric(rows, preset_certificates):
-    """Knut's expectation, measured: of the 189 built-ins, 162 answer all
+    """Knut's expectation, measured: of the 189 built-ins, 173 answer all
     18 metrics laid out From Profile Gamut (none did with their own colours,
     16 at most); the others are small one-page charts short of patches for
-    the control strip's percentile or the evenness rows."""
+    the control strip's percentile or the evenness rows. It was 162 until
+    4.3.4: spreading the chart over the profile's gamut (Knut, #182
+    6096108924) gave eleven small presets a control strip long enough for
+    its 95th percentile."""
     full_own = full_gamut = 0
     every = PE.rows_asked(PE.ANY_REPORT_TYPE, PE.ALL_METRICS)
     assert len(every) == 18
@@ -100,7 +103,7 @@ def test_most_presets_now_answer_every_metric(rows, preset_certificates):
         full_gamut += g is not None and len(g.answered) == 18
         assert g is not None and len(g.answered) >= len(own.answered), r.key
     assert full_own == 0
-    assert full_gamut == 162
+    assert full_gamut == 173
 
 
 def test_a_gamut_answer_is_what_working_it_out_says(rows, preset_certificates,

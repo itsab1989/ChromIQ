@@ -78,7 +78,11 @@ def test_selection_is_nested_capped_and_margin_aware(tmp_path, master, monkeypat
                                   bin_dir="/nowhere", master_path=master)
     # safe threshold 1.5: rows 0, 2, 4 are in gamut (row 3 moved 2.0 > 1.5).
     assert sel.in_gamut_total == 3
-    assert [t[0] for t in sel.targets] == [0, 2]          # nested order, capped
+    # Capped at 2 from the three reachable; which two is the spreading
+    # pass's choice (test_fpg_spreads_over_the_profile_gamut.py), never a
+    # clipped one.
+    assert len(sel.targets) == 2
+    assert {t[0] for t in sel.targets} <= {0, 2, 4}
     assert len(sel.corners) == 8                          # §9a: unconditional
 
     sel_full = gt.select_gamut_targets(profile, 10, gt.MARGIN_FULL,
@@ -267,9 +271,11 @@ def test_small_chart_caps_the_neutral_block(tmp_path, monkeypatch):
     _stub_xicclu(monkeypatch, {})
     sel = _select(tmp_path, master, 16)
     ids = [t[0] for t in sel.targets]
-    # Budget min(max(6, 2), 8) = 6: one white, one black, all four greys —
-    # the rest of the chart is chromatic body, in master order.
-    assert ids == [0, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    # Budget min(max(6, 2), 8) = 6: one white, one black, all four greys;
+    # the other ten are chromatic body (spread over the gamut, so which ten
+    # of the sixteen is the spreading pass's choice, 4.3.4).
+    assert ids[:6] == [0, 2, 4, 5, 6, 7]
+    assert len(ids) == 16 and all(8 <= i < 24 for i in ids[6:])
     # The duplicate white/black (indices 1 and 3) stayed out.
     assert 1 not in ids and 3 not in ids
 

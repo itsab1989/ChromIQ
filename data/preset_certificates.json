@@ -2832,7 +2832,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 84,
     "values": {
      "all_de00_avg": {
@@ -2918,8 +2918,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -4586,7 +4586,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 153,
     "values": {
      "all_de00_avg": {
@@ -4672,8 +4672,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -10470,7 +10470,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 156,
     "values": {
      "all_de00_avg": {
@@ -10556,8 +10556,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -14879,7 +14879,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 144,
     "values": {
      "all_de00_avg": {
@@ -14965,8 +14965,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -17223,7 +17223,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 156,
     "values": {
      "all_de00_avg": {
@@ -17309,8 +17309,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -20747,7 +20747,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 180,
     "values": {
      "all_de00_avg": {
@@ -20833,8 +20833,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -21321,7 +21321,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 84,
     "values": {
      "all_de00_avg": {
@@ -21407,8 +21407,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -21600,7 +21600,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 154,
     "values": {
      "all_de00_avg": {
@@ -21686,8 +21686,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -24235,7 +24235,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 160,
     "values": {
      "all_de00_avg": {
@@ -24321,8 +24321,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -24514,7 +24514,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 84,
     "values": {
      "all_de00_avg": {
@@ -24600,8 +24600,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -28022,7 +28022,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 88,
     "values": {
      "all_de00_avg": {
@@ -28108,8 +28108,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -30549,7 +30549,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 162,
     "values": {
      "all_de00_avg": {
@@ -30635,8 +30635,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -32008,7 +32008,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 143,
     "values": {
      "all_de00_avg": {
@@ -32094,8 +32094,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -34663,7 +34663,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 150,
     "values": {
      "all_de00_avg": {
@@ -34749,8 +34749,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -37908,7 +37908,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 150,
     "values": {
      "all_de00_avg": {
@@ -37994,8 +37994,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -39957,7 +39957,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 162,
     "values": {
      "all_de00_avg": {
@@ -40043,8 +40043,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -45793,7 +45793,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 84,
     "values": {
      "all_de00_avg": {
@@ -45879,8 +45879,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -46072,7 +46072,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 180,
     "values": {
      "all_de00_avg": {
@@ -46158,8 +46158,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -48420,7 +48420,7 @@
     }
    },
    "gamut": {
-    "answered": 15,
+    "answered": 16,
     "patches": 184,
     "values": {
      "all_de00_avg": {
@@ -48506,8 +48506,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -50174,7 +50174,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 170,
     "values": {
      "all_de00_avg": {
@@ -50260,8 +50260,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
@@ -54906,7 +54906,7 @@
     }
    },
    "gamut": {
-    "answered": 17,
+    "answered": 18,
     "patches": 144,
     "values": {
      "all_de00_avg": {
@@ -54992,8 +54992,8 @@
       "notes": []
      },
      "control_strip_de00_p95": {
-      "value": null,
-      "reason": "control_strip_too_small",
+      "value": 0.0,
+      "reason": null,
       "graded": null,
       "notes": []
      },
