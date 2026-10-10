@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from core.stem_paths import artefact, without_ext
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QAbstractSpinBox,
@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -43,11 +44,12 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from ui.cr30_calibration import Cr30CalibrationMixin
-from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
+from ui.dialogs.tools_dialogs import _indicator_color, _popup_pair, neutral_controls_qss
 from ui.styles import SPEC_GREEN
 from ui.tab_header import dialog_masthead
 from ui.warning_sign import inform, set_warning_icon, warn
-from ui.widgets import NoScrollComboBox, TailFollowLog, set_ink, tint_dialog_primary
+from ui.widgets import (NoScrollComboBox, TailFollowLog, reserve_button_labels,
+                        set_ink, tint_dialog_primary)
 from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams
 
@@ -63,6 +65,42 @@ if TYPE_CHECKING:
     from core.settings import AppSettings
 
 _ACCENT = "#56d6a5"   # share the Measure tab's accent — this is measurement work
+
+#: The list and the notes under it share a splitter. Neither may be dragged
+#: smaller than these: the list keeps its heading and two readings, the notes
+#: two lines (the app's own floor for a log, `ui.widgets.LOG_MIN_LINES`).
+_MIN_LIST_ROWS = 2
+_MIN_LOG_LINES = 2
+#: The height the notes get when they first appear; after that, the user's.
+_INITIAL_LOG_LINES = 4
+#: How many readings the list shows at the window's default size, with the
+#: notes open at their first height (Basti's beta-17 hand test: "about 7").
+_DEFAULT_LIST_ROWS = 7
+#: What a macOS title bar adds above the window's own height.
+_TITLE_BAR = 32
+
+
+def _ink_on(hex_colour: str) -> str:
+    """The text colour that reads on a swatch of *hex_colour*: near-black on a
+    light swatch, white on a dark one, whichever has the higher contrast.
+
+    The hex code is written ON its own colour, so the window's ink colour
+    cannot be used: white on a pale swatch and black on #34312e (Basti's
+    beta-17 hand test) both vanish.
+    """
+    c = QColor(hex_colour)
+    if not c.isValid():
+        return "#0a0a0a"
+
+    def _lin(v: float) -> float:
+        return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+
+    lum = (0.2126 * _lin(c.redF()) + 0.7152 * _lin(c.greenF())
+           + 0.0722 * _lin(c.blueF()))
+    dark = 0.0030   # relative luminance of #0a0a0a
+    on_dark = (lum + 0.05) / (dark + 0.05)
+    on_white = 1.05 / (lum + 0.05)
+    return "#0a0a0a" if on_dark >= on_white else "#ffffff"
 
 
 #: The instruments this window can read with, in the app's own vocabulary.
@@ -449,7 +487,22 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # the Delete button and the Backspace / Delete keys (eventFilter).
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._on_table_menu)
-        outer.addWidget(self._table, 1)
+
+        # THE LIST AND THE NOTES SHARE ONE COLUMN, AND THE USER SETS THE
+        # DIVIDE (Basti's beta-17 hand test: the notes "take a lot of space").
+        # A splitter, neither side collapsible: the list keeps its heading and
+        # two readings, the notes two lines. Not remembered across openings,
+        # because this window does not remember its size either.
+        self._split = QSplitter(Qt.Orientation.Vertical, self)
+        self._split.setObjectName("spotListLogSplit")
+        self._split.setChildrenCollapsible(False)
+        self._split.setHandleWidth(8)
+        self._split.addWidget(self._table)
+        self._table.setMinimumHeight(self._rows_height(_MIN_LIST_ROWS))
+        #: True once the notes have been given their first height; after that
+        #: the divide is the user's.
+        self._log_sized = False
+        outer.addWidget(self._split, 1)
 
         # --- Session notes -------------------------------------------------
         # The same status pane every other tool window carries
@@ -459,13 +512,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # window it was. The CR30's calibration writes the notes that matter —
         # which way it connected, what the dark reference read back at — and
         # they have to be readable somewhere.
-        self._log = TailFollowLog(self)
+        self._log = TailFollowLog(self._split)
         self._log.setReadOnly(True)
         self._log.setMaximumBlockCount(2000)
-        self._log.setFixedHeight(120)
+        self._log.setMinimumHeight(self._log_lines_height(_MIN_LOG_LINES))
         self._log.setPlaceholderText(tr("Status messages will appear here."))
         self._log.setVisible(False)
-        outer.addWidget(self._log)
+        self._split.addWidget(self._log)
+        self._split.setStretchFactor(0, 1)
+        self._split.setStretchFactor(1, 0)
 
         # --- Bottom buttons ------------------------------------------------
         # Session controls (Start / Take reading) live on the far left next to
@@ -524,9 +579,28 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
 
         outer.addLayout(bottom)
 
-        # Neutral indicators, but the dropdown wears this tool's own green.
+        # THREE BUTTONS CHANGE THEIR WORDS, SO EACH IS AS WIDE AS ITS LONGEST.
+        # Fitted to "Delete" when the window opened, the button then painted
+        # "Undo delete" into that width ("NDO DELET", Basti's beta-17 hand
+        # test). Reserving every label also keeps the row from shifting.
+        reserve_button_labels(self._start_btn,
+                              (tr("Start session"), tr("Stop session")))
+        reserve_button_labels(self._del_btn, (tr("Delete"), tr("Undo delete")))
+        reserve_button_labels(self._clear_btn, (tr("Clear"), tr("Undo clear")))
+
+        # Neutral indicators, but the dropdown wears this tool's own green…
+        #
+        # …AND SO DO THE LIST'S SELECTED ROW AND ITS RIGHT-CLICK MENU. Both
+        # wore the appearance's own selection colour, blue in Light and cyan
+        # in Dark, which belongs to no window (Basti's beta-17 hand test). The
+        # same pair the dropdown's hovered row uses, so all three agree, and
+        # the main window's rule for a tab's lists (`_apply_tab_widget_styling`):
+        # only the two selection properties, nothing else of the sheet moves.
+        _sel_bg, _sel_fg = _popup_pair(_ACCENT)
         self.setStyleSheet(
-            neutral_controls_qss(_indicator_color(settings), popup=_ACCENT))
+            neutral_controls_qss(_indicator_color(settings), popup=_ACCENT)
+            + f"QTableView, QMenu {{ selection-background-color: {_sel_bg};"
+              f" selection-color: {_sel_fg}; }}")
         # Tint the Start button with the Measure tab's green accent — this tool
         # is measurement work and reads as part of that family.
         tint_dialog_primary(self, _ACCENT)
@@ -763,7 +837,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self._show_instrument_busy(elsewhere)
             return
         self._set_session_running(True)
-        self._log.setVisible(True)
+        self._show_log()
         self._log.clear()
         self._set_status(tr("Starting instrument…"))
         # Set by the calibration once it has written "Connected to your CR30
@@ -798,7 +872,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     def _note(self, text: str) -> None:
         if not text:
             return
-        self._log.setVisible(True)
+        self._show_log()
         self._log.appendPlainText(text)
         self._log.ensureCursorVisible()
 
@@ -1126,7 +1200,74 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             return False
         return self._delete_selected() > 0
 
+    def _rows_height(self, rows: int) -> int:
+        """How tall the list is when it shows its heading and *rows* readings."""
+        t = self._table
+        return (t.horizontalHeader().sizeHint().height()
+                + t.verticalHeader().defaultSectionSize() * rows
+                + 2 * t.frameWidth())
+
+    def _log_lines_height(self, lines: int) -> int:
+        """How tall the notes are when they show *lines* lines."""
+        log_ = self._log
+        return (log_.fontMetrics().lineSpacing() * lines
+                + int(log_.document().documentMargin()) * 2
+                + 2 * log_.frameWidth())
+
+    def _show_log(self) -> None:
+        """Open the notes under the list. The first time, at a modest height
+        taken from the list; after that wherever the user left the divide."""
+        if self._log.isHidden():
+            self._log.setVisible(True)
+        if not self._log_sized:
+            self._log_sized = True
+            want = self._log_lines_height(_INITIAL_LOG_LINES)
+            total = sum(self._split.sizes())
+            if total > 0:
+                self._split.setSizes([max(total - want, 1), want])
+
+    def _default_height(self) -> int:
+        """The window's height at first show: the list shows
+        `_DEFAULT_LIST_ROWS` readings with the notes open at their first
+        height, and the window still fits the screen it opens on (a 13-inch
+        MacBook's 1440x900, menu bar and Dock taken off, is the smallest this
+        is held to)."""
+        lay = self.layout()
+        others = lay.sizeHint().height() - self._split.sizeHint().height()
+        want = (others + self._rows_height(_DEFAULT_LIST_ROWS)
+                + self._split.handleWidth()
+                + self._log_lines_height(_INITIAL_LOG_LINES))
+        screen = self.screen()
+        if screen is not None:
+            want = min(want, screen.availableGeometry().height() - _TITLE_BAR)
+        return max(want, self.minimumSizeHint().height())
+
+    def _settle_size(self) -> None:
+        """Floors and the first size, measured once the buttons and the list
+        carry the fonts they are painted in."""
+        self._table.setMinimumHeight(self._rows_height(_MIN_LIST_ROWS))
+        self._log.setMinimumHeight(self._log_lines_height(_MIN_LOG_LINES))
+        # THE WINDOW MAY NOT BE NARROWER THAN ITS BUTTON ROW. A fixed 960 sat
+        # below what the row needs, so at the minimum width "Average selected"
+        # and "Delete" were painted over each other; in French and German the
+        # row needs more again.
+        lay = self.layout()
+        if lay is not None:
+            lay.activate()
+            need = lay.minimumSize().width()
+            if need > self.minimumWidth():
+                self.setMinimumWidth(need)
+        # A window nobody has sized gets the default height. Qt's own first
+        # size is capped at two thirds of the screen, which on a 13-inch
+        # screen left the list room for five readings.
+        if not self.testAttribute(Qt.WidgetAttribute.WA_Resized):
+            self.resize(max(self.width(), self.minimumWidth()),
+                        max(self.height(), self._default_height()))
+            self.setAttribute(Qt.WidgetAttribute.WA_Resized, False)
+
     def showEvent(self, event) -> None:   # noqa: N802, D102
+        if not event.spontaneous():
+            self._settle_size()
         super().showEvent(event)
         # A window shown again is a new session's worth of work to protect.
         self._closing = False
@@ -1289,6 +1430,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         swatch = QTableWidgetItem(r.hex)
         swatch.setFlags(swatch.flags() & ~Qt.ItemFlag.ItemIsEditable)
         swatch.setBackground(QColor(r.hex))
+        swatch.setForeground(QColor(_ink_on(r.hex)))
         swatch.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.setItem(row, 7, swatch)
 
