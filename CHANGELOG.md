@@ -4,8 +4,13 @@
 
 ### Changed
 
+- **A verification chart from a preset or Manual now prints through the run's profile by default** (#182, Knut), also when the run's earlier verifications were printed raw. You can still choose Raw.
 - **A From Profile Gamut chart is spread evenly over everything your printer can print** (#182, Knut). Its colours now fill the profile's whole range evenly, the spacing follows the number of colours you choose, no two sit closer together than they need to, and evenly spaced grey steps run from black to white. On Basti's Epson ET-8550 324-patch chart the largest empty place in the printer's range went from 35.7 to 13.0 ΔE, and the closest two colours from 2.9 to 11.2 ΔE apart (grey steps aside). Each chart size is spread on its own, so a smaller chart is no longer part of a larger one. Charts you already made stay as they are.
 - **The colours a From Profile Gamut chart is chosen from now reach beyond sRGB and Adobe RGB** (#182, Knut). ChromIQ's list of 5,960 colours, chosen in sRGB, is joined by a whole 22 × 22 × 22 cube in ProPhoto RGB (10,648 colours), so wide-gamut printers are tested in their strongest colours too. Building a chart takes about a second longer on a large profile.
+
+### Fixed
+
+- **A PostScript printer received the chart colour-managed through the macOS print dialog** (#182, Knut). The dialog route handed it the chart marked as sRGB (or, with a profile set in ColorSync Utility, as a colour table from that profile), which the printer converted with its own colour rendering, and the dialog offers no way to switch that off. ChromIQ now sends a PostScript printer its own PostScript with the dialog's settings, the chart as the printer's own RGB, exactly as the direct route does. Measured on a generic PostScript queue and an HP Color LaserJet 5550 queue: every chart pixel unchanged, every dialog option in the job. Canon, Epson and other raster printers get byte-for-byte the same job as in 4.3.4. A profile made from a chart printed through the dialog to a PostScript printer with 4.3.4 or earlier includes the printer's own conversion: print its profiling chart again.
 
 ## v4.3.4
 

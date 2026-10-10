@@ -1155,6 +1155,8 @@ class TabPrint(QWidget):
         self._preview.set_print_preview(
             True, colour=self._cm_selected_colour(),
             intent=self._cm_selected_intent())
+        # k81: the dialog-route paragraph follows the Colour now chosen
+        self._update_verify_route_note()
 
     def _profiles_in_other_runs(self, run) -> list[str]:
         """Ids of the project's OTHER runs that hold a built profile.
@@ -2552,6 +2554,10 @@ class TabPrint(QWidget):
             # sets it there and nowhere else).
             text += " " + MM.M_PRINT_JOB_TAGGED_INTENT.render(
                 profile=rep.tagged_intent)[1]
+        if getattr(rep, "device_rgb", False) and MM.M_PRINT_JOB_DEVICE_RGB.approved:
+            # k81: ChromIQ's own PostScript, the chart as DeviceRGB
+            # (M-PRINT-JOB-DEVICE-RGB, §M-PROPOSED: said once approved)
+            text += " " + MM.M_PRINT_JOB_DEVICE_RGB.render()[1]
         if _reset_vendors(rep) == {"Epson"}:
             # M-PRINT-JOB-EPSON-MATCHING-RESET (approved by Basti, 2026-10-10):
             # the Color Matching sheet had chosen the Epson's own matching and
@@ -2799,11 +2805,10 @@ class TabPrint(QWidget):
 
     def _update_verify_route_note(self, native: "bool | None" = None) -> None:
         """M-PRINT-VERIFY-ROUTE (approved by Basti, 2026-10-10): shown on
-        macOS for a verification run with a chart loaded, on BOTH routes,
-        because its first and last paragraphs are about which route to print
-        by and hold whichever is set; its second paragraph speaks of the macOS
-        print dialog and is shown only while that route is on (*native*, else
-        the setting)."""
+        macOS for a verification run with a chart loaded, on BOTH routes.
+        Since 4.3.5 (k81) its first paragraph only, followed by the proposed
+        M-PRINT-VERIFY-DIALOG-AS-IS / -THROUGH (dialog route, *native*, else
+        the setting) and M-PRINT-VERIFY-PS-EARLIER once they are approved."""
         lbl = getattr(self, "_verify_route_lbl", None)
         if lbl is None:
             return
@@ -2817,9 +2822,25 @@ class TabPrint(QWidget):
         if native is None:
             native = bool(self._settings.get("use_native_print_dialog", False))
         title, body = MM.M_PRINT_VERIFY_ROUTE.render()
-        paras = body.split("\n\n")
-        if not native and len(paras) == 3:
-            paras = [paras[0], paras[2]]
+        # k81 (4.3.5): since the dialog route sends a PostScript printer
+        # ChromIQ's own PostScript (DeviceRGB), the approved paragraphs 2 and 3
+        # are untrue there. Paragraph 1 is shown, and their replacements once
+        # approved: the dialog's colour settings for a sheet printed as it is
+        # or through the run's profile (Knut 6102031563), and what changed
+        # for a PostScript printer.
+        paras = body.split("\n\n")[:1]
+        if native:
+            from workflow import verification_print as _vp
+            try:
+                through = self._cm_selected_colour() == _vp.COLOUR_THROUGH
+            except Exception:  # noqa: BLE001 - the Colour row is not built yet
+                through = False
+            msg = (MM.M_PRINT_VERIFY_DIALOG_THROUGH if through
+                   else MM.M_PRINT_VERIFY_DIALOG_AS_IS)
+            if msg.approved:
+                paras.append(msg.render()[1])
+        if MM.M_PRINT_VERIFY_PS_EARLIER.approved:
+            paras.append(MM.M_PRINT_VERIFY_PS_EARLIER.render()[1])
         lbl.setText(f"<b>{_html_escape(title)}</b><br><br>"
                     + "<br><br>".join(_html_escape(p) for p in paras))
         lbl.setVisible(True)

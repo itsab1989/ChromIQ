@@ -702,6 +702,12 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # 4.3.5, k82: two paragraphs of the FROM
                                  # PROFILE GAMUT count help
                                  "M-HELP-GAMUT-SIZE-SPREAD",
+                                 # 4.3.5, k81: the dialog route of a
+                                 # verification print
+                                 "M-PRINT-VERIFY-DIALOG-AS-IS",
+                                 "M-PRINT-VERIFY-DIALOG-THROUGH",
+                                 "M-PRINT-VERIFY-PS-EARLIER",
+                                 "M-PRINT-JOB-DEVICE-RGB",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

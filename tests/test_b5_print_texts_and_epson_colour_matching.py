@@ -217,23 +217,38 @@ def qapp():
     return QApplication.instance() or QApplication(sys.argv[:1])
 
 
-def test_a_verification_on_the_dialog_route_gets_all_three_paragraphs(qapp, monkeypatch):
+def test_a_verification_on_the_dialog_route_shows_the_first_paragraph(qapp, monkeypatch):
+    """k81 (4.3.5): paragraphs 2 and 3 are untrue for a PostScript printer
+    since the dialog route sends it ChromIQ's own PostScript, so they are
+    left out; their replacements wait for approval."""
     shown, text = _note(qapp, monkeypatch)
     assert shown
     assert "<b>Printing a verification chart</b>" in text
     assert "Print this chart on the same printer" in text
-    assert "including its Color Matching panel" in text
-    assert "On a PostScript printer the two routes" in text
+    assert "including its Color Matching panel" not in text
+    assert "On a PostScript printer the two routes" not in text
 
 
-def test_the_direct_route_leaves_out_the_dialog_paragraph(qapp, monkeypatch):
-    """Paragraphs 1 and 3 are about which route to print by; paragraph 2 is
-    about the macOS print dialog, which this route does not open."""
+def test_the_direct_route_shows_the_first_paragraph(qapp, monkeypatch):
     shown, text = _note(qapp, monkeypatch, native=False)
     assert shown
     assert "Print this chart on the same printer" in text
-    assert "On a PostScript printer the two routes" in text
-    assert "Color Matching panel" not in text
+    assert "On a PostScript printer the two routes" not in text
+    assert "Color Matching" not in text
+
+
+def test_once_approved_the_dialog_route_says_how_the_sheet_prints(qapp, monkeypatch):
+    from dataclasses import replace
+    from workflow import measurement_messages as MM
+    for name in ("M_PRINT_VERIFY_DIALOG_AS_IS", "M_PRINT_VERIFY_DIALOG_THROUGH",
+                 "M_PRINT_VERIFY_PS_EARLIER"):
+        monkeypatch.setattr(MM, name, replace(getattr(MM, name), approved=True))
+    _shown, text = _note(qapp, monkeypatch)
+    assert "Leave the colour settings in the macOS print dialog" in text
+    assert "On a PostScript printer both routes now send" in text
+    _shown, text = _note(qapp, monkeypatch, native=False)
+    assert "Leave the colour settings" not in text
+    assert "On a PostScript printer both routes now send" in text
 
 
 @pytest.mark.parametrize("kw", [dict(verification=False), dict(pages=False),

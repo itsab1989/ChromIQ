@@ -211,6 +211,9 @@ if _PRINTCORE_OK:
         _appsvc.PMPaperGetHeight.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
         _appsvc.PMRelease.restype = ctypes.c_int32
         _appsvc.PMRelease.argtypes = [ctypes.c_void_p]
+        # k81: ChromIQ's own PostScript, submitted with the dialog's ticket
+        _appsvc.PMPrinterPrintWithFile.restype = ctypes.c_int32
+        _appsvc.PMPrinterPrintWithFile.argtypes = [ctypes.c_void_p] * 5
         _PM_PAPER_OK = True
     except Exception as _exc3:  # pragma: no cover
         _PM_PAPER_OK = False
@@ -503,6 +506,9 @@ class Submission:
         #: driver options the dialog had set away from a Photoshop print's
         #: and ChromIQ set back: {key: (dialog's, ChromIQ's)} (B5)
         self.reset_by_chromiq: dict[str, tuple[str, str]] = {}
+        #: k81: ChromIQ's own PostScript went to a PostScript printer, the
+        #: chart as DeviceRGB (no tag, no output intent to match)
+        self.device_rgb = False
 
 
 def read_back(sub: "Submission"):
@@ -523,7 +529,9 @@ def read_back(sub: "Submission"):
     job = find_job(sub.queue, sub.started) if sub.queue else None
     rep = check_job(sub.queue or "?", job, sub.expected, ppd_text=sub.ppd_text,
                     tagged_with=sub.tagged_with, tagged_icc=sub.tagged_icc)
-    if (not sub.tagged_icc and rep.read and rep.tag_matches_job is None
+    rep.device_rgb = bool(getattr(sub, "device_rgb", False))
+    if (not rep.device_rgb and not sub.tagged_icc and rep.read
+            and rep.tag_matches_job is None
             and (sub.output_intent
                  or (sub.ppd_text and "*cupsICCProfile" in sub.ppd_text))):
         # …AND ANY JOB WITH AN OUTPUT INTENT THE CHART DID NOT GET (B3,
@@ -719,6 +727,20 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     if _same_page(print_info, page_box):
         give_custom_paper_driver_margins(print_info, page_box, content_pt, sizes_pt)
     locked = _lock_no_color_management(print_info, after_dialog=True)
+    if is_postscript_queue(_ppd_text_of(print_info)):
+        # k81 (Knut, #182 6102031563): ON A POSTSCRIPT PRINTER THE CHART GOES
+        # AS THE PRINTER'S OWN RGB, as the direct route sends it. Drawn
+        # through the print view, macOS spools a PDF and its PostScript filter
+        # (cgpdftops) writes the chart as CIEBasedABC (a generic queue) or
+        # CIEBasedDEF (a queue with a ColorSync profile, Knut's HP CLJ 5550),
+        # which the printer converts with its own colour rendering: no
+        # "no colour management" exists on that path, and none can be chosen
+        # in the dialog. Measured on capture queues, 2026-10-11: an exact-size
+        # PDF with DeviceRGB and an untagged bitmap both still arrive
+        # CIEBased; ChromIQ's own PostScript submitted with the dialog's
+        # ticket arrives DeviceRGB, all 1,372,807 chart pixels unchanged, with
+        # every option of the dialog (paper, the HP colour locks) in the job.
+        return _print_device_rgb_postscript(print_info, pages, locked)
     # Tag the chart with the profile macOS will convert it into, so the
     # conversion is the identity and the chart's own numbers reach the driver.
     dest_icc, dest_name = _destination_rgb_profile(print_info)
@@ -763,6 +785,90 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     last_submission = Submission(display, locked, t_start, dest_icc or b"",
                                  dest_name if dest_icc else None,
                                  output_intent=output_intent)
+    last_submission.reset_by_chromiq = dict(last_reset_by_chromiq)
+    return True
+
+
+def _postscript_for_pages(pages: list, page_pt: "tuple[float, float] | None") -> bytes:
+    """ChromIQ's own PostScript for *pages* (``(tiff, frame)``): the direct
+    route's document (``PostScriptGenerator``, DeviceRGB, ``cups-disable-cmm``),
+    one page per chart page, each centred on *page_pt*. A single page is the
+    direct route's document exactly."""
+    import tempfile
+    from workflow.postscript_generator import PostScriptGenerator
+    gen = PostScriptGenerator()
+    docs: "list[str]" = []
+    with tempfile.TemporaryDirectory(prefix="chromiq-dialog-ps-") as tmp:
+        for k, (tiff_path, frame) in enumerate(pages):
+            src = Path(tiff_path)
+            if frame:
+                with Image.open(src) as im:
+                    im.seek(frame)
+                    dpi = im.info.get("dpi") or (300, 300)
+                    src = Path(tmp) / f"page{k}.tif"
+                    im.save(src, dpi=dpi)
+            docs.append(gen.generate(src, page_size_pt=page_pt))
+    if len(docs) == 1:
+        return docs[0].encode("ascii")
+    head = ("%!PS-Adobe-3.0\n%%LanguageLevel: 3\n%cupsJobTicket: cups-disable-cmm\n"
+            f"%%Pages: {len(docs)}\n%%EndComments\n")
+    body = []
+    for n, doc in enumerate(docs, 1):
+        part = doc.split("%%EndComments\n", 1)[-1].replace("%%EOF\n", "")
+        body.append(f"%%Page: {n} {n}\n{part}")
+    return (head + "".join(body) + "%%EOF\n").encode("ascii")
+
+
+def _print_device_rgb_postscript(print_info, pages: list, locked: dict) -> bool:
+    """Submit ChromIQ's PostScript (:func:`_postscript_for_pages`) to the
+    printer chosen in the dialog, with the dialog's print settings and page
+    format (``PMPrinterPrintWithFile``), so the job carries every option the
+    dialog set and the chart reaches the printer as DeviceRGB."""
+    global last_submission
+    import objc
+    import tempfile
+    import time as _time
+    if not (_PRINTCORE_OK and _PM_PAPER_OK):
+        raise RuntimeError("PrintCore is not available for the PostScript job")
+    try:
+        size = print_info.paperSize()
+        page_pt = (float(size.width), float(size.height))
+    except Exception:  # noqa: BLE001 - the chart's own size then
+        page_pt = None
+    data = _postscript_for_pages(pages, page_pt)
+    pid = ctypes.c_void_p(objc.pyobjc_id(print_info))
+    session = _libobjc.objc_msgSend(pid, _libobjc.sel_registerName(b"PMPrintSession"))
+    settings = _libobjc.objc_msgSend(pid, _libobjc.sel_registerName(b"PMPrintSettings"))
+    page_format = _libobjc.objc_msgSend(pid, _libobjc.sel_registerName(b"PMPageFormat"))
+    printer = ctypes.c_void_p()
+    if not session or _appsvc.PMSessionGetCurrentPrinter(
+            ctypes.c_void_p(session), ctypes.byref(printer)) != 0 or not printer.value:
+        log.warning("native print: no printer in the dialog's session")
+        return False
+    t_start = _time.time()
+    mime = _cfstr("application/postscript")
+    try:
+        with tempfile.TemporaryDirectory(prefix="chromiq-dialog-ps-") as tmp:
+            path = Path(tmp) / "chart.ps"
+            path.write_bytes(data)
+            import Foundation
+            url = Foundation.NSURL.fileURLWithPath_(str(path))
+            status = _appsvc.PMPrinterPrintWithFile(
+                printer, ctypes.c_void_p(settings), ctypes.c_void_p(page_format),
+                ctypes.c_void_p(mime), ctypes.c_void_p(objc.pyobjc_id(url)))
+    finally:
+        _cf.CFRelease(ctypes.c_void_p(mime))
+    if status != 0:
+        log.warning("native print: PMPrinterPrintWithFile -> %d", status)
+        return False
+    log.info("native print: PostScript printer, chart sent as DeviceRGB with the "
+             "dialog's settings (%d page(s), %d bytes)", len(pages), len(data))
+    try:
+        display = str(print_info.printer().name())
+    except Exception:  # noqa: BLE001
+        display = None
+    last_submission = Submission(display, locked, t_start, b"", None)
+    last_submission.device_rgb = True
     last_submission.reset_by_chromiq = dict(last_reset_by_chromiq)
     return True
 

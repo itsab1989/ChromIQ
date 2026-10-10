@@ -272,31 +272,20 @@ def chart_conversion_state(ti2_path: "Path | None") -> str:
 # ---------------------------------------------------------------------------
 
 def default_colour_for_run(run) -> str:
-    """The Colour default for a target with nothing stored (§11 Q3 / §5 A3.1).
+    """The Colour default for a target with nothing stored.
 
-    * A run with **no** verification history defaults to *through the
-      profile* — the honest check, on from the start for new work.
-    * A run that **has** history keeps the method that history used, so an
-      existing trend does not silently change meaning: the last print record
-      beside the shared verify chart decides, and a history with no record at
-      all predates feature A — every such sheet was printed raw, so raw it
-      stays until the user chooses otherwise.
-    """
-    try:
-        history = run.verifications()
-    except Exception:      # noqa: BLE001 — a default must never raise
-        return COLOUR_THROUGH
-    if not history:
-        return COLOUR_THROUGH
-    try:
-        rec_path = print_record_path(run.verify_chart_ti2)
-        if rec_path.is_file():
-            rec = json.loads(rec_path.read_text(encoding="utf-8"))
-            if rec.get("colour") in (COLOUR_THROUGH, COLOUR_RAW):
-                return rec["colour"]
-    except (OSError, ValueError):
-        pass
-    return COLOUR_RAW
+    **Through the profile, always** (k81, Knut #182 6102031563: *"If the
+    verification chart were a normal chart from a preset (or manually made),
+    without using From Profile's Gamut, then the option to print through the
+    profile should be available and selected as default"*). Until 4.3.4 a run
+    with verification history kept the method its last print record named,
+    and a history with no record defaulted to raw (§11 Q3, confirmed by
+    Sebastian 2026-08-10); Knut's ruling replaces that. A user's own choice
+    on the Print Chart tab still stands for the rest of the session, and the
+    print record still says how each sheet was printed. A FROM PROFILE GAMUT
+    chart is forced to raw elsewhere (§3.1a); a run without a profile cannot
+    print through one (A4). *run* is accepted for the callers' sake."""
+    return COLOUR_THROUGH
 
 
 def print_record_path(ti2_path: Path) -> Path:

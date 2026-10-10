@@ -21,7 +21,7 @@ proof on a real printer with a ColorMunki, guided step by step.
 |---|---|
 | **§3.1a** — a gamut chart forces "Raw — already converted", Through disabled | *"so far everything was as expected"* (Print tab, gamut chart on screen); print record `colour: raw`, no conversion cache created |
 | **§3.1b** disabled-option styling | confirmed 2026-08-08 (unchanged) |
-| **Q3 default** — a free chart with verification history defaults to Raw | *"step 10 seems true, it defaults to raw - no profile"* |
+| **Q3 default** — a free chart with verification history defaults to Raw | *"step 10 seems true, it defaults to raw - no profile"* **Superseded 4.3.5 by Knut's ruling k81 (§3.8, #182 6102031563): a regular verification chart defaults to "through the profile" whatever its history.** |
 | **§5 funnel, the two-sheet proof** | same chart printed Raw and Through (relative): sheets measure **9.50 ΔE00 apart** (98/105 patches > 2), THROUGH better on every statistic (mean 10.77 vs 11.76, max 20.73 vs 26.32) — the conversion demonstrably reached the paper |
 | **Feature B end to end** | gamut chart printed raw, measured: report judges vs the colorimetric reference, **mean 2.80 / p95 5.71 / max 6.50 ΔE00** over 97 test colours, corners excluded and reported separately, patch identity verified 105/105 |
 | **IMPORT module** (§I of the unified model) | *"import worked and the messages were good"* |
@@ -1049,6 +1049,45 @@ Basti asked for this on 2026-10-08: *"when the user hovers the label icon and it
 | W6 | speed and memory | its own colour table per chain (S5: two chains at most, so on and off of one chart are both held) and its own kept renderings, keyed by the flag in the same 144 MB store; nothing on disk. Only the chain on screen is worked out in the background, so turning it on costs one cctiff call for the page on screen, and after that switching back and forth is a swap |
 
 Verified by `tests/test_beta14_simulate_paper_white.py`.
+
+### 3.8 Printing a verification chart on the macOS dialog route (k81, 4.3.5)
+
+#### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-10-10, #182 [6102031563](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6102031563), his answer to point 4 of [6099862394](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6099862394).
+
+| # | Chart | Rule | Knut's words |
+|---|---|---|---|
+| K81a | FROM PROFILE GAMUT | prints without colour management on the macOS dialog route as well as on the direct route, without the user having to find a "No colour management" setting (many laser drivers have none) | *"it is not possible for me to print a chart made with From Profile's Gamut using the macOS dialog, unless ChromIQ configures that the printer dialog is set to "No color management" or "Colour management forced off" … This should be fixed and made correct for a user"* |
+| K81b | a regular verification chart (preset or Manual) | "through the profile" is available **and the default** | *"then the option to print through the profile should be available and selected as default"* |
+| K81c | the same, macOS dialog route | the user is clearly told to install the run's profile and choose it under Color Matching when printing | *"for the macOS dialog, then it must be clearly described that the user must install the profile created in the profile run, and then select that profile under Color Matching when printing"* |
+| K81d | the direct route | every case above works without hassle | *"For the direct route all the cases described above should be done correctly without hassle."* |
+
+K81b replaces §11 Q3's history-aware default (a run whose history was printed raw, or carries no print record, defaulted to raw; confirmed on hardware by Sebastian, 2026-08-10). Reported here because it changes a confirmed behaviour; Knut owns this specification.
+
+#### ⏳ Awaiting confirmation: how k81 is built (4.3.5)
+
+**Confirmed by:** *nobody yet.*
+
+Measured on capture queues (socket to a file, never a printer; report folder `2026-10-11_435_fpg_verify`, `runs/regress_summary.txt`), Knut's run 5 FROM PROFILE GAMUT chart and his profiling chart, v4.3.4 against 4.3.5:
+
+| Queue | 4.3.4 dialog route | 4.3.5 dialog route |
+|---|---|---|
+| Generic PostScript, Knut's run 5 profile set in ColorSync Utility | CIEBasedABC (the printer's own colour rendering converts), values unchanged | **DeviceRGB**, 1,372,807 of 1,372,807 chart pixels unchanged, the dialog's options in the job |
+| HP Color LaserJet 5550 PPD, the same profile | CIEBasedDEF (a colour table from the ColorSync profile, then the printer's rendering) | **DeviceRGB**, unchanged, every HP option of the dialog in the job (HPTextRGB/HPGraphicsRGB/HPPhotoRGB=Device, ColorModel, paper) |
+| Canon PRO-300, Epson ET-8550 (vendor PPDs), Gutenprint RGB raster, Gutenprint CMYK raster | as measured in 4.3.4 | **byte-identical raster to 4.3.4**, both charts |
+
+| # | Condition | Action | Where |
+|---|---|---|---|
+| D1 | macOS dialog route, the printer chosen in the dialog is a PostScript queue (`ppd_color.is_postscript_queue`), any RGB chart | after the dialog, ChromIQ's own PostScript (the direct route's `PostScriptGenerator`, DeviceRGB, `cups-disable-cmm`, one page per chart page, centred on the dialog's paper) is submitted with the dialog's print settings and page format (`PMPrinterPrintWithFile`, `application/postscript`); the print view and the re-tag are not used | `native_print_macos.print_frames`, `_print_device_rgb_postscript`, `_postscript_for_pages` |
+| D2 | the same, candidates measured and NOT taken | an exact-size PDF with DeviceRGB through the dialog (`application/pdf`): still CIEBasedABC after macOS's PDF to PostScript filter; the bitmap left untagged: CIEBased and converted (17.9 levels mean, max 100) | none |
+| D3 | every other queue | unchanged (the re-tag with the job's output profile, as 4.3.4) | `print_frames` |
+| D4 | read-back of a D1 job | not reported as untagged (there is no tag), M-PRINT-JOB-TAGGED-INTENT not added; M-PRINT-JOB-DEVICE-RGB (§M-PROPOSED) added once approved | `native_print_macos.read_back`, `tab_print._report_job_ticket` |
+| D5 | a regular verification chart with a profile, nothing stored for the target | Colour "Through this run's profile" (K81b) | `verification_print.default_colour_for_run` |
+| D6 | through the profile, either route | ChromIQ converts the pages itself (cctiff, A7) before printing, as before; measured: the converted sheet reaches a PostScript queue as DeviceRGB unchanged on both routes, and the PRO-300 raster unchanged on both routes | `tab_print._apply_verification_colour` |
+| D7 | the Print Chart tab's verification note | M-PRINT-VERIFY-ROUTE paragraph 1 only, because its paragraphs 2 and 3 became untrue for PostScript printers; then, once approved, M-PRINT-VERIFY-DIALOG-AS-IS (dialog route, sheet printed as it is) or M-PRINT-VERIFY-DIALOG-THROUGH (dialog route, through the profile: K81c, install the profile and choose it under Color Matching), and M-PRINT-VERIFY-PS-EARLIER | `tab_print._update_verify_route_note` |
+
+**A consequence to decide on (ours, not Knut's ruling):** D1 applies to every RGB chart on a PostScript printer, the profiling chart too, so that the profiling chart and its verification charts go the same way, which K81a needs: a FROM PROFILE GAMUT chart's values are only "without colour management" against a profile made without it. A profile made with 4.3.4 or earlier from a chart printed through the dialog to a PostScript printer describes the printer together with its own colour rendering; M-PRINT-VERIFY-PS-EARLIER (proposed) says to print that profiling chart again. Canon, Epson and other raster printers are not affected.
 
 ## 4. The Print Chart tab, reconciled
 

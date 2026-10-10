@@ -607,8 +607,10 @@ def test_an_existing_project_opens_unchanged(qapp, tmp_path):
     assert tab._cm_through_rb.isChecked()
 
 
-def test_q3_default_follows_the_runs_history():
-    """§5 A3.1 — the highest-risk decision in A, pinned at engine level."""
+def test_k81_default_is_through_the_profile_whatever_the_history():
+    """k81 (Knut, #182 6102031563): a regular verification chart defaults to
+    "Through this run's profile". Until 4.3.4 (§11 Q3) a run whose history had
+    no print record, or a raw one, defaulted to raw."""
     class _Run:
         def __init__(self, tmp, hist):
             self._hist = hist
@@ -620,15 +622,13 @@ def test_q3_default_follows_the_runs_history():
     import tempfile
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        # A fresh run: ON (through) from the start.
         assert vp.default_colour_for_run(_Run(tmp, [])) == vp.COLOUR_THROUGH
-        # History from before feature A (no record): the method stays raw, so
-        # the existing trend keeps its meaning.
-        assert vp.default_colour_for_run(_Run(tmp, ["v1"])) == vp.COLOUR_RAW
-        # History made through the profile keeps that method.
+        # History from before feature A (no record): through as well now.
+        assert vp.default_colour_for_run(_Run(tmp, ["v1"])) == vp.COLOUR_THROUGH
+        # History printed raw: through as well now.
         (tmp / "P-verify.ti2").write_text("CTI2\n", encoding="utf-8")
-        vp.write_print_record(tmp / "P-verify.ti2", colour=vp.COLOUR_THROUGH,
-                              intent="relative", profile=None,
+        vp.write_print_record(tmp / "P-verify.ti2", colour=vp.COLOUR_RAW,
+                              intent="", profile=None,
                               route=vp.ROUTE_CHROMIQ)
         assert vp.default_colour_for_run(_Run(tmp, ["v1"])) == vp.COLOUR_THROUGH
 

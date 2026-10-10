@@ -60,6 +60,9 @@ class TicketReport:
     #: macOS dialog route: driver options the dialog had set away from a
     #: Photoshop print's and ChromIQ set back, {key: (dialog's, ChromIQ's)}
     reset_by_chromiq: dict[str, tuple[str, str]] = field(default_factory=dict)
+    #: k81, macOS dialog route on a PostScript printer: ChromIQ sent its own
+    #: PostScript, the chart as DeviceRGB (no tag to compare)
+    device_rgb: bool = False
 
     @property
     def ok(self) -> bool:

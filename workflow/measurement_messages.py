@@ -5130,6 +5130,33 @@ M_PRINT_VERIFY_ROUTE = _m(
 #: is about the macOS print dialog and is shown only while that route is on.
 
 
+
+# --- PROPOSED (k81, 4.3.5): the macOS dialog route of a verification print ---
+#: Shown only once approved: `ui/tabs/tab_print._update_verify_route_note`
+#: and `_report_job_ticket`. Until then M-PRINT-VERIFY-ROUTE's first paragraph
+#: is shown alone (its paragraphs 2 and 3 are untrue for PostScript printers
+#: since ChromIQ sends them its own PostScript on the dialog route).
+M_PRINT_VERIFY_DIALOG_AS_IS = _m(
+    "M-PRINT-VERIFY-DIALOG-AS-IS",
+    "Printing a verification chart",
+    "Leave the colour settings in the macOS print dialog as they are, including its Color Matching panel. ChromIQ makes sure neither macOS nor the printer changes the chart’s colours: when macOS prints the job with a Canon or Epson paper profile, ChromIQ gives the chart that same profile after you close the dialog, and to a PostScript printer it sends the chart as the printer’s own RGB, as the direct route does.",
+    approved=False)
+M_PRINT_VERIFY_DIALOG_THROUGH = _m(
+    "M-PRINT-VERIFY-DIALOG-THROUGH",
+    "Printing a verification chart",
+    "This sheet is printed through this run’s profile, and ChromIQ converts it through that profile itself before the dialog opens. Install the profile first (Install Profile on the Build Profile tab), then choose it in the macOS print dialog under Color Matching, Profile, so the dialog names the profile the sheet is printed through. ChromIQ makes sure macOS and the printer do not convert the colours a second time.",
+    approved=False)
+M_PRINT_VERIFY_PS_EARLIER = _m(
+    "M-PRINT-VERIFY-PS-EARLIER",
+    "Printing a verification chart",
+    "On a PostScript printer both routes now send the chart as the printer’s own RGB. With ChromIQ 4.3.4 and earlier the macOS print dialog sent it marked as sRGB, which the printer converted with its own colour rendering. A profile made from a chart printed that way describes the printer together with that conversion: print and measure its profiling chart again before you verify it.",
+    approved=False)
+M_PRINT_JOB_DEVICE_RGB = _m(
+    "M-PRINT-JOB-DEVICE-RGB",
+    "The chart went as the printer’s own RGB",
+    "The chart went to this PostScript printer as its own RGB values, as the direct route sends it, so neither macOS nor the printer converted its colours.",
+    approved=False)
+
 # --- PROPOSED: the count help of FROM PROFILE GAMUT, k82 (4.3.5) ------------
 #: The two paragraphs that replace the 4.3.4 help's "smaller charts are part
 #: of larger ones" and "greys have a fixed share", both untrue since the even
@@ -5285,6 +5312,8 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
     M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
     M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT, M_HELP_GAMUT_SIZE_SPREAD,
+    M_PRINT_VERIFY_DIALOG_AS_IS, M_PRINT_VERIFY_DIALOG_THROUGH,
+    M_PRINT_VERIFY_PS_EARLIER, M_PRINT_JOB_DEVICE_RGB,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
