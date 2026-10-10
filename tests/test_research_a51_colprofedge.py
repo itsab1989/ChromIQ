@@ -57,12 +57,18 @@ def teardown_function(_f):
     oog_clip.set_colorimetric(False)
 
 
-def test_the_tokens_are_known_and_not_defaults():
-    for tok in _TOKENS:
+def test_the_tokens_are_known_and_only_a51_is_default():
+    # Integration 7: a51-colprofedge is a Maximum accuracy default (RGB
+    # devices only, see test_a51_acts_on_rgb_only...); every variant, a51b
+    # and a51-colprofedge-all stay opt-in.
+    for tok in _TOKENS + (oog_clip.A51B_TOKEN, "a51-colprofedge-all"):
         assert tok in ENGINE_CANDIDATE_TOKENS
-        assert tok not in ACCURATE_DEFAULT_TOKENS
-        assert tok not in accurate_candidates(frozenset())
+        default = tok == oog_clip.A51_TOKEN
+        assert (tok in ACCURATE_DEFAULT_TOKENS) == default
+        assert (tok in accurate_candidates(frozenset())) == default
         assert tok in accurate_candidates({tok})
+    assert "no-a51-colprofedge" in ENGINE_CANDIDATE_TOKENS
+    assert oog_clip.A51_TOKEN not in accurate_candidates({"no-a51-colprofedge"})
 
 
 def test_the_metric_is_colprofs_and_only_in_the_colorimetric_table():
