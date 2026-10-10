@@ -50,6 +50,7 @@ from ui.widgets import (
     make_browse_button,
     open_dir_dialog,
     reapply_ink,
+    reserve_button_labels,
     set_ink as _ink,
 )
 
@@ -6478,6 +6479,10 @@ class SettingsDialog(QDialog):
             # next editor should not have to make.
             self._credits_btn = show
             show.toggled.connect(self._on_credits_toggled)
+            # Room for both words (beta 18): the Swedish "Hide" label was
+            # wider than the "Show" one the button was fitted to.
+            reserve_button_labels(show, (tr("Show each set's credit"),
+                                         tr("Hide each set's credit")))
             row = QHBoxLayout()
             row.addWidget(show)
             row.addStretch(1)

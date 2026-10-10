@@ -59,7 +59,7 @@ from ui.cr30_calibration import Cr30CalibrationMixin
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import TooltipButton
-from ui.widgets import TailFollowLog, ElidingComboBox, ElidingLabel, WrappingCheckBox, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import TailFollowLog, ElidingComboBox, ElidingLabel, WrappingCheckBox, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary, reserve_button_labels
 
 _TAB_COLOR = "#56d6a5"  # Measure tab accent
 from ui.styles import SPEC_GREEN, TAB_COLORS
@@ -2570,6 +2570,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._start_btn.setObjectName("primary")
         self._start_btn.setFixedHeight(36)
         self._start_btn.clicked.connect(self._on_start)
+        # Room for both labels (beta 18): "Continue Measurement" replaces
+        # "Start Measurement" when resuming is ticked, and in Russian it was
+        # cut at the window's minimum width (`_refresh_start_button_label`).
+        reserve_button_labels(self._start_btn, (tr("Start Measurement"),
+                                                tr("Continue Measurement")))
         self._stop_btn = QPushButton(tr("Stop"), btn_outer)
         self._stop_btn.setFixedHeight(36)
         self._apply_stop_btn_style()

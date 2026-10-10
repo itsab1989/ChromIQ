@@ -329,3 +329,97 @@ def any_attached() -> "bool | None":
     """True / False / None — is an ArgyllCMS instrument plugged in right now?"""
     found = attached_instruments()
     return None if found is None else bool(found)
+
+
+# ---------------------------------------------------------------------------
+# A cheap "did anything on USB change?" for a window that keeps a label fresh
+# ---------------------------------------------------------------------------
+def _macos_usb_fingerprint() -> "tuple | None":
+    """macOS: (vendor, product, location) of every USB device, read IN PROCESS.
+
+    `usb_devices()` runs `/usr/sbin/ioreg`, a new process every call: measured
+    2026-10-10 at 25 ms idle and 39 ms with every core busy, on the GUI thread.
+    That is fine once, when a window opens or a session ends, and not fine
+    every two seconds. This asks the same IORegistry through IOKit directly
+    (`IOServiceGetMatchingServices`, read only, nothing opened): measured
+    well under a millisecond. It is only a CHANGE DETECTOR; the answer about
+    which reader is attached still comes from :func:`any_attached`.
+    """
+    import ctypes
+    iokit = ctypes.cdll.LoadLibrary(
+        "/System/Library/Frameworks/IOKit.framework/IOKit")
+    cf = ctypes.cdll.LoadLibrary(
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+    vp, u32 = ctypes.c_void_p, ctypes.c_uint32
+    iokit.IOServiceMatching.argtypes = [ctypes.c_char_p]
+    iokit.IOServiceMatching.restype = vp
+    iokit.IOServiceGetMatchingServices.argtypes = [u32, vp, ctypes.POINTER(u32)]
+    iokit.IOServiceGetMatchingServices.restype = ctypes.c_int
+    iokit.IOIteratorNext.argtypes = [u32]
+    iokit.IOIteratorNext.restype = u32
+    iokit.IOObjectRelease.argtypes = [u32]
+    iokit.IOObjectRelease.restype = ctypes.c_int
+    iokit.IORegistryEntryCreateCFProperty.argtypes = [u32, vp, vp, u32]
+    iokit.IORegistryEntryCreateCFProperty.restype = vp
+    cf.CFStringCreateWithCString.argtypes = [vp, ctypes.c_char_p, u32]
+    cf.CFStringCreateWithCString.restype = vp
+    cf.CFNumberGetValue.argtypes = [vp, ctypes.c_int, vp]
+    cf.CFNumberGetValue.restype = ctypes.c_bool
+    cf.CFRelease.argtypes = [vp]
+    cf.CFRelease.restype = None
+    utf8 = 0x08000100
+    keys = [cf.CFStringCreateWithCString(None, k, utf8)
+            for k in (b"idVendor", b"idProduct", b"locationID")]
+    try:
+        for cls in (b"IOUSBHostDevice", b"IOUSBDevice"):
+            it = u32()
+            # The matching dictionary is consumed by the call; nothing to free.
+            if iokit.IOServiceGetMatchingServices(
+                    0, iokit.IOServiceMatching(cls), ctypes.byref(it)) != 0:
+                continue
+            found = []
+            try:
+                while True:
+                    svc = iokit.IOIteratorNext(it.value)
+                    if not svc:
+                        break
+                    row = []
+                    for key in keys:
+                        ref = iokit.IORegistryEntryCreateCFProperty(svc, key, None, 0)
+                        val = ctypes.c_int64(-1)
+                        if ref:
+                            cf.CFNumberGetValue(ref, 4, ctypes.byref(val))  # SInt64
+                            cf.CFRelease(ref)
+                        row.append(val.value)
+                    iokit.IOObjectRelease(svc)
+                    found.append(tuple(row))
+            finally:
+                iokit.IOObjectRelease(it.value)
+            if found:
+                return tuple(sorted(found))
+        return ()
+    finally:
+        for key in keys:
+            if key:
+                cf.CFRelease(key)
+
+
+def usb_fingerprint() -> "tuple | None":
+    """Something that changes when a USB device is plugged in or pulled out.
+
+    Cheap enough to ask every couple of seconds on the GUI thread: on macOS an
+    in-process IOKit read (see :func:`_macos_usb_fingerprint`); on Linux and
+    Windows :func:`usb_devices`, which is already in process there (a sysfs
+    walk, SetupAPI). Never starts a program, never opens a device, never
+    touches a serial port. None when this host cannot be read, so a caller
+    compares like with like and simply sees "no change".
+    """
+    try:
+        if sys.platform == "darwin":
+            return _macos_usb_fingerprint()
+        devices = usb_devices()
+        return None if devices is None else tuple(sorted(
+            (d.vid, d.pid, d.name) for d in devices))
+    except Exception:              # noqa: BLE001 — a change detector, never an error
+        log.debug("could not fingerprint the USB devices", exc_info=True)
+        return None
