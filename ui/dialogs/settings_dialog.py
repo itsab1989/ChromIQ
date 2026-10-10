@@ -1817,6 +1817,17 @@ NEIGHBOUR_RADIUS_TIP = ("The largest ΔE*ab between two expected colours for "
                         "the two patches to be compared.")
 SAME_READING_TIP = ("The largest ΔE*ab between two readings of one patch for "
                     "a re-read to count as the same colour.")
+#: Every threshold of the table is compared at one decimal, as the cards
+#: show the values, and only a value ABOVE a limit is flagged (Knut, #182
+#: 6094941512: "errors shall happen if ABOVE the threshold", "rounded to the
+#: closest value with one decimal"); ``workflow.misread_settings.above``.
+ONE_DECIMAL_HELP = (
+    "ONE DECIMAL\n"
+    "Every threshold in this table is compared at one decimal, as the patch "
+    "cards show the values. A patch is flagged only when its value is above "
+    "the threshold: at a limit of 3.0, ΔE*ab 3.0 is not flagged and 3.1 is. "
+    "A radius or a tolerance includes its own value: 3.0 is within 3.0, "
+    "3.1 is not.")
 #: The table's column headings (``workflow.misread_settings.KIND_NAMES``).
 KIND_ESTIMATED_NAME = "Profiling charts with estimated colours"
 KIND_ACCURATE_NAME = "Profiling charts made with a pre-conditioning profile"
@@ -2396,7 +2407,7 @@ class SettingsDialog(QDialog):
         cell(help_btn(tr(PATCH_ERROR_LIMIT_NAME), tr(
             "While you measure with the ChromIQ chart-reading engine, each "
             "patch you read is shown split against the colour the chart "
-            "expects. A patch whose colour error (ΔE*ab) reaches the limit gets "
+            "expects. A patch whose colour error (ΔE*ab) is above the limit gets "
             "a red outline, so a likely misread (a smudge, a skipped row, a "
             "strip swiped the wrong way) jumps out at you straight away.")
             # WHAT THE LIMITS ARE FOR (Knut, #182 5983733592)
@@ -2411,6 +2422,7 @@ class SettingsDialog(QDialog):
             "patches may be outlined: that comes from having no neighbours to "
             "compare with, not from the two modes disagreeing about your "
             "print.")
+            + "\n\n" + tr(ONE_DECIMAL_HELP)
             + "\n\n" + tr(RED_AND_YELLOW_HELP)
             + "\n\n" + tr(GREEN_OUTLINE_HELP)
             + "\n\n" + tr("The outlines follow your limits in Preferences ▸ Measurement and "
@@ -2447,7 +2459,8 @@ class SettingsDialog(QDialog):
             cell(cb, row, c, pad=(4, 6, 4, 6), centre=True)
         cell(help_btn(tr(STRIP_TEST_NAME), tr(STRIP_TEST_HELP) + "\n\n"
                       + tr(STRIP_TEST_VERIFICATION_HELP) + "\n\n"
-                      + tr(STRIP_TEST_DEFAULT)), row, 5, pad=(4, 4, 8, 4))
+                      + tr(STRIP_TEST_DEFAULT) + "\n\n"
+                      + tr(ONE_DECIMAL_HELP)), row, 5, pad=(4, 4, 8, 4))
         row += 1
 
         # Neighbour check: its switch, then its two parameters
@@ -2467,7 +2480,8 @@ class SettingsDialog(QDialog):
         nb_h.addStretch()
         g.addWidget(nb_box, row, 0, 1, 5)
         cell(help_btn(tr(NEIGHBOUR_CHECK_NAME), tr(NEIGHBOUR_CHECK_HELP)
-                      + "\n\n" + tr(NEIGHBOUR_CHECK_DEFAULT)), row, 5,
+                      + "\n\n" + tr(NEIGHBOUR_CHECK_DEFAULT)
+                      + "\n\n" + tr(ONE_DECIMAL_HELP)), row, 5,
              pad=(4, 4, 8, 4))
         row += 1
         self._neighbour_limit_spins = {}
@@ -2517,7 +2531,8 @@ class SettingsDialog(QDialog):
         ml.setContentsMargins(10, 4, 10, 4)
         ml.addWidget(merged)
         g.addWidget(mbox, row, 1, 1, 4)
-        cell(help_btn(tr(SAME_READING_NAME), tr(SAME_READING_HELP)), row, 5,
+        cell(help_btn(tr(SAME_READING_NAME), tr(SAME_READING_HELP)
+                      + "\n\n" + tr(ONE_DECIMAL_HELP)), row, 5,
              pad=(4, 4, 8, 4))
         row += 1
 

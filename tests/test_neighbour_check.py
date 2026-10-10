@@ -132,8 +132,31 @@ def test_the_limit_is_strict():
     assert f.further == pytest.approx(12.0)
     nc = _check_lab(rows, limit=f.further)
     assert not nc.is_suspect("A1")
-    nc = _check_lab(rows, limit=f.further - 1e-6)
+    # At one decimal (Knut, #182 6094941512): ON the limit is not over it,
+    # 0.1 above it is; a few thousandths either side of the limit read as
+    # the limit itself.
+    nc = _check_lab(rows, limit=f.further - 0.1)
     assert nc.is_suspect("A1")
+    for limit in (f.further - 0.04, f.further + 0.04):
+        assert not _check_lab(rows, limit=limit).is_suspect("A1")
+
+
+@pytest.mark.parametrize("own, suspect", [(3.0, False), (3.04, False),
+                                          (3.06, True), (3.1, True),
+                                          (2.96, False)])
+def test_knuts_b3_on_the_limit_is_not_over_it(own, suspect):
+    """Knut, #182 6094941512: B3 turned red at ΔE 3.0 with the neighbour
+    limit at 3.0. Compared at one decimal as the card prints it: 3.0 is
+    not flagged, 3.1 is. 3.04 prints 3.0 and is not; 3.06 prints 3.1 and
+    is."""
+    rows = [("A1", (50, 0, 0), (50 - own, 0, 0), "A"),
+            ("B1", (50, 1, 0), (50, 1, 0), "B"),
+            ("C1", (50, 2, 0), (50, 2, 0), "C"),
+            ("D1", (50, 3, 0), (50, 3, 0), "D")]
+    nc = _check_lab(rows, limit=3.0)
+    f = nc.finding("A1")
+    assert f"{f.further:.1f}" == f"{own:.1f}"
+    assert nc.is_suspect("A1") is suspect
 
 
 def test_never_suspected_for_lack_of_comparisons():
@@ -322,12 +345,18 @@ def test_four_thousand_patches_are_judged_in_well_under_a_second():
 #: scanner chart 9 / 3 / 0 / 0 at 0.711. Without the "buffer" the scanner
 #: chart (a print measured through a scanner profile) has 16 at 10.
 REAL = {
-    "hp_laser_1944": (1944, {5: 59, 8: 3, 10: 0, 15: 0}, 1.0),
-    "knut_run1_648": (648, {5: 22, 8: 2, 10: 0, 15: 0}, 0.858),
-    "knut_run4_324": (324, {5: 9, 8: 1, 10: 0, 15: 0}, 0.62),
-    "epson_p300_924": (924, {5: 17, 8: 6, 10: 2, 15: 1}, 1.0),
-    "canon_pro300_1168": (1168, {5: 81, 8: 22, 10: 14, 15: 0}, 1.0),
-    "knut_scanner_315": (315, {5: 58, 8: 29, 10: 16, 15: 3}, 0.737),
+    # 4.3.4 beta 1 (Knut #182 6094941512): the limit and the radius are
+    # compared at one decimal, so a patch ON the limit is no suspect and a
+    # neighbour ON the radius is a neighbour. Beta 17 had, at 5 / 8 / 10:
+    # hp 59 / 3 / 0, run1 22 / 2 / 0 (coverage 0.858), run4 9 / 1 / 0
+    # (0.62), epson 17 / 6 / 2, canon 81 / 22 / 14, scanner 58 / 29 / 16
+    # (0.737).
+    "hp_laser_1944": (1944, {5: 56, 8: 3, 10: 0, 15: 0}, 1.0),
+    "knut_run1_648": (648, {5: 18, 8: 2, 10: 0, 15: 0}, 0.86),
+    "knut_run4_324": (324, {5: 9, 8: 1, 10: 0, 15: 0}, 0.623),
+    "epson_p300_924": (924, {5: 17, 8: 5, 10: 2, 15: 1}, 1.0),
+    "canon_pro300_1168": (1168, {5: 79, 8: 22, 10: 14, 15: 0}, 1.0),
+    "knut_scanner_315": (315, {5: 56, 8: 27, 10: 15, 15: 3}, 0.74),
 }
 
 
@@ -343,10 +372,11 @@ def test_real_sheets_give_the_analysis_numbers(name):
 
 
 def test_the_real_suspects_at_limit_ten():
-    """Beta 17: 32 of 5,323 patches (0.6 %), 14 on the wide-gamut Canon and
-    16 on the scanner chart (beta 15's B2+: 24; beta 11: 35)."""
+    """4.3.4 beta 1: 31 of 5,323 patches (0.6 %), 14 on the wide-gamut Canon
+    and 15 on the scanner chart (beta 17: 32 and 16, before the comparison
+    at one decimal; beta 15's B2+: 24; beta 11: 35)."""
     total = sum(len(check_of(sheet(name)).suspects()) for name in REAL)
-    assert total == 32
+    assert total == 31
     assert len(check_of(sheet("canon_pro300_1168")).suspects()) == 14
     assert check_of(sheet("knut_run1_648")).suspects() == []
     assert check_of(sheet("epson_p300_924")).suspects() == ["AK19", "AM5"]

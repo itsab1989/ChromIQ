@@ -118,6 +118,9 @@ def four_steps(loc, exp_lab: dict, meas_lab: dict, *, radius: float,
     expected colour within *radius* (any strip), each one's error, their
     median, the patch's own error, own minus median. ``(n, None)`` when
     fewer than *min_n* neighbours. Ties go to the patch read first."""
+    # the radius at one decimal, as the app compares it (Knut, #182
+    # 6094941512)
+    from workflow.misread_settings import within
     me = exp_lab[loc]
     # equal distances: the patch read first (*order*: loc -> reading index),
     # as ArgyllCMS charts repeat colours (a calibration chart's ramps all
@@ -125,7 +128,7 @@ def four_steps(loc, exp_lab: dict, meas_lab: dict, *, radius: float,
     order = order or {}
     cand = sorted((de(me, exp_lab[o]), order.get(o, 0), o)
                   for o in meas_lab if o != loc
-                  and de(me, exp_lab[o]) <= radius)[:k]
+                  and within(de(me, exp_lab[o]), radius))[:k]
     cand = [(d_, o) for d_, _i, o in cand]
     if len(cand) < min_n:
         return len(cand), None

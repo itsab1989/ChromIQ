@@ -24,7 +24,9 @@ def test_patch_mode_uses_the_limit_alone():
     """Option (a): no comparison against anything, because there is nothing to
     compare against."""
     src = inspect.getsource(TabMeasure._on_patch_measured)
-    assert "de_p >= warn_de, standout=None" in src
+    # The limit alone, no fence (since 4.3.4 beta 1 compared at one
+    # decimal, Knut #182 6094941512: workflow.misread_settings.above).
+    assert "_past_limit(de_p, warn_de)," in src
     assert "_use_outlier_fence" not in src, \
         "patch mode must not consult the strip comparison"
     assert "_spot_des" not in src, \

@@ -6652,7 +6652,7 @@
  "the chart's estimate here.": "与色卡的估算值不同。",
  "A real difference from the chart's": "与色卡估算值的真实差异，",
  "estimate, not a misread.": "不是读错。",
- "While you measure with the ChromIQ chart-reading engine, each patch you read is shown split against the colour the chart expects. A patch whose colour error (ΔE*ab) reaches the limit gets a red outline, so a likely misread (a smudge, a skipped row, a strip swiped the wrong way) jumps out at you straight away.": "使用 ChromIQ 色卡读取引擎测量时，每个读取的色块都会与色卡期望的颜色对半分割显示。颜色误差（ΔE*ab）达到上限的色块会加上红框，让可能的读错（污渍、跳过的行、方向扫反的色条）立刻显眼。",
+ "While you measure with the ChromIQ chart-reading engine, each patch you read is shown split against the colour the chart expects. A patch whose colour error (ΔE*ab) is above the limit gets a red outline, so a likely misread (a smudge, a skipped row, a strip swiped the wrong way) jumps out at you straight away.": "使用 ChromIQ 色卡读取引擎测量时，每个读取的色块都会与色卡期望的颜色对半分割显示。颜色误差（ΔE*ab）超过上限的色块会加上红框，让可能的读错（污渍、跳过的行、方向扫反的色条）立刻显眼。",
  "PATCH-BY-PATCH MODE IS DIFFERENT, ON PURPOSE\nUsually, when you read STRIPS with the option below on, a patch is flagged only when it is past the limit AND stands out from the other patches of its strip. Reading patch by patch there is no strip to compare with, so there the limit is the whole rule, and more patches may be outlined: that comes from having no neighbours to compare with, not from the two modes disagreeing about your print.": "逐块模式不同，而且是有意为之\n在下方选项开启时读取色条，只有超过上限并且在所属色条中显得突兀的色块才会被标出。逐个色块读取时没有色条可比较，因此上限就是全部规则，可能会有更多色块加框。这是因为没有相邻色块可比较，并不是两种模式对你的打印评价不同。",
  "Neighbour check: none of the {total} patches had enough patches near in colour to be checked.": "相邻检查：{total} 个色块中没有一个有足够的颜色相近色块可供检查。",
  "Green outline: corrected by a re-read": "绿框：已通过重新读取更正",
@@ -6836,5 +6836,6 @@
  "Your CR30 is not answering": "你的 CR30 没有响应",
  "A reading taken before Ready was not used": "「已就绪」之前的读取未被采用",
  "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "有一次读取发生在此窗口准备好之前，因此没有被采用。请重新测量。",
- "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "有 {n} 次读取发生在此窗口准备好之前，因此没有被采用。请重新测量。"
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "有 {n} 次读取发生在此窗口准备好之前，因此没有被采用。请重新测量。",
+ "ONE DECIMAL\nEvery threshold in this table is compared at one decimal, as the patch cards show the values. A patch is flagged only when its value is above the threshold: at a limit of 3.0, ΔE*ab 3.0 is not flagged and 3.1 is. A radius or a tolerance includes its own value: 3.0 is within 3.0, 3.1 is not.": "一位小数\n此表中的每个阈值都按一位小数比较，与色块卡片显示数值的方式相同。只有数值高于阈值时色块才会被标记：上限为 3.0 时，ΔE*ab 3.0 不标记，3.1 标记。半径或容差包含其自身的值：3.0 在 3.0 以内，3.1 不在。"
 }

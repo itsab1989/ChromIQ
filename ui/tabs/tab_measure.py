@@ -294,6 +294,18 @@ def _strip_outlier_fence(des: "list[float]") -> float:
     return q3 + 1.5 * (q3 - q1)
 
 
+def _past_limit(de: float, limit: float, fence: float = 0.0) -> bool:
+    """The red rule of the patch error limit: the patch's ΔE*ab is ABOVE the
+    limit, both at one decimal as the card prints them, and, with the strip
+    test on (*fence* above 0), above its strip's fence the same way (Knut,
+    #182 6094941512: "errors shall happen if ABOVE the threshold", compared
+    "rounded to the closest value with one decimal")."""
+    from workflow.misread_settings import above
+    if not above(de, limit):
+        return False
+    return fence <= 0.0 or above(de, fence)
+
+
 def _save_partial_name() -> str:
     """The Save Partial & Quit button's label, as HTML.
 
@@ -6319,7 +6331,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         last = getattr(self, "_last_patch_flag", None)
         yellow = (last is not None and last[0] == str(payload.get("loc", ""))
                   and is_yellow(last[1]))
-        if de is not None and de > warn and not yellow:
+        from workflow.misread_settings import above
+        if de is not None and above(de, warn) and not yellow:
             self._sound.play(_snd.PATCH_OUT_OF_TOL)
         else:
             self._sound.play(_snd.PATCH_OK)
@@ -7178,6 +7191,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # What "Was a strip read twice?" asked during this measurement, for
         # its closing window (#182 beta 11).
         self._read_twice_log = []
+        # Strip readings held, unjudged, while "Was a strip read twice?"
+        # asks about them (#182 6094941512, 4.3.4 beta 1).
+        self._read_twice_held = {}
 
         # #130 Hole 1: don't start a verification of a run that has no profile.
         block = self._verification_guard()
@@ -7937,9 +7953,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return              # answered already
         if getattr(self, "_session_live", True) is False:
             # The measurement ended first; its windows end with it, every
-            # question still waiting included.
+            # question still waiting included. A reading held for one is
+            # never drawn: the overlay is painted from the saved file.
             while pending():
                 mgr.answer_read_twice(None)
+            self._read_twice_held = {}
             return
         if self._a_question_is_open():
             return              # that window's release asks again
@@ -7951,11 +7969,115 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — a summary never blocks a read
             pass
         mgr.answer_read_twice(choice)
+        # THE READING IS JUDGED NOW, FOR THE STRIP THE ANSWER GIVES IT (Knut,
+        # #182 6094941512): until this answer it was held, unjudged.
+        self._release_read_twice_hold(str(args[0]), choice)
         # A reading set aside holds another strip's colours: the neighbour
         # check forgets it now, not when the strip is next read (review of
         # beta 11), so it is neither a suspect in the closing window nor a
         # comparison for the patches of other strips.
         self._neighbour_forget(self._set_aside_locs())
+
+    # ---- A reading "Was a strip read twice?" asks about waits for the answer
+    #
+    # Knut, #182 6094941512 (4.3.4 beta 1): strips A and B read, the reader on
+    # C, strip B swiped again. The engine files that reading as strip C, and
+    # the tab judged and drew it at once (the patch error limit, the strip
+    # test, the neighbour check, the yellow memory, the cards, the progress
+    # count), so the whole of strip C turned red behind the question, and
+    # stayed red after "I read strip B". "should have judged the patches
+    # AFTER I answered that window, not before, so that the neighbour check
+    # would judge the right strip depending on my answer."
+    #
+    # So a strip reading the manager has a question waiting about is HELD:
+    # nothing of it is judged, drawn or counted. The answer releases it:
+    # "Keep, it is strip C" and closing the window judge it as strip C,
+    # exactly as a reading with no question; "Re-read strip C" and "I read
+    # strip B" set it aside (the manager counts C as unread), so it is never
+    # judged, and strip C shows no reading until it is read again (the
+    # engine's reading of C is now this one, which the saved file leaves
+    # out).
+
+    def _read_twice_waiting(self, strip: str) -> bool:
+        """Is "Was a strip read twice?" asking, or about to ask, about
+        *strip*'s latest reading? Only during a live session."""
+        if not getattr(self, "_session_live", False):
+            return False
+        ask = getattr(self._manager, "read_twice_waiting_strips", None)
+        if ask is None:
+            return False
+        try:
+            return str(strip) in ask()
+        except Exception:      # noqa: BLE001 — never hold a reading by mistake
+            return False
+
+    def _hold_for_read_twice(self, ev: dict) -> bool:
+        """Hold *ev* (a strip reading) unjudged when a question about its
+        strip is waiting; True when held. A newer reading of the same strip
+        replaces the held one: the answer is about the strip's latest
+        reading, as the manager's is."""
+        strip = str(ev.get("strip", "") or "")
+        if not strip or not self._read_twice_waiting(strip):
+            return False
+        held = getattr(self, "_read_twice_held", None)
+        if held is None:
+            held = self._read_twice_held = {}
+        held[strip] = ev
+        log.info("strip %s: its reading waits for the answer to \"Was a "
+                 "strip read twice?\" before it is judged", strip)
+        return True
+
+    def _release_read_twice_hold(self, strip: str,
+                                 choice: "str | None") -> None:
+        """The answer about *strip* came: judge its held reading as that
+        strip (Keep, or the window closed), or drop it and show the strip as
+        unread (Re-read, I read strip X). A reading still asked about by a
+        question waiting behind this one stays held for that one."""
+        held = getattr(self, "_read_twice_held", None) or {}
+        if strip not in held or self._read_twice_waiting(strip):
+            return
+        ev = held.pop(strip)
+        if not getattr(self, "_session_live", False):
+            return
+        if choice in ("reread", "was_like"):
+            self._clear_set_aside_from_preview(strip)
+            return
+        try:
+            self._count_strip_progress(ev)
+            self._on_strip_measured(ev)
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.warning("could not judge the reading of strip %s after the "
+                        "answer", strip, exc_info=True)
+
+    def _clear_set_aside_from_preview(self, strip: str) -> None:
+        """Strip *strip*'s reading was set aside: it counts as unread, so its
+        patches show no reading and no outline, and the neighbour check
+        stops judging them (the caller then forgets them there)."""
+        # Every patch set aside (this strip's, and any earlier strip's still
+        # waiting to be read again, which shows no reading either), and the
+        # strip's fill-up squares, which are never counted but were swiped
+        # with it: the engine holds the same set-aside colours for them.
+        name = self._strip_name(strip)
+        locs = set(self._set_aside_locs())
+        for boxes in self._patch_boxes:
+            locs.update(loc for loc in boxes if self._strip_of(loc) == name)
+        locs = sorted(locs)
+        if not locs:
+            return
+        inputs = getattr(self, "_nb_inputs", None)
+        per_page: "dict[int, list]" = {}
+        for loc in locs:
+            if inputs is not None:
+                inputs.pop(loc, None)
+            page, box = self._locate_patch(loc)
+            if page >= 0 and box is not None:
+                per_page.setdefault(page, []).append(box)
+        preview = getattr(self, "_preview", None)
+        if preview is not None and hasattr(preview, "forget_patches"):
+            for page, boxes in per_page.items():
+                preview.forget_patches(page, boxes)
+        self._neighbour_forget(locs)
+        self._update_engine_read_map()
 
     def _strip_read_twice_window(self, strip: str, like: str) -> "str | None":
         """§M's M-STRIP-READ-TWICE, in the measurement frame.
@@ -15190,6 +15312,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         Keeping a set of short strings costs nothing; getting the completion
         metric wrong cost him a chart he thought was done.
         """
+        # Held while "Was a strip read twice?" asks about it: counted once
+        # the answer keeps it (Knut, #182 6094941512).
+        if self._read_twice_waiting(str(ev.get("strip", "") or "")):
+            return
         try:
             for p in (ev.get("patches") or []):
                 loc = str(p.get("loc", "")).strip()
@@ -15431,6 +15557,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _on_strip_measured(self, ev: dict) -> None:
         letter = str(ev.get("strip", ""))
         self._skip_next_all_done = False       # the re-read has happened
+        # "Was a strip read twice?" is asking about this reading: it is
+        # judged once answered, for the strip the answer gives it (Knut,
+        # #182 6094941512).
+        if self._hold_for_read_twice(ev):
+            return
         self._engine_read[letter] = True
         page, local_idx, rect = self._locate_strip(letter)
         # The expected colour this read is judged against: on a verification
@@ -15486,7 +15617,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if box is None:
                 continue
             de_p = float(p.get("de", 0))
-            warn = de_p >= warn_de and de_p >= fence
+            warn = _past_limit(de_p, warn_de, fence)
             exyz = p.get("exyz", [0, 0, 0])
             mxyz = p.get("xyz", [0, 0, 0])
             exp_rgb = _xyz_d50_to_srgb8(exyz)
@@ -16410,7 +16541,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # No strip here, so no stand-out figure: the learning rule's first two
         # conditions are the whole rule patch by patch (workflow/patch_flags.py).
         flag, extra = self._judge_with_neighbours(
-            loc, exp_lab, meas_lab, de_p, de_p >= warn_de, standout=None,
+            loc, exp_lab, meas_lab, de_p, _past_limit(de_p, warn_de),
+            standout=None,
             live=True)
         self._last_patch_flag = (loc, flag)
         item = (box, _QC(*exp_rgb), _QC(*meas_rgb), flag)
@@ -16421,7 +16553,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "exp_lab": exp_lab,
             "meas_lab": meas_lab,
             "de": de_p,
-            "warn": de_p >= warn_de, "warn_de": warn_de, "fenced": False,
+            "warn": _past_limit(de_p, warn_de), "warn_de": warn_de,
+            "fenced": False,
             **extra,
         })
         # Accumulate: each patch adds its own split + numbers (dedup by box, so
@@ -16507,7 +16640,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 standout = de_p - medians.get(letter, 0.0)
             else:
                 fence, standout = 0.0, None
-            warn = de_p >= warn_de and de_p >= fence
+            warn = _past_limit(de_p, warn_de, fence)
             flag, extra = self._judge_with_neighbours(
                 loc, exp_lab, meas_lab, de_p, warn, standout=standout,
                 live=live)

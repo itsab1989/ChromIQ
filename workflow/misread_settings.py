@@ -202,3 +202,61 @@ def chart_kind(*, calibration: bool, predicted: bool, accurate: bool) -> str:
     if accurate:
         return ACCURATE
     return ESTIMATED
+
+
+# --- Comparing with a threshold: at one decimal (Knut, #182 6094941512) ------
+#
+# Knut, on beta 17: patch B3 turned red at ΔE 3.0 with the neighbour limit at
+# 3.0. "This is ON the error threshold of 3.0, which should not be red,
+# because errors shall happen if ABOVE the threshold ... the values being
+# compared with the threshold is rounded to the closest value with one
+# decimal (0.1 steps). This principle should apply for all measurement
+# thresholds and tests (as defined in preferences -> measurement tab)".
+#
+# So every test of Preferences ▸ Measurement compares the value AS THE
+# CARDS SHOW IT, with one decimal, against the threshold with one decimal:
+#
+# * a value is flagged only when it is ABOVE the threshold (:func:`above`):
+#   the Patch error limit, the Neighbour limit, the Strip test's fence;
+# * a value counts as inside when it is not above it (:func:`within`): the
+#   Colour-neighbour radius ("within the radius") and the Same-reading
+#   tolerance ("the same reading"), so 3.0 at a tolerance of 3.0 is the
+#   same reading and 3.1 is not.
+#
+# THE ROUNDING IS THE CARDS' OWN: Python's ``f"{v:.1f}"``, which every card
+# line that names a limit uses. It rounds the exact value of the float to the
+# nearest tenth (an exact half, such as 0.25 which a float holds exactly,
+# goes to the even tenth: 0.2), so the figure a card prints is, character for
+# character, the figure that was compared.
+
+
+def one_decimal(value) -> float:
+    """*value* rounded to one decimal exactly as the patch cards print it
+    (``f"{value:.1f}"``)."""
+    return float(f"{float(value):.1f}")
+
+
+def above(value, threshold) -> bool:
+    """Is *value* above *threshold*, both taken at one decimal? ON the
+    threshold is not above it: 3.0 at 3.0 is not, 3.1 is."""
+    return one_decimal(value) > one_decimal(threshold)
+
+
+def within(value, threshold) -> bool:
+    """Is *value* inside *threshold* (not above it), both at one decimal?
+    For a radius and a tolerance: 3.0 at 3.0 is inside, 3.1 is not."""
+    return not above(value, threshold)
+
+
+def within_array(values, threshold):
+    """:func:`within` for a numpy array, elementwise and with the same
+    rounding: values more than 0.1 away from the threshold are decided at
+    once, the few near it by :func:`within` itself."""
+    import numpy as np
+    t = one_decimal(threshold)
+    v = np.asarray(values, dtype=float)
+    out = v < t - 0.1
+    near = ~out & (v < t + 0.1)
+    for idx in zip(*np.nonzero(near)):
+        out[idx] = within(float(v[idx]), t)
+    return out

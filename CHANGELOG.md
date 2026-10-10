@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.3.4-beta.1 (unreleased)
+
+### Fixed
+
+- **A strip turned red behind "Was a strip read twice?", and stayed red after the answer.** With the reader on strip C, reading strip B again filed B's colours as C, and ChromIQ judged them as C at once, before the question was asked, so all of C was outlined red (or yellow) behind the window and kept that after "I read strip B". A reading the question is about is now judged only once it is answered, and for the strip the answer gives it: **Keep** (or closing the window) judges it as the strip it was read on, **Re-read** and **I read strip B** set it aside unjudged, and the strip shows no reading until it is read again. Nothing changes behind the open window (#182, Knut).
+- **A patch exactly on a threshold was outlined red.** Patch B3 turned red at ΔE 3.0 with the neighbour limit at 3.0. Every threshold in Preferences ▸ Measurement now compares at one decimal, as the patch cards show the values, and only a value above the threshold is flagged: at 3.0, ΔE 3.0 is not red and 3.1 is. This applies to the patch error limit, the strip test, the neighbour limit, the colour-neighbour radius (a patch 15.0 away is within a radius of 15.0) and the same-reading tolerance (a re-read 3.0 away is the same reading at 3.0) (#182, Knut).
+
 ## v4.3.3
 
 **Misreads caught while you measure, and charts printed the way your photos print.** ChromIQ 4.3.3 outlines a patch that is probably a misread in red, one a re-read showed to be real in yellow and one a re-read corrected in green, with Knut's neighbour check and every threshold per chart type in one table. On a Canon or Epson the chart now reaches the printer in the state a photo printed from Photoshop does, with the paper profile, quality and resolution the printer's own dialog sets, and macOS no longer changes its colours on the way. Verifications are judged against what your profile predicts, the chart preview shows the sheet as it will print, the CR30 and Read single patches work more reliably, and on a Mac ChromIQ and ArgyllCMS install together with Homebrew.

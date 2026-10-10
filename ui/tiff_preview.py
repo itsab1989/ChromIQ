@@ -2477,6 +2477,25 @@ class TiffPreview(QWidget):
             ] + list(items)
         self._schedule_refresh()
 
+    def forget_patches(self, page: int, boxes) -> None:
+        """Remove these patches' results and hover numbers from `page`: a
+        reading set aside by "Was a strip read twice?" leaves its strip
+        unread (#182 6094941512). Patches not on the page are left alone."""
+        keys = {(r.x(), r.y(), r.width(), r.height()) for r in boxes or ()}
+        if not keys:
+            return
+
+        def kept(items):
+            return [it for it in items
+                    if (it[0].x(), it[0].y(), it[0].width(), it[0].height())
+                    not in keys]
+        if page in self._patch_overlay:
+            self._patch_overlay[page] = kept(self._patch_overlay[page])
+        if page in self._patch_info:
+            self._patch_info[page] = kept(self._patch_info[page])
+        self._hide_patch_tile()
+        self._schedule_refresh()
+
     def clear_patch_overlay(self) -> None:
         self._patch_overlay = {}
         self._patch_info = {}

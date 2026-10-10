@@ -1585,6 +1585,12 @@ class MeasureManager(QObject):
                 if (not q or q[0] != pair) else q[:1] + rest
         return found
 
+    def read_twice_waiting_strips(self) -> "set[str]":
+        """Every strip a question of "Was a strip read twice?" is waiting
+        about (on screen or queued): the tab holds those readings unjudged
+        until the answer (Knut, #182 6094941512)."""
+        return {str(s) for s, _like in self._read_twice_pending}
+
     def read_twice_pending(self) -> "tuple[str, str] | None":
         """(strip, like) of the question to ask (the oldest waiting), or None."""
         return self._read_twice_pending[0] if self._read_twice_pending else None

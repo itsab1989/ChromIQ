@@ -1195,20 +1195,24 @@ class FlagJudge:
             # previous reading too.
             earlier.append(prev)
         lim = None if limit is None else float(limit)
+        # Every threshold at one decimal, as the cards print it: "past" is
+        # ABOVE the limit, "the same" is not above the tolerance (Knut, #182
+        # 6094941512).
+        from workflow.misread_settings import above, within
 
         def same(a, b) -> bool:
-            return _norm(_sub(a, b)) <= self.same_reading_de
+            return within(_norm(_sub(a, b)), self.same_reading_de)
 
         def by_of(r) -> str:
             return "neighbour" if r.reread_only else "limit"
 
         def past(r) -> bool:
-            return lim is not None and r.flagged and r.de >= lim
+            return lim is not None and r.flagged and above(r.de, lim)
 
         # (a)/(c): past the limit again, and like none of the earlier flagged
         # readings, of which one or more were past the limit too.
         unsettled: tuple = ()
-        if live and flagged and lim is not None and de >= lim:
+        if live and flagged and lim is not None and above(de, lim):
             red_before = [r for r in earlier if r.flagged]
             if (any(past(r) for r in red_before)
                     and not any(same(meas_lab, r.meas_lab)
@@ -1247,7 +1251,8 @@ class FlagJudge:
             # an earlier reading no longer past it does not make the patch
             # unsettled, and the card never says "both are past your limit"
             # of a reading that is not (review of beta 12).
-            still = tuple(x for x in self._unsettled.get(loc, ()) if x >= lim)
+            still = tuple(x for x in self._unsettled.get(loc, ())
+                          if above(x, lim))
             if still:
                 self._unsettled[loc] = still
             else:
@@ -1261,7 +1266,7 @@ class FlagJudge:
         # under it (Knut 6045500910: "if any of the previous measurements
         # were above the threshold").
         over = None
-        if live and lim is not None and de < lim:
+        if live and lim is not None and not above(de, lim):
             for r in reversed(earlier):
                 if past(r):
                     over = r

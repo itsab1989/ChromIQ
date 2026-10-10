@@ -333,8 +333,11 @@ class NeighbourCheck:
         """May a and b compare: their expected colours lie within the
         Colour-neighbour radius. From ANY strip, its own included (Knut,
         #182 6078174421: "neighbours should come from any strip"). The
-        strips are still passed, so the search keeps one shape."""
-        return d <= self.radius
+        strips are still passed, so the search keeps one shape. At one
+        decimal, as every threshold (Knut, #182 6094941512): a distance of
+        30.0 is within a radius of 30.0, 30.1 is not."""
+        from workflow.misread_settings import within_array
+        return within_array(d, self.radius)
 
     def _find_fresh(self, locs, exp, st, known, rows) -> None:
         """Find the comparisons of *rows* among all the readings."""
@@ -402,8 +405,12 @@ class NeighbourCheck:
         if has.any():
             med[has] = np.nanmedian(off_nb[has], axis=1)     # step 2
         further = own - med
-        # step 4
-        suspect = has & (count >= self.min_compared) & (further > self.limit)
+        # step 4: ABOVE the Neighbour limit, both at one decimal as the card
+        # prints them (Knut, #182 6094941512: 3.0 at a limit of 3.0 is not
+        # flagged, 3.1 is)
+        from workflow.misread_settings import above
+        over = np.array([above(x, self.limit) for x in further], dtype=bool)
+        suspect = has & (count >= self.min_compared) & over
         for r, i in enumerate(rows):
             if not has[r]:
                 self._findings[locs[i]] = NeighbourFinding(locs[i])

@@ -7520,6 +7520,29 @@ The strip test's help carries the paragraph Knut approved in [6085694445](https:
 * **The card** shows the comparison line under "Measured" on every chart type; on a yellow card it names why the patch was red (the patch error limit or the neighbour check). A patch past the patch error limit that also fails the neighbour check carries M-PATCH-NEIGHBOUR-VARIANTS line 1 (§M-PROPOSED).
 * **Tested as Knut asked** (6084756743): `scripts/make_misread_demo.py` builds a project with a real chart of each type and readings that trip every kind of misread; `scripts/drive_b17_misread_protocol.py` measures them in the real app on screen (strips and patch by patch), changes every threshold of each chart type up and down in Preferences ▸ Measurement, and takes each test through red, yellow and green, against an implementation of the rules of its own. What it showed about strips read off together (review of beta 17, corrected: the first wording generalised from the ONE probe patch per strip the driver looked at). On the demo's measurement with every misread at once, at the default thresholds, the neighbour check outlines 14 of the 21 patches of the strip read off together and 6 of the 10 of the half strip on the profiling chart with estimated colours (beta 16: 16 and 4), 21 and 10 on the chart made with a pre-conditioning profile (beta 16: 16 and 4), 16 and 8 on the calibration chart (beta 16 did not judge calibration charts), and 18-19 and 10 on the verification charts; a strip reader re-reads the whole strip, so one outline is enough. The patch the driver looked at happened to be one of those left unoutlined. Injected into the real profiling sheets of `tests/test_neighbour_check.py` (HP laser, Knut's run1 and run4, Epson P300; 32 strips each), a whole strip with stray light is noticed 29 times in 32 (beta 16: 28), half a strip 24 (22), a whole strip read with the instrument tipped 12 (3), half a strip 8 (2). The strip test still hides such strips from the patch error limit, as before. A strip read out of step or another strip's readings are caught.
 
+#### Confirmed behaviour: a value on a threshold is not over it, compared at one decimal (4.3.4 beta 1)
+
+**Confirmed by:** Knut, 2026-10-10, #182 [6094941512](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6094941512) (his own rule: *"patch B3 turned red with 3.0 dE error from its neighbours. This is ON the error threshold of 3.0, which should not be red, because errors shall happen if ABOVE the threshold. I suggest that an error only is flagged if the threshold is passed by one decimal ... the values being compared with the threshold is rounded to the closest value with one decimal (0.1 steps). This principle should apply for all measurement thresholds and tests (as defined in preferences -> measurement tab) during measurement, so that one never get this situation again."*).
+
+* A value is flagged only when, rounded to one decimal, it is **above** the threshold: at a threshold of 3.0, ΔE 3.0 is not flagged and 3.1 is.
+* This holds for every threshold and test of Preferences ▸ Measurement while measuring.
+
+#### ⏳ Awaiting confirmation: how 4.3.4 beta 1 applies the one-decimal rule
+
+**Confirmed by:** *nobody yet.*
+
+* **One helper** (`workflow/misread_settings.py`: `one_decimal`, `above`, `within`, `within_array`) for every comparison, so all round the same way.
+* **The rounding is the cards' own** (`f"{value:.1f}"`, which every card line naming a limit uses): the nearest tenth of the float's exact value; an exact half the float holds exactly (0.25) goes to the even tenth (0.2). So the figure a card prints is, character for character, the figure compared, and a red card always prints a value above the limit it prints. The card's colour section keeps its precise "ΔE\*ab 5.04" line (two decimals); the sentences that name a limit print one decimal.
+* **Each threshold, and the direction chosen:**
+  * **Patch error limit:** red when the patch's ΔE\*ab is *above* the limit (it was "reaches": at or above). Strips, patch by patch, a whole sheet, a measurement painted from disk, the re-read rules (10.10a: "past the limit", and "under the limit" is now "not above it", so a re-read ON the limit after one past it is green) and the out-of-tolerance sound.
+  * **Strip test:** its threshold is worked out, not typed (the strip's fence); a patch past the limit is red only when its ΔE\*ab is also *above* the fence at one decimal (it was at or above).
+  * **Neighbour limit:** red when the patch's own error minus its neighbours' median is *above* the limit (it was already strictly above, on the unrounded figure: Knut's B3 printed 3.0 and was above by a few thousandths).
+  * **Colour-neighbour radius:** "within the radius" is *not above it*: a patch whose expected colour is 15.0 away is a neighbour at radius 15.0, 15.1 is not (it was at or below, unrounded). Chosen so that a value ON a threshold counts as inside it, the same rule seen from the other side.
+  * **Same-reading tolerance:** "the same reading" is *not above it*: a re-read 3.0 away is the same colour at 3.0, 3.1 away is not, which also decides green (a re-read more than the tolerance away).
+* **Not touched:** the reading-speed check of Preferences ▸ Measurement compares times, not colour differences, under its own rulings (Knut, #131: "strictly according to the calculations", and Basti's 2 % allowance, beta 12); the Measurement Report's limit sets (Preferences ▸ Reports) and Check & Refine's threshold are not tests of Preferences ▸ Measurement during measurement.
+* **The help** of the Patch error limit says "is above the limit" (it said "reaches"), and the help of the Patch error limit, the Strip test, the Neighbour check and the Same-reading tolerance carry one new paragraph, "ONE DECIMAL" (`ONE_DECIMAL_HELP`, our words). The approved card sentence "ΔE\*ab {de} reached the patch error limit ({limit}, {kind})" is unchanged: it now only stands beside a value above the limit.
+* **Measured** on the six real sheets of `tests/test_neighbour_check.py`, suspects at neighbour limit 5 / 8 / 10 / 15 (beta 17 in brackets): HP laser 56 / 3 / 0 / 0 (59 / 3), Knut run1 18 / 2 / 0 / 0 (22 / 2), run4 9 / 1 / 0 / 0, Epson P300 17 / 5 / 2 / 1 (17 / 6), Canon Pro300 79 / 22 / 14 / 0 (81), scanner chart 56 / 27 / 15 / 3 (58 / 29 / 16); 31 of 5,323 at the default 10 (32). Tests: `tests/test_434b1_a_value_on_the_limit_is_not_over_it.py`.
+
 ### 10.10 · Green: a misread a re-read corrected (#182, beta 11)
 
 #### Confirmed behaviour: the green outline
@@ -7783,6 +7806,26 @@ replay instrument) and on screen.
   window's question: a second alarm waits and is asked when the first is
   answered, and a waiting one is replaced only by a newer alarm about the same
   strip.
+
+### ⏳ Awaiting confirmation — a reading asked about is judged only after the answer (4.3.4 beta 1)
+
+**Confirmed by:** *nobody yet.*
+
+**The ruling it is built from:** Knut, 2026-10-10, #182 [6094941512](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6094941512), on beta 17: strips A and B read, the reader on C, strip B read again without clicking B; behind "Was a strip read twice?" all of strip C turned red (a second try: yellow), and after "I read strip B" C stayed red. *"the neighbour check did not take consideration of the warning message "Was a strip read twice?", and should have judged the patches AFTER I answered that window, not before, so that the neighbour check would judge the right strip depending on my answer (the message window gives four button options, where the outcome should be correctly done depending on what is chosen). The test of the neighbour check must be constructed to verify all these choices every time this function is verified."*
+
+**The fault:** the engine files a reading under the strip it is positioned on, and the Measure tab judged it (patch error limit, strip test, neighbour check, the yellow memory, the cards, the progress count) as that strip the moment it arrived, before the question was asked; the answer only moved the reader and told the neighbour check to forget.
+
+How 4.3.4 beta 1 builds it (`TabMeasure._hold_for_read_twice`, `_release_read_twice_hold`, `MeasureManager.read_twice_waiting_strips`):
+
+* **Held until the answer.** A strip reading the question is about (on screen or waiting behind another window) is not judged, drawn or counted while it waits: the preview, the cards, the neighbour check, the yellow and green memory and the progress figure stay exactly as they were before the swipe, so no outline appears behind the window. A newer reading of the same strip, read while it waits, replaces the held one; the answer is about the strip's latest reading, as before.
+* **The four ways the window ends.**
+  * **Keep, it is strip {strip}**: the reading is judged as strip {strip}, exactly as the same reading with no question would be.
+  * **Closing the window** (the X, Escape): the same as Keep, as before.
+  * **Re-read strip {strip}**: the reading is never judged. Strip {strip} counts as unread (as before), so its patches show no reading and no outline until it is read again; the engine's reading of {strip} is now the set-aside one, which never reaches the saved file, so an earlier reading of {strip} shown before the swipe is not shown either.
+  * **I read strip {like}**: the same as Re-read for the reading: never judged, neither as {strip} nor as {like}. The reader goes to {like}, whose next reading is judged as {like}; the set-aside reading is not given to {like}, because the engine cannot move a reading to another strip and it would not be the one saved.
+* **A measurement that ends with the question open** takes the held reading with it: nothing is drawn, and the overlay is painted from the saved file.
+* **The next reading of the strip** after Re-read or I read strip {like} is judged on its own: the set-aside reading was never one of its earlier readings, so it can neither confirm it (yellow) nor be corrected by it (green).
+* **Where the window can appear:** only ChromIQ's engine reading strips (§11b, "When it does not run"), fresh or resumed. Proved for every button, with the patch error limit and with the neighbour check doing the flagging, on a fresh measurement and on one whose strip already had a reading: `tests/test_434b1_read_twice_is_judged_after_the_answer.py`.
 
 ## 12. The computer stays awake while a measurement runs (Basti, #182 6015495063, beta 12)
 

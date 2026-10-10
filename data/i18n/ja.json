@@ -6652,7 +6652,7 @@
  "the chart's estimate here.": "チャートの推定値と異なります。",
  "A real difference from the chart's": "チャートの推定値との実際の差で、",
  "estimate, not a misread.": "読み取りミスではありません。",
- "While you measure with the ChromIQ chart-reading engine, each patch you read is shown split against the colour the chart expects. A patch whose colour error (ΔE*ab) reaches the limit gets a red outline, so a likely misread (a smudge, a skipped row, a strip swiped the wrong way) jumps out at you straight away.": "ChromIQ のチャート読み取りエンジンで測定している間、読み取った各パッチは、チャートが期待する色と並べて分割表示されます。色誤差 (ΔE*ab) が上限に達したパッチには赤い枠が付き、読み取りミスらしきもの (汚れ、行の飛ばし、逆向きに読んだストリップ) がすぐに目に入ります。",
+ "While you measure with the ChromIQ chart-reading engine, each patch you read is shown split against the colour the chart expects. A patch whose colour error (ΔE*ab) is above the limit gets a red outline, so a likely misread (a smudge, a skipped row, a strip swiped the wrong way) jumps out at you straight away.": "ChromIQ のチャート読み取りエンジンで測定している間、読み取った各パッチは、チャートが期待する色と並べて分割表示されます。色誤差 (ΔE*ab) が上限を超えたパッチには赤い枠が付き、読み取りミスらしきもの (汚れ、行の飛ばし、逆向きに読んだストリップ) がすぐに目に入ります。",
  "PATCH-BY-PATCH MODE IS DIFFERENT, ON PURPOSE\nUsually, when you read STRIPS with the option below on, a patch is flagged only when it is past the limit AND stands out from the other patches of its strip. Reading patch by patch there is no strip to compare with, so there the limit is the whole rule, and more patches may be outlined: that comes from having no neighbours to compare with, not from the two modes disagreeing about your print.": "パッチごとのモードは、あえて別の動きをします\n下のオプションをオンにしてストリップを読むと、パッチは上限を超え、かつ同じストリップのほかのパッチから浮いているときだけ印が付きます。1 パッチずつ読む場合は比べるストリップがないので、上限だけがルールとなり、より多くのパッチに枠が付くことがあります。これは比べる隣のパッチがないためで、2 つのモードが印刷を違って評価しているわけではありません。",
  "Neighbour check: none of the {total} patches had enough patches near in colour to be checked.": "近傍チェック：{total} 個のパッチのどれにも、チェックに足りる色の近いパッチがありませんでした。",
  "Green outline: corrected by a re-read": "緑枠：再読み取りで修正済み",
@@ -6836,5 +6836,6 @@
  "Your CR30 is not answering": "CR30 が応答しません",
  "A reading taken before Ready was not used": "「準備完了」の前の読み取りは使われませんでした",
  "One reading was taken before this window was ready for it, so it was not used. Take the reading again.": "このウィンドウの準備が整う前に読み取りが1回行われたため、その読み取りは使われませんでした。もう一度測定してください。",
- "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "このウィンドウの準備が整う前に {n} 回の読み取りが行われたため、それらは使われませんでした。もう一度測定してください。"
+ "{n} readings were taken before this window was ready for them, so they were not used. Take the reading again.": "このウィンドウの準備が整う前に {n} 回の読み取りが行われたため、それらは使われませんでした。もう一度測定してください。",
+ "ONE DECIMAL\nEvery threshold in this table is compared at one decimal, as the patch cards show the values. A patch is flagged only when its value is above the threshold: at a limit of 3.0, ΔE*ab 3.0 is not flagged and 3.1 is. A radius or a tolerance includes its own value: 3.0 is within 3.0, 3.1 is not.": "小数第 1 位\nこの表のしきい値はすべて、パッチカードが値を表示するとおり小数第 1 位で比較されます。パッチに印が付くのは、値がしきい値を超えたときだけです。上限 3.0 では ΔE*ab 3.0 には印が付かず、3.1 には付きます。半径と許容差は、その値自体を含みます。3.0 は 3.0 以内で、3.1 は以内ではありません。"
 }

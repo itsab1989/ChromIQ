@@ -119,13 +119,17 @@ class Oracle:
         out = set()
         meas = {loc: self.lab(x) for loc, x in readings.items()}
         order = {loc: i for i, loc in enumerate(readings)}
+        # Every threshold at one decimal, above it to be flagged (Knut,
+        # #182 6094941512), as the app compares them.
+        from workflow.misread_settings import above
         for loc in readings:
-            if de[loc] >= pel and de[loc] >= fence.get(loc, 0.0):
+            fe = fence.get(loc, 0.0)
+            if above(de[loc], pel) and (fe <= 0.0 or above(de[loc], fe)):
                 out.add(loc)
             elif nb_on:
                 n, fu = four_steps(loc, self.exp_lab, meas, radius=nr,
                                    order=order)
-                if fu is not None and fu > nl:
+                if fu is not None and above(fu, nl):
                     out.add(loc)
         return out
 
