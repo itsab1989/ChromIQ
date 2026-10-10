@@ -231,3 +231,71 @@ def repair_descriptions(data: bytes, names: dict[bytes, str]) -> bytes:
     if data[84:100] != b"\0" * 16:
         out[84:100] = _profile_id(bytes(out))
     return bytes(out)
+
+
+# ---------------------------------------------------------------------------
+# Giving an installed copy the description the user gave the profile
+# ---------------------------------------------------------------------------
+
+def _mluc(text: str) -> bytes:
+    """``multiLocalizedUnicodeType`` with one en/US record (ICC v4 ``desc``),
+    the shape ``workflow.profile_engine.icc_writer.make_mluc`` writes."""
+    payload = text.encode("utf-16-be")
+    return (b"mluc" + b"\0" * 4 + struct.pack(">II", 1, 12) + b"enUS"
+            + struct.pack(">II", len(payload), 28) + payload)
+
+
+def set_description(data: bytes, text: str) -> bytes:
+    """*data* (a whole ICC profile) with its ``desc`` tag saying *text*.
+
+    Knut, #182 6102031563: a profile renamed after it was built is installed
+    under its new name, "and the profile description field inside the ICC
+    profile (if selected the option that the description is same as file
+    name)". The tag keeps its type: ``textDescriptionType`` in a v2 profile
+    (:func:`text_description`, the accent kept in its Unicode field), and
+    ``multiLocalizedUnicodeType`` in a v4 one.
+
+    As :func:`repair_descriptions` does it, the new tag goes at the end of the
+    file and only its table entry, the header's size and (when it was ever
+    set) the profile ID change; no other tag moves. A profile that already
+    says *text*, has no ``desc`` tag or is not a profile comes back as it was.
+    """
+    text = (text or "").strip()
+    if not text or len(data) < 132 or data[36:40] != b"acsp":
+        return data
+    count = struct.unpack(">I", data[128:132])[0]
+    if 132 + 12 * count > len(data):
+        return data
+    for i in range(count):
+        sig, off, size = struct.unpack(">4sII",
+                                       data[132 + 12 * i:144 + 12 * i])
+        if sig != b"desc" or off + size > len(data):
+            continue
+        blob = data[off:off + size]
+        if blob[:4] == b"desc":
+            try:
+                ascii_field, uni = parse_text_description(blob)
+            except (ValueError, struct.error):
+                return data
+            if (uni or ascii_field) == text:
+                return data
+            new = text_description(text)
+        elif blob[:4] == b"mluc":
+            if _mluc(text) == blob:
+                return data
+            new = _mluc(text)
+        else:
+            return data
+        out = bytearray(data)
+        while len(out) % 4:
+            out += b"\0"
+        new_off = len(out)
+        out += new
+        while len(out) % 4:
+            out += b"\0"
+        struct.pack_into(">II", out, 136 + 12 * i, new_off, len(new))
+        struct.pack_into(">I", out, 0, len(out))
+        if data[84:100] != b"\0" * 16:
+            out[84:100] = _profile_id(bytes(out))
+        return bytes(out)
+    return data

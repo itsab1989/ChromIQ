@@ -2188,7 +2188,7 @@ _SUM_TWICE_NONE = "Strip read twice: none found."
 _SUM_TWICE_ONE = "Strip read twice: 1 strip looked like another, {list}."
 _SUM_TWICE = "Strip read twice: {n} strips looked like another, {list}."
 _SUM_TWICE_REREAD = "{strip} (like {like}, read again)"
-_SUM_TWICE_WAS_LIKE = "{strip} (like {like}, set aside)"
+_SUM_TWICE_WAS_LIKE = "{strip} (like {like}, counted as {like})"
 _SUM_TWICE_KEPT = "{strip} (like {like}, kept)"
 M_MEASURED_SUSPECTS = _m(
     "M-MEASURED-SUSPECTS",
@@ -2260,9 +2260,10 @@ M_OVERLAY_NO_MEASUREMENT = _m(
 _READ_TWICE_REREAD = "Re-read strip {strip}"
 _READ_TWICE_KEEP = "Keep, it is strip {strip}"
 #: The third answer, beta 8 (Knut, #182 5969949735: he read strip B on purpose
-#: with the reader on A, and the window had no way to say so). The engine
-#: cannot move a reading to another strip, so the reading is set aside and B
-#: is read again where it belongs; A counts as unread until it is read.
+#: with the reader on A, and the window had no way to say so). Since 4.3.5
+#: (Knut, #182 6102031563) the reading is counted and judged as strip B (the
+#: engine moves it there, replacing B's earlier reading), and the reader stays
+#: on A, which counts as unread until it is read.
 _READ_TWICE_WAS = "I read strip {like}"
 M_STRIP_READ_TWICE = _m(
     "M-STRIP-READ-TWICE",
@@ -2271,8 +2272,9 @@ M_STRIP_READ_TWICE = _m(
     "Did you read strip {like} again?\n\n"
     "•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it "
     "again and the new reading replaces this one.\n\n"
-    "•  I read strip {like}: the reader goes to strip {like}. Read it there "
-    "again, then read strip {strip}, which still has to be measured.\n\n"
+    "•  I read strip {like}: this reading is counted as strip {like} and "
+    "replaces its earlier reading. The reader stays on strip {strip}, which "
+    "still has to be measured.\n\n"
     "•  Keep, it is strip {strip}: this reading stays as strip {strip}, and "
     "measuring goes on.",
     approved=False)
@@ -2823,6 +2825,23 @@ M_PROJECT_REPLACE_CONFIRM = _m(
     "M-PROJECT-REPLACE-CONFIRM",
     "Start \u201c{name}\u201d again from empty?",
     "Everything this project holds is about to be moved into its own “old” folder, with today’s date on it:\n\n{folder}\n\nNothing is deleted. That “old” folder stays inside the project, so you can open it at any time and take anything back out of it: the charts, the measurements, the profiles, all of it.\n\nAfter that, a new and completely empty project of the same name is started in the same place, and your new chart is made in its first run.\n\nIf what you wanted was to ADD to this project rather than start it again, go back and choose “Continue this project” instead. That leaves everything where it is.",
+    approved=False)
+
+# --- PROPOSED: installing over a profile of the same file name -------------
+#: Knut, #182 6102031563, answer 3 ("Installing replaces an installed profile
+#: of the same name without asking. Should ChromIQ ask first?"): "Yes. Ask if
+#: user wants to replace existing or cancel to rename the profile before
+#: trying to install it again." Every Install button asks through
+#: ui/install_profile.confirm_replace. The words are ours, so the window is
+#: NOT shown until they are approved: until then an Install replaces the
+#: installed profile as it always has.
+_INSTALL_REPLACE = "Replace"
+M_PROFILE_INSTALL_REPLACE = _m(
+    "M-PROFILE-INSTALL-REPLACE",
+    "A profile with this name is already installed",
+    "{path} is already in your profile folder.\n\n"
+    "Replace it with this profile, or cancel and give this profile another "
+    "name before you install it.",
     approved=False)
 
 # --- PROPOSED: the Replace that could not be carried out -------------------
@@ -5316,6 +5335,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_EXISTS,
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,
+    M_PROFILE_INSTALL_REPLACE,
     M_PROJECT_FOLDER_RENAMED, M_PROJECT_FOLDER_RENAME_FAILED,
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,

@@ -89,6 +89,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src) {
 
 static volatile int   cq_pending_key = CQ_KEY_NONE;
 static char           cq_goto_label[16];
+static char           cq_file_as_label[16];  /* {"cmd":"file_as"}'s "as" */
 
 /* CHROMIQ_EXT: the calibration the user asked for -- see the "calibrate"
  * command in cq_handle_line for why these are not the key slot. */
@@ -270,7 +271,15 @@ static void cq_handle_line(const char *line) {
 		return;
 	}
 
-	if (strcmp(cmd, "goto") == 0
+	/* CHROMIQ_EXT (Knut #182 6102031563): "I read strip B". The reading
+	 * the engine filed under "strip" is "as"'s: the strip loop moves it
+	 * there (cq_take_goto() carries "strip", cq_take_file_as() "as"). */
+	char ga[16] = "";
+	if (strcmp(cmd, "file_as") == 0
+	 && cq_json_get(line, "strip", gl, sizeof(gl))
+	 && cq_json_get(line, "as", ga, sizeof(ga)))
+		key = CQ_KEY_FILE_AS;
+	else if (strcmp(cmd, "goto") == 0
 	 && (cq_json_get(line, "strip", gl, sizeof(gl))
 	  || cq_json_get(line, "patch", gl, sizeof(gl))))
 		key = CQ_KEY_GOTO;
@@ -301,9 +310,13 @@ static void cq_handle_line(const char *line) {
 
 	cq_lock_take();
 	cq_pending_key = key;
-	if (key == CQ_KEY_GOTO) {
+	if (key == CQ_KEY_GOTO || key == CQ_KEY_FILE_AS) {
 		strncpy(cq_goto_label, gl, sizeof(cq_goto_label) - 1);
 		cq_goto_label[sizeof(cq_goto_label) - 1] = '\0';
+	}
+	if (key == CQ_KEY_FILE_AS) {
+		strncpy(cq_file_as_label, ga, sizeof(cq_file_as_label) - 1);
+		cq_file_as_label[sizeof(cq_file_as_label) - 1] = '\0';
 	}
 	/* Mirror the key onto the line channel so the SAME command works in -x,
 	 * where the read loop wants a line rather than a key. -x's parser reads
@@ -434,7 +447,7 @@ static void cq_sleep_ms(int ms) {
 int cq_wait_char(void) {
 	for (;;) {
 		int k = cq_cmd_take_key();
-		if (k != CQ_KEY_NONE && k != CQ_KEY_GOTO)
+		if (k != CQ_KEY_NONE && k != CQ_KEY_GOTO && k != CQ_KEY_FILE_AS)
 			return k;
 		cq_sleep_ms(20);
 	}
@@ -475,6 +488,10 @@ int cq_line_overflow_count(void) {
 
 const char *cq_take_goto(void) {
 	return cq_goto_label;
+}
+
+const char *cq_take_file_as(void) {
+	return cq_file_as_label;
 }
 
 /* ------------------------------------------------------------------ */
@@ -531,7 +548,7 @@ int cq_cal_take_cancel(void) {
 /* Non-blocking: the next waiting key, or CQ_KEY_NONE. A goto is dropped. */
 int cq_poll_char(void) {
 	int k = cq_cmd_take_key();
-	return k == CQ_KEY_GOTO ? CQ_KEY_NONE : k;
+	return (k == CQ_KEY_GOTO || k == CQ_KEY_FILE_AS) ? CQ_KEY_NONE : k;
 }
 
 void cq_sleep_poll(void) {

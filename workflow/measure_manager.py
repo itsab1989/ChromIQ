@@ -402,6 +402,12 @@ class MeasureManager(QObject):
     #: it) looks like a strip already measured — (strip, like). See
     #: workflow/strip_read_twice.py and _check_read_twice.
     strip_read_twice           = pyqtSignal(str, str)
+    #: "I read strip B" (Knut, #182 6102031563): the engine has moved the
+    #: reading it filed under another strip onto B. The event has the shape
+    #: of a strip_read for B (its patches under B's locations, with B's
+    #: expected colours), so it is judged as a reading of B. See
+    #: answer_read_twice.
+    strip_filed_as             = pyqtSignal(dict)
 
     def __init__(self, runner: "ArgyllRunner", parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -462,6 +468,9 @@ class MeasureManager(QObject):
         #: (review of 6de015eb): an instrument reads while a window is open,
         #: so a second alarm waits its turn instead of taking over the answer.
         self._read_twice_pending: "list[tuple[str, str]]" = []
+        #: Whether the engine understands {"cmd":"file_as"} (its session_start
+        #: says so): "I read strip B" then moves the reading onto B.
+        self._engine_files_as: bool = False
         #: Strips whose latest reading was asked about and not kept, as
         #: {strip: the strip it looked like}. Such a reading is very likely
         #: ANOTHER strip's (Knut, #182 5969949735: strip B swiped with the
@@ -1626,6 +1635,22 @@ class MeasureManager(QObject):
             self._unread_locs.update(
                 loc for loc, s in self._loc_strip.items()
                 if s == strip and loc not in self._padding_locs)
+            if choice == "was_like" and self._engine_files_as:
+                # "I READ STRIP B" (Knut, #182 6102031563): "those values
+                # should be counted as strip B values and judged in the
+                # neighbour check for the strip B values ... and then focus
+                # for next read stays at F, because that is the unread that I
+                # was supposed to read". The engine moves the reading onto
+                # {like} (it replaces that strip's reading, in the saved file
+                # too), leaves {strip} unread and puts the reader on it; its
+                # strip_filed_as event (handled in on_event) carries the
+                # reading as {like}'s, which the tab judges as {like}.
+                log.info("read twice: strip %s's reading is strip %s's; the "
+                         "engine files it there, the reader stays on %s",
+                         strip, like, strip)
+                self.send_command({"cmd": "file_as", "strip": strip,
+                                   "as": like})
+                return
             target = strip if choice == "reread" else like
             log.info("read twice: strip %s's reading set aside; reader to "
                      "strip %s (%s)", strip, target, choice)
@@ -2265,6 +2290,9 @@ class MeasureManager(QObject):
             self._chart_was_complete = self._measurement_was_complete(
                 ev.get("chart"), strips)
             self._session_strips = list(strips or [])
+            # "I read strip B" moves the reading onto B in the engine (Knut,
+            # #182 6102031563); an engine without the command says nothing.
+            self._engine_files_as = bool(ev.get("file_as"))
             self._build_read_map(ev.get("chart"), self._session_strips)
             self._learn_measured_strips(ev.get("chart"))
             self.session_map.emit(strips)
@@ -2372,6 +2400,42 @@ class MeasureManager(QObject):
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
+
+        elif kind == "strip_filed_as":
+            # "I read strip B" carried out by the engine (Knut, #182
+            # 6102031563): the reading it filed under *from* is now *strip*'s,
+            # and *from* is unread. *from* stays set aside here until it is
+            # read (its locations are unread already, answer_read_twice), so
+            # it is never counted, compared with or called complete.
+            _to = str(ev.get("strip", "")).strip()
+            _fr = str(ev.get("from", "")).strip()
+            _patches = ev.get("patches")
+            try:
+                from workflow.strip_read_twice import xyz_to_lab
+                vals = {}
+                for p in (_patches if isinstance(_patches, list) else []):
+                    loc, xyz = str(p.get("loc") or "").strip(), p.get("xyz")
+                    if loc and isinstance(xyz, (list, tuple)) and len(xyz) == 3:
+                        vals[loc] = xyz_to_lab(xyz)
+                labs = self._by_strip(vals).get(_to)
+                if labs:
+                    self._measured_strips[_to] = labs
+                self._measured_strips.pop(_fr, None)
+            except Exception:      # noqa: BLE001 — never block a measurement
+                log.warning("could not learn strip %s's moved reading", _to,
+                            exc_info=True)
+            log.info("strip %s's reading filed as strip %s", _fr, _to)
+            self.strip_filed_as.emit({"event": "strip_read", "strip": _to,
+                                      "filed_from": _fr,
+                                      "patches": list(_patches or [])})
+
+        elif kind == "file_as_refused":
+            # The engine could not move the reading (an unknown strip, or
+            # nothing read there any more). It stays set aside, as Re-read
+            # would leave it: never saved, and the strip read again.
+            log.warning("the engine refused to file strip %s's reading as "
+                        "strip %s; it stays set aside", ev.get("strip"),
+                        ev.get("as"))
 
         elif kind == "spot_ready":
             # Engine patch-by-patch mode: the read loop is now sitting on this

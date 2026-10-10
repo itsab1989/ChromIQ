@@ -2217,8 +2217,10 @@ class TabCheckRefine(QWidget):
                     # when this profile was built, and it is the name other
                     # applications list the profile under. the tester's point was
                     # exactly that the two should match.
+                    from ui.install_profile import confirm_replace
                     from workflow.profile_builder import (
-                        install_profile_file, installed_profile_name)
+                        install_destination, install_profile_file,
+                        installed_profile_name)
                     desc = ""
                     try:
                         from workflow.icc_info import read_icc
@@ -2228,9 +2230,15 @@ class TabCheckRefine(QWidget):
                                   icc, exc_info=True)
                     # The fallback keeps the old behaviour when the tick is
                     # off: the project name, not a role name like merged.icc.
-                    dest = install_profile_file(
-                        icc, installed_profile_name(desc, self._settings),
-                        fallback_stem=Run.for_dir(icc.parent).stem)
+                    name = installed_profile_name(desc, self._settings)
+                    fallback = Run.for_dir(icc.parent).stem
+                    # Ask before replacing an installed profile of that
+                    # name (Knut, #182 6102031563).
+                    if not confirm_replace(dlg, install_destination(
+                            icc, name, fallback_stem=fallback)):
+                        return
+                    dest = install_profile_file(icc, name,
+                                                fallback_stem=fallback)
                     dlg.accept()
                     self._log.appendPlainText(f"[OK] Profile installed to {dest}")
                 except Exception as exc:

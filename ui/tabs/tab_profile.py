@@ -2037,9 +2037,13 @@ class TabProfile(QWidget):
         def _on_install() -> None:
             dlg.accept()
             try:
+                name = self._install_name()
+                fallback = _role_named_fallback(icc_path)
+                if not self._may_install_over(icc_path, name, fallback):
+                    return
                 dest = self._builder.install_profile(
-                    icc_path, self._install_name(),
-                    fallback_stem=_role_named_fallback(icc_path))
+                    icc_path, name, fallback_stem=fallback,
+                    description=self._install_description(name))
                 self._ac_log.appendPlainText(f"[OK] Profile installed to {dest}")
             except Exception as exc:
                 self._ac_log.appendPlainText(f"[ERROR] Install failed: {exc}")
@@ -6226,6 +6230,26 @@ class TabProfile(QWidget):
                 else self._m_desc_edit)
         return installed_profile_name(edit.text(), self._settings)
 
+    def _install_description(self, name: "str | None") -> "str | None":
+        """What the installed copy's description says, or None to leave the
+        profile's own: with "Name the installed copy after the description"
+        ticked (*name* is then the file name it gives), the description as it
+        reads NOW, so a profile renamed after it was built is installed under
+        its new name inside as well as on the file (Knut, #182 6102031563)."""
+        if not name:
+            return None
+        edit = (self._desc_edit if self._current_mode() == "guided"
+                else self._m_desc_edit)
+        return edit.text().strip() or None
+
+    def _may_install_over(self, icc_path, name, fallback) -> bool:
+        """Ask before an installed profile of the same file name is replaced
+        (Knut, #182 6102031563; ``ui.install_profile.confirm_replace``)."""
+        from ui.install_profile import confirm_replace
+        from workflow.profile_builder import install_destination
+        return confirm_replace(self, install_destination(
+            Path(icc_path), name, fallback_stem=fallback))
+
     def _on_install(self) -> None:
         if not self._icc_path:
             # Unreachable from the button (`_sync_install_button`), and never
@@ -6236,9 +6260,13 @@ class TabProfile(QWidget):
             self._sync_install_button()
             return
         try:
+            name = self._install_name()
+            fallback = _role_named_fallback(self._icc_path)
+            if not self._may_install_over(self._icc_path, name, fallback):
+                return
             dest = self._builder.install_profile(
-                self._icc_path, self._install_name(),
-                fallback_stem=_role_named_fallback(self._icc_path))
+                self._icc_path, name, fallback_stem=fallback,
+                description=self._install_description(name))
             self._log.appendPlainText(f"[OK] Profile installed to {dest}")
             self._log.ensureCursorVisible()
         except Exception as exc:

@@ -19,8 +19,8 @@ def _lines(tab, loc):
 
 
 def _sentence(n, fu):
-    d = f"{abs(fu):.1f}"
-    if d == "0.0":
+    d = f"{abs(fu):.2f}"
+    if d == "0.00":
         return M._CARD_NBC_EQUAL_S.format(n=n)
     return (M._CARD_NBC_CLOSER_S if fu < 0 else M._CARD_NBC_FURTHER_S).format(
         d=d, n=n)
@@ -45,7 +45,7 @@ def test_the_misread_shows_the_figure_the_check_used(qapp, tmp_path):
     f = tab._nb_check.finding("D6")
     assert f.suspect and f.further > 0
     assert M._CARD_NBC_FURTHER_S.format(
-        d=f"{f.further:.1f}", n=len(f.compared)) in _text(_lines(tab, "D6"))
+        d=f"{f.further:.2f}", n=len(f.compared)) in _text(_lines(tab, "D6"))
 
 
 def test_its_neighbours_read_closer_than_it(qapp, tmp_path):
@@ -100,6 +100,6 @@ def test_on_verification_and_calibration_charts_with_outlines(
     assert nb["limit"] == limit
     # red by the neighbour check alone, or (on a verification, whose patch
     # error limit is 5) by both, with the neighbour line after the limit's
-    kw = dict(d=f"{fu:.1f}", n=n, limit=f"{limit:.1f}")
+    kw = dict(d=f"{fu:.2f}", n=n, limit=f"{limit:.2f}")
     assert (M._CARD_NB_RED_S.format(**kw) in text
             or M._CARD_NB_ALSO_S.format(**kw) in text)

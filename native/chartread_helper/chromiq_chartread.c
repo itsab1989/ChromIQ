@@ -597,6 +597,89 @@ static void cq_emit_strip_read(chcol **scb, int stipa, const char *label,
 	cq_out_unlock();
 }
 
+/* CHROMIQ_EXT (Knut #182 6102031563): the row index of strip *label*, or -1. */
+static int cq_strip_row(alphix *paix, int totpa, const char *label) {
+	int r;
+	if (label == NULL || label[0] == '\0')
+		return -1;
+	for (r = 0; r < totpa; r++) {
+		char *cand = paix->aix(paix, r);
+		if (cand != NULL) {
+			int same = strcmp(cand, label) == 0;
+			free(cand);
+			if (same)
+				return r;
+		}
+	}
+	return -1;
+}
+
+/* Has any patch of row *r* a reading? */
+static int cq_row_read(chcol **scols, int stipa, int r) {
+	int i;
+	for (i = 0; i < stipa; i++)
+		if (scols[r * stipa + i]->rr)
+			return 1;
+	return 0;
+}
+
+/* Move row *fr*'s readings onto row *to*, patch for patch, in the order
+ * the transfer gave them (direction and offset already applied there), and
+ * leave *fr* unread. */
+static void cq_move_row(chcol **scols, int stipa, int fr, int to) {
+	int i, j;
+	for (i = 0; i < stipa; i++) {
+		chcol *s = scols[fr * stipa + i], *d = scols[to * stipa + i];
+		for (j = 0; j < 3; j++)
+			d->XYZ[j] = s->XYZ[j];
+		d->sp = s->sp;
+		d->mtype = s->mtype;
+		d->mcond = s->mcond;
+		d->rr = s->rr;
+		for (j = 0; j < 3; j++)
+			s->XYZ[j] = 0.0;
+		s->sp.spec_n = 0;
+		s->rr = 0;
+	}
+}
+
+/* The strip a file_as moved, with its patches under their new locations:
+ * the same per-patch schema as strip_read, so the GUI judges it as a
+ * reading of that strip. */
+static void cq_emit_strip_filed_as(chcol **scb, int stipa, const char *label,
+	const char *from) {
+	int i;
+
+	if (!cq_json)
+		return;
+
+	cq_out_lock();
+	fprintf(stdout,
+	        "\n{\"event\":\"strip_filed_as\",\"strip\":\"%s\",\"from\":\"%s\","
+	        "\"patches\":[", label, from);
+	for (i = 0; i < stipa; i++) {
+		double lab_m[3], lab_e[3], xyz[3];
+		double de;
+		int j;
+		for (j = 0; j < 3; j++)
+			xyz[j] = scb[i]->XYZ[j] / 100.0;
+		icmXYZ2Lab(&icmD50, lab_m, xyz);
+		for (j = 0; j < 3; j++)
+			xyz[j] = scb[i]->eXYZ[j] / 100.0;
+		icmXYZ2Lab(&icmD50, lab_e, xyz);
+		de = icmLabDE(lab_m, lab_e);
+		fprintf(stdout,
+		        "%s{\"id\":\"%s\",\"loc\":\"%s\",\"xyz\":[%.4f,%.4f,%.4f],"
+		        "\"exyz\":[%.4f,%.4f,%.4f],\"de\":%.2f}",
+		        i > 0 ? "," : "", scb[i]->id, scb[i]->loc,
+		        scb[i]->XYZ[0], scb[i]->XYZ[1], scb[i]->XYZ[2],
+		        scb[i]->eXYZ[0], scb[i]->eXYZ[1], scb[i]->eXYZ[2], de);
+	}
+	fprintf(stdout, "]}\n");
+	fflush(stdout);
+	cq_out_unlock();
+}
+
 /* CHROMIQ_EXT: per-patch events for engine-driven patch-by-patch (spot) mode.
  * `spot_ready` announces the patch the read loop is now sitting on (so the
  * GUI can highlight it and offer a jump); `patch_read` carries the measured
@@ -784,6 +867,10 @@ static int cq_is_external_instrument(const char *name) {
 static char cq_goto_target[16] = "";
 /* Set when a goto repositioned the menu without a reading. */
 static int cq_jumped = 0;
+/* CHROMIQ_EXT (Knut #182 6102031563): the two labels of a file_as command,
+ * consumed at the strip menu ('m'). */
+static char cq_file_from[16] = "";
+static char cq_file_to[16] = "";
 
 /* Recognition figures of the last accepted strip, captured where the
  * sweep computes them (inner scope) for the strip_read event emitted
@@ -834,6 +921,19 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 			strncpy(cq_goto_target, cq_take_goto(), sizeof(cq_goto_target) - 1);
 			cq_goto_target[sizeof(cq_goto_target) - 1] = '\0';
 			c = 'g';			/* classified as DUIH_CMND by the uih table */
+		}
+		if (c == CQ_KEY_FILE_AS) {
+			/* Only where the strip loop registered 'm' as a command: anywhere
+			 * else 'm' would be a trigger and start a read. */
+			if (p->uih['m'] & DUIH_CMND) {
+				strncpy(cq_file_from, cq_take_goto(), sizeof(cq_file_from) - 1);
+				cq_file_from[sizeof(cq_file_from) - 1] = '\0';
+				strncpy(cq_file_to, cq_take_file_as(), sizeof(cq_file_to) - 1);
+				cq_file_to[sizeof(cq_file_to) - 1] = '\0';
+				c = 'm';
+			} else {
+				c = CQ_KEY_NONE;
+			}
 		}
 		if (c != CQ_KEY_NONE) {
 			p->cut = c;
@@ -2117,6 +2217,9 @@ a1log *log			/* verb, debug & error log */
 		if (cq_json) {
 			inst_set_uih('k', 'k', DUIH_CMND);
 			inst_set_uih('K', 'K', DUIH_CMND);
+			/* CHROMIQ_EXT: 'm', a file_as command (Knut #182 6102031563).
+			 * Only ever produced by cq_uicallback from that command. */
+			inst_set_uih('m', 'm', DUIH_CMND);
 		}
 
 		/* Allocate space for values from a pass/strip */
@@ -2286,6 +2389,38 @@ a1log *log			/* verb, debug & error log */
 									pai = oroi - acc;
 									incflag = 0;
 								}
+								break;
+							} else if (cq_json && ch == 'm') {
+								/* CHROMIQ_EXT (Knut #182 6102031563): "I read
+								 * strip B". The reading filed under strip
+								 * cq_file_from was strip cq_file_to: it is
+								 * moved there (it replaces that strip's
+								 * reading, spectra included), the strip it
+								 * came off is unread again, and the reader
+								 * goes to it, the strip that was due. No
+								 * reading happened here. */
+								int fr = cq_strip_row(paix, totpa, cq_file_from);
+								int to = cq_strip_row(paix, totpa, cq_file_to);
+								cq_jumped = 1;
+								if (fr >= 0 && to >= 0 && fr != to
+								 && cq_row_read(scols, stipa, fr)) {
+									int acc = 0;
+									cq_move_row(scols, stipa, fr, to);
+									cq_emit_strip_filed_as(&scols[to * stipa],
+									    stipa, cq_file_to, cq_file_from);
+									cq_write_ti3_atomic();
+									oroi = fr;
+									for (stix = 0; pis[stix] != 0
+									     && acc + pis[stix] <= oroi; stix++)
+										acc += pis[stix];
+									pai = oroi - acc;
+									incflag = 0;
+								} else {
+									cq_emit_raw("{\"event\":\"file_as_refused\","
+									            "\"strip\":\"%s\",\"as\":\"%s\"}",
+									            cq_file_from, cq_file_to);
+								}
+								cq_file_from[0] = cq_file_to[0] = '\0';
 								break;
 							} else if (cq_json && (ch == 'k' || ch == 'K')) {
 								/* CHROMIQ_EXT: calibrate between strips, then
@@ -3792,7 +3927,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
@@ -4747,6 +4882,7 @@ int main(int argc, char *argv[]) {
 		cq_out_lock();		/* #202: one whole line, see cq_emit_raw */
 		fprintf(stdout,
 		        "\n{\"event\":\"session_start\",\"chart\":\"%s\",\"randomised\":%s,"
+		        "\"file_as\":true,"	/* CHROMIQ_EXT: {"cmd":"file_as"} is understood */
 		        "\"patches\":%d,\"steps_per_pass\":%d,\"strips\":[",
 		        cesc, rand ? "true" : "false", npat, stipa);
 		for (ri = 0, acc = 0, six = 0; ri < totpa; ri++) {

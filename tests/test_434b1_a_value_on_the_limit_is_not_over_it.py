@@ -1,5 +1,8 @@
 """A value ON a threshold is not over it: every test of Preferences ▸
-Measurement compares at one decimal (#182, Knut 6094941512, 4.3.4 beta 1).
+Measurement compares at two decimals (#182, Knut 6094941512, 4.3.4 beta 1;
+the precision reversed from one decimal to two in 4.3.5, Knut 6102031563:
+"rounding to two decimals ... a 5.01 value is triggered on a 5.00
+threshold").
 
 Knut, on beta 17: "patch B3 turned red with 3.0 dE error from its
 neighbours. This is ON the error threshold of 3.0, which should not be red,
@@ -11,7 +14,7 @@ tests (as defined in preferences -> measurement tab)".
 One helper decides it (``workflow.misread_settings``): ``above`` for a
 limit (the Patch error limit, the Neighbour limit, the strip test's fence),
 ``within`` for a radius or a tolerance (the Colour-neighbour radius, the
-Same-reading tolerance). Both round exactly as the cards print (``.1f``), so
+Same-reading tolerance). Both round exactly as the cards print (``.2f``), so
 what a card shows is what was compared; proved here value by value.
 """
 from __future__ import annotations
@@ -34,27 +37,30 @@ sys.path.insert(0, str(Path(__file__).parent))
 # ---- the helper ------------------------------------------------------------
 
 @pytest.mark.parametrize("value, limit, over", [
-    (3.0, 3.0, False), (3.1, 3.0, True), (3.04, 3.0, False),
-    (3.06, 3.0, True), (2.96, 3.0, False), (95.0, 95.0, False),
-    (95.04, 95.0, False), (95.1, 95.0, True), (0.0, 0.5, False),
+    (5.0, 5.0, False), (5.01, 5.0, True), (5.004, 5.0, False),
+    (5.006, 5.0, True), (4.996, 5.0, False), (95.0, 95.0, False),
+    (95.004, 95.0, False), (95.01, 95.0, True), (0.0, 0.5, False),
+    (3.1, 3.0, True), (3.04, 3.0, True), (4.35, 4.35, False),
+    (4.36, 4.35, True),
 ])
-def test_above_is_above_at_one_decimal(value, limit, over):
+def test_above_is_above_at_two_decimals(value, limit, over):
     assert MS.above(value, limit) is over
     assert MS.within(value, limit) is (not over)
 
 
 def test_the_rounding_is_the_cards_own():
-    """What a card prints (``f"{v:.1f}"``) is exactly what is compared, for
+    """What a card prints (``f"{v:.2f}"``) is exactly what is compared, for
     every value, ties and near-ties included."""
     rng = random.Random(6094941512)
     values = [rng.uniform(0, 200) for _ in range(20000)]
-    values += [k / 100 for k in range(0, 2000)]          # every x.x5 tie
-    values += [k / 20 + d for k in range(0, 400)
+    values += [k / 1000 for k in range(0, 20000)]        # every x.xx5 tie
+    values += [k / 200 + d for k in range(0, 4000)
                for d in (-1e-12, 0.0, 1e-12)]
     for v in values:
-        shown = f"{v:.1f}"
-        assert MS.one_decimal(v) == float(shown)
-        for lim in (3.0, 5.0, 10.0, 95.0):
+        shown = f"{v:.2f}"
+        assert MS.two_decimals(v) == float(shown)
+        assert MS.shown(v) == shown
+        for lim in (3.0, 4.35, 5.0, 10.0, 95.0):
             assert MS.above(v, lim) is (float(shown) > lim)
 
 
@@ -62,8 +68,8 @@ def test_the_array_form_rounds_the_same_way():
     import numpy as np
     rng = random.Random(1)
     vals = np.array([rng.uniform(13, 17) for _ in range(5000)]
-                    + [k / 100 for k in range(1300, 1700)]
-                    + [15.05 - 1e-13, 15.05, 15.05 + 1e-13, np.inf, np.nan])
+                    + [k / 1000 for k in range(13000, 17000)]
+                    + [15.005 - 1e-13, 15.005, 15.005 + 1e-13, np.inf, np.nan])
     got = MS.within_array(vals.reshape(-1, 1), 15.0).ravel()
     want = [MS.within(float(v), 15.0) if np.isfinite(v) else False
             for v in vals]
@@ -85,13 +91,13 @@ def _strip_with(letter, des):
     return ev
 
 
-@pytest.mark.parametrize("de, red", [(5.0, False), (5.04, False),
-                                     (5.05000001, True), (5.1, True),
-                                     (4.9, False)])
+@pytest.mark.parametrize("de, red", [(5.0, False), (5.004, False),
+                                     (5.00500001, True), (5.01, True),
+                                     (4.99, False)])
 def test_the_patch_error_limit_on_the_limit_is_not_red(qapp, tmp_path, de,
                                                        red):
-    """Limit 5.0, strip test and neighbour check off: ΔE 5.0 is not red,
-    5.1 is; and the red card prints a ΔE above the limit it prints."""
+    """Limit 5.00, strip test and neighbour check off: ΔE 5.00 is not red,
+    5.01 is; and the red card prints a ΔE above the limit it prints."""
     tab = _tab(tmp_path, settings={"patch_read_warn_de_estimated": 5.0,
                                    "patch_strip_test_estimated": False,
                                    "patch_neighbour_check": False})
@@ -101,8 +107,8 @@ def test_the_patch_error_limit_on_the_limit_is_not_red(qapp, tmp_path, de,
     assert bool(info["warn"]) is red
     if red:
         text = _text(_card(info))
-        shown = f"{de:.1f}"
-        assert f"ΔE*ab {shown} reached the patch error limit (5.0" in text
+        shown = f"{de:.2f}"
+        assert f"ΔE*ab {shown} reached the patch error limit (5.00," in text
         assert float(shown) > 5.0
 
 
@@ -110,8 +116,8 @@ def test_the_card_never_shows_a_red_patch_at_or_under_its_limit(qapp,
                                                                 tmp_path):
     """A patch is outlined by the limit exactly when its printed ΔE is above
     the printed limit: the card and the outline agree at every value from
-    4.80 to 5.20."""
-    des = [round(4.80 + 0.01 * i, 2) for i in range(41)]
+    4.980 to 5.020, a thousandth apart."""
+    des = [round(4.980 + 0.001 * i, 3) for i in range(41)]
     tab = _tab(tmp_path, settings={"patch_read_warn_de_estimated": 5.0,
                                    "patch_strip_test_estimated": False,
                                    "patch_neighbour_check": False})
@@ -123,28 +129,29 @@ def test_the_card_never_shows_a_red_patch_at_or_under_its_limit(qapp,
         for n, de in enumerate(chunk, start=1):
             loc = f"{letter}{n}"
             # outlined (red, or yellow once similar patches of other strips
-            # confirm it) exactly when the printed ΔE is above 5.0
+            # confirm it) exactly when the printed ΔE is above 5.00
             info = _info(tab, loc)
-            over = float(f"{de:.1f}") > 5.0
+            over = float(f"{de:.2f}") > 5.0
             assert bool(info["warn"]) is over, (loc, de)
             assert bool(_flags(tab)[loc]) is over, (loc, de)
 
 
 def test_the_strip_test_fence_is_compared_the_same_way():
     """The strip test: a patch past the limit is red only when it is ALSO
-    above its strip's fence, at one decimal; a fence of 0 is the test off."""
+    above its strip's fence, at two decimals; a fence of 0 is the test
+    off."""
     from ui.tabs.tab_measure import _past_limit
     assert _past_limit(10.0, 5.0, 10.0) is False      # on the fence
-    assert _past_limit(10.04, 5.0, 10.0) is False
-    assert _past_limit(10.1, 5.0, 10.0) is True
-    assert _past_limit(10.1, 10.1, 0.0) is False      # on the limit
-    assert _past_limit(10.2, 10.1, 0.0) is True       # strip test off
+    assert _past_limit(10.004, 5.0, 10.0) is False
+    assert _past_limit(10.01, 5.0, 10.0) is True
+    assert _past_limit(10.01, 10.01, 0.0) is False    # on the limit
+    assert _past_limit(10.02, 10.01, 0.0) is True     # strip test off
 
 
 def test_patch_by_patch_the_limit_is_compared_the_same_way(qapp, tmp_path):
     tab = _tab(tmp_path, settings={"patch_read_warn_de_estimated": 5.0,
                                    "patch_neighbour_check": False})
-    for loc, de in (("A1", 5.0), ("A2", 5.1)):
+    for loc, de in (("A1", 5.0), ("A2", 5.01)):
         p = next(x for x in _strip("A")["patches"] if x["loc"] == loc)
         tab._on_patch_measured({**p, "de": de})
     assert _flags(tab)["A1"] is not True
@@ -158,7 +165,7 @@ def test_the_out_of_tolerance_sound_follows_the_outline(qapp, tmp_path,
     played = []
     monkeypatch.setattr(tab._sound, "play", played.append)
     tab._on_patch_sound({"loc": "A1", "de": 5.0})
-    tab._on_patch_sound({"loc": "A1", "de": 5.1})
+    tab._on_patch_sound({"loc": "A1", "de": 5.01})
     assert played == [snd.PATCH_OK, snd.PATCH_OUT_OF_TOL]
 
 
@@ -173,12 +180,12 @@ def _nc(rows, **kw):
     return nc
 
 
-@pytest.mark.parametrize("dist, neighbour", [(15.0, True), (15.04, True),
-                                             (15.06, False), (15.1, False)])
+@pytest.mark.parametrize("dist, neighbour", [(15.0, True), (15.004, True),
+                                             (15.006, False), (15.01, False)])
 def test_a_patch_on_the_colour_neighbour_radius_is_a_neighbour(dist,
                                                                neighbour):
-    """Radius 15.0: a patch whose expected colour is 15.0 away is within
-    it; 15.1 is not."""
+    """Radius 15.00: a patch whose expected colour is 15.00 away is within
+    it; 15.01 is not."""
     rows = [("A1", (50, 0, 0), (50, 0, 0), "A"),
             ("B1", (50 + dist, 0, 0), (50 + dist, 0, 0), "B")]
     f = _nc(rows, radius=15.0).finding("A1")
@@ -187,9 +194,9 @@ def test_a_patch_on_the_colour_neighbour_radius_is_a_neighbour(dist,
 
 def test_the_neighbour_card_shows_the_figure_it_was_judged_on(qapp,
                                                               tmp_path):
-    """Knut's B3: a patch 3.0 further from its expected colour than its
-    neighbours, at a Neighbour limit of 3.0, is not red, and its card says
-    "ΔE 3.0 further" with no red line."""
+    """Knut's B3: a patch 3.00 further from its expected colour than its
+    neighbours, at a Neighbour limit of 3.00, is not red, and its card says
+    "ΔE 3.00 further" with no red line; 3.01 is red."""
     from workflow.neighbour_check import NeighbourCheck
     rows = [("A1", (50, 0, 0), (47.0, 0, 0), "A"),
             ("B1", (50, 1, 0), (50, 1, 0), "B"),
@@ -199,10 +206,10 @@ def test_the_neighbour_card_shows_the_figure_it_was_judged_on(qapp,
         nc.set_reading_lab(*r)
     nc.evaluate()
     n, further = nc.comparison("A1")
-    assert f"{further:.1f}" == "3.0" and not nc.is_suspect("A1")
-    nc.set_reading_lab("A1", (50, 0, 0), (46.9, 0, 0), "A")
+    assert f"{further:.2f}" == "3.00" and not nc.is_suspect("A1")
+    nc.set_reading_lab("A1", (50, 0, 0), (46.99, 0, 0), "A")
     nc.evaluate()
-    assert f"{nc.comparison('A1')[1]:.1f}" == "3.1" and nc.is_suspect("A1")
+    assert f"{nc.comparison('A1')[1]:.2f}" == "3.01" and nc.is_suspect("A1")
 
 
 # ---- the Same-reading tolerance, and the re-read rules' limit --------------
@@ -220,11 +227,11 @@ def _rereads(offset, *, limit=95.0, first_de=100.0, second_de=100.0,
 
 
 def test_a_re_read_on_the_tolerance_is_the_same_reading():
-    """Same-reading tolerance 3.0: a re-read 3.0 away is the same colour
-    (yellow), 3.1 away is not (red, and the card asks for another)."""
+    """Same-reading tolerance 3.00: a re-read 3.00 away is the same colour
+    (yellow), 3.01 away is not (red, and the card asks for another)."""
     assert _rereads(3.0).flag == pf.FLAG_CONFIRMED
-    assert _rereads(3.04).flag == pf.FLAG_CONFIRMED      # prints 3.0
-    v = _rereads(3.1)
+    assert _rereads(3.004).flag == pf.FLAG_CONFIRMED     # prints 3.00
+    v = _rereads(3.01)
     assert v.flag is pf.FLAG_RED and v.unsettled
 
 

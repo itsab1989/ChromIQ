@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.3.5 (unreleased)
+
+### Changed
+
+- **"I read strip B" now counts the reading as strip B.** When "Was a strip read twice?" asks about a reading filed under the strip that was due (say C) and you answer **I read strip B**, the reading is counted and judged as strip B: the patch error limit, the strip test, the neighbour check, the outlines, the hover cards and the saved measurement all have it as B, in place of B's earlier reading. The reader's arrow stays on C, which still has to be measured. **Keep, it is strip C** counts it as C and moves on to the next unread strip, and **Re-read strip C** works as before. ChromIQ's measuring engine moves the reading itself, spectral values included, so the measurement file holds it under B. The window's line for that answer says so (#182, Knut).
+- **Thresholds are compared at two decimals, not one.** Every threshold in Preferences ▸ Measurement is now compared, and shown on the patch cards, with two decimals: at a limit of 5.00, ΔE 5.00 is not red and 5.01 is. The table shows every threshold with two decimals; the arrows change it by 0.50 a click, and you can type any value such as 4.35. Values you set before are kept exactly (#182, Knut).
+- **Install Profile names the installed copy after a description changed after the build, inside the profile too.** With "Name the installed copy after the description" ticked, the installed copy's file name and the description stored inside it both follow the description as it reads when you click Install. Your project's own profile file keeps its name. Every Install button now checks first whether a profile of the same name is installed; the question it will ask (Replace or Cancel) is waiting for approval of its wording, so for now an existing profile of that name is replaced as before (#182, Knut).
+
 ## v4.3.4
 
 **Fixes from Knut's tests of 4.3.3.** Misread outlines are judged only after "Was a strip read twice?" is answered, and a value exactly on a threshold no longer counts as over it. Install Profile on the Build Profile tab works again, printing a chart again no longer makes it look changed, and From Profile Gamut charts cover the printer's strongest colours. Printing a verification chart through the macOS print dialog is explained on the Print Chart tab and checked more closely, including Epson's own colour matching.

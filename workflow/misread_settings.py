@@ -204,59 +204,72 @@ def chart_kind(*, calibration: bool, predicted: bool, accurate: bool) -> str:
     return ESTIMATED
 
 
-# --- Comparing with a threshold: at one decimal (Knut, #182 6094941512) ------
+# --- Comparing with a threshold: at two decimals (Knut, #182 6102031563) ----
 #
-# Knut, on beta 17: patch B3 turned red at ΔE 3.0 with the neighbour limit at
-# 3.0. "This is ON the error threshold of 3.0, which should not be red,
-# because errors shall happen if ABOVE the threshold ... the values being
-# compared with the threshold is rounded to the closest value with one
-# decimal (0.1 steps). This principle should apply for all measurement
-# thresholds and tests (as defined in preferences -> measurement tab)".
+# Knut, on beta 17 (6094941512): patch B3 turned red at ΔE 3.0 with the
+# neighbour limit at 3.0. "This is ON the error threshold of 3.0, which should
+# not be red, because errors shall happen if ABOVE the threshold". 4.3.4 then
+# compared at one decimal; on 4.3.4 he reversed the precision (6102031563,
+# answer 2): "the one decimal rounding for comparison with the threshold
+# should be changed to rounding to two decimals and the value should then
+# show 2 decimals ... So that will result in a 5.01 value is triggered on a
+# 5.00 threshold ... Make sure all texts and the test functions use two
+# decimals and that number values checked against the thresholds are rounded
+# to two decimals."
 #
 # So every test of Preferences ▸ Measurement compares the value AS THE
-# CARDS SHOW IT, with one decimal, against the threshold with one decimal:
+# CARDS SHOW IT, with two decimals, against the threshold with two decimals:
 #
 # * a value is flagged only when it is ABOVE the threshold (:func:`above`):
 #   the Patch error limit, the Neighbour limit, the Strip test's fence;
 # * a value counts as inside when it is not above it (:func:`within`): the
 #   Colour-neighbour radius ("within the radius") and the Same-reading
-#   tolerance ("the same reading"), so 3.0 at a tolerance of 3.0 is the
-#   same reading and 3.1 is not.
+#   tolerance ("the same reading"), so 3.00 at a tolerance of 3.00 is the
+#   same reading and 3.01 is not.
 #
-# THE ROUNDING IS THE CARDS' OWN: Python's ``f"{v:.1f}"``, which every card
+# THE ROUNDING IS THE CARDS' OWN: Python's ``f"{v:.2f}"``, which every card
 # line that names a limit uses. It rounds the exact value of the float to the
-# nearest tenth (an exact half, such as 0.25 which a float holds exactly,
-# goes to the even tenth: 0.2), so the figure a card prints is, character for
-# character, the figure that was compared.
+# nearest hundredth (an exact half, such as 0.125 which a float holds
+# exactly, goes to the even hundredth: 0.12), so the figure a card prints is,
+# character for character, the figure that was compared.
+
+#: How many decimals a value and its threshold are compared, and shown, at.
+DECIMALS = 2
 
 
-def one_decimal(value) -> float:
-    """*value* rounded to one decimal exactly as the patch cards print it
-    (``f"{value:.1f}"``)."""
-    return float(f"{float(value):.1f}")
+def two_decimals(value) -> float:
+    """*value* rounded to two decimals exactly as the patch cards print it
+    (``f"{value:.2f}"``)."""
+    return float(f"{float(value):.{DECIMALS}f}")
+
+
+def shown(value) -> str:
+    """*value* as every card, summary and help text that names a threshold
+    prints it: two decimals, the figure :func:`above` compares."""
+    return f"{float(value):.{DECIMALS}f}"
 
 
 def above(value, threshold) -> bool:
-    """Is *value* above *threshold*, both taken at one decimal? ON the
-    threshold is not above it: 3.0 at 3.0 is not, 3.1 is."""
-    return one_decimal(value) > one_decimal(threshold)
+    """Is *value* above *threshold*, both taken at two decimals? ON the
+    threshold is not above it: 5.00 at 5.00 is not, 5.01 is."""
+    return two_decimals(value) > two_decimals(threshold)
 
 
 def within(value, threshold) -> bool:
-    """Is *value* inside *threshold* (not above it), both at one decimal?
-    For a radius and a tolerance: 3.0 at 3.0 is inside, 3.1 is not."""
+    """Is *value* inside *threshold* (not above it), both at two decimals?
+    For a radius and a tolerance: 3.00 at 3.00 is inside, 3.01 is not."""
     return not above(value, threshold)
 
 
 def within_array(values, threshold):
     """:func:`within` for a numpy array, elementwise and with the same
-    rounding: values more than 0.1 away from the threshold are decided at
+    rounding: values more than 0.01 away from the threshold are decided at
     once, the few near it by :func:`within` itself."""
     import numpy as np
-    t = one_decimal(threshold)
+    t = two_decimals(threshold)
     v = np.asarray(values, dtype=float)
-    out = v < t - 0.1
-    near = ~out & (v < t + 0.1)
+    out = v < t - 0.01
+    near = ~out & (v < t + 0.01)
     for idx in zip(*np.nonzero(near)):
         out[idx] = within(float(v[idx]), t)
     return out

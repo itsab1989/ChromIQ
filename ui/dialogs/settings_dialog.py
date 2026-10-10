@@ -1817,17 +1817,19 @@ NEIGHBOUR_RADIUS_TIP = ("The largest ΔE*ab between two expected colours for "
                         "the two patches to be compared.")
 SAME_READING_TIP = ("The largest ΔE*ab between two readings of one patch for "
                     "a re-read to count as the same colour.")
-#: Every threshold of the table is compared at one decimal, as the cards
+#: Every threshold of the table is compared at two decimals, as the cards
 #: show the values, and only a value ABOVE a limit is flagged (Knut, #182
-#: 6094941512: "errors shall happen if ABOVE the threshold", "rounded to the
-#: closest value with one decimal"); ``workflow.misread_settings.above``.
-ONE_DECIMAL_HELP = (
-    "ONE DECIMAL\n"
-    "Every threshold in this table is compared at one decimal, as the patch "
+#: 6094941512: "errors shall happen if ABOVE the threshold"; 6102031563:
+#: "rounding to two decimals ... a 5.01 value is triggered on a 5.00
+#: threshold"); ``workflow.misread_settings.above``.
+TWO_DECIMALS_HELP = (
+    "TWO DECIMALS\n"
+    "Every threshold in this table is compared at two decimals, as the patch "
     "cards show the values. A patch is flagged only when its value is above "
-    "the threshold: at a limit of 3.0, ΔE*ab 3.0 is not flagged and 3.1 is. "
-    "A radius or a tolerance includes its own value: 3.0 is within 3.0, "
-    "3.1 is not.")
+    "the threshold: at a limit of 5.00, ΔE*ab 5.00 is not flagged and 5.01 "
+    "is. A radius or a tolerance includes its own value: 3.00 is within "
+    "3.00, 3.01 is not. The arrows change a threshold by 0.50; you can also "
+    "type a value such as 4.35.")
 #: The table's column headings (``workflow.misread_settings.KIND_NAMES``).
 KIND_ESTIMATED_NAME = "Profiling charts with estimated colours"
 KIND_ACCURATE_NAME = "Profiling charts made with a pre-conditioning profile"
@@ -2367,8 +2369,11 @@ class SettingsDialog(QDialog):
             sp = NoScrollDoubleSpinBox(frame)
             sp.setObjectName(name)
             sp.setRange(*rng)
-            sp.setSingleStep(1.0)
-            sp.setDecimals(1)
+            # Two decimals, as every threshold is compared and shown, and
+            # 0.50 a click; any value may be typed, 4.35 say (Knut, #182
+            # 6102031563).
+            sp.setDecimals(2)
+            sp.setSingleStep(0.5)
             sp.setSuffix(" ΔE*ab")
             sp.setFixedWidth(col_w - 8)
             return sp
@@ -2422,7 +2427,7 @@ class SettingsDialog(QDialog):
             "patches may be outlined: that comes from having no neighbours to "
             "compare with, not from the two modes disagreeing about your "
             "print.")
-            + "\n\n" + tr(ONE_DECIMAL_HELP)
+            + "\n\n" + tr(TWO_DECIMALS_HELP)
             + "\n\n" + tr(RED_AND_YELLOW_HELP)
             + "\n\n" + tr(GREEN_OUTLINE_HELP)
             + "\n\n" + tr("The outlines follow your limits in Preferences ▸ Measurement and "
@@ -2460,7 +2465,7 @@ class SettingsDialog(QDialog):
         cell(help_btn(tr(STRIP_TEST_NAME), tr(STRIP_TEST_HELP) + "\n\n"
                       + tr(STRIP_TEST_VERIFICATION_HELP) + "\n\n"
                       + tr(STRIP_TEST_DEFAULT) + "\n\n"
-                      + tr(ONE_DECIMAL_HELP)), row, 5, pad=(4, 4, 8, 4))
+                      + tr(TWO_DECIMALS_HELP)), row, 5, pad=(4, 4, 8, 4))
         row += 1
 
         # Neighbour check: its switch, then its two parameters
@@ -2481,7 +2486,7 @@ class SettingsDialog(QDialog):
         g.addWidget(nb_box, row, 0, 1, 5)
         cell(help_btn(tr(NEIGHBOUR_CHECK_NAME), tr(NEIGHBOUR_CHECK_HELP)
                       + "\n\n" + tr(NEIGHBOUR_CHECK_DEFAULT)
-                      + "\n\n" + tr(ONE_DECIMAL_HELP)), row, 5,
+                      + "\n\n" + tr(TWO_DECIMALS_HELP)), row, 5,
              pad=(4, 4, 8, 4))
         row += 1
         self._neighbour_limit_spins = {}
@@ -2532,7 +2537,7 @@ class SettingsDialog(QDialog):
         ml.addWidget(merged)
         g.addWidget(mbox, row, 1, 1, 4)
         cell(help_btn(tr(SAME_READING_NAME), tr(SAME_READING_HELP)
-                      + "\n\n" + tr(ONE_DECIMAL_HELP)), row, 5,
+                      + "\n\n" + tr(TWO_DECIMALS_HELP)), row, 5,
              pad=(4, 4, 8, 4))
         row += 1
 

@@ -38,7 +38,7 @@ def _text(rows):
 
 CASES = {
     "quiet": {"nb_compare": lambda loc: (4, -1.2)},
-    "quiet_equal": {"nb_compare": lambda loc: (3, 0.04)},
+    "quiet_equal": {"nb_compare": lambda loc: (3, 0.004)},
     "few": {"nb_compare": lambda loc: (1, 0.0)},
     "red_neighbour": {"nb_compare": lambda loc: (4, 13.2),
                       "neighbour": {"n": 4, "further": 13.2, "limit": 10.0}},
@@ -79,10 +79,10 @@ def test_every_card_ends_with_the_two_approved_topics(qapp, case, pbp):
 
 def test_the_comparison_sentences(qapp):
     t = _text(_rows(CASES["red_neighbour"])[0])
-    assert ("This patch is ΔE 13.2 further from its expected colour than "
+    assert ("This patch is ΔE 13.20 further from its expected colour than "
             "the 4 patches nearest in colour (median).") in t
     t = _text(_rows(CASES["quiet"])[0])
-    assert ("This patch is ΔE 1.2 closer to its expected colour than the 4 "
+    assert ("This patch is ΔE 1.20 closer to its expected colour than the 4 "
             "patches nearest in colour (median).") in t
     t = _text(_rows(CASES["quiet_equal"])[0])
     assert ("This patch has equal distance from its expected colour as the 3 "
@@ -95,9 +95,9 @@ def test_the_comparison_sentences(qapp):
 def test_the_red_neighbour_card_is_knuts(qapp):
     rows, _t = _rows(CASES["red_neighbour"])
     t = _text(rows)
-    assert ("Red outline: ΔE 13.2 further from its expected colour than the "
-            "4 patches nearest in colour (median), passing the neighbour "
-            "limit (10.0). Probably a misread: read it again.") in t
+    assert ("Red outline: ΔE 13.20 further from its expected colour than "
+            "the 4 patches nearest in colour (median), passing the neighbour "
+            "limit (10.00). Probably a misread: read it again.") in t
     # the second sentence on a line of its own, as in the mock-up
     assert "Probably a misread: read it again." in rows
     assert ("Only its own re-read can turn it yellow, not similar patches or "
@@ -108,29 +108,29 @@ def test_the_red_neighbour_card_is_knuts(qapp):
 
 def test_the_red_limit_card_names_the_limit_and_the_chart_type(qapp):
     t = _text(_rows(CASES["red_limit"])[0])
-    assert ("Red outline: a large difference ΔE*ab 23.4 reached the patch "
-            "error limit (20.0, profiling charts made with a "
+    assert ("Red outline: a large difference ΔE*ab 23.41 reached the patch "
+            "error limit (20.00, profiling charts made with a "
             "pre-conditioning profile), and it stands out from its strip "
             "(strip test).") in t
     t = _text(_rows(CASES["verification_red"])[0])
-    assert ("ΔE*ab 7.2 reached the patch error limit (5.0, verification "
+    assert ("ΔE*ab 7.18 reached the patch error limit (5.00, verification "
             "charts).") in t
     assert "Far from what the profile predicts." in t
 
 
 def test_the_yellow_card_says_why_it_was_red(qapp):
     t = _text(_rows(CASES["yellow"])[0])
-    assert ("Yellow outline: confirmed by a re-read ΔE*ab 13.4, the reading "
-            "before 13.9 Red before: ΔE 11.4 further from its expected colour "
-            "than the 4 patches nearest in colour (median), passing the "
-            "neighbour limit (10.0).") in t
+    assert ("Yellow outline: confirmed by a re-read ΔE*ab 13.40, the "
+            "reading before 13.90 Red before: ΔE 11.40 further from its "
+            "expected colour than the 4 patches nearest in colour (median), "
+            "passing the neighbour limit (10.00).") in t
 
 
 def test_red_for_both_reasons(qapp):
     t = _text(_rows(CASES["red_both"])[0])
-    assert ("It is also ΔE 13.2 further from its expected colour than the 4 "
-            "patches nearest in colour (median), passing the neighbour limit "
-            "(10.0).") in t
+    assert ("It is also ΔE 13.20 further from its expected colour than the "
+            "4 patches nearest in colour (median), passing the neighbour "
+            "limit (10.00).") in t
     assert t.index("reached the patch error limit") < t.index("It is also")
 
 
