@@ -141,5 +141,11 @@ def test_the_two_checks_agree_about_side_files():
     import inspect
     from workflow.verify_chart_snapshot import (slot_live_differs,
                                                 snapshot_matches_live as m)
-    assert "CHART_SIDE_FILES" in inspect.getsource(slot_live_differs)
-    assert "CHART_SIDE_FILES" in inspect.getsource(m)
+    from workflow.verify_chart_snapshot import live_differs_from_snapshot
+    # One predicate for all three since Knut's 4.3.3 run5 (the print record
+    # is not chart either): `chart_slot.defines_the_chart`, which reads
+    # CHART_SIDE_FILES.
+    for fn in (slot_live_differs, m, live_differs_from_snapshot):
+        assert "defines_the_chart" in inspect.getsource(fn), fn.__name__
+    from workflow import chart_slot
+    assert "CHART_SIDE_FILES" in inspect.getsource(chart_slot.defines_the_chart)

@@ -987,8 +987,32 @@ class TabProfile(QWidget):
         """Whether the loaded calibration cal_*.ti3 contains spectral data."""
         return self._detected_cal_has_spectral
 
-    def set_icc_path(self, path: Path) -> None:
+    def set_icc_path(self, path: "Path | None") -> None:
         self._icc_path = path
+        self._sync_install_button()
+
+    def _sync_install_button(self) -> None:
+        """Install Profile is offered exactly when there is a profile to install.
+
+        Knut, 4.3.3 (beta 17), run5: he built a profile, made a verification
+        chart, came back to Build Profile and pressed Install Profile, and
+        nothing happened at all: no copy, no line in the log, no window.
+        Generating the verification chart had cleared this tab's profile
+        (``clear_files`` on ``target_started``) but left the button enabled,
+        and ``_on_install`` returned without a word on an empty path. The
+        button and the path now move together, and the profile follows the
+        bar (``_on_target_changed``), so the button he saw was a button that
+        works.
+        """
+        btn = getattr(self, "_install_btn", None)
+        if btn is None:
+            return
+        icc = self._icc_path
+        try:
+            ok = bool(icc) and Path(icc).is_file()
+        except OSError:
+            ok = False
+        btn.setEnabled(ok)
 
     def set_preconditioning_source(self, path: Path | None) -> None:
         """Pre-conditioning measurement data (the run's preconditioning.ti3) to
@@ -4501,6 +4525,7 @@ class TabProfile(QWidget):
     def clear_files(self) -> None:
         self._ti3_path = None
         self._icc_path = None
+        self._sync_install_button()
         self._cal_ti3_path = None
         self._preconditioning_source = None
         self._active_params = None
@@ -5294,6 +5319,20 @@ class TabProfile(QWidget):
             if ti3.is_file() and ti3 != self._ti3_path:
                 self.set_ti3_path(ti3, propagate=False)
                 log.info("Build Profile: measurement follows the bar → %s", ti3)
+            # …AND SO DOES THE PROFILE, or Install Profile has nothing to
+            # install (Knut, 4.3.3 run5: see `_sync_install_button`). The
+            # selected run's own built profile when it has one; a profile from
+            # another run's folder is not offered under this run's name.
+            built = getattr(run, "built_profile_icc", None)
+            icc = built() if callable(built) else None
+            if icc is not None and icc.is_file():
+                if icc != self._icc_path:
+                    self.set_icc_path(icc)
+                    log.info("Build Profile: profile follows the bar → %s", icc)
+            elif self._icc_path and Path(self._icc_path).parent != run.dir:
+                self.set_icc_path(None)
+            else:
+                self._sync_install_button()
         except Exception:      # noqa: BLE001 — never break a selection change
             log.warning("Could not follow the bar in Build Profile", exc_info=True)
 
@@ -6132,6 +6171,12 @@ class TabProfile(QWidget):
 
     def _on_install(self) -> None:
         if not self._icc_path:
+            # Unreachable from the button (`_sync_install_button`), and never
+            # silent if something else gets here: this is the exact path that
+            # left Knut with no copy and no word about it (4.3.3, run5).
+            log.warning("Install Profile pressed with no profile in Build "
+                        "Profile; nothing was installed")
+            self._sync_install_button()
             return
         try:
             dest = self._builder.install_profile(self._icc_path,
@@ -6139,6 +6184,8 @@ class TabProfile(QWidget):
             self._log.appendPlainText(f"[OK] Profile installed to {dest}")
             self._log.ensureCursorVisible()
         except Exception as exc:
+            log.warning("Install Profile failed for %s: %s",
+                        self._icc_path, exc)
             self._log.appendPlainText(f"[ERROR] Install failed: {exc}")
             self._log.ensureCursorVisible()
 

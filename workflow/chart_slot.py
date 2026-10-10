@@ -80,6 +80,29 @@ PROFILING_CHART_SUFFIXES = (
 #: should then also copy that meta.json file").
 CHART_SIDE_FILES = ("meta.json",)
 
+#: The print record, ``<stem>.print.json`` (``workflow/verification_print.py::
+#: print_record_path``). It says how the sheet was PRINTED: when, which way,
+#: through which profile. It travels with the chart, so a dated verification
+#: keeps the record of the sheet it measured, but it never says WHICH chart
+#: that is. Printing the same chart again rewrites it with a new
+#: ``printed_at``, and counting it as chart made Knut's verification say
+#: "Stored chart differs" for a chart nobody had touched (4.3.3, run5).
+PRINT_RECORD_SUFFIX = ".print.json"
+
+
+def defines_the_chart(path: Path) -> bool:
+    """Whether *path*'s content decides WHICH chart this is.
+
+    False for the files that travel with a chart without describing it: the
+    settings ``meta.json`` (:data:`CHART_SIDE_FILES`) and the print record
+    (:data:`PRINT_RECORD_SUFFIX`). Every "is it the same chart?" comparison
+    asks this one question, so the warning before a measurement and the
+    Restore Used Chart button cannot disagree about it.
+    """
+    name = Path(path).name
+    return name not in CHART_SIDE_FILES and \
+        not name.lower().endswith(PRINT_RECORD_SUFFIX)
+
 
 def _is_image(p: Path) -> bool:
     return p.suffix.lower() in _IMAGE_SUFFIXES

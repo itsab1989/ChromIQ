@@ -334,9 +334,11 @@ def snapshot_matches_live(slot) -> bool:
     # change anything. Knut's run4 differed from its stored copy by two bytes of
     # meta.json, which kept "Restore Used Chart" enabled for ever while runs 1-3
     # behaved (#130, 2026-08-01).
-    from workflow.chart_slot import CHART_SIDE_FILES, _is_image
-    stored = [f for f in stored if f.name not in CHART_SIDE_FILES]
-    live = [f for f in live if f.name not in CHART_SIDE_FILES]
+    # …and so does the print record: printing the same chart again rewrites
+    # its `printed_at` and changes nothing about the chart (Knut, 4.3.3 run5).
+    from workflow.chart_slot import _is_image, defines_the_chart
+    stored = [f for f in stored if defines_the_chart(f)]
+    live = [f for f in live if defines_the_chart(f)]
     # A SNAPSHOT MAY HOLD MORE THAN A COPY WOULD TAKE TODAY.
     #
     # `files_to_copy` leaves the page images out when the chart carries a
@@ -445,13 +447,14 @@ def slot_live_differs(slot) -> bool:
     if not snap:
         return False
     live = {p.name: p for p in slot.live_files()}
-    from workflow.chart_slot import CHART_SIDE_FILES
+    from workflow.chart_slot import defines_the_chart
     for s in snap:
-        # Files that merely travel WITH the chart — meta.json and the like — are
-        # restored but do not decide whether the chart itself changed. Otherwise
-        # editing the printtarg knobs would raise "this is a different chart"
-        # (Knut, #130 2026-07-27).
-        if s.name in CHART_SIDE_FILES or _not_kept_in_a_snapshot(slot, s):
+        # Files that merely travel WITH the chart — meta.json and the print
+        # record — are restored but do not decide whether the chart itself
+        # changed. Otherwise editing the printtarg knobs would raise "this is a
+        # different chart" (Knut, #130 2026-07-27), and so would printing the
+        # same chart again (Knut, 4.3.3 run5).
+        if not defines_the_chart(s) or _not_kept_in_a_snapshot(slot, s):
             continue
         counterpart = live.get(s.name)
         if counterpart is None or _digest(counterpart) != _digest(s):
@@ -975,19 +978,52 @@ def live_differs_from_snapshot(verification: Verification) -> bool:
     run = verification.run
     live = {p.name: p for p in live_chart_files(run)}
     snap_stem = _snapshot_stem(snap)
-    from workflow.chart_slot import CHART_SIDE_FILES
+    from workflow.chart_slot import defines_the_chart
     for s in snap:
         # Side files (the settings meta.json) travel with the chart but do
         # not decide whether the chart changed — otherwise every settings
         # edit would make every dated check look like "a different chart"
-        # (the same rule slot_live_differs already follows).
-        if s.name in CHART_SIDE_FILES:
+        # (the same rule slot_live_differs already follows). Nor does the
+        # print record: Knut printed run5's verification chart again, started
+        # a fresh measurement and was told "Stored chart differs" because the
+        # record's `printed_at` had moved (4.3.3). See `print_record_differs`
+        # for what Start does with a record that has changed.
+        if not defines_the_chart(s):
             continue
         want = _restored_name(s.name, snap_stem, run.verify_stem)
         counterpart = live.get(want)
         if counterpart is None or _digest(counterpart) != _digest(s):
             return True
     return False
+
+
+def print_record_differs(verification: Verification) -> bool:
+    """Whether the date's stored print record is not the live one.
+
+    Not a different chart (:func:`workflow.chart_slot.defines_the_chart`):
+    the same chart printed again. Start uses it to keep the record of the
+    sheet the date's earlier measurement was made from beside that
+    measurement in ``old/<stamp>/``, without asking anything, because the
+    snapshot about to be taken carries the new record. False when the date has
+    no stored chart, or neither side has a record.
+    """
+    from workflow.chart_slot import PRINT_RECORD_SUFFIX
+    snap = snapshot_files(verification)
+    if not snap:
+        return False
+    run = verification.run
+    snap_stem = _snapshot_stem(snap)
+    stored = {_restored_name(p.name, snap_stem, run.verify_stem): p
+              for p in snap if p.name.lower().endswith(PRINT_RECORD_SUFFIX)}
+    live = {p.name: p for p in live_chart_files(run)
+            if p.name.lower().endswith(PRINT_RECORD_SUFFIX)}
+    if set(stored) != set(live):
+        return True
+    try:
+        return any(stored[n].read_bytes() != live[n].read_bytes()
+                   for n in stored)
+    except OSError:
+        return True
 
 
 @dataclass

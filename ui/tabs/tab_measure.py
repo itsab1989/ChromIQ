@@ -6741,14 +6741,25 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         Nothing to do when the date has no stored chart, or when it is the
         chart that is loaded (the snapshot then rewrites identical files).
+
+        …UNLESS ONLY THE PRINT RECORD MOVED. The same chart printed again is
+        not a different chart, so nobody is asked anything (Knut, 4.3.3 run5:
+        "Stored chart differs" after printing again). But the snapshot is
+        about to copy the NEW record over the record of the sheet the date's
+        earlier measurement was read from, so that stored chart is set aside
+        exactly as for a replace: kept beside the earlier measurement in
+        ``old/<stamp>/`` once the new one is filed, and put back if nothing is.
         """
         from datetime import datetime
         from workflow.verify_chart_snapshot import (has_snapshot,
                                                     live_differs_from_snapshot,
+                                                    print_record_differs,
                                                     set_aside_stored_chart)
         self._replaced_chart = None
-        if not has_snapshot(verification) \
-                or not live_differs_from_snapshot(verification):
+        if not has_snapshot(verification):
+            return True
+        if not live_differs_from_snapshot(verification) \
+                and not print_record_differs(verification):
             return True
         when = datetime.now()
         try:
