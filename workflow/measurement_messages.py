@@ -5221,6 +5221,28 @@ M_PRINT_PAPER_PROFILE_UNKNOWN = _m(
     "may not be what your prints from Photoshop get on this paper.",
     approved=False)
 
+# --- PROPOSED: the Print Chart tab on a CMYK raster queue, macOS dialog route (4.3.5)
+#: Review R3 and B5 (4.3.4 beta 1) measured on capture queues that on a queue
+#: whose driver takes CUPS raster in CMYK (the CUPS sample HP DeskJet driver,
+#: Gutenprint with its CMYK colour model) macOS converts the chart into CMYK
+#: from its own tag and ignores the profile assigned in ColorSync. Since 4.3.5
+#: the dialog route leaves the chart untagged on such a job
+#: (``native_print_macos.cmyk_raster_job``). Proposed: a note on the Print Chart
+#: tab, under its notice, while the macOS print dialog route is on and the
+#: printer the dialog opens on is such a queue by its PPD. {printer} is the
+#: printer's name as macOS shows it. Not shown anywhere until approved
+#: (``ui.tabs.tab_print._update_cmyk_route_note`` reads ``approved``).
+M_PRINT_CMYK_RASTER_ROUTE = _m(
+    "M-PRINT-CMYK-RASTER-ROUTE",
+    "This printer\u2019s driver works in CMYK",
+    "The driver of {printer} takes the chart in CMYK. On such a printer macOS "
+    "converts the chart\u2019s colours into CMYK itself, and the profile set "
+    "for this printer in ColorSync Utility does not change that, so ChromIQ "
+    "sends the chart as it is. Print the profiling chart, its verification "
+    "charts and your photos by this same route, the macOS print dialog, with "
+    "the same settings in it.",
+    approved=False)
+
 # --- APPROVED: the quality row of the Print Chart tab (beta 16) ---------------
 #: Basti, 2026-10-09: he prints his photos at the highest quality the Canon print
 #: dialog allows for the paper (its Custom slider at the top). The direct route
@@ -5271,6 +5293,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPLACE_UNCOUNTABLE,
     M_PRINT_COLOUR_CONFIRM, M_PRINT_JOB_CONFIRMED, M_PRINT_JOB_NOT_AS_SENT,
     M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
+    M_PRINT_CMYK_RASTER_ROUTE,
     M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

@@ -222,6 +222,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PRINT-JOB-NOT-AS-SENT",
                                  "M-PRINT-JOB-UNTAGGED",
                                  "M-PRINT-PAPER-PROFILE-UNKNOWN",
+                                 # 4.3.5 (Basti chose B5's option 3 for CMYK
+                                 # raster queues, 2026-10-10): the Print Chart
+                                 # tab's note that such a driver works in
+                                 # CMYK, wired but hidden until approved.
+                                 "M-PRINT-CMYK-RASTER-ROUTE",
                                  # (B3, 2026-10-10, Knut 6095262115: what a
                                  # verification print needs, M-PRINT-VERIFY-
                                  # ROUTE, and the status line for a chart

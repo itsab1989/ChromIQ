@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QFileDialog,
+    QFormLayout,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -106,6 +107,34 @@ def _with_plain_paper(body: str) -> str:
     extra = tr(_TT_PLAIN_PAPER)
     at = 2 if len(paras) > 2 else len(paras)
     return "\n\n".join(paras[:at] + [extra] + paras[at:])
+
+
+def _dialog_printer() -> "tuple[str | None, str | None]":
+    """(CUPS queue, name as macOS shows it) of the printer the macOS print
+    dialog opens on; (None, None) off macOS or when it cannot be told."""
+    if not is_macos():
+        return None, None
+    try:
+        from workflow.native_print_macos import dialog_printer
+        return dialog_printer()
+    except Exception:  # noqa: BLE001
+        log.debug("could not tell the macOS dialog's printer", exc_info=True)
+        return None, None
+
+
+def _queue_cmyk_raster(queue: str) -> "str | None":
+    """The CMYK family *queue* rasterises a job in at its default colour mode
+    (``ppd_color.cmyk_raster_space``), else None."""
+    from workflow.ppd_color import cmyk_raster_space
+    ppd = PrintModule.find_ppd_path(queue)
+    if not ppd:
+        return None
+    from core.text_io import read_text
+    try:
+        text = read_text(Path(ppd), lenient=True)
+    except OSError:
+        return None
+    return cmyk_raster_space(text, {}, queue)
 
 
 def _html_escape(text: str) -> str:
@@ -707,6 +736,16 @@ class TabPrint(QWidget):
         self._verify_route_lbl.setVisible(False)
         scl.addWidget(self._verify_route_lbl)
 
+        # M-PRINT-CMYK-RASTER-ROUTE (4.3.5, PROPOSED): a printer whose driver
+        # takes CMYK raster gets the chart untagged on the macOS dialog route
+        # (``_update_cmyk_route_note``); hidden until the text is approved.
+        self._cmyk_route_lbl = QLabel("", scroll_content)
+        self._cmyk_route_lbl.setObjectName("warning")
+        self._cmyk_route_lbl.setWordWrap(True)
+        self._cmyk_route_lbl.setTextFormat(Qt.TextFormat.RichText)
+        self._cmyk_route_lbl.setVisible(False)
+        scl.addWidget(self._cmyk_route_lbl)
+
         scl.addStretch()
         scroll.setWidget(scroll_content)
         ll.addWidget(scroll, stretch=1)
@@ -898,6 +937,10 @@ class TabPrint(QWidget):
             self._update_colour_row_visible()
         except Exception:      # noqa: BLE001 — never break tab switching
             log.warning("colour row refresh on show failed", exc_info=True)
+        try:
+            self._update_cmyk_route_note()
+        except Exception:      # noqa: BLE001 — never break tab switching
+            log.warning("CMYK route note refresh on show failed", exc_info=True)
 
     def reload_printers(self) -> None:
         """Ask CUPS again — for callers that need the list refreshed on demand."""
@@ -956,15 +999,34 @@ class TabPrint(QWidget):
 
         def row(label: str, control: QWidget, tip_title: str,
                 tip_body: str) -> QWidget:
+            # A one-row form that puts the control UNDER its label when the
+            # two do not fit side by side (4.3.5, review R5 k74): in Russian
+            # the intent list ("Относительный колориметрический
+            # (рекомендуется)") and the Colour radios of a chart that is
+            # already converted made this box 582 points wide in a 534-point
+            # pane at 1280 wide, and its right edge was cut off. Where they
+            # fit, the row is laid out exactly as before.
             r = QWidget(self._cm_grp)
-            lay = QHBoxLayout(r)
-            lay.setContentsMargins(0, 0, 0, 0)
-            lay.setSpacing(10)
+            form = QFormLayout(r)
+            form.setContentsMargins(0, 0, 0, 0)
+            form.setHorizontalSpacing(10)
+            form.setVerticalSpacing(4)
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+            form.setFieldGrowthPolicy(
+                QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft
+                                   | Qt.AlignmentFlag.AlignVCenter)
+            form.setFormAlignment(Qt.AlignmentFlag.AlignLeft
+                                  | Qt.AlignmentFlag.AlignTop)
             text = QLabel(label, r)
             text.setMinimumWidth(130)
-            lay.addWidget(text)
-            lay.addWidget(control, 1)
-            lay.addWidget(TooltipButton(tip_title, tip_body, r))
+            field = QWidget(r)
+            fl = QHBoxLayout(field)
+            fl.setContentsMargins(0, 0, 0, 0)
+            fl.setSpacing(10)
+            fl.addWidget(control, 1)
+            fl.addWidget(TooltipButton(tip_title, tip_body, field))
+            form.addRow(text, field)
             return r
 
         # -- Colour: through the profile, or raw (verification only) --------
@@ -2824,9 +2886,33 @@ class TabPrint(QWidget):
                     + "<br><br>".join(_html_escape(p) for p in paras))
         lbl.setVisible(True)
 
+    def _update_cmyk_route_note(self, native: "bool | None" = None) -> None:
+        """M-PRINT-CMYK-RASTER-ROUTE (4.3.5, PROPOSED, so not shown until it
+        is approved): on macOS, while the macOS print dialog route is on and
+        the printer the dialog opens on takes CMYK raster by its PPD and its
+        default colour mode (``ppd_color.raster_colour``), say that the chart
+        goes as it is and that photos must go the same way."""
+        lbl = getattr(self, "_cmyk_route_lbl", None)
+        if lbl is None:
+            return
+        from workflow import measurement_messages as MM
+        if native is None:
+            native = bool(self._settings.get("use_native_print_dialog", False))
+        if not (MM.M_PRINT_CMYK_RASTER_ROUTE.approved and is_macos() and native):
+            lbl.setVisible(False)
+            return
+        queue, display = _dialog_printer()
+        if not queue or _queue_cmyk_raster(queue) is None:
+            lbl.setVisible(False)
+            return
+        title, body = MM.M_PRINT_CMYK_RASTER_ROUTE.render(printer=display or queue)
+        lbl.setText(f"<b>{_html_escape(title)}</b><br><br>{_html_escape(body)}")
+        lbl.setVisible(True)
+
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
         self._update_verify_route_note(native=enabled)
+        self._update_cmyk_route_note(native=enabled)
         self._printer_grp.setVisible(not enabled)
         self._opts_grp.setVisible(not enabled)
         # The spacer used to centre the warning label between the scroll area
