@@ -2981,9 +2981,10 @@ class TabPrint(QWidget):
     def _update_verify_route_note(self, native: "bool | None" = None) -> None:
         """M-PRINT-VERIFY-ROUTE (approved by Basti, 2026-10-10): shown on
         macOS for a verification run with a chart loaded, on BOTH routes.
-        Since 4.3.5 (k81) its first paragraph only, followed by the proposed
+        Since 4.3.5 (k81) its first paragraph only, followed by
         M-PRINT-VERIFY-DIALOG-AS-IS / -THROUGH (dialog route, *native*, else
-        the setting) and M-PRINT-VERIFY-PS-EARLIER once they are approved."""
+        the setting; approved by Basti 2026-10-11; not on a printer that takes
+        CMYK raster) and M-PRINT-VERIFY-PS-EARLIER once it is approved."""
         lbl = getattr(self, "_verify_route_lbl", None)
         if lbl is None:
             return
@@ -3004,7 +3005,11 @@ class TabPrint(QWidget):
         # or through the run's profile (Knut 6102031563), and what changed
         # for a PostScript printer.
         paras = body.split("\n\n")[:1]
-        if native:
+        # Combined review of 4.3.5: neither paragraph is true where the
+        # dialog's printer takes CMYK raster, because macOS converts the chart
+        # into CMYK there itself; the notice above says so instead
+        # (M-PRINT-CMYK-RASTER-ROUTE, ``_macos_dialog_notice``).
+        if native and not self._dialog_printer_takes_cmyk():
             from workflow import verification_print as _vp
             try:
                 through = self._cm_selected_colour() == _vp.COLOUR_THROUGH
@@ -3019,6 +3024,16 @@ class TabPrint(QWidget):
         lbl.setText(f"<b>{_html_escape(title)}</b><br><br>"
                     + "<br><br>".join(_html_escape(p) for p in paras))
         lbl.setVisible(True)
+
+    @staticmethod
+    def _dialog_printer_takes_cmyk() -> bool:
+        """Whether the printer the macOS dialog opens on takes CMYK raster
+        (``_queue_cmyk_raster``); False when that cannot be told."""
+        try:
+            queue, _display = _dialog_printer()
+            return bool(queue) and _queue_cmyk_raster(queue) is not None
+        except Exception:  # noqa: BLE001 - a note must never break the tab
+            return False
 
     def _update_cmyk_route_note(self, native: "bool | None" = None) -> None:
         """Re-word the macOS dialog route's notice for the printer the dialog

@@ -124,14 +124,20 @@ def _status_of(rep):
     return seen["status"]
 
 
-def test_the_status_line_says_so_only_once_approved(monkeypatch):
+def test_the_status_line_says_so_only_while_approved(monkeypatch):
+    """Approved by Basti, 2026-10-11: said after a DeviceRGB job, and only
+    while approved."""
     from dataclasses import replace
     from workflow import measurement_messages as MM
+    assert MM.M_PRINT_JOB_DEVICE_RGB.approved
     rep = pt.TicketReport(queue="Q", job_id=50, read=True, expected={})
     rep.device_rgb = True
     plain = ("Sent as job 50. The printing system confirms it carries "
              "application colour matching.")
-    assert _status_of(rep) == plain
-    monkeypatch.setattr(MM, "M_PRINT_JOB_DEVICE_RGB",
-                        replace(MM.M_PRINT_JOB_DEVICE_RGB, approved=True))
     assert _status_of(rep) == plain + " " + MM.M_PRINT_JOB_DEVICE_RGB.body
+    rep.device_rgb = False
+    assert _status_of(rep) == plain
+    rep.device_rgb = True
+    monkeypatch.setattr(MM, "M_PRINT_JOB_DEVICE_RGB",
+                        replace(MM.M_PRINT_JOB_DEVICE_RGB, approved=False))
+    assert _status_of(rep) == plain

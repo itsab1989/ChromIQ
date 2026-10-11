@@ -5161,31 +5161,55 @@ M_PRINT_VERIFY_ROUTE = _m(
 
 
 
-# --- PROPOSED (k81, 4.3.5): the macOS dialog route of a verification print ---
-#: Shown only once approved: `ui/tabs/tab_print._update_verify_route_note`
-#: and `_report_job_ticket`. Until then M-PRINT-VERIFY-ROUTE's first paragraph
-#: is shown alone (its paragraphs 2 and 3 are untrue for PostScript printers
-#: since ChromIQ sends them its own PostScript on the dialog route).
+# --- APPROVED (Basti, 2026-10-11) and PROPOSED (k81, 4.3.5): the macOS dialog
+# route of a verification print ---------------------------------------------
+#: Shown by `ui/tabs/tab_print._update_verify_route_note` (AS-IS, THROUGH,
+#: PS-EARLIER) and `_report_job_ticket` (DEVICE-RGB), each only while
+#: approved. M-PRINT-VERIFY-ROUTE's paragraphs 2 and 3 are untrue for
+#: PostScript printers since ChromIQ sends them its own PostScript on the
+#: dialog route, so only its first paragraph is shown.
+#: AS-IS and THROUGH: Basti's final wording, approved 2026-10-11 "if every
+#: statement is true". Checked by the combined review of 4.3.5 (report folder
+#: 2026-10-11_435_combined_review) on capture queues, real app on screen: a
+#: PostScript queue (with and without a ColorSync profile) gets the chart as
+#: DeviceRGB, every chart pixel unchanged, the same document as the direct
+#: route; a Canon PRO-300 and an Epson ET-8550 queue get it tagged with the
+#: job's paper profile, raster unchanged from 4.3.4; RGB raster queues (other
+#: Canon, Epson, HP, Brother, Gutenprint RGB) unchanged from 4.3.4. NOT true on
+#: a queue whose driver takes CMYK raster, where macOS converts the chart into
+#: CMYK itself (M-PRINT-CMYK-RASTER-ROUTE): there neither paragraph is shown,
+#: and the notice above it carries M-PRINT-CMYK-RASTER-ROUTE instead.
 M_PRINT_VERIFY_DIALOG_AS_IS = _m(
     "M-PRINT-VERIFY-DIALOG-AS-IS",
     "Printing a verification chart",
-    "Leave the colour settings in the macOS print dialog as they are, including its Color Matching panel. ChromIQ makes sure neither macOS nor the printer changes the chart’s colours: when macOS prints the job with a Canon or Epson paper profile, ChromIQ gives the chart that same profile after you close the dialog, and to a PostScript printer it sends the chart as the printer’s own RGB, as the direct route does.",
-    approved=False)
+    "Choose the paper, media type and quality in the macOS print dialog as for your photos, the same as for the profiling chart. Leave its colour settings as they are, including the Color Matching panel: ChromIQ makes sure neither macOS nor the printer changes the chart\u2019s colours. When macOS prints the job with a Canon or Epson paper profile, ChromIQ gives the chart that same profile after you close the dialog, and to a PostScript printer it sends the chart as the printer\u2019s own RGB, as the direct route does.",
+    approved=True)  # Basti, 2026-10-11 (his wording; checked, combined review)
 M_PRINT_VERIFY_DIALOG_THROUGH = _m(
     "M-PRINT-VERIFY-DIALOG-THROUGH",
     "Printing a verification chart",
-    "This sheet is printed through this run’s profile, and ChromIQ converts it through that profile itself before the dialog opens. Install the profile first (Install Profile on the Build Profile tab), then choose it in the macOS print dialog under Color Matching, Profile, so the dialog names the profile the sheet is printed through. ChromIQ makes sure macOS and the printer do not convert the colours a second time.",
-    approved=False)
+    "This sheet is printed through this run\u2019s profile: ChromIQ converts it through the profile itself before the dialog opens, and makes sure macOS and the printer do not convert its colours a second time. In the dialog, choose the paper, media type and quality as for the profiling chart, and leave the colour settings as they are.",
+    approved=True)  # Basti, 2026-10-11 (simplified: nothing to install or select)
+#: REVIEW (combined review of 4.3.5, 2026-10-11): one statement of the wording
+#: proposed by k81 was untrue. "the macOS print dialog sent it marked as sRGB"
+#: holds for a PostScript queue with no profile set in ColorSync Utility
+#: (CIEBasedABC, D65 white); with a profile set there, as on Knut's HP Color
+#: LaserJet 5550, 4.3.4 sent the chart marked with THAT profile (CIEBasedDEF,
+#: a colour table from the profile, D50 white), measured on capture queues.
+#: Corrected below; PROPOSED again and not shown until approved.
 M_PRINT_VERIFY_PS_EARLIER = _m(
     "M-PRINT-VERIFY-PS-EARLIER",
     "Printing a verification chart",
-    "On a PostScript printer both routes now send the chart as the printer’s own RGB. With ChromIQ 4.3.4 and earlier the macOS print dialog sent it marked as sRGB, which the printer converted with its own colour rendering. A profile made from a chart printed that way describes the printer together with that conversion: print and measure its profiling chart again before you verify it.",
+    "On a PostScript printer both routes now send the chart as the printer\u2019s own RGB. With ChromIQ 4.3.4 and earlier the macOS print dialog sent it marked as sRGB, or with the profile set for the printer in ColorSync Utility, and the printer converted it with its own colour rendering. A profile made from a chart printed that way describes the printer together with that conversion: print and measure its profiling chart again before you verify it.",
     approved=False)
+#: Approved by Basti, 2026-10-11, as proposed; checked by the combined review
+#: of 4.3.5: the dialog route's job to a PostScript queue is ChromIQ's own
+#: PostScript, DeviceRGB with cups-disable-cmm, every chart pixel unchanged,
+#: the page image identical to the direct route's.
 M_PRINT_JOB_DEVICE_RGB = _m(
     "M-PRINT-JOB-DEVICE-RGB",
-    "The chart went as the printer’s own RGB",
+    "The chart went as the printer\u2019s own RGB",
     "The chart went to this PostScript printer as its own RGB values, as the direct route sends it, so neither macOS nor the printer converted its colours.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-11 (approved as proposed; checked)
 
 # --- PROPOSED: the count help of FROM PROFILE GAMUT, k82 (4.3.5) ------------
 #: The two paragraphs that replace the 4.3.4 help's "smaller charts are part
@@ -5193,10 +5217,18 @@ M_PRINT_JOB_DEVICE_RGB = _m(
 #: spread. Hidden (left out of the help) until approved:
 #: `ui/tabs/tab_chart._gamut_size_help_body`. The help shows the two lead-ins in
 #: bold (its own Markdown); the catalogue holds the words.
+#: Approved by Basti, 2026-10-11, as proposed; the combined review of 4.3.5
+#: found one statement untrue: "at least eight of them". The grey steps are
+#: capped at about one in eight with a floor of six (``_neutral_budget``), so a
+#: chart of 50 to 59 colours gets six or seven (measured with Knut's run 5
+#: profile: 55 and 59 colours, seven steps; 60 and more, eight or more).
+#: Corrected below; PROPOSED again and not shown until approved. Checked true:
+#: 400 and 1 000 colours share 193 of the 400; the eight corners are added to
+#: every count (408, 1 008 ...); the selection is the same on every run.
 M_HELP_GAMUT_SIZE_SPREAD = _m(
     "M-HELP-GAMUT-SIZE-SPREAD",
     "How many colours to test",
-    "Each chart is spread for its own size: the colours are spread evenly over everything your profile can print, so a 400-colour chart and a 1 000-colour chart made from the same profile do not share all their colours. Compare figures from charts of the same size. The eight cube corners are always added on top, whatever you choose here.\n\nGrey steps: evenly spaced grey steps run along the neutral axis from the black to the white corner, at least eight of them and never more than about one patch in eight. A change in the printer shows in the greys first. All other colours are spread evenly through the whole range your profile can print: the more colours you choose, the closer together they sit, and none sits closer to another than it needs to.",
+    "Each chart is spread for its own size: the colours are spread evenly over everything your profile can print, so a 400-colour chart and a 1 000-colour chart made from the same profile do not share all their colours. Compare figures from charts of the same size. The eight cube corners are always added on top, whatever you choose here.\n\nGrey steps: evenly spaced grey steps run along the neutral axis from the black to the white corner, at least eight of them on a chart of 60 colours or more (six or seven on a smaller one) and never more than about one patch in eight. A change in the printer shows in the greys first. All other colours are spread evenly through the whole range your profile can print: the more colours you choose, the closer together they sit, and none sits closer to another than it needs to.",
     approved=False)
 
 # --- APPROVED (Basti, 2026-10-10, "text approved"): the status line when the
@@ -5363,15 +5395,23 @@ M_PRINT_INKS_CONVERTED = _m(
     "your printer’s inks.\n\n"
     "Print this chart on a printer whose driver takes these inks, or through "
     "a RIP that does.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-11 ("approved if every statement is true"; checked)
+#: Basti, 2026-10-11: approved IF every statement is true. The combined review
+#: of 4.3.5 found one that is not: the alternate ChromIQ writes for a DeviceN
+#: chart (``PostScriptGenerator._devicen_tint``) gives White no cyan, magenta,
+#: yellow or black at all, and Medium Yellow and Medium Black (``-D 17``,
+#: ``-D 18``) have no entry in ``_INK_TO_CMYK``, so a printer without those inks
+#: prints nothing for them, not "an approximate mix". Corrected below;
+#: PROPOSED again and not asked until approved.
 M_PRINT_INKS_APPROXIMATE = _m(
     "M-PRINT-INKS-APPROXIMATE",
     "The chart’s extra inks may be printed as a mix",
     "The chart has {inks}. ChromIQ sends it to {printer} with every ink named, "
     "and a printer or RIP that has inks of those names prints it as it is. "
     "One without them, which includes every printer whose driver takes CMYK, "
-    "prints {extra} as an approximate mix of cyan, magenta, yellow and black "
-    "on top of the other inks. Patches with {extra} would then not carry the "
+    "does not print {extra} as such: it puts an approximate mix of cyan, "
+    "magenta, yellow and black in its place on top of the other inks, or, "
+    "for an ink with no such mix (white among them), nothing at all. Patches with {extra} would then not carry the "
     "chart’s values, and a measurement of them would not describe your "
     "printer’s inks.",
     approved=False)

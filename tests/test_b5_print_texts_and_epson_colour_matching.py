@@ -197,15 +197,23 @@ class _Ctl:
         self.target = _Target(verification)
 
 
-def _note(qapp, monkeypatch, *, verification=True, pages=True, native=True, mac=True):
+def _note(qapp, monkeypatch, *, verification=True, pages=True, native=True, mac=True,
+          through=False, cmyk=False):
     from PyQt6.QtWidgets import QLabel
     from ui.tabs import tab_print as tp
+    from workflow import verification_print as vp
     monkeypatch.setattr(tp, "is_macos", lambda: mac)
+    # the printer the macOS dialog opens on: a queue taking CMYK raster or not
+    monkeypatch.setattr(tp, "_dialog_printer", lambda: ("Q", "Q"))
+    monkeypatch.setattr(tp, "_queue_cmyk_raster",
+                        lambda q: "KCMY" if cmyk else None)
     tab = tp.TabPrint.__new__(tp.TabPrint)
     tab._verify_route_lbl = QLabel()
     tab._target_ctl = _Ctl(verification)
     tab._tiff_pages = [("p", 0)] if pages else []
     tab._settings = {"use_native_print_dialog": native}
+    tab._cm_selected_colour = (lambda: vp.COLOUR_THROUGH if through
+                               else vp.COLOUR_RAW)
     tp.TabPrint._update_verify_route_note(tab)
     lbl = tab._verify_route_lbl
     return (not lbl.isHidden()), lbl.text()
@@ -217,16 +225,40 @@ def qapp():
     return QApplication.instance() or QApplication(sys.argv[:1])
 
 
-def test_a_verification_on_the_dialog_route_shows_the_first_paragraph(qapp, monkeypatch):
+def _plain(text):
+    return text.replace("&#x27;", "'").replace("\u2019", "'")
+
+
+def test_a_verification_on_the_dialog_route_says_how_the_sheet_prints(qapp, monkeypatch):
     """k81 (4.3.5): paragraphs 2 and 3 are untrue for a PostScript printer
     since the dialog route sends it ChromIQ's own PostScript, so they are
-    left out; their replacements wait for approval."""
+    left out; M-PRINT-VERIFY-DIALOG-AS-IS (approved by Basti, 2026-10-11)
+    follows paragraph 1."""
     shown, text = _note(qapp, monkeypatch)
     assert shown
     assert "<b>Printing a verification chart</b>" in text
     assert "Print this chart on the same printer" in text
     assert "including its Color Matching panel" not in text
     assert "On a PostScript printer the two routes" not in text
+    assert "Choose the paper, media type and quality in the macOS print dialog" in text
+    assert "This sheet is printed through" not in text
+
+
+def test_through_the_profile_the_dialog_route_says_so(qapp, monkeypatch):
+    _shown, text = _note(qapp, monkeypatch, through=True)
+    assert "This sheet is printed through" in _plain(text)
+    assert "Choose the paper, media type and quality in the macOS" not in text
+
+
+@pytest.mark.parametrize("through", [False, True])
+def test_not_where_the_dialogs_printer_takes_cmyk_raster(qapp, monkeypatch, through):
+    """Combined review of 4.3.5: there macOS converts the chart into CMYK
+    itself, so neither paragraph is true; the notice above says so."""
+    shown, text = _note(qapp, monkeypatch, cmyk=True, through=through)
+    assert shown
+    assert "Print this chart on the same printer" in text
+    assert "Choose the paper" not in text
+    assert "This sheet is printed through" not in text
 
 
 def test_the_direct_route_shows_the_first_paragraph(qapp, monkeypatch):
@@ -235,19 +267,21 @@ def test_the_direct_route_shows_the_first_paragraph(qapp, monkeypatch):
     assert "Print this chart on the same printer" in text
     assert "On a PostScript printer the two routes" not in text
     assert "Color Matching" not in text
+    assert "Choose the paper" not in text
 
 
-def test_once_approved_the_dialog_route_says_how_the_sheet_prints(qapp, monkeypatch):
+def test_the_postscript_paragraph_only_once_approved(qapp, monkeypatch):
     from dataclasses import replace
     from workflow import measurement_messages as MM
-    for name in ("M_PRINT_VERIFY_DIALOG_AS_IS", "M_PRINT_VERIFY_DIALOG_THROUGH",
-                 "M_PRINT_VERIFY_PS_EARLIER"):
-        monkeypatch.setattr(MM, name, replace(getattr(MM, name), approved=True))
+    assert not MM.M_PRINT_VERIFY_PS_EARLIER.approved
     _shown, text = _note(qapp, monkeypatch)
-    assert "Leave the colour settings in the macOS print dialog" in text
+    assert "On a PostScript printer both routes now send" not in text
+    monkeypatch.setattr(MM, "M_PRINT_VERIFY_PS_EARLIER",
+                        replace(MM.M_PRINT_VERIFY_PS_EARLIER, approved=True))
+    _shown, text = _note(qapp, monkeypatch)
     assert "On a PostScript printer both routes now send" in text
     _shown, text = _note(qapp, monkeypatch, native=False)
-    assert "Leave the colour settings" not in text
+    assert "Choose the paper" not in text
     assert "On a PostScript printer both routes now send" in text
 
 

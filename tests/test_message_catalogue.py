@@ -231,7 +231,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # is not RGB on a queue that converts its
                                  # inks, or may print its extra inks as a mix.
                                  # Our words.
-                                 "M-PRINT-INKS-CONVERTED",
+                                 # M-PRINT-INKS-CONVERTED: approved by Basti,
+                                 # 2026-10-11 (combined review of 4.3.5).
+                                 # APPROXIMATE was approved "if true" and one
+                                 # statement was not: corrected, waiting.
                                  "M-PRINT-INKS-APPROXIMATE",
                                  # (B3, 2026-10-10, Knut 6095262115: what a
                                  # verification print needs, M-PRINT-VERIFY-
@@ -711,14 +714,15 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # built without a pre-conditioning profile
                                  "M-CHART-SLOW-NO-PROFILE",
                                  # 4.3.5, k82: two paragraphs of the FROM
-                                 # PROFILE GAMUT count help
+                                 # PROFILE GAMUT count help (approved by Basti
+                                 # 2026-10-11; one statement untrue, corrected)
                                  "M-HELP-GAMUT-SIZE-SPREAD",
                                  # 4.3.5, k81: the dialog route of a
-                                 # verification print
-                                 "M-PRINT-VERIFY-DIALOG-AS-IS",
-                                 "M-PRINT-VERIFY-DIALOG-THROUGH",
+                                 # verification print. AS-IS, THROUGH and
+                                 # DEVICE-RGB approved by Basti 2026-10-11;
+                                 # PS-EARLIER approved but one statement
+                                 # untrue, corrected and waiting.
                                  "M-PRINT-VERIFY-PS-EARLIER",
-                                 "M-PRINT-JOB-DEVICE-RGB",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

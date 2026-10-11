@@ -5777,6 +5777,7 @@ _GAMUT_SIZE_HELP_P5 = (
 _GAMUT_SIZE_HELP_P6_GREYS = (
     "**Grey steps:** evenly spaced grey steps run along the neutral "
     "axis from the black to the white corner, at least eight of them "
+    "on a chart of 60 colours or more (six or seven on a smaller one) "
     "and never more than about one patch in eight. A change in the "
     "printer shows in the greys first. All other colours are spread "
     "evenly through the whole range your profile can print: the more "

@@ -52,9 +52,9 @@ def _separated(path: Path, n: int, codes: list[str] | None, *, rep: str | None =
         for a in arrs:
             tw.write(a, **kw)
     if codes is not None:
-        path.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": codes}))
+        path.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": codes}), encoding="utf-8")
     if rep is not None:
-        path.with_suffix(".ti2").write_text(f'CTI2\n\nCOLOR_REP "{rep}"\n')
+        path.with_suffix(".ti2").write_text(f'CTI2\n\nCOLOR_REP "{rep}"\n', encoding="utf-8")
     return arrs[0]
 
 
@@ -117,7 +117,7 @@ def test_a_cmy_chart_the_engine_wrote_before_435_prints_as_cmyk_with_k_0(tmp_pat
     ink = _page(3)
     tifffile.imwrite(t, (255 - ink).astype(np.uint8), photometric="rgb",
                      resolution=(118.11, 118.11), resolutionunit=3)
-    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["c", "m", "y"]}))
+    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["c", "m", "y"]}), encoding="utf-8")
     plan = chart_inks.plan_for_file(t)
     assert plan is not None and plan.legacy_engine_cmy and plan.space == "DeviceCMYK"
     ps = PostScriptGenerator().generate(t, ink_channels=["c", "m", "y"])
@@ -169,7 +169,7 @@ def test_the_dialog_route_refuses_an_old_engine_cmy_chart(tmp_path):
     from workflow.native_print_macos import ChartIsNotRGB, _refuse_unless_rgb
     t = tmp_path / "old.tif"
     tifffile.imwrite(t, _page(3), photometric="rgb")
-    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["c", "m", "y"]}))
+    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["c", "m", "y"]}), encoding="utf-8")
     with pytest.raises(ChartIsNotRGB, match="CMY, 3 inks"):
         _refuse_unless_rgb(t, 0)
 
@@ -178,7 +178,7 @@ def test_the_dialog_route_lets_an_rgb_chart_through(tmp_path):
     from workflow.native_print_macos import _refuse_unless_rgb
     t = tmp_path / "rgb.tif"
     tifffile.imwrite(t, _page(3), photometric="rgb")
-    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["r", "g", "b"]}))
+    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["r", "g", "b"]}), encoding="utf-8")
     _refuse_unless_rgb(t, 0)          # no exception
 
 
@@ -247,7 +247,7 @@ def test_the_engine_writes_cmy_as_cmyk_with_k_0(tmp_path):
         [(0, 0, 0), (100, 0, 0), (0, 100, 0), (0, 0, 100), (50, 25, 75), (100, 100, 100)] * 4))
     ti1.write_text('CTI1\n\nCOLOR_REP "CMY"\n\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n'
                    'SAMPLE_ID CMY_C CMY_M CMY_Y XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n'
-                   f'NUMBER_OF_SETS 24\nBEGIN_DATA\n{rows}\nEND_DATA\n')
+                   f'NUMBER_OF_SETS 24\nBEGIN_DATA\n{rows}\nEND_DATA\n', encoding="utf-8")
     (tmp_path / "out").mkdir()
     res = build_chart(ti1, tmp_path / "out" / "cmy", instrument="i1", dpi=100)
     tif = [p for p in res.tiff_paths][0]
@@ -282,7 +282,7 @@ def test_the_i1profiler_export_skips_cmy_with_a_log_line(tmp_path, caplog):
     ti1 = tmp_path / "c.ti1"
     ti1.write_text('CTI1\n\nCOLOR_REP "CMY"\n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n'
                    'SAMPLE_ID CMY_C CMY_M CMY_Y\nEND_DATA_FORMAT\n\nNUMBER_OF_SETS 1\n'
-                   'BEGIN_DATA\n1 10 20 30\nEND_DATA\n')
+                   'BEGIN_DATA\n1 10 20 30\nEND_DATA\n', encoding="utf-8")
     with pytest.raises(UnsupportedInkSet):
         export_from_ti1(ti1, tmp_path, base_name="x")
     import logging
@@ -356,7 +356,7 @@ def rgb_chart(tmp_path):
     t = tmp_path / "rgb.tif"
     arr = _page(3)
     tifffile.imwrite(t, arr, photometric="rgb", resolution=(118.11, 118.11), resolutionunit=3)
-    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["r", "g", "b"]}))
+    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["r", "g", "b"]}), encoding="utf-8")
     return t, arr
 
 
@@ -443,7 +443,7 @@ def test_an_old_engine_cmy_chart_has_no_ink_row(tmp_path, hidden_preview):
     pv = hidden_preview
     t = tmp_path / "old.tif"
     tifffile.imwrite(t, _page(3), photometric="rgb")
-    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["c", "m", "y"]}))
+    t.with_suffix(".channels.json").write_text(json.dumps({"ink_channels": ["c", "m", "y"]}), encoding="utf-8")
     pv._pages = [(t, 0)]
     pv._ink_channels = None
     pv._rebuild_ink_row()
