@@ -271,18 +271,21 @@ def test_the_direct_route_shows_the_first_paragraph(qapp, monkeypatch):
 
 
 def test_the_postscript_paragraph_only_once_approved(qapp, monkeypatch):
+    """M-PRINT-VERIFY-PS-EARLIER: approved by Basti on 2026-10-11 in the
+    wording the combined review of 4.3.5 corrected; shown on both routes, and
+    hidden again if it were ever set back to waiting."""
     from dataclasses import replace
     from workflow import measurement_messages as MM
-    assert not MM.M_PRINT_VERIFY_PS_EARLIER.approved
-    _shown, text = _note(qapp, monkeypatch)
-    assert "On a PostScript printer both routes now send" not in text
-    monkeypatch.setattr(MM, "M_PRINT_VERIFY_PS_EARLIER",
-                        replace(MM.M_PRINT_VERIFY_PS_EARLIER, approved=True))
+    assert MM.M_PRINT_VERIFY_PS_EARLIER.approved
     _shown, text = _note(qapp, monkeypatch)
     assert "On a PostScript printer both routes now send" in text
     _shown, text = _note(qapp, monkeypatch, native=False)
     assert "Choose the paper" not in text
     assert "On a PostScript printer both routes now send" in text
+    monkeypatch.setattr(MM, "M_PRINT_VERIFY_PS_EARLIER",
+                        replace(MM.M_PRINT_VERIFY_PS_EARLIER, approved=False))
+    _shown, text = _note(qapp, monkeypatch)
+    assert "On a PostScript printer both routes now send" not in text
 
 
 @pytest.mark.parametrize("kw", [dict(verification=False), dict(pages=False),

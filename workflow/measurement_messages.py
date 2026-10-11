@@ -5200,7 +5200,7 @@ M_PRINT_VERIFY_PS_EARLIER = _m(
     "M-PRINT-VERIFY-PS-EARLIER",
     "Printing a verification chart",
     "On a PostScript printer both routes now send the chart as the printer\u2019s own RGB. With ChromIQ 4.3.4 and earlier the macOS print dialog sent it marked as sRGB, or with the profile set for the printer in ColorSync Utility, and the printer converted it with its own colour rendering. A profile made from a chart printed that way describes the printer together with that conversion: print and measure its profiling chart again before you verify it.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-11: corrected wording approved
 #: Approved by Basti, 2026-10-11, as proposed; checked by the combined review
 #: of 4.3.5: the dialog route's job to a PostScript queue is ChromIQ's own
 #: PostScript, DeviceRGB with cups-disable-cmm, every chart pixel unchanged,
@@ -5229,7 +5229,7 @@ M_HELP_GAMUT_SIZE_SPREAD = _m(
     "M-HELP-GAMUT-SIZE-SPREAD",
     "How many colours to test",
     "Each chart is spread for its own size: the colours are spread evenly over everything your profile can print, so a 400-colour chart and a 1 000-colour chart made from the same profile do not share all their colours. Compare figures from charts of the same size. The eight cube corners are always added on top, whatever you choose here.\n\nGrey steps: evenly spaced grey steps run along the neutral axis from the black to the white corner, at least eight of them on a chart of 60 colours or more (six or seven on a smaller one) and never more than about one patch in eight. A change in the printer shows in the greys first. All other colours are spread evenly through the whole range your profile can print: the more colours you choose, the closer together they sit, and none sits closer to another than it needs to.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-11: corrected wording approved
 
 # --- APPROVED (Basti, 2026-10-10, "text approved"): the status line when the
 # chart got the job's own profile and the job names no paper profile (B3) ----
@@ -5414,7 +5414,7 @@ M_PRINT_INKS_APPROXIMATE = _m(
     "for an ink with no such mix (white among them), nothing at all. Patches with {extra} would then not carry the "
     "chart’s values, and a measurement of them would not describe your "
     "printer’s inks.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-11: corrected wording approved
 
 # --- APPROVED: the quality row of the Print Chart tab (beta 16) ---------------
 #: Basti, 2026-10-09: he prints his photos at the highest quality the Canon print
