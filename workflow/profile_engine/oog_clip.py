@@ -93,6 +93,10 @@ PARAMS: dict = {
     # colorimetric table (table_params), set by b2a.set_research_tokens
     "a51": False, "a51_band": 0.0, "a51_ownhue": False, "a51_nofloor": False,
     "a51_lab": False, "a51_soft": 0.0, "a51_ray": False,
+    # Agent 54 (a54-bluepath): with the a51 metric, the dark floor lifts the
+    # target's J in the clip space (Argyll Jab) instead of its CIELAB L*
+    "a54": False,
+    "a54_soft": 0.0,       # > 0: a smooth floor (softplus of this width in J)
 }
 
 DEFAULTS = dict(PARAMS)
@@ -309,6 +313,14 @@ A51_SOFT_TOKEN = "a51-colprofedge-soft"
 # nodes below the black move (no printable colour lies there), the map is
 # continuous at the black and monotone toward it.
 A51B_TOKEN = "a51b-colprofedge"
+# a54: the a29 floor applied in the clip space. Lifting a target below the
+# black to the black's CIELAB L* with its CIELAB a*, b* kept hands Argyll's
+# CAM a colour it no longer compresses (an L* 15 / C* 90 blue becomes an
+# L* 23 / C* 90 one), so the clip keeps far more chroma than colprof's, whose
+# target is never lifted: on Knut blue, azure, violet hold colour to x 0.9 of
+# the ramp where colprof goes dark from x 0.3 (Findings agent54-01). a54
+# lifts J only and keeps the target's own Jab a, b (already compressed).
+A54_TOKEN = "a54-bluepath"
 A51_PARAMS = {"space": "cam02", "wj": 4.0, "wc": 1.0, "wh": 4.84}
 _HK = {"on": True}
 _REL = threading.local()
@@ -343,6 +355,19 @@ def table_params(p: dict = None) -> dict:
     if p.get("a51_ray"):
         q["dm_ray"] = True
     return q
+
+
+def jab_floor(t_s: np.ndarray, j_black: float, soft: float = 0.0) -> np.ndarray:
+    """a54: targets in the clip space with J raised to at least the black's
+    J, a and b unchanged (identity at and above the black). soft > 0: a
+    softplus of that width in J instead of the hard max (no knee where the
+    floor takes over; lifts J by at most soft x ln 2, at the black)."""
+    out = np.array(t_s, float, copy=True)
+    if soft > 0.0:
+        out[:, 0] = j_black + soft * np.logaddexp(0.0, (out[:, 0] - j_black) / soft)
+    else:
+        out[:, 0] = np.maximum(out[:, 0], j_black)
+    return out
 
 
 def lab_to_argyll_jab(lab: np.ndarray) -> np.ndarray:
@@ -562,7 +587,16 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
             t_lab[:, 0] = new_l
         else:
             lift = None
-    t_s = fn(t_lab)
+    jfloor = (lift is not None and p.get("a54") and p.get("space") == "cam02"
+              and not p.get("a51_ray") and float(p.get("dm_band", 0.0)) <= 0.0)
+    if jfloor:
+        # a54: the floor in J (the clip space's lightness), the target's own
+        # Jab a, b kept; the frame follows the unlifted target's hue
+        t_lab = target_lab[sel]
+        t_s = jab_floor(fn(t_lab), float(fn(np.array([[floor, 0.0, 0.0]]))[0, 0]),
+                        float(p.get("a54_soft", 0.0)))
+    else:
+        t_s = fn(t_lab)
     hue_from = p.get("hue_from") or ""
     w = weights(t_s, p, _frame_angle(t_lab, t_s, fn, hue_from, p["chord"])
                 if hue_from else None)

@@ -2147,6 +2147,8 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     p["a51_nofloor"] = oog_clip.A51_NOFLOOR_TOKEN in t
     p["a51_lab"] = oog_clip.A51_LAB_TOKEN in t
     p["a51_soft"] = 15.0 if oog_clip.A51_SOFT_TOKEN in t else 0.0
+    # Agent 54 (a54-bluepath): the a29 floor lifts J in the a51 clip space
+    p["a54"] = oog_clip.A54_TOKEN in t
     oog_clip._HK["on"] = oog_clip.A51_NOHK_TOKEN not in t
     oog_clip.set_colorimetric(False)
     for tok in t:
