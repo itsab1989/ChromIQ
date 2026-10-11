@@ -77,6 +77,7 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Issue #123 candidate tokens (dark-launched maximum-accuracy successors).
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
+    {"a53-smoothinv", "a53-smoothinv-all"} |
     {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos",
      "rgbcol", "rgbshadow", "no-rgbcol",
      # Integration 3 off-switches for its new defaults
@@ -1119,6 +1120,18 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     wtpt_abs = _pin_media_white(model, meas, settings)
     fit_res = np.linalg.norm(model.predict(meas.device) - meas.lab_relative,
                              axis=1)
+    # Research Agent 53 (a53-smoothinv, smoothinv.py): the B2A tables are
+    # inverted from a smoothed copy of the model; the A2B keeps the model.
+    _model_col = _model_map = model
+    from workflow.profile_engine import smoothinv as _a53
+    _a53_mode = _a53.a53_mode(candidates) if accurate else None
+    if _a53_mode is not None and hasattr(model, "nodes"):
+        _model_col, _a53_info = _a53.smoothed_copy(model, meas.device)
+        if _a53_mode == "all":
+            _model_map = _model_col
+        _emit(settings, f"Smoothed model for the inversion: mean move at the "
+                        f"patches {_a53_info['avgdev']:.2f} (target "
+                        f"{_a53_info['target']:.2f}), mu {_a53_info['mu']:.3g}.")
 
     _emit(settings, f"Inverting the model (B2A grid {b2a_grid})…")
     user_limit = settings.ink_limit is not None
@@ -1196,7 +1209,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _emit(settings, "Building the perceptual and saturation "
                                 "tables…")
                 return build_mapped_b2a(
-                    model, meas, b2a_grid, Path(settings.source_gamut),
+                    _model_map, meas, b2a_grid, Path(settings.source_gamut),
                     channel_letters=meas.channel_letters,
                     is_additive=meas.is_additive, ink_limit=ink_limit,
                     entries=_B2A_ENTRIES[qb], codec=codec, settings=settings,
@@ -1252,6 +1265,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         anchor_box["anchor"] = anchor
         anchor_box["ready"].set()
     node_lab = codec.node_lab(b2a_grid)
+    # Agent 53: from here to the B2A1 write, "model" is the inversion's model
+    # (the smoothed copy with a53-smoothinv); restored before the A2B write.
+    _model_a2b = model
+    model = _model_col
     # Maximum accuracy separates the COLORIMETRIC table with its own K
     # policy (late GCR locus + the neutral-axis walk), not with the CMYK
     # proxy's colprof K curve: on the battery's 6-7 ink printers that prior
@@ -1672,8 +1689,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     entries_a2b = _A2B_ENTRIES[q]
     entries_b2a = _B2A_ENTRIES[qb]
     a2b = icw.make_mft2(
-        n, 3, a2b_grid, codec.encode(model.clut_lab()),
-        in_tables=icw.curves_to_tables(model.curves, entries_a2b),
+        n, 3, a2b_grid, codec.encode(_model_a2b.clut_lab()),
+        in_tables=icw.curves_to_tables(_model_a2b.curves, entries_a2b),
         out_tables=np.tile(icw._identity_table(entries_a2b), (3, 1)))
     # B2A/gamt input tables come from the codec: identity for Lab and the
     # parity XYZ layout, cube-root-shaped for accurate XYZ (the node targets
@@ -1700,6 +1717,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             3, n, b2a_grid, icw.device_to_u16(dev_clut_shaped),
             in_tables=b2a_in,
             out_tables=icw.curves_to_tables(inv, entries_b2a))
+    model = _model_a2b                  # Agent 53: the A2B's model again
     # ICC.1 §9.2.29: gamt is 0 for an in-gamut PCS colour. The inversion's
     # clamp distance is a continuous residual (0.3–0.9 ΔE on converged
     # near-boundary nodes) and it leaked onto two thirds of the printable
@@ -1742,7 +1760,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         from workflow.profile_engine.gamut_map import build_mapped_b2a
         _emit(settings, "Building the perceptual and saturation tables…")
         mapped = build_mapped_b2a(
-            model, meas, b2a_grid, Path(settings.source_gamut),
+            _model_map, meas, b2a_grid, Path(settings.source_gamut),
             channel_letters=meas.channel_letters,
             is_additive=meas.is_additive, ink_limit=ink_limit,
             entries=entries_b2a, codec=codec, settings=settings,
