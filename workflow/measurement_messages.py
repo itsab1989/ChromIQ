@@ -1928,7 +1928,9 @@ _CARD_PEER_2 = "Read alike in other strips: {locs}"
 _CARD_RED_READ_AGAIN = "Read it again to find out."
 _CARD_YELLOW_NO_NEED = "No need to read it again."
 #: The twelve ranges' names, as the post named them (purple/violet was
-#: merged into blue in beta 11, Knut #182 5983470377).
+#: merged into blue in beta 11, Knut #182 5983470377; since 4.3.5 the merged
+#: range is named for both, "blue/purple", as the other merged ranges are,
+#: Knut #182 6103148331).
 _RANGE_GREY_DARK = "dark grey"
 _RANGE_GREY_MID = "mid grey"
 _RANGE_GREY_LIGHT = "light grey"
@@ -1939,7 +1941,7 @@ _RANGE_YELLOW = "yellow"
 _RANGE_YELLOW_GREEN = "yellow-green"
 _RANGE_GREEN = "green"
 _RANGE_CYAN = "cyan/turquoise"
-_RANGE_BLUE = "blue"
+_RANGE_BLUE = "blue/purple"
 _RANGE_MAGENTA = "magenta"
 #: workflow.patch_flags.RANGES -> the name the card shows (through tr()).
 RANGE_NAMES = {
@@ -2184,9 +2186,18 @@ _SUM_NB_NONE_CHECKED = ("Neighbour check: none of the {total} patches had "
                         "enough patches near in colour to be checked.")
 _SUM_NB_PARTLY = ("{checked} of {total} patches had enough patches near in "
                   "colour to be checked.")
-_SUM_TWICE_NONE = "Strip read twice: none found."
-_SUM_TWICE_ONE = "Strip read twice: 1 strip looked like another, {list}."
-_SUM_TWICE = "Strip read twice: {n} strips looked like another, {list}."
+#: 4.3.5 (Knut, #182 6103148331): "Strip read twice: none found" read as
+#: wrong after he had read several strips again on purpose. That check looks
+#: only for a reading that looks like ANOTHER strip ("Was a strip read
+#: twice?"), so its lines now say so, and the strips read again on purpose
+#: get a line of their own.
+_SUM_TWICE_NONE = "Was a strip read twice? No reading looked like another strip."
+_SUM_TWICE_ONE = ("Was a strip read twice? 1 reading looked like another "
+                  "strip: {list}.")
+_SUM_TWICE = ("Was a strip read twice? {n} readings looked like another "
+              "strip: {list}.")
+_SUM_READ_AGAIN_ONE = "Strip you read again: {list}."
+_SUM_READ_AGAIN = "Strips you read again ({n}): {list}."
 _SUM_TWICE_REREAD = "{strip} (like {like}, read again)"
 _SUM_TWICE_WAS_LIKE = "{strip} (like {like}, counted as {like})"
 _SUM_TWICE_KEPT = "{strip} (like {like}, kept)"
@@ -2194,7 +2205,8 @@ M_MEASURED_SUSPECTS = _m(
     "M-MEASURED-SUSPECTS",
     _SUM_HEADLINE,
     "\n".join((_SUM_NB_NONE, _SUM_NB_RED_ONE, _SUM_NB_RED, _SUM_NB_KEPT_ONE, _SUM_NB_KEPT,
-               _SUM_NB_PARTLY, _SUM_NB_NONE_CHECKED, _SUM_TWICE_NONE, _SUM_TWICE_ONE, _SUM_TWICE,
+               _SUM_NB_PARTLY, _SUM_NB_NONE_CHECKED, _SUM_READ_AGAIN_ONE, _SUM_READ_AGAIN,
+               _SUM_TWICE_NONE, _SUM_TWICE_ONE, _SUM_TWICE,
                _SUM_TWICE_REREAD, _SUM_TWICE_WAS_LIKE, _SUM_TWICE_KEPT)),
     approved=False)
 

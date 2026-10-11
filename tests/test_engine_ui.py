@@ -546,6 +546,9 @@ def test_patch_tile_option_wires_and_persists(monkeypatch):
 
     # Guided has its own independent flag, saved + restored too.
     monkeypatch.setattr(tab, "_current_mode", lambda: "guided")
+    # On by default since 4.3.5 (Knut, #182 6103148331), so it is switched
+    # off first for the toggle to reach the preview.
+    tab._g_patch_tile.setChecked(False)
     tab._g_patch_tile.setChecked(True)
     assert tab._preview._show_patch_tile is True
     tab._on_save_defaults()

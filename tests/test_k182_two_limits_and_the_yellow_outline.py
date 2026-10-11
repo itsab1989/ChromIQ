@@ -472,7 +472,7 @@ def test_two_close_confirmations_count_as_two_knuts_blues(qapp, tmp_path):
     info = _info(tab, "F4")
     assert info["colour_range"] == "blue" and info["range_k"] == 2
     rows = _card(qapp, info)
-    assert "Colour range: blue" in rows
+    assert "Colour range: blue/purple" in rows
     assert "2 of 3 confirmations so far" in rows
     # O9 (hue 311°) is blue at the 315° edge (Knut 5963411325; it was purple
     # at 310°): the same range, still two confirmations of three.
@@ -481,7 +481,7 @@ def test_two_close_confirmations_count_as_two_knuts_blues(qapp, tmp_path):
     o9 = _info(tab, "O9")
     assert o9["colour_range"] == "blue" and o9["range_k"] == 2
     rows = _card(qapp, o9)
-    assert "Colour range: blue" in rows
+    assert "Colour range: blue/purple" in rows
     assert "2 of 3 confirmations so far" in rows
 
 

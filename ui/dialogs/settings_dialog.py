@@ -1980,6 +1980,30 @@ NEIGHBOUR_CHECK_HELP = (
     "**Off:** every red outline the neighbour check caused goes at once, "
     "also during a measurement; switched on again, they come back. Which "
     "patches a re-read confirmed (yellow) or corrected (green) is kept.")
+#: Knut, #182 6103148331: what the user sees as the outlines settle, good
+#: practice, and how to use the limits, in the neighbour check's help.
+NEIGHBOUR_CHECK_SETTLE_HELP = (
+    "**What you will see while you measure:** the outlines are worked out"
+    " again after every strip you read, so they settle as the chart fills"
+    " in. A patch read early is compared with the few patches near it in "
+    "colour that are read by then, and the median it is compared with cha"
+    "nges as more of them are read. So a red outline can appear later, an"
+    "d it can also go again without the patch being read again: when a pa"
+    "tch near it in colour is read and turns out to be off in the same wa"
+    "y, the difference is no longer unusual and the red outline goes. For"
+    " example, a patch can be red until another patch close to it in colo"
+    "ur is read.\n\n**Good practice:** measure the whole chart first, then "
+    "read again the patches that are still outlined: by then the outlines"
+    " have settled. Turn on “Show patch values on hover” and point at a p"
+    "atch: its card says why it is outlined and how far it is from the pa"
+    "tches nearest in colour.\n\n**Too many outlines?** Raise the neighbour"
+    " limit or the patch error limit for that chart type here in Preferen"
+    "ces ▸ Measurement; the outlines follow when you press OK. **To find "
+    "patches on purpose,** lower them instead: for example, when a verifi"
+    "cation's Measurement Report fails on “Maximum ΔE00, all patches”, lo"
+    "wer the patch error limit or the neighbour limit for verification ch"
+    "arts until the patches behind that maximum are outlined, read them a"
+    "gain, and set the limits back.")
 NEIGHBOUR_CHECK_DEFAULT = (
     "**Default:** on, on every chart type; neighbour limit 10 / 5 / 3 / 10 "
     "and colour-neighbour radius 15 / 30 / 30 / 30 (profiling charts with "
@@ -2485,6 +2509,7 @@ class SettingsDialog(QDialog):
         nb_h.addStretch()
         g.addWidget(nb_box, row, 0, 1, 5)
         cell(help_btn(tr(NEIGHBOUR_CHECK_NAME), tr(NEIGHBOUR_CHECK_HELP)
+                      + "\n\n" + tr(NEIGHBOUR_CHECK_SETTLE_HELP)
                       + "\n\n" + tr(NEIGHBOUR_CHECK_DEFAULT)
                       + "\n\n" + tr(TWO_DECIMALS_HELP)), row, 5,
              pad=(4, 4, 8, 4))

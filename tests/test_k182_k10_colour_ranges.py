@@ -314,7 +314,7 @@ def test_the_preview_flips_an_earlier_patch_both_ways(qapp, tmp_path):
     assert info["flag"] == "learned" and info["range_k"] == 3
     rows = _card(qapp, info)
     assert f"Yellow outline: judged like patch {info['like_loc']}" in rows
-    assert "Colour range: blue" in rows
+    assert "Colour range: blue/purple" in rows
     assert "Confirmed: A1, A2, A3" in rows
     # A3 read again, clean: the range has two now, and F1 is red again
     clean = blues[:2] + [("A3", BLUES[2], BLUES[2])]
@@ -588,7 +588,7 @@ def test_the_tab_reads_the_ranges_once_per_chart(qapp, tmp_path):
     tab._on_strip_measured(_event("A", blues))
     tab._on_strip_measured(_event("A", blues))    # the re-read: confirmed
     assert _flags(tab)["F1"] == pf.FLAG_LEARNED
-    assert "Colour range: blue" in _card(qapp, _info(tab, "F1"))
+    assert "Colour range: blue/purple" in _card(qapp, _info(tab, "F1"))
     # a reset of the memory keeps the chart's map
     tab._reset_flag_judge()
     assert tab._flag_judge().device_ranges["F1"] == "blue"

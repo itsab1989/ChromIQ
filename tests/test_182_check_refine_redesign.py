@@ -78,7 +78,7 @@ def test_the_strip_count_rule_is_gone():
 
 def test_more_than_half_advises_start_over_and_still_offers_refinement():
     plan = _plan(RUN2, 0.5)
-    assert plan.n_over == 402 and plan.pct_over == 62
+    assert plan.n_over == 402 and plan.pct_over == "62.0"
     assert plan.start_over
     assert plan.offered, "refinement must stay available (Knut, Q2)"
 
@@ -273,7 +273,7 @@ def test_the_formula_name_comes_from_the_check(summary, flag, name):
 def test_every_number_in_the_window_text_carries_the_name():
     t = rp.plan_text(_plan(RUN3, 2.0), 0.67, 4.34)
     assert t.numbers == "Average ΔE00 0.67  |  Largest ΔE00 4.34"
-    assert t.over == ("19 of 324 patches (6%) are above your limit of "
+    assert t.over == ("19 of 324 patches (5.9%) are above your limit of "
                       "ΔE00 2.0.")
     for _label, why in t.first_rows:
         assert "(ΔE00 " in why
@@ -351,7 +351,7 @@ def test_the_window_shows_the_pictured_lines(qapp, tmp_path, monkeypatch):
     text = "\n".join(_texts(dlg))
     for line in (
             "Average ΔE00 0.67  |  Largest ΔE00 4.34",
-            "19 of 324 patches (6%) are above your limit of ΔE00 2.0.",
+            "19 of 324 patches (5.9%) are above your limit of ΔE00 2.0.",
             "<b>Re-measure these strips first</b> (worst first). Each has a "
             "patch that may have been misread, and a re-read shows whether "
             "it was:",
@@ -405,7 +405,7 @@ def test_refinement_is_offered_when_start_over_is_advised(qapp, tmp_path,
     assert plan.start_over
     text = "\n".join(_texts(dlg))
     assert ("<b>More than half of your patches are above your limit (402 of "
-            "648, 62%).</b>") in text
+            "648, 62.0%).</b>") in text
     assert "← Guide Me Through Refinement" in _buttons(dlg)
     dlg.deleteLater()
 

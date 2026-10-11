@@ -354,7 +354,7 @@ def test_the_coverage_line_carries_the_percentage(qapp, tmp_path, monkeypatch):
     ctl.set_run_type(RUN_TYPE_VERIFICATION)
     tab._switch_mode("gamut")
     tab._update_gamut_count_line()
-    assert "(91 %)" in tab._gamut_count_lbl.text()      # round(5413/5960*100)
+    assert "(90.8 %)" in tab._gamut_count_lbl.text()    # 5413/5960, one decimal
     assert tab._gamut_count_lbl.wordWrap()
 
 

@@ -1230,6 +1230,14 @@ class _PatchInfoTile(QWidget):
                 rows.append((None, ""))
                 add_text(nb_fmt(_mm._CARD_NB_ALSO_S))
                 rows.append((None, ""))
+                # 4.3.5 (Knut, #182 6103148331): the card still names the
+                # range and what it has confirmed so far, so the patch is not
+                # read as belonging to no range; the two lines below say why
+                # the range cannot turn it yellow.
+                if rng in _mm.RANGE_NAMES:
+                    add_range_line()
+                    add_confirmed_list()
+                    rows.append((None, ""))
                 rows.append((None, tr(_mm._CARD_NB_REREAD_1)))
                 rows.append((None, tr(_mm._CARD_NB_REREAD_2)))
             elif rng in _mm.RANGE_NAMES:

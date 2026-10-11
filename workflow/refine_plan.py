@@ -287,8 +287,10 @@ class RefinePlan:
         return self.first + self.rest
 
     @property
-    def pct_over(self) -> int:
-        return round(100 * self.n_over / max(1, self.n_total))
+    def pct_over(self) -> str:
+        """The share above the limit with one decimal (Knut, #182
+        6103148331: "4 of 1296 patches (0%)" read as none)."""
+        return f"{100 * self.n_over / max(1, self.n_total):.1f}"
 
     @property
     def has_choice(self) -> bool:

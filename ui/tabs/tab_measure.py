@@ -1160,6 +1160,22 @@ LIMITS_PURPOSE_HELP = (
 #: a re-read corrected. One paragraph, the same in Preferences ▸ Measurement
 #: and in the Measure tab's overlay and hover help (one translation; a test
 #: keeps the copies equal).
+#: Knut, #182 6103148331: the Measure tab's own help says what the outlines
+#: do while the chart is read, and how to work with them.
+MEASURE_OUTLINES_HELP = (
+    "**The coloured outlines:** while you measure, ChromIQ outlines patch"
+    "es whose readings look wrong (red), whose large differences are know"
+    "n to be real (yellow), and misreads a re-read corrected (green). The"
+    "y are worked out again after every strip, so they settle as the char"
+    "t fills in: a red outline can appear later, and can go again when pa"
+    "tches near it in colour are read. Measure the whole chart first, the"
+    "n read again the patches that are still red. Turn on “Show patch val"
+    "ues on hover” to see on each patch's card why it is outlined. If too"
+    " many patches are outlined, raise the limits in Preferences ▸ Measur"
+    "ement; to find the patches behind a failed Measurement Report row, f"
+    "or example “Maximum ΔE00, all patches” of a verification, lower them"
+    ", read those patches again, and set the limits back.")
+
 GREEN_OUTLINE_HELP = (
     "A green outline marks a misread that was corrected: the patch was "
     "outlined red (by the limit or by the neighbour check), and reading it "
@@ -2494,6 +2510,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "If you misread a patch, you can usually re-do that strip from the "
                 "prompt. Don't rush — accurate reads now mean an accurate profile.\n\n"
                 "**Next step:** build the ICC profile on tab 4.")
+                + "\n\n" + tr(MEASURE_OUTLINES_HELP)
             ),
             trailing_widget=_hdr_trailing,
         ))
@@ -3900,7 +3917,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # only aid, so a preset written before it existed must not switch it
         # off for someone who has never seen it.
         self._m_aim_help.setChecked(bool(data.get("aim_help", True)))
-        self._m_patch_tile.setChecked(bool(data.get("patch_tile", False)))
+        self._m_patch_tile.setChecked(bool(data.get("patch_tile", True)))
         for opt in self._m_chartread_opts:
             if opt.checkbox:
                 opt.checkbox.setChecked(bool(data.get(f"{opt.key}_enabled", False)))
@@ -3941,7 +3958,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 self._m_overlay_mode.setCurrentIndex(_om)
             self._m_only_measured.setChecked(bool(s.get("manual2_only_measured", False)))
             self._m_aim_help.setChecked(bool(s.get("manual2_aim_help", True)))
-            self._m_patch_tile.setChecked(bool(s.get("manual2_patch_tile", False)))
+            self._m_patch_tile.setChecked(bool(s.get("manual2_patch_tile", True)))
             for opt in self._m_chartread_opts:
                 if opt.checkbox:
                     opt.checkbox.setChecked(bool(s.get(f"manual2_chartread_{opt.key}_enabled", False)))
@@ -7249,6 +7266,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # What "Was a strip read twice?" asked during this measurement, for
         # its closing window (#182 beta 11).
         self._read_twice_log = []
+        # Strips the person read again on purpose (moved the reader back to
+        # a strip already read and read it), for the closing summary (Knut,
+        # #182 6103148331: "Strip read twice: none found" read as wrong after
+        # several deliberate re-reads, which that check does not look for).
+        self._strips_read_again = []
         # Strip readings held, unjudged, while "Was a strip read twice?"
         # asks about them (#182 6094941512, 4.3.4 beta 1).
         self._read_twice_held = {}
@@ -11520,7 +11542,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         summary = self._completion_summary()
         if summary:
             from PyQt6.QtWidgets import QLabel as _QL
-            sum_lbl = _QL(summary, dlg)
+            sum_lbl = _QL(self._summary_html(summary), dlg)
+            sum_lbl.setTextFormat(Qt.TextFormat.RichText)
             sum_lbl.setWordWrap(True)
             sum_lbl.setStyleSheet("color: #909090; font-size: 11px;")
             layout.addWidget(sum_lbl)
@@ -11699,7 +11722,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         summary = self._completion_summary()
         if summary:
             from PyQt6.QtWidgets import QLabel as _QL
-            sum_lbl = _QL(summary, dlg)
+            sum_lbl = _QL(self._summary_html(summary), dlg)
+            sum_lbl.setTextFormat(Qt.TextFormat.RichText)
             sum_lbl.setWordWrap(True)
             sum_lbl.setStyleSheet("color: #909090; font-size: 11px;")
             layout.addWidget(sum_lbl)
@@ -14910,7 +14934,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if pace.patches <= 0 or pace.mean_seconds <= 0:
             return
         self._pace_patches = pace.patches
-        self._pace_times[strip or "?"] = (pace.elapsed, True)
+        key = strip or "?"
+        if key in self._pace_times and self._pace_times[key][1]:
+            again = getattr(self, "_strips_read_again", None)
+            if again is None:
+                again = self._strips_read_again = []
+            if key not in again:
+                again.append(key)
+        self._pace_times[key] = (pace.elapsed, True)
         # #149, approved by Knut 2026-08-14. Two things changed: the whole-strip
         # limit is stated as well as the per-patch one, because "milliseconds
         # per patch" is hard for a person to relate to; and the "close to the
@@ -14947,6 +14978,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         measurement. A verification's window shows the reading times only."""
         parts = [self._measurement_summary(), self._misread_summary()]
         return "\n".join(x for x in parts if x)
+
+    @staticmethod
+    def _summary_html(summary: str) -> str:
+        """*summary*'s lines as a bullet list under the heading "Summary:"
+        (Knut, #182 6103148331: "all the summary info listed ... should be
+        listed in a bullet-list, with a heading "Summary:" so that it looks
+        more organised"). Rich text, every line escaped."""
+        import html as _html
+        items = "".join(f"<li>{_html.escape(line)}</li>"
+                        for line in summary.splitlines() if line.strip())
+        return (f"<b>{_html.escape(tr('Summary:'))}</b>"
+                f"<ul style='margin-top:2px; margin-left:-24px;'>{items}</ul>")
 
     def _read_twice_was_active(self) -> bool:
         """Did "Was a strip read twice?" watch this measurement? Strips read
@@ -15004,6 +15047,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 lines.append(tr(M._SUM_CORRECTED).format(
                     n=len(fixed), locs=", ".join(fixed[:10])
                     + ("…" if len(fixed) > 10 else "")))
+            again = list(getattr(self, "_strips_read_again", []) or [])
+            if len(again) == 1:
+                lines.append(tr(M._SUM_READ_AGAIN_ONE).format(list=again[0]))
+            elif again:
+                lines.append(tr(M._SUM_READ_AGAIN).format(
+                    n=len(again), list=", ".join(again)))
             if self._read_twice_was_active():
                 log_ = list(getattr(self, "_read_twice_log", []) or [])
                 items = []
@@ -18917,7 +18966,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # once there is one, and until then a first-time CR30 user gets the
         # help without having to know the option exists.
         self._g_aim_help.setChecked(bool(s.get("measure_aim_help", True)))
-        self._g_patch_tile.setChecked(bool(s.get("measure_patch_tile", False)))
+        self._g_patch_tile.setChecked(bool(s.get("measure_patch_tile", True)))
         # #182 (Knut, B8-388): a run with nothing stored opens on the
         # PREFERENCES value, which is what "default ON, and default OFF when
         # the preference is off, but a user may still change it" means. It is
@@ -18970,7 +19019,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._m_overlay_mode.setCurrentIndex(_om)
         self._m_only_measured.setChecked(bool(s.get("manual2_only_measured", False)))
         self._m_aim_help.setChecked(bool(s.get("manual2_aim_help", True)))
-        self._m_patch_tile.setChecked(bool(s.get("manual2_patch_tile", False)))
+        self._m_patch_tile.setChecked(bool(s.get("manual2_patch_tile", True)))
         for opt in self._m_chartread_opts:
             if opt.checkbox:
                 enabled = bool(s.get(f"manual2_chartread_{opt.key}_enabled", False))
