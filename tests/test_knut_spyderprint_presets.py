@@ -101,8 +101,9 @@ def test_registry_shape():
     # nine "by Pharmacist" charts with a page layout (#182 5860041950, beta 47)
     # and five more in 4.3.1 (#182 5875467209).
     # +1 in 4.3.3-beta.1: the 7.5 mm "Full Page" chart (#182 5943544919)
-    assert len(KNUT_PRESETS) == 189      # 122 + 26 CR30 + 19 photo + 8 max + 14
-    assert len(KNUT_PRESET_KEYS) == 189  # all keys unique
+    # +1 in 4.3.5-beta.2: its US Letter sibling (#182 6126438230)
+    assert len(KNUT_PRESETS) == 190      # 123 + 26 CR30 + 19 photo + 8 max + 14
+    assert len(KNUT_PRESET_KEYS) == 190  # all keys unique
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("pharm_")) == 14
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).
@@ -208,7 +209,12 @@ def test_fulllayout_preset_uses_its_own_ti1_and_count(qapp, settings):
     tab._refresh_manual_command_preview()
     info = tab._manual_info_lbl.text()
     assert "1200" in info and "1168" not in info
-    assert "Full layout setup" in tab._knut_tooltip(key)
+    # Since 4.3.5-beta.2 the chart carries Knut's own engine layout (#182
+    # 6126438230), so its tooltip is the engine presets' one, naming the grid
+    # his export asks for, and its LABEL still says "Full layout setup".
+    tip = tab._knut_tooltip(key)
+    assert "1200" in tip and "20" in tip
+    assert "Full layout setup" in p.combo_label
 
 
 # A SYNTHETIC printtarg-path preset, registered only for these tests.

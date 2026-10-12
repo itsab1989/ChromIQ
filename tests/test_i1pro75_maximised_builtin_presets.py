@@ -77,10 +77,15 @@ BASE_DELTA = {
     "clip_content_mode":       ("off", "notes"),
     "margin_left":             (5.0, 26.0),
     "margin_right":            (5.0, 4.0),
-    "margin_bottom":           (9.0, 19.0),
+    "margin_bottom":           (9.0, 18.0),
     "text_edge_top_mm":        (4.0, 8.0),
     "helper_marker_len_mm":    (4.0, 2.0),
-    "helper_marker_per_patch": (2, 5),
+    "helper_marker_per_patch": (2, 7),
+    # A NINTH SINCE 4.3.5-beta.2: Knut moved the standard cut's top margin
+    # from 38 to 39 mm and marked this cut "No change" (#182 6126438230), so
+    # it keeps 38. (The standard cut's bottom 19 -> 18 and marks 5 -> 7 moved
+    # with it, which the two right-hand columns above follow.)
+    "margin_top":              (38.0, 39.0),
 }
 
 OWN_FIELDS = {"paper", "area_cols", "area_rows"}
@@ -111,8 +116,9 @@ def test_the_standard_75mm_family_did_not_grow():
     the 7.5 mm family by ``i1_w75_`` and pins its 24-column grid, and these
     charts are neither."""
     assert not any(p.slug.startswith("i1_w75_") for p in MAX)
-    # 20 since the "Full Page" chart of 4.3.3-beta.1 (#182 5943544919)
-    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w75_")) == 20
+    # 20 since the "Full Page" chart of 4.3.3-beta.1 (#182 5943544919), 21
+    # since its Letter sibling of 4.3.5-beta.2 (#182 6126438230)
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w75_")) == 21
 
 
 def test_they_are_i1pro_charts_under_the_i1pro_heading():
@@ -204,7 +210,7 @@ def test_the_8mm_and_75mm_bases_are_untouched():
     assert _I1_75_BASE["margin_right"] == 4.0
     assert _I1_BASE["margin_right"] == 6.0
     assert _I1_BASE["clip_border"] is True
-    assert _I1_BASE["helper_marker_per_patch"] == 5
+    assert _I1_BASE["helper_marker_per_patch"] == 7     # 5 until 4.3.5-beta.2
 
 
 @pytest.mark.parametrize("preset", MAX, ids=lambda p: p.slug)

@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.3.5-beta.2 (unreleased)
+
+### Changed
+
+- **The i1Pro built-in presets follow Knut's review of all of them** (#182, Knut). On every i1Pro / i1Pro 2 / i1Pro 3 preset in his table the top margin is 39 mm instead of 38, and on A4 and A3 the bottom margin is 18 mm instead of 19 (US Letter keeps 15). The ruler marks are 7 per patch instead of 5 (2 on the three A3 9.0 mm charts; the two 15.0 mm "Full Page" charts keep 2), and on US Letter they start 2 mm from the paper edge instead of 4. The "Maximised - No Clip-border" charts, the photo cards and the Red River charts are unchanged.
+- **Six i1Pro presets carry the name of their patch set**: the A4 and US Letter 156p (8.0 mm) charts and the US Letter 162p (7.5 mm) chart end in "-Uniform 5x5x5-Quarter Page", the A4 and US Letter 312p (8.0 mm) charts and the US Letter 324p (7.5 mm) chart in "-Uniform 6x6x6-Half Page". Your choice of which presets the lists show is kept.
+- **"i1Pro · A4-484p-1page-Portrait-w7.5mm-Uniform 7x7x7" and "i1Pro · A4-1200p-3pages-Portrait-w8.5mm-Uniform 9x9x9-Edge Emphasis" are laid out like the other i1Pro presets** (#182, Knut): Knut's own layouts, with i1Pro margins, ruler marks and a columns-by-rows grid, replace the 10 mm margins they had. Their patches are unchanged.
+- **New preset: "i1Pro · Letter-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page"**, the US Letter sibling of the A4 "Full Page" chart (#182, Knut).
+- **The i1Pro 3 Plus presets mark the ruler with 2 marks per patch, 2 mm long, at the top and bottom only** (before: 3 per patch, 1 mm, also down the sides) (#182, Knut).
+
+### Fixed
+
+- **"By columns / rows" could print one patch fewer per strip than asked** (Create Chart, "Prioritise chart area", #182, Knut). With 20 columns and 20 rows on A4 and margins of 40 / 14 / 26 / 26 mm the chart had 19 patches per strip, and 25.5 mm at the bottom gave 20 again. A rounding step in the patch height came out a hair too large exactly when the margins divided evenly into the rows. The patch height now always adapts so the strips and patches per strip you set are kept. A grid that cannot fit at all (patches would be smaller than 1 mm) is no longer printed short without a word: Create Chart says so in red and names what to change.
+
 ## v4.3.5-beta.1
 
 ### Changed

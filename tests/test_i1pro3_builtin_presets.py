@@ -255,8 +255,26 @@ def test_loading_a_preset_ticks_show_helper_markers(tab, monkeypatch):
     length = lp.helper_marker_len.value()
     assert on is True
     assert edge == preset.layout_recipe["helper_marker_edge_mm"] == 2.0
-    assert length == preset.layout_recipe["helper_marker_len_mm"] == 1.0
+    # Knut, #182 6126438230 (4.3.5-beta.2), for every i1Pro 3 Plus preset:
+    # marker length 1,0 -> 2,0, markers per patch 3 -> 2, "Sides (vertical)"
+    # OFF. Read off the panel the person sees, not only off the recipe.
+    assert length == preset.layout_recipe["helper_marker_len_mm"] == 2.0
+    assert lp.helper_marker_per_patch.value() == 2
+    assert lp.helper_markers_sides.isChecked() is False
+    assert lp.helper_markers_top_bottom.isChecked() is True
     assert tab._settings.get("helper_markers_show") is True
+
+
+@pytest.mark.parametrize("preset", P3, ids=lambda p: p.slug)
+def test_every_chart_carries_knuts_435_beta2_ruler_marks(preset):
+    """All 24, not one: the three fields live in `_P3_BASE`, and before
+    4.3.5-beta.2 two of them were not fields of the base at all (the app's
+    defaults, 3 per patch and sides on, filled them in)."""
+    rec = preset.layout_recipe
+    assert rec["helper_marker_per_patch"] == 2
+    assert rec["helper_marker_len_mm"] == 2.0
+    assert rec["helper_markers_sides"] is False
+    assert rec["helper_markers_top_bottom"] is True
 
 
 def test_seeding_a_preset_puts_its_layout_on_the_panel(tab):

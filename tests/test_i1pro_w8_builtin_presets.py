@@ -41,14 +41,19 @@ W8 = [p for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")]
 #: both (#164): US Letter is 18 mm shorter than A4, so it does not need A4's
 #: 19 mm bottom to keep a strip inside the i1Pro ruler's 240 mm travel, and its
 #: right margin is 9 mm — ChromIQ's own i1Pro seed — against A4's 6.
-OWN_FIELDS = {"paper", "area_cols", "area_rows", "margin_right", "margin_bottom"}
+OWN_FIELDS = {"paper", "area_cols", "area_rows", "margin_right", "margin_bottom",
+              # 4.3.5-beta.2 (Knut, #182 6126438230, his preset table): the
+              # A3 w9.0 charts mark 2 per patch where the rest mark 7, and the
+              # Letter charts start the marks 2 mm from the edge, not 4.
+              "helper_marker_per_patch", "helper_marker_edge_mm"}
 
 _NAME_RE = re.compile(
     r"^(?P<sheet>A4|Letter|A3)-(?P<patches>\d+)p-(?P<pages>\d+)pages?-"
     r"(?P<orientation>Portrait|Landscape)-w(?P<width>[\d.]+)mm"
     # Knut, #182 5872273862: the patch set's own name follows the width
     # ("-Uniform 6x6x6", "-Uniform 7x7x7-Edge Emphasis"). The two 156p charts
-    # were not in that batch and keep the name without it.
+    # were not in that batch; they got theirs in 4.3.5-beta.2 (#182
+    # 6126438230, "-Uniform 5x5x5-Quarter Page").
     r"(?:-(?P<patch_set>.+))?$")
 
 #: The recipe's `paper` for each sheet the names use. A3 landscape is a custom
@@ -88,7 +93,10 @@ def test_the_target_name_is_the_name_he_gave_it():
     (B8-1704, `_builtin_layout_name`), a tail or not."""
     p = next(q for q in W8 if q.patches == 156 and q.paper == "A4")
     assert p.suffix == ""
-    assert p.default_target_name == "i1Pro-A4-156p-1page-Portrait-w8.0mm"
+    # Renamed in 4.3.5-beta.2 (Knut, #182 6126438230): it carries the patch
+    # set's tail now, like the rest of the family.
+    assert p.default_target_name == \
+        "i1Pro-A4-156p-1page-Portrait-w8.0mm-Uniform 5x5x5-Quarter Page"
 
 
 def test_each_paper_reads_in_order():
@@ -139,11 +147,13 @@ def test_the_measured_shape_of_the_family():
     implicit in seven rows."""
     r = _I1_BASE
     assert r["instrument"] == "i1"
-    # The i1Pro jig margins: a 38 mm run-in at the top for the strip label and
-    # the instrument body, and the 19 mm bottom that keeps a full-height A4
-    # strip inside the ruler's own 240 mm limit (see core/settings.py).
-    assert r["margin_top"] == 38.0
-    assert r["margin_bottom"] == 19.0        # A4; Letter carries its own 15.0
+    # The i1Pro jig margins: a 39 mm run-in at the top for the strip label and
+    # the instrument body, and an 18 mm bottom, so a full-height A4 strip still
+    # spans exactly the ruler's own 240 mm (see core/settings.py). 38 and 19
+    # until 4.3.5-beta.2, when Knut moved both by a millimetre (#182
+    # 6126438230).
+    assert r["margin_top"] == 39.0
+    assert r["margin_bottom"] == 18.0        # A4; Letter carries its own 15.0
     assert r["margin_left"] == 26.0
     assert r["use_instrument_margins"] is False
     # The clip band: 26 mm down the LEFT, upright, carrying the notes box.
@@ -160,13 +170,13 @@ def test_letter_uses_the_margins_its_shorter_sheet_needs():
     """Knut, #164: *"It is correct that the right margin for the i1Pro is 6mm,
     it is intentional. It is intentional that the letter variants are 9mm."*
 
-    A4 is 297 mm: 38 at the top and 19 at the bottom leave exactly the 240 mm
-    the ruler can travel. Letter is 279.4 mm, so the same top margin and 15 at
-    the bottom leave 226 — inside the limit, and 19 would only waste paper.
+    A4 is 297 mm: 39 at the top and 18 at the bottom (since 4.3.5-beta.2)
+    leave exactly the 240 mm the ruler can travel. Letter is 279.4 mm, so the
+    same top margin and 15 at the bottom leave 225.4, inside the limit.
     """
     for p in W8:
         sheet = _NAME_RE.match(p.name).group("sheet")
-        want = (9.0, 15.0) if sheet == "Letter" else (6.0, 19.0)
+        want = (9.0, 15.0) if sheet == "Letter" else (6.0, 18.0)
         got = (p.layout_recipe["margin_right"], p.layout_recipe["margin_bottom"])
         assert got == want, f"{p.slug} has margins {got}, expected {want}"
         top = p.layout_recipe["margin_top"]
@@ -192,9 +202,15 @@ def test_the_right_margin_is_narrower_than_the_apps_own_seed():
     seed = default_margin_thresholds()["i1Pro|A4 Portrait"]
     assert _I1_BASE["margin_right"] == 6.0
     assert seed["R"] == 9
-    # …while the three he did match are matched exactly.
-    assert (_I1_BASE["margin_top"], _I1_BASE["margin_bottom"],
-            _I1_BASE["margin_left"]) == (seed["T"], seed["B"], seed["L"])
+    # …while the left one he did match is matched exactly. The top and bottom
+    # matched too until 4.3.5-beta.2, when Knut moved the charts to 39 / 18 mm
+    # (#182 6126438230: "All choices on what to change are conscious choices
+    # and should be implemented regardless if some other presets do
+    # differently"). The seed was not part of that change, so it stays 38 / 19
+    # and the two now differ by a millimetre each, deliberately.
+    assert _I1_BASE["margin_left"] == seed["L"]
+    assert (_I1_BASE["margin_top"], _I1_BASE["margin_bottom"]) == (39.0, 18.0)
+    assert (seed["T"], seed["B"]) == (38, 19)
 
 
 # ---------------------------------------------------------------------------
@@ -320,13 +336,19 @@ def test_the_ruler_marks_reach_the_paper(slug, tmp_path):
 def test_every_chart_in_the_family_prints_its_ruler_marks():
     assert _I1_BASE["helper_markers"] is True, (
         "the 8 mm i1Pro charts print without ruler marks")
-    assert _I1_BASE["helper_marker_per_patch"] == 5, (
-        f"{_I1_BASE['helper_marker_per_patch']} marks per patch, not the 5 "
-        "Knut's exports ask for")
+    # 7 since 4.3.5-beta.2 (Knut, #182 6126438230: "from 5 to 7"), except the
+    # three A3 w9.0 charts, which his table takes "from 5 to 2".
+    assert _I1_BASE["helper_marker_per_patch"] == 7, (
+        f"{_I1_BASE['helper_marker_per_patch']} marks per patch, not the 7 "
+        "Knut's preset table asks for")
     for preset in W8:
         rec = preset.layout_recipe
+        sheet = _NAME_RE.match(preset.name).group("sheet")
         assert rec["helper_markers"] is True, f"{preset.slug} has no marks"
-        assert rec["helper_marker_per_patch"] == 5, f"{preset.slug} marks differ"
+        assert rec["helper_marker_per_patch"] == (2 if sheet == "A3" else 7), \
+            f"{preset.slug} marks differ"
+        assert rec["helper_marker_edge_mm"] == (2.0 if sheet == "Letter" else 4.0), \
+            f"{preset.slug} starts its marks at the wrong distance"
 
 
 @pytest.mark.parametrize("preset", W8, ids=lambda p: p.slug)

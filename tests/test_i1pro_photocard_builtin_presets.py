@@ -112,6 +112,10 @@ BASE_DELTA = {
     "clip_text":             (_I1_PHOTO_CLIP_TEXT, ""),
     "chart_text_size_mm":    (2.12, 0.0),
     "text_edge_clip_mm":     (2.0, 4.0),
+    # THIRTEEN SINCE 4.3.5-beta.2. Knut took the A4/Letter/A3 charts from 5 to
+    # 7 ruler marks a patch (#182 6126438230) and his table does not name the
+    # photo cards, so they keep the 5 they print and the base now says so.
+    "helper_marker_per_patch": (5, 7),
 }
 
 _NAME_RE = re.compile(

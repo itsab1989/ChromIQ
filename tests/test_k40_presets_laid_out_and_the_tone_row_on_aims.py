@@ -174,15 +174,19 @@ def test_every_built_in_preset_reaches_the_window_with_its_layout(qapp):
     K40-1 because the window was handed no recipe for them; now no built-in
     preset reads it.
 
-    MUTATION, proven red: drop the ``engine`` branch of
-    `tab_chart.builtin_preset_layout` (two presets read laid_out_later)."""
+    Since 4.3.5-beta.2 those two carry Knut's own engine layout (#182
+    6126438230) instead of one derived from printtarg fields, so they reach
+    the window through `layout_recipe` and the ``engine`` branch has no
+    shipping subject; they are still picked out by slug and held to the same
+    rule."""
     from core.settings import AppSettings
     from ui.tabs.tab_chart import KNUT_PRESETS_BY_KEY, verification_preset_rows
     rows = [r for r in verification_preset_rows(AppSettings()) if r.builtin]
     assert len(rows) > 150
     engine = [r for r in rows
-              if getattr(KNUT_PRESETS_BY_KEY.get(r.key), "engine", False)]
-    assert engine, "no Full-layout-setup engine preset found"
+              if getattr(KNUT_PRESETS_BY_KEY.get(r.key), "slug", "")
+              .startswith("fls_")]
+    assert len(engine) == 2, "the two Full-layout-setup presets are missing"
     # laid out the way selecting them lays them out: the engine, not printtarg
     wrong = [r.label for r in engine
              if r.recipe is None or PL.is_printtarg_spec(r.recipe)]

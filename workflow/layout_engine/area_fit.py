@@ -470,4 +470,96 @@ def _derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         ph = pw * hex_ratio
     # Floor to 0.01 mm so rounding can't nudge the patch over the boundary and
     # drop the column/row we just fitted.
-    return (math.floor(pw * 100) / 100.0, math.floor(ph * 100) / 100.0)
+    pw_f = math.floor(pw * 100) / 100.0
+    ph_f = math.floor(ph * 100) / 100.0
+    # ...AND THEN CHECK IT, BECAUSE THE FLOOR ITSELF CAN DROP THE ROW.
+    #
+    # Knut, #182 6126438230: the A4-1200p preset in "By columns / rows" at
+    # 20 x 20 with margins 40/14/26/26 printed 19 patches a strip, and so did
+    # 41/14/20/26, while 25.5 or 20.5 at the bottom gave 20. The exact-fill
+    # height there is 10.709999999999999 mm; `floor(h * 100)` multiplies that
+    # to 1071.0 in floating point, so the "floor" hands back 10.71, and
+    # compute() then divides 230.2 by 11.51 and gets 19.999999999999996, which
+    # `int()` makes 19. It happens exactly when the usable height divides
+    # evenly into the requested rows at 0.01 mm, which is why half a
+    # millimetre of margin either way "fixed" it.
+    #
+    # The rule (Knut): in "By columns / rows" the patch adapts so the set
+    # strips and patches per strip are KEPT. So the floored size is measured
+    # on the same geometry the renderer will use and stepped down by 0.01 mm
+    # until the pinned counts really come out. Only the pinned dimensions are
+    # held; a honeycomb's height is derived from its width and is left alone.
+    if method == "by_grid" and hex_ratio is None and (rows > 0 or cols > 0):
+        pw_f, ph_f = _keep_the_pinned_grid(kw, w_mm, h_mm, pw_f, ph_f,
+                                           cols, rows)
+    return (pw_f, ph_f)
+
+
+def realised_grid(kw: dict, w_mm: float, h_mm: float,
+                  pw: float, ph: float) -> "tuple[int, int] | None":
+    """``(strips, patches_per_strip)`` the renderer lays out on one page for
+    patches of ``pw`` x ``ph`` mm, through the very geometry it uses, or None
+    when nothing fits."""
+    try:
+        g = instruments.geom_from_build_kwargs(
+            {**kw, "patch_w": pw, "patch_h": ph})
+        lay = geometry.compute(g, w_mm, h_mm, 100_000)
+    except Exception:          # noqa: BLE001 — a probe never loses a layout
+        return None
+    if not lay.steps_in_pass:
+        return None
+    return lay.patches_per_page // lay.steps_in_pass, lay.steps_in_pass
+
+
+def _keep_the_pinned_grid(kw: dict, w_mm: float, h_mm: float, pw: float,
+                          ph: float, cols: int, rows: int
+                          ) -> tuple[float, float]:
+    """Step ``pw`` / ``ph`` down by 0.01 mm until the pinned ``cols`` / ``rows``
+    really come out of the renderer's geometry. A step is a hundredth of a
+    millimetre, so a handful is the most a rounding slip can need; the cap only
+    keeps a grid that cannot be reached (more patches than the paper holds)
+    from spinning, and such a grid is reported by :func:`pinned_grid_shortfall`
+    rather than silently shrunk further."""
+    for _ in range(20):
+        got = realised_grid(kw, w_mm, h_mm, pw, ph)
+        if got is None:
+            break
+        g_cols, g_rows = got
+        short_r = rows > 0 and g_rows < rows and ph - 0.01 >= _MIN_PATCH_MM
+        short_c = cols > 0 and g_cols < cols and pw - 0.01 >= _MIN_PATCH_MM
+        if not (short_r or short_c):
+            break
+        if short_r:
+            ph = round(ph - 0.01, 2)
+        if short_c:
+            pw = round(pw - 0.01, 2)
+    return pw, ph
+
+
+def pinned_grid_shortfall(kw: dict) -> "tuple[int, int, int, int] | None":
+    """``(cols_asked, rows_asked, cols_got, rows_got)`` when a "By columns /
+    rows" recipe cannot lay out the strips or patches per strip it asks for
+    (the paper is too small for that many at the 1 mm patch floor, or the
+    instrument's own patches-per-strip limit is lower), else None. The derived
+    patch size always keeps a reachable grid; this names the one case where it
+    cannot, so the panel can say so instead of printing fewer."""
+    if kw.get("layout_mode") != "area_first" or kw.get("area_method") != "by_grid":
+        return None
+    cols = int(kw.get("area_cols") or 0)
+    rows = int(kw.get("area_rows") or 0)
+    if cols <= 0 and rows <= 0:
+        return None
+    size = derive_area_patch_size(kw)
+    if size is None:
+        return None
+    try:
+        w_mm, h_mm = papers.dimensions_mm(kw.get("paper", "A4"))
+    except Exception:          # noqa: BLE001
+        return None
+    got = realised_grid(kw, w_mm, h_mm, size[0], size[1])
+    if got is None:
+        return None
+    g_cols, g_rows = got
+    if (cols > 0 and g_cols < cols) or (rows > 0 and g_rows < rows):
+        return cols, rows, g_cols, g_rows
+    return None

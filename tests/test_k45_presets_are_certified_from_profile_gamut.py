@@ -90,7 +90,8 @@ def test_most_presets_now_answer_every_metric(rows, preset_certificates):
     the control strip's percentile or the evenness rows. It was 162 until
     4.3.4: spreading the chart over the profile's gamut (Knut, #182
     6096108924) gave eleven small presets a control strip long enough for
-    its 95th percentile."""
+    its 95th percentile. 174 since 4.3.5-beta.2: the new US Letter "Full
+    Page" chart answers all 18, like its A4 sibling (#182 6126438230)."""
     full_own = full_gamut = 0
     every = PE.rows_asked(PE.ANY_REPORT_TYPE, PE.ALL_METRICS)
     assert len(every) == 18
@@ -103,7 +104,7 @@ def test_most_presets_now_answer_every_metric(rows, preset_certificates):
         full_gamut += g is not None and len(g.answered) == 18
         assert g is not None and len(g.answered) >= len(own.answered), r.key
     assert full_own == 0
-    assert full_gamut == 173
+    assert full_gamut == 174
 
 
 def test_a_gamut_answer_is_what_working_it_out_says(rows, preset_certificates,

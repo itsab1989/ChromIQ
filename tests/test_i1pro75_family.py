@@ -28,9 +28,10 @@ def _family():
 def test_the_family_is_all_nineteen():
     fam = _family()
     # 20 since 4.3.3-beta.1: + the A4 "Full Page" chart (#182 5943544919)
-    assert len(fam) == 20, f"expected 20 charts, found {len(fam)}"
-    assert len({p.slug for p in fam}) == 20, "duplicate slugs"
-    assert len({p.key for p in fam}) == 20, "duplicate preset keys"
+    # 21 since 4.3.5-beta.2: + its Letter sibling (#182 6126438230)
+    assert len(fam) == 21, f"expected 21 charts, found {len(fam)}"
+    assert len({p.slug for p in fam}) == 21, "duplicate slugs"
+    assert len({p.key for p in fam}) == 21, "duplicate preset keys"
 
 
 def test_every_chart_ships_its_patch_set():
@@ -78,7 +79,7 @@ def test_the_grid_is_the_one_that_makes_7_5_mm():
     still says 7.5, and nothing else in the suite notices.
     """
     for p in _family():
-        if p.slug == FULL_PAGE:
+        if p.slug in FULL_PAGES:
             continue                  # see test_the_full_page_chart_names_its_width
         rec = p.layout_recipe
         paper = rec["paper"]
@@ -94,6 +95,41 @@ def test_the_grid_is_the_one_that_makes_7_5_mm():
 #: (measured with the engine and the margin inspector, 2026-10-02). It first
 #: arrived named w7.5mm; Knut corrected it to w15.0mm (#182 5943665138).
 FULL_PAGE = "i1_w75_a4_324p_1page_portrait_w15_0mm_uniform_6x6x6_full_page"
+#: …and its US Letter sibling, new in 4.3.5-beta.2 (Knut, #182 6126438230:
+#: "one new that was missing for letter size"). Same patch set, same grid.
+FULL_PAGE_LETTER = \
+    "i1_w75_letter_324p_1page_portrait_w15_0mm_uniform_6x6x6_full_page"
+FULL_PAGES = (FULL_PAGE, FULL_PAGE_LETTER)
+
+
+@pytest.mark.parametrize("slug", FULL_PAGES)
+def test_both_full_page_charts_are_twelve_strips_of_twenty_seven(slug):
+    p = next(x for x in _family() if x.slug == slug)
+    assert (p.layout_recipe["area_cols"], p.layout_recipe["area_rows"]) == (12, 27)
+    assert p.layout_recipe.get("helper_marker_per_patch") == 2
+    assert "-w15.0mm-" in p.name
+
+
+def test_the_letter_full_page_chart_is_the_a4_one_on_letter():
+    """The same 324 patches (his file differs from the A4 one only in its
+    CREATED line), laid out with the Letter margins every Letter chart of the
+    family carries."""
+    a4 = next(x for x in _family() if x.slug == FULL_PAGE)
+    lt = next(x for x in _family() if x.slug == FULL_PAGE_LETTER)
+
+    def body(p):
+        txt = pathlib.Path(resource_path(p.ti1_asset)).read_text(encoding="utf-8")
+        return [ln for ln in txt.splitlines() if not ln.startswith("CREATED")]
+
+    assert body(a4) == body(lt)
+    assert lt.layout_recipe["paper"] == "Letter"
+    assert (lt.layout_recipe["margin_top"], lt.layout_recipe["margin_right"],
+            lt.layout_recipe["margin_bottom"]) == (39.0, 9.0, 15.0)
+    assert lt.layout_recipe["helper_marker_edge_mm"] == 2.0
+    moved = {k for k in a4.layout_recipe
+             if a4.layout_recipe[k] != lt.layout_recipe.get(k)}
+    assert moved == {"paper", "margin_right", "margin_bottom",
+                     "helper_marker_edge_mm"}, moved
 
 
 def test_the_full_page_chart_is_twelve_strips_of_twenty_seven():

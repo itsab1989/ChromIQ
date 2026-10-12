@@ -1131,8 +1131,15 @@ _P3_BASE: dict = {
     "underline_mode": "off", "underline_thickness_mm": 0.5,
     "underline_gap_mm": 0.5,
     # helper markers + page text
+    # THE RULER MARKS: TWO TO A PATCH, 2 mm LONG, TOP AND BOTTOM ONLY (Knut,
+    # #182 6126438230, 4.3.5-beta.2: *"all the i1Pro 3 Plus presets ...
+    # Markers per patch: change from 3 to 2. Marker length: change from 1,0 to
+    # 2,0. Show markers for: 'Sides (vertical)' to OFF"*). The first and the
+    # last were the app's defaults before, not fields of this base.
     "helper_markers": True, "helper_marker_edge_mm": 2.0,
-    "helper_marker_len_mm": 1.0, "text_edge_mm": 4.0,
+    "helper_marker_len_mm": 2.0, "helper_marker_per_patch": 2,
+    "helper_markers_top_bottom": True, "helper_markers_sides": False,
+    "text_edge_mm": 4.0,
     "text_edge_top_mm": 6.0, "text_edge_clip_mm": 4.0, "chart_text": "",
     "chart_text_font": "Inter", "chart_text_size_mm": 0.0,
     "chart_text_bold": False, "chart_text_italic": False,
@@ -1622,6 +1629,36 @@ def _pharmacist_preset(slug: str, name: str, instrument: str, paper: str,
     )
 
 
+def _knut_fls_preset(slug: str, name: str, paper: str, pages: int,
+                     patches: int, white: int, black: int) -> "_Ti1Preset":
+    """One of the two i1Pro "Full layout setup" charts Knut re-sent as
+    exports for 4.3.5-beta.2 (#182 6126438230): the A4-484p and A4-1200p.
+
+    Until then they were laid out from printtarg fields (10 mm margins all
+    round, no ruler marks), which is what he meant by *"lacking correct
+    layout according to what is practiced for the other i1Pro presets"*. The
+    page layout is now his export's `layout_recipe`, verbatim except for the
+    two keys `scripts/import_pharmacist_presets.py` also clears (the sender's
+    clip-image path, `seed_fixed`), kept as `layout.json` beside the chart.
+    The patch set and the colour-set recipe were already byte-identical to
+    his files. The key, and so every saved choice, stays.
+    """
+    path = resource_path(f"{_KNUT_FLS_DIR}/{slug}/layout.json")
+    return _Ti1Preset(
+        slug, name + KNUT_FLS_SUFFIX, _KNUT_I1, paper,
+        1.0,        # printtarg -a: unused, the engine lays these out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_KNUT_FLS_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        no_strip_limit=False, suppress_left_clip=False,
+        tiff_16bit=False, suffix=KNUT_FLS_SUFFIX,
+        layout_recipe=json.loads(path.read_text(encoding="utf-8")),
+        # His exports carry "Stamp settings down the right edge" OFF.
+        stamp_settings=False,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Knut's i1Pro family with 8 mm patches (#164, 2026-08-23)
 # ---------------------------------------------------------------------------
@@ -1648,9 +1685,12 @@ _I1_BASE: dict = {
     "area_min_patch_mm": 0.0, "patch_w_mm": 0.0, "patch_h_mm": 0.0,
     "patch_area_align": "center-left", "pscale": 1.0, "sscale": 0.8,
     "border": 6.0, "nolimit": True,
-    # margins — the i1Pro jig set (see core/settings.py _I1_PRIMARY)
-    "use_instrument_margins": False, "margin_top": 38.0, "margin_right": 6.0,
-    "margin_bottom": 19.0, "margin_left": 26.0,
+    # margins — the i1Pro jig set (see core/settings.py _I1_PRIMARY), with
+    # Knut's 4.3.5-beta.2 change (#182 6126438230, his preset table): top
+    # 38 -> 39 mm and bottom 19 -> 18 mm on every chart of the 8 mm and
+    # 7.5 mm families. The Letter charts keep their own 15 mm bottom.
+    "use_instrument_margins": False, "margin_top": 39.0, "margin_right": 6.0,
+    "margin_bottom": 18.0, "margin_left": 26.0,
     # spacers
     "spacer_on": True, "spacer_mode": "colored", "spacer_palette": [],
     "spacer_overrides": {}, "edge_spacers": True, "spacer_width_mm": 0.0,
@@ -1678,8 +1718,14 @@ _I1_BASE: dict = {
     # True and 5; the base said False and 3, and because `_i1_preset` builds
     # every chart from the base, all seven shipped charts lost the marks
     # regardless of what the export said. So it belongs here, not per chart.
+    #
+    # SEVEN SINCE 4.3.5-beta.2 (Knut, #182 6126438230, his preset table:
+    # "Markers per patch: from 5 to 7" on every chart of both families; the
+    # A3 w9.0 charts go to 2 and the w15.0 Full Page keeps 2, both per row).
+    # His note: 7 is what puts the i1Pro 2/3 ruler in the right place, and it
+    # still works for an i1Pro 1, whose user may prefer 3.
     "helper_markers": True, "helper_marker_edge_mm": 4.0,
-    "helper_marker_len_mm": 2.0, "helper_marker_per_patch": 5,
+    "helper_marker_len_mm": 2.0, "helper_marker_per_patch": 7,
     "helper_markers_top_bottom": True, "helper_markers_sides": False,
     # clip border
     "clip_border": True, "clip_border_width_mm": 26.0, "clip_side": "left",
@@ -1695,7 +1741,9 @@ _I1_BASE: dict = {
 def _i1_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                patches: int, pages: int, white: int, black: int,
                margin_right: float | None = None,
-               margin_bottom: float | None = None) -> "_Ti1Preset":
+               margin_bottom: float | None = None,
+               helper_marker_per_patch: int | None = None,
+               marker_edge_mm: float | None = None) -> "_Ti1Preset":
     """One chart of Knut's 8 mm i1Pro family (see _I1_BASE above).
 
     Built like :func:`_p3_preset`, with two exceptions the paper forces.
@@ -1727,6 +1775,10 @@ def _i1_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                               if margin_right is not None else {}),
                            **({"margin_bottom": margin_bottom}
                               if margin_bottom is not None else {}),
+                           **({"helper_marker_per_patch": helper_marker_per_patch}
+                              if helper_marker_per_patch is not None else {}),
+                           **({"helper_marker_edge_mm": marker_edge_mm}
+                              if marker_edge_mm is not None else {}),
                            area_rows=rows),
     )
 
@@ -1757,7 +1809,8 @@ def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                   patches: int, pages: int, white: int, black: int,
                   margin_right: float | None = None,
                   margin_bottom: float | None = None,
-                  helper_marker_per_patch: int | None = None) -> "_Ti1Preset":
+                  helper_marker_per_patch: int | None = None,
+                  marker_edge_mm: float | None = None) -> "_Ti1Preset":
     """One chart of Knut's 7.5 mm i1Pro family (see :data:`_I1_75_BASE`).
 
     The same shape as :func:`_i1_preset`; only the base recipe and the asset
@@ -1778,6 +1831,8 @@ def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                               if margin_bottom is not None else {}),
                            **({"helper_marker_per_patch": helper_marker_per_patch}
                               if helper_marker_per_patch is not None else {}),
+                           **({"helper_marker_edge_mm": marker_edge_mm}
+                              if marker_edge_mm is not None else {}),
                            area_rows=rows),
     )
 
@@ -1813,8 +1868,13 @@ _I1_W75_MAX_DIR = "assets/charts/knut/rgb/i1pro75max"
 #: set 5 per patch for the i1Pro families, and 38 + 9 mm of margin on an A4
 #: leaves 250 mm between them, where `_i1_preset` records 240 mm as the i1Pro
 #: ruler's travel.
+#:
+#: ITS TOP MARGIN IS ITS OWN SINCE 4.3.5-beta.2. Knut moved the standard
+#: cut's top from 38 to 39 mm (#182 6126438230) and marked this cut "No
+#: change", so the 38 that it used to inherit is now stated here.
 _I1_75_MAX_BASE: dict = dict(
     _I1_75_BASE, clip_border=False, clip_content_mode="off",
+    margin_top=38.0,
     margin_left=5.0, margin_right=5.0, margin_bottom=9.0,
     text_edge_top_mm=4.0, helper_marker_len_mm=4.0,
     helper_marker_per_patch=2)
@@ -1933,6 +1993,10 @@ _I1_PHOTO_BASE: dict = {
     "helper_marker_edge_mm": 2.0, "indicator_size_mm": 0.0, "nolimit": False,
     "pscale": 0.95, "sscale": 0.6, "text_edge_top_mm": 4.0,
     "clip_text": _I1_PHOTO_CLIP_TEXT,
+    # FIVE RULER MARKS A PATCH, AS THE CARDS HAVE ALWAYS HAD. `_I1_BASE` went
+    # to seven in 4.3.5-beta.2 for the A4/Letter/A3 charts (#182 6126438230);
+    # his table does not name the photo cards, so they keep what they print.
+    "helper_marker_per_patch": 5,
     # Knut, 2026-09-18: the sheet text at 6.0 pt and the clip distance at
     # 2.0 mm, on EVERY chart of both card sizes. Both are in the base rather
     # than on the rows because he asked for them family-wide, and both are the
@@ -2349,14 +2413,19 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     # border (no -L) and honour the strip-length limit (no -P), with patch
     # widths baked into the names. The 960p landscape preset was retired.
     _i1_preset("i1_w8_a4_156p_1page_portrait_w8_0mm",
-               "A4-156p-1page-Portrait-w8.0mm",
+               "A4-156p-1page-Portrait-w8.0mm-Uniform 5x5x5-Quarter Page",
                "A4", 22, 26, 156, 1, 1, 1),
     _i1_preset("i1_w8_a4_312p_1page_portrait_w8_0mm",
-               "A4-312p-1page-Portrait-w8.0mm-Uniform 6x6x6",
+               "A4-312p-1page-Portrait-w8.0mm-Uniform 6x6x6-Half Page",
                "A4", 22, 26, 312, 1, 1, 1),
-    _Ti1Preset("fls_i1pro_a4_484p_1page_portrait", "A4-484p-1page-Portrait-w7.5mm-Uniform 7x7x7" + KNUT_FLS_SUFFIX,
-               _KNUT_I1, "A4", 0.96, 10, 1,
-               ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_484p_1page_portrait/chart.ti1", patches=484, white=1, black=1, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
+    # REPLACED in 4.3.5-beta.2 by Knut's own export (#182 6126438230): *"This
+    # preset is lacking correct layout according to what is practiced for the
+    # other i1Pro presets and must be replaced separately."* Same patch set and
+    # colour-set recipe byte for byte; the page layout is his, verbatim
+    # (`_knut_fls_preset`).
+    _knut_fls_preset("fls_i1pro_a4_484p_1page_portrait",
+                     "A4-484p-1page-Portrait-w7.5mm-Uniform 7x7x7",
+                     "A4", 1, 484, 1, 1),
     _i1_preset("i1_w8_a4_572p_1page_portrait_w8_0mm",
                "A4-572p-1page-Portrait-w8.0mm-Uniform 7x7x7-Edge Emphasis",
                "A4", 22, 26, 572, 1, 2, 2),
@@ -2402,29 +2471,46 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                   "A4-3888p-6pages-Portrait-w7.5mm-14x14x14-Skintones-Edge Emphasis-Plus",
                   "A4", 24, 27, 3888, 6, 2, 2),
     _i1_75_preset("i1_w75_letter_162p_1page_portrait_w7_5mm",
-                  "Letter-162p-1page-Portrait-w7.5mm",
-                  "Letter", 24, 27, 162, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+                  "Letter-162p-1page-Portrait-w7.5mm-Uniform 5x5x5-Quarter Page",
+                  "Letter", 24, 27, 162, 1, 1, 1, margin_right=9.0, margin_bottom=15.0,
+                  marker_edge_mm=2.0),
     _i1_75_preset("i1_w75_letter_324p_1page_portrait_w7_5mm",
-                  "Letter-324p-1page-Portrait-w7.5mm-Uniform 6x6x6",
-                  "Letter", 24, 27, 324, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+                  "Letter-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page",
+                  "Letter", 24, 27, 324, 1, 1, 1, margin_right=9.0, margin_bottom=15.0,
+                  marker_edge_mm=2.0),
+    # NEW in 4.3.5-beta.2 (Knut, #182 6126438230): the Letter sibling of the
+    # A4 "Full Page" chart, "one new that was missing for letter size". The
+    # same 324-patch set (byte for byte bar its CREATED line) on 12 strips of
+    # 27, imported with scripts/import_knut_presets.py, which validated his
+    # export against this family's base with no field out of place.
+    _i1_75_preset("i1_w75_letter_324p_1page_portrait_w15_0mm_uniform_6x6x6_full_page",
+                  "Letter-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page",
+                  "Letter", 12, 27, 324, 1, 1, 1, margin_right=9.0, margin_bottom=15.0,
+                  helper_marker_per_patch=2, marker_edge_mm=2.0),
     _i1_75_preset("i1_w75_letter_648p_1page_portrait_w7_5mm",
                   "Letter-648p-1page-Portrait-w7.5mm-Uniform 6x6x6-Edge Emphasis",
-                  "Letter", 24, 27, 648, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+                  "Letter", 24, 27, 648, 1, 1, 1, margin_right=9.0, margin_bottom=15.0,
+                  marker_edge_mm=2.0),
     _i1_75_preset("i1_w75_letter_1296p_2pages_portrait_w7_5mm",
                   "Letter-1296p-2pages-Portrait-w7.5mm-Uniform 9x9x9-Edge Emphasis",
-                  "Letter", 24, 27, 1296, 2, 1, 1, margin_right=9.0, margin_bottom=15.0),
+                  "Letter", 24, 27, 1296, 2, 1, 1, margin_right=9.0, margin_bottom=15.0,
+                  marker_edge_mm=2.0),
     _i1_75_preset("i1_w75_letter_1944p_3pages_portrait_w7_5mm",
                   "Letter-1944p-3pages-Portrait-w7.5mm-Uniform 11x11x11-Edge Emphasis",
-                  "Letter", 24, 27, 1944, 3, 1, 1, margin_right=9.0, margin_bottom=15.0),
+                  "Letter", 24, 27, 1944, 3, 1, 1, margin_right=9.0, margin_bottom=15.0,
+                  marker_edge_mm=2.0),
     _i1_75_preset("i1_w75_letter_2592p_4pages_portrait_w7_5mm",
                   "Letter-2592p-4pages-Portrait-w7.5mm-12x12x12-Skintones-Edge Emphasis-Plus",
-                  "Letter", 24, 27, 2592, 4, 2, 2, margin_right=9.0, margin_bottom=15.0),
+                  "Letter", 24, 27, 2592, 4, 2, 2, margin_right=9.0, margin_bottom=15.0,
+                  marker_edge_mm=2.0),
     _i1_75_preset("i1_w75_letter_3240p_5pages_portrait_w7_5mm",
                   "Letter-3240p-5pages-Portrait-w7.5mm-13x13x13-Skintones-Edge Emphasis-Plus",
-                  "Letter", 24, 27, 3240, 5, 2, 2, margin_right=9.0, margin_bottom=15.0),
+                  "Letter", 24, 27, 3240, 5, 2, 2, margin_right=9.0, margin_bottom=15.0,
+                  marker_edge_mm=2.0),
     _i1_75_preset("i1_w75_letter_3888p_6pages_portrait_w7_5mm",
                   "Letter-3888p-6pages-Portrait-w7.5mm-14x14x14-Skintones-Edge Emphasis-Plus",
-                  "Letter", 24, 27, 3888, 6, 2, 2, margin_right=9.0, margin_bottom=15.0),
+                  "Letter", 24, 27, 3888, 6, 2, 2, margin_right=9.0, margin_bottom=15.0,
+                  marker_edge_mm=2.0),
     _i1_75_preset("i1_w75_a3_1404p_1page_landscape_w7_5mm",
                   "A3-1404p-1page-Landscape-w7.5mm-9x9x9-Skintones-Edge Emphasis",
                   "420x297", 52, 27, 1404, 1, 3, 3),
@@ -2473,9 +2559,10 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _i1_preset("i1_w8_a4_1144p_2pages_portrait_w8_0mm",
                "A4-1144p-2pages-Portrait-w8.0mm-Uniform 9x9x9",
                "A4", 22, 26, 1144, 2, 2, 2),
-    _Ti1Preset("fls_i1pro_a4_1200p_3pages_portrait", "A4-1200p-3pages-Portrait-w8.5mm-Uniform 9x9x9-Edge Emphasis" + KNUT_FLS_SUFFIX,
-               _KNUT_I1, "A4", 1.05, 10, 3,
-               ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_1200p_3pages_portrait/chart.ti1", patches=1200, white=2, black=2, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
+    # REPLACED in 4.3.5-beta.2 by Knut's own export, like the A4-484p above.
+    _knut_fls_preset("fls_i1pro_a4_1200p_3pages_portrait",
+                     "A4-1200p-3pages-Portrait-w8.5mm-Uniform 9x9x9-Edge Emphasis",
+                     "A4", 3, 1200, 2, 2),
     _i1_preset("i1_w8_a4_1716p_3pages_portrait_w8_0mm",
                "A4-1716p-3pages-Portrait-w8.0mm-Uniform 10x10x10-Skintones-Edge Emphasis",
                "A4", 22, 26, 1716, 3, 2, 2),
@@ -2497,39 +2584,47 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     #
     # The Letter charts own their right and bottom margins — see _i1_preset.
     _i1_preset("i1_w8_letter_156p_1page_portrait_w8_0mm",
-               "Letter-156p-1page-Portrait-w8.0mm",
-               "Letter", 22, 26, 156, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+               "Letter-156p-1page-Portrait-w8.0mm-Uniform 5x5x5-Quarter Page",
+               "Letter", 22, 26, 156, 1, 1, 1, margin_right=9.0, margin_bottom=15.0,
+               marker_edge_mm=2.0),
     _i1_preset("i1_w8_letter_312p_1page_portrait_w8_0mm",
-               "Letter-312p-1page-Portrait-w8.0mm-Uniform 6x6x6",
-               "Letter", 22, 26, 312, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+               "Letter-312p-1page-Portrait-w8.0mm-Uniform 6x6x6-Half Page",
+               "Letter", 22, 26, 312, 1, 1, 1, margin_right=9.0, margin_bottom=15.0,
+               marker_edge_mm=2.0),
     _i1_preset("i1_w8_letter_572p_1page_portrait_w8_0mm",
                "Letter-572p-1page-Portrait-w8.0mm-Uniform 7x7x7-Edge Emphasis",
-               "Letter", 22, 26, 572, 1, 2, 2, margin_right=9.0, margin_bottom=15.0),
+               "Letter", 22, 26, 572, 1, 2, 2, margin_right=9.0, margin_bottom=15.0,
+               marker_edge_mm=2.0),
     _i1_preset("i1_w8_letter_1144p_2pages_portrait_w8_0mm",
                "Letter-1144p-2pages-Portrait-w8.0mm-Uniform 9x9x9",
-               "Letter", 22, 26, 1144, 2, 2, 2, margin_right=9.0, margin_bottom=15.0),
+               "Letter", 22, 26, 1144, 2, 2, 2, margin_right=9.0, margin_bottom=15.0,
+               marker_edge_mm=2.0),
     _i1_preset("i1_w8_letter_1716p_3pages_portrait_w8_0mm",
                "Letter-1716p-3pages-Portrait-w8.0mm-Uniform 10x10x10-Skintones-Edge Emphasis",
-               "Letter", 22, 26, 1716, 3, 2, 2, margin_right=9.0, margin_bottom=15.0),
+               "Letter", 22, 26, 1716, 3, 2, 2, margin_right=9.0, margin_bottom=15.0,
+               marker_edge_mm=2.0),
     _i1_preset("i1_w8_letter_2288p_4pages_portrait_w8_0mm",
                "Letter-2288p-4pages-Portrait-w8.0mm-Uniform 12x12x12-Edge Emphasis",
-               "Letter", 22, 26, 2288, 4, 2, 2, margin_right=9.0, margin_bottom=15.0),
+               "Letter", 22, 26, 2288, 4, 2, 2, margin_right=9.0, margin_bottom=15.0,
+               marker_edge_mm=2.0),
     _i1_preset("i1_w8_letter_2860p_5pages_portrait_w8_0mm",
                "Letter-2860p-5pages-Portrait-w8.0mm-Uniform 13x13x13-Edge Emphasis",
-               "Letter", 22, 26, 2860, 5, 2, 2, margin_right=9.0, margin_bottom=15.0),
+               "Letter", 22, 26, 2860, 5, 2, 2, margin_right=9.0, margin_bottom=15.0,
+               marker_edge_mm=2.0),
     _i1_preset("i1_w8_letter_3432p_6pages_portrait_w8_0mm",
                "Letter-3432p-6pages-Portrait-w8.0mm-14x14x14-Skintones-Corner Emphasis-Plus",
-               "Letter", 22, 26, 3432, 6, 2, 2, margin_right=9.0, margin_bottom=15.0),
+               "Letter", 22, 26, 3432, 6, 2, 2, margin_right=9.0, margin_bottom=15.0,
+               marker_edge_mm=2.0),
 
     _i1_preset("i1_w8_a3_1144p_1page_landscape_w9_0mm",
                "A3-1144p-1page-Landscape-w9.0mm-Uniform 9x9x9",
-               "420x297", 44, 26, 1144, 1, 2, 2),
+               "420x297", 44, 26, 1144, 1, 2, 2, helper_marker_per_patch=2),
     _i1_preset("i1_w8_a3_2288p_2pages_landscape_w9_0mm",
                "A3-2288p-2pages-Landscape-w9.0mm-Uniform 12x12x12-Edge Emphasis",
-               "420x297", 44, 26, 2288, 2, 2, 2),
+               "420x297", 44, 26, 2288, 2, 2, 2, helper_marker_per_patch=2),
     _i1_preset("i1_w8_a3_3432p_3pages_landscape_w9_0mm",
                "A3-3432p-3pages-Landscape-w9.0mm-14x14x14-Skintones-Corner Emphasis-Plus",
-               "420x297", 44, 26, 3432, 3, 2, 2),
+               "420x297", 44, 26, 3432, 3, 2, 2, helper_marker_per_patch=2),
 
     # ---- Knut's i1Pro PHOTO-CARD family (2026-09-09) --------------------
     # The 10 x 15 cm and 13 x 18 cm cards, re-cut for a strip reader: *"I had to
@@ -26103,6 +26198,27 @@ class TabChart(QWidget):
             except Exception:      # noqa: BLE001 — never a blocker
                 pass
             geom = instruments.geom_from_build_kwargs(_kw_notes)
+            # A "BY COLUMNS / ROWS" GRID THE SHEET CANNOT HOLD IS SAID, NEVER
+            # PRINTED SHORT IN SILENCE (Knut, #182 6126438230). The patch size
+            # always adapts so the strips and patches per strip asked for are
+            # kept (`area_fit._keep_the_pinned_grid`); this fires only when no
+            # patch of at least 1 mm can do it, e.g. 300 patches down an A4.
+            try:
+                from workflow.layout_engine import area_fit as _area_fit
+                _short = _area_fit.pinned_grid_shortfall(_kw_notes)
+            except Exception:      # noqa: BLE001 — a notice, never a blocker
+                _short = None
+            if _short is not None:
+                over.append(tr(
+                    "⚠ “By columns / rows” asks for {cols} strips of {rows} "
+                    "patches, but even at the smallest patch this paper and "
+                    "these margins hold only {got_cols} strips of {got_rows}, "
+                    "so the chart is laid out with fewer. Lower “Strips "
+                    "(columns)” or “Patches per strip (rows)”, make the "
+                    "margins smaller, or choose a larger paper.").format(
+                        cols=_short[0] or _short[2],
+                        rows=_short[1] or _short[3],
+                        got_cols=_short[2], got_rows=_short[3]))
             # ---- THE FOUR EDGES, MEASURED OFF THE SHEET IN THE PREVIEW -----
             #
             # KNUT'S RULING OF 2026-09-15 (#182, comment 5679470670) IS THAT

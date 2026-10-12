@@ -55,6 +55,16 @@ V431_PHARMACIST = json.loads(
 V433_FULL_PAGE = json.loads(
     (ROOT / "tests/data/b8_1590_geometry_433_beta1.json").read_text(
         encoding="utf-8"))
+#: The 48 i1Pro presets Knut changed or sent for 4.3.5-beta.2 (#182
+#: 6126438230), from the fix/4.3.5 code that first ships them. A preset named
+#: here is held to THIS snapshot and is no longer held to the older one it was
+#: in: his table moved the top margin 38 -> 39 mm and, on A4/A3, the bottom
+#: 19 -> 18 mm, so those older snapshots describe a sheet that is no longer
+#: built. Nothing else may move, and nothing in here may move again.
+V435_BETA2 = json.loads(
+    (ROOT / "tests/data/b8_1590_geometry_435_beta2.json").read_text(
+        encoding="utf-8"))
+SUPERSEDED = frozenset(V435_BETA2["presets"])
 
 #: The presets Knut's ruling moves away from beta 44, named one by one so a
 #: preset cannot join or leave the list without this file changing.
@@ -103,9 +113,11 @@ def test_every_built_in_engine_preset_is_in_the_snapshot(qapp):
     assert set(_presets()) == (set(BETA44["presets"])
                                | set(BETA47_PHARMACIST["presets"])
                                | set(V431_PHARMACIST["presets"])
-                               | set(V433_FULL_PAGE["presets"]))
+                               | set(V433_FULL_PAGE["presets"])
+                               | set(V435_BETA2["presets"]))
     assert len(BETA44["presets"]) >= 170
     assert len(V433_FULL_PAGE["presets"]) == 1
+    assert len(V435_BETA2["presets"]) == 48
     assert len(BETA47_PHARMACIST["presets"]) == 9
     assert len(V431_PHARMACIST["presets"]) == 5
     assert not set(BETA44["presets"]) & set(BETA47_PHARMACIST["presets"])
@@ -116,7 +128,7 @@ def test_every_built_in_engine_preset_is_in_the_snapshot(qapp):
 def test_the_pharmacist_charts_lay_out_as_in_beta_47(qapp):
     presets = _presets()
     wrong = sorted(k for k, want in BETA47_PHARMACIST["presets"].items()
-                   if _laid_out(presets[k]) != want)
+                   if k not in SUPERSEDED and _laid_out(presets[k]) != want)
     assert not wrong, wrong[:5]
 
 
@@ -130,8 +142,30 @@ def test_the_431_pharmacist_charts_lay_out_as_in_4_3_1(qapp):
 def test_the_433_full_page_chart_lays_out_as_in_4_3_3_beta_1(qapp):
     presets = _presets()
     wrong = sorted(k for k, want in V433_FULL_PAGE["presets"].items()
-                   if _laid_out(presets[k]) != want)
+                   if k not in SUPERSEDED and _laid_out(presets[k]) != want)
     assert not wrong, wrong
+
+
+def test_the_435_beta2_presets_lay_out_as_in_4_3_5_beta_2(qapp):
+    presets = _presets()
+    wrong = sorted(k for k, want in V435_BETA2["presets"].items()
+                   if _laid_out(presets[k]) != want)
+    assert not wrong, wrong[:5]
+
+
+def test_knuts_435_beta2_change_moved_only_what_his_table_names(qapp):
+    """Against the older snapshot each of them was in: the margins and, on
+    US Letter where the usable height lost 1 mm, the patch height. Never a
+    strip, a patch per strip, a page or a patch width."""
+    older = {**BETA44["presets"], **BETA47_PHARMACIST["presets"],
+             **V433_FULL_PAGE["presets"]}
+    for k, new in V435_BETA2["presets"].items():
+        if k not in older:          # replaced or new: nothing to compare with
+            continue
+        old = older[k]
+        moved = {f for f in new if new[f] != old.get(f)}
+        assert moved <= {"margin_t", "margin_b", "plen"}, (k, moved)
+        assert new["margin_t"] == 39.0, k
 
 
 def test_the_photo_card_snapshot_holds_exactly_the_named_presets():
@@ -158,7 +192,8 @@ def _beta44(key: str) -> dict:
 def test_every_other_built_in_preset_lays_out_as_in_beta_44(qapp):
     presets = _presets()
     moved = sorted(k for k in BETA44["presets"]
-                   if k not in PHOTO_CARDS and _laid_out(presets[k]) != _beta44(k))
+                   if k not in PHOTO_CARDS and k not in SUPERSEDED
+                   and _laid_out(presets[k]) != _beta44(k))
     assert not moved, moved[:5]
 
 

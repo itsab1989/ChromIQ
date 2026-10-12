@@ -75,7 +75,9 @@ def test_the_a4_block_no_longer_interleaves_the_widths():
 def test_the_letter_and_a3_blocks_did_not_move():
     """They were already right — a fix that reshuffles them is a regression."""
     # NB: A3 landscape is stored as its millimetre code, not as "A3".
-    for paper, first, last in (("Letter", 162, 3432), ("420x297", 1404, 3432)):
+    # Letter ends on the 324-patch "Full Page" chart since 4.3.5-beta.2 (#182
+    # 6126438230): its 15.0 mm patches are the widest, and width sorts first.
+    for paper, first, last in (("Letter", 162, 324), ("420x297", 1404, 3432)):
         rows = sorted((p for p in _by_group("i1Pro") if p.paper == paper),
                       key=lambda q: _preset_sort_key(q, "i1Pro"))
         assert rows[0].patches == first

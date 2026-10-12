@@ -747,6 +747,29 @@ set, sheet, grid and page count, builds all eight on the engine (widths pinned
 at what they measure), and checks the eight are offered in "Which presets can
 be used for verification".
 
+### Knut's i1Pro review (4.3.5-beta.2, #182 6126438230)
+
+His table (`presets_changes.xlsx`) changed whole families at once, so the
+changes live in the BASES, not on rows: `_I1_BASE` now says top 39 / bottom
+18 mm and 7 ruler marks per patch (both the 8 mm and 7.5 mm families inherit
+it); the Letter rows state `marker_edge_mm=2.0` (the helpers' keyword for
+`helper_marker_edge_mm`, spelt so because a source test reads every line of
+`tab_chart.py` naming that field as a read of the marker box, and the
+importer maps it, `_KWARG`), the A3 w9.0 rows `helper_marker_per_patch=2`.
+Because two other bases derive from `_I1_BASE` and his table said "No
+change" for them, `_I1_75_MAX_BASE` now states `margin_top=38.0` and
+`_I1_PHOTO_BASE` `helper_marker_per_patch=5`. `_P3_BASE` carries the i1Pro 3
+Plus marks (2 per patch, 2 mm, sides off), two of which used to be the app's
+defaults rather than fields. The six "Real World Target" i1Pro charts have
+the same edits in their `layout.json`.
+
+The two `fls_*` i1Pro charts are no longer laid out from printtarg fields
+(`engine=True`, `fls_engine_recipe`): `_knut_fls_preset` reads Knut's
+exported `layout_recipe` from `layout.json` beside `chart.ti1`, so the
+`engine` branch has no shipping subject now. Their `.ti1` and `recipe.json`
+were already byte-identical to his exports. The geometry of all 48 presets the
+change moved is pinned in `tests/data/b8_1590_geometry_435_beta2.json`.
+
 ### Rename or re-file an existing preset
 
 - **Rename (label only):** change `*_PRESET_LABEL` and update

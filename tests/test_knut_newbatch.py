@@ -350,16 +350,18 @@ def test_g5_the_nineteen_new_i1pro_charts_are_registered():
     from ui.tabs.tab_chart import KNUT_PRESETS
     new = [p for p in KNUT_PRESETS if p.slug.startswith("i1_w75_")]
     # 19 in this batch; the 20th is the A4 "Full Page" chart of 4.3.3-beta.1
-    # (#182 5943544919).
-    assert len(new) == 20
+    # (#182 5943544919), the 21st its Letter sibling of 4.3.5-beta.2 (#182
+    # 6126438230).
+    assert len(new) == 21
     assert sum(1 for p in new if p.layout_recipe["paper"] == "A4") == 9
-    assert sum(1 for p in new if p.layout_recipe["paper"] == "Letter") == 8
+    assert sum(1 for p in new if p.layout_recipe["paper"] == "Letter") == 9
     assert sum(1 for p in new if p.layout_recipe["paper"] == "420x297") == 3
     # all but the Full Page chart, whose 12 strips print 15.0 mm patches and
     # whose name says so (#182 5943665138)
     assert all("w7.5mm" in p.name for p in new if "Full Page" not in p.name)
     assert [p.name for p in new if "Full Page" in p.name] == [
-        "A4-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page"]
+        "A4-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page",
+        "Letter-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page"]
     # None of the 8 mm charts moved.
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")) == 19
 
@@ -369,7 +371,7 @@ def test_g5_the_page_count_comes_from_the_chart_not_the_payload():
     Taking that number would ship every one of them as a 4-page chart."""
     from ui.tabs.tab_chart import KNUT_PRESETS
     new = [x for x in KNUT_PRESETS if x.slug.startswith("i1_w75_")]
-    assert len(new) == 20          # never vacuous (19 + the 4.3.3 Full Page)
+    assert len(new) == 21          # never vacuous (19 + the two Full Page charts)
     for p in new:
         said = int(re.search(r"-(\d+)pages?-", p.name).group(1))
         per_page = p.layout_recipe["area_cols"] * p.layout_recipe["area_rows"]

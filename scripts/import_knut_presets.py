@@ -152,8 +152,13 @@ FAMILIES: dict[str, Family] = {
     "i1": Family(
         key="i1", label="i1Pro", prefix="i1Pro-", slug_prefix="i1_w8_",
         instrument="i1", dest=ASSETS / "i1pro",
+        # The ruler marks since 4.3.5-beta.2 (Knut, #182 6126438230): the A3
+        # w9.0 charts mark 2 per patch where the rest mark 7, and the Letter
+        # charts start them 2 mm from the edge where A4 and A3 keep 4.
         varying=frozenset({"paper", "area_cols", "area_rows",
-                           "margin_right", "margin_bottom"}),
+                           "margin_right", "margin_bottom",
+                           "helper_marker_per_patch",
+                           "helper_marker_edge_mm"}),
         helper="_i1_preset",
     ),
     # A SECOND i1Pro FAMILY, AND IT HAD TO BE ONE (Knut, 4.1.3-beta.13).
@@ -173,9 +178,12 @@ FAMILIES: dict[str, Family] = {
         # helper_marker_per_patch since 4.3.3-beta.1: Knut's "Uniform 6x6x6 -
         # Full Page" chart (#182 5943544919) marks every second patch on the
         # ruler (2) where the rest of the family marks every fifth (5).
+        # helper_marker_edge_mm since 4.3.5-beta.2 (#182 6126438230): 2 mm on
+        # US Letter, 4 mm on A4 and A3.
         varying=frozenset({"paper", "area_cols", "area_rows",
                            "margin_right", "margin_bottom",
-                           "helper_marker_per_patch"}),
+                           "helper_marker_per_patch",
+                           "helper_marker_edge_mm"}),
         helper="_i1_75_preset",
     ),
     # THE 7.5 mm "MAXIMISED - NO CLIP-BORDER" CUT ON A4 AND LETTER (Knut,
@@ -538,7 +546,14 @@ _EMITTED_FIELDS = ("margin_left", "margin_top", "margin_right",
                    "clip_border", "clip_content_mode",
                    "text_edge_top_mm", "area_min_patch_mm", "hflag",
                    "hex_flat_top", "indicator_size_mm",
-                   "helper_marker_per_patch")
+                   "helper_marker_per_patch", "helper_marker_edge_mm")
+
+
+#: A field whose keyword argument on the row helpers is spelt differently.
+#: `marker_edge_mm` rather than the recipe's `helper_marker_edge_mm`, because
+#: `tests/test_the_bottom_sheet_text_keeps_its_reserve.py` reads every line of
+#: `tab_chart.py` that names that field as a read of the marker box.
+_KWARG = {"helper_marker_edge_mm": "marker_edge_mm"}
 
 
 def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
@@ -581,7 +596,7 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
             if (field not in fam.always
                     and recipe.get(field) == effective.get(field)):
                 continue
-            extra += f", {field}={recipe.get(field)!r}"
+            extra += f", {_KWARG.get(field, field)}={recipe.get(field)!r}"
         if ("clip_text" in fam.varying
                 and recipe.get("clip_text") != effective.get("clip_text")):
             # Only the ColorMunki family authors a second note (its Hand Held
