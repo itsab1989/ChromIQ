@@ -214,6 +214,9 @@ if _PRINTCORE_OK:
         # k81: ChromIQ's own PostScript, submitted with the dialog's ticket
         _appsvc.PMPrinterPrintWithFile.restype = ctypes.c_int32
         _appsvc.PMPrinterPrintWithFile.argtypes = [ctypes.c_void_p] * 5
+        # 4.3.5 beta 2: the PostScript job's title in the print queue
+        _appsvc.PMPrintSettingsSetJobName.restype = ctypes.c_int32
+        _appsvc.PMPrintSettingsSetJobName.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         _PM_PAPER_OK = True
     except Exception as _exc3:  # pragma: no cover
         _PM_PAPER_OK = False
@@ -527,6 +530,9 @@ class Submission:
         #: k81: ChromIQ's own PostScript went to a PostScript printer, the
         #: chart as DeviceRGB (no tag, no output intent to match)
         self.device_rgb = False
+        #: 4.3.5 beta 2: on a PostScript printer, the form the chart went in
+        #: (``POSTSCRIPT_DEVICE_RGB`` / ``POSTSCRIPT_AS_MACOS``), else None
+        self.postscript_form: "str | None" = None
         #: the CMYK family the job is rasterised in when the chart was left
         #: untagged for it (4.3.5, ``cmyk_raster_job``), else None
         self.cmyk_raster: str | None = None
@@ -683,7 +689,67 @@ except Exception:  # pragma: no cover - non-macOS / no PyObjC
     _ChartPrintView = None  # type: ignore[assignment]
 
 
-def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> bool:
+# 4.3.5 beta 2: the two forms a PostScript printer can get the chart in
+# (defined in ``ppd_color``, which the Print Chart tab reads on every platform)
+from workflow.ppd_color import (DEFAULT_POSTSCRIPT_FORM, POSTSCRIPT_AS_MACOS,  # noqa: E402
+                                POSTSCRIPT_DEVICE_RGB, POSTSCRIPT_FORMS)
+
+
+class PaperNotOnPrinter(RuntimeError):
+    """The paper the dialog ended on is not one the PostScript printer's PPD
+    lists, and the PPD takes no custom size that fits it (4.3.5 beta 2). Sent
+    anyway, the job would say the PPD's default paper while ChromIQ's
+    PostScript asks for this one. Nothing was sent."""
+
+    def __init__(self, printer: "str | None", w_pt: float, h_pt: float):
+        super().__init__(f"{w_pt:.0f} x {h_pt:.0f} pt is not a paper of {printer}")
+        self.printer = printer
+        self.w_pt = w_pt
+        self.h_pt = h_pt
+
+    @property
+    def size_mm(self) -> str:
+        """"297 × 420 mm" (rounded to whole millimetres)."""
+        return (f"{round(self.w_pt * 25.4 / _PT_PER_INCH)} \u00d7 "
+                f"{round(self.h_pt * 25.4 / _PT_PER_INCH)} mm")
+
+
+def ppd_takes_paper(ppd_text: "str | None", w_pt: float, h_pt: float,
+                    tol: float = 1.5) -> bool:
+    """True when the PPD lists a paper of *w_pt* x *h_pt* (either way round),
+    or takes a custom page size whose width and height ranges hold it; True
+    as well when there is no PPD to ask (nothing can be told)."""
+    if not ppd_text:
+        return True
+    import re
+    # Its own reading of *PaperDimension, not ``_is_named_paper``'s: the
+    # generic PostScript PPD writes "595 842 " with a space before the quote,
+    # which that one (the Canon custom-paper rule's) does not match.
+    for pw, ph in re.findall(r'^\*PaperDimension\s+[^:]+:\s*"\s*([\d.]+)\s+([\d.]+)\s*"',
+                             ppd_text, re.M):
+        pw, ph = float(pw), float(ph)
+        if (abs(pw - w_pt) <= tol and abs(ph - h_pt) <= tol) or \
+                (abs(pw - h_pt) <= tol and abs(ph - w_pt) <= tol):
+            return True
+    if not re.search(r"^\*CustomPageSize\s+True\s*:", ppd_text, re.M):
+        return False
+    rng = {}
+    for name, lo, hi in re.findall(
+            r"^\*ParamCustomPageSize\s+(Width|Height)\s*:\s*\d+\s+points\s+"
+            r"([\d.]+)\s+([\d.]+)", ppd_text, re.M):
+        rng[name] = (float(lo), float(hi))
+
+    def fits(w, h):
+        for name, v in (("Width", w), ("Height", h)):
+            if name in rng and not (rng[name][0] - tol <= v <= rng[name][1] + tol):
+                return False
+        return True
+    return fits(w_pt, h_pt) or fits(h_pt, w_pt)
+
+
+def print_frames(pages: list[tuple[Path, int]], printer: str | None = None,
+                 postscript_form: str = DEFAULT_POSTSCRIPT_FORM,
+                 refuse_unlisted_paper: bool = False) -> bool:
     """Show the native macOS print dialog for *pages* and submit them as one job.
 
     *pages* is a list of ``(tiff_path, frame_index)`` tuples — the same shape
@@ -703,6 +769,14 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     *printer*: a CUPS queue to preselect in the dialog (the Print Chart tab
     passes the queue it was about to print to when it hands the job over to the
     dialog because it does not know that model's paper profiles).
+
+    *postscript_form* (4.3.5 beta 2): how a PostScript printer chosen in the
+    dialog gets the chart, ``POSTSCRIPT_DEVICE_RGB`` (ChromIQ's own PostScript,
+    k81) or ``POSTSCRIPT_AS_MACOS`` (the print view, as 4.3.4). Any other
+    printer ignores it. *refuse_unlisted_paper*: on the DeviceRGB form, raise
+    :class:`PaperNotOnPrinter` instead of sending when the dialog's paper is
+    not one the PPD takes (said by M-PRINT-PS-PAPER-NOT-LISTED once approved;
+    until then the job goes as before and the log says so).
     """
     if not pages:
         return False
@@ -811,7 +885,9 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
     if _same_page(print_info, page_box):
         give_custom_paper_driver_margins(print_info, page_box, content_pt, sizes_pt)
     locked = _lock_no_color_management(print_info, after_dialog=True)
-    if is_postscript_queue(_ppd_text_of(print_info)):
+    _ppd_after = _ppd_text_of(print_info)
+    _is_ps = is_postscript_queue(_ppd_after)
+    if _is_ps and postscript_form == POSTSCRIPT_DEVICE_RGB:
         # k81 (Knut, #182 6102031563): ON A POSTSCRIPT PRINTER THE CHART GOES
         # AS THE PRINTER'S OWN RGB, as the direct route sends it. Drawn
         # through the print view, macOS spools a PDF and its PostScript filter
@@ -824,6 +900,26 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
         # CIEBased; ChromIQ's own PostScript submitted with the dialog's
         # ticket arrives DeviceRGB, all 1,372,807 chart pixels unchanged, with
         # every option of the dialog (paper, the HP colour locks) in the job.
+        # 4.3.5 beta 2: only on the form chosen for the run (the Print Chart
+        # tab's PostScript row); "as macOS sends it" goes on below, as 4.3.4.
+        try:
+            _size = print_info.paperSize()
+            _w, _h = float(_size.width), float(_size.height)
+        except Exception:  # noqa: BLE001 - nothing to check against
+            _w = _h = 0.0
+        if _w and _h and not ppd_takes_paper(_ppd_after, _w, _h):
+            # 4.3.5 beta 2 (combined review, item c): measured, an A3 page on
+            # the generic PostScript PPD (no A3, no custom size) went as a job
+            # whose ticket says Letter while the PostScript asks for A3.
+            try:
+                _disp = str(print_info.printer().name())
+            except Exception:  # noqa: BLE001
+                _disp = _queue_of(print_info)
+            if refuse_unlisted_paper:
+                raise PaperNotOnPrinter(_disp, _w, _h)
+            log.warning("native print: %.0f x %.0f pt is not a paper of %s; "
+                        "sent anyway (M-PRINT-PS-PAPER-NOT-LISTED not approved)",
+                        _w, _h, _disp)
         return _print_device_rgb_postscript(print_info, pages, locked)
     # Tag the chart with the profile macOS will convert it into, so the
     # conversion is the identity and the chart's own numbers reach the driver.
@@ -838,6 +934,9 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
         _settings_now = {}
     _ppd_now = _ppd_text_of(print_info)
     cmyk = cmyk_raster_job(_ppd_now, _settings_now, _queue_of(print_info))
+    if _is_ps:
+        log.info("native print: PostScript printer, chart sent as macOS sends "
+                 "it (the form chosen for this run)")
     if cmyk and dest_icc:
         # 4.3.5: a CMYK raster job. macOS converts the chart from its tag into
         # CMYK and ignores an RGB ColorSync profile of the queue, so the chart
@@ -885,6 +984,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None) -> b
                                  output_intent=output_intent)
     last_submission.reset_by_chromiq = dict(last_reset_by_chromiq)
     last_submission.cmyk_raster = cmyk
+    last_submission.postscript_form = POSTSCRIPT_AS_MACOS if _is_ps else None
     return True
 
 
@@ -936,6 +1036,9 @@ def _print_device_rgb_postscript(print_info, pages: list, locked: dict) -> bool:
         page_pt = None
     data = _postscript_for_pages(pages, page_pt)
     pid = ctypes.c_void_p(objc.pyobjc_id(print_info))
+    # 4.3.5 beta 2 (combined review, item d): PMPrinterPrintWithFile names no
+    # job, so the print queue showed the job without a title or application.
+    _name_the_job(print_info, job_title(pages), "ChromIQ")
     session = _libobjc.objc_msgSend(pid, _libobjc.sel_registerName(b"PMPrintSession"))
     settings = _libobjc.objc_msgSend(pid, _libobjc.sel_registerName(b"PMPrintSettings"))
     page_format = _libobjc.objc_msgSend(pid, _libobjc.sel_registerName(b"PMPageFormat"))
@@ -948,7 +1051,8 @@ def _print_device_rgb_postscript(print_info, pages: list, locked: dict) -> bool:
     mime = _cfstr("application/postscript")
     try:
         with tempfile.TemporaryDirectory(prefix="chromiq-dialog-ps-") as tmp:
-            path = Path(tmp) / "chart.ps"
+            # named after the chart: the print queue shows the file's name
+            path = Path(tmp) / (Path(job_title(pages)).stem + ".ps")
             path.write_bytes(data)
             import Foundation
             url = Foundation.NSURL.fileURLWithPath_(str(path))
@@ -968,8 +1072,49 @@ def _print_device_rgb_postscript(print_info, pages: list, locked: dict) -> bool:
         display = None
     last_submission = Submission(display, locked, t_start, b"", None)
     last_submission.device_rgb = True
+    last_submission.postscript_form = POSTSCRIPT_DEVICE_RGB
     last_submission.reset_by_chromiq = dict(last_reset_by_chromiq)
     return True
+
+
+def job_title(pages: list) -> str:
+    """The title a PostScript job gets in the print queue: the chart's file
+    name, as the print view's job of the same chart would carry it."""
+    try:
+        return Path(pages[0][0]).name
+    except Exception:  # noqa: BLE001
+        return "ChromIQ chart"
+
+
+#: the key macOS stores the printing application's name under
+_APP_NAME_KEY = "com.apple.print.JobInfo.PMApplicationName"
+
+
+def _name_the_job(print_info, title: str, application: str) -> None:
+    """Give the job *title* and *application*, in the print settings it is
+    submitted with (``PMPrintSettingsSetJobName``, and the application's name
+    the way the print view sets it). Never raises: a job without a name still
+    prints."""
+    import objc
+    try:
+        pid = ctypes.c_void_p(objc.pyobjc_id(print_info))
+        settings = _libobjc.objc_msgSend(pid, _libobjc.sel_registerName(b"PMPrintSettings"))
+        if not settings:
+            return
+        t = _cfstr(title)
+        try:
+            _appsvc.PMPrintSettingsSetJobName(ctypes.c_void_p(settings), ctypes.c_void_p(t))
+        finally:
+            _cf.CFRelease(ctypes.c_void_p(t))
+        k, v = _cfstr(_APP_NAME_KEY), _cfstr(application)
+        try:
+            _appsvc.PMPrintSettingsSetValue(ctypes.c_void_p(settings), ctypes.c_void_p(k),
+                                            ctypes.c_void_p(v), False)
+        finally:
+            _cf.CFRelease(ctypes.c_void_p(k))
+            _cf.CFRelease(ctypes.c_void_p(v))
+    except Exception:  # noqa: BLE001
+        log.debug("native print: could not name the job", exc_info=True)
 
 
 # ---- custom paper margins (beta 16 package) -------------------------------------

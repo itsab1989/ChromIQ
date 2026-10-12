@@ -5211,6 +5211,50 @@ M_PRINT_JOB_DEVICE_RGB = _m(
     "The chart went to this PostScript printer as its own RGB values, as the direct route sends it, so neither macOS nor the printer converted its colours.",
     approved=True)  # Basti, 2026-10-11 (approved as proposed; checked)
 
+# --- PROPOSED: the PostScript printer's form, 4.3.5 beta 2 -----------------
+#: Basti, 2026-10-12: "giving the user the choice here is better because what
+#: if he then wants to make use of the profile he created just to notice the
+#: app he wants to print from does not support postscript". Measured on capture
+#: queues (report folder 2026-10-12_b2_postscript): Photoshop writes its own
+#: PostScript; with "Photoshop Manages Colors" and the printer profile it sends
+#: DeviceRGB with the converted values (ChromIQ's k81 form); with "Printer
+#: Manages Colors" CIEBasedABC (sRGB), or CIEBasedDEF from a document's own
+#: profile; Preview goes through macOS: CIEBasedABC (sRGB), or CIEBasedDEF
+#: with a ColorSync profile set (4.3.4's form). The row on the Print Chart tab
+#: (headline: the row's label; line 1 and 2: its two choices), its help, the
+#: notice paragraphs for each form, and the window for a paper the PostScript
+#: printer does not list. Hidden until approved; the stored choice and its
+#: default ("its own RGB") work regardless.
+M_PRINT_PS_FORM_CHOICE = _m(
+    "M-PRINT-PS-FORM-CHOICE",
+    "PostScript printer",
+    "Its own RGB\nAs macOS sends it",
+    approved=False)
+M_PRINT_PS_FORM_HELP = _m(
+    "M-PRINT-PS-FORM-HELP",
+    "How a PostScript printer gets the chart",
+    "Through the macOS print dialog a PostScript printer can get the chart in two forms. Print the profiling chart, its verification charts and your photos in the same form, or the profile will not fit your photos. The choice is kept for this run, and its verification charts print the same way.\n\n"
+    "Its own RGB (the default): the chart\u2019s values reach the printer unchanged, as its own RGB, as the direct route sends them. Photoshop sends a photo this way when you print with \u201cPhotoshop Manages Colors\u201d and choose this profile as the printer profile.\n\n"
+    "As macOS sends it: the chart\u2019s values reach the printer marked as sRGB, or marked with the profile set for the printer in ColorSync Utility, and the printer converts them with its own colour rendering. Preview prints this way, as do other programs that leave the PostScript to macOS. To print a photo with the profile from such a program, convert it to the profile first and print it without a profile attached: in Photoshop, Edit > Convert to Profile, then Edit > Assign Profile > Don\u2019t Color Manage This Document, and print with \u201cPrinter Manages Colors\u201d. This holds only while no profile is set for the printer in ColorSync Utility.\n\n"
+    "Either way, if the printer\u2019s options in the dialog have an RGB colour setting (on an HP Color LaserJet, \u201cRGB Color\u201d), ChromIQ sets it to Device for the chart. Set it to Device for your photos too.",
+    approved=False)
+M_PRINT_PS_ROUTE_OWN_RGB = _m(
+    "M-PRINT-PS-ROUTE-OWN-RGB",
+    "This is a PostScript printer",
+    "ChromIQ sends {printer} the chart as its own RGB values, unchanged, with the settings you choose in the dialog, as the direct route does, so neither macOS nor the printer converts its colours. Photoshop prints a photo the same way with \u201cPhotoshop Manages Colors\u201d and this printer\u2019s profile. Choose the paper and quality in the dialog as for your photos, and leave its colour settings as they are.",
+    approved=False)
+M_PRINT_PS_ROUTE_AS_MACOS = _m(
+    "M-PRINT-PS-ROUTE-AS-MACOS",
+    "This is a PostScript printer",
+    "macOS sends {printer} the chart\u2019s values marked as sRGB, or with the profile set for this printer in ColorSync Utility, and the printer converts them with its own colour rendering, as it does for prints from Preview. ChromIQ leaves the values themselves unchanged. Print your photos the same way, and keep the same profile, or none, set for this printer in ColorSync Utility.",
+    approved=False)
+M_PRINT_PS_PAPER_NOT_LISTED = _m(
+    "M-PRINT-PS-PAPER-NOT-LISTED",
+    "The printer does not list this paper",
+    "The paper chosen in the print dialog ({size}) is not one of the paper sizes {printer} lists, and its driver does not take a custom paper of that size. Sent like this, the job would name one paper and the chart would ask the printer for another. Nothing was printed.\n\n"
+    "Print again and choose, in the dialog, one of the printer\u2019s paper sizes that the chart fits on.",
+    approved=False)
+
 # --- PROPOSED: the count help of FROM PROFILE GAMUT, k82 (4.3.5) ------------
 #: The two paragraphs that replace the 4.3.4 help's "smaller charts are part
 #: of larger ones" and "greys have a fixed share", both untrue since the even
@@ -5470,6 +5514,8 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT, M_HELP_GAMUT_SIZE_SPREAD,
     M_PRINT_VERIFY_DIALOG_AS_IS, M_PRINT_VERIFY_DIALOG_THROUGH,
     M_PRINT_VERIFY_PS_EARLIER, M_PRINT_JOB_DEVICE_RGB,
+    M_PRINT_PS_FORM_CHOICE, M_PRINT_PS_FORM_HELP, M_PRINT_PS_ROUTE_OWN_RGB,
+    M_PRINT_PS_ROUTE_AS_MACOS, M_PRINT_PS_PAPER_NOT_LISTED,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,

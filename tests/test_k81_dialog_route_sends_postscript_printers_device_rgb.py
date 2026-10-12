@@ -74,7 +74,9 @@ def test_print_frames_sends_a_postscript_printer_its_own_postscript():
     """MUTATION: remove the branch and a PostScript printer gets the chart
     through the print view again, CIEBased."""
     src = inspect.getsource(npm.print_frames)
-    branch = src.index("if is_postscript_queue(_ppd_text_of(print_info)):")
+    # 4.3.5 beta 2: on the form chosen for the run, its own RGB by default
+    assert "_is_ps = is_postscript_queue(_ppd_after)" in src
+    branch = src.index("if _is_ps and postscript_form == POSTSCRIPT_DEVICE_RGB:")
     assert "return _print_device_rgb_postscript(print_info, pages, locked)" in src[branch:]
     # after ChromIQ's own locks are set, before any re-tag or print view job
     assert src.index("_lock_no_color_management(print_info, after_dialog=True)") < branch

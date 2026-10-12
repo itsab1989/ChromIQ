@@ -1091,6 +1091,26 @@ Measured on capture queues (socket to a file, never a printer; report folder `20
 
 **A consequence to decide on (ours, not Knut's ruling):** D1 applies to every RGB chart on a PostScript printer, the profiling chart too, so that the profiling chart and its verification charts go the same way, which K81a needs: a FROM PROFILE GAMUT chart's values are only "without colour management" against a profile made without it. A profile made with 4.3.4 or earlier from a chart printed through the dialog to a PostScript printer describes the printer together with its own colour rendering; M-PRINT-VERIFY-PS-EARLIER (proposed) says to print that profiling chart again. Canon, Epson and other raster printers are not affected.
 
+#### ⏳ Awaiting confirmation: the PostScript printer's form is a choice per run (4.3.5 beta 2)
+
+**Confirmed by:** *nobody yet.*
+
+Basti, 2026-10-12, on D1: *"personally i think giving the user the choice here is better because what if he then wants to make use of the profile he created just to notice the app he wants to print from does not support postscript and thus the profile does not match"*. Measured on capture queues (report folder `2026-10-12_b2_postscript`, `runs/app_table.md`): Photoshop writes its own PostScript and sends a photo DeviceRGB with the profile's values under "Photoshop Manages Colors" with the printer profile (D1's form); "Printer Manages Colors" sends CIEBasedABC (sRGB), or CIEBasedDEF from the document's own profile; Preview goes through macOS, CIEBasedABC (sRGB), or CIEBasedDEF with a ColorSync profile set (4.3.4's form).
+
+| # | Condition | Action | Where |
+|---|---|---|---|
+| P1 | macOS dialog route, PostScript queue, the run's `print_settings["postscript"]` (run `meta.json`) is `device` or absent | D1 (its own RGB), the default | `native_print_macos.print_frames(postscript_form=…)` |
+| P2 | the same, `macos` | the print view as 4.3.4 (D3); measured byte-identical to 4.3.4 on generic PS, HP 5550 and HP 5550 with a ColorSync profile | `print_frames` |
+| P3 | the choice | one per RUN: the profiling chart and its verification charts read and write the run's own `meta.json` (not `verifications/meta.json`); a calibration or a new run uses the default | `tab_print._ps_form`, `_store_ps_form`, `_ps_form_run` |
+| P4 | the row "PostScript printer" | shown on macOS, dialog route, chart loaded, the dialog's printer a PostScript queue, once M-PRINT-PS-FORM-CHOICE is approved; until then hidden and every run prints P1 | `tab_print._update_ps_form_row` |
+| P5 | a run on `macos` | M-PRINT-VERIFY-DIALOG-AS-IS / -THROUGH and M-PRINT-VERIFY-PS-EARLIER are left out (untrue there) | `tab_print._update_verify_route_note` |
+| P6 | the dialog route's notice on a PostScript queue | its paper-profile sentences and "This works with any printer…" replaced by M-PRINT-PS-ROUTE-OWN-RGB / -AS-MACOS once approved (combined review, item a) | `tab_print._macos_dialog_notice` |
+| P7 | the Through notice (S6) where the colours are converted on the way (CMYK raster queue on either route; PostScript on `macos`) | its sentence "The printer’s own colour adjustment stays switched off, so nothing between here and the paper changes the colours." is left out (combined review, item b) | `tab_print._colours_converted_on_the_way` |
+| P8 | D1, the dialog's paper neither listed by the PPD nor within its custom size | M-PRINT-PS-PAPER-NOT-LISTED, nothing sent, once approved; until then sent and logged (combined review, item c: an A3 job whose ticket said Letter) | `native_print_macos.ppd_takes_paper`, `PaperNotOnPrinter` |
+| P9 | D1's job | carries the chart's file name as its title and "ChromIQ" as its application (combined review, item d) | `native_print_macos._name_the_job` |
+
+**For Knut (K81a):** on `macos` a FROM PROFILE GAMUT chart also goes as macOS sends it, CIEBased, which the printer converts with its own colour rendering. That keeps it consistent with the profiling chart of the same run (the reason the choice is per run), but it is not "without colour management" in K81a's words. The default (P1) keeps K81a. To be decided by Knut and Sebastian.
+
 ## 4. The Print Chart tab, reconciled
 
 #133 §8 proposed two rows on this tab (**Route**, and **Recorded on the

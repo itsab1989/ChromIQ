@@ -1522,6 +1522,19 @@ _POSTSCRIPT_TYPES = ("application/vnd.cups-postscript", "application/postscript"
 _IGNORED_SOURCE_TYPES = ("application/vnd.cups-command",)
 
 
+#: 4.3.5 beta 2 (Basti, 2026-10-12): the two forms a PostScript printer can get
+#: the chart in through the macOS print dialog, chosen per run on the Print
+#: Chart tab. ``POSTSCRIPT_DEVICE_RGB``: ChromIQ's own PostScript, the chart as
+#: the printer's own RGB (k81; Photoshop sends a photo so with "Photoshop
+#: Manages Colors"). ``POSTSCRIPT_AS_MACOS``: the print view, which macOS hands
+#: the printer as CIEBasedABC (sRGB), or CIEBasedDEF with a ColorSync profile
+#: set, as Preview prints and 4.3.4 did.
+POSTSCRIPT_DEVICE_RGB = "device"
+POSTSCRIPT_AS_MACOS = "macos"
+POSTSCRIPT_FORMS = (POSTSCRIPT_DEVICE_RGB, POSTSCRIPT_AS_MACOS)
+DEFAULT_POSTSCRIPT_FORM = POSTSCRIPT_DEVICE_RGB
+
+
 def is_postscript_queue(ppd_text: str | None) -> bool:
     """True for a PostScript queue: a PPD with no CUPS filter at all (CUPS
     hands the printer PostScript), or only filters that take PostScript.

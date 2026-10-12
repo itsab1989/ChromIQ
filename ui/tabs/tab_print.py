@@ -137,6 +137,22 @@ def _queue_cmyk_raster(queue: str) -> "str | None":
     return cmyk_raster_space(text, {}, queue)
 
 
+def _queue_is_postscript(queue: "str | None") -> bool:
+    """Whether *queue*'s PPD makes it a PostScript queue
+    (``ppd_color.is_postscript_queue``); False when that cannot be told."""
+    if not queue:
+        return False
+    try:
+        from workflow.ppd_color import is_postscript_queue
+        ppd = PrintModule.find_ppd_path(queue)
+        if not ppd:
+            return False
+        from core.text_io import read_text
+        return is_postscript_queue(read_text(Path(ppd), lenient=True))
+    except Exception:  # noqa: BLE001 - a question must never raise
+        return False
+
+
 def _ink_conversion_message(conv):
     """The §M message for an ``_ink_conversion`` result (4.3.5 B2)."""
     from workflow import measurement_messages as MM
@@ -386,6 +402,22 @@ _CM_NOTICE_THROUGH = (
     "prediction made real. The printer’s own colour adjustment stays "
     "switched off, so nothing between here and the paper changes the "
     "colours.<br><br>"
+    "You do not need to change any colour setting in the print dialog. The "
+    "finished sheets are kept in the <b>cache</b> folder beside the chart, "
+    "which is always safe to delete."
+)
+
+#: S6 without its second sentence (combined review of 4.3.5, item b): where
+#: the colours ARE converted on the way, on a printer whose driver takes CMYK
+#: raster (macOS, or the CUPS filters on the direct route, turn the chart into
+#: CMYK) and on a PostScript printer that gets the chart as macOS sends it
+#: (its own colour rendering converts it), "The printer’s own colour adjustment
+#: stays switched off, so nothing between here and the paper changes the
+#: colours." is untrue and is left out.
+_CM_NOTICE_THROUGH_CONVERTED_ON_THE_WAY = (
+    "ChromIQ will work out the ink amounts your profile predicts for every "
+    "patch and print exactly those, so the sheet is your profile’s own "
+    "prediction made real.<br><br>"
     "You do not need to change any colour setting in the print dialog. The "
     "finished sheets are kept in the <b>cache</b> folder beside the chart, "
     "which is always safe to delete."
@@ -1086,6 +1118,33 @@ class TabPrint(QWidget):
                                  tr(_CM_ROUTE_HELP_BODY))
         gl.addWidget(self._cm_route_row)
 
+        # -- PostScript printer: its own RGB, or as macOS sends it ----------
+        # 4.3.5 beta 2 (Basti, 2026-10-12): on the macOS dialog route a
+        # PostScript printer gets the chart as its own RGB (k81, as Photoshop
+        # sends a photo with "Photoshop Manages Colors") or as macOS sends it
+        # (CIEBased, as Preview and 4.3.4). Kept per RUN, so the profiling
+        # chart and its verification charts go the same way. Its words are
+        # M-PRINT-PS-FORM-CHOICE / -HELP (§M-PROPOSED): the row is shown only
+        # once they are approved; the stored choice and its default work
+        # regardless (``_ps_form``).
+        from workflow import measurement_messages as _MM
+        _ps_label, _ps_lines = _MM.M_PRINT_PS_FORM_CHOICE.render()
+        _ps_lines = _ps_lines.split("\n")
+        ps_choice = QWidget(self._cm_grp)
+        pl = QHBoxLayout(ps_choice)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setSpacing(14)
+        self._ps_device_rb = QRadioButton(_ps_lines[0], ps_choice)
+        self._ps_macos_rb = QRadioButton(_ps_lines[1], ps_choice)
+        self._ps_device_rb.setChecked(True)
+        pl.addWidget(self._ps_device_rb)
+        pl.addWidget(self._ps_macos_rb)
+        pl.addStretch(1)
+        self._ps_form_row = row(_ps_label, ps_choice,
+                                *_MM.M_PRINT_PS_FORM_HELP.render())
+        self._ps_form_row.setVisible(False)
+        gl.addWidget(self._ps_form_row)
+
         ll.addWidget(self._cm_grp)
 
         # -- the state notice (S6 / S7 / §3.1a / §3.1b) ---------------------
@@ -1108,6 +1167,8 @@ class TabPrint(QWidget):
 
         self._cm_through_rb.toggled.connect(self._on_cm_selection_changed)
         self._cm_raw_rb.toggled.connect(self._on_cm_selection_changed)
+        self._updating_ps_form = False
+        self._ps_device_rb.toggled.connect(self._on_ps_form_changed)
         # beta-12 review: the preview converts through the profile in the
         # chosen intent, so a new intent must reach it too (the radios above
         # already do, through `_update_colour_row_visible`)
@@ -1154,6 +1215,118 @@ class TabPrint(QWidget):
         except Exception:      # noqa: BLE001 — a question must never raise
             return None
 
+    # ---- the PostScript printer's form (4.3.5 beta 2) ---------------------
+    def _ps_form_run(self):
+        """The Run whose PostScript form applies: the run the bar points at,
+        for its profiling chart AND its verification charts (they must go the
+        same way); None for a calibration, a new run, or no project."""
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            if ctl is None or ctl.target.is_calibration() or ctl.target.is_new_run():
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+        return self._cm_run()
+
+    def _ps_form(self) -> str:
+        """The form a PostScript printer gets the chart in on the macOS dialog
+        route, as stored for the run (``print_settings["postscript"]`` of the
+        run's own ``meta.json``), else the default, its own RGB."""
+        from workflow import ppd_color as forms
+        run = self._ps_form_run()
+        if run is None:
+            return forms.DEFAULT_POSTSCRIPT_FORM
+        try:
+            got = (getattr(run.load_meta(), "print_settings", None) or {}).get("postscript")
+        except Exception:  # noqa: BLE001 - a default must never raise
+            got = None
+        return got if got in forms.POSTSCRIPT_FORMS else forms.DEFAULT_POSTSCRIPT_FORM
+
+    def _store_ps_form(self, form: str) -> bool:
+        """Write *form* into the run's ``meta.json``; False when there is no
+        run to keep it (calibration, new run) or it could not be written."""
+        run = self._ps_form_run()
+        if run is None:
+            return False
+        try:
+            if not Path(getattr(run, "dir", "")).is_dir():
+                return False           # never resurrect a deleted run
+            meta = run.load_meta()
+            stored = dict(getattr(meta, "print_settings", None) or {})
+            if stored.get("postscript") == form:
+                return False
+            stored["postscript"] = form
+            meta.print_settings = stored
+            run.save_meta(meta)
+            log.info("PostScript form for %s: %s", getattr(run, "id", run), form)
+            return True
+        except Exception:  # noqa: BLE001 - never lose the tab over a write
+            log.warning("Could not store the PostScript form", exc_info=True)
+            return False
+
+    def _on_ps_form_changed(self, *_a) -> None:
+        if getattr(self, "_updating_ps_form", False):
+            return
+        from workflow import ppd_color as forms
+        self._store_ps_form(forms.POSTSCRIPT_DEVICE_RGB if self._ps_device_rb.isChecked()
+                            else forms.POSTSCRIPT_AS_MACOS)
+        self._update_cmyk_route_note()
+        self._update_colour_row_visible()
+
+    def _update_ps_form_row(self) -> None:
+        """Show the PostScript row where it applies: macOS, the dialog route
+        on, a chart loaded, a run to keep the choice, the printer the dialog
+        opens on a PostScript queue, and its words approved. The radios
+        always follow the stored choice."""
+        row = getattr(self, "_ps_form_row", None)
+        if row is None:
+            return
+        from workflow import ppd_color as forms
+        self._updating_ps_form = True
+        try:
+            (self._ps_device_rb if self._ps_form() == forms.POSTSCRIPT_DEVICE_RGB
+             else self._ps_macos_rb).setChecked(True)
+        finally:
+            self._updating_ps_form = False
+        from workflow import measurement_messages as MM
+        show = (is_macos() and MM.M_PRINT_PS_FORM_CHOICE.approved
+                and bool(self._settings.get("use_native_print_dialog", False))
+                and bool(getattr(self, "_tiff_pages", None))
+                and self._ps_form_run() is not None
+                and self._dialog_printer_is_postscript())
+        row.setVisible(bool(show))
+
+    @staticmethod
+    def _dialog_printer_is_postscript() -> bool:
+        """Whether the printer the macOS dialog opens on is a PostScript
+        queue; False when that cannot be told."""
+        try:
+            queue, _display = _dialog_printer()
+            return _queue_is_postscript(queue)
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _colours_converted_on_the_way(self) -> bool:
+        """Whether something between ChromIQ and the paper converts the
+        chart's colours for the printer the next job goes to: a driver that
+        takes CMYK raster (either route), or a PostScript printer that gets
+        the chart as macOS sends it (dialog route). Combined review of 4.3.5,
+        item b: the Through notice's promise is left out there."""
+        from workflow import ppd_color as forms
+        try:
+            if bool(self._settings.get("use_native_print_dialog", False)) and is_macos():
+                queue, _display = _dialog_printer()
+                if not queue:
+                    return False
+                if _queue_cmyk_raster(queue) is not None:
+                    return True
+                return (_queue_is_postscript(queue)
+                        and self._ps_form() == forms.POSTSCRIPT_AS_MACOS)
+            queue = self._printer_combo.currentData() or ""
+            return bool(queue) and _queue_cmyk_raster(queue) is not None
+        except Exception:  # noqa: BLE001 - a notice must never break the tab
+            return False
+
     def _update_colour_row_visible(self) -> None:
         """§3.1 + §3.1a + §3.1b: which rows show, what is forced, and what the
         notice says — recomputed from the target, the run's profile and the
@@ -1163,6 +1336,7 @@ class TabPrint(QWidget):
         has_pages = bool(self._tiff_pages)
         is_verif = ctl is not None and ctl.target.is_verification()
         self._update_verify_route_note()
+        self._update_ps_form_row()
         # A6: with no chart the tab shows its existing empty state — no rows.
         self._cm_grp.setVisible(has_pages)
         self._cm_colour_row.setVisible(is_verif)
@@ -1213,9 +1387,12 @@ class TabPrint(QWidget):
                  else self._cm_raw_rb).setChecked(True)
                 through = self._cm_through_rb.isChecked()
                 self._cm_intent_combo.setEnabled(through)
-                self._cm_notice.setText(
-                    tr(_CM_NOTICE_THROUGH) if through
-                    else tr(_CM_NOTICE_RAW_CHOSEN))
+                if through and self._colours_converted_on_the_way():
+                    self._cm_notice.setText(tr(_CM_NOTICE_THROUGH_CONVERTED_ON_THE_WAY))
+                else:
+                    self._cm_notice.setText(
+                        tr(_CM_NOTICE_THROUGH) if through
+                        else tr(_CM_NOTICE_RAW_CHOSEN))
         finally:
             self._updating_cm = False
         # beta 12 (Knut 6045500910 Q4, Basti 6045468325): the preview shows
@@ -1596,6 +1773,10 @@ class TabPrint(QWidget):
     def _on_printer_changed(self) -> None:
         printer = self._printer_combo.currentData() or ""
         self._rebuild_option_rows(printer)
+        # combined review of 4.3.5, item b: the Through notice depends on
+        # whether this printer's driver converts the chart into CMYK
+        if getattr(self, "_cm_notice", None) is not None and getattr(self, "_tiff_pages", None):
+            self._update_colour_row_visible()
 
     @classmethod
     def _clear_layout(cls, layout) -> None:
@@ -3009,7 +3190,16 @@ class TabPrint(QWidget):
         # dialog's printer takes CMYK raster, because macOS converts the chart
         # into CMYK there itself; the notice above says so instead
         # (M-PRINT-CMYK-RASTER-ROUTE, ``_macos_dialog_notice``).
-        if native and not self._dialog_printer_takes_cmyk():
+        from workflow import ppd_color as _forms
+        # 4.3.5 beta 2: on a run whose PostScript printer gets the chart as
+        # macOS sends it, M-PRINT-VERIFY-DIALOG-AS-IS / -THROUGH ("to a
+        # PostScript printer it sends the chart as the printer's own RGB",
+        # "macOS and the printer do not convert its colours a second time")
+        # and M-PRINT-VERIFY-PS-EARLIER ("both routes now send the chart as
+        # the printer's own RGB") are untrue, so they are left out there.
+        as_macos = self._ps_form() == _forms.POSTSCRIPT_AS_MACOS
+        ps_as_macos = native and as_macos and self._dialog_printer_is_postscript()
+        if native and not ps_as_macos and not self._dialog_printer_takes_cmyk():
             from workflow import verification_print as _vp
             try:
                 through = self._cm_selected_colour() == _vp.COLOUR_THROUGH
@@ -3019,7 +3209,7 @@ class TabPrint(QWidget):
                    else MM.M_PRINT_VERIFY_DIALOG_AS_IS)
             if msg.approved:
                 paras.append(msg.render()[1])
-        if MM.M_PRINT_VERIFY_PS_EARLIER.approved:
+        if MM.M_PRINT_VERIFY_PS_EARLIER.approved and not as_macos:
             paras.append(MM.M_PRINT_VERIFY_PS_EARLIER.render()[1])
         lbl.setText(f"<b>{_html_escape(title)}</b><br><br>"
                     + "<br><br>".join(_html_escape(p) for p in paras))
@@ -3072,15 +3262,27 @@ class TabPrint(QWidget):
                   "Allow pigment inks to dry fully before measuring "
                   "(at least 1 h; 24 h for best accuracy).")
         from workflow import measurement_messages as MM
-        if not MM.M_PRINT_CMYK_RASTER_ROUTE.approved:
-            return full
         paras = full.split("\n\n")
         if len(paras) != 5:
             return full
         queue, display = _dialog_printer()
-        if not queue or _queue_cmyk_raster(queue) is None:
+        if not queue:
             return full
-        title, body = MM.M_PRINT_CMYK_RASTER_ROUTE.render(printer=display or queue)
+        msg = None
+        if _queue_cmyk_raster(queue) is not None:
+            msg = MM.M_PRINT_CMYK_RASTER_ROUTE
+        elif _queue_is_postscript(queue):
+            # 4.3.5 beta 2 (combined review, item a): on a PostScript printer
+            # ChromIQ attaches no paper profile and the sentence "This works
+            # with any printer…" does not describe what happens; the message
+            # of the form chosen for the run takes their place once approved.
+            from workflow import ppd_color as _forms
+            msg = (MM.M_PRINT_PS_ROUTE_AS_MACOS
+                   if self._ps_form() == _forms.POSTSCRIPT_AS_MACOS
+                   else MM.M_PRINT_PS_ROUTE_OWN_RGB)
+        if msg is None or not msg.approved:
+            return full
+        title, body = msg.render(printer=display or queue)
         kept = tr("ChromIQ asks for application colour matching, as Photoshop does. "
                   "Afterwards the Print Chart tab says what the printing system holds "
                   "for the job.")
@@ -3089,6 +3291,7 @@ class TabPrint(QWidget):
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
         self._update_verify_route_note(native=enabled)
+        self._update_ps_form_row()
         self._printer_grp.setVisible(not enabled)
         self._opts_grp.setVisible(not enabled)
         # The spacer used to centre the warning label between the scroll area
@@ -3171,14 +3374,25 @@ class TabPrint(QWidget):
             submitted = False
             try:
                 from workflow.native_print_macos import (ChartIsNotRGB,
+                                                          PaperNotOnPrinter,
                                                           print_frames)
+                from workflow import measurement_messages as _MM
                 try:
-                    submitted = bool(print_frames(pages, printer=printer))
+                    # 4.3.5 beta 2: a PostScript printer gets the chart in the
+                    # form chosen for the run; a paper its PPD does not list
+                    # is refused once M-PRINT-PS-PAPER-NOT-LISTED is approved
+                    submitted = bool(print_frames(
+                        pages, printer=printer, postscript_form=self._ps_form(),
+                        refuse_unlisted_paper=_MM.M_PRINT_PS_PAPER_NOT_LISTED.approved))
                     if submitted:
                         from workflow import native_print_macos as _npm
                         if _npm.last_submission is not None:
                             self._start_read_back(
                                 _DialogReadBack(_npm.last_submission))
+                except PaperNotOnPrinter as exc:
+                    log.error("Native macOS print refused: %s", exc)
+                    QMessageBox.warning(self, *_MM.M_PRINT_PS_PAPER_NOT_LISTED.render(
+                        size=exc.size_mm, printer=exc.printer or ""))
                 except ChartIsNotRGB as exc:
                     # R26-F8: this route can only carry RGB, and it used to
                     # convert anything else on the way in without saying so.
