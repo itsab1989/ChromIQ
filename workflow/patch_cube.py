@@ -230,6 +230,122 @@ def _lab_layout(bg: str, fg: str, grid: str) -> dict:
     }
 
 
+#: Samples along each of the cube's 12 edges, and per side of each face, when
+#: the device cube is mapped into L*a*b* to outline a profile's gamut.
+OUTLINE_EDGE_STEPS = 33
+OUTLINE_FACE_STEPS = 17
+
+
+@dataclass
+class GamutOutline:
+    """A profile's gamut as the device cube mapped into L*a*b*.
+
+    Every colour a printer can print is the image of some ink amount, so the
+    gamut's surface is the image of the device cube's six faces and its ridges
+    are the images of the cube's twelve edges (the idea the ChromIQ Gamut
+    Viewer uses to draw a profile's gamut, ``gamutview._device_cube_surface``).
+    ``edges``: twelve polylines of Lab points; ``vertices``/``faces``: a
+    triangle mesh of the six sides."""
+    edges: list
+    vertices: list
+    faces: list
+
+
+def _outline_device_rows(edge_steps: int, face_steps: int):
+    """The device values to read: the 12 edges, then the 6 faces' grids."""
+    t = np.linspace(0.0, 100.0, edge_steps)
+    edges = []
+    for a, b in _CUBE_EDGES:
+        ca, cb = np.asarray(_CUBE_CORNERS[a], float), np.asarray(_CUBE_CORNERS[b], float)
+        edges.append(ca[None, :] + (cb - ca)[None, :] * (t[:, None] / 100.0))
+    g = np.linspace(0.0, 100.0, face_steps)
+    u, v = np.meshgrid(g, g, indexing="ij")
+    faces = []
+    for axis in range(3):
+        for value in (0.0, 100.0):
+            cols = [u.ravel(), v.ravel()]
+            cols.insert(axis, np.full(u.size, value))
+            faces.append(np.stack(cols, axis=1))
+    return edges, faces
+
+
+def gamut_outline(profile, bin_dir, *, intent: str = "a",
+                  runner=None) -> "GamutOutline":
+    """The outline of *profile*'s gamut in L*a*b* (one xicclu call, in
+    *intent*). Raises what :func:`workflow.xicclu_runner.forward_lab` raises."""
+    import subprocess
+    from workflow.xicclu_runner import forward_lab
+    edges, faces = _outline_device_rows(OUTLINE_EDGE_STEPS, OUTLINE_FACE_STEPS)
+    rows = np.vstack(edges + faces)
+    lab = np.asarray(forward_lab([tuple(r) for r in rows], profile, bin_dir,
+                                 intent=intent,
+                                 runner=runner or subprocess.run), dtype=float)
+    if lab.shape != (len(rows), 3):
+        raise ValueError("the profile did not answer for every outline point")
+    ne = OUTLINE_EDGE_STEPS
+    out_edges = [lab[i * ne:(i + 1) * ne].tolist() for i in range(len(edges))]
+    base = len(edges) * ne
+    n = OUTLINE_FACE_STEPS
+    verts: list = []
+    tris: list = []
+    for f in range(len(faces)):
+        off = base + f * n * n
+        start = len(verts)
+        verts.extend(lab[off:off + n * n].tolist())
+        for i in range(n - 1):
+            for j in range(n - 1):
+                p = start + i * n + j
+                tris.append((p, p + 1, p + n))
+                tris.append((p + 1, p + n + 1, p + n))
+    return GamutOutline(out_edges, verts, tris)
+
+
+def outline_traces(outline: "GamutOutline", *, fg: str = "#cccccc") -> list:
+    """Plotly traces for :class:`GamutOutline`: the twelve ridges as lines and
+    the six sides as a faint see-through skin, neither hoverable."""
+    xs: list = []
+    ys: list = []
+    zs: list = []
+    for line in outline.edges:
+        for L, a, b in line:
+            xs.append(a)
+            ys.append(b)
+            zs.append(L)
+        xs.append(None)
+        ys.append(None)
+        zs.append(None)
+    ridges = {"type": "scatter3d", "mode": "lines", "name": "gamut edges",
+              "x": xs, "y": ys, "z": zs,
+              "line": {"color": fg, "width": 3}, "opacity": 0.55,
+              "hoverinfo": "skip", "showlegend": False}
+    if not outline.vertices or not outline.faces:
+        return [ridges]
+    v = np.asarray(outline.vertices, dtype=float)
+    f = np.asarray(outline.faces, dtype=int)
+    skin = {"type": "mesh3d", "name": "gamut",
+            "x": v[:, 1].tolist(), "y": v[:, 2].tolist(), "z": v[:, 0].tolist(),
+            "i": f[:, 0].tolist(), "j": f[:, 1].tolist(), "k": f[:, 2].tolist(),
+            "color": fg, "opacity": 0.08, "flatshading": True,
+            "hoverinfo": "skip", "showlegend": False}
+    return [skin, ridges]
+
+
+def lab_spacing_summary(labs: list[tuple[float, float, float]]) -> str:
+    """The footer for the colour view: how many patches and how far apart, as
+    colour differences (ΔE*ab), the way the cube's footer reports RGB."""
+    from core.i18n import tr
+    arr = np.asarray(labs, dtype=float).reshape(-1, 3)
+    if len(arr) < 2:
+        return tr("No patches to analyse.")
+    d = np.sqrt(((arr[:, None, :] - arr[None, :, :]) ** 2).sum(-1))
+    np.fill_diagonal(d, np.inf)
+    nn = d.min(axis=1)
+    return tr("{n} patches as colours, through the profile · spacing median "
+              "{median}, closest {closest} (ΔE*ab)").format(
+                  n=len(arr), median=f"{float(np.median(nn)):.2f}",
+                  closest=f"{float(nn.min()):.2f}")
+
+
 def lab_payload(
     labs: list[tuple[float, float, float]],
     colors_rgb255: list[tuple[int, int, int]],
@@ -237,6 +353,8 @@ def lab_payload(
     bg: str = "#111111",
     fg: str = "#cccccc",
     grid: str = "#444444",
+    outline: "GamutOutline | None" = None,
+    stats: "str | None" = None,
 ) -> dict:
     """``{"data", "stats", "layout"}`` for the state-3 Lab scatter (#72).
 
@@ -263,10 +381,45 @@ def lab_payload(
         "text": hover, "hoverinfo": "text", "showlegend": False,
     }
     from core.i18n import tr
-    stats = tr("{n} patches · Lab positions via the preconditioning profile"
-               ).format(n=len(labs))
-    return {"data": [neutral, points], "stats": stats,
-            "layout": _lab_layout(bg, fg, grid)}
+    if stats is None:
+        stats = tr("{n} patches · Lab positions via the preconditioning profile"
+                   ).format(n=len(labs))
+    data = [neutral]
+    layout = _lab_layout(bg, fg, grid)
+    if outline is not None:
+        data += outline_traces(outline, fg=fg)
+        layout = _true_scale_lab_layout(layout, labs, outline)
+    data.append(points)
+    return {"data": data, "stats": stats, "layout": layout}
+
+
+def _true_scale_lab_layout(layout: dict, labs, outline: "GamutOutline") -> dict:
+    """The colour view drawn TO SCALE: one ΔE*ab is the same length along L*,
+    a* and b*, and the box fits the gamut. The fixed ±110 × 0..100 box drawn
+    as a cube stretches L* 2.2 times against a* and b*, so patches evenly
+    spaced as colours would look squeezed sideways, which is the very thing
+    this view exists to show."""
+    pts = [p for line in outline.edges for p in line] + list(outline.vertices)
+    pts += [tuple(p) for p in labs]
+    arr = np.asarray(pts, dtype=float).reshape(-1, 3)
+    arr = arr[np.isfinite(arr).all(axis=1)]
+    if not len(arr):
+        return layout
+    lo = arr.min(axis=0) - 5.0
+    hi = arr.max(axis=0) + 5.0
+    lo[0], hi[0] = max(0.0, lo[0]), min(105.0, hi[0])
+    span = hi - lo
+    # The longest side a little longer than Plotly's unit cube, so a gamut
+    # flatter than a cube still fills the window at the default camera.
+    big = (float(span.max()) or 1.0) / 1.4
+    scene = dict(layout["scene"])
+    scene["xaxis"] = dict(scene["xaxis"], range=[float(lo[1]), float(hi[1])])
+    scene["yaxis"] = dict(scene["yaxis"], range=[float(lo[2]), float(hi[2])])
+    scene["zaxis"] = dict(scene["zaxis"], range=[float(lo[0]), float(hi[0])])
+    scene["aspectmode"] = "manual"
+    scene["aspectratio"] = {"x": float(span[1] / big), "y": float(span[2] / big),
+                            "z": float(span[0] / big)}
+    return dict(layout, scene=scene)
 
 
 def _controls_hint() -> str:

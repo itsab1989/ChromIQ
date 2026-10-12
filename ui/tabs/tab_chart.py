@@ -22728,6 +22728,14 @@ class TabChart(QWidget):
         #: (profile path, mtime, margin, intent) → in-gamut total, so flicking
         #: between two settings is instant after the first query (#133 §10).
         self._gamut_coverage_cache: dict = {}
+        #: The same key → the background question still being asked
+        #: (`gamut_target.gamut_coverage_async`, Knut #182 6113365581: the
+        #: first click on the module froze the window for seconds).
+        self._gamut_coverage_jobs: dict = {}
+        self._gamut_coverage_timer = QTimer(self)
+        self._gamut_coverage_timer.setInterval(100)
+        # A bound method, never a lambda (CLAUDE.md, the fade-scroll crash).
+        self._gamut_coverage_timer.timeout.connect(self._poll_gamut_coverage)
         self._pending_gamut_selection = None
         self._gamut_active = False
 
@@ -22792,6 +22800,10 @@ class TabChart(QWidget):
         profile = self._gamut_profile() if is_verif else None
         if is_verif:
             self._refresh_gamut_state()
+            if profile is not None:
+                # In the background, so the module's first click finds the
+                # reach already known (Knut, #182 6113365581).
+                self._prefetch_gamut_reach()
             # A verification run that HAS a built profile opens on the FROM
             # PROFILE GAMUT module — the chart whose colours the profile can
             # actually print is the recommended check (Knut, 2026-08-10:
@@ -22865,14 +22877,39 @@ class TabChart(QWidget):
             return None
         if key in self._gamut_coverage_cache:
             return self._gamut_coverage_cache[key]
+        # ASKED IN THE BACKGROUND, answered when it is done (Knut, #182
+        # 6113365581: "Clicking on the From Profile's Gamut button [...] takes
+        # some time, especially the first time"). This used to ask on the
+        # window's thread: measured on his CLJ5550 profile, 4.6 s of a frozen
+        # window the first time, nothing after (the memo above). Until the
+        # answer is in, this returns None and `_gamut_coverage_pending` says
+        # why; `_poll_gamut_coverage` refreshes everything that reads it.
+        job = self._gamut_coverage_jobs.get(key)
+        if job is None:
+            try:
+                # Only the count: choosing a chart (k82's even spread) is the
+                # build's work, not the count line's.
+                from workflow.gamut_target import gamut_coverage_async
+                job = gamut_coverage_async(
+                    profile, margin, intent,
+                    bin_dir=self._settings.get("argyll_bin_path",
+                                               "/Applications/Argyll/bin"))
+            except Exception:  # noqa: BLE001 — the count line must never crash
+                log.warning("gamut coverage query failed", exc_info=True)
+                self._gamut_coverage_cache[key] = None
+                return None
+            self._gamut_coverage_jobs[key] = job
+        if job.done():
+            return self._collect_gamut_coverage(key)
+        if not self._gamut_coverage_timer.isActive():
+            self._gamut_coverage_timer.start()
+        return None
+
+    def _collect_gamut_coverage(self, key) -> "int | None":
+        """Move a finished background answer into the memo."""
+        job = self._gamut_coverage_jobs.pop(key)
         try:
-            # Only the count: choosing a chart (k82's even spread) is the
-            # build's work, not the count line's.
-            from workflow.gamut_target import gamut_coverage
-            reach, total = gamut_coverage(
-                profile, margin, intent,
-                bin_dir=self._settings.get("argyll_bin_path",
-                                           "/Applications/Argyll/bin"))
+            reach, total = job.result()
         except Exception:      # noqa: BLE001 — the count line must never crash
             log.warning("gamut coverage query failed", exc_info=True)
             # Remember the FAILURE as well. It sat outside the cache, so every
@@ -22883,6 +22920,42 @@ class TabChart(QWidget):
         self._gamut_coverage_cache[key] = reach
         self._gamut_master_total = total
         return reach
+
+    def _gamut_coverage_pending(self, profile: "Path", margin: str,
+                                intent: str) -> bool:
+        """Is the reach for these settings still being asked?"""
+        try:
+            key = (str(profile), profile.stat().st_mtime, margin, intent)
+        except OSError:
+            return False
+        job = self._gamut_coverage_jobs.get(key)
+        return job is not None and not job.done()
+
+    def _poll_gamut_coverage(self) -> None:
+        """The timer's slot: collect every answer that has come in, and
+        refresh what reads it (the default count is capped by it, #162)."""
+        landed = False
+        for key in [k for k, j in self._gamut_coverage_jobs.items()
+                    if j.done()]:
+            self._collect_gamut_coverage(key)
+            landed = True
+        if not self._gamut_coverage_jobs:
+            self._gamut_coverage_timer.stop()
+        if landed and getattr(self, "_gamut_active", False):
+            self._seed_gamut_count_from_manual()
+            self._update_gamut_count_line()
+
+    def _prefetch_gamut_reach(self) -> None:
+        """Start asking the selected verification run's profile for its reach
+        before anyone opens the module, so the first click finds it known.
+        Costs the window nothing (it is asked in the background)."""
+        profile = self._gamut_profile()
+        if profile is None:
+            return
+        self._gamut_coverage(
+            profile,
+            self._gamut_margin_combo.currentData() or "safe",
+            self._gamut_intent_combo.currentData() or "absolute")
 
     def _update_gamut_count_line(self) -> None:
         """The live figures of #133 §10: coverage (which needs the profile) and
@@ -22908,7 +22981,12 @@ class TabChart(QWidget):
         cover = self._gamut_coverage(profile, margin, intent)
         master = int(getattr(self, "_gamut_master_total", 0) or 0)
         parts = []
-        if cover is not None and master:
+        if cover is None and self._gamut_coverage_pending(profile, margin,
+                                                          intent):
+            parts.append(tr(
+                "Asking your profile which of the reference colours it can "
+                "print. This takes a few seconds the first time."))
+        elif cover is not None and master:
             parts.append(tr(
                 "{n} of the {total} reference colours ({pct} %) are "
                 "printable with this profile.").format(

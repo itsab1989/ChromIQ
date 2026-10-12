@@ -93,7 +93,10 @@ def test_an_ink_limit_still_forces_the_numeric_inverse(tmp_path):
 def test_the_one_round_trip_asks_for_the_numeric_inverse():
     """Read at the call site rather than driven, because driving it needs a
     real profile and ArgyllCMS; what must not regress is the ARGUMENT."""
-    src = inspect.getsource(gamut_target._round_trip)
+    # 4.3.5-beta.2: `_round_trip` holds a lock and asks `_round_trip_unlocked`,
+    # which is where the one question now lives.
+    assert "_round_trip_unlocked(" in inspect.getsource(gamut_target._round_trip)
+    src = inspect.getsource(gamut_target._round_trip_unlocked)
     assert "numeric_inverse=True" in src, (
         "the gamut round trip inverts through the baked B2A table again; a "
         "chart built that way lands 0.366 dE00 from its own aims instead of "

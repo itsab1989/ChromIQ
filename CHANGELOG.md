@@ -2,6 +2,11 @@
 
 ## v4.3.5-beta.2 (unreleased)
 
+### Changed
+
+- **The first click on From Profile Gamut no longer freezes the window** (Create Chart, #182, Knut). Working out how many reference colours your profile can print took about 5 seconds the first time (measured on Knut's HP Color LaserJet 5550 profile), and the window waited for it. ChromIQ now asks in the background as soon as you choose a verification run with a profile, and the count line says "Asking your profile..." until the answer is in, usually before you click.
+- **Show patch distribution (3D) can show the chart as colours** (#182, Knut). A new **Show:** choice switches between **Ink amounts (RGB cube)**, as before, and **Colours through the profile (L\*a\*b\*)**: each patch where the run's profile says it lands as a colour, drawn to scale, inside the outline of everything the profile can print (its edges and sides). A From Profile Gamut chart is spaced evenly as colours, which this view shows; in the ink-amount cube the same chart can look crowded in one place and sparse in another, because a printer does not respond evenly to ink amounts. On Knut's laser printer, 56 % of the ink-amount cube makes only 5 % of its colours.
+
 ### Waiting for approval (not shown yet)
 
 - **The patch cards' patch-error and neighbour-check lines, in plain words** (Measure tab, #182, Knut). Each number on a card would say what it is, its unit and what it is compared with: the patch's colour error (ΔE*ab between its reading and its expected colour), the same difference in ΔE00 as the Measurement Report uses it, the neighbours' median colour error, and the limit with its chart type. The yellow card would no longer say "Red before" or "the reading before 6.70" without saying what the figures are. Until the words are approved the cards read as before.

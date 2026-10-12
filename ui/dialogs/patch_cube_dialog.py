@@ -29,6 +29,18 @@ from ui.tab_header import dialog_masthead
 log = get_logger(__name__)
 
 
+#: The ⓘ of the "Show:" choice (Knut, #182 6113365581).
+_VIEW_HELP = (
+    "Ink amounts: each patch sits at the red, green and blue values the "
+    "printer is asked for, from 0 to 100.\n\n"
+    "Colours through the profile: each patch sits where the profile says it "
+    "lands as a colour (L* up, a* and b* across). The lines and the faint "
+    "skin are the edges and sides of everything the profile can print.\n\n"
+    "A chart made From Profile Gamut spaces its colours evenly as colours. "
+    "A printer does not respond evenly to ink amounts, so the same chart can "
+    "look crowded in one part of the RGB cube and sparse in another.")
+
+
 class PatchCubeDialog(QDialog):
     """Modal-ish popup showing the patch set as a rotatable 3D RGB cube.
 
@@ -42,8 +54,18 @@ class PatchCubeDialog(QDialog):
                  compare_presets: list[tuple[str, Path]] | None = None,
                  numbered: bool = False,
                  lab_cloud: "tuple[list, list] | None" = None,
+                 colour_view: "tuple[list, list, object] | None" = None,
                  parent=None) -> None:
         super().__init__(parent)
+        # The same patches as COLOURS, through the run's profile, inside the
+        # outline of that profile's gamut: (Lab, display colours, outline).
+        # Offered beside the RGB cube, never instead of it (Knut, #182
+        # 6113365581: a From Profile Gamut chart is spaced evenly as colours,
+        # which the ink-amount cube cannot show).
+        self._program = list(program)
+        self._colour_view = None if lab_cloud else colour_view
+        self._view_combo = None
+        self._compare_combo = None
         self._numbered = numbered
         self._target_name = target_name or tr("Current chart")
         # Lab mode (#72): a multi-ink chart shown as a true Lab-space scatter
@@ -95,6 +117,24 @@ class PatchCubeDialog(QDialog):
         self._name_lbl = QLabel(name_text, self)
         self._name_lbl.setStyleSheet("font-weight: bold;")
         bar.addWidget(self._name_lbl)
+        if self._colour_view is not None or self._compare_presets:
+            # This window declares no accent of its own, so its dropdowns
+            # wear the one the user is already looking at: dialog_masthead's
+            # default magenta, the stroke drawn above, and the colour the
+            # patch-set editor that opens the other cube uses. Without this
+            # the popup falls through to the global cyan, which belongs to
+            # Build Profile and means nothing here.
+            self.setStyleSheet(self.styleSheet() + combo_popup_qss(SPEC_MAGENTA))
+        if self._colour_view is not None:
+            bar.addSpacing(16)
+            bar.addWidget(QLabel(tr("Show:"), self))
+            self._view_combo = QComboBox(self)
+            self._view_combo.addItem(tr("Ink amounts (RGB cube)"), "rgb")
+            self._view_combo.addItem(
+                tr("Colours through the profile (L*a*b*)"), "lab")
+            self._view_combo.setToolTip(tr(_VIEW_HELP))
+            self._view_combo.currentIndexChanged.connect(self._on_view_changed)
+            bar.addWidget(self._view_combo)
         bar.addStretch(1)
         if self._compare_presets:
             bar.addWidget(QLabel(tr("Compare with profile:"), self))
@@ -105,13 +145,6 @@ class PatchCubeDialog(QDialog):
             # row.
             self._compare_combo.setMaxVisibleItems(15)
             self._compare_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
-            # This window declares no accent of its own, so its dropdown wears
-            # the one the user is already looking at: dialog_masthead's default
-            # magenta, the stroke drawn above — and the colour the patch-set
-            # editor that opens the other cube uses. Without this the popup
-            # falls through to the global cyan, which belongs to Build Profile
-            # and means nothing here.
-            self.setStyleSheet(self.styleSheet() + combo_popup_qss(SPEC_MAGENTA))
             self._compare_combo.addItem(tr("None"), None)
             for group, items in self._compare_presets:
                 # An empty heading is the user's own presets, which Create
@@ -148,6 +181,26 @@ class PatchCubeDialog(QDialog):
         lay.addWidget(buttons)
 
     # ------------------------------------------------------------------
+    def _on_view_changed(self, _index: int) -> None:
+        """Ink amounts (the RGB cube) or colours through the profile."""
+        if self._view_combo is None or self._colour_view is None:
+            return
+        if self._view_combo.currentData() == "lab":
+            if self._compare_combo is not None:
+                # The comparison is a second RGB cube; it has no colour view.
+                self._compare_combo.setCurrentIndex(0)
+                self._compare_combo.setEnabled(False)
+            from workflow.patch_cube import lab_spacing_summary
+            labs, colors, outline = self._colour_view
+            self._panel.set_lab_cloud(labs, colors, outline,
+                                      stats=lab_spacing_summary(labs))
+            self.setWindowTitle(tr("Patch distribution — Lab space"))
+        else:
+            if self._compare_combo is not None:
+                self._compare_combo.setEnabled(True)
+            self._panel.set_program(self._program)
+            self.setWindowTitle(tr("Patch distribution — 3D RGB cube"))
+
     def _on_compare_changed(self, _index: int) -> None:
         """Open / close the side-by-side comparison cube for the picked preset."""
         path = self._compare_combo.currentData()
