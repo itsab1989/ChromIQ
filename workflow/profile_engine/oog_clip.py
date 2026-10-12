@@ -93,6 +93,10 @@ PARAMS: dict = {
     # colorimetric table (table_params), set by b2a.set_research_tokens
     "a51": False, "a51_band": 0.0, "a51_ownhue": False, "a51_nofloor": False,
     "a51_lab": False, "a51_soft": 0.0, "a51_ray": False,
+    # Agent 56 (a56-blackfade): with a51 on, the chroma of a target lifted
+    # to the floor fades smoothly as it lies deeper below the black
+    # (blackfade_k); a56_r is the order of the fade
+    "a56": False, "a56_r": 2.0, "a56_shape": "rat", "a56_hsmooth": 20.0,
 }
 
 DEFAULTS = dict(PARAMS)
@@ -309,6 +313,14 @@ A51_SOFT_TOKEN = "a51-colprofedge-soft"
 # nodes below the black move (no printable colour lies there), the map is
 # continuous at the black and monotone toward it.
 A51B_TOKEN = "a51b-colprofedge"
+# Agent 56 (D-30 part 1): with a51 on (RGB), a target lifted to the a29 floor
+# keeps its hue but its chroma fades with its depth below the black, so a
+# colour approaches the black with a smooth (C1) monotone fade instead of
+# holding its chroma to the black (int-7, Knut blue / azure) or snapping onto
+# it a few steps early (no floor, Agent 55). The fade rate per hue is
+# colprof's own: the cone ratio at which Argyll's clip metric, on a target
+# below the black, lands on the black (blackfade_alpha). See blackfade_k.
+A56_TOKEN = "a56-blackfade"
 A51_PARAMS = {"space": "cam02", "wj": 4.0, "wc": 1.0, "wh": 4.84}
 _HK = {"on": True}
 _REL = threading.local()
@@ -342,7 +354,128 @@ def table_params(p: dict = None) -> dict:
         q["dm_off"] = True
     if p.get("a51_ray"):
         q["dm_ray"] = True
+    if p.get("a56"):
+        q["a56_on"] = True
     return q
+
+
+def blackfade_k(c, depth, alpha, r: float = 2.0,
+                shape: str = "rat") -> np.ndarray:
+    """Agent 56: chroma factor for a target lifted ``depth`` L* to the floor.
+
+    With r = alpha * depth / c, colprof's clip (no floor, Argyll's metric,
+    near the black's apex) gives the lifted target's effective chroma
+    c - alpha * depth, which hits zero (the clip snaps onto the black) at
+    r = 1 with a corner. k = (1 - r / R)^R has the same first order at the
+    floor (k = 1 - r + ...), reaches zero at r = R with zero slope, and is
+    monotone: the faded chroma k * c is C1 in depth and in c. shape "rat"
+    is the long-tailed k = (1 + r / R)^-R (same first order, never zero).
+    depth <= 0 or c <= 0 gives 1 (nothing to fade)."""
+    c = np.asarray(c, float)
+    depth = np.asarray(depth, float)
+    alpha = np.broadcast_to(np.asarray(alpha, float), c.shape)
+    r_ = max(float(r), 1.0)
+    ok = (c > 1e-9) & (depth > 0.0)
+    ratio = np.where(ok, alpha * np.maximum(depth, 0.0)
+                     / np.where(ok, c, 1.0), 0.0)
+    if shape == "rat":
+        return np.where(ok, (1.0 + ratio / r_) ** -r_, 1.0)
+    return np.where(ok, np.clip(1.0 - ratio / r_, 0.0, 1.0) ** r_, 1.0)
+
+
+def _blackfade_cloud(n: int) -> np.ndarray:
+    g = np.linspace(0.0, 1.0, 41)
+    g2 = np.linspace(0.0, 0.35, 36)
+    a = np.stack(np.meshgrid(*([g] * n), indexing="ij"), -1).reshape(-1, n)
+    b = np.stack(np.meshgrid(*([g2] * n), indexing="ij"), -1).reshape(-1, n)
+    return np.unique(np.vstack([a, b]), axis=0)
+
+
+def smooth_hue_ratio(al: np.ndarray, sigma_deg: float) -> np.ndarray:
+    """Circular Gaussian smoothing (sigma in degrees) of a positive per-hue
+    ratio, in log space (a ratio, so a factor counts the same both ways)."""
+    al = np.asarray(al, float)
+    if sigma_deg <= 0.0 or not (al > 0).all():
+        return al
+    n = len(al)
+    step = 360.0 / n
+    off = np.arange(n)
+    off = np.minimum(off, n - off) * step
+    ker = np.exp(-0.5 * (off / sigma_deg) ** 2)
+    ker /= ker.sum()
+    la = np.log(al)
+    sm = np.real(np.fft.ifft(np.fft.fft(la) * np.fft.fft(ker)))
+    return np.exp(sm)
+
+
+def blackfade_alpha(model, floor: float, p: dict, fn, n_hues: int = 72,
+                    snap: float = 0.3, iters: int = 18) -> np.ndarray:
+    """Agent 56: per hue (n_hues CIELAB hues from 0 deg), the cone ratio
+    C* / depth below which a target ``d0`` L* under the black (no floor) is
+    clipped onto the black by this table's metric ``p`` in space ``fn``:
+    bisection on the target's chroma, "on the black" meaning the clip's L*
+    is within ``snap`` of the clip of the neutral target at the same depth.
+    Argyll's own geometry near the black (colprof's convergence), smoothed
+    over hue (``a56_hsmooth`` degrees, smooth_hue_ratio); RGB devices
+    (3 channels) only, memoised on the model per floor."""
+    key = ("a56", round(float(floor), 6), n_hues, p.get("space"),
+           p.get("wj"), p.get("wc"), p.get("wh"), p.get("hue_from"),
+           float(p.get("a56_hsmooth", 20.0)))
+    memo = getattr(model, "_a56_alpha", None)
+    if memo is None:
+        memo = {}
+        try:
+            model._a56_alpha = memo
+        except AttributeError:
+            pass
+    if key in memo:
+        return memo[key]
+    out = np.zeros(n_hues)
+    if model.n_channels == 3 and floor > 0.5:
+        cloud = _blackfade_cloud(3)
+        c_lab = model.predict(cloud)
+        cloud_s = fn(c_lab)
+        d0 = min(3.0, floor / 2.0)
+        h = np.radians(np.arange(n_hues) * 360.0 / n_hues)
+        hue_from = p.get("hue_from") or ""
+
+        def clip_l(c):
+            t = np.stack([np.full(n_hues, floor - d0), c * np.cos(h),
+                          c * np.sin(h)], 1)
+            t_s = fn(t)
+            w = weights(t_s, p, _frame_angle(t, t_s, fn, hue_from, p["chord"])
+                        if hue_from else None)
+            return model.predict(best_cloud_seed(t_s, w, cloud, cloud_s))[:, 0]
+
+        l_ref = clip_l(np.zeros(n_hues))
+        lo = np.zeros(n_hues)
+        hi = np.full(n_hues, 200.0)
+        for _ in range(iters):
+            mid = 0.5 * (lo + hi)
+            on_black = clip_l(mid) - l_ref < snap
+            lo = np.where(on_black, mid, lo)
+            hi = np.where(on_black, hi, mid)
+        # the fade rate may change with hue only as fast as the hue map can
+        # follow without contours: smoothed over +-sigma degrees
+        out = smooth_hue_ratio(hi / d0, float(p.get("a56_hsmooth", 20.0)))
+    memo[key] = out
+    return out
+
+
+def blackfade_targets(model, t_lab: np.ndarray, lift: np.ndarray,
+                      floor: float, p: dict, fn) -> np.ndarray:
+    """Agent 56: ``t_lab`` (already lifted to the floor) with the chroma of
+    every lifted row scaled by blackfade_k at its hue's cone ratio."""
+    al = blackfade_alpha(model, floor, p, fn)
+    knots = np.arange(len(al)) * 360.0 / len(al)
+    hue = np.degrees(np.arctan2(t_lab[:, 2], t_lab[:, 1])) % 360.0
+    a_t = np.interp(hue, knots, al, period=360.0)
+    c = np.hypot(t_lab[:, 1], t_lab[:, 2])
+    k = blackfade_k(c, lift, a_t, float(p.get("a56_r", 2.0)),
+                    str(p.get("a56_shape", "rat")))
+    out = t_lab.copy()
+    out[:, 1:] *= k[:, None]
+    return out
 
 
 def lab_to_argyll_jab(lab: np.ndarray) -> np.ndarray:
@@ -560,6 +693,9 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
                 k = np.clip(t_lab[:, 0] / np.maximum(new_l, 1e-9), 0.0, 1.0)
                 t_lab[:, 1:] *= k[:, None]
             t_lab[:, 0] = new_l
+            if p.get("a56_on"):
+                # Agent 56: the lifted chroma fades with the depth
+                t_lab = blackfade_targets(model, t_lab, lift, floor, p, fn)
         else:
             lift = None
     t_s = fn(t_lab)

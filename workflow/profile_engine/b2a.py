@@ -2147,6 +2147,13 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     p["a51_nofloor"] = oog_clip.A51_NOFLOOR_TOKEN in t
     p["a51_lab"] = oog_clip.A51_LAB_TOKEN in t
     p["a51_soft"] = 15.0 if oog_clip.A51_SOFT_TOKEN in t else 0.0
+    # Agent 56: the lifted chroma fades into the black (acts only where a51
+    # acts: table_params passes it on for the colorimetric table only)
+    p["a56"] = oog_clip.A56_TOKEN in t
+    # research knobs for the fade's order and shape (Agent 56 A/B only)
+    p["a56_r"] = float(os.environ.get("CHROMIQ_A56_R", "2.0"))
+    p["a56_shape"] = os.environ.get("CHROMIQ_A56_SHAPE", "rat")
+    p["a56_hsmooth"] = float(os.environ.get("CHROMIQ_A56_HSMOOTH", "20.0"))
     oog_clip._HK["on"] = oog_clip.A51_NOHK_TOKEN not in t
     oog_clip.set_colorimetric(False)
     for tok in t:
