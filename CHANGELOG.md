@@ -9,7 +9,7 @@
 
 ### Waiting for approval (not shown yet)
 
-- **The patch cards' patch-error and neighbour-check lines, in plain words** (Measure tab, #182, Knut). Each number on a card would say what it is, its unit and what it is compared with: the patch's colour error (ΔE*ab between its reading and its expected colour), the same difference in ΔE00 as the Measurement Report uses it, the neighbours' median colour error, and the limit with its chart type. The yellow card would no longer say "Red before" or "the reading before 6.70" without saying what the figures are. Until the words are approved the cards read as before.
+- **The patch cards' patch-error and neighbour-check lines, in plain words** (Measure tab, #182, Knut). Each line would first say what it means, then the numbers, with the technical names in brackets at the end: "This patch is 8.07 off its expected colour.", "The 4 patches most similar to it are only about 1.63 off their expected colours. At 8.07, this one stands out by 6.44.", "You read this patch again, and the new reading agrees with an earlier one. So it is probably not a misread." The card also gives the same difference as the Measurement Report measures it (ΔE00). Until the words are approved the cards read as before.
 
 ## v4.3.5-beta.1
 

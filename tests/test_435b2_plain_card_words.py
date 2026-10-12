@@ -99,65 +99,98 @@ def test_switched_on_no_old_wording_remains(qapp, plain, case):
     t = _words(_text(CASES[case]))
     for old in ("Red before", "the reading before", "reached the patch error",
                 "a large difference", "further from its expected colour",
-                "closer to its expected colour", "ΔE {", "(ΔE 14.20 off)"):
+                "colour than the 4 patches", "ΔE {",
+                "(ΔE 14.20 off)", "Without the re-read"):
         assert old not in t, (case, old)
     # Every ΔE on the card names its formula: ΔE*ab or ΔE00, never "ΔE ".
-    assert "ΔE " not in t.replace("ΔE00 (", "").replace("ΔE*ab", ""), case
+    assert "ΔE " not in t.replace("ΔE00", "").replace("ΔE*ab", ""), case
 
+
+# Basti, 2026-10-13: friendly, meaning first, numbers next, the technical
+# names in brackets at the end (his four approved style examples).
 
 def test_switched_on_the_colour_error_and_the_reports_figure(qapp, plain):
     t = _words(_text({}))
-    assert ("Colour error: ΔE*ab 8.07 between the measured and the expected "
-            "colour (CIE76, L*a*b* D50).") in t
-    assert ("The same difference in ΔE00 (CIEDE2000, the formula of the "
-            "Measurement Report): 6.46.") in t
-    assert ("Neighbour check: its colour error, ΔE*ab 8.07, is 6.44 more than "
-            "the median colour error of the 4 patches nearest in expected "
-            "colour (ΔE*ab 1.63).") in t
+    assert ("This patch is 8.07 off its expected colour. "
+            "(ΔE*ab, CIE76, L*a*b* D50.)") in t
+    assert ("The Measurement Report measures colour differences in a way that "
+            "is closer to how the eye sees them. Measured that way, this "
+            "difference is 6.46. (ΔE00, CIEDE2000.)") in t
+    assert ("The 4 patches most similar to it are only about 1.63 off their "
+            "expected colours. At 8.07, this one stands out by 6.44. "
+            "(Neighbour check, ΔE*ab, median of the 4.)") in t
+
+
+def test_switched_on_closer_equal_and_too_few(qapp, plain):
+    t = _words(_text(CASES["closer"]))
+    assert ("The 4 patches most similar to it are about 3.30 off their "
+            "expected colours. At 2.10, this one is 1.20 closer to its "
+            "expected colour than they are.") in t
+    t = _words(_text({"nb_compare": lambda loc: (3, 0.0),
+                      "nb_detail": lambda loc: (3, 0.0, 2.5, 2.5)}))
+    assert "It does not stand out from them." in t
+    t = _words(_text(CASES["few"]))
+    assert "Not compared with similar patches yet" in t
 
 
 def test_switched_on_knuts_two_yellow_cards(qapp, plain):
     t = _words(_text(CASES["yellow_neighbour"]))
-    assert ("Read again, and the two readings are nearly the same colour "
-            "(within the same-reading tolerance). Colour error: ΔE*ab 8.07 "
-            "now, ΔE*ab 6.70 at the earlier reading.") in t
-    assert ("Without the re-read it would be red by the neighbour check: its "
-            "colour error is 6.44 more than the median of the 4 patches "
-            "nearest in expected colour, above the neighbour limit (5.50, "
-            "verification charts).") in t
+    assert ("You read this patch again, and the new reading agrees with an "
+            "earlier one. So it is probably not a misread. It is 8.07 off its "
+            "expected colour now, and was 6.70 off at that earlier reading."
+            ) in t
+    assert ("Without that confirmation it would be red: it stands out from "
+            "the patches most similar to it by 6.44, more than the neighbour "
+            "limit of 5.50 for verification charts. (Neighbour check.)") in t
     t = _words(_text(CASES["yellow_limit"]))
-    assert ("Without the re-read it would be red: its colour error, ΔE*ab "
-            "8.07, is above the patch error limit (7.50, verification "
-            "charts).") in t
+    assert ("Without that confirmation it would be red: it is 8.07 off its "
+            "expected colour, more than the patch error limit of 7.50 for "
+            "verification charts. (ΔE*ab.)") in t
+
+
+def test_a_yellow_card_nobody_read_again_does_not_speak_of_a_re_read(qapp, plain):
+    """The limit line is also shown on a yellow card judged like a patch of
+    its colour range, where nothing was read again: the first wording said
+    "Without the re-read" there, which was not true."""
+    t = _words(_text({"flag": "learned", "like_loc": "C3", "warn": True,
+                      "warn_de": 7.5, "colour_range": "red"}))
+    assert "Yellow outline: judged like patch C3" in t
+    assert "Without that confirmation it would be red" in t
+    assert "re-read it would" not in t
 
 
 def test_switched_on_the_red_cards(qapp, plain):
     t = _words(_text(CASES["red_neighbour"]))
-    assert ("Red outline by the neighbour check: its colour error is 6.44 "
-            "more than the median of the 4 patches nearest in expected "
-            "colour, above the neighbour limit (5.50, verification charts)."
-            ) in t
+    assert ("Red outline: this patch stands out from the patches most similar "
+            "to it by 6.44. That is more than the neighbour limit of 5.50 for "
+            "verification charts. (Neighbour check.) Probably a misread: read "
+            "it again.") in t
     t = _words(_text(CASES["red_both"]))
-    assert "Red outline: the patch error limit" in t
-    assert ("Its colour error, ΔE*ab 8.07, is above the patch error limit "
-            "(7.50, verification charts).") in t
-    assert "It is also red by the neighbour check" in t
+    assert "Red outline: too far off its expected colour" in t
+    assert ("This patch is 8.07 off its expected colour. That is more than "
+            "the patch error limit of 7.50 for verification charts. (ΔE*ab.)"
+            ) in t
+    assert "It also stands out from the patches most similar to it by 6.44." in t
     t = _words(_text(CASES["red_fenced"]))
-    assert "(strip test)" in t and "other patches of its strip" in t
+    assert "(ΔE*ab, strip test.)" in t and "other patches of its strip" in t
 
 
 def test_switched_on_unsettled_and_green(qapp, plain):
     t = _words(_text(CASES["unsettled_two"]))
-    assert "Colour error: ΔE*ab 8.07 now, ΔE*ab 12.30 at the earlier reading." in t
-    assert "The two readings do not agree" in t and "(5.00, verification charts)" in t
+    assert ("It is 8.07 off its expected colour now, and was 12.30 off at the "
+            "earlier reading. (ΔE*ab.)") in t
+    assert ("The two readings do not agree with each other, and both are "
+            "further off than the patch error limit of 5.00 for verification "
+            "charts. So it is not clear yet which one is right.") in t
     t = _words(_text(CASES["unsettled_three"]))
-    assert "at the earlier readings (ΔE*ab): 12.30, 18.40." in t
-    assert "The 3 readings do not agree" in t
+    assert "The earlier readings were 12.30, 18.40 off. (ΔE*ab.)" in t
+    assert "You have read this patch 3 times." in t
     t = _words(_text(CASES["green_neighbour"]))
-    assert ("The red reading had a colour error of ΔE*ab 14.20 and failed the "
-            "neighbour check; the new reading passes it.") in t
+    assert ("The earlier, red reading was 14.20 off its expected colour and "
+            "stood out from the patches most similar to it.") in t
     t = _words(_text(CASES["green_limit"]))
-    assert "above the patch error limit; the new reading is not above it." in t
+    assert ("more than the patch error limit. The new reading is within the "
+            "limit. (ΔE*ab.)") in t
 
 
 @pytest.mark.parametrize("case", sorted(CASES))

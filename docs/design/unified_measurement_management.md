@@ -6234,28 +6234,30 @@ alone.
 
 *New 2026-10-12. Knut, [6108217111](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6108217111): "This text is very confusing. Are you saying that the reading before was 6.70 and now confirmed as dE*ab 8.07? Then you say 'Red before: dE 6.44 ...' What do you mean? ... Also, which unit is 6.70, it is dE or dE\*ab? All the hover-text messages for the patch error test and neighbour limit check must be reworded in an understandable text that clearly explains what is meant and what is seen." The words are ours and wait here; **while this message is not approved the card shows the approved texts unchanged** (M-PATCH-NEIGHBOUR, M-PATCH-NEIGHBOUR-VARIANTS, M-PATCH-LIMIT, M-PATCH-CORRECTED and its variants, M-PATCH-UNSETTLED, and the card's own "ΔE\*ab 8.07, the reading before 6.70"). Approved, it replaces them line for line. One term carries the card: a patch's **colour error** is the ΔE\*ab (CIE76, L\*a\*b\* D50) between its reading and its expected colour, the figure the patch error limit is compared with; the neighbour check compares that colour error with the median colour error of the 2 to 4 patches nearest in expected colour. Line 1 replaces the colour section's "ΔE\*ab 8.07 / (CIE76, L\*a\*b\* D50)" and line 2 is new: the same difference in ΔE00, the formula the Measurement Report uses, so a card can be found in the report (the report's own reference is the chart's design; on a verification chart From Profile Gamut it differs from the profile's prediction by 0.01 on most patches, up to ΔE\*ab 3 at the edge of the gamut). Lines 3 to 6 replace M-PATCH-NEIGHBOUR lines 3 to 5 and M-PATCH-NEIGHBOUR-VARIANTS line 2; line 7 the red card's headline sentence (M-PATCH-NEIGHBOUR line 1); line 8 M-PATCH-NEIGHBOUR-VARIANTS line 1; line 9 the yellow card's "Red before: …" (M-PATCH-NEIGHBOUR line 6), which named the neighbour check's verdict on the current reading as if it were history: it says instead what the outline would be without the re-read. Lines 10 to 12 replace M-PATCH-LIMIT's headline and lines 1 and 2 ("reached" becomes "is above": a value on the limit has not been red since 4.3.4); line 13 the yellow card's limit line. Line 14 replaces "ΔE\*ab {de}, the reading before {prev}" (the earlier reading is the one the re-read agreed with). Lines 15 to 18 replace M-PATCH-UNSETTLED lines 1 to 5, line 15 with one earlier reading and line 16 with more. Lines 19 and 20 replace M-PATCH-CORRECTED line 1 and 2 and M-PATCH-CORRECTED-VARIANTS line 1. The headlines "Yellow outline: confirmed by a re-read", "Red outline: the readings do not agree", "Green outline: corrected by a re-read", "Probably a misread: read it again.", the re-read lines and every other line of the cards are unchanged. Placeholders: {de}, {prev}, {own}, {median}, {d}, {limit}, {de00} with two decimals, the figures the tests compare; {kind} one of M-PATCH-LIMIT's chart-type phrases; {n} 2 to 4 (lines 3 to 9), or the number of readings, 3 or more (line 18); {prevs} the earlier readings' colour errors, joined by ", ". Whole sentences: the card wraps them to its width.*
 
+*Revised 2026-10-13 (Basti: "correct but too technical"): every line leads with what it means in plain words, then the numbers, one thought per sentence, the technical names (ΔE\*ab, ΔE00, median, the tests' names, the same-reading tolerance) in brackets at the end, and what it means for the user ("probably not a misread", "not clear yet which one is right"). Two statements of the first wording were not true on every card and are corrected: lines 9 and 13 said "Without the re-read" also on yellow cards confirmed by similar patches or judged like a patch of their colour range, where nothing was read again (they now say "Without that confirmation", and the headline above names it); and line 2 no longer suggests the report shows the card's figure, because the report compares a From Profile Gamut chart with the chart's design, which differs from the profile's prediction by up to ΔE\*ab 2.96 near the gamut's edge on Knut's run 2 chart. Line 10's headline is "Red outline: too far off its expected colour". Placeholders unchanged.*
+
 > **Patch error limit and neighbour check on the patch card, in plain words**
 >
-> Colour error: ΔE*ab {de} between the measured and the expected colour (CIE76, L*a*b* D50).
-> The same difference in ΔE00 (CIEDE2000, the formula of the Measurement Report): {de00}.
-> Neighbour check: its colour error, ΔE*ab {own}, is {d} more than the median colour error of the {n} patches nearest in expected colour (ΔE*ab {median}).
-> Neighbour check: its colour error, ΔE*ab {own}, is {d} less than the median colour error of the {n} patches nearest in expected colour (ΔE*ab {median}).
-> Neighbour check: its colour error, ΔE*ab {own}, is the same as the median colour error of the {n} patches nearest in expected colour.
-> Neighbour check: not done yet, because fewer than 2 read patches have an expected colour within the colour-neighbour radius.
-> Red outline by the neighbour check: its colour error is {d} more than the median of the {n} patches nearest in expected colour, above the neighbour limit ({limit}, {kind}).
-> It is also red by the neighbour check: its colour error is {d} more than the median of the {n} patches nearest in expected colour, above the neighbour limit ({limit}, {kind}).
-> Without the re-read it would be red by the neighbour check: its colour error is {d} more than the median of the {n} patches nearest in expected colour, above the neighbour limit ({limit}, {kind}).
-> Red outline: the patch error limit
-> Its colour error, ΔE*ab {de}, is above the patch error limit ({limit}, {kind}).
-> Its colour error, ΔE*ab {de}, is above the patch error limit ({limit}, {kind}), and it stands out from the other patches of its strip (strip test).
-> Without the re-read it would be red: its colour error, ΔE*ab {de}, is above the patch error limit ({limit}, {kind}).
-> Read again, and the two readings are nearly the same colour (within the same-reading tolerance). Colour error: ΔE*ab {de} now, ΔE*ab {prev} at the earlier reading.
-> Colour error: ΔE*ab {de} now, ΔE*ab {prevs} at the earlier reading.
-> Colour error: ΔE*ab {de} now; at the earlier readings (ΔE*ab): {prevs}.
-> The two readings do not agree: they differ by more than the same-reading tolerance, and both colour errors are above the patch error limit ({limit}, {kind}).
-> The {n} readings do not agree: this reading is not within the same-reading tolerance of any earlier one, and all colour errors are above the patch error limit ({limit}, {kind}).
-> The red reading had a colour error of ΔE*ab {de} and failed the neighbour check; the new reading passes it.
-> The red reading had a colour error of ΔE*ab {de}, above the patch error limit; the new reading is not above it.
+> This patch is {de} off its expected colour. (ΔE*ab, CIE76, L*a*b* D50.)
+> The Measurement Report measures colour differences in a way that is closer to how the eye sees them. Measured that way, this difference is {de00}. (ΔE00, CIEDE2000.)
+> The {n} patches most similar to it are only about {median} off their expected colours. At {own}, this one stands out by {d}. (Neighbour check, ΔE*ab, median of the {n}.)
+> The {n} patches most similar to it are about {median} off their expected colours. At {own}, this one is {d} closer to its expected colour than they are. (Neighbour check, ΔE*ab, median of the {n}.)
+> The {n} patches most similar to it are about as far off their expected colours as this one, at {own}. It does not stand out from them. (Neighbour check, ΔE*ab, median of the {n}.)
+> Not compared with similar patches yet: fewer than 2 patches with a similar expected colour have been read. (Neighbour check, colour-neighbour radius.)
+> Red outline: this patch stands out from the patches most similar to it by {d}. That is more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
+> It also stands out from the patches most similar to it by {d}. That is more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
+> Without that confirmation it would be red: it stands out from the patches most similar to it by {d}, more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
+> Red outline: too far off its expected colour
+> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}. (ΔE*ab.)
+> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}. It also stands out from the other patches of its strip. (ΔE*ab, strip test.)
+> Without that confirmation it would be red: it is {de} off its expected colour, more than the patch error limit of {limit} for {kind}. (ΔE*ab.)
+> You read this patch again, and the new reading agrees with an earlier one. So it is probably not a misread. It is {de} off its expected colour now, and was {prev} off at that earlier reading. (ΔE*ab; the two readings are within the same-reading tolerance.)
+> It is {de} off its expected colour now, and was {prevs} off at the earlier reading. (ΔE*ab.)
+> It is {de} off its expected colour now. The earlier readings were {prevs} off. (ΔE*ab.)
+> The two readings do not agree with each other, and both are further off than the patch error limit of {limit} for {kind}. So it is not clear yet which one is right. (They differ by more than the same-reading tolerance.)
+> You have read this patch {n} times. This reading agrees with none of the earlier ones, and every reading is further off than the patch error limit of {limit} for {kind}. So it is not clear yet which one is right. (Same-reading tolerance.)
+> The earlier, red reading was {de} off its expected colour and stood out from the patches most similar to it. The new reading does not stand out more than the neighbour limit allows. (ΔE*ab, neighbour check.)
+> The earlier, red reading was {de} off its expected colour, more than the patch error limit. The new reading is within the limit. (ΔE*ab.)
 
 ### M-PATCH-UNSETTLED · PROPOSED · a re-read past the limit that agrees with no earlier reading — Measure tab preview, #182 beta 12
 

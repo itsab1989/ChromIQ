@@ -2161,72 +2161,95 @@ _CARD_UNSETTLED_4 = "one of them shows which value is real."
 #: figures the tests compare; {kind}: one of M-PATCH-LIMIT's chart-type
 #: phrases; {n}: 2 to 4; {prevs}: the earlier readings' colour errors,
 #: joined by ", ". Whole sentences: the card wraps them to its width.
+#: Basti, 2026-10-13: correct but too technical. Each line leads with what it
+#: means in plain words, then the numbers; one thought per sentence; the
+#: technical names (ΔE*ab, ΔE00, median, the tests' names) in brackets at the
+#: end; and it says what it means for the user ("probably a misread",
+#: "probably real"). Every sentence is true on every card that shows it:
+#: line 9 and 13 are also shown on yellow cards confirmed by similar patches
+#: or judged like a patch of their range, where no re-read happened, so they
+#: say "that confirmation" (the headline above names it), not "the re-read".
 #: Line 1 and 2: the colour section, under "Measured" (both colours shown).
-_CARDP_DE = ("Colour error: ΔE*ab {de} between the measured and the "
-             "expected colour (CIE76, L*a*b* D50).")
-_CARDP_DE00 = ("The same difference in ΔE00 (CIEDE2000, the formula of the "
-               "Measurement Report): {de00}.")
+#: Line 2 does not say the report SHOWS this figure: it compares a From
+#: Profile Gamut chart with the chart's design, which can differ from the
+#: profile's prediction near the edge of the gamut (up to ΔE*ab 2.96 on
+#: Knut's run 2 chart).
+_CARDP_DE = ("This patch is {de} off its expected colour. "
+             "(ΔE*ab, CIE76, L*a*b* D50.)")
+_CARDP_DE00 = ("The Measurement Report measures colour differences in a way "
+               "that is closer to how the eye sees them. Measured that way, "
+               "this difference is {de00}. (ΔE00, CIEDE2000.)")
 #: Lines 3 to 6: the neighbour comparison on every card it judges.
-_CARDP_NBC_FURTHER = ("Neighbour check: its colour error, ΔE*ab {own}, is {d} "
-                      "more than the median colour error of the {n} patches "
-                      "nearest in expected colour (ΔE*ab {median}).")
-_CARDP_NBC_CLOSER = ("Neighbour check: its colour error, ΔE*ab {own}, is {d} "
-                     "less than the median colour error of the {n} patches "
-                     "nearest in expected colour (ΔE*ab {median}).")
-_CARDP_NBC_EQUAL = ("Neighbour check: its colour error, ΔE*ab {own}, is the "
-                    "same as the median colour error of the {n} patches "
-                    "nearest in expected colour.")
-_CARDP_NBC_FEW = ("Neighbour check: not done yet, because fewer than 2 read "
-                  "patches have an expected colour within the "
-                  "colour-neighbour radius.")
+_CARDP_NBC_FURTHER = ("The {n} patches most similar to it are only about "
+                      "{median} off their expected colours. At {own}, this "
+                      "one stands out by {d}. (Neighbour check, ΔE*ab, "
+                      "median of the {n}.)")
+_CARDP_NBC_CLOSER = ("The {n} patches most similar to it are about {median} "
+                     "off their expected colours. At {own}, this one is {d} "
+                     "closer to its expected colour than they are. "
+                     "(Neighbour check, ΔE*ab, median of the {n}.)")
+_CARDP_NBC_EQUAL = ("The {n} patches most similar to it are about as far off "
+                    "their expected colours as this one, at {own}. It does "
+                    "not stand out from them. (Neighbour check, ΔE*ab, "
+                    "median of the {n}.)")
+_CARDP_NBC_FEW = ("Not compared with similar patches yet: fewer than 2 "
+                  "patches with a similar expected colour have been read. "
+                  "(Neighbour check, colour-neighbour radius.)")
 #: Lines 7 to 9: why the outline is red, or would be without the re-read.
-_CARDP_NB_RED = ("Red outline by the neighbour check: its colour error is {d} "
-                 "more than the median of the {n} patches nearest in expected "
-                 "colour, above the neighbour limit ({limit}, {kind}).")
-_CARDP_NB_ALSO = ("It is also red by the neighbour check: its colour error is "
-                  "{d} more than the median of the {n} patches nearest in "
-                  "expected colour, above the neighbour limit ({limit}, "
-                  "{kind}).")
-_CARDP_NB_YELLOW = ("Without the re-read it would be red by the neighbour "
-                    "check: its colour error is {d} more than the median of "
-                    "the {n} patches nearest in expected colour, above the "
-                    "neighbour limit ({limit}, {kind}).")
+_CARDP_NB_RED = ("Red outline: this patch stands out from the patches most "
+                 "similar to it by {d}. That is more than the neighbour "
+                 "limit of {limit} for {kind}. (Neighbour check.)")
+_CARDP_NB_ALSO = ("It also stands out from the patches most similar to it by "
+                  "{d}. That is more than the neighbour limit of {limit} for "
+                  "{kind}. (Neighbour check.)")
+_CARDP_NB_YELLOW = ("Without that confirmation it would be red: it stands "
+                    "out from the patches most similar to it by {d}, more "
+                    "than the neighbour limit of {limit} for {kind}. "
+                    "(Neighbour check.)")
 #: Lines 10 to 13: the patch error limit.
-_CARDP_LIMIT_HEAD = "Red outline: the patch error limit"
-_CARDP_LIMIT = ("Its colour error, ΔE*ab {de}, is above the patch error limit "
-                "({limit}, {kind}).")
-_CARDP_LIMIT_FENCED = ("Its colour error, ΔE*ab {de}, is above the patch error "
-                       "limit ({limit}, {kind}), and it stands out from the "
-                       "other patches of its strip (strip test).")
-_CARDP_LIMIT_YELLOW = ("Without the re-read it would be red: its colour error, "
-                       "ΔE*ab {de}, is above the patch error limit ({limit}, "
-                       "{kind}).")
+_CARDP_LIMIT_HEAD = "Red outline: too far off its expected colour"
+_CARDP_LIMIT = ("This patch is {de} off its expected colour. That is more "
+                "than the patch error limit of {limit} for {kind}. (ΔE*ab.)")
+_CARDP_LIMIT_FENCED = ("This patch is {de} off its expected colour. That is "
+                       "more than the patch error limit of {limit} for "
+                       "{kind}. It also stands out from the other patches of "
+                       "its strip. (ΔE*ab, strip test.)")
+_CARDP_LIMIT_YELLOW = ("Without that confirmation it would be red: it is {de} "
+                       "off its expected colour, more than the patch error "
+                       "limit of {limit} for {kind}. (ΔE*ab.)")
 #: Line 14: the yellow card of a patch its re-read confirmed, under its
-#: headline "Yellow outline: confirmed by a re-read" (unchanged).
-_CARDP_CONFIRMED = ("Read again, and the two readings are nearly the same "
-                    "colour (within the same-reading tolerance). Colour error: "
-                    "ΔE*ab {de} now, ΔE*ab {prev} at the earlier reading.")
+#: headline "Yellow outline: confirmed by a re-read" (unchanged). {prev}: the
+#: earlier reading the re-read agreed with.
+_CARDP_CONFIRMED = ("You read this patch again, and the new reading agrees "
+                    "with an earlier one. So it is probably not a misread. "
+                    "It is {de} off its expected colour now, and was {prev} "
+                    "off at that earlier reading. (ΔE*ab; the two readings "
+                    "are within the same-reading tolerance.)")
 #: Lines 15 to 18: the red card of readings that do not agree (10.10a),
 #: under its headline "Red outline: the readings do not agree" (unchanged).
-_CARDP_UNSETTLED_DE_ONE = ("Colour error: ΔE*ab {de} now, ΔE*ab {prevs} at "
-                           "the earlier reading.")
-_CARDP_UNSETTLED_DE = ("Colour error: ΔE*ab {de} now; at the earlier "
-                       "readings (ΔE*ab): {prevs}.")
-_CARDP_UNSETTLED_TWO = ("The two readings do not agree: they differ by more "
-                        "than the same-reading tolerance, and both colour "
-                        "errors are above the patch error limit ({limit}, "
-                        "{kind}).")
-_CARDP_UNSETTLED_MANY = ("The {n} readings do not agree: this reading is not "
-                         "within the same-reading tolerance of any earlier "
-                         "one, and all colour errors are above the patch "
-                         "error limit ({limit}, {kind}).")
+_CARDP_UNSETTLED_DE_ONE = ("It is {de} off its expected colour now, and was "
+                           "{prevs} off at the earlier reading. (ΔE*ab.)")
+_CARDP_UNSETTLED_DE = ("It is {de} off its expected colour now. The earlier "
+                       "readings were {prevs} off. (ΔE*ab.)")
+_CARDP_UNSETTLED_TWO = ("The two readings do not agree with each other, and "
+                        "both are further off than the patch error limit of "
+                        "{limit} for {kind}. So it is not clear yet which "
+                        "one is right. (They differ by more than the "
+                        "same-reading tolerance.)")
+_CARDP_UNSETTLED_MANY = ("You have read this patch {n} times. This reading "
+                         "agrees with none of the earlier ones, and every "
+                         "reading is further off than the patch error limit "
+                         "of {limit} for {kind}. So it is not clear yet "
+                         "which one is right. (Same-reading tolerance.)")
 #: Lines 19 and 20: the green card, under its headline "Green outline:
 #: corrected by a re-read" and above "It replaces the misread." (unchanged).
-_CARDP_GREEN_NB = ("The red reading had a colour error of ΔE*ab {de} and "
-                   "failed the neighbour check; the new reading passes it.")
-_CARDP_GREEN_LIMIT = ("The red reading had a colour error of ΔE*ab {de}, "
-                      "above the patch error limit; the new reading is not "
-                      "above it.")
+_CARDP_GREEN_NB = ("The earlier, red reading was {de} off its expected "
+                   "colour and stood out from the patches most similar to "
+                   "it. The new reading does not stand out more than the "
+                   "neighbour limit allows. (ΔE*ab, neighbour check.)")
+_CARDP_GREEN_LIMIT = ("The earlier, red reading was {de} off its expected "
+                      "colour, more than the patch error limit. The new "
+                      "reading is within the limit. (ΔE*ab.)")
 _CARDP_HEADLINE = "Patch error limit and neighbour check on the patch card, in plain words"
 M_PATCH_CARD_PLAIN = _m(
     "M-PATCH-CARD-PLAIN",
