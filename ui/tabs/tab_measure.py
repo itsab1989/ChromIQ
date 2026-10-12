@@ -9864,8 +9864,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from ui.ti2_loader import patch_measurement_instructions_html
         from workflow import measurement_messages as M
 
+        from ui.ti2_loader import underlay_tip_html
         title, body = M.M_CR30_HOW_TO_MEASURE.render(
-            how=patch_measurement_instructions_html("cr30"))
+            how=patch_measurement_instructions_html("cr30")
+            + underlay_tip_html("cr30"))
         dlg = QDialog(self)
         dlg.setWindowTitle(title)
         dlg.setMinimumWidth(520)
@@ -11054,6 +11056,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # ones for the same instrument (Knut, #131 2026-07-28).
         _how = (patch_measurement_instructions_html(_fam) if self._spot_session
                 else measurement_instructions_html(_fam))
+        # Knut, #182 6123470301: an instrument with no reading board says what
+        # must lie under the chart (M-CAL-DONE-UNDERLAY, "" until approved).
+        from ui.ti2_loader import underlay_tip_html
+        _how += underlay_tip_html(_fam)
 
         # THE DIAL AGAIN, IN ITS MEASURING POSITION. The calibration window
         # showed the wheel turned to the gear; this one shows the same wheel
@@ -16351,6 +16357,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         card needs: how this measurement is read (the card's last lines
         say "after each strip" or "after each patch")."""
         common = {"nb_compare": self._neighbour_compare,
+                  "nb_detail": self._neighbour_compare_detail,
                   "pbp": bool(self._card_reads_patch_by_patch())}
         if f is None:
             return {"neighbour": None, **common}
@@ -16387,6 +16394,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return None
         try:
             return nc.comparison(str(loc))
+        except Exception:      # noqa: BLE001 — a card is never worth a crash
+            return None
+
+    def _neighbour_compare_detail(self, loc) -> "tuple | None":
+        """:meth:`_neighbour_compare` with the patch's own colour error and
+        its neighbours' median, ``(n, further, own, median)``, for the card
+        that names both (Knut, #182 6108217111; M-PATCH-CARD-PLAIN)."""
+        nc = getattr(self, "_nb_check" if self._neighbour_check_applies()
+                     else "_nb_card", None)
+        if nc is None:
+            return None
+        try:
+            return nc.comparison_detail(str(loc))
         except Exception:      # noqa: BLE001 — a card is never worth a crash
             return None
 

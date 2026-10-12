@@ -52,6 +52,7 @@ import json
 import math
 import struct
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -324,7 +325,22 @@ def clear_round_trip_cache() -> None:
     _DENSITY_CACHE.clear()
 
 
-def _round_trip(
+#: One question to xicclu at a time for the REAL runner, so a reach asked in
+#: the background (:func:`gamut_coverage_async`, the first click on FROM
+#: PROFILE GAMUT) and a Generate pressed while it runs do not both ask the
+#: same profile the same thing: the second waits and then reads the memo.
+_CACHE_LOCK = threading.RLock()
+
+
+def _round_trip(labs, profile, bin_dir, letter, runner):
+    """:func:`_round_trip_unlocked`, one real question at a time."""
+    if runner is subprocess.run:
+        with _CACHE_LOCK:
+            return _round_trip_unlocked(labs, profile, bin_dir, letter, runner)
+    return _round_trip_unlocked(labs, profile, bin_dir, letter, runner)
+
+
+def _round_trip_unlocked(
     labs: "list[tuple[float, float, float]]",
     profile: Path,
     bin_dir: "str | Path",
@@ -459,8 +475,16 @@ _DENSITY_CACHE: "dict[tuple, tuple]" = {}
 _DENSITY_GRID = 25
 
 
-def _gamut_density(profile: Path, bin_dir: "str | Path", letter: str,
-                   runner: "Callable[..., subprocess.CompletedProcess]"):
+def _gamut_density(profile, bin_dir, letter, runner):
+    """:func:`_gamut_density_unlocked`, one real question at a time."""
+    if runner is subprocess.run:
+        with _CACHE_LOCK:
+            return _gamut_density_unlocked(profile, bin_dir, letter, runner)
+    return _gamut_density_unlocked(profile, bin_dir, letter, runner)
+
+
+def _gamut_density_unlocked(profile: Path, bin_dir: "str | Path", letter: str,
+                            runner: "Callable[..., subprocess.CompletedProcess]"):
     """The profile's gamut VOLUME as weighted samples: ``(centres, volumes,
     grid, cell)``, *grid* the grid's own Lab points and *cell* the largest
     distance between two corners of one grid cell (see :func:`_round_trip_near`).
@@ -816,6 +840,47 @@ def gamut_coverage(profile: Path, margin: str, intent: str, *,
             if lab2 is not None and math.dist(lab, lab2) <= threshold
             and device_is_printable(device[i]))
     return n, len(labs)
+
+
+#: The background worker for :func:`gamut_coverage_async`: ONE thread, so two
+#: reaches never compete for the same profile, created on first use.
+_COVERAGE_POOL = None
+#: In-flight reach questions by (profile, margin, intent, bin dir, list).
+_COVERAGE_JOBS: dict = {}
+_JOBS_LOCK = threading.Lock()
+
+
+def gamut_coverage_async(profile: Path, margin: str, intent: str, *,
+                         bin_dir: "str | Path",
+                         master_path: "Path | None" = None):
+    """:func:`gamut_coverage` on a background thread: a
+    ``concurrent.futures.Future`` whose result is ``(reachable, total)`` (or
+    whose exception is the one the call raised).
+
+    Knut, #182 6113365581: the first click on FROM PROFILE GAMUT took several
+    seconds and later clicks did not. That first click asked the profile about
+    every candidate colour near its gamut (measured on his CLJ5550 profile:
+    4.4 s of xicclu, 0.2 s more for the gamut volume) ON THE WINDOW'S THREAD,
+    to write one count line; later clicks read the tab's memo. Asked here
+    instead, the window stays live, and because the answer lands in the same
+    memo :func:`select_gamut_targets` reads, the Generate that follows is
+    faster too. A second request for the same question while the first runs
+    gets the same Future. Nothing here touches Qt."""
+    from concurrent.futures import ThreadPoolExecutor
+    global _COVERAGE_POOL
+    key = (str(profile), margin, intent, str(bin_dir), str(master_path))
+    with _JOBS_LOCK:
+        job = _COVERAGE_JOBS.get(key)
+        if job is not None and not job.done():
+            return job
+        if _COVERAGE_POOL is None:
+            _COVERAGE_POOL = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="chromiq-gamut-reach")
+        job = _COVERAGE_POOL.submit(gamut_coverage, Path(profile), margin,
+                                    intent, bin_dir=bin_dir,
+                                    master_path=master_path)
+        _COVERAGE_JOBS[key] = job
+    return job
 
 
 def select_gamut_targets(

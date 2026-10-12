@@ -2494,7 +2494,52 @@ class MainWindow(QMainWindow):
         # post-#70 doesn't describe the layout — show the neutral "Current chart"
         # label instead of a misleading profile name (Knut, #70 follow-up).
         PatchCubeDialog(program, mode=mode,
-                        compare_presets=presets, parent=self).exec()
+                        compare_presets=presets,
+                        colour_view=self._patch_cube_colour_view(chart, program),
+                        parent=self).exec()
+
+    def _patch_cube_colour_view(self, chart, program):
+        """The chart's patches as COLOURS through the selected run's profile,
+        with that profile's gamut outline, for the 3D tool's "Show:" choice
+        (Knut, #182 6113365581). ``(labs, colours, outline)``, or None when
+        there is no profile to ask or it cannot be asked (the tool then shows
+        the RGB cube alone, as before). Never raises.
+
+        In the intent the chart was made for when it records one (a From
+        Profile Gamut chart's colorimetric reference), absolute otherwise."""
+        try:
+            profile = self._tab_chart._gamut_profile()
+            if profile is None:
+                return None
+            from pathlib import Path
+            import json
+            letter = "a"
+            sidecar = Path(chart).with_name(f"{Path(chart).stem}.channels.json")
+            ref_name = ""
+            if sidecar.is_file():
+                ref_name = json.loads(sidecar.read_text(encoding="utf-8")
+                                      ).get("colorimetric_reference") or ""
+            if ref_name:
+                from workflow.gamut_target import (intent_letter,
+                                                   read_colorimetric_reference)
+                ref = read_colorimetric_reference(Path(chart).with_name(ref_name))
+                if ref and ref.get("intent"):
+                    letter = intent_letter(ref["intent"])
+            bin_dir = self._settings.get("argyll_bin_path",
+                                         "/Applications/Argyll/bin")
+            from workflow.patch_cube import gamut_outline
+            from workflow.xicclu_runner import forward_lab
+            labs = forward_lab([tuple(p[:3]) for p in program], profile,
+                               bin_dir, intent=letter)
+            if len(labs) != len(program):
+                return None
+            outline = gamut_outline(profile, bin_dir, intent=letter)
+            colours = [tuple(int(max(0, min(255, round(v / 100.0 * 255.0))))
+                             for v in p[:3]) for p in program]
+            return labs, colours, outline
+        except Exception as exc:  # noqa: BLE001 — never block the viewer on this
+            log.warning("patch cube colour view unavailable: %s", exc)
+            return None
 
     def _show_nchannel_cube(self, chart) -> bool:
         """3D distribution for a multi-ink chart (#72): a true Lab-space

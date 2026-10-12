@@ -955,6 +955,15 @@ class _PatchInfoTile(QWidget):
 
         rows: list[tuple["QColor | None", str]] = []
         loc = str(info.get("loc", "")).strip()
+        # Knut, #182 6108217111: every number of the patch error limit and
+        # the neighbour check says what it is, in which unit, compared with
+        # what. Those words (M-PATCH-CARD-PLAIN) wait for approval; until
+        # then the card shows the approved ones, unchanged.
+        from workflow import measurement_messages as _mmp
+        plain = bool(_mmp.M_PATCH_CARD_PLAIN.approved)
+
+        def add_text(text: str) -> None:
+            rows.extend((None, t) for t in card_wrap(text))
         rows.append((None, tr("Patch {loc}").format(loc=loc) if loc
                      else tr("Patch")))
 
@@ -984,7 +993,21 @@ class _PatchInfoTile(QWidget):
         # "Please show what the value means, which standard it is calculated
         # with"). The reading engine computes it as CIE76 ΔE*ab on L*a*b*
         # under D50, which is what the two Lab lines above are shown in too.
-        if view_mode == "both":
+        if view_mode == "both" and plain:
+            # The colour error, and the same difference in the Measurement
+            # Report's formula, so a card can be found in the report.
+            from workflow.ti3_analysis import ciede2000
+            rows.append((None, ""))
+            add_text(tr(_mmp._CARDP_DE).format(
+                de=_shown(float(info.get("de", 0.0)))))
+            try:
+                de00 = ciede2000(
+                    tuple(float(v) for v in info.get("meas_lab")[:3]),
+                    tuple(float(v) for v in info.get("exp_lab")[:3]))
+                add_text(tr(_mmp._CARDP_DE00).format(de00=_shown(de00)))
+            except (TypeError, ValueError, IndexError):
+                pass
+        elif view_mode == "both":
             rows.append((None, tr("ΔE*ab  {de:.2f}").format(
                 de=float(info.get("de", 0.0)))))
             rows.append((None, tr("  (CIE76, L*a*b* D50)")))
@@ -994,11 +1017,10 @@ class _PatchInfoTile(QWidget):
         # Beta 17 (Knut #182 6078174421, approved 6084176226): one sentence,
         # Knut's four steps' number; "closer to" below 0, no value at 0.0.
         # An empty line between topics (Knut 6071004702).
-        def add_text(text: str) -> None:
-            rows.extend((None, t) for t in card_wrap(text))
-
         nbc = info.get("nb_compare")
         cmp_ = nbc(loc) if callable(nbc) else None
+        nbd = info.get("nb_detail")
+        detail = nbd(loc) if (plain and callable(nbd)) else None
         if show_meas and cmp_ is not None:
             from workflow import measurement_messages as _mmc
             from workflow.neighbour_check import MIN_COMPARED as _NB_MIN
@@ -1008,14 +1030,21 @@ class _PatchInfoTile(QWidget):
                 # Two decimals, the figure the Neighbour limit is compared
                 # at (Knut, #182 6102031563).
                 d = _shown(abs(fu))
-                if float(d) == 0.0:
+                if plain and detail is not None:
+                    own, med = _shown(float(detail[2])), _shown(float(detail[3]))
+                    add_text(tr(_mmc._CARDP_NBC_EQUAL if float(d) == 0.0
+                                else _mmc._CARDP_NBC_CLOSER if fu < 0
+                                else _mmc._CARDP_NBC_FURTHER).format(
+                                    d=d, n=n_c, own=own, median=med))
+                elif float(d) == 0.0:
                     add_text(tr(_mmc._CARD_NBC_EQUAL_S).format(n=n_c))
                 else:
                     add_text(tr(_mmc._CARD_NBC_CLOSER_S if fu < 0
                                 else _mmc._CARD_NBC_FURTHER_S).format(
                                     d=d, n=n_c))
             else:
-                add_text(tr(_mmc._CARD_NBC_FEW_S))
+                add_text(tr(_mmc._CARDP_NBC_FEW if plain
+                            else _mmc._CARD_NBC_FEW_S))
         # WHY THE RED OUTLINE, at the bottom and set apart from the numbers
         # (Knut, #202 5951426710): the outline was never explained where it
         # is seen. In every view mode, because the outline is drawn in every
@@ -1095,33 +1124,47 @@ class _PatchInfoTile(QWidget):
             return tr(text).format(
                 d=_shown(abs(float(nb.get('further', 0.0)))),
                 n=int(nb.get("n", 0)),
-                limit=_shown(float(nb.get('limit', 0.0))))
+                limit=_shown(float(nb.get('limit', 0.0))),
+                kind=kind_phrase())
 
         kind = str(info.get("kind", "") or "")
         if kind not in _mm.CARD_KIND_PHRASES:
             kind = ("verification" if verify else
                     "accurate" if info.get("accurate") else "estimated")
 
-        def limit_sentence(fenced: bool = False) -> str:
+        def kind_phrase() -> str:
+            """The chart type the limits of Preferences ▸ Measurement were
+            taken from, in M-PATCH-LIMIT's words."""
+            return {"estimated": tr(_mm._CARD_KIND_ESTIMATED),
+                    "accurate": tr(_mm._CARD_KIND_ACCURATE),
+                    "verification": tr(_mm._CARD_KIND_VERIFICATION),
+                    "calibration": tr(_mm._CARD_KIND_CALIBRATION)}[kind]
+
+        def limit_sentence(fenced: bool = False, yellow: bool = False) -> str:
             """"ΔE*ab X reached the patch error limit (L, chart type)", the
             limit named by its proper name (Knut 6082015002; card approved
-            in 6084176226)."""
-            return tr(_mm._CARD_LIMIT_FENCED_S if fenced
-                      else _mm._CARD_LIMIT_S).format(
+            in 6084176226). *yellow*: on a card whose re-read confirmed it,
+            in the plain words ("Without the re-read it would be red")."""
+            if plain:
+                text = (_mm._CARDP_LIMIT_YELLOW if yellow else
+                        _mm._CARDP_LIMIT_FENCED if fenced else
+                        _mm._CARDP_LIMIT)
+            else:
+                text = (_mm._CARD_LIMIT_FENCED_S if fenced
+                        else _mm._CARD_LIMIT_S)
+            return tr(text).format(
                 de=_shown(float(info.get('de', 0.0))),
                 limit=_shown(float(info.get('warn_de', 0.0))),
-                kind={"estimated": tr(_mm._CARD_KIND_ESTIMATED),
-                      "accurate": tr(_mm._CARD_KIND_ACCURATE),
-                      "verification": tr(_mm._CARD_KIND_VERIFICATION),
-                      "calibration": tr(_mm._CARD_KIND_CALIBRATION)}[kind])
+                kind=kind_phrase())
 
         def limit_line() -> None:
             """Why it was red: the patch error limit, or, for a patch only
             the neighbour check flagged, the neighbour check."""
             if limit_hit:
-                add_text(limit_sentence())
+                add_text(limit_sentence(yellow=True))
             elif nb:
-                add_text(nb_fmt(_mm._CARD_NB_YELLOW_S))
+                add_text(nb_fmt(_mm._CARDP_NB_YELLOW if plain
+                                else _mm._CARD_NB_YELLOW_S))
 
         if flagged and flag == "confirmed" and peer_locs:
             # YELLOW, CONFIRMED BY SIMILAR PATCHES (Knut, #182 5979886227):
@@ -1146,9 +1189,15 @@ class _PatchInfoTile(QWidget):
             # the same colour twice. Set apart at the bottom like the red text.
             rows.append((None, "─" * 30))
             rows.append((None, tr("Yellow outline: confirmed by a re-read")))
-            rows.append((None, tr("ΔE*ab {de:.2f}, the reading before {prev:.2f}"
-                                  ).format(de=float(info.get("de", 0.0)),
-                                           prev=float(info.get("prev_de") or 0.0))))
+            if plain:
+                add_text(tr(_mm._CARDP_CONFIRMED).format(
+                    de=_shown(float(info.get("de", 0.0))),
+                    prev=_shown(float(info.get("prev_de") or 0.0))))
+                rows.append((None, ""))
+            else:
+                rows.append((None, tr("ΔE*ab {de:.2f}, the reading before {prev:.2f}"
+                                      ).format(de=float(info.get("de", 0.0)),
+                                               prev=float(info.get("prev_de") or 0.0))))
             # why it was red (the k56 yellow card, approved 6084176226)
             limit_line()
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
@@ -1195,14 +1244,25 @@ class _PatchInfoTile(QWidget):
             limit_txt = _shown(float(info.get('warn_de', 0.0)))
             rows.append((None, "─" * 30))
             rows.append((None, tr(_mm._CARD_UNSETTLED_HEAD)))
-            rows.append((None, tr(_mm._CARD_UNSETTLED_DE).format(
-                de=_shown(float(info.get('de', 0.0))),
-                prevs=", ".join(_shown(x) for x in prevs))))
+            if plain:
+                add_text(tr(_mm._CARDP_UNSETTLED_DE_ONE if len(prevs) <= 1
+                            else _mm._CARDP_UNSETTLED_DE).format(
+                    de=_shown(float(info.get('de', 0.0))),
+                    prevs=", ".join(_shown(x) for x in prevs)))
+            else:
+                rows.append((None, tr(_mm._CARD_UNSETTLED_DE).format(
+                    de=_shown(float(info.get('de', 0.0))),
+                    prevs=", ".join(_shown(x) for x in prevs))))
             if nb:
                 rows.append((None, ""))
-                add_text(nb_fmt(_mm._CARD_NB_ALSO_S))
+                add_text(nb_fmt(_mm._CARDP_NB_ALSO if plain
+                                else _mm._CARD_NB_ALSO_S))
             rows.append((None, ""))
-            if len(prevs) <= 1:
+            if plain:
+                add_text(tr(_mm._CARDP_UNSETTLED_TWO if len(prevs) <= 1
+                            else _mm._CARDP_UNSETTLED_MANY).format(
+                    n=len(prevs) + 1, limit=limit_txt, kind=kind_phrase()))
+            elif len(prevs) <= 1:
                 rows.append((None, tr(_mm._CARD_UNSETTLED_TWO_1)))
                 rows.append((None, tr(_mm._CARD_UNSETTLED_TWO_2).format(
                     limit=limit_txt)))
@@ -1218,7 +1278,8 @@ class _PatchInfoTile(QWidget):
             rows.append((None, "─" * 30))
             # Not "likely misread" alone (Knut, #182 5956210745): a large
             # difference can be real, and then re-reading cannot remove it.
-            rows.append((None, tr(_mm._CARD_LIMIT_HEAD)))
+            rows.append((None, tr(_mm._CARDP_LIMIT_HEAD if plain
+                                  else _mm._CARD_LIMIT_HEAD)))
             # The limit by its name, its value and its chart type, and the
             # strip test by its name (beta 17, the k56 cards Knut approved
             # in 6084176226).
@@ -1228,7 +1289,8 @@ class _PatchInfoTile(QWidget):
                 # (Knut, #182 5984174575), so the card says so instead of
                 # what similar patches or its colour range would have said.
                 rows.append((None, ""))
-                add_text(nb_fmt(_mm._CARD_NB_ALSO_S))
+                add_text(nb_fmt(_mm._CARDP_NB_ALSO if plain
+                                else _mm._CARD_NB_ALSO_S))
                 rows.append((None, ""))
                 # 4.3.5 (Knut, #182 6103148331): the card still names the
                 # range and what it has confirmed so far, so the patch is not
@@ -1290,11 +1352,17 @@ class _PatchInfoTile(QWidget):
             # middle line (M-PATCH-CORRECTED-LIMIT, proposed).
             rows.append((None, "─" * 30))
             rows.append((None, tr(_mm._CARD_GREEN_HEAD)))
-            rows.append((None, tr(_mm._CARD_GREEN_1).format(
-                de=_shown(float(info.get('prev_de') or 0.0)))))
-            rows.append((None, tr(_mm._CARD_GREEN_NB
-                                  if info.get("corrected_by") == "neighbour"
-                                  else _mm._CARD_GREEN_LIMIT)))
+            if plain:
+                add_text(tr(_mm._CARDP_GREEN_NB
+                            if info.get("corrected_by") == "neighbour"
+                            else _mm._CARDP_GREEN_LIMIT).format(
+                    de=_shown(float(info.get('prev_de') or 0.0))))
+            else:
+                rows.append((None, tr(_mm._CARD_GREEN_1).format(
+                    de=_shown(float(info.get('prev_de') or 0.0)))))
+                rows.append((None, tr(_mm._CARD_GREEN_NB
+                                      if info.get("corrected_by") == "neighbour"
+                                      else _mm._CARD_GREEN_LIMIT)))
             rows.append((None, tr(_mm._CARD_GREEN_END)))
         elif nb:
             # RED, ONLY BY THE NEIGHBOUR CHECK (#182 beta 11): below the
@@ -1303,7 +1371,8 @@ class _PatchInfoTile(QWidget):
             # Wording M-PATCH-NEIGHBOUR, approved by Knut (6078174421,
             # 6084176226).
             rows.append((None, "─" * 30))
-            add_text(nb_fmt(_mm._CARD_NB_RED_S))
+            add_text(nb_fmt(_mm._CARDP_NB_RED if plain
+                            else _mm._CARD_NB_RED_S))
             add_text(tr(_mm._CARD_NB_MISREAD_S))
             rows.append((None, ""))
             # Knut, #182 5984174575: "The neighbour check needs a re-read

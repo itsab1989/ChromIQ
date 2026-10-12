@@ -265,6 +265,22 @@ def _WAIT_FOR_THE_BEEP() -> str:
               "so a strip is timed from the beep, not from the press.")
 
 
+def underlay_tip_html(family: "str | None") -> str:
+    """M-CAL-DONE-UNDERLAY under the instrument's steps, for an instrument with
+    no reading board (Knut, #182 6123470301): ``"<br><br><b>title</b><br>body"``
+    for a ColorMunki / i1Studio or a CR30 once the message is approved, else
+    "". The i1Pro's reading board is white by design, so it never gets it."""
+    if family not in ("colormunki", "cr30"):
+        return ""
+    from workflow import measurement_messages as M
+    if not M.M_CAL_DONE_UNDERLAY.approved:
+        return ""
+    import html as _html
+    title, body = M.M_CAL_DONE_UNDERLAY.render()
+    return (f"<br><br><b>{_html.escape(title)}</b><br>"
+            f"{_html.escape(body)}")
+
+
 def measurement_instructions_html(family: "str | None") -> str:
     """The measurement-position instruction for an instrument *family* — how to
     physically place and read a strip. Generic for SpectroScan / unknown."""

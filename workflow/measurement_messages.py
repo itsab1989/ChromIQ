@@ -225,6 +225,26 @@ M_CAL_REQUESTED_DONE = _m(
     "were: the reader is waiting for the same strip or patch as before.",
     approved=False)
 
+#: 4.3.5 beta 2 (Knut, #182 6123470301): an instrument with no reading board
+#: (CR30, ColorMunki / i1Studio) leaves the surface under the chart to the
+#: user, and on thin paper (80 to 100 g/m² plain paper) its colour shows
+#: through into every reading. The i1Pro's board is white by design, so it
+#: does not get this. One paragraph under the instrument's own steps in every
+#: Calibration Complete window of those two instruments, and in the CR30's
+#: "Ready to measure, patch by patch" window; its advice is the "Build my
+#: first ICC profile" card's ("Why the backing has to be white"). Hidden until
+#: approved: those windows are approved text.
+M_CAL_DONE_UNDERLAY = _m(
+    "M-CAL-DONE-UNDERLAY",
+    "What lies under the chart",
+    "This instrument has no reading board, so what lies under the chart is "
+    "up to you. On thin paper, such as 80 to 100 g/m² plain paper, the colour "
+    "of the table or desk mat shows through and changes every reading, and "
+    "the profile takes that change on. Lay the chart on a white, even surface "
+    "that nothing shows through, such as a stack of white paper or of the "
+    "same paper as the chart.",
+    approved=False)
+
 #: A calibration the user asked for did not succeed. Reading is LOCKED until
 #: one does: an i1Pro measures its white straight into its calibration and
 #: checks it afterwards, so after a failure it would read on without an error
@@ -2146,6 +2166,123 @@ _CARD_UNSETTLED_MANY_1 = "The {n} readings are not similar,"
 _CARD_UNSETTLED_MANY_2 = "and all are past the patch error limit ({limit})."
 _CARD_UNSETTLED_3 = "Read it again: a reading that matches"
 _CARD_UNSETTLED_4 = "one of them shows which value is real."
+# --- PROPOSED: every patch-error and neighbour-check card line, in plain words --
+#: Knut, #182 6108217111 (4.3.5 beta 1): "This text is very confusing. Are you
+#: saying that the reading before was 6.70 and now confirmed as dE*ab 8.07?
+#: Then you say 'Red before: dE 6.44 ...' What do you mean? ... Also, which
+#: unit is 6.70, it is dE or dE*ab? All the hover-text messages for the patch
+#: error test and neighbour limit check must be reworded in an understandable
+#: text that clearly explains what is meant and what is seen." Ours, and
+#: hidden until approved: while this message is not approved the card shows
+#: the texts above, unchanged (``ui.tiff_preview.PatchInfoCard.set_content``).
+#: Every number says what it is ("colour error": ΔE*ab between the reading
+#: and the patch's expected colour), its unit and what it is compared with.
+#: {de}, {prev}, {own}, {median}, {d}, {limit}, {de00}: two decimals, the
+#: figures the tests compare; {kind}: one of M-PATCH-LIMIT's chart-type
+#: phrases; {n}: 2 to 4; {prevs}: the earlier readings' colour errors,
+#: joined by ", ". Whole sentences: the card wraps them to its width.
+#: Basti, 2026-10-13: correct but too technical. Each line leads with what it
+#: means in plain words, then the numbers; one thought per sentence; the
+#: technical names (ΔE*ab, ΔE00, median, the tests' names) in brackets at the
+#: end; and it says what it means for the user ("probably a misread",
+#: "probably real"). Every sentence is true on every card that shows it:
+#: line 9 and 13 are also shown on yellow cards confirmed by similar patches
+#: or judged like a patch of their range, where no re-read happened, so they
+#: say "that confirmation" (the headline above names it), not "the re-read".
+#: Line 1 and 2: the colour section, under "Measured" (both colours shown).
+#: Line 2 does not say the report SHOWS this figure: it compares a From
+#: Profile Gamut chart with the chart's design, which can differ from the
+#: profile's prediction near the edge of the gamut (up to ΔE*ab 2.96 on
+#: Knut's run 2 chart).
+_CARDP_DE = ("This patch is {de} off its expected colour. "
+             "(ΔE*ab, CIE76, L*a*b* D50.)")
+_CARDP_DE00 = ("The Measurement Report measures colour differences in a way "
+               "that is closer to how the eye sees them. Measured that way, "
+               "this difference is {de00}. (ΔE00, CIEDE2000.)")
+#: Lines 3 to 6: the neighbour comparison on every card it judges.
+_CARDP_NBC_FURTHER = ("The {n} patches most similar to it are only about "
+                      "{median} off their expected colours. At {own}, this "
+                      "one stands out by {d}. (Neighbour check, ΔE*ab, "
+                      "median of the {n}.)")
+_CARDP_NBC_CLOSER = ("The {n} patches most similar to it are about {median} "
+                     "off their expected colours. At {own}, this one is {d} "
+                     "closer to its expected colour than they are. "
+                     "(Neighbour check, ΔE*ab, median of the {n}.)")
+_CARDP_NBC_EQUAL = ("The {n} patches most similar to it are about as far off "
+                    "their expected colours as this one, at {own}. It does "
+                    "not stand out from them. (Neighbour check, ΔE*ab, "
+                    "median of the {n}.)")
+_CARDP_NBC_FEW = ("Not compared with similar patches yet: fewer than 2 "
+                  "patches with a similar expected colour have been read. "
+                  "(Neighbour check, colour-neighbour radius.)")
+#: Lines 7 to 9: why the outline is red, or would be without the re-read.
+_CARDP_NB_RED = ("Red outline: this patch stands out from the patches most "
+                 "similar to it by {d}. That is more than the neighbour "
+                 "limit of {limit} for {kind}. (Neighbour check.)")
+_CARDP_NB_ALSO = ("It also stands out from the patches most similar to it by "
+                  "{d}. That is more than the neighbour limit of {limit} for "
+                  "{kind}. (Neighbour check.)")
+_CARDP_NB_YELLOW = ("Without that confirmation it would be red: it stands "
+                    "out from the patches most similar to it by {d}, more "
+                    "than the neighbour limit of {limit} for {kind}. "
+                    "(Neighbour check.)")
+#: Lines 10 to 13: the patch error limit.
+_CARDP_LIMIT_HEAD = "Red outline: too far off its expected colour"
+_CARDP_LIMIT = ("This patch is {de} off its expected colour. That is more "
+                "than the patch error limit of {limit} for {kind}. (ΔE*ab.)")
+_CARDP_LIMIT_FENCED = ("This patch is {de} off its expected colour. That is "
+                       "more than the patch error limit of {limit} for "
+                       "{kind}. It also stands out from the other patches of "
+                       "its strip. (ΔE*ab, strip test.)")
+_CARDP_LIMIT_YELLOW = ("Without that confirmation it would be red: it is {de} "
+                       "off its expected colour, more than the patch error "
+                       "limit of {limit} for {kind}. (ΔE*ab.)")
+#: Line 14: the yellow card of a patch its re-read confirmed, under its
+#: headline "Yellow outline: confirmed by a re-read" (unchanged). {prev}: the
+#: earlier reading the re-read agreed with.
+_CARDP_CONFIRMED = ("You read this patch again, and the new reading agrees "
+                    "with an earlier one. So it is probably not a misread. "
+                    "It is {de} off its expected colour now, and was {prev} "
+                    "off at that earlier reading. (ΔE*ab; the two readings "
+                    "are within the same-reading tolerance.)")
+#: Lines 15 to 18: the red card of readings that do not agree (10.10a),
+#: under its headline "Red outline: the readings do not agree" (unchanged).
+_CARDP_UNSETTLED_DE_ONE = ("It is {de} off its expected colour now, and was "
+                           "{prevs} off at the earlier reading. (ΔE*ab.)")
+_CARDP_UNSETTLED_DE = ("It is {de} off its expected colour now. The earlier "
+                       "readings were {prevs} off. (ΔE*ab.)")
+_CARDP_UNSETTLED_TWO = ("The two readings do not agree with each other, and "
+                        "both are further off than the patch error limit of "
+                        "{limit} for {kind}. So it is not clear yet which "
+                        "one is right. (They differ by more than the "
+                        "same-reading tolerance.)")
+_CARDP_UNSETTLED_MANY = ("You have read this patch {n} times. This reading "
+                         "agrees with none of the earlier ones, and every "
+                         "reading is further off than the patch error limit "
+                         "of {limit} for {kind}. So it is not clear yet "
+                         "which one is right. (Same-reading tolerance.)")
+#: Lines 19 and 20: the green card, under its headline "Green outline:
+#: corrected by a re-read" and above "It replaces the misread." (unchanged).
+_CARDP_GREEN_NB = ("The earlier, red reading was {de} off its expected "
+                   "colour and stood out from the patches most similar to "
+                   "it. The new reading does not stand out more than the "
+                   "neighbour limit allows. (ΔE*ab, neighbour check.)")
+_CARDP_GREEN_LIMIT = ("The earlier, red reading was {de} off its expected "
+                      "colour, more than the patch error limit. The new "
+                      "reading is within the limit. (ΔE*ab.)")
+_CARDP_HEADLINE = "Patch error limit and neighbour check on the patch card, in plain words"
+M_PATCH_CARD_PLAIN = _m(
+    "M-PATCH-CARD-PLAIN",
+    _CARDP_HEADLINE,
+    "\n".join((_CARDP_DE, _CARDP_DE00, _CARDP_NBC_FURTHER, _CARDP_NBC_CLOSER,
+               _CARDP_NBC_EQUAL, _CARDP_NBC_FEW, _CARDP_NB_RED,
+               _CARDP_NB_ALSO, _CARDP_NB_YELLOW, _CARDP_LIMIT_HEAD,
+               _CARDP_LIMIT, _CARDP_LIMIT_FENCED, _CARDP_LIMIT_YELLOW,
+               _CARDP_CONFIRMED, _CARDP_UNSETTLED_DE_ONE,
+               _CARDP_UNSETTLED_DE, _CARDP_UNSETTLED_TWO,
+               _CARDP_UNSETTLED_MANY, _CARDP_GREEN_NB, _CARDP_GREEN_LIMIT)),
+    approved=False)
+
 M_PATCH_UNSETTLED = _m(
     "M-PATCH-UNSETTLED",
     _CARD_UNSETTLED_HEAD,
@@ -5539,6 +5676,7 @@ CATALOGUE = {m.id: m for m in (
     M_PATCH_NEIGHBOUR, M_PATCH_NEIGHBOUR_VARIANTS, M_PATCH_LIMIT,
     M_MEASURED_SUSPECTS,
     M_PATCH_CORRECTED, M_PATCH_CORRECTED_VARIANTS, M_PATCH_UNSETTLED,
+    M_PATCH_CARD_PLAIN,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_DONE_PROFILING,
@@ -5569,6 +5707,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
+    M_CAL_DONE_UNDERLAY,
     M_REPORT_NOT_SAVED,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE, M_SPOT_CR30_EARLY_PRESS,
