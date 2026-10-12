@@ -162,7 +162,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
-     "a56-blackfade"})
+     "a56-blackfade", "a57-colprofmodel-b2a"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1123,6 +1123,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     wtpt_abs = _pin_media_white(model, meas, settings)
     fit_res = np.linalg.norm(model.predict(meas.device) - meas.lab_relative,
                              axis=1)
+    # Research Agent 57 (a57-colprofmodel-b2a, colprofmodel.py): the
+    # colorimetric B2A1 is inverted from colprof's own A2B1 (RGB only); the
+    # A2B and the perceptual / saturation tables keep the engine's model.
+    _model_col = _model_map = model
+    from workflow.profile_engine import colprofmodel as _a57
+    if accurate and _a57.a57_on(candidates, is_additive=meas.is_additive):
+        _a57_icc = _a57.colprof_icc_from_env()
+        if _a57_icc is not None:
+            _model_col = _a57.forward_model_from_icc(_a57_icc)
+            _emit(settings, f"Colorimetric table inverted from colprof's "
+                            f"forward model ({_a57_icc.name}).")
 
     _emit(settings, f"Inverting the model (B2A grid {b2a_grid})…")
     user_limit = settings.ink_limit is not None
@@ -1200,7 +1211,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _emit(settings, "Building the perceptual and saturation "
                                 "tables…")
                 return build_mapped_b2a(
-                    model, meas, b2a_grid, Path(settings.source_gamut),
+                    _model_map, meas, b2a_grid, Path(settings.source_gamut),
                     channel_letters=meas.channel_letters,
                     is_additive=meas.is_additive, ink_limit=ink_limit,
                     entries=_B2A_ENTRIES[qb], codec=codec, settings=settings,
@@ -1256,6 +1267,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         anchor_box["anchor"] = anchor
         anchor_box["ready"].set()
     node_lab = codec.node_lab(b2a_grid)
+    # Agent 57: from here to the B2A1 write, "model" is the inversion's
+    # model (colprof's A2B1 with a57-colprofmodel-b2a); restored after it.
+    _model_a2b = model
+    model = _model_col
     # Maximum accuracy separates the COLORIMETRIC table with its own K
     # policy (late GCR locus + the neutral-axis walk), not with the CMYK
     # proxy's colprof K curve: on the battery's 6-7 ink printers that prior
@@ -1676,8 +1691,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     entries_a2b = _A2B_ENTRIES[q]
     entries_b2a = _B2A_ENTRIES[qb]
     a2b = icw.make_mft2(
-        n, 3, a2b_grid, codec.encode(model.clut_lab()),
-        in_tables=icw.curves_to_tables(model.curves, entries_a2b),
+        n, 3, a2b_grid, codec.encode(_model_a2b.clut_lab()),
+        in_tables=icw.curves_to_tables(_model_a2b.curves, entries_a2b),
         out_tables=np.tile(icw._identity_table(entries_a2b), (3, 1)))
     # B2A/gamt input tables come from the codec: identity for Lab and the
     # parity XYZ layout, cube-root-shaped for accurate XYZ (the node targets
@@ -1704,6 +1719,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             3, n, b2a_grid, icw.device_to_u16(dev_clut_shaped),
             in_tables=b2a_in,
             out_tables=icw.curves_to_tables(inv, entries_b2a))
+    model = _model_a2b                  # Agent 57: the A2B's model again
     # ICC.1 §9.2.29: gamt is 0 for an in-gamut PCS colour. The inversion's
     # clamp distance is a continuous residual (0.3–0.9 ΔE on converged
     # near-boundary nodes) and it leaked onto two thirds of the printable
