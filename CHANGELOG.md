@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.5-beta.2 (unreleased)
+
+### Waiting for approval (not shown yet)
+
+- **The patch cards' patch-error and neighbour-check lines, in plain words** (Measure tab, #182, Knut). Each number on a card would say what it is, its unit and what it is compared with: the patch's colour error (ΔE*ab between its reading and its expected colour), the same difference in ΔE00 as the Measurement Report uses it, the neighbours' median colour error, and the limit with its chart type. The yellow card would no longer say "Red before" or "the reading before 6.70" without saying what the figures are. Until the words are approved the cards read as before.
+
 ## v4.3.5-beta.1
 
 ### Changed

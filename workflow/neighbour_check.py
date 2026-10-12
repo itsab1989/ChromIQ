@@ -440,6 +440,18 @@ class NeighbourCheck:
             return 0, 0.0
         return len(f.compared), float(f.further)
 
+    def comparison_detail(self, loc: str) -> "tuple[int, float, float, float]":
+        """:meth:`comparison` with the two figures it is the difference of:
+        ``(n, further, own_de, median_de)``, the patch's own error and the
+        median of its neighbours' errors (ΔE*ab), for the card that names
+        both (Knut, #182 6108217111: "which value, which unit, compared with
+        what"). ``(0, 0.0, 0.0, 0.0)`` for a patch with no reading."""
+        f = self._findings.get(str(loc))
+        if f is None:
+            return 0, 0.0, 0.0, 0.0
+        return (len(f.compared), float(f.further), float(f.own_de),
+                float(f.median_de))
+
     def is_suspect(self, loc: str) -> bool:
         f = self._findings.get(str(loc))
         return bool(f is not None and f.suspect)

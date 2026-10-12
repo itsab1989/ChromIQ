@@ -16351,6 +16351,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         card needs: how this measurement is read (the card's last lines
         say "after each strip" or "after each patch")."""
         common = {"nb_compare": self._neighbour_compare,
+                  "nb_detail": self._neighbour_compare_detail,
                   "pbp": bool(self._card_reads_patch_by_patch())}
         if f is None:
             return {"neighbour": None, **common}
@@ -16387,6 +16388,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return None
         try:
             return nc.comparison(str(loc))
+        except Exception:      # noqa: BLE001 — a card is never worth a crash
+            return None
+
+    def _neighbour_compare_detail(self, loc) -> "tuple | None":
+        """:meth:`_neighbour_compare` with the patch's own colour error and
+        its neighbours' median, ``(n, further, own, median)``, for the card
+        that names both (Knut, #182 6108217111; M-PATCH-CARD-PLAIN)."""
+        nc = getattr(self, "_nb_check" if self._neighbour_check_applies()
+                     else "_nb_card", None)
+        if nc is None:
+            return None
+        try:
+            return nc.comparison_detail(str(loc))
         except Exception:      # noqa: BLE001 — a card is never worth a crash
             return None
 

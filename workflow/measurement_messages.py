@@ -2146,6 +2146,100 @@ _CARD_UNSETTLED_MANY_1 = "The {n} readings are not similar,"
 _CARD_UNSETTLED_MANY_2 = "and all are past the patch error limit ({limit})."
 _CARD_UNSETTLED_3 = "Read it again: a reading that matches"
 _CARD_UNSETTLED_4 = "one of them shows which value is real."
+# --- PROPOSED: every patch-error and neighbour-check card line, in plain words --
+#: Knut, #182 6108217111 (4.3.5 beta 1): "This text is very confusing. Are you
+#: saying that the reading before was 6.70 and now confirmed as dE*ab 8.07?
+#: Then you say 'Red before: dE 6.44 ...' What do you mean? ... Also, which
+#: unit is 6.70, it is dE or dE*ab? All the hover-text messages for the patch
+#: error test and neighbour limit check must be reworded in an understandable
+#: text that clearly explains what is meant and what is seen." Ours, and
+#: hidden until approved: while this message is not approved the card shows
+#: the texts above, unchanged (``ui.tiff_preview.PatchInfoCard.set_content``).
+#: Every number says what it is ("colour error": ΔE*ab between the reading
+#: and the patch's expected colour), its unit and what it is compared with.
+#: {de}, {prev}, {own}, {median}, {d}, {limit}, {de00}: two decimals, the
+#: figures the tests compare; {kind}: one of M-PATCH-LIMIT's chart-type
+#: phrases; {n}: 2 to 4; {prevs}: the earlier readings' colour errors,
+#: joined by ", ". Whole sentences: the card wraps them to its width.
+#: Line 1 and 2: the colour section, under "Measured" (both colours shown).
+_CARDP_DE = ("Colour error: ΔE*ab {de} between the measured and the "
+             "expected colour (CIE76, L*a*b* D50).")
+_CARDP_DE00 = ("The same difference in ΔE00 (CIEDE2000, the formula of the "
+               "Measurement Report): {de00}.")
+#: Lines 3 to 6: the neighbour comparison on every card it judges.
+_CARDP_NBC_FURTHER = ("Neighbour check: its colour error, ΔE*ab {own}, is {d} "
+                      "more than the median colour error of the {n} patches "
+                      "nearest in expected colour (ΔE*ab {median}).")
+_CARDP_NBC_CLOSER = ("Neighbour check: its colour error, ΔE*ab {own}, is {d} "
+                     "less than the median colour error of the {n} patches "
+                     "nearest in expected colour (ΔE*ab {median}).")
+_CARDP_NBC_EQUAL = ("Neighbour check: its colour error, ΔE*ab {own}, is the "
+                    "same as the median colour error of the {n} patches "
+                    "nearest in expected colour.")
+_CARDP_NBC_FEW = ("Neighbour check: not done yet, because fewer than 2 read "
+                  "patches have an expected colour within the "
+                  "colour-neighbour radius.")
+#: Lines 7 to 9: why the outline is red, or would be without the re-read.
+_CARDP_NB_RED = ("Red outline by the neighbour check: its colour error is {d} "
+                 "more than the median of the {n} patches nearest in expected "
+                 "colour, above the neighbour limit ({limit}, {kind}).")
+_CARDP_NB_ALSO = ("It is also red by the neighbour check: its colour error is "
+                  "{d} more than the median of the {n} patches nearest in "
+                  "expected colour, above the neighbour limit ({limit}, "
+                  "{kind}).")
+_CARDP_NB_YELLOW = ("Without the re-read it would be red by the neighbour "
+                    "check: its colour error is {d} more than the median of "
+                    "the {n} patches nearest in expected colour, above the "
+                    "neighbour limit ({limit}, {kind}).")
+#: Lines 10 to 13: the patch error limit.
+_CARDP_LIMIT_HEAD = "Red outline: the patch error limit"
+_CARDP_LIMIT = ("Its colour error, ΔE*ab {de}, is above the patch error limit "
+                "({limit}, {kind}).")
+_CARDP_LIMIT_FENCED = ("Its colour error, ΔE*ab {de}, is above the patch error "
+                       "limit ({limit}, {kind}), and it stands out from the "
+                       "other patches of its strip (strip test).")
+_CARDP_LIMIT_YELLOW = ("Without the re-read it would be red: its colour error, "
+                       "ΔE*ab {de}, is above the patch error limit ({limit}, "
+                       "{kind}).")
+#: Line 14: the yellow card of a patch its re-read confirmed, under its
+#: headline "Yellow outline: confirmed by a re-read" (unchanged).
+_CARDP_CONFIRMED = ("Read again, and the two readings are nearly the same "
+                    "colour (within the same-reading tolerance). Colour error: "
+                    "ΔE*ab {de} now, ΔE*ab {prev} at the earlier reading.")
+#: Lines 15 to 18: the red card of readings that do not agree (10.10a),
+#: under its headline "Red outline: the readings do not agree" (unchanged).
+_CARDP_UNSETTLED_DE_ONE = ("Colour error: ΔE*ab {de} now, ΔE*ab {prevs} at "
+                           "the earlier reading.")
+_CARDP_UNSETTLED_DE = ("Colour error: ΔE*ab {de} now; at the earlier "
+                       "readings (ΔE*ab): {prevs}.")
+_CARDP_UNSETTLED_TWO = ("The two readings do not agree: they differ by more "
+                        "than the same-reading tolerance, and both colour "
+                        "errors are above the patch error limit ({limit}, "
+                        "{kind}).")
+_CARDP_UNSETTLED_MANY = ("The {n} readings do not agree: this reading is not "
+                         "within the same-reading tolerance of any earlier "
+                         "one, and all colour errors are above the patch "
+                         "error limit ({limit}, {kind}).")
+#: Lines 19 and 20: the green card, under its headline "Green outline:
+#: corrected by a re-read" and above "It replaces the misread." (unchanged).
+_CARDP_GREEN_NB = ("The red reading had a colour error of ΔE*ab {de} and "
+                   "failed the neighbour check; the new reading passes it.")
+_CARDP_GREEN_LIMIT = ("The red reading had a colour error of ΔE*ab {de}, "
+                      "above the patch error limit; the new reading is not "
+                      "above it.")
+_CARDP_HEADLINE = "Patch error limit and neighbour check on the patch card, in plain words"
+M_PATCH_CARD_PLAIN = _m(
+    "M-PATCH-CARD-PLAIN",
+    _CARDP_HEADLINE,
+    "\n".join((_CARDP_DE, _CARDP_DE00, _CARDP_NBC_FURTHER, _CARDP_NBC_CLOSER,
+               _CARDP_NBC_EQUAL, _CARDP_NBC_FEW, _CARDP_NB_RED,
+               _CARDP_NB_ALSO, _CARDP_NB_YELLOW, _CARDP_LIMIT_HEAD,
+               _CARDP_LIMIT, _CARDP_LIMIT_FENCED, _CARDP_LIMIT_YELLOW,
+               _CARDP_CONFIRMED, _CARDP_UNSETTLED_DE_ONE,
+               _CARDP_UNSETTLED_DE, _CARDP_UNSETTLED_TWO,
+               _CARDP_UNSETTLED_MANY, _CARDP_GREEN_NB, _CARDP_GREEN_LIMIT)),
+    approved=False)
+
 M_PATCH_UNSETTLED = _m(
     "M-PATCH-UNSETTLED",
     _CARD_UNSETTLED_HEAD,
@@ -5493,6 +5587,7 @@ CATALOGUE = {m.id: m for m in (
     M_PATCH_NEIGHBOUR, M_PATCH_NEIGHBOUR_VARIANTS, M_PATCH_LIMIT,
     M_MEASURED_SUSPECTS,
     M_PATCH_CORRECTED, M_PATCH_CORRECTED_VARIANTS, M_PATCH_UNSETTLED,
+    M_PATCH_CARD_PLAIN,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_DONE_PROFILING,
