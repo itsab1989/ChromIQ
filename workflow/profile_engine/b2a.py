@@ -2144,7 +2144,10 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     p["a51_ray"] = oog_clip.A51B_TOKEN in t
     p["a51_band"] = 1.5 if oog_clip.A51_BAND_TOKEN in t else 0.0
     p["a51_ownhue"] = oog_clip.A51_OWNHUE_TOKEN in t
-    p["a51_nofloor"] = oog_clip.A51_NOFLOOR_TOKEN in t
+    # Agent 55: a55-nofloor-rgb drops the floor wherever a51 acts (table_params
+    # applies a51_nofloor only with p["a51"], which is RGB-gated)
+    p["a51_nofloor"] = (oog_clip.A51_NOFLOOR_TOKEN in t
+                        or oog_clip.A55_NOFLOOR_TOKEN in t)
     p["a51_lab"] = oog_clip.A51_LAB_TOKEN in t
     p["a51_soft"] = 15.0 if oog_clip.A51_SOFT_TOKEN in t else 0.0
     oog_clip._HK["on"] = oog_clip.A51_NOHK_TOKEN not in t

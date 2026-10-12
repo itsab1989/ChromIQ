@@ -309,6 +309,12 @@ A51_SOFT_TOKEN = "a51-colprofedge-soft"
 # nodes below the black move (no printable colour lies there), the map is
 # continuous at the black and monotone toward it.
 A51B_TOKEN = "a51b-colprofedge"
+# Agent 55 (D-30 part 1): on RGB devices, where a51's colprof metric is on,
+# drop the a29 dark floor so colprof's full clip path decides (Agent 54:
+# Argyll's own clip on OUR A2B reproduces colprof's blue path within 1-2
+# L*/C* once the floor is gone). Same switch as a51-colprofedge-nofloor; it
+# can act only where a51 acts (RGB, or every device with -all).
+A55_NOFLOOR_TOKEN = "a55-nofloor-rgb"
 A51_PARAMS = {"space": "cam02", "wj": 4.0, "wc": 1.0, "wh": 4.84}
 _HK = {"on": True}
 _REL = threading.local()

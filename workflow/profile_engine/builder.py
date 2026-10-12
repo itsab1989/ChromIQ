@@ -158,7 +158,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a43-shadowdetail-width", "no-a44-exactkeep", "no-a44b-smoothexact",
      "no-a45-c1space", "no-a45-darkend",
      # Integration 7: the off switch of a51-colprofedge (RGB devices only)
-     "no-a51-colprofedge"})
+     "no-a51-colprofedge",
+     # Agent 55 (D-30 part 1): RGB with a51 on: no a29 dark floor in the
+     # colorimetric clip (colprof's full clip path); research, opt-in
+     "a55-nofloor-rgb"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
