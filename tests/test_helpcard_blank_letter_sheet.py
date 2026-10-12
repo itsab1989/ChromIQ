@@ -214,7 +214,7 @@ def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
 
 @MEASURED_WITH_CORETEXT
 @pytest.mark.parametrize("key,pages", [
-    ("first_profile", 2), ("cmyk_n", 1), ("file_guide", 16),
+    ("first_profile", 3), ("cmyk_n", 1), ("file_guide", 16),
 ])
 def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
     """US Letter's shorter body must not buy a sheet for one grey line.
@@ -239,6 +239,10 @@ def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
     Letter, for the two Inspect tools' saved files (Knut 5950106034). Their
     first, longer wording printed 15 on A4 and 18 on Letter, red here; the
     wording was shortened until both sizes agreed again.
+
+    Re-measured 2026-10-13 (4.3.5 beta 2, Knut 6123740349): "first_profile"
+    2 -> 3 on A4 AND Letter, for the print step's six folded notes on how and
+    why the chart is printed (on paper every note prints open).
     """
     for size in _SIZES:
         _pdf, got, _pr = _print_card(key, size, tmp_path)

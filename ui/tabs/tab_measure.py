@@ -9864,8 +9864,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from ui.ti2_loader import patch_measurement_instructions_html
         from workflow import measurement_messages as M
 
+        from ui.ti2_loader import underlay_tip_html
         title, body = M.M_CR30_HOW_TO_MEASURE.render(
-            how=patch_measurement_instructions_html("cr30"))
+            how=patch_measurement_instructions_html("cr30")
+            + underlay_tip_html("cr30"))
         dlg = QDialog(self)
         dlg.setWindowTitle(title)
         dlg.setMinimumWidth(520)
@@ -11054,6 +11056,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # ones for the same instrument (Knut, #131 2026-07-28).
         _how = (patch_measurement_instructions_html(_fam) if self._spot_session
                 else measurement_instructions_html(_fam))
+        # Knut, #182 6123470301: an instrument with no reading board says what
+        # must lie under the chart (M-CAL-DONE-UNDERLAY, "" until approved).
+        from ui.ti2_loader import underlay_tip_html
+        _how += underlay_tip_html(_fam)
 
         # THE DIAL AGAIN, IN ITS MEASURING POSITION. The calibration window
         # showed the wheel turned to the gear; this one shows the same wheel

@@ -703,6 +703,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # patch-error and neighbour-check card line
                                  # in plain words; hidden until approved.
                                  "M-PATCH-CARD-PLAIN",
+                                 # 4.3.5 beta 2 (Knut, #182 6123470301): what
+                                 # lies under the chart, in the Calibration
+                                 # Complete windows of a CR30 and a
+                                 # ColorMunki; hidden until approved.
+                                 "M-CAL-DONE-UNDERLAY",
                                  # Knut approved the green outline and its
                                  # words (5984277558); the limit's middle line
                                  # and the one-patch summary line are ours.

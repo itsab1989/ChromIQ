@@ -225,6 +225,26 @@ M_CAL_REQUESTED_DONE = _m(
     "were: the reader is waiting for the same strip or patch as before.",
     approved=False)
 
+#: 4.3.5 beta 2 (Knut, #182 6123470301): an instrument with no reading board
+#: (CR30, ColorMunki / i1Studio) leaves the surface under the chart to the
+#: user, and on thin paper (80 to 100 g/m² plain paper) its colour shows
+#: through into every reading. The i1Pro's board is white by design, so it
+#: does not get this. One paragraph under the instrument's own steps in every
+#: Calibration Complete window of those two instruments, and in the CR30's
+#: "Ready to measure, patch by patch" window; its advice is the "Build my
+#: first ICC profile" card's ("Why the backing has to be white"). Hidden until
+#: approved: those windows are approved text.
+M_CAL_DONE_UNDERLAY = _m(
+    "M-CAL-DONE-UNDERLAY",
+    "What lies under the chart",
+    "This instrument has no reading board, so what lies under the chart is "
+    "up to you. On thin paper, such as 80 to 100 g/m² plain paper, the colour "
+    "of the table or desk mat shows through and changes every reading, and "
+    "the profile takes that change on. Lay the chart on a white, even surface "
+    "that nothing shows through, such as a stack of white paper or of the "
+    "same paper as the chart.",
+    approved=False)
+
 #: A calibration the user asked for did not succeed. Reading is LOCKED until
 #: one does: an i1Pro measures its white straight into its calibration and
 #: checks it afterwards, so after a failure it would read on without an error
@@ -5641,6 +5661,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
+    M_CAL_DONE_UNDERLAY,
     M_REPORT_NOT_SAVED,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED, M_SPOT_CR30_GONE, M_SPOT_CR30_EARLY_PRESS,
