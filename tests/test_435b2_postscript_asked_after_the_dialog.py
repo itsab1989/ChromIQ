@@ -336,8 +336,9 @@ def test_the_asking_window_fits_its_long_buttons():
     window follows the rule against clipped labels)."""
     from ui.tabs import tab_print as tp
     src = inspect.getsource(tp.TabPrint._ask_ps_form)
-    assert "fit_message_box_buttons(box)" in src
-    assert src.index("fit_message_box_buttons(box)") < src.index("box.exec()")
+    call = "fit_message_box_buttons(box, stack_when_too_wide=True)"
+    assert call in src
+    assert src.index(call) < src.index("box.exec()")
 
 
 # ---- the choice belongs to the project (Basti, 2026-10-13) --------------------
@@ -438,7 +439,11 @@ def test_a_preview_run_by_the_direct_route_is_asked_once_approved(
     s, fm, ctl = _env(tmp_path)
     fm.project().set_print_setting("postscript", MACOS)
     tab = _tab(s, ctl)
-    assert not MM.M_PRINT_DIRECT_LIKE_PREVIEW.approved
+    # approved by Basti, 2026-10-13 (final review of beta 2); hidden it asks
+    # nothing and the print goes as before
+    assert MM.M_PRINT_DIRECT_LIKE_PREVIEW.approved
+    monkeypatch.setattr(MM, "M_PRINT_DIRECT_LIKE_PREVIEW",
+                        replace(MM.M_PRINT_DIRECT_LIKE_PREVIEW, approved=False))
     assert tab._ask_direct_like_preview("Q") is None       # hidden: as before
     monkeypatch.setattr(MM, "M_PRINT_DIRECT_LIKE_PREVIEW",
                         replace(MM.M_PRINT_DIRECT_LIKE_PREVIEW, approved=True))
@@ -470,3 +475,110 @@ def test_the_direct_route_asks_before_it_sends_anything():
     assert asked < src.index("self._send_page(")
     assert asked < src.index("self._show_preflight(")
     assert 'self._print_native(pages, printer=printer)' in src[asked:asked + 300]
+
+
+def test_the_button_row_is_given_room_beside_the_icon(qapp, monkeypatch):
+    """Final review of beta 2, measured on screen: M-PRINT-PS-ASK's middle
+    button was squeezed to its bare label (297 px for 297 px of text), because
+    on macOS a QMessageBox puts its buttons under the text only while the
+    spacer `fit_message_box_buttons` adds spans the icon's column too.
+    MUTATION: drop the icon allowance and the spacer is short by the icon."""
+    import sys
+    from PyQt6.QtWidgets import QMessageBox, QSpacerItem
+    from ui.widgets import fit_message_box_buttons
+    monkeypatch.setattr(sys, "platform", "darwin")
+    box = QMessageBox()
+    box.setIcon(QMessageBox.Icon.Question)
+    box.setText("How should it get the chart?")
+    btns = [box.addButton(t, QMessageBox.ButtonRole.AcceptRole) for t in
+            ("Print like Photoshop (Photoshop Manages Colors)",
+             "Print like Preview and most other apps")]
+    btns.append(box.addButton(QMessageBox.StandardButton.Cancel))
+    fit_message_box_buttons(box)
+    lay = box.layout()
+    spacers = [lay.itemAt(i).spacerItem() for i in range(lay.count())
+               if isinstance(lay.itemAt(i), QSpacerItem) or lay.itemAt(i).spacerItem()]
+    widest = max(s.sizeHint().width() for s in spacers if s is not None)
+    icon = [lb for lb in box.findChildren(__import__("PyQt6.QtWidgets", fromlist=["QLabel"]).QLabel)
+            if lb.pixmap() is not None and not lb.pixmap().isNull()]
+    assert icon
+    rows = sum(b.sizeHint().width() for b in btns) + 12 * (len(btns) + 1)
+    assert widest >= rows + icon[0].sizeHint().width() + 20
+
+
+class _Screen:
+    def __init__(self, w, h):
+        from PyQt6.QtCore import QRect
+        self._r = QRect(0, 0, w, h)
+
+    def availableGeometry(self):
+        return self._r
+
+
+def test_the_two_long_choices_stand_one_above_the_other_when_they_cannot_fit(qapp, monkeypatch):
+    """Final review of beta 2, on screen: in German and Spanish the two
+    choices need about 1100 px side by side, Qt holds a message box at 1000
+    (800 on a 1280-wide screen), and the first label ran under the second.
+    MUTATION: drop `stack_when_too_wide` and the row stays horizontal."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QDialogButtonBox, QMessageBox
+    from ui.widgets import fit_message_box_buttons
+    box = QMessageBox()
+    box.setIcon(QMessageBox.Icon.Question)
+    box.setText("Wie soll der Drucker das Chart erhalten?")
+    for t in ("Drucken wie Photoshop (Farbmanagement durch Photoshop)",
+              "Drucken wie Vorschau und die meisten anderen Apps"):
+        box.addButton(t, QMessageBox.ButtonRole.AcceptRole)
+    box.addButton(QMessageBox.StandardButton.Cancel)
+    monkeypatch.setattr(box, "screen", lambda: _Screen(1280, 705))
+    fit_message_box_buttons(box, stack_when_too_wide=True)
+    bb = box.findChild(QDialogButtonBox)
+    assert bb.orientation() == Qt.Orientation.Vertical
+    # short labels on a wide screen stay side by side
+    small = QMessageBox()
+    small.setText("x")
+    small.addButton("Yes", QMessageBox.ButtonRole.AcceptRole)
+    small.addButton(QMessageBox.StandardButton.Cancel)
+    monkeypatch.setattr(small, "screen", lambda: _Screen(1440, 805))
+    fit_message_box_buttons(small, stack_when_too_wide=True)
+    assert small.findChild(QDialogButtonBox).orientation() == Qt.Orientation.Horizontal
+
+
+def test_the_ask_window_asks_for_stacking():
+    from ui.tabs import tab_print as tp
+    src = inspect.getsource(tp.TabPrint._ask_ps_form)
+    assert "fit_message_box_buttons(box, stack_when_too_wide=True)" in src
+
+
+def test_a_calibration_window_taller_than_the_work_area_gets_wider(qapp, monkeypatch):
+    """Final review of beta 2, on screen: a ColorMunki's re-measurement window
+    with the underlay paragraph was 814 pt tall in German on a 705 pt work
+    area. Widened once shown, it fits. MUTATION: return early and it stays
+    taller than the work area."""
+    from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
+    from ui import widgets as W
+    dlg = QDialog()
+    lay = QVBoxLayout(dlg)
+    for _ in range(14):
+        lb = QLabel("Lege das Chart vor dem Messen auf eine weiße, ebene Fläche, "
+                    "durch die nichts durchscheint, etwa einen Stapel weißes Papier.", dlg)
+        lb.setWordWrap(True)
+        lay.addWidget(lb)
+    dlg.setMinimumWidth(300)
+    dlg.resize(300, lay.totalHeightForWidth(300))
+    area = _Screen(1280, lay.totalHeightForWidth(300) - 120)
+    monkeypatch.setattr(dlg, "screen", lambda: area)
+    dlg.show()
+    qapp.processEvents()
+    W._widen_now(dlg, 0.9)
+    qapp.processEvents()
+    assert dlg.width() > 300
+    assert dlg.frameGeometry().height() <= area.availableGeometry().height()
+    dlg.close()
+
+
+def test_the_calibration_window_is_widened_before_it_is_shown():
+    from ui.tabs import tab_measure as tm
+    src = inspect.getsource(tm.TabMeasure._on_calibration_done)
+    assert src.index("widen_dialog_to_fit_the_work_area(dlg)") < src.index(
+        "self._exec_measurement_window(dlg)")

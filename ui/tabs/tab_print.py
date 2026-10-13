@@ -1121,16 +1121,23 @@ class TabPrint(QWidget):
         pv.setContentsMargins(0, 0, 0, 0)
         pv.setSpacing(2)
         pv.addWidget(ps_choice)
-        self._ps_applies_lbl = QLabel(_MM.M_PRINT_PS_FORM_APPLIES.render()[1], ps_box)
+        # the project-rule wording (M-PRINT-PS-FORM-APPLIES-PROJECT, final
+        # review of beta 2) once approved; until then the approved line
+        _applies = (_MM.M_PRINT_PS_FORM_APPLIES_PROJECT
+                    if _MM.M_PRINT_PS_FORM_APPLIES_PROJECT.approved
+                    else _MM.M_PRINT_PS_FORM_APPLIES)
+        self._ps_applies_lbl = QLabel(_applies.render()[1], ps_box)
         self._ps_applies_lbl.setWordWrap(True)
-        self._ps_applies_lbl.setVisible(_MM.M_PRINT_PS_FORM_APPLIES.approved)
+        self._ps_applies_lbl.setVisible(_applies.approved)
         pv.addWidget(self._ps_applies_lbl)
         ps_choice = ps_box
         # the help's headline (Basti, 2026-10-13) is M-PRINT-PS-FORM-HELP-TITLE
         # once approved; until then the approved M-PRINT-PS-FORM-HELP
-        _ps_help = (_MM.M_PRINT_PS_FORM_HELP_TITLE
-                    if _MM.M_PRINT_PS_FORM_HELP_TITLE.approved
-                    else _MM.M_PRINT_PS_FORM_HELP)
+        # and M-PRINT-PS-FORM-HELP-PROJECT (the project rule, final review of
+        # beta 2) once that is approved
+        _ps_help = next(m for m in (_MM.M_PRINT_PS_FORM_HELP_PROJECT,
+                                    _MM.M_PRINT_PS_FORM_HELP_TITLE,
+                                    _MM.M_PRINT_PS_FORM_HELP) if m.approved)
         self._ps_form_row = row(_ps_label, ps_choice, *_ps_help.render())
         self._ps_form_row.setVisible(False)
         gl.addWidget(self._ps_form_row)
@@ -1329,7 +1336,9 @@ class TabPrint(QWidget):
         from ui.widgets import (fit_message_box_buttons,
                                 keep_message_box_inside_the_work_area)
         keep_message_box_inside_the_work_area(box)
-        fit_message_box_buttons(box)
+        # side by side the two choices do not fit the widest box Qt allows
+        # in most languages (final review of beta 2): one above the other
+        fit_message_box_buttons(box, stack_when_too_wide=True)
         box.exec()
         clicked = box.clickedButton()
         if clicked is device_btn:

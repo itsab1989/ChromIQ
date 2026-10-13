@@ -11275,6 +11275,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # wrapped labels need more height the narrower the window is, and a
         # plain minimum size does not know that, so the window could be made
         # shorter than its own text (measured on screen, EN and DE).
+        # …AND NO TALLER THAN THE SCREEN (final review of 4.3.5 beta 2): with
+        # the underlay paragraph a ColorMunki's re-measurement window was 814
+        # pt tall in German on a 705 pt work area; wider, it is shorter.
+        from ui.widgets import widen_dialog_to_fit_the_work_area
+        widen_dialog_to_fit_the_work_area(dlg)
         _lay = dlg.layout()
         if _lay is not None and _lay.hasHeightForWidth():
             dlg.setMinimumHeight(_lay.totalHeightForWidth(dlg.minimumWidth()))

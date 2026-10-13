@@ -734,8 +734,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # headline Basti asked for, and the question
                                  # before a "Preview" run goes by the direct
                                  # route (2026-10-13).
-                                 "M-PRINT-PS-FORM-HELP-TITLE",
-                                 "M-PRINT-DIRECT-LIKE-PREVIEW",
+                                 # M-PRINT-PS-FORM-HELP-TITLE and
+                                 # M-PRINT-DIRECT-LIKE-PREVIEW were approved by
+                                 # Basti on 2026-10-13 and left this set (final
+                                 # review of beta 2). Proposed by that review:
+                                 # the help and the line under the row in the
+                                 # project rule's words.
+                                 "M-PRINT-PS-FORM-HELP-PROJECT",
+                                 "M-PRINT-PS-FORM-APPLIES-PROJECT",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

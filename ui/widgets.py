@@ -1498,7 +1498,7 @@ def keep_message_box_inside_the_work_area(box) -> None:
                    exc_info=True)
 
 
-def fit_message_box_buttons(box) -> None:
+def fit_message_box_buttons(box, stack_when_too_wide: bool = False) -> None:
     """Fit **every** button of a QMessageBox to the label it will paint.
 
     Knut, #130 2026-07-28, on the Delete windows: *"The button Delete Run 4
@@ -1525,6 +1525,7 @@ def fit_message_box_buttons(box) -> None:
         buttons = list(box.buttons())
         for btn in buttons:
             ButtonFontFilter.fit(btn)
+        stacked = bool(stack_when_too_wide) and _stack_buttons_when_too_wide(box, buttons)
         # WIDEN THE BOX, NOT JUST THE BUTTONS.
         #
         # Fitting each button sets its minimum width, but a QMessageBox sizes
@@ -1537,6 +1538,24 @@ def fit_message_box_buttons(box) -> None:
         if buttons and lay is not None:
             needed = sum(b.sizeHint().width() for b in buttons)
             needed += 12 * (len(buttons) + 1)      # spacing plus the margins
+            if stacked:     # one above the other: the widest one decides
+                needed = max(b.sizeHint().width() for b in buttons) + 24
+            # ON macOS THE BUTTON ROW DOES NOT GET THE ICON'S COLUMN. Qt puts
+            # a QMessageBox's buttons under the text only (column 1), while
+            # the spacer below spans every column, so the icon's width was
+            # counted as room the buttons could use. Final review of 4.3.5
+            # beta 2, measured on screen: M-PRINT-PS-ASK's middle button was
+            # given 297 px for a 297 px label (no padding, the letters on its
+            # border) in a box 879 px wide. The same allowance as
+            # `spread_message_box_buttons`.
+            import sys as _sys
+            if _sys.platform == "darwin":
+                icon_w = 0
+                for lbl in box.findChildren(QLabel):
+                    pm = lbl.pixmap()
+                    if pm is not None and not pm.isNull():
+                        icon_w = max(icon_w, lbl.sizeHint().width() + 20)
+                needed += icon_w
             # setMinimumWidth does NOT work on a QMessageBox — it sizes from its
             # own grid layout and squeezes straight back. A full-width spacer row
             # is the way to hold it open.
@@ -1550,6 +1569,99 @@ def fit_message_box_buttons(box) -> None:
     except Exception:      # noqa: BLE001 — sizing must never raise
         pass
 
+
+
+def _message_box_width_limit(box) -> int:
+    """The widest Qt lets a QMessageBox be (``QMessageBoxPrivate::updateSize``):
+    the work area's width less 480, at most 1000, and the whole width on a work
+    area of 1024 or less."""
+    from PyQt6.QtGui import QGuiApplication
+    screen = box.screen() or QGuiApplication.primaryScreen()
+    if screen is None:
+        return 1000
+    w = screen.availableGeometry().width()
+    return w if w <= 1024 else min(w - 480, 1000)
+
+
+def _stack_buttons_when_too_wide(box, buttons) -> bool:
+    """Put a message box's buttons one above the other when side by side they
+    cannot fit the widest box Qt allows (``_message_box_width_limit``).
+
+    Final review of 4.3.5 beta 2, measured on screen: M-PRINT-PS-ASK's two
+    approved choices as buttons need about 1100 px side by side in German and
+    Spanish, Qt holds the box at 1000 (800 on a 1280-wide screen), and the row
+    was squeezed until the first button's label ran under the second. Stacked,
+    each button keeps its whole label, as the "Print like" row on the tab
+    does. Returns True when it stacked them."""
+    try:
+        from PyQt6.QtWidgets import QDialogButtonBox
+        bb = box.findChild(QDialogButtonBox)
+        if bb is None or not buttons:
+            return False
+        icon_w = 0
+        for lbl in box.findChildren(QLabel):
+            pm = lbl.pixmap()
+            if pm is not None and not pm.isNull():
+                icon_w = max(icon_w, lbl.sizeHint().width() + 20)
+        needed = (sum(b.sizeHint().width() for b in buttons)
+                  + 12 * (len(buttons) + 1) + icon_w + 48)
+        if needed <= _message_box_width_limit(box):
+            return False
+        bb.setOrientation(Qt.Orientation.Vertical)
+        _log.debug("message box buttons stacked: %d px needed side by side", needed)
+        return True
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        return False
+
+
+def widen_dialog_to_fit_the_work_area(dlg, max_share: float = 0.9) -> None:
+    """Make a dialog of wrapped text WIDER until it is no taller than the
+    work area (a wider window is a shorter one), never past *max_share* of
+    the work area's width.
+
+    Final review of 4.3.5 beta 2, measured on screen with the work area of a
+    1280x800 screen with the Dock shown (705 pt): the ColorMunki's Calibration
+    Complete windows for a manual re-measurement and for a guided refinement,
+    with the approved M-CAL-DONE-UNDERLAY paragraph under the instrument's
+    steps, were 750 (English) to 814 (German) pt tall, so their OK button was
+    under the Dock. Done once the window is SHOWN: before that its fonts are
+    not final and its layout under-reported its height by up to 40 pt
+    (measured). Nothing happens to a window that already fits."""
+    from functools import partial
+    from PyQt6.QtCore import QTimer
+    QTimer.singleShot(0, partial(_widen_now, dlg, max_share))
+
+
+def _widen_now(dlg, max_share: float) -> None:
+    try:
+        from PyQt6.QtGui import QGuiApplication
+        if not dlg.isVisible():
+            return
+        lay = dlg.layout()
+        if lay is None or not lay.hasHeightForWidth():
+            return
+        screen = dlg.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        work = screen.availableGeometry()
+        frame = dlg.frameGeometry()
+        chrome = max(0, frame.height() - dlg.height())
+        room = work.height() - chrome
+        if frame.height() <= work.height():
+            return
+        w = dlg.width()
+        cap = max(w, int(work.width() * max_share))
+        while w < cap and lay.totalHeightForWidth(w) > room:
+            w = min(cap, w + 20)
+        h = min(room, lay.totalHeightForWidth(w))
+        dlg.setMinimumSize(w, h)
+        dlg.resize(w, h)
+        frame = dlg.frameGeometry()
+        x = min(max(frame.x(), work.x()), work.x() + work.width() - frame.width())
+        y = min(max(frame.y(), work.y()), work.y() + work.height() - frame.height())
+        dlg.move(max(x, work.x()), max(y, work.y()))
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        _log.debug("could not widen the dialog to the work area", exc_info=True)
 
 
 def spread_message_box_buttons(box, order=None) -> None:
