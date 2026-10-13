@@ -77,10 +77,10 @@ def test_only_a_grid_chart_records_how_it_was_spread(tmp_path):
                             intent="absolute", margin="safe")
     sel.targets = [(0, (50.0, 0.0, 0.0), (50.0, 50.0, 50.0))]
     gt.write_colorimetric_reference(sel, tmp_path / "even.ti3")
-    assert "CHROMIQ_SPREAD" not in (tmp_path / "even.ti3").read_text()
+    assert "CHROMIQ_SPREAD" not in (tmp_path / "even.ti3").read_text(encoding="utf-8")
     sel.spread = gt.SPREAD_GRID
     gt.write_colorimetric_reference(sel, tmp_path / "grid.ti3")
-    assert 'CHROMIQ_SPREAD "grid"' in (tmp_path / "grid.ti3").read_text()
+    assert 'CHROMIQ_SPREAD "grid"' in (tmp_path / "grid.ti3").read_text(encoding="utf-8")
 
 
 def test_the_colour_view_help_stays_as_shipped_until_approved():
