@@ -185,7 +185,13 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a60-darkacc",
      # Agent 62: a target lifted to the black floor keeps its CIECAM02 hue
      # (the violet patch near the black on blue ramps); research, opt-in
-     "a62-camhue"})
+     "a62-camhue",
+     # Agent 63: pale in-gamut accuracy near the paper white (the fine grid
+     # kept there, the mirror of a60-darkacc); research, opt-in
+     "a63-palefine",
+     # Agent 63: at quality l the keep-grid33in coarse table is never
+     # coarser than colprof's -qm grid 17; research, opt-in
+     "a63-lowgrid"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1443,6 +1449,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     from workflow.profile_engine import purecolprof as _a58m
     _a58 = _a58m.applies(candidates, accurate=accurate,
                          is_additive=meas.is_additive, n=n)
+    if _a58 and _a58m.a63_lowoff(candidates, _B2A_GRID[_qb_colprof]):
+        # Agent 63 (a63-lowgrid, sweep "off"): below colprof's -qm grid the
+        # engine's own table (int-7's recipe)
+        _a58 = False
 
     def _a58k(step: str) -> bool:
         return _a58m.keep(candidates, step, active=_a58)
@@ -1808,6 +1818,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             in_tables=b2a_in,
             out_tables=icw.curves_to_tables(inv, entries_b2a))
         _g0 = _B2A_GRID[_qb_colprof]
+        if _a58:
+            # Agent 63 (a63-lowgrid): no coarse table below grid 17
+            _g0 = _a58m.a63_coarse_grid(candidates, _g0, b2a_grid)
         if (_a58 and not _a58k("grid33") and codec.signature == b"Lab "
                 and _g0 < b2a_grid and (b2a_grid - 1) % (_g0 - 1) == 0):
             # Agent 58: colprof writes B2A1 on its own grid for the quality
@@ -1835,7 +1848,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         inside=_a58m.a59_inside(candidates),
                         dark=_a58m.a60_dark(
                             candidates, node_lab,
-                            float(model.predict(np.zeros((1, n)))[0, 0])))),
+                            float(model.predict(np.zeros((1, n)))[0, 0])),
+                        pale=_a58m.a63_pale(
+                            candidates, node_lab,
+                            float(model.predict(np.ones((1, n)))[0, 0])))),
                     in_tables=b2a_in,
                     out_tables=icw.curves_to_tables(inv, entries_b2a))
             else:

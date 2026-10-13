@@ -158,6 +158,70 @@ def a60_dark(candidates, node_lab, black_l: float = 0.0):
     return u * u * (3.0 - 2.0 * u), (None if c in (None, "") else float(c))
 
 
+# Agent 63 (a63-palefine): the mirror of a60-darkfine at the light end.
+# Near the paper white most Lab nodes clip (the gamut narrows to the white
+# point), so pale in-gamut colours sit in fine cells whose corners took the
+# coarse table interpolated: int-8 printed them about twice as far off as
+# int-7. Nodes within A63_L L* below the printer's white (the model's
+# RGB 1 L*) get a hand-over band of A63_C dE of clip distance (None: the
+# fine table outright), blended back over the next A63_W L* below.
+A63_L = 10.0
+A63_W = 10.0
+A63_C = 16.0
+
+
+def a63_pale(candidates, node_lab, white_l: float = 100.0):
+    """a63-palefine: (keep weight per node in [0, 1], pale band or None),
+    or None with the token off. keep = 1 above white_l - A63_L, smoothstep
+    to 0 at white_l - A63_L - A63_W (env CHROMIQ_A63_L / _W / _C for
+    sweeps; _C "none" = the fine table outright)."""
+    if "a63-palefine" not in frozenset(candidates or ()):
+        return None
+    import os
+    l0 = float(white_l) - float(os.environ.get("CHROMIQ_A63_L", A63_L))
+    wd = max(float(os.environ.get("CHROMIQ_A63_W", A63_W)), 1e-6)
+    c = os.environ.get("CHROMIQ_A63_C", A63_C)
+    if isinstance(c, str) and c.lower() == "none":
+        c = None
+    u = np.clip((np.asarray(node_lab, float)[:, 0] - (l0 - wd)) / wd,
+                0.0, 1.0)
+    return u * u * (3.0 - 2.0 * u), (None if c in (None, "") else float(c))
+
+
+# Agent 63 (a63-lowgrid): at quality l colprof's B2A grid is 9, cells four
+# fine cells wide, and the coarse table interpolated into the clipped
+# corners of boundary cells costs in-gamut accuracy across the whole gamut
+# surface (S1 at l: B2A1 p95 0.54 -> 0.78). The a58 look was measured at
+# colprof's -qm grid 17; a coarser one is not used: A63_MIN_COARSE.
+A63_MIN_COARSE = 17
+
+
+def a63_lowoff(candidates, g_coarse: int) -> bool:
+    """a63-lowgrid with CHROMIQ_A63_LOWGRID=off: a58 does not act at all
+    where colprof's grid is below A63_MIN_COARSE (research sweep)."""
+    import os
+    return ("a63-lowgrid" in frozenset(candidates or ())
+            and os.environ.get("CHROMIQ_A63_LOWGRID") == "off"
+            and int(g_coarse) < A63_MIN_COARSE)
+
+
+def a63_coarse_grid(candidates, g_coarse: int, g_fine: int) -> int:
+    """a63-lowgrid: the coarse grid the keep-grid33in hand-over uses. Token
+    off: colprof's own grid. On: never below A63_MIN_COARSE (env
+    CHROMIQ_A63_LOWGRID for sweeps; "fine" = no coarse table at all, the
+    fine grid everywhere), and only grids that sub-sample the fine one."""
+    if "a63-lowgrid" not in frozenset(candidates or ()):
+        return g_coarse
+    import os
+    v = os.environ.get("CHROMIQ_A63_LOWGRID", str(A63_MIN_COARSE))
+    if v == "off":
+        return g_coarse
+    if v == "fine":
+        return g_fine if g_coarse < g_fine else g_coarse
+    g = max(int(g_coarse), int(v))
+    return g if g <= g_fine and (g_fine - 1) % (g - 1) == 0 else g_coarse
+
+
 KEEP_TOKENS = tuple(f"a58-keep-{s}" for s in KEEP_STEPS)
 
 # Argyll's clip constants (xicc/xlut.c:104-111)
@@ -406,7 +470,8 @@ def coarse_outside(fine: np.ndarray, coarse: np.ndarray, residual: np.ndarray,
                    g_fine: int, g_coarse: int,
                    band: float | None = None,
                    inside: tuple | None = None,
-                   dark: tuple | None = None) -> np.ndarray:
+                   dark: tuple | None = None,
+                   pale: tuple | None = None) -> np.ndarray:
     """Agent 58, keep-grid33in: the fine-grid table where the node is in
     gamut and the coarse grid (trilinear, exact at the shared nodes) where it
     clipped: w = smoothstep(residual / band), out = (1 - w) fine + w coarse."""
@@ -439,6 +504,19 @@ def coarse_outside(fine: np.ndarray, coarse: np.ndarray, residual: np.ndarray,
             u2 = np.clip(np.asarray(residual, float) / np.maximum(b, 1e-9),
                          0.0, 1.0)
             w = u2 * u2 * (3.0 - 2.0 * u2)
+    if pale is not None:
+        # Agent 63 (a63-palefine): nodes near the paper white keep the fine
+        # table with a wider hand-over band (or outright); the wider of the
+        # two bands wins where the dark and the pale region meet
+        pkeep, pband = pale
+        pkeep = np.asarray(pkeep, float)
+        if pband is None:
+            w = (1.0 - pkeep) * w
+        else:
+            b = band + pkeep * (float(pband) - band)
+            u3 = np.clip(np.asarray(residual, float) / np.maximum(b, 1e-9),
+                         0.0, 1.0)
+            w = np.minimum(w, u3 * u3 * (3.0 - 2.0 * u3))
     if inside is not None:
         # Agent 59 (a59-inband): printable nodes within ``depth`` dE of a
         # clipped node lean toward the coarse table too, so the clip's bend
