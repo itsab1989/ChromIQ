@@ -162,7 +162,14 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
-     "a56-blackfade"})
+     "a56-blackfade",
+     # Agent 58: the RGB colorimetric B2A1 exactly as colprof builds it
+     # (per-node inversion, Argyll's CAM clip, no additions); the
+     # a58-keep-<step> tokens give one engine addition back each
+     "a58-purecolprof", "a58-keep-black", "a58-keep-floor",
+     "a58-keep-ourclip", "a58-keep-rgbcol", "a58-keep-refit",
+     "a58-keep-a44", "a58-keep-a42", "a58-keep-a40", "a58-keep-grid33",
+     "a58-keep-grid33in"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -815,6 +822,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         raise EngineError(_CLUT_ONLY_MSG)
     q = _QUALITY_INDEX[settings.quality]
     qb = _QUALITY_INDEX.get(settings.b2a_quality, q)
+    _qb_colprof = qb                    # Agent 58: colprof's own B2A grid
     if (settings.gammap_mode == "accurate"
             and ({"b2a33", "b2a33s"}
                  & accurate_candidates(settings.engine_candidates))):
@@ -1399,6 +1407,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         anchor_box["axis"] = axis
         anchor_box["axis_ready"].set()
     _a34_on = any(t.startswith("a34-blackseam") for t in candidates)
+    # Research Agent 58 (a58-purecolprof): RGB colorimetric table built as
+    # colprof builds it; _a58k(step) says whether one of the engine's own
+    # additions still runs (always, with the token off).
+    from workflow.profile_engine import purecolprof as _a58m
+    _a58 = _a58m.applies(candidates, accurate=accurate,
+                         is_additive=meas.is_additive, n=n)
+
+    def _a58k(step: str) -> bool:
+        return _a58m.keep(candidates, step, active=_a58)
+    _a58_floor = None
     if accurate and any(t.startswith("a29-oog-darkmono") for t in candidates):
         # Research Agent 29b (Findings/agent29b-01): the a25-oog clip may not
         # aim below the black the colorimetric table's neutral column ends
@@ -1420,6 +1438,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                      # 88). Ablation: -deepfloor.
                                      neutral=(_a34_on and "a34-blackseam-"
                                               "deepfloor" not in candidates))
+        if not _a58k("floor"):
+            _floor = None               # Agent 58: colprof has no floor
+        _a58_floor = _floor
         from workflow.profile_engine import oog_clip as _oogc
         _oogc.set_dark_floor(_floor)
         if _floor is not None:
@@ -1427,6 +1448,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                             f"L* {_floor:.1f}.")
     from workflow.profile_engine import oog_clip as _oog51
     _oog51.set_colorimetric(True)       # Agent 51: this thread, this table
+    if _a58 and not _a58k("ourclip"):
+        # Agent 58: colprof's clip (purecolprof.cam_clip) for this table
+        _a58m.set_active(True, floor=_a58_floor,
+                         fade="a56-blackfade" in candidates)
+        _emit(settings, "Colorimetric table: colprof's per-node inversion "
+                        "and CAM clip (research a58-purecolprof).")
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
@@ -1434,8 +1461,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
         ucs=use_ucs, channel_max=channel_max,
         progress=lambda m: _emit(settings, m))
+    _a58m.set_active(False)
     fixed_nodes = None
-    if accurate and meas.is_additive and "a25-rgbcol" in candidates:
+    if (accurate and meas.is_additive and "a25-rgbcol" in candidates
+            and _a58k("rgbcol")):
         fixed_nodes = b2a_mod.additive_column_nodes(node_lab, residual)
     if axis is not None:
         fixed_nodes = b2a_mod.apply_neutral_axis(
@@ -1449,7 +1478,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"Neutral black under the ink limits: "
                             f"L* {axis['l_black']:.1f}.")
     rgb_col = None
-    if accurate and meas.is_additive and n == 3 and "rgbcol" in candidates:
+    if (accurate and meas.is_additive and n == 3 and "rgbcol" in candidates
+            and _a58k("rgbcol")):
         # Research F-13 (Findings/agent20-01 s6.2, design A3). An RGB
         # printer's B2A neutral column below the black: the smoothing refit
         # gave these nodes a weak anchor and set them from their lighter,
@@ -1520,6 +1550,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             prior=prior, prior_w=prior_w, gn_model=gn_view,
             progress=lambda m: _emit(settings, m))
         dev_clut_shaped = np.clip(model.shape_device(dev_joint), 0.0, 1.0)
+    elif not _a58k("refit"):
+        # Agent 58: colprof writes the per-node inversion as it is
+        # (profout.c:82, USE_LEASTSQUARES_APROX undefined): no refit
+        dev_clut_shaped = np.clip(model.shape_device(dev_clut), 0.0, 1.0)
     else:
         dev_clut_shaped = b2a_mod.refine_b2a_clut(
             model, dev_clut, residual, b2a_grid,
@@ -1538,7 +1572,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     from workflow.profile_engine import oog_clip as _oogc
     _oogc.set_dark_floor(None)          # Agent 29b: colorimetric table done
     _oogc.set_colorimetric(False)       # Agent 51: colorimetric table done
-    if (_a40_on and fixed_nodes is not None and len(fixed_nodes)):
+    if (_a40_on and fixed_nodes is not None and len(fixed_nodes)
+            and _a58k("a40")):
         # Research (Agent 38 s6, a40-knut-grey): with the gentler curves the
         # neutral black of a noisy chart can land on a cube face (Knut: RGB
         # 0, 0, 0.17), and the held column then turns a channel back on its
@@ -1595,7 +1630,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         dev_clut_shaped = dev_clut_shaped.copy()
         dev_clut_shaped[fixed_nodes] = model.shape_device(
             dev_clut[fixed_nodes])
-    if accurate and b2a_mod.A42_TOKEN in candidates and n <= 4:
+    if (accurate and b2a_mod.A42_TOKEN in candidates and n <= 4
+            and _a58k("a42")):
         # Research a42-nearblack, part 2: in the rows of the black hand-over
         # the column and its first ring take their own per-node inversion
         # back where the refit gave way (b2a.py, comment above A42_TOKEN).
@@ -1618,7 +1654,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _emit(settings, f"Near-black hand-over: {_nbk['nodes']} "
                                 f"nodes up to L* {_nbk['rows'][-1]:.1f} "
                                 f"keep their own inversion.")
-    if accurate and b2a_mod.A44_TOKEN in candidates and n <= 4:
+    if (accurate and b2a_mod.A44_TOKEN in candidates and n <= 4
+            and _a58k("a44")):
         # Research a44-exactkeep: anywhere in the table, an in-gamut node
         # the refit pulled more than A44_TOL off its exact inversion takes
         # that inversion back where the cells around it then print closer
@@ -1664,9 +1701,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         device_black = dev_clut[black_node].copy()
     if channel_max is not None:
         device_black = np.minimum(device_black, channel_max)
-    dev_clut_shaped = b2a_mod.pin_black_node(
-        dev_clut_shaped, node_lab,
-        model.shape_device(device_black[None, :])[0])
+    if _a58k("black"):
+        # (Agent 58: colprof pins no black into an RGB B2A1; xlut.c:3443-
+        # 3447 uses RGB 0 only as the perceptual black point)
+        dev_clut_shaped = b2a_mod.pin_black_node(
+            dev_clut_shaped, node_lab,
+            model.shape_device(device_black[None, :])[0])
     if rgb_col is not None and len(rgb_col):
         dev_clut_shaped = b2a_mod.pin_nodes(
             dev_clut_shaped, rgb_col, model.shape_device(rgb_col_val))
@@ -1693,7 +1733,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         inv = b2a_mod.inverse_curves(model.curves)
         _space = (b2a_mod.b2a_space_curves(
                       model.curves, smooth=b2a_mod.a45_c1(candidates))
-                  if accurate and b2a_mod.A42_TOKEN in candidates else None)
+                  if (accurate and b2a_mod.A42_TOKEN in candidates
+                      and _a58k("a42")) else None)
         if _space is not None:
             # Research a42-nearblack, part 1: the B2A curve space keeps
             # every ink interval at least half the identity's share.
@@ -1704,6 +1745,33 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             3, n, b2a_grid, icw.device_to_u16(dev_clut_shaped),
             in_tables=b2a_in,
             out_tables=icw.curves_to_tables(inv, entries_b2a))
+        _g0 = _B2A_GRID[_qb_colprof]
+        if (_a58 and not _a58k("grid33") and codec.signature == b"Lab "
+                and _g0 < b2a_grid and (b2a_grid - 1) % (_g0 - 1) == 0):
+            # Agent 58: colprof writes B2A1 on its own grid for the quality
+            # (profout.c:1129-1146: -qm 17 points, 1024-entry curves), not
+            # the engine's b2a33s grid. The coarse Lab nodes are every
+            # k-th fine node (lab_grid_axes is a linspace), so the per-node
+            # inversions are the same values, sub-sampled.
+            _st = (b2a_grid - 1) // (_g0 - 1)
+            _sub = dev_clut_shaped.reshape(b2a_grid, b2a_grid, b2a_grid, n)[
+                ::_st, ::_st, ::_st].reshape(-1, n)
+            if _a58k("grid33in"):
+                # Agent 58 addition: the engine's fine grid where the node
+                # is printable (exact inversion, the accuracy win), colprof's
+                # coarse table interpolated where it is clipped, handed over
+                # over A58_IN_BAND dE of clip distance
+                b2a_col = icw.make_mft2(
+                    3, n, b2a_grid, icw.device_to_u16(_a58m.coarse_outside(
+                        dev_clut_shaped, _sub, residual, b2a_grid, _g0)),
+                    in_tables=b2a_in,
+                    out_tables=icw.curves_to_tables(inv, entries_b2a))
+            else:
+                _e0 = _B2A_ENTRIES[_qb_colprof]
+                b2a_col = icw.make_mft2(
+                    3, n, _g0, icw.device_to_u16(_sub),
+                    in_tables=codec.b2a_in_tables(_e0),
+                    out_tables=icw.curves_to_tables(inv, _e0))
     # ICC.1 §9.2.29: gamt is 0 for an in-gamut PCS colour. The inversion's
     # clamp distance is a continuous residual (0.3–0.9 ΔE on converged
     # near-boundary nodes) and it leaked onto two thirds of the printable

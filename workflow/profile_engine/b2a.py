@@ -693,7 +693,15 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         d[idx] = d_retry[better]
         residual[idx] = res_retry[better]
 
-    if accurate and _oog.PARAMS.get("on"):
+    from workflow.profile_engine import purecolprof as _pure
+    if accurate and _pure.active():
+        # Research (Agent 58, a58-purecolprof): colprof's own clip for the
+        # RGB colorimetric table (purecolprof.cam_clip): Lab nearest, then
+        # the rev.c LCh-weighted nearest point in Argyll's CIECAM02 Jab,
+        # blended over CAMCLIPTRANS (xicc/xlut.c:1321-1418)
+        d = _pure.cam_clip(model, target, d, residual,
+                           floor=_pure.floor(), fade=_pure.fade_fn(model))
+    elif accurate and _oog.PARAMS.get("on"):
         # Research (Agent 25, tokens a25-*): one continuous weighted
         # nearest-point clip in a hue-linear space, no accept/reject switch
         # (oog_clip module docstring; Findings agent25-01).
