@@ -190,6 +190,7 @@ def set_active(flag: bool, *, floor=None, fade: bool = False) -> None:
     _LOCAL.on = bool(flag)
     if not flag:
         _LOCAL.a60 = False
+        _LOCAL.a62 = False
     _LOCAL.floor = None if (not flag or floor is None) else float(floor)
     _LOCAL.fade = bool(flag and fade and floor is not None)
 
@@ -207,6 +208,7 @@ def set_a60(candidates) -> None:
     cand = frozenset(candidates or ())
     _LOCAL.a60 = ("a60-darkclip" in cand or "a60-darkacc" in cand)
     _LOCAL.a60_acc = "a60-darkacc" in cand
+    _LOCAL.a62 = "a62-camhue" in cand
 
 
 def a60_clip_weight(model, target_lab: np.ndarray):
@@ -373,6 +375,12 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray,
             t_lab[:, 0] = new_l
             if fade is not None:
                 t_lab = fade(t_lab, lift)
+            if getattr(_LOCAL, "a62", False):
+                # Agent 62 (a62-camhue): the lifted target keeps the
+                # CIECAM02 hue of the target it was lifted from
+                from workflow.profile_engine.oog_clip import camhue_lift
+                t_lab = camhue_lift(t_lab, np.asarray(target_lab, float)[sel],
+                                    lift)
 
     def predict_j(dev):
         return lab_to_argyll_jab(model.predict(dev))

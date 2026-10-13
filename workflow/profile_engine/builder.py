@@ -177,7 +177,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a59-inband", "a60-darkfine", "a60-darkrel", "a60-darkclip",
      # Agent 60: dark in-gamut accuracy on v-noclip (fine grid and the
      # engine's own clip near the black); research, opt-in
-     "a60-darkacc"})
+     "a60-darkacc",
+     # Agent 62: a target lifted to the black floor keeps its CIECAM02 hue
+     # (the violet patch near the black on blue ramps); research, opt-in
+     "a62-camhue"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two

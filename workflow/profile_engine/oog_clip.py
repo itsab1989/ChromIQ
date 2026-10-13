@@ -322,6 +322,12 @@ A51B_TOKEN = "a51b-colprofedge"
 # below the black, lands on the black (blackfade_alpha). See blackfade_k.
 A56_TOKEN = "a56-blackfade"
 A51_PARAMS = {"space": "cam02", "wj": 4.0, "wc": 1.0, "wh": 4.84}
+# Agent 62 (a62-camhue): a target lifted to the floor keeps the CIECAM02 hue
+# of the target it was lifted from (camhue_lift). Lifting at constant a*, b*
+# turns a dark blue's CAM hue toward violet by up to 10 deg (Lab hue lines
+# are not constant-hue in the dark blue), and the clip then adds red: a
+# violet patch near the black on the blue ramps (Findings agent62-01).
+A62_TOKEN = "a62-camhue"
 _HK = {"on": True}
 _REL = threading.local()
 
@@ -356,7 +362,57 @@ def table_params(p: dict = None) -> dict:
         q["dm_ray"] = True
     if p.get("a56"):
         q["a56_on"] = True
+    if p.get("a62"):
+        q["a62_on"] = True
     return q
+
+
+def camhue_lift(t_lab: np.ndarray, orig_lab: np.ndarray,
+                lift: np.ndarray, iters: int = 8) -> np.ndarray:
+    """Agent 62 (a62-camhue): ``t_lab`` (targets already lifted, and faded)
+    turned about the L* axis, at their own L* and C*, so that their Argyll
+    CIECAM02 hue is the hue of ``orig_lab`` (the targets before the lift).
+    Rows with no lift are returned unchanged; the turn is solved per row by
+    secant steps on the hue angle (it is monotone and close to 1:1). A
+    neutral original has no hue to keep: the turn fades in over the hue
+    weight's own chroma fade (PARAMS c_fade, in the space's chroma)."""
+    t_lab = np.asarray(t_lab, float)
+    out = t_lab.copy()
+    m = np.flatnonzero(np.asarray(lift) > 0)
+    if not len(m):
+        return out
+
+    def hue(lab):
+        j = lab_to_argyll_jab(lab)
+        return np.arctan2(j[:, 2], j[:, 1]), np.hypot(j[:, 1], j[:, 2])
+
+    goal, oc = hue(np.asarray(orig_lab, float)[m])
+    base = t_lab[m]
+    c = np.hypot(base[:, 1], base[:, 2])
+    h0 = np.arctan2(base[:, 2], base[:, 1])
+
+    def at(th):
+        x = base.copy()
+        x[:, 1] = c * np.cos(h0 + th)
+        x[:, 2] = c * np.sin(h0 + th)
+        return x
+
+    def err(th):
+        e = hue(at(th))[0] - goal
+        return (e + np.pi) % (2.0 * np.pi) - np.pi
+
+    th = np.zeros(len(m))
+    e = err(th)
+    for _ in range(iters):
+        d = 1e-3
+        de = (err(th + d) - e) / d
+        de = np.where(np.abs(de) < 0.2, 1.0, de)
+        th = np.clip(th - e / de, -np.radians(45.0), np.radians(45.0))
+        e = err(th)
+    s = np.clip(oc / max(float(PARAMS["c_fade"]), 1e-9), 0.0, 1.0)
+    s = s * s * (3.0 - 2.0 * s)
+    out[m] = at(th * s)
+    return out
 
 
 def blackfade_k(c, depth, alpha, r: float = 2.0,
@@ -696,6 +752,9 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
             if p.get("a56_on"):
                 # Agent 56: the lifted chroma fades with the depth
                 t_lab = blackfade_targets(model, t_lab, lift, floor, p, fn)
+            if p.get("a62_on"):
+                # Agent 62: the lifted target keeps its own CAM hue
+                t_lab = camhue_lift(t_lab, target_lab[sel], lift)
         else:
             lift = None
     t_s = fn(t_lab)

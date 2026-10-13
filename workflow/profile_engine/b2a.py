@@ -2169,6 +2169,9 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     # Agent 56: the lifted chroma fades into the black (acts only where a51
     # acts: table_params passes it on for the colorimetric table only)
     p["a56"] = oog_clip.A56_TOKEN in t
+    # Agent 62 (a62-camhue): the lifted target keeps its CIECAM02 hue (only
+    # where a51 acts, passed on by table_params like a56)
+    p["a62"] = oog_clip.A62_TOKEN in t
     # research knobs for the fade's order and shape (Agent 56 A/B only)
     p["a56_r"] = float(os.environ.get("CHROMIQ_A56_R", "2.0"))
     p["a56_shape"] = os.environ.get("CHROMIQ_A56_SHAPE", "rat")
