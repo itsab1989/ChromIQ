@@ -181,6 +181,11 @@ class GamutSelection:
     #: profile was made for". None when the profile carries no media white.
     profile_white_lab: "tuple[float, float, float] | None" = None
     profile_name: str = ""
+    #: How the body was spread (:data:`SPREADS`); ``grid`` only when the
+    #: experimental stepwise grid was asked for, with its search history
+    #: ``[(spacing, count)]``.
+    spread: str = "even"
+    grid_history: list = field(default_factory=list)
 
     @property
     def achieved(self) -> int:
@@ -746,6 +751,215 @@ def _even_spread(cands, fixed, n: int, samples, weights) -> "list[int]":
 
 
 
+#: How the chart's body is spread over the gamut. ``even`` is the shipped
+#: k82 selection (:func:`_even_spread`, from the fixed candidate list).
+#: ``grid`` is Knut's stepwise grid (#182 6113365581), EXPERIMENTAL and off:
+#: a regular lattice in L*a*b* whose spacing is doubled, then halved in
+#: alternating directions until the count inside the gamut is the goal, the
+#: rest at the centres between lattice points (:func:`_stepwise_grid`). Its
+#: colours are lattice points, not candidates of the k83 list, so switching it
+#: on contradicts k83 and needs Knut's and Sebastian's approval (spec 9a, E5).
+SPREAD_EVEN = "even"
+SPREAD_GRID = "grid"
+SPREADS = (SPREAD_EVEN, SPREAD_GRID)
+
+
+class _GamutSolid:
+    """Everything *a profile can print*, as the solid the device cube maps
+    to: the 25-step device grid of :func:`_gamut_density` read through the
+    profile, each grid cell cut into six tetrahedra. A colour is inside when
+    it lies in the image of one of them. On a printer whose response folds
+    (a laser's own driver: Knut's CLJ5550 prints a more colourful green at
+    G=53 than at G=100) the images overlap, and "inside any" is still the
+    right answer: some ink amount prints it.
+
+    Tetrahedra are bucketed by a voxel grid so a lookup only tests the few
+    whose bounding box holds the point; numpy only."""
+
+    _TETS = ((0, 1, 3, 7), (0, 1, 5, 7), (0, 2, 3, 7),
+             (0, 2, 6, 7), (0, 4, 5, 7), (0, 4, 6, 7))
+
+    def __init__(self, grid_lab, n: int = None, voxel: float = 4.0):
+        import numpy as np
+        g = np.asarray(grid_lab, dtype=float)
+        n = n or round(len(g) ** (1.0 / 3.0))
+        g = g.reshape(n, n, n, 3)
+        corners = [g[i:n - 1 + i, j:n - 1 + j, k:n - 1 + k].reshape(-1, 3)
+                   for i in (0, 1) for j in (0, 1) for k in (0, 1)]
+        v0, e1, e2, e3 = [], [], [], []
+        for a, b, c, d in self._TETS:
+            v0.append(corners[a])
+            e1.append(corners[b] - corners[a])
+            e2.append(corners[c] - corners[a])
+            e3.append(corners[d] - corners[a])
+        self.v0 = np.vstack(v0)
+        m = np.stack([np.vstack(e1), np.vstack(e2), np.vstack(e3)], axis=2)
+        det = np.linalg.det(m)
+        ok = np.abs(det) > 1e-9
+        self.v0, m = self.v0[ok], m[ok]
+        self.inv = np.linalg.inv(m)
+        pts = np.stack([self.v0, self.v0 + m[:, :, 0], self.v0 + m[:, :, 1],
+                        self.v0 + m[:, :, 2]], axis=1)
+        self.lo_box, self.hi_box = pts.min(axis=1), pts.max(axis=1)
+        self.lo = self.lo_box.min(axis=0)
+        self.hi = self.hi_box.max(axis=0)
+        self.voxel = float(voxel)
+        a = np.floor((self.lo_box - self.lo) / self.voxel).astype(int)
+        b = np.floor((self.hi_box - self.lo) / self.voxel).astype(int)
+        self.dims = np.floor((self.hi - self.lo) / self.voxel).astype(int) + 1
+        buckets: "dict[int, list[int]]" = {}
+        for t in range(len(a)):
+            for x in range(a[t, 0], b[t, 0] + 1):
+                for y in range(a[t, 1], b[t, 1] + 1):
+                    for z in range(a[t, 2], b[t, 2] + 1):
+                        buckets.setdefault(
+                            (x * self.dims[1] + y) * self.dims[2] + z,
+                            []).append(t)
+        self.buckets = {k: np.asarray(v) for k, v in buckets.items()}
+
+    def inside(self, points) -> "list[bool]":
+        import numpy as np
+        p = np.asarray(points, dtype=float).reshape(-1, 3)
+        out = np.zeros(len(p), dtype=bool)
+        vox = np.floor((p - self.lo) / self.voxel).astype(int)
+        inbox = np.all((vox >= 0) & (vox < self.dims), axis=1)
+        keys = (vox[:, 0] * self.dims[1] + vox[:, 1]) * self.dims[2] + vox[:, 2]
+        for i in np.flatnonzero(inbox):
+            tets = self.buckets.get(int(keys[i]))
+            if tets is None:
+                continue
+            q = p[i]
+            box = np.all((self.lo_box[tets] <= q) & (q <= self.hi_box[tets]),
+                         axis=1)
+            tets = tets[box]
+            if not len(tets):
+                continue
+            lam = np.einsum("tij,tj->ti", self.inv[tets], q - self.v0[tets])
+            if np.any(np.all(lam >= -1e-9, axis=1)
+                      & (lam.sum(axis=1) <= 1.0 + 1e-9)):
+                out[i] = True
+        return out
+
+
+def _lattice(spacing: float, lo, hi, anchor) -> "object":
+    """Every point of the cubic lattice with *spacing* through *anchor*
+    inside the box *lo*..*hi* (L*, a*, b*)."""
+    import numpy as np
+    axes = []
+    for k in range(3):
+        first = math.floor((lo[k] - anchor[k]) / spacing)
+        last = math.ceil((hi[k] - anchor[k]) / spacing)
+        axes.append(np.arange(first, last + 1) * spacing + anchor[k])
+    return np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
+
+
+def _stepwise_grid(goal: int, solid: "_GamutSolid", fixed, start: float,
+                   *, max_steps: int = 40):
+    """Knut's stepwise grid (#182 6113365581), in L*a*b*.
+
+    A cubic lattice of spacing *s* is laid over the gamut; its points inside
+    the gamut (and not within half a spacing of a *fixed* patch, the corners
+    and grey steps the chart has anyway) are counted. Starting a little
+    denser than the goal, the spacing is doubled until fewer than *goal*
+    points are inside, then changed in the other direction by half the
+    previous step each time the goal is passed, until the count is the goal
+    or the step is negligible; the largest count at or below the goal is
+    kept. Returns ``(points, centres, spacing, history)``: the lattice points
+    kept, the inside centres of the lattice's cells (the places "exactly in
+    between" for the remainder), the spacing, and ``[(spacing, count)]``."""
+    import numpy as np
+    fixed = np.asarray(fixed, dtype=float).reshape(-1, 3)
+    lo, hi = solid.lo, solid.hi
+    # The lattice is offset half a step off the neutral axis, so its
+    # columns never stand on the grey steps.
+    def count(s):
+        anchor = (50.0, s / 2.0, s / 2.0)
+        lat = _lattice(s, lo, hi, anchor)
+        lat = lat[solid.inside(lat)]
+        if len(fixed) and len(lat):
+            lat = lat[_nearest(lat, fixed)[1] >= 0.5 * s]
+        return lat
+
+    history = []
+
+    def ask(s):
+        pts = count(s)
+        history.append((s, len(pts)))
+        return pts
+
+    s = float(start)
+    pts = ask(s)
+    # Knut starts "a little denser than the goal"; a start that is not is
+    # made so by halving the spacing.
+    while len(pts) < goal and len(history) < max_steps:
+        s /= 2.0
+        pts = ask(s)
+    # Double the spacing until the goal is passed...
+    prev = s
+    while len(pts) > goal and len(history) < max_steps:
+        prev, s = s, 2.0 * s
+        pts = ask(s)
+    # ...then turn, half the last move each time the goal is passed again.
+    best = (s, pts) if len(pts) <= goal else None
+    step = (s - prev) / 2.0
+    direction = -1
+    while len(pts) != goal and len(history) < max_steps and step > 1e-3 * s:
+        want = -1 if len(pts) < goal else +1
+        if want != direction:
+            direction = want
+            step /= 2.0
+        s = s + direction * step
+        pts = ask(s)
+        if len(pts) <= goal and (best is None or len(pts) > len(best[1])):
+            best = (s, pts)
+    if best is None:
+        best = (s, pts[:goal])
+    s, pts = best
+    centres = _lattice(s, lo, hi, (50.0 + s / 2.0, s, s))
+    centres = centres[solid.inside(centres)]
+    if len(fixed) and len(centres):
+        centres = centres[_nearest(centres, fixed)[1] >= 0.5 * s]
+    return pts, centres, s, history
+
+
+def _grid_selection(profile: Path, count: int, threshold: float, letter: str,
+                    bin_dir, runner, density, corners_as_printed, greys_lab
+                    ) -> "tuple[list, list, list]":
+    """The body of a chart by :func:`_stepwise_grid`: ``(labs, devices,
+    history)`` for ``count`` colours. Every colour kept passed the same
+    round trip and printable test as a candidate of the list."""
+    import numpy as np
+    solid = _GamutSolid(density[2])
+    fixed = np.asarray(list(corners_as_printed) + list(greys_lab),
+                       dtype=float).reshape(-1, 3)
+    volume = float(density[1].sum())
+    start = 0.8 * (volume / max(1, count)) ** (1.0 / 3.0)
+    pts, centres, s, history = _stepwise_grid(count, solid, fixed, start)
+    ask = [tuple(map(float, x)) for x in np.vstack([pts, centres])] \
+        if len(centres) else [tuple(map(float, x)) for x in pts]
+    device, back = _round_trip(ask, profile, bin_dir, letter, runner)
+    ok = [math.dist(a, b) <= threshold and device_is_printable(d)
+          for a, b, d in zip(ask, back, device)]
+    lat_ok = [i for i in range(len(pts)) if ok[i]]
+    labs = [ask[i] for i in lat_ok][:count]
+    devs = [device[i] for i in lat_ok][:count]
+    # The remainder: at the centres between lattice points, each the one
+    # farthest from every patch so far (Knut: "exactly in-between existing
+    # patches"), so none lands on another.
+    cand = [len(pts) + j for j in range(len(centres)) if ok[len(pts) + j]]
+    if len(labs) < count and cand:
+        have = np.vstack([fixed, np.asarray(labs).reshape(-1, 3)])
+        c = np.asarray([ask[i] for i in cand], dtype=float)
+        dist = _nearest(c, have)[1]
+        while len(labs) < count and np.max(dist) >= 0:
+            j = int(np.argmax(dist))
+            labs.append(ask[cand[j]])
+            devs.append(device[cand[j]])
+            dist = np.minimum(dist, np.linalg.norm(c - c[j], axis=1))
+            dist[j] = -1.0
+    return labs, devs, history
+
+
 def _fill_strip_rungs(picks: "list[int]", cands, fixed, cand_devices
                       ) -> "list[int]":
     """*picks* with a few patches exchanged so the chart can declare its
@@ -892,9 +1106,14 @@ def select_gamut_targets(
     bin_dir: "str | Path",
     master_path: "Path | None" = None,
     runner: "Callable[..., subprocess.CompletedProcess]" = subprocess.run,
+    spread: str = SPREAD_EVEN,
 ) -> GamutSelection:
     """Filter the candidate list through *profile* and pick *count* reachable
     colours, plus the eight corners.
+
+    *spread* ``grid`` (EXPERIMENTAL, off by default, see :data:`SPREAD_GRID`)
+    keeps the corners and grey steps and lays the rest out by Knut's stepwise
+    grid instead of choosing them from the list.
 
     The round trip: candidate Lab → B2A → device → A2B → Lab′. A colour the
     profile can reach comes back within interpolation error; a clipped one
@@ -972,6 +1191,22 @@ def select_gamut_targets(
     chosen: "list[int]" = list(greys)
 
     import numpy as np
+    if spread == SPREAD_GRID and density is not None:
+        labs_g, devs_g, history = _grid_selection(
+            profile, count - len(chosen), threshold, letter, bin_dir, runner,
+            density, corners_as_printed, [back[i] for i in greys])
+        for i in sorted(chosen):
+            selection.targets.append((i, labs[i], snap_to_device_cube(device[i])))
+        for lab, dev in zip(labs_g, devs_g):
+            selection.targets.append((-1, tuple(lab), snap_to_device_cube(dev)))
+        selection.corners = list(zip(CORNER_DEVICES, _corner_ideal_labs()))
+        selection.spread = SPREAD_GRID
+        selection.grid_history = list(history)
+        log.info("gamut selection (experimental stepwise grid): %d requested, "
+                 "%d chosen (%d grey steps) in %d steps + %d corners",
+                 count, selection.achieved, len(greys), len(history),
+                 len(selection.corners))
+        return selection
     cands = np.asarray([back[i] for i in body], dtype=float).reshape(-1, 3)
     fixed = np.asarray(list(corners_as_printed) + [back[i] for i in greys],
                        dtype=float).reshape(-1, 3)
@@ -1112,6 +1347,10 @@ def write_colorimetric_reference(selection: GamutSelection, out_path: Path) -> P
             " ".join(f"{float(v):.4f}" for v in selection.profile_white_lab)))
     if selection.profile_name:
         lines.append(f'CHROMIQ_PROFILE "{selection.profile_name}"')
+    # Only a chart laid out by the experimental stepwise grid says so; the
+    # shipped even spread writes nothing new.
+    if getattr(selection, "spread", SPREAD_EVEN) != SPREAD_EVEN:
+        lines.append(f'CHROMIQ_SPREAD "{selection.spread}"')
     lines += [
         "",
         "NUMBER_OF_FIELDS 10",

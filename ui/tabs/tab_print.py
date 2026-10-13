@@ -550,6 +550,21 @@ def _reset_vendors(rep) -> set:
     return {dialog_route_lock_vendor(k) for k in reset} - {None}
 
 
+
+def ps_texts(*, proposed: bool = False):
+    """``(question, choices, help or None)`` for a PostScript printer on the
+    macOS dialog route: the explained wording (Knut, #182 6143186611:
+    M-PRINT-PS-ASK-EXPLAINED, M-PRINT-PS-FORM-CHOICE-EXPLAINED,
+    M-PRINT-PS-FORM-HELP-EXPLAINED) when all three are approved, else the
+    approved M-PRINT-PS-ASK and M-PRINT-PS-FORM-CHOICE with no help override.
+    *proposed* returns the explained set regardless, for review drivers."""
+    from workflow import measurement_messages as MM
+    explained = (MM.M_PRINT_PS_ASK_EXPLAINED, MM.M_PRINT_PS_FORM_CHOICE_EXPLAINED,
+                 MM.M_PRINT_PS_FORM_HELP_EXPLAINED)
+    if proposed or all(m.approved for m in explained):
+        return explained
+    return MM.M_PRINT_PS_ASK, MM.M_PRINT_PS_FORM_CHOICE, None
+
 class TabPrint(QWidget):
 
     ti2_loaded         = pyqtSignal(Path)  # emitted when the user loads a .ti2 file
@@ -1099,7 +1114,8 @@ class TabPrint(QWidget):
         # once they are approved; the stored choice and its default work
         # regardless (``_ps_form``).
         from workflow import measurement_messages as _MM
-        _ps_label, _ps_lines = _MM.M_PRINT_PS_FORM_CHOICE.render()
+        _ps_choice_msg, _ps_help_explained = ps_texts()[1:]
+        _ps_label, _ps_lines = _ps_choice_msg.render()
         _ps_lines = _ps_lines.split("\n")
         ps_choice = QWidget(self._cm_grp)
         # ONE ABOVE THE OTHER (combined review of beta 2): side by side the
@@ -1135,9 +1151,10 @@ class TabPrint(QWidget):
         # once approved; until then the approved M-PRINT-PS-FORM-HELP
         # and M-PRINT-PS-FORM-HELP-PROJECT (the project rule, final review of
         # beta 2) once that is approved
-        _ps_help = next(m for m in (_MM.M_PRINT_PS_FORM_HELP_PROJECT,
-                                    _MM.M_PRINT_PS_FORM_HELP_TITLE,
-                                    _MM.M_PRINT_PS_FORM_HELP) if m.approved)
+        _ps_help = _ps_help_explained or next(
+            m for m in (_MM.M_PRINT_PS_FORM_HELP_PROJECT,
+                        _MM.M_PRINT_PS_FORM_HELP_TITLE,
+                        _MM.M_PRINT_PS_FORM_HELP) if m.approved)
         self._ps_form_row = row(_ps_label, ps_choice, *_ps_help.render())
         self._ps_form_row.setVisible(False)
         gl.addWidget(self._ps_form_row)
@@ -1309,24 +1326,38 @@ class TabPrint(QWidget):
             return stored
         return None if self._ps_form_can_be_asked() else forms.DEFAULT_POSTSCRIPT_FORM
 
-    def _ask_ps_form(self, printer: str) -> "str | None":
+    def _ask_ps_form(self, printer: str, *, proposed: bool = False
+                     ) -> "str | None":
         """M-PRINT-PS-ASK, after the macOS dialog closed with Print on a
         PostScript printer and before anything is sent: which way to print.
         The answer is stored for the run; Cancel returns None (nothing is
-        printed)."""
+        printed).
+
+        Its explained wording (M-PRINT-PS-ASK-EXPLAINED and
+        M-PRINT-PS-FORM-CHOICE-EXPLAINED, Knut #182 6143186611) once approved;
+        *proposed* shows it before that, for review drivers only."""
         from workflow import measurement_messages as MM
         from workflow import ppd_color as forms
-        title, body = MM.M_PRINT_PS_ASK.render(printer=printer or "")
-        label, lines = MM.M_PRINT_PS_FORM_CHOICE.render()
+        ask_msg, choice_msg, _help = ps_texts(proposed=proposed)
+        explained = ask_msg is MM.M_PRINT_PS_ASK_EXPLAINED
+        title, body = ask_msg.render(printer=printer or "")
+        label, lines = choice_msg.render()
         lines = lines.split("\n")
+        if explained:
+            # each button IS its choice, in words that say what happens to
+            # the colours; no "Print like" in front
+            label = ""
         box = QMessageBox(self)
         set_question_icon(box)    # ChromIQ's sign, not the platform's
         box.setWindowTitle(title)
         box.setText(title)
         box.setInformativeText(body)
-        device_btn = box.addButton(tr("{label} {choice}").format(label=label, choice=lines[0]),
+        def _btn_text(choice):
+            return choice if explained else tr("{label} {choice}").format(
+                label=label, choice=choice)
+        device_btn = box.addButton(_btn_text(lines[0]),
                                    QMessageBox.ButtonRole.AcceptRole)
-        macos_btn = box.addButton(tr("{label} {choice}").format(label=label, choice=lines[1]),
+        macos_btn = box.addButton(_btn_text(lines[1]),
                                   QMessageBox.ButtonRole.AcceptRole)
         cancel_btn = box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(device_btn)
@@ -3468,6 +3499,14 @@ class TabPrint(QWidget):
         kept = tr("ChromIQ asks for application colour matching, as Photoshop does. "
                   "Afterwards the Print Chart tab says what the printing system holds "
                   "for the job.")
+        # Why the dialog shows a colour profile it will not let you switch
+        # off (Knut, #182 6144104040), once M-PRINT-DIALOG-COLOUR-MATCHING is
+        # approved: measured, the dialog's Colour Matching choice does not
+        # change the job (report folder 2026-10-13_b3_knut/item3).
+        from workflow import measurement_messages as _MM
+        cm = _MM.M_PRINT_DIALOG_COLOUR_MATCHING
+        if cm.approved:
+            kept = kept + "\n\n" + cm.render()[1]
         return "\n\n".join([paras[0], kept, paras[3], paras[4]])
 
     def _show_paper_not_listed(self, title: str, body: str) -> None:

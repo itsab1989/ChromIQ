@@ -5884,6 +5884,25 @@ _GAMUT_SIZE_HELP_P7 = (
 )
 
 
+def strip_label_crowding_notice(crowd, *, unapproved: bool = False
+                                ) -> "str | None":
+    """The red line under "Measured from Preview" for strip labels that run
+    into each other (``raster.StripLabelCrowding``), or None: nothing to say,
+    a size the user did not type ("auto" already fits as well as it can), no
+    size that clears it, or M-CHART-STRIP-LABELS-CROWDED not approved yet
+    (*unapproved* renders it anyway, for tests and review only)."""
+    from workflow.measurement_messages import M_CHART_STRIP_LABELS_CROWDED as M
+    if crowd is None or not crowd.explicit or crowd.fits_pt is None:
+        return None
+    if not (M.approved or unapproved):
+        return None
+    _title, body = M.render(
+        size=f"{crowd.size_pt:.0f}", pitch=f"{crowd.pitch_mm:.1f}",
+        first=crowd.labels[0], second=crowd.labels[1],
+        fits=f"{math.floor(crowd.fits_pt):.0f}")
+    return body
+
+
 def _gamut_size_help_body() -> str:
     """The "How many colours to test" help, translated paragraph by
     paragraph; the two 4.3.5 paragraphs only once M-HELP-GAMUT-SIZE-SPREAD is
@@ -16747,6 +16766,19 @@ class TabChart(QWidget):
         if self._runner.is_running:
             log.warning("Knut preset (gamut layout): a process is already running")
             return False
+        if self._gamut_profile() is None:
+            # NOT IN SILENCE (Knut, #182 6144104040: "I tried selecting a
+            # preset, but nothing happened"). With no built profile there is
+            # nothing to fill the layout from, so the preset is refused and
+            # the tab put back (#175), as before; until 4.3.5 beta 3 that was
+            # all, and the panel's own "needs a finished profile" note sits
+            # below the fold at a laptop's window height. The same approved
+            # words, in a window, at the moment of the click.
+            title, body = self._gamut_no_profile_message()
+            log.info("From Profile Gamut: preset %r refused, the run has no "
+                     "built profile", key)
+            InfoDialog(title, body, self, min_width=520).exec()
+            return False
         p = KNUT_PRESETS_BY_KEY[key]
         self._seed_knut_preset(key, target_name)
         self._knut_active = True
@@ -23377,10 +23409,20 @@ class TabChart(QWidget):
                                            write_gamut_ti1)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
+            # Knut's stepwise grid (#182 6113365581) is EXPERIMENTAL and off:
+            # no control shows it, only a hand-set "gamut_target_spread" of
+            # "grid" asks for it (spec 9a, E5; switching it on needs Knut's
+            # and Sebastian's approval).
+            from workflow.gamut_target import SPREAD_EVEN, SPREADS
+            spread = str(self._settings.get("gamut_target_spread", SPREAD_EVEN)
+                         or SPREAD_EVEN)
+            if spread not in SPREADS:
+                spread = SPREAD_EVEN
             selection = select_gamut_targets(
                 profile, count, margin, intent,
                 bin_dir=self._settings.get("argyll_bin_path",
-                                           "/Applications/Argyll/bin"))
+                                           "/Applications/Argyll/bin"),
+                spread=spread)
             ctl = getattr(self, "_target_ctl", None)
             project = ctl.project_or_none() if ctl is not None else None
             if project is None:
@@ -26301,6 +26343,22 @@ class TabChart(QWidget):
                         cols=_short[0] or _short[2],
                         rows=_short[1] or _short[3],
                         got_cols=_short[2], got_rows=_short[3]))
+            # STRIP LETTERS THAT RUN INTO THEIR NEIGHBOURS (Knut, #182
+            # 6144104040: with many strips the double letters "crash" at a
+            # fixed 12 pt; "auto" fits them). Measured with the renderer's own
+            # font, size and letter spacing on this chart's labels and strip
+            # pitch (`raster.strip_label_crowding`). Said only for a size the
+            # user typed, with a size that clears it; "auto" already picks the
+            # largest one that fits. The words wait in §M-PROPOSED
+            # (M-CHART-STRIP-LABELS-CROWDED) and are not shown before approval.
+            try:
+                from workflow.layout_engine import raster as _raster
+                _crowd = _raster.strip_label_crowding(geom, _kw_notes)
+            except Exception:      # noqa: BLE001 — a notice, never a blocker
+                _crowd = None
+            _crowd_line = strip_label_crowding_notice(_crowd)
+            if _crowd_line:
+                over.append(_crowd_line)
             # ---- THE FOUR EDGES, MEASURED OFF THE SHEET IN THE PREVIEW -----
             #
             # KNUT'S RULING OF 2026-09-15 (#182, comment 5679470670) IS THAT

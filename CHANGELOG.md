@@ -1,5 +1,25 @@
 # Changelog
 
+## v4.3.5-beta.3 (unreleased)
+
+### Changed
+
+- **Show patch distribution (3D), "Colours through the profile": the grey skin and its lines now line up** (#182, Knut). The skin is drawn as finely as the lines on it (it was half as fine, so on Knut's HP Color LaserJet 5550 profile its border cut across a line by up to 4 ΔE\*ab near a corner) and is lightly shaded, so its own outline and bulges can be seen. The darker lines are the colours where two of the three ink amounts are at 0 or 100 (for example pure red to pure yellow): seams on the skin, not its outline. On his printer the most colourful colours of most hues come from other mixes (its most colourful green is at G=53), so the skin bulges up to 39 ΔE\*ab beyond the lines. The patches of a From Profile Gamut chart stand about half a spacing inside the skin, as evenly spaced patches do; the chart in Knut's screenshots was made by 4.3.4 (closest pair 0.41 ΔE\*ab) and has holes twice the size of a 4.3.5 chart's.
+- **Knut's stepwise grid for From Profile Gamut charts is built, as an experiment that is switched off** (#182, Knut). Measured on his profile at 100, 324, 600 and 1296 patches against the shipped even spread, it is a little more even inside at 1296 patches but reaches the edges, corners and outer skin of the gamut less well at every size, so the shipped selection is unchanged. It is behind a hidden setting until Knut and Sebastian decide.
+
+### Fixed
+
+- **A preset picked in From Profile Gamut did nothing when the run has no finished profile** (Create Chart, #182, Knut). The window "This run needs a finished profile first" now opens and says why and what to do.
+- **"By columns / rows" on an X-Rite DTP51 printed two patches fewer per strip than asked, and said the grid did not fit** (Create Chart). The instrument's own max and min patches at the ends of each strip took two of the rows. The warning now comes only when a patch would have to be smaller than 1 mm (about 8 pixels at 200 dpi, 12 at 300) or the instrument's own limit of patches per strip is passed.
+- **Ukrainian: the "Strip & row labels" frame was titled "Deletion & row labels".**
+
+### Waiting for approval (not shown yet)
+
+- A red warning when strip letters run into each other at the label size you typed, with the size that fits (M-CHART-STRIP-LABELS-CROWDED). The check itself is built.
+- The PostScript question and the "Print like" row, explained choice by choice: "Send the colours unchanged (like Photoshop)" and "Let the printer adjust the colours (like Preview)" (M-PRINT-PS-ASK-EXPLAINED, M-PRINT-PS-FORM-CHOICE-EXPLAINED, M-PRINT-PS-FORM-HELP-EXPLAINED).
+- On the macOS print dialog route, why the dialog shows a colour profile under Colour Matching and why it does not matter: measured, the printer receives the same job whatever is chosen there (M-PRINT-DIALOG-COLOUR-MATCHING).
+- The 3D tool's "Show:" help naming the lines as seams (M-HELP-COLOUR-VIEW-SEAMS).
+
 ## v4.3.5-beta.2
 
 ### Changed

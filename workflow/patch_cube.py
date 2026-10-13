@@ -233,7 +233,12 @@ def _lab_layout(bg: str, fg: str, grid: str) -> dict:
 #: Samples along each of the cube's 12 edges, and per side of each face, when
 #: the device cube is mapped into L*a*b* to outline a profile's gamut.
 OUTLINE_EDGE_STEPS = 33
-OUTLINE_FACE_STEPS = 17
+#: The SAME as the edges' (Knut, #182 6144104040: "Why do the dark grey line
+#: not align with the outer edges of the lighter grey gamut shell?"). With 17
+#: the skin's border was a chord across every second point of the line beside
+#: it, up to 4.2 ΔE*ab off it where his CLJ5550's lines hook round near a
+#: corner; at 33 the skin's border passes through every point of the line.
+OUTLINE_FACE_STEPS = OUTLINE_EDGE_STEPS
 
 
 @dataclass
@@ -300,6 +305,10 @@ def gamut_outline(profile, bin_dir, *, intent: str = "a",
     return GamutOutline(out_edges, verts, tris)
 
 
+#: How see-through the gamut's skin is drawn (0 invisible, 1 solid).
+SKIN_OPACITY = 0.14
+
+
 def outline_traces(outline: "GamutOutline", *, fg: str = "#cccccc") -> list:
     """Plotly traces for :class:`GamutOutline`: the twelve ridges as lines and
     the six sides as a faint see-through skin, neither hoverable."""
@@ -316,7 +325,7 @@ def outline_traces(outline: "GamutOutline", *, fg: str = "#cccccc") -> list:
         zs.append(None)
     ridges = {"type": "scatter3d", "mode": "lines", "name": "gamut edges",
               "x": xs, "y": ys, "z": zs,
-              "line": {"color": fg, "width": 3}, "opacity": 0.55,
+              "line": {"color": fg, "width": 2}, "opacity": 0.45,
               "hoverinfo": "skip", "showlegend": False}
     if not outline.vertices or not outline.faces:
         return [ridges]
@@ -325,7 +334,17 @@ def outline_traces(outline: "GamutOutline", *, fg: str = "#cccccc") -> list:
     skin = {"type": "mesh3d", "name": "gamut",
             "x": v[:, 1].tolist(), "y": v[:, 2].tolist(), "z": v[:, 0].tolist(),
             "i": f[:, 0].tolist(), "j": f[:, 1].tolist(), "k": f[:, 2].tolist(),
-            "color": fg, "opacity": 0.08, "flatshading": True,
+            "color": fg, "opacity": SKIN_OPACITY, "flatshading": False,
+            # Lit, so the skin reads as a curved surface with its own
+            # outline: the twelve lines are seams ON it (two inks at 0 or
+            # 100), and between them a printer's skin can bulge well past
+            # them (his CLJ5550: up to 39 ΔE*ab, dark violet; its most
+            # colourful green is at G=53, not on any seam). A flat, faint
+            # skin hid where it turns away, so the seams looked like its
+            # edges and did not match them.
+            "lighting": {"ambient": 0.55, "diffuse": 0.6, "specular": 0.05,
+                         "roughness": 0.9, "fresnel": 0.4},
+            "lightposition": {"x": 1000, "y": 2000, "z": 3000},
             "hoverinfo": "skip", "showlegend": False}
     return [skin, ridges]
 

@@ -742,6 +742,18 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # project rule's words.
                                  "M-PRINT-PS-FORM-HELP-PROJECT",
                                  "M-PRINT-PS-FORM-APPLIES-PROJECT",
+                                 # 4.3.5 beta 3, Knut #182 6143186611 and
+                                 # 6144104040: the 3D tool's lines named as
+                                 # seams, strip letters that run together, the
+                                 # PostScript question explained choice by
+                                 # choice, and why the macOS dialog shows a
+                                 # profile. All hidden until approved.
+                                 "M-HELP-COLOUR-VIEW-SEAMS",
+                                 "M-CHART-STRIP-LABELS-CROWDED",
+                                 "M-PRINT-PS-ASK-EXPLAINED",
+                                 "M-PRINT-PS-FORM-CHOICE-EXPLAINED",
+                                 "M-PRINT-PS-FORM-HELP-EXPLAINED",
+                                 "M-PRINT-DIALOG-COLOUR-MATCHING",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
