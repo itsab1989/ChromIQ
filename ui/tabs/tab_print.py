@@ -3301,6 +3301,20 @@ class TabPrint(QWidget):
                   "for the job.")
         return "\n\n".join([paras[0], kept, f"{title}\n{body}", paras[3], paras[4]])
 
+    def _show_paper_not_listed(self, title: str, body: str) -> None:
+        """M-PRINT-PS-PAPER-NOT-LISTED, its headline IN the box (combined
+        review of beta 2: shown with ``QMessageBox.warning`` the approved
+        headline went only to the window frame, which macOS does not draw, so
+        the user saw the body alone). The pattern of the other §M windows of
+        this tab (``_ask_unknown_paper_profile``)."""
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        set_warning_icon(box)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
         self._update_verify_route_note(native=enabled)
@@ -3404,7 +3418,7 @@ class TabPrint(QWidget):
                                 _DialogReadBack(_npm.last_submission))
                 except PaperNotOnPrinter as exc:
                     log.error("Native macOS print refused: %s", exc)
-                    QMessageBox.warning(self, *_MM.M_PRINT_PS_PAPER_NOT_LISTED.render(
+                    self._show_paper_not_listed(*_MM.M_PRINT_PS_PAPER_NOT_LISTED.render(
                         size=exc.size_mm, printer=exc.printer or ""))
                 except ChartIsNotRGB as exc:
                     # R26-F8: this route can only carry RGB, and it used to

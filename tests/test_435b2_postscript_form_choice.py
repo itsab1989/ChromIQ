@@ -294,7 +294,7 @@ def test_a_refused_paper_is_said_and_not_recorded(qapp, tmp_path, ps_dialog, mon
     monkeypatch.setattr("sys.platform", "darwin")
     shown, recorded = [], []
     from ui.tabs import tab_print as tp
-    monkeypatch.setattr(tp.QMessageBox, "warning", lambda parent, t, b: shown.append((t, b)))
+    monkeypatch.setattr(tab, "_show_paper_not_listed", lambda t, b: shown.append((t, b)))
     tab._commit_print_record = recorded.append
     tab._print_native([(tmp_path / "p.tif", 0)])
     assert shown == [MM.M_PRINT_PS_PAPER_NOT_LISTED.render(
@@ -388,3 +388,20 @@ def test_the_verification_note_drops_its_postscript_promises_as_macos(
     tab._update_verify_route_note(native=True)
     shown = tab._verify_route_lbl.text()
     assert "own RGB" not in shown
+
+
+def test_the_paper_window_shows_its_headline_in_the_box(qapp, tmp_path, ps_dialog, monkeypatch):
+    """Combined review of beta 2, on screen: through QMessageBox.warning the
+    headline was only the window title, which macOS does not draw."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _tab(s, ctl)
+    from ui.tabs import tab_print as tp
+    seen = {}
+
+    def fake_exec(box):
+        seen.update(text=box.text(), info=box.informativeText())
+        return 0
+    monkeypatch.setattr(tp.QMessageBox, "exec", fake_exec)
+    title, body = MM.M_PRINT_PS_PAPER_NOT_LISTED.render(size="297 × 420 mm", printer="P")
+    tab._show_paper_not_listed(title, body)
+    assert seen == {"text": "This printer does not offer this paper size", "info": body}
