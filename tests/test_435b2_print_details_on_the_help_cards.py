@@ -28,18 +28,10 @@ _LANGS = ("de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru", "sv",
           "uk", "zh_CN")
 
 def _approved_module():
-    """welcome_dialog as it will be once Basti approves the print notes: its
-    own source run with ``PRINT_NOTES_APPROVED = True`` (WORKFLOWS is built at
-    import, so the flag cannot be patched afterwards)."""
-    import types
-    src = Path(W.__file__).read_text(encoding="utf-8")
-    assert src.count("PRINT_NOTES_APPROVED = False") == 1
-    mod = types.ModuleType("welcome_dialog_approved")
-    mod.__file__ = W.__file__
-    exec(compile(src.replace("PRINT_NOTES_APPROVED = False",
-                             "PRINT_NOTES_APPROVED = True"), W.__file__, "exec"),
-         mod.__dict__)
-    return mod
+    """welcome_dialog as it ships: the print notes are approved (Knut and
+    Basti, 2026-10-13, shown since 4.3.5 beta 3)."""
+    assert W.PRINT_NOTES_APPROVED is True
+    return W
 
 
 #: The cards Knut named, and the note headings their print steps must carry.
@@ -85,12 +77,12 @@ def test_every_named_card_explains_printing_in_folded_notes(key):
 
 
 @pytest.mark.parametrize("key", sorted(_CARDS))
-def test_the_notes_wait_for_bastis_approval(key):
-    """Basti, 2026-10-13: hidden until he approves them."""
-    assert W.PRINT_NOTES_APPROVED is False
+def test_the_approved_notes_are_shown(key):
+    """Knut and Basti approved the notes on 2026-10-13: every card shows its
+    own, and only the notes its print step needs are folded under it."""
+    assert W.PRINT_NOTES_APPROVED is True
     shown = _print_step_notes(key)
-    every = {f()[0] for f in _NOTE_FUNCS}
-    assert not (shown & every), sorted(shown & every)
+    assert _CARDS[key] <= shown, sorted(_CARDS[key] - shown)
 
 
 def test_the_notes_say_what_the_code_does():

@@ -214,7 +214,7 @@ def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
 
 @MEASURED_WITH_CORETEXT
 @pytest.mark.parametrize("key,pages", [
-    ("first_profile", 2), ("cmyk_n", 1), ("file_guide", 16),
+    ("first_profile", 3), ("cmyk_n", 1), ("file_guide", 16),
 ])
 def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
     """US Letter's shorter body must not buy a sheet for one grey line.
@@ -246,6 +246,9 @@ def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
     Back to 2 the same day (combined review of beta 2): those notes wait for
     Basti's approval (``welcome_dialog.PRINT_NOTES_APPROVED``) and are not on
     the card until then. Approved, they take it to 3 again.
+
+    Re-measured 2026-10-13 (4.3.5 beta 3): 2 -> 3 on A4 AND Letter, the
+    notes approved by Knut and Basti and on the card.
     """
     for size in _SIZES:
         _pdf, got, _pr = _print_card(key, size, tmp_path)

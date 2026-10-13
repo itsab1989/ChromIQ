@@ -83,25 +83,36 @@ def _text(info, mode="both") -> str:
 
 @pytest.fixture
 def plain(monkeypatch):
-    """The driver-only preview: the proposed words switched on."""
+    """The approved words, as shipped (kept as a fixture so every test below
+    says which card it reads)."""
     monkeypatch.setattr(M, "M_PATCH_CARD_PLAIN", dataclasses.replace(
         M.M_PATCH_CARD_PLAIN, approved=True))
 
 
-def test_the_words_wait_for_approval():
-    assert M.M_PATCH_CARD_PLAIN.approved is False
-    assert "M-PATCH-CARD-PLAIN" in M.PROPOSED
+@pytest.fixture
+def hidden(monkeypatch):
+    """The card as it read before the approval, the path ``approved=False``
+    still takes."""
+    monkeypatch.setattr(M, "M_PATCH_CARD_PLAIN", dataclasses.replace(
+        M.M_PATCH_CARD_PLAIN, approved=False))
+
+
+def test_the_words_are_approved():
+    """Knut and Basti, 2026-10-13, v3 without "only" (4.3.5 beta 3)."""
+    assert M.M_PATCH_CARD_PLAIN.approved is True
+    assert "M-PATCH-CARD-PLAIN" not in M.PROPOSED
+    assert " only " not in M.M_PATCH_CARD_PLAIN.body
 
 
 @pytest.mark.parametrize("case", sorted(CASES))
-def test_hidden_the_card_is_unchanged(qapp, case):
+def test_hidden_the_card_is_unchanged(qapp, hidden, case):
     t = _text(CASES[case])
     assert "Colour error" not in t and "colour error" not in t
     assert "ΔE00" not in t
     assert "Without the re-read" not in t
 
 
-def test_hidden_knuts_yellow_card_reads_as_before(qapp):
+def test_hidden_knuts_yellow_card_reads_as_before(qapp, hidden):
     t = _text(CASES["yellow_neighbour"])
     assert "ΔE*ab 8.07, the reading before 6.70" in t
     assert "Red before: ΔE 6.44 further" in t
@@ -140,7 +151,7 @@ def test_switched_on_the_difference_is_a_section_of_its_own(qapp, plain):
     assert ("The expected colour is what the run's profile predicts for the "
             "values sent to the printer. The Measurement Report uses ΔE00. "
             "It is closer to how the eye sees colour differences.") in t
-    assert ("The 4 patches most similar to it are only about ΔE*ab 1.63 off "
+    assert ("The 4 patches most similar to it are about ΔE*ab 1.63 off "
             "their expected colours. At ΔE*ab 8.07, this one stands out by "
             "ΔE*ab 6.44. (Neighbour check, median of the 4.)") in t
 
@@ -333,9 +344,10 @@ def test_switched_on_every_sentence_is_finished(qapp, plain, case):
     assert _unfinished(CASES[case]) == [], case
 
 
-def test_the_sentence_check_finds_knuts_line_on_todays_card(qapp):
+def test_the_sentence_check_finds_knuts_line_on_todays_card(qapp, hidden):
     """The check has teeth: today's yellow card (hidden proposal) has the
-    line Knut quoted, and the check names it."""
+    line Knut quoted, and the check names it. (The approved words replaced
+    that card in 4.3.5 beta 3.)"""
     bad = _unfinished(CASES["yellow_neighbour"])
     assert "ΔE*ab 8.07, the reading before 6.70" in bad
 

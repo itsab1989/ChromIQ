@@ -2240,7 +2240,7 @@ _CARDP_BASIS_ESTIMATE = ("The expected colour is an estimate: the patch's RGB "
 #: catalogue key (i18n_extract takes the module's str constants).
 _CARDP_UNITS = ("ΔE00 = CIEDE2000, L*a*b* D50", "ΔE*ab = CIE76, L*a*b* D50")
 #: Lines 3 to 6: the neighbour comparison on every card it judges.
-_CARDP_NBC_FURTHER = ("The {n} patches most similar to it are only about "
+_CARDP_NBC_FURTHER = ("The {n} patches most similar to it are about "
                       "{median} off their expected colours. At {own}, this "
                       "one stands out by {d}. (Neighbour check, median of "
                       "the {n}.)")
@@ -2335,7 +2335,7 @@ M_PATCH_CARD_PLAIN = _m(
                _CARDP_UNSETTLED_DE, _CARDP_UNSETTLED_TWO,
                _CARDP_UNSETTLED_MANY, _CARDP_GREEN_NB, _CARDP_GREEN_LIMIT,
                *_CARDP_UNITS)),
-    approved=False)
+    approved=True)
 
 M_PATCH_UNSETTLED = _m(
     "M-PATCH-UNSETTLED",

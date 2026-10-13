@@ -122,12 +122,13 @@ def _beep_note() -> "tuple[str, str]":
 # not something to tick; the macOS print dialog refuses EVERY chart that is not
 # RGB (``native_print_macos._refuse_unless_rgb``), not only five to seven inks.
 #
-# HIDDEN UNTIL BASTI APPROVES THEM (``PRINT_NOTES_APPROVED``): until then the
-# cards show what they showed in 4.3.5 beta 1, except "How the sheet reaches
-# the printer", whose beta-1 sentence ("sent as raw PostScript") was untrue.
+# Held back until approved (``PRINT_NOTES_APPROVED``); APPROVED by Knut and
+# Basti on 2026-10-13 and shown since 4.3.5 beta 3. While held back the cards
+# showed what they showed in 4.3.5 beta 1, except "How the sheet reaches the
+# printer", whose beta-1 sentence ("sent as raw PostScript") was untrue.
 
-#: Basti approves the print notes; until then no card shows them.
-PRINT_NOTES_APPROVED = False
+#: The print notes are approved (Knut and Basti, 2026-10-13); False hides them.
+PRINT_NOTES_APPROVED = True
 
 
 def _print_notes(*notes: "tuple[str, str]") -> "tuple[tuple[str, str], ...]":

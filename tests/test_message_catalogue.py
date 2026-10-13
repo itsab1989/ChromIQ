@@ -699,10 +699,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # they wait for Knut.)
                                  "M-PATCH-NEIGHBOUR-VARIANTS",
                                  "M-MEASURED-SUSPECTS",
-                                 # 4.3.5 beta 2 (Knut, #182 6108217111): every
-                                 # patch-error and neighbour-check card line
-                                 # in plain words; hidden until approved.
-                                 "M-PATCH-CARD-PLAIN",
+                                 # (M-PATCH-CARD-PLAIN, 4.3.5 beta 2, was
+                                 # here until Knut and Basti approved it
+                                 # 2026-10-13, without "only".)
                                  # (M-CAL-DONE-UNDERLAY, 4.3.5 beta 2, was
                                  # here until Basti approved it 2026-10-13.)
                                  # Knut approved the green outline and its
