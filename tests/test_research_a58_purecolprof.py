@@ -12,11 +12,16 @@ import pytest
 from workflow.profile_engine import purecolprof as P
 
 
-def test_the_tokens_are_known_and_not_defaults():
+def test_the_tokens_are_known_and_v_noclip_is_the_default():
+    # Integration 8 (Agent 62): a58-purecolprof with every keep token except
+    # the engine's own clip metric (ourclip) and the all-fine grid (grid33)
     from workflow.profile_engine import builder
+    off = {"a58-keep-ourclip", "a58-keep-grid33"}
     for t in (P.TOKEN,) + P.KEEP_TOKENS:
         assert t in builder.ENGINE_CANDIDATE_TOKENS
-        assert t not in builder.ACCURATE_DEFAULT_TOKENS
+        assert (t in builder.ACCURATE_DEFAULT_TOKENS) == (t not in off)
+        if t not in off:
+            assert "no-" + t in builder.ENGINE_CANDIDATE_TOKENS
 
 
 def test_applies_to_rgb_maximum_accuracy_only():

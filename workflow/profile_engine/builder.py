@@ -159,6 +159,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a45-c1space", "no-a45-darkend",
      # Integration 7: the off switch of a51-colprofedge (RGB devices only)
      "no-a51-colprofedge",
+     # Integration 8: the off switches of the new Maximum accuracy defaults
+     "no-a58-purecolprof", "no-a58-keep-black", "no-a58-keep-grid33in",
+     "no-a58-keep-floor", "no-a56-blackfade", "no-a58-keep-rgbcol",
+     "no-a58-keep-refit", "no-a58-keep-a44", "no-a58-keep-a42",
+     "no-a58-keep-a40", "no-a60-darkacc", "no-a62-camhue",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -265,6 +270,20 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
 # CIECAM02 Jab clip metric for the colorimetric B2A; RGB devices ONLY, ink
 # devices need the opt-in "a51-colprofedge-all"; "a51b-colprofedge" dropped).
 # Switch: "no-a51-colprofedge".
+# Integration 8 (2026-10-14, Agent 62, Findings/agent62-01-violet-int8.md;
+# Agents 58, 60, 62): the RGB colorimetric B2A1 on colprof's recipe with the
+# engine's additions kept except its own clip metric ("v-noclip": a58-
+# purecolprof and the a58-keep-* tokens below, with a56-blackfade), the dark
+# in-gamut accuracy fix a60-darkacc, and a62-camhue (a target lifted to the
+# dark floor keeps its CIECAM02 hue). All act on RGB Maximum accuracy only
+# (purecolprof.applies; a56/a62 only where a51 acts); CMYK builds unchanged.
+# Each has a "no-<token>" switch; "no-a58-purecolprof" alone gives int-7's
+# table back with a56-blackfade and a62-camhue still acting in its clip.
+INT8_TOKENS = frozenset({
+    "a58-purecolprof", "a58-keep-black", "a58-keep-grid33in",
+    "a58-keep-floor", "a56-blackfade", "a58-keep-rgbcol", "a58-keep-refit",
+    "a58-keep-a44", "a58-keep-a42", "a58-keep-a40", "a60-darkacc",
+    "a62-camhue"})
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
@@ -274,7 +293,7 @@ ACCURATE_DEFAULT_TOKENS = frozenset({
     "a40-inklimit", "a42-nearblack", "a43-shadowdetail-width",
     "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
     "a44b-smoothexact", "a45-c1space", "a45-darkend",
-    "a51-colprofedge"})
+    "a51-colprofedge"}) | INT8_TOKENS
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer

@@ -26,7 +26,14 @@ _INT6 = {"a40-inklimit", "a42-nearblack", "a43-shadowdetail-width",
          "a44b-smoothexact", "a45-c1space", "a45-darkend"}
 # integration 7 (Findings/agent52-01-integration7.md): RGB devices only
 _INT7 = {"a51-colprofedge"}
-_DEF = {"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6 | _INT7
+# integration 8 (Findings/agent62-01-violet-int8.md): RGB colorimetric B2A1
+# on colprof's recipe (v-noclip) + a60-darkacc + a62-camhue, RGB only
+_INT8 = {"a58-purecolprof", "a58-keep-black", "a58-keep-grid33in",
+         "a58-keep-floor", "a56-blackfade", "a58-keep-rgbcol",
+         "a58-keep-refit", "a58-keep-a44", "a58-keep-a42", "a58-keep-a40",
+         "a60-darkacc", "a62-camhue"}
+_DEF = ({"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6
+        | _INT7 | _INT8)
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -49,11 +56,11 @@ def test_agent9_tokens_are_off_by_default():
 
 def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-b2a33s"}) == ({"rgbpos", "v4prm", "rgbcol"}
-                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _FIN3)
+                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _FIN3)
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
                                 "no-rgbcol", "no-fin3"}
-                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7}) == frozenset()
-    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7:
+                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8}) == frozenset()
+    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8:
         assert "no-" + t in ENGINE_CANDIDATE_TOKENS
 
 

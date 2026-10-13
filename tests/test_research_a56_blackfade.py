@@ -35,17 +35,19 @@ def teardown_function(_f):
     oog_clip.set_dark_floor(None)
 
 
-def test_the_token_is_known_and_not_a_default():
+def test_the_token_is_known_and_a_default_since_integration_8():
     assert TOK == "a56-blackfade"
     assert TOK in ENGINE_CANDIDATE_TOKENS
-    assert TOK not in ACCURATE_DEFAULT_TOKENS
-    assert TOK not in accurate_candidates(frozenset())
-    assert TOK in accurate_candidates({TOK})
+    assert TOK in ACCURATE_DEFAULT_TOKENS
+    assert TOK in accurate_candidates(frozenset())
+    assert "no-" + TOK in ENGINE_CANDIDATE_TOKENS
+    assert TOK not in accurate_candidates({"no-" + TOK})
 
 
 def test_it_acts_only_in_the_rgb_colorimetric_table_with_a51():
     assert _params({TOK}, additive=True).get("a56_on") is True
-    assert not _params(set(), additive=True).get("a56_on")
+    assert _params(set(), additive=True).get("a56_on") is True   # int-8 default
+    assert not _params({"no-" + TOK}, additive=True).get("a56_on")
     # perceptual / saturation tables, ink devices, a51 switched off
     assert not _params({TOK}, additive=True, colorimetric=False).get("a56_on")
     assert not _params({TOK}, additive=False).get("a56_on")
