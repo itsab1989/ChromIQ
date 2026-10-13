@@ -1592,19 +1592,40 @@ def _stack_buttons_when_too_wide(box, buttons) -> bool:
     Spanish, Qt holds the box at 1000 (800 on a 1280-wide screen), and the row
     was squeezed until the first button's label ran under the second. Stacked,
     each button keeps its whole label, as the "Print like" row on the tab
-    does. Returns True when it stacked them."""
+    does. Returns True when it stacked them.
+
+    THE ROW IS MEASURED, NOT ESTIMATED (regression review of beta 2): the
+    first version allowed 12 px a gap, the icon plus 20 and 48 of margins,
+    about 40 px more than the box really uses, so in English on any screen
+    wider than 1480 (Qt's 1000 px) the choices were stacked although side by
+    side they fit with their full padding (measured on screen: the row 870,
+    the box 980). Now: the buttons and the button box's own spacing, the
+    box's margins, and on macOS the icon's column with Qt's 14 px indent
+    (``QMessageBoxPrivate::setupLayout``, where the buttons sit under the
+    text only)."""
     try:
+        import sys as _sys
         from PyQt6.QtWidgets import QDialogButtonBox
         bb = box.findChild(QDialogButtonBox)
         if bb is None or not buttons:
             return False
-        icon_w = 0
-        for lbl in box.findChildren(QLabel):
-            pm = lbl.pixmap()
-            if pm is not None and not pm.isNull():
-                icon_w = max(icon_w, lbl.sizeHint().width() + 20)
-        needed = (sum(b.sizeHint().width() for b in buttons)
-                  + 12 * (len(buttons) + 1) + icon_w + 48)
+        bl = bb.layout()
+        gap = bl.spacing() if bl is not None and bl.spacing() >= 0 else 6
+        needed = (sum(max(b.sizeHint().width(), b.minimumWidth()) for b in buttons)
+                  + gap * (len(buttons) - 1))
+        m = box.contentsMargins()
+        needed += m.left() + m.right()
+        lay = box.layout()
+        if lay is not None:
+            lm = lay.contentsMargins()
+            needed += lm.left() + lm.right()
+        if _sys.platform == "darwin":
+            icon_w = 0
+            for lbl in box.findChildren(QLabel):
+                pm = lbl.pixmap()
+                if pm is not None and not pm.isNull():
+                    icon_w = max(icon_w, lbl.sizeHint().width() + 14)
+            needed += icon_w
         if needed <= _message_box_width_limit(box):
             return False
         bb.setOrientation(Qt.Orientation.Vertical)

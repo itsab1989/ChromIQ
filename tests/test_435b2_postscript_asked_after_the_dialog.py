@@ -546,6 +546,42 @@ def test_the_two_long_choices_stand_one_above_the_other_when_they_cannot_fit(qap
     assert small.findChild(QDialogButtonBox).orientation() == Qt.Orientation.Horizontal
 
 
+def test_choices_that_fit_side_by_side_stay_side_by_side(qapp, monkeypatch):
+    """Regression review of beta 2, on screen: the stacking test allowed about
+    40 px more than the box uses, so on a screen where Qt allows 1000 px the
+    English choices (row 870, box 980) were stacked although they fit. The
+    need is now measured: the row as the shown box lays it out, its margins
+    and the icon's column. MUTATION: put back the old estimate (12 a gap, the
+    icon plus 20, 48 of margins) and a box with 4 px to spare is stacked."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QDialogButtonBox, QMessageBox
+    from ui.widgets import ButtonFontFilter, _stack_buttons_when_too_wide
+    box = QMessageBox()
+    box.setIcon(QMessageBox.Icon.Question)
+    box.setText("x")
+    btns = [box.addButton(t, QMessageBox.ButtonRole.AcceptRole)
+            for t in ("Print like Photoshop", "Print like Preview")]
+    btns.append(box.addButton(QMessageBox.StandardButton.Cancel))
+    for b in btns:
+        ButtonFontFilter.fit(b)
+    box.show()
+    qapp.processEvents()
+    bb = box.findChild(QDialogButtonBox)
+    need = bb.x() + bb.sizeHint().width() + box.contentsMargins().right()
+    box.hide()
+    assert need < 990
+
+    def screen_for(limit):     # Qt: the width less 480 above 1024, else all of it
+        return _Screen(limit + 480 if limit + 480 > 1024 else limit, 900)
+    monkeypatch.setattr(box, "screen", lambda: screen_for(need + 4))
+    assert not _stack_buttons_when_too_wide(box, btns)
+    assert bb.orientation() == Qt.Orientation.Horizontal
+    monkeypatch.setattr(box, "screen", lambda: screen_for(need - 20))
+    assert _stack_buttons_when_too_wide(box, btns)
+    assert bb.orientation() == Qt.Orientation.Vertical
+    box.close()
+
+
 def test_the_ask_window_asks_for_stacking():
     from ui.tabs import tab_print as tp
     src = inspect.getsource(tp.TabPrint._ask_ps_form)
