@@ -233,16 +233,18 @@ M_CAL_REQUESTED_DONE = _m(
 #: Calibration Complete window of those two instruments, and in the CR30's
 #: "Ready to measure, patch by patch" window; its advice is the "Build my
 #: first ICC profile" card's ("Why the backing has to be white"). Hidden until
-#: approved: those windows are approved text.
+#: approved: those windows are approved text. Combined review of beta 2
+#: (Basti, 2026-10-13): rewritten in the friendly style of the cards, what to
+#: do first, then why; still hidden until he approves it.
 M_CAL_DONE_UNDERLAY = _m(
     "M-CAL-DONE-UNDERLAY",
-    "What lies under the chart",
-    "This instrument has no reading board, so what lies under the chart is "
-    "up to you. On thin paper, such as 80 to 100 g/m² plain paper, the colour "
-    "of the table or desk mat shows through and changes every reading, and "
-    "the profile takes that change on. Lay the chart on a white, even surface "
-    "that nothing shows through, such as a stack of white paper or of the "
-    "same paper as the chart.",
+    "Lay the chart on a white surface",
+    "Before you measure, lay the chart on a white, even surface that nothing "
+    "shows through, such as a stack of white paper or of the same paper as "
+    "the chart. This instrument has no reading board of its own, so what "
+    "lies under the chart is up to you. On thin paper, such as 80 to 100 "
+    "g/m² plain paper, the colour of the table or desk mat shows through. "
+    "It then changes every reading, and the profile takes that change on.",
     approved=False)
 
 #: A calibration the user asked for did not succeed. Reading is LOCKED until
@@ -2212,7 +2214,9 @@ _CARDP_NBC_EQUAL = ("The {n} patches most similar to it are about as far off "
                     "their expected colours as this one, at {own}. It does "
                     "not stand out from them. (Neighbour check, ΔE*ab, "
                     "median of the {n}.)")
-_CARDP_NBC_FEW = ("Not compared with similar patches yet: fewer than 2 "
+#: Combined review of beta 2: "yet" dropped. On a chart read to the end no
+#: further patch will come, and the line is shown there too.
+_CARDP_NBC_FEW = ("Not compared with similar patches: fewer than 2 "
                   "patches with a similar expected colour have been read. "
                   "(Neighbour check, colour-neighbour radius.)")
 #: Lines 7 to 9: why the outline is red, or would be without the re-read.
@@ -2247,20 +2251,27 @@ _CARDP_CONFIRMED = ("You read this patch again, and the new reading agrees "
                     "are within the same-reading tolerance.)")
 #: Lines 15 to 18: the red card of readings that do not agree (10.10a),
 #: under its headline "Red outline: the readings do not agree" (unchanged).
-_CARDP_UNSETTLED_DE_ONE = ("It is {de} off its expected colour now, and was "
-                           "{prevs} off at the earlier reading. (ΔE*ab.)")
-_CARDP_UNSETTLED_DE = ("It is {de} off its expected colour now. The earlier "
+#: Combined review of beta 2: {prevs} and {n} count only the earlier readings
+#: that were red AND past the limit (``patch_flags``: ``unsettled``), not every
+#: reading of the patch, and this reading is compared with the earlier red
+#: ones only. "the earlier reading", "The two readings", "You have read this
+#: patch {n} times" and "agrees with none of the earlier ones" were untrue
+#: for a patch with an earlier reading under the limit; reworded to say only
+#: what is counted.
+_CARDP_UNSETTLED_DE_ONE = ("It is {de} off its expected colour now. An "
+                           "earlier reading was {prevs} off. (ΔE*ab.)")
+_CARDP_UNSETTLED_DE = ("It is {de} off its expected colour now. Earlier "
                        "readings were {prevs} off. (ΔE*ab.)")
-_CARDP_UNSETTLED_TWO = ("The two readings do not agree with each other, and "
-                        "both are further off than the patch error limit of "
-                        "{limit} for {kind}. So it is not clear yet which "
-                        "one is right. (They differ by more than the "
-                        "same-reading tolerance.)")
-_CARDP_UNSETTLED_MANY = ("You have read this patch {n} times. This reading "
-                         "agrees with none of the earlier ones, and every "
-                         "reading is further off than the patch error limit "
-                         "of {limit} for {kind}. So it is not clear yet "
-                         "which one is right. (Same-reading tolerance.)")
+_CARDP_UNSETTLED_TWO = ("This reading and an earlier one are both further "
+                        "off than the patch error limit of {limit} for "
+                        "{kind}, and they do not agree with each other. So "
+                        "it is not clear yet which one is right. (They "
+                        "differ by more than the same-reading tolerance.)")
+_CARDP_UNSETTLED_MANY = ("{n} readings of this patch are further off than "
+                         "the patch error limit of {limit} for {kind}, and "
+                         "this one agrees with none of the others. So it is "
+                         "not clear yet which one is right. (Same-reading "
+                         "tolerance.)")
 #: Lines 19 and 20: the green card, under its headline "Green outline:
 #: corrected by a re-read" and above "It replaces the misread." (unchanged).
 _CARDP_GREEN_NB = ("The earlier, red reading was {de} off its expected "
@@ -5348,7 +5359,7 @@ M_PRINT_JOB_DEVICE_RGB = _m(
     "The chart went to this PostScript printer as its own RGB values, as the direct route sends it, so neither macOS nor the printer converted its colours.",
     approved=True)  # Basti, 2026-10-11 (approved as proposed; checked)
 
-# --- PROPOSED: the PostScript printer's form, 4.3.5 beta 2 -----------------
+# --- APPROVED: the PostScript printer's form, 4.3.5 beta 2 -----------------
 #: Basti, 2026-10-12: "giving the user the choice here is better because what
 #: if he then wants to make use of the profile he created just to notice the
 #: app he wants to print from does not support postscript". Measured on capture
@@ -5360,37 +5371,41 @@ M_PRINT_JOB_DEVICE_RGB = _m(
 #: with a ColorSync profile set (4.3.4's form). The row on the Print Chart tab
 #: (headline: the row's label; line 1 and 2: its two choices), its help, the
 #: notice paragraphs for each form, and the window for a paper the PostScript
-#: printer does not list. Hidden until approved; the stored choice and its
-#: default ("its own RGB") work regardless.
+#: printer does not list.
+#: APPROVED by Basti, 2026-10-13 ("approved for now"), in his own rewording of
+#: the builder's proposal (row, choices, help, the own-RGB notice, the paper
+#: window); the as-macOS notice is ours, written in the style he gave, and
+#: switched on with the rest after the combined review of beta 2 checked
+#: every statement on capture queues (report folder
+#: 2026-10-13_b2_combined_review).
 M_PRINT_PS_FORM_CHOICE = _m(
     "M-PRINT-PS-FORM-CHOICE",
-    "PostScript printer",
-    "Its own RGB\nAs macOS sends it",
-    approved=False)
+    "Print like",
+    "Photoshop (Photoshop Manages Colors)\nPreview and most other apps",
+    approved=True)  # Basti, 2026-10-13
 M_PRINT_PS_FORM_HELP = _m(
     "M-PRINT-PS-FORM-HELP",
     "How a PostScript printer gets the chart",
-    "Through the macOS print dialog a PostScript printer can get the chart in two forms. Print the profiling chart, its verification charts and your photos in the same form, or the profile will not fit your photos. The choice is kept for this run, and its verification charts print the same way.\n\n"
-    "Its own RGB (the default): the chart\u2019s values reach the printer unchanged, as its own RGB, as the direct route sends them. Photoshop sends a photo this way when you print with \u201cPhotoshop Manages Colors\u201d and choose this profile as the printer profile.\n\n"
-    "As macOS sends it: the chart\u2019s values reach the printer marked as sRGB, or marked with the profile set for the printer in ColorSync Utility, and the printer converts them with its own colour rendering. Preview prints this way, as do other programs that leave the PostScript to macOS. To print a photo with the profile from such a program, convert it to the profile first and print it without a profile attached: in Photoshop, Edit > Convert to Profile, then Edit > Assign Profile > Don\u2019t Color Manage This Document, and print with \u201cPrinter Manages Colors\u201d. This holds only while no profile is set for the printer in ColorSync Utility.\n\n"
-    "Either way, if the printer\u2019s options in the dialog have an RGB colour setting (on an HP Color LaserJet, \u201cRGB Color\u201d), ChromIQ sets it to Device for the chart. Set it to Device for your photos too.",
-    approved=False)
+    "Choose the way you print your photos. A profile only fits photos that reach the printer the same way as its chart did. This printer can receive the chart in two ways, and ChromIQ uses the one you choose here for this run and all its verification charts.\n\n"
+    "Photoshop (Photoshop Manages Colors): choose this if you print from Photoshop with \u201cPhotoshop Manages Colors\u201d and this profile as the printer profile. The chart\u2019s values go to the printer unchanged. (Sent as the printer\u2019s own RGB, like ChromIQ\u2019s direct route.)\n\n"
+    "Preview and most other apps: choose this if you print from Preview or another app that leaves printing to macOS. The printer then adjusts the colours with its own settings, the same way for the chart and for your photos. To print a photo with this profile from Photoshop in this way: Edit > Convert to Profile (this profile), then Edit > Assign Profile > Don\u2019t Color Manage, and print with \u201cPrinter Manages Colors\u201d. (macOS sends the values marked as sRGB, or with the profile set in ColorSync Utility; this only works while no profile is set there.)\n\n"
+    "If the print dialog has an RGB colour setting for the printer (on an HP Color LaserJet, \u201cRGB Color\u201d), ChromIQ sets it to Device. Do the same for your photos.",
+    approved=True)  # Basti, 2026-10-13
 M_PRINT_PS_ROUTE_OWN_RGB = _m(
     "M-PRINT-PS-ROUTE-OWN-RGB",
     "This is a PostScript printer",
-    "ChromIQ sends {printer} the chart as its own RGB values, unchanged, with the settings you choose in the dialog, as the direct route does, so neither macOS nor the printer converts its colours. Photoshop prints a photo the same way with \u201cPhotoshop Manages Colors\u201d and this printer\u2019s profile. Choose the paper and quality in the dialog as for your photos, and leave its colour settings as they are.",
-    approved=False)
+    "ChromIQ sends {printer} the chart\u2019s values unchanged, the same way Photoshop prints with \u201cPhotoshop Manages Colors\u201d. Choose the paper and quality as for your photos, and leave the colour settings as they are.",
+    approved=True)  # Basti, 2026-10-13
 M_PRINT_PS_ROUTE_AS_MACOS = _m(
     "M-PRINT-PS-ROUTE-AS-MACOS",
     "This is a PostScript printer",
-    "macOS sends {printer} the chart\u2019s values marked as sRGB, or with the profile set for this printer in ColorSync Utility, and the printer converts them with its own colour rendering, as it does for prints from Preview. ChromIQ leaves the values themselves unchanged. Print your photos the same way, and keep the same profile, or none, set for this printer in ColorSync Utility.",
-    approved=False)
+    "macOS sends {printer} the chart\u2019s values marked as sRGB, or with the profile set in ColorSync Utility, and the printer adjusts the colours with its own settings, as it does for prints from Preview. Choose the paper and quality as for your photos, and leave the colour settings as they are.",
+    approved=True)  # Basti, 2026-10-13 (written in his style by the combined review; see §M)
 M_PRINT_PS_PAPER_NOT_LISTED = _m(
     "M-PRINT-PS-PAPER-NOT-LISTED",
-    "The printer does not list this paper",
-    "The paper chosen in the print dialog ({size}) is not one of the paper sizes {printer} lists, and its driver does not take a custom paper of that size. Sent like this, the job would name one paper and the chart would ask the printer for another. Nothing was printed.\n\n"
-    "Print again and choose, in the dialog, one of the printer\u2019s paper sizes that the chart fits on.",
-    approved=False)
+    "This printer does not offer this paper size",
+    "{size}, chosen in the print dialog, is not one of the paper sizes {printer} offers. Nothing was printed. Print again and choose one of the printer\u2019s paper sizes the chart fits on.",
+    approved=True)  # Basti, 2026-10-13
 
 # --- PROPOSED: the count help of FROM PROFILE GAMUT, k82 (4.3.5) ------------
 #: The two paragraphs that replace the 4.3.4 help's "smaller charts are part

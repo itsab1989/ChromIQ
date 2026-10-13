@@ -101,7 +101,8 @@ def test_the_tab_refuses_only_once_the_window_is_approved():
     src = inspect.getsource(tab_print.TabPrint._print_native)
     assert "refuse_unlisted_paper=_MM.M_PRINT_PS_PAPER_NOT_LISTED.approved" in src
     assert "except PaperNotOnPrinter" in src
-    assert not MM.M_PRINT_PS_PAPER_NOT_LISTED.approved
+    # approved by Basti, 2026-10-13: the paper is refused from now on
+    assert MM.M_PRINT_PS_PAPER_NOT_LISTED.approved
 
 
 # ---- the form, in print_frames ----------------------------------------------
@@ -193,6 +194,35 @@ def test_the_choice_is_kept_in_the_runs_meta(qapp, tmp_path, ps_dialog):
     assert _tab(s, ctl)._ps_form() == ppd_color.POSTSCRIPT_AS_MACOS
 
 
+def test_a_refined_run_starts_with_its_parents_choice(qapp, tmp_path, ps_dialog):
+    """Combined review of beta 2: "Use as Pre-conditioning" makes a new run
+    with a fresh meta.json; without this the second pass of a run printed
+    "Preview and most other apps" went back to the default, unasked.
+    MUTATION: drop the parent_run fallback in ``_ps_form`` and run2 prints
+    the Photoshop way."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _tab(s, ctl)
+    tab._ps_macos_rb.setChecked(True)
+    project = fm.project()
+    run2 = project.new_run()
+    meta = run2.load_meta()
+    meta.parent_run = "run1"     # as new_run(preconditioning_from=run1) sets it
+    run2.save_meta(meta)
+    assert "postscript" not in (run2.load_meta().print_settings or {})
+    ctl.set_profile_run(run2.id)
+    tab2 = _tab(s, ctl)
+    assert tab2._ps_form() == ppd_color.POSTSCRIPT_AS_MACOS
+    assert tab2._ps_macos_rb.isChecked()
+    # its own choice wins once it is given one
+    tab2._ps_device_rb.setChecked(True)
+    assert run2.load_meta().print_settings["postscript"] == ppd_color.POSTSCRIPT_DEVICE_RGB
+    assert _tab(s, ctl)._ps_form() == ppd_color.POSTSCRIPT_DEVICE_RGB
+    # a new run made without a parent keeps the default
+    run3 = project.new_run()
+    ctl.set_profile_run(run3.id)
+    assert _tab(s, ctl)._ps_form() == ppd_color.POSTSCRIPT_DEVICE_RGB
+
+
 def test_a_verification_chart_follows_its_runs_choice(qapp, tmp_path, ps_dialog):
     """MUTATION: keep the choice in the verification target's own store and
     the verification sheet goes the other way than the profiling chart."""
@@ -214,10 +244,13 @@ def test_the_row_is_hidden_until_its_words_are_approved(qapp, tmp_path, ps_dialo
     s, fm, ctl = _env(tmp_path)
     tab = _tab(s, ctl)
     tab._tiff_pages = [tmp_path / "p.tif"]
+    approved = MM.M_PRINT_PS_FORM_CHOICE
+    monkeypatch.setattr(MM, "M_PRINT_PS_FORM_CHOICE", replace(approved, approved=False))
     tab._update_ps_form_row()
     assert tab._ps_form_row.isHidden()
-    monkeypatch.setattr(MM, "M_PRINT_PS_FORM_CHOICE",
-                        replace(MM.M_PRINT_PS_FORM_CHOICE, approved=True))
+    # approved by Basti, 2026-10-13
+    monkeypatch.setattr(MM, "M_PRINT_PS_FORM_CHOICE", approved)
+    assert MM.M_PRINT_PS_FORM_CHOICE.approved
     tab._update_ps_form_row()
     assert not tab._ps_form_row.isHidden()
     # not on the direct route, and not for a printer that is not PostScript
@@ -243,7 +276,9 @@ def test_the_print_goes_with_the_runs_form(qapp, tmp_path, ps_dialog, monkeypatc
     monkeypatch.setattr("sys.platform", "darwin")
     tab._commit_print_record = lambda submitted: None
     tab._print_native([(tmp_path / "p.tif", 0)])
-    assert seen == {"form": ppd_color.POSTSCRIPT_AS_MACOS, "refuse": False}
+    assert seen == {"form": ppd_color.POSTSCRIPT_AS_MACOS,
+                    "refuse": MM.M_PRINT_PS_PAPER_NOT_LISTED.approved}
+    assert seen["refuse"] is True     # approved by Basti, 2026-10-13
 
 
 def test_a_refused_paper_is_said_and_not_recorded(qapp, tmp_path, ps_dialog, monkeypatch):
@@ -268,10 +303,18 @@ def test_a_refused_paper_is_said_and_not_recorded(qapp, tmp_path, ps_dialog, mon
 
 
 # ---- (a) the notice on a PostScript printer --------------------------------
-def test_the_notice_is_unchanged_until_approved(qapp, tmp_path, ps_dialog):
+def test_the_notice_is_unchanged_until_approved(qapp, tmp_path, ps_dialog, monkeypatch):
     s, fm, ctl = _env(tmp_path)
     tab = _tab(s, ctl)
+    keep = {n: getattr(MM, n) for n in ("M_PRINT_PS_ROUTE_OWN_RGB", "M_PRINT_PS_ROUTE_AS_MACOS")}
+    for n, m in keep.items():
+        monkeypatch.setattr(MM, n, replace(m, approved=False))
     assert "This works with any printer" in tab._macos_dialog_notice()
+    for n, m in keep.items():
+        monkeypatch.setattr(MM, n, m)
+    # approved by Basti, 2026-10-13: on a PostScript printer the untrue
+    # paper-profile sentences are gone
+    assert "This works with any printer" not in tab._macos_dialog_notice()
 
 
 @pytest.mark.parametrize("form,msg", [

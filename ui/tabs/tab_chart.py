@@ -26281,6 +26281,10 @@ class TabChart(QWidget):
             # always adapts so the strips and patches per strip asked for are
             # kept (`area_fit._keep_the_pinned_grid`); this fires only when no
             # patch of at least 1 mm can do it, e.g. 300 patches down an A4.
+            # Combined review of beta 2: "even at the smallest patch" was
+            # untrue for too many STRIPS, where `derive_area_patch_size` falls
+            # back to the height's width (A4, 200 strips: 10.7 mm, 15 strips),
+            # so the sentence no longer claims it.
             try:
                 from workflow.layout_engine import area_fit as _area_fit
                 _short = _area_fit.pinned_grid_shortfall(_kw_notes)
@@ -26289,11 +26293,11 @@ class TabChart(QWidget):
             if _short is not None:
                 over.append(tr(
                     "⚠ “By columns / rows” asks for {cols} strips of {rows} "
-                    "patches, but even at the smallest patch this paper and "
-                    "these margins hold only {got_cols} strips of {got_rows}, "
-                    "so the chart is laid out with fewer. Lower “Strips "
-                    "(columns)” or “Patches per strip (rows)”, make the "
-                    "margins smaller, or choose a larger paper.").format(
+                    "patches, but this paper with these margins cannot hold "
+                    "that many, so the chart is laid out with {got_cols} "
+                    "strips of {got_rows}. Lower “Strips (columns)” or "
+                    "“Patches per strip (rows)”, make the margins smaller, or "
+                    "choose a larger paper.").format(
                         cols=_short[0] or _short[2],
                         rows=_short[1] or _short[3],
                         got_cols=_short[2], got_rows=_short[3]))

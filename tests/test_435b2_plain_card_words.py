@@ -130,7 +130,8 @@ def test_switched_on_closer_equal_and_too_few(qapp, plain):
                       "nb_detail": lambda loc: (3, 0.0, 2.5, 2.5)}))
     assert "It does not stand out from them." in t
     t = _words(_text(CASES["few"]))
-    assert "Not compared with similar patches yet" in t
+    assert "Not compared with similar patches:" in t
+    assert "yet" not in t.split("Not compared with similar patches")[1][:5]
 
 
 def test_switched_on_knuts_two_yellow_cards(qapp, plain):
@@ -177,14 +178,20 @@ def test_switched_on_the_red_cards(qapp, plain):
 
 def test_switched_on_unsettled_and_green(qapp, plain):
     t = _words(_text(CASES["unsettled_two"]))
-    assert ("It is 8.07 off its expected colour now, and was 12.30 off at the "
-            "earlier reading. (ΔE*ab.)") in t
-    assert ("The two readings do not agree with each other, and both are "
-            "further off than the patch error limit of 5.00 for verification "
-            "charts. So it is not clear yet which one is right.") in t
+    assert ("It is 8.07 off its expected colour now. An earlier reading was "
+            "12.30 off. (ΔE*ab.)") in t
+    assert ("This reading and an earlier one are both further off than the "
+            "patch error limit of 5.00 for verification charts, and they do "
+            "not agree with each other. So it is not clear yet which one is "
+            "right.") in t
     t = _words(_text(CASES["unsettled_three"]))
-    assert "The earlier readings were 12.30, 18.40 off. (ΔE*ab.)" in t
-    assert "You have read this patch 3 times." in t
+    # combined review of beta 2: only the earlier readings that were red and
+    # past the limit are counted (patch_flags ``unsettled``), so the card says
+    # no more than that
+    assert "Earlier readings were 12.30, 18.40 off. (ΔE*ab.)" in t
+    assert ("3 readings of this patch are further off than the patch error "
+            "limit") in t
+    assert "You have read this patch" not in t
     t = _words(_text(CASES["green_neighbour"]))
     assert ("The earlier, red reading was 14.20 off its expected colour and "
             "stood out from the patches most similar to it.") in t

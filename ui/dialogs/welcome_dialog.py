@@ -112,160 +112,221 @@ def _beep_note() -> "tuple[str, str]":
 # §M printing texts. UI labels are filled in from the catalogue (`_ui`), so a
 # translation names the button exactly as that language shows it.
 #
-# COMBINED REVIEW OF 4.3.5 BETA 2: the PostScript bullet of `_printer_kinds_note`
-# and the second paragraph of `_verify_same_way_note` describe the PostScript
-# printer as it prints on this branch (its own RGB on both routes). The
-# parallel change that makes the macOS dialog's PostScript form a choice per
-# run ("Its own RGB" by default, or "As macOS sends it") must update both
-# paragraphs when the branches meet.
+# COMBINED REVIEW OF 4.3.5 BETA 2 (Basti, 2026-10-13): every note rewritten in
+# the friendly style he approved for the patch cards and the PostScript texts
+# (what to do first, then why; one thought per sentence; technical words
+# avoided or explained), every statement checked against the code, and the
+# PostScript printer's per-run choice ("Print like", M-PRINT-PS-FORM-CHOICE)
+# described in his approved words. Corrected on the way: the macOS print
+# dialog is the DEFAULT on a Mac (``core.settings`` "use_native_print_dialog"),
+# not something to tick; the macOS print dialog refuses EVERY chart that is not
+# RGB (``native_print_macos._refuse_unless_rgb``), not only five to seven inks.
+#
+# HIDDEN UNTIL BASTI APPROVES THEM (``PRINT_NOTES_APPROVED``): until then the
+# cards show what they showed in 4.3.5 beta 1, except "How the sheet reaches
+# the printer", whose beta-1 sentence ("sent as raw PostScript") was untrue.
+
+#: Basti approves the print notes; until then no card shows them.
+PRINT_NOTES_APPROVED = False
+
+
+def _print_notes(*notes: "tuple[str, str]") -> "tuple[tuple[str, str], ...]":
+    """*notes* while they are approved, else none (``PRINT_NOTES_APPROVED``)."""
+    return tuple(notes) if PRINT_NOTES_APPROVED else ()
+
 
 def _ui(label: str) -> str:
     """A UI label as the user sees it in this language, on one line."""
     return " ".join(tr(label).split())
 
 
+def _ps_choice_labels() -> "tuple[str, str, str]":
+    """The PostScript row's label and its two choices, as the tab shows them."""
+    from workflow import measurement_messages as MM
+    head, lines = MM.M_PRINT_PS_FORM_CHOICE.render()
+    a, _, b = lines.partition("\n")
+    return " ".join(head.split()), a.strip(), b.strip()
+
+
 def _print_how_note() -> "tuple[str, str]":
-    return (tr("How to print it on the Print Chart tab"),
-            tr("1. Choose the printer, the paper size, the media type (the "
-               "paper type the driver knows) and the print quality you will "
-               "use for your photos. With the macOS print dialog switched on "
-               "in Preferences, you choose them in that dialog after clicking "
-               "Print.\n"
-               "2. Click “{print_page}” or “{print_all}”. The print preview "
-               "shows the sheet as it will be printed.\n"
-               "3. Let the sheet dry before you measure it: at least an hour, "
-               "and 24 hours for the best accuracy with pigment inks.\n\n"
-               "Use the same printer, paper, media type and quality every time "
-               "you print for this profile, and for your photos later. The "
-               "profile only fits that combination.").format(
+    return (tr("How to print it"),
+            tr("1. On the Print Chart tab, click “{print_page}” or "
+               "“{print_all}”.\n"
+               "2. In the print dialog, choose the printer, the paper size, "
+               "the paper type (media type) and the print quality you will "
+               "use for your photos. On a Mac, leave the colour settings as "
+               "they are: ChromIQ sets them itself.\n"
+               "3. Let the sheet dry before you measure it: at least an "
+               "hour, and 24 hours for the best accuracy with pigment inks.\n\n"
+               "Use the same printer, paper, paper type and quality every "
+               "time you print for this profile, and for your photos later. "
+               "The profile only fits that combination.").format(
                 print_page=_ui("Print\nCurrent Page"),
                 print_all=_ui("Print All\nPages")))
 
 
 def _print_raw_note() -> "tuple[str, str]":
-    return (tr("Why a profiling chart is printed raw"),
-            tr("The chart records what your printer does with a known set of "
-               "numbers, and the profile is built from that record. So "
-               "ChromIQ prints it raw: the chart's own numbers go to the "
-               "printer, and no profile is applied on the way. If something "
-               "changed the colours on the way that your photos will not get "
-               "later, such as a profile or a vivid mode, the profile would "
-               "describe that change too, and nothing afterwards could "
-               "tell.\n\n"
-               "This is the same wherever the chart's colours came from: a "
-               "preset, Tools ▸ “{patch_tool}”, or targen with “{recipe}” "
-               "ticked.").format(
+    return (tr("Why the chart is printed without a profile"),
+            tr("Do not apply a profile or a colour setting of your own to "
+               "the chart. ChromIQ sets up the print itself.\n\n"
+               "Why: the chart records what your printer does with a known "
+               "set of colour values, and the profile is built from that "
+               "record. If something changed the colours on the way that "
+               "your photos will not get later, such as a profile or a vivid "
+               "mode, the profile would describe that change too. Nothing "
+               "afterwards could tell.\n\n"
+               "This holds wherever the chart's colours came from: a preset, "
+               "Tools ▸ “{patch_tool}”, or your own recipe (“{recipe}”).").format(
                 patch_tool=_ui("Edit / create chart patch set"),
                 recipe=_ui("Edit patch recipe (override preset)")))
 
 
 def _precond_note() -> "tuple[str, str]":
     return (tr("The pre-conditioning profile is not applied to the print"),
-            tr("It only decided which colours the chart holds. The chart is "
-               "still printed raw, like any profiling chart, with the same "
-               "printer, paper, media type, quality and route as the chart of "
-               "the profile you started from. Nothing may apply that profile, "
-               "or any other, to the sheet: the new profile would then "
-               "describe your printer seen through the old one."))
+            tr("Print this chart exactly like the chart of the profile you "
+               "started from: the same printer, paper, paper type, quality "
+               "and way of printing. Do not apply the pre-conditioning "
+               "profile, or any other, to the sheet.\n\n"
+               "Why: the pre-conditioning profile only chose which colours "
+               "the chart holds. Applied to the print, it would make the new "
+               "profile describe your printer seen through the old one."))
 
 
 def _profiling_or_verification_note() -> "tuple[str, str]":
     return (tr("Profiling chart or verification chart: the difference"),
-            tr("A profiling chart is printed raw, because it measures the "
-               "printer. A verification chart checks a finished profile, so "
-               "ChromIQ prints it through that profile: every patch is "
-               "converted the way the profile predicts, and measuring the "
-               "sheet shows how close the prediction came. A verification "
-               "chart made with {fpg} already has the profile applied, so it "
-               "is printed as it is.\n\n"
-               "That is why the “{colour}” row on the Print Chart tab appears "
-               "on a verification run only. The “{verify_card}” card has the "
-               "details.").format(
+            tr("A profiling chart measures your printer, so it is printed "
+               "without a profile.\n\n"
+               "A verification chart checks a finished profile, so ChromIQ "
+               "prints it through that profile: each patch is converted the "
+               "way the profile predicts. Measuring the sheet then shows how "
+               "close the prediction came. A verification chart made with "
+               "{fpg} already has the profile applied, so it is printed as "
+               "it is.\n\n"
+               "The “{colour}” row on the Print Chart tab sets this. It "
+               "appears for verification runs only. The “{verify_card}” card "
+               "has the details.").format(
                 fpg=_ui("FROM PROFILE GAMUT"), colour=_ui("Colour"),
                 verify_card=_ui("Check a finished profile (verification run)")))
 
 
 def _route_note() -> "tuple[str, str]":
-    return (tr("Straight to the printer, or through the macOS print dialog"),
-            tr("On a Mac, printing sends the chart straight to the printer's "
-               "queue, with no dialog. To choose the paper feed, media type "
-               "and quality in the macOS print dialog instead, tick "
-               "“{dialog_pref}” in Preferences. In that dialog, leave the "
-               "colour settings as they are, including the Color Matching "
-               "panel: ChromIQ sets them itself.\n\n"
-               "Choose one way for a printer and paper and keep to it: print "
-               "the profiling chart and its verification charts the same way. "
-               "The profile describes the printer only in the state its chart "
-               "was printed in.\n\n"
-               "“{route}: {elsewhere}”, in the “{box}” box, hands the chart to "
-               "a program such as Photoshop instead. That program must not "
-               "change the colours: no output profile, no “let the printer "
-               "manage colours”, no scaling or fitting to the page.").format(
+    return (tr("The macOS print dialog, or straight to the printer"),
+            tr("On a Mac, clicking Print opens the macOS print dialog. Choose "
+               "the paper, paper type and quality there. Leave the colour "
+               "settings as they are, including the Color Matching panel: "
+               "ChromIQ sets them itself.\n\n"
+               "To send the chart straight to the printer without a dialog, "
+               "switch off “{dialog_pref}” in Preferences. You then choose "
+               "the printer and its settings on the Print Chart tab.\n\n"
+               "Pick one of the two ways for a printer and paper, and keep "
+               "to it for the profiling chart and its verification charts. "
+               "The profile only describes your printer as its chart was "
+               "printed.\n\n"
+               "To print the chart from another program, such as Photoshop, "
+               "choose “{route}: {elsewhere}” in the “{box}” box. That "
+               "program must not change the colours: no output profile, no "
+               "“let the printer manage colours”, no scaling or fitting to "
+               "the page.").format(
                 dialog_pref=_ui("Use default macOS printer dialog"),
                 route=_ui("Route"), elsewhere=_ui("In another application"),
                 box=_ui("How this chart is printed")))
 
 
 def _printer_kinds_note() -> "tuple[str, str]":
-    # COMBINED REVIEW: the PostScript bullet (see the block comment above).
     return (tr("What ChromIQ does for your kind of printer"),
-            tr("• Canon and Epson inkjets: the chart goes the way Photoshop "
-               "sends a photo when Photoshop manages colours, with the paper "
-               "profile of the media type you chose, so macOS leaves the "
-               "chart's numbers unchanged. When ChromIQ does not know a "
-               "model's paper profile for that media type yet, it says so "
-               "before printing and offers the macOS print dialog, where it "
-               "learns it from one print.\n"
-               "• On plain paper, cards and printable discs a Canon keeps its "
-               "own colour processing on, whatever program prints. ChromIQ "
-               "prints the chart the same way, so the profile fits prints "
-               "made on that paper type at the same quality.\n"
-               "• PostScript printers (many colour laser printers): the chart "
-               "goes as the printer's own RGB values, so the printer's own "
-               "colour rendering does not convert it.\n"
-               "• Printers whose driver takes CMYK: through the macOS print "
-               "dialog, macOS converts the chart into CMYK itself and treats "
-               "its numbers as sRGB colours. Your photos must reach the "
-               "printer the same way, or the profile will not fit them. In "
-               "Photoshop, use Edit > Convert to Profile with this profile, "
-               "then Edit > Assign Profile > Don't Color Manage This Document, "
-               "and print with “Printer Manages Colors”. In Preview, set "
-               "Colour Matching to ColorSync in the print dialog.\n"
-               "• Other printers: the chart goes with colour management "
-               "switched off."))
+            tr("• Canon and Epson inkjets: you do not need to do anything "
+               "here. ChromIQ sends the chart the way Photoshop sends a "
+               "photo when Photoshop manages the colours, so macOS leaves "
+               "the chart's values unchanged.\n"
+               "• A Canon on plain paper, cards or printable discs adjusts "
+               "the colours itself on these papers, whatever program prints. "
+               "ChromIQ prints the chart the same way, so the profile fits "
+               "photos printed on that paper type at the same quality.\n"
+               "• PostScript printers (many colour laser printers): you "
+               "choose how the chart is sent. See “{ps_note}”.\n"
+               "• Printers whose driver works in CMYK: your photos must be "
+               "printed in a particular way. See “{cmyk_note}”.\n"
+               "• Other printers: ChromIQ switches colour management off for "
+               "the chart.").format(
+                ps_note=_postscript_note()[0], cmyk_note=_cmyk_driver_note()[0]))
+
+
+def _postscript_note() -> "tuple[str, str]":
+    label, photoshop, preview = _ps_choice_labels()
+    return (tr("PostScript printers: choose how you print your photos"),
+            tr("Many colour laser printers are PostScript printers: they "
+               "take the page in a printer language called PostScript. "
+               "Through the macOS print dialog they can receive the chart in "
+               "two ways. Choose the way you print your photos, in the "
+               "“{print_like}” row on the Print Chart tab. It appears when "
+               "the print dialog opens on a PostScript printer, and ChromIQ "
+               "uses your choice for this run and all its verification "
+               "charts.\n"
+               "• “{photoshop}”: choose this if you print from Photoshop with "
+               "“Photoshop Manages Colors” and this profile as the printer "
+               "profile. The chart's values go to the printer unchanged.\n"
+               "• “{preview}”: choose this if you print from Preview or "
+               "another app that leaves printing to macOS. The printer then "
+               "adjusts the colours with its own settings, the same way for "
+               "the chart and for your photos.\n\n"
+               "A run you refine from another one starts with that run's "
+               "choice. Sent straight to the printer, without the dialog, "
+               "the chart always goes the Photoshop way.\n\n"
+               "If the print dialog has an RGB colour setting for the "
+               "printer (on an HP Color LaserJet, “RGB Color”), ChromIQ sets "
+               "it to Device. Do the same for your photos.").format(
+                print_like=label, photoshop=photoshop, preview=preview))
+
+
+def _cmyk_driver_note() -> "tuple[str, str]":
+    return (tr("Printers whose driver works in CMYK: print your photos the same way"),
+            tr("Some printers take the page in CMYK (cyan, magenta, yellow "
+               "and black) rather than RGB. Through the macOS print dialog, "
+               "macOS converts the chart into CMYK itself and treats its "
+               "values as sRGB colours. Your photos must reach the printer "
+               "the same way, or the profile will not fit them.\n"
+               "• In Photoshop: Edit > Convert to Profile with this profile, "
+               "then Edit > Assign Profile > Don't Color Manage This "
+               "Document, and print with “Printer Manages Colors”.\n"
+               "• In Preview: set Colour Matching to ColorSync in the print "
+               "dialog.\n"
+               "• Keep the same profile set for this printer in ColorSync "
+               "Utility."))
 
 
 def _inks_note() -> "tuple[str, str]":
     return (tr("Charts in CMY, CMYK or more inks"),
-            tr("Most charts are RGB. A chart in other inks is sent with its "
-               "inks named: CMYK as CMYK, CMY as CMYK with no black, and any "
-               "other ink set (CMYK + orange, for example) with every ink "
-               "named. Its values reach the paper unchanged only on a "
-               "printer, or a RIP, whose driver takes those inks.\n"
-               "• On a printer whose driver takes RGB, macOS would turn the "
-               "ink values into RGB colours on the way. When the chart goes "
-               "straight to the queue, ChromIQ says so first and lets you "
-               "print anyway or cancel.\n"
+            tr("Most charts are RGB, and none of this applies to them.\n"
+               "• Print a chart in other inks straight to the printer: "
+               "switch off “{dialog_pref}” in Preferences first. The macOS "
+               "print dialog only carries RGB and refuses these charts.\n"
+               "• ChromIQ sends the chart with its inks named: CMYK as CMYK, "
+               "CMY as CMYK with no black, and other ink sets (CMYK + orange, "
+               "for example) with every ink named.\n"
+               "• The values reach the paper unchanged only on a printer "
+               "whose driver takes those inks, or through a RIP (a program "
+               "that drives the printer's inks directly).\n"
+               "• On a printer whose driver takes RGB, the ink values would "
+               "be turned into RGB colours on the way. ChromIQ says so first "
+               "and lets you print anyway or cancel.\n"
                "• A printer without one of the chart's extra inks prints an "
                "approximate mix of cyan, magenta, yellow and black in its "
                "place, or nothing for an ink with no such mix, such as "
-               "white.\n"
-               "• Charts of five to seven inks print straight to the queue "
-               "only. The macOS print dialog refuses them."))
+               "white.").format(
+                dialog_pref=_ui("Use default macOS printer dialog")))
 
 
 def _verify_sources_note() -> "tuple[str, str]":
     return (tr("Where the chart's colours came from decides how it prints"),
             tr("• A preset, the Manual settings, or Tools ▸ “{patch_tool}”: "
-               "the chart holds the colours to be checked, and it is printed "
-               "through the run's profile (“{colour}: {through}”, the "
-               "default). ChromIQ converts every patch through the profile "
-               "itself, in the rendering intent you choose (relative "
-               "colorimetric is recommended).\n"
-               "• {fpg}: the profile was applied when the chart was made, so "
-               "it is printed exactly as it is. ChromIQ chooses Raw by itself "
-               "and does not offer “{through}”, because a second conversion "
-               "would print other colours than the ones being "
+               "leave “{colour}” on “{through}” (the default). The chart "
+               "holds the colours to be checked, and ChromIQ converts each "
+               "patch through the run's profile itself, in the rendering "
+               "intent you choose. Relative colorimetric is recommended.\n"
+               "• {fpg}: the chart is printed as it is. The profile was "
+               "applied when the chart was made, so ChromIQ prints it without "
+               "a profile by itself and does not offer “{through}”. A second "
+               "conversion would print other colours than the ones being "
                "checked.").format(
                 patch_tool=_ui("Edit / create chart patch set"),
                 colour=_ui("Colour"), through=_ui("Through the profile"),
@@ -273,34 +334,41 @@ def _verify_sources_note() -> "tuple[str, str]":
 
 
 def _verify_same_way_note() -> "tuple[str, str]":
-    # COMBINED REVIEW: the second paragraph (see the block comment above).
+    _label, _photoshop, preview = _ps_choice_labels()
     return (tr("Print it the way its profiling chart was printed"),
-            tr("Use the same printer, paper, media type and quality as the "
-               "profiling chart the profile was made from, and the same route "
-               "(straight to the printer, or the macOS print dialog). The "
-               "profile describes the printer only in that state, so a sheet "
-               "printed any other way measures the difference rather than "
-               "the profile.\n\n"
+            tr("Use the same printer, paper, paper type and quality as the "
+               "profiling chart the profile was made from, and the same way "
+               "of printing (the macOS print dialog, or straight to the "
+               "printer). The profile describes your printer only as it "
+               "printed that chart. A sheet printed any other way measures "
+               "the difference, not the profile.\n\n"
                "In the macOS print dialog, leave the colour settings as they "
                "are, including the Color Matching panel, and do not choose "
-               "the profile there. ChromIQ has already converted the sheet "
-               "and makes sure it is not converted a second time. On a "
-               "printer whose driver takes CMYK, macOS converts the sheet "
-               "into CMYK on the way, as it did the profiling chart, so the "
-               "two still match."))
+               "the profile there. ChromIQ has already converted the sheet.\n\n"
+               "Some printers change the colours on the way, the same way "
+               "for this sheet as for the profiling chart, so the two still "
+               "match:\n"
+               "• a printer whose driver works in CMYK: the sheet is "
+               "converted into CMYK;\n"
+               "• a PostScript printer set to “{preview}” for this run: the "
+               "printer adjusts the colours with its own settings;\n"
+               "• a Canon on plain paper, cards or printable discs: the "
+               "printer adjusts the colours itself.\n"
+               "Everywhere else nothing converts the sheet a second "
+               "time.").format(preview=preview))
 
 
 def _verify_elsewhere_note() -> "tuple[str, str]":
     return (tr("Printing it from another program"),
-            tr("“{route}: {elsewhere}” hands the finished sheets to a program "
-               "you trust, such as Photoshop. ChromIQ shows where they are "
-               "and what that program must be set to, and prints nothing "
-               "itself. The sheets are already converted, so the program "
-               "must not change their colours: no output profile, no “let "
-               "the printer manage colours”, no proofing, no scaling or "
-               "fitting to the page.\n\n"
-               "A third way checks your everyday printing chain from end to "
-               "end: print the chart from your own program with this run's "
+            tr("To print the sheets from a program you trust, such as "
+               "Photoshop, choose “{route}: {elsewhere}”. ChromIQ then shows "
+               "where the sheets are and what that program must be set to, "
+               "and prints nothing itself. That program must not change the "
+               "sheets' colours: no output profile, no “let the printer "
+               "manage colours”, no proofing, no scaling or fitting to the "
+               "page.\n\n"
+               "A third way checks your everyday printing from end to end: "
+               "print the chart from your own program with this run's "
                "profile applied there. When you measure such a sheet, "
                "ChromIQ asks how it was printed.").format(
                 route=_ui("Route"), elsewhere=_ui("In another application")))
@@ -308,22 +376,20 @@ def _verify_elsewhere_note() -> "tuple[str, str]":
 
 def _scanner_cases_note() -> "tuple[str, str]":
     return (tr("Profiling the scanner, or the printer with the scanner"),
-            tr("Two different jobs use a printed chart and a scanner, and the "
-               "print plays a different part in each.\n"
-               "• Profiling your printer with the scanner (this card): the "
-               "chart is a profiling chart like any other. Print it raw on "
-               "the printer and paper you are profiling, at the media type "
-               "and quality you will use for photos. The scanner only takes "
-               "the place of the measuring instrument, which is why it is "
-               "profiled for measuring first.\n"
+            tr("A printed chart and a scanner serve two different jobs.\n"
+               "• Profiling your printer with the scanner (this card): print "
+               "the chart without a profile, on the printer and paper you "
+               "are profiling, at the paper type and quality you will use "
+               "for photos. The scanner only takes the place of the "
+               "measuring instrument, which is why it is profiled for "
+               "measuring first.\n"
                "• Profiling the scanner itself (the “{scan_card}” card): the "
-               "printed chart becomes a target, and its colours are measured "
-               "with a spectrophotometer before it is scanned. The "
-               "measurement, not the print, then says what each patch is. "
-               "Printing it raw as a profiling chart still helps, because "
-               "the patches then spread over everything your printer and "
-               "paper can print. A bought IT8 or ColorChecker needs no "
-               "printing at all.").format(
+               "printed chart becomes a target. Its colours are measured with "
+               "a spectrophotometer before it is scanned, and that "
+               "measurement, not the print, says what each patch is. Printing "
+               "it without a profile still helps, because the patches then "
+               "spread over everything your printer and paper can print. A "
+               "bought IT8 or ColorChecker needs no printing at all.").format(
                 scan_card=_ui("Profile my scanner or camera")))
 
 
@@ -331,7 +397,8 @@ def _profiling_print_notes() -> "tuple[tuple[str, str], ...]":
     """The notes every profiling card's first print step carries."""
     return (_print_how_note(), _print_raw_note(),
             _profiling_or_verification_note(), _route_note(),
-            _printer_kinds_note(), _inks_note())
+            _printer_kinds_note(), _postscript_note(), _cmyk_driver_note(),
+            _inks_note())
 
 
 WORKFLOWS: list[dict] = [
@@ -389,7 +456,7 @@ WORKFLOWS: list[dict] = [
                   "back on. On Windows and elsewhere you turn it off "
                   "yourself, in the driver's own dialog. The wording varies: "
                   "look for “No colour adjustment”, “Application manages "
-                  "colours” or “ICM off”."))) + _profiling_print_notes()),
+                  "colours” or “ICM off”."))) + _print_notes(*_profiling_print_notes())),
             (3, tr("On the Measure tab, connect and switch on your "
                 "spectrophotometer, lay the printed chart on a white "
                 "surface, then click “Start Measurement” and follow the "
@@ -474,7 +541,7 @@ WORKFLOWS: list[dict] = [
                   "because thin stock lets a coloured desk bleed into every "
                   "reading. On macOS ChromIQ switches the colour management "
                   "off for you; elsewhere you do it in the driver's own "
-                  "dialog.")),) + _profiling_print_notes()),
+                  "dialog.")),) + _print_notes(*_profiling_print_notes())),
             (4, tr("On the Build Profile tab click “Build Profile”, then in "
                 "the result popup (or in Check & Refine) click “← Use as "
                 "Pre-conditioning”. ChromIQ jumps back to the Create Chart "
@@ -500,7 +567,7 @@ WORKFLOWS: list[dict] = [
             (2, tr("Print the new chart from the Print Chart tab, colour "
                 "management OFF, and measure it on the Measure tab."),
              False,
-             (_precond_note(),)),
+             _print_notes(_precond_note())),
             (4, tr("Click “Build Profile” one more time. This is the profile "
                 "to install."),
              False,
@@ -569,8 +636,8 @@ WORKFLOWS: list[dict] = [
                   "instead of the printer and the refined profile is wrong "
                   "in a way nothing later can see. And the sheet on a white "
                   "backing, because thin stock lets a coloured surface bleed "
-                  "into every reading.")),
-              _precond_note()) + _profiling_print_notes()),
+                  "into every reading.")),)
+             + _print_notes(_precond_note(), *_profiling_print_notes())),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
                 "Click “Build Profile”, then install the new .icc from the "
                 "result popup or check it first on the Check & Refine tab."),
@@ -628,17 +695,17 @@ WORKFLOWS: list[dict] = [
                   "measurement taken from that sheet is then wrong by an "
                   "amount nothing downstream can see. On macOS ChromIQ "
                   "switches it off for you; elsewhere you do it in the "
-                  "driver's own dialog.")),
-              _print_how_note(), _route_note(), _printer_kinds_note())),
+                  "driver's own dialog.")),)
+             + _print_notes(_print_how_note(), _route_note(),
+                            _printer_kinds_note(), _postscript_note(),
+                            _cmyk_driver_note())),
             (2, tr("Click “Print”."),
              False,
              ((tr("How the sheet reaches the printer"),
-               tr("It takes the same path as a chart made in ChromIQ, "
-                  "prepared for your kind of printer as the note “{kinds}” "
-                  "above describes. That is what makes the two sheets "
-                  "comparable.").format(kinds=_printer_kinds_note()[0])),
-              _print_raw_note(), _profiling_or_verification_note(),
-              _inks_note())),
+               tr("ChromIQ prints it the same way as a chart it made itself, "
+                  "which is what makes the two sheets comparable.")),)
+             + _print_notes(_print_raw_note(),
+                            _profiling_or_verification_note(), _inks_note())),
             (3, tr("Once the print is dry, go to the Measure tab, connect "
                 "your spectrophotometer, lay the chart on a white surface, "
                 "click “Start Measurement” and follow the prompts."),
@@ -1096,9 +1163,11 @@ WORKFLOWS: list[dict] = [
                   "in the loop to be right or wrong. A chart from “FROM "
                   "PROFILE GAMUT” already has the profile applied, so ChromIQ "
                   "selects Raw for it by itself.")),
-              _print_how_note(), _verify_sources_note(),
-              _verify_same_way_note(), _verify_elsewhere_note(),
-              _printer_kinds_note())),
+              )
+             + _print_notes(_print_how_note(), _verify_sources_note(),
+                            _verify_same_way_note(), _verify_elsewhere_note(),
+                            _printer_kinds_note(), _postscript_note(),
+                            _cmyk_driver_note())),
             (3, tr("On the Measure tab, pick “New verification” in the "
                 "Verification box, then measure the chart as normal."),
              False,
@@ -1408,8 +1477,10 @@ WORKFLOWS: list[dict] = [
                 "driver colour management OFF. You do NOT measure it: the "
                 "scanner is going to do that."),
              False,
-             (_print_how_note(), _print_raw_note(), _scanner_cases_note(),
-              _route_note(), _printer_kinds_note())),
+             _print_notes(_print_how_note(), _print_raw_note(),
+                          _scanner_cases_note(), _route_note(),
+                          _printer_kinds_note(), _postscript_note(),
+                          _cmyk_driver_note())),
             (3, tr("Scan every printed page on your profiled scanner as a "
                 "plain RGB TIFF, with the scanner's auto-correction and colour "
                 "management turned OFF, using the same settings you profiled "

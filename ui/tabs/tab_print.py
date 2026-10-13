@@ -1131,15 +1131,17 @@ class TabPrint(QWidget):
         _ps_label, _ps_lines = _MM.M_PRINT_PS_FORM_CHOICE.render()
         _ps_lines = _ps_lines.split("\n")
         ps_choice = QWidget(self._cm_grp)
-        pl = QHBoxLayout(ps_choice)
+        # ONE ABOVE THE OTHER (combined review of beta 2): side by side the
+        # two approved choices made the box 547 px wide in English and up to
+        # 677 in Russian, in a 534 px pane, so its right edge was cut off.
+        pl = QVBoxLayout(ps_choice)
         pl.setContentsMargins(0, 0, 0, 0)
-        pl.setSpacing(14)
+        pl.setSpacing(4)
         self._ps_device_rb = QRadioButton(_ps_lines[0], ps_choice)
         self._ps_macos_rb = QRadioButton(_ps_lines[1], ps_choice)
         self._ps_device_rb.setChecked(True)
         pl.addWidget(self._ps_device_rb)
         pl.addWidget(self._ps_macos_rb)
-        pl.addStretch(1)
         self._ps_form_row = row(_ps_label, ps_choice,
                                 *_MM.M_PRINT_PS_FORM_HELP.render())
         self._ps_form_row.setVisible(False)
@@ -1237,7 +1239,18 @@ class TabPrint(QWidget):
         if run is None:
             return forms.DEFAULT_POSTSCRIPT_FORM
         try:
-            got = (getattr(run.load_meta(), "print_settings", None) or {}).get("postscript")
+            meta = run.load_meta()
+            got = (getattr(meta, "print_settings", None) or {}).get("postscript")
+            if got not in forms.POSTSCRIPT_FORMS:
+                # Combined review of 4.3.5 beta 2: a run refined from another
+                # ("Use as Pre-conditioning", RunMeta.parent_run) prints the
+                # way its parent did until it is given its own choice, so a
+                # second pass does not silently fall back to the default.
+                parent = getattr(meta, "parent_run", None)
+                project = getattr(run, "_project", None)
+                if parent and project is not None:
+                    pmeta = project.run(parent).load_meta()
+                    got = (getattr(pmeta, "print_settings", None) or {}).get("postscript")
         except Exception:  # noqa: BLE001 - a default must never raise
             got = None
         return got if got in forms.POSTSCRIPT_FORMS else forms.DEFAULT_POSTSCRIPT_FORM

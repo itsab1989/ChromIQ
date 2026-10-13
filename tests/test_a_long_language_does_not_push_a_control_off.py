@@ -613,11 +613,16 @@ def test_how_this_chart_is_printed_fits_the_print_pane(qapp, code, tmp_path):
     # after the show: showing the tab re-decides the rows for its own
     # (profiling) target, which hides the two verification rows
     tab._cm_raw_rb.setText(i18n.tr("Raw — already converted"))
-    for row in (tab._cm_colour_row, tab._cm_intent_row, tab._cm_route_row):
+    # 4.3.5 beta 2: and the PostScript printer's "Print like" row, whose two
+    # approved choices side by side made the box 547 px in English and 677 in
+    # Russian (combined review of beta 2); they are stacked now
+    for row in (tab._cm_colour_row, tab._cm_intent_row, tab._cm_route_row,
+                tab._ps_form_row):
         row.setVisible(True)
     tab._cm_grp.setVisible(True)
     qapp.processEvents()
     assert tab._cm_colour_row.isVisibleTo(tab._cm_grp)
+    assert tab._ps_form_row.isVisibleTo(tab._cm_grp)
     need = tab._cm_grp.minimumSizeHint().width()
     tab.hide()
     assert need <= PRINT_PANE_VIEWPORT, (

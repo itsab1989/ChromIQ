@@ -729,15 +729,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # DEVICE-RGB approved by Basti 2026-10-11;
                                  # PS-EARLIER approved but one statement
                                  # untrue, corrected and waiting.
-                                 # 4.3.5 beta 2 (Basti, 2026-10-12): how a
-                                 # PostScript printer gets the chart through
-                                 # the macOS dialog, a choice per run; and the
-                                 # combined review's paper check. Our words.
-                                 "M-PRINT-PS-FORM-CHOICE",
-                                 "M-PRINT-PS-FORM-HELP",
-                                 "M-PRINT-PS-ROUTE-OWN-RGB",
-                                 "M-PRINT-PS-ROUTE-AS-MACOS",
-                                 "M-PRINT-PS-PAPER-NOT-LISTED",
+                                 # 4.3.5 beta 2: the five M-PRINT-PS-* texts
+                                 # of the "Print like" choice were approved by
+                                 # Basti on 2026-10-13 and left this set.
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
