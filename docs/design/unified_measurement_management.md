@@ -6293,28 +6293,35 @@ alone.
 
 *Revised 2026-10-13 (Basti: "correct but too technical"): every line leads with what it means in plain words, then the numbers, one thought per sentence, the technical names (ΔE\*ab, ΔE00, median, the tests' names, the same-reading tolerance) in brackets at the end, and what it means for the user ("probably not a misread", "not clear yet which one is right"). Two statements of the first wording were not true on every card and are corrected: lines 9 and 13 said "Without the re-read" also on yellow cards confirmed by similar patches or judged like a patch of their colour range, where nothing was read again (they now say "Without that confirmation", and the headline above names it); and line 2 no longer suggests the report shows the card's figure, because the report compares a From Profile Gamut chart with the chart's design, which differs from the profile's prediction by up to ΔE\*ab 2.96 near the gamut's edge on Knut's run 2 chart. Line 10's headline is "Red outline: too far off its expected colour". Placeholders unchanged.*
 
+*Revised again 2026-10-13 (v3, Knut, [6134781112](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6134781112)): every number carries its unit, written right before it ("ΔE\*ab 7.71", "ΔE00 6.41"), never a bare number: the card fills every placeholder that holds a ΔE with its unit, so no translation can drop it. The units are defined once per card, at the bottom above "See Preferences ▸ Measurement" (the last two lines below), and the bracketed definitions are gone from the lines. The difference between the expected and the measured colour belongs to the pair, so it is no longer a line under "Measured": it is a section of its own after both colours, under the bold heading of line 1, with both formulas on one line the card builds ("ΔE\*ab 8.07   ΔE00 6.46"), what the expected colour is based on (lines 2 to 4, by where it came from: the run profile's prediction on a verification ChromIQ printed, the pre-conditioning profile's prediction on a chart made with one, otherwise the chart's RGB read as sRGB) and the Measurement Report's formula (line 5); it is shown in every view mode. The outlines' headlines are drawn bold, so none reads as a sentence running on into the next line. A card taller than the screen allows is laid out wider instead, in two columns if it must, over the panel beside the chart if it must (the size rule, `ui.tiff_preview.card_limits`), which is layout, not wording, and applies to every card now.*
+
 > **Patch error limit and neighbour check on the patch card, in plain words**
 >
-> This patch is {de} off its expected colour. (ΔE*ab, CIE76, L*a*b* D50.)
-> The Measurement Report measures colour differences in a way that is closer to how the eye sees them. Measured that way, this difference is {de00}. (ΔE00, CIEDE2000.)
-> The {n} patches most similar to it are only about {median} off their expected colours. At {own}, this one stands out by {d}. (Neighbour check, ΔE*ab, median of the {n}.)
-> The {n} patches most similar to it are about {median} off their expected colours. At {own}, this one is {d} closer to its expected colour than they are. (Neighbour check, ΔE*ab, median of the {n}.)
-> The {n} patches most similar to it are about as far off their expected colours as this one, at {own}. It does not stand out from them. (Neighbour check, ΔE*ab, median of the {n}.)
+> Difference between the two colours
+> The expected colour is what the run's profile predicts for the values sent to the printer.
+> The expected colour is what the profile this chart was made with predicts for this patch.
+> The expected colour is an estimate: the patch's RGB values read as sRGB.
+> The Measurement Report uses ΔE00. It is closer to how the eye sees colour differences.
+> The {n} patches most similar to it are only about {median} off their expected colours. At {own}, this one stands out by {d}. (Neighbour check, median of the {n}.)
+> The {n} patches most similar to it are about {median} off their expected colours. At {own}, this one is {d} closer to its expected colour than they are. (Neighbour check, median of the {n}.)
+> The {n} patches most similar to it are about as far off their expected colours as this one, at {own}. It does not stand out from them. (Neighbour check, median of the {n}.)
 > Not compared with similar patches yet: fewer than 2 patches with a similar expected colour have been read. (Neighbour check, colour-neighbour radius.)
 > Red outline: this patch stands out from the patches most similar to it by {d}. That is more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
 > It also stands out from the patches most similar to it by {d}. That is more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
 > Without that confirmation it would be red: it stands out from the patches most similar to it by {d}, more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
 > Red outline: too far off its expected colour
-> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}. (ΔE*ab.)
-> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}. It also stands out from the other patches of its strip. (ΔE*ab, strip test.)
-> Without that confirmation it would be red: it is {de} off its expected colour, more than the patch error limit of {limit} for {kind}. (ΔE*ab.)
-> You read this patch again, and the new reading agrees with an earlier one. So it is probably not a misread. It is {de} off its expected colour now, and was {prev} off at that earlier reading. (ΔE*ab; the two readings are within the same-reading tolerance.)
-> It is {de} off its expected colour now, and was {prevs} off at the earlier reading. (ΔE*ab.)
-> It is {de} off its expected colour now. The earlier readings were {prevs} off. (ΔE*ab.)
+> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}.
+> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}. It also stands out from the other patches of its strip. (Strip test.)
+> Without that confirmation it would be red: it is {de} off its expected colour, more than the patch error limit of {limit} for {kind}.
+> You read this patch again, and the new reading agrees with an earlier one. So it is probably not a misread. It is {de} off its expected colour now, and was {prev} off at that earlier reading. (The two readings are within the same-reading tolerance.)
+> It is {de} off its expected colour now, and was {prevs} off at the earlier reading.
+> It is {de} off its expected colour now. The earlier readings were {prevs} off.
 > The two readings do not agree with each other, and both are further off than the patch error limit of {limit} for {kind}. So it is not clear yet which one is right. (They differ by more than the same-reading tolerance.)
 > You have read this patch {n} times. This reading agrees with none of the earlier ones, and every reading is further off than the patch error limit of {limit} for {kind}. So it is not clear yet which one is right. (Same-reading tolerance.)
-> The earlier, red reading was {de} off its expected colour and stood out from the patches most similar to it. The new reading does not stand out more than the neighbour limit allows. (ΔE*ab, neighbour check.)
-> The earlier, red reading was {de} off its expected colour, more than the patch error limit. The new reading is within the limit. (ΔE*ab.)
+> The earlier, red reading was {de} off its expected colour and stood out from the patches most similar to it. The new reading does not stand out more than the neighbour limit allows. (Neighbour check.)
+> The earlier, red reading was {de} off its expected colour, more than the patch error limit. The new reading is within the limit.
+> ΔE00 = CIEDE2000, L*a*b* D50
+> ΔE*ab = CIE76, L*a*b* D50
 
 ### M-PATCH-UNSETTLED · PROPOSED · a re-read past the limit that agrees with no earlier reading — Measure tab preview, #182 beta 12
 

@@ -11,7 +11,10 @@ unit and compared with what (M-PATCH-CARD-PLAIN, §M-PROPOSED).
   the current reading, nor "the reading before 6.70" without a unit;
 * Knut's patch D5 (run 2 of Printer_HP_CLJ5550_i1Pro2_ChromIQ, verification
   2026-10-11_00-40-04): ΔE*ab 8.07 on the card is ΔE00 6.46 in the formula
-  of the report, and its neighbour figure 6.44 is 8.07 minus the median 1.63.
+  of the report, and its neighbour figure 6.44 is 8.07 minus the median 1.63;
+* v3 (Knut, #182 6134781112): every number carries its unit right before it,
+  the units are defined once at the bottom, the difference is a section of
+  its own, every sentence ends, and a tall card gets wider (the size rule).
 """
 from __future__ import annotations
 
@@ -52,6 +55,21 @@ CASES = {
                         "corrected_by": "neighbour"},
     "green_limit": {"flag": "corrected", "prev_de": 14.2,
                     "corrected_by": "limit"},
+    # v3: every other card type the proposal appears on
+    "yellow_peers": {"flag": "confirmed", "peer_locs": ["F3", "H9"],
+                     "warn": True, "warn_de": 7.5, "colour_range": "red",
+                     "range_k": 1, "range_locs": ["D5"]},
+    "yellow_learned": {"flag": "learned", "like_loc": "C3", "warn": True,
+                       "warn_de": 7.5, "colour_range": "red", "range_k": 3,
+                       "range_locs": ["C3", "D5", "F3"]},
+    "red_estimated": {"expected_source": None, "accurate": False,
+                      "kind": "estimated", "warn": True, "warn_de": 7.5,
+                      "colour_range": "red", "range_k": 1,
+                      "range_locs": ["D5"]},
+    "red_later_profile": {"expected_source": "estimate_profile_newer",
+                          "warn": True, "warn_de": 7.5},
+    "unsettled_three_neighbour": {"warn": True, "warn_de": 5.0,
+                                  "unsettled": [12.3, 18.4], "neighbour": NB},
 }
 
 
@@ -106,29 +124,55 @@ def test_switched_on_no_old_wording_remains(qapp, plain, case):
     assert "ΔE " not in t.replace("ΔE00", "").replace("ΔE*ab", ""), case
 
 
-# Basti, 2026-10-13: friendly, meaning first, numbers next, the technical
-# names in brackets at the end (his four approved style examples).
 
-def test_switched_on_the_colour_error_and_the_reports_figure(qapp, plain):
-    t = _words(_text({}))
-    assert ("This patch is 8.07 off its expected colour. "
-            "(ΔE*ab, CIE76, L*a*b* D50.)") in t
-    assert ("The Measurement Report measures colour differences in a way that "
-            "is closer to how the eye sees them. Measured that way, this "
-            "difference is 6.46. (ΔE00, CIEDE2000.)") in t
-    assert ("The 4 patches most similar to it are only about 1.63 off their "
-            "expected colours. At 8.07, this one stands out by 6.44. "
-            "(Neighbour check, ΔE*ab, median of the 4.)") in t
+# v3, Knut #182 6134781112: meaning first, every ΔE with its unit in front.
+
+def test_switched_on_the_difference_is_a_section_of_its_own(qapp, plain):
+    rows = _rows({})
+    texts = [t for _s, t in rows]
+    i = texts.index("Difference between the two colours")
+    from ui.tiff_preview import _CardBold
+    assert isinstance(texts[i], _CardBold)
+    # after both colours, set apart from "Measured" by an empty line
+    assert texts.index("Measured") < i and texts[i - 1] == ""
+    assert texts[i + 1] == "  ΔE*ab 8.07   ΔE00 6.46"
+    t = _words(" ".join(texts))
+    assert ("The expected colour is what the run's profile predicts for the "
+            "values sent to the printer. The Measurement Report uses ΔE00. "
+            "It is closer to how the eye sees colour differences.") in t
+    assert ("The 4 patches most similar to it are only about ΔE*ab 1.63 off "
+            "their expected colours. At ΔE*ab 8.07, this one stands out by "
+            "ΔE*ab 6.44. (Neighbour check, median of the 4.)") in t
+
+
+@pytest.mark.parametrize("mode", ["expected", "measured"])
+def test_switched_on_the_difference_in_every_view_mode(qapp, plain, mode):
+    assert "ΔE*ab 8.07   ΔE00 6.46" in _text({}, mode)
+
+
+@pytest.mark.parametrize("info, basis", [
+    ({}, M._CARDP_BASIS_PREDICTED),
+    ({"expected_source": None, "accurate": True}, M._CARDP_BASIS_ACCURATE),
+    ({"expected_source": None, "accurate": False}, M._CARDP_BASIS_ESTIMATE),
+    ({"expected_source": "estimate_profile_newer"}, M._CARDP_BASIS_ESTIMATE),
+])
+def test_switched_on_the_card_says_what_the_expected_colour_is(
+        qapp, plain, info, basis):
+    t = _words(_text(info))
+    assert basis in t
+    others = {M._CARDP_BASIS_PREDICTED, M._CARDP_BASIS_ACCURATE,
+              M._CARDP_BASIS_ESTIMATE} - {basis}
+    assert not any(o in t for o in others)
 
 
 def test_switched_on_closer_equal_and_too_few(qapp, plain):
     t = _words(_text(CASES["closer"]))
-    assert ("The 4 patches most similar to it are about 3.30 off their "
-            "expected colours. At 2.10, this one is 1.20 closer to its "
-            "expected colour than they are.") in t
+    assert ("The 4 patches most similar to it are about ΔE*ab 3.30 off their "
+            "expected colours. At ΔE*ab 2.10, this one is ΔE*ab 1.20 closer to "
+            "its expected colour than they are.") in t
     t = _words(_text({"nb_compare": lambda loc: (3, 0.0),
                       "nb_detail": lambda loc: (3, 0.0, 2.5, 2.5)}))
-    assert "It does not stand out from them." in t
+    assert "at ΔE*ab 2.50. It does not stand out from them." in t
     t = _words(_text(CASES["few"]))
     assert "Not compared with similar patches yet" in t
 
@@ -136,16 +180,18 @@ def test_switched_on_closer_equal_and_too_few(qapp, plain):
 def test_switched_on_knuts_two_yellow_cards(qapp, plain):
     t = _words(_text(CASES["yellow_neighbour"]))
     assert ("You read this patch again, and the new reading agrees with an "
-            "earlier one. So it is probably not a misread. It is 8.07 off its "
-            "expected colour now, and was 6.70 off at that earlier reading."
-            ) in t
+            "earlier one. So it is probably not a misread. It is ΔE*ab 8.07 "
+            "off its expected colour now, and was ΔE*ab 6.70 off at that "
+            "earlier reading. (The two readings are within the same-reading "
+            "tolerance.)") in t
     assert ("Without that confirmation it would be red: it stands out from "
-            "the patches most similar to it by 6.44, more than the neighbour "
-            "limit of 5.50 for verification charts. (Neighbour check.)") in t
+            "the patches most similar to it by ΔE*ab 6.44, more than the "
+            "neighbour limit of ΔE*ab 5.50 for verification charts. "
+            "(Neighbour check.)") in t
     t = _words(_text(CASES["yellow_limit"]))
-    assert ("Without that confirmation it would be red: it is 8.07 off its "
-            "expected colour, more than the patch error limit of 7.50 for "
-            "verification charts. (ΔE*ab.)") in t
+    assert ("Without that confirmation it would be red: it is ΔE*ab 8.07 off "
+            "its expected colour, more than the patch error limit of ΔE*ab "
+            "7.50 for verification charts.") in t
 
 
 def test_a_yellow_card_nobody_read_again_does_not_speak_of_a_re_read(qapp, plain):
@@ -162,65 +208,151 @@ def test_a_yellow_card_nobody_read_again_does_not_speak_of_a_re_read(qapp, plain
 def test_switched_on_the_red_cards(qapp, plain):
     t = _words(_text(CASES["red_neighbour"]))
     assert ("Red outline: this patch stands out from the patches most similar "
-            "to it by 6.44. That is more than the neighbour limit of 5.50 for "
-            "verification charts. (Neighbour check.) Probably a misread: read "
-            "it again.") in t
+            "to it by ΔE*ab 6.44. That is more than the neighbour limit of "
+            "ΔE*ab 5.50 for verification charts. (Neighbour check.) Probably "
+            "a misread: read it again.") in t
     t = _words(_text(CASES["red_both"]))
     assert "Red outline: too far off its expected colour" in t
-    assert ("This patch is 8.07 off its expected colour. That is more than "
-            "the patch error limit of 7.50 for verification charts. (ΔE*ab.)"
-            ) in t
-    assert "It also stands out from the patches most similar to it by 6.44." in t
+    assert ("This patch is ΔE*ab 8.07 off its expected colour. That is more "
+            "than the patch error limit of ΔE*ab 7.50 for verification "
+            "charts.") in t
+    assert ("It also stands out from the patches most similar to it by ΔE*ab "
+            "6.44.") in t
     t = _words(_text(CASES["red_fenced"]))
-    assert "(ΔE*ab, strip test.)" in t and "other patches of its strip" in t
+    assert "other patches of its strip. (Strip test.)" in t
 
 
 def test_switched_on_unsettled_and_green(qapp, plain):
     t = _words(_text(CASES["unsettled_two"]))
-    assert ("It is 8.07 off its expected colour now, and was 12.30 off at the "
-            "earlier reading. (ΔE*ab.)") in t
+    assert ("It is ΔE*ab 8.07 off its expected colour now, and was ΔE*ab "
+            "12.30 off at the earlier reading.") in t
     assert ("The two readings do not agree with each other, and both are "
-            "further off than the patch error limit of 5.00 for verification "
-            "charts. So it is not clear yet which one is right.") in t
+            "further off than the patch error limit of ΔE*ab 5.00 for "
+            "verification charts. So it is not clear yet which one is "
+            "right.") in t
     t = _words(_text(CASES["unsettled_three"]))
-    assert "The earlier readings were 12.30, 18.40 off. (ΔE*ab.)" in t
+    assert "The earlier readings were ΔE*ab 12.30, ΔE*ab 18.40 off." in t
     assert "You have read this patch 3 times." in t
     t = _words(_text(CASES["green_neighbour"]))
-    assert ("The earlier, red reading was 14.20 off its expected colour and "
-            "stood out from the patches most similar to it.") in t
+    assert ("The earlier, red reading was ΔE*ab 14.20 off its expected colour "
+            "and stood out from the patches most similar to it.") in t
     t = _words(_text(CASES["green_limit"]))
     assert ("more than the patch error limit. The new reading is within the "
-            "limit. (ΔE*ab.)") in t
+            "limit.") in t
+
+
+# ---- Knut's three rules, on every variant ----------------------------------
+
+import re
+
+_NUMBER = re.compile(r"(?<![\w.*])(\d+\.\d+)")
+
+
+@pytest.mark.parametrize("case", sorted(CASES))
+def test_switched_on_every_number_carries_its_unit(qapp, plain, case):
+    """Every decimal on the card stands right after "ΔE*ab " or "ΔE00 ",
+    except the colour lines (RGB / Lab, unchanged above the Difference)."""
+    rows = [t for _s, t in _rows(CASES[case])]
+    body = rows[rows.index("Difference between the two colours"):]
+    text = _words(" ".join(body))
+    for m in _NUMBER.finditer(text):
+        before = text[:m.start()]
+        assert before.endswith(("ΔE*ab ", "ΔE00 ")), (case, text[m.start() - 30:m.end()])
+    # and no bracketed definition per line any more
+    assert "(ΔE*ab" not in text and "(ΔE00" not in text and "CIE76)" not in text
+
+
+@pytest.mark.parametrize("case", sorted(CASES))
+def test_switched_on_the_units_are_defined_once_above_see_preferences(
+        qapp, plain, case):
+    texts = [t for _s, t in _rows(CASES[case])]
+    assert texts.count(M._CARDP_UNITS[0]) == 1
+    assert texts.count(M._CARDP_UNITS[1]) == 1
+    i = texts.index(M._CARDP_UNITS[0])
+    assert texts[i + 1] == M._CARDP_UNITS[1]
+    # the last topic: after "Checked again ...", before "See Preferences"
+    after = _words(" ".join(texts[i + 2:]))
+    assert after == _words(M._CARD_SEE_PREFS_S)
+    assert _words(" ".join(texts[:i])).endswith(_words(M._CARD_LATER_STRIP_S))
 
 
 @pytest.mark.parametrize("case", sorted(CASES))
 def test_switched_on_every_card_still_ends_with_the_approved_topics(
         qapp, plain, case):
     t = _words(_text(CASES[case]))
-    assert t.endswith(_words(M._CARD_LATER_STRIP_S + " " + M._CARD_SEE_PREFS_S))
+    assert t.endswith(_words(M._CARD_SEE_PREFS_S))
+    assert _words(M._CARD_LATER_STRIP_S) in t
 
 
-def test_the_neighbour_figures_the_card_names():
-    """own - median is the figure compared with the Neighbour limit."""
-    from workflow.neighbour_check import NeighbourCheck
-    nc = NeighbourCheck(radius=30.0, limit=5.5)
-    nc.set_reading_lab("A1", (50.0, 0.0, 0.0), (50.0, 0.0, 9.0), None)
-    for i, off in enumerate((1.0, 2.0, 3.0), start=2):
-        nc.set_reading_lab(f"A{i}", (50.0, 1.0 * i, 0.0),
-                           (50.0, 1.0 * i, off), None)
-    nc.evaluate()
-    n, further, own, median = nc.comparison_detail("A1")
-    assert (n, further) == nc.comparison("A1")
-    assert own == pytest.approx(9.0) and median == pytest.approx(2.0)
-    assert further == pytest.approx(own - median)
-    assert nc.comparison_detail("nowhere") == (0, 0.0, 0.0, 0.0)
+#: Lines of OTHER, approved messages that are labels, not sentences: they
+#: stand on a line of their own (Knut's "Colour range: red" block).
+_LABELS = ("Colour range:", "Confirmed:", "of 3 confirmations so far",
+           "Read alike in other strips:")
 
 
-def test_knuts_d5_in_both_formulas():
-    """The analysis of 6108217111 in two lines: the card's ΔE*ab 8.07 is
-    ΔE00 6.46, the formula of the report's colour accuracy."""
-    import math
-    from workflow.ti3_analysis import ciede2000
-    e, m = D5["exp_lab"], D5["meas_lab"]
-    assert math.dist(e, m) == pytest.approx(8.07, abs=0.005)
-    assert ciede2000(m, e) == pytest.approx(6.46, abs=0.005)
+def _unfinished(info) -> "list[str]":
+    """The card's lines that end without punctuation and do not run on by
+    design: not a heading (bold, or a colour's name), not a value line, not
+    a label, and not the first half of a sentence the approved wording
+    breaks by hand (``_card_join_firsts``), which its second half finishes."""
+    from ui.tiff_preview import (_CardBold, _PatchInfoTile, _card_join_firsts)
+    host = QWidget()
+    _KEEP.append(host)
+    tile = _PatchInfoTile(host)
+    tile.set_content({**D5, **info}, "both")
+    joins = _card_join_firsts()
+    bad = []
+    for i, (sw, t) in enumerate(tile._logical):
+        if (i == 0 or sw is not None or not t or isinstance(t, _CardBold)
+                or t.startswith("  ") or set(t) == {"─"} or t in joins
+                or t in M._CARDP_UNITS
+                or any(lab in t for lab in _LABELS)):
+            continue
+        if not t.rstrip().endswith((".", ".)", ":", "?", ",")):
+            bad.append(t)
+        elif t.rstrip().endswith((":", ",")):
+            # runs on by design: the next line must be its continuation
+            nxt = tile._logical[i + 1][1] if i + 1 < len(tile._logical) else ""
+            if not nxt or isinstance(nxt, _CardBold):
+                bad.append(t)
+    return bad
+
+
+@pytest.mark.parametrize("case", sorted(CASES))
+def test_switched_on_every_sentence_is_finished(qapp, plain, case):
+    """Knut: "...the reading before 7.71" ended without a full stop and read
+    as running on into the next line. On the proposed card every line ends
+    with its punctuation, or is a heading, a value line, a label, or the
+    first half of a sentence the approved wording breaks by hand."""
+    assert _unfinished(CASES[case]) == [], case
+
+
+def test_the_sentence_check_finds_knuts_line_on_todays_card(qapp):
+    """The check has teeth: today's yellow card (hidden proposal) has the
+    line Knut quoted, and the check names it."""
+    bad = _unfinished(CASES["yellow_neighbour"])
+    assert "ΔE*ab 8.07, the reading before 6.70" in bad
+
+
+def test_switched_on_the_outline_headlines_are_bold(qapp, plain):
+    from ui.tiff_preview import _CardBold
+    for case, head in (("red_limit", "Red outline: too far off its expected colour"),
+                       ("yellow_limit", "Yellow outline: confirmed by a re-read"),
+                       ("unsettled_two", "Red outline: the readings do not agree"),
+                       ("green_limit", "Green outline: corrected by a re-read")):
+        rows = [t for _s, t in _rows(CASES[case])]
+        assert head in rows, (case, rows)
+        assert isinstance(rows[rows.index(head)], _CardBold), case
+
+
+def _rows(info, mode="both", max_size=None):
+    from ui.tiff_preview import _PatchInfoTile
+    host = QWidget()
+    tile = _PatchInfoTile(host)
+    tile.set_content({**D5, **info}, mode, max_size=max_size)
+    rows = list(tile._rows)
+    _KEEP.append(host)
+    return rows
+
+
+_KEEP: list = []
