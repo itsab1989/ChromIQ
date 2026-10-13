@@ -68,11 +68,13 @@ def test_pale_band_widens_and_never_narrows(monkeypatch):
     assert np.allclose(both[lab[:, 0] <= 30], only_dark[lab[:, 0] <= 30])
 
 
-def test_not_a_default():
+def test_integration_8b_defaults_with_off_switches():
     from workflow.profile_engine import builder
-    assert "a63-palefine" in builder.ENGINE_CANDIDATE_TOKENS
-    assert "a63-palefine" not in builder.ACCURATE_DEFAULT_TOKENS
-    assert "a63-lowgrid" in builder.ENGINE_CANDIDATE_TOKENS
+    for t in ("a63-palefine", "a63-lowgrid"):
+        assert t in builder.ENGINE_CANDIDATE_TOKENS
+        assert t in builder.ACCURATE_DEFAULT_TOKENS
+        assert "no-" + t in builder.ENGINE_CANDIDATE_TOKENS
+    assert builder.INT8B_TOKENS == {"a63-palefine", "a63-lowgrid"}
 
 
 def test_lowgrid_off_keeps_colprofs_grid(monkeypatch):

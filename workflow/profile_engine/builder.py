@@ -164,6 +164,8 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a58-keep-floor", "no-a56-blackfade", "no-a58-keep-rgbcol",
      "no-a58-keep-refit", "no-a58-keep-a44", "no-a58-keep-a42",
      "no-a58-keep-a40", "no-a60-darkacc", "no-a62-camhue",
+     # Integration 8b: the off switches of its two new defaults
+     "no-a63-palefine", "no-a63-lowgrid",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -290,6 +292,13 @@ INT8_TOKENS = frozenset({
     "a58-keep-floor", "a56-blackfade", "a58-keep-rgbcol", "a58-keep-refit",
     "a58-keep-a44", "a58-keep-a42", "a58-keep-a40", "a60-darkacc",
     "a62-camhue"})
+# Integration 8b (2026-10-14, Agent 63, Findings/agent63-01-pale.md): the
+# keep-grid33in hand-over keeps the fine table near the paper white
+# (a63-palefine, the light-end mirror of a60-darkacc: int-8 printed pale
+# in-gamut colours about twice as far off as int-7), and at quality l the
+# coarse table is never coarser than colprof's -qm grid 17 (a63-lowgrid).
+# RGB Maximum accuracy B2A1 only; each has a "no-<token>" switch.
+INT8B_TOKENS = frozenset({"a63-palefine", "a63-lowgrid"})
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
@@ -299,7 +308,7 @@ ACCURATE_DEFAULT_TOKENS = frozenset({
     "a40-inklimit", "a42-nearblack", "a43-shadowdetail-width",
     "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
     "a44b-smoothexact", "a45-c1space", "a45-darkend",
-    "a51-colprofedge"}) | INT8_TOKENS
+    "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer

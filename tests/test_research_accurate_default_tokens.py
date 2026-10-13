@@ -32,8 +32,11 @@ _INT8 = {"a58-purecolprof", "a58-keep-black", "a58-keep-grid33in",
          "a58-keep-floor", "a56-blackfade", "a58-keep-rgbcol",
          "a58-keep-refit", "a58-keep-a44", "a58-keep-a42", "a58-keep-a40",
          "a60-darkacc", "a62-camhue"}
+# integration 8b (Findings/agent63-01-pale.md): pale in-gamut accuracy near
+# the paper white, and no coarse table below grid 17 at quality l; RGB only
+_INT8B = {"a63-palefine", "a63-lowgrid"}
 _DEF = ({"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6
-        | _INT7 | _INT8)
+        | _INT7 | _INT8 | _INT8B)
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -56,11 +59,11 @@ def test_agent9_tokens_are_off_by_default():
 
 def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-b2a33s"}) == ({"rgbpos", "v4prm", "rgbcol"}
-                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _FIN3)
+                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _FIN3)
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
                                 "no-rgbcol", "no-fin3"}
-                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8}) == frozenset()
-    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8:
+                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B}) == frozenset()
+    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B:
         assert "no-" + t in ENGINE_CANDIDATE_TOKENS
 
 
