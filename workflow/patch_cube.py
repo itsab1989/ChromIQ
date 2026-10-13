@@ -308,6 +308,9 @@ def gamut_outline(profile, bin_dir, *, intent: str = "a",
 #: How see-through the gamut's skin is drawn (0 invisible, 1 solid).
 SKIN_OPACITY = 0.14
 
+#: How see-through the twelve lines (the seams on the skin) are drawn.
+LINE_OPACITY = 0.45
+
 
 def outline_traces(outline: "GamutOutline", *, fg: str = "#cccccc") -> list:
     """Plotly traces for :class:`GamutOutline`: the twelve ridges as lines and
@@ -325,7 +328,7 @@ def outline_traces(outline: "GamutOutline", *, fg: str = "#cccccc") -> list:
         zs.append(None)
     ridges = {"type": "scatter3d", "mode": "lines", "name": "gamut edges",
               "x": xs, "y": ys, "z": zs,
-              "line": {"color": fg, "width": 2}, "opacity": 0.45,
+              "line": {"color": fg, "width": 2}, "opacity": LINE_OPACITY,
               "hoverinfo": "skip", "showlegend": False}
     if not outline.vertices or not outline.faces:
         return [ridges]

@@ -5779,6 +5779,22 @@ M_HELP_COLOUR_VIEW_SEAMS = _m(
     "A chart made From Profile Gamut spaces its colours evenly as colours. A printer does not respond evenly to ink amounts, so the same chart can look crowded in one part of the RGB cube and sparse in another.",
     approved=False)
 
+# --- PROPOSED (4.3.5 beta 3, Knut #182 6148467471): a key to the colour view
+#: Knut asked for a small legend in Show patch distribution (3D), "Colours
+#: through the profile": what the grey skin, the lines and the dots are. One
+#: line per item, each beside a drawn sample of it (`patch_cube_dialog.
+#: ColourViewLegend`), shown only in the colour view, above the plot, never
+#: over it. The words name no shade: the skin is light grey with darker lines
+#: in the light theme and dark grey with lighter lines in the dark one, and the
+#: drawn samples show which. Hidden until approved. The headline is not shown.
+M_HELP_COLOUR_VIEW_LEGEND = _m(
+    "M-HELP-COLOUR-VIEW-LEGEND",
+    "What the colour view shows",
+    "Grey skin: every colour this profile can print (its gamut).\n"
+    "Lines: seams on the skin, where two of the three inks are at 0 or 100 (for example from pure red to pure yellow). They are not the skin's outline.\n"
+    "Dots: the chart's patches, each in its own colour.",
+    approved=False)
+
 # --- PROPOSED (4.3.5 beta 3, Knut #182 6144104040): strip letters that run
 # into each other ----------------------------------------------------------
 #: Shown in red under "Measured from Preview", like the other text-overlap
@@ -5949,7 +5965,8 @@ CATALOGUE = {m.id: m for m in (
     M_SCAN_PROFILE_ARCHIVED,
     M_SCAN_WP_DEFAULT,
     M_CHART_SLOW_NO_PROFILE,
-    M_HELP_COLOUR_VIEW_SEAMS, M_CHART_STRIP_LABELS_CROWDED,
+    M_HELP_COLOUR_VIEW_SEAMS, M_HELP_COLOUR_VIEW_LEGEND,
+    M_CHART_STRIP_LABELS_CROWDED,
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
     M_PRINT_PS_FORM_HELP_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
 )}

@@ -15,6 +15,7 @@
 - **A preset picked in From Profile Gamut did nothing when the run has no finished profile** (Create Chart, #182, Knut). The window "This run needs a finished profile first" now opens and says why and what to do.
 - **"By columns / rows" on an X-Rite DTP51 printed two patches fewer per strip than asked, and said the grid did not fit** (Create Chart). The instrument's own max and min patches at the ends of each strip took two of the rows. The warning now comes only when a patch would have to be smaller than 1 mm (about 8 pixels at 200 dpi, 12 at 300) or the instrument's own limit of patches per strip is passed.
 - **Ukrainian: the "Strip & row labels" frame was titled "Deletion & row labels".**
+- **Russian and Ukrainian: "This run needs a finished profile first" put the run name in the wrong case** ("У Запуск 3 ещё нет профиля"). The sentence now starts with the run name, so it reads correctly for "Запуск 3" and for "Этот запуск" alike ("Запуск 3 ещё не имеет профиля"). Russian "This run has no profile to verify yet" no longer says "профиля" twice.
 
 ### Waiting for approval (not shown yet)
 
@@ -22,6 +23,7 @@
 - The PostScript question and the "Print like" row, explained choice by choice: "Send the colours unchanged (like Photoshop)" and "Let the printer adjust the colours (like Preview)" (M-PRINT-PS-ASK-EXPLAINED, M-PRINT-PS-FORM-CHOICE-EXPLAINED, M-PRINT-PS-FORM-HELP-EXPLAINED).
 - On the macOS print dialog route, why the dialog shows a colour profile under Colour Matching and why it does not matter: measured, the printer receives the same job whatever is chosen there (M-PRINT-DIALOG-COLOUR-MATCHING).
 - The 3D tool's "Show:" help naming the lines as seams (M-HELP-COLOUR-VIEW-SEAMS).
+- A key to the 3D tool's "Colours through the profile" view, above the plot: what the grey skin, the lines and the dots are, each beside a sample drawn as the plot draws it, in the light and the dark theme (M-HELP-COLOUR-VIEW-LEGEND, #182, Knut). Not in the ink-amount cube.
 
 ## v4.3.5-beta.2
 

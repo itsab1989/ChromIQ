@@ -14,10 +14,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPointF, QRectF, QSize, Qt
+from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import (
-    QApplication, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
-    QVBoxLayout, QWidget,
+    QApplication, QComboBox, QDialog, QDialogButtonBox, QFrame, QGridLayout,
+    QHBoxLayout, QLabel, QVBoxLayout, QWidget,
 )
 
 from core.logger import get_logger
@@ -47,6 +48,99 @@ def _view_help() -> str:
     until then the text shipped in beta 2."""
     from workflow.measurement_messages import M_HELP_COLOUR_VIEW_SEAMS as M
     return M.render()[1] if M.approved else tr(_VIEW_HELP)
+
+
+def _legend_lines() -> "list[str] | None":
+    """The colour view's key, M-HELP-COLOUR-VIEW-LEGEND, one line per item
+    (skin, lines, dots) once approved (Knut, #182 6148467471); until then
+    None, and the view looks exactly as in beta 2."""
+    from workflow.measurement_messages import M_HELP_COLOUR_VIEW_LEGEND as M
+    if not M.approved:
+        return None
+    lines = M.render()[1].split("\n")
+    return lines if len(lines) == 3 else None
+
+
+def _blend(fg: QColor, bg: QColor, alpha: float) -> QColor:
+    """``fg`` laid over ``bg`` at ``alpha``, as the plot composites it."""
+    return QColor(*(round(alpha * f + (1 - alpha) * b) for f, b in
+                    ((fg.red(), bg.red()), (fg.green(), bg.green()),
+                     (fg.blue(), bg.blue()))))
+
+
+class _LegendSample(QWidget):
+    """A drawn sample of one item of the colour view, in the plot's own
+    colours and on its background: the skin (the theme's foreground seen
+    through the skin's two sides), a line on it (foreground at the lines'
+    opacity and width) or dots (patches, each in its own colour)."""
+
+    #: The patch dots of the sample: a red, a green and a blue patch.
+    DOTS = ((214, 48, 49), (46, 160, 67), (52, 101, 206))
+
+    def __init__(self, kind: str, bg: str, fg: str, parent=None) -> None:
+        super().__init__(parent)
+        self.kind = kind
+        self._bg = QColor(bg)
+        self._fg = QColor(fg)
+        self.setFixedSize(QSize(34, 18))
+
+    def paintEvent(self, _ev) -> None:  # noqa: N802
+        from workflow.patch_cube import LINE_OPACITY, SKIN_OPACITY
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(self._bg)
+        p.drawRoundedRect(r, 4, 4)
+        # The skin is a closed see-through surface, so the eye looks through
+        # two layers of it (near side and far side): measured on screen, the
+        # plot's skin is the foreground at 1 - (1 - SKIN_OPACITY)^2 over the
+        # background, not at SKIN_OPACITY. The lines lie on the skin.
+        skin = _blend(self._fg, self._bg, 1 - (1 - SKIN_OPACITY) ** 2)
+        if self.kind in ("skin", "line"):
+            p.setBrush(skin)
+            p.drawRoundedRect(r.adjusted(4, 3, -4, -3), 5, 5)
+        if self.kind == "line":
+            p.setPen(QPen(_blend(self._fg, skin, LINE_OPACITY), 2.0))
+            p.drawLine(QPointF(r.left() + 4, r.center().y()),
+                       QPointF(r.right() - 4, r.center().y()))
+        elif self.kind == "dots":
+            step = r.width() / (len(self.DOTS) + 1)
+            for n, rgb in enumerate(self.DOTS, start=1):
+                p.setBrush(QColor(*rgb))
+                p.drawEllipse(QPointF(r.left() + n * step, r.center().y()),
+                              3.0, 3.0)
+        p.end()
+
+
+class ColourViewLegend(QFrame):
+    """The key to "Colours through the profile": the grey skin, the lines
+    and the dots, each beside a sample drawn as the plot draws it. It sits
+    above the plot, in the plot's colours, and never over it, so it cannot
+    hide a patch (Knut, #182 6148467471)."""
+
+    def __init__(self, lines: "list[str]", bg: str, fg: str, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("colourViewLegend")
+        self.setStyleSheet(
+            f"QFrame#colourViewLegend {{ background: {bg}; border: none; }}"
+            f"QFrame#colourViewLegend QLabel {{ color: {fg}; background: transparent; }}")
+        grid = QGridLayout(self)
+        grid.setContentsMargins(12, 6, 12, 6)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(3)
+        self.samples = []
+        self.labels = []
+        for row, (kind, text) in enumerate(zip(("skin", "line", "dots"), lines)):
+            sample = _LegendSample(kind, bg, fg, self)
+            label = QLabel(text, self)
+            label.setWordWrap(True)
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            grid.addWidget(sample, row, 0, Qt.AlignmentFlag.AlignTop)
+            grid.addWidget(label, row, 1)
+            self.samples.append(sample)
+            self.labels.append(label)
+        grid.setColumnStretch(1, 1)
 
 
 class PatchCubeDialog(QDialog):
@@ -176,6 +270,15 @@ class PatchCubeDialog(QDialog):
 
         self._panel = PatchCubePanel(mode=mode, numbered=numbered, parent=self)
         self._panel.set_primary_label(self._target_name)
+        # The colour view's key (M-HELP-COLOUR-VIEW-LEGEND), above the plot
+        # and only while the colour view is shown; none until approved.
+        self._legend = None
+        legend = _legend_lines() if self._colour_view is not None else None
+        if legend:
+            th = self._panel._theme
+            self._legend = ColourViewLegend(legend, th["bg"], th["fg"], self)
+            self._legend.setVisible(False)
+            lay.addWidget(self._legend)
         lay.addWidget(self._panel, 1)
         if self._lab_cloud is not None:
             self._panel.set_lab_cloud(*self._lab_cloud)
@@ -203,7 +306,11 @@ class PatchCubeDialog(QDialog):
             self._panel.set_lab_cloud(labs, colors, outline,
                                       stats=lab_spacing_summary(labs))
             self.setWindowTitle(tr("Patch distribution — Lab space"))
+            if self._legend is not None:
+                self._legend.setVisible(True)
         else:
+            if self._legend is not None:
+                self._legend.setVisible(False)
             if self._compare_combo is not None:
                 self._compare_combo.setEnabled(True)
             self._panel.set_program(self._program)

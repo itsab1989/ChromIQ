@@ -753,6 +753,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PRINT-PS-FORM-CHOICE-EXPLAINED",
                                  "M-PRINT-PS-FORM-HELP-EXPLAINED",
                                  "M-PRINT-DIALOG-COLOUR-MATCHING",
+                                 # 4.3.5 beta 3, Knut #182 6148467471: a key
+                                 # to the 3D tool's colour view. Hidden until
+                                 # approved.
+                                 "M-HELP-COLOUR-VIEW-LEGEND",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
