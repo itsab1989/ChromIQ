@@ -1126,8 +1126,12 @@ class TabPrint(QWidget):
         self._ps_applies_lbl.setVisible(_MM.M_PRINT_PS_FORM_APPLIES.approved)
         pv.addWidget(self._ps_applies_lbl)
         ps_choice = ps_box
-        self._ps_form_row = row(_ps_label, ps_choice,
-                                *_MM.M_PRINT_PS_FORM_HELP.render())
+        # the help's headline (Basti, 2026-10-13) is M-PRINT-PS-FORM-HELP-TITLE
+        # once approved; until then the approved M-PRINT-PS-FORM-HELP
+        _ps_help = (_MM.M_PRINT_PS_FORM_HELP_TITLE
+                    if _MM.M_PRINT_PS_FORM_HELP_TITLE.approved
+                    else _MM.M_PRINT_PS_FORM_HELP)
+        self._ps_form_row = row(_ps_label, ps_choice, *_ps_help.render())
         self._ps_form_row.setVisible(False)
         gl.addWidget(self._ps_form_row)
 
@@ -1202,10 +1206,18 @@ class TabPrint(QWidget):
             return None
 
     # ---- the PostScript printer's form (4.3.5 beta 2) ---------------------
+    #: THE CHOICE BELONGS TO THE PROJECT (Basti, 2026-10-13): the calibration
+    #: is the first step and the profiling runs follow it, so the first print
+    #: to a PostScript printer through the macOS dialog asks, whichever chart
+    #: it is, and the answer is kept in ``project.json``
+    #: (``Project.print_setting("postscript")``). The calibration prints with
+    #: it; every run inherits it; a run may have its own (the row on this tab,
+    #: ``print_settings["postscript"]`` of its ``meta.json``), and a run
+    #: refined from another (RunMeta.parent_run) keeps its parent's.
     def _ps_form_run(self):
-        """The Run whose PostScript form applies: the run the bar points at,
-        for its profiling chart AND its verification charts (they must go the
-        same way); None for a calibration, a new run, or no project."""
+        """The Run whose own PostScript form applies: the run the bar points
+        at, for its profiling chart AND its verification charts (they must go
+        the same way); None for a calibration, a new run, or no project."""
         ctl = getattr(self, "_target_ctl", None)
         try:
             if ctl is None or ctl.target.is_calibration() or ctl.target.is_new_run():
@@ -1214,50 +1226,76 @@ class TabPrint(QWidget):
             return None
         return self._cm_run()
 
+    def _ps_project(self):
+        """The open project, whose choice every target inherits; None when
+        there is none (or it cannot be told)."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            return ctl.project_or_none()
+        except Exception:  # noqa: BLE001 - a question must never raise
+            return None
+
     def _ps_form(self) -> str:
         """The form a PostScript printer gets the chart in on the macOS dialog
-        route, as stored for the run (``print_settings["postscript"]`` of the
-        run's own ``meta.json``), else the default, its own RGB."""
+        route (``_ps_form_stored``), else the default, its own RGB."""
         from workflow import ppd_color as forms
         return self._ps_form_stored() or forms.DEFAULT_POSTSCRIPT_FORM
 
-    def _ps_form_stored(self) -> "str | None":
-        """The form stored for the run, or None when it has none yet (or
-        there is no run to keep one)."""
+    def _ps_project_form(self) -> "str | None":
         from workflow import ppd_color as forms
-        run = self._ps_form_run()
-        if run is None:
-            return None
+        project = self._ps_project()
         try:
-            meta = run.load_meta()
-            got = (getattr(meta, "print_settings", None) or {}).get("postscript")
-            if got not in forms.POSTSCRIPT_FORMS:
-                # Combined review of 4.3.5 beta 2: a run refined from another
-                # ("Use as Pre-conditioning", RunMeta.parent_run) prints the
-                # way its parent did until it is given its own choice, so a
-                # second pass does not silently fall back to the default.
-                parent = getattr(meta, "parent_run", None)
-                project = getattr(run, "_project", None)
-                if parent and project is not None:
-                    pmeta = project.run(parent).load_meta()
-                    got = (getattr(pmeta, "print_settings", None) or {}).get("postscript")
+            got = project.print_setting("postscript") if project is not None else None
         except Exception:  # noqa: BLE001 - a default must never raise
             got = None
         return got if got in forms.POSTSCRIPT_FORMS else None
 
+    def _ps_run_own_form(self, run, depth: int = 0) -> "str | None":
+        """*run*'s own choice, else (a run refined from another) its parent's
+        own, up the chain; None when no run of the chain has one."""
+        from workflow import ppd_color as forms
+        try:
+            meta = run.load_meta()
+            got = (getattr(meta, "print_settings", None) or {}).get("postscript")
+            if got in forms.POSTSCRIPT_FORMS:
+                return got
+            # Combined review of 4.3.5 beta 2: a run refined from another
+            # ("Use as Pre-conditioning", RunMeta.parent_run) prints the way
+            # its parent did until it is given its own choice, so a second
+            # pass does not silently fall back to the default.
+            parent = getattr(meta, "parent_run", None)
+            project = getattr(run, "_project", None)
+            if parent and project is not None and depth < 32:
+                return self._ps_run_own_form(project.run(parent), depth + 1)
+        except Exception:  # noqa: BLE001 - a default must never raise
+            return None
+        return None
+
+    def _ps_form_stored(self) -> "str | None":
+        """The form chosen for the selected target: the run's own (or its
+        parent's), else the project's; None when nothing was chosen yet."""
+        run = self._ps_form_run()
+        if run is not None:
+            own = self._ps_run_own_form(run)
+            if own is not None:
+                return own
+        return self._ps_project_form()
+
     def _ps_form_can_be_asked(self) -> bool:
-        """Whether a run with no choice is asked after the dialog (Basti,
-        2026-10-13): a run to keep the answer, and the window's words and the
-        choice's words approved. Otherwise the default form is used, as
+        """Whether a target with no choice is asked after the dialog (Basti,
+        2026-10-13): a project to keep the answer, and the window's words and
+        the choice's words approved. Otherwise the default form is used, as
         before."""
         from workflow import measurement_messages as MM
         return (MM.M_PRINT_PS_ASK.approved and MM.M_PRINT_PS_FORM_CHOICE.approved
-                and self._ps_form_run() is not None)
+                and self._ps_project() is not None)
 
     def _ps_form_for_dialog(self) -> "str | None":
-        """What ``print_frames`` gets as *postscript_form*: the run's stored
-        choice; None (ask after the dialog) when there is none and it can be
-        asked; else the default."""
+        """What ``print_frames`` gets as *postscript_form*: the stored choice;
+        None (ask after the dialog) when there is none and it can be asked;
+        else the default."""
         from workflow import ppd_color as forms
         stored = self._ps_form_stored()
         if stored is not None:
@@ -1301,7 +1339,9 @@ class TabPrint(QWidget):
         else:
             log.info("PostScript form not chosen: nothing printed")
             return None
-        self._store_ps_form(form)
+        # the PROJECT's choice (Basti, 2026-10-13): the calibration and every
+        # run that has none of its own print this way from now on
+        self._store_ps_project_form(form)
         self._update_ps_form_row()
         self._update_colour_row_visible()
         return form
@@ -1341,9 +1381,27 @@ class TabPrint(QWidget):
             except Exception:  # noqa: BLE001 - never lose the print over a note
                 log.warning("Could not note the CMYK hint", exc_info=True)
 
+    def _store_ps_project_form(self, form: str) -> bool:
+        """Keep *form* as the project's choice (``project.json``); False when
+        there is no project or it could not be written."""
+        project = self._ps_project()
+        if project is None:
+            return False
+        try:
+            if not Path(getattr(project, "root", "") or "").is_dir():
+                return False           # never resurrect a deleted project
+            changed = project.set_print_setting("postscript", form)
+            if changed:
+                log.info("PostScript form for the project: %s", form)
+            return changed
+        except Exception:  # noqa: BLE001 - never lose the print over a write
+            log.warning("Could not store the project's PostScript form", exc_info=True)
+            return False
+
     def _store_ps_form(self, form: str) -> bool:
-        """Write *form* into the run's ``meta.json``; False when there is no
-        run to keep it (calibration, new run) or it could not be written."""
+        """The row's choice: the run's own, in its ``meta.json`` (it then no
+        longer follows the project). False when there is no run to keep it
+        (calibration, new run) or it could not be written."""
         run = self._ps_form_run()
         if run is None:
             return False
@@ -1374,10 +1432,12 @@ class TabPrint(QWidget):
 
     def _update_ps_form_row(self) -> None:
         """Show the PostScript row where it applies: macOS, the dialog route
-        on, a chart loaded, a run that HAS a stored choice (asked after the
-        dialog, Basti 2026-10-13: the printer the dialog opens on is never
-        consulted), and its words approved. The radios always follow the
-        stored choice."""
+        on, a chart loaded, a run whose choice is known (its own, its
+        parent's or the project's, asked after the dialog, Basti 2026-10-13:
+        the printer the dialog opens on is never consulted), and its words
+        approved. Changing it gives the run its own choice. Not on the
+        calibration, which follows the project's choice (Basti, 2026-10-13),
+        nor on a new run. The radios always follow the stored choice."""
         row = getattr(self, "_ps_form_row", None)
         if row is None:
             return
@@ -1392,6 +1452,7 @@ class TabPrint(QWidget):
         show = (is_macos() and MM.M_PRINT_PS_FORM_CHOICE.approved
                 and bool(self._settings.get("use_native_print_dialog", False))
                 and bool(getattr(self, "_tiff_pages", None))
+                and self._ps_form_run() is not None
                 and self._ps_form_stored() is not None)
         row.setVisible(bool(show))
 
@@ -2468,6 +2529,17 @@ class TabPrint(QWidget):
             if choice != "anyway":
                 return
 
+        # 4.3.5 beta 2 (Basti, 2026-10-13): a run that prints "like Preview"
+        # gets a different form on a PostScript printer than this route can
+        # send; asked on every such print once M-PRINT-DIRECT-LIKE-PREVIEW is
+        # approved.
+        like_preview = self._ask_direct_like_preview(printer)
+        if like_preview == "dialog":
+            self._print_native(pages, printer=printer)
+            return
+        if like_preview not in ("anyway", None):
+            return
+
         # 4.3.5 B2: a chart that is not RGB on a queue that converts its inks
         # (RGB raster) or may print them as a mix (DeviceN). None, and no
         # question, for every RGB chart.
@@ -2786,6 +2858,57 @@ class TabPrint(QWidget):
                     "driver's tables, not built in, not learned); asking the user",
                     printer, pp.model, pp.rule.media_option, pp.media_value)
         return pp
+
+    def _direct_print_needs_like_preview_question(self, printer: str) -> bool:
+        """True when a print by the direct route goes to a PostScript queue
+        while the target's choice (the run's own, its parent's or the
+        project's) is "Preview and most other apps": the direct route can
+        only send the chart as the printer's own RGB."""
+        from workflow import ppd_color as forms
+        if self._ps_form_stored() != forms.POSTSCRIPT_AS_MACOS:
+            return False
+        try:
+            ppd = forms.ppd_path_for_queue(printer) if printer else None
+            if not ppd:
+                return False
+            from core.text_io import read_text
+            return forms.is_postscript_queue(read_text(Path(ppd), lenient=True))
+        except Exception:  # noqa: BLE001 - a question must never stop a print
+            return False
+
+    def _ask_direct_like_preview(self, printer: str) -> "str | None":
+        """M-PRINT-DIRECT-LIKE-PREVIEW (§M-PROPOSED). None when it does not
+        apply or is not approved (the print goes as before); else "dialog",
+        "anyway" or "" (Cancel)."""
+        from workflow import measurement_messages as MM
+        msg = MM.M_PRINT_DIRECT_LIKE_PREVIEW
+        if not msg.approved or not self._direct_print_needs_like_preview_question(printer):
+            return None
+        title, body = msg.render()
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        set_warning_icon(dlg)
+        dlg.setText(title)
+        dlg.setInformativeText(body)
+        dialog_btn = dlg.addButton(tr(MM._PRINT_LIKE_PREVIEW_BTN_DIALOG),
+                                   QMessageBox.ButtonRole.AcceptRole)
+        anyway_btn = dlg.addButton(tr(MM._PRINT_LIKE_PREVIEW_BTN_ANYWAY),
+                                   QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(dialog_btn)
+        dlg.setEscapeButton(cancel_btn)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(dlg)
+        fit_message_box_buttons(dlg)
+        dlg.exec()
+        clicked = dlg.clickedButton()
+        if clicked is dialog_btn:
+            return "dialog"
+        if clicked is anyway_btn:
+            log.warning("Print: a 'like Preview' run printed by the direct route to %s", printer)
+            return "anyway"
+        return ""
 
     def _ask_unknown_paper_profile(self, printer: str, pp) -> str:
         """M-PRINT-PAPER-PROFILE-UNKNOWN.  Returns "dialog", "anyway" or ""."""

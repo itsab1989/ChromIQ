@@ -235,7 +235,9 @@ M_CAL_REQUESTED_DONE = _m(
 #: first ICC profile" card's ("Why the backing has to be white"). Hidden until
 #: approved: those windows are approved text. Combined review of beta 2
 #: (Basti, 2026-10-13): rewritten in the friendly style of the cards, what to
-#: do first, then why; still hidden until he approves it.
+#: do first, then why. APPROVED by Basti, 2026-10-13 ("the underlay text WAS
+#: ok"), as the combined review wrote it, and switched on: shown for a CR30
+#: and a ColorMunki / i1Studio only (``ti2_loader.underlay_tip_html``).
 M_CAL_DONE_UNDERLAY = _m(
     "M-CAL-DONE-UNDERLAY",
     "Lay the chart on a white surface",
@@ -245,7 +247,7 @@ M_CAL_DONE_UNDERLAY = _m(
     "lies under the chart is up to you. On thin paper, such as 80 to 100 "
     "g/m² plain paper, the colour of the table or desk mat shows through. "
     "It then changes every reading, and the profile takes that change on.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-13
 
 #: A calibration the user asked for did not succeed. Reading is LOCKED until
 #: one does: an i1Pro measures its white straight into its calibration and
@@ -5368,16 +5370,12 @@ M_PRINT_VERIFY_ROUTE = _m(
 #: a queue whose driver takes CMYK raster, where macOS converts the chart into
 #: CMYK itself (M-PRINT-CMYK-RASTER-ROUTE): there neither paragraph is shown,
 #: and the notice above it carries M-PRINT-CMYK-RASTER-ROUTE instead.
-M_PRINT_VERIFY_DIALOG_AS_IS = _m(
-    "M-PRINT-VERIFY-DIALOG-AS-IS",
-    "Printing a verification chart",
-    "Choose the paper, media type and quality in the macOS print dialog as for your photos, the same as for the profiling chart. Leave its colour settings as they are, including the Color Matching panel: ChromIQ makes sure neither macOS nor the printer changes the chart\u2019s colours. When macOS prints the job with a Canon or Epson paper profile, ChromIQ gives the chart that same profile after you close the dialog, and to a PostScript printer it sends the chart as the printer\u2019s own RGB, as the direct route does.",
-    approved=True)  # Basti, 2026-10-11 (his wording; checked, combined review)
-M_PRINT_VERIFY_DIALOG_THROUGH = _m(
-    "M-PRINT-VERIFY-DIALOG-THROUGH",
-    "Printing a verification chart",
-    "This sheet is printed through this run\u2019s profile: ChromIQ converts it through the profile itself before the dialog opens, and makes sure macOS and the printer do not convert its colours a second time. In the dialog, choose the paper, media type and quality as for the profiling chart, and leave the colour settings as they are.",
-    approved=True)  # Basti, 2026-10-11 (simplified: nothing to install or select)
+#: RETIRED 2026-10-13 (Basti, 4.3.5 beta 2): M-PRINT-VERIFY-DIALOG-AS-IS and
+#: -THROUGH, the verification note's two dialog-route paragraphs, are true
+#: only on a printer that is neither a CMYK raster nor a PostScript printer
+#: getting the chart as macOS sends it, and the printer is chosen only IN the
+#: dialog, so the tab cannot know before it. Dropped from the tab, the
+#: catalogue and the language files; their words are kept in §M (RETIRED).
 #: REVIEW (combined review of 4.3.5, 2026-10-11): one statement of the wording
 #: proposed by k81 was untrue. "the macOS print dialog sent it marked as sRGB"
 #: holds for a PostScript queue with no profile set in ColorSync Utility
@@ -5432,23 +5430,21 @@ M_PRINT_PS_FORM_HELP = _m(
     "Preview and most other apps: choose this if you print from Preview or another app that leaves printing to macOS. The printer then adjusts the colours with its own settings, the same way for the chart and for your photos. To print a photo with this profile from Photoshop in this way: Edit > Convert to Profile (this profile), then Edit > Assign Profile > Don\u2019t Color Manage, and print with \u201cPrinter Manages Colors\u201d. (macOS sends the values marked as sRGB, or with the profile set in ColorSync Utility; this only works while no profile is set there.)\n\n"
     "If the print dialog has an RGB colour setting for the printer (on an HP Color LaserJet, \u201cRGB Color\u201d), ChromIQ sets it to Device. Do the same for your photos.",
     approved=True)  # Basti, 2026-10-13
-M_PRINT_PS_ROUTE_OWN_RGB = _m(
-    "M-PRINT-PS-ROUTE-OWN-RGB",
-    "This is a PostScript printer",
-    "ChromIQ sends {printer} the chart\u2019s values unchanged, the same way Photoshop prints with \u201cPhotoshop Manages Colors\u201d. Choose the paper and quality as for your photos, and leave the colour settings as they are.",
-    approved=True)  # Basti, 2026-10-13
-M_PRINT_PS_ROUTE_AS_MACOS = _m(
-    "M-PRINT-PS-ROUTE-AS-MACOS",
-    "This is a PostScript printer",
-    "macOS sends {printer} the chart\u2019s values marked as sRGB, or with the profile set in ColorSync Utility, and the printer adjusts the colours with its own settings, as it does for prints from Preview. Choose the paper and quality as for your photos, and leave the colour settings as they are.",
-    approved=True)  # Basti, 2026-10-13 (written in his style by the combined review; see §M)
+#: RETIRED 2026-10-13 (merge of the combined review of beta 2 with the
+#: ask-after-dialog work): M-PRINT-PS-ROUTE-OWN-RGB and -AS-MACOS were
+#: notice paragraphs for BEFORE the dialog, from the printer the dialog
+#: opens on, which the tab no longer reads. After the dialog they would come
+#: too late (their second sentence is advice for the dialog), and their first
+#: sentence is what the job's status line already says: M-PRINT-JOB-DEVICE-RGB
+#: for a "Photoshop" job, M-PRINT-JOB-TAGGED-INTENT for a "Preview" job on a
+#: queue with a ColorSync profile. Words kept in §M (RETIRED).
 M_PRINT_PS_PAPER_NOT_LISTED = _m(
     "M-PRINT-PS-PAPER-NOT-LISTED",
     "This printer does not offer this paper size",
     "{size}, chosen in the print dialog, is not one of the paper sizes {printer} offers. Nothing was printed. Print again and choose one of the printer\u2019s paper sizes the chart fits on.",
     approved=True)  # Basti, 2026-10-13
 
-# --- PROPOSED: the PostScript choice is asked AFTER the dialog, 4.3.5 beta 2 -
+# --- APPROVED: the PostScript choice is asked AFTER the dialog, 4.3.5 beta 2 -
 #: Basti, 2026-10-13 ("go with 2"): on the macOS dialog route the user picks
 #: the printer only IN the dialog, so nothing PostScript-specific may be
 #: decided from the printer the dialog opens on. After the dialog closes with
@@ -5458,18 +5454,56 @@ M_PRINT_PS_PAPER_NOT_LISTED = _m(
 #: Cancel (nothing printed). The answer is stored for the run
 #: (``print_settings["postscript"]``). M-PRINT-PS-FORM-APPLIES is the line
 #: under the row, which is shown only once the run has a stored choice.
-#: Hidden until approved: until then nobody is asked and every run prints in
-#: the default form, as before.
+#: APPROVED by Basti, 2026-10-13 ("option 2"). THE CHOICE BELONGS TO THE
+#: PROJECT (Basti, same day): asked at the first print to a PostScript
+#: printer through the dialog, calibration chart or not, kept in
+#: ``project.json``; every run inherits it and may have its own (the row).
+#: So M-PRINT-PS-ASK's body says "this project" where the approved proposal
+#: said "this run" (flagged to Basti); otherwise verbatim.
 M_PRINT_PS_ASK = _m(
     "M-PRINT-PS-ASK",
     "How should {printer} get the chart?",
-    "{printer} is a PostScript printer. Your photos must reach it the same way as this run\u2019s charts, or the profile will not fit them. The choice is kept for this run and its verification charts.",
-    approved=False)
+    "{printer} is a PostScript printer. Your photos must reach it the same way as this project\u2019s charts, or the profile will not fit them. The choice is kept for the whole project: its calibration, its runs and their verification charts.",
+    approved=True)  # Basti, 2026-10-13 (project wording: see above)
 M_PRINT_PS_FORM_APPLIES = _m(
     "M-PRINT-PS-FORM-APPLIES",
     "When this choice applies",
     "Applies when this run prints to a PostScript printer through the macOS print dialog.",
+    approved=True)  # Basti, 2026-10-13
+
+# --- PROPOSED: the headline of the "Print like" help, 4.3.5 beta 2 ----------
+#: Basti, 2026-10-13: he did not approve "How a PostScript printer gets the
+#: chart" as the help's headline. Proposed in its place, with the body's
+#: first sentence left out because it would repeat the headline; otherwise
+#: the approved body (M-PRINT-PS-FORM-HELP) word for word. Hidden until
+#: approved: until then the help reads as M-PRINT-PS-FORM-HELP.
+M_PRINT_PS_FORM_HELP_TITLE = _m(
+    "M-PRINT-PS-FORM-HELP-TITLE",
+    "Choose the way you print your photos",
+    "A profile only fits photos that reach the printer the same way as its chart did. This printer can receive the chart in two ways, and ChromIQ uses the one you choose here for this run and all its verification charts.\n\n"
+    "Photoshop (Photoshop Manages Colors): choose this if you print from Photoshop with \u201cPhotoshop Manages Colors\u201d and this profile as the printer profile. The chart\u2019s values go to the printer unchanged. (Sent as the printer\u2019s own RGB, like ChromIQ\u2019s direct route.)\n\n"
+    "Preview and most other apps: choose this if you print from Preview or another app that leaves printing to macOS. The printer then adjusts the colours with its own settings, the same way for the chart and for your photos. To print a photo with this profile from Photoshop in this way: Edit > Convert to Profile (this profile), then Edit > Assign Profile > Don\u2019t Color Manage, and print with \u201cPrinter Manages Colors\u201d. (macOS sends the values marked as sRGB, or with the profile set in ColorSync Utility; this only works while no profile is set there.)\n\n"
+    "If the print dialog has an RGB colour setting for the printer (on an HP Color LaserJet, \u201cRGB Color\u201d), ChromIQ sets it to Device. Do the same for your photos.",
     approved=False)
+
+# --- PROPOSED: a "Preview" run printed by ChromIQ's direct route, beta 2 ----
+#: Basti, 2026-10-13 (decision e): the direct route (lp) always sends a
+#: PostScript printer the chart as its own RGB, the way Photoshop prints with
+#: "Photoshop Manages Colors". A run whose choice is "Preview and most other
+#: apps" printed that way would get a profile that does not fit its photos.
+#: Asked before anything is sent, on every print by the direct route to a
+#: PostScript queue while the run's choice (own, parent's or the project's)
+#: is "Preview and most other apps". Buttons: _PRINT_LIKE_PREVIEW_BTN_DIALOG
+#: (the default: the same pages through the macOS print dialog, the printer
+#: already chosen), _PRINT_LIKE_PREVIEW_BTN_ANYWAY, Cancel (nothing printed).
+#: Hidden until approved: until then such a print goes as before.
+M_PRINT_DIRECT_LIKE_PREVIEW = _m(
+    "M-PRINT-DIRECT-LIKE-PREVIEW",
+    "This run prints like Preview",
+    "ChromIQ\u2019s own route can only send the chart the way Photoshop does. Print through the macOS print dialog instead, or print anyway?",
+    approved=False)
+_PRINT_LIKE_PREVIEW_BTN_DIALOG = "Use the print dialog"
+_PRINT_LIKE_PREVIEW_BTN_ANYWAY = "Print anyway"
 
 # --- PROPOSED: the count help of FROM PROFILE GAMUT, k82 (4.3.5) ------------
 #: The two paragraphs that replace the 4.3.4 help's "smaller charts are part
@@ -5728,10 +5762,9 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
     M_PRINT_CMYK_RASTER_ROUTE, M_PRINT_INKS_CONVERTED, M_PRINT_INKS_APPROXIMATE,
     M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT, M_HELP_GAMUT_SIZE_SPREAD,
-    M_PRINT_VERIFY_DIALOG_AS_IS, M_PRINT_VERIFY_DIALOG_THROUGH,
     M_PRINT_VERIFY_PS_EARLIER, M_PRINT_JOB_DEVICE_RGB,
-    M_PRINT_PS_FORM_CHOICE, M_PRINT_PS_FORM_HELP, M_PRINT_PS_ROUTE_OWN_RGB,
-    M_PRINT_PS_ROUTE_AS_MACOS, M_PRINT_PS_PAPER_NOT_LISTED,
+    M_PRINT_PS_FORM_CHOICE, M_PRINT_PS_FORM_HELP, M_PRINT_PS_FORM_HELP_TITLE,
+    M_PRINT_PS_PAPER_NOT_LISTED, M_PRINT_DIRECT_LIKE_PREVIEW,
     M_PRINT_PS_ASK, M_PRINT_PS_FORM_APPLIES,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

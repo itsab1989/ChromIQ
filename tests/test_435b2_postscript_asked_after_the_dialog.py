@@ -7,8 +7,10 @@ verification note's dialog paragraphs. The user picks the printer only IN the
 dialog, so those could describe the wrong printer. Now:
 
 * after the dialog closes with Print and before anything is sent, a
-  PostScript printer on a run with no stored choice is asked
-  (M-PRINT-PS-ASK); the answer is stored for the run, Cancel prints nothing;
+  PostScript printer on a target with no choice is asked (M-PRINT-PS-ASK);
+  the answer is stored for the PROJECT (Basti, same day: the calibration is
+  the first step), every run inherits it and may have its own; Cancel prints
+  nothing;
 * a stored choice is used without asking; any other printer is never asked;
 * the row is shown only once the run has a stored choice;
 * nothing printer-specific is shown before the dialog; a printer whose driver
@@ -189,8 +191,11 @@ def test_the_run_is_asked_once_and_its_answer_is_kept(qapp, tmp_path, mac, appro
     assert len(seen) == 1
     title, body = MM.M_PRINT_PS_ASK.render(printer="PS Printer")
     assert seen[0][0] == title and seen[0][1] == body
+    # Basti, 2026-10-13: the answer is the PROJECT's (project.json), the
+    # run inherits it and keeps nothing of its own
     run = fm.project().run("run1")
-    assert run.load_meta().print_settings["postscript"] == MACOS
+    assert "postscript" not in (run.load_meta().print_settings or {})
+    assert Project.load(tmp_path / "P").print_setting("postscript") == MACOS
     # the second print of the run, and its verification chart: not asked
     tab._print_native([(tmp_path / "p.tif", 0)])
     ctl.set_run_type(RUN_TYPE_VERIFICATION)
@@ -236,8 +241,17 @@ def test_a_printer_that_is_not_postscript_is_never_asked_by_the_tab(
     assert "postscript" not in (run.load_meta().print_settings or {})
 
 
+def test_the_asking_texts_are_approved():
+    """Basti, 2026-10-13: the option-2 texts approved; M-PRINT-PS-ASK worded
+    for the project (the choice is the project's)."""
+    assert MM.M_PRINT_PS_ASK.approved and MM.M_PRINT_PS_FORM_APPLIES.approved
+    body = MM.M_PRINT_PS_ASK.body
+    assert "this project\u2019s charts" in body
+    assert "kept for the whole project: its calibration, its runs" in body
+
+
 def test_until_approved_nobody_is_asked_and_the_default_goes(qapp, tmp_path, mac, monkeypatch):
-    assert not MM.M_PRINT_PS_ASK.approved
+    monkeypatch.setattr(MM, "M_PRINT_PS_ASK", replace(MM.M_PRINT_PS_ASK, approved=False))
     s, fm, ctl = _env(tmp_path)
     tab = _tab(s, ctl)
     seen = _answer(monkeypatch, mac, 1)
@@ -324,3 +338,135 @@ def test_the_asking_window_fits_its_long_buttons():
     src = inspect.getsource(tp.TabPrint._ask_ps_form)
     assert "fit_message_box_buttons(box)" in src
     assert src.index("fit_message_box_buttons(box)") < src.index("box.exec()")
+
+
+# ---- the choice belongs to the project (Basti, 2026-10-13) --------------------
+def _cal_env(tmp_path):
+    from core.measurement_target import RUN_TYPE_CALIBRATION
+    s, fm, ctl = _env(tmp_path)
+    ctl.set_calibration_allowed(True)
+    ctl.set_run_type(RUN_TYPE_CALIBRATION)
+    return s, fm, ctl
+
+
+def test_a_calibration_chart_is_asked_and_the_runs_follow_its_answer(
+        qapp, tmp_path, mac, approved, monkeypatch):
+    """MUTATION: keep the answer for the run only (or not ask on the
+    calibration) and the profiling run after it is asked again, or prints in
+    a form its calibration was not printed in."""
+    s, fm, ctl = _cal_env(tmp_path)
+    assert ctl.target.is_calibration()
+    tab = _tab(s, ctl)
+    seen = _answer(monkeypatch, mac, 1)
+    sent = _fake_print_frames(monkeypatch, postscript=True)
+    tab._print_native([(tmp_path / "p.tif", 0)])
+    assert sent == [MACOS] and len(seen) == 1
+    assert Project.load(tmp_path / "P").print_setting("postscript") == MACOS
+    # the calibration has no row of its own: it follows the project
+    tab._tiff_pages = [tmp_path / "p.tif"]
+    tab._update_ps_form_row()
+    assert tab._ps_form_row.isHidden()
+    # the profiling run and its verification: not asked, the project's form
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    run_tab = _tab(s, ctl)
+    run_tab._print_native([(tmp_path / "p.tif", 0)])
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    _tab(s, ctl)._print_native([(tmp_path / "p.tif", 0)])
+    assert sent == [MACOS, MACOS, MACOS] and len(seen) == 1
+
+
+def test_a_run_may_override_the_project_and_the_project_keeps_its_choice(
+        qapp, tmp_path, mac, approved, monkeypatch):
+    s, fm, ctl = _env(tmp_path)
+    fm.project().set_print_setting("postscript", MACOS)
+    tab = _tab(s, ctl)
+    tab._tiff_pages = [tmp_path / "p.tif"]
+    tab._update_ps_form_row()
+    assert not tab._ps_form_row.isHidden()          # inherited: shown
+    assert tab._ps_macos_rb.isChecked()
+    tab._ps_device_rb.setChecked(True)              # the run's own
+    assert fm.project().run("run1").load_meta().print_settings["postscript"] == DEVICE
+    assert Project.load(tmp_path / "P").print_setting("postscript") == MACOS
+    sent = _fake_print_frames(monkeypatch, postscript=True)
+    seen = _answer(monkeypatch, mac, 1)
+    tab._print_native([(tmp_path / "p.tif", 0)])
+    assert sent == [DEVICE] and seen == []
+
+
+def test_a_refined_run_keeps_its_parents_choice_before_the_projects(
+        qapp, tmp_path, mac, approved, monkeypatch):
+    s, fm, ctl = _env(tmp_path)
+    project = fm.project()
+    project.set_print_setting("postscript", MACOS)
+    r1 = project.run("run1")
+    m1 = r1.load_meta()
+    m1.print_settings = {"postscript": DEVICE}
+    r1.save_meta(m1)
+    r2 = project.new_run()
+    m2 = r2.load_meta()
+    m2.parent_run = "run1"
+    r2.save_meta(m2)
+    ctl.set_profile_run(r2.id)
+    tab = _tab(s, ctl)
+    assert tab._ps_form() == DEVICE
+    m2.parent_run = None
+    r2.save_meta(m2)
+    assert tab._ps_form() == MACOS                   # no parent: the project's
+
+
+def test_the_project_choice_survives_loading_and_an_older_project_has_none(tmp_path):
+    p = Project.create(tmp_path / "Q", "Q")
+    assert p.print_setting("postscript") is None     # project.json without it
+    assert p.set_print_setting("postscript", MACOS) is True
+    assert p.set_print_setting("postscript", MACOS) is False
+    assert Project.load(tmp_path / "Q").print_setting("postscript") == MACOS
+
+
+# ---- (e) a "Preview" run by the direct route --------------------------------
+@pytest.fixture
+def direct(monkeypatch, tmp_path):
+    ppd = tmp_path / "q.ppd"
+    ppd.write_text('*PPD-Adobe: "4.3"\n', encoding="utf-8")   # no filter: PostScript
+    monkeypatch.setattr(ppd_color, "ppd_path_for_queue", lambda q: str(ppd))
+    return ppd
+
+
+def test_a_preview_run_by_the_direct_route_is_asked_once_approved(
+        qapp, tmp_path, mac, direct, monkeypatch):
+    """MUTATION: drop the question and a "Preview" run's chart goes to a
+    PostScript printer in the Photoshop form by the direct route, unasked."""
+    s, fm, ctl = _env(tmp_path)
+    fm.project().set_print_setting("postscript", MACOS)
+    tab = _tab(s, ctl)
+    assert not MM.M_PRINT_DIRECT_LIKE_PREVIEW.approved
+    assert tab._ask_direct_like_preview("Q") is None       # hidden: as before
+    monkeypatch.setattr(MM, "M_PRINT_DIRECT_LIKE_PREVIEW",
+                        replace(MM.M_PRINT_DIRECT_LIKE_PREVIEW, approved=True))
+    seen = []
+
+    def clicked(box):
+        seen.append((box.text(), box.informativeText(), [b.text() for b in box.buttons()]))
+        return next(b for b in box.buttons() if b.text() == "Use the print dialog")
+    monkeypatch.setattr(mac.QMessageBox, "exec", lambda box: 0)
+    monkeypatch.setattr(mac.QMessageBox, "clickedButton", clicked)
+    assert tab._ask_direct_like_preview("Q") == "dialog"
+    title, body = MM.M_PRINT_DIRECT_LIKE_PREVIEW.render()
+    assert seen[0][0] == title and seen[0][1] == body
+    assert sorted(seen[0][2]) == ["Cancel", "Print anyway", "Use the print dialog"]
+    # the Photoshop form, or a printer that is not PostScript: never asked
+    fm.project().set_print_setting("postscript", DEVICE)
+    assert tab._ask_direct_like_preview("Q") is None
+    fm.project().set_print_setting("postscript", MACOS)
+    direct.write_text('*cupsFilter: "application/vnd.cups-raster 0 rastertoqq"\n',
+                      encoding="utf-8")
+    assert tab._ask_direct_like_preview("Q") is None
+    assert len(seen) == 1
+
+
+def test_the_direct_route_asks_before_it_sends_anything():
+    from ui.tabs import tab_print as tp
+    src = inspect.getsource(tp.TabPrint._print_pages)
+    asked = src.index("self._ask_direct_like_preview(printer)")
+    assert asked < src.index("self._send_page(")
+    assert asked < src.index("self._show_preflight(")
+    assert 'self._print_native(pages, printer=printer)' in src[asked:asked + 300]

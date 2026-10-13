@@ -357,9 +357,15 @@ def test_the_verification_note_drops_its_postscript_promises_as_macos(
     s, fm, ctl = _env(tmp_path, RUN_TYPE_VERIFICATION)
     tab = _tab(s, ctl)
     tab._tiff_pages = [tmp_path / "p.tif"]
+    earlier = MM.M_PRINT_VERIFY_PS_EARLIER.body.split(":")[0][:40]
+    # nothing chosen yet and M-PRINT-PS-ASK approved (Basti, 2026-10-13):
+    # the form is not known before the dialog, so the promise is not made
+    tab._update_verify_route_note(native=True)
+    assert earlier not in tab._verify_route_lbl.text()
+    tab._store_ps_form(ppd_color.POSTSCRIPT_DEVICE_RGB)
     tab._update_verify_route_note(native=True)
     shown = tab._verify_route_lbl.text()
-    assert MM.M_PRINT_VERIFY_PS_EARLIER.body.split(":")[0][:40] in shown
+    assert earlier in shown
     tab._store_ps_form(ppd_color.POSTSCRIPT_AS_MACOS)
     tab._update_verify_route_note(native=True)
     shown = tab._verify_route_lbl.text()

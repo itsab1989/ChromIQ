@@ -703,11 +703,8 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # patch-error and neighbour-check card line
                                  # in plain words; hidden until approved.
                                  "M-PATCH-CARD-PLAIN",
-                                 # 4.3.5 beta 2 (Knut, #182 6123470301): what
-                                 # lies under the chart, in the Calibration
-                                 # Complete windows of a CR30 and a
-                                 # ColorMunki; hidden until approved.
-                                 "M-CAL-DONE-UNDERLAY",
+                                 # (M-CAL-DONE-UNDERLAY, 4.3.5 beta 2, was
+                                 # here until Basti approved it 2026-10-13.)
                                  # Knut approved the green outline and its
                                  # words (5984277558); the limit's middle line
                                  # and the one-patch summary line are ours.
@@ -732,6 +729,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # 4.3.5 beta 2: the five M-PRINT-PS-* texts
                                  # of the "Print like" choice were approved by
                                  # Basti on 2026-10-13 and left this set.
+                                 # M-PRINT-PS-ASK and -FORM-APPLIES too, the
+                                 # same day. Still ours, waiting: the help's
+                                 # headline Basti asked for, and the question
+                                 # before a "Preview" run goes by the direct
+                                 # route (2026-10-13).
+                                 "M-PRINT-PS-FORM-HELP-TITLE",
+                                 "M-PRINT-DIRECT-LIKE-PREVIEW",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

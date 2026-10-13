@@ -5,8 +5,8 @@
 2. The fold is reachable by keyboard and tells VoiceOver whether it is open.
 3. Every new text is in all 13 catalogues.
 4. The Calibration Complete windows of the two instruments with no reading
-   board (CR30, ColorMunki / i1Studio) gain M-CAL-DONE-UNDERLAY, which stays
-   hidden until approved and never reaches an i1Pro.
+   board (CR30, ColorMunki / i1Studio) gain M-CAL-DONE-UNDERLAY (approved by
+   Basti 2026-10-13), which never reaches an i1Pro.
 """
 from __future__ import annotations
 
@@ -196,25 +196,31 @@ def test_the_cards_print_their_new_notes(qapp):
 
 
 # ---- M-CAL-DONE-UNDERLAY ------------------------------------------------------
-def test_the_underlay_tip_waits_for_approval():
+def test_the_underlay_tip_is_approved_and_shown_only_without_a_board():
+    """Basti, 2026-10-13: approved as the combined review wrote it. MUTATION:
+    leave it unapproved and the CR30 / ColorMunki windows lose the paragraph;
+    drop the family check and an i1Pro gets it, whose board is white."""
     from ui.ti2_loader import underlay_tip_html
     from workflow import measurement_messages as M
-    assert not M.M_CAL_DONE_UNDERLAY.approved
-    for fam in ("colormunki", "cr30", "i1pro", "spectroscan", None):
+    assert M.M_CAL_DONE_UNDERLAY.approved
+    assert M.M_CAL_DONE_UNDERLAY.title == "Lay the chart on a white surface"
+    assert M.M_CAL_DONE_UNDERLAY.body.startswith(
+        "Before you measure, lay the chart on a white, even surface")
+    for fam in ("colormunki", "cr30"):
+        tip = underlay_tip_html(fam)
+        assert "Lay the chart on a white surface" in tip
+        assert "80 to 100 g/m²" in tip
+    for fam in ("i1pro", "spectroscan", None):
         assert underlay_tip_html(fam) == ""
 
 
-def test_once_approved_only_the_instruments_without_a_board_get_it(monkeypatch):
+def test_the_underlay_tip_is_hidden_while_unapproved(monkeypatch):
     from ui import ti2_loader
     from workflow import measurement_messages as M
     monkeypatch.setattr(M, "M_CAL_DONE_UNDERLAY",
                         dataclasses.replace(M.M_CAL_DONE_UNDERLAY,
-                                            approved=True))
-    for fam in ("colormunki", "cr30"):
-        tip = ti2_loader.underlay_tip_html(fam)
-        assert "Lay the chart on a white surface" in tip
-        assert "80 to 100 g/m²" in tip
-    for fam in ("i1pro", "spectroscan", None):
+                                            approved=False))
+    for fam in ("colormunki", "cr30", "i1pro", "spectroscan", None):
         assert ti2_loader.underlay_tip_html(fam) == ""
 
 

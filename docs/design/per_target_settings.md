@@ -92,6 +92,33 @@ correction that it must be **all** of them, not a selection.
 
 That last row is Knut's ruling on §4 below: *"measure tab must be included."*
 
+### 1.3 ⏳ Awaiting confirmation: one setting belongs to the PROJECT (4.3.5 beta 2)
+
+**Confirmed by:** *nobody yet.*
+
+Basti, 2026-10-13: how a PostScript printer gets the chart through the macOS
+print dialog ("Print like": "Photoshop (Photoshop Manages Colors)" or "Preview
+and most other apps") belongs to the **project**, not only to a run, because
+the calibration is the first step and the profiling runs follow it. It is the
+first setting with this scope, between §1.1 (your setup) and §1.2 (one
+target), and it is not a per-target setting in the sense of §2 and §3: no tab
+loads or writes it on activation.
+
+| | Rule, as built | Where |
+|---|---|---|
+| stored | `project.json`, `print_settings["postscript"]` (`device` / `macos`) | `ProjectManifest.print_settings`, `Project.print_setting` / `set_print_setting` |
+| written | once, by the answer to M-PRINT-PS-ASK: after the macOS print dialog closes with Print on a PostScript printer, at the first print where no choice applies yet, whatever the chart (calibration, profiling, verification). Nothing else writes it | `tab_print._ask_ps_form`, `_store_ps_project_form` |
+| read by the calibration | always (the calibration has no choice of its own and no row) | `tab_print._ps_form_stored` |
+| read by a run | when the run has no choice of its own and no parent run with one | `tab_print._ps_form_stored` |
+| a run's own choice | the row on the Print Chart tab, written to the run's `meta.json` (`print_settings["postscript"]`) like the tab's other print choices (§3); it overrides the project's for that run and its verification charts, and leaves the project's alone | `tab_print._store_ps_form` |
+| a refined run | its parent's own choice, up the chain, before the project's | `tab_print._ps_run_own_form` |
+
+§2.0's rule (one target live at a time, nothing written to a target the user
+is not looking at) is kept: the project-level write happens only on the answer
+to the question, for the project that is open. Open point for confirmation:
+there is no control that changes the project's choice later (only a run's own,
+by its row).
+
 **S1.1** The list of per-target widgets is generated from `_manual_widgets` and
 the equivalent registry on each in-scope tab, never hand-written, so a parameter
 added to `parameters.yaml` cannot be forgotten.

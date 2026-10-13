@@ -927,6 +927,14 @@ class ProjectManifest:
     #: under the name the project had when it was written; these tell the
     #: report window that such a folder is this project's own.
     former_names: list[str] = field(default_factory=list)
+    #: Printing choices that belong to the PROJECT, not to one run (4.3.5
+    #: beta 2, Basti 2026-10-13): ``{"postscript": "device" | "macos"}``, how
+    #: a PostScript printer gets the chart through the macOS print dialog.
+    #: The calibration is the first step and profiling runs follow it, so the
+    #: answer to the first print is kept here; the calibration prints with it
+    #: and every run inherits it unless the run has its own
+    #: (``print_settings["postscript"]`` of its ``meta.json``).
+    print_settings: dict = field(default_factory=dict)
 
     @classmethod
     def fresh(cls, target_name: str) -> "ProjectManifest":
@@ -3408,6 +3416,26 @@ class Project:
             legacy_ti2 = run.artefact("-verify.ti2")
             if legacy_ti2.is_file():
                 self._migrate_move(legacy_ti2, run.verifications_dir)
+
+    # ---- printing choices of the whole project (4.3.5 beta 2) -------------
+    def print_setting(self, key: str):
+        """A printing choice kept for the whole project
+        (``ProjectManifest.print_settings``), or None."""
+        return (self._manifest.print_settings or {}).get(key)
+
+    def set_print_setting(self, key: str, value) -> bool:
+        """Keep *value* as the project's printing choice *key* in
+        ``project.json``; False when it was already that. Never writes a
+        project this build cannot read in full (``schema_too_new``)."""
+        if self.schema_too_new:
+            return False
+        stored = dict(self._manifest.print_settings or {})
+        if stored.get(key) == value:
+            return False
+        stored[key] = value
+        self._manifest.print_settings = stored
+        self.save_manifest()
+        return True
 
     def save_manifest(self) -> None:
         """``project.json``, written so a crash cannot leave it half-written.
