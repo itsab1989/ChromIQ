@@ -177,7 +177,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a59-inband", "a60-darkfine", "a60-darkrel", "a60-darkclip",
      # Agent 60: dark in-gamut accuracy on v-noclip (fine grid and the
      # engine's own clip near the black); research, opt-in
-     "a60-darkacc"})
+     "a60-darkacc",
+     # Agent 61: the coarse table leans inward near the cusp edges of the
+     # device cube (where the light and dark gamut surfaces meet); research,
+     # opt-in
+     "a61-edgelean"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1799,6 +1803,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     else _a59_pn).reshape(
                 b2a_grid, b2a_grid, b2a_grid, n)[
                 ::_st, ::_st, ::_st].reshape(-1, n)
+            if _a58k("grid33in") and os.environ.get("CHROMIQ_A61_DUMP"):
+                # Agent 61 research: dump the hand-over inputs for offline sweeps
+                np.savez(os.environ["CHROMIQ_A61_DUMP"],
+                         fine=_a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
+                                             candidates),
+                         coarse=_sub, residual=residual, node_lab=node_lab,
+                         g_fine=b2a_grid, g_coarse=_g0,
+                         black_l=float(model.predict(np.zeros((1, n)))[0, 0]))
             if _a58k("grid33in"):
                 # Agent 58 addition: the engine's fine grid where the node
                 # is printable (exact inversion, the accuracy win), colprof's
@@ -1813,7 +1825,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         inside=_a58m.a59_inside(candidates),
                         dark=_a58m.a60_dark(
                             candidates, node_lab,
-                            float(model.predict(np.zeros((1, n)))[0, 0])))),
+                            float(model.predict(np.zeros((1, n)))[0, 0])),
+                        edge=_a58m.a61_edge(candidates))),
                     in_tables=b2a_in,
                     out_tables=icw.curves_to_tables(inv, entries_b2a))
             else:

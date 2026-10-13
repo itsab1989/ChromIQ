@@ -398,7 +398,8 @@ def coarse_outside(fine: np.ndarray, coarse: np.ndarray, residual: np.ndarray,
                    g_fine: int, g_coarse: int,
                    band: float | None = None,
                    inside: tuple | None = None,
-                   dark: tuple | None = None) -> np.ndarray:
+                   dark: tuple | None = None,
+                   edge: tuple | None = None) -> np.ndarray:
     """Agent 58, keep-grid33in: the fine-grid table where the node is in
     gamut and the coarse grid (trilinear, exact at the shared nodes) where it
     clipped: w = smoothstep(residual / band), out = (1 - w) fine + w coarse."""
@@ -442,7 +443,12 @@ def coarse_outside(fine: np.ndarray, coarse: np.ndarray, residual: np.ndarray,
         v = np.where(np.asarray(residual, float) <= 1.0, v, 0.0)
         w = np.maximum(w, strength * v * v * (3.0 - 2.0 * v))
     w = w[:, None]
-    return (1.0 - w) * fine + w * up
+    out = (1.0 - w) * fine + w * up
+    if edge is not None:
+        # Agent 61 (a61-edgelean): lean toward the coarse table near the
+        # cusp edges of the device cube
+        out = out + edge_weight(fine, edge)[:, None] * (up - out)
+    return out
 
 
 def depth_inside(residual: np.ndarray, g: int, depth: float,
@@ -469,3 +475,39 @@ def depth_inside(residual: np.ndarray, g: int, depth: float,
                    max(-k, 0):g + min(-k, 0)] = src
                 best = np.where(sh & (dist < best), dist, best)
     return best.reshape(-1)
+
+
+# Agent 61 (a61-edgelean): the gamut's cusp line is the image of the six
+# device-cube edges with one channel at 0 and another at 1 (where the light
+# and the dark gamut surfaces meet). Nodes whose fine answer lies within
+# A61_EDGE (device units) of such an edge lean toward the coarse (colprof)
+# table, up to A61_EDGE_S, so ramps that leave the gamut through the cusp
+# round it as colprof's coarse grid does. Measured from the node's own
+# device answer: no printer, hue or lightness constants. Env
+# CHROMIQ_A61_EDGE / CHROMIQ_A61_EDGE_S for research sweeps.
+A61_EDGE = 0.1
+A61_EDGE_S = 1.0
+
+
+def a61_edge(candidates):
+    """(width, strength) for a61-edgelean, or None with the token off."""
+    if "a61-edgelean" not in frozenset(candidates or ()):
+        return None
+    import os
+    return (float(os.environ.get("CHROMIQ_A61_EDGE", A61_EDGE)),
+            float(os.environ.get("CHROMIQ_A61_EDGE_S", A61_EDGE_S)))
+
+
+def edge_weight(fine: np.ndarray, edge) -> np.ndarray:
+    """smoothstep nearness of each node's device answer to a cusp edge of
+    the cube (one channel at 0, another at 1), times the strength."""
+    width, strength = edge
+    f = np.asarray(fine, float)
+    lo = np.clip(1.0 - f / width, 0.0, 1.0)
+    hi = np.clip(1.0 - (1.0 - f) / width, 0.0, 1.0)
+    e = np.zeros(len(f))
+    for i in range(f.shape[1]):
+        for j in range(f.shape[1]):
+            if i != j:
+                e = np.maximum(e, np.minimum(lo[:, i], hi[:, j]))
+    return strength * e * e * (3.0 - 2.0 * e)
