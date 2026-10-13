@@ -976,7 +976,6 @@ Nothing is written at print time; the record is read as it is.
 |---|---|---|
 | Create Chart is in FROM PROFILE GAMUT and a built-in preset is chosen | the preset's **layout** only (page, patch size, strips, margins, stamp and notes), exactly as Manual seeds it; "Auto, fill the pages" is switched on, so the count is what fits that layout less the 8 cube corners (A3 Plus 616 preset: 608 + 8), capped as always by what the profile can print; the gamut chart is generated at once, as every built-in builds the moment it is picked | `tab_chart._apply_knut_layout_for_gamut` |
 | the same preset in Manual or Guided, or in a profiling run | unchanged: the preset's own patch set is built | `tab_chart._apply_knut_preset` |
-
 | (4.3.5 beta 3) the same, but the run has no built profile | the preset is refused and the tab put back, as before, and now SAID: M-GAMUT-NO-PROFILE (the module's own empty-state text) in a window at the moment of the click. Until beta 3 nothing visible happened (Knut, #182 6144104040: *"I tried selecting a preset, but nothing happened"*); the module's note says the same thing but sits below the fold at a laptop's window height. Reproduced on screen with his CLJ5550 project: with run 2's profile present, a preset picked from the dropdown or the ★ overlay in FROM PROFILE GAMUT builds the gamut chart in its layout (640 + 8); with the profile removed it did nothing. **Confirmed by:** *nobody yet.* | `tab_chart._apply_knut_layout_for_gamut` |
 
 Until beta 12 the module built the preset's own (profiling) patches and left
