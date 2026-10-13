@@ -76,7 +76,11 @@ jobs:
           # `import numpy` time and crashes the app before any code runs.
           # Install explicitly so collect_dynamic_libs('scipy_openblas64')
           # in ChromIQ.spec can bundle the dylib. See issue #11.
-          pip3 install scipy-openblas64
+          # PINNED (2026-10-13): 0.3.34.237.1, released that day, ships no arm64
+          # libgfortran/libquadmath/libgcc_s, so the universal2 step below
+          # cannot pair numpy's Intel ones and the v4.3.5-beta.3 build failed.
+          # 0.3.34.237.0 built beta 2 the same morning.
+          pip3 install "scipy-openblas64==0.3.34.237.0"
 
       # pycups has no macOS wheel; build from source as a fat binary.
       - name: Force universal2 fat binaries (universal2 only)
