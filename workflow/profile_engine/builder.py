@@ -174,7 +174,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # hand-over band, the coarse clipped table from the per-node inversion,
      # and a longer ease into the deep black; research, opt-in
      "a59-wideband", "a59-pernodeout", "a59-pernodefine", "a59-blackease",
-     "a59-inband"})
+     "a59-inband", "a60-darkfine", "a60-darkrel", "a60-darkclip",
+     # Agent 60: dark in-gamut accuracy on v-noclip (fine grid and the
+     # engine's own clip near the black); research, opt-in
+     "a60-darkacc"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1457,6 +1460,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # Agent 58: colprof's clip (purecolprof.cam_clip) for this table
         _a58m.set_active(True, floor=_a58_floor,
                          fade="a56-blackfade" in candidates)
+        _a58m.set_a60(candidates)
         _emit(settings, "Colorimetric table: colprof's per-node inversion "
                         "and CAM clip (research a58-purecolprof).")
     dev_clut, residual = b2a_mod.build_b2a_clut(
@@ -1806,7 +1810,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                        candidates),
                         _sub, residual, b2a_grid, _g0,
                         band=_a58m.a59_band(candidates),
-                        inside=_a58m.a59_inside(candidates))),
+                        inside=_a58m.a59_inside(candidates),
+                        dark=_a58m.a60_dark(
+                            candidates, node_lab,
+                            float(model.predict(np.zeros((1, n)))[0, 0])))),
                     in_tables=b2a_in,
                     out_tables=icw.curves_to_tables(inv, entries_b2a))
             else:

@@ -699,8 +699,19 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         # RGB colorimetric table (purecolprof.cam_clip): Lab nearest, then
         # the rev.c LCh-weighted nearest point in Argyll's CIECAM02 Jab,
         # blended over CAMCLIPTRANS (xicc/xlut.c:1321-1418)
+        _d_near = d
         d = _pure.cam_clip(model, target, d, residual,
                            floor=_pure.floor(), fade=_pure.fade_fn(model))
+        _k60 = _pure.a60_clip_weight(model, target)
+        if (_k60 is not None and _oog.PARAMS.get("on")
+                and (_k60[residual > 1e-3] > 0).any()):
+            # Research (Agent 60, a60-darkclip): near the black the
+            # engine's own clip (int-7's answer), blended in over L*
+            _d_our = _oog.clip_nodes(
+                model, target, _d_near, residual, free=free, limit=limit,
+                channel_max=channel_max, prior=prior, prior_w=prior_w,
+                gn_kw=gn_kw, damping=damping, progress_label=progress_label)
+            d = (1.0 - _k60[:, None]) * d + _k60[:, None] * _d_our
     elif accurate and _oog.PARAMS.get("on"):
         # Research (Agent 25, tokens a25-*): one continuous weighted
         # nearest-point clip in a hue-linear space, no accept/reject switch

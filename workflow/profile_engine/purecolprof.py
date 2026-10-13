@@ -122,6 +122,42 @@ def a59_inside(candidates):
             float(os.environ.get("CHROMIQ_A59_INS", A59_IN_STRENGTH)))
 
 
+# Agent 60 (a60-darkfine): in the dark the keep-grid33in hand-over keeps
+# the fine grid (int-7's exact inversion) for nodes up to A60_L L* (blended
+# out over A60_W L* above it); A60_C, if set, is the hand-over band (dE of
+# clip distance) the dark nodes get instead of an unlimited one
+A60_L = 30.0
+A60_W = 10.0
+A60_C = None
+# a60-darkacc (the candidate, Findings/agent60-01): darkfine + darkrel +
+# darkclip with these: the fine grid kept up to 10 L* above the printer's
+# black (hand-over band 16 dE there), blended out over the next 10 L*; the
+# engine's own clip below the black, blended out over 10 L* above it
+A60_ACC = {"l": 10.0, "w": 10.0, "c": 16.0, "cl": 0.0, "cw": 10.0}
+
+
+def a60_dark(candidates, node_lab, black_l: float = 0.0):
+    """a60-darkfine: (keep weight per node in [0, 1], dark band or None),
+    or None with the token off. keep = 1 below A60_L, smoothstep to 0 at
+    A60_L + A60_W (env CHROMIQ_A60_L / _W / _C for sweeps). With
+    a60-darkrel the limit is measured from the printer's black L*
+    (``black_l``): keep = 1 below black_l + A60_L."""
+    cand = frozenset(candidates or ())
+    acc = "a60-darkacc" in cand
+    if "a60-darkfine" not in cand and not acc:
+        return None
+    import os
+    l0 = float(os.environ.get("CHROMIQ_A60_L",
+                              A60_ACC["l"] if acc else A60_L))
+    if "a60-darkrel" in cand or acc:
+        l0 += float(black_l)
+    wd = max(float(os.environ.get("CHROMIQ_A60_W",
+                                  A60_ACC["w"] if acc else A60_W)), 1e-6)
+    c = os.environ.get("CHROMIQ_A60_C", A60_ACC["c"] if acc else A60_C)
+    u = np.clip((l0 + wd - np.asarray(node_lab, float)[:, 0]) / wd, 0.0, 1.0)
+    return u * u * (3.0 - 2.0 * u), (None if c in (None, "") else float(c))
+
+
 KEEP_TOKENS = tuple(f"a58-keep-{s}" for s in KEEP_STEPS)
 
 # Argyll's clip constants (xicc/xlut.c:104-111)
@@ -152,8 +188,43 @@ def set_active(flag: bool, *, floor=None, fade: bool = False) -> None:
     (the perceptual / saturation tables may run on another thread).
     ``floor``: the a29 floor L* (keep-floor), ``fade``: a56 on top of it."""
     _LOCAL.on = bool(flag)
+    if not flag:
+        _LOCAL.a60 = False
     _LOCAL.floor = None if (not flag or floor is None) else float(floor)
     _LOCAL.fade = bool(flag and fade and floor is not None)
+
+
+# Agent 60 (a60-darkclip): near the printer's black the clipped nodes take
+# the engine's own clip (int-7's answer, oog_clip.clip_nodes) instead of
+# colprof's CAM clip: weight 1 for targets up to A60_CL L* above the black,
+# smoothstep to 0 over A60_CW L* above that
+A60_CL = 10.0
+A60_CW = 10.0
+
+
+def set_a60(candidates) -> None:
+    """The builder hands the colorimetric table's tokens to this thread."""
+    cand = frozenset(candidates or ())
+    _LOCAL.a60 = ("a60-darkclip" in cand or "a60-darkacc" in cand)
+    _LOCAL.a60_acc = "a60-darkacc" in cand
+
+
+def a60_clip_weight(model, target_lab: np.ndarray):
+    """a60-darkclip: per target the weight of the engine's own clip, or None
+    (token off, or a58 not active on this thread). Env CHROMIQ_A60_CL /
+    CHROMIQ_A60_CW for sweeps."""
+    if not (active() and getattr(_LOCAL, "a60", False)):
+        return None
+    import os
+    bl = float(model.predict(np.zeros((1, model.n_channels)))[0, 0])
+    acc = getattr(_LOCAL, "a60_acc", False)
+    l0 = bl + float(os.environ.get("CHROMIQ_A60_CL",
+                                   A60_ACC["cl"] if acc else A60_CL))
+    wd = max(float(os.environ.get("CHROMIQ_A60_CW",
+                                  A60_ACC["cw"] if acc else A60_CW)), 1e-6)
+    u = np.clip((l0 + wd - np.asarray(target_lab, float)[:, 0]) / wd, 0.0,
+                1.0)
+    return u * u * (3.0 - 2.0 * u)
 
 
 def floor():
@@ -326,7 +397,8 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray,
 def coarse_outside(fine: np.ndarray, coarse: np.ndarray, residual: np.ndarray,
                    g_fine: int, g_coarse: int,
                    band: float | None = None,
-                   inside: tuple | None = None) -> np.ndarray:
+                   inside: tuple | None = None,
+                   dark: tuple | None = None) -> np.ndarray:
     """Agent 58, keep-grid33in: the fine-grid table where the node is in
     gamut and the coarse grid (trilinear, exact at the shared nodes) where it
     clipped: w = smoothstep(residual / band), out = (1 - w) fine + w coarse."""
@@ -347,6 +419,18 @@ def coarse_outside(fine: np.ndarray, coarse: np.ndarray, residual: np.ndarray,
     up = up.reshape(-1, n)
     u = np.clip(np.asarray(residual, float) / max(band, 1e-9), 0.0, 1.0)
     w = u * u * (3.0 - 2.0 * u)
+    if dark is not None:
+        # Agent 60 (a60-darkfine): dark nodes keep the fine table, with no
+        # hand-over (band None) or a wider one (band dE of clip distance)
+        keep, dband = dark
+        keep = np.asarray(keep, float)
+        if dband is None:
+            w = (1.0 - keep) * w
+        else:
+            b = band + keep * (float(dband) - band)
+            u2 = np.clip(np.asarray(residual, float) / np.maximum(b, 1e-9),
+                         0.0, 1.0)
+            w = u2 * u2 * (3.0 - 2.0 * u2)
     if inside is not None:
         # Agent 59 (a59-inband): printable nodes within ``depth`` dE of a
         # clipped node lean toward the coarse table too, so the clip's bend
