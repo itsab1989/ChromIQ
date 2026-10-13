@@ -203,8 +203,8 @@ def _note(qapp, monkeypatch, *, verification=True, pages=True, native=True, mac=
     from ui.tabs import tab_print as tp
     from workflow import verification_print as vp
     monkeypatch.setattr(tp, "is_macos", lambda: mac)
-    # the printer the macOS dialog opens on: a queue taking CMYK raster or not
-    monkeypatch.setattr(tp, "_dialog_printer", lambda: ("Q", "Q"))
+    # a queue taking CMYK raster or not: since 2026-10-13 (Basti, "decide
+    # AFTER the dialog") the note never asks which printer the dialog opens on
     monkeypatch.setattr(tp, "_queue_cmyk_raster",
                         lambda q: "KCMY" if cmyk else None)
     tab = tp.TabPrint.__new__(tp.TabPrint)
@@ -229,34 +229,21 @@ def _plain(text):
     return text.replace("&#x27;", "'").replace("\u2019", "'")
 
 
-def test_a_verification_on_the_dialog_route_says_how_the_sheet_prints(qapp, monkeypatch):
-    """k81 (4.3.5): paragraphs 2 and 3 are untrue for a PostScript printer
-    since the dialog route sends it ChromIQ's own PostScript, so they are
-    left out; M-PRINT-VERIFY-DIALOG-AS-IS (approved by Basti, 2026-10-11)
-    follows paragraph 1."""
-    shown, text = _note(qapp, monkeypatch)
+@pytest.mark.parametrize("cmyk", [False, True])
+@pytest.mark.parametrize("through", [False, True])
+def test_the_dialog_route_shows_no_printer_dependent_paragraph(qapp, monkeypatch, through, cmyk):
+    """k81 (4.3.5): paragraphs 2 and 3 are untrue for a PostScript printer,
+    so only paragraph 1 is shown. M-PRINT-VERIFY-DIALOG-AS-IS / -THROUGH are
+    untrue where the printer takes CMYK raster or a PostScript printer gets
+    the chart as macOS sends it (combined review of 4.3.5), and Basti,
+    2026-10-13: the printer is chosen only IN the dialog, so the tab cannot
+    tell before it; they are not shown on any printer. MUTATION: decide them
+    from a printer again and this goes red for the printer it picks."""
+    shown, text = _note(qapp, monkeypatch, cmyk=cmyk, through=through)
     assert shown
     assert "<b>Printing a verification chart</b>" in text
     assert "Print this chart on the same printer" in text
     assert "including its Color Matching panel" not in text
-    assert "On a PostScript printer the two routes" not in text
-    assert "Choose the paper, media type and quality in the macOS print dialog" in text
-    assert "This sheet is printed through" not in text
-
-
-def test_through_the_profile_the_dialog_route_says_so(qapp, monkeypatch):
-    _shown, text = _note(qapp, monkeypatch, through=True)
-    assert "This sheet is printed through" in _plain(text)
-    assert "Choose the paper, media type and quality in the macOS" not in text
-
-
-@pytest.mark.parametrize("through", [False, True])
-def test_not_where_the_dialogs_printer_takes_cmyk_raster(qapp, monkeypatch, through):
-    """Combined review of 4.3.5: there macOS converts the chart into CMYK
-    itself, so neither paragraph is true; the notice above says so."""
-    shown, text = _note(qapp, monkeypatch, cmyk=True, through=through)
-    assert shown
-    assert "Print this chart on the same printer" in text
     assert "Choose the paper" not in text
     assert "This sheet is printed through" not in text
 

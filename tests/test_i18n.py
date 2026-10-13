@@ -1504,21 +1504,21 @@ _IDENTICAL_TO_KEY = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: "reports/Verify_Profile_N_{name}.txt" (Verify a profile makes no 3D map) is a bare path, identical to its key in every language, +1 each, all thirteen. COUNTED off the tree, BOTH ledgers.
-    "de": 137,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "es": 119,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "fr": 143,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same; +1 beta 17: the misread table's column "Test" is "Test" in French; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "it": 128,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same; +1 beta 17: "Test" (the misread table's column); +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "ja": 96,
+    "de": 138,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "es": 120,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "fr": 144,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same; +1 beta 17: the misread table's column "Test" is "Test" in French; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "it": 129,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same; +1 beta 17: "Test" (the misread table's column); +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "ja": 97,  # +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
     # +2 on 2026-10-03 (strip/patch patterns, #182 5965589190): "1 label" and
     # "{n} labels" are "1 label" and "{n} labels" in Dutch too. Identities,
     # not missing translations; the other 21 new keys are translated.
-    "nl": 147,  # +1 beta 17: "Test" (the misread table's column) is Dutch too; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "no": 128,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same; +1 beta 17: "Test"; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "pl": 122,  # +1 beta 17: "Test" (the misread table's column) is Polish too; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "pt": 119,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "ru": 92,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "sv": 132,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same; +1 beta 17: "Test"; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
-    "zh_CN": 92,
+    "nl": 148,  # +1 beta 17: "Test" (the misread table's column) is Dutch too; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "no": 129,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same; +1 beta 17: "Test"; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "pl": 123,  # +1 beta 17: "Test" (the misread table's column) is Polish too; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "pt": 120,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "ru": 93,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "sv": 133,  # +1 2026-10-09 (beta 16): "{quality} (standard)" reads the same; +1 beta 17: "Test"; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "zh_CN": 93,  # +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1552,7 +1552,7 @@ _IDENTICAL_TO_KEY = {
     # file paths and were wrongly translated as "звіти/", a folder that does
     # not exist on disk (review W_review_beta3); they now equal their key, as
     # they already did in every other language.
-    "uk": 82,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same
+    "uk": 83,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
 }
 
 

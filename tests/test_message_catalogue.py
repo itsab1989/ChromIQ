@@ -834,6 +834,10 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_print", "TabPrint", "_colour_rows"),
     ("ui.tabs.tab_print", "TabPrint", "_report_job_ticket"),
     ("ui.tabs.tab_print", "TabPrint", "_show_job_not_as_sent"),
+    # 4.3.5 beta 2 (Basti, 2026-10-13): the PostScript question after the
+    # dialog, and the CMYK raster hint after the job.
+    ("ui.tabs.tab_print", "TabPrint", "_ask_ps_form"),
+    ("ui.tabs.tab_print", "TabPrint", "_tell_cmyk_raster_once"),
     ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
     # B7 / C1 (#182 5959070209): the printer calibration windows.
     ("ui.tabs.tab_print", "TabPrint", "_confirm_raw_uncalibrated"),

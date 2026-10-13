@@ -894,13 +894,109 @@ def card_wrap(text: str, width: int = CARD_WRAP) -> "list[str]":
         # Never begin a line with closing punctuation of East Asian text.
         add = (" " if sp and cur else "") + tok
         if cur and cols(cur) + cols(add) > width and tok not in "、。，．）」』":
-            lines.append(cur)
-            cur = tok
+            head, _sp, last = cur.rpartition(" ")
+            if tok in (":", ";", "?", "!", "»") and head:
+                # French punctuation set off by a space (" :") never starts a
+                # line: the word before it goes down with it.
+                lines.append(head)
+                cur = last + add
+            else:
+                lines.append(cur)
+                cur = tok
         else:
             cur += add
     if cur:
         lines.append(cur)
     return lines or [""]
+
+
+class _CardPara(str):
+    """A sentence (or several) the card wraps to its width when it lays the
+    card out, so a wider card holds it in fewer lines."""
+
+
+class _CardBold(str):
+    """A row the card draws bold: a section heading ("Difference") or an
+    outline's headline, so it reads as the heading of the lines under it."""
+
+
+#: THE SIZE RULE (Knut, #182 6134781112: "some of the hover-text cards are
+#: very tall, probably causing trouble on lower resolution screens. Above a
+#: certain height the cards should be made wider"). A card is at most this
+#: share of the screen's available height (menu bar and Dock taken off) and
+#: never taller than the window it floats in; a card that would be taller is
+#: laid out wider instead: its lines longer, in steps of CARD_WRAP_STEP
+#: columns up to CARD_WRAP_MAX_ONE, then in two columns (three as a last
+#: resort), never wider than this share of the available width and the
+#: window's own width. Measured on 1280x800 with the Dock shown: 705 points
+#: available, a full-height window of 1280x677 with a Measure-tab preview of
+#: 696x468, so a card of at most 458 points high and 768 wide; the longest
+#: card, 62 lines at 40 columns, then takes two columns.
+CARD_MAX_SCREEN_HEIGHT = 0.65
+CARD_MAX_SCREEN_WIDTH = 0.6
+CARD_WRAP_STEP = 4
+#: The widest a card's column is laid out, in characters: wider lines are
+#: hard to follow, so past this the card goes to two columns.
+CARD_WRAP_MAX_ONE = 64
+#: The gap the card keeps from the window's edges (the placement clamps at 2).
+CARD_EDGE = 4
+
+
+def card_limits(host_w: int, host_h: int,
+                avail_w: "int | None", avail_h: "int | None") -> "tuple[int, int]":
+    """The largest card, ``(width, height)`` in points, for a window of
+    *host_w* x *host_h* on a screen whose available area is *avail_w* x
+    *avail_h* (None: not known, the window alone decides)."""
+    max_w = max(1, int(host_w) - CARD_EDGE)
+    max_h = max(1, int(host_h) - CARD_EDGE)
+    if avail_w:
+        max_w = min(max_w, int(avail_w * CARD_MAX_SCREEN_WIDTH))
+    if avail_h:
+        max_h = min(max_h, int(avail_h * CARD_MAX_SCREEN_HEIGHT))
+    return max_w, max_h
+
+
+def _card_join_firsts() -> "set[str]":
+    """The first lines of the sentences the approved card texts break by
+    hand at 40 columns (in the language shown). A card laid out wider joins
+    each to the line after it, so the sentence fills the wider line."""
+    from workflow import measurement_messages as _mm
+    return {tr(t) for t in (
+        _mm._CARD_LATER_PROFILE_YELLOW_1, _mm._CARD_VERIFY_YELLOW_1,
+        _mm._CARD_VERIFY_YELLOW_2, _mm._CARD_VERIFY_YELLOW_3,
+        "A real difference this printer and", _mm._CARD_RANGE_LEARNED_1,
+        _mm._CARD_RANGE_LANDED_1, _mm._CARD_VERIFY_LEARNED,
+        _mm._CARD_RANGE_LEARNED_3, _mm._CARD_UNSETTLED_TWO_1,
+        _mm._CARD_UNSETTLED_3, _mm._CARD_NB_REREAD_1,
+        _mm._CARD_LATER_PROFILE_2, _mm._CARD_LATER_PROFILE_3,
+        _mm._CARD_LATER_PROFILE_5, _mm._CARD_VERIFY_RED_2,
+        "Either a misread, or a colour", "Same value after a re-read:",
+        _mm._CARD_LATER_PROFILE_SAME_1, _mm._CARD_VERIFY_SAME_1)}
+
+
+#: How a card's sentence ends, in every catalogue's script.
+_SENTENCE_ENDS = (".", ".)", "?", "!", "。", "。)", "）", ")")
+
+
+def _join_card_text(first: str, second: str) -> str:
+    """Two hand-broken halves as one line: a space between them, none
+    between two East Asian characters."""
+    if first and second and _wide(first[-1]) and _wide(second[0]):
+        return first + second
+    return first + " " + second
+
+
+def _card_screen_area(widget: QWidget) -> "tuple[int, int] | None":
+    """The available width and height of the screen *widget* is on.
+    A driver previewing a smaller screen replaces this function."""
+    try:
+        screen = widget.screen()
+        if screen is None:
+            return None
+        area = screen.availableGeometry()
+        return area.width(), area.height()
+    except Exception:      # noqa: BLE001 — no screen: the window decides
+        return None
 
 
 class _PatchInfoTile(QWidget):
@@ -945,8 +1041,10 @@ class _PatchInfoTile(QWidget):
         L, a, b = (float(v) for v in lab[:3])
         return f"Lab  {L:>5.1f} {a:>5.1f} {b:>5.1f}"
 
-    def set_content(self, info: dict, view_mode: str) -> None:
-        """Build the rows for one patch and resize to fit them exactly."""
+    def set_content(self, info: dict, view_mode: str,
+                    max_size: "tuple[int, int] | None" = None) -> None:
+        """Build the rows for one patch and resize to fit them exactly,
+        within *max_size* (``card_limits``) by the size rule."""
         # Every value a card compares with a threshold of Preferences ▸
         # Measurement is printed as the comparison takes it: two decimals
         # (Knut, #182 6102031563).
@@ -963,7 +1061,18 @@ class _PatchInfoTile(QWidget):
         plain = bool(_mmp.M_PATCH_CARD_PLAIN.approved)
 
         def add_text(text: str) -> None:
-            rows.extend((None, t) for t in card_wrap(text))
+            # wrapped when the card is laid out (``_lay_out``): wider when
+            # the card would be too tall (Knut, #182 6134781112)
+            rows.append((None, _CardPara(text)))
+
+        def head(text: str) -> str:
+            """An outline's headline: bold in the proposed words, so it
+            reads as a heading and never as a sentence running on."""
+            return _CardBold(text) if plain else text
+
+        def ab(value) -> str:
+            """A ΔE*ab with its unit in front (Knut, #182 6134781112)."""
+            return "ΔE*ab " + _shown(float(value))
         rows.append((None, tr("Patch {loc}").format(loc=loc) if loc
                      else tr("Patch")))
 
@@ -993,20 +1102,31 @@ class _PatchInfoTile(QWidget):
         # "Please show what the value means, which standard it is calculated
         # with"). The reading engine computes it as CIE76 ΔE*ab on L*a*b*
         # under D50, which is what the two Lab lines above are shown in too.
-        if view_mode == "both" and plain:
-            # The colour error, and the same difference in the Measurement
-            # Report's formula, so a card can be found in the report.
+        if plain:
+            # THE DIFFERENCE, a section of its own after both colours: it
+            # belongs to the pair, not to the measured colour (Knut, #182
+            # 6134781112). Both formulas, so a card can be found in the
+            # Measurement Report; what it means; what the expected colour is
+            # based on. In every view mode: it is the patch's difference
+            # whichever of its colours are drawn.
             from workflow.ti3_analysis import ciede2000
             rows.append((None, ""))
-            add_text(tr(_mmp._CARDP_DE).format(
-                de=_shown(float(info.get("de", 0.0)))))
+            rows.append((None, _CardBold(tr(_mmp._CARDP_DIFF_HEAD))))
+            values = "  " + ab(info.get("de", 0.0))
             try:
                 de00 = ciede2000(
                     tuple(float(v) for v in info.get("meas_lab")[:3]),
                     tuple(float(v) for v in info.get("exp_lab")[:3]))
-                add_text(tr(_mmp._CARDP_DE00).format(de00=_shown(de00)))
+                values += "   ΔE00 " + _shown(de00)
             except (TypeError, ValueError, IndexError):
                 pass
+            rows.append((None, values))
+            src = info.get("expected_source")
+            add_text(tr(_mmp._CARDP_BASIS_PREDICTED if src == "prediction"
+                          else _mmp._CARDP_BASIS_ACCURATE
+                          if (info.get("accurate") and src is None)
+                          else _mmp._CARDP_BASIS_ESTIMATE)
+                     + " " + tr(_mmp._CARDP_DE00))
         elif view_mode == "both":
             rows.append((None, tr("ΔE*ab  {de:.2f}").format(
                 de=float(info.get("de", 0.0)))))
@@ -1031,11 +1151,11 @@ class _PatchInfoTile(QWidget):
                 # at (Knut, #182 6102031563).
                 d = _shown(abs(fu))
                 if plain and detail is not None:
-                    own, med = _shown(float(detail[2])), _shown(float(detail[3]))
                     add_text(tr(_mmc._CARDP_NBC_EQUAL if float(d) == 0.0
                                 else _mmc._CARDP_NBC_CLOSER if fu < 0
                                 else _mmc._CARDP_NBC_FURTHER).format(
-                                    d=d, n=n_c, own=own, median=med))
+                                    d=ab(d), n=n_c, own=ab(detail[2]),
+                                    median=ab(detail[3])))
                 elif float(d) == 0.0:
                     add_text(tr(_mmc._CARD_NBC_EQUAL_S).format(n=n_c))
                 else:
@@ -1121,10 +1241,11 @@ class _PatchInfoTile(QWidget):
         def nb_fmt(text: str) -> str:
             """A neighbour-check sentence with the patch's figures: Knut's
             four steps' number and the Neighbour limit it passed."""
+            unit = ab if plain else _shown
             return tr(text).format(
-                d=_shown(abs(float(nb.get('further', 0.0)))),
+                d=unit(abs(float(nb.get('further', 0.0)))),
                 n=int(nb.get("n", 0)),
-                limit=_shown(float(nb.get('limit', 0.0))),
+                limit=unit(float(nb.get('limit', 0.0))),
                 kind=kind_phrase())
 
         kind = str(info.get("kind", "") or "")
@@ -1152,9 +1273,10 @@ class _PatchInfoTile(QWidget):
             else:
                 text = (_mm._CARD_LIMIT_FENCED_S if fenced
                         else _mm._CARD_LIMIT_S)
+            unit = ab if plain else _shown
             return tr(text).format(
-                de=_shown(float(info.get('de', 0.0))),
-                limit=_shown(float(info.get('warn_de', 0.0))),
+                de=unit(float(info.get('de', 0.0))),
+                limit=unit(float(info.get('warn_de', 0.0))),
                 kind=kind_phrase())
 
         def limit_line() -> None:
@@ -1171,7 +1293,7 @@ class _PatchInfoTile(QWidget):
             # patches of other strips, expected nearly the same colour, are
             # off in the same way. Set apart like the re-read card.
             rows.append((None, "─" * 30))
-            rows.append((None, tr(_mm._CARD_PEER_1)))
+            rows.append((None, head(tr(_mm._CARD_PEER_1))))
             rows.append((None, tr(_mm._CARD_PEER_2).format(
                 locs=first_three(peer_locs))))
             limit_line()
@@ -1188,11 +1310,11 @@ class _PatchInfoTile(QWidget):
             # YELLOW, CONFIRMED (#182 B, Sebastian 5956560815): read twice,
             # the same colour twice. Set apart at the bottom like the red text.
             rows.append((None, "─" * 30))
-            rows.append((None, tr("Yellow outline: confirmed by a re-read")))
+            rows.append((None, head(tr("Yellow outline: confirmed by a re-read"))))
             if plain:
                 add_text(tr(_mm._CARDP_CONFIRMED).format(
-                    de=_shown(float(info.get("de", 0.0))),
-                    prev=_shown(float(info.get("prev_de") or 0.0))))
+                    de=ab(info.get("de", 0.0)),
+                    prev=ab(info.get("prev_de") or 0.0)))
                 rows.append((None, ""))
             else:
                 rows.append((None, tr("ΔE*ab {de:.2f}, the reading before {prev:.2f}"
@@ -1215,8 +1337,8 @@ class _PatchInfoTile(QWidget):
             # YELLOW, JUDGED LIKE A CONFIRMED PATCH OF ITS RANGE (#182 B2,
             # Knut 5956831467; k10).
             rows.append((None, "─" * 30))
-            rows.append((None, tr("Yellow outline: judged like patch {loc}"
-                                  ).format(loc=str(info.get("like_loc", "")))))
+            rows.append((None, head(tr("Yellow outline: judged like patch {loc}"
+                                       ).format(loc=str(info.get("like_loc", ""))))))
             limit_line()
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             add_range_line()
@@ -1243,12 +1365,13 @@ class _PatchInfoTile(QWidget):
             prevs = [float(x) for x in info.get("unsettled") or ()]
             limit_txt = _shown(float(info.get('warn_de', 0.0)))
             rows.append((None, "─" * 30))
-            rows.append((None, tr(_mm._CARD_UNSETTLED_HEAD)))
+            rows.append((None, head(tr(_mm._CARD_UNSETTLED_HEAD))))
             if plain:
+                limit_txt = ab(info.get('warn_de', 0.0))
                 add_text(tr(_mm._CARDP_UNSETTLED_DE_ONE if len(prevs) <= 1
                             else _mm._CARDP_UNSETTLED_DE).format(
-                    de=_shown(float(info.get('de', 0.0))),
-                    prevs=", ".join(_shown(x) for x in prevs)))
+                    de=ab(info.get('de', 0.0)),
+                    prevs=", ".join(ab(x) for x in prevs)))
             else:
                 rows.append((None, tr(_mm._CARD_UNSETTLED_DE).format(
                     de=_shown(float(info.get('de', 0.0))),
@@ -1278,8 +1401,8 @@ class _PatchInfoTile(QWidget):
             rows.append((None, "─" * 30))
             # Not "likely misread" alone (Knut, #182 5956210745): a large
             # difference can be real, and then re-reading cannot remove it.
-            rows.append((None, tr(_mm._CARDP_LIMIT_HEAD if plain
-                                  else _mm._CARD_LIMIT_HEAD)))
+            rows.append((None, head(tr(_mm._CARDP_LIMIT_HEAD if plain
+                                       else _mm._CARD_LIMIT_HEAD))))
             # The limit by its name, its value and its chart type, and the
             # strip test by its name (beta 17, the k56 cards Knut approved
             # in 6084176226).
@@ -1351,12 +1474,12 @@ class _PatchInfoTile(QWidget):
             # and its re-read fits. Approved line by line, except the limit's
             # middle line (M-PATCH-CORRECTED-LIMIT, proposed).
             rows.append((None, "─" * 30))
-            rows.append((None, tr(_mm._CARD_GREEN_HEAD)))
+            rows.append((None, head(tr(_mm._CARD_GREEN_HEAD))))
             if plain:
                 add_text(tr(_mm._CARDP_GREEN_NB
                             if info.get("corrected_by") == "neighbour"
                             else _mm._CARDP_GREEN_LIMIT).format(
-                    de=_shown(float(info.get('prev_de') or 0.0))))
+                    de=ab(info.get('prev_de') or 0.0)))
             else:
                 rows.append((None, tr(_mm._CARD_GREEN_1).format(
                     de=_shown(float(info.get('prev_de') or 0.0)))))
@@ -1405,21 +1528,171 @@ class _PatchInfoTile(QWidget):
         rows.append((None, ""))
         add_text(tr(_mm._CARD_LATER_PATCH_S if info.get("pbp")
                     else _mm._CARD_LATER_STRIP_S))
+        if plain:
+            # THE UNITS, once per card, at the bottom above "See
+            # Preferences" (Knut, #182 6134781112).
+            rows.append((None, ""))
+            rows.extend((None, u) for u in _mmp._CARDP_UNITS)
         rows.append((None, ""))
         add_text(tr(_mm._CARD_SEE_PREFS_S))
 
-        self._rows = rows
+        self._logical = rows
+        self._lay_out(max_size)
 
+    def _lay_out(self, max_size: "tuple[int, int] | None") -> None:
+        """Wrap the card's sentences and size it: THE SIZE RULE (Knut, #182
+        6134781112). 40 columns (CARD_WRAP) when that fits *max_size*
+        (``card_limits``); otherwise wider, 4 columns at a time up to
+        CARD_WRAP_MAX_ONE, the sentences the approved texts break by hand
+        then joined and wrapped to the width; and when one column is still
+        too tall, two columns side by side (three as a last resort), cut
+        between topics. The first layout that fits wins; when none does, the lowest
+        that fits the width. With no *max_size* (a card nobody shows), the
+        40 columns."""
+        from PyQt6.QtGui import QFontMetrics
         fm = QFontMetrics(self._font)
+        fm_b = QFontMetrics(self._font_hdr)
         line_h = fm.height() + 2
         text_x = self._PAD + self._SWATCH + self._GUTTER
-        width = 0
-        for _sw, text in rows:
-            width = max(width, fm.horizontalAdvance(text))
+        joins = _card_join_firsts()
+        starts: "set[int]" = set()
+
+        def wrap(cols: int) -> "list[tuple]":
+            """The rows at *cols* columns. Also fills *starts*: the rows
+            where a new sentence begins after a finished one, where a
+            column may begin too."""
+            out: "list[tuple]" = []
+            starts.clear()
+            pending = None      # a hand-broken sentence being joined
+            ended = True        # did the last row finish a sentence?
+
+            def emit(text_rows, sentence: bool) -> None:
+                nonlocal ended
+                if sentence and ended and out:
+                    starts.add(len(out))
+                out.extend(text_rows)
+                last = text_rows[-1][1] if text_rows else ""
+                ended = str(last).rstrip().endswith(_SENTENCE_ENDS)
+            for sw, text in self._logical:
+                if pending is not None:
+                    if sw is None and text and not isinstance(
+                            text, (_CardPara, _CardBold)) and text != "─" * 30:
+                        pending = _join_card_text(pending, text)
+                        if text in joins:
+                            continue
+                        emit([(None, t) for t in card_wrap(pending, cols)], True)
+                        pending = None
+                        continue
+                    emit([(None, t) for t in card_wrap(pending, cols)], True)
+                    pending = None
+                if isinstance(text, _CardPara):
+                    emit([(None, t) for t in card_wrap(text, cols)], True)
+                elif cols > CARD_WRAP and sw is None and text in joins:
+                    pending = str(text)
+                elif (cols > CARD_WRAP and sw is None and text
+                      and not text.startswith("  ") and text != "─" * 30
+                      and sum(2 if _wide(c) else 1 for c in text) > cols):
+                    # a line longer than the width (a translation's): wrapped
+                    # too, a heading staying bold
+                    kind = _CardBold if isinstance(text, _CardBold) else str
+                    emit([(None, kind(t)) for t in card_wrap(text, cols)],
+                         kind is str)
+                else:
+                    out.append((sw, text))
+                    ended = (not text or sw is not None
+                             or str(text).rstrip().endswith(_SENTENCE_ENDS))
+            if pending is not None:
+                emit([(None, t) for t in card_wrap(pending, cols)], True)
+            return out
+
+        def width_of(rows) -> int:
+            width = 0
+            for _sw, text in rows:
+                width = max(width, (fm_b if isinstance(text, _CardBold)
+                                    else fm).horizontalAdvance(text))
+            return text_x + width + self._PAD
+
+        def one(cols: int):
+            rows = wrap(cols)
+            return (rows, [(0, len(rows), 0)], width_of(rows),
+                    self._PAD * 2 + line_h * len(rows))
+
+        def columns(cols: int, k: int):
+            """*k* columns side by side, cut between topics (at a blank line,
+            dropped, or before an outline's section) or between two
+            sentences, never inside one, as evenly as the cuts allow."""
+            from itertools import combinations
+            rows = wrap(cols)
+            cuts = []
+            for i, (_sw, t) in enumerate(rows):
+                if not 0 < i < len(rows) - 1:
+                    continue
+                if t == "":
+                    cuts.append((i, i + 1))
+                elif (t == "─" * 30 or isinstance(t, _CardBold)
+                      or i in starts):
+                    cuts.append((i, i))
+            if len(cuts) < k - 1:
+                return None
+
+            def parts(chosen):
+                out, start = [], 0
+                for end, nxt in chosen:
+                    while end > start and rows[end - 1][1] == "":
+                        end -= 1
+                    out.append((start, end))
+                    start = nxt
+                out.append((start, len(rows)))
+                return out
+
+            best_parts = min((parts(c) for c in combinations(cuts, k - 1)),
+                             key=lambda ps: max(b - a for a, b in ps))
+            spans, x = [], 0
+            for a, b in best_parts:
+                spans.append((a, b, x))
+                x += width_of(rows[a:b]) + self._PAD
+            tallest = max(b - a for a, b in best_parts)
+            return (rows, spans, x - self._PAD,
+                    self._PAD * 2 + line_h * tallest)
+
+        best = one(CARD_WRAP)
+        if max_size is not None and best[3] > max_size[1]:
+            max_w, max_h = max_size
+            tries = [(one, c) for c in range(CARD_WRAP + CARD_WRAP_STEP,
+                                              CARD_WRAP_MAX_ONE + 1, CARD_WRAP_STEP)]
+            for k in (2, 3):
+                tries += [(lambda c, k=k: columns(c, k), c)
+                          for c in range(CARD_WRAP, CARD_WRAP_MAX_ONE + 1,
+                                         CARD_WRAP_STEP)]
+            lowest = best
+            # Line spacing as drawn, then one point tighter as the last
+            # resort, before a card would have to leave the preview.
+            for spacing in (line_h, line_h - 1):
+                line_h = spacing
+                found = False
+                for how, cols in tries:
+                    got = how(cols)
+                    if got is None or got[2] > max_w:
+                        continue
+                    if got[3] < lowest[3]:
+                        lowest = got + (spacing,)
+                    if got[3] <= max_h:
+                        lowest = got + (spacing,)
+                        found = True
+                        break
+                if found:
+                    break
+            best = lowest
+        if len(best) == 5:
+            line_h = best[4]
+            best = best[:4]
+        else:
+            line_h = fm.height() + 2
+        rows, spans, w, h = best
+        self._rows = rows
+        self._spans = spans
         self._line_h = line_h
         self._text_x = text_x
-        w = text_x + width + self._PAD
-        h = self._PAD + line_h * len(rows) + self._PAD
         self.resize(int(w), int(h))
         self.update()
 
@@ -1453,17 +1726,28 @@ class _PatchInfoTile(QWidget):
         from PyQt6.QtGui import QFontMetrics
         fm = QFontMetrics(self._font)
         y = self._PAD
-        for i, (sw, text) in enumerate(self._rows):
-            row_top = y + i * self._line_h
+        placed = []
+        for start, end, x0 in getattr(self, "_spans", None) or [(0, len(self._rows), 0)]:
+            if x0:
+                # the line between two columns (the size rule)
+                p.setPen(QPen(border, 1.0))
+                p.drawLine(int(x0 - self._PAD / 2), self._PAD,
+                           int(x0 - self._PAD / 2), self.height() - self._PAD)
+            placed.extend((i, i - start, x0) for i in range(start, end))
+        for i, j, x0 in placed:
+            sw, text = self._rows[i]
+            row_top = y + j * self._line_h
             baseline = row_top + fm.ascent() + 1
             if sw is not None:
                 sy = row_top + (self._line_h - self._SWATCH) / 2.0
                 p.setPen(QPen(sw_border, 1.0))
                 p.setBrush(sw)
-                p.drawRect(QRectF(self._PAD, sy, self._SWATCH, self._SWATCH))
-            p.setFont(self._font_hdr if (i == 0 or sw is not None) else self._font)
+                p.drawRect(QRectF(x0 + self._PAD, sy, self._SWATCH, self._SWATCH))
+            p.setFont(self._font_hdr if (i == 0 or sw is not None
+                                         or isinstance(text, _CardBold))
+                      else self._font)
             p.setPen(fg)
-            p.drawText(int(self._text_x), int(baseline), text)
+            p.drawText(int(x0 + self._text_x), int(baseline), text)
         p.end()
 
 
@@ -2726,8 +3010,19 @@ class TiffPreview(QWidget):
         self._apply_file_tooltip()
 
     def _ensure_patch_tile(self) -> "_PatchInfoTile":
+        # THE CARD FLOATS ON THE WINDOW, not inside the preview (Knut, #182
+        # 6134781112): a tall card is laid out wider, and on a 1280x800
+        # screen the preview alone (696 points) is too narrow for the two
+        # columns the longest cards need; the window holds them, over the
+        # panel beside the preview, as a tooltip would. Made again when the
+        # preview has moved to another window.
+        host = self.window()
+        if self._patch_tile is not None and self._patch_tile.parent() is not host:
+            self._patch_tile.hide()
+            self._patch_tile.deleteLater()
+            self._patch_tile = None
         if self._patch_tile is None:
-            self._patch_tile = _PatchInfoTile(self)
+            self._patch_tile = _PatchInfoTile(host)
         return self._patch_tile
 
     def _hide_patch_tile(self) -> None:
@@ -2764,19 +3059,24 @@ class TiffPreview(QWidget):
             self._hide_patch_tile()
             return
         tile = self._ensure_patch_tile()
+        host = tile.parentWidget()
         tile.set_theme(self._mode)
-        tile.set_content(hit, self._overlay_mode)
+        area = _card_screen_area(self)
+        tile.set_content(hit, self._overlay_mode, max_size=card_limits(
+            host.width(), host.height(),
+            area[0] if area else None, area[1] if area else None))
         tw, th = tile.width(), tile.height()
         # Sit just off the pointer, but flip/clamp so the whole card stays inside
-        # the preview instead of being cut off at an edge.
-        x = pos.x() + 18
-        y = pos.y() + 18
-        if x + tw > self.width():
-            x = pos.x() - 18 - tw
-        if y + th > self.height():
-            y = pos.y() - 18 - th
-        x = max(2, min(x, self.width() - tw - 2))
-        y = max(2, min(y, self.height() - th - 2))
+        # the window instead of being cut off at an edge.
+        at = self.mapTo(host, pos) if host is not self else QPoint(pos)
+        x = at.x() + 18
+        y = at.y() + 18
+        if x + tw > host.width():
+            x = at.x() - 18 - tw
+        if y + th > host.height():
+            y = at.y() - 18 - th
+        x = max(2, min(x, host.width() - tw - 2))
+        y = max(2, min(y, host.height() - th - 2))
         tile.move(int(x), int(y))
         tile.raise_()
         tile.show()
@@ -6317,6 +6617,9 @@ class TiffPreview(QWidget):
             self._start_legend_fade(1.0)
 
     def hideEvent(self, event) -> None:  # type: ignore[override]
+        # The patch card floats on the window: hidden with the preview (a
+        # tab switch while the pointer is on a patch sends no leaveEvent).
+        self._hide_patch_tile()
         # A widget hidden while the pointer sat on the chip gets no leaveEvent,
         # so without this the chip would still be hidden when it came back.
         # The fade is stopped rather than left running into a hidden widget.

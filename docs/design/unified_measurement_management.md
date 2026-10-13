@@ -2977,6 +2977,22 @@ approved one is left sitting in it.*
 >
 > If it has not printed yet, cancel it in the printer’s queue and print again. If this message comes back, turn off “Use default macOS printer dialog” in Preferences and print from the Print Chart tab directly.
 
+### M-PRINT-PS-ASK · PROPOSED · the window asking how a PostScript printer chosen in the macOS print dialog gets the chart, 4.3.5 beta 2
+
+*New 2026-10-13 (4.3.5 beta 2, report folder `2026-10-13_b2_ask_after_dialog`). Basti, 2026-10-13, chose option 2 ("go with 2"): the Print Chart tab decided before the dialog, from the printer the dialog opens on, whether to show the PostScript row and the printer-specific notices, but the user picks the printer only IN the dialog. Shown after the user closes the macOS print dialog with Print and before anything is sent, only when the printer chosen in the dialog is a PostScript queue (`ppd_color.is_postscript_queue` on the dialog's own print info) and the run has no stored choice (`print_settings["postscript"]` of the run's own `meta.json`). Buttons: M-PRINT-PS-FORM-CHOICE's headline followed by its line 1 (the default button; "its own RGB"), the same followed by its line 2 ("as macOS sends it"), and Cancel (nothing printed, nothing stored, no print record). The answer is stored for the run, so its other charts and its verification charts are not asked again. Never shown for a calibration or a new run (they print the default) or any other printer. {printer} is the printer's name as macOS shows it. Until this message and M-PRINT-PS-FORM-CHOICE are approved nobody is asked and every run prints the default form, as in 4.3.5 beta 1.*
+
+> **How should {printer} get the chart?**
+>
+> {printer} is a PostScript printer. Your photos must reach it the same way as this run’s charts, or the profile will not fit them. The choice is kept for this run and its verification charts.
+
+### M-PRINT-PS-FORM-APPLIES · PROPOSED · the line under the PostScript row of the Print Chart tab, 4.3.5 beta 2
+
+*New 2026-10-13 (4.3.5 beta 2). The row M-PRINT-PS-FORM-CHOICE is shown only once the run has a stored choice (made in M-PRINT-PS-ASK), so it can be changed; before that nothing PostScript-specific is shown before the dialog. This line is shown under its two choices, once approved. The headline is not shown; it names the line for review.*
+
+> **When this choice applies**
+>
+> Applies when this run prints to a PostScript printer through the macOS print dialog.
+
 ### M-PRINT-PAPER-PROFILE-UNKNOWN · PROPOSED · the direct route does not know which paper profile the driver of this model chooses, Print Chart tab, beta 15
 
 *New 2026-10-08 (beta 15 builder round). Basti: the direct route sends the paper profile the vendor's own print dialog would choose for the medium. ChromIQ knows it from the installed driver's own table (Canon IJ media database, Epson PDEData.dat), from the tables measured and shipped with it (`data/printer_paper_profiles.json`: PRO-300/310/200S/1000/1100/100, ET-8550/18100, SC-P700/900/5300/800, Stylus Photo R2000/R3000), or from the user's own earlier prints through the macOS dialog (`workflow/printer_memory.py`). For any other Canon IJ or Epson model it must not guess silently: this window comes before the confirmation window. {printer} is the queue, {medium} the paper type as the driver names it, {profile} the driver's standard setting for the paper profile (the PPD's default, which Epson labels "None"), which a job sent anyway carries. Review 2, 2026-10-08: "standard profile (None)" was untrue for an Epson, so the sentence names the setting. The buttons: "Use the macOS Print Dialog" (the default: prints this chart through the dialog, with the printer already chosen), "Print Anyway", "Cancel". A printer with no paper profiles at all (generic, driverless, Xerox, Gutenprint) never sees it: it prints exactly as in beta 14.*
@@ -6304,30 +6320,37 @@ alone.
 
 *Revised 2026-10-13 (Basti: "correct but too technical"): every line leads with what it means in plain words, then the numbers, one thought per sentence, the technical names (ΔE\*ab, ΔE00, median, the tests' names, the same-reading tolerance) in brackets at the end, and what it means for the user ("probably not a misread", "not clear yet which one is right"). Two statements of the first wording were not true on every card and are corrected: lines 9 and 13 said "Without the re-read" also on yellow cards confirmed by similar patches or judged like a patch of their colour range, where nothing was read again (they now say "Without that confirmation", and the headline above names it); and line 2 no longer suggests the report shows the card's figure, because the report compares a From Profile Gamut chart with the chart's design, which differs from the profile's prediction by up to ΔE\*ab 2.96 near the gamut's edge on Knut's run 2 chart. Line 10's headline is "Red outline: too far off its expected colour". Placeholders unchanged.*
 
-*Corrected 2026-10-13 by the combined review of 4.3.5 beta 2 (report folder `2026-10-13_b2_combined_review`), still PROPOSED and hidden. Lines 15 to 18 counted every reading of the patch, while the code counts only the earlier readings that were red and past the patch error limit (`patch_flags`, `unsettled`): "was {prevs} off at the earlier reading", "The two readings", "You have read this patch {n} times" and "agrees with none of the earlier ones" were untrue for a patch with an earlier reading under the limit; they now say only what is counted. Line 6 lost "yet": the line is also shown on a chart read to the end. The other sixteen lines were checked against `tiff_preview.PatchInfoCard`, `neighbour_check` (Knut's four steps), `patch_flags` and `misread_settings.above` and hold.*
+*Revised again 2026-10-13 (v3, Knut, [6134781112](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6134781112)): every number carries its unit, written right before it ("ΔE\*ab 7.71", "ΔE00 6.41"), never a bare number: the card fills every placeholder that holds a ΔE with its unit, so no translation can drop it. The units are defined once per card, at the bottom above "See Preferences ▸ Measurement" (the last two lines below), and the bracketed definitions are gone from the lines. The difference between the expected and the measured colour belongs to the pair, so it is no longer a line under "Measured": it is a section of its own after both colours, under the bold heading of line 1, with both formulas on one line the card builds ("ΔE\*ab 8.07   ΔE00 6.46"), what the expected colour is based on (lines 2 to 4, by where it came from: the run profile's prediction on a verification ChromIQ printed, the pre-conditioning profile's prediction on a chart made with one, otherwise the chart's RGB read as sRGB) and the Measurement Report's formula (line 5); it is shown in every view mode. The outlines' headlines are drawn bold, so none reads as a sentence running on into the next line. A card taller than the screen allows is laid out wider instead, in two columns if it must, over the panel beside the chart if it must (the size rule, `ui.tiff_preview.card_limits`), which is layout, not wording, and applies to every card now.*
+
+*Corrected 2026-10-13 by the combined review of 4.3.5 beta 2 (report folder `2026-10-13_b2_combined_review`), still PROPOSED and hidden, and kept when v3 below was merged in (no bracketed unit; the card puts the unit before each figure). Lines 15 to 18 counted every reading of the patch, while the code counts only the earlier readings that were red and past the patch error limit (`patch_flags`, `unsettled`): "was {prevs} off at the earlier reading", "The two readings", "You have read this patch {n} times" and "agrees with none of the earlier ones" were untrue for a patch with an earlier reading under the limit; they now say only what is counted. Line 6 lost "yet": the line is also shown on a chart read to the end. The other sixteen lines were checked against `tiff_preview.PatchInfoCard`, `neighbour_check` (Knut's four steps), `patch_flags` and `misread_settings.above` and hold.*
 
 > **Patch error limit and neighbour check on the patch card, in plain words**
 >
-> This patch is {de} off its expected colour. (ΔE*ab, CIE76, L*a*b* D50.)
-> The Measurement Report measures colour differences in a way that is closer to how the eye sees them. Measured that way, this difference is {de00}. (ΔE00, CIEDE2000.)
-> The {n} patches most similar to it are only about {median} off their expected colours. At {own}, this one stands out by {d}. (Neighbour check, ΔE*ab, median of the {n}.)
-> The {n} patches most similar to it are about {median} off their expected colours. At {own}, this one is {d} closer to its expected colour than they are. (Neighbour check, ΔE*ab, median of the {n}.)
-> The {n} patches most similar to it are about as far off their expected colours as this one, at {own}. It does not stand out from them. (Neighbour check, ΔE*ab, median of the {n}.)
+> Difference between the two colours
+> The expected colour is what the run's profile predicts for the values sent to the printer.
+> The expected colour is what the profile this chart was made with predicts for this patch.
+> The expected colour is an estimate: the patch's RGB values read as sRGB.
+> The Measurement Report uses ΔE00. It is closer to how the eye sees colour differences.
+> The {n} patches most similar to it are only about {median} off their expected colours. At {own}, this one stands out by {d}. (Neighbour check, median of the {n}.)
+> The {n} patches most similar to it are about {median} off their expected colours. At {own}, this one is {d} closer to its expected colour than they are. (Neighbour check, median of the {n}.)
+> The {n} patches most similar to it are about as far off their expected colours as this one, at {own}. It does not stand out from them. (Neighbour check, median of the {n}.)
 > Not compared with similar patches: fewer than 2 patches with a similar expected colour have been read. (Neighbour check, colour-neighbour radius.)
 > Red outline: this patch stands out from the patches most similar to it by {d}. That is more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
 > It also stands out from the patches most similar to it by {d}. That is more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
 > Without that confirmation it would be red: it stands out from the patches most similar to it by {d}, more than the neighbour limit of {limit} for {kind}. (Neighbour check.)
 > Red outline: too far off its expected colour
-> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}. (ΔE*ab.)
-> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}. It also stands out from the other patches of its strip. (ΔE*ab, strip test.)
-> Without that confirmation it would be red: it is {de} off its expected colour, more than the patch error limit of {limit} for {kind}. (ΔE*ab.)
-> You read this patch again, and the new reading agrees with an earlier one. So it is probably not a misread. It is {de} off its expected colour now, and was {prev} off at that earlier reading. (ΔE*ab; the two readings are within the same-reading tolerance.)
-> It is {de} off its expected colour now. An earlier reading was {prevs} off. (ΔE*ab.)
-> It is {de} off its expected colour now. Earlier readings were {prevs} off. (ΔE*ab.)
+> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}.
+> This patch is {de} off its expected colour. That is more than the patch error limit of {limit} for {kind}. It also stands out from the other patches of its strip. (Strip test.)
+> Without that confirmation it would be red: it is {de} off its expected colour, more than the patch error limit of {limit} for {kind}.
+> You read this patch again, and the new reading agrees with an earlier one. So it is probably not a misread. It is {de} off its expected colour now, and was {prev} off at that earlier reading. (The two readings are within the same-reading tolerance.)
+> It is {de} off its expected colour now. An earlier reading was {prevs} off.
+> It is {de} off its expected colour now. Earlier readings were {prevs} off.
 > This reading and an earlier one are both further off than the patch error limit of {limit} for {kind}, and they do not agree with each other. So it is not clear yet which one is right. (They differ by more than the same-reading tolerance.)
 > {n} readings of this patch are further off than the patch error limit of {limit} for {kind}, and this one agrees with none of the others. So it is not clear yet which one is right. (Same-reading tolerance.)
-> The earlier, red reading was {de} off its expected colour and stood out from the patches most similar to it. The new reading does not stand out more than the neighbour limit allows. (ΔE*ab, neighbour check.)
-> The earlier, red reading was {de} off its expected colour, more than the patch error limit. The new reading is within the limit. (ΔE*ab.)
+> The earlier, red reading was {de} off its expected colour and stood out from the patches most similar to it. The new reading does not stand out more than the neighbour limit allows. (Neighbour check.)
+> The earlier, red reading was {de} off its expected colour, more than the patch error limit. The new reading is within the limit.
+> ΔE00 = CIEDE2000, L*a*b* D50
+> ΔE*ab = CIE76, L*a*b* D50
 
 ### M-PATCH-UNSETTLED · PROPOSED · a re-read past the limit that agrees with no earlier reading — Measure tab preview, #182 beta 12
 

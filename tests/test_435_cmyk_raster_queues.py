@@ -263,23 +263,25 @@ def _notice(monkeypatch, *, approved, queue_cmyk=True):
     if approved:
         monkeypatch.setattr(MM, "M_PRINT_CMYK_RASTER_ROUTE", dataclasses.replace(
             MM.M_PRINT_CMYK_RASTER_ROUTE, approved=True))
-    monkeypatch.setattr(tp, "_dialog_printer", lambda: ("DJ", "Sample DeskJet"))
     monkeypatch.setattr(tp, "_queue_cmyk_raster", lambda q: "KCMY" if queue_cmyk else None)
     tab = tp.TabPrint.__new__(tp.TabPrint)
     return tp.TabPrint._macos_dialog_notice(tab)
 
 
-def test_the_hint_is_approved_and_shown_on_a_cmyk_queue_only(qapp, monkeypatch):
+def test_the_hint_is_approved_and_said_after_the_dialog_not_in_the_notice(qapp, monkeypatch):
     """B2: Basti approved the hint with his own last sentences ("approved if
-    true", every statement checked). A CMYK queue gets it in place of the
-    wrong claims; every other queue keeps the approved notice word for word.
-    MUTATION: set approved=False and the first assertion goes red."""
+    true", every statement checked). Basti, 2026-10-13: the printer is chosen
+    only IN the dialog, so the hint is no longer put in the notice from the
+    printer the dialog opens on; a CMYK raster job gets it after the dialog,
+    once per run (``_tell_cmyk_raster_once``,
+    test_435b2_postscript_asked_after_the_dialog)."""
+    from ui.tabs import tab_print as tp
     assert MM.M_PRINT_CMYK_RASTER_ROUTE.approved
     assert "M-PRINT-CMYK-RASTER-ROUTE" not in MM.PROPOSED
-    other = _notice(monkeypatch, approved=False, queue_cmyk=False)
-    assert "This works with any printer" in other
-    assert MM.M_PRINT_CMYK_RASTER_ROUTE.title not in other
-    assert _notice(monkeypatch, approved=False) != other
+    assert MM.M_PRINT_CMYK_RASTER_ROUTE.title not in _notice(monkeypatch, approved=True)
+    src = inspect.getsource(tp.TabPrint._print_native)
+    assert "self._tell_cmyk_raster_once(" in src
+    assert "M_PRINT_CMYK_RASTER_ROUTE" in inspect.getsource(tp.TabPrint._tell_cmyk_raster_once)
 
 
 def test_bastis_last_sentences_replace_the_old_two():
@@ -309,26 +311,22 @@ def test_the_corrected_hint_says_a_cmyk_profile_changes_the_conversion():
     assert "an RGB profile set there does not" in body
 
 
-def test_once_approved_a_cmyk_queue_gets_the_hint_instead_of_the_wrong_claims(qapp, monkeypatch):
+def test_no_printer_gets_the_wrong_claims_before_the_dialog(qapp, monkeypatch):
+    """The paper-profile sentences are untrue on a CMYK raster printer (and on
+    a PostScript one), and before the dialog nobody knows the printer, so the
+    notice is the approved one without them, the same for every queue."""
     text = _notice(monkeypatch, approved=True)
     for wrong in WRONG_HERE:
         assert wrong not in text, wrong
-    assert "This printer\u2019s driver works in CMYK\nThe driver of Sample DeskJet takes the chart in CMYK." in text
+    assert _notice(monkeypatch, approved=True, queue_cmyk=False) == text
     paras = text.split("\n\n")
-    assert len(paras) == 5
+    assert len(paras) == 4
     assert paras[0].startswith("\u26a0  You are printing via the macOS printer dialog.")
     assert paras[1] == ("ChromIQ asks for application colour matching, as Photoshop does. "
                         "Afterwards the Print Chart tab says what the printing system holds "
                         "for the job.")
-    assert paras[3].startswith("Prefer no dialog at all?")
-    assert paras[4].startswith("Allow pigment inks")
-
-
-def test_once_approved_every_other_printer_keeps_the_notice_exactly(qapp, monkeypatch):
-    unchanged = _notice(monkeypatch, approved=True, queue_cmyk=False)
-    monkeypatch.setattr(MM, "M_PRINT_CMYK_RASTER_ROUTE", dataclasses.replace(
-        MM.M_PRINT_CMYK_RASTER_ROUTE, approved=False))
-    assert _notice(monkeypatch, approved=False) == unchanged
+    assert paras[2].startswith("Prefer no dialog at all?")
+    assert paras[3].startswith("Allow pigment inks")
 
 
 @pytest.mark.parametrize("code", ["de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt",
