@@ -97,6 +97,9 @@ PARAMS: dict = {
     # to the floor fades smoothly as it lies deeper below the black
     # (blackfade_k); a56_r is the order of the fade
     "a56": False, "a56_r": 2.0, "a56_shape": "rat", "a56_hsmooth": 20.0,
+    # Agent 62 (a62-camhue): with a51 on, a target lifted to the floor keeps
+    # its CIECAM02 hue (camhue_lift)
+    "a62": False,
 }
 
 DEFAULTS = dict(PARAMS)
