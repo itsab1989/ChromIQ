@@ -2885,7 +2885,7 @@ class TabPrint(QWidget):
             return False
 
     def _ask_direct_like_preview(self, printer: str) -> "str | None":
-        """M-PRINT-DIRECT-LIKE-PREVIEW (§M-PROPOSED). None when it does not
+        """M-PRINT-DIRECT-LIKE-PREVIEW (approved by Basti, 2026-10-13). None when it does not
         apply or is not approved (the print goes as before); else "dialog",
         "anyway" or "" (Cancel)."""
         from workflow import measurement_messages as MM
