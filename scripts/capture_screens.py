@@ -49,6 +49,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# numpy's OpenBLAS on one thread, as main.py does (core/blas_threads.py).
+from core.blas_threads import pin_blas_threads  # noqa: E402
+
+pin_blas_threads()
+
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import QApplication

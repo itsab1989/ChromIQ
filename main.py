@@ -7,6 +7,14 @@ import sys
 import traceback
 from pathlib import Path
 
+# numpy's OpenBLAS on ONE thread, before anything can import numpy: a fork
+# (every subprocess and QProcess start) while another thread is inside OpenBLAS
+# otherwise hangs the app for good (Knut, #182 6144104040, 4.3.5-beta.2). The
+# frozen apps also do this from hooks/rth_blas_threads.py. See core/blas_threads.
+from core.blas_threads import pin_blas_threads  # noqa: E402
+
+pin_blas_threads()
+
 # Configure logging FIRST, before any heavy third-party imports (PyQt6, numpy,
 # etc.).  If a frozen bundle ships with a broken dylib graph, the import below
 # will crash before any application code runs — and without an early file

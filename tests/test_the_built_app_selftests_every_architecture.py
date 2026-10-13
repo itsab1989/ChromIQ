@@ -50,9 +50,12 @@ def test_the_selftest_prints_one_line_and_exits_0(tmp_path):
     r = _main("1", tmp_path)
     assert r.returncode == 0, r.stderr[-2000:]
     import platform
-    assert r.stdout.strip() == (
+    # blas_threads: 1 with OpenBLAS (pinned by main.py, core/blas_threads.py),
+    # None with Apple's Accelerate; never the pool size, which can hang a fork.
+    assert r.stdout.strip() in (
         f"chromiq-selftest ok machine={platform.machine()} "
-        f"numpy={__import__('numpy').__version__}")
+        f"numpy={__import__('numpy').__version__} blas_threads={n}"
+        for n in ("1", "None"))
 
 
 def test_unset_it_does_nothing(tmp_path):

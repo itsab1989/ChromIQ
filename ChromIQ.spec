@@ -262,7 +262,7 @@ a = Analysis(
     ],
     hookspath=['hooks'],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['hooks/rth_blas_threads.py'],  # OpenBLAS on one thread before numpy loads (core/blas_threads.py)
     excludes=[],
     noarchive=False,
 )

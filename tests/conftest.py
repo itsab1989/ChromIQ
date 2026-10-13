@@ -18,6 +18,12 @@ at the class level: no real subprocess, no cross-test signal leak, no modal.
 """
 from pathlib import Path
 
+# The suite runs numpy's BLAS the way the app does: OpenBLAS on one thread,
+# before anything imports numpy (core/blas_threads.py, Knut #182 6144104040).
+from core.blas_threads import pin_blas_threads as _pin_blas_threads
+
+_pin_blas_threads()
+
 
 
 import os

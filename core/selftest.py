@@ -27,10 +27,16 @@ def run_if_asked() -> None:
         inv = float(numpy.linalg.inv(numpy.eye(3) * 2.0)[0, 0])
         if abs(inv - 0.5) > 1e-12:
             raise RuntimeError(f"numpy.linalg.inv gave {inv}, not 0.5")
+        # OpenBLAS must run on one thread, or a fork can hang the app for
+        # good (core/blas_threads.py). None: no OpenBLAS (Accelerate).
+        from core.blas_threads import blas_thread_count
+        threads = blas_thread_count()
+        if threads not in (None, 1):
+            raise RuntimeError(f"OpenBLAS runs {threads} threads, not 1")
     except BaseException as exc:      # noqa: BLE001 — report, then fail
         print(f"chromiq-selftest FAILED on {platform.machine()}: {exc!r}",
               flush=True)
         sys.exit(1)
     print(f"chromiq-selftest ok machine={platform.machine()} "
-          f"numpy={numpy.__version__}", flush=True)
+          f"numpy={numpy.__version__} blas_threads={threads}", flush=True)
     sys.exit(0)
