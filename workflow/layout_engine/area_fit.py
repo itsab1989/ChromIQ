@@ -415,7 +415,17 @@ def _derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         # the per-instrument "default size" reference) — then fills to that count
         # (Knut #93). Columns first, so rows-auto can use the resolved width.
         if rows > 0:
-            ph = max(_MIN_PATCH_MM, _rows_filling_fit(rows))
+            # THE INSTRUMENT'S OWN PATCHES IN EACH STRIP TAKE ROOM TOO. A
+            # DTP51 strip starts and ends with its max/min patches
+            # (`Geom.nextrap`, 2), which `geometry.compute` takes out of the
+            # strip before the chart's own patches (`tpprow = pprow -
+            # nextrap`). Filling the height with `rows` slots therefore laid
+            # out rows - 2 patches a strip, at 46 mm tall for 5 rows, and the
+            # "By columns / rows" warning fired on a patch that could simply
+            # have been made shorter (Knut, #182 6143186611: "I would expect
+            # that this message only would appear when ... only a couple of
+            # pixels can be painted"). 0 on every other instrument.
+            ph = max(_MIN_PATCH_MM, _rows_filling_fit(rows + int(geom.nextrap)))
         if cols > 0:
             pw = _fit_columns(base, w_mm, h_mm, cols, max_pw=avail_w,
                               memo=_memo)

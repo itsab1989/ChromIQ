@@ -41,6 +41,14 @@ _VIEW_HELP = (
     "look crowded in one part of the RGB cube and sparse in another.")
 
 
+def _view_help() -> str:
+    """The "Show:" choice's help: M-HELP-COLOUR-VIEW-SEAMS once approved
+    (Knut, #182 6144104040: the lines are seams on the skin, not its outline),
+    until then the text shipped in beta 2."""
+    from workflow.measurement_messages import M_HELP_COLOUR_VIEW_SEAMS as M
+    return M.render()[1] if M.approved else tr(_VIEW_HELP)
+
+
 class PatchCubeDialog(QDialog):
     """Modal-ish popup showing the patch set as a rotatable 3D RGB cube.
 
@@ -132,7 +140,7 @@ class PatchCubeDialog(QDialog):
             self._view_combo.addItem(tr("Ink amounts (RGB cube)"), "rgb")
             self._view_combo.addItem(
                 tr("Colours through the profile (L*a*b*)"), "lab")
-            self._view_combo.setToolTip(tr(_VIEW_HELP))
+            self._view_combo.setToolTip(_view_help())
             self._view_combo.currentIndexChanged.connect(self._on_view_changed)
             bar.addWidget(self._view_combo)
         bar.addStretch(1)

@@ -375,6 +375,96 @@ def effective_indicator_size_mm(geom, dpi: int, font: str, size_mm: float) -> fl
     return max(min(target, INDICATOR_MIN_LEGIBLE_MM), target * avail / widest2)
 
 
+@dataclass(frozen=True)
+class StripLabelCrowding:
+    """Two neighbouring strip labels that run into each other (Knut, #182
+    6144104040: with many strips, the double-letter labels "crash" at a fixed
+    12 pt; "Auto" fits them). ``gap_mm`` is the clear paper between the two
+    labels, ``letter_gap_mm`` the gap between the letters of one label: when
+    the first is not wider than the second, "AA AB" reads as "A AA B", or the
+    letters touch. ``size_pt`` the size the labels are drawn at,
+    ``fits_pt`` the largest size at which every pair is clear again (None
+    when even the smallest legible size is not), ``labels`` the pair."""
+    size_pt: float
+    gap_mm: float
+    letter_gap_mm: float
+    pitch_mm: float
+    labels: "tuple[str, str]"
+    fits_pt: "float | None"
+    explicit: bool
+
+
+def _label_gap_px(labels, pitch_px: float, f, spc: int):
+    """(smallest clear gap in px between two neighbouring labels, the pair)."""
+    probe = ImageDraw.Draw(Image.new("L", (4, 4)))
+    widths = []
+    for t in labels:
+        w = sum(probe.textlength(ch, font=f) for ch in t) + spc * (len(t) - 1)
+        widths.append(w)
+    best = None
+    for i in range(len(labels) - 1):
+        gap = pitch_px - (widths[i] + widths[i + 1]) / 2.0
+        if best is None or gap < best[0]:
+            best = (gap, (labels[i], labels[i + 1]))
+    return best
+
+
+def strip_label_crowding(geom, kw: dict) -> "StripLabelCrowding | None":
+    """Whether this chart's strip labels run into their neighbours, measured
+    with the font, size and letter spacing :func:`render_pages` draws them
+    with, on this chart's own labels and strip pitch (``Geom.rrsp``). None when
+    every pair keeps more clear paper between labels than between the letters
+    of one label, when the labels are off or turned on their side (then they
+    run along the strip and their width does not matter), or when the chart
+    has fewer than two strips."""
+    if not kw.get("draw_indicators", True):
+        return None
+    rot = int(kw.get("indicator_rotation") or 0) % 360
+    if rot in (90, 270):
+        return None
+    strips = _provisional_strip_count(geom, kw)
+    if strips < 2:
+        return None
+    dpi = int(kw.get("dpi") or 150)
+    mm2px = dpi / 25.4
+    fam = kw.get("indicator_font", DEFAULT_INDICATOR_FONT)
+    bold = bool(kw.get("indicator_bold"))
+    ital = bool(kw.get("indicator_italic"))
+    raw = float(kw.get("indicator_size_mm") or 0.0)
+    try:
+        label = permutation.make_labeller(
+            str(kw.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN))
+        labels = [label(n) for n in range(1, strips + 1)]
+    except Exception:            # noqa: BLE001 - a probe never blocks a build
+        return None
+    pitch_px = float(geom.rrsp) * mm2px
+
+    def at(size_mm: float):
+        ind_px = max(6, round(size_mm * mm2px))
+        spc = max(1, round(ind_px * INDICATOR_LETTER_SPACING))
+        gap, pair = _label_gap_px(labels, pitch_px, _font(ind_px, fam, bold, ital),
+                                  spc)
+        return gap, pair, spc
+
+    size_mm = effective_indicator_size_mm(geom, dpi, fam, raw)
+    gap, pair, spc = at(size_mm)
+    if gap > spc:
+        return None
+    fits = None
+    s = size_mm
+    while s > INDICATOR_MIN_LEGIBLE_MM:
+        s = max(INDICATOR_MIN_LEGIBLE_MM, round(s - 0.1, 2))
+        g2, _p, spc2 = at(s)
+        if g2 > spc2:
+            fits = s
+            break
+    return StripLabelCrowding(
+        size_pt=size_mm * 72.0 / 25.4, gap_mm=gap / mm2px,
+        letter_gap_mm=spc / mm2px, pitch_mm=float(geom.rrsp),
+        labels=pair, fits_pt=(fits * 72.0 / 25.4) if fits else None,
+        explicit=raw > 0)
+
+
 #: How many labels the ink probe below walks. The alphabetic labeller reaches
 #: "Z" at 26, which is the whole single-letter repertoire, and "Q" -- the only
 #: descender in it -- at 17. A numeric one reaches "26", whose glyphs are all
