@@ -1,5 +1,16 @@
 # Changelog
 
+## v4.3.5-beta.3 (unreleased)
+
+### Changed
+
+- **The patch cards' patch-error and neighbour-check lines are in plain words** (Measure tab, #182, Knut; approved by Knut and Basti). Each line first says what it means, then the numbers: "The 4 patches most similar to it are about ΔE*ab 1.63 off their expected colours. At ΔE*ab 8.07, this one stands out by ΔE*ab 6.44.", "You read this patch again, and the new reading agrees with an earlier one. So it is probably not a misread." Every number carries its unit (ΔE*ab or ΔE00), and the card says once, at the bottom, what the two are (ΔE00 = CIEDE2000, ΔE*ab = CIE76, both on L*a*b* D50). The difference between the expected and the measured colour has a section of its own after the two colours, in both formulas (ΔE*ab and the Measurement Report's ΔE00) and with what the expected colour is based on: the run profile's prediction, the prediction of the profile the chart was made with, or the chart's RGB values read as sRGB. All 13 translations.
+- **Six help cards explain how to print the chart, and why, in folded notes** (Help, #182, Knut; approved by Knut and Basti): "Build my first ICC profile", "Build a high-quality profile (2-pass)", "Improve an existing ICC profile", "Print an existing test chart", "Check a finished profile (verification run)" and "Profile my printer with a flatbed scanner". In plain words (what to do first, then why), with a note for PostScript printers in the words of the "Print like" row and one for printers whose driver works in CMYK. The notes are reached with Tab, open with Space, and VoiceOver says whether each is open. All 13 translations.
+
+### Fixed
+
+- **ChromIQ could hang for good, and had to be force quit, after you chose Verification as the run type or switched runs in a verification** (#182, Knut, 4.3.5 beta 2 on macOS 14). Beta 2 asks the profile about From Profile Gamut in the background as soon as a verification run with a profile is chosen. When the window started one of ArgyllCMS's tools while that background work was in the middle of a calculation, the start waited for ever on numpy's maths library (OpenBLAS), which keeps a pool of helper threads that cannot be paused safely at that moment. ChromIQ now runs that library on one thread, set before it loads, which removes the wait everywhere in the app, not only here; the profile build and From Profile Gamut take as long as before (measured: 64.6 s and 2.4 s both ways). Reproduced first: a background calculation and a loop of tool starts hung 10 runs in 10 before the change and 0 in 30 after; driving the window as Knut did (Profiling, Verification, switching runs, over and over) hung 3 runs in 3 within 90 turns before, and not once in 300 turns after.
+
 ## v4.3.5-beta.2
 
 ### Changed
@@ -29,9 +40,7 @@
 
 ### Waiting for approval (not shown yet)
 
-- **Six help cards would explain how to print the chart, and why, in folded notes** (Help, #182, Knut): "Build my first ICC profile", "Build a high-quality profile (2-pass)", "Improve an existing ICC profile", "Print an existing test chart", "Check a finished profile (verification run)" and "Profile my printer with a flatbed scanner". Rewritten in plain words (what to do first, then why), checked against the code (the macOS print dialog is the default on a Mac; it refuses every chart that is not RGB), with a note for PostScript printers in the words of the "Print like" row and one for printers whose driver works in CMYK. They wait for Basti's approval; until then the cards read as in beta 1. Meanwhile "How the sheet reaches the printer" on the "Print an existing test chart" card no longer says the chart goes as raw PostScript, which was untrue for a Canon or an Epson. The notes are reached with Tab, open with Space, and VoiceOver says whether each is open. All 13 translations.
 - **The help of the "Print like" row and the line under it would say that the choice is the project's** (Print Chart tab): that the way chosen at the project's first print to a PostScript printer is kept for its calibration, its runs and their verification charts, and that a choice made on the row is this run's own and leaves the project's as it is. Until approved the approved texts stay.
-- **The patch cards' patch-error and neighbour-check lines, in plain words** (Measure tab, #182, Knut). Each line would first say what it means, then the numbers: "The 4 patches most similar to it are only about ΔE*ab 1.63 off their expected colours. At ΔE*ab 8.07, this one stands out by ΔE*ab 6.44.", "You read this patch again, and the new reading agrees with an earlier one. So it is probably not a misread." Every number carries its unit (ΔE*ab or ΔE00), and the card says once, at the bottom, what the two are (ΔE00 = CIEDE2000, ΔE*ab = CIE76, both on L*a*b* D50). The difference between the expected and the measured colour gets a section of its own after the two colours, in both formulas (ΔE*ab and the Measurement Report's ΔE00) and with what the expected colour is based on: the run profile's prediction, the prediction of the profile the chart was made with, or the chart's RGB values read as sRGB. Until the words are approved the cards read as before.
 
 ## v4.3.5-beta.1
 
