@@ -294,8 +294,9 @@ def test_a_cmyk_raster_printer_is_told_after_the_job_once_per_run(
     tab = _tab(s, ctl)
     tab._start_read_back = lambda rb: None
     told = []
-    monkeypatch.setattr(mac.QMessageBox, "information",
-                        lambda parent, t, b: told.append((t, b)))
+    # ChromIQ's own sign (ui.warning_sign.inform), not QMessageBox.information
+    monkeypatch.setattr(mac, "inform",
+                        lambda parent, t, b, *a, **k: told.append((t, b)))
     _cmyk_job(monkeypatch)
     tab._print_native([(tmp_path / "p.tif", 0)])
     tab._print_native([(tmp_path / "p.tif", 0)])
@@ -312,8 +313,9 @@ def test_any_other_job_gets_no_cmyk_window(qapp, tmp_path, mac, monkeypatch):
     tab = _tab(s, ctl)
     tab._start_read_back = lambda rb: None
     told = []
-    monkeypatch.setattr(mac.QMessageBox, "information",
-                        lambda parent, t, b: told.append((t, b)))
+    # ChromIQ's own sign (ui.warning_sign.inform), not QMessageBox.information
+    monkeypatch.setattr(mac, "inform",
+                        lambda parent, t, b, *a, **k: told.append((t, b)))
     _cmyk_job(monkeypatch, cmyk=None)
     tab._print_native([(tmp_path / "p.tif", 0)])
     assert told == []

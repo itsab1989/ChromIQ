@@ -91,7 +91,7 @@ log = get_logger(__name__)
 from ui.styles import SPEC_AMBER, TAB_COLORS
 from core.i18n import count_phrase, tr
 from core.platform_paths import default_output_root
-from ui.warning_sign import inform, set_warning_icon, warn
+from ui.warning_sign import inform, set_question_icon, set_warning_icon, warn
 
 #: beta 16: the quality options whose rows follow the driver's own tables
 #: (``ppd_color.quality_choices``) and carry M-PRINT-QUALITY
@@ -1320,7 +1320,7 @@ class TabPrint(QWidget):
         label, lines = MM.M_PRINT_PS_FORM_CHOICE.render()
         lines = lines.split("\n")
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Question)
+        set_question_icon(box)    # ChromIQ's sign, not the platform's
         box.setWindowTitle(title)
         box.setText(title)
         box.setInformativeText(body)
@@ -1379,8 +1379,7 @@ class TabPrint(QWidget):
             if printer in told:
                 return
             told.add(printer)
-        QMessageBox.information(self, *MM.M_PRINT_CMYK_RASTER_ROUTE.render(
-            printer=printer or ""))
+        inform(self, *MM.M_PRINT_CMYK_RASTER_ROUTE.render(printer=printer or ""))
         if meta is not None:
             try:
                 stored = dict(getattr(meta, "print_settings", None) or {})
