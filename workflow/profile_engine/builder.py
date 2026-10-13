@@ -169,7 +169,12 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a58-purecolprof", "a58-keep-black", "a58-keep-floor",
      "a58-keep-ourclip", "a58-keep-rgbcol", "a58-keep-refit",
      "a58-keep-a44", "a58-keep-a42", "a58-keep-a40", "a58-keep-grid33",
-     "a58-keep-grid33in"})
+     "a58-keep-grid33in",
+     # Agent 59 (ET rel. col.): on top of a58 + keep-grid33in, a wider
+     # hand-over band, the coarse clipped table from the per-node inversion,
+     # and a longer ease into the deep black; research, opt-in
+     "a59-wideband", "a59-pernodeout", "a59-pernodefine", "a59-blackease",
+     "a59-inband"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1688,6 +1693,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         dev_clut_shaped = np.minimum(dev_clut_shaped, top)
     # The B2A half of the white pin (see _pin_media_white for the A2B half),
     # and the black corner: L*=0 → the chart's deepest measured black.
+    # Agent 59 (a59-pernodeout): the coarse (clipped) half of keep-grid33in
+    # taken from the per-node inversion, as colprof writes it (no refit),
+    # with the same pins and curve space as the table itself
+    _a59_pn = None
+    if (_a58 and _a58k("grid33in") and not _a58k("grid33")
+            and ("a59-pernodeout" in candidates
+                 or "a59-pernodefine" in candidates)):
+        _a59_pn = np.clip(model.shape_device(dev_clut), 0.0, 1.0)
+        _a59_pn = b2a_mod.pin_white_node(_a59_pn, node_lab,
+                                         meas.is_additive)
     dev_clut_shaped = b2a_mod.pin_white_node(dev_clut_shaped, node_lab,
                                              meas.is_additive)
     if meas.is_additive:
@@ -1707,9 +1722,28 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         dev_clut_shaped = b2a_mod.pin_black_node(
             dev_clut_shaped, node_lab,
             model.shape_device(device_black[None, :])[0])
+        if _a59_pn is not None:
+            _a59_pn = b2a_mod.pin_black_node(
+                _a59_pn, node_lab,
+                model.shape_device(device_black[None, :])[0])
+        if _a58 and "a59-blackease" in candidates:
+            # Agent 59 (a59-blackease): the deep-black pin eased in over a
+            # longer stretch: clipped near-neutral nodes darker than the
+            # printer black + CHROMIQ_A59_EASE L* lean toward the pinned
+            # black, smoothly in L* and chroma
+            _bk = model.shape_device(device_black[None, :])[0]
+            _bl0 = float(model.predict(np.zeros((1, n)))[0, 0])
+            dev_clut_shaped = _a58m.a59_blackease(
+                dev_clut_shaped, node_lab, residual, _bk, _bl0)
+            if _a59_pn is not None:
+                _a59_pn = _a58m.a59_blackease(
+                    _a59_pn, node_lab, residual, _bk, _bl0)
     if rgb_col is not None and len(rgb_col):
         dev_clut_shaped = b2a_mod.pin_nodes(
             dev_clut_shaped, rgb_col, model.shape_device(rgb_col_val))
+        if _a59_pn is not None:
+            _a59_pn = b2a_mod.pin_nodes(
+                _a59_pn, rgb_col, model.shape_device(rgb_col_val))
     in_gamut = residual <= 1.0
 
     _emit(settings, "Writing the profile…")
@@ -1740,6 +1774,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # every ink interval at least half the identity's share.
             dev_clut_shaped = b2a_mod.reexpress(dev_clut_shaped,
                                                 model.curves, _space)
+            if _a59_pn is not None:
+                _a59_pn = b2a_mod.reexpress(_a59_pn, model.curves, _space)
             inv = b2a_mod.inverse_curves(_space)
         b2a_col = icw.make_mft2(
             3, n, b2a_grid, icw.device_to_u16(dev_clut_shaped),
@@ -1754,7 +1790,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # k-th fine node (lab_grid_axes is a linspace), so the per-node
             # inversions are the same values, sub-sampled.
             _st = (b2a_grid - 1) // (_g0 - 1)
-            _sub = dev_clut_shaped.reshape(b2a_grid, b2a_grid, b2a_grid, n)[
+            _sub = (dev_clut_shaped if (_a59_pn is None or "a59-pernodeout"
+                                        not in candidates)
+                    else _a59_pn).reshape(
+                b2a_grid, b2a_grid, b2a_grid, n)[
                 ::_st, ::_st, ::_st].reshape(-1, n)
             if _a58k("grid33in"):
                 # Agent 58 addition: the engine's fine grid where the node
@@ -1763,7 +1802,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 # over A58_IN_BAND dE of clip distance
                 b2a_col = icw.make_mft2(
                     3, n, b2a_grid, icw.device_to_u16(_a58m.coarse_outside(
-                        dev_clut_shaped, _sub, residual, b2a_grid, _g0)),
+                        _a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
+                                       candidates),
+                        _sub, residual, b2a_grid, _g0,
+                        band=_a58m.a59_band(candidates),
+                        inside=_a58m.a59_inside(candidates))),
                     in_tables=b2a_in,
                     out_tables=icw.curves_to_tables(inv, entries_b2a))
             else:

@@ -58,6 +58,70 @@ KEEP_STEPS = ("black", "floor", "ourclip", "rgbcol", "refit", "a44", "a42",
 # keep-grid33in: in-gamut nodes keep the fine grid, clipped ones take the
 # coarse (colprof) table, handed over over this many dE of clip distance
 A58_IN_BAND = 2.0
+# Agent 59 (a59-wideband): the hand-over band in dE of clip distance;
+# CHROMIQ_A59_BAND overrides it for research sweeps
+A59_BAND = 6.0
+
+
+def a59_band(candidates):
+    """The keep-grid33in hand-over band: A58_IN_BAND, or with a59-wideband
+    A59_BAND (env CHROMIQ_A59_BAND for sweeps)."""
+    if "a59-wideband" not in frozenset(candidates or ()):
+        return None
+    import os
+    return float(os.environ.get("CHROMIQ_A59_BAND", A59_BAND))
+
+
+def a59_fine(fine, pernode, residual, candidates):
+    """a59-pernodefine: the fine table's CLIPPED nodes take the per-node
+    inversion instead of the smoothing refit (as colprof writes them); the
+    refit keeps the printable nodes. Handed over from 0.5 to 1.5 dE of clip
+    distance (a converged in-gamut node stays under 0.5)."""
+    if pernode is None or "a59-pernodefine" not in frozenset(candidates or ()):
+        return fine
+    u = np.clip((np.asarray(residual, float) - 0.5) / 1.0, 0.0, 1.0)
+    v = (u * u * (3.0 - 2.0 * u))[:, None]
+    return (1.0 - v) * fine + v * pernode
+
+
+A59_EASE = 6.0
+A59_EASE_C = 12.0
+
+
+def a59_blackease(dev, node_lab, residual, black_dev, black_l):
+    """a59-blackease: weight s = smoothstep(1 - L*/(black_l + ease)) x
+    smoothstep(1 - C*/A59_EASE_C) x (clipped: residual 0.5 -> 1.5 dE),
+    out = (1 - s) dev + s black_dev. The L* 0 corner (s = 1) stays the pin;
+    printable nodes are untouched."""
+    import os
+    ease = float(os.environ.get("CHROMIQ_A59_EASE", A59_EASE))
+    top = max(float(black_l) + ease, 1e-6)
+    lab = np.asarray(node_lab, float)
+    c = np.hypot(lab[:, 1], lab[:, 2])
+
+    def sm(u):
+        u = np.clip(u, 0.0, 1.0)
+        return u * u * (3.0 - 2.0 * u)
+    s = (sm(1.0 - lab[:, 0] / top) * sm(1.0 - c / A59_EASE_C)
+         * sm(np.asarray(residual, float) - 0.5))
+    return (1.0 - s[:, None]) * dev + s[:, None] * np.asarray(black_dev,
+                                                             float)[None, :]
+
+
+A59_IN_DEPTH = 10.0
+A59_IN_STRENGTH = 1.0
+
+
+def a59_inside(candidates):
+    """a59-inband: (depth dE, strength) of the inward hand-over, or None
+    (env CHROMIQ_A59_IN / CHROMIQ_A59_INS for sweeps)."""
+    if "a59-inband" not in frozenset(candidates or ()):
+        return None
+    import os
+    return (float(os.environ.get("CHROMIQ_A59_IN", A59_IN_DEPTH)),
+            float(os.environ.get("CHROMIQ_A59_INS", A59_IN_STRENGTH)))
+
+
 KEEP_TOKENS = tuple(f"a58-keep-{s}" for s in KEEP_STEPS)
 
 # Argyll's clip constants (xicc/xlut.c:104-111)
@@ -261,7 +325,8 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray,
 
 def coarse_outside(fine: np.ndarray, coarse: np.ndarray, residual: np.ndarray,
                    g_fine: int, g_coarse: int,
-                   band: float | None = None) -> np.ndarray:
+                   band: float | None = None,
+                   inside: tuple | None = None) -> np.ndarray:
     """Agent 58, keep-grid33in: the fine-grid table where the node is in
     gamut and the coarse grid (trilinear, exact at the shared nodes) where it
     clipped: w = smoothstep(residual / band), out = (1 - w) fine + w coarse."""
@@ -281,5 +346,42 @@ def coarse_outside(fine: np.ndarray, coarse: np.ndarray, residual: np.ndarray,
                 up += wa * wb * wd * c[np.ix_(i0 + a, i0 + b, i0 + d)]
     up = up.reshape(-1, n)
     u = np.clip(np.asarray(residual, float) / max(band, 1e-9), 0.0, 1.0)
-    w = (u * u * (3.0 - 2.0 * u))[:, None]
+    w = u * u * (3.0 - 2.0 * u)
+    if inside is not None:
+        # Agent 59 (a59-inband): printable nodes within ``depth`` dE of a
+        # clipped node lean toward the coarse table too, so the clip's bend
+        # starts a little inside the gamut, as colprof's coarse grid does
+        depth, strength = inside
+        d = depth_inside(np.asarray(residual, float), g_fine, depth)
+        v = np.clip(1.0 - d / max(depth, 1e-9), 0.0, 1.0)
+        # printable nodes only: the clipped ones keep the outward band
+        v = np.where(np.asarray(residual, float) <= 1.0, v, 0.0)
+        w = np.maximum(w, strength * v * v * (3.0 - 2.0 * v))
+    w = w[:, None]
     return (1.0 - w) * fine + w * up
+
+
+def depth_inside(residual: np.ndarray, g: int, depth: float,
+                 clipped_at: float = 1.0) -> np.ndarray:
+    """Lab distance (dE76, node centres on the B2A grid) from each node to
+    the nearest clipped node (residual > clipped_at), searched up to
+    ``depth``; inf where none is that close. Clipped nodes get 0."""
+    from workflow.profile_engine.icc_writer import lab_grid_axes
+    la, ab = lab_grid_axes(g)
+    sl, sab = float(la[1] - la[0]), float(ab[1] - ab[0])
+    cl = (residual > clipped_at).reshape(g, g, g)
+    best = np.where(cl, 0.0, np.inf)
+    rl, rab = int(np.ceil(depth / sl)), int(np.ceil(depth / sab))
+    for i in range(-rl, rl + 1):
+        for j in range(-rab, rab + 1):
+            for k in range(-rab, rab + 1):
+                dist = np.sqrt((i * sl) ** 2 + (j * sab) ** 2 + (k * sab) ** 2)
+                if dist == 0 or dist > depth:
+                    continue
+                sh = np.zeros_like(cl)
+                src = cl[max(i, 0):g + min(i, 0), max(j, 0):g + min(j, 0),
+                         max(k, 0):g + min(k, 0)]
+                sh[max(-i, 0):g + min(-i, 0), max(-j, 0):g + min(-j, 0),
+                   max(-k, 0):g + min(-k, 0)] = src
+                best = np.where(sh & (dist < best), dist, best)
+    return best.reshape(-1)
