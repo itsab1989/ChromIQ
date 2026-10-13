@@ -63,7 +63,7 @@ except ImportError:
 
 HANG_S = 90
 PAUSE_MS = args.pause_ms
-hang_file = open(OUT / "hang-stacks.txt", "w")      # noqa: SIM115 - kept open
+hang_file = open(OUT / "hang-stacks.txt", "w", encoding="utf-8")  # noqa: SIM115
 
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox  # noqa: E402
 

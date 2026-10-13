@@ -155,11 +155,16 @@ def test_a_misread_below_the_limit_is_red_with_its_own_card(qapp, tmp_path):
     # neighbour limit is compared with, and the neighbour limit
     f = tab._nb_check.finding("D6")
     assert f.further > 10.0
-    assert M._CARD_NB_RED_S.format(d=f"{f.further:.2f}", n=f.compared and
-                                   len(f.compared), limit="10.00") in text
+    # 4.3.5 beta 3: the card speaks in M-PATCH-CARD-PLAIN's words (Knut and
+    # Basti, 2026-10-13); every figure carries its unit.
+    text = " ".join(text.split())
+    assert M._CARDP_NB_RED.format(d=f"ΔE*ab {f.further:.2f}",
+                                  limit="ΔE*ab 10.00",
+                                  kind=M._CARD_KIND_ESTIMATED) in text
     assert M._CARD_NB_MISREAD_S in text
     assert "buffer" not in text.lower() and "other strips" not in text
-    assert text.endswith(M._CARD_LATER_STRIP_S + " " + M._CARD_SEE_PREFS_S)
+    assert text.endswith(" ".join([M._CARD_LATER_STRIP_S, *M._CARDP_UNITS,
+                                   M._CARD_SEE_PREFS_S]))
 
 
 def test_a_clean_chart_has_no_neighbour_outline(qapp, tmp_path):
@@ -342,7 +347,8 @@ def test_the_card_follows_its_comparisons_after_later_strips(qapp, tmp_path):
 def test_the_card_shows_the_users_neighbour_limit(qapp, tmp_path):
     tab = _tab(tmp_path, settings={"patch_neighbour_limit_estimated": 7.5})
     _read_all(tab, {"D6": 0.55})
-    assert "passing the neighbour limit (7.50)." in _text(_card(_info(tab, "D6")))
+    assert "more than the neighbour limit of ΔE*ab 7.50 for" in " ".join(
+        _text(_card(_info(tab, "D6"))).split())
 
 
 def test_nothing_checked_is_not_called_no_misreads(qapp, tmp_path):
@@ -457,17 +463,21 @@ def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
     assert info["warn"] and info["neighbour"] and info["reread_only"]
     assert _flags(tab)["D6"] is pf.FLAG_RED
     lines = _card(info)
-    text = _text(lines)
-    assert "Red outline: a large difference" in lines
-    assert M._CARD_LIMIT_S.format(
-        de=f"{info['de']:.2f}", limit="15.00",
+    text = " ".join(_text(lines).split())
+    # 4.3.5 beta 3: the card speaks in M-PATCH-CARD-PLAIN's words (Knut and
+    # Basti, 2026-10-13); every figure carries its unit.
+    assert M._CARDP_LIMIT_HEAD in lines
+    assert M._CARDP_LIMIT.format(
+        de=f"ΔE*ab {info['de']:.2f}", limit="ΔE*ab 15.00",
         kind=M._CARD_KIND_ESTIMATED) in text
     nb = info["neighbour"]
-    also = M._CARD_NB_ALSO_S.format(d=f"{nb['further']:.2f}", n=nb["n"],
-                                    limit=f"{nb['limit']:.2f}")
+    also = M._CARDP_NB_ALSO.format(d=f"ΔE*ab {nb['further']:.2f}",
+                                   limit=f"ΔE*ab {nb['limit']:.2f}",
+                                   kind=M._CARD_KIND_ESTIMATED)
     assert also in text
     assert text.index(also) < text.index(M._CARD_NB_REREAD_1)
     assert M._CARD_RANGE_RED_LEARNED_1 not in lines
-    assert text.endswith(M._CARD_LATER_STRIP_S + " " + M._CARD_SEE_PREFS_S)
+    assert " ".join(text.split()).endswith(" ".join(
+        [M._CARD_LATER_STRIP_S, *M._CARDP_UNITS, M._CARD_SEE_PREFS_S]))
     tab._on_strip_measured(_strip("D", {"D6": 0.55}))
     assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED

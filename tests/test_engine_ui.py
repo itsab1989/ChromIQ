@@ -448,13 +448,20 @@ def test_patch_info_tile_builds_rows_per_mode():
         texts = [t for _s, t in rows]
         return texts[:texts.index("")]
 
+    # M-PATCH-CARD-PLAIN (approved 2026-10-13, shown since 4.3.5 beta 3):
+    # the difference is a section of its own after the colours and is shown
+    # in every view mode; the view mode chooses which colour is listed.
     tile.set_content(info, "expected")
     texts = " | ".join(t for _s, t in tile._rows)
-    assert len(body(tile._rows)) == 4      # header + 3 (expected only)
-    assert "2.34" not in texts             # ΔE needs both colours on screen
+    rows = body(tile._rows)
+    assert rows[1].startswith("Expected") and "Measured" not in rows
+    assert "ΔE*ab 2.34" in texts
 
     tile.set_content(info, "measured")
-    assert len(body(tile._rows)) == 4
+    rows = body(tile._rows)
+    assert rows[1].startswith("Measured") and not any(
+        str(t).startswith("Expected") for t in rows)
+    assert "ΔE*ab 2.34" in " | ".join(t for _s, t in tile._rows)
 
 
 def test_patch_info_accumulates_and_replaces_like_overlay():

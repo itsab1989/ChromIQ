@@ -106,9 +106,11 @@ def test_the_patch_error_limit_on_the_limit_is_not_red(qapp, tmp_path, de,
     info = _info(tab, "A1")
     assert bool(info["warn"]) is red
     if red:
-        text = _text(_card(info))
+        text = " ".join(_text(_card(info)).split())
         shown = f"{de:.2f}"
-        assert f"ΔE*ab {shown} reached the patch error limit (5.00," in text
+        # 4.3.5 beta 3: M-PATCH-CARD-PLAIN's words (Knut and Basti, 2026-10-13)
+        assert (f"This patch is ΔE*ab {shown} off its expected colour. That "
+                f"is more than the patch error limit of ΔE*ab 5.00 for") in text
         assert float(shown) > 5.0
 
 

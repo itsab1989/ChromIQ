@@ -257,28 +257,39 @@ def _info(**kw):
     return base
 
 
+def _flat(lines) -> str:
+    """The card's text with its own line breaks undone (it wraps sentences)."""
+    return " ".join(" ".join(t for t in lines if t).split())
+
+
+# Since 4.3.5 beta 3 the card speaks in M-PATCH-CARD-PLAIN's words (approved
+# by Knut and Basti, 2026-10-13); the headline and the closing lines of
+# M-PATCH-UNSETTLED stay.
+
 def test_the_card_of_a_and_c_says_the_readings_disagree(qapp):
     lines = _card_lines(qapp, _info(unsettled=[120.3]))
+    t = _flat(lines)
     assert M._CARD_UNSETTLED_HEAD in lines
-    assert M._CARD_UNSETTLED_DE.format(de="150.40", prevs="120.30") in lines
-    assert M._CARD_UNSETTLED_TWO_1 in lines
-    assert M._CARD_UNSETTLED_TWO_2.format(limit="95.00") in lines
+    assert ("It is ΔE*ab 150.40 off its expected colour now. An earlier "
+            "reading was ΔE*ab 120.30 off.") in t
+    assert ("This reading and an earlier one are both further off than the "
+            "patch error limit of ΔE*ab 95.00") in t
     assert M._CARD_UNSETTLED_3 in lines and M._CARD_UNSETTLED_4 in lines
-    # Not the plain red card's "a large difference".
-    assert "Red outline: a large difference" not in lines
+    # Not the plain red card's headline.
+    assert M._CARDP_LIMIT_HEAD not in lines
 
 
 def test_the_card_after_three_disagreeing_readings(qapp):
-    lines = _card_lines(qapp, _info(unsettled=[120.3, 200.0]))
-    assert M._CARD_UNSETTLED_MANY_1.format(n=3) in lines
-    assert M._CARD_UNSETTLED_MANY_2.format(limit="95.00") in lines
-    assert M._CARD_UNSETTLED_DE.format(de="150.40",
-                                       prevs="120.30, 200.00") in lines
+    t = _flat(_card_lines(qapp, _info(unsettled=[120.3, 200.0])))
+    assert ("3 readings of this patch are further off than the patch error "
+            "limit of ΔE*ab 95.00") in t
+    assert ("It is ΔE*ab 150.40 off its expected colour now. Earlier "
+            "readings were ΔE*ab 120.30, ΔE*ab 200.00 off.") in t
 
 
 def test_a_plain_red_card_is_unchanged(qapp):
     lines = _card_lines(qapp, _info(unsettled=[]))
-    assert "Red outline: a large difference" in lines
+    assert M._CARDP_LIMIT_HEAD in lines
     assert M._CARD_UNSETTLED_HEAD not in lines
 
 

@@ -276,8 +276,9 @@ def test_the_card_names_the_limit_it_used(qapp, tmp_path):
     tab._on_strip_measured(_strip("A"))
     # beta 17: the patch error limit by its name, value and chart type (the
     # k56 card Knut approved in 6084176226)
-    text = " ".join(_card(qapp, _info(tab, "A17")))
-    assert "reached the patch error limit" in text
+    text = " ".join(" ".join(_card(qapp, _info(tab, "A17"))).split())
+    # 4.3.5 beta 3: in M-PATCH-CARD-PLAIN's words (Knut and Basti, 2026-10-13)
+    assert "more than the patch error limit of ΔE*ab" in text
     assert "profiling charts made with a pre-conditioning profile" in text
     # Its own folder inside tmp_path, never tmp_path / "..": that is the
     # worker's shared basetemp, which later tests' files sit one level under.
@@ -353,7 +354,7 @@ def test_reading_a_red_strip_again_turns_it_yellow(qapp, tmp_path):
     tail = rows[i + 1:]
     assert tail[0] == "Yellow outline: confirmed by a re-read"
     assert "paper cannot reach, not a misread." in tail
-    assert "Red outline: a large difference" not in rows
+    assert "Red outline: too far off its expected colour" not in rows
 
 
 def test_a_re_read_that_differs_stays_red(tmp_path):

@@ -173,10 +173,14 @@ def test_the_limit_card_and_the_outline_always_agree(qapp, tmp_path, limit):
                 assert red is (float(f"{de:.2f}") > float(f"{limit:.2f}")), \
                     (loc, de)
                 if red:
-                    text = _text(_card(info))
-                    shown = (f"ΔE*ab {de:.2f} reached the patch error limit "
-                             f"({limit:.2f},")
-                    assert shown in text, (de, text)
+                    text = " ".join(_text(_card(info)).split())
+                    # 4.3.5 beta 3: M-PATCH-CARD-PLAIN's words, on a red
+                    # card or a yellow one confirmed by similar patches
+                    # ("Without that confirmation it would be red: ...")
+                    for shown in (f"ΔE*ab {de:.2f} off its expected colour",
+                                  f"patch error limit of ΔE*ab {limit:.2f} "
+                                  f"for"):
+                        assert shown in text, (de, shown)
 
 
 def test_the_neighbour_card_and_the_outline_always_agree():

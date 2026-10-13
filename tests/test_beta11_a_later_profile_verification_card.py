@@ -77,8 +77,8 @@ def test_the_red_card_says_knuts_sentence(qapp):
     assert mm._CARD_RED_READ_AGAIN not in text.split("\n")
     # Judged at the limit for estimated colours, and named so (beta 17: the
     # patch error limit with its chart type).
-    assert "(95.00, profiling charts with estimated colours)." in \
-        " ".join(text.split())
+    assert ("patch error limit of ΔE*ab 95.00 for profiling charts with "
+            "estimated colours.") in " ".join(text.split())
 
 
 @pytest.mark.parametrize("case", ["re-read", "similar"])

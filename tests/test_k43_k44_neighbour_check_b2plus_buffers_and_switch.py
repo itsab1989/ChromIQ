@@ -54,8 +54,9 @@ def test_the_card_ends_with_the_approved_lines(qapp, tmp_path):
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55})
     lines = _card(_info(tab, "D6"))
-    assert _text(lines).endswith(M._CARD_LATER_STRIP_S + " "
-                                 + M._CARD_SEE_PREFS_S)
+    # 4.3.5 beta 3 (M-PATCH-CARD-PLAIN): the units stand between the two
+    assert " ".join(_text(lines).split()).endswith(" ".join(
+        [M._CARD_LATER_STRIP_S, *M._CARDP_UNITS, M._CARD_SEE_PREFS_S]))
     # each its own topic, after an empty line (Knut 6071004702)
     from ui.tiff_preview import card_wrap
     later = card_wrap(M._CARD_LATER_STRIP_S)

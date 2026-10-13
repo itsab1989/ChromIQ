@@ -406,9 +406,10 @@ def test_the_footer_keeps_its_centre_line(qapp, tmp_path):
     qapp.processEvents()
     dlg._on_card_clicked("first_profile")
     qapp.processEvents()
-    support = next(b for b in dlg.findChildren(QPushButton)
-                   if "ChromIQ" in b.text() and b.isVisible()
-                   and b is not dlg._close_btn)
+    # the footer's own Support link: since 4.3.5 beta 3 the card's print
+    # notes are buttons too, and one of them is "What ChromIQ does for ..."
+    support = dlg._support_btn
+    assert support.isVisible() and "ChromIQ" in support.text()
     centre = support.mapTo(dlg, support.rect().center()).x()
     dlg.close()
     qapp.processEvents()

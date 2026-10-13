@@ -132,7 +132,10 @@ def test_no_language_prints_a_sheet_carrying_only_the_colophon(lang):
 #: spills real content onto the last page. The first version of this control
 #: asked German and failed, which is the control working: a mutation has to be
 #: proven to land in the language you assert it in.
-_MUTATION_LANDS_IN = ("en", "nl")
+#: Re-measured 2026-10-13 (4.3.5 beta 3, the help cards' print notes shown):
+#: en 2, es 3, de 1, it 1, ja 1, no 1, pt 1, sv 1, uk 1; nl, fr, pl, ru and
+#: zh_CN none, because the notes moved where their cards break. nl -> es.
+_MUTATION_LANDS_IN = ("en", "es")
 
 
 @MEASURED_WITH_CORETEXT

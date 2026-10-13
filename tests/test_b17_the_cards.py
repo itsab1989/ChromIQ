@@ -11,6 +11,10 @@
 * EVERY card ends with "Checked again after each strip is read: ..." (patch
   by patch: "... after each patch is read") and then "See Preferences ▸
   Measurement for threshold values.", an empty line between topics.
+
+Since 4.3.5 beta 3 the card shows M-PATCH-CARD-PLAIN, approved by Knut and
+Basti on 2026-10-13, in place of the beta-17 lines; the tests below assert
+those words, and the units stand between the two closing topics.
 """
 from __future__ import annotations
 
@@ -36,20 +40,29 @@ def _text(rows):
     return " ".join(r for r in rows if r)
 
 
+# "nb_detail" as the Measure tab gives it (n, figure, own, median): since
+# 4.3.5 beta 3 the card speaks in M-PATCH-CARD-PLAIN's words, approved by
+# Knut and Basti on 2026-10-13, which name the own and the median figure.
 CASES = {
-    "quiet": {"nb_compare": lambda loc: (4, -1.2)},
-    "quiet_equal": {"nb_compare": lambda loc: (3, 0.004)},
-    "few": {"nb_compare": lambda loc: (1, 0.0)},
+    "quiet": {"nb_compare": lambda loc: (4, -1.2),
+              "nb_detail": lambda loc: (4, -1.2, 20.8, 22.0)},
+    "quiet_equal": {"nb_compare": lambda loc: (3, 0.004),
+                    "nb_detail": lambda loc: (3, 0.004, 20.8, 20.8)},
+    "few": {"nb_compare": lambda loc: (1, 0.0),
+            "nb_detail": lambda loc: (1, 0.0, 20.8, 0.0)},
     "red_neighbour": {"nb_compare": lambda loc: (4, 13.2),
+                      "nb_detail": lambda loc: (4, 13.2, 20.8, 7.6),
                       "neighbour": {"n": 4, "further": 13.2, "limit": 10.0}},
     "red_limit": {"warn": True, "fenced": True, "warn_de": 20.0,
                   "kind": "accurate", "accurate": True, "de": 23.41},
     "red_both": {"warn": True, "warn_de": 15.0,
                  "nb_compare": lambda loc: (4, 13.2),
+                 "nb_detail": lambda loc: (4, 13.2, 20.8, 7.6),
                  "neighbour": {"n": 4, "further": 13.2, "limit": 10.0}},
     "yellow": {"flag": "confirmed", "prev_de": 13.9, "de": 13.4,
                "neighbour": {"n": 4, "further": 11.4, "limit": 10.0},
-               "nb_compare": lambda loc: (4, 11.4)},
+               "nb_compare": lambda loc: (4, 11.4),
+               "nb_detail": lambda loc: (4, 11.4, 13.4, 2.0)},
     "green": {"flag": "corrected", "prev_de": 58.0,
               "corrected_by": "neighbour"},
     "unsettled": {"warn": True, "unsettled": [40.0]},
@@ -66,38 +79,48 @@ def test_every_card_ends_with_the_two_approved_topics(qapp, case, pbp):
     rows, _t = _rows({**CASES[case], "pbp": pbp},
                      "expected" if case == "no_split" else "both")
     later = M._CARD_LATER_PATCH_S if pbp else M._CARD_LATER_STRIP_S
-    assert _text(rows).endswith(later + " " + M._CARD_SEE_PREFS_S), case
+    # since 4.3.5 beta 3 (M-PATCH-CARD-PLAIN): the units, once per card,
+    # between the two topics, each block set apart by an empty line
+    units = list(M._CARDP_UNITS)
+    assert _text(rows).endswith(" ".join([later, *units,
+                                          M._CARD_SEE_PREFS_S])), case
     from ui.tiff_preview import card_wrap
     a = card_wrap(later)
-    i = len(rows) - len(card_wrap(M._CARD_SEE_PREFS_S)) - 1 - len(a)
+    i = (len(rows) - len(card_wrap(M._CARD_SEE_PREFS_S)) - 1 - len(units)
+         - 1 - len(a))
     assert rows[i - 1] == "" and rows[i:i + len(a)] == a
-    assert rows[i + len(a)] == ""
+    assert rows[i + len(a)] == "" and rows[i + len(a) + 1:i + len(a) + 3] == units
     t = _text(rows).lower()
     assert "buffer" not in t and "other strips:" not in t
     assert "your limit" not in t and "flag a patch" not in t
 
 
 def test_the_comparison_sentences(qapp):
-    t = _text(_rows(CASES["red_neighbour"])[0])
-    assert ("This patch is ΔE 13.20 further from its expected colour than "
-            "the 4 patches nearest in colour (median).") in t
-    t = _text(_rows(CASES["quiet"])[0])
-    assert ("This patch is ΔE 1.20 closer to its expected colour than the 4 "
-            "patches nearest in colour (median).") in t
-    t = _text(_rows(CASES["quiet_equal"])[0])
-    assert ("This patch has equal distance from its expected colour as the 3 "
-            "patches nearest in colour (median).") in t
-    assert "ΔE 0.0" not in t
-    t = _text(_rows(CASES["few"])[0])
-    assert M._CARD_NBC_FEW_S in t and "This patch" not in t
+    t = " ".join(_text(_rows(CASES["red_neighbour"])[0]).split())
+    assert ("The 4 patches most similar to it are about ΔE*ab 7.60 off their "
+            "expected colours. At ΔE*ab 20.80, this one stands out by "
+            "ΔE*ab 13.20. (Neighbour check, median of the 4.)") in t
+    t = " ".join(_text(_rows(CASES["quiet"])[0]).split())
+    assert ("The 4 patches most similar to it are about ΔE*ab 22.00 off "
+            "their expected colours. At ΔE*ab 20.80, this one is ΔE*ab 1.20 "
+            "closer to its expected colour than they are.") in t
+    t = " ".join(_text(_rows(CASES["quiet_equal"])[0]).split())
+    assert ("The 3 patches most similar to it are about as far off their "
+            "expected colours as this one, at ΔE*ab 20.80. It does not stand "
+            "out from them.") in t
+    assert "ΔE*ab 0.0" not in t
+    t = " ".join(_text(_rows(CASES["few"])[0]).split())
+    assert M._CARDP_NBC_FEW in t and "this one" not in t
 
 
 def test_the_red_neighbour_card_is_knuts(qapp):
     rows, _t = _rows(CASES["red_neighbour"])
-    t = _text(rows)
-    assert ("Red outline: ΔE 13.20 further from its expected colour than "
-            "the 4 patches nearest in colour (median), passing the neighbour "
-            "limit (10.00). Probably a misread: read it again.") in t
+    t = " ".join(_text(rows).split())
+    assert ("Red outline: this patch stands out from the patches most "
+            "similar to it by ΔE*ab 13.20. That is more than the neighbour "
+            "limit of ΔE*ab 10.00 for profiling charts with estimated "
+            "colours. (Neighbour check.) Probably a misread: read it "
+            "again.") in t
     # the second sentence on a line of its own, as in the mock-up
     assert "Probably a misread: read it again." in rows
     assert ("Only its own re-read can turn it yellow, not similar patches or "
@@ -107,31 +130,40 @@ def test_the_red_neighbour_card_is_knuts(qapp):
 
 
 def test_the_red_limit_card_names_the_limit_and_the_chart_type(qapp):
-    t = _text(_rows(CASES["red_limit"])[0])
-    assert ("Red outline: a large difference ΔE*ab 23.41 reached the patch "
-            "error limit (20.00, profiling charts made with a "
-            "pre-conditioning profile), and it stands out from its strip "
-            "(strip test).") in t
-    t = _text(_rows(CASES["verification_red"])[0])
-    assert ("ΔE*ab 7.18 reached the patch error limit (5.00, verification "
-            "charts).") in t
+    t = " ".join(_text(_rows(CASES["red_limit"])[0]).split())
+    assert ("Red outline: too far off its expected colour This patch is "
+            "ΔE*ab 23.41 off its expected colour. That is more than the patch "
+            "error limit of ΔE*ab 20.00 for profiling charts made with a "
+            "pre-conditioning profile. It also stands out from the other "
+            "patches of its strip. (Strip test.)") in t
+    t = " ".join(_text(_rows(CASES["verification_red"])[0]).split())
+    assert ("This patch is ΔE*ab 7.18 off its expected colour. That is more "
+            "than the patch error limit of ΔE*ab 5.00 for verification "
+            "charts.") in t
     assert "Far from what the profile predicts." in t
 
 
 def test_the_yellow_card_says_why_it_was_red(qapp):
-    t = _text(_rows(CASES["yellow"])[0])
-    assert ("Yellow outline: confirmed by a re-read ΔE*ab 13.40, the "
-            "reading before 13.90 Red before: ΔE 11.40 further from its "
-            "expected colour than the 4 patches nearest in colour (median), "
-            "passing the neighbour limit (10.00).") in t
+    t = " ".join(_text(_rows(CASES["yellow"])[0]).split())
+    assert ("Yellow outline: confirmed by a re-read You read this patch "
+            "again, and the new reading agrees with an earlier one. So it is "
+            "probably not a misread. It is ΔE*ab 13.40 off its expected "
+            "colour now, and was ΔE*ab 13.90 off at that earlier reading. "
+            "(The two readings are within the same-reading tolerance.) "
+            "Without that confirmation it would be red: it stands out from "
+            "the patches most similar to it by ΔE*ab 11.40, more than the "
+            "neighbour limit of ΔE*ab 10.00 for profiling charts with "
+            "estimated colours. (Neighbour check.)") in t
 
 
 def test_red_for_both_reasons(qapp):
-    t = _text(_rows(CASES["red_both"])[0])
-    assert ("It is also ΔE 13.20 further from its expected colour than the "
-            "4 patches nearest in colour (median), passing the neighbour "
-            "limit (10.00).") in t
-    assert t.index("reached the patch error limit") < t.index("It is also")
+    t = " ".join(_text(_rows(CASES["red_both"])[0]).split())
+    assert ("It also stands out from the patches most similar to it by "
+            "ΔE*ab 13.20. That is more than the neighbour limit of ΔE*ab "
+            "10.00 for profiling charts with estimated colours. (Neighbour "
+            "check.)") in t
+    assert (t.index("more than the patch error limit")
+            < t.index("It also stands out"))
 
 
 def test_topics_are_separated_by_empty_lines(qapp):

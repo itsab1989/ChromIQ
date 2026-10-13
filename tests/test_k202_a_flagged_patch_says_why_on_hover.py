@@ -36,15 +36,19 @@ def _rows(qapp, info, mode="both"):
 def test_a_flagged_patch_explains_itself_at_the_bottom(qapp):
     rows = _rows(qapp, {"warn": True, "warn_de": 50.0, "fenced": True})
     i = next(i for i, r in enumerate(rows) if r.startswith("─"))
-    assert i > next(i for i, r in enumerate(rows) if "ΔE*ab  61.25" in r)
+    assert i > next(i for i, r in enumerate(rows) if "ΔE*ab 61.25" in r)
     tail = rows[i + 1:]
-    assert tail[0] == "Red outline: a large difference"
-    # beta 17: the patch error limit by its name, its value and its chart
-    # type, and the strip test by its name (Knut 6082015002, 6084176226)
-    assert " ".join(tail[1:5]) == (
-        "ΔE*ab 61.25 reached the patch error limit (50.00, profiling charts "
-        "with estimated colours), and it stands out from its strip (strip "
-        "test).")
+    # 4.3.5 beta 3: M-PATCH-CARD-PLAIN (Knut and Basti, 2026-10-13): the
+    # patch error limit by its name, its value and its chart type, and the
+    # strip test by its name, every figure with its unit
+    assert tail[0] == "Red outline: too far off its expected colour"
+    flat = " ".join(" ".join(tail).split())
+    assert flat.startswith(
+        "Red outline: too far off its expected colour This patch is ΔE*ab "
+        "61.25 off its expected colour. That is more than the patch error "
+        "limit of ΔE*ab 50.00 for profiling charts with estimated colours. "
+        "It also stands out from the other patches of its strip. (Strip "
+        "test.)")
     assert "Either a misread, or a colour" in tail
     assert "it is real, keep it for the profile." in tail
     assert " ".join(tail[-2:]) == ("See Preferences ▸ Measurement for "
@@ -54,8 +58,8 @@ def test_a_flagged_patch_explains_itself_at_the_bottom(qapp):
 @pytest.mark.parametrize("mode", ["expected", "measured"])
 def test_the_reason_shows_in_every_view_mode(qapp, mode):
     rows = _rows(qapp, {"warn": True, "warn_de": 50.0, "fenced": False}, mode)
-    assert "Red outline: a large difference" in rows
-    assert "stands out from its strip" not in " ".join(rows)
+    assert "Red outline: too far off its expected colour" in rows
+    assert "of its strip" not in " ".join(rows)
 
 
 def test_an_unflagged_patch_says_nothing_extra(qapp):

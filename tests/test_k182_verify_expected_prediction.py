@@ -788,7 +788,9 @@ def test_a_predicted_card_names_its_limit_for_what_the_chart_is():
                       "warn": True, "warn_de": 5.0, "accurate": True,
                       "expected_source": "prediction", "kind": "verification"},
                      "both")
-    text = " ".join(t for _s, t in tile._rows)
-    assert ("ΔE*ab 7.18 reached the patch error limit (5.00, verification "
-            "charts).") in text
+    text = " ".join(" ".join(t for _s, t in tile._rows).split())
+    # 4.3.5 beta 3: M-PATCH-CARD-PLAIN (Knut and Basti, 2026-10-13)
+    assert ("This patch is ΔE*ab 7.18 off its expected colour. That is more "
+            "than the patch error limit of ΔE*ab 5.00 for verification "
+            "charts.") in text
     assert "pre-conditioning" not in text

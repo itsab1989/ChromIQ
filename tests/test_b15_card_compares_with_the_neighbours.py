@@ -18,12 +18,23 @@ def _lines(tab, loc):
     return _card(_info(tab, loc))
 
 
-def _sentence(n, fu):
+def _sentence(tab, loc):
+    """The comparison line the card shows, from the check's own figures.
+    Since 4.3.5 beta 3 in M-PATCH-CARD-PLAIN's words (approved by Knut and
+    Basti, 2026-10-13): the neighbours' median, the patch's own colour error
+    and the difference, each with its unit; the sign is still the word."""
+    n, fu, own, median = tab._nb_check.comparison_detail(loc)
     d = f"{abs(fu):.2f}"
+    ab = "ΔE*ab {:.2f}".format
     if d == "0.00":
-        return M._CARD_NBC_EQUAL_S.format(n=n)
-    return (M._CARD_NBC_CLOSER_S if fu < 0 else M._CARD_NBC_FURTHER_S).format(
-        d=d, n=n)
+        line = M._CARDP_NBC_EQUAL
+    else:
+        line = M._CARDP_NBC_CLOSER if fu < 0 else M._CARDP_NBC_FURTHER
+    return line.format(n=n, d="ΔE*ab " + d, own=ab(own), median=ab(median))
+
+
+def _flat(lines):
+    return " ".join(_text(lines).split())
 
 
 def test_a_clean_patch_shows_its_comparison(qapp, tmp_path):
@@ -32,10 +43,10 @@ def test_a_clean_patch_shows_its_comparison(qapp, tmp_path):
     n, fu = tab._nb_check.comparison("C5")
     assert n >= 2
     lines = _lines(tab, "C5")
-    text = _text(lines)
-    assert _sentence(n, fu) in text
+    assert _sentence(tab, "C5") in _flat(lines)
     # under the measured colour, above anything about an outline
-    first = next(i for i, l in enumerate(lines) if l.startswith("This patch"))
+    first = next(i for i, l in enumerate(lines)
+                 if l.startswith(f"The {n} patches"))
     assert first > lines.index("Measured")
 
 
@@ -44,8 +55,9 @@ def test_the_misread_shows_the_figure_the_check_used(qapp, tmp_path):
     _read_all(tab, {"D6": 0.55})
     f = tab._nb_check.finding("D6")
     assert f.suspect and f.further > 0
-    assert M._CARD_NBC_FURTHER_S.format(
-        d=f"{f.further:.2f}", n=len(f.compared)) in _text(_lines(tab, "D6"))
+    assert (f"this one stands out by ΔE*ab {f.further:.2f}."
+            in _flat(_lines(tab, "D6")))
+    assert _sentence(tab, "D6") in _flat(_lines(tab, "D6"))
 
 
 def test_its_neighbours_read_closer_than_it(qapp, tmp_path):
@@ -54,27 +66,26 @@ def test_its_neighbours_read_closer_than_it(qapp, tmp_path):
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55})
     for loc in tab._nb_check.finding("D6").compared:
-        n, fu = tab._nb_check.comparison(loc)
-        assert _sentence(n, fu) in _text(_lines(tab, loc))
+        assert _sentence(tab, loc) in _flat(_lines(tab, loc))
 
 
 def test_too_few_neighbours_says_so(qapp, tmp_path):
     tab = _tab(tmp_path, settings={"patch_neighbour_radius_estimated": 1.0})
     tab._on_strip_measured(_strip("A"))
-    text = _text(_lines(tab, "A6"))
-    assert M._CARD_NBC_FEW_S in text
-    assert "This patch" not in text
+    text = _flat(_lines(tab, "A6"))
+    assert M._CARDP_NBC_FEW in text
+    assert "patches most similar to it are" not in text
 
 
 def test_the_card_follows_later_strips(qapp, tmp_path):
     tab = _tab(tmp_path, settings={"patch_neighbour_radius_estimated": 6.0})
     tab._on_strip_measured(_strip("A"))
-    assert M._CARD_NBC_FEW_S in _text(_lines(tab, "A6"))
+    assert M._CARDP_NBC_FEW in _flat(_lines(tab, "A6"))
     tab._on_strip_measured(_strip("B"))
     tab._on_strip_measured(_strip("C"))
     n, fu = tab._nb_check.comparison("A6")
     assert n >= 2
-    assert _sentence(n, fu) in _text(_lines(tab, "A6"))
+    assert _sentence(tab, "A6") in _flat(_lines(tab, "A6"))
 
 
 @pytest.mark.parametrize("case", ["verification", "calibration"])
@@ -92,14 +103,16 @@ def test_on_verification_and_calibration_charts_with_outlines(
     assert tab._neighbour_check_applies()
     n, fu = tab._nb_check.comparison("D6")
     assert n >= 2 and fu > 0
-    text = _text(_lines(tab, "D6"))
-    assert _sentence(n, fu) in text
+    text = _flat(_lines(tab, "D6"))
+    assert _sentence(tab, "D6") in text
     nb = _info(tab, "D6")["neighbour"]
     assert nb is not None
     limit = 3.0 if case == "verification" else 10.0
     assert nb["limit"] == limit
     # red by the neighbour check alone, or (on a verification, whose patch
     # error limit is 5) by both, with the neighbour line after the limit's
-    kw = dict(d=f"{fu:.2f}", n=n, limit=f"{limit:.2f}")
-    assert (M._CARD_NB_RED_S.format(**kw) in text
-            or M._CARD_NB_ALSO_S.format(**kw) in text)
+    kind = (M._CARD_KIND_VERIFICATION if case == "verification"
+            else M._CARD_KIND_CALIBRATION)
+    kw = dict(d=f"ΔE*ab {fu:.2f}", limit=f"ΔE*ab {limit:.2f}", kind=kind)
+    assert (M._CARDP_NB_RED.format(**kw) in text
+            or M._CARDP_NB_ALSO.format(**kw) in text), text

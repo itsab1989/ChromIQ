@@ -30,9 +30,10 @@ def test_a_neighbour_misread_read_again_and_fitting_is_green(qapp, tmp_path):
     assert info["flag"] == "corrected" and info["corrected_by"] == "neighbour"
     lines = _card(info)
     i = lines.index(M._CARD_GREEN_HEAD)
-    assert lines[i + 1:i + 4] == [
-        M._CARD_GREEN_1.format(de=f"{first:.2f}"), M._CARD_GREEN_NB,
-        M._CARD_GREEN_END]
+    # 4.3.5 beta 3: M-PATCH-CARD-PLAIN's words (Knut and Basti, 2026-10-13)
+    after = " ".join(" ".join(lines[i + 1:]).split())
+    assert after.startswith(M._CARDP_GREEN_NB.format(de=f"ΔE*ab {first:.2f}")
+                            + " " + M._CARD_GREEN_END)
     assert not any("Red outline" in x for x in lines)
     assert tab.corrected_locs() == ["D6"]
     assert M._SUM_CORRECTED_ONE.format(locs="D6") in \
@@ -51,7 +52,9 @@ def test_a_limit_misread_read_again_and_fitting_is_green(qapp, tmp_path):
     info = _info(tab, "B3")
     assert _flags(tab)["B3"] == pf.FLAG_CORRECTED
     assert info["corrected_by"] == "limit"
-    assert M._CARD_GREEN_LIMIT in _card(info)
+    flat = " ".join(" ".join(_card(info)).split())
+    head, tail = M._CARDP_GREEN_LIMIT.split("{de}")
+    assert head in flat and tail in flat and flat.index(head) < flat.index(tail)
     assert M._SUM_CORRECTED.format(n=2, locs="B3, E9") in \
         tab._misread_summary().splitlines()
 
