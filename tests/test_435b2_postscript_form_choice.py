@@ -162,10 +162,9 @@ def _env(tmp_path, run_type=RUN_TYPE_PROFILING):
 
 @pytest.fixture
 def ps_dialog(monkeypatch):
-    """The macOS dialog opens on a PostScript queue (no CMYK raster)."""
+    """macOS, no CMYK raster queue on the direct route. Since 2026-10-13
+    the tab never asks which printer the dialog opens on."""
     from ui.tabs import tab_print as tp
-    monkeypatch.setattr(tp, "_dialog_printer", lambda: ("PSQ", "PS Printer"))
-    monkeypatch.setattr(tp, "_queue_is_postscript", lambda q: q == "PSQ")
     monkeypatch.setattr(tp, "_queue_cmyk_raster", lambda q: None)
     monkeypatch.setattr(tp, "is_macos", lambda: True)
     return tp
@@ -214,18 +213,15 @@ def test_the_row_is_hidden_until_its_words_are_approved(qapp, tmp_path, ps_dialo
     s, fm, ctl = _env(tmp_path)
     tab = _tab(s, ctl)
     tab._tiff_pages = [tmp_path / "p.tif"]
+    tab._store_ps_form(ppd_color.POSTSCRIPT_AS_MACOS)
     tab._update_ps_form_row()
     assert tab._ps_form_row.isHidden()
     monkeypatch.setattr(MM, "M_PRINT_PS_FORM_CHOICE",
                         replace(MM.M_PRINT_PS_FORM_CHOICE, approved=True))
     tab._update_ps_form_row()
     assert not tab._ps_form_row.isHidden()
-    # not on the direct route, and not for a printer that is not PostScript
+    # not on the direct route
     s.set("use_native_print_dialog", False)
-    tab._update_ps_form_row()
-    assert tab._ps_form_row.isHidden()
-    s.set("use_native_print_dialog", True)
-    monkeypatch.setattr(ps_dialog, "_dialog_printer", lambda: ("INKJET", "Inkjet"))
     tab._update_ps_form_row()
     assert tab._ps_form_row.isHidden()
 
@@ -233,10 +229,11 @@ def test_the_row_is_hidden_until_its_words_are_approved(qapp, tmp_path, ps_dialo
 def test_the_print_goes_with_the_runs_form(qapp, tmp_path, ps_dialog, monkeypatch):
     s, fm, ctl = _env(tmp_path)
     tab = _tab(s, ctl)
-    tab._ps_macos_rb.setChecked(True)
+    tab._store_ps_form(ppd_color.POSTSCRIPT_AS_MACOS)
     seen = {}
 
-    def fake(pages, printer=None, postscript_form=None, refuse_unlisted_paper=None):
+    def fake(pages, printer=None, postscript_form=None, refuse_unlisted_paper=None,
+             ask_postscript_form=None):
         seen.update(form=postscript_form, refuse=refuse_unlisted_paper)
         return False
     monkeypatch.setattr(npm, "print_frames", fake)
@@ -252,7 +249,8 @@ def test_a_refused_paper_is_said_and_not_recorded(qapp, tmp_path, ps_dialog, mon
     monkeypatch.setattr(MM, "M_PRINT_PS_PAPER_NOT_LISTED",
                         replace(MM.M_PRINT_PS_PAPER_NOT_LISTED, approved=True))
 
-    def fake(pages, printer=None, postscript_form=None, refuse_unlisted_paper=None):
+    def fake(pages, printer=None, postscript_form=None, refuse_unlisted_paper=None,
+             ask_postscript_form=None):
         assert refuse_unlisted_paper is True
         raise npm.PaperNotOnPrinter("PS Printer", *A3)
     monkeypatch.setattr(npm, "print_frames", fake)
@@ -268,30 +266,16 @@ def test_a_refused_paper_is_said_and_not_recorded(qapp, tmp_path, ps_dialog, mon
 
 
 # ---- (a) the notice on a PostScript printer --------------------------------
-def test_the_notice_is_unchanged_until_approved(qapp, tmp_path, ps_dialog):
+def test_the_notice_promises_no_paper_profile_on_any_printer(qapp, tmp_path, ps_dialog):
+    """Basti, 2026-10-13: the notice may not depend on the printer the dialog
+    opens on, and its paper-profile sentences are untrue on a PostScript or
+    CMYK raster printer, so no printer gets them before the dialog."""
     s, fm, ctl = _env(tmp_path)
     tab = _tab(s, ctl)
-    assert "This works with any printer" in tab._macos_dialog_notice()
-
-
-@pytest.mark.parametrize("form,msg", [
-    (ppd_color.POSTSCRIPT_DEVICE_RGB, "M_PRINT_PS_ROUTE_OWN_RGB"),
-    (ppd_color.POSTSCRIPT_AS_MACOS, "M_PRINT_PS_ROUTE_AS_MACOS")])
-def test_on_a_postscript_printer_the_notice_says_what_the_form_does(
-        qapp, tmp_path, ps_dialog, monkeypatch, form, msg):
-    """MUTATION: leave the PostScript branch out and the notice keeps
-    promising a paper profile that a PostScript printer never gets."""
-    s, fm, ctl = _env(tmp_path)
-    tab = _tab(s, ctl)
-    (tab._ps_device_rb if form == ppd_color.POSTSCRIPT_DEVICE_RGB
-     else tab._ps_macos_rb).setChecked(True)
-    for name in ("M_PRINT_PS_ROUTE_OWN_RGB", "M_PRINT_PS_ROUTE_AS_MACOS"):
-        monkeypatch.setattr(MM, name, replace(getattr(MM, name), approved=True))
     text = tab._macos_dialog_notice()
-    title, body = getattr(MM, msg).render(printer="PS Printer")
-    assert f"{title}\n{body}" in text
     assert "This works with any printer" not in text
     assert "attaches the paper profile" not in text
+    assert "PostScript" not in text
 
 
 # ---- (b) the Through notice -------------------------------------------------
@@ -299,12 +283,12 @@ def test_the_through_notice_drops_its_promise_only_where_it_is_untrue(
         qapp, tmp_path, ps_dialog, monkeypatch):
     s, fm, ctl = _env(tmp_path)
     tab = _tab(s, ctl)
-    assert not tab._colours_converted_on_the_way()     # PostScript, own RGB
-    tab._ps_macos_rb.setChecked(True)
-    assert tab._colours_converted_on_the_way()         # PostScript, as macOS
-    tab._ps_device_rb.setChecked(True)
+    # the dialog route: the printer is chosen only in the dialog, so the
+    # promise is never made there (Basti, 2026-10-13)
+    assert tab._colours_converted_on_the_way()
+    tab._store_ps_form(ppd_color.POSTSCRIPT_DEVICE_RGB)
+    assert tab._colours_converted_on_the_way()
     monkeypatch.setattr(ps_dialog, "_queue_cmyk_raster", lambda q: "KCMY")
-    assert tab._colours_converted_on_the_way()         # CMYK raster, dialog
     s.set("use_native_print_dialog", False)
     tab._printer_combo.clear()
     tab._printer_combo.addItem("Q", "Q")
@@ -341,7 +325,7 @@ def test_the_verification_note_drops_its_postscript_promises_as_macos(
     tab._update_verify_route_note(native=True)
     shown = tab._verify_route_lbl.text()
     assert MM.M_PRINT_VERIFY_PS_EARLIER.body.split(":")[0][:40] in shown
-    tab._ps_macos_rb.setChecked(True)
+    tab._store_ps_form(ppd_color.POSTSCRIPT_AS_MACOS)
     tab._update_verify_route_note(native=True)
     shown = tab._verify_route_lbl.text()
     assert "own RGB" not in shown

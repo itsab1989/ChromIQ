@@ -5432,6 +5432,29 @@ M_PRINT_PS_PAPER_NOT_LISTED = _m(
     "Print again and choose, in the dialog, one of the printer\u2019s paper sizes that the chart fits on.",
     approved=False)
 
+# --- PROPOSED: the PostScript choice is asked AFTER the dialog, 4.3.5 beta 2 -
+#: Basti, 2026-10-13 ("go with 2"): on the macOS dialog route the user picks
+#: the printer only IN the dialog, so nothing PostScript-specific may be
+#: decided from the printer the dialog opens on. After the dialog closes with
+#: Print, before anything is sent, a run with no stored choice whose chosen
+#: printer is a PostScript queue gets M-PRINT-PS-ASK; its two buttons are
+#: M-PRINT-PS-FORM-CHOICE's label followed by each of its two lines, then
+#: Cancel (nothing printed). The answer is stored for the run
+#: (``print_settings["postscript"]``). M-PRINT-PS-FORM-APPLIES is the line
+#: under the row, which is shown only once the run has a stored choice.
+#: Hidden until approved: until then nobody is asked and every run prints in
+#: the default form, as before.
+M_PRINT_PS_ASK = _m(
+    "M-PRINT-PS-ASK",
+    "How should {printer} get the chart?",
+    "{printer} is a PostScript printer. Your photos must reach it the same way as this run\u2019s charts, or the profile will not fit them. The choice is kept for this run and its verification charts.",
+    approved=False)
+M_PRINT_PS_FORM_APPLIES = _m(
+    "M-PRINT-PS-FORM-APPLIES",
+    "When this choice applies",
+    "Applies when this run prints to a PostScript printer through the macOS print dialog.",
+    approved=False)
+
 # --- PROPOSED: the count help of FROM PROFILE GAMUT, k82 (4.3.5) ------------
 #: The two paragraphs that replace the 4.3.4 help's "smaller charts are part
 #: of larger ones" and "greys have a fixed share", both untrue since the even
@@ -5693,6 +5716,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_VERIFY_PS_EARLIER, M_PRINT_JOB_DEVICE_RGB,
     M_PRINT_PS_FORM_CHOICE, M_PRINT_PS_FORM_HELP, M_PRINT_PS_ROUTE_OWN_RGB,
     M_PRINT_PS_ROUTE_AS_MACOS, M_PRINT_PS_PAPER_NOT_LISTED,
+    M_PRINT_PS_ASK, M_PRINT_PS_FORM_APPLIES,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,

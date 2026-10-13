@@ -747,9 +747,36 @@ def ppd_takes_paper(ppd_text: "str | None", w_pt: float, h_pt: float,
     return fits(w_pt, h_pt) or fits(h_pt, w_pt)
 
 
+def _printer_name(print_info) -> str:
+    """The name of *print_info*'s printer as macOS shows it, else its queue."""
+    try:
+        return str(print_info.printer().name())
+    except Exception:  # noqa: BLE001
+        return _queue_of(print_info) or ""
+
+
+def form_after_dialog(is_postscript: bool, postscript_form: "str | None",
+                      ask=None, printer_name=lambda: "") -> "tuple[bool, str | None]":
+    """(go on, form) once the macOS dialog closed with Print (Basti,
+    2026-10-13, "decide AFTER the dialog"). Only a PostScript printer chosen
+    in the dialog with no form for the run (*postscript_form* None) is asked,
+    through *ask* (``ask(printer_name())`` returns the form, or None for
+    Cancel: then (False, None) and nothing may be sent); without *ask* it gets
+    the default. Any other printer, or a stored form, is never asked."""
+    if not is_postscript or postscript_form is not None:
+        return True, postscript_form
+    if ask is None:
+        return True, DEFAULT_POSTSCRIPT_FORM
+    form = ask(printer_name())
+    if form is None:
+        return False, None
+    return True, form
+
+
 def print_frames(pages: list[tuple[Path, int]], printer: str | None = None,
-                 postscript_form: str = DEFAULT_POSTSCRIPT_FORM,
-                 refuse_unlisted_paper: bool = False) -> bool:
+                 postscript_form: "str | None" = DEFAULT_POSTSCRIPT_FORM,
+                 refuse_unlisted_paper: bool = False,
+                 ask_postscript_form=None) -> bool:
     """Show the native macOS print dialog for *pages* and submit them as one job.
 
     *pages* is a list of ``(tiff_path, frame_index)`` tuples — the same shape
@@ -777,6 +804,14 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None,
     :class:`PaperNotOnPrinter` instead of sending when the dialog's paper is
     not one the PPD takes (said by M-PRINT-PS-PAPER-NOT-LISTED once approved;
     until then the job goes as before and the log says so).
+
+    *ask_postscript_form* (4.3.5 beta 2, Basti 2026-10-13, "decide AFTER the
+    dialog"): with *postscript_form* None (the run has no choice yet), called
+    as ``ask_postscript_form(printer_display_name)`` after the user closed the
+    dialog with Print, only when the printer chosen IN the dialog is a
+    PostScript queue, and before anything is sent. It returns the form, or
+    None to cancel: then nothing is sent and False is returned. Without a
+    callback a missing form is the default. Any other printer never asks.
     """
     if not pages:
         return False
@@ -887,6 +922,13 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None,
     locked = _lock_no_color_management(print_info, after_dialog=True)
     _ppd_after = _ppd_text_of(print_info)
     _is_ps = is_postscript_queue(_ppd_after)
+    # 4.3.5 beta 2 (Basti, 2026-10-13): the printer is known only now, so a
+    # run with no choice yet is asked here, never before the dialog
+    _go, postscript_form = form_after_dialog(
+        _is_ps, postscript_form, ask_postscript_form, lambda: _printer_name(print_info))
+    if not _go:
+        log.info("native print: PostScript form not chosen; nothing sent")
+        return False
     if _is_ps and postscript_form == POSTSCRIPT_DEVICE_RGB:
         # k81 (Knut, #182 6102031563): ON A POSTSCRIPT PRINTER THE CHART GOES
         # AS THE PRINTER'S OWN RGB, as the direct route sends it. Drawn

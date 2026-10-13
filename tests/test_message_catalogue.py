@@ -738,6 +738,12 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PRINT-PS-ROUTE-OWN-RGB",
                                  "M-PRINT-PS-ROUTE-AS-MACOS",
                                  "M-PRINT-PS-PAPER-NOT-LISTED",
+                                 # 4.3.5 beta 2 (Basti, 2026-10-13, "go
+                                 # with 2"): the choice is asked AFTER the
+                                 # dialog, and the row's line saying when it
+                                 # applies. Our words.
+                                 "M-PRINT-PS-ASK",
+                                 "M-PRINT-PS-FORM-APPLIES",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
@@ -840,6 +846,10 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_print", "TabPrint", "_colour_rows"),
     ("ui.tabs.tab_print", "TabPrint", "_report_job_ticket"),
     ("ui.tabs.tab_print", "TabPrint", "_show_job_not_as_sent"),
+    # 4.3.5 beta 2 (Basti, 2026-10-13): the PostScript question after the
+    # dialog, and the CMYK raster hint after the job.
+    ("ui.tabs.tab_print", "TabPrint", "_ask_ps_form"),
+    ("ui.tabs.tab_print", "TabPrint", "_tell_cmyk_raster_once"),
     ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
     # B7 / C1 (#182 5959070209): the printer calibration windows.
     ("ui.tabs.tab_print", "TabPrint", "_confirm_raw_uncalibrated"),
