@@ -15134,13 +15134,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except the neighbour check's red line, which tells a profiling user
         to read the patch again "before you build the profile": a
         verification has its own words for it, M-MEASURED-SUSPECTS-VERIFY,
-        hidden until approved, and until then that one line is left out."""
+        hidden until approved.
+
+        Until it is approved, a verification's summary leaves out EVERY
+        neighbour-check line, not only the red one (4.3.5 beta 4 review):
+        with the red line withheld, "N of M patches had enough patches near
+        in colour to be checked" stood alone and a verification with
+        suspected misreads read as all clear. Once approved, they all show,
+        with the red line."""
         try:
             verification = bool(self._is_verification_run()
                                 or self._expected_is_predicted())
             from workflow import measurement_messages as M
             lines = []
             facts = self.neighbour_summary_facts()
+            if verification and not M.M_MEASURED_SUSPECTS_VERIFY.approved:
+                facts = None
             if facts is not None:
                 red, kept = facts["red"], facts["kept"]
 
@@ -15153,13 +15162,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 elif not red:
                     lines.append(tr(M._SUM_NB_NONE))
                 elif verification:
-                    if M.M_MEASURED_SUSPECTS_VERIFY.approved:
-                        if len(red) == 1:
-                            lines.append(tr(M._SUM_NB_RED_ONE_VERIFY).format(
-                                locs=red[0]))
-                        else:
-                            lines.append(tr(M._SUM_NB_RED_VERIFY).format(
-                                n=len(red), locs=listed(red)))
+                    if len(red) == 1:
+                        lines.append(tr(M._SUM_NB_RED_ONE_VERIFY).format(
+                            locs=red[0]))
+                    else:
+                        lines.append(tr(M._SUM_NB_RED_VERIFY).format(
+                            n=len(red), locs=listed(red)))
                 elif len(red) == 1:
                     lines.append(tr(M._SUM_NB_RED_ONE).format(locs=red[0]))
                 else:

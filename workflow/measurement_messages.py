@@ -2432,8 +2432,12 @@ M_CAL_DONE_STEPS = _m(
 #: line of M-MEASURED-SUSPECTS fits a verification except these two, which
 #: end "before you build the profile": a verification checks a profile that
 #: is already built, so the choice there is to read again or to finish.
-#: Hidden until approved: until then a verification's summary leaves the
-#: red line out (never "no suspected misreads" in its place).
+#: Hidden until approved: until then a verification's summary leaves out
+#: every neighbour-check line, the count line "{checked} of {total} patches
+#: had enough patches near in colour to be checked" too (beta 4 review: with
+#: only the red line withheld, that line stood alone and a verification with
+#: suspected misreads read as all clear). Once approved, all of them show,
+#: with this red line.
 _SUM_NB_RED_ONE_VERIFY = ("Neighbour check: 1 suspected misread, patch "
                           "{locs}. Read it again before you finish.")
 _SUM_NB_RED_VERIFY = ("Neighbour check: {n} suspected misreads, patches "

@@ -491,3 +491,53 @@ def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
         [M._CARD_LATER_STRIP_S, *M._CARDP_UNITS, M._CARD_SEE_PREFS_S]))
     tab._on_strip_measured(_strip("D", {"D6": 0.55}))
     assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED
+
+
+@pytest.mark.parametrize("approved", [False, True])
+def test_a_verification_shows_no_neighbour_line_until_its_words_are_approved(
+        qapp, tmp_path, monkeypatch, approved):
+    """4.3.5 beta 4 review: with only the red line withheld, "N of M patches
+    had enough patches near in colour to be checked" stood alone in a
+    verification's "All Strips Read" window, and a verification with
+    suspected misreads read as all clear. Until M-MEASURED-SUSPECTS-VERIFY is
+    approved, a verification's summary carries NO neighbour-check line; once
+    approved, all of them, with its own red line. The other lines stay, and a
+    profiling chart's summary is unchanged."""
+    import dataclasses
+    monkeypatch.setattr(M, "M_MEASURED_SUSPECTS_VERIFY", dataclasses.replace(
+        M.M_MEASURED_SUSPECTS_VERIFY, approved=approved))
+    facts = {"red": ["D6"], "kept": ["B2"], "checked": 60, "total": 72}
+    count = M._SUM_NB_PARTLY.format(checked=60, total=72)
+    twice = M._SUM_TWICE_ONE.format(
+        list=M._SUM_TWICE_KEPT.format(strip="B", like="A"))
+
+    def summary(verification):
+        tab = _tab(tmp_path / ("v" if verification else "p"))
+        monkeypatch.setattr(type(tab), "_is_verification_run",
+                            lambda self: verification)
+        monkeypatch.setattr(type(tab), "_expected_is_predicted",
+                            lambda self: verification)
+        monkeypatch.setattr(type(tab), "neighbour_summary_facts",
+                            lambda self: dict(facts))
+        monkeypatch.setattr(type(tab), "_read_twice_was_active",
+                            lambda self: True)
+        tab._read_twice_log = [("B", "A", "keep")]
+        tab._strips_read_again = ["C"]
+        return tab._misread_summary().splitlines()
+
+    again = M._SUM_READ_AGAIN_ONE.format(list="C")
+    assert summary(False) == [M._SUM_NB_RED_ONE.format(locs="D6"),
+                              M._SUM_NB_KEPT_ONE, count, again, twice]
+    if approved:
+        assert summary(True) == [M._SUM_NB_RED_ONE_VERIFY.format(locs="D6"),
+                                 M._SUM_NB_KEPT_ONE, count, again, twice]
+    else:
+        assert summary(True) == [again, twice]
+    # Nothing found and nothing checkable: no "no suspected misreads" and no
+    # "none of the patches could be checked" on an unapproved verification.
+    for f in ({"red": [], "kept": [], "checked": 72, "total": 72},
+              {"red": [], "kept": [], "checked": 0, "total": 72}):
+        facts.clear(); facts.update(f)
+        lines = summary(True)
+        has_nb = any(x.startswith("Neighbour check") for x in lines)
+        assert has_nb is approved, lines
