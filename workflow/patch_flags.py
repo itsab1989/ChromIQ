@@ -1178,7 +1178,10 @@ class FlagJudge:
           one or more of which were past the limit too: red, *unsettled*
           ((a) and (c)), until a reading settles it;
         * under the limit after one or more readings past it: green, at once
-          when nothing else flags it, else as soon as nothing does ((d)).
+          when nothing else flags it, else as soon as nothing does ((d));
+        * no longer suspected by the neighbour check after a reading it
+          suspected: green, whatever the colour (the neighbour check's (d),
+          4.3.5 beta 5, Knut 6168612728).
 
         A confirmation (or the loss of one) can change OTHER patches' verdicts
         too; the caller asks :meth:`rejudge` once the whole batch is judged.
@@ -1278,11 +1281,24 @@ class FlagJudge:
             # A re-read that gives the SAME colour (within SAME_READING_DE)
             # corrected nothing when only the limit moved; one that falls
             # under the limit after a reading past it did (6045500910 (d)).
+            # A NEIGHBOUR SUSPECT IS THE NEIGHBOUR CHECK'S (d) (4.3.5 beta 5,
+            # Knut #182 6168612728). His B14 stood out by ΔE*ab 5.04 at a
+            # neighbour limit of 5.00; read again it stood out by 4.78, its
+            # red outline went and nothing came in its place. The re-read
+            # gave nearly the same colour (ΔE 0.3), and "a different colour"
+            # was the condition here. That condition is the build note of
+            # 10.10, never confirmed; the CONFIRMED rule (5984277558) is
+            # "red by the limit or by the neighbour check, whose re-read is
+            # no longer flagged by either, is outlined green", and Knut's
+            # (d) for the limit (6045500910) already makes a re-read under
+            # the limit green whatever its colour. So a live re-read that
+            # the neighbour check no longer flags is green the same way.
             pending = self._pending.pop(loc, None)
             if over is not None:
                 self._corrected[loc] = (float(over.de), "limit")
             elif (live and prev is not None and prev.flagged
-                    and not same(meas_lab, prev.meas_lab)):
+                    and (prev.reread_only
+                         or not same(meas_lab, prev.meas_lab))):
                 self._corrected[loc] = (float(prev.de), by_of(prev))
             elif pending is not None:
                 # A live re-read already corrected the misread while another
