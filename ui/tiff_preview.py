@@ -1497,6 +1497,19 @@ class _PatchInfoTile(QWidget):
             add_text(nb_fmt(_mm._CARDP_NB_RED if plain
                             else _mm._CARD_NB_RED_S))
             add_text(tr(_mm._CARD_NB_MISREAD_S))
+            if later:
+                # WHY A VERIFICATION NAMES ANOTHER CHART TYPE'S LIMIT (Knut,
+                # #182 6154440320: the card of his verification named "the
+                # neighbour limit ... for profiling charts with estimated
+                # colours" and did not say why). Knut's own sentence,
+                # approved in 5983480953, which the limit's red card already
+                # carries: the profile is newer than the print, so the sheet
+                # is judged against the chart's estimate, as a profiling
+                # chart with estimated colours (verification spec A22, A27).
+                rows.append((None, ""))
+                for t in (_mm._CARD_LATER_PROFILE_2, _mm._CARD_LATER_PROFILE_3,
+                          _mm._CARD_LATER_PROFILE_4):
+                    rows.append((None, tr(t)))
             rows.append((None, ""))
             # Knut, #182 5984174575: "The neighbour check needs a re-read
             # to confirm."

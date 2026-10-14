@@ -966,6 +966,15 @@ The hover card says when the expected colour is the profile's prediction
 
 Nothing is written at print time; the record is read as it is.
 
+#### ⏳ Question to Knut (4.3.5 beta 4): which limits judge a verification sheet that falls back to the chart's estimate?
+
+**Confirmed by:** *nobody yet.* Nothing below is built; the behaviour is A22, A23 (confirmed) and A27 as they stand.
+
+Knut, [6154440320](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6154440320), on his run 2 verification with the verification limits at 5.0: *"the hover text refers to profiling neighbour check limit of 8.0, but this is the verification run, not profiling run. Correct the error and make sure that the patch error check and neighbour check are using the correct limits according to its run type and chart."* The cause is A27, not a wrong lookup: his sheet was printed raw on 2026-10-02 21:27 and the run's profile was built on 2026-10-03 00:39, after it (his log: "the chart's sRGB estimate ..., because the profile has changed since the sheet was printed (it is newer than the print)"). With no prediction the expected colour is the chart's sRGB estimate, and A22/A23 judge such a sheet with the estimate's limit (then ΔE 95; since beta 17 every limit of "Profiling charts with estimated colours", `workflow/misread_settings.py` docstring). Every other combination uses its own type's limits; proved with every limit set to a unique value and readings planted 0.01 under, on and 0.01 over each one, on screen and in `tests/test_435b4_limit_edges.py` (129 cases, beta 4 report, M1).
+
+Judging the estimate against the verification limits would flag nearly every patch: the sRGB estimate is typically ΔE*ab 10 to 40 from a real print. Beta 4 makes the card say why (Knut's own approved sentence, 5983480953, now also on the neighbour check's red card: "The profile was made after this sheet was printed, so its prediction is not used."). The question: keep A22/A27 as they are (the estimate, judged with the estimated-colour limits, and the card says why), or judge such a sheet with the verification limits regardless (nearly every patch red), or offer to rebuild the prediction (the sheet would need the profile it was printed with, which A17 does not keep)?
+
+
 ---
 
 ### ⏳ 3.6 A built-in preset chosen in the FROM PROFILE GAMUT module (Basti, #182 6036695078, beta 12)
