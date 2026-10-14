@@ -389,6 +389,12 @@ A65_IPTSPACE_TOKEN = "a65-cmykhue-iptspace"
 # smoothstep to 0 over A65_DARK[1] L* above that
 A65_JABDARK_TOKEN = "a65-cmykhue-jabdark"
 A65_DARK = (10.0, 10.0)
+# a65-cmykhue-bluejab: the Jab clip only for targets of CIECAM02 hue in the
+# blue window: weight 0 below 220 deg, smoothstep to 1 at 240, 1 to 300,
+# smoothstep to 0 at 320 (pure sRGB blue 259, violet 283, azure 248)
+A65_BLUE_TOKEN = "a65-cmykhue-bluejab"
+A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
+A65_BLUE = (220.0, 240.0, 300.0, 320.0)
 _HK = {"on": True}
 _REL = threading.local()
 
@@ -806,30 +812,48 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
     returns a full copy with the clipped rows replaced."""
     from workflow.profile_engine import b2a
     p = table_params() if _params is None else _params
-    if _params is None and p.get("a65") and p.get("a65_dark"):
-        # Agent 65 (a65-cmykhue-jabdark): near the black the engine's own
-        # clip (CIELAB, Oklab frame: int-8b's answer), the Jab clip above,
-        # blended over target L* (as a60-darkacc does on RGB); measured:
-        # the Jab metric alone made the colour-to-black ramps less even
-        fl = dark_floor()
-        if fl is not None:
-            kw = dict(free=free, limit=limit, channel_max=channel_max,
-                      prior=prior, prior_w=prior_w, gn_kw=gn_kw,
-                      damping=damping, hue_seeds=hue_seeds,
-                      progress_label=progress_label)
-            hi = dict(p)
-            hi["a65_dark"] = False
-            d_hi = clip_nodes(model, target_lab, d_near, residual, _params=hi, **kw)
-            d_lo = clip_nodes(model, target_lab, d_near, residual, _params=PARAMS, **kw)
-            cl, cw = A65_DARK
-            u = np.clip((fl + cl + cw - np.asarray(target_lab, float)[:, 0]) / cw, 0.0, 1.0)
-            u = (u * u * (3.0 - 2.0 * u))[:, None]
-            out = (1.0 - u) * d_hi + u * d_lo
-            if limit is not None:
-                over = out.sum(1) > limit
-                if over.any():
-                    out[over] = b2a.project_tac(out[over], limit)
-            return out
+    if _params is None and p.get("a65") and (p.get("a65_dark") or p.get("a65_blue")):
+        # Agent 65 (a65-cmykhue-jabdark / -bluejab / -bluejabdark): the Jab
+        # clip only where it is needed, the engine's own clip (CIELAB, Oklab
+        # frame: int-8b's answer) elsewhere, blended in device space with
+        # smooth weights: near the black (dark: 1 up to A65_DARK[0] L* above
+        # the floor, smoothstep to 0 over A65_DARK[1]) and outside the blue
+        # CIECAM02 hue window (A65_BLUE, faded in with the target's chroma).
+        # Measured: the Jab metric everywhere made the CMYK colour-to-black
+        # ramps less even and cost cyan / red ramps (eyecheck FOGRA, SWOP).
+        tl = np.asarray(target_lab, float)
+        u = np.zeros(len(tl))
+        if p.get("a65_dark"):
+            fl = dark_floor()
+            if fl is not None:
+                cl, cw = A65_DARK
+                v = np.clip((fl + cl + cw - tl[:, 0]) / cw, 0.0, 1.0)
+                u = np.maximum(u, v * v * (3.0 - 2.0 * v))
+        if p.get("a65_blue"):
+            j = lab_to_argyll_jab(tl)
+            h = np.degrees(np.arctan2(j[:, 2], j[:, 1])) % 360.0
+            lo0, lo1, hi1, hi0 = A65_BLUE
+            win = np.clip(np.minimum((h - lo0) / (lo1 - lo0), (hi0 - h) / (hi0 - hi1)), 0.0, 1.0)
+            win = win * win * (3.0 - 2.0 * win)
+            cs = np.clip(np.hypot(j[:, 1], j[:, 2]) / max(float(p["c_fade"]), 1e-9), 0.0, 1.0)
+            win = win * cs * cs * (3.0 - 2.0 * cs)
+            u = np.maximum(u, 1.0 - win)
+        kw = dict(free=free, limit=limit, channel_max=channel_max,
+                  prior=prior, prior_w=prior_w, gn_kw=gn_kw,
+                  damping=damping, hue_seeds=hue_seeds,
+                  progress_label=progress_label)
+        d_lo = clip_nodes(model, target_lab, d_near, residual, _params=PARAMS, **kw)
+        if (u >= 1.0).all():
+            return d_lo
+        hi = dict(p)
+        hi["a65_dark"] = hi["a65_blue"] = False
+        d_hi = clip_nodes(model, target_lab, d_near, residual, _params=hi, **kw)
+        out = (1.0 - u[:, None]) * d_hi + u[:, None] * d_lo
+        if limit is not None:
+            over = out.sum(1) > limit
+            if over.any():
+                out[over] = b2a.project_tac(out[over], limit)
+        return out
     out = d_near.copy()
     sel = np.flatnonzero(residual > p["blend_lo"])
     if not len(sel):
