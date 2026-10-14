@@ -398,6 +398,10 @@ A65_BLUE_TOKEN = "a65-cmykhue-bluejab"
 # CHROMIQ_A66_PROP rounds (default 3): neighbouring dark out-of-gamut nodes
 # no longer settle in different ink separations (Findings agent66-01 s3).
 A66_PROP_TOKEN = "a66-cmykprop"
+# Agent 66 (a66-cmykbpc): ink devices, colorimetric table: the dark floor as
+# a29's linear band (dm_band, CHROMIQ_A66_BAND L*, default 15) instead of the
+# hard floor, so target L* below floor + band keeps its order and spacing.
+A66_BPC_TOKEN = "a66-cmykbpc"
 A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}

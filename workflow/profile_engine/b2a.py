@@ -2193,6 +2193,13 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     # colorimetric clip (oog_clip.table_params)
     p["a66_prop"] = (int(os.environ.get("CHROMIQ_A66_PROP", "3"))
                      if is_additive is False and oog_clip.A66_PROP_TOKEN in t else 0)
+    # Agent 66 (a66-cmykbpc): on ink devices the colorimetric clip's dark
+    # floor becomes a29's BPC-like band (dark_target_l: [0, floor + band] ->
+    # [floor, floor + band] linearly) instead of the hard max(L*, floor);
+    # band CHROMIQ_A66_BAND (default 15) L*. The lightness weight stays as
+    # integration 8b has it (dm_wj 1).
+    if is_additive is False and oog_clip.A66_BPC_TOKEN in t and p.get("dm_on"):
+        p["dm_band"] = float(os.environ.get("CHROMIQ_A66_BAND", "15"))
     # research knobs for the fade's order and shape (Agent 56 A/B only)
     p["a56_r"] = float(os.environ.get("CHROMIQ_A56_R", "2.0"))
     p["a56_shape"] = os.environ.get("CHROMIQ_A56_SHAPE", "rat")
