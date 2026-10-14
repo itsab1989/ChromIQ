@@ -100,6 +100,10 @@ PARAMS: dict = {
     # Agent 62 (a62-camhue): with a51 on, a target lifted to the floor keeps
     # its CIECAM02 hue (camhue_lift)
     "a62": False,
+    # Agent 65 (a65-cmykhue*): on ink devices (no a51 there) the colorimetric
+    # clip's hue frame follows this space's constant-hue lines instead of
+    # Oklab's ("" = off): "cam02" is colprof's own clip hue (Argyll CIECAM02)
+    "a65": "",
 }
 
 DEFAULTS = dict(PARAMS)
@@ -197,7 +201,42 @@ def ipt_to_lab(ipt):
     return _lab_from_xyz65((np.linalg.inv(_IPT_LMS) @ lms.T).T)
 
 
+def _jab_inverse(jab, iters: int = 12):
+    """Agent 65: Argyll CIECAM02 Jab -> D50 Lab (lab_to_argyll_jab inverted
+    by damped Newton steps with a numerical Jacobian, row by row in one
+    vectorised pass; the map is smooth and close to 1:1 in L, hue)."""
+    jab = np.atleast_2d(np.asarray(jab, float))
+    # start: J ~ L*, the opponent axes rescaled by the chroma ratio
+    lab = jab.copy()
+    lab[:, 0] = np.clip(jab[:, 0], 0.0, 100.0)
+    for _ in range(iters):
+        f0 = lab_to_argyll_jab(lab)
+        r = f0 - jab
+        if np.abs(r).max() < 1e-6:
+            break
+        jac = np.empty((len(lab), 3, 3))
+        h = 1e-4
+        for k in range(3):
+            d = lab.copy()
+            d[:, k] += h
+            jac[:, :, k] = (lab_to_argyll_jab(d) - f0) / h
+        try:
+            step = np.linalg.solve(jac, r[:, :, None])[:, :, 0]
+        except np.linalg.LinAlgError:
+            step = np.einsum("nij,nj->ni", np.linalg.pinv(jac), r)
+        lab = lab - np.clip(step, -20.0, 20.0)
+    # a row that did not converge (none on the B2A grid at any chroma
+    # fraction; possible far outside the spectrum locus) keeps the start
+    bad = ~(np.linalg.norm(lab_to_argyll_jab(lab) - jab, axis=1) < 1e-2)
+    if bad.any():
+        lab[bad] = jab[bad]
+        lab[bad, 0] = np.clip(jab[bad, 0], 0.0, 100.0)
+    return lab
+
+
 def _pair(space: str):
+    if space == "cam02":
+        return lab_to_argyll_jab, _jab_inverse
     if space == "oklab":
         return lab_to_oklab, oklab_to_lab
     if space == "ipt":
@@ -331,6 +370,16 @@ A51_PARAMS = {"space": "cam02", "wj": 4.0, "wc": 1.0, "wh": 4.84}
 # are not constant-hue in the dark blue), and the clip then adds red: a
 # violet patch near the black on the blue ramps (Findings agent62-01).
 A62_TOKEN = "a62-camhue"
+# Agent 65 (a65-cmykhue): ink devices keep the engine's own colorimetric clip
+# (a51's metric there made contours: X3 4 -> 142) but its hue frame follows
+# Argyll's CIECAM02 constant-hue lines, colprof's clip hue, instead of
+# Oklab's: Oklab's blue hue lines bend toward purple (out-of-gamut blues
+# +2..+3 IPT deg on every CMYK set, colprof -0.3..-0.9; Findings agent65-01).
+# "-ipt" uses IPT hue lines instead; "-pass2" re-aims the frame once at the
+# chroma the clip reached (the hue line is curved).
+A65_TOKEN = "a65-cmykhue"
+A65_IPT_TOKEN = "a65-cmykhue-ipt"
+A65_PASS2_TOKEN = "a65-cmykhue-pass2"
 _HK = {"on": True}
 _REL = threading.local()
 
@@ -345,6 +394,16 @@ def table_params(p: dict = None) -> dict:
     """PARAMS with the a51 overrides when the a51 token is on and this
     thread builds the colorimetric table; otherwise PARAMS itself."""
     p = PARAMS if p is None else p
+    if (p.get("a65") and not p.get("a51")
+            and getattr(_REL, "on", False)):
+        # Agent 65 (a65-cmykhue): the ink devices' colorimetric clip keeps
+        # the engine's metric (weights, band, ink priors) but measures hue
+        # along colprof's CIECAM02 hue lines (Findings agent65-01)
+        q = dict(p)
+        q["hue_from"] = str(p["a65"])
+        if p.get("a65_pass2"):
+            q["pass2"] = True
+        return q
     if not p.get("a51") or not getattr(_REL, "on", False):
         return p
     q = dict(p)
