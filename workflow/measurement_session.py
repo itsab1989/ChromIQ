@@ -30,6 +30,13 @@ from workflow.measurement_state import (SessionVerdict, Ti3State,
 log = get_logger(__name__)
 
 
+def _memory(ti3: "str | Path") -> Path:
+    """The measurement's yellow memory, ``<stem>.confirmed.json`` beside it
+    (``workflow/confirmed_patches.py``, #182 K4)."""
+    from workflow.confirmed_patches import confirmed_path
+    return confirmed_path(ti3)
+
+
 @dataclass
 class SessionOutcome:
     """What a session did, and what to tell the user — §3b, §S3."""
@@ -94,6 +101,12 @@ class MeasurementSession:
                 target = dest / f"{self.ti3_path.stem}_{n}{self.ti3_path.suffix}"
                 n += 1
             shutil.copy2(self.ti3_path, target)
+            # …with its yellow memory (#182 K4), so a discard can put back the
+            # measurement's own confirmed patches as well as its readings
+            # (4.3.5 beta 5 regression review).
+            mem = _memory(self.ti3_path)
+            if mem.is_file():
+                shutil.copy2(mem, _memory(target))
         except OSError:
             # A measurement must never be blocked by a failure to protect it —
             # but say so, because the safety net is then not there.
@@ -142,11 +155,15 @@ class MeasurementSession:
         facts = classify(self.ti3_path, self.ti2_path)
         out = SessionOutcome(verdict=SessionVerdict.KEEP, before=self.before,
                              after=facts.held or 0, archive=self.archive)
+        archive = Path(self.archive) if self.archive else None
         if not self.ti3_path.is_file():
+            self._set_memory_aside(
+                (archive.parent if archive is not None
+                 else self.old_dir / datetime.now().strftime("%Y-%m-%d_%H%M%S"))
+                / f"discarded-{self.ti3_path.name}")
             out.restored = self._restore()
             out.after = self.before if out.restored else 0
             return out
-        archive = Path(self.archive) if self.archive else None
         try:
             same = (archive is not None and archive.is_file()
                     and archive.read_bytes() == self.ti3_path.read_bytes())
@@ -154,7 +171,17 @@ class MeasurementSession:
             same = False
         if same:
             out.after = self.before
-            return out              # the session wrote nothing into the file
+            # The readings are untouched, but the session may still have
+            # confirmed patches of them: that is the session's too.
+            self._set_memory_aside(archive.parent / f"discarded-{self.ti3_path.name}")
+            kept = _memory(archive)
+            if kept.is_file() and not _memory(self.ti3_path).is_file():
+                try:
+                    shutil.copy2(kept, _memory(self.ti3_path))
+                except OSError:
+                    log.warning("could not put the confirmed patches back",
+                                exc_info=True)
+            return out             # the session wrote nothing into the file
         try:
             dest = (archive.parent if archive is not None
                     else self.old_dir / datetime.now().strftime("%Y-%m-%d_%H%M%S"))
@@ -165,6 +192,11 @@ class MeasurementSession:
                 target = dest / f"discarded-{self.ti3_path.stem}_{n}{self.ti3_path.suffix}"
                 n += 1
             shutil.move(str(self.ti3_path), str(target))
+            # Its yellow memory goes with it, under the same name, so no
+            # confirmed file is left beside a measurement it does not describe
+            # (4.3.5 beta 5 regression review: a resumed verification left
+            # ``test-verify.confirmed.json`` at the verifications/ root).
+            self._set_memory_aside(target)
             out.kept_beside = target
             out.removed = True
             log.info("Discard and stop: the session's %s moved to %s",
@@ -176,6 +208,30 @@ class MeasurementSession:
         out.restored = self._restore()
         out.after = self.before if out.restored else 0
         return out
+
+    def _set_memory_aside(self, discarded_ti3: Path) -> None:
+        """Move the yellow memory beside the measurement (``<stem>.confirmed.
+        json``) to *discarded_ti3*'s, when the session wrote or changed it.
+
+        One the session never touched (byte-identical to the copy taken at
+        Start) is left where it is: it still describes the file put back.
+        """
+        mem = _memory(self.ti3_path)
+        if not mem.is_file():
+            return
+        try:
+            kept = _memory(self.archive) if self.archive else None
+            if kept is not None and kept.is_file() \
+                    and kept.read_bytes() == mem.read_bytes():
+                return
+            dst = _memory(discarded_ti3)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(mem), str(dst))
+            log.info("Discard and stop: the session's %s moved to %s",
+                     mem.name, dst)
+        except OSError:
+            log.warning("could not set the discarded confirmed patches aside",
+                        exc_info=True)
 
     # ---- the file moves themselves -----------------------------------
     def _set_aside_empty(self) -> bool:
@@ -223,6 +279,12 @@ class MeasurementSession:
             return False
         try:
             shutil.copy2(self.archive, self.ti3_path)
+            # The measurement comes back with its own yellow memory, when it
+            # had one (#182 K4); a memory left from the session describes a
+            # file that is no longer there.
+            mem = _memory(self.archive)
+            if mem.is_file():
+                shutil.copy2(mem, _memory(self.ti3_path))
             log.info("restored %s from %s", self.ti3_path.name,
                      Path(self.archive).parent.name)
             return True
