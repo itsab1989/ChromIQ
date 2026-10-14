@@ -197,7 +197,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 65: ink devices' colorimetric clip measures hue along colprof's
      # CIECAM02 (or IPT) hue lines instead of Oklab's; research, opt-in
      "a65-cmykhue", "a65-cmykhue-ipt", "a65-cmykhue-pass2",
-     "a65-cmykhue-jab", "a65-cmykhue-iptspace"})
+     "a65-cmykhue-jab", "a65-cmykhue-iptspace", "a65-cmykhue-jabdark"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two

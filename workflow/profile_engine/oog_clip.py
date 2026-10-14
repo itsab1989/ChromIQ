@@ -384,6 +384,11 @@ A65_PASS2_TOKEN = "a65-cmykhue-pass2"
 # colprof's) or in IPT, instead of CIELAB with an Oklab hue frame
 A65_JAB_TOKEN = "a65-cmykhue-jab"
 A65_IPTSPACE_TOKEN = "a65-cmykhue-iptspace"
+# a65-cmykhue-jabdark: the Jab clip handed over to the engine's own clip near
+# the black: weight of the own clip 1 up to A65_DARK[0] L* above the floor,
+# smoothstep to 0 over A65_DARK[1] L* above that
+A65_JABDARK_TOKEN = "a65-cmykhue-jabdark"
+A65_DARK = (10.0, 10.0)
 _HK = {"on": True}
 _REL = threading.local()
 
@@ -794,13 +799,37 @@ def _descend(b2a, view, t_s, d0, w, *, free, iters, damping, limit, prior,
 
 def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
                channel_max, prior, prior_w, gn_kw, damping, hue_seeds=None,
-               progress_label="") -> np.ndarray:
+               progress_label="", _params=None) -> np.ndarray:
     """New device values for every node with residual > blend_lo.
 
     ``d_near``: the nearest-clip answer (first pass + retry) for ALL nodes;
     returns a full copy with the clipped rows replaced."""
     from workflow.profile_engine import b2a
-    p = table_params()
+    p = table_params() if _params is None else _params
+    if _params is None and p.get("a65") and p.get("a65_dark"):
+        # Agent 65 (a65-cmykhue-jabdark): near the black the engine's own
+        # clip (CIELAB, Oklab frame: int-8b's answer), the Jab clip above,
+        # blended over target L* (as a60-darkacc does on RGB); measured:
+        # the Jab metric alone made the colour-to-black ramps less even
+        fl = dark_floor()
+        if fl is not None:
+            kw = dict(free=free, limit=limit, channel_max=channel_max,
+                      prior=prior, prior_w=prior_w, gn_kw=gn_kw,
+                      damping=damping, hue_seeds=hue_seeds,
+                      progress_label=progress_label)
+            hi = dict(p)
+            hi["a65_dark"] = False
+            d_hi = clip_nodes(model, target_lab, d_near, residual, _params=hi, **kw)
+            d_lo = clip_nodes(model, target_lab, d_near, residual, _params=PARAMS, **kw)
+            cl, cw = A65_DARK
+            u = np.clip((fl + cl + cw - np.asarray(target_lab, float)[:, 0]) / cw, 0.0, 1.0)
+            u = (u * u * (3.0 - 2.0 * u))[:, None]
+            out = (1.0 - u) * d_hi + u * d_lo
+            if limit is not None:
+                over = out.sum(1) > limit
+                if over.any():
+                    out[over] = b2a.project_tac(out[over], limit)
+            return out
     out = d_near.copy()
     sel = np.flatnonzero(residual > p["blend_lo"])
     if not len(sel):

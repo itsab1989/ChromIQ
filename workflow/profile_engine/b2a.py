@@ -2176,11 +2176,14 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     # (table_params); RGB and every other table are unchanged
     if is_additive is False and (t & {oog_clip.A65_TOKEN, oog_clip.A65_IPT_TOKEN,
                                       oog_clip.A65_PASS2_TOKEN, oog_clip.A65_JAB_TOKEN,
-                                      oog_clip.A65_IPTSPACE_TOKEN}):
-        p["a65"] = ("space-cam02" if oog_clip.A65_JAB_TOKEN in t else
+                                      oog_clip.A65_IPTSPACE_TOKEN,
+                                      oog_clip.A65_JABDARK_TOKEN}):
+        p["a65"] = ("space-cam02" if t & {oog_clip.A65_JAB_TOKEN,
+                                          oog_clip.A65_JABDARK_TOKEN} else
                     "space-ipt" if oog_clip.A65_IPTSPACE_TOKEN in t else
                     "ipt" if oog_clip.A65_IPT_TOKEN in t else "cam02")
         p["a65_pass2"] = oog_clip.A65_PASS2_TOKEN in t
+        p["a65_dark"] = oog_clip.A65_JABDARK_TOKEN in t
     # research knobs for the fade's order and shape (Agent 56 A/B only)
     p["a56_r"] = float(os.environ.get("CHROMIQ_A56_R", "2.0"))
     p["a56_shape"] = os.environ.get("CHROMIQ_A56_SHAPE", "rat")
