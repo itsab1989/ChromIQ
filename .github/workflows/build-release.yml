@@ -443,8 +443,22 @@ jobs:
 
           rm -f /tmp/rw.dmg /tmp/rw-copy.dmg
 
-      - name: Codesign DMG (ad-hoc)
-        run: codesign --sign - "${{ matrix.artifact }}"
+      # THE DISK IMAGE ITSELF IS NOT SIGNED (4.3.5 beta 4). Until beta 3 it
+      # was signed ad hoc here. A forum user on an M4 Mac Studio could not
+      # open the downloaded universal DMG: macOS called the DMG itself
+      # untrusted and offered only "Move to Trash". When a quarantined disk
+      # image is opened, macOS assesses the image's own signature only when
+      # it has one, and an ad-hoc signature carries no identity Gatekeeper
+      # can accept, so the image is refused before it mounts; an unsigned
+      # image mounts and Gatekeeper judges the app inside on first launch,
+      # which the ad-hoc signed app passes with the documented "Open Anyway".
+      # An ad-hoc DMG signature proved nothing anyway (anyone can make one);
+      # Homebrew checks the sha256. The app keeps its ad-hoc signature (above).
+      - name: Check the DMG carries no signature of its own
+        run: |
+          if codesign -dv "${{ matrix.artifact }}" 2>/dev/null; then
+            echo "the DMG is signed; release DMGs must not be (see above)"; exit 1
+          fi
 
       # Derive an Intel-only DMG from the universal2 build by stripping arm64
       # slices from every Mach-O. Same source app, ~half the binary size — useful
@@ -567,7 +581,11 @@ jobs:
           done
           [ -f "$X86_DMG" ] || { echo "x86_64 DMG convert failed"; exit 1; }
           rm -f /tmp/rw_x86.dmg
-          codesign --sign - "$X86_DMG"
+          # Not signed, like the DMG above (4.3.5 beta 4): an ad-hoc signed
+          # disk image is refused by Gatekeeper before it mounts.
+          if codesign -dv "$X86_DMG" 2>/dev/null; then
+            echo "the x86_64 DMG is signed; release DMGs must not be"; exit 1
+          fi
 
       - name: Dry run, nothing published
         if: ${{ inputs.dry_run }}
