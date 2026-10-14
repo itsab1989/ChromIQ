@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import os
+
 import numpy as np
 
 
@@ -338,6 +340,44 @@ SHAPER_FLOOR: dict = {"slope": None}
 # curve the refit started from (so measured curvature stays free; a new
 # fold costs). None = off (the plain refit).
 SHAPER_SMOOTH: dict = {"mu": None}
+# Agent 64 (token a64-shapergap, ink devices only): a shaper knot that no
+# patch supports (summed hat weight of the chart's levels of that ink within
+# one knot spacing below ``min``) is not left to the coordinate descent,
+# which can park it anywhere between its neighbours: i1iSis K, where the
+# chart has 164 patches at K 0.50 and 98 at 0.69 and 8 between, the refit
+# moved the whole darkening into 0.50-0.60 and left 0.60-0.66 flat (model
+# L* 30.20 -> 29.43 over K 0.60-0.66, colprof 32.77 -> 29.84; every
+# reference prints it like colprof). Free knots are interpolated linearly
+# between the nearest supported ones after each refit, the way colprof's
+# few-harmonic xfit curves (xfit.c SHAPE_*) cannot fold an unmeasured
+# stretch: the grid then spreads that ink evenly. None = off. Only the
+# black ink's curve (channel letter K; ``channels``, set by the builder): on
+# i1iSis the same rule on the C/M/Y light-end knots moved a near-black
+# colorimetric column node onto another inversion branch.
+SHAPER_GAP: dict = {"min": None, "channels": ()}
+A64_GAP_KMAX = 0.7
+
+
+def _gap_fill(knots: np.ndarray, x: np.ndarray, xp: np.ndarray,
+              min_support: float) -> np.ndarray:
+    """Free (unsupported) inner knots placed linearly between supported ones."""
+    h = float(xp[1] - xp[0])
+    sup = np.clip(1.0 - np.abs(np.asarray(x, float)[:, None] - xp[None, :]) / h,
+                  0.0, None).sum(0)
+    free = sup < float(min_support)
+    free[0] = free[-1] = False
+    # knots above A64_GAP_KMAX stay as fitted: there the colorimetric
+    # neutral column inverts a printer response that is not monotone (i1Pro:
+    # CMY added to K 100 prints LIGHTER, all four references agree), and a
+    # filled K 0.75-0.80 gap moved a column node onto the CMY-heavy branch
+    # (rel. col. neutral swing 0.68 -> 3.80). Env CHROMIQ_A64_GAPKMAX sweeps.
+    kmax = float(os.environ.get("CHROMIQ_A64_GAPKMAX", A64_GAP_KMAX))
+    free &= xp <= kmax + 1e-9
+    if not free.any():
+        return knots
+    out = np.array(knots, float, copy=True)
+    out[free] = np.interp(xp[free], xp[~free], out[~free])
+    return out
 
 
 def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
@@ -391,4 +431,12 @@ def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
         step /= 2.0
         if not improved and step < 1e-3:
             break
+    _gch = os.environ.get("CHROMIQ_A64_GAPCH")
+    _gon = (str(channel) in _gch.split(",") if _gch
+            else channel in SHAPER_GAP.get("channels", ()))
+    if SHAPER_GAP["min"] is not None and _gon:
+        mn = SHAPER_GAP["min"]
+        if mn == "auto":
+            mn = max(3.0, 0.005 * len(device))
+        knots = _gap_fill(knots, device[:, channel], xp, float(mn))
     model.curves[channel] = knots

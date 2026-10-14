@@ -193,7 +193,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a63-palefine",
      # Agent 63: at quality l the keep-grid33in coarse table is never
      # coarser than colprof's -qm grid 17; research, opt-in
-     "a63-lowgrid"})
+     "a63-lowgrid",
+     # Agent 64: data-free shaper knots of ink devices follow their
+     # supported neighbours (i1iSis K 0.60-0.65 gap); research, opt-in
+     "a64-shapergap"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -945,6 +948,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # a25-* (Agent 25, F-15/F-17 out-of-gamut clip); off by default, reset
     # by build_profile when the build ends.
     b2a_mod.set_research_tokens(candidates, is_additive=meas.is_additive)
+    from workflow.profile_engine import forward_model as _fm64
+    # Agent 64 (a64-shapergap): the black ink's shaper only
+    _fm64.SHAPER_GAP["channels"] = tuple(
+        i for i, c in enumerate(meas.channel_letters or []) if c == "K")
     b2a_mod.ECG_SEPARATION["on"] = bool({"a14-ecgsep", "a14-ecgsep2"} & set(candidates))
     b2a_mod.ECG_SEPARATION["sector"] = "a14-ecgsep2" in candidates
     if b2a_mod.ECG_SEPARATION["on"]:

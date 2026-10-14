@@ -2123,6 +2123,11 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     _fm.SHAPER_FLOOR["slope"] = (A42_FLOOR if A45B_TOKEN in t else None)
     # Agent 51 (a51-shapersmooth): curvature penalty on the shaper refit
     _fm.SHAPER_SMOOTH["mu"] = (A51_SMOOTH_MU if "a51-shapersmooth" in t else None)
+    # Agent 64 (a64-shapergap): data-free shaper knots follow their
+    # supported neighbours linearly (ink devices only)
+    _fm.SHAPER_GAP["min"] = (os.environ.get("CHROMIQ_A64_GAPMIN", "auto")
+                             if "a64-shapergap" in t and is_additive is False
+                             else None)
     LIGHT_CLOUD["on"] = bool(("a21-lightcloud" in t and is_additive is False)
                              or "a21-lightcloud-all" in t)
     # a25-oog carries Agent 21's L* >= 60 variant (a21-lightcloud60): the
