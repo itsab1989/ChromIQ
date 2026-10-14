@@ -63,7 +63,7 @@ import numpy as np
 
 from benchmarks.research import cmm, datasets as dsm, identity, metrics
 from benchmarks.research.noise import BENCH_LEVELS
-from benchmarks.research.printers import build_printers
+from benchmarks.research.printers_cmy import build_printers_all as build_printers
 
 HERE = Path(__file__).resolve().parent
 TREE = HERE.parents[1]
@@ -86,8 +86,11 @@ REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
 # battery v3 (Agent 16): development printers (every known printer; the
 # sealed Z family is the only confirmatory set), their charts, the seeds
 V3_SYNTH = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "X1", "X3", "X3m", "X5", "X6",
-            "X7", "X8", "XKH", "XKB"]
-V3_SPARSE = ("S1", "S3", "X1", "X3", "XKH", "XKB")   # also targen 400 (one sheet or less)
+            "X7", "X8", "XKH", "XKB", "S3c", "X3c", "X3cm"]
+V3_SPARSE = ("S1", "S3", "X1", "X3", "XKH", "XKB", "S3c", "X3c")   # also targen 400 (one sheet or less)
+# Agent 66: the CMY printers also get a noise-free targen-900 set (level
+# "none"), so a model's own error can be told from the noise
+V3_NOISEFREE = ("S3c", "X3c", "X3cm")
 # Fast/Bit-exact identity re-builds (hard rule 1) on these typical targen-900
 # sets and every real set; Integrator 3's hash battery covers the rest
 V3_IDENTITY = ("X3",)
@@ -350,6 +353,11 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
                     specs.append({"ds": dsm.synthetic_chart(pid, work, kind, n, level=lvl,
                                                             printers=printers),
                                   "variant": f"{lvl}-{kind}{n}", "role": "development"})
+        for pid in V3_NOISEFREE:
+            if keep(pid):
+                specs.append({"ds": dsm.synthetic_chart(pid, work, "targen", 900, level="none",
+                                                        printers=printers),
+                              "variant": "none-targen900", "role": "development"})
         for name in ([] if NO_REAL[0] else [r for r in REAL_BASE if r not in V3_REAL_SKIP]):
             if keep(name):
                 d = dsm.real(name, work / name)

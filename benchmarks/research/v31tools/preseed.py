@@ -27,7 +27,7 @@ from types import SimpleNamespace
 TREE = Path(__file__).resolve().parent / "tree"
 sys.path.insert(0, str(TREE))
 from benchmarks.research import run  # noqa: E402
-from benchmarks.research.printers import build_printers  # noqa: E402
+from benchmarks.research.printers_cmy import build_printers_all as build_printers  # noqa: E402
 
 
 def sha(p) -> str:
