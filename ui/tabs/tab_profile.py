@@ -1614,8 +1614,16 @@ class TabProfile(QWidget):
         self._pc_targets_widget.setVisible(mode in ("initial", "imitation"))
 
     def _pc_browse_ti3(self) -> None:
-        p = open_file_dialog(self, "Load calibration measurement", "TI3 files (*.ti3)",
+        # An i1Profiler measurement is accepted here too (4.3.5 beta 6, after
+        # #209): a calibration chart measured in i1Profiler arrives as a .txt
+        # (or its native .mxf / .cxf), and this button took a .ti3 only, so
+        # the person had to find Tools > Convert first.
+        p = open_file_dialog(self, "Load calibration measurement",
+                             "Measurement data (*.ti3 *.txt *.mxf *.cxf)",
                              extra_path=self._settings.get("custom_output_path", ""))
+        if p and Path(p).suffix.lower() != ".ti3":
+            converted = self._convert_calibration_measurement(Path(p))
+            p = str(converted) if converted is not None else ""
         if p:
             self._cal_ti3_path = Path(p)
             self._pc_ti3_lbl.setText(p)
@@ -1624,6 +1632,55 @@ class TabProfile(QWidget):
             if not self._pc_desc_edit.text():
                 self._pc_desc_edit.setText(Path(p).stem)
             self._detect_instrument(self._cal_ti3_path, cal=True)
+
+    def _convert_calibration_measurement(self, src: Path) -> "Path | None":
+        """An i1Profiler calibration measurement as a ``.ti3`` printcal reads.
+
+        Converted by the same ``convert_i1profiler_measurement`` as every
+        other import door, so ArgyllCMS's programs are found by
+        ``argyll_tool_path`` (``txt2ti3.exe`` on Windows, #209) and a failure
+        speaks in the user's language (M-CONVERT-*).
+
+        THE RESULT GOES BESIDE THE SOURCE, NEVER OVER ANYTHING. This button
+        has always used a ``.ti3`` where it lies, and printcal writes its
+        ``.cal`` beside the ``.ti3``, so the converted file goes where a
+        ``.ti3`` loaded here would have been: ``<stem>.ti3`` next to the
+        export, or ``<stem>-2.ti3`` and up when that name is taken. Nothing is
+        filed into the project's ``cal/`` folder: a calibration run cannot
+        import (§I.9, ``Calibration.reset`` has no archive). Returns None when
+        it failed, having said so.
+        """
+        import shutil
+        import tempfile
+        from core.stem_paths import artefact
+        from workflow.reference_convert import (ReferenceConvertError,
+                                                convert_i1profiler_measurement)
+        argyll = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
+        with tempfile.TemporaryDirectory(prefix="chromiq_cal_import_") as tmp:
+            try:
+                out = convert_i1profiler_measurement(src, argyll, Path(tmp))
+                dest = artefact(src.parent / src.stem, ".ti3")
+                n = 2
+                while dest.exists():
+                    dest = artefact(src.parent / f"{src.stem}-{n}", ".ti3")
+                    n += 1
+                shutil.copy2(out, dest)
+            except ReferenceConvertError as exc:
+                InfoDialog(exc.title or tr("The file could not be converted"),
+                           str(exc), self, min_width=560).exec()
+                return None
+            except (OSError, ValueError) as exc:
+                InfoDialog(tr("The file could not be converted"),
+                           tr("ChromIQ could not read “{name}” as a measurement.\n\n"
+                              "**The reason:** {reason}.").format(
+                                  name=src.name,
+                                  reason=getattr(exc, "strerror", None) or exc),
+                           self, min_width=560).exec()
+                return None
+        self._pc_log.appendPlainText(tr(
+            "[OK] Converted {name} to Argyll's .ti3 format.").format(
+                name=src.name) + f"  →  {dest}")
+        return dest
 
     def _pc_browse_prev(self) -> None:
         p = open_file_dialog(self, "Load previous .cal file", "CAL files (*.cal)",
@@ -4730,7 +4787,13 @@ class TabProfile(QWidget):
         try:
             out = convert_i1profiler_measurement(
                 src, argyll, out_dir=Path(tempfile.mkdtemp()))
-        except (ReferenceConvertError, OSError, ValueError) as exc:
+        except ReferenceConvertError as exc:
+            # The converter's reason is a whole §M message in the user's
+            # language (M-CONVERT-*); shown as it is, under its own headline.
+            InfoDialog(exc.title or tr("The file could not be converted"),
+                       str(exc), self, min_width=560).exec()
+            return None
+        except (OSError, ValueError) as exc:
             InfoDialog(tr("The file could not be converted"),
                        tr("ChromIQ could not read “{name}” as a measurement.\n\n"
                           "**The reason:** {reason}.").format(name=src.name,
@@ -4902,7 +4965,12 @@ class TabProfile(QWidget):
                 cxf_path, Path(self._cxf_tmp.name) / f"{cxf_path.stem}.ti3")
         except ReferenceConvertError as exc:
             self._log.appendPlainText(f"[ERROR] {exc}")
-            self._show_txt_import_error(str(exc))
+            # The CxF parse names its own reason (M-CONVERT-CXF-*). The txt2ti3
+            # window below only finds a reason in a line that says "error",
+            # which this one never does, so it used to show the general text
+            # and drop the reason.
+            InfoDialog(exc.title or tr("The file could not be converted"),
+                       str(exc), self, min_width=540).exec()
             return
         # The header, not `parse_ti3`: a CMYK CxF converts too (beta 7), and
         # the parser refuses every non-RGB file.
@@ -5018,22 +5086,13 @@ class TabProfile(QWidget):
             if "error" in line.lower():
                 detail = line.strip()
                 break
-        body = (
-            "ChromIQ tried to convert this file into measurement data it can use, "
-            "but the conversion failed. This usually means the file isn't an "
-            "i1Profiler measurement export — for example it's a patch or reference "
-            "list rather than actual readings, or it's missing the colour "
-            "measurements.\n\n"
-            "What to do:\n"
-            "• In i1Profiler, make sure you have actually measured the chart, then "
-            "save the measured data.\n"
-            "• The saved file must contain both the device values (RGB or CMYK) and "
-            "the measured colour (Lab/XYZ or spectral) for every patch.\n"
-            "• Load that saved measurement file here."
-        )
+        # §M M-CONVERT-TXT-NOT-MEASUREMENT. It was the one window of the
+        # converter never handed to tr(), so it was English in every language.
+        from workflow import measurement_messages as MM
+        title, body = MM.M_CONVERT_TXT_NOT_MEASUREMENT.render()
         if detail:
-            body += f"\n\nTechnical detail:\n{detail}"
-        dlg = InfoDialog("This file couldn't be read as measurement data", body, self, min_width=540)
+            body += "\n\n" + MM.convert_details(detail)
+        dlg = InfoDialog(title, body, self, min_width=540)
         dlg.exec()
 
     def _browse_gam(self) -> None:

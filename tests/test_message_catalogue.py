@@ -717,6 +717,19 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # window once ChromIQ's engine has written
                                  # the session's readings into the file.
                                  "M-END-WRITTEN",
+                                 # 4.3.5 beta 6, after #209: the file
+                                 # converter's reasons, English in every
+                                 # language until now. Our words.
+                                 "M-CONVERT-TOOL-MISSING",
+                                 "M-CONVERT-TOOL-FAILED",
+                                 "M-CONVERT-NO-TI3", "M-CONVERT-NO-REFERENCE",
+                                 "M-CONVERT-CXF-UNREADABLE",
+                                 "M-CONVERT-CXF-NO-DEVICE-VALUES",
+                                 "M-CONVERT-CXF-NO-PATCHES",
+                                 "M-CONVERT-CXF-COUNTS-DIFFER",
+                                 "M-CONVERT-CXF-NO-SPECTRUM",
+                                 "M-CONVERT-CXF-UNEQUAL-SPECTRA",
+                                 "M-CONVERT-TXT-NOT-MEASUREMENT",
                                  # (M-PATCH-CARD-PLAIN, 4.3.5 beta 2, was
                                  # here until Knut and Basti approved it
                                  # 2026-10-13, without "only".)

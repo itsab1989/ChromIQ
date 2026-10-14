@@ -29,6 +29,7 @@ from core.proc_text import run_text
 from core.resource_path import argyll_tool_path
 from core.stem_paths import artefact
 from core.text_io import read_text
+from workflow import measurement_messages as M
 
 
 class ReferenceKind(Enum):
@@ -38,7 +39,27 @@ class ReferenceKind(Enum):
 
 
 class ReferenceConvertError(RuntimeError):
-    """Conversion failed (carries a user-facing message)."""
+    """Conversion failed (carries a user-facing message).
+
+    ``str(exc)`` is the message body, already in the user's language: every
+    reason raised here is a §M message (``workflow.measurement_messages``,
+    M-CONVERT-*), rendered at raise time because the language is fixed for the
+    session. Before #209's follow-up it was hard-coded English, and the
+    reporter's Russian window showed exactly that one sentence in English.
+    :attr:`title` is the message's headline and :attr:`message_id` its ID.
+    """
+
+    def __init__(self, message: str = "", *, title: str = "",
+                 message_id: str = "") -> None:
+        super().__init__(message)
+        self.title = title
+        self.message_id = message_id
+
+
+def _failure(msg, **kw) -> ReferenceConvertError:
+    """The exception for §M message *msg*, rendered with *kw*."""
+    title, body = msg.render(**kw)
+    return ReferenceConvertError(body, title=title, message_id=msg.id)
 
 
 # CGATS colorimetric columns that mean "ready to use".
@@ -166,9 +187,7 @@ def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
     _run(Path(argyll_bin), "txt2ti3", [str(p), str(base)], runner)
     out = artefact(base, ".ti3")
     if not out.is_file():
-        raise ReferenceConvertError(
-            "txt2ti3 ran but produced no .ti3 — is this an i1Profiler "
-            "measurement export?")
+        raise _failure(M.M_CONVERT_NO_TI3)
     finalize_converted_ti3(out, p, argyll_bin, runner)
     return out
 
@@ -351,8 +370,8 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
     try:
         root = ET.parse(cxf_path).getroot()
     except ET.ParseError as exc:
-        raise ReferenceConvertError(
-            f"{cxf_path.name}: not a readable CxF3 file ({exc}).") from exc
+        raise _failure(M.M_CONVERT_CXF_UNREADABLE, name=cxf_path.name,
+                       detail=str(exc)) from exc
     objs = root.findall(".//cc:Object", _CXF_NS)
 
     targets = [o for o in objs if o.get("ObjectType") == "Target"]
@@ -369,9 +388,8 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
         k = o.find("cc:DeviceColorValues/cc:ColorCMYK", _CXF_NS)
         this = "RGB" if c is not None else "CMYK" if k is not None else None
         if this is None or (space is not None and this != space):
-            raise ReferenceConvertError(
-                f"{cxf_path.name}: no RGB or CMYK device values. Only RGB and "
-                "CMYK i1Profiler measurements can be imported.")
+            raise _failure(M.M_CONVERT_CXF_NO_DEVICE_VALUES,
+                           name=cxf_path.name)
         space = this
         if this == "RGB":
             rgb.append([float(c.find(f"cc:{ch}", _CXF_NS).text)
@@ -380,28 +398,24 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
             rgb.append([float(k.find(f"cc:{ch}", _CXF_NS).text)
                         for ch in ("Cyan", "Magenta", "Yellow", "Black")])
     if not rgb:
-        raise ReferenceConvertError(
-            f"{cxf_path.name}: no measurement patches found.")
+        raise _failure(M.M_CONVERT_CXF_NO_PATCHES, name=cxf_path.name)
 
     meas = next(([o for o in objs if o.get("ObjectType") == m] for m in _CXF_MODES
                 if any(o.get("ObjectType") == m for o in objs)), [])
     if len(meas) != len(targets):
-        raise ReferenceConvertError(
-            f"{cxf_path.name}: {len(targets)} patches but {len(meas)} readings — "
-            "the file's device and measurement lists don't line up.")
+        raise _failure(M.M_CONVERT_CXF_COUNTS_DIFFER, name=cxf_path.name,
+                       patches=len(targets), readings=len(meas))
 
     refl, start_wl = [], None
     for o in meas:
         sp = o.find("cc:ColorValues/cc:ReflectanceSpectrum", _CXF_NS)
         if sp is None or not sp.text:
-            raise ReferenceConvertError(
-                f"{cxf_path.name}: a reading has no reflectance spectrum.")
+            raise _failure(M.M_CONVERT_CXF_NO_SPECTRUM, name=cxf_path.name)
         start_wl = float(sp.get("StartWL") or 380.0)
         refl.append([float(v) for v in sp.text.split()])
     bands = len(refl[0])
     if any(len(r) != bands for r in refl):
-        raise ReferenceConvertError(
-            f"{cxf_path.name}: readings have unequal spectrum lengths.")
+        raise _failure(M.M_CONVERT_CXF_UNEQUAL_SPECTRA, name=cxf_path.name)
 
     lam = start_wl + 10.0 * np.arange(bands)           # i1Pro: 10 nm intervals
     xyz = spectra_to_xyz(np.asarray(refl), lam, illuminant="D50")   # Y=100, D50
@@ -866,13 +880,15 @@ def _run(argyll_bin: Path, tool: str, args: list[str],
          runner: Callable[..., subprocess.CompletedProcess]) -> None:
     exe = argyll_tool_path(argyll_bin, tool)
     if not exe.exists():
-        raise ReferenceConvertError(
-            f"ChromIQ needs the ArgyllCMS tool “{tool}” to convert this file, but "
-            f"couldn't find it. Check the ArgyllCMS folder in Settings.")
+        raise _failure(M.M_CONVERT_TOOL_MISSING, tool=exe.name)
     r = run_text([str(exe), *args], runner=runner, capture_output=True)
     if r.returncode != 0:
-        tail = (r.stderr or r.stdout or "").strip().splitlines()[-1:] or [""]
-        raise ReferenceConvertError(f"{tool} couldn't convert the file: {tail[0]}")
+        tail = (r.stderr or r.stdout or "").strip().splitlines()[-1:]
+        # The tool's own line is technical and stays as the tool wrote it;
+        # with none, the exit code is the only detail there is.
+        detail = tail[0].strip() if tail and tail[0].strip() else \
+            f"{exe.name}: exit code {r.returncode}"
+        raise _failure(M.M_CONVERT_TOOL_FAILED, tool=exe.name, detail=detail)
 
 
 def convert_reference(
@@ -907,7 +923,5 @@ def convert_reference(
         _run(argyll_bin, "spec2cie", [str(artefact(tmp, ".ti3")), str(out)], runner)
 
     if not out.is_file():
-        raise ReferenceConvertError(
-            "The converter ran but produced no reference file. The download may "
-            "not be a target reference of this type.")
+        raise _failure(M.M_CONVERT_NO_REFERENCE)
     return out

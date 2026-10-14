@@ -226,7 +226,8 @@ def test_before_the_fix_the_measure_tab_said_what_the_reporter_saw(
     got = TabMeasure._convert_import_file(tab, run, _i1profiler_txt(tmp_path))
     assert got is None
     assert len(said) == 1 and "txt2ti3" in said[0][1]
-    assert "couldn't find it" in said[0][1]
+    # The reporter's sentence, in the §M words it has had since beta 6.
+    assert "that program is not in the ArgyllCMS folder" in said[0][1]
 
 
 def test_the_report_window_and_build_profile_take_the_same_converter():

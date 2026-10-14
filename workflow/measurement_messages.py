@@ -6051,6 +6051,150 @@ M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED = _m(
     "If the print dialog has an RGB colour setting for the printer (on an HP Color LaserJet, \u201cRGB Color\u201d), ChromIQ sets it to Device. Do the same for your photos.",
     approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
+# ---------------------------------------------------------------------------
+#: #209 follow-up, 4.3.5 beta 6: THE CONVERTER'S OWN REASONS, IN THE USER'S
+#: LANGUAGE. The reporter's screenshot showed a Russian window whose only
+#: English was the sentence that mattered: ``ReferenceConvertError`` carried a
+#: hard-coded English text from ``workflow/reference_convert.py`` into every
+#: window that shows it (the Measure tab's import, Build Profile's "Load
+#: measurement data", the Measurement Report's batch adder, the scanner
+#: windows' notes and logs). Each reason is now a message here, rendered at
+#: raise time (the language is fixed for the session, and ``core.i18n`` needs
+#: no Qt), and the exception carries its ID and headline. One headline for all
+#: of them: the one the Measure tab and Build Profile windows already show.
+#: PROPOSED wording, shown since beta 6.
+_CONVERT_HEADLINE = "The file could not be converted"
+
+M_CONVERT_TOOL_MISSING = _m(
+    "M-CONVERT-TOOL-MISSING",
+    _CONVERT_HEADLINE,
+    "ChromIQ converts this file with a program that comes with ArgyllCMS "
+    "({tool}), and that program is not in the ArgyllCMS folder ChromIQ is set "
+    "to use.\n\n"
+    "Open Preferences (\u2699) and check the ArgyllCMS "
+    "folder: it should be the \u201cbin\u201d folder inside your ArgyllCMS "
+    "installation. Then try again.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+M_CONVERT_TOOL_FAILED = _m(
+    "M-CONVERT-TOOL-FAILED",
+    _CONVERT_HEADLINE,
+    "The ArgyllCMS program that converts this file ({tool}) stopped with an "
+    "error. This usually means the file is not in a form that program can "
+    "read, or it is damaged.\n\n"
+    "Your file has not been changed.\n\n"
+    "Details: {detail}",
+    approved=False)
+
+M_CONVERT_NO_TI3 = _m(
+    "M-CONVERT-NO-TI3",
+    _CONVERT_HEADLINE,
+    "The conversion finished but did not produce a measurement (.ti3 file). "
+    "This usually means the file is not an i1Profiler measurement export, for "
+    "example a list of patches that have not been measured yet.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+M_CONVERT_NO_REFERENCE = _m(
+    "M-CONVERT-NO-REFERENCE",
+    _CONVERT_HEADLINE,
+    "The conversion finished but did not produce a reference file. The file "
+    "may not be a target reference of this kind.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+M_CONVERT_CXF_UNREADABLE = _m(
+    "M-CONVERT-CXF-UNREADABLE",
+    _CONVERT_HEADLINE,
+    "{name} could not be read as an i1Profiler measurement (CxF3 file). It "
+    "may be damaged or only partly saved.\n\n"
+    "Your file has not been changed.\n\n"
+    "Details: {detail}",
+    approved=False)
+
+M_CONVERT_CXF_NO_DEVICE_VALUES = _m(
+    "M-CONVERT-CXF-NO-DEVICE-VALUES",
+    _CONVERT_HEADLINE,
+    "{name} does not give the chart\u2019s RGB or CMYK values (device values) "
+    "for every patch. ChromIQ can import i1Profiler measurements of RGB and "
+    "CMYK charts only.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+M_CONVERT_CXF_NO_PATCHES = _m(
+    "M-CONVERT-CXF-NO-PATCHES",
+    _CONVERT_HEADLINE,
+    "{name} holds no measured patches.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+M_CONVERT_CXF_COUNTS_DIFFER = _m(
+    "M-CONVERT-CXF-COUNTS-DIFFER",
+    _CONVERT_HEADLINE,
+    "{name} does not hold as many readings as patches (patches: {patches}, "
+    "readings: {readings}), so ChromIQ cannot tell which reading belongs to "
+    "which patch.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+M_CONVERT_CXF_NO_SPECTRUM = _m(
+    "M-CONVERT-CXF-NO-SPECTRUM",
+    _CONVERT_HEADLINE,
+    "A reading in {name} has no spectral data (reflectance spectrum), and "
+    "ChromIQ needs it to work out the colour of each patch.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+M_CONVERT_CXF_UNEQUAL_SPECTRA = _m(
+    "M-CONVERT-CXF-UNEQUAL-SPECTRA",
+    _CONVERT_HEADLINE,
+    "The readings in {name} do not all cover the same wavelengths (their "
+    "reflectance spectra differ in length), so ChromIQ cannot convert "
+    "them.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+#: Build Profile's window when its txt2ti3 run (through ArgyllRunner) fails.
+#: It was English in every language: the text was never handed to tr(). The
+#: wording is the one it always had, without its dash; the tool's own error
+#: line follows it as :func:`convert_details`.
+M_CONVERT_TXT_NOT_MEASUREMENT = _m(
+    "M-CONVERT-TXT-NOT-MEASUREMENT",
+    "This file could not be read as measurement data",
+    "ChromIQ tried to convert this file into measurement data it can use, "
+    "but the conversion failed. This usually means the file is not an "
+    "i1Profiler measurement export: for example, it is a list of patches or "
+    "reference values rather than actual readings, or it has no colour "
+    "measurements in it.\n\n"
+    "What to do:\n"
+    "\u2022 In i1Profiler, make sure you have actually measured the chart, "
+    "then save the measured data.\n"
+    "\u2022 The saved file must contain both the device values (RGB or CMYK) "
+    "and the measured colour (Lab/XYZ or spectral) for every patch.\n"
+    "\u2022 Load that saved measurement file here.",
+    approved=False)
+
+#: The paragraph a converter window adds when the ArgyllCMS program printed an
+#: error line of its own. Read through the function, not across the import
+#: (see `not_opened_no_project`).
+_CONVERT_DETAILS = "Details: {detail}"
+
+
+def convert_details(detail: str) -> str:
+    """"Details: <the tool's own line>", in the user's language."""
+    return tr(_CONVERT_DETAILS).format(detail=detail)
+
+
+CONVERT_MESSAGES = (
+    M_CONVERT_TOOL_MISSING, M_CONVERT_TOOL_FAILED, M_CONVERT_NO_TI3,
+    M_CONVERT_NO_REFERENCE, M_CONVERT_CXF_UNREADABLE,
+    M_CONVERT_CXF_NO_DEVICE_VALUES, M_CONVERT_CXF_NO_PATCHES,
+    M_CONVERT_CXF_COUNTS_DIFFER, M_CONVERT_CXF_NO_SPECTRUM,
+    M_CONVERT_CXF_UNEQUAL_SPECTRA, M_CONVERT_TXT_NOT_MEASUREMENT,
+)
+
+
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_CAL_FOUND_ENGINE,
@@ -6162,6 +6306,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_STRIP_LABELS_CROWDED,
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
     M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
+    *CONVERT_MESSAGES,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.
