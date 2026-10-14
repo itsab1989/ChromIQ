@@ -83,10 +83,12 @@ def test_only_a_grid_chart_records_how_it_was_spread(tmp_path):
     assert 'CHROMIQ_SPREAD "grid"' in (tmp_path / "grid.ti3").read_text(encoding="utf-8")
 
 
-def test_the_colour_view_help_stays_as_shipped_until_approved():
+def test_the_colour_view_help_names_the_seams_since_approved():
+    """Knut, #182 6152691121 (2026-10-13): approved and shown."""
     from ui.dialogs import patch_cube_dialog as d
-    assert not M.M_HELP_COLOUR_VIEW_SEAMS.approved
-    assert d._view_help() == d.tr(d._VIEW_HELP)
+    assert M.M_HELP_COLOUR_VIEW_SEAMS.approved
+    assert d._view_help() == M.M_HELP_COLOUR_VIEW_SEAMS.render()[1]
+    assert "seams" in d._view_help()
 
 
 # ---- 2 ---------------------------------------------------------------------
@@ -149,12 +151,13 @@ def test_auto_and_a_roomy_chart_are_not_flagged():
     assert _crowd(40, 4.23, indicator_rotation=90) is None
 
 
-def test_the_crowding_words_wait_for_approval():
+def test_the_crowding_words_are_shown_since_approved():
+    """Knut, #182 6152691121 (2026-10-13)."""
     from ui.tabs.tab_chart import strip_label_crowding_notice
     c = _crowd(40, 4.23)
-    assert not M.M_CHART_STRIP_LABELS_CROWDED.approved
-    assert strip_label_crowding_notice(c) is None
-    text = strip_label_crowding_notice(c, unapproved=True)
+    assert M.M_CHART_STRIP_LABELS_CROWDED.approved
+    assert strip_label_crowding_notice(c) == strip_label_crowding_notice(c, unapproved=True)
+    text = strip_label_crowding_notice(c)
     assert text and "{" not in text and "“AA”" in text and "auto" in text
     assert strip_label_crowding_notice(_crowd(40, 0.0), unapproved=True) is None
 
@@ -180,14 +183,24 @@ def test_the_grid_warning_waits_for_a_patch_under_1_mm():
 
 
 # ---- 6 ---------------------------------------------------------------------
-def test_the_explained_postscript_texts_are_proposed_and_hidden():
+def test_the_explained_postscript_texts_are_shown_since_approved():
+    """Knut, #182 6152691121 (2026-10-13): the question, its two choices and
+    the merged help (the project rule, then each choice explained)."""
     from ui.tabs.tab_print import ps_texts
     for m in (M.M_PRINT_PS_ASK_EXPLAINED, M.M_PRINT_PS_FORM_CHOICE_EXPLAINED,
-              M.M_PRINT_PS_FORM_HELP_EXPLAINED):
-        assert not m.approved
+              M.M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED):
+        assert m.approved
     ask, choice, help_ = ps_texts()
-    assert ask is M.M_PRINT_PS_ASK and choice is M.M_PRINT_PS_FORM_CHOICE
-    assert help_ is None
+    assert ask is M.M_PRINT_PS_ASK_EXPLAINED
+    assert choice is M.M_PRINT_PS_FORM_CHOICE_EXPLAINED
+    assert help_ is M.M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED
+    paras = help_.body.split("\n\n")
+    assert len(paras) == 4
+    assert paras[0].startswith("A profile only fits photos")
+    assert "kept for the whole project" in paras[0]
+    assert paras[1].startswith("Send the colours unchanged:")
+    assert paras[2].startswith("Let the printer adjust the colours:")
+    assert paras[3].startswith("If the print dialog has an RGB colour setting")
     ask, choice, help_ = ps_texts(proposed=True)
     assert ask is M.M_PRINT_PS_ASK_EXPLAINED
     lines = choice.render()[1].split("\n")

@@ -1151,7 +1151,7 @@ M_GAMUT_NO_PROFILE = _m(
     "GUIDED and MANUAL can still build you a chart in the meantime, so the "
     "files are ready. Printing and measuring any verification chart waits for "
     "the profile either way.",
-    approved=False)
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
 # --- PROPOSED: the two Create Chart patch-set endings ----------------------
 # Both existed as SILENCE. When the loaded patch set had gone from disk the app
@@ -5545,11 +5545,15 @@ M_PRINT_PS_FORM_HELP_TITLE = _m(
 #: beta 2 after the three answers were driven on capture queues: "Use the
 #: print dialog" sent the 4.3.4 dialog form (CIEBased), "Print anyway" the
 #: direct route's DeviceRGB, Cancel nothing.
+#: 4.3.5 beta 4: renamed in the words of the explained choices
+#: (M-PRINT-PS-FORM-CHOICE-EXPLAINED), "This run prints like Preview" became
+#: "This run lets the printer adjust the colours"; approved by Knut,
+#: 2026-10-13 (#182 6152691121, "All messages/descriptions are accepted").
 M_PRINT_DIRECT_LIKE_PREVIEW = _m(
     "M-PRINT-DIRECT-LIKE-PREVIEW",
-    "This run prints like Preview",
-    "ChromIQ\u2019s own route can only send the chart the way Photoshop does. Print through the macOS print dialog instead, or print anyway?",
-    approved=True)  # Basti, 2026-10-13
+    "This run lets the printer adjust the colours",
+    "ChromIQ\u2019s own route can only send the colours unchanged. Print through the macOS print dialog instead, or print anyway?",
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121), in the explained choices' words
 _PRINT_LIKE_PREVIEW_BTN_DIALOG = "Use the print dialog"
 _PRINT_LIKE_PREVIEW_BTN_ANYWAY = "Print anyway"
 
@@ -5563,19 +5567,16 @@ _PRINT_LIKE_PREVIEW_BTN_ANYWAY = "Print anyway"
 #: Basti approves it; until then the approved texts stay on screen. The help
 #: is M-PRINT-PS-FORM-HELP-TITLE with its first paragraph rewritten; the line
 #: is M-PRINT-PS-FORM-APPLIES with a second sentence.
-M_PRINT_PS_FORM_HELP_PROJECT = _m(
-    "M-PRINT-PS-FORM-HELP-PROJECT",
-    "Choose the way you print your photos",
-    "A profile only fits photos that reach the printer the same way as its chart did. This printer can receive the chart in two ways. The way chosen at the project\u2019s first print to a PostScript printer through the macOS print dialog is kept for the whole project: its calibration, its runs and their verification charts. A choice made here applies to this run and its verification charts, and to runs refined from it that have no choice of their own. The project\u2019s choice stays as it is.\n\n"
-    "Photoshop (Photoshop Manages Colors): choose this if you print from Photoshop with \u201cPhotoshop Manages Colors\u201d and this profile as the printer profile. The chart\u2019s values go to the printer unchanged. (Sent as the printer\u2019s own RGB, like ChromIQ\u2019s direct route.)\n\n"
-    "Preview and most other apps: choose this if you print from Preview or another app that leaves printing to macOS. The printer then adjusts the colours with its own settings, the same way for the chart and for your photos. To print a photo with this profile from Photoshop in this way: Edit > Convert to Profile (this profile), then Edit > Assign Profile > Don\u2019t Color Manage, and print with \u201cPrinter Manages Colors\u201d. (macOS sends the values marked as sRGB, or with the profile set in ColorSync Utility; this only works while no profile is set there.)\n\n"
-    "If the print dialog has an RGB colour setting for the printer (on an HP Color LaserJet, \u201cRGB Color\u201d), ChromIQ sets it to Device. Do the same for your photos.",
-    approved=False)
+# M-PRINT-PS-FORM-HELP-PROJECT (final review of beta 2) and
+# M-PRINT-PS-FORM-HELP-EXPLAINED (beta 3) are SUPERSEDED, never approved as
+# such: Knut approved their merge (#182 6152691121, 2026-10-13), the project
+# rule's first paragraph followed by the explained choices,
+# M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED below.
 M_PRINT_PS_FORM_APPLIES_PROJECT = _m(
     "M-PRINT-PS-FORM-APPLIES-PROJECT",
     "When this choice applies",
     "Applies when this run or its verification charts print to a PostScript printer through the macOS print dialog. Changing it here does not change the project\u2019s choice.",
-    approved=False)
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
 # --- PROPOSED: the count help of FROM PROFILE GAMUT, k82 (4.3.5) ------------
 #: The two paragraphs that replace the 4.3.4 help's "smaller charts are part
@@ -5820,7 +5821,7 @@ M_HELP_COLOUR_VIEW_SEAMS = _m(
     "Colours through the profile: each patch sits where the profile says it lands as a colour (L* up, a* and b* across). The grey skin is everything the profile can print. The darker lines are seams on that skin, not its outline: they are the colours where two of the three ink amounts are at 0 or 100, for example from pure red to pure yellow. On many printers the most colourful colours lie on these seams. On others, often laser printers, the most colourful colours come from other mixes, and the skin bulges out between the seams. The outline you see is simply where the skin turns away from you, so it changes as you turn the view.\n\n"
     "The patches stay about half a spacing inside the skin. That is how evenly spaced patches fill a shape: each one stands for the colours around it, so the outermost ones sit a little in from the edge.\n\n"
     "A chart made From Profile Gamut spaces its colours evenly as colours. A printer does not respond evenly to ink amounts, so the same chart can look crowded in one part of the RGB cube and sparse in another.",
-    approved=False)
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
 # --- PROPOSED (4.3.5 beta 3, Knut #182 6148467471): a key to the colour view
 #: Knut asked for a small legend in Show patch distribution (3D), "Colours
@@ -5836,7 +5837,7 @@ M_HELP_COLOUR_VIEW_LEGEND = _m(
     "Grey skin: every colour this profile can print (its gamut).\n"
     "Lines: seams on the skin, where two of the three inks are at 0 or 100 (for example from pure red to pure yellow). They are not the skin's outline.\n"
     "Dots: the chart's patches, each in its own colour.",
-    approved=False)
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
 # --- PROPOSED (4.3.5 beta 3, Knut #182 6144104040): strip letters that run
 # into each other ----------------------------------------------------------
@@ -5850,7 +5851,7 @@ M_CHART_STRIP_LABELS_CROWDED = _m(
     "M-CHART-STRIP-LABELS-CROWDED",
     "The strip letters run into each other",
     "\u26a0 The strip letters run into each other. At {size} pt each label is wider than the room above its strip ({pitch} mm from one strip to the next), so neighbours such as \u201c{first}\u201d and \u201c{second}\u201d touch or overlap and are hard to tell apart when you read the chart. In the \u201cStrip & row labels\u201d frame, choose a smaller size next to \u201cFont:\u201d ({fits} pt or smaller fits), or choose \u201cauto\u201d, which picks the largest size that fits by itself.",
-    approved=False)
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
 # --- PROPOSED (4.3.5 beta 3, Knut #182 6144104040): why the macOS print
 # dialog shows a colour profile ----------------------------------------------
@@ -5870,7 +5871,7 @@ M_PRINT_DIALOG_COLOUR_MATCHING = _m(
     "M-PRINT-DIALOG-COLOUR-MATCHING",
     "Why the print dialog shows a colour profile",
     "In the print dialog, under Colour Matching, macOS may show \u201cColorSync\u201d with a profile already chosen (often your default profile), and it offers no way to switch colour matching off. You can leave it as it is. ChromIQ tells macOS that it manages the chart\u2019s colours itself, the same way Photoshop does with \u201cPhotoshop Manages Colors\u201d, so this setting is not applied to the chart. Measured: with \u201cColorSync\u201d and a profile, or with \u201cIn printer\u201d, the printer received exactly the same job. How the chart\u2019s colours reach the printer is decided by ChromIQ, by the settings on this tab.",
-    approved=False)
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
 # --- PROPOSED (4.3.5 beta 3, Knut #182 6143186611): the PostScript question,
 # explained choice by choice ------------------------------------------------
@@ -5888,20 +5889,24 @@ M_PRINT_PS_ASK_EXPLAINED = _m(
     "Send the colours unchanged: the printer gets the chart\u2019s colour values exactly as ChromIQ made them, and nothing on the way changes them. Choose this when the program you print your photos from converts them with your profile itself before printing (for example Photoshop with \u201cPhotoshop Manages Colors\u201d and this profile as the printer profile). ChromIQ also prints this way when you print without the macOS print dialog.\n\n"
     "Let the printer adjust the colours: macOS marks the chart as ordinary screen colours (sRGB, or the profile set for this printer in ColorSync Utility), and the printer then changes them with its own colour settings, as it does for most things you print. Choose this when you print from programs that leave the colours to macOS and the printer (for example Preview). The profile then describes your printer together with that adjustment, and fits only photos printed the same way.\n\n"
     "Not sure? Choose \u201cSend the colours unchanged\u201d. It is the usual way to make a printer profile, because nothing between ChromIQ and the paper changes the colours.",
-    approved=False)
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 M_PRINT_PS_FORM_CHOICE_EXPLAINED = _m(
     "M-PRINT-PS-FORM-CHOICE-EXPLAINED",
     "Colours to the printer",
     "Send the colours unchanged (like Photoshop)\nLet the printer adjust the colours (like Preview)",
-    approved=False)
-M_PRINT_PS_FORM_HELP_EXPLAINED = _m(
-    "M-PRINT-PS-FORM-HELP-EXPLAINED",
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
+#: 4.3.5 beta 4: the help of the row, approved by Knut on 2026-10-13
+#: (#182 6152691121, text 6): the first paragraph of the project rule
+#: (formerly M-PRINT-PS-FORM-HELP-PROJECT), then the explained choices and the
+#: RGB-setting paragraph (formerly M-PRINT-PS-FORM-HELP-EXPLAINED).
+M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED = _m(
+    "M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED",
     "Choose the way you print your photos",
-    "A profile only fits photos that reach the printer the same way as its chart did. This printer can receive the chart in two ways, and ChromIQ uses the one you choose here for this run and all its verification charts.\n\n"
+    "A profile only fits photos that reach the printer the same way as its chart did. This printer can receive the chart in two ways. The way chosen at the project\u2019s first print to a PostScript printer through the macOS print dialog is kept for the whole project: its calibration, its runs and their verification charts. A choice made here applies to this run and its verification charts, and to runs refined from it that have no choice of their own. The project\u2019s choice stays as it is.\n\n"
     "Send the colours unchanged: the printer gets the chart\u2019s colour values exactly as ChromIQ made them, and nothing on the way changes them. Choose this when the program you print your photos from converts them with your profile itself before printing (for example Photoshop with \u201cPhotoshop Manages Colors\u201d and this profile as the printer profile).\n\n"
     "Let the printer adjust the colours: macOS marks the chart as ordinary screen colours (sRGB, or the profile set for this printer in ColorSync Utility), and the printer then changes them with its own colour settings, as it does for most things you print. Choose this when you print from programs that leave the colours to macOS and the printer (for example Preview). The profile then describes your printer together with that adjustment, and fits only photos printed the same way. To print a photo with this profile from Photoshop in this way: Edit > Convert to Profile (this profile), then Edit > Assign Profile > Don\u2019t Color Manage, and print with \u201cPrinter Manages Colors\u201d. This only works while no profile is set for the printer in ColorSync Utility.\n\n"
     "If the print dialog has an RGB colour setting for the printer (on an HP Color LaserJet, \u201cRGB Color\u201d), ChromIQ sets it to Device. Do the same for your photos.",
-    approved=False)
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
@@ -5936,7 +5941,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_PS_FORM_CHOICE, M_PRINT_PS_FORM_HELP, M_PRINT_PS_FORM_HELP_TITLE,
     M_PRINT_PS_PAPER_NOT_LISTED, M_PRINT_DIRECT_LIKE_PREVIEW,
     M_PRINT_PS_ASK, M_PRINT_PS_FORM_APPLIES,
-    M_PRINT_PS_FORM_HELP_PROJECT, M_PRINT_PS_FORM_APPLIES_PROJECT,
+    M_PRINT_PS_FORM_APPLIES_PROJECT,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
@@ -6011,7 +6016,7 @@ CATALOGUE = {m.id: m for m in (
     M_HELP_COLOUR_VIEW_SEAMS, M_HELP_COLOUR_VIEW_LEGEND,
     M_CHART_STRIP_LABELS_CROWDED,
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
-    M_PRINT_PS_FORM_HELP_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
+    M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

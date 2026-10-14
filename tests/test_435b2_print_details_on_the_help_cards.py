@@ -106,7 +106,8 @@ def test_the_notes_say_what_the_code_does():
     for word in ("Canon", "PostScript", "CMYK"):
         assert word in kinds
     # the PostScript note names the row and both choices as the tab shows them
-    label, lines = MM.M_PRINT_PS_FORM_CHOICE.render()
+    from ui.tabs.tab_print import ps_texts
+    label, lines = ps_texts()[1].render()
     ps = W._postscript_note()[1]
     assert label in ps
     for choice in lines.split("\n"):

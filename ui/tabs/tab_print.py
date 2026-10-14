@@ -554,13 +554,14 @@ def _reset_vendors(rep) -> set:
 def ps_texts(*, proposed: bool = False):
     """``(question, choices, help or None)`` for a PostScript printer on the
     macOS dialog route: the explained wording (Knut, #182 6143186611:
-    M-PRINT-PS-ASK-EXPLAINED, M-PRINT-PS-FORM-CHOICE-EXPLAINED,
-    M-PRINT-PS-FORM-HELP-EXPLAINED) when all three are approved, else the
+    M-PRINT-PS-ASK-EXPLAINED, M-PRINT-PS-FORM-CHOICE-EXPLAINED and the help
+    M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED, all approved by Knut on
+    2026-10-13, #182 6152691121) when all three are approved, else the
     approved M-PRINT-PS-ASK and M-PRINT-PS-FORM-CHOICE with no help override.
     *proposed* returns the explained set regardless, for review drivers."""
     from workflow import measurement_messages as MM
     explained = (MM.M_PRINT_PS_ASK_EXPLAINED, MM.M_PRINT_PS_FORM_CHOICE_EXPLAINED,
-                 MM.M_PRINT_PS_FORM_HELP_EXPLAINED)
+                 MM.M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED)
     if proposed or all(m.approved for m in explained):
         return explained
     return MM.M_PRINT_PS_ASK, MM.M_PRINT_PS_FORM_CHOICE, None
@@ -1147,13 +1148,12 @@ class TabPrint(QWidget):
         self._ps_applies_lbl.setVisible(_applies.approved)
         pv.addWidget(self._ps_applies_lbl)
         ps_choice = ps_box
-        # the help's headline (Basti, 2026-10-13) is M-PRINT-PS-FORM-HELP-TITLE
-        # once approved; until then the approved M-PRINT-PS-FORM-HELP
-        # and M-PRINT-PS-FORM-HELP-PROJECT (the project rule, final review of
-        # beta 2) once that is approved
+        # the help: the project rule and the explained choices
+        # (M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED, Knut 2026-10-13) through
+        # ps_texts; else the help's headline (Basti, 2026-10-13,
+        # M-PRINT-PS-FORM-HELP-TITLE), else the approved M-PRINT-PS-FORM-HELP
         _ps_help = _ps_help_explained or next(
-            m for m in (_MM.M_PRINT_PS_FORM_HELP_PROJECT,
-                        _MM.M_PRINT_PS_FORM_HELP_TITLE,
+            m for m in (_MM.M_PRINT_PS_FORM_HELP_TITLE,
                         _MM.M_PRINT_PS_FORM_HELP) if m.approved)
         self._ps_form_row = row(_ps_label, ps_choice, *_ps_help.render())
         self._ps_form_row.setVisible(False)

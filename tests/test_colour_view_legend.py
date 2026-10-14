@@ -2,7 +2,7 @@
 "Colours through the profile", saying what the grey skin, the lines and the
 dots are, each beside a sample drawn as the plot draws it.
 
-The words are M-HELP-COLOUR-VIEW-LEGEND, PROPOSED: until approved the view
+The words are M-HELP-COLOUR-VIEW-LEGEND, approved by Knut on 2026-10-13; unapproved the view
 must look exactly as in beta 2, so no key at all. Once approved it is shown
 only in the colour view, in a strip above the plot (never over it, so it
 cannot hide a patch), and never in the ink-amount cube.
@@ -46,9 +46,22 @@ def _dialog(**kw):
     return PatchCubeDialog(PROGRAM, colour_view=(LABS, COLOURS, None), **kw)
 
 
-def test_the_key_is_proposed_and_hidden_until_approved(qapp):
+def test_the_key_is_approved_and_shown(qapp):
+    """Knut approved the key on 2026-10-13 (#182 6152691121); hidden, the
+    view would be beta 2's. MUTATION: approved=False and the key is gone."""
     from ui.dialogs import patch_cube_dialog as d
-    assert "M-HELP-COLOUR-VIEW-LEGEND" in MM.PROPOSED
+    assert "M-HELP-COLOUR-VIEW-LEGEND" not in MM.PROPOSED
+    assert MM.M_HELP_COLOUR_VIEW_LEGEND.approved
+    assert d._legend_lines() is not None and len(d._legend_lines()) == 3
+    dlg = _dialog()
+    assert dlg._legend is not None
+    dlg.done(0)
+
+
+def test_unapproved_the_key_would_be_hidden(qapp, monkeypatch):
+    from ui.dialogs import patch_cube_dialog as d
+    monkeypatch.setattr(MM, "M_HELP_COLOUR_VIEW_LEGEND", dataclasses.replace(
+        MM.M_HELP_COLOUR_VIEW_LEGEND, approved=False))
     assert d._legend_lines() is None
     dlg = _dialog()
     assert dlg._legend is None

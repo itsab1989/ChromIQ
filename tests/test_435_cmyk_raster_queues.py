@@ -320,13 +320,17 @@ def test_no_printer_gets_the_wrong_claims_before_the_dialog(qapp, monkeypatch):
         assert wrong not in text, wrong
     assert _notice(monkeypatch, approved=True, queue_cmyk=False) == text
     paras = text.split("\n\n")
-    assert len(paras) == 4
+    assert len(paras) == 5
     assert paras[0].startswith("\u26a0  You are printing via the macOS printer dialog.")
     assert paras[1] == ("ChromIQ asks for application colour matching, as Photoshop does. "
                         "Afterwards the Print Chart tab says what the printing system holds "
                         "for the job.")
-    assert paras[2].startswith("Prefer no dialog at all?")
-    assert paras[3].startswith("Allow pigment inks")
+    # why the dialog shows a colour profile (M-PRINT-DIALOG-COLOUR-MATCHING,
+    # approved by Knut, #182 6152691121, 4.3.5 beta 4)
+    from workflow import measurement_messages as MM
+    assert paras[2] == MM.M_PRINT_DIALOG_COLOUR_MATCHING.render()[1]
+    assert paras[3].startswith("Prefer no dialog at all?")
+    assert paras[4].startswith("Allow pigment inks")
 
 
 @pytest.mark.parametrize("code", ["de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt",

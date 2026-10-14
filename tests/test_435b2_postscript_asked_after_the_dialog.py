@@ -155,8 +155,10 @@ def _answer(monkeypatch, tp, which):
                      [b.text() for b in box.buttons()]))
         if which == "cancel":
             return box.button(QMessageBox.StandardButton.Cancel)
-        label, lines = MM.M_PRINT_PS_FORM_CHOICE.render()
-        want = f"{label} {lines.split(chr(10))[which]}"
+        # the explained choices, each button its choice with no label in
+        # front (Knut, #182 6152691121)
+        _label, lines = tp.ps_texts()[1].render()
+        want = lines.split(chr(10))[which]
         return next(b for b in box.buttons() if b.text() == want)
     monkeypatch.setattr(tp.QMessageBox, "exec", lambda box: 0)
     monkeypatch.setattr(tp.QMessageBox, "clickedButton", clicked)
@@ -189,7 +191,7 @@ def test_the_run_is_asked_once_and_its_answer_is_kept(qapp, tmp_path, mac, appro
     tab._print_native([(tmp_path / "p.tif", 0)])
     assert sent == [MACOS]
     assert len(seen) == 1
-    title, body = MM.M_PRINT_PS_ASK.render(printer="PS Printer")
+    title, body = MM.M_PRINT_PS_ASK_EXPLAINED.render(printer="PS Printer")
     assert seen[0][0] == title and seen[0][1] == body
     # Basti, 2026-10-13: the answer is the PROJECT's (project.json), the
     # run inherits it and keeps nothing of its own
@@ -212,9 +214,9 @@ def test_the_first_choice_is_the_default_button_and_prints_its_own_rgb(
     sent = _fake_print_frames(monkeypatch, postscript=True)
     tab._print_native([(tmp_path / "p.tif", 0)])
     assert sent == [DEVICE]
-    label, lines = MM.M_PRINT_PS_FORM_CHOICE.render()
+    _label, lines = MM.M_PRINT_PS_FORM_CHOICE_EXPLAINED.render()
     a, b = lines.split("\n")
-    assert seen[0][2][:2] == [f"{label} {a}", f"{label} {b}"]
+    assert seen[0][2][:2] == [a, b]
 
 
 def test_cancel_prints_nothing_and_keeps_nothing(qapp, tmp_path, mac, approved, monkeypatch):
@@ -274,7 +276,7 @@ def test_the_row_shows_only_once_the_run_has_a_choice(qapp, tmp_path, mac, appro
     assert not tab._ps_form_row.isHidden()
     assert tab._ps_device_rb.isChecked()
     assert not tab._ps_applies_lbl.isHidden()
-    assert tab._ps_applies_lbl.text() == MM.M_PRINT_PS_FORM_APPLIES.render()[1]
+    assert tab._ps_applies_lbl.text() == MM.M_PRINT_PS_FORM_APPLIES_PROJECT.render()[1]
 
 
 # ---- the CMYK raster hint, after the job --------------------------------------

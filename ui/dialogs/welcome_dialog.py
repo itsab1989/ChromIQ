@@ -142,9 +142,11 @@ def _ui(label: str) -> str:
 
 
 def _ps_choice_labels() -> "tuple[str, str, str]":
-    """The PostScript row's label and its two choices, as the tab shows them."""
-    from workflow import measurement_messages as MM
-    head, lines = MM.M_PRINT_PS_FORM_CHOICE.render()
+    """The PostScript row's label and its two choices, as the tab shows them
+    (``tab_print.ps_texts``: the explained choices since Knut approved them,
+    #182 6152691121, 4.3.5 beta 4)."""
+    from ui.tabs.tab_print import ps_texts
+    head, lines = ps_texts()[1].render()
     a, _, b = lines.partition("\n")
     return " ".join(head.split()), a.strip(), b.strip()
 

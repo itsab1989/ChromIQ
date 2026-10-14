@@ -345,7 +345,8 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Sebastian on #133 (2026-08-02); listed for
                                  # the formal record.
                                  "M-VERIFY-CREATE-NO-PROFILE",
-                                 "M-GAMUT-NO-PROFILE",
+                                 # (M-GAMUT-NO-PROFILE was here until Knut
+                                 # approved it, #182 6152691121, 2026-10-13.)
                                  # The Measure tab's IMPORT module. M-IMPORT-
                                  # DONE was approved by Sebastian on 2026-08-10
                                  # (seen live: "messages were good").
@@ -745,24 +746,15 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # review of beta 2). Proposed by that review:
                                  # the help and the line under the row in the
                                  # project rule's words.
-                                 "M-PRINT-PS-FORM-HELP-PROJECT",
-                                 "M-PRINT-PS-FORM-APPLIES-PROJECT",
-                                 # 4.3.5 beta 3, Knut #182 6143186611 and
-                                 # 6144104040: the 3D tool's lines named as
-                                 # seams, strip letters that run together, the
-                                 # PostScript question explained choice by
-                                 # choice, and why the macOS dialog shows a
-                                 # profile. All hidden until approved.
-                                 "M-HELP-COLOUR-VIEW-SEAMS",
-                                 "M-CHART-STRIP-LABELS-CROWDED",
-                                 "M-PRINT-PS-ASK-EXPLAINED",
-                                 "M-PRINT-PS-FORM-CHOICE-EXPLAINED",
-                                 "M-PRINT-PS-FORM-HELP-EXPLAINED",
-                                 "M-PRINT-DIALOG-COLOUR-MATCHING",
-                                 # 4.3.5 beta 3, Knut #182 6148467471: a key
-                                 # to the 3D tool's colour view. Hidden until
-                                 # approved.
-                                 "M-HELP-COLOUR-VIEW-LEGEND",
+                                 # (Their project-rule help and line, and
+                                 # the nine 4.3.5 beta 3 texts: the 3D
+                                 # colour key and "Show:" help, the strip
+                                 # letters, the dialog's colour profile, the
+                                 # PostScript question, its choices and the
+                                 # merged help, were approved by Knut on
+                                 # 2026-10-13, #182 6152691121, and left this
+                                 # set. -HELP-EXPLAINED and -HELP-PROJECT were
+                                 # superseded by -HELP-PROJECT-EXPLAINED.)
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

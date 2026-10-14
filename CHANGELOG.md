@@ -2,6 +2,10 @@
 
 ## v4.3.5-beta.4 (unreleased)
 
+### Changed
+
+- **Texts approved by Knut are now shown** (#182, Knut, 2026-10-13, all 13 translations): the key above the 3D tool's colour view (grey skin, lines, dots) and the "Show:" help that calls the lines seams on the skin; the red warning when strip letters run into each other at a typed label size; on the macOS print dialog route, why the dialog shows a colour profile under Colour Matching and why it does not matter; and, for a PostScript printer, the question with each choice explained, its two choices "Send the colours unchanged (like Photoshop)" and "Let the printer adjust the colours (like Preview)" on the Print Chart tab under "Colours to the printer", the row's help (the project rule, then each choice explained) and the line under it. The question before such a run prints by ChromIQ's own route is now headed "This run lets the printer adjust the colours". The help cards' PostScript note names the choices as the tab shows them.
+
 ### Fixed
 
 - **A new measurement of a measured verification, stopped part way, looked finished** (Measure tab, #182, Knut). After a read started without "Refine / resume" and stopped at strip E with Save and stop, the preview showed the earlier measurement of that date as read on every strip, and the window "Verification Measurement Saved" came as if the sheet were done. The earlier measurement was kept in the date's old/ folder as promised; it was only painted over the new readings, because the preview was painted before the new readings reached their dated folder. The preview now shows only the new measurement, and a verification stopped with patches unread is handled like a profiling run's: the log says the partial readings are saved, "Refine / resume" is ticked so Start Measurement carries on, and the completion window waits until the sheet is read.
