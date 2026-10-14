@@ -393,6 +393,11 @@ A65_DARK = (10.0, 10.0)
 # blue window: weight 0 below 200 deg, smoothstep to 1 at 250, 1 to 290,
 # smoothstep to 0 at 340 (pure sRGB blue 259, violet 283, azure 248; chain 7: the gentler window; 220-240-300-320 was the first try)
 A65_BLUE_TOKEN = "a65-cmykhue-bluejab"
+# Agent 66 (a66-cmykprop): on ink devices the colorimetric clip runs the
+# existing neighbour propagation (PARAMS "propagate", 0 by default) for
+# CHROMIQ_A66_PROP rounds (default 3): neighbouring dark out-of-gamut nodes
+# no longer settle in different ink separations (Findings agent66-01 s3).
+A66_PROP_TOKEN = "a66-cmykprop"
 A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
@@ -409,6 +414,14 @@ def table_params(p: dict = None) -> dict:
     """PARAMS with the a51 overrides when the a51 token is on and this
     thread builds the colorimetric table; otherwise PARAMS itself."""
     p = PARAMS if p is None else p
+    q = _table_params(p)
+    if p.get("a66_prop") and not p.get("a51") and getattr(_REL, "on", False):
+        q = dict(q)
+        q["propagate"] = int(p["a66_prop"])
+    return q
+
+
+def _table_params(p: dict) -> dict:
     if (p.get("a65") and not p.get("a51")
             and getattr(_REL, "on", False)):
         # Agent 65 (a65-cmykhue): the ink devices' colorimetric clip keeps
@@ -844,7 +857,9 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
                   prior=prior, prior_w=prior_w, gn_kw=gn_kw,
                   damping=damping, hue_seeds=hue_seeds,
                   progress_label=progress_label)
-        d_lo = clip_nodes(model, target_lab, d_near, residual, _params=PARAMS, **kw)
+        d_lo = clip_nodes(model, target_lab, d_near, residual,
+                          _params=(dict(PARAMS, propagate=p["propagate"]) if p.get("propagate")
+                                   else PARAMS), **kw)
         if (u >= 1.0).all():
             return d_lo
         hi = dict(p)

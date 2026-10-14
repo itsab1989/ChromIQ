@@ -2189,6 +2189,10 @@ def set_research_tokens(tokens, *, is_additive) -> None:
         p["a65_pass2"] = oog_clip.A65_PASS2_TOKEN in t
         p["a65_dark"] = bool(t & {oog_clip.A65_JABDARK_TOKEN, oog_clip.A65_BLUEDARK_TOKEN})
         p["a65_blue"] = bool(t & {oog_clip.A65_BLUE_TOKEN, oog_clip.A65_BLUEDARK_TOKEN})
+    # Agent 66 (a66-cmykprop): neighbour propagation in the ink devices'
+    # colorimetric clip (oog_clip.table_params)
+    p["a66_prop"] = (int(os.environ.get("CHROMIQ_A66_PROP", "3"))
+                     if is_additive is False and oog_clip.A66_PROP_TOKEN in t else 0)
     # research knobs for the fade's order and shape (Agent 56 A/B only)
     p["a56_r"] = float(os.environ.get("CHROMIQ_A56_R", "2.0"))
     p["a56_shape"] = os.environ.get("CHROMIQ_A56_SHAPE", "rat")
