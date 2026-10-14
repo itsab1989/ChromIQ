@@ -390,11 +390,11 @@ A65_IPTSPACE_TOKEN = "a65-cmykhue-iptspace"
 A65_JABDARK_TOKEN = "a65-cmykhue-jabdark"
 A65_DARK = (10.0, 10.0)
 # a65-cmykhue-bluejab: the Jab clip only for targets of CIECAM02 hue in the
-# blue window: weight 0 below 220 deg, smoothstep to 1 at 240, 1 to 300,
-# smoothstep to 0 at 320 (pure sRGB blue 259, violet 283, azure 248)
+# blue window: weight 0 below 200 deg, smoothstep to 1 at 250, 1 to 290,
+# smoothstep to 0 at 340 (pure sRGB blue 259, violet 283, azure 248; chain 7: the gentler window; 220-240-300-320 was the first try)
 A65_BLUE_TOKEN = "a65-cmykhue-bluejab"
 A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
-A65_BLUE = (220.0, 240.0, 300.0, 320.0)
+A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
 _REL = threading.local()
 
