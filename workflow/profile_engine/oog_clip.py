@@ -380,6 +380,10 @@ A62_TOKEN = "a62-camhue"
 A65_TOKEN = "a65-cmykhue"
 A65_IPT_TOKEN = "a65-cmykhue-ipt"
 A65_PASS2_TOKEN = "a65-cmykhue-pass2"
+# the engine's weights with the whole metric in Argyll CIECAM02 Jab (hue =
+# colprof's) or in IPT, instead of CIELAB with an Oklab hue frame
+A65_JAB_TOKEN = "a65-cmykhue-jab"
+A65_IPTSPACE_TOKEN = "a65-cmykhue-iptspace"
 _HK = {"on": True}
 _REL = threading.local()
 
@@ -400,7 +404,14 @@ def table_params(p: dict = None) -> dict:
         # the engine's metric (weights, band, ink priors) but measures hue
         # along colprof's CIECAM02 hue lines (Findings agent65-01)
         q = dict(p)
-        q["hue_from"] = str(p["a65"])
+        mode = str(p["a65"])
+        if mode.startswith("space-"):
+            # the whole metric (same weights) measured in that space, the
+            # hue frame its own hue (no Oklab hue line)
+            q["space"] = mode[len("space-"):]
+            q["hue_from"] = ""
+        else:
+            q["hue_from"] = mode
         if p.get("a65_pass2"):
             q["pass2"] = True
         return q
