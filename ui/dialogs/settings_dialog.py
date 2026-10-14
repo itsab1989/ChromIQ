@@ -7886,10 +7886,13 @@ class SettingsDialog(QDialog):
         # the four ISO sets stays, the other standard's included; any other
         # set moves to the type's own ISO 12647 set, and only that is
         # remembered.
+        # K7 (Knut, #182 6154440320, 4.3.5 beta 4): the type's own
+        # standard's set, unless the default set already is that standard's
+        # (read-only or Custom); the other standard's no longer stays.
         if sid:
-            from workflow.measurement_report import set_allowed_for_type
+            from workflow.measurement_report import set_on_choosing_type
             _now = str(buf.get("default_set") or "")
-            if not set_allowed_for_type(tid, _now):
+            if set_on_choosing_type(tid, _now) != _now:
                 if was not in REPORT_TYPE_ISO_SET \
                         and getattr(self, "_set_before_iso_type",
                                     None) is None:

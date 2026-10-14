@@ -6684,6 +6684,31 @@ Then the user still has room for playing around with limit values."*
   not allowed, then the "Judged against" is set to the matching ISO 12647
   type that belongs to the Report type (not the custom ISO)."* It read
   "always" before, and moved a Custom ISO set to the read-only one.
+  **Amended again by Knut, K7, #182
+  [6154440320](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6154440320)
+  (2026-10-13), built for 4.3.5 beta 4, not confirmed:** *"In measurement
+  report when selecting "Validation print check (ISO 12647-8)" make sure the
+  corresponding judged by limit set for ISO 12647-8 is also automatically
+  selected. And when selecting "Contract proof check (ISO 12647-7)" make sure
+  the corresponding judged by limit set for ISO 12647-7 is also automatically
+  selected. After the report type is selected, and the judged by is
+  auto-selected, the user can change to any other judged by limit set... It
+  is just practical that the user always gets the right limit set when
+  selecting the report type."* Built: choosing an ISO type sets "Judged
+  against" to that standard's read-only set, unless it already is that
+  standard's read-only or Custom set (kept: the Custom set of the same
+  number is the type's own, tunable alternative); the OTHER standard's sets
+  no longer stay (`measurement_report.set_on_choosing_type`). The same in
+  the three places a type and a set are chosen together (the report window,
+  Preferences' "Report type, default", "Which presets can be used for
+  verification?"); the set an ISO type replaced is still put back when the
+  type leaves the ISO types. A starting pair that is not a choice (a new
+  report, the report after a measurement, the pre-flight) still follows
+  `set_held_to_type` above. The Report type help says so. **Two points for
+  Knut:** (1) his "any other judged by limit set" is read as any of the four
+  ISO sets, because K36-1 greys the others beside an ISO type; if he meant
+  every set, K36-1's greying would have to go; (2) a Custom set of the type's
+  own standard is kept rather than replaced by the read-only one.
 * While such a type is chosen, "Judged against" offers only ISO 12647-7,
   ISO 12647-8, Custom ISO 12647-7 and Custom ISO 12647-8; ChromIQ default,
   ChromIQ tight and Quick check are shown greyed, each with the tooltip

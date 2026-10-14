@@ -1376,7 +1376,11 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             # KEPT WHEN ALREADY ALLOWED (Knut, #182 5822758830, answer 4):
             # an ISO set stays, even the other standard's; only a set the
             # type refuses moves to the type's own ISO 12647 set.
-            if iso and not MR.set_allowed_for_type(tid, self.current_set()):
+            # K7 (Knut, #182 6154440320): the type's own standard's set is
+            # selected, unless the set already is that standard's
+            # (read-only or Custom); the other standard's no longer stays.
+            if iso and MR.set_on_choosing_type(tid, self.current_set()) \
+                    != self.current_set():
                 i = self._set_combo.findData(iso)
                 if i >= 0:
                     self._set_combo.setCurrentIndex(i)

@@ -4562,6 +4562,29 @@ def set_held_to_type(type_id: str, set_id: str) -> str:
     return REPORT_TYPE_ISO_SET[type_id]
 
 
+def set_on_choosing_type(type_id: str, set_id: str) -> str:
+    """The "Judged against" set once *type_id* is CHOSEN as the report type.
+
+    **K7 (Knut, #182 6154440320, 4.3.5 beta 4):** *"when selecting
+    "Validation print check (ISO 12647-8)" make sure the corresponding judged
+    by limit set for ISO 12647-8 is also automatically selected"*, and the
+    same for the Contract proof check and ISO 12647-7; *"After the report
+    type is selected, and the judged by is auto-selected, the user can change
+    to any other judged by limit set."* So choosing an ISO type moves the set
+    to that type's own standard's set, unless the set already is that
+    standard's (its read-only or its Custom set, which stays); before K7 any
+    of the four ISO sets stayed, the other standard's included (K36-1,
+    5822758830 answer 4). Any other type keeps *set_id*. Starting pairs that
+    are not a choice (a new report, Preferences on open) still follow
+    `set_held_to_type`."""
+    own = REPORT_TYPE_ISO_SET.get(type_id)
+    if not own:
+        return set_id
+    if str(set_id or "") in (own, "custom_" + own):
+        return set_id
+    return own
+
+
 def iso_type_values_missing(type_id: str) -> bool:
     """True when *type_id* is an ISO type whose standard's values are not
     loaded (neither shipped nor supplied), so it cannot be produced."""

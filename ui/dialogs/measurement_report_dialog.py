@@ -2713,9 +2713,10 @@ _PAIRING_HELP = (
     "ISO set: the read-only one, which holds that standard's published "
     "values, or the Custom ISO set of the same number, the industry-practice "
     "alternative you can tune. For those two types that is a rule: choosing "
-    "one keeps “Judged against” when it is one of the four ISO sets and "
-    "otherwise sets it to that type's own ISO set, and only the four ISO "
-    "sets can be chosen beside it; the others are greyed. Choosing another "
+    "one sets “Judged against” to that type's own ISO set, or keeps it "
+    "when it already is that set or the Custom ISO set of the same number. "
+    "You can then change it, but only the four ISO sets can be chosen beside "
+    "it; the others are greyed. Choosing another "
     "type then puts back the set the ISO type replaced. Every other type "
     "can be judged against any set, and the pairs above are the usual "
     "habits, not rules.")
@@ -11725,10 +11726,17 @@ class MeasurementReportDialog(QDialog):
         # ISO sets, and then to the type's own ISO 12647 set; one of the four
         # stays, the other standard's included. A set it did not move needs
         # nothing put back.
-        from workflow.measurement_report import set_allowed_for_type
+        #
+        # **K7 (Knut, #182 6154440320, 4.3.5 beta 4): THE TYPE'S OWN
+        # STANDARD'S SET IS SELECTED.** Choosing an ISO type now moves the
+        # set to that standard's set unless it already is that standard's
+        # (read-only or Custom); the other standard's set no longer stays
+        # (`set_on_choosing_type`). The user may then change it among the
+        # four ISO sets, as before.
+        from workflow.measurement_report import set_on_choosing_type
         if iso_set:
             shown_set = str(self._report_limits().set_id or "")
-            if not set_allowed_for_type(type_id, shown_set):
+            if set_on_choosing_type(type_id, shown_set) != shown_set:
                 if current not in REPORT_TYPE_ISO_SET \
                         and getattr(self, "_set_before_iso_type",
                                     None) is None:

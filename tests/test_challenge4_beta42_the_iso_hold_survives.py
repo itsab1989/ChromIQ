@@ -204,12 +204,17 @@ def test_walking_the_preferences_type_past_an_iso_type_changes_nothing(
         assert buf["default_set"] == "iso_12647_7"
         _choose(c, mr.REPORT_TYPE_FULL, qapp)
         assert buf["default_set"] == "chromiq_tight"
-        # Knut, 5822758830: an allowed ISO set is kept, nothing to put back
+        # K7 (Knut, #182 6154440320): the other standard's set moves to the
+        # type's own (it was kept under 5822758830), and is put back after
         buf["default_set"] = "custom_iso_12647_8"
         _choose(c, mr.REPORT_TYPE_ISO_7, qapp)
-        assert buf["default_set"] == "custom_iso_12647_8"
+        assert buf["default_set"] == "iso_12647_7"
         _choose(c, mr.REPORT_TYPE_FULL, qapp)
         assert buf["default_set"] == "custom_iso_12647_8"
+        # the type's own standard's Custom set is kept
+        buf["default_set"] = "custom_iso_12647_7"
+        _choose(c, mr.REPORT_TYPE_ISO_7, qapp)
+        assert buf["default_set"] == "custom_iso_12647_7"
     finally:
         _close(dlg)
         s.set("compliance_default_set", "chromiq_default")
@@ -255,15 +260,16 @@ def test_walking_the_report_window_type_past_an_iso_type_changes_nothing(
             dlg._type_combo.findData(mr.REPORT_TYPE_FULL))
         qapp.processEvents()
         assert _state(dlg) == before
-        # Knut, 5822758830: an allowed ISO set is kept
+        # K7 (Knut, #182 6154440320): the other standard's set moves to the
+        # type's own (it was kept under 5822758830)
         dlg._set_combo.setCurrentIndex(
             dlg._set_combo.findData("custom_iso_12647_8"))
         qapp.processEvents()
         dlg._type_combo.setCurrentIndex(
             dlg._type_combo.findData(mr.REPORT_TYPE_ISO_7))
         qapp.processEvents()
-        assert dlg._report_limits().set_id == "custom_iso_12647_8"
-        assert dlg._set_combo.currentData() == "custom_iso_12647_8"
+        assert dlg._report_limits().set_id == "iso_12647_7"
+        assert dlg._set_combo.currentData() == "iso_12647_7"
     finally:
         _close(dlg)
 
@@ -287,7 +293,8 @@ def test_knut_an_allowed_iso_set_is_kept(qapp, repo_values):
         dlg._type_combo.setCurrentIndex(
             dlg._type_combo.findData(mr.REPORT_TYPE_ISO_7))
         qapp.processEvents()
-        assert dlg.current_set() == "custom_iso_12647_8"
+        # K7 (Knut, #182 6154440320): the type's own standard's set
+        assert dlg.current_set() == "iso_12647_7"
     finally:
         dlg.deleteLater()
 
