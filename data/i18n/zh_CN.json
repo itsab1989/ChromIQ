@@ -6981,5 +6981,13 @@
  "Why the print dialog shows a colour profile": "为什么打印对话框会显示颜色配置文件",
  "In the print dialog, under Colour Matching, macOS may show “ColorSync” with a profile already chosen (often your default profile), and it offers no way to switch colour matching off. You can leave it as it is. ChromIQ tells macOS that it manages the chart’s colours itself, the same way Photoshop does with “Photoshop Manages Colors”, so this setting is not applied to the chart. Measured: with “ColorSync” and a profile, or with “In printer”, the printer received exactly the same job. How the chart’s colours reach the printer is decided by ChromIQ, by the settings on this tab.": "在打印对话框的「颜色匹配」中，macOS 可能会显示已选好某个配置文件（通常是您的默认配置文件）的“ColorSync”，而且那里没有关闭颜色匹配的选项。您可以保持原样。ChromIQ 会告诉 macOS 由它自己管理色卡的颜色，就像 Photoshop 使用“Photoshop 管理颜色”（Photoshop Manages Colors）时一样，因此这个设置不会应用到色卡上。实测：无论是“ColorSync”加某个配置文件，还是打印机自身的选项（In printer），打印机收到的任务完全相同。色卡的颜色如何到达打印机，由 ChromIQ 通过此标签页上的设置决定。",
  "What the colour view shows": "颜色视图显示的内容",
- "Grey skin: every colour this profile can print (its gamut).\nLines: seams on the skin, where two of the three inks are at 0 or 100 (for example from pure red to pure yellow). They are not the skin's outline.\nDots: the chart's patches, each in its own colour.": "灰色外壳：此配置文件能打印的所有颜色 (它的色域)。\n线：外壳上的接缝，即三种墨量中有两种为 0 或 100 的颜色 (例如从纯红到纯黄)。它们不是外壳的轮廓。\n点：色卡的色块，每个都以自己的颜色显示。"
+ "Grey skin: every colour this profile can print (its gamut).\nLines: seams on the skin, where two of the three inks are at 0 or 100 (for example from pure red to pure yellow). They are not the skin's outline.\nDots: the chart's patches, each in its own colour.": "灰色外壳：此配置文件能打印的所有颜色 (它的色域)。\n线：外壳上的接缝，即三种墨量中有两种为 0 或 100 的颜色 (例如从纯红到纯黄)。它们不是外壳的轮廓。\n点：色卡的色块，每个都以自己的颜色显示。",
+ "<b>Calibration complete. You are ready to start measuring.</b>": "<b>校准完成。你可以开始测量了。</b>",
+ "Read the strip highlighted in the preview: the output field below names it too.": "读取预览中高亮的色条：下方的输出栏也会说出它的名字。",
+ "Repeat for each strip until all are read. Then press <b>d</b> to finish and save.": "对每条色条重复操作，直到全部读完。然后按 <b>d</b> 结束并保存。",
+ "How to measure, after the calibration": "校准后如何测量",
+ "Neighbour check: 1 suspected misread, patch {locs}. Read it again before you finish.": "相邻检查：1 处疑似读错，色块 {locs}。请在完成前重新读取。",
+ "Neighbour check: {n} suspected misreads, patches {locs}. Read them again before you finish.": "相邻检查：{n} 处疑似读错，色块 {locs}。请在完成前重新读取。",
+ "<b>Calibration complete. You are ready to start measuring.</b>\nRead the strip highlighted in the preview: the output field below names it too.\nRepeat for each strip until all are read. Then press <b>d</b> to finish and save.": "<b>校准完成。你可以开始测量了。</b>\n读取预览中高亮的色条：下方的输出栏也会说出它的名字。\n对每条色条重复操作，直到全部读完。然后按 <b>d</b> 结束并保存。",
+ "Neighbour check: 1 suspected misread, patch {locs}. Read it again before you finish.\nNeighbour check: {n} suspected misreads, patches {locs}. Read them again before you finish.": "相邻检查：1 处疑似读错，色块 {locs}。请在完成前重新读取。\n相邻检查：{n} 处疑似读错，色块 {locs}。请在完成前重新读取。"
 }

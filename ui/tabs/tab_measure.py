@@ -10860,6 +10860,34 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             ("Esc / q", tr("Quit without saving")),
         ]
 
+    @staticmethod
+    def _calibration_steps_frame(dlg, steps, frame_style: str, key_style: str,
+                                 plain_style: str):
+        """*steps* (rich text) as the boxed, numbered to-do list of the
+        Calibration Complete windows: one builder, so the window of a fresh
+        read and the Manual Re-measurement one look and read alike (Knut,
+        #182 6154440320)."""
+        from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel
+        step_frame = QFrame(dlg)
+        step_frame.setObjectName("calibration_steps")
+        step_frame.setStyleSheet(frame_style)
+        sfl = QGridLayout(step_frame)
+        sfl.setContentsMargins(16, 12, 16, 12)
+        sfl.setHorizontalSpacing(14)
+        sfl.setVerticalSpacing(7)
+        sfl.setColumnStretch(1, 1)
+        for row, text in enumerate(steps):
+            n_lbl = QLabel(f"{row + 1}.")
+            n_lbl.setStyleSheet(key_style)
+            n_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+            t_lbl = QLabel(text)
+            t_lbl.setTextFormat(Qt.TextFormat.RichText)
+            t_lbl.setWordWrap(True)
+            t_lbl.setStyleSheet(plain_style)
+            sfl.addWidget(n_lbl, row, 0)
+            sfl.addWidget(t_lbl, row, 1)
+        return step_frame
+
     def _strip_key_frame(self, dlg, frame_style: str, key_style: str,
                          plain_style: str):
         """`_strip_key_rows` as the boxed two-column list, in *dlg*."""
@@ -11212,28 +11240,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             msg.setWordWrap(True)
             layout.addWidget(msg)
 
-            step_frame = QFrame(dlg)
-            step_frame.setStyleSheet(_frame_style)
-            sfl = QGridLayout(step_frame)
-            sfl.setContentsMargins(16, 12, 16, 12)
-            sfl.setHorizontalSpacing(14)
-            sfl.setVerticalSpacing(7)
-            sfl.setColumnStretch(1, 1)
-            steps = [
-                ("1.", tr("Press <b>f</b> (forward) or <b>b</b> (back) until chartread shows the strip you want.")),
-                ("2.", _how),
-                ("3.", tr("Repeat for each strip you want to update, then press <b>d</b> to finish and save.")),
-            ]
-            for row, (num, text) in enumerate(steps):
-                n_lbl = QLabel(num)
-                n_lbl.setStyleSheet(_key_style)
-                n_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-                t_lbl = QLabel(text)
-                t_lbl.setWordWrap(True)
-                t_lbl.setStyleSheet(_plain_style)
-                sfl.addWidget(n_lbl, row, 0)
-                sfl.addWidget(t_lbl, row, 1)
-            layout.addWidget(step_frame)
+            layout.addWidget(self._calibration_steps_frame(dlg, [
+                tr("Press <b>f</b> (forward) or <b>b</b> (back) until chartread shows the strip you want."),
+                _how,
+                tr("Repeat for each strip you want to update, then press <b>d</b> to finish and save."),
+            ], _frame_style, _key_style, _plain_style))
 
             # THE SAME KEY LIST AS EVERY OTHER CALIBRATION COMPLETE WINDOW.
             # This variant used to end on two loose dim lines (n and Esc / q in
@@ -11242,19 +11253,40 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # #182 5971383600). One list, built from one place.
             layout.addWidget(self._strip_key_frame(
                 dlg, _frame_style, _key_style, _plain_style))
+            # …AND THE SAME LAST LINE as the window of a fresh read (Knut,
+            # #182 6154440320: the same to-do points in both windows).
+            footnote = QLabel(tr("These instructions are always visible in the output log below."), dlg)
+            footnote.setWordWrap(True)
+            footnote.setStyleSheet(_dim_style)
+            layout.addWidget(footnote)
 
         else:
             dlg.setWindowTitle(tr("Calibration Complete — How to Measure"))
 
-            msg = QLabel(
-                tr("<b>Calibration complete. You are ready to start measuring."
-                   "</b><br><br>{how}<br><br>Then proceed strip by strip until "
-                   "all are done.").format(how=_how),
-                dlg,
-            )
-            msg.setTextFormat(Qt.TextFormat.RichText)
-            msg.setWordWrap(True)
-            layout.addWidget(msg)
+            from workflow import measurement_messages as _MMc
+            if _MMc.M_CAL_DONE_STEPS.approved:
+                # THE SAME TO-DO POINTS AS THE MANUAL RE-MEASUREMENT WINDOW
+                # (Knut, #182 6154440320): which strip, how to read it, and
+                # how to finish, as three numbered steps in the same frame;
+                # the instrument's own steps stay the instrument's.
+                msg = QLabel(tr(_MMc._CAL_DONE_READY), dlg)
+                msg.setTextFormat(Qt.TextFormat.RichText)
+                msg.setWordWrap(True)
+                layout.addWidget(msg)
+                layout.addWidget(self._calibration_steps_frame(dlg, [
+                    tr(_MMc._CAL_DONE_STEP_WHICH), _how,
+                    tr(_MMc._CAL_DONE_STEP_FINISH),
+                ], _frame_style, _key_style, _plain_style))
+            else:
+                msg = QLabel(
+                    tr("<b>Calibration complete. You are ready to start measuring."
+                       "</b><br><br>{how}<br><br>Then proceed strip by strip until "
+                       "all are done.").format(how=_how),
+                    dlg,
+                )
+                msg.setTextFormat(Qt.TextFormat.RichText)
+                msg.setWordWrap(True)
+                layout.addWidget(msg)
 
             layout.addWidget(self._strip_key_frame(
                 dlg, _frame_style, _key_style, _plain_style))
@@ -11336,6 +11368,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # needs new wording, and measurement wording goes to §M-PROPOSED for
             # approval before it reaches a tab.
             self._all_done_shown = True
+            self._note_completion_to_manager()
             if unread == 1:
                 self._log.appendPlainText(tr(
                     "Every strip has been read, but 1 patch still has no "
@@ -11348,12 +11381,21 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     "them up.").format(n=unread))
             return
         self._all_done_shown = True
+        self._note_completion_to_manager()
 
         # The final strip's own "read OK" cue is still sounding when the chart
         # finishes, so the completion sound landed on top of it (Knut, #131
         # 2026-07-27). Give the cue its moment, then show the window — the
         # guard above has already been set, so this cannot run twice.
         QTimer.singleShot(_ALL_DONE_SOUND_GAP_MS, self._show_all_stripes_done)
+
+    def _note_completion_to_manager(self) -> None:
+        """Tell the reading engine's manager the chart has been closed for
+        this session, so a re-read after it moves the reader on (Knut, #182
+        6154440320; ``MeasureManager.note_completion_shown``)."""
+        note = getattr(self._manager, "note_completion_shown", None)
+        if callable(note):
+            note()
 
     def _calibration_options_on(self) -> bool:
         """Whether Preferences → Calibration options is switched on.
@@ -11443,9 +11485,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             msg.setWordWrap(True)
             lay.addWidget(msg)
 
-            summary = self._measurement_summary()
+            # THE SAME SUMMARY AS A PROFILING CHART'S WINDOW (Knut, #182
+            # 6154440320): the reading times and the suspected misreads, as
+            # the bullet list under "Summary:", so the choice between
+            # re-reading and finishing is made with the same facts.
+            summary = self._completion_summary()
             if summary:
-                sum_lbl = QLabel(summary, dlg)
+                sum_lbl = QLabel(self._summary_html(summary), dlg)
+                sum_lbl.setTextFormat(Qt.TextFormat.RichText)
                 sum_lbl.setWordWrap(True)
                 sum_lbl.setStyleSheet("color: #909090; font-size: 11px;")
                 lay.addWidget(sum_lbl)
@@ -11842,6 +11889,21 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._arm_key_watchdog()
         # Event filter stays off — chartread will finish momentarily.
 
+    def _verification_read_wrote_its_file(self) -> bool:
+        """Did the verification read that has just ended write its readings
+        beside the chart, so that `_finalize_verification` is about to file
+        them on their date? The same test `_on_measure_done` makes below."""
+        try:
+            if not self._verify_run or self._measure_failed:
+                return False
+            ti3 = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
+            if ti3 is None or not ti3.exists() or ti3.parent.name == "cal":
+                return False
+            before = self._ti3_mtime_before
+            return before is None or ti3.stat().st_mtime > before
+        except Exception:      # noqa: BLE001 — never break a session's ending
+            return False
+
     def _finalize_verification(self, ti3: Path) -> None:
         """Tag a verification read as verify-only ('<name>-verify.ti3' + marker)
         and file it in a dated verification-run folder so a profile's monthly
@@ -11921,9 +11983,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # The date now holds readings, so "Refine / resume" and "Show overlay"
         # are offered for it, as they are for a profiling run that has just
         # been measured (Knut, #182 5951427228).
+        # A STOPPED READ IS NOT A FINISHED ONE (Knut, #182 6154440320): a
+        # verification saved with patches still unread is handled as a
+        # profiling run's partial measurement is: said in the log, "Refine /
+        # resume" ticked so Start carries on, and no completion window.
+        partial = False
         try:
+            from workflow.measurement_state import Ti3State, classify
+            partial = classify(dst, self._chart_file_for(self._ti1_path)
+                               ).state is Ti3State.PARTIAL
+        except Exception:      # noqa: BLE001 — never break filing a result
+            log.debug("could not count the filed verification", exc_info=True)
+        try:
+            # THE PAINTING IS THE FILED MEASUREMENT, AND ONLY THAT (Knut, #182
+            # 6154440320): what the preview showed was this session's strips
+            # over whatever an earlier painting had left.
+            # `_update_resume_availability` paints it when the box is ticked,
+            # `_adopt_overlay_after_first_measurement` ticks it and paints.
+            self._clear_overlay()
             self._update_resume_availability()
             self._adopt_overlay_after_first_measurement()
+            if partial:
+                rcb = (self._resume_cb if self._current_mode() == "guided"
+                       else self._m_resume_cb)
+                if rcb is not None and rcb.isVisible():
+                    rcb.setChecked(True)
             # THE PROGRESS FIGURE FOLLOWS THE FILE TO ITS DATE (Knut, #182
             # 5973177088: "after measurement was completed the progress still
             # showed 0%"). `_on_measure_done` counted the bar from the files
@@ -11948,6 +12032,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # answer, because the report's yardstick reads the print record, and
         # BEFORE the saved window, so "Open measurement report" lands on it.
         self._maybe_save_measurement_report(dst)
+        if partial:
+            self._log.appendPlainText(
+                "\n" + tr("[INFO] Measurement was interrupted — partial readings saved.")
+                + f"\nSaved: {dst}\n\n"
+                + tr("→ Press Continue Measurement to resume where you left off, "
+                     "or untick 'Refine / resume existing measurement (-r)' to start over.")
+            )
+            self._log.ensureCursorVisible()
+            return
         self._show_verification_saved(dst)
 
     def _ask_how_printed(self, ti3: Path) -> None:
@@ -13582,19 +13675,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # of the queue rather than behind it.
         self._refresh_progress_from_files()
 
+        # A VERIFICATION READ THAT WROTE ITS FILE IS NOT ON ITS DATE YET.
+        #
+        # Its readings are beside the chart until `_finalize_verification`
+        # files them below, and outside a session the selection reads the
+        # dated folder, which still holds the measurement this read
+        # replaces. Painting now painted that one: Knut, #182 6154440320
+        # (4.3.5 beta 3), a fresh read stopped at strip E showed every strip
+        # of the earlier measurement as read. The filing paints the new file
+        # itself, once it is where the selection points.
+        filing_verification = self._verification_read_wrote_its_file()
         # With "Show overlay from existing measurement" ticked, the overlay is
         # what the user wants to look at — including right after stopping, when
         # the question is usually "what did I actually get?". Stopping used to
         # leave the preview blank until the box was toggled off and on again
         # (Knut, #131 2026-07-27).
-        self._restore_overlay_after_measurement()
+        if not filing_verification:
+            self._restore_overlay_after_measurement()
         # A run that had no measurement before now has one, so the two boxes
         # that act on a measurement can appear — and the overlay box appears
         # TICKED, matching the readings already drawn on the preview (Knut,
         # #131 2026-07-28). Refreshed here so every completion path gets it,
         # not only the interrupted one.
-        self._update_resume_availability()
-        self._adopt_overlay_after_first_measurement()
+        if not filing_verification:
+            # (it repaints from the selection too; the filing calls it)
+            self._update_resume_availability()
+            self._adopt_overlay_after_first_measurement()
         # Once more after the repaint, which has judged every patch of the
         # finished file: a patch read before the reference it is like was
         # confirmed is only now learned, and the file says so (#182 K4).
@@ -14985,8 +15091,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _completion_summary(self) -> str:
         """The reading-time summary and, under it, the suspected misreads
-        (#182 beta 11), for the window that closes a profiling or calibration
-        measurement. A verification's window shows the reading times only."""
+        (#182 beta 11), for the window that closes a measurement: profiling,
+        calibration and, since 4.3.5 beta 4, verification (Knut, #182
+        6154440320)."""
         parts = [self._measurement_summary(), self._misread_summary()]
         return "\n".join(x for x in parts if x)
 
@@ -15018,10 +15125,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """The suspected misreads of the measurement just finished (Knut,
         #182 5983470377 item 5; wording M-MEASURED-SUSPECTS, §M-PROPOSED):
         the neighbour check where it applies, and "Was a strip read twice?"
-        when it ran. Empty for a verification measurement."""
+        when it ran.
+
+        On a verification too since 4.3.5 beta 4 (Knut, #182 6154440320:
+        "This All Strips Read window is missing the same Summary that
+        profiling chart gets ... so that I can better decide if I want to
+        re-read patches or finish"). Its lines are the profiling chart's,
+        except the neighbour check's red line, which tells a profiling user
+        to read the patch again "before you build the profile": a
+        verification has its own words for it, M-MEASURED-SUSPECTS-VERIFY,
+        hidden until approved, and until then that one line is left out."""
         try:
-            if self._is_verification_run() or self._expected_is_predicted():
-                return ""
+            verification = bool(self._is_verification_run()
+                                or self._expected_is_predicted())
             from workflow import measurement_messages as M
             lines = []
             facts = self.neighbour_summary_facts()
@@ -15036,6 +15152,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                         total=facts["total"]))
                 elif not red:
                     lines.append(tr(M._SUM_NB_NONE))
+                elif verification:
+                    if M.M_MEASURED_SUSPECTS_VERIFY.approved:
+                        if len(red) == 1:
+                            lines.append(tr(M._SUM_NB_RED_ONE_VERIFY).format(
+                                locs=red[0]))
+                        else:
+                            lines.append(tr(M._SUM_NB_RED_VERIFY).format(
+                                n=len(red), locs=listed(red)))
                 elif len(red) == 1:
                     lines.append(tr(M._SUM_NB_RED_ONE).format(locs=red[0]))
                 else:

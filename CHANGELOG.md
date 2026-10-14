@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.3.5-beta.4 (unreleased)
+
+### Fixed
+
+- **A new measurement of a measured verification, stopped part way, looked finished** (Measure tab, #182, Knut). After a read started without "Refine / resume" and stopped at strip E with Save and stop, the preview showed the earlier measurement of that date as read on every strip, and the window "Verification Measurement Saved" came as if the sheet were done. The earlier measurement was kept in the date's old/ folder as promised; it was only painted over the new readings, because the preview was painted before the new readings reached their dated folder. The preview now shows only the new measurement, and a verification stopped with patches unread is handled like a profiling run's: the log says the partial readings are saved, "Refine / resume" is ticked so Start Measurement carries on, and the completion window waits until the sheet is read.
+- **After "All Strips Read" and Re-read Individual Strips, the arrow stayed on the strip just read** (Measure tab, #182, Knut). Every read now moves the reader to the next strip, as it does on a finished measurement you open to re-read, for every chart type (calibration, profiling, verification); the last strip stays. Guided refinement with the refinement strips file keeps its own order.
+- **The verification chart's "All Strips Read" window has the same Summary as a profiling chart's** (Measure tab, #182, Knut): the reading times and the suspected misreads, as a list under "Summary:", so you can decide whether to re-read or finish.
+- **The patch card of a verification sheet whose profile was made after it was printed says why it names the limit of profiling charts with estimated colours** (Measure tab, #182, Knut). The sheet is then compared with the chart's own estimate, as the specification says, and judged with that chart type's limits; the neighbour check's red card now carries Knut's sentence "The profile was made after this sheet was printed, so its prediction is not used.", as the patch error limit's card already did. Whether such a sheet should be judged with the verification limits instead is a question to Knut. Every other chart type was proved to use its own limits: every limit of Preferences ▸ Measurement set to its own value, with readings 0.01 under, exactly on and 0.01 over each limit, on all six chart types (calibration, profiling with estimated colours, profiling made with a pre-conditioning profile, verification through the profile, From Profile Gamut, and the one above), 129 cases on screen and in the test suite. The demo data is made by `scripts/make_limit_edge_demo.py`.
+- **Ukrainian: in the Guided Refinement Ready window, "Or follow the output field below" had an empty bold word and said "go to the output field"** (found by the translation review).
+- **The Calibration Complete window of a read with "Refine / resume" ends on the same line as the window of a new read**: "These instructions are always visible in the output log below." (#182, Knut). Both windows already had the instrument's steps and the full list of keys.
+
+### Waiting for approval (not shown yet)
+
+- The window of a new read lists the same three numbered steps as the "Manual Re-measurement" one: which strip to read, how to read it (the instrument's own steps), and how to finish (M-CAL-DONE-STEPS, #182, Knut).
+- On a verification's closing Summary, the neighbour check's red line ends "Read it again before you finish." instead of "... before you build the profile." (M-MEASURED-SUSPECTS-VERIFY). Until it is approved that one line is left out of a verification's Summary.
+
 ## v4.3.5-beta.3
 
 ### Changed

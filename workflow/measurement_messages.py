@@ -2401,6 +2401,49 @@ M_MEASURED_SUSPECTS = _m(
                _SUM_TWICE_REREAD, _SUM_TWICE_WAS_LIKE, _SUM_TWICE_KEPT)),
     approved=False)
 
+# --- PROPOSED: the same to-do points in both Calibration Complete windows ----
+#: 4.3.5 beta 4. Knut, #182 6154440320: after calibrating, the window of a
+#: read started with Refine / resume ("Manual Re-measurement") lists three
+#: numbered steps and the keys; the window of a fresh read ("How to
+#: Measure") had the instrument's steps in a paragraph, "Then proceed strip
+#: by strip until all are done." and the keys. "Verify that the same todo
+#: points are on both calibration completed messages." Neither window's text
+#: is in §M (they are older than the catalogue). Proposed: the fresh read's
+#: window takes the same numbered frame, its three steps saying which strip,
+#: how to read it (the instrument's own steps, as now) and how to finish.
+#: Hidden until approved: until then the window is as it was. The Manual
+#: Re-measurement window keeps its steps; both end on the key list and "These
+#: instructions are always visible in the output log below.".
+_CAL_DONE_READY = "<b>Calibration complete. You are ready to start measuring.</b>"
+_CAL_DONE_STEP_WHICH = ("Read the strip highlighted in the preview: the "
+                        "output field below names it too.")
+_CAL_DONE_STEP_FINISH = ("Repeat for each strip until all are read. Then "
+                         "press <b>d</b> to finish and save.")
+M_CAL_DONE_STEPS = _m(
+    "M-CAL-DONE-STEPS",
+    "How to measure, after the calibration",
+    "\n".join((_CAL_DONE_READY, _CAL_DONE_STEP_WHICH, _CAL_DONE_STEP_FINISH)),
+    approved=False)
+
+# --- PROPOSED: the neighbour check's red line on a VERIFICATION's window ------
+#: 4.3.5 beta 4. Knut, #182 6154440320: the verification chart's "All Strips
+#: Read" window should carry the same summary as a profiling chart's, "so
+#: that I can better decide if I want to re-read patches or finish". Every
+#: line of M-MEASURED-SUSPECTS fits a verification except these two, which
+#: end "before you build the profile": a verification checks a profile that
+#: is already built, so the choice there is to read again or to finish.
+#: Hidden until approved: until then a verification's summary leaves the
+#: red line out (never "no suspected misreads" in its place).
+_SUM_NB_RED_ONE_VERIFY = ("Neighbour check: 1 suspected misread, patch "
+                          "{locs}. Read it again before you finish.")
+_SUM_NB_RED_VERIFY = ("Neighbour check: {n} suspected misreads, patches "
+                      "{locs}. Read them again before you finish.")
+M_MEASURED_SUSPECTS_VERIFY = _m(
+    "M-MEASURED-SUSPECTS-VERIFY",
+    _SUM_HEADLINE,
+    "\n".join((_SUM_NB_RED_ONE_VERIFY, _SUM_NB_RED_VERIFY)),
+    approved=False)
+
 # ---------------------------------------------------------------------------
 #: Knut wrote this text himself (beta.150) to replace the original "No
 #: Instrument Found" bullet list, and asked for the window I had added at ten
@@ -5915,7 +5958,7 @@ CATALOGUE = {m.id: m for m in (
     M_PATCH_COLOUR_RANGE,
     M_PATCH_EXPECTED_PREDICTED,
     M_PATCH_NEIGHBOUR, M_PATCH_NEIGHBOUR_VARIANTS, M_PATCH_LIMIT,
-    M_MEASURED_SUSPECTS,
+    M_MEASURED_SUSPECTS, M_MEASURED_SUSPECTS_VERIFY, M_CAL_DONE_STEPS,
     M_PATCH_CORRECTED, M_PATCH_CORRECTED_VARIANTS, M_PATCH_UNSETTLED,
     M_PATCH_CARD_PLAIN,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,

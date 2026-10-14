@@ -248,8 +248,10 @@ def test_a_chart_made_with_a_pre_conditioning_profile_is_checked(
 @pytest.mark.parametrize("case", ["verification", "calibration"])
 def test_also_on_these_charts(qapp, tmp_path, monkeypatch, case):
     """Beta 17: verification charts (Knut 6070058549, answer 3) and
-    calibration charts (6082015002) are checked too, with outlines; a
-    verification's closing window still carries no summary (5983470377)."""
+    calibration charts (6082015002) are checked too, with outlines. Since
+    4.3.5 beta 4 a verification's closing window carries the summary too
+    (Knut 6154440320), without the red line that says "before you build the
+    profile": its own (M-MEASURED-SUSPECTS-VERIFY) waits for approval."""
     folder = tmp_path / ("cal" if case == "calibration" else "run1")
     tab = _tab(folder)
     if case == "verification":
@@ -266,7 +268,15 @@ def test_also_on_these_charts(qapp, tmp_path, monkeypatch, case):
         tab._read_twice_log = [("B", "A", "keep")]
         monkeypatch.setattr(type(tab), "_read_twice_was_active",
                             lambda self: True)
-        assert tab._misread_summary() == ""
+        lines = tab._misread_summary().splitlines()
+        assert lines == [M._SUM_TWICE_ONE.format(
+            list=M._SUM_TWICE_KEPT.format(strip="B", like="A"))], lines
+        assert not any("build the profile" in x for x in lines)
+        import dataclasses
+        monkeypatch.setattr(M, "M_MEASURED_SUSPECTS_VERIFY", dataclasses.replace(
+            M.M_MEASURED_SUSPECTS_VERIFY, approved=True))
+        assert tab._misread_summary().splitlines()[0] == \
+            M._SUM_NB_RED_ONE_VERIFY.format(locs="D6")
 
 
 def test_the_summary_names_what_is_still_red(qapp, tmp_path):

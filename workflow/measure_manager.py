@@ -650,6 +650,10 @@ class MeasureManager(QObject):
         #: The answer to "Continue to next / Jump to unread" lasts for one
         #: measurement: a resume or a re-measurement asks again.
         self._unread_policy = None
+        #: The tab has shown (or answered in the log) the window that closes
+        #: the chart in THIS session: every "all done" after it is the engine
+        #: re-arming a strip of a finished chart, not news (4.3.5 beta 4).
+        self._completion_shown = False
         self._read_order = []
         self._loc_strip = {}
         self._padding_locs = set()
@@ -1367,7 +1371,7 @@ class MeasureManager(QObject):
             return
         if self._spot_mode != (mode == "patch"):
             return
-        if all_done_news:
+        if all_done_news and not getattr(self, "_completion_shown", False):
             # Every strip has a reading, but one set aside by "Was a strip
             # read twice?" still holds another strip's colours: the reader
             # goes there, as the window said it would (review of bc038bc7).
@@ -1389,6 +1393,21 @@ class MeasureManager(QObject):
             self._held_after_read = ctx
             return
         self._decide_after_read(ctx)
+
+    def note_completion_shown(self) -> None:
+        """The tab has closed the chart for this session: the completion
+        window was shown (or its log line written instead).
+
+        Knut, #182 6154440320 (4.3.5 beta 3): after "All Strips Read" he
+        chose Re-read Individual Strips, read strip C, and the reader stayed
+        on C; every strip after that he had to pick by hand. The engine
+        reports ``all_done`` with every read of a complete chart, and that
+        was still taken as the news that holds the reader where it is for
+        the completion window, which had long been shown. From here on a
+        read of the finished chart follows the beta-4 rule like any other:
+        the reader goes to the next strip (and stays on the last one).
+        Guided refinement keeps its own order (``_guided_state``)."""
+        self._completion_shown = True
 
     def _decide_after_read(self, ctx: dict) -> None:
         """Carry out (or ask about) the move after a read — see _after_a_read."""

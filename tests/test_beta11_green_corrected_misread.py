@@ -108,7 +108,10 @@ def test_green_on_a_verification_but_no_summary_line(qapp, tmp_path,
     assert _flags(tab)["B3"] is True
     tab._on_strip_measured(_strip("B"))
     assert _flags(tab)["B3"] == pf.FLAG_CORRECTED
-    assert tab._misread_summary() == ""
+    # 4.3.5 beta 4 (Knut, #182 6154440320): a verification's closing window
+    # has the same summary, the corrected line included.
+    assert M._SUM_CORRECTED_ONE.format(locs="B3") in \
+        tab._misread_summary().splitlines()
 
 
 def test_the_ring_is_green_and_distinct():
