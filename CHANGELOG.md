@@ -1,5 +1,22 @@
 # Changelog
 
+## v4.3.5-beta.5
+
+### Changed
+
+- **New and changed texts are shown in the beta right away** (#182, Knut, 2026-10-14): a text still waiting for approval is no longer held back; it is listed as proposed and approved afterwards, without a new beta. Texts that were waiting are now shown, among them a window when the profile engine falls back to another method, and a window when every strip is read but some patches are not ("All strips are read, but some patches are not").
+- **Approved by Knut and shown** (#182, 2026-10-14): the Calibration Complete window of a new read lists the same numbered steps as after "Refine / resume", and a verification's "All Strips Read" Summary names suspected misreads with "Read it again before you finish." Patch-by-patch reading has its own versions of both, with a verification's "All Patches Read" window.
+- **Patch cards** (#182, Knut): an empty line follows "Difference between the two colours" and its two numbers, and where a sentence meant the patch being judged it now names it, for example "The 4 patches most similar to patch B3 are about ...", in all 13 languages.
+- **The help cards' PostScript note says that the choice belongs to the project** and is asked after you click Print in the print dialog, the first time a chart of the project goes to a PostScript printer.
+- **Create Chart: the module scrolls on a short window** (1280 x 800) instead of squeezing the "Output" fields over one another; a tall window looks as before.
+
+### Fixed
+
+- **"Restore chart used" followed by the chart's redraw lost two of the chart's files** (#182, Knut): the colorimetric reference of a From Profile Gamut chart and the print record were moved to the old/ folder. Start Measurement then warned that the stored chart differs, the patch cards used the limits for profiling charts with estimated colours instead of the verification limits, and the Measurement Report showed no figures and no cube corners. Every file that belongs to a chart is now listed in one place and kept by the restore and the redraw.
+- **A patch the neighbour check had made red did not turn green after a re-read that cleared it** when the two readings were close (#182, Knut, patch B14 at 5.04 then 4.78). It now turns green, as for the patch error limit.
+- **"Discard and stop" kept the readings of the session** when the engine had already written them (after "All Strips Read" and a re-read) or when the session ended through "Give Up" in a failure window. The earlier measurement and its confirmed patches are now put back, and the session's file is moved to an old/ folder, never deleted. The window then says the readings are already written and what Discard does.
+- **Russian, Ukrainian and Polish: counts of patches read correctly for any number** in the new and changed texts; Ukrainian uses one word for the macOS print dialog's Print button.
+
 ## v4.3.5-beta.4
 
 ### Changed
