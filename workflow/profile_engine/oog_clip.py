@@ -832,7 +832,9 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         if p.get("a65_blue"):
             j = lab_to_argyll_jab(tl)
             h = np.degrees(np.arctan2(j[:, 2], j[:, 1])) % 360.0
-            lo0, lo1, hi1, hi0 = A65_BLUE
+            import os
+            lo0, lo1, hi1, hi0 = (tuple(float(x) for x in os.environ["CHROMIQ_A65_BLUE"].split(":"))
+                                  if os.environ.get("CHROMIQ_A65_BLUE") else A65_BLUE)
             win = np.clip(np.minimum((h - lo0) / (lo1 - lo0), (hi0 - h) / (hi0 - hi1)), 0.0, 1.0)
             win = win * win * (3.0 - 2.0 * win)
             cs = np.clip(np.hypot(j[:, 1], j[:, 2]) / max(float(p["c_fade"]), 1e-9), 0.0, 1.0)
