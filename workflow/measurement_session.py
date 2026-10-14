@@ -79,6 +79,9 @@ class MeasurementSession:
         self.old_dir = Path(old_dir) if old_dir else self.ti3_path.parent / "old"
         self.before: int = 0
         self.archive: "Path | None" = None
+        #: (size, mtime_ns) of the file when the session began, or None when
+        #: there was none — see :meth:`file_written`.
+        self._start_sig: "tuple | None" = None
 
     # ---- before ------------------------------------------------------
     def begin(self, when: "datetime | None" = None) -> "Path | None":
@@ -89,6 +92,7 @@ class MeasurementSession:
         """
         facts = classify(self.ti3_path, self.ti2_path)
         self.before = facts.held or 0
+        self._start_sig = self._sig()
         if not self.ti3_path.is_file():
             return None
         when = when or datetime.now()
@@ -117,6 +121,30 @@ class MeasurementSession:
         log.info("archived %s (%d readings) to %s before measuring",
                  self.ti3_path.name, self.before, dest.name)
         return target
+
+    def _sig(self) -> "tuple | None":
+        try:
+            st = self.ti3_path.stat()
+        except OSError:
+            return None
+        return (st.st_size, st.st_mtime_ns)
+
+    def file_written(self) -> bool:
+        """Whether the session has already written readings into the file.
+
+        ChromIQ's engine writes the ``.ti3`` after every strip (and patch) it
+        accepts; stock chartread only on a clean exit. The ending window says
+        which (M-END, M-END-WRITTEN), and it must be true (4.3.5 beta 5
+        regression review: "They are not in your measurement file yet" was
+        shown over a file the engine had written).
+        """
+        sig = self._sig()
+        if sig is None or sig == self._start_sig:
+            return False
+        try:
+            return bool(classify(self.ti3_path, self.ti2_path).held)
+        except Exception:      # noqa: BLE001 — a question, never a blocker
+            return False
 
     # ---- after -------------------------------------------------------
     def finish(self, *, resumed: bool, discarded: bool = False) -> SessionOutcome:

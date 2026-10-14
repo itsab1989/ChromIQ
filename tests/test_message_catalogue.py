@@ -713,6 +713,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-CAL-DONE-STEPS-PATCH",
                                  "M-VERIFY-ALL-PATCHES-READ",
                                  "M-HELP-PS-NOTE-PROJECT",
+                                 # 4.3.5 beta 5 regression review: the ending
+                                 # window once ChromIQ's engine has written
+                                 # the session's readings into the file.
+                                 "M-END-WRITTEN",
                                  # (M-PATCH-CARD-PLAIN, 4.3.5 beta 2, was
                                  # here until Knut and Basti approved it
                                  # 2026-10-13, without "only".)

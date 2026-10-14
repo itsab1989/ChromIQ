@@ -2816,6 +2816,42 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "•  Close — finish here. ChromIQ asks whether to keep what you have "
     "measured so far, so nothing is decided behind your back.")
 
+#: PROPOSED (4.3.5 beta 5 regression review). M-END says the session's
+#: readings "are not in your measurement file yet", which is true of stock
+#: chartread (it writes on a clean exit) and not of ChromIQ's engine, which
+#: writes the file after every strip it accepts. Shown instead of M-END's body
+#: once the session has changed the file on disk; the window, its headline
+#: and its buttons are M-END's. {kept} is M-END's approved sentence about the
+#: previous measurement (with its paragraph break), or nothing.
+M_END_WRITTEN = _m(
+    "M-END-WRITTEN",
+    "Keep what you have measured so far?",
+    "You have read {n} patches in this session. ChromIQ's engine has already "
+    "written them into your measurement file.\n\n"
+    "What each button does:\n\n"
+    "•  Save and stop: keeps them in this run's measurement file and ends the "
+    "session. You can carry on later with “Refine / resume existing "
+    "measurement (-r)”, reading only the strips or patches that are still "
+    "missing.\n\n"
+    "•  Discard and stop: ends the session and keeps nothing from it. The "
+    "file this session wrote is moved to an “old” folder, never "
+    "deleted.{kept}\n\n"
+    "•  Keep measuring: closes this window and carries on where you were.",
+    approved=False,
+    count_key="n",
+    body_one=
+    "You have read 1 patch in this session. ChromIQ's engine has already "
+    "written it into your measurement file.\n\n"
+    "What each button does:\n\n"
+    "•  Save and stop: keeps it in this run's measurement file and ends the "
+    "session. You can carry on later with “Refine / resume existing "
+    "measurement (-r)”, reading only the strips or patches that are still "
+    "missing.\n\n"
+    "•  Discard and stop: ends the session and keeps nothing from it. The "
+    "file this session wrote is moved to an “old” folder, never "
+    "deleted.{kept}\n\n"
+    "•  Keep measuring: closes this window and carries on where you were.")
+
 #: PROPOSED (#148). Asked for by Knut, 2026-08-14: *"there should be a defined
 #: and approved instrument error message in the design specification for this
 #: error, is there not? I think there should be a warning message so the user
@@ -6081,7 +6117,7 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST, M_NO_INSTRUMENT_NONE,
-    M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
+    M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT, M_END_WRITTEN,
     M_UNREAD_NEXT_OR_JUMP_STRIP, M_UNREAD_NEXT_OR_JUMP_PATCH,
     M_STRIP_READ_TWICE,
     M_CR_STRIPS, M_CR_START_OVER, M_CR_PRECONDITIONING,

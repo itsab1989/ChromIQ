@@ -8399,19 +8399,27 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         read_line = (tr("You have read 1 patch in this session.") if n == 1
                      else tr("You have read {n} patches in this "
                              "session.").format(n=n))
-        box.setText(title + "\n\n" + read_line + " " + tr(
-            "They are not in your "
-            "measurement file yet — ChromIQ can write them now, or end the "
-            "session without them.\n\n"
-            "What each button does:\n\n"
-            "•  Save and stop — writes what you have read so far to this run's "
-            "measurement file and ends the session. You can carry on later "
-            "with “Refine / resume existing measurement (-r)”, reading only the "
-            "strips or patches that are still missing.\n\n"
-            "•  Discard and stop — ends the session and keeps nothing from "
-            "it.{kept}\n\n"
-            "•  Keep measuring — closes this window and carries on where you "
-            "were.").format(kept=kept))
+        if self._session_wrote_its_file():
+            # M-END-WRITTEN (4.3.5 beta 5 regression review): ChromIQ's
+            # engine writes the file after every strip it accepts, so "They
+            # are not in your measurement file yet" was untrue over it.
+            from workflow import measurement_messages as M
+            _t, body = M.M_END_WRITTEN.render(n=n, kept=kept)
+        else:
+            body = read_line + " " + tr(
+                "They are not in your "
+                "measurement file yet — ChromIQ can write them now, or end the "
+                "session without them.\n\n"
+                "What each button does:\n\n"
+                "•  Save and stop — writes what you have read so far to this run's "
+                "measurement file and ends the session. You can carry on later "
+                "with “Refine / resume existing measurement (-r)”, reading only the "
+                "strips or patches that are still missing.\n\n"
+                "•  Discard and stop — ends the session and keeps nothing from "
+                "it.{kept}\n\n"
+                "•  Keep measuring — closes this window and carries on where you "
+                "were.").format(kept=kept)
+        box.setText(title + "\n\n" + body)
         save = box.addButton(tr("Save and stop"),
                              QMessageBox.ButtonRole.AcceptRole)
         discard = box.addButton(tr("Discard and stop"),
@@ -8428,9 +8436,38 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return None
 
     def _readings_before_session(self) -> int:
-        """C₀ — how many readings the run held when this session began."""
+        """C₀ — how many readings the run held when this session began.
+
+        Including a measurement "Measure anyway" moved to old/ at Start
+        (`_archive_measurement_before_replacing`): the guard begins after
+        that move and counts nothing, yet "Discard and stop" puts that
+        measurement back (`_restore_displaced_measurement`), so M-END's
+        approved sentence about it is true and is said (4.3.5 beta 5
+        regression review).
+        """
         sess = getattr(self, "_session_guard", None)
-        return int(getattr(sess, "before", 0) or 0)
+        before = int(getattr(sess, "before", 0) or 0)
+        if before:
+            return before
+        displaced = getattr(self, "_displaced_measurement", None)
+        if displaced is None or self._ti1_path is None:
+            return 0
+        try:
+            from workflow.measurement_state import classify
+            saved = Path(displaced) / Path(self._ti1_path).with_suffix(".ti3").name
+            return int(classify(saved, None).held or 0) if saved.is_file() else 0
+        except Exception:      # noqa: BLE001 — a count, never a blocker
+            return 0
+
+    def _session_wrote_its_file(self) -> bool:
+        """Whether this session's readings are already in the file on disk
+        (ChromIQ's engine writes after every accepted strip or patch)."""
+        sess = getattr(self, "_session_guard", None)
+        written = getattr(sess, "file_written", None)
+        try:
+            return bool(callable(written) and written())
+        except Exception:      # noqa: BLE001
+            return False
 
     def _end_session(self, choice: "str | None") -> None:
         """Carry out what :meth:`_confirm_end_of_session` returned."""
