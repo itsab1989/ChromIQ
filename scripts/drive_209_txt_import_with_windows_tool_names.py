@@ -39,7 +39,9 @@ What it does, each step photographed:
    unified_measurement_management.md: a calibration run cannot import). The
    calibration measurement is converted with Tools and loaded where a
    calibration's ``.ti3`` goes, Build Profile with Run type = Calibration, and
-   printcal is run on it.
+   printcal is run on it. ``--tag after`` then loads the calibration ``.txt``
+   itself there, twice (beta 6): converted beside the export as
+   ``<stem>.ti3`` and ``<stem>-2.ti3``, with ``cal/`` left as it was.
 """
 from __future__ import annotations
 
@@ -204,6 +206,11 @@ def main() -> int:
     from onscreen_capture import PopupWatchdog, capture_window
 
     app = build_app()
+    # The shipped stylesheet, as main() applies it: before the window is built
+    # and again with it (review of beta 6: this driver used to photograph the
+    # app without it, so its pictures were not what a user sees).
+    from ui.theme import apply_appearance
+    apply_appearance(app, None, "light")
 
     def pump(seconds: float = 0.5) -> None:
         end = time.monotonic() + seconds
@@ -231,6 +238,7 @@ def main() -> int:
     s.set("argyll_bin_path", str(argyll))
     s.set("calibration_mode", True)      # Preferences: offer the Calibration run type
     win = MainWindow(s)
+    apply_appearance(app, win, "light")
     win.resize(1500, 1000)
     win.show()
     if hasattr(app, "_chromiq_focus_give_back"):
@@ -371,6 +379,30 @@ def main() -> int:
          "log tail": prof_tab._pc_log.toPlainText().splitlines()[-5:],
          "cal folder": cal_files})
     shoot(win, "10-calibration-printcal-done")
+
+    # ---- 4b: calibration, the .txt itself (the fix only) ----------------------
+    # Since beta 6 the calibration loader takes the i1Profiler export directly:
+    # converted BESIDE the export, never over a file, nothing filed into cal/.
+    if ARGS.tag == "after":
+        cal_before = sorted(p.name for p in (proj / "cal").iterdir())
+        for n in (1, 2):
+            tp.open_file_dialog = lambda *a, **k: str(cal_txt)
+            try:
+                prof_tab._on_load_ti3()
+            finally:
+                tp.open_file_dialog = real
+            pump(0.8)
+            say(f"CALIBRATION: header loader, the .txt itself ({n})",
+                {"loaded": str(prof_tab._cal_ti3_path),
+                 "beside the export": sorted(p.name for p in outside.iterdir()),
+                 "label style": prof_tab._pc_ti3_lbl.styleSheet()})
+            shoot(win, f"11-calibration-txt-loaded-{n}")
+        cal_after = sorted(p.name for p in (proj / "cal").iterdir())
+        say("CALIBRATION: cal/ untouched by the loader",
+            {"same": cal_before == cal_after, "before": cal_before,
+             "after": cal_after})
+        if cal_before != cal_after:
+            RESULT["findings"].append("the calibration loader changed cal/")
 
     dog.stop()
     RESULT["popups"] = dog.events

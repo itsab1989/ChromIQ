@@ -306,8 +306,17 @@ def main() -> int:
     say("txt2ti3.exe put back", (argyll / "txt2ti3.exe").exists())
     for p in outside.glob("калибровка*.ti3"):
         p.unlink()
+    cal_before = sorted(p.name for p in (proj / "cal").iterdir())
     calibration_load(cal_txt, "06-calibration-load-txt")
     loaded = getattr(prof, "_cal_ti3_path", None)
+    # A second load of the same export must not overwrite the first .ti3
+    # (beta 6 review): it lands as <stem>-2.ti3, and cal/ is left alone.
+    calibration_load(cal_txt, "06b-calibration-load-txt-again")
+    say("06b second load beside the first, cal/ untouched",
+        {"loaded": str(getattr(prof, "_cal_ti3_path", None)),
+         "beside": sorted(p.name for p in outside.iterdir()),
+         "cal/ unchanged": cal_before == sorted(
+             p.name for p in (proj / "cal").iterdir())})
     say("06 converted beside the export",
         {"loaded": str(loaded),
          "beside": sorted(p.name for p in outside.iterdir()),
