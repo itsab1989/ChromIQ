@@ -61,6 +61,31 @@ def _legend_lines() -> "list[str] | None":
     return lines if len(lines) == 3 else None
 
 
+#: Room the window frame takes above and around the dialog (the macOS title
+#: bar is 28 px), so the whole window, frame included, fits the work area.
+_FRAME_W, _FRAME_H = 16, 40
+
+
+def default_dialog_size(want_w: int, want_h: int, parent=None) -> "tuple[int, int]":
+    """*want_w* x *want_h*, held to the available screen geometry (the work
+    area, without menu bar and Dock) of the screen the dialog opens on: at
+    1280 x 800 the work area is about 1280 x 705, and 760 px plus the title
+    bar did not fit (4.3.5 beta 4). Never below the dialog's minimum."""
+    from PyQt6.QtGui import QGuiApplication
+    screen = None
+    try:
+        if parent is not None and parent.window() is not None:
+            screen = parent.window().screen()
+    except Exception:  # noqa: BLE001 - fall back to the primary screen
+        screen = None
+    screen = screen or QGuiApplication.primaryScreen()
+    if screen is None:
+        return want_w, want_h
+    avail = screen.availableGeometry()
+    return (max(520, min(want_w, avail.width() - _FRAME_W)),
+            max(480, min(want_h, avail.height() - _FRAME_H)))
+
+
 def _blend(fg: QColor, bg: QColor, alpha: float) -> QColor:
     """``fg`` laid over ``bg`` at ``alpha``, as the plot composites it."""
     return QColor(*(round(alpha * f + (1 - alpha) * b) for f, b in
@@ -178,7 +203,8 @@ class PatchCubeDialog(QDialog):
         self.setWindowTitle(
             tr("Patch distribution — Lab space") if lab_cloud
             else tr("Patch distribution — 3D RGB cube"))
-        self.resize(1040 if self._compare_presets else 820, 760)
+        self.resize(*default_dialog_size(
+            1040 if self._compare_presets else 820, 760, parent))
         self.setMinimumSize(520, 480)
 
         lay = QVBoxLayout(self)

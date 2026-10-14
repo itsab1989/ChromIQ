@@ -167,4 +167,9 @@ def test_both_gaps_survive_the_narrow_window_and_a_splitter_drag(qapp, tmp_path)
             handle_right, (mp_left, _), (_, li_right) = _edges(tab)
             where = f"{width} px pane, splitter sizes {splitter.sizes()}"
             assert mp_left - handle_right == OUTER_GAP, f"left gap lost at {where}"
-            assert tab.width() - li_right == OUTER_GAP, f"right gap lost at {where}"
+            # 4.3.5 beta 4: the frames sit in a scroll area (`_InfoRowScroll`)
+            # so a short window scrolls them instead of crushing them; while
+            # its scroll bar shows, the gap is counted from the bar.
+            sb = tab._info_scroll.verticalScrollBar()
+            bar = sb.width() if sb.isVisible() else 0
+            assert tab.width() - li_right - bar == OUTER_GAP, f"right gap lost at {where}"

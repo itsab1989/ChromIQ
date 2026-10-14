@@ -202,7 +202,8 @@ def test_the_underlay_tip_is_approved_and_shown_only_without_a_board():
     for fam in ("colormunki", "cr30"):
         tip = underlay_tip_html(fam)
         assert "Lay the chart on a white surface" in tip
-        assert "80 to 100 g/m²" in tip
+        # glued so it never breaks across lines (4.3.5 beta 4)
+    assert "80 to 100 g/m²" in tip.replace("\u00a0", " ").replace("\u2060", "")
     for fam in ("i1pro", "spectroscan", None):
         assert underlay_tip_html(fam) == ""
 

@@ -6000,6 +6000,51 @@ def _is_named(file_mgr, *, unknown: bool = False) -> bool:
         return unknown
 
 
+class _InfoRowScroll(FadeScrollArea):
+    """The scroll area under the Create Chart preview that holds "Measured
+    from Preview" and "Chart layout information" (4.3.5 beta 4). It asks for
+    its content's full height, so a tall window shows both frames whole as
+    before, and gives way down to a few lines when the window is short (a
+    1280 x 800 screen), scrolling instead of squeezing the frames."""
+
+    #: The least it keeps on screen: the table's header and first rows.
+    MIN_H = 150
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.setFrameShape(self.Shape.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred,
+                           QSizePolicy.Policy.Maximum)
+
+    def setWidget(self, widget) -> None:  # noqa: N802 - Qt's name
+        super().setWidget(widget)
+        # a warning shown or folded changes the frames' height: ask the
+        # pane again for room (a bound method, never a lambda: CLAUDE.md)
+        widget.installEventFilter(self)
+
+    def eventFilter(self, obj, event):  # noqa: N802 - Qt's name
+        from PyQt6.QtCore import QEvent
+        if obj is self.widget() and event.type() == QEvent.Type.LayoutRequest:
+            self.updateGeometry()
+        return super().eventFilter(obj, event)
+
+    def sizeHint(self):  # noqa: N802 - Qt's name
+        hint = super().sizeHint()
+        w = self.widget()
+        if w is not None:
+            hint.setHeight(w.sizeHint().height())
+        return hint
+
+    def minimumSizeHint(self):  # noqa: N802 - Qt's name
+        hint = super().minimumSizeHint()
+        w = self.widget()
+        full = w.sizeHint().height() if w is not None else self.MIN_H
+        hint.setHeight(min(full, self.MIN_H))
+        return hint
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
 
@@ -6650,7 +6695,26 @@ class TabChart(QWidget):
         _info_row.setSpacing(8)
         _info_row.addWidget(self._margin_panel, stretch=3)
         _info_row.addWidget(self._layout_info_panel, stretch=2)
-        right_layout.addLayout(_info_row)
+        # THE TWO FRAMES SCROLL RATHER THAN CRUSH (4.3.5 beta 4). On a
+        # 1280 x 800 screen the right pane has about 480 px under the
+        # masthead; the preview needs about 330 of them and "Measured from
+        # Preview" with its warnings about 350, so the layout squeezed the
+        # frames below their minimum and the margin table's rows and the tick
+        # boxes' wrapped labels were drawn over one another. In this scroll
+        # area they keep their own height and scroll inside the pane; where
+        # the window is tall enough it asks for exactly their height and
+        # nothing changes (`_InfoRowScroll`).
+        _info_box = QWidget(right)
+        _info_box.setLayout(_info_row)
+        # ONLY THE HEIGHT SCROLLS. Across, the row keeps fitting the pane as it
+        # did before (the 16 px gaps at a 900 px window, where the pane is
+        # narrower than the frames' own minimum): an explicit minimum width
+        # stands in for the frames' minimum hint, which the scroll area would
+        # otherwise widen the row to and clip.
+        _info_box.setMinimumWidth(1)
+        self._info_scroll = _InfoRowScroll(right)
+        self._info_scroll.setWidget(_info_box)
+        right_layout.addWidget(self._info_scroll)
         self._margin_panel.set_guides_checked(
             bool(self._settings.get("margin_guides_show", False)))
         self._margin_panel.set_measured_guides_checked(

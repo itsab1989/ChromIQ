@@ -278,7 +278,21 @@ def underlay_tip_html(family: "str | None") -> str:
     import html as _html
     title, body = M.M_CAL_DONE_UNDERLAY.render()
     return (f"<br><br><b>{_html.escape(title)}</b><br>"
-            f"{_html.escape(body)}")
+            f"{_html.escape(glue_paper_weight(body))}")
+
+
+#: "100 g/m²" in any catalogue language: a number, a space, the gram letter
+#: (Latin g, Cyrillic г), a slash and the square metre (m², м²).
+_PAPER_WEIGHT = re.compile(r"(\d)[ \u00a0]([gг])/([mм]²)")
+
+
+def glue_paper_weight(text: str) -> str:
+    """*text* with every "100 g/m²" held together on one line (4.3.5 beta 4:
+    the CR30 window broke it as "100 g/" / "m²"): a no-break space between
+    the number and the unit, and word joiners round the slash, after which
+    Qt's line breaking may otherwise break. Invisible; the words are the
+    catalogue's."""
+    return _PAPER_WEIGHT.sub("\\1\u00a0\\2\u2060/\u2060\\3", text)
 
 
 def measurement_instructions_html(family: "str | None") -> str:
