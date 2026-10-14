@@ -2198,6 +2198,8 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     # [floor, floor + band] linearly) instead of the hard max(L*, floor);
     # band CHROMIQ_A66_BAND (default 15) L*. The lightness weight stays as
     # integration 8b has it (dm_wj 1).
+    p["a66_blendsep_req"] = is_additive is False and oog_clip.A66_BLENDSEP_TOKEN in t
+    p["a66_sep_tol"] = float(os.environ.get("CHROMIQ_A66_SEPTOL", "0.10"))
     if is_additive is False and oog_clip.A66_BPC_TOKEN in t and p.get("dm_on"):
         p["dm_band"] = float(os.environ.get("CHROMIQ_A66_BAND", "15"))
     # research knobs for the fade's order and shape (Agent 56 A/B only)
