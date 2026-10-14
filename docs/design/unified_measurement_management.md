@@ -5128,9 +5128,9 @@ sheet unrecorded, exactly as today.*
 >
 > Not sure is always safe: the report simply notes that the printing method is not recorded, and judges the colours as they are. Your answer is stored with this measurement only — it changes nothing else.
 
-### M-ALL-STRIPS-PATCHES-LEFT · PROPOSED (revised 2026-08-14) · every strip read, but patches inside them are not — Measure tab
+### M-ALL-STRIPS-PATCHES-LEFT · PROPOSED (revised 2026-08-14, headline 2026-10-14) · every strip read, but patches inside them are not — Measure tab
 
-> **Some patches are still unread**
+> **All strips are read, but some patches are not**
 >
 > Every strip has been read, but {n} patches still have no reading. Everything you have read so far is safe.
 >
@@ -5141,6 +5141,22 @@ sheet unrecorded, exactly as today.*
 > • **Re-read Individual Strips** — stay in this session and read a strip again now. Use **f** and **b** to move between strips, **n** to jump to the next unread one, and **d** when you are done.
 >
 > • **Close** — finish here. ChromIQ asks whether to keep what you have measured so far, so nothing is decided behind your back.
+
+*With one patch left the headline is* **All strips are read, but one patch is not**.
+
+*Headline revised 2026-10-14 (4.3.5 beta 5 regression review), wording only.
+It read "Some patches are still unread", one word away from the approved
+navigation question M-UNREAD-NEXT-OR-JUMP-STRIP / -PATCH ("Some patches are
+still not read"), which can open in the same session and asks something else:
+where the reader goes next, while this one stands in for "All Strips Read".
+They are different situations, so this window keeps its own and its headline
+now says how it differs. When it opens changed too (behaviour, awaiting
+confirmation): on a resume whose every strip already counted as read when the
+session opened, the first strip read again made the engine report the chart
+complete, and this window came straight after Calibration Complete. There it
+now waits until the session has read every strip; where a strip was still
+unread at the start, reading the last one brings it, as before
+(`MeasureManager.patches_left_is_news`).*
 
 *Revised after Knut's review of the first draft (2026-08-14), which he corrected
 on three counts.*

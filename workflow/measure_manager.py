@@ -429,6 +429,10 @@ class MeasureManager(QObject):
         #: tests (and by the stock path) without going through `start`.
         self._strips_read_this_session: set = set()
         self._session_strips: list = []
+        #: Every strip already counted as read when the session opened (a
+        #: resume of a chart whose gaps are single patches) — see
+        #: :meth:`patches_left_is_news`.
+        self._strips_all_read_at_start: bool = False
         self._guided_strips: list[str] = []
         self._guided_menu_pending: bool = False
         self._guided_idx:    int  = 0
@@ -637,6 +641,7 @@ class MeasureManager(QObject):
         #: strip list, so a re-measurement can be told from a touch-up.
         self._strips_read_this_session: set = set()
         self._session_strips: list = []
+        self._strips_all_read_at_start = False
         self._guided_on_line = on_line
         # Reset guided state for this run
         self._guided_idx   = 0
@@ -2243,6 +2248,22 @@ class MeasureManager(QObject):
             return self._read_the_whole_chart_this_session()
         return bool(self._read_something or not self._is_resume)
 
+    def patches_left_is_news(self) -> bool:
+        """Whether "every strip is read, but patches are not" (M-ALL-STRIPS-
+        PATCHES-LEFT) describes something THIS session did.
+
+        On a resume whose every strip already counted as read when it opened
+        (the gaps are single patches), the first strip read again made the
+        engine report the chart complete, and the window opened straight
+        after Calibration Complete although the user had read one strip
+        (4.3.5 beta 5 regression review). There it waits until this session
+        has read every strip; where a strip was still unread at the start,
+        reading the last one is the news, as before.
+        """
+        if not self._strips_all_read_at_start:
+            return True
+        return self._read_the_whole_chart_this_session()
+
     def _read_the_whole_chart_this_session(self) -> bool:
         """Whether every strip of the chart was read during this session."""
         wanted = {str(s.get("strip", "")).strip()
@@ -2362,6 +2383,8 @@ class MeasureManager(QObject):
             self._chart_was_complete = self._measurement_was_complete(
                 ev.get("chart"), strips)
             self._session_strips = list(strips or [])
+            self._strips_all_read_at_start = bool(strips) and all(
+                st.get("read") for st in strips)
             # "I read strip B" moves the reading onto B in the engine (Knut,
             # #182 6102031563); an engine without the command says nothing.
             self._engine_files_as = bool(ev.get("file_as"))

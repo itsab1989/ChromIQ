@@ -11404,6 +11404,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # this window comes (review of bc038bc7).
             return
         if unread:
+            # NOT AT THE START OF A RESUME (4.3.5 beta 5 regression review):
+            # when every strip already counted as read as the session opened,
+            # one strip read again is not "every strip has been read"; the
+            # window waits until this session has read them all. The reader
+            # carries on after the read as after any other.
+            is_news = getattr(self._manager, "patches_left_is_news", None)
+            if callable(is_news) and not is_news():
+                self._note_completion_to_manager()
+                return
             # NOT the finished window: Knut's requirement is that it *"must
             # come only when all patches are read"*. Its own window instead,
             # M-ALL-STRIPS-PATCHES-LEFT, shown while it waits in §M-PROPOSED

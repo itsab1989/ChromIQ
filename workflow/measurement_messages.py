@@ -2780,7 +2780,11 @@ M_UNREAD_NEXT_OR_JUMP_PATCH = _m(
 #: only a count went to the log).
 M_ALL_STRIPS_PATCHES_LEFT = _m(
     "M-ALL-STRIPS-PATCHES-LEFT",
-    "Some patches are still unread",
+    # Not "Some patches are still unread" (4.3.5 beta 5 regression review):
+    # one word from the approved navigation question "Some patches are still
+    # not read" (M-UNREAD-NEXT-OR-JUMP-*), which asks something else. This one
+    # stands in for "All Strips Read", and its headline says how it differs.
+    "All strips are read, but some patches are not",
     "Every strip has been read, but {n} patches still have no reading. "
     "Everything you have read so far is safe.\n\n"
     "This usually happens when some patches were read one at a time in "
@@ -2796,6 +2800,7 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "measured so far, so nothing is decided behind your back.",
     approved=False,
     count_key="n",
+    title_one="All strips are read, but one patch is not",
     body_one=
     "Every strip has been read, but one patch still has no reading. "
     "Everything you have read so far is safe.\n\n"
