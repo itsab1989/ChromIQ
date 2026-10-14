@@ -185,7 +185,33 @@ def a63_pale(candidates, node_lab, white_l: float = 100.0):
         c = None
     u = np.clip((np.asarray(node_lab, float)[:, 0] - (l0 - wd)) / wd,
                 0.0, 1.0)
-    return u * u * (3.0 - 2.0 * u), (None if c in (None, "") else float(c))
+    keep = u * u * (3.0 - 2.0 * u)
+    top = a64_top(candidates)
+    if top is not None:
+        # Agent 64 (a64-paletop): the L* 100 row of the table (only targets
+        # lighter than the paper reach it; every node on it but the white
+        # one is out of gamut) keeps colprof's coarse values, interpolated
+        # from the white node: the fine row's clipped neighbours 8 dE from
+        # the white put ink on super-white targets (absolute white, light
+        # out-of-gamut tints)
+        import os
+        nl = np.asarray(node_lab, float)
+        sel = nl[:, 0] >= 100.0 - top
+        rc = os.environ.get("CHROMIQ_A64_TOPC")
+        if rc:
+            # only the top-row nodes within this a*b* radius of the white
+            sel &= np.hypot(nl[:, 1], nl[:, 2]) <= float(rc)
+        keep = np.where(sel, 0.0, keep)
+    return keep, (None if c in (None, "") else float(c))
+
+
+def a64_top(candidates):
+    """a64-paletop: L* depth of the top rows taken out of the pale band
+    (env CHROMIQ_A64_TOPL, default 1e-6 = the L* 100 row only), or None."""
+    if "a64-paletop" not in frozenset(candidates or ()):
+        return None
+    import os
+    return float(os.environ.get("CHROMIQ_A64_TOPL", 1e-6))
 
 
 # Agent 63 (a63-lowgrid): at quality l colprof's B2A grid is 9, cells four
@@ -220,6 +246,82 @@ def a63_coarse_grid(candidates, g_coarse: int, g_fine: int) -> int:
         return g_fine if g_coarse < g_fine else g_coarse
     g = max(int(g_coarse), int(v))
     return g if g <= g_fine and (g_fine - 1) % (g - 1) == 0 else g_coarse
+
+
+# Agent 64 (a64-whitefit): near the paper white the colorimetric clip is
+# not a smooth function a grid can interpolate: every Lab target just above
+# the white apex clips to the paper itself (a flat region around the white
+# node), and the clipped neighbours 8 dE away carry ink. Trilinear
+# interpolation between them puts ink on targets the exact clip prints as
+# bare paper (measured, int-8b: the absolute D50 white prints 2.3-2.8 dE
+# off the paper, the exact per-point clip 0.0-0.2). The token adds exact
+# per-point clip answers for Lab targets in the light box (top A64_L L* of
+# the PCS, |a|, |b| <= A64_C) to the smoothing refit as samples, so the
+# table interpolates the clip there instead of only touching it at the
+# nodes; nodes inside the box keep a weak anchor (the samples decide).
+A64_L = 10.0
+A64_C = 24.0
+A64_N = 8000
+A64_TOP = 0.25        # share of the samples ON the L* 100 row (super-whites)
+A64_W = 1.0           # weight per sample (the refit's own samples weigh 1)
+
+
+A64_SW_SHARE = 1.0     # share of the perfect white's lift used for the top row
+
+
+def a64_superwhite(candidates, node_lab, wtpt_abs):
+    """a64-superwhite: (node indices of the L* 100 row but the white node,
+    their lifted Lab targets), or None. Lift = A64_SW_SHARE (env
+    CHROMIQ_A64_SW) times the L* the perfect D50 white has in the paper's
+    relative space: 116 (1 / Y_paper)^(1/3) - 116."""
+    if "a64-superwhite" not in frozenset(candidates or ()):
+        return None
+    import os
+    nl = np.asarray(node_lab, float)
+    top = np.flatnonzero((nl[:, 0] >= 100.0 - 1e-6)
+                         & (np.hypot(nl[:, 1], nl[:, 2]) > 1e-6))
+    y = float(np.asarray(wtpt_abs, float)[1]) / 100.0
+    if not len(top) or not (0.2 < y < 1.0):
+        return None
+    dl = 116.0 * (1.0 / y) ** (1.0 / 3.0) - 116.0
+    dl *= float(os.environ.get("CHROMIQ_A64_SW", A64_SW_SHARE))
+    t = nl[top].copy()
+    t[:, 0] = 100.0 + dl
+    return top, t
+
+
+def a64_params(candidates):
+    """a64-whitefit parameters (env CHROMIQ_A64_L / _C / _N / _TOP / _W /
+    _ANCHOR for sweeps), or None with the token off."""
+    if "a64-whitefit" not in frozenset(candidates or ()):
+        return None
+    import os
+    g = os.environ.get
+    return {"l": float(g("CHROMIQ_A64_L", A64_L)),
+            "c": float(g("CHROMIQ_A64_C", A64_C)),
+            "n": int(g("CHROMIQ_A64_N", A64_N)),
+            "top": float(g("CHROMIQ_A64_TOP", A64_TOP)),
+            "w": float(g("CHROMIQ_A64_W", A64_W)),
+            "anchor": g("CHROMIQ_A64_ANCHOR", "weak")}
+
+
+def a64_targets(par) -> np.ndarray:
+    """The light-box Lab targets (deterministic)."""
+    rng = np.random.default_rng(6464)
+    n = int(par["n"])
+    nt = int(round(n * par["top"]))
+    lab = np.empty((n, 3))
+    lab[:, 0] = rng.uniform(100.0 - par["l"], 100.0, n)
+    lab[:nt, 0] = 100.0
+    lab[:, 1:] = rng.uniform(-par["c"], par["c"], (n, 2))
+    return lab
+
+
+def a64_in_box(par, node_lab) -> np.ndarray:
+    nl = np.asarray(node_lab, float)
+    return ((nl[:, 0] >= 100.0 - par["l"] - 1e-9)
+            & (np.abs(nl[:, 1]) <= par["c"] + 1e-9)
+            & (np.abs(nl[:, 2]) <= par["c"] + 1e-9))
 
 
 KEEP_TOKENS = tuple(f"a58-keep-{s}" for s in KEEP_STEPS)

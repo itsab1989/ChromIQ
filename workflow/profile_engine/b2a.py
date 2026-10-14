@@ -1727,7 +1727,7 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     ucs: bool = False,
                     channel_max: np.ndarray | None = None,
                     fixed_nodes: np.ndarray | None = None,
-                    progress=None) -> np.ndarray:
+                    progress=None, extra=None) -> np.ndarray:
     """Refit the B2A CLUT as one smooth field over exact inverse samples.
 
     ``fixed_nodes``: node indices whose value is already decided (the
@@ -1824,6 +1824,21 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
     y_all = np.vstack([model.shape_device(dev_s),
                        model.shape_device(dev_clut)])
     w_all = np.concatenate([np.ones(len(dev_s)), anchor_w])
+    if extra is not None:
+        # Agent 64 (a64-whitefit): exact clip answers near the paper white
+        # as samples; nodes in that box keep only a weak anchor
+        from workflow.profile_engine import purecolprof as _p64
+        par, lab_x, dev_x = extra
+        if par["anchor"] == "weak":
+            box = _p64.a64_in_box(par, node_lab)
+            if fixed_nodes is not None and len(fixed_nodes):
+                box[fixed_nodes] = False
+            w_all[len(dev_s):][box] = np.minimum(
+                w_all[len(dev_s):][box], 0.05)
+        p_all = np.vstack([p_all, to01(lab_x)])
+        y_all = np.vstack([y_all, model.shape_device(
+            np.clip(dev_x, 0.0, 1.0))])
+        w_all = np.concatenate([w_all, np.full(len(lab_x), par["w"])])
 
     x0 = model.shape_device(dev_clut)
     refined = x0

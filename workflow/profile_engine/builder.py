@@ -193,7 +193,17 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a63-palefine",
      # Agent 63: at quality l the keep-grid33in coarse table is never
      # coarser than colprof's -qm grid 17; research, opt-in
-     "a63-lowgrid"})
+     "a63-lowgrid",
+     # Agent 64: exact clip samples near the paper white in the RGB
+     # colorimetric refit (the absolute white prints as paper); research,
+     # opt-in
+     "a64-whitefit",
+     # Agent 64: the L* 100 row of the RGB colorimetric table stays on
+     # colprof's coarse values under a63-palefine; research, opt-in
+     "a64-paletop",
+     # Agent 64: the L* 100 row of the RGB colorimetric table inverted for
+     # targets above the paper (super-whites); research, opt-in
+     "a64-superwhite"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1511,6 +1521,49 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
         ucs=use_ucs, channel_max=channel_max,
         progress=lambda m: _emit(settings, m))
+    if (_a58 and not _a58k("ourclip") and meas.is_additive
+            and "a64-superwhite" in candidates):
+        # Agent 64 (a64-superwhite): the L* 100 row of the table is where
+        # every target lighter than the paper lands (the Lab encoding
+        # clamps L* there), up to the perfect D50 white, which in this
+        # paper's relative space sits at L* 100 + dL (S2: 106, RGB-default
+        # 104). Its nodes (all out of gamut but the white) are inverted for
+        # targets lifted by a share of dL, so super-whites get the clip
+        # answer of a target above the paper instead of one at its level.
+        _sw = _a58m.a64_superwhite(candidates, node_lab, wtpt_abs)
+        if _sw is not None:
+            _swi, _swt = _sw
+            _swd, _swr = b2a_mod.build_b2a_clut(
+                model, b2a_grid, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit,
+                node_lab=_swt, k_prior=k_prior_col, accurate=accurate,
+                extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                ucs=use_ucs, channel_max=channel_max)
+            dev_clut = dev_clut.copy()
+            dev_clut[_swi] = _swd
+            if os.environ.get("CHROMIQ_A64_SWRES") == "lifted":
+                residual = residual.copy()
+                residual[_swi] = _swr
+            _emit(settings, f"Colorimetric table: the L* 100 row inverted "
+                            f"for super-white targets (L* +{_swt[0, 0] - 100:.1f}; "
+                            f"research a64-superwhite).")
+    _a64 = None
+    if _a58 and not _a58k("ourclip") and _a58k("refit"):
+        _a64p = _a58m.a64_params(candidates)
+        if _a64p is not None:
+            # Agent 64 (a64-whitefit): exact clip answers in the light box,
+            # inverted here in the same clip context as the nodes
+            _a64t = _a58m.a64_targets(_a64p)
+            _a64d, _ = b2a_mod.build_b2a_clut(
+                model, b2a_grid, channel_letters=meas.channel_letters,
+                is_additive=meas.is_additive, ink_limit=ink_limit,
+                node_lab=_a64t, k_prior=k_prior_col, accurate=accurate,
+                extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                ucs=use_ucs, channel_max=channel_max)
+            _a64 = (_a64p, _a64t, _a64d)
+            _emit(settings, f"Colorimetric table: {len(_a64t)} exact clip "
+                            f"samples near the paper white (research "
+                            f"a64-whitefit).")
     _a58m.set_active(False)
     fixed_nodes = None
     if (accurate and meas.is_additive and "a25-rgbcol" in candidates
@@ -1614,6 +1667,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             k_gen=k_gen, ucs=use_ucs, channel_max=channel_max,
             fixed_nodes=fixed_nodes,
             progress=lambda m: _emit(settings, m),
+            **({"extra": _a64} if _a64 is not None else {}),
             # Agent 3 "b2a33s": keep the refit's exact inverse samples per
             # B2A node constant (30,000 were sized for grid 17; at grid 33
             # the n>3 path had 10,000 samples for 35,937 nodes).
