@@ -253,6 +253,11 @@ _PACE_GAP = 10
 #: was played before this window has a chance to finish").
 _ALL_DONE_SOUND_GAP_MS = 500
 
+#: How often a window that must not open on top of another question (M-ENGINE-
+#: FELL-BACK, M-ALL-STRIPS-PATCHES-LEFT) looks again whether that question has
+#: been answered (4.3.5 beta 5 review).
+_QUESTION_WAIT_MS = 400
+
 
 
 # Absolute FLOOR ΔE for the split-patch warning outline: a patch is never
@@ -7874,6 +7879,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if choice == "save":
             return self.END_SAVE
         if choice == "discard":
+            # The same "Discard and stop" as `_end_session`'s, so it keeps
+            # nothing from the session either (4.3.5 beta 5 review): Esc ends
+            # the reader, but ChromIQ's engine may already have written the
+            # session's readings into the .ti3 (every strip read once, then a
+            # re-read that failed here). The session's verdict puts the
+            # previous measurement back (MeasurementSession.finish).
+            self._discard_chosen = True
+            self._ended_by_discard = True
             return "\x1b"
         return "\r"
 
@@ -9329,7 +9342,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         QTimer.singleShot(0, self._show_engine_fell_back_pending)
 
     def _show_engine_fell_back_pending(self) -> None:
-        """The timer's slot: a bound method, never a lambda (CLAUDE.md)."""
+        """The timer's slot: a bound method, never a lambda (CLAUDE.md).
+
+        Never on top of another question (4.3.5 beta 5 review): a window
+        already open is answered first, and this one follows it."""
+        if self._runner.is_running and self._a_question_is_open():
+            QTimer.singleShot(_QUESTION_WAIT_MS, self._show_engine_fell_back_pending)
+            return
         self._show_engine_fell_back(str(getattr(self, "_fell_back_reason", "")))
 
     def _show_engine_fell_back(self, reason: str) -> None:
@@ -11416,7 +11435,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         QTimer.singleShot(_ALL_DONE_SOUND_GAP_MS, self._show_all_stripes_done)
 
     def _show_patches_left_pending(self) -> None:
-        """The timer's slot: a bound method, never a lambda (CLAUDE.md)."""
+        """The timer's slot: a bound method, never a lambda (CLAUDE.md).
+
+        Never on top of another question (4.3.5 beta 5 review): a window
+        already open is answered first, and this one follows it."""
+        if (self._runner.is_running and getattr(self, "_session_live", False)
+                and self._a_question_is_open()):
+            QTimer.singleShot(_QUESTION_WAIT_MS, self._show_patches_left_pending)
+            return
         self._show_patches_left(int(getattr(self, "_patches_left_n", 0) or 0))
 
     def _show_patches_left(self, n: int) -> None:
