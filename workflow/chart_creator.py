@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from core.logger import get_logger
 from core.proc_text import run_text
+from core.resource_path import argyll_tool_path
 from core.text_io import read_text
 from data.patch_db import EXTERNAL_INSTRUMENTS, SUPPORTED_PATCH_SCALES, query_patches
 
@@ -2639,8 +2640,8 @@ class ChartCreator:
         progress_cb: Callable[[str], None] | None = None,
     ) -> int:
         bin_dir = Path(self._settings.get("argyll_bin_path", "/Applications/Argyll/bin"))
-        targen_bin    = bin_dir / "targen"
-        printtarg_bin = bin_dir / "printtarg"
+        targen_bin    = argyll_tool_path(bin_dir, "targen")
+        printtarg_bin = argyll_tool_path(bin_dir, "printtarg")
 
         eff_lb = _effective_suppress_lb(p)
         triple = p.triple_density and p.instrument == "CM"

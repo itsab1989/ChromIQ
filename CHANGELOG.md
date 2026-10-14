@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.5-beta.6 (unreleased)
+
+### Fixed
+
+- **Windows: importing an i1Profiler .txt on the Measure tab's Import tab said "ChromIQ needs the ArgyllCMS tool "txt2ti3" to convert this file, but couldn't find it"** (#209), while Tools > Convert i1Profiler converted the same file. The import looked for "txt2ti3" without the ".exe" every Windows program has. It now finds txt2ti3, and spec2cie, which adds the XYZ columns to a measurement that carries only spectral readings. The same was true wherever ChromIQ looked for an ArgyllCMS program itself instead of running it through the log: the scanner reference conversion, the Measurement Report's i1Profiler files, the Build Profile tab's XYZ repair after a .txt import, the N-channel profile check, the gamut mapping of ChromIQ's profile engine, the targen seed of the patch-set editor, the patch count search of Create Chart and the round trip of the layout engine. Every one now asks for the program by its Windows name.
+
 ## v4.3.5-beta.5
 
 ### Changed

@@ -34,6 +34,7 @@ from workflow.profile_engine.gammap_port.gamio import read_gam
 from workflow.profile_engine.gammap_port.gammap import GammapMapper
 from workflow.profile_engine.gammap_port.gamutsurf import CENT
 from core.proc_text import run_text
+from core.resource_path import argyll_tool_path
 
 
 class PortUnavailable(RuntimeError):
@@ -59,7 +60,7 @@ def source_gam_jab(source_profile: Path | str, bin_dir: Path,
     src = Path(source_profile)
     if not src.exists():
         raise PortUnavailable(f"source profile not found: {src}")
-    iccgamut = bin_dir / "iccgamut"
+    iccgamut = argyll_tool_path(bin_dir, "iccgamut")
     if not iccgamut.exists():
         raise PortUnavailable("iccgamut not found")
     with tempfile.TemporaryDirectory() as td:
@@ -84,7 +85,7 @@ def dest_gam_jab(model, paper_xyz: np.ndarray, bin_dir: Path,
     comes from — Argyll's own gamut construction on the engine's model.
     """
     from workflow.profile_engine import icc_writer as icw
-    iccgamut = bin_dir / "iccgamut"
+    iccgamut = argyll_tool_path(bin_dir, "iccgamut")
     if not iccgamut.exists():
         raise PortUnavailable("iccgamut not found")
     n = model.n_channels
@@ -217,7 +218,7 @@ def _iccgamut_to(path: Path, work_icc: Path, bin_dir: Path,
                  detail: float) -> Path:
     """Run ``iccgamut -ff -ir -pj -d<detail>`` on ``work_icc`` → persistent
     ``.gam`` at ``path``. Raises :class:`PortUnavailable` on failure."""
-    iccgamut = bin_dir / "iccgamut"
+    iccgamut = argyll_tool_path(bin_dir, "iccgamut")
     if not iccgamut.exists():
         raise PortUnavailable("iccgamut not found")
     r = run_text([str(iccgamut), "-ff", "-ir", "-pj",

@@ -25,6 +25,7 @@ import numpy as np
 
 from core.logger import get_logger
 from core.proc_text import run_text
+from core.resource_path import argyll_tool_path
 from core.text_io import read_text
 
 log = get_logger(__name__)
@@ -113,7 +114,7 @@ def _xyz_to_lab(xyz: np.ndarray) -> np.ndarray:
 def _icclu_forward(icc: Path, bin_dir: Path, device01: np.ndarray,
                    intent: str) -> np.ndarray:
     """Device (0..1, N-channel) -> Lab via icclu forward A2B."""
-    icclu = bin_dir / "icclu"
+    icclu = argyll_tool_path(bin_dir, "icclu")
     if not icclu.exists():
         raise NChannelCheckError("icclu not found")
     ic = {"a": "-ia", "r": "-ir", "p": "-ip", "s": "-is"}.get(intent, "-ir")
@@ -210,7 +211,7 @@ def _recompute_spectral_xyz(ti3_path: Path, bin_dir: Path, *, illum: str,
         raise NChannelCheckError(
             "the measurement has no spectral data, so a different "
             "illuminant / observer / FWA can't be computed")
-    spec2cie = bin_dir / "spec2cie"
+    spec2cie = argyll_tool_path(bin_dir, "spec2cie")
     if not spec2cie.exists():
         raise NChannelCheckError("spec2cie not found")
 

@@ -38,6 +38,7 @@ import numpy as np
 
 from core.logger import get_logger
 from core.proc_text import run_text
+from core.resource_path import argyll_tool_path
 from core.strip_utils import letter_to_idx, parse_passes_per_page
 from core.text_io import read_text
 
@@ -835,7 +836,7 @@ def seed_from_targen(
     many channels targen emitted — 3-tuples for the RGB default, N-tuples for
     multi-ink device types.
     """
-    targen = Path(bin_dir) / "targen"
+    targen = argyll_tool_path(bin_dir, "targen")
     args = [f"-d{device}", f"-f{n_patches}"]
     if good_mode:
         args.append("-G")
@@ -1105,7 +1106,7 @@ def regenerate(
     bw_dir = out_dir / "_spacer_twin"
     bw_dir.mkdir(parents=True, exist_ok=True)
 
-    printtarg = Path(bin_dir) / "printtarg"
+    printtarg = argyll_tool_path(bin_dir, "printtarg")
     layout_args = options.to_printtarg_args() if options else []
     # Non-spacer-mode flags ride along on both renders so geometry matches.
     geometry_args = [a for a in layout_args

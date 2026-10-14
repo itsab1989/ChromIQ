@@ -42,6 +42,7 @@ from workflow.profile_engine import icc_writer as icw
 from workflow.profile_engine.forward_model import ForwardModel
 from workflow.profile_engine.ti3_data import Ti3Measurement, xyz_to_lab
 from core.proc_text import run_text
+from core.resource_path import argyll_tool_path
 
 # Bradford D65→D50 adaptation (both analytic sources are D65-white).
 _MB = np.array([[0.8951, 0.2664, -0.1614],
@@ -525,8 +526,8 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
     bin_dir = Path(argyll_bin) if argyll_bin else Path(
         "/Applications/Argyll/bin")
-    colprof = bin_dir / "colprof"
-    xicclu = bin_dir / "xicclu"
+    colprof = argyll_tool_path(bin_dir, "colprof")
+    xicclu = argyll_tool_path(bin_dir, "xicclu")
     if not colprof.exists() or not xicclu.exists():
         raise OracleUnavailable("Argyll binaries not found")
     if meas.device_rep not in ("RGB", "CMY", "CMYK"):
@@ -715,8 +716,8 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
 
     bin_dir = Path(argyll_bin) if argyll_bin else Path(
         "/Applications/Argyll/bin")
-    colprof = bin_dir / "colprof"
-    xicclu = bin_dir / "xicclu"
+    colprof = argyll_tool_path(bin_dir, "colprof")
+    xicclu = argyll_tool_path(bin_dir, "xicclu")
     if not colprof.exists() or not xicclu.exists():
         raise OracleUnavailable("Argyll binaries not found")
     if model.n_channels < 5:

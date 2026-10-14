@@ -27,7 +27,7 @@ from pathlib import Path
 
 from core.logger import get_logger
 from core.proc_text import run_text
-from core.resource_path import argyll_binary
+from core.resource_path import argyll_binary, argyll_tool_path
 from core.text_io import read_text
 
 log = get_logger(__name__)
@@ -102,7 +102,7 @@ def _resolve_average(bin_dir: Path | str | None) -> str:
     """Return the path to the ArgyllCMS ``average`` binary (falling back to PATH)."""
     name = argyll_binary("average")
     if bin_dir:
-        candidate = Path(bin_dir) / name
+        candidate = argyll_tool_path(bin_dir, "average")
         if candidate.exists():
             return str(candidate)
     return name

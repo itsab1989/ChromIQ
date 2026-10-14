@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from core.proc_text import run_text
+from core.resource_path import argyll_tool_path
 from core.version import APP_VERSION
 
 _ISSUES_NEW = "https://github.com/itsab1989/ChromIQ/issues/new"
@@ -79,8 +80,7 @@ def detect_argyll_version(argyll_bin: str | Path | None) -> str:
         return ""
     bin_dir = Path(argyll_bin)
     version = ""
-    exe = "targen.exe" if _pf.system() == "Windows" else "targen"
-    tool = bin_dir / exe
+    tool = argyll_tool_path(bin_dir, "targen")
     if tool.is_file():
         try:
             out = run_text([str(tool)], capture_output=True, timeout=5)

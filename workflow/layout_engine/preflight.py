@@ -24,6 +24,7 @@ from .contrast import LOW_CONTRAST_THRESHOLD
 from .geometry import Layout
 from .instruments import Geom
 from core.proc_text import run_text
+from core.resource_path import argyll_tool_path
 
 # Smallest reliable patch edge (printtarg enforces 6 mm). A printer/ink-spread
 # allowance can raise this per the issue's reliability-floor requirement.
@@ -115,7 +116,7 @@ class RoundTripResult:
 
 def _bin(name: str, argyll_bin: str | None) -> str | None:
     if argyll_bin:
-        p = Path(argyll_bin) / name
+        p = argyll_tool_path(argyll_bin, name)
         return str(p) if p.exists() else None
     return shutil.which(name)
 

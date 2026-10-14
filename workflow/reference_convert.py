@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Callable
 
 from core.proc_text import run_text
+from core.resource_path import argyll_tool_path
 from core.stem_paths import artefact
 from core.text_io import read_text
 
@@ -863,7 +864,7 @@ def finalize_converted_ti3(ti3_path: str | Path,
 
 def _run(argyll_bin: Path, tool: str, args: list[str],
          runner: Callable[..., subprocess.CompletedProcess]) -> None:
-    exe = argyll_bin / tool
+    exe = argyll_tool_path(argyll_bin, tool)
     if not exe.exists():
         raise ReferenceConvertError(
             f"ChromIQ needs the ArgyllCMS tool “{tool}” to convert this file, but "
