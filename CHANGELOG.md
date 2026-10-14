@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.3.5-beta.4 (unreleased)
+## v4.3.5-beta.4
 
 ### Changed
 
