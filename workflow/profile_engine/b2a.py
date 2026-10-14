@@ -1710,6 +1710,11 @@ def build_b2a_clut(model: ForwardModel, grid: int, *,
                             progress=progress)
 
 
+# Agent 66 (a66-clipanchor): anchor ramp of the refit for clipped nodes on
+# ink devices (refine_b2a_clut); set per build by set_research_tokens.
+REFIT_ANCHOR = {"on": False, "lo": 0.5, "hi": 2.5}
+
+
 def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     residual: np.ndarray, grid: int, *,
                     ink_limit: float | None = None,
@@ -1813,6 +1818,18 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
     # out of gamut (their clamp IS the answer there), light anchors elsewhere
     # (keep the fit stable where samples are sparse, let data win).
     anchor_w = np.where(residual > deep_oog, 4.0, 0.05)
+    if REFIT_ANCHOR.get("on") and accurate and not is_additive:
+        # Agent 66 (a66-clipanchor): on ink devices the clipped nodes just
+        # outside the gamut (residual between blend_lo and deep_oog) kept a
+        # weak anchor, so the refit extrapolated them from the in-gamut
+        # samples on one side of the surface: dark yellow / olive nodes went
+        # K-heavy and printed up to 6 L* too dark between firmly anchored
+        # neighbours (FOGRA node L* 25, a* -8, b* 24: clip answer L* 24.4,
+        # refit L* 19; Findings agent66-01 s3b). The anchor now rises
+        # smoothly (smoothstep) from 0.05 at residual lo to 4.0 at hi.
+        lo, hi = REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"]
+        u = np.clip((residual - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+        anchor_w = np.maximum(anchor_w, 0.05 + 3.95 * u * u * (3.0 - 2.0 * u))
     if fixed_nodes is not None and len(fixed_nodes):
         anchor_w[fixed_nodes] = 4.0
     if node_lab is None:
@@ -2198,6 +2215,9 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     # [floor, floor + band] linearly) instead of the hard max(L*, floor);
     # band CHROMIQ_A66_BAND (default 15) L*. The lightness weight stays as
     # integration 8b has it (dm_wj 1).
+    REFIT_ANCHOR["on"] = is_additive is False and "a66-clipanchor" in t
+    _ra = os.environ.get("CHROMIQ_A66_ANCHOR", "0.5:2.5").split(":")
+    REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"] = float(_ra[0]), float(_ra[1])
     p["a66_blendsep_req"] = is_additive is False and oog_clip.A66_BLENDSEP_TOKEN in t
     p["a66_sep_tol"] = float(os.environ.get("CHROMIQ_A66_SEPTOL", "0.10"))
     if is_additive is False and oog_clip.A66_BPC_TOKEN in t and p.get("dm_on"):
