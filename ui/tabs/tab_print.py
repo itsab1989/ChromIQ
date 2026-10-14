@@ -1280,12 +1280,22 @@ class TabPrint(QWidget):
         before "Use default macOS printer dialog" was last switched: then the
         project asks again at the next print to a PostScript printer through
         the dialog (Knut, #182, 2026-10-13). A run's own choice (the row) is
-        kept."""
+        kept.
+
+        ONLY THE DIALOG ROUTE ASKS AGAIN (combined review of beta 4). With
+        the setting switched OFF the choice still answers: the direct route
+        never asks the PostScript question, and its own question before
+        printing a "let the printer adjust" project as unchanged colours
+        (M-PRINT-DIRECT-LIKE-PREVIEW, P14) reads this choice. Discarding it
+        there turned that question off for exactly the user it was made for,
+        whose project chose on the dialog route and who then switched to
+        ChromIQ's own route."""
         from workflow import ppd_color as forms
         project = self._ps_project()
         try:
             got = project.print_setting("postscript") if project is not None else None
-            if got is not None:
+            dialog_route = bool(self._settings.get("use_native_print_dialog", False))
+            if got is not None and dialog_route:
                 asked_at = int(project.print_setting("postscript_dialog_changes") or 0)
                 if asked_at != self._dialog_setting_changes():
                     return None

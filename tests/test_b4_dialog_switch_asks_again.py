@@ -113,3 +113,21 @@ def test_a_runs_own_choice_is_kept(qapp, tmp_path, mac, approved):
     s.set("use_native_print_dialog", True)
     assert tab._ps_project_form() is None
     assert tab._ps_form_stored() == DEVICE
+
+
+def test_switched_off_the_direct_route_still_sees_the_projects_choice(
+        qapp, tmp_path, mac, approved):
+    """Combined review of beta 4: switching the dialog OFF must not discard
+    the project's choice on the direct route, where the question before
+    printing a "let the printer adjust" project as unchanged colours
+    (M-PRINT-DIRECT-LIKE-PREVIEW, P14) reads it. Switched on again, the
+    project is asked again as Knut ruled. MUTATION: drop the route check in
+    ``_ps_project_form`` and the first assertion goes red."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _tab(s, ctl)
+    s.set("use_native_print_dialog", True)
+    tab._store_ps_project_form(MACOS)
+    s.set("use_native_print_dialog", False)
+    assert tab._ps_form_stored() == MACOS
+    s.set("use_native_print_dialog", True)
+    assert tab._ps_form_stored() is None
