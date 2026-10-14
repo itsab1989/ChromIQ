@@ -108,6 +108,13 @@ DEFAULTS: dict[str, Any] = {
     # ChromIQ's lp path in Settings; Windows has no lp path so it stays
     # force-locked on there (in get()).
     "use_native_print_dialog":   is_windows() or is_macos(),
+    # How many times "Use default macOS printer dialog" has been switched
+    # (Knut, #182, 2026-10-13: when that setting changes, the project must
+    # ask again how a PostScript printer gets the chart). A project keeps the
+    # count it was asked at beside its choice (``print_settings``
+    # "postscript_dialog_changes"); a choice from an older count is asked
+    # again at the next print through the dialog (``tab_print._ps_project_form``).
+    "print_dialog_setting_changes": 0,
     "confirm_before_printing":   True,
     # ChromIQ lp pipeline only (macOS): when CUPS rejects PostScript (every
     # non-PostScript printer — Apple's CUPS ships no PS→raster chain), retry
@@ -1792,6 +1799,19 @@ class AppSettings:
                             "default report type %r (K36-1); wrote %r",
                             value, self.get("report_default_type", ""), held)
                 value = held
+        if key == "use_native_print_dialog":
+            # counted only when the value really changes: Preferences writes
+            # every key on OK, changed or not
+            was = bool(self.get(key, False))
+            self._qs.setValue(key, value)
+            if bool(value) != was:
+                self._qs.setValue(
+                    "print_dialog_setting_changes",
+                    int(self.get("print_dialog_setting_changes", 0) or 0) + 1)
+                log.info("Use default macOS printer dialog switched %s: each "
+                         "project asks again how a PostScript printer gets "
+                         "the chart", "on" if value else "off")
+            return
         self._qs.setValue(key, value)
         if key == "report_default_type":
             _raw = str(self._qs.value("compliance_default_set",

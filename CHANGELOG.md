@@ -5,6 +5,7 @@
 ### Changed
 
 - **Texts approved by Knut are now shown** (#182, Knut, 2026-10-13, all 13 translations): the key above the 3D tool's colour view (grey skin, lines, dots) and the "Show:" help that calls the lines seams on the skin; the red warning when strip letters run into each other at a typed label size; on the macOS print dialog route, why the dialog shows a colour profile under Colour Matching and why it does not matter; and, for a PostScript printer, the question with each choice explained, its two choices "Send the colours unchanged (like Photoshop)" and "Let the printer adjust the colours (like Preview)" on the Print Chart tab under "Colours to the printer", the row's help (the project rule, then each choice explained) and the line under it. The question before such a run prints by ChromIQ's own route is now headed "This run lets the printer adjust the colours". The help cards' PostScript note names the choices as the tab shows them.
+- **Switching "Use default macOS printer dialog" in Preferences makes each project ask again how a PostScript printer gets the chart** (#182, Knut): at the next print to a PostScript printer through the macOS print dialog, "Send the colours unchanged" or "Let the printer adjust the colours" is asked again and the answer kept for the project. A choice a run was given on the Print Chart tab is kept.
 
 ### Fixed
 

@@ -1267,11 +1267,28 @@ class TabPrint(QWidget):
         from workflow import ppd_color as forms
         return self._ps_form_stored() or forms.DEFAULT_POSTSCRIPT_FORM
 
+    def _dialog_setting_changes(self) -> int:
+        """How many times "Use default macOS printer dialog" was switched
+        (``core.settings`` "print_dialog_setting_changes")."""
+        try:
+            return int(self._settings.get("print_dialog_setting_changes", 0) or 0)
+        except Exception:  # noqa: BLE001 - a count must never raise
+            return 0
+
     def _ps_project_form(self) -> "str | None":
+        """The project's choice, or None when there is none or it was made
+        before "Use default macOS printer dialog" was last switched: then the
+        project asks again at the next print to a PostScript printer through
+        the dialog (Knut, #182, 2026-10-13). A run's own choice (the row) is
+        kept."""
         from workflow import ppd_color as forms
         project = self._ps_project()
         try:
             got = project.print_setting("postscript") if project is not None else None
+            if got is not None:
+                asked_at = int(project.print_setting("postscript_dialog_changes") or 0)
+                if asked_at != self._dialog_setting_changes():
+                    return None
         except Exception:  # noqa: BLE001 - a default must never raise
             got = None
         return got if got in forms.POSTSCRIPT_FORMS else None
@@ -1429,7 +1446,11 @@ class TabPrint(QWidget):
         try:
             if not Path(getattr(project, "root", "") or "").is_dir():
                 return False           # never resurrect a deleted project
-            changed = project.set_print_setting("postscript", form)
+            # the setting's switch count it was asked at, so a later switch
+            # asks again (Knut, #182, 2026-10-13)
+            counted = project.set_print_setting(
+                "postscript_dialog_changes", self._dialog_setting_changes())
+            changed = project.set_print_setting("postscript", form) or counted
             if changed:
                 log.info("PostScript form for the project: %s", form)
             return changed
