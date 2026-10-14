@@ -43,7 +43,8 @@ def test_a_red_card_for_both_reasons_names_its_range(qapp):
     assert "Colour range: blue/purple" in lines
     assert "Confirmed: C19, E24" in lines
     i = lines.index("Colour range: blue/purple")
-    assert i < lines.index(M._CARD_NB_REREAD_1)
+    assert i < next(j for j, x in enumerate(lines)
+                    if x.startswith("Only its own re-read"))
 
 
 def test_a_learned_range_is_named_without_a_list(qapp):

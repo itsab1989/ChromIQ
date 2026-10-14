@@ -122,18 +122,13 @@ def _beep_note() -> "tuple[str, str]":
 # not something to tick; the macOS print dialog refuses EVERY chart that is not
 # RGB (``native_print_macos._refuse_unless_rgb``), not only five to seven inks.
 #
-# Held back until approved (``PRINT_NOTES_APPROVED``); APPROVED by Knut and
-# Basti on 2026-10-13 and shown since 4.3.5 beta 3. While held back the cards
-# showed what they showed in 4.3.5 beta 1, except "How the sheet reaches the
-# printer", whose beta-1 sentence ("sent as raw PostScript") was untrue.
-
-#: The print notes are approved (Knut and Basti, 2026-10-13); False hides them.
-PRINT_NOTES_APPROVED = True
+# APPROVED by Knut and Basti on 2026-10-13 and shown since 4.3.5 beta 3. (A
+# proposed note is shown too: §M, Knut 2026-10-14, #182 6166519230.)
 
 
 def _print_notes(*notes: "tuple[str, str]") -> "tuple[tuple[str, str], ...]":
-    """*notes* while they are approved, else none (``PRINT_NOTES_APPROVED``)."""
-    return tuple(notes) if PRINT_NOTES_APPROVED else ()
+    """*notes*, as a tuple."""
+    return tuple(notes)
 
 
 def _ui(label: str) -> str:
@@ -255,30 +250,14 @@ def _printer_kinds_note() -> "tuple[str, str]":
 
 
 def _postscript_note() -> "tuple[str, str]":
+    """The PostScript note in the project rule's words: M-HELP-PS-NOTE-PROJECT
+    (4.3.5 beta 5, shown while it waits in §M-PROPOSED). It said the row
+    "appears when the print dialog opens", which stopped being true when the
+    choice became the project's (4.3.5 beta 2)."""
+    from workflow import measurement_messages as M
     label, photoshop, preview = _ps_choice_labels()
-    return (tr("PostScript printers: choose how you print your photos"),
-            tr("Many colour laser printers are PostScript printers: they "
-               "take the page in a printer language called PostScript. "
-               "Through the macOS print dialog they can receive the chart in "
-               "two ways. Choose the way you print your photos, in the "
-               "“{print_like}” row on the Print Chart tab. It appears when "
-               "the print dialog opens on a PostScript printer, and ChromIQ "
-               "uses your choice for this run and all its verification "
-               "charts.\n"
-               "• “{photoshop}”: choose this if you print from Photoshop with "
-               "“Photoshop Manages Colors” and this profile as the printer "
-               "profile. The chart's values go to the printer unchanged.\n"
-               "• “{preview}”: choose this if you print from Preview or "
-               "another app that leaves printing to macOS. The printer then "
-               "adjusts the colours with its own settings, the same way for "
-               "the chart and for your photos.\n\n"
-               "A run you refine from another one starts with that run's "
-               "choice. Sent straight to the printer, without the dialog, "
-               "the chart always goes the Photoshop way.\n\n"
-               "If the print dialog has an RGB colour setting for the "
-               "printer (on an HP Color LaserJet, “RGB Color”), ChromIQ sets "
-               "it to Device. Do the same for your photos.").format(
-                print_like=label, photoshop=photoshop, preview=preview))
+    return M.M_HELP_PS_NOTE_PROJECT.render(
+        print_like=label, photoshop=photoshop, preview=preview)
 
 
 def _cmyk_driver_note() -> "tuple[str, str]":

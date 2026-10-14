@@ -802,8 +802,8 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None,
     k81) or ``POSTSCRIPT_AS_MACOS`` (the print view, as 4.3.4). Any other
     printer ignores it. *refuse_unlisted_paper*: on the DeviceRGB form, raise
     :class:`PaperNotOnPrinter` instead of sending when the dialog's paper is
-    not one the PPD takes (said by M-PRINT-PS-PAPER-NOT-LISTED once approved;
-    until then the job goes as before and the log says so).
+    not one the PPD takes (said by M-PRINT-PS-PAPER-NOT-LISTED); False sends
+    the job as before and the log says so.
 
     *ask_postscript_form* (4.3.5 beta 2, Basti 2026-10-13, "decide AFTER the
     dialog"): with *postscript_form* None (the run has no choice yet), called
@@ -960,7 +960,7 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None,
             if refuse_unlisted_paper:
                 raise PaperNotOnPrinter(_disp, _w, _h)
             log.warning("native print: %.0f x %.0f pt is not a paper of %s; "
-                        "sent anyway (M-PRINT-PS-PAPER-NOT-LISTED not approved)",
+                        "sent anyway (not refused by the caller)",
                         _w, _h, _disp)
         return _print_device_rgb_postscript(print_info, pages, locked)
     # Tag the chart with the profile macOS will convert it into, so the

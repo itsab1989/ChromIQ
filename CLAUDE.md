@@ -685,9 +685,20 @@ Two obligations, and the second is the one that is easy to get wrong:
 | `chart_load_and_generate_paths.md` | every path that shows a stored chart and every path that builds a new one (#182), measured by driving the app; the chart-file import rule, and the two ways of laying a chart out again (**DRAFT, awaiting confirmation**) |
 
 New user-facing message text is governed by §M of
-`unified_measurement_management.md`: it goes to §M-PROPOSED first and is not
-written into a tab until it is approved. `tests/test_message_catalogue.py`
-enforces that.
+`unified_measurement_management.md`: it goes to §M-PROPOSED, listed there until
+it is approved, AND IT IS SHOWN IN THE APP, translated, from the beta that
+proposes it. Knut, 2026-10-14 (#182 6166519230):
+
+> *"You keep hiding changed messages in new releases. This is not the right
+> way ... You must always release the suggested text. We can approve the text
+> after as usual, and if it is accepted no new beta is required for the sake
+> of the text."*
+
+So never hold a text back behind `approved`, a flag, or the log: `approved` is
+the review state of the wording, not a switch, and nothing outside
+`workflow/measurement_messages.py` reads it.
+`tests/test_message_catalogue.py` keeps §M and the catalogue in step;
+`tests/test_a_proposed_text_is_shown.py` fails on any approval gate in code.
 
 **Only CONFIRMED behaviour may be written into a specification.** Knut,
 2026-08-08:

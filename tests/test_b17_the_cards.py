@@ -97,17 +97,17 @@ def test_every_card_ends_with_the_two_approved_topics(qapp, case, pbp):
 
 def test_the_comparison_sentences(qapp):
     t = " ".join(_text(_rows(CASES["red_neighbour"])[0]).split())
-    assert ("The 4 patches most similar to it are about ΔE*ab 7.60 off their "
+    assert ("The 4 patches most similar to patch K19 are about ΔE*ab 7.60 off their "
             "expected colours. At ΔE*ab 20.80, this one stands out by "
             "ΔE*ab 13.20. (Neighbour check, median of the 4.)") in t
     t = " ".join(_text(_rows(CASES["quiet"])[0]).split())
-    assert ("The 4 patches most similar to it are about ΔE*ab 22.00 off "
+    assert ("The 4 patches most similar to patch K19 are about ΔE*ab 22.00 off "
             "their expected colours. At ΔE*ab 20.80, this one is ΔE*ab 1.20 "
             "closer to its expected colour than they are.") in t
     t = " ".join(_text(_rows(CASES["quiet_equal"])[0]).split())
-    assert ("The 3 patches most similar to it are about as far off their "
-            "expected colours as this one, at ΔE*ab 20.80. It does not stand "
-            "out from them.") in t
+    assert ("The 3 patches most similar to patch K19 are about as far off "
+            "their expected colours as this one, at ΔE*ab 20.80. Patch K19 "
+            "does not stand out from them.") in t
     assert "ΔE*ab 0.0" not in t
     t = " ".join(_text(_rows(CASES["few"])[0]).split())
     assert M._CARDP_NBC_FEW in t and "this one" not in t
@@ -116,15 +116,15 @@ def test_the_comparison_sentences(qapp):
 def test_the_red_neighbour_card_is_knuts(qapp):
     rows, _t = _rows(CASES["red_neighbour"])
     t = " ".join(_text(rows).split())
-    assert ("Red outline: this patch stands out from the patches most "
-            "similar to it by ΔE*ab 13.20. That is more than the neighbour "
+    assert ("Red outline: patch K19 stands out by ΔE*ab 13.20 from the "
+            "patches most similar in colour. That is more than the neighbour "
             "limit of ΔE*ab 10.00 for profiling charts with estimated "
-            "colours. (Neighbour check.) Probably a misread: read it "
+            "colours. (Neighbour check.) Probably a misread: read patch K19 "
             "again.") in t
     # the second sentence on a line of its own, as in the mock-up
-    assert "Probably a misread: read it again." in rows
-    assert ("Only its own re-read can turn it yellow, not similar patches or "
-            "its colour range.") in t
+    assert any(r.startswith("Probably a misread: read patch K19") for r in rows)
+    assert ("Only its own re-read can turn patch K19 yellow, not similar "
+            "patches or its colour range.") in t
     assert "Same value after a re-read: it is real, keep it for the profile." \
         in t
 
@@ -134,7 +134,7 @@ def test_the_red_limit_card_names_the_limit_and_the_chart_type(qapp):
     assert ("Red outline: too far off its expected colour This patch is "
             "ΔE*ab 23.41 off its expected colour. That is more than the patch "
             "error limit of ΔE*ab 20.00 for profiling charts made with a "
-            "pre-conditioning profile. It also stands out from the other "
+            "pre-conditioning profile. Patch K19 also stands out from the other "
             "patches of its strip. (Strip test.)") in t
     t = " ".join(_text(_rows(CASES["verification_red"])[0]).split())
     assert ("This patch is ΔE*ab 7.18 off its expected colour. That is more "
@@ -147,32 +147,35 @@ def test_the_yellow_card_says_why_it_was_red(qapp):
     t = " ".join(_text(_rows(CASES["yellow"])[0]).split())
     assert ("Yellow outline: confirmed by a re-read You read this patch "
             "again, and the new reading agrees with an earlier one. So it is "
-            "probably not a misread. It is ΔE*ab 13.40 off its expected "
+            "probably not a misread. Patch K19 is ΔE*ab 13.40 off its expected "
             "colour now, and was ΔE*ab 13.90 off at that earlier reading. "
             "(The two readings are within the same-reading tolerance.) "
-            "Without that confirmation it would be red: it stands out from "
-            "the patches most similar to it by ΔE*ab 11.40, more than the "
+            "Without that confirmation, patch K19 would be red for standing "
+            "out by ΔE*ab 11.40 from the patches most similar in colour, more than the "
             "neighbour limit of ΔE*ab 10.00 for profiling charts with "
             "estimated colours. (Neighbour check.)") in t
 
 
 def test_red_for_both_reasons(qapp):
     t = " ".join(_text(_rows(CASES["red_both"])[0]).split())
-    assert ("It also stands out from the patches most similar to it by "
-            "ΔE*ab 13.20. That is more than the neighbour limit of ΔE*ab "
+    assert ("Patch K19 also stands out by ΔE*ab 13.20 from the patches most "
+            "similar in colour. That is more than the neighbour limit of ΔE*ab "
             "10.00 for profiling charts with estimated colours. (Neighbour "
             "check.)") in t
     assert (t.index("more than the patch error limit")
-            < t.index("It also stands out"))
+            < t.index("Patch K19 also stands out"))
 
 
 def test_topics_are_separated_by_empty_lines(qapp):
     rows, _t = _rows(CASES["red_neighbour"])
     sep = rows.index("─" * 30)
     assert rows[sep - 1] == ""
-    for start in ("Only its own re-read can turn it yellow,",
+    # since 4.3.5 beta 5 the re-read sentence names the patch and is wrapped
+    # by the card (Knut, #182 6167582807)
+    for start in ("Only its own re-read can turn patch",
                   "Same value after a re-read:"):
-        assert rows[rows.index(start) - 1] == "", start
+        i = next(j for j, r in enumerate(rows) if r.startswith(start))
+        assert rows[i - 1] == "", start
 
 
 @pytest.mark.parametrize("lang", ["en", "de", "es", "fr", "it", "ja", "nl",

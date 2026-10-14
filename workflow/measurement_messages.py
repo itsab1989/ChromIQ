@@ -26,6 +26,15 @@ Two conventions:
   yet. They exist because the alternative was a window that prints something
   false — see ``M_REPLACE_UNCOUNTABLE``. They are flagged in the design
   document too, and listed on the issue for approval.
+* **A PROPOSED TEXT IS SHOWN.** Knut, #182 6166519230 (2026-10-14): *"You
+  keep hiding changed messages in new releases. This is not the right way
+  ... You must always release the suggested text. We can approve the text
+  after as usual, and if it is accepted no new beta is required for the sake
+  of the text."* So ``approved`` is the review state of a text, never a
+  switch: no window, card, help or log waits for it, and nothing outside
+  this module reads it (``tests/test_a_proposed_text_is_shown.py``). Earlier
+  comments below that say a text is "hidden until approved" describe how it
+  was shipped before that rule.
 """
 from __future__ import annotations
 
@@ -1862,7 +1871,7 @@ _CARD_RANGE_SAME = "Confirmed: {locs}"
 _CARD_RANGE_LEARNED_1 = "Its range has learned: three patches"
 _CARD_RANGE_LEARNED_2 = "of it were confirmed."
 _CARD_RANGE_LEARNED_3 = "This one is off in the same way,"
-_CARD_RANGE_LEARNED_4 = "so it is taken as real too."
+_CARD_RANGE_LEARNED_4 = "so patch {loc} is taken as real too."
 _CARD_RANGE_RED_LEARNED_1 = "This range has learned, but this"
 _CARD_RANGE_RED_LEARNED_2 = "one is off in a different way."
 _CARD_RANGE_CONFIRMED_LEARNED = "This range has learned."
@@ -1890,7 +1899,7 @@ _CARD_MISFIT_SIDEWAYS_NEXT = "Its error also points another way:"
 _CARD_MISFIT_SIDEWAYS_DE = "ΔE {own} sideways"
 _CARD_MISFIT_SIDEWAYS_LIMIT = "(at most ΔE {tol} allowed)."
 _CARD_MISFIT_STANDOUT = "one stands out from its strip more:"
-_CARD_MISFIT_STANDOUT_NEXT = "It also stands out from its strip more:"
+_CARD_MISFIT_STANDOUT_NEXT = "Patch {loc} also stands out more:"
 _CARD_MISFIT_STANDOUT_DE = "ΔE {own} above its strip,"
 _CARD_MISFIT_STANDOUT_LIMIT = "(at most ΔE {tol} more allowed)."
 _CARD_MISFIT_REFS = "ΔE {ref} on its confirmed patches"
@@ -1934,7 +1943,7 @@ _CARD_LATER_PROFILE_2 = "The profile was made after this"
 _CARD_LATER_PROFILE_3 = "sheet was printed, so its"
 _CARD_LATER_PROFILE_4 = "prediction is not used."
 _CARD_LATER_PROFILE_5 = "Either a misread, or a real difference:"
-_CARD_LATER_PROFILE_6 = "read it again to find out."
+_CARD_LATER_PROFILE_6 = "read patch {loc} again to find out."
 _CARD_LATER_PROFILE_SAME_1 = "it is real: the print differs from"
 _CARD_LATER_PROFILE_SAME_2 = "the chart's estimate here."
 _CARD_LATER_PROFILE_YELLOW_1 = "A real difference from the chart's"
@@ -1949,8 +1958,8 @@ _CARD_PEER_2 = "Read alike in other strips: {locs}"
 #: Knut, #182 5980576263: every card says what to do. A red card tells the
 #: user to read the patch again; every yellow card (re-read, similar patches,
 #: learned) that there is no need to.
-_CARD_RED_READ_AGAIN = "Read it again to find out."
-_CARD_YELLOW_NO_NEED = "No need to read it again."
+_CARD_RED_READ_AGAIN = "Read patch {loc} again to find out."
+_CARD_YELLOW_NO_NEED = "No need to read patch {loc} again."
 #: The twelve ranges' names, as the post named them (purple/violet was
 #: merged into blue in beta 11, Knut #182 5983470377; since 4.3.5 the merged
 #: range is named for both, "blue/purple", as the other merged ranges are,
@@ -2041,7 +2050,7 @@ _CARD_NB_RED_S = ("Red outline: ΔE {d} further from its expected colour than "
                   "the {n} patches nearest in colour (median), passing the "
                   "neighbour limit ({limit}).")
 #: The red card's second sentence, on a line of its own as in the mock-up.
-_CARD_NB_MISREAD_S = "Probably a misread: read it again."
+_CARD_NB_MISREAD_S = "Probably a misread: read patch {loc} again."
 _CARD_NBC_FURTHER_S = ("This patch is ΔE {d} further from its expected colour "
                        "than the {n} patches nearest in colour (median).")
 _CARD_NBC_CLOSER_S = ("This patch is ΔE {d} closer to its expected colour "
@@ -2054,7 +2063,7 @@ _CARD_NB_YELLOW_S = ("Red before: ΔE {d} further from its expected colour "
 #: Knut, #182 5984174575: "The neighbour check needs a re-read to confirm";
 #: similar patches and a learned colour range apply only to the patch error
 #: limit. Two lines, as the card has always shown them.
-_CARD_NB_REREAD_1 = "Only its own re-read can turn it yellow,"
+_CARD_NB_REREAD_1 = "Only its own re-read can turn patch {loc} yellow,"
 _CARD_NB_REREAD_2 = "not similar patches or its colour range."
 _CARD_LATER_STRIP_S = ("Checked again after each strip is read: a patch can "
                        "turn red later, when patches near it in colour are "
@@ -2168,7 +2177,7 @@ _CARD_UNSETTLED_TWO_1 = "The two readings are not similar,"
 _CARD_UNSETTLED_TWO_2 = "and both are past the patch error limit ({limit})."
 _CARD_UNSETTLED_MANY_1 = "The {n} readings are not similar,"
 _CARD_UNSETTLED_MANY_2 = "and all are past the patch error limit ({limit})."
-_CARD_UNSETTLED_3 = "Read it again: a reading that matches"
+_CARD_UNSETTLED_3 = "Read patch {loc} again: a reading that matches"
 _CARD_UNSETTLED_4 = "one of them shows which value is real."
 # --- PROPOSED: every patch-error and neighbour-check card line, in plain words --
 #: Knut, #182 6108217111 (4.3.5 beta 1): "This text is very confusing. Are you
@@ -2240,17 +2249,23 @@ _CARDP_BASIS_ESTIMATE = ("The expected colour is an estimate: the patch's RGB "
 #: catalogue key (i18n_extract takes the module's str constants).
 _CARDP_UNITS = ("ΔE00 = CIEDE2000, L*a*b* D50", "ΔE*ab = CIE76, L*a*b* D50")
 #: Lines 3 to 6: the neighbour comparison on every card it judges.
-_CARDP_NBC_FURTHER = ("The {n} patches most similar to it are about "
+#: 4.3.5 beta 5 (Knut, #182 6167582807): "On every patch hover card, wherever
+#: 'it' refers to the patch being judged, replace it by 'patch <ID>'". {loc}
+#: is that patch's location ("B3"), the same as the card's first line
+#: "Patch B3". Changed at Knut's request 2026-10-14, the exact wording awaits
+#: his confirmation (§M M-PATCH-CARD-PLAIN and the entries it names). "it"
+#: that means a reading, a value or a range is left as it was.
+_CARDP_NBC_FURTHER = ("The {n} patches most similar to patch {loc} are about "
                       "{median} off their expected colours. At {own}, this "
                       "one stands out by {d}. (Neighbour check, median of "
                       "the {n}.)")
-_CARDP_NBC_CLOSER = ("The {n} patches most similar to it are about {median} "
+_CARDP_NBC_CLOSER = ("The {n} patches most similar to patch {loc} are about {median} "
                      "off their expected colours. At {own}, this one is {d} "
                      "closer to its expected colour than they are. "
                      "(Neighbour check, median of the {n}.)")
-_CARDP_NBC_EQUAL = ("The {n} patches most similar to it are about as far off "
-                    "their expected colours as this one, at {own}. It does "
-                    "not stand out from them. (Neighbour check, median of "
+_CARDP_NBC_EQUAL = ("The {n} patches most similar to patch {loc} are about as "
+                    "far off their expected colours as this one, at {own}. "
+                    "Patch {loc} does not stand out from them. (Neighbour check, median of "
                     "the {n}.)")
 #: Combined review of beta 2: "yet" dropped. On a chart read to the end no
 #: further patch will come, and the line is shown there too.
@@ -2258,15 +2273,15 @@ _CARDP_NBC_FEW = ("Not compared with similar patches: fewer than 2 "
                   "patches with a similar expected colour have been read. "
                   "(Neighbour check, colour-neighbour radius.)")
 #: Lines 7 to 9: why the outline is red, or would be without the re-read.
-_CARDP_NB_RED = ("Red outline: this patch stands out from the patches most "
-                 "similar to it by {d}. That is more than the neighbour "
+_CARDP_NB_RED = ("Red outline: patch {loc} stands out by {d} from the "
+                 "patches most similar in colour. That is more than the neighbour "
                  "limit of {limit} for {kind}. (Neighbour check.)")
-_CARDP_NB_ALSO = ("It also stands out from the patches most similar to it by "
-                  "{d}. That is more than the neighbour limit of {limit} for "
+_CARDP_NB_ALSO = ("Patch {loc} also stands out by {d} from the patches most "
+                  "similar in colour. That is more than the neighbour limit of {limit} for "
                   "{kind}. (Neighbour check.)")
-_CARDP_NB_YELLOW = ("Without that confirmation it would be red: it stands "
-                    "out from the patches most similar to it by {d}, more "
-                    "than the neighbour limit of {limit} for {kind}. "
+_CARDP_NB_YELLOW = ("Without that confirmation, patch {loc} would be red "
+                    "for standing out by {d} from the patches most similar "
+                    "in colour, more than the neighbour limit of {limit} for {kind}. "
                     "(Neighbour check.)")
 #: Lines 10 to 13: the patch error limit. The headline is drawn bold, so it
 #: reads as the heading of the lines under it, not as a sentence that runs on.
@@ -2275,17 +2290,17 @@ _CARDP_LIMIT = ("This patch is {de} off its expected colour. That is more "
                 "than the patch error limit of {limit} for {kind}.")
 _CARDP_LIMIT_FENCED = ("This patch is {de} off its expected colour. That is "
                        "more than the patch error limit of {limit} for "
-                       "{kind}. It also stands out from the other patches of "
-                       "its strip. (Strip test.)")
-_CARDP_LIMIT_YELLOW = ("Without that confirmation it would be red: it is {de} "
-                       "off its expected colour, more than the patch error "
+                       "{kind}. Patch {loc} also stands out from the other "
+                       "patches of its strip. (Strip test.)")
+_CARDP_LIMIT_YELLOW = ("Without that confirmation, patch {loc} would be red "
+                       "for being {de} off its expected colour, more than the patch error "
                        "limit of {limit} for {kind}.")
 #: Line 14: the yellow card of a patch its re-read confirmed, under its
 #: headline "Yellow outline: confirmed by a re-read" (unchanged). {prev}: the
 #: earlier reading the re-read agreed with.
 _CARDP_CONFIRMED = ("You read this patch again, and the new reading agrees "
                     "with an earlier one. So it is probably not a misread. "
-                    "It is {de} off its expected colour now, and was {prev} "
+                    "Patch {loc} is {de} off its expected colour now, and was {prev} "
                     "off at that earlier reading. (The two readings are "
                     "within the same-reading tolerance.)")
 #: Lines 15 to 18: the red card of readings that do not agree (10.10a),
@@ -2298,9 +2313,9 @@ _CARDP_CONFIRMED = ("You read this patch again, and the new reading agrees "
 #: for a patch with an earlier reading under the limit; reworded to say only
 #: what is counted. Merged with Knut's v3 (6134781112): no bracketed unit,
 #: the card puts the unit in front of each figure.
-_CARDP_UNSETTLED_DE_ONE = ("It is {de} off its expected colour now. An "
+_CARDP_UNSETTLED_DE_ONE = ("Patch {loc} is {de} off its expected colour now. An "
                            "earlier reading was {prevs} off.")
-_CARDP_UNSETTLED_DE = ("It is {de} off its expected colour now. Earlier "
+_CARDP_UNSETTLED_DE = ("Patch {loc} is {de} off its expected colour now. Earlier "
                        "readings were {prevs} off.")
 _CARDP_UNSETTLED_TWO = ("This reading and an earlier one are both further "
                         "off than the patch error limit of {limit} for "
@@ -2316,7 +2331,7 @@ _CARDP_UNSETTLED_MANY = ("{n} readings of this patch are further off than "
 #: corrected by a re-read" and above "It replaces the misread." (unchanged).
 _CARDP_GREEN_NB = ("The earlier, red reading was {de} off its expected "
                    "colour and stood out from the patches most similar to "
-                   "it. The new reading does not stand out more than the "
+                   "patch {loc}. The new reading does not stand out more than the "
                    "neighbour limit allows. (Neighbour check.)")
 _CARDP_GREEN_LIMIT = ("The earlier, red reading was {de} off its expected "
                       "colour, more than the patch error limit. The new "
@@ -2401,7 +2416,7 @@ M_MEASURED_SUSPECTS = _m(
                _SUM_TWICE_REREAD, _SUM_TWICE_WAS_LIKE, _SUM_TWICE_KEPT)),
     approved=False)
 
-# --- PROPOSED: the same to-do points in both Calibration Complete windows ----
+# --- APPROVED: the same to-do points in both Calibration Complete windows ----
 #: 4.3.5 beta 4. Knut, #182 6154440320: after calibrating, the window of a
 #: read started with Refine / resume ("Manual Re-measurement") lists three
 #: numbered steps and the keys; the window of a fresh read ("How to
@@ -2411,9 +2426,9 @@ M_MEASURED_SUSPECTS = _m(
 #: is in §M (they are older than the catalogue). Proposed: the fresh read's
 #: window takes the same numbered frame, its three steps saying which strip,
 #: how to read it (the instrument's own steps, as now) and how to finish.
-#: Hidden until approved: until then the window is as it was. The Manual
-#: Re-measurement window keeps its steps; both end on the key list and "These
-#: instructions are always visible in the output log below.".
+#: APPROVED by Knut, 2026-10-14 (#182 6166519230, "message accepted"). The
+#: Manual Re-measurement window keeps its steps; both end on the key list and
+#: "These instructions are always visible in the output log below.".
 _CAL_DONE_READY = "<b>Calibration complete. You are ready to start measuring.</b>"
 _CAL_DONE_STEP_WHICH = ("Read the strip highlighted in the preview: the "
                         "output field below names it too.")
@@ -2423,21 +2438,40 @@ M_CAL_DONE_STEPS = _m(
     "M-CAL-DONE-STEPS",
     "How to measure, after the calibration",
     "\n".join((_CAL_DONE_READY, _CAL_DONE_STEP_WHICH, _CAL_DONE_STEP_FINISH)),
+    approved=True)   # Knut, 2026-10-14 (#182 6166519230): "message accepted"
+
+# --- PROPOSED: the same, patch by patch -------------------------------------
+#: 4.3.5 beta 5. Knut, approving M-CAL-DONE-STEPS (#182 6166519230): "same
+#: message applies also to patch-by-patch mode, adapted to patch reading (not
+#: strip reading)". The Calibration Complete window of a patch-by-patch read
+#: takes the same numbered frame: which patch, how to read it (the
+#: instrument's single-patch steps, as before) and how to finish. Its key
+#: list stays the patch-by-patch one.
+_CAL_DONE_READY_PATCH = ("<b>Calibration complete. You are ready to measure "
+                         "patch by patch.</b>")
+_CAL_DONE_STEP_WHICH_PATCH = ("Place the instrument on the patch highlighted "
+                              "in the preview: the output field below names "
+                              "it too.")
+_CAL_DONE_STEP_FINISH_PATCH = ("Repeat for each patch until all are read: the "
+                               "next patch is highlighted automatically. Then "
+                               "press <b>d</b> to finish and save.")
+M_CAL_DONE_STEPS_PATCH = _m(
+    "M-CAL-DONE-STEPS-PATCH",
+    "How to measure patch by patch, after the calibration",
+    "\n".join((_CAL_DONE_READY_PATCH, _CAL_DONE_STEP_WHICH_PATCH,
+               _CAL_DONE_STEP_FINISH_PATCH)),
     approved=False)
 
-# --- PROPOSED: the neighbour check's red line on a VERIFICATION's window ------
+# --- APPROVED: the neighbour check's red line on a VERIFICATION's window ------
 #: 4.3.5 beta 4. Knut, #182 6154440320: the verification chart's "All Strips
 #: Read" window should carry the same summary as a profiling chart's, "so
 #: that I can better decide if I want to re-read patches or finish". Every
 #: line of M-MEASURED-SUSPECTS fits a verification except these two, which
 #: end "before you build the profile": a verification checks a profile that
 #: is already built, so the choice there is to read again or to finish.
-#: Hidden until approved: until then a verification's summary leaves out
-#: every neighbour-check line, the count line "{checked} of {total} patches
-#: had enough patches near in colour to be checked" too (beta 4 review: with
-#: only the red line withheld, that line stood alone and a verification with
-#: suspected misreads read as all clear). Once approved, all of them show,
-#: with this red line.
+#: APPROVED by Knut, 2026-10-14 (#182 6166519230, "message accepted"): a
+#: verification's summary shows every neighbour-check line, with this red
+#: line, strip by strip and patch by patch.
 _SUM_NB_RED_ONE_VERIFY = ("Neighbour check: 1 suspected misread, patch "
                           "{locs}. Read it again before you finish.")
 _SUM_NB_RED_VERIFY = ("Neighbour check: {n} suspected misreads, patches "
@@ -2446,6 +2480,70 @@ M_MEASURED_SUSPECTS_VERIFY = _m(
     "M-MEASURED-SUSPECTS-VERIFY",
     _SUM_HEADLINE,
     "\n".join((_SUM_NB_RED_ONE_VERIFY, _SUM_NB_RED_VERIFY)),
+    approved=True)   # Knut, 2026-10-14 (#182 6166519230): "message accepted"
+
+# --- PROPOSED: the help cards' PostScript note, in the project rule's words ---
+#: 4.3.5 beta 5 (left over from beta 4): the note "PostScript printers: choose
+#: how you print your photos" on the help cards (``welcome_dialog.
+#: _postscript_note``) said the "Print like" row "appears when the print
+#: dialog opens on a PostScript printer, and ChromIQ uses your choice for this
+#: run and all its verification charts". Since 4.3.5 beta 2 the choice is
+#: asked after the dialog, at the project's first print to a PostScript
+#: printer, and kept for the whole project (M-PRINT-PS-ASK-EXPLAINED,
+#: M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED, approved). Only those two sentences
+#: changed; the headline and the rest of the note are as approved on
+#: 2026-10-13. {print_like}, {photoshop}, {preview}: the row's label and its
+#: two choices as the Print Chart tab shows them.
+_PS_NOTE_TITLE = "PostScript printers: choose how you print your photos"
+M_HELP_PS_NOTE_PROJECT = _m(
+    "M-HELP-PS-NOTE-PROJECT",
+    _PS_NOTE_TITLE,
+    "Many colour laser printers are PostScript printers: they take the page "
+    "in a printer language called PostScript. Through the macOS print dialog "
+    "they can receive the chart in two ways. Choose the way you print your "
+    "photos. ChromIQ asks after you click Print in the print dialog, the "
+    "first time a chart of this project goes to a PostScript printer, and "
+    "keeps your answer for the whole project: its calibration, its runs and "
+    "their verification charts. The “{print_like}” row on the Print Chart "
+    "tab then shows the choice, and a change made there applies to that run "
+    "and its verification charts only.\n"
+    "• “{photoshop}”: choose this if you print from Photoshop with "
+    "“Photoshop Manages Colors” and this profile as the printer profile. The "
+    "chart's values go to the printer unchanged.\n"
+    "• “{preview}”: choose this if you print from Preview or another app "
+    "that leaves printing to macOS. The printer then adjusts the colours "
+    "with its own settings, the same way for the chart and for your "
+    "photos.\n\n"
+    "A run you refine from another one starts with that run's choice. Sent "
+    "straight to the printer, without the dialog, the chart always goes the "
+    "Photoshop way.\n\n"
+    "If the print dialog has an RGB colour setting for the printer (on an HP "
+    "Color LaserJet, “RGB Color”), ChromIQ sets it to Device. Do the same "
+    "for your photos.",
+    approved=False)
+
+# --- PROPOSED: a verification's closing window, patch by patch ---------------
+#: 4.3.5 beta 5. Knut, approving M-MEASURED-SUSPECTS-VERIFY (#182
+#: 6166519230): "same message applies also to patch-by-patch mode, in the
+#: 'All Patches Read' window". A verification read patch by patch closed on
+#: the strip window ("All strips have been read", "Re-read Individual
+#: Strips"); it now has its own, with the same summary under it. The body is
+#: rich text, as the strip window's; its button is "Re-read Patches", the
+#: profiling window's.
+_VERIFY_ALL_PATCHES_TITLE = "Verification Measurement: All Patches Read"
+_VERIFY_ALL_PATCHES_BODY = (
+    "<b>All patches have been read.</b><br><br>This is a <b>verification "
+    "measurement</b> of a colour-managed print, so it will be saved as a "
+    "separate <b>verify</b> file and is <b>not</b> for building a "
+    "profile.<br><br>Click <b>Finish</b> to save it, then open it in "
+    "<b>Tools ▸ Inspect a measurement</b> to check how the profile performed. "
+    "Or click <b>Re-read Patches</b> to read a patch again (<b>f</b>&nbsp;/"
+    "&nbsp;<b>b</b> to move, <b>n</b> for the next unread, click a patch in "
+    "the preview to jump to it, <b>d</b> when done).")
+M_VERIFY_ALL_PATCHES_READ = _m(
+    "M-VERIFY-ALL-PATCHES-READ",
+    _VERIFY_ALL_PATCHES_TITLE,
+    _VERIFY_ALL_PATCHES_BODY,
     approved=False)
 
 # ---------------------------------------------------------------------------
@@ -2677,8 +2775,9 @@ M_UNREAD_NEXT_OR_JUMP_PATCH = _m(
 #: PROPOSED (#156). Knut: *"the 'All Strips Read' message comes, despite that
 #: the progress percentage shows 97.1% … This message must come only when all
 #: patches are read."* Suppressing the finished message while patches are
-#: unread is the bug fix and is in the code; announcing it in a window is new
-#: wording, so it waits for approval. Until then the count goes to the log.
+#: unread is the bug fix and is in the code; the window that says so is new
+#: wording, shown while it waits in §M-PROPOSED (since 4.3.5 beta 5; before,
+#: only a count went to the log).
 M_ALL_STRIPS_PATCHES_LEFT = _m(
     "M-ALL-STRIPS-PATCHES-LEFT",
     "Some patches are still unread",
@@ -3692,9 +3791,8 @@ M_SCAN_PROFILE_ARCHIVED = _m(
 #: profile. So the migration says so, once, the first time the window opens
 #: after it has happened.
 #:
-#: It is announced in the LOG, not a window: §M's rule is that wording which
-#: has not been reviewed speaks through the log until it is approved, and
-#: nobody asked for a window here.
+#: It is announced in the LOG, not a window: nobody asked for a window here.
+#: The whole text is written there.
 M_SCAN_WP_DEFAULT = _m(
     "M-SCAN-WP-DEFAULT",
     "The white point setting for new scanner profiles has changed",
@@ -5968,6 +6066,8 @@ CATALOGUE = {m.id: m for m in (
     M_PATCH_EXPECTED_PREDICTED,
     M_PATCH_NEIGHBOUR, M_PATCH_NEIGHBOUR_VARIANTS, M_PATCH_LIMIT,
     M_MEASURED_SUSPECTS, M_MEASURED_SUSPECTS_VERIFY, M_CAL_DONE_STEPS,
+    M_CAL_DONE_STEPS_PATCH, M_VERIFY_ALL_PATCHES_READ,
+    M_HELP_PS_NOTE_PROJECT,
     M_PATCH_CORRECTED, M_PATCH_CORRECTED_VARIANTS, M_PATCH_UNSETTLED,
     M_PATCH_CARD_PLAIN,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,

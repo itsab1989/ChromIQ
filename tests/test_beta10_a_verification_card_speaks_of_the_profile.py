@@ -76,7 +76,7 @@ def test_the_red_verification_card_reads_as_proposed(qapp):
     assert ("Far from what the profile predicts.\n"
             "Either a misread, or a place where\n"
             "the profile is inaccurate.\n"
-            "Read it again to find out.\n\n"
+            "Read patch D12 again to find out.\n\n"
             "Same value after a re-read:\n"
             "it is real, and counts against\n"
             "the profile's accuracy.") in text
@@ -89,7 +89,7 @@ def test_the_yellow_verification_card_reads_as_proposed(qapp, case):
             "the profile does not predict this\n"
             "colour well here (or the printer has\n"
             "changed since the profile was made).\n\n"
-            "No need to read it again.") in text
+            "No need to read patch D12 again.") in text
 
 
 def test_the_learned_verification_card_says_the_profile_is_off(qapp):

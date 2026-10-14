@@ -270,11 +270,12 @@ def test_the_card_of_a_and_c_says_the_readings_disagree(qapp):
     lines = _card_lines(qapp, _info(unsettled=[120.3]))
     t = _flat(lines)
     assert M._CARD_UNSETTLED_HEAD in lines
-    assert ("It is ΔE*ab 150.40 off its expected colour now. An earlier "
+    assert ("Patch J28 is ΔE*ab 150.40 off its expected colour now. An earlier "
             "reading was ΔE*ab 120.30 off.") in t
     assert ("This reading and an earlier one are both further off than the "
             "patch error limit of ΔE*ab 95.00") in t
-    assert M._CARD_UNSETTLED_3 in lines and M._CARD_UNSETTLED_4 in lines
+    assert (M._CARD_UNSETTLED_3.format(loc="J28") + " " + M._CARD_UNSETTLED_4
+            in t)
     # Not the plain red card's headline.
     assert M._CARDP_LIMIT_HEAD not in lines
 
@@ -283,7 +284,7 @@ def test_the_card_after_three_disagreeing_readings(qapp):
     t = _flat(_card_lines(qapp, _info(unsettled=[120.3, 200.0])))
     assert ("3 readings of this patch are further off than the patch error "
             "limit of ΔE*ab 95.00") in t
-    assert ("It is ΔE*ab 150.40 off its expected colour now. Earlier "
+    assert ("Patch J28 is ΔE*ab 150.40 off its expected colour now. Earlier "
             "readings were ΔE*ab 120.30, ΔE*ab 200.00 off.") in t
 
 

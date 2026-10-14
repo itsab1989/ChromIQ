@@ -3531,9 +3531,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         """Say, once, that the white-point default moved and took the user's
         remembered settings with it (M-SCAN-WP-DEFAULT).
 
-        In the LOG, not a window: §M's rule is that wording which has not been
-        reviewed speaks through the log until it is approved, and nobody has
-        asked for a window here. It is said only when the migration actually
+        In the LOG, not a window: nobody has asked for a window here, and the
+        whole text is shown there while it waits in §M-PROPOSED. It is said only when the migration actually
         changed something, so a user who never saved any settings — and every
         user on every later open — sees nothing.
         """

@@ -58,16 +58,11 @@ def test_the_key_is_approved_and_shown(qapp):
     dlg.done(0)
 
 
-def test_unapproved_the_key_would_be_hidden(qapp, monkeypatch):
+def test_unapproved_the_key_would_still_be_shown(qapp, monkeypatch):
     from ui.dialogs import patch_cube_dialog as d
     monkeypatch.setattr(MM, "M_HELP_COLOUR_VIEW_LEGEND", dataclasses.replace(
         MM.M_HELP_COLOUR_VIEW_LEGEND, approved=False))
-    assert d._legend_lines() is None
-    dlg = _dialog()
-    assert dlg._legend is None
-    dlg._view_combo.setCurrentIndex(1)
-    assert not dlg.findChildren(d.ColourViewLegend), "beta 2's view, unchanged"
-    dlg.done(0)
+    assert d._legend_lines() is not None, "a proposed text is shown too"
 
 
 def test_once_approved_it_shows_only_in_the_colour_view(qapp, approved):

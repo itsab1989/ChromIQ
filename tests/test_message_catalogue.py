@@ -700,12 +700,19 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # they wait for Knut.)
                                  "M-PATCH-NEIGHBOUR-VARIANTS",
                                  "M-MEASURED-SUSPECTS",
-                                 # 4.3.5 beta 4 (Knut, #182 6154440320):
-                                 # the verification's red neighbour line,
-                                 # and one set of to-do points in both
-                                 # Calibration Complete windows.
-                                 "M-MEASURED-SUSPECTS-VERIFY",
-                                 "M-CAL-DONE-STEPS",
+                                 # (4.3.5 beta 4, Knut #182 6154440320: the
+                                 # verification's red neighbour line and one
+                                 # set of to-do points in both Calibration
+                                 # Complete windows, M-MEASURED-SUSPECTS-
+                                 # VERIFY and M-CAL-DONE-STEPS, were here
+                                 # until Knut approved them 2026-10-14,
+                                 # #182 6166519230.) Their patch-by-patch
+                                 # variants he asked for in the same post,
+                                 # and the help cards' PostScript note in the
+                                 # project rule's words (4.3.5 beta 5):
+                                 "M-CAL-DONE-STEPS-PATCH",
+                                 "M-VERIFY-ALL-PATCHES-READ",
+                                 "M-HELP-PS-NOTE-PROJECT",
                                  # (M-PATCH-CARD-PLAIN, 4.3.5 beta 2, was
                                  # here until Knut and Basti approved it
                                  # 2026-10-13, without "only".)

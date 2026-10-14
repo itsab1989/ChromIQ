@@ -99,7 +99,7 @@ def test_the_check_comes_before_the_postscript_is_sent():
 def test_the_tab_refuses_only_once_the_window_is_approved():
     from ui.tabs import tab_print
     src = inspect.getsource(tab_print.TabPrint._print_native)
-    assert "refuse_unlisted_paper=_MM.M_PRINT_PS_PAPER_NOT_LISTED.approved" in src
+    assert "refuse_unlisted_paper=True" in src
     assert "except PaperNotOnPrinter" in src
     # approved by Basti, 2026-10-13: the paper is refused from now on
     assert MM.M_PRINT_PS_PAPER_NOT_LISTED.approved
@@ -247,7 +247,7 @@ def test_the_row_is_hidden_until_its_words_are_approved(qapp, tmp_path, ps_dialo
     approved = MM.M_PRINT_PS_FORM_CHOICE
     monkeypatch.setattr(MM, "M_PRINT_PS_FORM_CHOICE", replace(approved, approved=False))
     tab._update_ps_form_row()
-    assert tab._ps_form_row.isHidden()
+    assert not tab._ps_form_row.isHidden(), "a proposed text is shown"
     # approved by Basti, 2026-10-13
     monkeypatch.setattr(MM, "M_PRINT_PS_FORM_CHOICE", approved)
     assert MM.M_PRINT_PS_FORM_CHOICE.approved

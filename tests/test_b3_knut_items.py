@@ -156,10 +156,9 @@ def test_the_crowding_words_are_shown_since_approved():
     from ui.tabs.tab_chart import strip_label_crowding_notice
     c = _crowd(40, 4.23)
     assert M.M_CHART_STRIP_LABELS_CROWDED.approved
-    assert strip_label_crowding_notice(c) == strip_label_crowding_notice(c, unapproved=True)
     text = strip_label_crowding_notice(c)
     assert text and "{" not in text and "“AA”" in text and "auto" in text
-    assert strip_label_crowding_notice(_crowd(40, 0.0), unapproved=True) is None
+    assert strip_label_crowding_notice(_crowd(40, 0.0)) is None
 
 
 # ---- 5 ---------------------------------------------------------------------

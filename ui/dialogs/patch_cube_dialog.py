@@ -30,33 +30,17 @@ from ui.tab_header import dialog_masthead
 log = get_logger(__name__)
 
 
-#: The ⓘ of the "Show:" choice (Knut, #182 6113365581).
-_VIEW_HELP = (
-    "Ink amounts: each patch sits at the red, green and blue values the "
-    "printer is asked for, from 0 to 100.\n\n"
-    "Colours through the profile: each patch sits where the profile says it "
-    "lands as a colour (L* up, a* and b* across). The lines and the faint "
-    "skin are the edges and sides of everything the profile can print.\n\n"
-    "A chart made From Profile Gamut spaces its colours evenly as colours. "
-    "A printer does not respond evenly to ink amounts, so the same chart can "
-    "look crowded in one part of the RGB cube and sparse in another.")
-
-
 def _view_help() -> str:
-    """The "Show:" choice's help: M-HELP-COLOUR-VIEW-SEAMS once approved
-    (Knut, #182 6144104040: the lines are seams on the skin, not its outline),
-    until then the text shipped in beta 2."""
+    """The "Show:" choice's help: M-HELP-COLOUR-VIEW-SEAMS (Knut, #182
+    6144104040: the lines are seams on the skin, not its outline)."""
     from workflow.measurement_messages import M_HELP_COLOUR_VIEW_SEAMS as M
-    return M.render()[1] if M.approved else tr(_VIEW_HELP)
+    return M.render()[1]
 
 
 def _legend_lines() -> "list[str] | None":
     """The colour view's key, M-HELP-COLOUR-VIEW-LEGEND, one line per item
-    (skin, lines, dots) once approved (Knut, #182 6148467471); until then
-    None, and the view looks exactly as in beta 2."""
+    (skin, lines, dots) (Knut, #182 6148467471)."""
     from workflow.measurement_messages import M_HELP_COLOUR_VIEW_LEGEND as M
-    if not M.approved:
-        return None
     lines = M.render()[1].split("\n")
     return lines if len(lines) == 3 else None
 
@@ -297,7 +281,7 @@ class PatchCubeDialog(QDialog):
         self._panel = PatchCubePanel(mode=mode, numbered=numbered, parent=self)
         self._panel.set_primary_label(self._target_name)
         # The colour view's key (M-HELP-COLOUR-VIEW-LEGEND), above the plot
-        # and only while the colour view is shown; none until approved.
+        # and only while the colour view is shown.
         self._legend = None
         legend = _legend_lines() if self._colour_view is not None else None
         if legend:

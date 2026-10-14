@@ -30,7 +30,6 @@ _LANGS = ("de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru", "sv",
 def _approved_module():
     """welcome_dialog as it ships: the print notes are approved (Knut and
     Basti, 2026-10-13, shown since 4.3.5 beta 3)."""
-    assert W.PRINT_NOTES_APPROVED is True
     return W
 
 
@@ -80,7 +79,6 @@ def test_every_named_card_explains_printing_in_folded_notes(key):
 def test_the_approved_notes_are_shown(key):
     """Knut and Basti approved the notes on 2026-10-13: every card shows its
     own, and only the notes its print step needs are folded under it."""
-    assert W.PRINT_NOTES_APPROVED is True
     shown = _print_step_notes(key)
     assert _CARDS[key] <= shown, sorted(_CARDS[key] - shown)
 
@@ -206,16 +204,6 @@ def test_the_underlay_tip_is_approved_and_shown_only_without_a_board():
     assert "80 to 100 g/m²" in tip.replace("\u00a0", " ").replace("\u2060", "")
     for fam in ("i1pro", "spectroscan", None):
         assert underlay_tip_html(fam) == ""
-
-
-def test_the_underlay_tip_is_hidden_while_unapproved(monkeypatch):
-    from ui import ti2_loader
-    from workflow import measurement_messages as M
-    monkeypatch.setattr(M, "M_CAL_DONE_UNDERLAY",
-                        dataclasses.replace(M.M_CAL_DONE_UNDERLAY,
-                                            approved=False))
-    for fam in ("colormunki", "cr30", "i1pro", "spectroscan", None):
-        assert ti2_loader.underlay_tip_html(fam) == ""
 
 
 def test_both_windows_append_the_tip():

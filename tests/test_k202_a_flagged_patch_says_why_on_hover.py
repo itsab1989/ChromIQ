@@ -47,7 +47,7 @@ def test_a_flagged_patch_explains_itself_at_the_bottom(qapp):
         "Red outline: too far off its expected colour This patch is ΔE*ab "
         "61.25 off its expected colour. That is more than the patch error "
         "limit of ΔE*ab 50.00 for profiling charts with estimated colours. "
-        "It also stands out from the other patches of its strip. (Strip "
+        "Patch B7 also stands out from the other patches of its strip. (Strip "
         "test.)")
     assert "Either a misread, or a colour" in tail
     assert "it is real, keep it for the profile." in tail

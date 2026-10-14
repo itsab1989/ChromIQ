@@ -142,4 +142,5 @@ def test_the_status_line_says_so_only_while_approved(monkeypatch):
     rep.device_rgb = True
     monkeypatch.setattr(MM, "M_PRINT_JOB_DEVICE_RGB",
                         replace(MM.M_PRINT_JOB_DEVICE_RGB, approved=False))
-    assert _status_of(rep) == plain
+    # shown while proposed too (§M, Knut #182 6166519230)
+    assert _status_of(rep) == plain + " " + MM.M_PRINT_JOB_DEVICE_RGB.body

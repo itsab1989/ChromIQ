@@ -160,8 +160,9 @@ def test_a_misread_below_the_limit_is_red_with_its_own_card(qapp, tmp_path):
     text = " ".join(text.split())
     assert M._CARDP_NB_RED.format(d=f"ΔE*ab {f.further:.2f}",
                                   limit="ΔE*ab 10.00",
-                                  kind=M._CARD_KIND_ESTIMATED) in text
-    assert M._CARD_NB_MISREAD_S in text
+                                  kind=M._CARD_KIND_ESTIMATED,
+                                  loc="D6") in text
+    assert M._CARD_NB_MISREAD_S.format(loc="D6") in text
     assert "buffer" not in text.lower() and "other strips" not in text
     assert text.endswith(" ".join([M._CARD_LATER_STRIP_S, *M._CARDP_UNITS,
                                    M._CARD_SEE_PREFS_S]))
@@ -269,14 +270,11 @@ def test_also_on_these_charts(qapp, tmp_path, monkeypatch, case):
         monkeypatch.setattr(type(tab), "_read_twice_was_active",
                             lambda self: True)
         lines = tab._misread_summary().splitlines()
-        assert lines == [M._SUM_TWICE_ONE.format(
+        # M-MEASURED-SUSPECTS-VERIFY, approved by Knut 2026-10-14
+        assert lines == [M._SUM_NB_RED_ONE_VERIFY.format(locs="D6"),
+                         M._SUM_TWICE_ONE.format(
             list=M._SUM_TWICE_KEPT.format(strip="B", like="A"))], lines
         assert not any("build the profile" in x for x in lines)
-        import dataclasses
-        monkeypatch.setattr(M, "M_MEASURED_SUSPECTS_VERIFY", dataclasses.replace(
-            M.M_MEASURED_SUSPECTS_VERIFY, approved=True))
-        assert tab._misread_summary().splitlines()[0] == \
-            M._SUM_NB_RED_ONE_VERIFY.format(locs="D6")
 
 
 def test_the_summary_names_what_is_still_red(qapp, tmp_path):
@@ -326,7 +324,9 @@ def test_suspects_off_alike_in_other_strips_do_not_confirm_each_other(
     assert _flags(tab)["B3"] is pf.FLAG_RED
     lines = _card(_info(tab, "D6"))
     assert M._CARD_PEER_1 not in lines
-    assert M._CARD_NB_REREAD_1 in lines and M._CARD_NB_REREAD_2 in lines
+    flat = " ".join(" ".join(x for x in lines if x).split())
+    assert (M._CARD_NB_REREAD_1.format(loc="D6") + " " + M._CARD_NB_REREAD_2
+            in flat)
     assert tab.neighbour_summary_facts()["red"] == ["B3", "D6"]
     tab._on_strip_measured(_strip("D", {"D6": 0.55}))      # its own re-read
     assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED
@@ -483,9 +483,10 @@ def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
     nb = info["neighbour"]
     also = M._CARDP_NB_ALSO.format(d=f"ΔE*ab {nb['further']:.2f}",
                                    limit=f"ΔE*ab {nb['limit']:.2f}",
-                                   kind=M._CARD_KIND_ESTIMATED)
+                                   kind=M._CARD_KIND_ESTIMATED,
+                                   loc=info["loc"])
     assert also in text
-    assert text.index(also) < text.index(M._CARD_NB_REREAD_1)
+    assert text.index(also) < text.index("Only its own re-read")
     assert M._CARD_RANGE_RED_LEARNED_1 not in lines
     assert " ".join(text.split()).endswith(" ".join(
         [M._CARD_LATER_STRIP_S, *M._CARDP_UNITS, M._CARD_SEE_PREFS_S]))
@@ -494,7 +495,7 @@ def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
 
 
 @pytest.mark.parametrize("approved", [False, True])
-def test_a_verification_shows_no_neighbour_line_until_its_words_are_approved(
+def test_a_verification_shows_every_neighbour_line(
         qapp, tmp_path, monkeypatch, approved):
     """4.3.5 beta 4 review: with only the red line withheld, "N of M patches
     had enough patches near in colour to be checked" stood alone in a
@@ -528,11 +529,10 @@ def test_a_verification_shows_no_neighbour_line_until_its_words_are_approved(
     again = M._SUM_READ_AGAIN_ONE.format(list="C")
     assert summary(False) == [M._SUM_NB_RED_ONE.format(locs="D6"),
                               M._SUM_NB_KEPT_ONE, count, again, twice]
-    if approved:
-        assert summary(True) == [M._SUM_NB_RED_ONE_VERIFY.format(locs="D6"),
-                                 M._SUM_NB_KEPT_ONE, count, again, twice]
-    else:
-        assert summary(True) == [again, twice]
+    # shown whether or not approved (§M, Knut #182 6166519230); approved
+    # by Knut 2026-10-14
+    assert summary(True) == [M._SUM_NB_RED_ONE_VERIFY.format(locs="D6"),
+                             M._SUM_NB_KEPT_ONE, count, again, twice]
     # Nothing found and nothing checkable: no "no suspected misreads" and no
     # "none of the patches could be checked" on an unapproved verification.
     for f in ({"red": [], "kept": [], "checked": 72, "total": 72},
@@ -540,4 +540,4 @@ def test_a_verification_shows_no_neighbour_line_until_its_words_are_approved(
         facts.clear(); facts.update(f)
         lines = summary(True)
         has_nb = any(x.startswith("Neighbour check") for x in lines)
-        assert has_nb is approved, lines
+        assert has_nb, lines

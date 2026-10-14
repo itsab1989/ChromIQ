@@ -248,12 +248,13 @@ def _expect_cards(sc: dict) -> dict:
 
     def lim_s(name, fenced=False):
         t = M._CARDP_LIMIT_FENCED if fenced else M._CARDP_LIMIT
-        return t.format(de=ab(fa[name]["de"]), limit=ab(lim["pel"]), kind=ph)
+        return t.format(de=ab(fa[name]["de"]), limit=ab(lim["pel"]), kind=ph,
+                        loc=sc["plan"][name])
 
     def nb_red(name, also=False):
         t = M._CARDP_NB_ALSO if also else M._CARDP_NB_RED
         return t.format(d=ab(abs(fa[name]["further"])), limit=ab(lim["nl"]),
-                        kind=ph)
+                        kind=ph, loc=sc["plan"][name])
     out["pe_over"] = [lim_s("pe_over")]
     out["fence_over"] = [lim_s("fence_over", fenced=True)]
     out["nl_over"] = [nb_red("nl_over")]
@@ -330,7 +331,7 @@ class Protocol:
             self.look(f"similar patches {n}", f"peer_{n}", "yellow (confirmed)",
                       [peer_head, M._CARDP_LIMIT_YELLOW.format(
                           de=ab(fa[f"peer_{n}"]["de"]), limit=ab(lim["pel"]),
-                          kind=ph)])
+                          kind=ph, loc=plan[f"peer_{n}"])])
         self.look("range: 2 confirmed, not learned yet", "learn_4", "red")
         # the re-reads
         r.reread(plan["pe_over"], rr["pe_over_same"])
@@ -339,17 +340,18 @@ class Protocol:
                   ["Yellow outline: confirmed by a re-read",
                    M._CARDP_CONFIRMED.format(
                        de=ab(fa["rereads"]["pe_over_same_de"]),
-                       prev=ab(fa["pe_over"]["de"])),
+                       prev=ab(fa["pe_over"]["de"]), loc=plan["pe_over"]),
                    M._CARDP_LIMIT_YELLOW.format(
                        de=ab(fa["rereads"]["pe_over_same_de"]),
-                       limit=ab(lim["pel"]), kind=ph)])
+                       limit=ab(lim["pel"]), kind=ph, loc=plan["pe_over"])])
         r.reread(plan["pe_unsettled"], rr["pe_unsettled_other"])
         self.look(f"re-read {sc['same_reading'] + 0.01:.2f} apart: unsettled",
                   "pe_unsettled", "red",
                   [M._CARD_UNSETTLED_HEAD,
                    M._CARDP_UNSETTLED_DE_ONE.format(
                        de=ab(fa["rereads"]["pe_unsettled_other_de"]),
-                       prevs=ab(fa["pe_unsettled"]["de"])),
+                       prevs=ab(fa["pe_unsettled"]["de"]),
+                       loc=plan["pe_unsettled"]),
                    M._CARDP_UNSETTLED_TWO.format(n=2, limit=ab(lim["pel"]),
                                                  kind=ph)])
         r.reread(plan["pe_green"], rr["pe_green_good"])
@@ -372,7 +374,7 @@ class Protocol:
         def nbc(name, t):
             n, fu = fa[name]["n"], fa[name]["further"]
             return t.format(n=n, d=ab(abs(fu)), own=ab(fa[name]["err"]),
-                            median=ab(fa[name]["err"] - fu))
+                            median=ab(fa[name]["err"] - fu), loc=plan[name])
         self.look("nb under (limit-0.01)", "nl_under", "none",
                   [nbc("nl_under", M._CARDP_NBC_FURTHER)])
         self.look("nb on (= limit)", "nl_on", "none",
@@ -385,7 +387,8 @@ class Protocol:
                   + later)
         self.look("nb equal: does not stand out", "nb_equal", "none",
                   [M._CARDP_NBC_EQUAL.format(n=fa["nb_equal"]["n"],
-                                             own=ab(fa["nb_equal"]["err"]))])
+                                             own=ab(fa["nb_equal"]["err"]),
+                                             loc=plan["nb_equal"])])
         self.look("nb closer", "nb_closer", "none",
                   [nbc("nb_closer", M._CARDP_NBC_CLOSER)])
         if "nb_few" in plan:
@@ -398,7 +401,7 @@ class Protocol:
         r.reread(plan["nl_green"], rr["nl_green_good"])
         self.look("nb re-read that fits: green", "nl_green", "green",
                   [M._CARD_GREEN_HEAD, M._CARDP_GREEN_NB.format(
-                      de=ab(fa["nl_green"]["de"]))])
+                      de=ab(fa["nl_green"]["de"]), loc=plan["nl_green"])])
         r.shot_window(f"{kind}_B_after_rereads")
         r.end()
         return self.rows

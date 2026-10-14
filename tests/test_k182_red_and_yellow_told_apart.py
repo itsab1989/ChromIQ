@@ -18,8 +18,10 @@ import pytest
 
 from tests.test_beta8_every_colour_range_learns import _card, qapp  # noqa: F401
 
-READ_AGAIN = "Read it again to find out."
-NO_NEED = "No need to read it again."
+# 4.3.5 beta 5: the patch named (Knut, #182 6167582807); the cards here are
+# patch A6's
+READ_AGAIN = "Read patch A6 again to find out."
+NO_NEED = "No need to read patch A6 again."
 
 
 @pytest.mark.parametrize("flag, peers", [

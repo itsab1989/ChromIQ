@@ -30,7 +30,8 @@ def _sentence(tab, loc):
         line = M._CARDP_NBC_EQUAL
     else:
         line = M._CARDP_NBC_CLOSER if fu < 0 else M._CARDP_NBC_FURTHER
-    return line.format(n=n, d="ΔE*ab " + d, own=ab(own), median=ab(median))
+    return line.format(n=n, d="ΔE*ab " + d, own=ab(own), median=ab(median),
+                       loc=loc)
 
 
 def _flat(lines):
@@ -113,6 +114,7 @@ def test_on_verification_and_calibration_charts_with_outlines(
     # error limit is 5) by both, with the neighbour line after the limit's
     kind = (M._CARD_KIND_VERIFICATION if case == "verification"
             else M._CARD_KIND_CALIBRATION)
-    kw = dict(d=f"ΔE*ab {fu:.2f}", limit=f"ΔE*ab {limit:.2f}", kind=kind)
+    kw = dict(d=f"ΔE*ab {fu:.2f}", limit=f"ΔE*ab {limit:.2f}", kind=kind,
+              loc="D6")
     assert (M._CARDP_NB_RED.format(**kw) in text
             or M._CARDP_NB_ALSO.format(**kw) in text), text

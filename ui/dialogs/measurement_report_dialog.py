@@ -7075,9 +7075,8 @@ class MeasurementReportDialog(QDialog):
     def _ask_update_or_create_new(self) -> str:
         """Knut's three-button question: ``"update"``, ``"new"`` or ``"cancel"``.
 
-        The words are M-REPORT-UPDATE-OR-NEW, **proposed and not approved**:
-        he wrote them himself and ended *"(or similar)"*, and §M is still where
-        a message goes before it is written into a window.
+        The words are M-REPORT-UPDATE-OR-NEW (approved): he wrote them
+        himself and ended *"(or similar)"*.
 
         ONE METHOD, so a driver can answer it and so the window has one place
         that knows the three answers. The box is kept on the instance while it

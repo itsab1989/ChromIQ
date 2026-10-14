@@ -32,7 +32,7 @@ def test_a_neighbour_misread_read_again_and_fitting_is_green(qapp, tmp_path):
     i = lines.index(M._CARD_GREEN_HEAD)
     # 4.3.5 beta 3: M-PATCH-CARD-PLAIN's words (Knut and Basti, 2026-10-13)
     after = " ".join(" ".join(lines[i + 1:]).split())
-    assert after.startswith(M._CARDP_GREEN_NB.format(de=f"ΔE*ab {first:.2f}")
+    assert after.startswith(M._CARDP_GREEN_NB.format(de=f"ΔE*ab {first:.2f}", loc="D6")
                             + " " + M._CARD_GREEN_END)
     assert not any("Red outline" in x for x in lines)
     assert tab.corrected_locs() == ["D6"]

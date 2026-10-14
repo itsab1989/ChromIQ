@@ -69,12 +69,12 @@ def test_the_red_card_says_knuts_sentence(qapp):
             "sheet was printed, so its\n"
             "prediction is not used.\n"
             "Either a misread, or a real difference:\n"
-            "read it again to find out.\n\n"
+            "read patch D12 again to find out.\n\n"
             "Same value after a re-read:\n"
             "it is real: the print differs from\n"
             "the chart's estimate here.") in text
     # The approved sentence ends with its own "read it again".
-    assert mm._CARD_RED_READ_AGAIN not in text.split("\n")
+    assert mm._CARD_RED_READ_AGAIN.format(loc="D12") not in text.split("\n")
     # Judged at the limit for estimated colours, and named so (beta 17: the
     # patch error limit with its chart type).
     assert ("patch error limit of ΔE*ab 95.00 for profiling charts with "
@@ -86,7 +86,7 @@ def test_the_yellow_card_says_a_real_difference_from_the_estimate(qapp, case):
     text = "\n".join(_rows(CASES[case]))
     assert ("A real difference from the chart's\n"
             "estimate, not a misread.\n\n"
-            "No need to read it again.") in text
+            "No need to read patch D12 again.") in text
 
 
 @pytest.mark.parametrize("case", sorted(CASES))

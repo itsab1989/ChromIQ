@@ -7740,6 +7740,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 and Path(staged_from).parent == Path(_rec.verification.dir))
                 else None)
             self._session_guard = guard
+            self._discard_chosen = False
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("could not start the measurement guard", exc_info=True)
 
@@ -7753,9 +7754,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if guard is None:
             return
         self._session_guard = None
+        discarded = bool(getattr(self, "_discard_chosen", False))
+        self._discard_chosen = False
+        self._ended_by_discard = discarded
         try:
             resumed = bool(self._resume_is_active())
-            out = guard.finish(resumed=resumed)
+            out = guard.finish(resumed=resumed, discarded=discarded)
         except Exception:      # noqa: BLE001
             log.warning("could not judge the measurement session", exc_info=True)
             return
@@ -8430,6 +8434,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if choice == "save":
             self._manager.send_save_partial_and_quit()
         elif choice == "discard":
+            # Remembered for the session's verdict: "Discard and stop" keeps
+            # nothing from the session, even what the engine already wrote
+            # (MeasurementSession.finish, M-END).
+            self._discard_chosen = True
+            self._ended_by_discard = True
             self._manager.abort()
 
     def _on_stop(self) -> None:
@@ -9305,7 +9314,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """ChromIQ's engine could not drive the instrument, so the run restarted
         on stock ArgyllCMS chartread. Say so plainly — the measurement carries on
         and the user needs no different handling, but they should know which
-        reader they are now using (the live preview stays off, for one)."""
+        reader they are now using (the live preview stays off, for one), and
+        that ChromIQ's sounds are silent now: M-ENGINE-FELL-BACK (Knut, #148),
+        in a window since it is shown while it waits in §M-PROPOSED (Knut,
+        #182 6166519230)."""
         self._log.appendPlainText(tr(
             "[Engine] Switched to ArgyllCMS chartread because ChromIQ's own "
             "measuring engine could not use your instrument ({reason}). "
@@ -9313,6 +9325,27 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "for good in Preferences if this keeps happening."
         ).format(reason=reason))
         self._log.ensureCursorVisible()
+        self._fell_back_reason = reason
+        QTimer.singleShot(0, self._show_engine_fell_back_pending)
+
+    def _show_engine_fell_back_pending(self) -> None:
+        """The timer's slot: a bound method, never a lambda (CLAUDE.md)."""
+        self._show_engine_fell_back(str(getattr(self, "_fell_back_reason", "")))
+
+    def _show_engine_fell_back(self, reason: str) -> None:
+        """M-ENGINE-FELL-BACK as a window with one OK: nothing to decide."""
+        if not self._runner.is_running:
+            return
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        title, body = M.M_ENGINE_FELL_BACK.render(reason=reason)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        self._exec_measurement_window(box)
 
     def _on_engine_fell_back_resumed(self, reason: str) -> None:
         self._silence_for_stock_chartread()
@@ -9712,8 +9745,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _on_cr30_device_lost(self, loc: str, message: str) -> None:
         """The instrument is gone — not merely unpressed.
 
-        M-CR30-INSTRUMENT-GONE. Its wording is not approved yet, so like every
-        other proposed message it says its piece in the log for now (§M).
+        M-CR30-INSTRUMENT-GONE, in the log and in a window (below).
 
         The ENDING, though, goes through the one exit every route shares
         (measurement_exit_strategy.md §1): the old handler for this called
@@ -11085,7 +11117,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         _how = (patch_measurement_instructions_html(_fam) if self._spot_session
                 else measurement_instructions_html(_fam))
         # Knut, #182 6123470301: an instrument with no reading board says what
-        # must lie under the chart (M-CAL-DONE-UNDERLAY, "" until approved).
+        # must lie under the chart (M-CAL-DONE-UNDERLAY).
         from ui.ti2_loader import underlay_tip_html
         _how += underlay_tip_html(_fam)
 
@@ -11119,17 +11151,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # only one of the three that dropped them, so patch by patch you
             # were told "take a reading" without being told how your particular
             # instrument takes one (Knut, #131 2026-07-28).
-            msg = QLabel(
-                tr("<b>Calibration complete. You are ready to measure patch by "
-                   "patch.</b><br><br>Place the instrument on the "
-                   "<b>highlighted patch</b> in the preview and take a reading. "
-                   "The next patch is highlighted automatically.<br><br>{how}"
-                   ).format(how=_how),
-                dlg,
-            )
+            # THE SAME NUMBERED TO-DO POINTS AS A STRIP READ'S WINDOW, adapted
+            # to reading patches (Knut, #182 6166519230; M-CAL-DONE-STEPS-PATCH,
+            # shown while it waits in §M-PROPOSED).
+            from workflow import measurement_messages as _MMp
+            msg = QLabel(tr(_MMp._CAL_DONE_READY_PATCH), dlg)
             msg.setTextFormat(Qt.TextFormat.RichText)
             msg.setWordWrap(True)
             layout.addWidget(msg)
+            layout.addWidget(self._calibration_steps_frame(dlg, [
+                tr(_MMp._CAL_DONE_STEP_WHICH_PATCH), _how,
+                tr(_MMp._CAL_DONE_STEP_FINISH_PATCH),
+            ], _frame_style, _key_style, _plain_style))
 
             key_frame = QFrame(dlg)
             key_frame.setStyleSheet(_frame_style)
@@ -11264,29 +11297,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             dlg.setWindowTitle(tr("Calibration Complete — How to Measure"))
 
             from workflow import measurement_messages as _MMc
-            if _MMc.M_CAL_DONE_STEPS.approved:
-                # THE SAME TO-DO POINTS AS THE MANUAL RE-MEASUREMENT WINDOW
-                # (Knut, #182 6154440320): which strip, how to read it, and
-                # how to finish, as three numbered steps in the same frame;
-                # the instrument's own steps stay the instrument's.
-                msg = QLabel(tr(_MMc._CAL_DONE_READY), dlg)
-                msg.setTextFormat(Qt.TextFormat.RichText)
-                msg.setWordWrap(True)
-                layout.addWidget(msg)
-                layout.addWidget(self._calibration_steps_frame(dlg, [
-                    tr(_MMc._CAL_DONE_STEP_WHICH), _how,
-                    tr(_MMc._CAL_DONE_STEP_FINISH),
-                ], _frame_style, _key_style, _plain_style))
-            else:
-                msg = QLabel(
-                    tr("<b>Calibration complete. You are ready to start measuring."
-                       "</b><br><br>{how}<br><br>Then proceed strip by strip until "
-                       "all are done.").format(how=_how),
-                    dlg,
-                )
-                msg.setTextFormat(Qt.TextFormat.RichText)
-                msg.setWordWrap(True)
-                layout.addWidget(msg)
+            # THE SAME TO-DO POINTS AS THE MANUAL RE-MEASUREMENT WINDOW
+            # (Knut, #182 6154440320; M-CAL-DONE-STEPS, approved 2026-10-14):
+            # which strip, how to read it, and how to finish, as three
+            # numbered steps in the same frame; the instrument's own steps
+            # stay the instrument's.
+            msg = QLabel(tr(_MMc._CAL_DONE_READY), dlg)
+            msg.setTextFormat(Qt.TextFormat.RichText)
+            msg.setWordWrap(True)
+            layout.addWidget(msg)
+            layout.addWidget(self._calibration_steps_frame(dlg, [
+                tr(_MMc._CAL_DONE_STEP_WHICH), _how,
+                tr(_MMc._CAL_DONE_STEP_FINISH),
+            ], _frame_style, _key_style, _plain_style))
 
             layout.addWidget(self._strip_key_frame(
                 dlg, _frame_style, _key_style, _plain_style))
@@ -11362,11 +11385,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # this window comes (review of bc038bc7).
             return
         if unread:
-            # Say nothing in a window. Knut's requirement is that the finished
-            # message *"must come only when all patches are read"* — so the fix
-            # is to stop showing it, not to invent a replacement. A new window
-            # needs new wording, and measurement wording goes to §M-PROPOSED for
-            # approval before it reaches a tab.
+            # NOT the finished window: Knut's requirement is that it *"must
+            # come only when all patches are read"*. Its own window instead,
+            # M-ALL-STRIPS-PATCHES-LEFT, shown while it waits in §M-PROPOSED
+            # (Knut, #182 6166519230: a proposed text is released, and approved
+            # after).
             self._all_done_shown = True
             self._note_completion_to_manager()
             if unread == 1:
@@ -11379,6 +11402,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     "Every strip has been read, but {n} patches still have no "
                     "reading. Measure again with patch-by-patch mode to pick "
                     "them up.").format(n=unread))
+            self._patches_left_n = unread
+            QTimer.singleShot(_ALL_DONE_SOUND_GAP_MS,
+                              self._show_patches_left_pending)
             return
         self._all_done_shown = True
         self._note_completion_to_manager()
@@ -11388,6 +11414,36 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # 2026-07-27). Give the cue its moment, then show the window — the
         # guard above has already been set, so this cannot run twice.
         QTimer.singleShot(_ALL_DONE_SOUND_GAP_MS, self._show_all_stripes_done)
+
+    def _show_patches_left_pending(self) -> None:
+        """The timer's slot: a bound method, never a lambda (CLAUDE.md)."""
+        self._show_patches_left(int(getattr(self, "_patches_left_n", 0) or 0))
+
+    def _show_patches_left(self, n: int) -> None:
+        """M-ALL-STRIPS-PATCHES-LEFT: every strip is read and *n* patches in
+        them are not (#156). "Re-read Individual Strips" stays in the session;
+        "Close" goes to the one ending window, which asks whether to keep
+        what was measured (measurement_exit_strategy.md)."""
+        if not (self._runner.is_running and getattr(self, "_session_live", False)):
+            return
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons, order_message_box_buttons
+        from workflow import measurement_messages as M
+        title, body = M.M_ALL_STRIPS_PATCHES_LEFT.render(n=n)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        reread = box.addButton(tr("Re-read Individual Strips"),
+                               QMessageBox.ButtonRole.RejectRole)
+        close = box.addButton(tr("Close"), QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(reread)
+        fit_message_box_buttons(box)
+        order_message_box_buttons(box, [reread, close])
+        self._exec_measurement_window(box)
+        if box.clickedButton() is close and self._runner.is_running:
+            self._on_stop()
 
     def _note_completion_to_manager(self) -> None:
         """Tell the reading engine's manager the chart has been closed for
@@ -11468,12 +11524,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if self._verify_run and not is_cal and not self._guided_refinement_active:
             from PyQt6.QtWidgets import QHBoxLayout, QPushButton
             dlg = QDialog(self)
-            dlg.setWindowTitle(tr("Verification Measurement — All Strips Read"))
             dlg.setMinimumWidth(560)
             lay = QVBoxLayout(dlg)
             lay.setSpacing(16)
             lay.setContentsMargins(24, 20, 24, 20)
-            msg = QLabel(tr(
+            # PATCH BY PATCH, its own words (Knut, #182 6166519230: "same
+            # message applies also to patch-by-patch mode, in the 'All
+            # Patches Read' window"; M-VERIFY-ALL-PATCHES-READ, shown while it
+            # waits in §M-PROPOSED). It closed on the strip window before.
+            spot = bool(getattr(self, "_spot_session", False))
+            from workflow import measurement_messages as _MMv
+            if spot:
+                _vt, _vb = _MMv.M_VERIFY_ALL_PATCHES_READ.render()
+                dlg.setWindowTitle(_vt)
+            else:
+                dlg.setWindowTitle(tr("Verification Measurement — All Strips Read"))
+            msg = QLabel(_vb if spot else tr(
                 "<b>All strips have been read.</b><br><br>This is a "
                 "<b>verification measurement</b> of a colour-managed print, so it "
                 "will be saved as a separate <b>verify</b> file and is <b>not</b> "
@@ -11498,8 +11564,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 lay.addWidget(sum_lbl)
             row = QHBoxLayout()
             row.addStretch(1)
-            reread = QPushButton(tr("Re-read Individual Strips"), dlg)
-            reread.setToolTip(_REREAD_TOOLTIP())
+            reread = QPushButton(tr("Re-read Patches") if spot
+                                 else tr("Re-read Individual Strips"), dlg)
+            if not spot:
+                reread.setToolTip(_REREAD_TOOLTIP())
             reread.clicked.connect(dlg.reject)
             finish = QPushButton(tr("Finish"), dlg)
             finish.setObjectName("primary")
@@ -13401,7 +13469,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             MeasurementReportDialog(self._settings, self,
                                     initial_ti3=dst).exec()
 
-    def _restore_displaced_measurement(self, empty_ti3) -> bool:
+    def _restore_displaced_measurement(self, empty_ti3, *, quiet: bool = False) -> bool:
         """Undo a replacement that measured nothing: drop the empty file, put the
         previous measurement back where it was, and remove the folder it sat in.
 
@@ -13438,6 +13506,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return False
         log.info("nothing was measured — restored %s from %s",
                  empty_ti3.name, displaced.name)
+        if quiet:
+            # "Discard and stop": the ending window already said that the
+            # previous measurement is put back. "That session ended before any
+            # patch was read" would be untrue here (4.3.5 beta 5).
+            try:
+                from workflow.measurement_state import classify
+                m = classify(empty_ti3, None).held or 0
+            except Exception:      # noqa: BLE001
+                m = 0
+            if m:
+                self._log.appendPlainText(
+                    tr("Your previous measurement of 1 patch is put back "
+                       "exactly as it was.") if m == 1 else
+                    tr("Your previous measurement of {m} patches is put back "
+                       "exactly as it was.").format(m=m))
+            return True
         self._log.appendPlainText(tr(
             "Nothing was measured, so your previous measurement has been put "
             "back exactly where it was."))
@@ -13481,8 +13565,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # returned."* Archiving at Start is right — chartread truncates its
         # output file the moment it opens it — but the archive is only a
         # replacement once something takes its place.
+        quiet = bool(getattr(self, "_ended_by_discard", False))
+        self._ended_by_discard = False
         if not ti3.is_file():
-            self._restore_displaced_measurement(ti3)
+            self._restore_displaced_measurement(ti3, quiet=quiet)
             return
         if not _cgats_has_no_readings(ti3):
             return
@@ -13495,7 +13581,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         #
         # Symmetric for a run and a verification by construction: the folder
         # being undone is the one the archive step recorded, wherever that was.
-        if self._restore_displaced_measurement(ti3):
+        if self._restore_displaced_measurement(ti3, quiet=quiet):
             return
         from core.file_manager import Run
         try:
@@ -15133,23 +15219,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         re-read patches or finish"). Its lines are the profiling chart's,
         except the neighbour check's red line, which tells a profiling user
         to read the patch again "before you build the profile": a
-        verification has its own words for it, M-MEASURED-SUSPECTS-VERIFY,
-        hidden until approved.
-
-        Until it is approved, a verification's summary leaves out EVERY
-        neighbour-check line, not only the red one (4.3.5 beta 4 review):
-        with the red line withheld, "N of M patches had enough patches near
-        in colour to be checked" stood alone and a verification with
-        suspected misreads read as all clear. Once approved, they all show,
-        with the red line."""
+        verification has its own words for it, M-MEASURED-SUSPECTS-VERIFY
+        (approved by Knut, 2026-10-14, #182 6166519230), and shows every
+        neighbour-check line with it. Patch by patch too: "same message
+        applies also to patch-by-patch mode, in the 'All Patches Read'
+        window" (same comment)."""
         try:
             verification = bool(self._is_verification_run()
                                 or self._expected_is_predicted())
             from workflow import measurement_messages as M
             lines = []
             facts = self.neighbour_summary_facts()
-            if verification and not M.M_MEASURED_SUSPECTS_VERIFY.approved:
-                facts = None
             if facts is not None:
                 red, kept = facts["red"], facts["kept"]
 

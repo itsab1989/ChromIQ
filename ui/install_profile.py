@@ -79,11 +79,6 @@ def ask_install_path(parent, dest: "Path | str") -> "Path | None":
     dest = Path(dest)
     if not _exists(dest):
         return dest
-    from workflow import measurement_messages as M
-    if not M.M_PROFILE_INSTALL_REPLACE.approved:
-        log.info("%s is installed already and is replaced (the question "
-                 "M-PROFILE-INSTALL-REPLACE waits for approval)", dest)
-        return dest
     dlg = InstallNameDialog(parent, dest)
     chosen = dlg.ask()
     if chosen is None:

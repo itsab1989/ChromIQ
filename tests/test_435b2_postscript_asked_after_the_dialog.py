@@ -252,16 +252,6 @@ def test_the_asking_texts_are_approved():
     assert "kept for the whole project: its calibration, its runs" in body
 
 
-def test_until_approved_nobody_is_asked_and_the_default_goes(qapp, tmp_path, mac, monkeypatch):
-    monkeypatch.setattr(MM, "M_PRINT_PS_ASK", replace(MM.M_PRINT_PS_ASK, approved=False))
-    s, fm, ctl = _env(tmp_path)
-    tab = _tab(s, ctl)
-    seen = _answer(monkeypatch, mac, 1)
-    sent = _fake_print_frames(monkeypatch, postscript=True)
-    tab._print_native([(tmp_path / "p.tif", 0)])
-    assert sent == [ppd_color.DEFAULT_POSTSCRIPT_FORM] and seen == []
-
-
 def test_the_row_shows_only_once_the_run_has_a_choice(qapp, tmp_path, mac, approved, monkeypatch):
     """MUTATION: show the row before a choice exists and it is PostScript
     talk on a tab that does not know the printer yet."""
@@ -448,7 +438,12 @@ def test_a_preview_run_by_the_direct_route_is_asked_once_approved(
     assert MM.M_PRINT_DIRECT_LIKE_PREVIEW.approved
     monkeypatch.setattr(MM, "M_PRINT_DIRECT_LIKE_PREVIEW",
                         replace(MM.M_PRINT_DIRECT_LIKE_PREVIEW, approved=False))
-    assert tab._ask_direct_like_preview("Q") is None       # hidden: as before
+    seen0 = []
+    monkeypatch.setattr(mac.QMessageBox, "exec", lambda box: 0)
+    monkeypatch.setattr(mac.QMessageBox, "clickedButton",
+                        lambda box: seen0.append(1) or None)
+    tab._ask_direct_like_preview("Q")
+    assert seen0, "a proposed text is asked too (Knut, #182 6166519230)"
     monkeypatch.setattr(MM, "M_PRINT_DIRECT_LIKE_PREVIEW",
                         replace(MM.M_PRINT_DIRECT_LIKE_PREVIEW, approved=True))
     seen = []

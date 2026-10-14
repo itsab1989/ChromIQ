@@ -70,14 +70,6 @@ def test_both_windows_end_on_the_same_line(qapp, tmp_path, monkeypatch):
         assert FOOT in w["labels"]
 
 
-def test_until_approved_the_fresh_window_is_as_it_was(qapp, tmp_path,
-                                                     monkeypatch):
-    assert not M.M_CAL_DONE_STEPS.approved
-    fresh = _window(qapp, tmp_path, monkeypatch, resume=False)
-    assert "calibration_steps" not in fresh["frames"]
-    assert any("Then proceed strip by strip" in t for t in fresh["labels"])
-
-
 def test_once_approved_both_windows_number_three_steps(qapp, tmp_path,
                                                        monkeypatch):
     monkeypatch.setattr(M, "M_CAL_DONE_STEPS", dataclasses.replace(

@@ -140,8 +140,10 @@ def test_the_calibration_complete_window_uses_them_in_patch_mode():
     assert "patch_measurement_instructions_html" in src
     assert "self._spot_session" in src
     # …and the spot branch actually shows them.
+    # (since 4.3.5 beta 5 as step 2 of the numbered frame, Knut #182
+    # 6166519230, M-CAL-DONE-STEPS-PATCH)
     i = src.index("if self._spot_session:")
-    assert "{how}" in src[i:i + 1200]
+    assert "_CAL_DONE_STEP_WHICH_PATCH), _how," in src[i:i + 2000]
 
 
 def test_the_calibration_prompt_is_already_per_instrument():

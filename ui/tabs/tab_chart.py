@@ -5877,8 +5877,7 @@ _GAMUT_SIZE_HELP_TITLE = "How many colours to test"
 #: 4.3.4 text stopped being true when the chart's colours became spread
 #: evenly for each count (smaller charts are no longer part of larger ones,
 #: and the greys no longer take a fixed share): they are left out, and their
-#: replacements below wait for approval (§M-PROPOSED of the UMM,
-#: M-HELP-GAMUT-SIZE-SPREAD), shown only once it is given.
+#: replacements below are M-HELP-GAMUT-SIZE-SPREAD (approved).
 _GAMUT_SIZE_HELP_P1 = (
     "How many of the reference colours this chart will test. More "
     "colours means a finer picture of your profile, and more patches to "
@@ -5929,17 +5928,13 @@ _GAMUT_SIZE_HELP_P7 = (
 )
 
 
-def strip_label_crowding_notice(crowd, *, unapproved: bool = False
-                                ) -> "str | None":
+def strip_label_crowding_notice(crowd) -> "str | None":
     """The red line under "Measured from Preview" for strip labels that run
     into each other (``raster.StripLabelCrowding``), or None: nothing to say,
-    a size the user did not type ("auto" already fits as well as it can), no
-    size that clears it, or M-CHART-STRIP-LABELS-CROWDED not approved yet
-    (*unapproved* renders it anyway, for tests and review only)."""
+    a size the user did not type ("auto" already fits as well as it can), or
+    no size that clears it (M-CHART-STRIP-LABELS-CROWDED)."""
     from workflow.measurement_messages import M_CHART_STRIP_LABELS_CROWDED as M
     if crowd is None or not crowd.explicit or crowd.fits_pt is None:
-        return None
-    if not (M.approved or unapproved):
         return None
     _title, body = M.render(
         size=f"{crowd.size_pt:.0f}", pitch=f"{crowd.pitch_mm:.1f}",
@@ -5950,17 +5945,11 @@ def strip_label_crowding_notice(crowd, *, unapproved: bool = False
 
 def _gamut_size_help_body() -> str:
     """The "How many colours to test" help, translated paragraph by
-    paragraph; the two 4.3.5 paragraphs only once M-HELP-GAMUT-SIZE-SPREAD is
-    approved."""
-    from workflow.measurement_messages import M_HELP_GAMUT_SIZE_SPREAD
+    paragraph, with the two 4.3.5 paragraphs of M-HELP-GAMUT-SIZE-SPREAD."""
     paras = [tr(_GAMUT_SIZE_HELP_P1), tr(_GAMUT_SIZE_HELP_P2),
-             tr(_GAMUT_SIZE_HELP_P3)]
-    if M_HELP_GAMUT_SIZE_SPREAD.approved:
-        paras.append(tr(_GAMUT_SIZE_HELP_P4_SPREAD))
-    paras.append(tr(_GAMUT_SIZE_HELP_P5))
-    if M_HELP_GAMUT_SIZE_SPREAD.approved:
-        paras.append(tr(_GAMUT_SIZE_HELP_P6_GREYS))
-    paras.append(tr(_GAMUT_SIZE_HELP_P7))
+             tr(_GAMUT_SIZE_HELP_P3), tr(_GAMUT_SIZE_HELP_P4_SPREAD),
+             tr(_GAMUT_SIZE_HELP_P5), tr(_GAMUT_SIZE_HELP_P6_GREYS),
+             tr(_GAMUT_SIZE_HELP_P7)]
     return "\n\n".join(paras)
 
 _GAMUT_MARGIN_HELP_TITLE = "How close to the edge of the printable range to go"
@@ -6043,6 +6032,36 @@ def _is_named(file_mgr, *, unknown: bool = False) -> bool:
         return bool(fn())
     except Exception:      # noqa: BLE001 — never let a guard crash the UI
         return unknown
+
+
+class _ModuleScroll(FadeScrollArea):
+    """The scroll area around Create Chart's module stack. It asks for the
+    module's own height (a plain QScrollArea asks for a small default), so
+    the left column shares its height exactly as it did before the module
+    could scroll: the log stays at its own size and the module takes the
+    rest. It scrolls only when even its minimum does not fit."""
+
+    def sizeHint(self):        # noqa: N802 (Qt override)
+        hint = super().sizeHint()
+        inner = self.widget()
+        if inner is not None:
+            hint.setHeight(inner.sizeHint().height()
+                           + 2 * self.frameWidth())
+        return hint
+
+    #: What the module keeps on a short window before it scrolls: the log
+    #: panel sizes itself to the room the rest of the column leaves
+    #: (``widgets._max_lines_for``), so without a floor here the log took
+    #: 156 px of a 490 px column and left the module 87, one field high.
+    MIN_VISIBLE = 200
+
+    def minimumSizeHint(self):        # noqa: N802 (Qt override)
+        hint = super().minimumSizeHint()
+        inner = self.widget()
+        if inner is not None:
+            hint.setHeight(min(inner.minimumSizeHint().height(),
+                               self.MIN_VISIBLE))
+        return hint
 
 
 class _InfoRowScroll(FadeScrollArea):
@@ -6477,7 +6496,29 @@ class TabChart(QWidget):
         # #133: the gamut module is embedded in the Manual panel (it replaces
         # the targen section only — the layout half is shared, not copied).
         self._embed_gamut_module()
-        left_layout.addWidget(self._stack, stretch=1)
+        # A SHORT WINDOW SCROLLS THE MODULE, IT DOES NOT CRUSH IT (4.3.5 beta
+        # 4 review, measured on screen at a 1280 x 800 screen's work area,
+        # 1280 x 677 client): the left column needs about 606 px at its
+        # minimum and got about 490, so Qt squeezed every row below its own
+        # minimum and the Output frame's four fields were drawn over each
+        # other (its 186 px in 70). The module now sits in a scroll area of
+        # its own: as long as it fits (any taller window) nothing changes and
+        # no scroll bar shows; when it does not, the frames keep their height
+        # and the column scrolls. Output and Presets still sit above the
+        # parameters' own scroll (Basti, 2026-08-07).
+        self._stack_scroll = _ModuleScroll(left)
+        self._stack_scroll.setWidgetResizable(True)
+        self._stack_scroll.setFrameShape(self._stack_scroll.Shape.NoFrame)
+        self._stack_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Never wider than the pane: a module wider than its column must
+        # show (and be caught by tests/test_the_manual_panel_does_not_scroll_
+        # sideways.py) in its own scroll area, as before, not be clipped here.
+        _sp = self._stack.sizePolicy()
+        _sp.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+        self._stack.setSizePolicy(_sp)
+        self._stack_scroll.setWidget(self._stack)
+        left_layout.addWidget(self._stack_scroll, stretch=1)
         # The paper filter (Knut, #182 5832303551): the pulldown follows the
         # paper selected in Create Chart, live, in whichever mode is shown.
         # Bound methods, never lambdas (CLAUDE.md, the fade-scroll crash).
@@ -26475,8 +26516,8 @@ class TabChart(QWidget):
             # font, size and letter spacing on this chart's labels and strip
             # pitch (`raster.strip_label_crowding`). Said only for a size the
             # user typed, with a size that clears it; "auto" already picks the
-            # largest one that fits. The words wait in §M-PROPOSED
-            # (M-CHART-STRIP-LABELS-CROWDED) and are not shown before approval.
+            # largest one that fits. The words are
+            # M-CHART-STRIP-LABELS-CROWDED (approved).
             try:
                 from workflow.layout_engine import raster as _raster
                 _crowd = _raster.strip_label_crowding(geom, _kw_notes)

@@ -268,13 +268,11 @@ def _WAIT_FOR_THE_BEEP() -> str:
 def underlay_tip_html(family: "str | None") -> str:
     """M-CAL-DONE-UNDERLAY under the instrument's steps, for an instrument with
     no reading board (Knut, #182 6123470301): ``"<br><br><b>title</b><br>body"``
-    for a ColorMunki / i1Studio or a CR30 once the message is approved, else
-    "". The i1Pro's reading board is white by design, so it never gets it."""
+    for a ColorMunki / i1Studio or a CR30, else "". The i1Pro's reading board
+    is white by design, so it never gets it."""
     if family not in ("colormunki", "cr30"):
         return ""
     from workflow import measurement_messages as M
-    if not M.M_CAL_DONE_UNDERLAY.approved:
-        return ""
     import html as _html
     title, body = M.M_CAL_DONE_UNDERLAY.render()
     return (f"<br><br><b>{_html.escape(title)}</b><br>"

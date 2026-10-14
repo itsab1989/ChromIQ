@@ -222,9 +222,15 @@ def _manual_scroll_area(qapp, lang, tmp_path, engine=True):
             break
     qapp.processEvents()
 
-    area = next(sa for sa in tab.findChildren(QScrollArea)
-                if sa.isVisible() and sa.widget() is not None
-                and sa.isAncestorOf(panel))
+    # The INNERMOST scroll area around the panel: since 4.3.5 beta 5 the
+    # whole module sits in one more (Create Chart's `_stack_scroll`, a short
+    # window scrolls the module instead of crushing it), which never scrolls
+    # sideways itself.
+    found = [sa for sa in tab.findChildren(QScrollArea)
+             if sa.isVisible() and sa.widget() is not None
+             and sa.isAncestorOf(panel)]
+    area = next(sa for sa in found
+                if not any(o is not sa and sa.isAncestorOf(o) for o in found))
     _settle(qapp, area)
     return tab, area
 

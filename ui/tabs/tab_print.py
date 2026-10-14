@@ -556,15 +556,12 @@ def ps_texts(*, proposed: bool = False):
     macOS dialog route: the explained wording (Knut, #182 6143186611:
     M-PRINT-PS-ASK-EXPLAINED, M-PRINT-PS-FORM-CHOICE-EXPLAINED and the help
     M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED, all approved by Knut on
-    2026-10-13, #182 6152691121) when all three are approved, else the
-    approved M-PRINT-PS-ASK and M-PRINT-PS-FORM-CHOICE with no help override.
-    *proposed* returns the explained set regardless, for review drivers."""
+    2026-10-13, #182 6152691121). *proposed* is kept for review drivers; the
+    set is the same either way (§M: a proposed text is shown, Knut
+    2026-10-14)."""
     from workflow import measurement_messages as MM
-    explained = (MM.M_PRINT_PS_ASK_EXPLAINED, MM.M_PRINT_PS_FORM_CHOICE_EXPLAINED,
-                 MM.M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED)
-    if proposed or all(m.approved for m in explained):
-        return explained
-    return MM.M_PRINT_PS_ASK, MM.M_PRINT_PS_FORM_CHOICE, None
+    return (MM.M_PRINT_PS_ASK_EXPLAINED, MM.M_PRINT_PS_FORM_CHOICE_EXPLAINED,
+            MM.M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED)
 
 class TabPrint(QWidget):
 
@@ -1111,9 +1108,8 @@ class TabPrint(QWidget):
         # sends a photo with "Photoshop Manages Colors") or as macOS sends it
         # (CIEBased, as Preview and 4.3.4). Kept per RUN, so the profiling
         # chart and its verification charts go the same way. Its words are
-        # M-PRINT-PS-FORM-CHOICE / -HELP (§M-PROPOSED): the row is shown only
-        # once they are approved; the stored choice and its default work
-        # regardless (``_ps_form``).
+        # M-PRINT-PS-FORM-CHOICE / -HELP; the stored choice and its default
+        # work regardless (``_ps_form``).
         from workflow import measurement_messages as _MM
         _ps_choice_msg, _ps_help_explained = ps_texts()[1:]
         _ps_label, _ps_lines = _ps_choice_msg.render()
@@ -1132,29 +1128,23 @@ class TabPrint(QWidget):
         pl.addWidget(self._ps_macos_rb)
         # 4.3.5 beta 2 (Basti, 2026-10-13): the row is shown only once the
         # run has a choice (asked after the dialog), and then says when it
-        # applies: M-PRINT-PS-FORM-APPLIES, shown once approved
+        # applies: M-PRINT-PS-FORM-APPLIES
         ps_box = QWidget(self._cm_grp)
         pv = QVBoxLayout(ps_box)
         pv.setContentsMargins(0, 0, 0, 0)
         pv.setSpacing(2)
         pv.addWidget(ps_choice)
         # the project-rule wording (M-PRINT-PS-FORM-APPLIES-PROJECT, final
-        # review of beta 2) once approved; until then the approved line
-        _applies = (_MM.M_PRINT_PS_FORM_APPLIES_PROJECT
-                    if _MM.M_PRINT_PS_FORM_APPLIES_PROJECT.approved
-                    else _MM.M_PRINT_PS_FORM_APPLIES)
+        # review of beta 2)
+        _applies = _MM.M_PRINT_PS_FORM_APPLIES_PROJECT
         self._ps_applies_lbl = QLabel(_applies.render()[1], ps_box)
         self._ps_applies_lbl.setWordWrap(True)
-        self._ps_applies_lbl.setVisible(_applies.approved)
         pv.addWidget(self._ps_applies_lbl)
         ps_choice = ps_box
         # the help: the project rule and the explained choices
         # (M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED, Knut 2026-10-13) through
-        # ps_texts; else the help's headline (Basti, 2026-10-13,
-        # M-PRINT-PS-FORM-HELP-TITLE), else the approved M-PRINT-PS-FORM-HELP
-        _ps_help = _ps_help_explained or next(
-            m for m in (_MM.M_PRINT_PS_FORM_HELP_TITLE,
-                        _MM.M_PRINT_PS_FORM_HELP) if m.approved)
+        # ps_texts
+        _ps_help = _ps_help_explained
         self._ps_form_row = row(_ps_label, ps_choice, *_ps_help.render())
         self._ps_form_row.setVisible(False)
         gl.addWidget(self._ps_form_row)
@@ -1336,12 +1326,9 @@ class TabPrint(QWidget):
 
     def _ps_form_can_be_asked(self) -> bool:
         """Whether a target with no choice is asked after the dialog (Basti,
-        2026-10-13): a project to keep the answer, and the window's words and
-        the choice's words approved. Otherwise the default form is used, as
-        before."""
-        from workflow import measurement_messages as MM
-        return (MM.M_PRINT_PS_ASK.approved and MM.M_PRINT_PS_FORM_CHOICE.approved
-                and self._ps_project() is not None)
+        2026-10-13): a project to keep the answer. Otherwise the default form
+        is used, as before."""
+        return self._ps_project() is not None
 
     def _ps_form_for_dialog(self) -> "str | None":
         """What ``print_frames`` gets as *postscript_form*: the stored choice;
@@ -1361,8 +1348,8 @@ class TabPrint(QWidget):
         printed).
 
         Its explained wording (M-PRINT-PS-ASK-EXPLAINED and
-        M-PRINT-PS-FORM-CHOICE-EXPLAINED, Knut #182 6143186611) once approved;
-        *proposed* shows it before that, for review drivers only."""
+        M-PRINT-PS-FORM-CHOICE-EXPLAINED, Knut #182 6143186611, approved
+        2026-10-13); *proposed* is kept for review drivers."""
         from workflow import measurement_messages as MM
         from workflow import ppd_color as forms
         ask_msg, choice_msg, _help = ps_texts(proposed=proposed)
@@ -1421,8 +1408,6 @@ class TabPrint(QWidget):
         the tab cannot know the printer before the dialog, so it is said
         after it."""
         from workflow import measurement_messages as MM
-        if not MM.M_PRINT_CMYK_RASTER_ROUTE.approved:
-            return
         run = self._ps_form_run()
         meta = None
         if run is not None:
@@ -1518,8 +1503,7 @@ class TabPrint(QWidget):
              else self._ps_macos_rb).setChecked(True)
         finally:
             self._updating_ps_form = False
-        from workflow import measurement_messages as MM
-        show = (is_macos() and MM.M_PRINT_PS_FORM_CHOICE.approved
+        show = (is_macos()
                 and bool(self._settings.get("use_native_print_dialog", False))
                 and bool(getattr(self, "_tiff_pages", None))
                 and self._ps_form_run() is not None
@@ -2948,11 +2932,11 @@ class TabPrint(QWidget):
 
     def _ask_direct_like_preview(self, printer: str) -> "str | None":
         """M-PRINT-DIRECT-LIKE-PREVIEW (approved by Basti, 2026-10-13). None when it does not
-        apply or is not approved (the print goes as before); else "dialog",
-        "anyway" or "" (Cancel)."""
+        apply (the print goes as before); else "dialog", "anyway" or ""
+        (Cancel)."""
         from workflow import measurement_messages as MM
         msg = MM.M_PRINT_DIRECT_LIKE_PREVIEW
-        if not msg.approved or not self._direct_print_needs_like_preview_question(printer):
+        if not self._direct_print_needs_like_preview_question(printer):
             return None
         title, body = msg.render()
         dlg = QMessageBox(self)
@@ -3077,8 +3061,7 @@ class TabPrint(QWidget):
             # colours are converted on the way, so "The printing system
             # confirms ..." would read as if they were not.
             msg = _ink_conversion_message(ink_conversion)
-            self._set_status(tr(msg.title) if msg.approved
-                             else tr("Print job submitted successfully."))
+            self._set_status(tr(msg.title))
             return
         if not rep.read:
             self._set_status(tr(MM._PRINT_JOB_UNREAD))
@@ -3105,9 +3088,9 @@ class TabPrint(QWidget):
             # sets it there and nowhere else).
             text += " " + MM.M_PRINT_JOB_TAGGED_INTENT.render(
                 profile=rep.tagged_intent)[1]
-        if getattr(rep, "device_rgb", False) and MM.M_PRINT_JOB_DEVICE_RGB.approved:
+        if getattr(rep, "device_rgb", False):
             # k81: ChromIQ's own PostScript, the chart as DeviceRGB
-            # (M-PRINT-JOB-DEVICE-RGB, §M-PROPOSED: said once approved)
+            # (M-PRINT-JOB-DEVICE-RGB, approved by Basti 2026-10-11)
             text += " " + MM.M_PRINT_JOB_DEVICE_RGB.render()[1]
         if _reset_vendors(rep) == {"Epson"}:
             # M-PRINT-JOB-EPSON-MATCHING-RESET (approved by Basti, 2026-10-10):
@@ -3303,13 +3286,10 @@ class TabPrint(QWidget):
 
     def _ask_ink_conversion(self, printer: str, conv) -> bool:
         """M-PRINT-INKS-CONVERTED / -APPROXIMATE before sending: False to
-        cancel. PROPOSED, so until approved it only logs and prints."""
+        cancel."""
         route, inks, extra = conv
         msg = _ink_conversion_message(conv)
-        log.warning("Print: %s chart (%s) on %s: %s", route, inks, printer,
-                    "asked" if msg.approved else "not asked (text not approved)")
-        if not msg.approved:
-            return True
+        log.warning("Print: %s chart (%s) on %s: asked", route, inks, printer)
         title, body = msg.render(printer=_printer_display_name(printer),
                                  inks=inks, extra=extra)
         dlg = QMessageBox(self)
@@ -3477,7 +3457,7 @@ class TabPrint(QWidget):
         from workflow import ppd_color as _forms
         own_rgb = (self._ps_form_for_dialog() == _forms.POSTSCRIPT_DEVICE_RGB
                    if native else self._ps_form() == _forms.POSTSCRIPT_DEVICE_RGB)
-        if MM.M_PRINT_VERIFY_PS_EARLIER.approved and own_rgb:
+        if own_rgb:
             paras.append(MM.M_PRINT_VERIFY_PS_EARLIER.render()[1])
         lbl.setText(f"<b>{_html_escape(title)}</b><br><br>"
                     + "<br><br>".join(_html_escape(p) for p in paras))
@@ -3531,13 +3511,12 @@ class TabPrint(QWidget):
                   "Afterwards the Print Chart tab says what the printing system holds "
                   "for the job.")
         # Why the dialog shows a colour profile it will not let you switch
-        # off (Knut, #182 6144104040), once M-PRINT-DIALOG-COLOUR-MATCHING is
-        # approved: measured, the dialog's Colour Matching choice does not
-        # change the job (report folder 2026-10-13_b3_knut/item3).
+        # off (Knut, #182 6144104040, M-PRINT-DIALOG-COLOUR-MATCHING):
+        # measured, the dialog's Colour Matching choice does not change the
+        # job (report folder 2026-10-13_b3_knut/item3).
         from workflow import measurement_messages as _MM
         cm = _MM.M_PRINT_DIALOG_COLOUR_MATCHING
-        if cm.approved:
-            kept = kept + "\n\n" + cm.render()[1]
+        kept = kept + "\n\n" + cm.render()[1]
         return "\n\n".join([paras[0], kept, paras[3], paras[4]])
 
     def _show_paper_not_listed(self, title: str, body: str) -> None:
@@ -3649,11 +3628,11 @@ class TabPrint(QWidget):
                     # form chosen for the run; a run with none yet is asked
                     # AFTER the dialog, once the printer is known (Basti,
                     # 2026-10-13); a paper its PPD does not list is refused
-                    # once M-PRINT-PS-PAPER-NOT-LISTED is approved
+                    # (M-PRINT-PS-PAPER-NOT-LISTED)
                     submitted = bool(print_frames(
                         pages, printer=printer,
                         postscript_form=self._ps_form_for_dialog(),
-                        refuse_unlisted_paper=_MM.M_PRINT_PS_PAPER_NOT_LISTED.approved,
+                        refuse_unlisted_paper=True,
                         ask_postscript_form=(self._ask_ps_form
                                              if self._ps_form_can_be_asked() else None)))
                     if submitted:

@@ -672,6 +672,8 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-VERIFY-NO-PROFILE": ["not a report message: a run without a profile (none in this package)"],
     "M-VERIFY-NO-CHART": ["not a report message: a run without a verification chart (none in this package)"],
     "M-VERIFY-SAVED": ["raised after a real measurement; needs an instrument"],
+    "M-VERIFY-ALL-PATCHES-READ": ["raised when a verification read patch by "
+                                  "patch is finished; needs an instrument"],
     "M-VERIFY-CREATE-NO-PROFILE": ["not a report message: Create Chart on a run with no profile"],
 }
 

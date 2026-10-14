@@ -269,10 +269,11 @@ def test_the_postscript_paragraph_only_once_approved(qapp, monkeypatch):
     _shown, text = _note(qapp, monkeypatch, native=False)
     assert "Choose the paper" not in text
     assert "On a PostScript printer both routes now send" in text
+    # and shown were it ever set back to waiting (§M, Knut #182 6166519230)
     monkeypatch.setattr(MM, "M_PRINT_VERIFY_PS_EARLIER",
                         replace(MM.M_PRINT_VERIFY_PS_EARLIER, approved=False))
     _shown, text = _note(qapp, monkeypatch)
-    assert "On a PostScript printer both routes now send" not in text
+    assert "On a PostScript printer both routes now send" in text
 
 
 @pytest.mark.parametrize("kw", [dict(verification=False), dict(pages=False),

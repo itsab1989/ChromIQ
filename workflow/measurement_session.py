@@ -106,12 +106,24 @@ class MeasurementSession:
         return target
 
     # ---- after -------------------------------------------------------
-    def finish(self, *, resumed: bool) -> SessionOutcome:
+    def finish(self, *, resumed: bool, discarded: bool = False) -> SessionOutcome:
         """Judge what the session left behind and act on it — §3b, §S3.
 
         At most one of the outcomes applies, which is what keeps §S3 to a single
         window after a measurement.
+
+        *discarded*: the user ended with "Discard and stop", which keeps
+        nothing from the session and puts the previous measurement back (§2,
+        M-END). Killing the reader is not enough for that: ChromIQ's engine
+        writes the ``.ti3`` itself once every strip is read (before "All Strips
+        Read"), so a discard after "Re-read Individual Strips" left the whole
+        session's readings in the file (4.3.5 beta 5, measured on screen; the
+        same in beta 3). The session's file is moved to ``old/`` as
+        ``discarded-<name>`` (never deleted) and the copy taken at the start
+        is put back.
         """
+        if discarded:
+            return self._discard()
         facts = classify(self.ti3_path, self.ti2_path)
         after = facts.held or 0
         verdict = judge_session(self.before, after, resumed=resumed)
@@ -124,6 +136,45 @@ class MeasurementSession:
         elif verdict is SessionVerdict.RESTORE_AND_KEEP_BOTH:
             out.kept_beside = self._keep_beside()
             out.restored = self._restore()
+        return out
+
+    def _discard(self) -> SessionOutcome:
+        facts = classify(self.ti3_path, self.ti2_path)
+        out = SessionOutcome(verdict=SessionVerdict.KEEP, before=self.before,
+                             after=facts.held or 0, archive=self.archive)
+        if not self.ti3_path.is_file():
+            out.restored = self._restore()
+            out.after = self.before if out.restored else 0
+            return out
+        archive = Path(self.archive) if self.archive else None
+        try:
+            same = (archive is not None and archive.is_file()
+                    and archive.read_bytes() == self.ti3_path.read_bytes())
+        except OSError:
+            same = False
+        if same:
+            out.after = self.before
+            return out              # the session wrote nothing into the file
+        try:
+            dest = (archive.parent if archive is not None
+                    else self.old_dir / datetime.now().strftime("%Y-%m-%d_%H%M%S"))
+            dest.mkdir(parents=True, exist_ok=True)
+            target = dest / f"discarded-{self.ti3_path.name}"
+            n = 1
+            while target.exists():
+                target = dest / f"discarded-{self.ti3_path.stem}_{n}{self.ti3_path.suffix}"
+                n += 1
+            shutil.move(str(self.ti3_path), str(target))
+            out.kept_beside = target
+            out.removed = True
+            log.info("Discard and stop: the session's %s moved to %s",
+                     self.ti3_path.name, target)
+        except OSError:
+            log.warning("could not set the discarded measurement aside",
+                        exc_info=True)
+            return out
+        out.restored = self._restore()
+        out.after = self.before if out.restored else 0
         return out
 
     # ---- the file moves themselves -----------------------------------

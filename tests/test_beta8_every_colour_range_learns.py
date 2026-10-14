@@ -199,7 +199,8 @@ GONE = ["spaced", "Patches closer than ΔE 6 in colour",
      ["Yellow outline: confirmed by similar patches",
       "Read alike in other strips: E1",
       # 4.3.5 beta 3: M-PATCH-CARD-PLAIN (Knut and Basti, 2026-10-13)
-      "red: it is ΔE*ab 103.00 off its expected\ncolour, more than the patch error limit\nof ΔE*ab 80.00 for profiling charts with\nestimated colours.",
+      # 4.3.5 beta 5: the patch named (Knut, #182 6167582807)
+      "Without that confirmation, patch A6 would be red for being ΔE*ab 103.00 off its expected colour, more than the patch error limit of ΔE*ab 80.00 for profiling charts with estimated colours.",
       "A real difference this printer and", "Keep it for the profile.",
       "Colour range: blue", "2 of 3 confirmations so far",
       "Confirmed: A6, E1"],
@@ -211,7 +212,7 @@ GONE = ["spaced", "Patches closer than ΔE 6 in colour",
     ("learned", 3, ("F17", "K23", "V7", "AE4"), (),
      ["Yellow outline: judged like patch AE4", "Colour range: blue",
       "Confirmed: F17, K23, V7…", "Its range has learned: three patches",
-      "of it were confirmed.", "so it is taken as real too."], GONE),
+      "of it were confirmed.", "so patch A6 is taken as real too."], GONE),
     # red, nothing confirmed in its range yet
     ("", 0, (), (), ["Red outline: too far off its expected colour",
                      "Colour range: blue"],
@@ -229,7 +230,9 @@ def test_every_card_message(qapp, flag, k, locs, peers, expect, absent):
                  range_locs=locs, like_loc="AE4", prev_de=103.0,
                  peer_locs=peers)
     text = "\n".join(rows)
+    flat = " ".join(text.split())
     for line in expect:
-        assert line in text, f"missing {line!r} in:\n{text}"
+        assert line in text or " ".join(line.split()) in flat, \
+            f"missing {line!r} in:\n{text}"
     for line in absent:
         assert line not in text, f"unexpected {line!r} in:\n{text}"
