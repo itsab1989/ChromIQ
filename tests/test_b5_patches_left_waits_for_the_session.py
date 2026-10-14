@@ -46,7 +46,7 @@ def test_the_tab_asks_before_it_opens_the_window():
     src = inspect.getsource(TabMeasure._on_all_stripes_done)
     i = src.index("patches_left_is_news")
     assert i < src.index("self._patches_left_n = unread")
-    assert i < src.index("self._all_done_shown = True\n            self._note")
+    assert i < src.index("self._all_done_shown = True")
 
 
 def test_the_headline_is_not_the_navigation_questions_in_any_language():
@@ -63,3 +63,18 @@ def test_the_headline_is_not_the_navigation_questions_in_any_language():
         mine = {d.get(k) for k in ours} - {None}
         other = {d.get(k) for k in theirs} - {None}
         assert len(mine) == 2 and not mine & other, f.name
+
+
+def test_the_navigation_question_does_not_come_before_the_window():
+    """On screen (left_new): reading the last unread strip raised "Some
+    patches are still not read" and then this window, back to back. The
+    manager hears the chart is closed only once this window is answered."""
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._on_all_stripes_done)
+    unread = src[src.index("self._patches_left_n = unread") - 1600:
+                 src.index("self._patches_left_n = unread")]
+    assert "self._note_completion_to_manager()" not in unread.split(
+        "self._all_done_shown = True")[-1]
+    show = inspect.getsource(TabMeasure._show_patches_left)
+    assert show.index("self._exec_measurement_window(box)") < \
+        show.rindex("self._note_completion_to_manager()")

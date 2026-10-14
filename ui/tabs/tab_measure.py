@@ -11456,7 +11456,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # (Knut, #182 6166519230: a proposed text is released, and approved
             # after).
             self._all_done_shown = True
-            self._note_completion_to_manager()
+            # The manager is told the chart is closed only once this window
+            # has been answered (`_show_patches_left`): told now, it went on
+            # to ask "Some patches are still not read" about the read that
+            # opens this window, so two questions came back to back after
+            # the last strip (4.3.5 beta 5 regression review, on screen). The
+            # reader stays where it is meanwhile, as for "All Strips Read"
+            # ("not when the completion window is about to open",
+            # MeasureManager._after_a_read).
             if unread == 1:
                 self._log.appendPlainText(tr(
                     "Every strip has been read, but 1 patch still has no "
@@ -11497,6 +11504,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         "Close" goes to the one ending window, which asks whether to keep
         what was measured (measurement_exit_strategy.md)."""
         if not (self._runner.is_running and getattr(self, "_session_live", False)):
+            self._note_completion_to_manager()
             return
         from PyQt6.QtWidgets import QMessageBox
         from ui.widgets import fit_message_box_buttons, order_message_box_buttons
@@ -11514,6 +11522,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         fit_message_box_buttons(box)
         order_message_box_buttons(box, [reread, close])
         self._exec_measurement_window(box)
+        # Closed for this session from here on: a read after "Re-read
+        # Individual Strips" moves the reader on as after any other read.
+        self._note_completion_to_manager()
         if box.clickedButton() is close and self._runner.is_running:
             self._on_stop()
 
