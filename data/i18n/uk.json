@@ -5436,7 +5436,7 @@
  "You have a .ti3 file — turn it into an ICC profile.": "У вас є файл .ti3 — перетворіть його на профіль ICC.",
  "You have no projects yet. Make one, or check the file where it is.": "У вас ще немає проєктів. Зробіть його або перевірте файл, де він знаходиться.",
  "You have read 1 patch in this session.": "Ви прочитали 1 патч за цей сеанс.",
- "You have read {n} patches in this session.": "Ви прочитали патчі {n} у цій сесії.",
+ "You have read {n} patches in this session.": "Патчів, прочитаних у цьому сеансі: {n}.",
  "You have two ways forward:": "У вас є два шляхи вперед:",
  "You loaded the patch set <b>{file}</b>.<br><br>A profile project is open: <b>{project}</b>. Where should the chart these patches make be built?": "Ви завантажили набір патчів <b>{file}</b>.<br><br>A Проєкт профілю відкрито: <b>{project}</b>. Де має бути побудована діаграма, створена цими патчами?",
  "You saved settings for this kind of profile, so ChromIQ is leaving them alone.": "Ви зберегли налаштування для такого профілю, тому ChromIQ залишає їх у спокої.",
