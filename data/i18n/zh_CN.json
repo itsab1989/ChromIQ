@@ -7005,5 +7005,6 @@
  "The readings in {name} do not all cover the same wavelengths (their reflectance spectra differ in length), so ChromIQ cannot convert them.\n\nYour file has not been changed.": "{name} 中的读数覆盖的波长范围不完全相同（它们的反射光谱长度不同），因此 ChromIQ 无法转换它们。\n\n你的文件没有被更改。",
  "This file could not be read as measurement data": "无法把此文件读取为测量数据",
  "ChromIQ tried to convert this file into measurement data it can use, but the conversion failed. This usually means the file is not an i1Profiler measurement export: for example, it is a list of patches or reference values rather than actual readings, or it has no colour measurements in it.\n\nWhat to do:\n• In i1Profiler, make sure you have actually measured the chart, then save the measured data.\n• The saved file must contain both the device values (RGB or CMYK) and the measured colour (Lab/XYZ or spectral) for every patch.\n• Load that saved measurement file here.": "ChromIQ 尝试把此文件转换为可用的测量数据，但转换失败。这通常意味着该文件不是 i1Profiler 导出的测量数据：例如它只是色块或参考值的列表，而不是实际读数，或者其中没有颜色测量值。\n\n怎么做：\n• 在 i1Profiler 中确认你确实测量了色卡，然后保存测量数据。\n• 保存的文件必须为每个色块同时包含设备值（RGB 或 CMYK）和测得的颜色（Lab/XYZ 或光谱）。\n• 在这里载入那个保存的测量文件。",
- "Details: {detail}": "详细信息: {detail}"
+ "Details: {detail}": "详细信息: {detail}",
+ "Load calibration measurement": "加载校准测量"
 }

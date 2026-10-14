@@ -1089,8 +1089,7 @@ class TabProfile(QWidget):
     def set_cal_ti3_path(self, ti3: Path) -> None:
         """Receive the calibration .ti3 from the measure tab, pre-fill printcal, and switch to it."""
         self._cal_ti3_path = ti3
-        self._pc_ti3_lbl.setText(str(ti3))
-        self._pc_ti3_lbl.setStyleSheet("color: #e6e6e6; font-size: 11px;")
+        self._pc_show_ti3_path(ti3)
         self._pc_run_btn.setEnabled(True)
         self._switch_cal_mode(1)  # jump straight to Create Calibration File
         self._detect_instrument(ti3, cal=True)
@@ -1618,20 +1617,30 @@ class TabProfile(QWidget):
         # #209): a calibration chart measured in i1Profiler arrives as a .txt
         # (or its native .mxf / .cxf), and this button took a .ti3 only, so
         # the person had to find Tools > Convert first.
-        p = open_file_dialog(self, "Load calibration measurement",
-                             "Measurement data (*.ti3 *.txt *.mxf *.cxf)",
+        p = open_file_dialog(self, tr("Load calibration measurement"),
+                             tr("Measurement data (*.ti3 *.mxf *.txt *.cxf);;All files (*)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p and Path(p).suffix.lower() != ".ti3":
             converted = self._convert_calibration_measurement(Path(p))
             p = str(converted) if converted is not None else ""
         if p:
             self._cal_ti3_path = Path(p)
-            self._pc_ti3_lbl.setText(p)
-            self._pc_ti3_lbl.setStyleSheet("color: #e6e6e6; font-size: 11px;")
+            self._pc_show_ti3_path(Path(p))
             self._pc_run_btn.setEnabled(True)
             if not self._pc_desc_edit.text():
                 self._pc_desc_edit.setText(Path(p).stem)
             self._detect_instrument(self._cal_ti3_path, cal=True)
+
+    def _pc_show_ti3_path(self, ti3: Path) -> None:
+        """Show the chosen calibration measurement in the theme's text colour.
+
+        It was painted ``#e6e6e6``, the dark theme's text, on every theme, so
+        in Light the path was near-white on white and could hardly be read
+        (4.3.5 beta 6 review). No colour of its own: the label takes the
+        current appearance's text colour from the app stylesheet, and follows
+        a change of appearance too."""
+        self._pc_ti3_lbl.setText(str(ti3))
+        self._pc_ti3_lbl.setStyleSheet("font-size: 11px;")
 
     def _convert_calibration_measurement(self, src: Path) -> "Path | None":
         """An i1Profiler calibration measurement as a ``.ti3`` printcal reads.
