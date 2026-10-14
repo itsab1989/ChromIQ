@@ -30,7 +30,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.file_manager import (CHART_SNAPSHOT_DIRNAME, Calibration, Run,
+from core.file_manager import (CHART_COMPANION_SUFFIXES,
+                               CHART_SNAPSHOT_DIRNAME, Calibration, Run,
                                Verification)
 from workflow.measurement_report import CONTROL_STRIP_SIDECAR
 
@@ -67,10 +68,17 @@ _RECIPE_SUFFIX = ".channels.json"
 #: back under the declaration of chart Y, which is the one thing "tied to the
 #: chart" forbids. The suffix is read from the report rather than spelled again
 #: here, for the reason :func:`workflow.control_strip.declaration_path` gives.
-PROFILING_CHART_SUFFIXES = (
-    ".ti1", ".ti2", ".channels.json", ".strips.json",
-    CONTROL_STRIP_SIDECAR,
-)
+#:
+#: BUILT FROM ``core.file_manager.CHART_COMPANION_SUFFIXES`` (4.3.5 beta 5),
+#: the one list of what belongs to a chart, so a file added there is copied,
+#: compared and restored here without anyone remembering this list too. That
+#: brought the print record (``.print.json``) onto it: it travels with the
+#: chart (it never decides WHICH chart, :func:`defines_the_chart`), and a
+#: profiling restore used to leave the replaced chart's record beside the
+#: restored chart. ``-reference.ti3`` comes with the list; only a FROM PROFILE
+#: GAMUT verification chart writes one.
+PROFILING_CHART_SUFFIXES = tuple(CHART_COMPANION_SUFFIXES)
+assert CONTROL_STRIP_SIDECAR in PROFILING_CHART_SUFFIXES
 
 #: Files that belong to the chart but do not carry the chart's stem. ``meta.json``
 #: holds the patch-set editor's design (``editor_recipe``) and the printtarg

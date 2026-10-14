@@ -564,6 +564,46 @@ approved."* Built for 4.3.3-beta.5, awaiting his confirmation of the result:
 
 **The two chart kinds are deliberately not defined the same way**, and it is worth knowing why before reusing this: a profiling chart shares its folder with the measurement, the profile and the run's own files, so it must be identified by suffix. A verification chart has a folder to itself, so everything in it *is* the chart.
 
+#### ⏳ Awaiting confirmation — a restored chart comes back with every file that belongs to it (4.3.5 beta 5)
+
+**Confirmed by:** *nobody yet.*
+
+Built for Knut's run 5 (#182 6167775557, 6168101507, 6168612728). He
+restored the chart his 2026-10-10 verification was measured with, a FROM
+PROFILE GAMUT chart printed through the profile at 09:43 and 10:13 that day.
+Restore Used Chart copied it back whole, and the page redraw that follows a
+restore then archived the whole verification chart into `old/` (the normal
+build does that first) and put back only the `.ti1`, `.ti2` and
+`.channels.json`. The colorimetric reference (`-reference.ti3`) and the print
+record (`.print.json`) stayed in `old/2026-10-14_134951/`. So Start said
+"Stored chart differs" of the chart he had just restored, the hover cards
+used the limits for a chart with estimated colours (no print record), and the
+report found no reference to judge against (N-A everywhere, no cube-corner
+aims). How it is built now:
+
+* **One list of what belongs to a chart**, by what follows the chart's stem:
+  `.ti1`, `.ti2`, `.channels.json`, `.strips.json`, `.control-strip.json`,
+  `-reference.ti3`, `.print.json` (`core.file_manager.
+  CHART_COMPANION_SUFFIXES`). Page images are not on it (they are redrawn
+  from the recipe, as before).
+* **The page redraw after a restore keeps every one of them**: whatever the
+  build sets aside is put back byte for byte once the pages are drawn
+  (`_ChartRebuildGuard`). Putting back a reference or a print record is
+  routine and is not reported as "the redraw changed the chart". A control
+  strip declaration the restored chart brought with it is kept, not worked out
+  again.
+* **The profiling chart's list is built from the same list**, so a profiling
+  run's `chart/` copy now also keeps the print record, and a restore puts it
+  back (and moves the replaced chart's record to `old/` with the rest of that
+  chart). The table above gains `.print.json` (and `-reference.ti3`, which
+  only a FROM PROFILE GAMUT verification chart writes) under "Profiling chart
+  files". As before, neither decides WHICH chart it is: a chart printed again
+  is not "a different chart" (`defines_the_chart`).
+* A file written beside a chart in future goes on that list, and
+  `tests/test_b5_restore_brings_back_every_companion.py` fails until it does.
+* The extra copies the redraw archived are still left in `old/<date>/`
+  (renamed `_1` where the names clash); nothing is deleted.
+
 #### When a chart is valid for this feature
 
 | # | On disk | Is there a chart? | Can pages be redrawn? | Effect on §4 |
@@ -8129,6 +8169,7 @@ The strip test's help carries the paragraph Knut approved in [6085694445](https:
 **Confirmed by:** *nobody yet.*
 
 * **Only a live re-read makes green.** The previous reading of the patch (this session's, or the file's when a measurement is resumed) was flagged, and the new one, read now, is not, and reads a different colour (more than ΔE 3 from the red reading, the re-read rule's own margin, 10.2). A patch that stops being red because the limit was raised, or because later strips changed its neighbour check, is not green: nothing was read again; nor is one read again with the same colour after the limit was raised, since its reading was right.
+* **A neighbour suspect read again needs no different colour (4.3.5 beta 5, Knut #182 6168612728).** When the reading before was red by the neighbour check (and not past the limit), a live re-read the neighbour check no longer suspects is green whatever its colour, the neighbour check's own (d). Knut's B14 (run 5, resumed): it stood out by ΔE\*ab 5.04 at his neighbour limit of 5.00, he read strip B again, it stood out by 4.78 and the two readings were ΔE 0.3 apart; it lost its red outline and stayed without one, because of the "different colour" condition above. That condition contradicted the confirmed rule (red by the limit or by the neighbour check, whose re-read is no longer flagged by either, is green) and Knut's (d) for the limit, which already ignores the colour (10.10a). A repaint still never makes green, and a patch red by the limit keeps the rule above (a raised limit is not a correction). The card is M-PATCH-CORRECTED's neighbour wording, unchanged.
 * **A re-read that is still suspected turns green later (beta 12, #182 B1, Basti's AA5 of 2026-10-05).** When the live re-read reads a clearly different colour (more than ΔE 3 from the flagged reading) but something still flags it, typically the neighbour check because the strips around it are not read yet, the correction is remembered, and the patch turns green the moment it is no longer flagged, also when that happens on a later strip's repaint. Reading the misread colour again (within ΔE 3) cancels it; a new session forgets it. This carries out the confirmed rule above (the re-read did fit); it is not a new rule. A re-read that matches the patch's FIRST reading rather than the misread straight before it (Basti's J28) was a question to Knut; he answered it in 6045500910 (10.10a): it is yellow.
 * **It ends** when the patch is read once more and the new reading is flagged again (red or yellow); a repaint never ends it.
 * **The memory file** (`<stem>.confirmed.json`, 10.7) holds it as `{"kind": "corrected", "de": <first ΔE>, "by": "neighbour" | "limit"}`, read back when the measurement is opened and never used as a reference, so green teaches no colour range and confirms no similar patch.

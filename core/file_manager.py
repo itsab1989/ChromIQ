@@ -123,6 +123,64 @@ VERIFICATIONS_DIRNAME = "verifications"
 #: with. Same name at both levels, so one word means one thing.
 CHART_SNAPSHOT_DIRNAME = "chart"
 
+#: EVERY FILE THAT BELONGS TO A CHART, named by what follows the chart's stem
+#: (4.3.5 beta 5, Knut #182 6167775557 and 6168612728: *"when restoring the
+#: used chart, was something else not restored?"*). It was: the colorimetric
+#: reference and the print record. Restore Used Chart put them back, and the
+#: page redraw that follows a restore then archived them into ``old/`` with
+#: the rest of the chart and put back only the ``.ti1``, ``.ti2`` and
+#: ``.channels.json`` it had been told about. The chart came back without the
+#: file that says its colours were converted through the profile, and without
+#: the record that says when and how the sheet was printed, so the warning
+#: before a measurement said "Stored chart differs" of the chart just
+#: restored, the hover cards fell back to the limits of a chart with estimated
+#: colours, and the report found no reference to judge against.
+#:
+#: ONE LIST, so the snapshot, the restore and the redraw cannot disagree about
+#: what a chart is: ``workflow.chart_slot.PROFILING_CHART_SUFFIXES`` is built
+#: from it, and the redraw's guard (``ui/tabs/tab_chart.py::
+#: _ChartRebuildGuard``) holds every one of them. A new file written beside a
+#: chart goes HERE, and ``tests/test_b5_restore_brings_back_every_companion.py``
+#: fails until it does: it asks every writer of a chart companion for the name
+#: it writes and checks the name is on this list.
+#:
+#: * ``.ti1`` / ``.ti2`` / ``.channels.json``: the patches, their layout and the
+#:   recipe the pages are drawn from;
+#: * ``.strips.json``: the strip map a layout-engine chart is read with;
+#: * ``.control-strip.json``: the control-strip declaration (Knut 2026-09-19,
+#:   "tied to the chart it is made for");
+#: * ``-reference.ti3``: the colours a FROM PROFILE GAMUT chart is supposed to
+#:   be, and the marker that its patches were converted through the profile
+#:   (``workflow.verification_print.colorimetric_reference_for``);
+#: * ``.print.json``: how the sheet was printed (``workflow.verification_print.
+#:   print_record_path``). It travels with the chart but never decides WHICH
+#:   chart it is (``workflow.chart_slot.defines_the_chart``).
+#:
+#: Page images are not on it: they are redrawn from the recipe, and kept only
+#: where there is none (``ChartSlot.files_to_copy``).
+CHART_COMPANION_SUFFIXES: "tuple[str, ...]" = (
+    ".ti1", ".ti2", ".channels.json", ".strips.json", ".control-strip.json",
+    "-reference.ti3", ".print.json",
+)
+
+
+def chart_companion_names(stem: str) -> "list[str]":
+    """Every file name :data:`CHART_COMPANION_SUFFIXES` gives a chart called
+    *stem*, in the list's order."""
+    return [f"{stem}{suffix}" for suffix in CHART_COMPANION_SUFFIXES]
+
+
+def chart_companions(folder: "Path | str", stem: str) -> "list[Path]":
+    """The companions of the chart *stem* that exist in *folder*, each spelled
+    as the volume has it (:func:`resolve_existing`)."""
+    folder = Path(folder)
+    out = []
+    for name in chart_companion_names(stem):
+        p = resolve_existing(folder / name)
+        if p.is_file():
+            out.append(p)
+    return out
+
 #: A dated verification-run folder id: "YYYY-MM-DD_HHMMSS" (+ optional "_N").
 _VERIFY_ID_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}(?:_\d+)?$")
 
@@ -1427,6 +1485,12 @@ class Calibration:
     def ti2(self) -> Path:                    return self.artefact(".ti2")
     @property
     def ti3(self) -> Path:                    return self.artefact(".ti3")
+
+    def chart_companions(self) -> "list[Path]":
+        """The calibration chart's companion files that exist in ``cal/``
+        (:data:`CHART_COMPANION_SUFFIXES`), page images apart."""
+        return chart_companions(self.dir, self.stem)
+
     @property
     def icc(self) -> Path:                    return self.artefact(".icc")
     @property
@@ -2227,6 +2291,17 @@ class Run:
         return stem_files(self.verifications_dir, self.verify_stem, "*.tif")
 
     def has_verify_chart(self) -> bool:       return self.verify_chart_ti2.exists()
+
+    def chart_companions(self) -> "list[Path]":
+        """The profiling chart's companion files that exist at the run root
+        (:data:`CHART_COMPANION_SUFFIXES`), page images apart."""
+        return chart_companions(self.dir, self.stem)
+
+    def verify_chart_companions(self) -> "list[Path]":
+        """The verification chart's companion files that exist at the
+        ``verifications/`` root (:data:`CHART_COMPANION_SUFFIXES`), page
+        images apart."""
+        return chart_companions(self.verifications_dir, self.verify_stem)
 
     def verifications(self) -> "list[Verification]":
         """Dated verification runs, oldest-first (folder id = timestamp)."""

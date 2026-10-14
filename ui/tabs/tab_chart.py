@@ -5714,6 +5714,39 @@ class _ChartRebuildGuard:
                     self._held[path] = path.read_bytes()
             except OSError:
                 log.warning("could not hold %s for the rebuild", path)
+        # …AND EVERY OTHER FILE THAT BELONGS TO THE CHART (4.3.5 beta 5,
+        # Knut #182 6167775557 / 6168101507 / 6168612728). A redraw files the
+        # new pages through the normal build, and for a verification that
+        # build ARCHIVES the whole chart first (`Run.
+        # _clear_verify_chart_files`), the restored chart included. The three
+        # files above came back; the colorimetric reference and the print
+        # record did not. So the restored FROM PROFILE GAMUT chart lost the
+        # file that says its patches were converted through the profile and
+        # the record of when and how the sheet was printed: Start then said
+        # "Stored chart differs" of the chart just restored, the hover cards
+        # fell back to the limits for estimated colours, and the report found
+        # no reference to judge against. Every companion
+        # (`core.file_manager.CHART_COMPANION_SUFFIXES`) is held now. These do
+        # not define the chart's layout, so putting one back is routine, not
+        # the "the redraw changed the chart" warning.
+        from core.file_manager import chart_companions
+        self._companions: dict[Path, bytes] = {}
+        try:
+            found = chart_companions(stem.parent, stem.name)
+        except OSError:
+            found = []
+        for path in found:
+            if path in self._held:
+                continue
+            try:
+                self._companions[path] = path.read_bytes()
+            except OSError:
+                log.warning("could not hold %s for the rebuild", path)
+
+    def holds(self, path: "Path | str") -> bool:
+        """Whether *path* is one of the files this guard puts back."""
+        p = Path(path)
+        return p in self._held or p in self._companions
 
     #: Lines that differ on every regeneration and mean nothing — the .ti2 gets
     #: a fresh CREATED stamp each time it is written. A chart whose ONLY
@@ -5765,6 +5798,18 @@ class _ChartRebuildGuard:
                  else changed).append(path.name)
             except OSError:
                 log.warning("could not put %s back after the rebuild", path)
+        kept = []
+        for path, data in self._companions.items():
+            try:
+                if path.is_file() and path.read_bytes() == data:
+                    continue
+                path.write_bytes(data)
+                kept.append(path.name)
+            except OSError:
+                log.warning("could not put %s back after the rebuild", path)
+        if kept:
+            log.info("the page rebuild had set aside %s; put back with the "
+                     "restored chart", ", ".join(kept))
         if cosmetic:
             log.info("the page rebuild re-stamped %s — same layout, original "
                      "kept", ", ".join(cosmetic))
@@ -24582,6 +24627,16 @@ class TabChart(QWidget):
         except OSError:
             return (str(ti2), None)
 
+    @staticmethod
+    def _guard_holds_declaration(guard, ti2) -> bool:
+        """Whether the redraw's guard holds *ti2*'s control-strip
+        declaration, so the restored one comes back instead of a new one."""
+        try:
+            from workflow.control_strip import declaration_path
+            return bool(guard.holds(declaration_path(ti2)))
+        except Exception:      # noqa: BLE001 — declare, as before
+            return False
+
     def _release_rebuild_guard(self) -> None:
         """Put the chart back if redrawing its pages changed it, and say so.
 
@@ -24731,10 +24786,17 @@ class TabChart(QWidget):
                     # 2026-09-19), and that one was made for a chart the guard
                     # had just thrown away. So when a guard is armed the
                     # declaration waits for it.
-                    if getattr(self, "_rebuild_guard", None) is None:
+                    guard = getattr(self, "_rebuild_guard", None)
+                    if guard is None:
                         self._declare_control_strip(new_ti2)
-                    else:
+                    elif not self._guard_holds_declaration(guard, new_ti2):
                         self._declare_after_rebuild = new_ti2
+                    # else: the restored chart brought its OWN declaration,
+                    # and the guard puts it back (4.3.5 beta 5). A
+                    # declaration is tied to the chart it was made for
+                    # (Knut, 2026-09-19); one worked out again here could
+                    # differ from the stored copy, and the chart would then
+                    # "differ" from the chart it was restored from.
             except Exception:  # noqa: BLE001 — never break a finished generation
                 log.warning("verify-chart adopt failed", exc_info=True)
             # A pending gamut selection is consumed by the adopt above; if the
