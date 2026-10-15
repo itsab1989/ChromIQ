@@ -426,6 +426,8 @@ A67_DC = (1.0, 60.0, 35.0)
 # a67-darkchroma-all: the same weight at every target L* (FOGRA sat green
 # source L* 85-95: base67 prints C* 42, colprof 66; Findings agent67-01)
 A67_DCALL_TOKEN = "a67-darkchroma-all"
+A67_LIFT_TOKEN = "a67-liftchroma"
+A67_LIFT = (3.0, 8.0)
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
 _REL = threading.local()
@@ -949,6 +951,18 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         if (mult > 1.0).any():
             w = w.copy()
             w[:, 0, :] *= np.sqrt(mult)[:, None]
+    if (lift is not None and p.get("a67_lift") and not p.get("a51")
+            and getattr(_REL, "on", False)):
+        # Agent 67 (a67-liftchroma): a target below the black (lifted to the
+        # floor) weighs chroma more, rising smoothly with its depth below
+        # the black (x A67_LIFT[0] at A67_LIFT[1] L* deep): colprof keeps a
+        # deep magenta's chroma at a lighter L* (S3c source L* 10: colprof
+        # prints L* 36.5 C* 46, the floor clip L* 34.6 C* 25)
+        km, span = p["a67_lift"]
+        u = np.clip(lift / max(span, 1e-9), 0.0, 1.0)
+        u = u * u * (3.0 - 2.0 * u)
+        w = w.copy()
+        w[:, 1, :] *= np.sqrt(1.0 + (km - 1.0) * u)[:, None]
     n = model.n_channels
     cloud = clip_cloud(n, limit, channel_max, np.random.default_rng(2525),
                        light=True, faces=p["faces"])

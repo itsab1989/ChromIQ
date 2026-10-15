@@ -2272,6 +2272,9 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     p["a67_dc"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_DC"].split(":"))
                     if os.environ.get("CHROMIQ_A67_DC") else oog_clip.A67_DC)
                    if is_additive is False and oog_clip.A67_DC_TOKEN in t else None)
+    p["a67_lift"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_LIFT"].split(":"))
+                      if os.environ.get("CHROMIQ_A67_LIFT") else oog_clip.A67_LIFT)
+                     if is_additive is False and oog_clip.A67_LIFT_TOKEN in t else None)
     if is_additive is False and oog_clip.A67_DCALL_TOKEN in t and not os.environ.get("CHROMIQ_A67_DC"):
         # a67-darkchroma-all: colprof's chroma : lightness ratio at every L*
         # (the light out-of-gamut greens / cyans too); wins over -darkchroma
