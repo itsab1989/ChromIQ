@@ -16078,6 +16078,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # THE NEIGHBOUR CHECK (#182 beta 11): the strip's readings first, so
         # each patch is judged with this strip's readings already counted.
         nb_changed = self._neighbour_feed(patches)
+        # #210: the safety net found this strip fits the chart far better a
+        # patch or two along (the engine says so in the strip_read event
+        # itself, "misaligned": the offset). Such a reading must never
+        # confirm anything: a re-read that repeats the same slip agrees with
+        # the first one, and was marked confirmed on the forum user's chart.
+        slipped = self._strip_is_slipped(ev)
         items = []
         info_items = []
         for p in patches:
@@ -16094,7 +16100,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
             flag, extra = self._judge_with_neighbours(
                 str(p.get("loc", "")), exp_lab, meas_lab, de_p, warn,
-                standout=de_p - _median, live=True)
+                standout=de_p - _median, live=True, slipped=slipped)
             items.append((box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
             # Numbers behind the split, for the "values on hover" tile. The tile
             # shows the SAME sRGB as the swatch (so card and patch always agree)
@@ -16467,6 +16473,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if card is not None:
             card.reset()
         self._nb_inputs = {}
+        self._slipped_locs = set()      # #210: starts afresh with the readings
 
     def _neighbour_card_feed(self, patches) -> None:
         """b15 item 10, review: Knut wants the comparison with the colour
@@ -16642,9 +16649,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 sus = bool(on and f is not None and f.suspect)
                 if not (f is not None and f.suspect):
                     continue                 # the check never touched it
+                _slip = loc in getattr(self, "_slipped_locs", ())
                 flag, extra = self._judge_patch(
                     loc, exp_lab, meas_lab, de, warn or sus,
-                    standout=standout, live=False, reread_only=sus)
+                    standout=standout, live=False, reread_only=sus or _slip)
+                if _slip and not sus:
+                    extra["reread_only"] = False   # #210, not a suspect
                 extra.update(self._neighbour_extra(f if sus else None))
                 page, box = self._locate_patch(loc)
                 if page < 0 or box is None:
@@ -16717,21 +16727,49 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — a card is never worth a crash
             return None
 
+    @staticmethod
+    def _strip_is_slipped(ev: dict) -> bool:
+        """Did the engine's safety net find this strip read a patch or two out
+        (#210)? Carried in the strip_read event as ``misaligned`` (the
+        offset; 0 or absent = no)."""
+        try:
+            return int(ev.get("misaligned", 0) or 0) != 0
+        except (TypeError, ValueError):
+            return False
+
     def _judge_with_neighbours(self, loc, exp_lab, meas_lab, de, warn, *,
-                               standout=None, live=True):
+                               standout=None, live=True, slipped=False):
         """:meth:`_judge_patch`, with the neighbour check's verdict added to
         the red rule's *warn*, and remembered so the patch can be judged
-        again when a later reading changes its neighbours."""
+        again when a later reading changes its neighbours.
+
+        *slipped* (#210): the reading comes from a strip the misalignment
+        safety net flagged. It is judged as a reading that is NOT a re-read
+        (``live`` False: it can neither confirm by agreeing with an earlier
+        reading nor be confirmed by a later one agreeing with it) and as a
+        patch only its own re-read may settle (``reread_only``: similar
+        patches of other strips cannot confirm it either). The card is not
+        told it is a neighbour suspect when it is not one."""
         loc = str(loc)
         f = self._neighbour_suspect(loc)
         if not hasattr(self, "_nb_inputs"):
             self._nb_inputs = {}
         self._nb_inputs[loc] = (exp_lab, meas_lab, float(de), bool(warn),
                                 standout)
+        if not hasattr(self, "_slipped_locs"):
+            self._slipped_locs = set()
+        if slipped:
+            self._slipped_locs.add(loc)
+        elif live:
+            self._slipped_locs.discard(loc)    # read again, not slipped
+        slipped = loc in self._slipped_locs
         flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de,
                                         bool(warn) or f is not None,
-                                        standout=standout, live=live,
-                                        reread_only=f is not None)
+                                        standout=standout,
+                                        live=live and not slipped,
+                                        reread_only=f is not None or slipped)
+        if slipped and f is None:
+            extra["reread_only"] = False
         extra.update(self._neighbour_extra(f))
         return flag, extra
 
@@ -16747,9 +16785,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if loc in done or loc not in inputs:
                 continue
             exp_lab, meas_lab, de, warn, standout = inputs[loc]
+            _slip = loc in getattr(self, "_slipped_locs", ())
             flag, extra = self._judge_patch(
                 loc, exp_lab, meas_lab, de, warn or f.suspect,
-                standout=standout, live=False, reread_only=f.suspect)
+                standout=standout, live=False,
+                reread_only=f.suspect or _slip)
+            if _slip and not f.suspect:
+                extra["reread_only"] = False     # #210, not a neighbour suspect
             extra.update(self._neighbour_extra(f if f.suspect else None))
             page, box = self._locate_patch(loc)
             if page < 0 or box is None:
@@ -19101,7 +19143,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                    "available on this system — using regular chartread. "
                    "Everything works as before."))
             return p
-        p.engine_safenet = bool(self._settings.get("misalign_safenet", False))
+        p.engine_safenet = bool(self._settings.get("misalign_safenet"))
         p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os

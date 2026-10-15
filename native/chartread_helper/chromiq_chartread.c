@@ -561,7 +561,8 @@ static int cq_bidi_ok(int row) {
 /* Emit the full per-patch payload for an accepted strip. Everything here
  * is data chartread already computed — it was simply discarded before. */
 static void cq_emit_strip_read(chcol **scb, int stipa, const char *label,
-	int bdir, double bcorr, double xbcorr, double werror, int verifiable) {
+	int bdir, double bcorr, double xbcorr, double werror, int verifiable,
+	int misaligned) {
 	int i;
 
 	if (!cq_json)
@@ -571,9 +572,9 @@ static void cq_emit_strip_read(chcol **scb, int stipa, const char *label,
 	fprintf(stdout,
 	        "\n{\"event\":\"strip_read\",\"strip\":\"%s\",\"reversed\":%s,"
 	        "\"corr\":%.3f,\"expected_corr\":%.3f,\"worst_de\":%.3f,"
-	        "\"verifiable\":%s,\"patches\":[",
+	        "\"verifiable\":%s,\"misaligned\":%d,\"patches\":[",
 	        label, bdir ? "true" : "false", bcorr, xbcorr, werror,
-	        verifiable ? "true" : "false");
+	        verifiable ? "true" : "false", misaligned);
 	for (i = 0; i < stipa; i++) {
 		double lab_m[3], lab_e[3], xyz[3];
 		double de;
@@ -2893,36 +2894,37 @@ a1log *log			/* verb, debug & error log */
 				scb[i]->rr = 1;		/* Has been read */
 			}
 
-			/* CHROMIQ_EXT: per-patch data + confidence for the GUI, then
-			 * the accepted strip goes straight to disk. */
-			{
-				char *snn = paix->aix(paix, oroi);
-				cq_emit_strip_read(scb, stipa, snn != NULL ? snn : "?",
-				                   bdir, cq_last_bcorr, cq_last_xbcorr,
-				                   cq_last_werror, rand || cq_elig(oroi));
-				if (snn != NULL)
-					free(snn);
-			}
 			/* CHROMIQ_EXT (#50): opt-in misalignment safety net. Warn the GUI
 			 * when a small shift would fit this strip dramatically better — a
 			 * likely one-off misread (the reader locked the grid a patch off).
-			 * Off unless --safenet, so default behaviour never changes. */
-			if (cq_safenet) {
-				double base_de, best_de;
-				int flipped = 0;
-				int mis = cq_detect_misalign(vals, stipa + nextrap, scb, stipa,
-				                             skipp, boff, bdir, &base_de, &best_de,
-				                             &flipped);
+			 * Off unless --safenet. Worked out BEFORE the strip_read event
+			 * and carried in it ("misaligned": the offset, 0 = none), so the
+			 * GUI knows while it judges the patches that this reading must
+			 * not confirm anything (#210: a re-read repeating the same slip
+			 * agreed with itself and was marked confirmed). The separate
+			 * strip_misaligned event still follows, for the question. */
+			{
+				double base_de = 0.0, best_de = 0.0;
+				int flipped = 0, mis = 0;
+				char *snn = paix->aix(paix, oroi);
+				if (cq_safenet)
+					mis = cq_detect_misalign(vals, stipa + nextrap, scb, stipa,
+					                         skipp, boff, bdir, &base_de, &best_de,
+					                         &flipped);
+				/* CHROMIQ_EXT: per-patch data + confidence for the GUI, then
+				 * the accepted strip goes straight to disk. */
+				cq_emit_strip_read(scb, stipa, snn != NULL ? snn : "?",
+				                   bdir, cq_last_bcorr, cq_last_xbcorr,
+				                   cq_last_werror, rand || cq_elig(oroi), mis);
 				if (mis != 0) {
-					char *snm = paix->aix(paix, oroi);
 					cq_emit_raw("{\"event\":\"strip_misaligned\",\"strip\":\"%s\","
 					            "\"offset\":%d,\"base_de\":%.2f,\"best_de\":%.2f,"
 					            "\"other_direction\":%s}",
-					            snm != NULL ? snm : "?", mis, base_de, best_de,
+					            snn != NULL ? snn : "?", mis, base_de, best_de,
 					            flipped ? "true" : "false");
-					if (snm != NULL)
-						free(snm);
 				}
+				if (snn != NULL)
+					free(snn);
 			}
 			cq_write_ti3_atomic();
 
