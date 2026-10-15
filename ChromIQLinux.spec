@@ -137,11 +137,33 @@ if not _engine_datas:
     print(f"[ChromIQLinux.spec] {_cr_path} not built — chart-reading engine "
           f"unavailable in this bundle (stock chartread still works).")
 
+# THE LICENCES THAT HAVE TO TRAVEL WITH THIS BUILD, AS IN ChromIQ.spec.
+# Until 4.3.5-beta.8 only the macOS spec bundled them, so the Windows and Linux
+# Licences page logged "licence file THIRD-PARTY-NOTICES.md could not be read"
+# and showed nothing, although the Fogra reference data in data/reference_sets
+# ships on condition that Fogra is named as its source, and the two
+# Argyll-derived helpers above are AGPLv3, which must convey its licence.
+# `tests/test_a_credit_nobody_can_read_is_not_a_credit.py` checks every spec.
+_licence_files = [
+    ('native/argyll/LICENSE', 'native/argyll'),
+    ('native/instlib/License.txt', 'native/instlib'),
+    ('native/instlib/License2.txt', 'native/instlib'),
+]
+_native_licences = [(src, dest) for src, dest in _licence_files
+                    if os.path.exists(src)]
+_missing_licences = [src for src, _d in _licence_files if not os.path.exists(src)]
+if _missing_licences:
+    print("[ChromIQLinux.spec] MISSING LICENCE FILE(S) for the Argyll-derived "
+          f"helpers: {_missing_licences}")
+
 a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[*_ic_binaries, *_we_binaries, *_np_binaries, *_xcb_binaries],
     datas=[
+        ('LICENSE',              '.'),
+        ('THIRD-PARTY-NOTICES.md', '.'),
+        *_native_licences,
         ('assets',               'assets'),
         # THE THREE SPECS MUST BUNDLE THE SAME DATA, AND FOR A LONG TIME THEY
         # DID NOT. macOS shipped `data/i18n` and `data/scanner_targets`;

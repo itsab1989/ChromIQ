@@ -132,19 +132,73 @@ def test_the_page_says_naming_a_set_is_not_a_certification(qapp):
         dlg.close()
 
 
-def test_the_licence_files_TRAVEL(qapp):
+#: Every PyInstaller spec the release workflows build from. macOS, Windows
+#: and Linux each have their own, and a licence that travels on one platform
+#: only is a credit two of three users cannot read.
+SPECS = ("ChromIQ.spec", "ChromIQWin.spec", "ChromIQLinux.spec")
+
+
+def _spec_datas(spec: str) -> "tuple[set[str], set[str]]":
+    """``(literal source paths, names of *splat groups)`` in ``Analysis(datas=)``.
+
+    Parsed with `ast`, not matched as text: a commented-out line is not in the
+    tree, so it cannot pass for a bundled one.
+    """
+    import ast
+    tree = ast.parse((ROOT / spec).read_text(encoding="utf-8"), filename=spec)
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "Analysis"):
+            for kw in node.keywords:
+                if kw.arg == "datas" and isinstance(kw.value, ast.List):
+                    literal, splats = set(), set()
+                    for el in kw.value.elts:
+                        if (isinstance(el, ast.Tuple) and el.elts
+                                and isinstance(el.elts[0], ast.Constant)):
+                            literal.add(el.elts[0].value)
+                        elif (isinstance(el, ast.Starred)
+                              and isinstance(el.value, ast.Name)):
+                            splats.add(el.value.id)
+                    return literal, splats
+    raise AssertionError(f"{spec} has no Analysis(datas=[...]) call")
+
+
+@pytest.mark.parametrize("spec", SPECS)
+def test_the_licence_files_TRAVEL(spec):
     """A page that shows a file the build did not ship is an empty page.
 
     `ChromIQ.spec` had neither `LICENSE` nor `THIRD-PARTY-NOTICES.md` in its
-    `datas`, so a user who installed the .dmg had neither.
+    `datas`, so a user who installed the .dmg had neither. The macOS spec was
+    fixed and the other two were not: a Windows 4.3.5-beta.7 log reads
+    "licence file THIRD-PARTY-NOTICES.md could not be read: No such file ...
+    _internal\\THIRD-PARTY-NOTICES.md".
 
-    MUTATION: remove either line from the spec and this goes red.
+    MUTATION: remove either line from any spec, or comment it out, and this
+    goes red.
     """
-    spec = (ROOT / "ChromIQ.spec").read_text(encoding="utf-8")
-    datas = spec[spec.index("datas=["):spec.index("]", spec.index("datas=["))]
+    literal, _splats = _spec_datas(spec)
     for name in ("LICENSE", "THIRD-PARTY-NOTICES.md"):
-        assert re.search(rf"\(\s*'{re.escape(name)}'", datas), \
-            f"{name} is not bundled, so the Licences page cannot show it"
+        assert name in literal, \
+            f"{spec} does not bundle {name}, so the Licences page cannot show it"
+
+
+@pytest.mark.parametrize("spec", SPECS)
+def test_the_argyll_licences_travel_with_the_helpers(spec):
+    """Every spec that can bundle the Argyll-derived helpers (AGPLv3) also
+    bundles their licence files.
+
+    MUTATION: drop `*_native_licences` from any spec's datas and this goes red.
+    """
+    text = (ROOT / spec).read_text(encoding="utf-8")
+    literal, splats = _spec_datas(spec)
+    if "_engine_datas" not in splats and "_gammap_datas" not in splats:
+        pytest.skip(f"{spec} bundles no Argyll-derived helper")
+    assert "_native_licences" in splats, \
+        f"{spec} bundles the Argyll-derived helpers without their licences"
+    for src in ("native/argyll/LICENSE", "native/instlib/License.txt",
+                "native/instlib/License2.txt"):
+        assert f"'{src}'" in text, f"{spec} no longer lists {src}"
+        assert (ROOT / src).is_file(), f"{src} is listed and not in the tree"
 
 
 def test_the_page_shows_both_files_when_they_are_there(qapp):
