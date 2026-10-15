@@ -463,11 +463,16 @@ def write_quality_report(
                               raw_log, log_title="Full profcheck output")
 
 
+#: A patch line of a Refine_Strips file (#211): a comment to older readers.
+PATCH_LINE_PREFIX = "#P "
+
+
 def write_refine_strips(
     folder: Path,
     stem: str,
     strips: list[tuple[str, float]],
     target: "Path | None" = None,
+    patches: "list[tuple[str, float]] | None" = None,
 ) -> Path:
     """Write Refine_Strips_<n>_<stem>.txt, incrementing n until the name is free.
 
@@ -497,9 +502,28 @@ def write_refine_strips(
     ]
     for letter, avg_de in strips:
         lines.append(f"{letter}\t{avg_de:.2f}")
+    # #211: the patches above the limit in those strips, which guided
+    # refinement visits one by one in patch-by-patch mode. As COMMENT lines
+    # ("#P"), so a ChromIQ that only knows strips reads the file unchanged.
+    if patches:
+        lines.append("# Patches above the limit (patch-by-patch guidance):")
+        for loc, de in patches:
+            lines.append(f"{PATCH_LINE_PREFIX}{loc}\t{de:.2f}")
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     log.info("Refine strips file written to %s", target)
     return target
+
+
+def parse_refine_patches(path: Path) -> "list[str]":
+    """The patches a Refine_Strips file lists for patch-by-patch guidance, in
+    the order written (chart order), or [] for a file written before #211."""
+    out: "list[str]" = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith(PATCH_LINE_PREFIX):
+            loc = line[len(PATCH_LINE_PREFIX):].split("\t")[0].strip()
+            if loc:
+                out.append(loc)
+    return out
 
 
 def parse_refine_strips(path: Path) -> list[str]:

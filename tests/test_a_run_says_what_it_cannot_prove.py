@@ -187,7 +187,9 @@ def test_eight_files_skip_wholesale_without_it():
     # legacy-label replay tests and the 22 pattern variants on the other.
     # 11 in part since #211 (2026-10-15): the real engine keeping every row
     # of a refinement, and collapsing a measurement whose names repeat.
-    assert len(whole) == 10 and len(partial) == 11, (
+    # 12 in part once both met (b8 merge, 2026-10-15): #210's safety net
+    # read on a real print.
+    assert len(whole) == 10 and len(partial) == 12, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

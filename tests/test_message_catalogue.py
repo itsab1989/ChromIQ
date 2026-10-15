@@ -725,6 +725,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-PATCH-SIMILAR",
                                  # could not SAVE the converted file and
                                  # said it could not read it. Our words.
                                  "M-CONVERT-NOT-SAVED",
+                                 # 4.3.5 beta 8 (#210): a paper patch read
+                                 # much darker than its sheet. Our words.
+                                 "M-REPORT-PAPER-WHITE-DOUBT",
                                  # (Their patch-by-patch variants, the help
                                  # cards' PostScript note, M-END-WRITTEN,
                                  # M-ALL-STRIPS-PATCHES-LEFT under its 4.3.5

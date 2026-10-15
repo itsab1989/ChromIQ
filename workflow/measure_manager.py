@@ -457,6 +457,9 @@ class MeasureManager(QObject):
         # is "idle if there are strips, else disabled", and an "idle" default
         # with no strips would index an empty list on the first strip event.
         self._guided_state:  str  = "disabled"   # | "idle" | "navigating" | "waiting"
+        #: #211: True when `_guided_strips` holds PATCH locations, for guided
+        #: refinement in patch-by-patch mode (`set_guided_patches`).
+        self._guided_by_patch: bool = False
         self._guided_on_line: "Callable[[str], None] | None" = None
         # Queued key dispatched once chartread returns to the strip menu after
         # a misread retry — see send_post_retry_key().
@@ -1237,8 +1240,81 @@ class MeasureManager(QObject):
     def set_guided_strips(self, strips: list[str]) -> None:
         """Configure strips to auto-navigate during the next measurement run."""
         self._guided_strips = list(strips)
+        self._guided_by_patch = False
         self._guided_idx    = 0
         self._guided_state  = "idle" if strips else "disabled"
+
+    def set_guided_patches(self, locs: list[str]) -> None:
+        """Guided refinement PATCH BY PATCH (#211, Basti 2026-10-15).
+
+        In patch-by-patch mode the reader is taken to each of *locs* in turn,
+        the patches the quality check found above the limit, in chart order,
+        never to every patch of their strips: an instrument such as the CR30
+        has no strip mode at all. Engine only: it jumps with
+        ``{"cmd":"goto","patch":…}``. The same states as the strip guide, in
+        the same list (``_guided_strips`` holds locations then)."""
+        self._guided_strips = [str(x) for x in locs if str(x).strip()]
+        self._guided_by_patch = bool(self._guided_strips)
+        self._guided_idx    = 0
+        self._guided_state  = "idle" if self._guided_strips else "disabled"
+
+    @property
+    def guided_by_patch(self) -> bool:
+        return bool(self._guided_by_patch)
+
+    def _guided_patch_at(self, loc: str, on_line) -> None:
+        """The reader sits on patch *loc* (``spot_ready``): steer it to the
+        guided patch it should be on."""
+        if not loc or not self._guided_strips:
+            return
+        from core.i18n import count_phrase, tr
+        target = self._guided_strips[self._guided_idx]
+        if self._guided_state == "idle":
+            self._guided_state = "navigating"
+            _n = count_phrase(len(self._guided_strips),
+                              tr("1 patch"), tr("{n} patches"))
+            on_line(tr(
+                "[Guided Refinement] Taking you patch by patch to {patches} "
+                "above the limit: {names}, in chart order."
+            ).format(patches=_n, names=", ".join(self._guided_strips)))
+        if self._guided_state in ("navigating", "waiting"):
+            if loc == target:
+                if self._guided_state != "waiting":
+                    self._guided_state = "waiting"
+                    on_line(tr(
+                        "[Guided Refinement] Patch {loc} ({i} of {n}): "
+                        "please read it now."
+                    ).format(loc=target, i=self._guided_idx + 1,
+                             n=len(self._guided_strips)))
+            else:
+                self._guided_state = "navigating"
+                self.goto_patch(target)
+
+    def _guided_patch_read(self, loc: str, on_line) -> bool:
+        """Patch *loc* was read (``patch_read``). True when that finished the
+        guided list (the caller announces the completion)."""
+        if (not self._guided_by_patch or self._guided_state != "waiting"
+                or not self._guided_strips):
+            return False
+        target = self._guided_strips[self._guided_idx]
+        if loc != target:
+            return False
+        from core.i18n import tr
+        self._guided_idx += 1
+        if self._guided_idx >= len(self._guided_strips):
+            self._guided_state = "idle_done"
+            on_line(tr("[Guided Refinement] All {n} target patches "
+                       "measured.").format(n=len(self._guided_strips))
+                    if len(self._guided_strips) != 1 else
+                    tr("[Guided Refinement] The target patch is measured."))
+            return True
+        nxt = self._guided_strips[self._guided_idx]
+        self._guided_state = "navigating"
+        on_line(tr("[Guided Refinement] Patch {loc} done ({i} of {n}). "
+                   "Moving to patch {next}\u2026").format(
+                       loc=target, i=self._guided_idx,
+                       n=len(self._guided_strips), next=nxt))
+        return False
 
     def mark_stop_requested(self) -> None:
         """Record that the user has chosen to stop and the key has gone out.
@@ -2727,6 +2803,12 @@ class MeasureManager(QObject):
             # next patch, and that may not be the one to read (Knut, #182
             # 5958921500). Before the emit, so the tab's highlight follows a
             # jump straight away rather than flickering through the old patch.
+            if (self._guided_by_patch
+                    and self._guided_state not in ("idle_done", "disabled")):
+                # #211: guided refinement patch by patch steers the reader
+                # to the next listed patch, before the highlight is drawn.
+                self._guided_patch_at(str(ev.get("loc") or "").strip(),
+                                      on_line)
             self._after_a_read(
                 "patch", str(ev.get("loc") or ""),
                 bool(ev.get("all_done")) and self._all_done_is_news())
@@ -2762,7 +2844,10 @@ class MeasureManager(QObject):
             self._just_read_patch = (
                 _loc or None) if self._guided_state in ("idle_done",
                                                         "disabled") else None
+            _guided_done = self._guided_patch_read(_loc, on_line)
             self.patch_measured.emit(ev)
+            if _guided_done:
+                self.all_stripes_done.emit()
 
         elif kind == "mode_fallback":
             # Engine opt-in for XY/chart is off — the run will re-launch on

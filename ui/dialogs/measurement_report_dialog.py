@@ -15597,6 +15597,38 @@ class MeasurementReportDialog(QDialog):
         return (_h2(tr("Overview of Measurement Metrics"), page_break=True)
                 + _gap() + self._chunked_metric_tables(runs, row_getters))
 
+    @staticmethod
+    def _paper_white_doubt_html(r: dict) -> str:
+        """#210: the warning under "Paper white and darkest black" when the
+        paper patch reads much darker than the lightest patch of the sheet
+        (M-REPORT-PAPER-WHITE-DOUBT, `measurement_report.paper_white_doubt`).
+        Empty when there is no doubt. A warning, never a refusal: the report
+        is worked out with that paper white all the same."""
+        d = r.get("paper_white_doubt") if isinstance(r, dict) else None
+        w = r.get("paper_white") if isinstance(r, dict) else None
+        if not isinstance(d, dict) or not isinstance(w, dict):
+            return ""
+        from workflow import measurement_messages as M
+        from workflow.measurement_report import point_lab
+
+        def _n(v) -> str:
+            return f"{round(float(v), 1) + 0.0:.1f}"
+        lab = point_lab(w)
+        if lab is None:
+            return ""
+        try:
+            head, body = M.M_REPORT_PAPER_WHITE_DOUBT.render(
+                loc=str(w.get("loc") or ""), L=_n(lab[0]), a=_n(lab[1]),
+                b=_n(lab[2]), lighter_loc=str(d.get("lighter_loc") or ""),
+                lighter_L=_n(d.get("lighter_L")), dl=_n(d.get("dl")))
+        except (TypeError, ValueError, KeyError):
+            return ""
+        paras = "<br><br>".join(html.escape(p) for p in body.split("\n\n"))
+        return (f"<p style='color:{_C['error']};font-size:11px;"
+                f"border:1px solid {_C['error']};border-radius:4px;"
+                "padding:8px 11px;line-height:1.45'>"
+                + "<b>" + html.escape(head) + "</b><br><br>" + paras + "</p>")
+
     def _report_kind(self, runs: list) -> str:
         """"verification" when every included measurement is a colour-managed
         verification (carries CHROMIQ_VERIFICATION), "calibration" when every
@@ -17658,6 +17690,7 @@ class MeasurementReportDialog(QDialog):
                         closing=False))
             else:
                 parts.append(_line(w, tr("White")) + _line(b, tr("Black")))
+                parts.append(self._paper_white_doubt_html(r))
 
         corners = r.get("corners") or []
         if corners:

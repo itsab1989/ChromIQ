@@ -3633,26 +3633,31 @@ class SettingsDialog(QDialog):
         _sn_row.addStretch()
         _sn_row.addWidget(TooltipButton(
             tr("Misalignment safety net"),
-            tr("A safety net for a rare but annoying reading slip: sometimes a "
-            "hand-held instrument locks onto a row one patch too early or too "
-            "late — for example it starts on the blank paper before the first "
-            "patch. Every patch in that strip is then filed one position out, "
-            "and the last one reads the empty paper. The colours still get "
+            tr("A safety net for a reading slip that is easy to miss: sometimes "
+            "a hand-held instrument locks onto a row one patch too early or too "
+            "late, for example when it starts on the blank paper before the "
+            "first patch. Every patch in that strip is then filed one position "
+            "out, and the last one reads the empty paper. The colours still get "
             "saved, so without a warning you might not notice until the profile "
             "looks off.\n\n"
             "With this turned on, after each strip ChromIQ quietly checks "
-            "whether the reading would fit the chart dramatically better shifted "
-            "by a patch or two. If it clearly would, it stops and tells you — "
-            "and offers to jump straight back and re-measure just that one "
-            "strip. Your other strips and everything read so far are untouched.\n\n"
-            "**It is deliberately cautious:** it only speaks up when a shift makes a "
-            "big, unmistakable improvement, so a normal good read — where vivid "
-            "colours naturally differ from the design — never triggers it. And "
-            "it only ever warns; it never changes your measurements on its own.\n\n"
-            "Leave it off (the default) and nothing changes. Most misreads are "
-            "already caught by the ‘wrong strip’ warning; this catches the "
-            "subtler one-patch slips that slip past it.\n\n"
-            "**Default:** off"),
+            "whether the reading would fit the chart much better shifted by a "
+            "patch or two, in either direction of the swipe. If it clearly "
+            "would, it stops and tells you, and offers to jump straight back "
+            "and re-measure just that one strip. Your other strips and "
+            "everything read so far are untouched.\n\n"
+            "**It is deliberately cautious:** a printed colour never matches "
+            "the chart's design exactly, so it only speaks up when a shift "
+            "halves the difference and leaves a fit a real print reaches. A "
+            "normal good read, where vivid colours naturally differ from the "
+            "design, does not trigger it. It only ever warns; it never changes "
+            "your measurements on its own. A strip it flags is also never "
+            "counted as a confirmed re-read.\n\n"
+            "Most misreads are already caught by the ‘wrong strip’ warning; "
+            "this catches the subtler one-patch slips that get past it. Turn "
+            "it off only if it warns about strips you know were read "
+            "correctly.\n\n"
+            "**Default:** on"),
             self))
         _meas.addLayout(_sn_row)
 
@@ -5808,7 +5813,7 @@ class SettingsDialog(QDialog):
         self._cal_retries_spin.setValue(int(s.get("cal_auto_retries", 3)))
         self._fast_connect_check.setChecked(
             bool(s.get("fast_instrument_connect", True)))
-        self._safenet_check.setChecked(bool(s.get("misalign_safenet", False)))
+        self._safenet_check.setChecked(bool(s.get("misalign_safenet")))
         self._progress_bar_check.setChecked(
             bool(s.get("measure_progress_bar", True)))
         self._native_print_check.setChecked(bool(s.get("use_native_print_dialog", False)))

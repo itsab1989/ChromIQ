@@ -5627,11 +5627,46 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._start_btn.setText(tr("Start Measurement"))
 
     def _load_refine_strips(self, path: Path) -> None:
-        from workflow.profcheck_runner import parse_refine_strips
+        from workflow.profcheck_runner import (parse_refine_patches,
+                                               parse_refine_strips)
         try:
             self._strip_list = parse_refine_strips(path)
         except Exception:
             self._strip_list = []
+        # #211: the patches above the limit, for guidance patch by patch
+        try:
+            self._refine_patch_list = parse_refine_patches(path)
+        except Exception:
+            self._refine_patch_list = []
+
+    def _guided_patches(self) -> "list[str]":
+        """The patches guided refinement visits in patch-by-patch mode (#211,
+        Basti 2026-10-15): the quality check's own patches above the limit,
+        in chart order. A Refine_Strips file written before 4.3.5 beta 8
+        holds strips only; then every patch of its strips, in chart order,
+        and the log says why."""
+        listed = list(getattr(self, "_refine_patch_list", None) or [])
+        if listed:
+            return listed
+        strips = set(self._strip_list or [])
+        if not strips:
+            return []
+        try:
+            from workflow.measurement_report import parse_ti3
+            chart = parse_ti3(Path(self._chart_file_for(self._ti1_path)))
+            locs = [str(x) for x in (chart.sample_locs or [])]
+        except Exception:      # noqa: BLE001 — no chart, no guide
+            log.debug("could not list the chart's patches", exc_info=True)
+            return []
+        from workflow.patch_flags import sorted_locs
+        out = sorted_locs(l for l in locs if self._strip_of(l) in strips)
+        if out:
+            self._log.appendPlainText(tr(
+                "[Guided Refinement] This refinement list was written by an "
+                "older ChromIQ and names strips only, so every patch of "
+                "{strips} is visited."
+            ).format(strips=", ".join(self._strip_list)))
+        return out
 
     def start_guided_refinement(self, ti3: Path, strips_file: Path) -> None:
         """Called by main window when user launches guided refinement from Check & Refine tab."""
@@ -7659,7 +7694,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._guided_refinement_active = guided
         self._resume_active = resume_cb.isChecked()
 
-        self._manager.set_guided_strips(self._strip_list if guided else [])
+        # #211: PATCH BY PATCH, THE GUIDE GOES PATCH BY PATCH (Basti,
+        # 2026-10-15): to the patches the quality check found above the
+        # limit, never strip by strip. The engine jumps to a patch by name;
+        # stock chartread has no such jump, so it keeps the strip guide.
+        self._guided_patch_list = []
+        if guided and bool(getattr(params, "patch_by_patch", False)) \
+                and getattr(params, "engine_helper", None):
+            self._guided_patch_list = self._guided_patches()
+        if self._guided_patch_list:
+            self._manager.set_guided_patches(self._guided_patch_list)
+        else:
+            self._manager.set_guided_strips(self._strip_list if guided else [])
 
         self._manager.start(
             params,
@@ -11383,6 +11429,42 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             footnote.setStyleSheet(_dim_style)
             layout.addWidget(footnote)
 
+        elif self._guided_refinement_active and getattr(
+                self, "_guided_patch_list", None):
+            # #211: the guide goes patch by patch in patch-by-patch mode
+            pl = self._guided_patch_list
+            n = len(pl)
+            dlg.setWindowTitle(tr("Calibration Complete, Guided Refinement Ready"))
+            body = (tr("<b>Calibration complete. The app will take you to "
+                       "the patch.</b><br><br>There is <b>1 patch</b> above "
+                       "the limit to re-measure: {first}. The app moves the "
+                       "reader to it for you.").format(first=pl[0])
+                    if n == 1 else
+                    tr("<b>Calibration complete. The app will take you to "
+                       "each patch in turn.</b><br><br>There are <b>{n} "
+                       "patches</b> above the limit to re-measure, in chart "
+                       "order: {names}. The app moves the reader to each one "
+                       "for you; only those patches are read again, not "
+                       "their whole strips.").format(n=n, names=", ".join(pl)))
+            msg = QLabel(body, dlg)
+            msg.setWordWrap(True)
+            layout.addWidget(msg)
+            hint = QLabel(tr("Watch the <b>highlighted patch</b> in the preview "
+                             "panel on the right, or follow the output field "
+                             "below: it names each patch and counts them."),
+                          dlg)
+            hint.setWordWrap(True)
+            hint.setStyleSheet(_plain_style)
+            layout.addWidget(hint)
+            first_lbl = QLabel(
+                tr("<b>First patch: {first}.</b> When it's highlighted, "
+                   "measure it like this:<br><br>{how}").format(
+                       first=pl[0], how=_how), dlg)
+            first_lbl.setTextFormat(Qt.TextFormat.RichText)
+            first_lbl.setWordWrap(True)
+            layout.addWidget(first_lbl)
+            self._add_calibrate_key_note(layout, dlg, _dim_style)
+
         elif self._guided_refinement_active and self._strip_list:
             first = self._strip_list[0]
             n = len(self._strip_list)
@@ -11819,6 +11901,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                            "successfully.</b>") if n == 1 else
                         tr("<b>All {n} chart strips have been re-measured "
                            "successfully.</b>").format(n=n))
+            _pl = getattr(self, "_guided_patch_list", None) or []
+            if _pl:
+                # #211: counted in the patches the guide visited
+                _opening = (tr("<b>The patch has been re-measured "
+                               "successfully.</b>") if len(_pl) == 1 else
+                            tr("<b>All {n} patches have been re-measured "
+                               "successfully.</b>").format(n=len(_pl)))
             import html as _html
             _rt, _rb = self._refine_rebuild_texts()
             _rebuild = ("<br><br><b>" + _html.escape(_rt) + "</b><br>"
@@ -11984,6 +12073,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if self._guided_refinement_active:
                 # Hand back full keyboard control; disable auto-navigation.
                 self._guided_refinement_active = False
+                self._guided_patch_list = []
                 self._manager.set_guided_strips([])
             QApplication.instance().installEventFilter(self)
 
@@ -16201,6 +16291,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # THE NEIGHBOUR CHECK (#182 beta 11): the strip's readings first, so
         # each patch is judged with this strip's readings already counted.
         nb_changed = self._neighbour_feed(patches)
+        # #210: the safety net found this strip fits the chart far better a
+        # patch or two along (the engine says so in the strip_read event
+        # itself, "misaligned": the offset). Such a reading must never
+        # confirm anything: a re-read that repeats the same slip agrees with
+        # the first one, and was marked confirmed on the forum user's chart.
+        slipped = self._strip_is_slipped(ev)
         items = []
         info_items = []
         for p in patches:
@@ -16217,7 +16313,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
             flag, extra = self._judge_with_neighbours(
                 str(p.get("loc", "")), exp_lab, meas_lab, de_p, warn,
-                standout=de_p - _median, live=True)
+                standout=de_p - _median, live=True, slipped=slipped)
             items.append((box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
             # Numbers behind the split, for the "values on hover" tile. The tile
             # shows the SAME sRGB as the swatch (so card and patch always agree)
@@ -16606,6 +16702,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if card is not None:
             card.reset()
         self._nb_inputs = {}
+        self._slipped_locs = set()      # #210: starts afresh with the readings
 
     def _neighbour_card_feed(self, patches) -> None:
         """b15 item 10, review: Knut wants the comparison with the colour
@@ -16781,10 +16878,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 sus = bool(on and f is not None and f.suspect)
                 if not (f is not None and f.suspect):
                     continue                 # the check never touched it
+                _slip = loc in getattr(self, "_slipped_locs", ())
                 flag, extra = self._judge_patch(
                     loc, exp_lab, meas_lab, de, warn or sus,
-                    standout=standout, live=False, reread_only=sus,
-                    warn=warn)
+                    standout=standout, live=False,
+                    reread_only=sus or _slip, warn=warn)
+                if _slip and not sus:
+                    extra["reread_only"] = False   # #210, not a suspect
                 extra.update(self._neighbour_extra(f if sus else None))
                 page, box = self._locate_patch(loc)
                 if page < 0 or box is None:
@@ -16857,22 +16957,50 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — a card is never worth a crash
             return None
 
+    @staticmethod
+    def _strip_is_slipped(ev: dict) -> bool:
+        """Did the engine's safety net find this strip read a patch or two out
+        (#210)? Carried in the strip_read event as ``misaligned`` (the
+        offset; 0 or absent = no)."""
+        try:
+            return int(ev.get("misaligned", 0) or 0) != 0
+        except (TypeError, ValueError):
+            return False
+
     def _judge_with_neighbours(self, loc, exp_lab, meas_lab, de, warn, *,
-                               standout=None, live=True):
+                               standout=None, live=True, slipped=False):
         """:meth:`_judge_patch`, with the neighbour check's verdict added to
         the red rule's *warn*, and remembered so the patch can be judged
-        again when a later reading changes its neighbours."""
+        again when a later reading changes its neighbours.
+
+        *slipped* (#210): the reading comes from a strip the misalignment
+        safety net flagged. It is judged as a reading that is NOT a re-read
+        (``live`` False: it can neither confirm by agreeing with an earlier
+        reading nor be confirmed by a later one agreeing with it) and as a
+        patch only its own re-read may settle (``reread_only``: similar
+        patches of other strips cannot confirm it either). The card is not
+        told it is a neighbour suspect when it is not one."""
         loc = str(loc)
         f = self._neighbour_suspect(loc)
         if not hasattr(self, "_nb_inputs"):
             self._nb_inputs = {}
         self._nb_inputs[loc] = (exp_lab, meas_lab, float(de), bool(warn),
                                 standout)
+        if not hasattr(self, "_slipped_locs"):
+            self._slipped_locs = set()
+        if slipped:
+            self._slipped_locs.add(loc)
+        elif live:
+            self._slipped_locs.discard(loc)    # read again, not slipped
+        slipped = loc in self._slipped_locs
         flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de,
                                         bool(warn) or f is not None,
-                                        standout=standout, live=live,
-                                        reread_only=f is not None,
+                                        standout=standout,
+                                        live=live and not slipped,
+                                        reread_only=f is not None or slipped,
                                         warn=bool(warn))
+        if slipped and f is None:
+            extra["reread_only"] = False
         extra.update(self._neighbour_extra(f))
         return flag, extra
 
@@ -16888,10 +17016,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if loc in done or loc not in inputs:
                 continue
             exp_lab, meas_lab, de, warn, standout = inputs[loc]
+            _slip = loc in getattr(self, "_slipped_locs", ())
             flag, extra = self._judge_patch(
                 loc, exp_lab, meas_lab, de, warn or f.suspect,
-                standout=standout, live=False, reread_only=f.suspect,
-                warn=warn)
+                standout=standout, live=False,
+                reread_only=f.suspect or _slip, warn=warn)
+            if _slip and not f.suspect:
+                extra["reread_only"] = False     # #210, not a neighbour suspect
             extra.update(self._neighbour_extra(f if f.suspect else None))
             page, box = self._locate_patch(loc)
             if page < 0 or box is None:
@@ -19248,7 +19379,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                    "available on this system — using regular chartread. "
                    "Everything works as before."))
             return p
-        p.engine_safenet = bool(self._settings.get("misalign_safenet", False))
+        p.engine_safenet = bool(self._settings.get("misalign_safenet"))
         p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os

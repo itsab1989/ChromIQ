@@ -1849,7 +1849,9 @@ class TabCheckRefine(QWidget):
                 # file holds the default choice, the strips listed first; the
                 # window rewrites it if "all strips" is picked instead.
                 if plan.offered:
-                    strips_file = write_refine_strips(folder, stem, plan.chosen())
+                    strips_file = write_refine_strips(
+                        folder, stem, plan.chosen(),
+                        patches=plan.chosen_patches())
                     self._log.appendPlainText(
                         f"[OK] Refinement strips file saved: {folder.name}/{strips_file.name}")
             except Exception as exc:
@@ -2188,7 +2190,8 @@ class TabCheckRefine(QWidget):
                     try:
                         chosen = write_refine_strips(
                             strips_file.parent, ti3.stem,
-                            plan.chosen(first_only=False), target=strips_file)
+                            plan.chosen(first_only=False), target=strips_file,
+                            patches=plan.chosen_patches(first_only=False))
                     except OSError as exc:
                         log.warning("could not rewrite %s: %s", strips_file, exc)
                 dlg.accept()
