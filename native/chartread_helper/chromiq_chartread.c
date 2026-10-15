@@ -758,7 +758,18 @@ static void cq_emit_chart_read(const char *event, chcol **scols, int npat) {
  * when it is BOTH absolutely good AND far better than the current alignment, so
  * a legitimately vivid strip (high dE at every offset) never trips it. */
 #define CQ_MIS_TRIGGER_DE 12.0   /* probe only if base mean dE >= this   */
-#define CQ_MIS_GOOD_DE     6.0   /* a shift must reach at least this fit  */
+/* A shift must reach at least this fit. IT WAS 6.0, AND THAT MADE THE NET
+ * BLIND ON PAPER (#210). The expected values are the .ti2's design colours,
+ * not the printer's: on a real print even the CORRECT alignment of a strip
+ * misses them by 10 to 26 dE mean (Canon SELPHY, i1Pro 3). Two strips of that
+ * chart read one patch out fit 15.6 and 19.8 once realigned, against 78.4 and
+ * 63.2 as read, and the net said nothing. Replayed on 192 strips of real
+ * measurements (i1Pro 2, ColorMunki, i1Pro 3): the three #210 misreads are
+ * reported and none of the other 189 strips is; and every real strip slipped
+ * by one patch on purpose is reported at 35 (175 of 175; 6.0 reported none
+ * of them). The ratio below is what tells a slip from a vivid
+ * strip; this bar only asks for a fit a real print reaches. */
+#define CQ_MIS_GOOD_DE    35.0
 #define CQ_MIS_RATIO       0.5   /* ...and be <= this fraction of base    */
 #define CQ_MIS_MAX_OFF     2
 
@@ -795,23 +806,35 @@ static double cq_strip_mean_de_at(ipatch *vals, int navail, chcol **scb,
 /* Returns the detected shift (0 = looks aligned) and fills the base/best mean. */
 static int cq_detect_misalign(ipatch *vals, int navail, chcol **scb, int stipa,
                               int skipp, int boff, int bdir,
-                              double *base_mean, double *best_mean) {
-	int off, nv, best_off = 0;
+                              double *base_mean, double *best_mean,
+                              int *best_flip) {
+	int off, nv, best_off = 0, flip, dir;
 	double m0, m;
 
 	m0 = cq_strip_mean_de_at(vals, navail, scb, stipa, skipp, boff, 0, bdir, &nv);
 	*base_mean = *best_mean = m0;
+	*best_flip = 0;
 	if (m0 < CQ_MIS_TRIGGER_DE)               /* good enough -> nothing to do */
 		return 0;
-	for (off = -CQ_MIS_MAX_OFF; off <= CQ_MIS_MAX_OFF; off++) {
-		if (off == 0)
-			continue;
-		m = cq_strip_mean_de_at(vals, navail, scb, stipa, skipp, boff, off, bdir, &nv);
-		if (nv < stipa - CQ_MIS_MAX_OFF - 1)  /* need real overlap, no fluke win */
-			continue;
-		if (m < *best_mean) {
-			*best_mean = m;
-			best_off = off;
+	/* BOTH DIRECTIONS (#210). A slipped strip fits its design badly either
+	 * way, so the direction chartread settled on is a coin toss between two
+	 * poor fits: on the #210 chart it filed one slipped strip as reversed,
+	 * and probing that direction alone found nothing. A strip swiped from
+	 * the far end AND a patch out (strip 13 there: 64.7 as read, 11.8
+	 * reversed one patch back) is only found from the other direction. */
+	for (flip = 0; flip < 2; flip++) {
+		dir = flip ? !bdir : bdir;
+		for (off = -CQ_MIS_MAX_OFF; off <= CQ_MIS_MAX_OFF; off++) {
+			if (off == 0)
+				continue;
+			m = cq_strip_mean_de_at(vals, navail, scb, stipa, skipp, boff, off, dir, &nv);
+			if (nv < stipa - CQ_MIS_MAX_OFF - 1)  /* need real overlap, no fluke win */
+				continue;
+			if (m < *best_mean) {
+				*best_mean = m;
+				best_off = off;
+				*best_flip = flip;
+			}
 		}
 	}
 	if (best_off != 0
@@ -2886,13 +2909,17 @@ a1log *log			/* verb, debug & error log */
 			 * Off unless --safenet, so default behaviour never changes. */
 			if (cq_safenet) {
 				double base_de, best_de;
+				int flipped = 0;
 				int mis = cq_detect_misalign(vals, stipa + nextrap, scb, stipa,
-				                             skipp, boff, bdir, &base_de, &best_de);
+				                             skipp, boff, bdir, &base_de, &best_de,
+				                             &flipped);
 				if (mis != 0) {
 					char *snm = paix->aix(paix, oroi);
 					cq_emit_raw("{\"event\":\"strip_misaligned\",\"strip\":\"%s\","
-					            "\"offset\":%d,\"base_de\":%.2f,\"best_de\":%.2f}",
-					            snm != NULL ? snm : "?", mis, base_de, best_de);
+					            "\"offset\":%d,\"base_de\":%.2f,\"best_de\":%.2f,"
+					            "\"other_direction\":%s}",
+					            snm != NULL ? snm : "?", mis, base_de, best_de,
+					            flipped ? "true" : "false");
 					if (snm != NULL)
 						free(snm);
 				}
