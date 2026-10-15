@@ -252,6 +252,25 @@ def _with_fill_up(tmp_path):
     return ti2
 
 
+def test_a_fill_up_square_read_patch_by_patch_is_not_a_patch_read(tmp_path):
+    """Patch by patch, chartread offers the fill-up squares too ("(Padding
+    Patch)", chartread.c 2146); strip mode already leaves them out."""
+    ti2 = _with_fill_up(tmp_path)
+    runner = _Runner()
+    mgr = MeasureManager(runner)
+    mgr._guided_state = "disabled"
+    mgr.start(MeasureParams(ti1_path=ti2.with_suffix(".ti1"),
+                            patch_by_patch=True),
+              lambda _l: None, lambda _c: None)
+    feed = runner.runs[-1]["on_line"]
+    feed("Ready to read patch '0' at 'C5' (Padding Patch)")
+    feed(" Patch read OK")
+    assert mgr.readings_this_session == 0
+    feed("Ready to read patch '12' at 'C4'")
+    feed(" Patch read OK")
+    assert mgr.readings_this_session == 1
+
+
 # ---- the completion windows on stock chartread (review of beta 7) ---------
 
 def _done_counter(mgr):

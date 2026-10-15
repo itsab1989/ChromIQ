@@ -981,7 +981,10 @@ class MeasureManager(QObject):
         if _SPOT_READY_RE.search(line) is None and \
                 re.search(r"patch\s+read\s+ok", line, re.IGNORECASE):
             loc = getattr(self, "_stock_patch", "")
-            self._readings_count += 1
+            # A fill-up square is no patch of the design, here as in strip
+            # mode below (review of 4.3.5 beta 7).
+            if loc not in (getattr(self, "_stock_padding", set()) or set()):
+                self._readings_count += 1
             if loc:
                 self.stock_patch_read.emit({"loc": loc})
             return
