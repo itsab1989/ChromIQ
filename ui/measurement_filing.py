@@ -615,7 +615,7 @@ def say_what_was_filed(parent, filed: Path) -> None:
                "through is a normal thing to come back to.\n\nA profile "
                "built from fewer readings is a rougher profile — the "
                "measurement report states both counts."
-               ).format(chart=verdict.n_chart, got=verdict.n_measured),
+               ).format(chart=verdict.n_chart, got=verdict.patches_read),
             parent, min_width=580).exec()
 
 

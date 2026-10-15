@@ -72,6 +72,18 @@ class ImportVerdict:
     #: them is paired by i1Profiler's reading order and every number in the
     #: report is then about the wrong patch.
     device_from_chart: bool = False
+    #: How many DESIGN patches have a reading, by location, when that differs
+    #: from the row count: a partial file that also holds the readings of the
+    #: layout engine's fill-up squares has as many rows as the chart has
+    #: patches, or more, and "the chart has 390 patches and this file holds
+    #: 398 readings, so part of the chart was not measured" contradicts itself
+    #: (review of 4.3.5 beta 8). ``None`` when the row count is the answer.
+    n_read: "int | None" = None
+
+    @property
+    def patches_read(self) -> int:
+        """The number a partial window states beside the chart's count."""
+        return self.n_read if self.n_read is not None else self.n_measured
 
 
 def _cgats_table_kind(path: Path) -> str:
@@ -175,6 +187,7 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
     n_chart = _chart_patch_count(chart_ti2)
     n_sheet = _chart_sheet_count(chart_ti2) or n_chart
     n_got = int(measured.n_patches or 0)
+    n_read = None
 
     if n_chart:
         if n_got > n_sheet:
@@ -204,7 +217,8 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             # to stop asking whether they are readings of this chart at all.
             partial = True
         else:
-            partial = _design_patches_unread(ti3, chart_ti2)
+            n_read = _design_patches_read(ti3, chart_ti2, n_chart)
+            partial = n_read is not None
 
     else:
         partial = False
@@ -250,7 +264,8 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
         if verdict is not None:
             return verdict
         return ImportVerdict(True, "", partial=partial, n_chart=n_chart or 0,
-                             n_measured=n_got, device_from_chart=True)
+                             n_measured=n_got, device_from_chart=True,
+                             n_read=n_read)
 
     from workflow.measurement_report import verify_patch_identity
     identity = verify_patch_identity(measured, chart_ti2)
@@ -264,7 +279,7 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
         log.info("import: the patch-identity check could not run (%s); "
                  "the import continues", identity.get("reason", ""))
     return ImportVerdict(True, "", partial=partial,
-                         n_chart=n_chart or 0, n_measured=n_got)
+                         n_chart=n_chart or 0, n_measured=n_got, n_read=n_read)
 
 
 def _device_type_reason(measured_space: str, chart_space: str) -> str:
@@ -328,6 +343,7 @@ def _assess_non_rgb(ti3: Path, chart_ti2: "Path | None",
     n_chart = _chart_patch_count(chart_ti2)
     n_sheet = _chart_sheet_count(chart_ti2) or n_chart
     partial = False
+    n_read = None
     if n_chart:
         if n_got > n_sheet:
             return ImportVerdict(False, tr(
@@ -335,7 +351,11 @@ def _assess_non_rgb(ti3: Path, chart_ti2: "Path | None",
                 "holds {got} measurements, so it is a measurement of a "
                 "different chart"
             ).format(chart=n_sheet, got=n_got), n_chart=n_chart, n_measured=n_got)
-        partial = n_got < n_chart or _design_patches_unread(ti3, chart_ti2)
+        if n_got < n_chart:
+            partial = True
+        else:
+            n_read = _design_patches_read(ti3, chart_ti2, n_chart)
+            partial = n_read is not None
 
     from workflow.measurement_report import PATCH_IDENTITY_TOL
     differs = device_values_differ(chart_ti2, ti3, tol=PATCH_IDENTITY_TOL)
@@ -348,7 +368,7 @@ def _assess_non_rgb(ti3: Path, chart_ti2: "Path | None",
         log.info("import: the device values of %s could not be compared with "
                  "%s; the import continues", Path(ti3).name, Path(chart_ti2).name)
     return ImportVerdict(True, "", partial=partial, n_chart=n_chart or 0,
-                         n_measured=n_got)
+                         n_measured=n_got, n_read=n_read)
 
 
 def _name_verdict(ti3: Path, chart_ti2: Path, n_chart: int, n_got: int,
@@ -469,6 +489,20 @@ def _design_patches_unread(ti3: Path, ti2: "Path | None") -> bool:
         return False
     from workflow.measurement_state import unread_design_locations
     return bool(unread_design_locations(ti3, ti2))
+
+
+def _design_patches_read(ti3: Path, ti2: "Path | None",
+                         n_chart: int) -> "int | None":
+    """How many of the chart's *n_chart* design patches *ti3* has a reading
+    for, when the location question finds one unread (`_design_patches_unread`);
+    ``None`` when none is, or the files cannot be compared by location."""
+    if ti2 is None:
+        return None
+    from workflow.measurement_state import unread_design_locations
+    unread = unread_design_locations(ti3, ti2)
+    if not unread:
+        return None
+    return max(0, n_chart - len(unread))
 
 
 def _chart_sheet_count(ti2: "Path | None") -> int:

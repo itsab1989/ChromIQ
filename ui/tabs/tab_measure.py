@@ -12820,7 +12820,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if verdict.partial:
             return tr("the verification chart has {chart} patches, but this "
                       "file holds only {got} measurements").format(
-                          chart=verdict.n_chart, got=verdict.n_measured)
+                          chart=verdict.n_chart, got=verdict.patches_read)
         return None
 
     def _show_import_refusal(self, message, **kw) -> None:
@@ -12999,7 +12999,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         reason = (verdict.reason if not verdict.ok else
                   tr("the verification chart has {chart} patches, but this "
                      "file holds only {got} measurements").format(
-                         chart=verdict.n_chart, got=verdict.n_measured)
+                         chart=verdict.n_chart, got=verdict.patches_read)
                   if verdict.partial else "")
         if reason:
             self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=reason)

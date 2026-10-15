@@ -223,3 +223,29 @@ def test_an_import_with_a_design_gap_is_filed_as_partial(tmp_path):
     ti2 = _engine_chart(tmp_path)
     assert _design_patches_unread(_fill_gap(tmp_path), ti2) is True
     assert _design_patches_unread(_ti3(tmp_path, SHEET), ti2) is False
+
+
+def test_an_import_partial_by_location_states_the_patches_read(tmp_path):
+    """Review of beta 8: the import door's partial windows state the chart's
+    count beside the file's. For a file partial by location the row count
+    equals the chart's (or passes it), and "the chart has 10 patches and
+    this file holds 10 readings, so part of the chart was not measured"
+    contradicts itself; the verification door even said "holds only". They
+    state the design patches read instead, the same number as the Start
+    message and the Profile tab."""
+    from workflow.measurement_import import assess
+    ti2 = _engine_chart(tmp_path)
+    v = assess(_fill_gap(tmp_path), ti2)
+    assert v.ok and v.partial
+    assert v.n_measured == DESIGN, "the rows are still the rows"
+    assert v.patches_read == DESIGN - 2
+    short = assess(_ti3(tmp_path, SHEET[:5]), ti2)
+    assert short.partial and short.patches_read == 5
+    whole = assess(_ti3(tmp_path, SHEET), ti2)
+    assert not whole.partial and whole.patches_read == len(SHEET)
+    import inspect
+    from ui import measurement_filing
+    from ui.tabs.tab_measure import TabMeasure
+    for src in (inspect.getsource(measurement_filing),
+                inspect.getsource(TabMeasure._import_mismatch_reason)):
+        assert "got=verdict.n_measured" not in src
