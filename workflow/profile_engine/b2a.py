@@ -2259,7 +2259,8 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     REFIT_ANCHOR["dark"] = "a66-clipanchor-dark" in t
     REFIT_ANCHOR["guard"] = is_additive is False and "a66-refitguard" in t
     REFIT_ANCHOR["all"] = is_additive is False and "a67-guardall" in t
-    _rg = os.environ.get("CHROMIQ_A66_GUARD", "1.5:4").split(":")
+    # Agent 67 (a67-guardall): the guard band 0.75 -> 2 dE (G1 probe)
+    _rg = os.environ.get("CHROMIQ_A66_GUARD", "0.75:2" if REFIT_ANCHOR["all"] else "1.5:4").split(":")
     REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"] = float(_rg[0]), float(_rg[1])
     _rl = os.environ.get("CHROMIQ_A66_ANCHOR_LC", "60:8").split(":")
     REFIT_ANCHOR["l_max"], REFIT_ANCHOR["c_min"] = float(_rl[0]), float(_rl[1])
