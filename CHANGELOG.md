@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- **Refine / resume on a measurement made with another program lost the new readings** (#211). A measurement converted from i1Profiler names its patches by i1Profiler's own sheet (A1 to T21 on every page), and both ChromIQ's engine and ArgyllCMS's chartread put a resumed reading back by that name alone. A guided refinement then put the old readings on the wrong patches of ChromIQ's chart and dropped most of them, and ChromIQ's safety check put the old measurement back, together with the patches just read. ChromIQ now checks before measuring that every reading of the measurement sits where this run's chart prints that patch, and when it does not, it stops before anything is measured or changed and explains why and what you can do: build the profile from the measurement as it is, re-read patches in the program that printed the sheet and import again, or print ChromIQ's chart and measure it from the start. (New text, shown and waiting for approval.)
+- **After a refinement, nothing said that the profile had not changed** (#211). Re-reading patches of a finished measurement replaces readings, so after "Save and stop" ChromIQ said nothing at all, and "Re-measurement Complete" offered Build Profile without saying that the checked profile is still the old one. Both now say: build the profile again, then run "Analyse Profile Quality" again, and judge the quality after both. (New text, shown and waiting for approval.)
 - **With ChromIQ's own measuring engine, a resumed measurement could count as complete while patches were missing, and then never announced that it was finished.** Completeness is now judged by which squares of the chart have a reading. Re-reading one strip of a finished chart stays silent as before.
 
 ## v4.3.5-beta.7

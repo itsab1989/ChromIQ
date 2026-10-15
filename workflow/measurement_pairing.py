@@ -320,3 +320,94 @@ def device_came_from_chart(ti3_path: "str | Path") -> str:
     m = re.search(rf'^\s*{DEVICE_FROM_CHART_KEYWORD}\s+"?([^"\n]+)"?',
                   text, re.MULTILINE)
     return m.group(1).strip() if m else ""
+
+
+# ---------------------------------------------------------------------------
+# Does a measurement's layout fit the chart it would be resumed on? (#211)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ResumeFit:
+    """Whether a reader resuming *ti3* on the chart *ti2* would put every
+    reading back where it was measured.
+
+    BOTH READERS RESUME BY LOCATION. ChromIQ's engine and ArgyllCMS chartread
+    read the ``.ti3`` they resume from and, for every patch of the chart, take
+    the FIRST row whose ``SAMPLE_LOC`` equals that patch's location
+    (``chromiq_chartread.c``, "We'll use the patch location to do this").
+    Nothing else of the row is looked at: not its ``SAMPLE_ID``, not its
+    device values. The file they write afterwards holds one row per patch of
+    the chart, with the CHART's id and device values. So a row survives a
+    resume only when its location is one the chart has, no earlier row holds
+    it, and the chart prints the same patch there.
+
+    Issue #211: a measurement converted from i1Profiler named its patches
+    A1 … T21 on each of its four pages, 1,680 rows over 420 names, while this
+    run's chart lays the same 1,680 patches out on strips A to CB. Resumed,
+    the first reading of each name went onto whatever ChromIQ's chart prints
+    at that place (a different patch), the other 1,260 were dropped, and the
+    file came out with 424 rows. The shrink check (§3b) put the old file
+    back, so nothing was lost, but the four new readings went with it.
+
+    *fits* is True when every row survives as the same patch. *wrong* counts
+    the rows that would not: a location the chart does not have, a location
+    an earlier row already holds, or a location where the chart prints a
+    different patch (``SAMPLE_ID``). *no_locations* is a file that names no
+    location at all, which neither reader can resume.
+    """
+
+    fits: bool
+    rows: int = 0
+    wrong: int = 0
+    no_locations: bool = False
+
+
+def resume_fit(ti3_path: "str | Path", ti2_path: "str | Path") -> "ResumeFit | None":
+    """See :class:`ResumeFit`. ``None`` when either file cannot be read, which
+    is left to the checks that already answer that (§3a)."""
+    try:
+        t3 = _first_table(read_text(Path(ti3_path), lenient=True))
+        t2 = _first_table(read_text(Path(ti2_path), lenient=True))
+    except OSError:
+        return None
+    if t3 is None or t2 is None:
+        return None
+    fields3, rows3 = t3
+    fields2, rows2 = t2
+    if not rows3:
+        return None
+    if "SAMPLE_LOC" not in fields3:
+        return ResumeFit(False, rows=len(rows3), wrong=len(rows3),
+                         no_locations=True)
+    if "SAMPLE_LOC" not in fields2:
+        return None
+    chart_locs = _locs(fields2, rows2)
+    chart_ids = _ids(fields2, rows2)
+    at = {}
+    for loc, sid in zip(chart_locs, chart_ids or [None] * len(chart_locs)):
+        if loc and loc not in at:
+            at[loc] = sid
+    locs = _locs(fields3, rows3)
+    ids = _ids(fields3, rows3)
+    seen: set = set()
+    wrong = 0
+    for k, loc in enumerate(locs):
+        sid = ids[k] if ids else None
+        if not loc or loc not in at or loc in seen:
+            wrong += 1
+        elif sid is not None and at[loc] is not None and sid != at[loc]:
+            wrong += 1
+        seen.add(loc)
+    return ResumeFit(wrong == 0, rows=len(locs), wrong=wrong)
+
+
+def _ids(fields: "list[str]", rows: "list[str]") -> "list[str]":
+    """The ``SAMPLE_ID`` of every row, unquoted; ``[]`` when there is none."""
+    if "SAMPLE_ID" not in fields:
+        return []
+    i = fields.index("SAMPLE_ID")
+    out = []
+    for ln in rows:
+        parts = ln.split()
+        out.append(parts[i].strip('"') if i < len(parts) else "")
+    return out

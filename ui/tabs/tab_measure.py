@@ -7171,6 +7171,87 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._chart_unreadable_window(detail)
         return True
 
+    def _starts_a_refinement(self, params) -> bool:
+        """Whether this start re-reads a FINISHED measurement of a run that
+        already has a profile: guided refinement from Check & Refine, or the
+        same by hand. A resume that fills in a partial measurement is not."""
+        try:
+            ti1 = getattr(self, "_ti1_path", None)
+            if ti1 is None or not bool(getattr(params, "resume", False)):
+                return False
+            from workflow.measurement_state import Ti3State, classify
+            ti1 = Path(ti1)
+            if classify(ti1.with_suffix(".ti3"),
+                        self._chart_file_for(ti1)).state is not Ti3State.COMPLETE:
+                return False
+            if ti1.parent.name == "cal":
+                return False
+            return Run.for_dir(ti1.parent).built_profile_icc().is_file()
+        except Exception:      # noqa: BLE001 — a question, never a blocker
+            log.debug("could not tell whether this is a refinement",
+                      exc_info=True)
+            return False
+
+    def _refine_rebuild_texts(self) -> "tuple[str, str]":
+        """M-REFINE-REBUILD, with the two tabs named as the tab strip names
+        them."""
+        import re
+        from workflow import measurement_messages as M
+        check = re.sub(r"^\s*\d+\s*[.)]\s*", "",
+                       tr("5. Check & Refine")).strip() or tr("Check & Refine")
+        return M.M_REFINE_REBUILD.render(build_tab=self._profile_tab_name(),
+                                         check_tab=check)
+
+    def _blocked_by_a_misfitting_measurement(self, params) -> bool:
+        """True, and M-RESUME-LAYOUT-DIFFERS shown, when Refine / resume would
+        resume a measurement whose readings are not filed where this chart
+        prints their patches (#211, `measurement_pairing.resume_fit`).
+
+        ChromIQ's engine and ArgyllCMS chartread both put a resumed reading
+        back by its ``SAMPLE_LOC`` alone and write one row per patch of the
+        chart, so such a file comes out with readings on the wrong patches
+        and the rest dropped. On #211 (an i1Profiler measurement converted
+        into the run, 1,680 readings under 420 names) it came out with 424
+        rows; the shrink check put the old file back, and the session's new
+        readings went with it. Asked here, before anything is archived,
+        staged or opened, so a refusal changes nothing.
+        """
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return False
+        resumes = bool(getattr(params, "resume", False))
+        ti3 = Path(ti1).with_suffix(".ti3")
+        staged = self._verification_to_stage()
+        if staged is not None:
+            ti3, resumes = staged, True
+        if not resumes or not ti3.is_file():
+            return False
+        chart = self._chart_file_for(Path(ti1))
+        try:
+            from workflow.measurement_pairing import resume_fit
+            fit = resume_fit(ti3, chart)
+        except Exception:      # noqa: BLE001 — never block a read on this check
+            log.debug("could not compare the measurement with the chart's "
+                      "layout", exc_info=True)
+            return False
+        if fit is None or fit.fits:
+            return False
+        log.warning("Refine / resume refused: %d of the %d readings in %s are "
+                    "not filed where %s prints their patches (#211)",
+                    fit.wrong, fit.rows, ti3, Path(chart).name)
+        from workflow import measurement_messages as M
+        title, body = M.M_RESUME_LAYOUT_DIFFERS.render(
+            wrong=fit.wrong, rows=fit.rows, tab=self._profile_tab_name())
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        if getattr(self, "_sound", None) is not None:
+            try:
+                self._sound.disarm()
+            except Exception:      # noqa: BLE001
+                pass
+        self._say_on_screen(title, body)
+        return True
+
     def _chart_legacy_stock_window(self, detail: str) -> None:
         """M-CHART-LEGACY-STOCK: only ChromIQ's engine can read this sheet,
         and Preferences selects ArgyllCMS chartread."""
@@ -7321,6 +7402,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         params = self._collect_params()
         if not self._confirm_nonrandom_bidir(params):
             return
+        # …and when the measurement it would resume does not fit this chart's
+        # layout (#211): both readers resume BY LOCATION, so carrying on would
+        # put old readings on the wrong patches and drop others. Before the
+        # replace question, the archive and the instrument: nothing is touched.
+        if self._blocked_by_a_misfitting_measurement(params):
+            return
+        # A REFINEMENT: re-reading a finished measurement the run has built a
+        # profile from. Its ending says the profile does not update by itself
+        # (M-REFINE-REBUILD, Basti's suggestion on #211).
+        self._refinement_session = self._starts_a_refinement(params)
         if not self._confirm_replacing_measurement():
             return
 
@@ -7769,6 +7860,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         discarded = bool(getattr(self, "_discard_chosen", False))
         self._discard_chosen = False
         self._ended_by_discard = discarded
+        refinement = bool(getattr(self, "_refinement_session", False))
+        self._refinement_session = False
+        try:
+            wrote = refinement and not discarded and guard.file_written()
+        except Exception:      # noqa: BLE001
+            wrote = False
         try:
             resumed = bool(self._resume_is_active())
             out = guard.finish(resumed=resumed, discarded=discarded)
@@ -7795,6 +7892,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                    "this session wrote is kept beside it so nothing is lost. "
                    "Nothing needs doing right now — measure again when you are "
                    "ready.").format(c0=out.before, c=out.after))
+        elif wrote and out.message_id is None:
+            # A REFINEMENT THAT KEPT ITS READINGS (#211, Basti's suggestion
+            # (a)). It replaces readings rather than adding them, so nothing
+            # else is said here, and the profile the quality check judged is
+            # still the one built from the old readings. In the log always; on
+            # screen unless the "Re-measurement Complete" window, which carries
+            # the same text, has already been shown in this session.
+            title, body = self._refine_rebuild_texts()
+            self._log.appendPlainText(f"\n[{title}]\n{body}")
+            self._log.ensureCursorVisible()
+            if not getattr(self, "_all_done_shown", False):
+                self._say_on_screen(title, body)
         elif out.added:
             # §3: every outcome is reported ON SCREEN, not only in the log —
             # Knut: "The user should always be informed on-screen on events, or
@@ -11702,8 +11811,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                            "successfully.</b>") if n == 1 else
                         tr("<b>All {n} chart strips have been re-measured "
                            "successfully.</b>").format(n=n))
+            import html as _html
+            _rt, _rb = self._refine_rebuild_texts()
+            _rebuild = ("<br><br><b>" + _html.escape(_rt) + "</b><br>"
+                        + _html.escape(_rb).replace("\n", "<br>"))
             msg = QLabel(
-                _opening
+                _opening + _rebuild
                 + tr("<br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b> — keeps chartread running so you can scan additional strips yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between strips, <b>n</b> to jump to the next unread one, and <b>d</b> when you are done. The automatic strip navigation is switched off for the rest of this session."),
                 dlg,
             )

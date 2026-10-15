@@ -6257,6 +6257,88 @@ CONVERT_MESSAGES = (
 )
 
 
+
+# --- PROPOSED: a resume whose readings do not fit the chart's layout (#211) ---
+#: Issue #211 (vezar, 4.3.5-beta.7): a measurement converted from i1Profiler
+#: names its patches by i1Profiler's own sheet (A1 … T21 on each of four
+#: pages), while the run's chart lays the same patches out on strips A to CB.
+#: Both readers resume BY LOCATION, so Refine / resume put the first reading of
+#: each name onto whatever this chart prints there, dropped the other 1,260,
+#: and the shrink check put the old file back with the session's new readings
+#: in it. Measuring on a sheet another program printed is not supported, so
+#: ChromIQ stops BEFORE anything is archived or measured
+#: (`measurement_pairing.resume_fit`, `TabMeasure._blocked_by_a_misfitting_
+#: measurement`). `{tab}` is the Build Profile tab's name.
+M_RESUME_LAYOUT_DIFFERS = _m(
+    "M-RESUME-LAYOUT-DIFFERS",
+    "This measurement does not fit this chart",
+    "ChromIQ cannot carry on with this run's measurement, because {wrong} of "
+    "its {rows} readings are not filed under the place where this chart "
+    "prints that patch.\n\n"
+    "This usually means the measurement was made with another program on a "
+    "sheet that program printed and laid out its own way, for example a "
+    "chart printed and read in i1Profiler, and was then converted or imported "
+    "into this run. The readings themselves are fine, and a profile can be "
+    "built from them. But carrying on puts the readings back onto this "
+    "chart's patches by their place on the sheet, and on this chart those "
+    "places hold other patches: readings would land on the wrong patches, "
+    "and some would be dropped.\n\n"
+    "What you can do:\n"
+    "•  Build the profile from the measurement as it is, on the {tab} tab. "
+    "Nothing about it needs to change for that.\n"
+    "•  To read some patches again, read them in the program that printed "
+    "the sheet, and import its new measurement into ChromIQ again.\n"
+    "•  Or print this run's chart from ChromIQ and measure it from the "
+    "start, with “Refine / resume existing measurement (-r)” switched off.\n\n"
+    "Nothing has been measured, and nothing has been changed.",
+    body_one=(
+        "ChromIQ cannot carry on with this run's measurement, because 1 of "
+        "its {rows} readings is not filed under the place where this chart "
+        "prints that patch.\n\n"
+        "This usually means the measurement was made with another program on "
+        "a sheet that program printed and laid out its own way, for example a "
+        "chart printed and read in i1Profiler, and was then converted or "
+        "imported into this run. The readings themselves are fine, and a "
+        "profile can be built from them. But carrying on puts the readings "
+        "back onto this chart's patches by their place on the sheet, and on "
+        "this chart that place holds another patch: a reading would land on "
+        "the wrong patch, or be dropped.\n\n"
+        "What you can do:\n"
+        "•  Build the profile from the measurement as it is, on the {tab} "
+        "tab. Nothing about it needs to change for that.\n"
+        "•  To read some patches again, read them in the program that printed "
+        "the sheet, and import its new measurement into ChromIQ again.\n"
+        "•  Or print this run's chart from ChromIQ and measure it from the "
+        "start, with “Refine / resume existing measurement (-r)” switched "
+        "off.\n\n"
+        "Nothing has been measured, and nothing has been changed."),
+    count_key="wrong",
+    approved=False)
+
+
+# --- PROPOSED: after a refinement, the profile is not rebuilt by itself ---
+#: Basti, #211 suggestion (a): after Stop + "Save and stop" in a refinement,
+#: and after a refinement that ends normally, nothing said that the profile
+#: the quality check judged is still the one built from the OLD readings. The
+#: "Re-measurement Complete" window offered "Build Profile" and stopped there;
+#: Save and stop said nothing at all, because a refinement of a finished chart
+#: adds no readings (it replaces them), so not even "N patches added" appeared.
+#: `{build_tab}` and `{check_tab}` are the tabs' names as the tab strip shows
+#: them.
+M_REFINE_REBUILD = _m(
+    "M-REFINE-REBUILD",
+    "Your profile has not changed yet",
+    "The patches you read again are saved in this run's measurement. The "
+    "profile you checked was built from the earlier readings, and it does not "
+    "update by itself.\n\n"
+    "To find out whether the new readings helped:\n"
+    "•  Build the profile again on the {build_tab} tab.\n"
+    "•  Then press “Analyse Profile Quality” on the {check_tab} tab again, so "
+    "the new profile is checked against the new measurement.\n\n"
+    "Judge the quality only after both steps.",
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_CAL_FOUND_ENGINE,
@@ -6369,6 +6451,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
     M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
     *CONVERT_MESSAGES,
+    M_RESUME_LAYOUT_DIFFERS, M_REFINE_REBUILD,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.
