@@ -1290,6 +1290,35 @@ class MeasureManager(QObject):
                 self._guided_state = "navigating"
                 self.goto_patch(target)
 
+    def _guided_patch_missing(self, loc: str) -> bool:
+        """The engine refused to jump to *loc* (``patch_not_found``): the
+        chart has no such patch. If it is the guided patch the reader is
+        being taken to, it is left out of the list; True when that ended
+        the list after at least one guided patch was read (the caller
+        announces the completion).
+
+        Without this the guide asked again at every ``spot_ready``, and the
+        engine answers a jump it cannot make with an error and a
+        ``spot_ready`` for the patch it is still on: an endless loop, one
+        "Patch not found" after another (review of 4.3.5 beta 8; a
+        refinement list that names a patch the chart does not have, from a
+        check of another file). The tab already leaves such patches out
+        (`TabMeasure._guided_patches`); this is the guard behind it."""
+        if (not self._guided_by_patch or not self._guided_strips
+                or self._guided_state != "navigating"
+                or self._guided_idx >= len(self._guided_strips)):
+            return False
+        target = self._guided_strips[self._guided_idx]
+        if str(loc).strip().lower() != target.strip().lower():
+            return False
+        log.warning("guided refinement: patch %s is not on this chart, so "
+                    "the guide leaves it out", target)
+        del self._guided_strips[self._guided_idx]
+        if self._guided_idx < len(self._guided_strips):
+            return False             # the next spot_ready goes to the next one
+        self._guided_state = "idle_done"
+        return self._guided_idx > 0
+
     def _guided_patch_read(self, loc: str, on_line) -> bool:
         """Patch *loc* was read (``patch_read``). True when that finished the
         guided list (the caller announces the completion)."""
@@ -3026,6 +3055,12 @@ class MeasureManager(QObject):
                               "window")
                     return
                 self.strip_error.emit(detail or "misread")
+            elif ekind == "patch_not_found":
+                # A goto the engine could not make. During guided refinement
+                # patch by patch, leave that patch out instead of asking for
+                # it again at the next spot_ready (review of beta 8).
+                if self._guided_patch_missing(str(ev.get("detail") or "")):
+                    self.all_stripes_done.emit()
             elif ekind == "chart_refused":
                 # #159. The helper refuses a chart whose TARGET_INSTRUMENT it
                 # reads itself and stock chartread does not know at all. It

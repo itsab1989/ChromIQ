@@ -189,7 +189,10 @@ def test_eight_files_skip_wholesale_without_it():
     # of a refinement, and collapsing a measurement whose names repeat.
     # 12 in part once both met (b8 merge, 2026-10-15): #210's safety net
     # read on a real print.
-    assert len(whole) == 10 and len(partial) == 12, (
+    # 13 in part after the beta 8 review (2026-10-16): the engine's answer
+    # to a jump it cannot make, which guided refinement patch by patch
+    # relies on.
+    assert len(whole) == 10 and len(partial) == 13, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

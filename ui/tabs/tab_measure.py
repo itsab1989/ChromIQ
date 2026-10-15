@@ -5646,18 +5646,26 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         holds strips only; then every patch of its strips, in chart order,
         and the log says why."""
         listed = list(getattr(self, "_refine_patch_list", None) or [])
-        if listed:
-            return listed
         strips = set(self._strip_list or [])
-        if not strips:
+        if not listed and not strips:
             return []
         try:
-            from workflow.measurement_report import parse_ti3
-            chart = parse_ti3(Path(self._chart_file_for(self._ti1_path)))
-            locs = [str(x) for x in (chart.sample_locs or [])]
+            from workflow.measurement_pairing import chart_locations
+            locs = chart_locations(self._chart_file_for(self._ti1_path))
         except Exception:      # noqa: BLE001 — no chart, no guide
             log.debug("could not list the chart's patches", exc_info=True)
             return []
+        if listed:
+            # ONLY PATCHES THIS CHART HAS (review of beta 8). The engine
+            # cannot jump to any other, and asking it to looped for ever; a
+            # list from a check of another file can name one.
+            on_chart = {l.upper() for l in locs}
+            kept = [l for l in listed if l.upper() in on_chart]
+            if len(kept) != len(listed):
+                log.warning("guided refinement: %s not on this chart, left "
+                            "out", ", ".join(l for l in listed
+                                             if l.upper() not in on_chart))
+            return kept
         from workflow.patch_flags import sorted_locs
         out = sorted_locs(l for l in locs if self._strip_of(l) in strips)
         if out:

@@ -2108,7 +2108,7 @@ def pytest_report_header(config):
         out.append(f"  chart-reading engine: helper PRESENT at {helper}")
     else:
         out.append("  chart-reading engine: helper ABSENT - 10 files SKIP "
-                   "WHOLESALE and 12 more skip in")
+                   "WHOLESALE and 13 more skip in")
         out.append("      part (85 tests when this was last measured, "
                    "2026-09-03), and a chart-reading")
         out.append("      engine deleted outright would still pass. The "
