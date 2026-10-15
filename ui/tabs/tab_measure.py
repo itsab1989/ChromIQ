@@ -17198,6 +17198,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         a = facts.expected
         c = facts.held or 0
         path = str(ti3)
+        # The partial message names DESIGN patches read, not rows: the rows
+        # include the layout engine's fill-up squares (`patches_read`).
+        read = facts.patches_read or 0
 
         if facts.state is Ti3State.MISMATCHED:
             extra = ""
@@ -17238,7 +17241,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.warning("chart patch count unreadable for %s", ti3)
             return M.M_REPLACE_UNCOUNTABLE.render(path=path)
 
-        return M.M_REPLACE_PARTIAL.render(c=c, a=a, path=path)
+        return M.M_REPLACE_PARTIAL.render(c=read, a=a, path=path)
 
     def _confirm_replacing_measurement(self) -> bool:
         """Ask before a fresh read writes over a measurement that is already there.

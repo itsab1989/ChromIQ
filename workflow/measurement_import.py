@@ -204,7 +204,7 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             # to stop asking whether they are readings of this chart at all.
             partial = True
         else:
-            partial = False
+            partial = _design_patches_unread(ti3, chart_ti2)
 
     else:
         partial = False
@@ -335,7 +335,7 @@ def _assess_non_rgb(ti3: Path, chart_ti2: "Path | None",
                 "holds {got} measurements, so it is a measurement of a "
                 "different chart"
             ).format(chart=n_sheet, got=n_got), n_chart=n_chart, n_measured=n_got)
-        partial = n_got < n_chart
+        partial = n_got < n_chart or _design_patches_unread(ti3, chart_ti2)
 
     from workflow.measurement_report import PATCH_IDENTITY_TOL
     differs = device_values_differ(chart_ti2, ti3, tol=PATCH_IDENTITY_TOL)
@@ -453,6 +453,22 @@ def _chart_patch_count(ti2: "Path | None") -> int:
         return 0
     from workflow.measurement_state import expected_patches
     return int(expected_patches(Path(ti2)) or 0)
+
+
+def _design_patches_unread(ti3: Path, ti2: "Path | None") -> bool:
+    """Whether a measurement holding at least as many rows as the design has
+    patches still lacks a reading for one of them, judged by location.
+
+    A count is not enough on a chart from ChromIQ's layout engine: its fill-up
+    squares carry real ids and are read with the rest, so a file two design
+    patches short can hold as many rows as the design asks for. The same
+    question `measurement_state.classify` asks (4.3.5 beta 8); ``False`` when
+    the files cannot be compared by location, which keeps the count's answer.
+    """
+    if ti2 is None:
+        return False
+    from workflow.measurement_state import unread_design_locations
+    return bool(unread_design_locations(ti3, ti2))
 
 
 def _chart_sheet_count(ti2: "Path | None") -> int:

@@ -4624,7 +4624,7 @@ class TabProfile(QWidget):
                 "from part of a chart describes your printer only where it was "
                 "measured. To fill in the rest, go back to Measure and tick "
                 "“Refine / resume existing measurement (-r)”."
-                ).format(held=facts.held, expected=facts.expected))
+                ).format(held=facts.patches_read, expected=facts.expected))
         else:
             self._build_btn.setToolTip("")
         # AND ON THE LABEL, not only in a tooltip nobody hovers over.
@@ -4638,7 +4638,7 @@ class TabProfile(QWidget):
                 and facts.expected):
             self._file_lbl.setText(tr("{path}  —  {held} of {expected} patches "
                                       "measured").format(
-                path=path, held=facts.held, expected=facts.expected))
+                path=path, held=facts.patches_read, expected=facts.expected))
         elif not usable:
             self._file_lbl.setText(tr("{path}  —  no readings yet").format(
                 path=path))
