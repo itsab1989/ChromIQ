@@ -249,6 +249,14 @@ def _tab_print():
     return TabPrint(AppSettings(), None), "set_appearance"
 
 
+def _tab_profile():
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_profile import TabProfile
+    st = AppSettings()
+    return TabProfile(ArgyllRunner(st), st), "set_appearance"
+
+
 def _glyph_accent_button():
     """The mixin the six painted glyph buttons take `set_appearance` FROM.
 
@@ -349,6 +357,8 @@ COMPONENTS = [
     ("WelcomeDialog",        _welcome_dialog,        "_mode"),
     ("TabMeasure",           _tab_measure,           "_mode"),
     ("TabPrint",             _tab_print,             "_mode"),
+    # 4.3.5 beta 7: its file notes take a grey per appearance.
+    ("TabProfile",           _tab_profile,           "_mode"),
     ("GlyphAccentButton",    _glyph_accent_button,   "_mode"),
     # These six were `None` — their `set_appearance` was a documented no-op,
     # "accent colour is theme-independent". That was true while both

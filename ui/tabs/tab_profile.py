@@ -1667,7 +1667,10 @@ class TabProfile(QWidget):
 
     def set_appearance(self, mode: str) -> None:
         """MainWindow.apply_theme's broadcast: the file notes take the new
-        appearance's grey (``_note_ink``)."""
+        appearance's grey (``_note_ink``). The mode is kept, as every
+        component that takes an appearance keeps it
+        (tests/test_set_appearance_takes_three.py)."""
+        self._mode = mode
         for lbl in (getattr(self, "_file_lbl", None),
                     getattr(self, "_pc_ti3_lbl", None)):
             if lbl is not None and lbl.property(_NOTE_INK):

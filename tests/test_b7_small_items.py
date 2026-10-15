@@ -61,7 +61,7 @@ def test_a_theme_change_repaints_the_note(qapp):
     lbl, path = QLabel("No file selected"), QLabel("/a/b.ti3")
     _paint_note(lbl, "dark")
     path.setStyleSheet("font-size: 11px;")
-    me = types.SimpleNamespace(_file_lbl=lbl, _pc_ti3_lbl=path)
+    me = types.SimpleNamespace(_file_lbl=lbl, _pc_ti3_lbl=path, _mode=None)
     TabProfile.set_appearance(me, "light")
     assert _note_ink("light") in lbl.styleSheet()
     assert "color" not in path.styleSheet(), "a loaded path keeps the text ink"
