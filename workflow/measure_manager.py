@@ -932,6 +932,8 @@ class MeasureManager(QObject):
         self._stock_strip = ""
         self._stock_patch = ""
         self._stock_all_read_at_start = False
+        self._stock_warned = None
+        self._stock_menu_line = ""
         try:
             from workflow.measurement_pairing import chart_locations
             ti2 = getattr(self, "_chart_ti2", None)
@@ -985,6 +987,31 @@ class MeasureManager(QObject):
         if locs:
             self.stock_strip_read.emit(
                 {"strip": strip, "patches": [{"loc": x} for x in locs]})
+
+    def _stock_kept_after_warning(self, menu_line: str) -> None:
+        """Count a strip stock chartread kept after its "very unexpected
+        response" question, which says nothing when Return keeps it.
+
+        Called with the strip menu that follows the question. A retry
+        returns to the SAME menu line (chartread.c 1898: ``continue``, the
+        strip and its "read" mark unchanged); a kept strip moves on to the
+        next unread one, or, when none is left, comes back marked "(This row
+        has been read)" or "(!! ALL ROWS READ !!)" (1949-1952, 1520). So a
+        different menu line means the strip was kept. The one case this
+        cannot tell apart, a strip read again on a chart already read whole,
+        changes no patch's count and only leaves that re-read out of "You
+        have read {n} patches".
+        """
+        warned = getattr(self, "_stock_warned", None)
+        self._stock_warned = None
+        if not warned:
+            return
+        strip, menu_before = warned
+        if not strip or menu_line.strip() == menu_before:
+            return
+        self._read_something = True
+        self._stock_strip = strip
+        self._count_stock_read(" Strip read OK")
 
     def _handle_cal_failed(self, detail: str,
                            on_line: Callable[[str], None]) -> None:
@@ -3130,7 +3157,17 @@ class MeasureManager(QObject):
         # The "Are you sure [y/n]" auto-answer belonged to the old strip-menu
         # chain and is unreachable now that Save-Partial is two 'q' commands. The
         # user-driven prompt above (_UNREAD_CONFIRM_RE) is untouched.
+        if _UNEXPECTED_RESP_RE.search(line):
+            # "There is at least one patch with an very unexpected response!"
+            # (chartread.c 1885). Return there KEEPS the strip without ever
+            # printing " Strip read OK" (1899-1900: it breaks out of the retry
+            # loop straight to saving the values), so the read is known only
+            # from the menu that follows (see _stock_kept_after_warning).
+            self._stock_warned = (getattr(self, "_stock_strip", ""),
+                                  getattr(self, "_stock_menu_line", ""))
         if _STRIP_MENU_RE.search(line):
+            self._stock_kept_after_warning(line)
+            self._stock_menu_line = line.strip()
             # The strip a following "Strip read OK" belongs to: only the
             # menu's own line, never "Seem to have read strip pass B rather
             # than A", after which chartread files the reading as A.

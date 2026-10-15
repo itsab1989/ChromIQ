@@ -191,3 +191,52 @@ def test_fill_up_squares_are_not_counted_as_patches_read(tmp_path):
     feed(_menu("C"))
     feed(" Strip read OK")
     assert mgr.readings_this_session == PER
+
+
+_UNEXPECTED = ("There is at least one patch with an very unexpected response! "
+               "(DeltaE 123.400000)")
+
+
+def test_a_strip_kept_after_the_unexpected_response_question_counts(tmp_path):
+    """chartread.c 1885-1900: Return at "very unexpected response" keeps the
+    strip and breaks out WITHOUT printing " Strip read OK". Found driving the
+    Measure tab on screen (review of beta 7): one strip kept that way left
+    "16 patches still have no reading" on a chart read whole, and the ending
+    window said 374 patches for 390."""
+    mgr, feed, strips, _ = _stock(tmp_path)
+    feed(_menu("A"))
+    feed(_UNEXPECTED)
+    feed("Hit Return to use it anyway, any other key to retry, Esc or  'q' to give up:")
+    feed(_menu("B"))                     # kept: on to the next unread strip
+    assert [s["strip"] for s in strips] == ["A"]
+    assert mgr.readings_this_session == PER
+    assert mgr.has_unsaved_readings
+
+
+def test_a_retry_after_the_unexpected_response_question_counts_nothing(tmp_path):
+    """Any other key retries: chartread prints the same menu again."""
+    mgr, feed, strips, _ = _stock(tmp_path)
+    feed(_menu("A"))
+    feed(_UNEXPECTED)
+    feed(_menu("A"))
+    assert strips == [] and mgr.readings_this_session == 0
+    feed(" Strip read OK")               # the retry is read normally
+    feed(_menu("B"))
+    assert [s["strip"] for s in strips] == ["A"]
+    assert mgr.readings_this_session == PER
+
+
+def test_the_last_strip_kept_after_the_question_completes_the_chart(tmp_path):
+    """No unread strip left: chartread stays on it, now marked ALL ROWS READ,
+    and the count is in before that line raises "all done"."""
+    mgr, feed, strips, _ = _stock(tmp_path)
+    for s in "AB":
+        feed(_menu(s))
+        feed(" Strip read OK")
+    done = []
+    mgr.all_stripes_done.connect(lambda: done.append(len(strips)))
+    feed(_menu("C"))
+    feed(_UNEXPECTED)
+    feed(_menu("C", done=True))
+    assert [s["strip"] for s in strips] == ["A", "B", "C"]
+    assert done == [3], "counted before the completion is announced"
