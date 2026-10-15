@@ -38,9 +38,10 @@ def test_the_beeps_sentence_is_gone_and_the_list_is_there():
     assert "—" not in body
     assert "{reason}" in body
     bullets = [ln for ln in body.split("\n") if ln.startswith("•")]
-    assert len(bullets) == 7, bullets
+    assert len(bullets) == 9, bullets
     assert "progress" not in body, "stock chartread's reads are counted now"
     for word in ("sounds", "reading speed", "outlines", "read twice",
+                 "confirmed (yellow)", "still unread",
                  "saved only when", "wrong strip", "Calibrate"):
         assert word in body, word
 
@@ -50,7 +51,8 @@ def test_every_language_carries_the_new_text_and_not_the_old():
         d = json.loads(f.read_text(encoding="utf-8"))
         assert M.M_ENGINE_FELL_BACK.body in d, f.name
         text = d[M.M_ENGINE_FELL_BACK.body]
-        assert text.count("•") == 7 and "{reason}" in text, f.name
+        assert text.count("•") == 9 and "{reason}" in text, f.name
+        assert "—" not in text, f.name
         assert not [k for k in d if "double every one of them" in k], f.name
 
 
@@ -169,3 +171,11 @@ def test_the_preview_speed_and_progress_hang_on_engine_signals():
     for guarded in (T._on_preview_strip_clicked, T._on_preview_patch_clicked,
                     T._set_autosave_banner):
         assert "engine_active" in inspect.getsource(guarded)
+
+
+def test_the_next_or_unread_question_is_the_engines_only():
+    """The bullet "ChromIQ does not ask whether to carry on with the next one
+    or jump to one that is still unread" (review of beta 7)."""
+    src = inspect.getsource(MeasureManager._after_a_read)
+    assert "not self._engine_active" in src
+    assert "_after_a_read" not in inspect.getsource(MeasureManager._handle_line)

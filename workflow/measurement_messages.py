@@ -2871,6 +2871,12 @@ M_END_WRITTEN = _m(
 #:   check), hover values and the next patch's highlight: `_on_strip_measured`,
 #:   `_on_patch_measured` and `_on_patch_ready`, the same engine-only signals;
 #: * "Was a strip read twice?": `strip_read_twice`, engine only;
+#: * a re-read confirming a patch (yellow): `patch_flags.FlagJudge.judge` lets only a
+#:   live reading confirm, and stock chartread hands over no reading until
+#:   its file is written (review of beta 7);
+#: * "Continue to next / Jump to unread" (M-UNREAD-NEXT-OR-JUMP):
+#:   `_after_a_read` returns at once unless the engine is active;
+#:   chartread moves on by itself (review of beta 7);
 #: * (not the progress: since 4.3.5 beta 7 stock chartread's accepted reads
 #:   are counted too, `stock_strip_read` / `stock_patch_read`);
 #: * saving after every strip: the engine's `.ti3` autosave
@@ -2896,6 +2902,11 @@ M_ENGINE_FELL_BACK = _m(
     "outlines (patch error limit and neighbour check) and no values on hover. "
     "Patch by patch, it does not highlight the next patch.\n"
     "•  “Was a strip read twice?” is not asked.\n"
+    "•  A patch you read again in this measurement is not marked as "
+    "confirmed (yellow), even when the reading comes back the same.\n"
+    "•  After you read a strip or patch again, ChromIQ does not ask whether "
+    "to carry on with the next one or jump to one that is still unread: "
+    "ArgyllCMS decides where to go next.\n"
     "•  Your readings are saved only when the measurement ends, not after "
     "every strip.\n"
     "•  A wrong strip or a very unexpected reading is not shown in a window: "

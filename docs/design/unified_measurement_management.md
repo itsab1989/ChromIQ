@@ -5430,6 +5430,8 @@ sheet unrecorded, exactly as today.*
 > •  There is no reading speed check.
 > •  The preview shows no measured colours, no red, yellow or green outlines (patch error limit and neighbour check) and no values on hover. Patch by patch, it does not highlight the next patch.
 > •  “Was a strip read twice?” is not asked.
+> •  A patch you read again in this measurement is not marked as confirmed (yellow), even when the reading comes back the same.
+> •  After you read a strip or patch again, ChromIQ does not ask whether to carry on with the next one or jump to one that is still unread: ArgyllCMS decides where to go next.
 > •  Your readings are saved only when the measurement ends, not after every strip.
 > •  A wrong strip or a very unexpected reading is not shown in a window: ArgyllCMS asks about it in the output field below. Answer with the key it names there.
 > •  Calibrate (the K key) and clicking a strip or patch in the preview to go to it are not available.
@@ -5445,8 +5447,10 @@ sheet unrecorded, exactly as today.*
 | preview colours, outlines, hover values | `_on_strip_measured` / `_on_patch_measured` (the patch error limit, the neighbour check, the cards) hang on `strip_measured` / `patch_measured`, engine only; so does the closing window's list of suspected misreads | proved |
 | next patch highlight | `_on_patch_ready`, engine only; stock chartread's "Ready to read patch" gives a status line | code |
 | "Was a strip read twice?" | `strip_read_twice`, engine only (`_read_twice_was_active` asks `engine_active`) | code |
+| a re-read confirming a patch (yellow) | `patch_flags.FlagJudge.judge` lets only a live reading confirm (`live=True`); stock chartread hands over no reading until it writes its file, so a strip or patch read twice in the session leaves only its last reading. Added in the review of 4.3.5 beta 7 | code |
+| "Continue to next / Jump to unread" | `MeasureManager._after_a_read` returns unless the engine is active (Knut, 5958921500 Q2: *"This function only applies to ChromIQ measurement engine"*); chartread moves on by itself, to the next unread strip, or patch by patch to the next patch (chartread.c 1486, 2421). Added in the review of 4.3.5 beta 7 | code |
 | saved after every strip | the engine writes the `.ti3` after every accepted strip (`readings_saved`, the auto-save note); stock chartread writes it on a clean ending only (§0) | proved (no note), code |
-| wrong strip, unexpected reading | the windows answer the engine's typed events (`wrong_strip`, `unexpected_response`); `_WRONG_STRIP_RE` and `_UNEXPECTED_RESP_RE` are matched nowhere, so chartread's own prompts (chartread.c 1854, 1887) reach the log only, where the user's key is passed on | code |
+| wrong strip, unexpected reading | the windows answer the engine's typed events (`wrong_strip`, `unexpected_response`); the stock parser raises neither window (it reads "very unexpected response" only to count a strip kept there), so chartread's own prompts (chartread.c 1854, 1887) reach the log only, where the user's key is passed on | code |
 | Calibrate, click to go | `can_calibrate_on_request` and `_on_preview_strip_clicked` / `_on_preview_patch_clicked` require the live engine | proved |
 
 Not on the list because it still works on stock chartread: the progress percentage (since 4.3.5 beta 7 each strip or patch stock chartread accepts is counted from the chart, `stock_strip_read` / `stock_patch_read`; before, it stayed where the session started, and a fresh chart read whole ended on "N patches still have no reading"), the strip highlight, f / b / n / d, the misread, instrument-error and sensor-position windows, Save and stop, the "Are you sure" question on unread patches, the measurement-finished sound.
