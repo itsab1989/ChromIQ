@@ -72,3 +72,20 @@ def test_what_the_help_says_is_what_the_judge_does():
     assert v.flag is FLAG_RED
     v = j.judge("A1", exp, meas, 30.0, True, strip="A", limit=10.0)
     assert v.flag is FLAG_CONFIRMED
+
+
+def test_the_closing_summary_ends_a_cut_list_with_one_stop():
+    """"113 misreads corrected by a re-read: patches A9, …, B12…." (seen on
+    screen in the review of beta 8): the "…" ends the sentence."""
+    import types
+    from ui.tabs.tab_measure import TabMeasure
+    fixed = [f"A{i}" for i in range(1, 14)]
+    stub = types.SimpleNamespace(
+        _is_verification_run=lambda: False,
+        _expected_is_predicted=lambda: False,
+        neighbour_summary_facts=lambda: None,
+        corrected_locs=lambda: fixed,
+        _strips_read_again=[],
+        _read_twice_was_active=lambda: False)
+    text = TabMeasure._misread_summary(stub)
+    assert "A10…" in text and "…." not in text and text.endswith("…")

@@ -15607,7 +15607,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 else:
                     lines.append(tr(M._SUM_TWICE).format(
                         n=len(items), list=", ".join(items)))
-            return "\n".join(lines)
+            # A list cut short with "…" ends the sentence there, never
+            # "B12…." (the cards' rule since a0d169b7e; the closing window's
+            # lists still printed both, review of beta 8).
+            return "\n".join(l.replace("….", "…") for l in lines)
         except Exception:      # noqa: BLE001 — a summary must never block a read
             log.debug("could not sum up the suspected misreads", exc_info=True)
             return ""
