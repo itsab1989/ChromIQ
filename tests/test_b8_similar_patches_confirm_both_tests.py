@@ -696,3 +696,41 @@ def test_a_list_cut_short_ends_with_one_stop(qapp):
     v = _settle(j)["A1"]
     text, _ = _card(qapp, "A1", v, pe=True, nb=False)
     assert "read in other strips: B1, C1, D1…" in text and "…." not in text
+
+
+# ---- review of beta 8: the on-screen matrix's two card faults -----------------
+def test_row_09_card_carries_no_range_block(qapp):
+    """§10.12.5 row 9 names no range block (row 10 has none either); the
+    card showed "Colour range: …" and "1 of 3 confirmations so far"."""
+    j = _judge()
+    _read(j, "A1", pe=False, nb=True)
+    v = _read(j, "A1", pe=False, nb=True)
+    assert v.flag == pf.FLAG_CONFIRMED and v.nb_state == "reread"
+    text, lines = _card(qapp, "A1", v, pe=False, nb=True)
+    rng = M._CARD_RANGE.split("{")[0].strip()
+    assert rng not in text
+    assert M._CARD_RANGE_SO_FAR.format(k=1) not in text
+
+
+def test_row_04_card_keeps_its_range_block(qapp):
+    j = _judge()
+    _read(j, "A1")
+    v = _read(j, "A1")
+    assert v.flag == pf.FLAG_CONFIRMED and v.pe_state == "reread"
+    text, lines = _card(qapp, "A1", v, pe=True, nb=False)
+    assert M._CARD_RANGE_SO_FAR.format(k=1) in text
+
+
+def test_row_12_card_says_how_far_the_range_has_got(qapp):
+    """§10.12.5 row 12 lists the range block, which includes
+    _CARD_RANGE_SO_FAR; the "RED FOR BOTH REASONS" card left it out."""
+    j = _judge()
+    _read(j, "R1", REFS["R1"])
+    _read(j, "R1", REFS["R1"])                # one confirmation in blue
+    v = _read(j, "A1", nb=True)
+    v = _settle(j).get("A1", v)
+    assert v.flag is pf.FLAG_RED and (v.pe_state, v.nb_state) == ("red", "red")
+    assert v.range_k == 1
+    text, lines = _card(qapp, "A1", v, pe=True, nb=True)
+    assert M._CARD_RANGE_SO_FAR.format(k=1) in text
+    assert M._CARD_RANGE_SAME.format(locs="R1") in text

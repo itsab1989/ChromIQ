@@ -1347,9 +1347,13 @@ class _PatchInfoTile(QWidget):
             limit_line()
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             add_real_lines()
-            if rng in _mm.RANGE_NAMES:
+            if limit_hit and rng in _mm.RANGE_NAMES:
                 # A confirmed patch stays yellow whether its range has
                 # learned or not; the card says how far the range has got.
+                # Only when the patch error limit flags it: §10.12.5 row 9
+                # (the neighbour check alone, confirmed by its own re-read)
+                # names no range block, as row 10 does not (review of
+                # beta 8, the on-screen matrix's S09).
                 rows.append((None, ""))
                 add_range_line()
                 rows.append((None, tr(_mm._CARD_RANGE_CONFIRMED_LEARNED)
@@ -1458,6 +1462,12 @@ class _PatchInfoTile(QWidget):
                 # read as belonging to no range.
                 if rng in _mm.RANGE_NAMES:
                     add_range_line()
+                    # §10.12.5 row 12: the range block, so "k of 3
+                    # confirmations so far" as on row 2's card (review of
+                    # beta 8, the on-screen matrix's S12b).
+                    if 1 <= range_k < 3:
+                        rows.append((None, tr(_mm._CARD_RANGE_SO_FAR).format(
+                            k=range_k)))
                     add_confirmed_list()
                     rows.append((None, ""))
                 nb_reread()
