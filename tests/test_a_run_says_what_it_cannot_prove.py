@@ -185,7 +185,8 @@ def test_eight_files_skip_wholesale_without_it():
     # 10 and 9 since the strip-pattern merge (2026-10-03): the calibrate-
     # during-a-measurement tests and the Bluetooth-port guard on one side, the
     # legacy-label replay tests and the 22 pattern variants on the other.
-    assert len(whole) == 10 and len(partial) == 10, (
+    # 11 in part since #210 (2026-10-15): the safety net read on a real print.
+    assert len(whole) == 10 and len(partial) == 11, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")
