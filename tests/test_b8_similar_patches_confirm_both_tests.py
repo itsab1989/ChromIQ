@@ -686,3 +686,13 @@ def test_the_neighbour_check_still_takes_neighbours_from_the_same_strip():
     nc.evaluate()
     found = nc.finding("A1")
     assert found is not None and set(found.compared) == {"A2", "A3"}
+
+
+def test_a_list_cut_short_ends_with_one_stop(qapp):
+    """More than three similar patches: "B1, C1, D1…", never "D1…."."""
+    j = _judge()
+    for loc in ("A1", "B1", "C1", "D1", "E1"):
+        _read(j, loc)
+    v = _settle(j)["A1"]
+    text, _ = _card(qapp, "A1", v, pe=True, nb=False)
+    assert "read in other strips: B1, C1, D1…" in text and "…." not in text

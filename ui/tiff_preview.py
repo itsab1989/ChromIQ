@@ -1186,6 +1186,11 @@ class _PatchInfoTile(QWidget):
 
         range_locs = [str(v) for v in (info.get("range_locs") or ())]
 
+        def one_stop(text: str) -> str:
+            """A list cut short with "…" at the end of a sentence ends
+            there: "B6…", never "B6…." (4.3.5 beta 8)."""
+            return text.replace("….", "…")
+
         def first_three(locs) -> str:
             """The first three, then "…": a list, never a counted phrase."""
             locs = [str(v) for v in locs]
@@ -1198,8 +1203,8 @@ class _PatchInfoTile(QWidget):
                 return
             # a sentence since 4.3.5 beta 8 (Knut 6191537939), wrapped by
             # the card
-            add_text(tr(_mm._CARD_RANGE_SAME).format(
-                locs=first_three(range_locs)))
+            add_text(one_stop(tr(_mm._CARD_RANGE_SAME).format(
+                locs=first_three(range_locs))))
 
         def misfit_lines(misfit) -> "list[str]":
             return card_misfit_lines(misfit, loc)
@@ -1249,8 +1254,8 @@ class _PatchInfoTile(QWidget):
 
         def peers_text(one: str, many: str, locs) -> str:
             """A similar-patch sentence for one patch or for more."""
-            return tr(one if len(locs) == 1 else many).format(
-                locs=first_three(locs), loc=loc)
+            return one_stop(tr(one if len(locs) == 1 else many).format(
+                locs=first_three(locs), loc=loc))
 
         def nb_reread() -> None:
             """N2: what can still confirm a neighbour-check red."""
@@ -1369,8 +1374,8 @@ class _PatchInfoTile(QWidget):
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             add_range_line()
             if range_locs:
-                add_text(tr(_mm._CARD_RANGE_SAME).format(
-                    locs=first_three(range_locs)))
+                add_text(one_stop(tr(_mm._CARD_RANGE_SAME).format(
+                    locs=first_three(range_locs))))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_1)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_2)))
