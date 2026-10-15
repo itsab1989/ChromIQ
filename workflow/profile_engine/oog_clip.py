@@ -431,6 +431,8 @@ A67_LIFT_TOKEN = "a67-liftchroma"
 # L* (weights, a67_cam_wc); range CHROMIQ_A67_CAM "lo:hi"
 A67_CAM_TOKEN = "a67-camratio"
 A67_CAM = (0.35, 3.0)
+A67_CAMFLOOR_TOKEN = "a67-camratio-floor"
+A67_CAMFLOOR = (2.0, 10.0)
 A67_LIFT = (3.0, 8.0)
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
@@ -733,6 +735,17 @@ def weights(target_s: np.ndarray, p: dict = PARAMS,
         # our wj 4 the chroma weight is (sC / sJ)^2 (dark red ~2.8, dark
         # yellow ~0.7, light spring / cyan ~0.45), held to A67_CAM range.
         wc = a67_cam_wc(target_s, p["a67_cam"])
+        fb = p.get("a67_camfloor")
+        fl = dark_floor() if fb else None
+        if fl is not None:
+            # a67-camratio-floor: near the table's black the weight hands
+            # back to the engine's lightness-first one (smoothstep over
+            # floor + fb[0] .. floor + fb[1]): a chroma-keeping weight there
+            # turned ramps lighter again just above the black (i1iSis mid
+            # green: printed L* 28.3 -> 29.9 while the source darkened)
+            v = np.clip((target_s[:, 0] - fl - fb[0]) / max(fb[1] - fb[0], 1e-9), 0.0, 1.0)
+            v = v * v * (3.0 - 2.0 * v)
+            wc = p["wc"] + (wc - p["wc"]) * v
     if p.get("a67_dc") and not p.get("a51") and getattr(_REL, "on", False):
         # Agent 67 (a67-darkchroma): colprof's chroma : lightness ratio in
         # the dark (ink devices, colorimetric table only)
