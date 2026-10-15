@@ -969,7 +969,7 @@ def _card_join_firsts(loc: str = "") -> "set[str]":
         "A real difference this printer and", _mm._CARD_RANGE_LEARNED_1,
         _mm._CARD_RANGE_LANDED_1, _mm._CARD_VERIFY_LEARNED,
         _mm._CARD_RANGE_LEARNED_3, _mm._CARD_UNSETTLED_TWO_1,
-        _mm._CARD_UNSETTLED_3, _mm._CARD_NB_REREAD_1,
+        _mm._CARD_UNSETTLED_3,
         _mm._CARD_LATER_PROFILE_2, _mm._CARD_LATER_PROFILE_3,
         _mm._CARD_LATER_PROFILE_5, _mm._CARD_VERIFY_RED_2,
         "Either a misread, or a colour", "Same value after a re-read:",
@@ -1196,8 +1196,10 @@ class _PatchInfoTile(QWidget):
             5973177088), while it has not learned."""
             if not range_locs or range_k >= 3:
                 return
-            rows.append((None, tr(_mm._CARD_RANGE_SAME).format(
-                locs=first_three(range_locs))))
+            # a sentence since 4.3.5 beta 8 (Knut 6191537939), wrapped by
+            # the card
+            add_text(tr(_mm._CARD_RANGE_SAME).format(
+                locs=first_three(range_locs)))
 
         def misfit_lines(misfit) -> "list[str]":
             return card_misfit_lines(misfit, loc)
@@ -1231,12 +1233,28 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED).format(loc=loc)))   # Knut 5980576263
 
         peer_locs = [str(v) for v in (info.get("peer_locs") or ())]
+        # EACH TEST ON ITS OWN (Knut, #182 6196599132, confirming "two
+        # tests, one outline" of 6188067361): what the patch error limit
+        # (pe) and the neighbour check (nb) each concluded, and the similar
+        # patches that confirm the neighbour check's part.
+        pe_state = str(info.get("pe_state", "") or "")
+        nb_state = str(info.get("nb_state", "") or "")
+        nb_peer_locs = [str(v) for v in (info.get("nb_peer_locs") or ())]
         # THE NEIGHBOUR CHECK (#182 beta 11, Knut 5983470377 item 5): a
         # patch whose reading does not fit the patches nearest in colour is
         # red even below the limit. *limit_hit*: the limit flagged it too.
         nb = info.get("neighbour") or None
         limit_hit = bool(info.get("warn"))
         flagged = limit_hit or bool(nb)
+
+        def peers_text(one: str, many: str, locs) -> str:
+            """A similar-patch sentence for one patch or for more."""
+            return tr(one if len(locs) == 1 else many).format(
+                locs=first_three(locs), loc=loc)
+
+        def nb_reread() -> None:
+            """N2: what can still confirm a neighbour-check red."""
+            add_text(tr(_mm._CARDS_NB_REREAD).format(loc=loc))
 
         def nb_fmt(text: str) -> str:
             """A neighbour-check sentence with the patch's figures: Knut's
@@ -1274,25 +1292,37 @@ class _PatchInfoTile(QWidget):
                 kind=kind_phrase(), loc=loc)
 
         def limit_line() -> None:
-            """Why it was red: the patch error limit, or, for a patch only
-            the neighbour check flagged, the neighbour check."""
+            """Why it was red: the patch error limit, the neighbour check,
+            or both (one re-read confirms both, 6188067361 N5)."""
             if limit_hit:
                 add_text(limit_sentence(yellow=True))
-            elif nb:
+            if nb:
                 add_text(nb_fmt(_mm._CARDP_NB_YELLOW))
 
-        if flagged and flag == "confirmed" and peer_locs:
-            # YELLOW, CONFIRMED BY SIMILAR PATCHES (Knut, #182 5979886227):
-            # patches of other strips, expected nearly the same colour, are
-            # off in the same way. Set apart like the re-read card.
+        if flagged and flag == "confirmed" and (peer_locs or nb_peer_locs):
+            # YELLOW, CONFIRMED BY SIMILAR PATCHES (Knut, #182 6196599132):
+            # patches of the same colour range, read in other strips, whose
+            # errors agree within the same-reading tolerance; for the patch
+            # error limit, the neighbour check, or both. Set apart like the
+            # re-read card.
             rows.append((None, "─" * 30))
             rows.append((None, head(tr(_mm._CARD_PEER_1))))
-            rows.append((None, tr(_mm._CARD_PEER_2).format(
-                locs=first_three(peer_locs))))
-            limit_line()
+            if peer_locs:
+                add_text(peers_text(
+                    _mm._CARD_PEER_2_ONE, _mm._CARD_PEER_2, peer_locs))
+                if limit_hit:
+                    add_text(limit_sentence(yellow=True))
+            if nb_peer_locs:
+                add_text(peers_text(_mm._CARDS_NB_PEER_ONE,
+                                    _mm._CARDS_NB_PEER, nb_peer_locs))
+                if nb:
+                    add_text(nb_fmt(_mm._CARDP_NB_YELLOW))
+                if info.get("pe_corrected") and not limit_hit:
+                    # N8: the limit's part was corrected by the re-read.
+                    add_text(tr(_mm._CARDS_PE_CORRECTED))
             rows.append((None, ""))
             add_real_lines()
-            if rng in _mm.RANGE_NAMES:
+            if limit_hit and rng in _mm.RANGE_NAMES:
                 rows.append((None, ""))
                 add_range_line()
                 rows.append((None, tr(_mm._CARD_RANGE_CONFIRMED_LEARNED)
@@ -1327,12 +1357,20 @@ class _PatchInfoTile(QWidget):
             rows.append((None, "─" * 30))
             rows.append((None, head(tr("Yellow outline: judged like patch {loc}"
                                        ).format(loc=str(info.get("like_loc", ""))))))
-            limit_line()
+            if limit_hit:
+                add_text(limit_sentence(yellow=True))
+            if nb_peer_locs:
+                # The neighbour check's part, confirmed by similar patches
+                # (6188067361, row 24).
+                add_text(peers_text(_mm._CARDS_NB_PEER_ONE,
+                                    _mm._CARDS_NB_PEER, nb_peer_locs))
+                if nb:
+                    add_text(nb_fmt(_mm._CARDP_NB_YELLOW))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             add_range_line()
             if range_locs:
-                rows.append((None, tr(_mm._CARD_RANGE_SAME).format(
-                    locs=first_three(range_locs))))
+                add_text(tr(_mm._CARD_RANGE_SAME).format(
+                    locs=first_three(range_locs)))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_1)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_2)))
@@ -1374,28 +1412,50 @@ class _PatchInfoTile(QWidget):
             # Not "likely misread" alone (Knut, #182 5956210745): a large
             # difference can be real, and then re-reading cannot remove it.
             rows.append((None, head(tr(_mm._CARDP_LIMIT_HEAD))))
-            # The limit by its name, its value and its chart type, and the
-            # strip test by its name (beta 17, the k56 cards Knut approved
-            # in 6084176226).
-            add_text(limit_sentence(bool(info.get("fenced"))))
-            if nb:
-                # RED FOR BOTH REASONS: the neighbour check needs a re-read
-                # (Knut, #182 5984174575), so the card says so instead of
-                # what similar patches or its colour range would have said.
+            pe_yellow = pe_state in ("peer", "learned")
+            if pe_yellow:
+                # RED BY THE NEIGHBOUR CHECK ALONE, the limit's part being
+                # confirmed by similar patches or judged like a patch of its
+                # learned range (6188067361, rows 21 and 22): N3, then the
+                # neighbour check's sentence and N2. No range block.
+                if pe_state == "peer":
+                    add_text(peers_text(_mm._CARDS_PE_PEER_NB_RED_ONE,
+                                        _mm._CARDS_PE_PEER_NB_RED, peer_locs))
+                else:
+                    add_text(tr(_mm._CARDS_PE_LEARNED_NB_RED).format(
+                        loc=loc, like=str(info.get("like_loc", ""))))
+                if nb:
+                    rows.append((None, ""))
+                    add_text(nb_fmt(_mm._CARDP_NB_ALSO))
+                rows.append((None, ""))
+                nb_reread()
+            else:
+                # The limit by its name, its value and its chart type, and
+                # the strip test by its name (beta 17, the k56 cards Knut
+                # approved in 6084176226).
+                add_text(limit_sentence(bool(info.get("fenced"))))
+                if nb and nb_peer_locs:
+                    # RED BY THE LIMIT ALONE, the neighbour check's part
+                    # confirmed by similar patches (6188067361, row 13):
+                    # N4, then the range as on any red card of the limit.
+                    rows.append((None, ""))
+                    add_text(tr(_mm._CARDS_NB_PEER_PE_RED).format(
+                        loc=loc, locs=first_three(nb_peer_locs)))
+            if pe_yellow:
+                pass
+            elif nb and not nb_peer_locs:
+                # RED FOR BOTH REASONS (6188067361, row 12).
                 rows.append((None, ""))
                 add_text(nb_fmt(_mm._CARDP_NB_ALSO))
                 rows.append((None, ""))
                 # 4.3.5 (Knut, #182 6103148331): the card still names the
                 # range and what it has confirmed so far, so the patch is not
-                # read as belonging to no range; the two lines below say why
-                # the range cannot turn it yellow.
+                # read as belonging to no range.
                 if rng in _mm.RANGE_NAMES:
                     add_range_line()
                     add_confirmed_list()
                     rows.append((None, ""))
-                add_text(_join_card_text(
-                    tr(_mm._CARD_NB_REREAD_1).format(loc=loc),
-                    tr(_mm._CARD_NB_REREAD_2)))
+                nb_reread()
             elif rng in _mm.RANGE_NAMES:
                 rows.append((None, ""))
                 add_range_line()
@@ -1475,13 +1535,9 @@ class _PatchInfoTile(QWidget):
                           _mm._CARD_LATER_PROFILE_4):
                     rows.append((None, tr(t)))
             rows.append((None, ""))
-            # Knut, #182 5984174575: "The neighbour check needs a re-read
-            # to confirm."
-            # one sentence, wrapped by the card: with the patch named it no
-            # longer fits the hand-broken width (Knut, #182 6167582807)
-            add_text(_join_card_text(
-                tr(_mm._CARD_NB_REREAD_1).format(loc=loc),
-                tr(_mm._CARD_NB_REREAD_2)))
+            # N2 (Knut, #182 6196599132): its own re-read, or similar
+            # patches of other strips that stand out alike, can confirm it.
+            nb_reread()
             rows.append((None, ""))
             rows.append((None, tr("Same value after a re-read:")))
             if verify:

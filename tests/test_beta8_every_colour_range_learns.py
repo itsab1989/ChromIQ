@@ -189,7 +189,7 @@ GONE = ["spaced", "Patches closer than ΔE 6 in colour",
     # confirmed by a re-read, range not learned
     ("confirmed", 2, ("A6", "E1"), (),
      ["Yellow outline: confirmed by a re-read", "Colour range: blue",
-      "2 of 3 confirmations so far", "Confirmed: A6, E1"],
+      "2 of 3 confirmations so far", "Patches of this range confirmed so far: A6, E1."],
      ["This range has learned.", "similar patches"] + GONE),
     # confirmed by a re-read, learned
     ("confirmed", 3, ("A6", "E1", "L1", "P2"), (),
@@ -197,21 +197,21 @@ GONE = ["spaced", "Patches closer than ΔE 6 in colour",
     # confirmed by similar patches (beta 9, Knut 5979886227)
     ("confirmed", 2, ("A6", "E1"), ("E1",),
      ["Yellow outline: confirmed by similar patches",
-      "Read alike in other strips: E1",
+      "Off in the same way, read in another strip: E1.",
       # 4.3.5 beta 3: M-PATCH-CARD-PLAIN (Knut and Basti, 2026-10-13)
       # 4.3.5 beta 5: the patch named (Knut, #182 6167582807)
       "Without that confirmation, patch A6 would be red for being ΔE*ab 103.00 off its expected colour, more than the patch error limit of ΔE*ab 80.00 for profiling charts with estimated colours.",
       "A real difference this printer and", "Keep it for the profile.",
       "Colour range: blue", "2 of 3 confirmations so far",
-      "Confirmed: A6, E1"],
+      "Patches of this range confirmed so far: A6, E1."],
      ["confirmed by a re-read", "the reading before"] + GONE),
     ("confirmed", 3, ("A6", "E1", "L1", "P2"), ("E1", "L1", "P2", "Q9"),
-     ["Read alike in other strips: E1, L1, P2…", "This range has learned."],
+     ["Off in the same way, read in other strips: E1, L1, P2….", "This range has learned."],
      ["confirmations so far"] + GONE),
     # learned
     ("learned", 3, ("F17", "K23", "V7", "AE4"), (),
      ["Yellow outline: judged like patch AE4", "Colour range: blue",
-      "Confirmed: F17, K23, V7…", "Its range has learned: three patches",
+      "Patches of this range confirmed so far: F17, K23, V7….", "Its range has learned: three patches",
       "of it were confirmed.", "so patch A6 is taken as real too."], GONE),
     # red, nothing confirmed in its range yet
     ("", 0, (), (), ["Red outline: too far off its expected colour",
@@ -219,7 +219,7 @@ GONE = ["spaced", "Patches closer than ΔE 6 in colour",
      ["confirmations so far", "Confirmed:"] + GONE),
     # red, one of three
     ("", 1, ("F13",), (),
-     ["1 of 3 confirmations so far", "Confirmed: F13"], GONE),
+     ["1 of 3 confirmations so far", "Patches of this range confirmed so far: F13."], GONE),
     # red, its range learned, off in another way
     ("", 3, ("A6", "E1", "L1"), (),
      ["This range has learned, but this", "one is off in a different way."],

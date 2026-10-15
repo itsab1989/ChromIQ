@@ -142,7 +142,11 @@ def test_the_same_reading_tolerance_is_the_users(qapp, tmp_path):
 
 
 # ---- red, yellow, green, and red again ---------------------------------------
-def test_red_yellow_green_and_red_again(qapp, tmp_path):
+def test_red_yellow_green_and_red_again(qapp, tmp_path, monkeypatch):
+    # Two misreads of different strips off alike would confirm each other
+    # as similar patches since 4.3.5 beta 8 (Knut, #182 6196599132); this
+    # test is about the re-read, so that route is switched off here.
+    monkeypatch.setattr(pf, "PEERS_ON", False)
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55, "B4": 0.55})
     assert set(_red(tab)) == {"B4", "D6"}
@@ -154,10 +158,16 @@ def test_red_yellow_green_and_red_again(qapp, tmp_path):
     assert _flags(tab)["B4"] is pf.FLAG_RED
 
 
-def test_only_its_own_reread_turns_a_neighbour_suspect_yellow(qapp, tmp_path):
-    """Two suspects expected alike and off alike would confirm each other
-    under the patch error limit's rule; not under the neighbour check."""
+def test_similar_patches_turn_a_neighbour_suspect_yellow(qapp, tmp_path):
+    """4.3.5 beta 8 (Knut, #182 6196599132): two suspects of different
+    strips, of one colour range, expected near in colour and off alike,
+    confirm each other's neighbour check (until beta 7 only its own re-read
+    could, 5984174575). Still suspects: the check flagged them."""
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55, "C6": 0.55})
-    assert {"C6", "D6"} <= set(_red(tab))
-    assert all(_info(tab, x)["reread_only"] for x in ("C6", "D6"))
+    assert _flags(tab)["C6"] == pf.FLAG_CONFIRMED
+    assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED
+    for x, other in (("C6", "D6"), ("D6", "C6")):
+        info = _info(tab, x)
+        assert info["reread_only"] and info["nb_state"] == "peer"
+        assert other in info["nb_peer_locs"]

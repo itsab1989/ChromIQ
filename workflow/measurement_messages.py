@@ -1867,7 +1867,11 @@ M_VIEW_RGB_ONLY = _m(
 #: lines by hand, which is why each is a line of its own.
 _CARD_RANGE = "Colour range: {range}"
 _CARD_RANGE_SO_FAR = "{k} of 3 confirmations so far"
-_CARD_RANGE_SAME = "Confirmed: {locs}"
+#: 4.3.5 beta 8 (Knut, #182 6191537939: "Card text: change "Confirmed: A1,
+#: A22" to "Patches of this range confirmed so far: A1, A22."?" "Answer:
+#: approved"). He had read "Confirmed: A1, A22" on C27's RED card as C27
+#: being confirmed by A1 and A22; the line is the range's count.
+_CARD_RANGE_SAME = "Patches of this range confirmed so far: {locs}."
 _CARD_RANGE_LEARNED_1 = "Its range has learned: three patches"
 _CARD_RANGE_LEARNED_2 = "of it were confirmed."
 _CARD_RANGE_LEARNED_3 = "This one is off in the same way,"
@@ -1954,7 +1958,12 @@ _CARD_LATER_PROFILE_YELLOW_2 = "estimate, not a misread."
 #: by a re-read". (Beta 8's three "Patches closer than ΔE 6 ..." lines are
 #: gone with the spacing they explained.)
 _CARD_PEER_1 = "Yellow outline: confirmed by similar patches"
-_CARD_PEER_2 = "Read alike in other strips: {locs}"
+#: 4.3.5 beta 8 (the approved "two tests, one outline", #182 6196599132,
+#: text N7 of 6188067361, its words awaiting confirmation): the rule now
+#: compares the errors, so "read alike" became "off in the same way". One
+#: patch, or more (Knut 6191537939 asked for no "(s)").
+_CARD_PEER_2 = "Off in the same way, read in other strips: {locs}."
+_CARD_PEER_2_ONE = "Off in the same way, read in another strip: {locs}."
 #: Knut, #182 5980576263: every card says what to do. A red card tells the
 #: user to read the patch again; every yellow card (re-read, similar patches,
 #: learned) that there is no need to.
@@ -1993,6 +2002,7 @@ M_PATCH_COLOUR_RANGE = _m(
                _CARD_RANGE_LEARNED_3, _CARD_RANGE_LEARNED_4,
                _CARD_RANGE_RED_LEARNED_1, _CARD_RANGE_RED_LEARNED_2,
                _CARD_RANGE_CONFIRMED_LEARNED, _CARD_PEER_1, _CARD_PEER_2,
+               _CARD_PEER_2_ONE,
                _CARD_RED_READ_AGAIN, _CARD_YELLOW_NO_NEED,
                _CARD_MISFIT_SMALLER, _CARD_MISFIT_SMALLER_NEXT,
                _CARD_MISFIT_SMALLER_LIMIT, _CARD_MISFIT_SIDEWAYS,
@@ -2060,11 +2070,10 @@ _CARD_NBC_EQUAL_S = ("This patch has equal distance from its expected colour "
 _CARD_NB_YELLOW_S = ("Red before: ΔE {d} further from its expected colour "
                      "than the {n} patches nearest in colour (median), passing "
                      "the neighbour limit ({limit}).")
-#: Knut, #182 5984174575: "The neighbour check needs a re-read to confirm";
-#: similar patches and a learned colour range apply only to the patch error
-#: limit. Two lines, as the card has always shown them.
-_CARD_NB_REREAD_1 = "Only its own re-read can turn patch {loc} yellow,"
-_CARD_NB_REREAD_2 = "not similar patches or its colour range."
+#: The two lines "Only its own re-read can turn patch {loc} yellow, / not
+#: similar patches or its colour range." (Knut 5984174575) are gone in 4.3.5
+#: beta 8: similar patches confirm the neighbour check too (6196599132), and
+#: N2 of M-PATCH-SIMILAR says so instead.
 _CARD_LATER_STRIP_S = ("Checked again after each strip is read: a patch can "
                        "turn red later, when patches near it in colour are "
                        "read.")
@@ -2079,7 +2088,7 @@ M_PATCH_NEIGHBOUR = _m(
     _CARD_NB_HEADLINE,
     "\n".join((_CARD_NB_RED_S, _CARD_NB_MISREAD_S, _CARD_NBC_FURTHER_S, _CARD_NBC_CLOSER_S,
                _CARD_NBC_EQUAL_S,
-               _CARD_NB_YELLOW_S, _CARD_NB_REREAD_1, _CARD_NB_REREAD_2,
+               _CARD_NB_YELLOW_S,
                _CARD_LATER_STRIP_S, _CARD_LATER_PATCH_S, _CARD_SEE_PREFS_S)),
     approved=True)
 
@@ -2099,6 +2108,63 @@ M_PATCH_NEIGHBOUR_VARIANTS = _m(
     "M-PATCH-NEIGHBOUR-VARIANTS",
     _CARD_NB_VARIANTS_HEADLINE,
     "\n".join((_CARD_NB_ALSO_S, _CARD_NBC_FEW_S)),
+    approved=False)
+
+# --- PROPOSED: similar patches confirm each test (4.3.5 beta 8) ------------
+#: Knut, #182 6196599132: "I confirm all the cases and approve the solution
+#: you recommend", to the draft "two tests, one outline" (6188067361) whose
+#: table names these texts N1 to N8. The BEHAVIOUR is confirmed; these words
+#: are drafts and wait for his review (shown from this beta on, Knut
+#: 6166519230). N5 has no words of its own (both yellow sentences), N6 is
+#: _CARD_RANGE_SAME (approved, 6191537939) and N7 _CARD_PEER_2. The patch is
+#: named "patch {loc}" wherever a sentence means it (Knut 6167582807), so N3
+#: and N4 say "patch {loc}" where the draft said "Its" / "It". {locs}: the
+#: similar patches, the first three then "…"; one patch has its own form.
+#: N1: under "Yellow outline: confirmed by similar patches", the neighbour
+#: check's similar patches.
+_CARDS_NB_PEER = ("Stand out from their neighbours in the same way, read in "
+                  "other strips: {locs}.")
+_CARDS_NB_PEER_ONE = ("Stands out from its neighbours in the same way, read "
+                      "in another strip: {locs}.")
+#: N2: a red card of the neighbour check, instead of the two "only its own
+#: re-read" lines.
+_CARDS_NB_REREAD = ("Read patch {loc} again to find out. Similar patches read "
+                    "in other strips that stand out in the same way can also "
+                    "confirm it.")
+#: N3: red, the patch error limit's part confirmed by similar patches (or
+#: judged like a patch of its learned range), the neighbour check's not.
+_CARDS_PE_PEER_NB_RED = ("Similar patches ({locs}) confirm the difference of "
+                         "patch {loc} from its expected colour. But patch "
+                         "{loc} still stands out from the patches most "
+                         "similar in colour, so its outline stays red.")
+_CARDS_PE_PEER_NB_RED_ONE = ("A similar patch ({locs}) confirms the "
+                             "difference of patch {loc} from its expected "
+                             "colour. But patch {loc} still stands out from "
+                             "the patches most similar in colour, so its "
+                             "outline stays red.")
+_CARDS_PE_LEARNED_NB_RED = ("The difference of patch {loc} from its expected "
+                            "colour is like that of patch {like} of its "
+                            "colour range. But patch {loc} still stands out "
+                            "from the patches most similar in colour, so its "
+                            "outline stays red.")
+#: N4: red, the neighbour check's part confirmed by similar patches, the
+#: patch error limit's not.
+_CARDS_NB_PEER_PE_RED = ("Patch {loc} stands out from its neighbours in the "
+                         "same way as {locs}, so that part is confirmed. But "
+                         "patch {loc} is still too far off its expected "
+                         "colour, so its outline stays red.")
+#: N8: yellow by the neighbour check's similar patches after a re-read
+#: corrected what the patch error limit flagged.
+_CARDS_PE_CORRECTED = ("The earlier reading past the patch error limit was "
+                       "corrected by the re-read.")
+_CARDS_HEADLINE = "Similar patches confirm each test on the patch card"
+M_PATCH_SIMILAR = _m(
+    "M-PATCH-SIMILAR",
+    _CARDS_HEADLINE,
+    "\n".join((_CARDS_NB_PEER, _CARDS_NB_PEER_ONE, _CARDS_NB_REREAD,
+               _CARDS_PE_PEER_NB_RED, _CARDS_PE_PEER_NB_RED_ONE,
+               _CARDS_PE_LEARNED_NB_RED, _CARDS_NB_PEER_PE_RED,
+               _CARDS_PE_CORRECTED)),
     approved=False)
 
 # --- APPROVED: the patch error limit on a patch's hover card (beta 17) -----
@@ -6393,7 +6459,8 @@ CATALOGUE = {m.id: m for m in (
     M_PATCHSET_CAL_INKS, M_VIEW_RGB_ONLY,
     M_PATCH_COLOUR_RANGE,
     M_PATCH_EXPECTED_PREDICTED,
-    M_PATCH_NEIGHBOUR, M_PATCH_NEIGHBOUR_VARIANTS, M_PATCH_LIMIT,
+    M_PATCH_NEIGHBOUR, M_PATCH_NEIGHBOUR_VARIANTS, M_PATCH_SIMILAR,
+    M_PATCH_LIMIT,
     M_MEASURED_SUSPECTS, M_MEASURED_SUSPECTS_VERIFY, M_CAL_DONE_STEPS,
     M_CAL_DONE_STEPS_PATCH, M_VERIFY_ALL_PATCHES_READ,
     M_HELP_PS_NOTE_PROJECT,

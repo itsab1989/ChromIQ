@@ -41,7 +41,12 @@ def test_a_neighbour_misread_read_again_and_fitting_is_green(qapp, tmp_path):
     assert tab.neighbour_summary_facts()["red"] == []
 
 
-def test_a_limit_misread_read_again_and_fitting_is_green(qapp, tmp_path):
+def test_a_limit_misread_read_again_and_fitting_is_green(qapp, tmp_path,
+                                                         monkeypatch):
+    # Two misreads of different strips off alike would confirm each other
+    # as similar patches since 4.3.5 beta 8 (Knut, #182 6196599132); this
+    # test is about the re-read, so that route is switched off here.
+    monkeypatch.setattr(pf, "PEERS_ON", False)
     tab = _tab(tmp_path, settings={"patch_read_warn_de_estimated": 8.0,
                                    "patch_strip_test_estimated": False,
                                    "patch_neighbour_limit_estimated": 50.0})

@@ -123,8 +123,11 @@ def test_the_red_neighbour_card_is_knuts(qapp):
             "again.") in t
     # the second sentence on a line of its own, as in the mock-up
     assert any(r.startswith("Probably a misread: read patch K19") for r in rows)
-    assert ("Only its own re-read can turn patch K19 yellow, not similar "
-            "patches or its colour range.") in t
+    assert ("Read patch K19 again to find out. Similar patches read in "
+            "other strips that stand out in the same way can also confirm "
+            "it." in t)
+    # gone since 4.3.5 beta 8 (Knut, #182 6196599132)
+    assert "Only its own re-read" not in t
     assert "Same value after a re-read: it is real, keep it for the profile." \
         in t
 
@@ -172,7 +175,7 @@ def test_topics_are_separated_by_empty_lines(qapp):
     assert rows[sep - 1] == ""
     # since 4.3.5 beta 5 the re-read sentence names the patch and is wrapped
     # by the card (Knut, #182 6167582807)
-    for start in ("Only its own re-read can turn patch",
+    for start in ("Read patch K19 again to find out.",
                   "Same value after a re-read:"):
         i = next(j for j, r in enumerate(rows) if r.startswith(start))
         assert rows[i - 1] == "", start

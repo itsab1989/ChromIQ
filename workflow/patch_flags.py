@@ -47,16 +47,35 @@ posted in 5961078418, confirmed by Knut 5961180259 and by Sebastian).
    blue/purple edge had moved from 310° to 315° (pure sRGB blue sits at
    306°, and its most saturated tints were split between blue and purple).
    Magenta (325° to 345°) stays. The yellow-green/green edge stays 130°.
-2. **Confirmed by similar patches** (Knut 5979886227, variant B of the
-   k22 challenge; awaiting confirmation). Two FLAGGED patches confirm each
-   other, as a re-read does, when they were read in DIFFERENT strips, their
-   expected colours are less than ``PEER_EXPECTED_DE`` (ΔE*ab 6, D50) apart
-   and their errors (measured minus expected) agree within ``PEER_SHIFT_DE``
-   (ΔE*ab 10). Different strips, because one strip is one pass of the
-   reader: a smudge or a slipped strip can make several patches of ONE strip
-   wrong alike, never patches read in two passes. Peers are worked out
-   afresh from the raw readings on hand at every judgement, so the current
-   limit decides them and a learned patch can never confirm anything.
+2. **Confirmed by similar patches, for EACH test** (beta 8 of 4.3.5: Knut,
+   #182 6196599132, confirming the draft "two tests, one outline" of
+   6188067361 and approving the rule it recommends; it replaces beta 9's
+   expected colours under ΔE 6 and errors within ΔE 10, 5979886227, and the
+   neighbour check's "only its own re-read", 5984174575). Patch Q confirms
+   patch P for a test (the patch error limit, PE, or the neighbour check, NB)
+   when ALL of these hold:
+
+   * the test is triggered on Q's last reading too;
+   * Q is in P's colour range;
+   * Q was read in a DIFFERENT strip (one strip is one pass of the reader: a
+     light leak, a tipped instrument or a slipped strip makes several patches
+     of ONE strip wrong alike);
+   * their expected colours lie within the chart type's Colour-neighbour
+     radius (15 / 30 / 30 / 30, Preferences ▸ Measurement;
+     :meth:`FlagJudge.set_peer_radius`);
+   * their ERRORS, the arrows from expected to measured colour, are within
+     the Same-reading tolerance of each other (default ΔE*ab 3): "had Q been
+     printed as P's colour, it would have read the same", the re-read test
+     applied to the error;
+   * Q's reading is not in doubt: never a patch whose readings disagree
+     (unsettled), and for the patch error limit never a patch the neighbour
+     check holds red.
+
+   Peers are worked out afresh from the raw readings on hand at every
+   judgement, so the current Preferences decide them and a learned patch can
+   never confirm anything. The outline combines the two tests (Knut
+   6181524471): any test red, red; otherwise any yellow, yellow; otherwise a
+   corrected test, green; a test that is not triggered does not count.
 3. **A range learns** once ``RANGE_CONFIRMATIONS`` (3) of its patches are
    confirmed, by a re-read or by similar patches, in any mix. There is no
    spacing between them any more (it was ΔE 6, Knut 5963411325): similar
@@ -145,6 +164,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from workflow.icc_info import xyz_to_lab
+from workflow.misread_settings import within
 
 #: The estimated-chart default is ArgyllCMS chartread's own WERR_TH. The
 #: made-from-a-profile default was its ACC_WERR_TH (30) until beta 11, when it
@@ -213,14 +233,27 @@ HUE_SECTORS = (
 RANGES = ("grey_dark", "grey_mid", "grey_light", "pink") + tuple(
     name for _lo, _hi, name in HUE_SECTORS)
 #: A range learns once this many of its patches are confirmed, by a re-read
-#: or by similar patches, in any mix (Knut 5979886227: no spacing).
+#: or by similar patches, in any mix (Knut 5979886227: no spacing; kept as it
+#: is, Knut 6191537939: "Should similar patches still teach the colour
+#: range?" "Keep as today").
 RANGE_CONFIRMATIONS = 3
-#: Peer confirmation (Knut 5979886227): two flagged patches of DIFFERENT
-#: strips whose expected colours are less than this apart (ΔE*ab, D50)...
-PEER_EXPECTED_DE = 6.0
-#: ...and whose errors (measured - expected) agree within this, the learning
-#: rule's own "off in the same way" tolerance.
-PEER_SHIFT_DE = SHIFT_TOLERANCE_DE
+#: Similar patches (Knut, #182 6196599132): expected colours within the chart
+#: type's Colour-neighbour radius. The judge's own value comes from
+#: Preferences ▸ Measurement through :meth:`FlagJudge.set_peer_radius`; this
+#: is the default of a judge nobody gave one (profiling charts with estimated
+#: colours, ``workflow/neighbour_check.RADIUS_DE``).
+PEER_RADIUS_DE = 15.0
+#: Similar patches at all. Only tests that measure the re-read route alone
+#: switch it off; the product never does.
+PEERS_ON = True
+#: The two tests a patch is judged by, as the similar-patch rule names them.
+TEST_PE = "pe"          # the patch error limit (with the strip test)
+TEST_NB = "nb"          # the neighbour check
+#: What one test says about a flagged reading (Verdict.pe_state / nb_state).
+STATE_RED = "red"
+STATE_REREAD = "reread"      # Y-re: its own re-read agreed
+STATE_PEER = "peer"          # Y-sim: similar patches
+STATE_LEARNED = "learned"    # Y-learn: its colour range (the limit only)
 
 #: ArgyllCMS's D50, XYZ with Y = 1 (``workflow/icc_info.py``).
 D50_WHITE = (0.96422, 1.0, 0.82521)
@@ -483,15 +516,18 @@ class _Reading:
     #: The strip it was read in; None or "" when unknown (a loaded memory),
     #: which can never make a peer.
     strip: "str | None" = None
-    #: Red by the neighbour check (Knut, #182 5984174575: "The neighbour
-    #: check needs a re-read to confirm"): only its own re-read with the same
-    #: value turns it yellow; it is never a similar patch and never judged
-    #: like a learned range.
+    #: The neighbour check suspects it (its test is triggered). The name is
+    #: beta 11's, when only its own re-read could turn it yellow (Knut, #182
+    #: 5984174575); since 4.3.5 beta 8 similar patches can too (6196599132).
     reread_only: bool = False
     #: Read again past the limit and like none of its earlier readings, which
     #: were past the limit too (Knut, #182 6045500910, (a) and (c)): one of
     #: them is a misread, so it is never a similar patch for another patch.
     unsettled: bool = False
+    #: The patch error limit is triggered on it (past the limit and, with the
+    #: strip test on, its strip's fence). ``flagged`` is this OR the
+    #: neighbour check.
+    pe: bool = False
 
 
 @dataclass
@@ -538,8 +574,12 @@ class Misfit:
 class Verdict:
     flag: object                  # FLAG_NONE / FLAG_RED / FLAG_CONFIRMED / FLAG_LEARNED
     prev_de: "float | None" = None   # CONFIRMED by a re-read: the reading it agreed with
-    peer_locs: tuple = ()            # CONFIRMED by similar patches: them, sorted
-    like_loc: str = ""               # LEARNED: the confirmed patch it was judged like
+    #: The similar patches that confirm its PATCH ERROR LIMIT part, sorted:
+    #: on a yellow card, and on a red one whose neighbour check keeps it red.
+    peer_locs: tuple = ()
+    #: Its patch error limit part was LEARNED: the confirmed patch it was
+    #: judged like (yellow, or red when the neighbour check keeps it red).
+    like_loc: str = ""
     colour_range: str = ""           # flagged: the patch's colour range (RANGES)
     range_k: int = 0                 # flagged: confirmed patches in it, 0..3
     range_locs: tuple = ()           # flagged: the confirmed patches in it, sorted
@@ -550,9 +590,8 @@ class Verdict:
     #: LEARNED only by the size test's waiver (LANDING_DE): its error is
     #: shorter than its like_loc's, but its reading landed where theirs did.
     landed: bool = False
-    #: RED that only a re-read can clear: the neighbour check suspects it
-    #: (Knut 5984174575), so similar patches and a learned range were not
-    #: asked.
+    #: The neighbour check suspects it (its test is triggered), whatever it
+    #: concluded (``nb_state``).
     reread_only: bool = False
     #: CORRECTED (green): the rule that flagged the first reading,
     #: "neighbour" (the neighbour check, alone or with the limit) or "limit";
@@ -564,6 +603,19 @@ class Verdict:
     #: reading that matches any of them turns it yellow; one under the limit
     #: turns it green.
     unsettled: tuple = ()
+    #: What each test says (Knut, #182 6196599132, "two tests, one outline"):
+    #: "" not triggered, else STATE_RED / STATE_REREAD / STATE_PEER /
+    #: STATE_LEARNED (the patch error limit only). The outline is the
+    #: combination: any red, red; else yellow.
+    pe_state: str = ""
+    nb_state: str = ""
+    #: The similar patches that confirm the NEIGHBOUR CHECK part, sorted
+    #: (``peer_locs`` are the patch error limit's).
+    nb_peer_locs: tuple = ()
+    #: A live re-read corrected what the patch error limit flagged while the
+    #: neighbour check still flags it (a green waiting, 10.10): the card says
+    #: so on a patch yellow by similar patches (N8).
+    pe_corrected: bool = False
 
 
 def _sub(a, b):
@@ -574,29 +626,35 @@ def _norm(v) -> float:
     return math.sqrt(sum(x * x for x in v))
 
 
-def _cube(lab) -> tuple:
-    """The PEER_EXPECTED_DE-wide cube an expected colour falls in: two colours
-    less than PEER_EXPECTED_DE apart are always in the same or touching cubes."""
-    if PEER_EXPECTED_DE <= 0.0:
-        return (0, 0, 0)       # peers switched off: _are_peers refuses them all
-    return tuple(math.floor(float(v) / PEER_EXPECTED_DE) for v in lab[:3])
+def _cell(lab, size: float) -> tuple:
+    """The *size*-wide cube an expected colour falls in: two colours at most
+    *size* apart are always in the same or touching cubes."""
+    return tuple(math.floor(float(v) / size) for v in lab[:3])
 
 
-def _are_peers(a: _Reading, b: _Reading) -> bool:
-    """Do these two FLAGGED readings confirm each other (Knut 5979886227)?
-    Different strips, expected colours less than PEER_EXPECTED_DE apart, and
-    errors within PEER_SHIFT_DE of each other."""
-    if not (a.flagged and b.flagged and a.strip and b.strip
-            and a.strip != b.strip):
+def _pair_ok(test: str, a: _Reading, b: _Reading, radius: float,
+             tol: float) -> bool:
+    """Are these two readings, of two patches of ONE colour range, similar
+    patches for *test* (Knut, #182 6196599132)? Both triggered for it, read
+    in different strips, neither unsettled, expected colours within the
+    Colour-neighbour radius and errors (measured minus expected) within the
+    Same-reading tolerance, each "not above" its threshold at two decimals
+    (Knut 6102031563). Whether the other patch's reading is in doubt by the
+    neighbour check is asked when the verdict is made (it can change without
+    either reading changing)."""
+    if test == TEST_PE:
+        if not (a.pe and b.pe):
+            return False
+    elif not (a.reread_only and b.reread_only):
         return False
-    if a.reread_only or b.reread_only:
-        return False           # a neighbour suspect: re-read only (5984174575)
+    if not (a.strip and b.strip and a.strip != b.strip):
+        return False
     if a.unsettled or b.unsettled:
         return False           # readings that disagree (6045500910)
-    if _norm(_sub(a.exp_lab, b.exp_lab)) >= PEER_EXPECTED_DE:
+    if not within(_norm(_sub(a.exp_lab, b.exp_lab)), radius):
         return False
-    return _norm(_sub(_sub(a.meas_lab, a.exp_lab),
-                      _sub(b.meas_lab, b.exp_lab))) <= PEER_SHIFT_DE
+    return within(_norm(_sub(_sub(a.meas_lab, a.exp_lab),
+                             _sub(b.meas_lab, b.exp_lab))), tol)
 
 
 #: :meth:`FlagJudge.reset`'s "keep what you have".
@@ -623,19 +681,37 @@ class FlagJudge:
     """
 
     def __init__(self, white=None, device_ranges=None,
-                 same_reading_de: float = SAME_READING_DE) -> None:
+                 same_reading_de: float = SAME_READING_DE,
+                 peer_radius: float = PEER_RADIUS_DE) -> None:
         self._white = D50_WHITE
         self._device_ranges: "dict[str, str] | None" = None
         #: The Same-reading tolerance (beta 17, Knut #182 6082015002: one
-        #: value, configurable, common to every chart type).
+        #: value, configurable, common to every chart type). Also how close
+        #: two similar patches' errors must be (6196599132).
         self.same_reading_de = float(same_reading_de)
+        #: The Colour-neighbour radius of the chart type: how close two
+        #: similar patches' expected colours must be (6196599132).
+        self.peer_radius = float(peer_radius)
         self.reset(white, device_ranges=device_ranges)
 
     def set_same_reading_de(self, value: float) -> None:
         """Take the user's Same-reading tolerance (Preferences ▸
-        Measurement). It decides the next judgement; nothing already
-        decided is undone."""
-        self.same_reading_de = float(value)
+        Measurement). It decides the next judgement of a re-read; nothing
+        already decided by a re-read is undone. Similar patches are worked
+        out again with it at once."""
+        value = float(value)
+        if value != self.same_reading_de:
+            self.same_reading_de = value
+            self._rebuild_peers()
+
+    def set_peer_radius(self, value: float) -> None:
+        """Take the Colour-neighbour radius of the chart type on screen
+        (Preferences ▸ Measurement); similar patches are worked out again
+        with it at once."""
+        value = float(value)
+        if value != self.peer_radius:
+            self.peer_radius = value
+            self._rebuild_peers()
 
     @property
     def white(self) -> tuple:
@@ -651,7 +727,7 @@ class FlagJudge:
             self._white = tuple(float(v) for v in white[:3])
             self._ranges = {}
             self._range_index = None
-            self._refs_changed()
+            self._rebuild_peers()
 
     def set_device_ranges(self, device_ranges) -> None:
         """Take the chart's device-RGB ranges (None: the expected-colour rule)
@@ -661,7 +737,7 @@ class FlagJudge:
                                      for k, v in device_ranges.items()})
         self._ranges = {}
         self._range_index = None
-        self._refs_changed()
+        self._rebuild_peers()
 
     def reset(self, white=None, device_ranges=_KEEP) -> None:
         if white:
@@ -677,13 +753,16 @@ class FlagJudge:
         #: loc -> colour range, and range -> (k, confirmed locs).
         self._ranges: "dict[str, str]" = {}
         self._status_cache: "dict[str, tuple]" = {}
-        #: The flagged readings, and which of them confirm each other
-        #: (loc -> partner locs), kept up to date reading by reading.
+        #: The flagged readings, and for each test which of them are
+        #: similar patches of each other by their readings (loc -> partner
+        #: locs, :func:`_pair_ok`), kept up to date reading by reading.
+        #: Whether a partner's reading is in doubt is asked at the verdict.
         self._flagged: "set[str]" = set()
-        self._peers: "dict[str, set]" = {}
-        #: The flagged patches by expected colour, in cubes PEER_EXPECTED_DE
-        #: wide, so a reading is tested only against the 27 cubes around it
-        #: rather than every flagged patch (thousands, at a low limit).
+        self._raw: "dict[str, dict[str, set]]" = {TEST_PE: {}, TEST_NB: {}}
+        #: The flagged patches by colour range and expected colour, in cubes
+        #: as wide as the radius, so a reading is tested only against the 27
+        #: cubes around it in its own range rather than every flagged patch
+        #: (thousands, at a low limit).
         self._cubes: "dict[tuple, set]" = {}
         self._cube_of: "dict[str, tuple]" = {}
         #: range -> its flagged patches (None: built again when next asked).
@@ -725,57 +804,56 @@ class FlagJudge:
         """The patches a re-read confirmed (whether shown at this limit or not)."""
         return sorted(self._refs)
 
-    def peers_of(self, loc: str) -> "list[str]":
-        """The patches that confirm *loc* as similar patches, in reading order."""
-        return sorted_locs(self._peers.get(str(loc), ()))
+    def peers_of(self, loc: str, test: str = TEST_PE) -> "list[str]":
+        """The patches that confirm *loc*'s *test* as similar patches, in
+        reading order (Knut, #182 6196599132)."""
+        loc = str(loc)
+        if test == TEST_NB:
+            return sorted_locs(self._raw[TEST_NB].get(loc, ()))
+        return sorted_locs(q for q in self._raw[TEST_PE].get(loc, ())
+                           if not self._nb_red(q))
+
+    def _nb_red(self, loc: str) -> bool:
+        """Does the neighbour check hold *loc* RED: it suspects its last
+        reading, no re-read of it agreed and no similar patch confirms it?
+        Such a reading is in doubt, so it confirms nobody's patch error
+        (6188067361, 4.1 point 6)."""
+        rd = self._last.get(loc)
+        return bool(rd is not None and rd.flagged and rd.reread_only
+                    and self._active_ref(loc) is None
+                    and not self._raw[TEST_NB].get(loc))
+
+    def _teaches(self, loc: str) -> bool:
+        """Is *loc*'s patch error limit part confirmed by similar patches?
+        Then it counts towards its range's three confirmations, as a re-read
+        does (Knut 6191537939: "Should similar patches still teach the
+        colour range?" "Keep as today"), whatever the neighbour check says
+        of it (6188067361, 4.2: Y-learn counts "re-reads or PE similar
+        patches"; the statistics Knut approved were measured so)."""
+        rd = self._last.get(loc)
+        if rd is None or not rd.pe or rd.unsettled:
+            return False
+        return any(not self._nb_red(q)
+                   for q in self._raw[TEST_PE].get(loc, ()))
 
     # ---- the readings and their peers ----------------------------------------
     def _set_reading(self, loc: str, rd: _Reading,
                      was_range: "str | None" = None) -> None:
-        """Remember *rd* as the last reading of *loc* and bring the peers up to
-        date, testing only the flagged patches of nearly the same expected
-        colour, so a whole chart repainted at a low limit stays cheap.
+        """Remember *rd* as the last reading of *loc* and bring the similar
+        patches up to date, testing only the flagged patches of its own
+        colour range with nearly the same expected colour, so a whole chart
+        repainted at a low limit stays cheap.
 
         Only the colour ranges this reading can change are counted again:
-        *loc*'s (before and now) and those of the patches it stops or starts
-        confirming (*was_range*: *loc*'s range before this reading)."""
+        *loc*'s (before and now; *was_range*: *loc*'s range before this
+        reading). Similar patches are always of one range."""
         self._last[loc] = rd
-        touched = {loc} | self._peers.get(loc, set())
-        for other in self._peers.pop(loc, set()):
-            partners = self._peers.get(other)
-            if partners is not None:
-                partners.discard(loc)
-                if not partners:
-                    del self._peers[other]
+        self._unlink(loc)
         if loc in self._flagged:
             self._flagged.discard(loc)
-            cube = self._cube_of.pop(loc, None)
-            if cube is not None:
-                members = self._cubes.get(cube)
-                if members is not None:
-                    members.discard(loc)
-                    if not members:
-                        del self._cubes[cube]
         if rd.flagged:
             self._flagged.add(loc)
-            cube = _cube(rd.exp_lab)
-            self._cube_of[loc] = cube
-            self._cubes.setdefault(cube, set()).add(loc)
-            if rd.strip:
-                mine = set()
-                c0, c1, c2 = cube
-                for d0 in (-1, 0, 1):
-                    for d1 in (-1, 0, 1):
-                        for d2 in (-1, 0, 1):
-                            for other in self._cubes.get(
-                                    (c0 + d0, c1 + d1, c2 + d2), ()):
-                                if other != loc and _are_peers(
-                                        rd, self._last[other]):
-                                    mine.add(other)
-                                    self._peers.setdefault(other, set()).add(loc)
-                if mine:
-                    self._peers[loc] = mine
-                    touched |= mine
+            self._link(loc, rd)
         if self._range_index is not None:
             old_rng = self._indexed_as.pop(loc, None)
             if old_rng is not None:
@@ -785,12 +863,69 @@ class FlagJudge:
                 self._indexed_as[loc] = rng_now
                 self._range_index.setdefault(rng_now, set()).add(loc)
         stale = {was_range} if was_range else set()
-        for other in touched:
-            o = self._last.get(other)
-            if o is not None:
-                stale.add(self.range_of(other, o.exp_lab))
+        stale.add(self.range_of(loc, rd.exp_lab))
         for rng in stale:
             self._status_cache.pop(rng, None)
+
+    def _unlink(self, loc: str) -> None:
+        """Take *loc* out of the similar-patch partnerships and the cubes."""
+        for links in self._raw.values():
+            for other in links.pop(loc, set()):
+                partners = links.get(other)
+                if partners is not None:
+                    partners.discard(loc)
+                    if not partners:
+                        del links[other]
+        cube = self._cube_of.pop(loc, None)
+        if cube is not None:
+            members = self._cubes.get(cube)
+            if members is not None:
+                members.discard(loc)
+                if not members:
+                    del self._cubes[cube]
+
+    def _link(self, loc: str, rd: _Reading) -> None:
+        """Find *loc*'s similar patches for each test among the flagged
+        patches of its range (:func:`_pair_ok`) and file it in its cube."""
+        radius = self.peer_radius
+        if not (PEERS_ON and rd.strip and radius > 0.0):
+            return
+        rng = self.range_of(loc, rd.exp_lab)
+        if not rng:
+            return                       # no range: never a similar patch
+        # A cube a hundredth wider than the radius, so "not above it at two
+        # decimals" never falls outside the 27 cubes searched.
+        c0, c1, c2 = cell = _cell(rd.exp_lab, radius + 0.01)
+        tol = self.same_reading_de
+        for d0 in (-1, 0, 1):
+            for d1 in (-1, 0, 1):
+                for d2 in (-1, 0, 1):
+                    for other in self._cubes.get(
+                            (rng, c0 + d0, c1 + d1, c2 + d2), ()):
+                        if other == loc:
+                            continue
+                        o = self._last[other]
+                        for test, links in self._raw.items():
+                            if _pair_ok(test, rd, o, radius, tol):
+                                links.setdefault(loc, set()).add(other)
+                                links.setdefault(other, set()).add(loc)
+        key = (rng,) + cell
+        self._cube_of[loc] = key
+        self._cubes.setdefault(key, set()).add(loc)
+
+    def _rebuild_peers(self) -> None:
+        """Work every partnership out again (the radius, the tolerance or
+        the colour ranges changed), in reading order."""
+        if not hasattr(self, "_raw"):
+            return                       # before the first reset
+        self._raw = {TEST_PE: {}, TEST_NB: {}}
+        self._cubes, self._cube_of = {}, {}
+        for loc in list(self._last):
+            rd = self._last[loc]
+            if rd.flagged:
+                self._link(loc, rd)
+        self._range_index = None
+        self._refs_changed()
 
     def _active_ref(self, loc: str) -> "_Reference | None":
         """*loc*'s re-read reference, while its last reading is flagged: a
@@ -831,7 +966,7 @@ class FlagJudge:
         for loc in self._range_index.get(rng, ()):
             rd = self._last[loc]
             ref = self._active_ref(loc)
-            if ref is None and loc in self._peers:
+            if ref is None and self._teaches(loc):
                 ref = _Reference(loc=loc, exp_lab=rd.exp_lab,
                                  meas_lab=rd.meas_lab,
                                  shift=_sub(rd.meas_lab, rd.exp_lab),
@@ -876,19 +1011,28 @@ class FlagJudge:
         """The memory in the schema of ``workflow/confirmed_patches.py``.
 
         Every re-read reference, shown at this limit or not (raising the
-        limit does not lose a confirmation). Peers are written as ``peer``
-        for the record (Check & Refine never reads it, Knut 5980560281), and
-        never loaded back as references: they are worked out again from the
-        readings."""
+        limit does not lose a confirmation). A patch drawn yellow by similar
+        patches is written as ``peer`` for the record, with the test they
+        confirmed (``"test"``: ``"pe"``, ``"nb"`` or ``"pe+nb"``; 6188067361,
+        4.7) and all of them (``with``). Check & Refine never reads it (Knut
+        5980560281), and it is never loaded back as a reference: similar
+        patches are worked out again from the readings."""
         out: dict = {}
         for loc, ref in self._refs.items():
             out[loc] = {"kind": "confirmed", "de": ref.de, "prev_de": ref.prev_de,
                         "exp_lab": list(ref.exp_lab),
                         "meas_lab": list(ref.meas_lab),
                         "shift": list(ref.shift), "standout": ref.standout}
-        for loc, partners in self._peers.items():
-            if loc not in out and partners:
-                out[loc] = {"kind": "peer", "with": sorted_locs(partners)}
+        for loc, v in self._verdicts.items():
+            if (loc in out or isinstance(v.flag, bool)
+                    or v.flag != FLAG_CONFIRMED):
+                continue
+            tests = [t for t, locs in ((TEST_PE, v.peer_locs),
+                                       (TEST_NB, v.nb_peer_locs)) if locs]
+            if tests:
+                out[loc] = {"kind": "peer", "test": "+".join(tests),
+                            "with": sorted_locs(set(v.peer_locs)
+                                                | set(v.nb_peer_locs))}
         for loc, v in self._verdicts.items():
             if (not isinstance(v.flag, bool) and v.flag == FLAG_LEARNED
                     and loc not in out and v.like_loc):
@@ -970,7 +1114,8 @@ class FlagJudge:
                 shift=_sub(meas_lab, exp_lab), de=de, prev_de=prev,
                 standout=so)
             was = self._ranges.pop(loc, None)
-            self._set_reading(loc, _Reading(meas_lab, de, True, exp_lab, so),
+            self._set_reading(loc, _Reading(meas_lab, de, True, exp_lab, so,
+                                           pe=True),
                               was)
             n += 1
         self._refs_changed()
@@ -1106,49 +1251,87 @@ class FlagJudge:
         return tuple(out)
 
     def _verdict(self, loc: str, rd: _Reading) -> Verdict:
-        """The verdict for a FLAGGED reading, as the references stand now."""
+        """The verdict for a FLAGGED reading, as the references stand now.
+
+        Each test is judged on its own (Knut, #182 6196599132, confirming
+        "two tests, one outline", 6188067361): the patch error limit is
+        yellow by a re-read, by similar patches or by its learned colour
+        range, else red; the neighbour check is yellow by a re-read or by
+        similar patches, else red. Then the outline: any test red, red;
+        otherwise yellow, learned when the patch error limit was learned. A
+        test that is not triggered does not count. One re-read confirms both
+        tests at once; readings that disagree are red whatever the rest
+        says."""
         rng = self.range_of(loc, rd.exp_lab)
         k, locs = self.range_status(rng)
         own = self._active_ref(loc)
         unsettled = self._unsettled.get(loc, ()) if own is None else ()
-        if own is None and (rd.reread_only or unsettled):
-            # A neighbour suspect: only its own re-read clears it (Knut,
-            # #182 5984174575), whatever similar patches or its range say.
+        pe = bool(rd.pe)
+        nb = bool(rd.reread_only)
+        if unsettled:
             # A re-read past the limit like none of its earlier readings
             # stays red until a reading settles it (Knut, #182 6045500910,
             # (a) and (c)): one of them is a misread, so neither similar
-            # patches nor a learned range may vouch for it.
+            # patches nor a learned range may vouch for it, for either test.
             return Verdict(FLAG_RED, colour_range=rng, range_k=k,
-                           range_locs=locs, reread_only=rd.reread_only,
-                           unsettled=unsettled)
-        peers = tuple(self.peers_of(loc)) if own is None else ()
-        if own is not None or peers:
-            # Confirmed stays yellow, whether its range has learned or not.
-            # A re-read is named first: it is the stronger proof.
-            return Verdict(FLAG_CONFIRMED,
-                           prev_de=None if own is None else own.prev_de,
-                           peer_locs=peers,
-                           colour_range=rng, range_k=k, range_locs=locs)
-        if k >= RANGE_CONFIRMATIONS:
-            ref, landed = self._match(rng, rd.exp_lab,
-                                      _sub(rd.meas_lab, rd.exp_lab),
-                                      rd.standout)
-            if ref is not None:
-                return Verdict(FLAG_LEARNED, like_loc=ref.loc,
-                               colour_range=rng, range_k=k, range_locs=locs,
-                               landed=landed)
-            return Verdict(FLAG_RED, colour_range=rng, range_k=k,
-                           range_locs=locs,
-                           misfit=self._misfit(
-                               rng, rd.exp_lab, _sub(rd.meas_lab, rd.exp_lab),
-                               rd.standout))
-        return Verdict(FLAG_RED, colour_range=rng, range_k=k, range_locs=locs)
+                           range_locs=locs, reread_only=nb,
+                           unsettled=unsettled,
+                           pe_state=STATE_RED if pe else "",
+                           nb_state=STATE_RED if nb else "")
+        if own is not None:
+            # One re-read is ONE reading: it confirms every test triggered
+            # on it (6188067361, 4.2). Yellow whether its range has learned
+            # or not.
+            return Verdict(FLAG_CONFIRMED, prev_de=own.prev_de,
+                           colour_range=rng, range_k=k, range_locs=locs,
+                           reread_only=nb,
+                           pe_state=STATE_REREAD if pe else "",
+                           nb_state=STATE_REREAD if nb else "")
+        pe_state = nb_state = ""
+        pe_peers: tuple = ()
+        nb_peers: tuple = ()
+        like, landed, misfit = "", False, ()
+        if pe:
+            pe_peers = tuple(self.peers_of(loc, TEST_PE))
+            if pe_peers:
+                pe_state = STATE_PEER
+            elif k >= RANGE_CONFIRMATIONS:
+                ref, landed = self._match(rng, rd.exp_lab,
+                                          _sub(rd.meas_lab, rd.exp_lab),
+                                          rd.standout)
+                if ref is not None:
+                    pe_state, like = STATE_LEARNED, ref.loc
+                else:
+                    pe_state = STATE_RED
+                    misfit = self._misfit(rng, rd.exp_lab,
+                                          _sub(rd.meas_lab, rd.exp_lab),
+                                          rd.standout)
+            else:
+                pe_state = STATE_RED
+        if nb:
+            nb_peers = tuple(self.peers_of(loc, TEST_NB))
+            nb_state = STATE_PEER if nb_peers else STATE_RED
+        pending = self._pending.get(loc)
+        pe_corrected = bool(pending is not None and pending[1] == "limit"
+                            and not pe)
+        if STATE_RED in (pe_state, nb_state) or not (pe or nb):
+            flag = FLAG_RED
+        elif pe_state == STATE_LEARNED:
+            flag = FLAG_LEARNED
+        else:
+            flag = FLAG_CONFIRMED
+        return Verdict(flag, peer_locs=pe_peers, like_loc=like,
+                       colour_range=rng, range_k=k, range_locs=locs,
+                       misfit=misfit, landed=landed, reread_only=nb,
+                       pe_state=pe_state, nb_state=nb_state,
+                       nb_peer_locs=nb_peers, pe_corrected=pe_corrected)
 
     def judge(self, loc: str, exp_lab, meas_lab, de: float, flagged: bool,
               *, standout: "float | None" = None, live: bool = True,
               strip: "str | None" = None,
               reread_only: bool = False,
-              limit: "float | None" = None) -> Verdict:
+              limit: "float | None" = None,
+              warn: "bool | None" = None) -> Verdict:
         """The outline for this reading of *loc*, as things stand now.
 
         *flagged* is the red rule's answer (past the limit and, reading strips
@@ -1160,9 +1343,13 @@ class FlagJudge:
         a re-read confirmation away (a repaint at a higher limit only hides
         it). *strip* names the strip the patch was read in (the caller's
         ``_strip_of``): patches of different strips can confirm each other.
-        *reread_only*: the neighbour check suspects it (Knut, #182
-        5984174575), so only its own re-read with the same value turns it
-        yellow; similar patches and a learned range apply only to the limit.
+        *reread_only*: the neighbour check suspects it. *warn*: the patch
+        error limit flags it (past the limit and, with the strip test on,
+        its strip's fence); None for a caller that does not say, which
+        counts a flagged reading the neighbour check does not suspect as the
+        limit's. Each test is then confirmed on its own, by the patch's own
+        re-read or by similar patches (Knut, #182 6196599132), and only the
+        limit by a learned colour range.
         *limit* is the ΔE the limit check flags at (the caller's
         ``_patch_warn_limit``); without it the two rules that speak of the
         limit itself ((a)/(c) and (d) below) are not applied.
@@ -1221,10 +1408,12 @@ class FlagJudge:
                     and not any(same(meas_lab, r.meas_lab)
                                 for r in red_before)):
                 unsettled = tuple(float(r.de) for r in red_before if past(r))
+        pe = (bool(flagged) and not reread_only) if warn is None \
+            else bool(warn and flagged)
         rd = _Reading(meas_lab, de, bool(flagged), exp_lab,
                       None if standout is None else float(standout),
                       None if strip is None else str(strip),
-                      bool(reread_only and flagged), bool(unsettled))
+                      bool(reread_only and flagged), bool(unsettled), pe)
         if live:
             hist.append(rd)
             if unsettled:
@@ -1295,7 +1484,9 @@ class FlagJudge:
             # the neighbour check no longer flags is green the same way.
             pending = self._pending.pop(loc, None)
             if over is not None:
-                self._corrected[loc] = (float(over.de), "limit")
+                # Red by both tests before: the card's neighbour wording,
+                # which names both (6188067361, row 30, Knut 6196599132).
+                self._corrected[loc] = (float(over.de), by_of(over))
             elif (live and prev is not None and prev.flagged
                     and (prev.reread_only
                          or not same(meas_lab, prev.meas_lab))):

@@ -117,7 +117,10 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # (M-VERIFY-SOLIDS-REASON)' Answer: Approved."
 # M-NO-INSTRUMENT-NONE (beta 8) left this set on 2026-10-04: Knut, #182
 # 5979780372, "all are ok" (question 1 of 5979436912, its wording).
-AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
+# M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
+# similar-patch rule for both tests (#182 6196599132); its card texts are ours.
+AWAITING_APPROVAL: "set[str]" = {"M-PATCH-SIMILAR",
+                                 "M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # #211, 2026-10-15: a resume whose readings
                                  # do not fit the chart's layout is refused
                                  # before measuring, and a refinement says the

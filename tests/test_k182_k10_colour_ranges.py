@@ -315,7 +315,8 @@ def test_the_preview_flips_an_earlier_patch_both_ways(qapp, tmp_path):
     rows = _card(qapp, info)
     assert f"Yellow outline: judged like patch {info['like_loc']}" in rows
     assert "Colour range: blue/purple" in rows
-    assert "Confirmed: A1, A2, A3" in rows
+    assert ("Patches of this range confirmed so far: A1, A2, A3."
+            in " ".join(" ".join(r for r in rows if r).split()))
     # A3 read again, clean: the range has two now, and F1 is red again
     clean = blues[:2] + [("A3", BLUES[2], BLUES[2])]
     tab._on_strip_measured(_event("A", clean))
@@ -374,7 +375,7 @@ def test_the_card_lines_are_the_proposed_messages():
              mm._CARD_RANGE_LEARNED_3, mm._CARD_RANGE_LEARNED_4,
              mm._CARD_RANGE_RED_LEARNED_1, mm._CARD_RANGE_RED_LEARNED_2,
              mm._CARD_RANGE_CONFIRMED_LEARNED, mm._CARD_PEER_1,
-             mm._CARD_PEER_2, mm._CARD_RED_READ_AGAIN, mm._CARD_YELLOW_NO_NEED,
+             mm._CARD_PEER_2, mm._CARD_PEER_2_ONE, mm._CARD_RED_READ_AGAIN, mm._CARD_YELLOW_NO_NEED,
              mm._CARD_MISFIT_SMALLER, mm._CARD_MISFIT_SMALLER_NEXT,
              mm._CARD_MISFIT_SMALLER_LIMIT, mm._CARD_MISFIT_SIDEWAYS,
              mm._CARD_MISFIT_SIDEWAYS_NEXT, mm._CARD_MISFIT_SIDEWAYS_DE,
@@ -396,8 +397,11 @@ def test_the_card_lines_are_the_proposed_messages():
              mm._CARD_LATER_PROFILE_YELLOW_1, mm._CARD_LATER_PROFILE_YELLOW_2]
     assert msg.body.split("\n") == lines
     assert msg.title == mm._CARD_RANGE
+    # the hand-broken lines fit the card's 40 columns; the three that are
+    # whole sentences since 4.3.5 beta 8 are wrapped by the card itself
+    wrapped = {mm._CARD_RANGE_SAME, mm._CARD_PEER_2, mm._CARD_PEER_2_ONE}
     for line in lines + [msg.title]:
-        assert len(line) <= 44, line
+        assert line in wrapped or len(line) <= 44, line
         assert "—" not in line
     assert set(mm.RANGE_NAMES) == set(pf.RANGES)
 

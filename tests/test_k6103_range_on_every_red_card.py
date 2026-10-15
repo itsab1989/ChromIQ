@@ -41,17 +41,18 @@ def test_a_red_card_for_both_reasons_names_its_range(qapp):
     lines = _card(qapp, neighbour=NB, reread_only=True, colour_range="blue",
                   range_k=2, range_locs=("C19", "E24"))
     assert "Colour range: blue/purple" in lines
-    assert "Confirmed: C19, E24" in lines
+    assert "Patches of this range confirmed so far: C19, E24." in " ".join(lines)
     i = lines.index("Colour range: blue/purple")
     assert i < next(j for j, x in enumerate(lines)
-                    if x.startswith("Only its own re-read"))
+                    if x.startswith("Read patch G22 again to find out."))
 
 
 def test_a_learned_range_is_named_without_a_list(qapp):
     lines = _card(qapp, neighbour=NB, reread_only=True, colour_range="blue",
                   range_k=3, range_locs=("C19", "E24", "G22", "M3"))
     assert "Colour range: blue/purple" in lines
-    assert not any(t.startswith("Confirmed:") for t in lines)
+    assert not any(t.startswith(("Confirmed:", "Patches of this range"))
+                   for t in lines)
 
 
 def test_the_blue_range_is_named_blue_purple():

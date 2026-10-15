@@ -31,7 +31,7 @@ Schema 1::
                 "exp_lab": [..], "meas_lab": [..], "shift": [..],
                 "standout": 61.0 | null},
         "F4":  {"kind": "learned", "like": "A23"},
-        "C7":  {"kind": "peer", "with": ["K2", "R9"]},
+        "C7":  {"kind": "peer", "test": "pe", "with": ["K2", "R9"]},
         "D2":  {"kind": "corrected", "de": 58.1, "by": "neighbour"},
         "J28": {"kind": "unsettled", "prevs": [120.3],
                 "readings": [{"de": 120.3, "meas_lab": [..]}]}}}
@@ -45,7 +45,9 @@ before it). ``learned`` entries are kept for the preview and for anyone reading
 the file; they are judged again from the references every time, so they are
 never loaded back as references. ``peer`` entries (Knut, #182 5979886227) are
 patches that similar patches of other strips confirmed, as the session judged
-them: written for the record, and never loaded back either, because they are
+them, with the test they confirmed (``test``: ``pe`` the patch error limit,
+``nb`` the neighbour check, ``pe+nb`` both; Knut 6196599132): written for the
+record, and never loaded back either, because they are
 worked out again from the readings and the limit.
 
 CHECK & REFINE NEVER READS THIS FILE (Knut, #182 5980560281, 2026-10-04):
@@ -65,6 +67,9 @@ SUFFIX = ".confirmed.json"
 KIND_CONFIRMED = "confirmed"
 KIND_LEARNED = "learned"
 KIND_PEER = "peer"
+#: The test(s) a ``peer`` entry's similar patches confirmed (4.3.5 beta 8):
+#: the patch error limit, the neighbour check, or both.
+PEER_TESTS = ("pe", "nb", "pe+nb")
 #: A misread a re-read corrected (green, Knut #182 5984277558): the first
 #: reading's ΔE and the rule that flagged it. Never a reference.
 KIND_CORRECTED = "corrected"
@@ -108,7 +113,12 @@ def _clean_entry(entry: dict) -> "dict | None":
         with_ = entry.get("with", [])
         if not isinstance(with_, (list, tuple)):
             return None
-        return {"kind": KIND_PEER, "with": [str(v) for v in with_]}
+        out = {"kind": KIND_PEER, "with": [str(v) for v in with_]}
+        # Which test the similar patches confirmed (4.3.5 beta 8, Knut #182
+        # 6196599132): "pe", "nb" or "pe+nb". Files written before carry none.
+        if entry.get("test") in PEER_TESTS:
+            out["test"] = entry["test"]
+        return out
     if kind == KIND_CORRECTED:
         try:
             de = float(entry.get("de", 0.0))

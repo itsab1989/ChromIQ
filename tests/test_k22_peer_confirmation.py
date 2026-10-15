@@ -6,9 +6,13 @@ with similar colors is enough to learn that the color group has trouble with
 being reproduced by the printer."* Built as variant B of the k22 challenge
 (``~/Desktop/ChromIQ-work/2026-10-04_beta9/k22_challenge/CHALLENGE.md``):
 
-* two FLAGGED patches read in DIFFERENT strips, expected colours less than
-  ΔE*ab 6 apart and errors within ΔE*ab 10 of each other, confirm each other
-  (the same yellow as a re-read);
+* two FLAGGED patches read in DIFFERENT strips confirm each other (the same
+  yellow as a re-read). Since 4.3.5 beta 8 (Knut, #182 6196599132) the
+  rule is the approved one of "two tests, one outline": the same colour
+  range, expected colours within the Colour-neighbour radius and errors
+  within the Same-reading tolerance (beta 9 had ΔE*ab 6 and ΔE*ab 10;
+  every case of the new table is in
+  ``tests/test_b8_similar_patches_confirm_both_tests.py``);
 * a range learns at three confirmed patches, re-read and peer in any mix,
   with no ΔE 6 spacing;
 * peers are worked out afresh from the readings and the current limit; a
@@ -57,7 +61,7 @@ def test_two_similar_patches_in_different_strips_confirm_each_other():
     j = pf.FlagJudge()
     assert _read(j, "A1", BLUE, strip="A").flag is pf.FLAG_RED
     near = _add(BLUE, (3.0, 2.0, -3.0))                  # ΔE 4.7 apart
-    v = _read(j, "F7", near, _add(SHIFT, (4.0, 3.0, -5.0)), strip="F")
+    v = _read(j, "F7", near, _add(SHIFT, (1.0, 1.0, -1.0)), strip="F")
     assert v.flag == pf.FLAG_CONFIRMED and v.peer_locs == ("A1",)
     assert v.prev_de is None
     changed = j.rejudge()                                # A1 turns too
@@ -85,14 +89,14 @@ def test_no_strip_no_peer():
 
 
 @pytest.mark.parametrize("d_exp, d_shift, peers", [
-    (5.99, 0.0, True),
-    (6.0, 0.0, False),                  # expected colours 6 apart: not similar
-    (0.0, 10.0, True),                  # errors exactly 10 apart: alike
-    (0.0, 10.01, False),
+    (15.0, 0.0, True),                  # on the radius: inside it
+    (15.01, 0.0, False),                # past the radius: not similar
+    (0.0, 3.0, True),                   # errors exactly 3 apart: alike
+    (0.0, 3.01, False),
 ])
 def test_the_boundaries(d_exp, d_shift, peers):
-    assert pf.PEER_EXPECTED_DE == 6.0
-    assert pf.PEER_SHIFT_DE == pf.SHIFT_TOLERANCE_DE == 10.0
+    assert pf.PEER_RADIUS_DE == 15.0
+    assert pf.SAME_READING_DE == 3.0
     j = pf.FlagJudge()
     _read(j, "A1", BLUE, strip="A")
     other = _add(BLUE, (d_exp, 0.0, 0.0))
@@ -178,7 +182,7 @@ def _paint(j, readings, limit, *, live=False):
 def test_lowering_the_limit_adds_a_partner_and_raising_it_takes_it_away():
     j = pf.FlagJudge()
     big = tuple(2.0 * s for s in SHIFT)                   # ΔE 64.8
-    smaller = _add(big, (0.0, 4.0, -4.0))                 # ΔE 59.3, alike
+    smaller = tuple(0.955 * s for s in big)               # ΔE 61.9, alike
     readings = [("A1", BLUE, big, "A"), ("F1", BLUE, smaller, "F")]
     assert _paint(j, readings, 62.0) == {"A1": pf.FLAG_RED,
                                          "F1": pf.FLAG_NONE}
@@ -215,14 +219,16 @@ def test_a_peer_is_written_as_peer_and_never_loaded_as_a_reference(tmp_path):
     j = pf.FlagJudge()
     _read(j, "A1", BLUE, strip="A")
     _read(j, "F1", BLUE, strip="F")
+    j.rejudge()                    # as the tab does after every batch
     out = j.export()
-    assert out["A1"] == {"kind": "peer", "with": ["F1"]}
-    assert out["F1"] == {"kind": "peer", "with": ["A1"]}
+    assert out["A1"] == {"kind": "peer", "test": "pe", "with": ["F1"]}
+    assert out["F1"] == {"kind": "peer", "test": "pe", "with": ["A1"]}
     ti3 = tmp_path / "m.ti3"
     ti3.write_text("CTI3\n", encoding="utf-8")
     cp.write(ti3, out, "strip")
     data = cp.load(ti3)
-    assert data["patches"]["A1"] == {"kind": "peer", "with": ["F1"]}
+    assert data["patches"]["A1"] == {"kind": "peer", "test": "pe",
+                                     "with": ["F1"]}
     k = pf.FlagJudge()
     assert k.load(data["patches"]) == 0 and k.confirmed == []
 

@@ -163,7 +163,12 @@ def test_a_misread_below_the_limit_is_red_with_its_own_card(qapp, tmp_path):
                                   kind=M._CARD_KIND_ESTIMATED,
                                   loc="D6") in text
     assert M._CARD_NB_MISREAD_S.format(loc="D6") in text
-    assert "buffer" not in text.lower() and "other strips" not in text
+    # "read in other strips" went with the neighbours of other strips (Knut
+    # 6084176226); since 4.3.5 beta 8 only N2 says it, of SIMILAR patches.
+    n2 = M._CARDS_NB_REREAD.format(loc="D6")
+    assert n2 in text
+    assert "buffer" not in text.lower()
+    assert "other strips" not in text.replace(n2, "")
     assert text.endswith(" ".join([M._CARD_LATER_STRIP_S, *M._CARDP_UNITS,
                                    M._CARD_SEE_PREFS_S]))
 
@@ -312,27 +317,46 @@ def test_the_completion_summary_puts_it_under_the_reading_times(qapp,
     assert text[1] == M._SUM_NB_RED_ONE.format(locs="D6")
 
 
-def test_suspects_off_alike_in_other_strips_do_not_confirm_each_other(
+def test_suspects_off_alike_in_other_strips_confirm_each_other(
         qapp, tmp_path):
-    """Knut, #182 5984174575: "The neighbour check needs a re-read to
-    confirm." Two suspects of different strips, expected nearly the same
-    colour and off in the same way, would be similar patches under the
-    limit's rule; here both stay red until each is read again."""
+    """4.3.5 beta 8 (Knut, #182 6196599132, replacing "The neighbour check
+    needs a re-read to confirm", 5984174575): two suspects of different
+    strips, of one colour range, expected near in colour and off in the
+    same way (errors within the same-reading tolerance), confirm each
+    other's neighbour check: yellow, and no longer a suspected misread in
+    the closing window."""
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55, "B3": 0.5})
+    assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED
+    assert _flags(tab)["B3"] == pf.FLAG_CONFIRMED
+    lines = _card(_info(tab, "D6"))
+    assert M._CARD_PEER_1 in lines
+    flat = " ".join(" ".join(x for x in lines if x).split())
+    assert M._CARDS_NB_PEER_ONE.format(locs="B3") in flat
+    assert tab.neighbour_summary_facts()["red"] == []
+
+
+def test_suspects_off_alike_in_one_strip_stay_red(qapp, tmp_path):
+    """One strip is one pass of the reader: a light leak or a tipped
+    instrument makes several of its patches wrong alike, so two suspects of
+    ONE strip never confirm each other (6188067361, 4.1 point 3). The red
+    card says what can confirm it (N2)."""
+    tab = _tab(tmp_path)
+    _read_all(tab, {"D6": 0.55, "D7": 0.55})
     assert _flags(tab)["D6"] is pf.FLAG_RED
-    assert _flags(tab)["B3"] is pf.FLAG_RED
+    assert _flags(tab)["D7"] is pf.FLAG_RED
     lines = _card(_info(tab, "D6"))
     assert M._CARD_PEER_1 not in lines
     flat = " ".join(" ".join(x for x in lines if x).split())
-    assert (M._CARD_NB_REREAD_1.format(loc="D6") + " " + M._CARD_NB_REREAD_2
-            in flat)
-    assert tab.neighbour_summary_facts()["red"] == ["B3", "D6"]
-    tab._on_strip_measured(_strip("D", {"D6": 0.55}))      # its own re-read
+    assert M._CARDS_NB_REREAD.format(loc="D6") in flat
+    assert tab.neighbour_summary_facts()["red"] == ["D6", "D7"]
+    # strip D read again, D7 the same misread, D6 too: one re-read is one
+    # reading of each, so both are confirmed by it
+    tab._on_strip_measured(_strip("D", {"D6": 0.55, "D7": 0.55}))
     assert _flags(tab)["D6"] == pf.FLAG_CONFIRMED
-    assert _flags(tab)["B3"] is pf.FLAG_RED
+    assert _flags(tab)["D7"] == pf.FLAG_CONFIRMED
     facts = tab.neighbour_summary_facts()
-    assert facts["red"] == ["B3"] and facts["kept"] == ["D6"]
+    assert facts["red"] == [] and facts["kept"] == ["D6", "D7"]
 
 
 # ---- review of beta 11 ------------------------------------------------------
@@ -486,7 +510,7 @@ def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
                                    kind=M._CARD_KIND_ESTIMATED,
                                    loc=info["loc"])
     assert also in text
-    assert text.index(also) < text.index("Only its own re-read")
+    assert text.index(also) < text.index(M._CARDS_NB_REREAD.format(loc="D6"))
     assert M._CARD_RANGE_RED_LEARNED_1 not in lines
     assert " ".join(text.split()).endswith(" ".join(
         [M._CARD_LATER_STRIP_S, *M._CARDP_UNITS, M._CARD_SEE_PREFS_S]))

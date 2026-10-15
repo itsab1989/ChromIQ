@@ -41,7 +41,7 @@ def _reread_route_only(monkeypatch):
     other since beta 9 (Knut 5979886227, tests/test_k22_peer_confirmation.py);
     here that route is switched off so each test still measures the re-read."""
     from workflow import patch_flags as _pf
-    monkeypatch.setattr(_pf, "PEER_EXPECTED_DE", 0.0)
+    monkeypatch.setattr(_pf, "PEERS_ON", False)
 
 KNUT = [
     ("A1", (51.7861, 56.9365, 50.9639), (47.3953, 49.9001, 40.7323)),

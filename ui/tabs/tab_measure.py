@@ -16451,7 +16451,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _judge_patch(self, loc, exp_lab, meas_lab, de, flagged, *,
                      standout=None, live=True,
-                     reread_only=False) -> "tuple[object, dict]":
+                     reread_only=False, warn=None) -> "tuple[object, dict]":
         """The outline for one patch and the hover card's extra facts.
 
         Returns ``(flag, extra)``: *flag* is what the preview draws (no
@@ -16494,11 +16494,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # one value for every chart type.
             from workflow.misread_settings import same_reading_tolerance
             judge.set_same_reading_de(same_reading_tolerance(self._settings))
+            # Similar patches' expected colours lie within the chart type's
+            # Colour-neighbour radius (Knut, #182 6196599132).
+            try:
+                judge.set_peer_radius(self._neighbour_parameters()[1])
+            except Exception:      # noqa: BLE001 — the judge keeps its own
+                log.debug("could not read the colour-neighbour radius",
+                          exc_info=True)
             v = judge.judge(loc, exp_lab, meas_lab, de,
                                          bool(flagged), standout=standout,
                                          live=live, strip=strip,
                                          reread_only=bool(reread_only),
-                                         limit=limit)
+                                         limit=limit,
+                                         warn=None if warn is None
+                                         else bool(warn))
         except Exception:          # noqa: BLE001 — never lose the red outline
             log.debug("could not judge patch %s", loc, exc_info=True)
             return bool(flagged), extra
@@ -16525,6 +16534,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return {"flag": kind, "prev_de": v.prev_de, "like_loc": v.like_loc,
                 "corrected_by": str(getattr(v, "corrected_by", "") or ""),
                 "peer_locs": list(getattr(v, "peer_locs", ()) or ()),
+                # Each test on its own (Knut, #182 6196599132): what the
+                # patch error limit and the neighbour check say, and the
+                # similar patches that confirm the neighbour check part.
+                "pe_state": str(getattr(v, "pe_state", "") or ""),
+                "nb_state": str(getattr(v, "nb_state", "") or ""),
+                "nb_peer_locs": list(getattr(v, "nb_peer_locs", ()) or ()),
+                "pe_corrected": bool(getattr(v, "pe_corrected", False)),
                 "colour_range": v.colour_range, "range_k": int(v.range_k),
                 "range_locs": list(v.range_locs),
                 # Learned only by the size test's waiver (Knut 5982600086).
@@ -16767,7 +16783,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     continue                 # the check never touched it
                 flag, extra = self._judge_patch(
                     loc, exp_lab, meas_lab, de, warn or sus,
-                    standout=standout, live=False, reread_only=sus)
+                    standout=standout, live=False, reread_only=sus,
+                    warn=warn)
                 extra.update(self._neighbour_extra(f if sus else None))
                 page, box = self._locate_patch(loc)
                 if page < 0 or box is None:
@@ -16854,7 +16871,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de,
                                         bool(warn) or f is not None,
                                         standout=standout, live=live,
-                                        reread_only=f is not None)
+                                        reread_only=f is not None,
+                                        warn=bool(warn))
         extra.update(self._neighbour_extra(f))
         return flag, extra
 
@@ -16872,7 +16890,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             exp_lab, meas_lab, de, warn, standout = inputs[loc]
             flag, extra = self._judge_patch(
                 loc, exp_lab, meas_lab, de, warn or f.suspect,
-                standout=standout, live=False, reread_only=f.suspect)
+                standout=standout, live=False, reread_only=f.suspect,
+                warn=warn)
             extra.update(self._neighbour_extra(f if f.suspect else None))
             page, box = self._locate_patch(loc)
             if page < 0 or box is None:
@@ -16898,25 +16917,29 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """What the neighbour check found in the measurement on screen, for
         the window that closes a measurement; None when it does not apply.
 
-        ``red``: suspects still drawn red; ``kept``: suspects a re-read
-        confirmed (yellow); ``checked``/``total``: patches with enough
-        comparisons to be judged, of all read."""
+        ``red``: suspects the neighbour check still holds red; ``kept``:
+        suspects a re-read confirmed (yellow); ``checked``/``total``:
+        patches with enough comparisons to be judged, of all read. Since
+        4.3.5 beta 8 each test is judged on its own (Knut, #182
+        6196599132): a suspect whose neighbour-check part similar patches
+        confirmed is in neither list, and one red only by the patch error
+        limit is not a suspected misread of the neighbour check."""
         if (not self._neighbour_check_applies()
                 or not self._neighbour_check_on()):
             return None
         nc = getattr(self, "_nb_check", None)
         if nc is None or len(nc) == 0:
             return None
-        from workflow.patch_flags import FLAG_CONFIRMED, FLAG_RED
+        from workflow.patch_flags import STATE_RED, STATE_REREAD
         judge = getattr(self, "_patch_flag_judge", None)
         verdicts = getattr(judge, "_verdicts", {}) if judge is not None else {}
         red, kept = [], []
         for loc in nc.suspects():
-            flag = getattr(verdicts.get(loc), "flag", FLAG_RED)
-            if flag is FLAG_RED or flag is True:
+            v = verdicts.get(loc)
+            state = STATE_RED if v is None else getattr(v, "nb_state", "")
+            if state == STATE_RED:
                 red.append(loc)
-            elif (flag == FLAG_CONFIRMED
-                  and getattr(verdicts.get(loc), "prev_de", None) is not None):
+            elif state == STATE_REREAD:
                 kept.append(loc)
         # In chart order, so the list reads the same live and from disk.
         from workflow.patch_flags import sorted_locs

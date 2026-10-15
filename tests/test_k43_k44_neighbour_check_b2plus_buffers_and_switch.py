@@ -90,7 +90,12 @@ def test_read_while_off_it_shows_once_switched_on(qapp, tmp_path):
     assert _red(tab) == ["D6"]
 
 
-def test_yellow_and_green_are_remembered_across_the_toggles(qapp, tmp_path):
+def test_yellow_and_green_are_remembered_across_the_toggles(qapp, tmp_path,
+                                                            monkeypatch):
+    # Two misreads of different strips off alike would confirm each other
+    # as similar patches since 4.3.5 beta 8 (Knut, #182 6196599132); this
+    # test is about the re-read, so that route is switched off here.
+    monkeypatch.setattr(pf, "PEERS_ON", False)
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55, "B4": 0.55})
     assert set(_red(tab)) == {"D6", "B4"}

@@ -366,7 +366,13 @@ class _Design:
         # (``learn_1``); ``learn_4`` is the one judged like them. All four
         # are off by the same vector, which raises L* so a dark patch is
         # never read darker than black; ``learn_1`` and ``learn_4`` are more
-        # than ΔE 7 from every other one, so they are nobody's similar patch.
+        # than ΔE 7 from every other one. Since 4.3.5 beta 8 similar patches
+        # compare the ERRORS within the Same-reading tolerance across the
+        # whole colour-neighbour radius (Knut, #182 6196599132), so the two
+        # are read further off along the same direction (``learn_1`` by the
+        # tolerance + 2, ``learn_4`` by twice that): off the same way, as
+        # large or larger, so ``learn_4`` is still judged like them, but
+        # nobody's similar patch.
         #
         # A STRIP IS READ WHOLE: re-reading a patch reads every patch of its
         # strip again with its last reading. So each patch read again in pass
@@ -376,9 +382,13 @@ class _Design:
         v = _unit([1.0, 0.25, -0.35])
         size = pel + 3.5
 
-        def feasible(loc) -> bool:
+        step = SAME_READING + 2.0
+        sizes = {"peer_1": size, "peer_2": size, "learn_1": size + step,
+                 "learn_4": size + 2.0 * step}
+
+        def feasible(loc, want=size) -> bool:
             try:
-                self.at_error(loc, size, direction=v, strict=True)
+                self.at_error(loc, want, direction=v, strict=True)
                 return True
             except SystemExit:
                 return False
@@ -399,8 +409,11 @@ class _Design:
                     rest = [x for x in locs if x not in (a_, b_) and all(
                         _de(self.exp[x], self.exp[y]) >= 7.0 for y in (a_, b_))]
                     for l1 in rest:
+                        if not feasible(l1, sizes["learn_1"]):
+                            continue
                         for l4 in rest:
                             if (l4 != l1 and _letter(l4) != _letter(l1)
+                                    and feasible(l4, sizes["learn_4"])
                                     and _de(self.exp[l1], self.exp[l4]) >= 7.0):
                                 learn = (rname, a_, b_, l1, l4)
                                 break
@@ -419,7 +432,8 @@ class _Design:
                           ("learn_4", l4)):
             self.plan[name] = loc
             self.taken.add(loc)
-            self.read[loc] = self.at_error(loc, size, direction=v, strict=True)
+            self.read[loc] = self.at_error(loc, sizes[name], direction=v,
+                                           strict=True)
         reread_strips.add(_letter(l1))
         used_ranges = {rname}
 

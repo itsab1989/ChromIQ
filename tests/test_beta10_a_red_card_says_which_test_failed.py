@@ -38,8 +38,12 @@ def _meas(exp, shift):
 def _learned_judge(standout=None):
     """A judge whose 'purple' range has learned from three re-read patches,
     each off by SHIFT (and standing *standout* above its strip)."""
+    # A colour-neighbour radius of 6 (4.3.5 beta 8: similar patches lie
+    # within the radius, Knut #182 6196599132), so the probe below is never
+    # a similar patch of the confirmed ones and only learning is asked.
     j = PF.FlagJudge(device_ranges={k: "blue" for k in
-                                    list(EXP) + ["O7", "J25", "W1"]})
+                                    list(EXP) + ["O7", "J25", "W1"]},
+                     peer_radius=6.0)
     de = PF._norm(SHIFT)
     for loc, exp in EXP.items():
         for _ in range(2):
@@ -50,8 +54,8 @@ def _learned_judge(standout=None):
     return j
 
 
-#: A probe's expected colour: the same range, but more than ΔE 6 from every
-#: confirmed patch, so it is never their similar patch (10.3a).
+#: A probe's expected colour: the same range, but more than ΔE 6 (the radius
+#: above) from every confirmed patch, so it is never their similar patch.
 PROBE = (35.0, 70.0, -70.0)
 
 
