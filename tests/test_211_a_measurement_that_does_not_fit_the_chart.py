@@ -63,7 +63,7 @@ def _chart(tmp: Path) -> Path:
 
 def _chart_map(ti2: Path) -> "dict[str, str]":
     out = {}
-    for ln in ti2.read_text().split("BEGIN_DATA\n", 1)[1].splitlines():
+    for ln in ti2.read_text(encoding="utf-8").split("BEGIN_DATA\n", 1)[1].splitlines():
         f = ln.split()
         if len(f) > 2:
             out[f[0]] = f[1].strip('"')
@@ -90,10 +90,11 @@ def test_a_measurement_chromiq_made_fits(tmp_path):
 def test_a_partial_measurement_chromiq_made_fits(tmp_path):
     ti2 = _chart(tmp_path)
     ti3 = _measurement(tmp_path, ti2)
-    text = ti3.read_text().splitlines()
+    text = ti3.read_text(encoding="utf-8").splitlines()
     keep = [ln for ln in text if not ln.startswith(("3 ", "4 ", "5 "))]
     ti3.write_text("\n".join(keep).replace(
-        f"NUMBER_OF_SETS {len(LOCS)}", f"NUMBER_OF_SETS {len(LOCS) - 3}") + "\n")
+        f"NUMBER_OF_SETS {len(LOCS)}", f"NUMBER_OF_SETS {len(LOCS) - 3}") + "\n",
+        encoding="utf-8")
     assert resume_fit(ti3, ti2).fits
 
 
