@@ -409,7 +409,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-CR30-MAGNET",
                                  "M-CR30-INSTRUMENT-GONE",
                                  "M-CR30-PATCH-GAVE-UP",
-                                 "M-ALL-STRIPS-PATCHES-LEFT",
                                  # #148, 2026-08-14. Knut asked for this one
                                  # outright: the engine falling back to stock
                                  # chartread is announced only in the log, and
@@ -710,26 +709,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # variants he asked for in the same post,
                                  # and the help cards' PostScript note in the
                                  # project rule's words (4.3.5 beta 5):
-                                 "M-CAL-DONE-STEPS-PATCH",
-                                 "M-VERIFY-ALL-PATCHES-READ",
-                                 "M-HELP-PS-NOTE-PROJECT",
-                                 # 4.3.5 beta 5 regression review: the ending
-                                 # window once ChromIQ's engine has written
-                                 # the session's readings into the file.
-                                 "M-END-WRITTEN",
-                                 # 4.3.5 beta 6, after #209: the file
-                                 # converter's reasons, English in every
-                                 # language until now. Our words.
-                                 "M-CONVERT-TOOL-MISSING",
-                                 "M-CONVERT-TOOL-FAILED",
-                                 "M-CONVERT-NO-TI3", "M-CONVERT-NO-REFERENCE",
-                                 "M-CONVERT-CXF-UNREADABLE",
-                                 "M-CONVERT-CXF-NO-DEVICE-VALUES",
-                                 "M-CONVERT-CXF-NO-PATCHES",
-                                 "M-CONVERT-CXF-COUNTS-DIFFER",
-                                 "M-CONVERT-CXF-NO-SPECTRUM",
-                                 "M-CONVERT-CXF-UNEQUAL-SPECTRA",
-                                 "M-CONVERT-TXT-NOT-MEASUREMENT",
+                                 # (Their patch-by-patch variants, the help
+                                 # cards' PostScript note, M-END-WRITTEN,
+                                 # M-ALL-STRIPS-PATCHES-LEFT under its 4.3.5
+                                 # beta 5 headline (#182 6181524471) and the
+                                 # eleven M-CONVERT-* texts of beta 6 (#182
+                                 # 6181598560) were approved by Knut on
+                                 # 2026-10-15 and left this set.)
                                  # (M-PATCH-CARD-PLAIN, 4.3.5 beta 2, was
                                  # here until Knut and Basti approved it
                                  # 2026-10-13, without "only".)

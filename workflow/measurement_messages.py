@@ -2440,7 +2440,7 @@ M_CAL_DONE_STEPS = _m(
     "\n".join((_CAL_DONE_READY, _CAL_DONE_STEP_WHICH, _CAL_DONE_STEP_FINISH)),
     approved=True)   # Knut, 2026-10-14 (#182 6166519230): "message accepted"
 
-# --- PROPOSED: the same, patch by patch -------------------------------------
+# --- APPROVED: the same, patch by patch -------------------------------------
 #: 4.3.5 beta 5. Knut, approving M-CAL-DONE-STEPS (#182 6166519230): "same
 #: message applies also to patch-by-patch mode, adapted to patch reading (not
 #: strip reading)". The Calibration Complete window of a patch-by-patch read
@@ -2460,7 +2460,7 @@ M_CAL_DONE_STEPS_PATCH = _m(
     "How to measure patch by patch, after the calibration",
     "\n".join((_CAL_DONE_READY_PATCH, _CAL_DONE_STEP_WHICH_PATCH,
                _CAL_DONE_STEP_FINISH_PATCH)),
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181524471): "All the messages are otherwise approved"
 
 # --- APPROVED: the neighbour check's red line on a VERIFICATION's window ------
 #: 4.3.5 beta 4. Knut, #182 6154440320: the verification chart's "All Strips
@@ -2482,7 +2482,7 @@ M_MEASURED_SUSPECTS_VERIFY = _m(
     "\n".join((_SUM_NB_RED_ONE_VERIFY, _SUM_NB_RED_VERIFY)),
     approved=True)   # Knut, 2026-10-14 (#182 6166519230): "message accepted"
 
-# --- PROPOSED: the help cards' PostScript note, in the project rule's words ---
+# --- APPROVED: the help cards' PostScript note, in the project rule's words ---
 #: 4.3.5 beta 5 (left over from beta 4): the note "PostScript printers: choose
 #: how you print your photos" on the help cards (``welcome_dialog.
 #: _postscript_note``) said the "Print like" row "appears when the print
@@ -2520,9 +2520,9 @@ M_HELP_PS_NOTE_PROJECT = _m(
     "If the print dialog has an RGB colour setting for the printer (on an HP "
     "Color LaserJet, “RGB Color”), ChromIQ sets it to Device. Do the same "
     "for your photos.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181524471): "All the messages are otherwise approved"
 
-# --- PROPOSED: a verification's closing window, patch by patch ---------------
+# --- APPROVED: a verification's closing window, patch by patch ---------------
 #: 4.3.5 beta 5. Knut, approving M-MEASURED-SUSPECTS-VERIFY (#182
 #: 6166519230): "same message applies also to patch-by-patch mode, in the
 #: 'All Patches Read' window". A verification read patch by patch closed on
@@ -2544,7 +2544,7 @@ M_VERIFY_ALL_PATCHES_READ = _m(
     "M-VERIFY-ALL-PATCHES-READ",
     _VERIFY_ALL_PATCHES_TITLE,
     _VERIFY_ALL_PATCHES_BODY,
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181524471): "All the messages are otherwise approved"
 
 # ---------------------------------------------------------------------------
 #: Knut wrote this text himself (beta.150) to replace the original "No
@@ -2772,7 +2772,7 @@ M_UNREAD_NEXT_OR_JUMP_PATCH = _m(
     "and f, b, n or a click on the preview still take you anywhere.")
 
 
-#: PROPOSED (#156). Knut: *"the 'All Strips Read' message comes, despite that
+#: APPROVED by Knut 2026-10-15, #182 6181524471 (#156). Knut: *"the 'All Strips Read' message comes, despite that
 #: the progress percentage shows 97.1% … This message must come only when all
 #: patches are read."* Suppressing the finished message while patches are
 #: unread is the bug fix and is in the code; the window that says so is new
@@ -2793,12 +2793,12 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "and “Refine / resume existing measurement (-r)” ticked. ChromIQ picks up where "
     "the readings stop, so you only measure the patches that are still missing "
     "rather than the whole chart again.\n\n"
-    "•  Re-read Individual Strips — stay in this session and read a strip "
+    "•  Re-read Individual Strips: stay in this session and read a strip "
     "again now. Use “f” and “b” to move between strips, “n” to jump to the next "
     "unread one, and “d” when you are done.\n\n"
-    "•  Close — finish here. ChromIQ asks whether to keep what you have "
+    "•  Close: finish here. ChromIQ asks whether to keep what you have "
     "measured so far, so nothing is decided behind your back.",
-    approved=False,
+    approved=True,   # Knut, 2026-10-15 (#182 6181524471): "All the messages are otherwise approved"
     count_key="n",
     title_one="All strips are read, but one patch is not",
     body_one=
@@ -2810,13 +2810,13 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "and “Refine / resume existing measurement (-r)” ticked. ChromIQ picks up where "
     "the readings stop, so you only measure the patch that is still missing "
     "rather than the whole chart again.\n\n"
-    "•  Re-read Individual Strips — stay in this session and read a strip "
+    "•  Re-read Individual Strips: stay in this session and read a strip "
     "again now. Use “f” and “b” to move between strips, “n” to jump to the next "
     "unread one, and “d” when you are done.\n\n"
-    "•  Close — finish here. ChromIQ asks whether to keep what you have "
+    "•  Close: finish here. ChromIQ asks whether to keep what you have "
     "measured so far, so nothing is decided behind your back.")
 
-#: PROPOSED (4.3.5 beta 5 regression review). M-END says the session's
+#: APPROVED by Knut 2026-10-15, #182 6181524471 (4.3.5 beta 5 regression review). M-END says the session's
 #: readings "are not in your measurement file yet", which is true of stock
 #: chartread (it writes on a clean exit) and not of ChromIQ's engine, which
 #: writes the file after every strip it accepts. Shown instead of M-END's body
@@ -2837,7 +2837,7 @@ M_END_WRITTEN = _m(
     "file this session wrote is moved to an “old” folder, never "
     "deleted.{kept}\n\n"
     "•  Keep measuring: closes this window and carries on where you were.",
-    approved=False,
+    approved=True,   # Knut, 2026-10-15 (#182 6181524471): "All the messages are otherwise approved"
     count_key="n",
     body_one=
     "You have read 1 patch in this session. ChromIQ's engine has already "
@@ -6062,7 +6062,7 @@ M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED = _m(
 #: raise time (the language is fixed for the session, and ``core.i18n`` needs
 #: no Qt), and the exception carries its ID and headline. One headline for all
 #: of them: the one the Measure tab and Build Profile windows already show.
-#: PROPOSED wording, shown since beta 6.
+#: Shown since beta 6; APPROVED by Knut 2026-10-15 (#182 6181598560).
 _CONVERT_HEADLINE = "The file could not be converted"
 
 M_CONVERT_TOOL_MISSING = _m(
@@ -6075,7 +6075,7 @@ M_CONVERT_TOOL_MISSING = _m(
     "folder: it should be the \u201cbin\u201d folder inside your ArgyllCMS "
     "installation. Then try again.\n\n"
     "Your file has not been changed.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_TOOL_FAILED = _m(
     "M-CONVERT-TOOL-FAILED",
@@ -6085,7 +6085,7 @@ M_CONVERT_TOOL_FAILED = _m(
     "read, or it is damaged.\n\n"
     "Your file has not been changed.\n\n"
     "Details: {detail}",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_NO_TI3 = _m(
     "M-CONVERT-NO-TI3",
@@ -6094,7 +6094,7 @@ M_CONVERT_NO_TI3 = _m(
     "This usually means the file is not an i1Profiler measurement export, for "
     "example a list of patches that have not been measured yet.\n\n"
     "Your file has not been changed.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_NO_REFERENCE = _m(
     "M-CONVERT-NO-REFERENCE",
@@ -6102,7 +6102,7 @@ M_CONVERT_NO_REFERENCE = _m(
     "The conversion finished but did not produce a reference file. The file "
     "may not be a target reference of this kind.\n\n"
     "Your file has not been changed.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_CXF_UNREADABLE = _m(
     "M-CONVERT-CXF-UNREADABLE",
@@ -6111,7 +6111,7 @@ M_CONVERT_CXF_UNREADABLE = _m(
     "may be damaged or only partly saved.\n\n"
     "Your file has not been changed.\n\n"
     "Details: {detail}",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_CXF_NO_DEVICE_VALUES = _m(
     "M-CONVERT-CXF-NO-DEVICE-VALUES",
@@ -6120,14 +6120,14 @@ M_CONVERT_CXF_NO_DEVICE_VALUES = _m(
     "for every patch. ChromIQ can import i1Profiler measurements of RGB and "
     "CMYK charts only.\n\n"
     "Your file has not been changed.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_CXF_NO_PATCHES = _m(
     "M-CONVERT-CXF-NO-PATCHES",
     _CONVERT_HEADLINE,
     "{name} holds no measured patches.\n\n"
     "Your file has not been changed.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_CXF_COUNTS_DIFFER = _m(
     "M-CONVERT-CXF-COUNTS-DIFFER",
@@ -6136,7 +6136,7 @@ M_CONVERT_CXF_COUNTS_DIFFER = _m(
     "readings: {readings}), so ChromIQ cannot tell which reading belongs to "
     "which patch.\n\n"
     "Your file has not been changed.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_CXF_NO_SPECTRUM = _m(
     "M-CONVERT-CXF-NO-SPECTRUM",
@@ -6144,7 +6144,7 @@ M_CONVERT_CXF_NO_SPECTRUM = _m(
     "A reading in {name} has no spectral data (reflectance spectrum), and "
     "ChromIQ needs it to work out the colour of each patch.\n\n"
     "Your file has not been changed.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 M_CONVERT_CXF_UNEQUAL_SPECTRA = _m(
     "M-CONVERT-CXF-UNEQUAL-SPECTRA",
@@ -6153,7 +6153,7 @@ M_CONVERT_CXF_UNEQUAL_SPECTRA = _m(
     "reflectance spectra differ in length), so ChromIQ cannot convert "
     "them.\n\n"
     "Your file has not been changed.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 #: Build Profile's window when its txt2ti3 run (through ArgyllRunner) fails.
 #: It was English in every language: the text was never handed to tr(). The
@@ -6173,7 +6173,7 @@ M_CONVERT_TXT_NOT_MEASUREMENT = _m(
     "\u2022 The saved file must contain both the device values (RGB or CMYK) "
     "and the measured colour (Lab/XYZ or spectral) for every patch.\n"
     "\u2022 Load that saved measurement file here.",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
 #: The paragraph a converter window adds when the ArgyllCMS program printed an
 #: error line of its own. Read through the function, not across the import

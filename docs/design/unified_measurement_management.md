@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code; both are shown since 4.3.5 beta 5), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PATCHSET-KEPT-UNCHECKED (new, beta 45, B8-1460: a chart made before its record said whether its patch set was given, and whose patches targen could not be asked about, keeps them rather than Generate replacing them in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) and M-INSTRUMENT-BUSY (new, 2026-09-02, #159 — Tools ▸ Read single patches now reads a CR30 with ChromIQ's own driver, which is the first time two windows can reach for one instrument; every existing guard answers from process state and cannot see a reader that spawns no process, and the instrument hands its last reading to whoever asks, so the fault it prevents is a plausible wrong colour rather than an error), (the window for a CR30 that stopped answering during a spot session, new in beta 17, was APPROVED by Basti on 2026-10-10 and left this list), (the log line for a CR30 press made before the spot window said Ready, new in the review of beta 17, was APPROVED by Basti on 2026-10-10 and left this list), plus M-SPOT-CLEAR and M-SPOT-UNSAVED (new, 2026-09-03 — Tools ▸ Read single patches could throw a whole measuring session away in silence by two separate routes: Clear had no question and no undo, and Close, the red window button and Escape all discarded the readings without a word. Knut found the first of them by pressing the spacebar, which the Measure tab uses as the reading trigger), plus M-SCAN-REF-SHORT, M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED and M-SCAN-PROFILE-ARCHIVED (new, 2026-09-03 — review 5 of Tools ▸ Build profile with scanner or camera found the app building a profile from data that is not the chart it thinks it is, with every indicator on screen green: a reference file holding a correct SUBSET of the target builds from a sixth of the sheet and scores BETTER on colprof's own self-check than the correct build, an upside-down scan passes every pre-build check, and a scan with two of every five patches clipped to white builds clean and silent. The mechanisms are in the code and can ship ahead of these words; the fourth message says where a rebuilt profile's predecessor went, now that it is archived instead of overwritten), plus M-SCAN-DARK, M-SCAN-FIT-UNSUPPORTED and M-SCAN-SELFCHECK-UNUSABLE (new, 2026-09-04 — beta 8 items B8-01 and B8-03, the two places where the same window tells the user a bad profile is a good one. Every guard in it is scale-invariant and an exposure slip is pure scale, so an under-exposed scan passes all of them in silence and builds a profile 21.7 ΔE out; and colprof's self-check is measured against the rows it was fitted to, so it is smallest exactly when there is least to fit — a one-colour reference scores a perfect 0.007 and a profile whose white point is nan is not checked at all, both ending "Install it as your scanner's input profile"), plus M-SCAN-LOADED and M-SCAN-DIAGNOSTIC (new, 2026-09-03, beta 8 items B8-16 and B8-15 — the same window said nothing at all when a scan was loaded, so a 24-patch photograph loaded under a 288-patch target left an empty log and a live Run button; and it accepted one of ArgyllCMS's own diagnostic images as a scan, which Knut did in his beta.7 log, and then reported a misplacement that was not real about a read that had been fine), plus M-SCAN-ALIGN-NO-BETTER (revised wording only, 2026-09-04, beta 8 item B8-42 — the headline is unchanged and approved; the body used to describe the recogniser alone, and the merged placement button reaches this ending only when the search AND the reshaping have both declined, so it now says both and names “Check alignment”, the one check in the window that can tell a grid one whole patch out from the right answer), plus M-SCAN-CONVERTED and M-SCAN-FIT-TOO-FAR (new, 2026-09-04, beta 8 — the photograph path, revised the same day for B8-42's merged placement button. The window offers “a scan or photo” and Argyll reads TIFF only, so a camera JPEG aligned perfectly on screen and then failed inside scanin; and a sheet that is bowed AND photographed at an angle is read wrongly at its own corners — measured over 48 bow × lens × tilt conditions, each distortion alone costs nothing and two together put 102 patches over 1 ΔE00, which is why the four corners can now be reshaped onto the patches under a bound of three quarters of a patch pitch. Four further messages written for that button on the same day are WITHDRAWN, never having been approved — they are named and accounted for in the awaiting-review section below, and they went with the button itself, which B8-42 merged into Auto align), plus M-SCAN-ALIGN-NOT-SEATED (revised wording, 2026-09-04, beta 8 items B8-02 and B8-42 — Auto align's seventh refusal, and the first one about geometry rather than colour. The quad it is able to return is always a rotated rectangle, so a sheet photographed off square gets a grid that is systematically wrong — and every check it had looks at the chart's COLOURS, which a shear does not disturb because the patches keep their brightness order while sliding onto their neighbours. Measured at 8 degrees of compound tilt: 20 of 23 targets accepted, ten of them more than half a patch out, while the window printed “agrees … to 0.98” beside its own sentence “anything below 0.80 is refused”. Its body is reworded for B8-42 because the placement it refuses may now have come from reshaping the user's own corners rather than from the recogniser, so “it found the chart, but …” would not always be true), plus M-SCAN-SHOT-EMPTY and M-SCAN-TARGET-CHANGED (new, 2026-09-04, beta 8 item B8-32 — two silences in the same window found by the regression sweep: an averaging slot left empty is dropped without a word, so the window shows “Scan 2 of 2” while the build reads one scan and averages nothing; and changing the Target type discards the loaded scan, its placement and every other shot on the page, into a log that is cleared in the same block), plus M-SCAN-WP-DEFAULT (new, 2026-09-05 — the white-point handling a scanner or camera profile is built with moved from “Map chart white to white” to “Scale white to a perfect white surface” (`colprof -u -R`), because the old default clipped every original brighter than the test chart's own white board — 84 % reflectance on the scan it was measured from — irreversibly onto white, at no gain in accuracy. Basti ruled that existing remembered settings adopt the new default rather than being pinned to the old one: “our user base is not very big at the moment so i want the better default”. The RULING is his; this message is the announcement that goes with it, and its wording is new and waits here), plus M-REPORT-CHART-MISMATCH-NO-GREY (new, 2026-09-24, beta 40 challenge B: the strip named “Neutral grey ramp” with 16 steps under a list with no grey row, and on a FROM PROFILE GAMUT chart, whose grey steps are its neutral aims; this closing names no grey lever), plus M-THRESHOLDS-NOT-CERTIFICATION (new, 2026-09-08, #182: the note at the foot of the Report limits window saying that ChromIQ measures against a standard's published values and never certifies anything, and naming the requirements it cannot measure; revised twice after Knut approved section C of 5802027116, and the revision of 2026-09-24 about “–” was accepted by him in 5816616607, but the sentence about where a Custom column starts from (B8-978) has not been put to him, so it still waits here), plus M-SCAN-ALIGN-NOT-FOUND-HEX (new, 2026-09-11 — Auto align cannot find a hexagonal chart and never could: measured on Knut's own CR30 honeycomb against a rectangular chart of the same 648 colours, the honeycomb moves 0.0 px from every starting placement while the rectangle lands 0.6 px from the true corners, and only the SEARCH stage declines, with zero candidates, because it borrows scanin's recogniser and that hunts the straight horizontal patch edges a grid of rectangles has. The refusal was already safe; what was wrong is that it told the user to drag the corners roughly round the chart and press again, which narrows a search that will find nothing however narrow it is. Behaviour unchanged, wording new, so it waits here), plus M-SCAN-ALIGN-PLACED-UNCHECKED and M-SCAN-ALIGN-PLACED-NOT-SEATED (new, 2026-09-11, #182 — Knut ruled that Auto align, when it cannot place the grid well enough to trust, must “place its best attempt and tell user to check it” rather than leave the corners alone. Two of the nine endings had a candidate and discarded it, so the user never saw what ChromIQ had found; both now apply it with the one-press undo armed, and these are what is said instead of the shared “Auto align left your corners exactly where they are”. The checks themselves are unchanged), plus M-IMPORT-DONE-PROFILING (new, 2026-09-15 — the Measure tab's IMPORT module now files into a profiling run as well as a verification, asked for by a tester and ruled on by Sebastian; the approved import-done window speaks only of verifications and of a dated folder a profiling run does not have, so its twin is new wording and waits here), plus M-IMPORT-DEVICE-FROM-CHART (new, 2026-09-12 — i1Profiler's measure tool reads a chart it did not generate, so it has no colour space to express device values in and exports none at all. ChromIQ refused such a file with "No device RGB columns", about a user's complete measurement of her own verification chart, taken on an i1iO. The pairing never needed those values: the chart printed a NAME beside every patch, the export carries those names, and the chart knows what was printed at each of them, so the chart supplies the device values exactly as it does for a measurement made here. What it cannot then do is check the file against the chart, because that check compares device values, so this window says so and leaves the judgement with the person who printed the sheet) , plus M-VERIFY-UNCHECKED-METRICS (new, 2026-09-22, #182: what the report does with a metric the chart cannot answer; its last paragraph was reworded for K31 after Knut approved section C of 5802027116, and not in the words that post proposed, so the revision waits here), plus M-REPORT-DELETE-FAILED and M-REPORT-NOT-WRITABLE (new, 2026-09-23, challenge C of beta 39, both revised by re-challenge R2 after Knut had been shown them in 5802027116, for a remedy that names the right folder and a plural that follows the folders; the revisions wait here) plus M-RUN-DELETE-REPORTS-LOCKED (new, 2026-09-23, re-challenge R2 of beta 39: a run delete refused because the reports naming the later runs cannot be renumbered said it had tried to remove the reports folder, and had no headline; the behaviour is unchanged, the wording is ours and waits here) plus M-REPORT-UPDATE-NOTHING-LEFT (new, 2026-09-23, re-challenge R1 of beta 39: “Update without them” on a report whose every measurement was gone wrote a report covering nothing under its old verdict and scope; the press is now refused, the wording is ours and waits here) (the two K49 notes on the paper row and the two solid rows, which say that they compare a measurement with its profile's own description while the cube-corner table keeps the ideal values, were APPROVED by Knut in 5845588201 and left this list) (the four K37 notes about the paper white and the strip corners were APPROVED by Knut in 5824834975 once "sheet" was reworded, and left this list), (the Report Scope line saying that an earlier version worked a report out was APPROVED by Knut in 5831246553 once its last sentence, which named the Update button, was reworded, K39-1, and left this list) (the variant of the unchanged question and the red line after "New report…", K39-2 and K39-3, were APPROVED by Knut in 5832385126 and left this list) (the note for a date whose measurement is no longer on disk, B8-1500, was APPROVED by Knut in 5858874320 and left this list) (the line for a calibration found while the ChromIQ layout engine lays the chart out, B8-1655, was APPROVED by Knut in 5865088296 and left this list) (the fourteen K59 texts of option C and of "change" for "drift", about a sheet printed raw and the opening of a report of sheets printed both ways, were APPROVED by Knut in 5850164956 and left this list) plus M-CM-K-CHART-THROUGH, M-CM-RAW-UNCALIBRATED, M-CAL-APPLIED-TWICE and M-CAL-CALIBRATED-TWICE (new, 2026-10-02, #182 5959070209: Sebastian approved the behaviour, a warning before the printer calibration is applied twice to a profile from an older layout-engine -K chart, and verification prints of a -K run that carry the calibration; the wording is ours and waits here) plus M-PATCH-COLOUR-RANGE (new, 2026-10-02, #182 k10: the colour-range rule for yellow outlines was approved by Knut in 5961180259 and by Sebastian; its post gave one line of card text, and the lines the cards now carry, the range on its own line, a count of three, the confirmed patches it learned from, are ours; revised for beta 9, Knut 5979886227: no "spaced", and two lines for a patch confirmed by similar patches; and, for Knut 5980576263, a "read it again" line on a red card and a "no need to read it again" line on a yellow one, which Knut approved in 5982038838 together with the two similar-patches lines; and, for beta 10, Knut 5982206917, the lines that name the failed test and its numbers on a red card in a learned range; and, for Knut 5982600086, the lines saying whether the reading landed where its confirmed patches' readings did) (the six lines of a verification card whose profile was made after the sheet was printed, Knut's own sentence, were APPROVED by Knut in 5983480953 and left this list; the four lines beside them are ours and wait) (the ten lines of a verification card that speak of the profile's accuracy instead of what the printer cannot reach, #203 5982702169, were APPROVED by Knut in 5982788316 and left this list) (the hover-card line saying a verification patch's expected colour is the profile's prediction was APPROVED by Knut in 5965408335 and left this list) (the two "Continue to next / Jump to unread" questions of 5958921500 Q2 were APPROVED by Knut in 5962907586 and left this list) plus M-STRIP-READ-TWICE, M-CR-STRIPS, M-CR-START-OVER and M-CR-PRECONDITIONING (new, 2026-10-03, #182: Knut approved the Check & Refine redesign and the live "strip read twice" check on the pictures in 5963737221, in 5963903650; the words the pictures and the question showed are kept verbatim, the few they did not show are ours, and none of it has had his word on the wording yet; beta 9 removed M-CR-STRIPS' two "Not offered again" lines, Knut 5980560281) plus M-CAL-TABLE-REPAIRED and M-CAL-TABLE-DAMAGED (new, 2026-10-03, beta 7: a measurement whose copy of the printer calibration an earlier engine wrote damaged is repaired in place from its chart before any ArgyllCMS tool loads it, the original kept in old/, as Basti ruled; the first says so, the second replaces the build-failed text that blamed the user when no chart could be found to repair from; the wording is ours and waits here) plus M-CHART-PATTERN-REFUSED, M-CHART-LOCATIONS-UNREADABLE, M-CHART-LEGACY-STOCK and M-CHART-LEGACY-ENDED (new, 2026-10-03, forum report and Knut's ruling #182 5965589190: the strip pattern "0-9" made a 14-strip chart neither ArgyllCMS chartread nor ChromIQ's engine could read, because ChromIQ printed "10" where Argyll's pattern stops at 9; ChromIQ now labels every new chart exactly as ArgyllCMS does and refuses a pattern the readers could not read back, the Measure tab says so before starting any reader on a sheet no reader can measure, and a sheet printed with ChromIQ's old labels is read by ChromIQ's engine as printed while a user of ArgyllCMS chartread is told plainly that chartread cannot read it; the wording is ours and waits here) plus M-PROFILE-VERIFY (revised, 2026-10-03, #182: Knut ruled in 5964384250 Q1 that a rebuild archives the profile only, so “Build here anyway” no longer moves the dated verifications, and in 5964076758 Q4 that “Each was printed through the profile” must be reworded, because it is untrue for raw and FROM PROFILE GAMUT sheets) and M-VERIFY-EARLIER-PROFILE, M-VERIFY-EARLIER-PROFILE-KEEP-CHART, M-VERIFY-EARLIER-PROFILE-NO-CHART, M-VERIFY-CHART-EARLIER-PROFILE and M-VERIFY-EARLIER-ARCHIVED-HERE (new, 2026-10-03, #182 §6f: the one window Knut asked for when Verification is chosen after the profile was replaced, 5964384250 and 5965626117; the behaviour is his, the wording is ours) plus M-CAL-REQUESTED, M-CAL-REQUESTED-DONE and M-CAL-REQUESTED-FAILED (new, 2026-10-03, #182: Knut 5965478577 and 5965735823 and Basti 5965500670 approved calibrating between strips or patches with K or an optional Calibrate button, on ChromIQ's engine only; the placement window keeps the session on Cancel, the short completion window says to carry on, and a failure locks reading until a calibration succeeds; the wording is ours and waits here) plus M-PATCHSET-CAL-INKS and M-VIEW-RGB-ONLY (new, 2026-10-03, beta 7, the CMYK/CR30 forum report: the first refuses a preset's or loaded patch set the printer calibration does not fit and names “Edit patch recipe (override preset)”, the second is the one line every RGB-only view shows for a CMYK or multi-ink measurement; Basti approved the behaviour, the wording is ours and waits here) (the no-instrument window for when nothing is connected at all, new in beta 8, was APPROVED by Knut in 5979780372, "all are ok", and left this list) plus M-PATCH-CORRECTED-VARIANTS (new, 2026-10-04, beta 11: the two lines of the green outline Knut's approved example did not cover; the green outline itself and its words were approved by Knut in 5984277558), plus M-PATCH-NEIGHBOUR-VARIANTS and M-MEASURED-SUSPECTS (new, 2026-10-04, beta 11, #182: Knut approved the neighbour check in 5983470377, answer 5, and its threshold box in 5983725218; the rule is confirmed in 10.9, the card lines and the closing window's summary of suspected misreads are ours and wait here), plus M-PATCH-UNSETTLED (new, 2026-10-07, beta 12, #182: Knut ruled in 6045500910 that a re-read past the limit that agrees with no earlier reading stays red and its card says so, 10.10a; the words are ours and wait here), plus M-REPORT-THROUGH-PROFILE (new, 2026-10-07, beta 12, #182: Knut ruled in 6045500910 that a verification printed through its profile is judged against its source colours on in-gamut patches and against the profile's own prediction; the words are ours and wait here), plus M-PREVIEW-AS-PRINTED (new, 2026-10-07, beta 12, #182: Knut ruled in 6045500910 answer 4 that the chart preview looks as the paper will look printed, and Basti in 6045468325 asked for a small indicator saying what the preview shows; the words are ours and wait here; extended 2026-10-08 for Basti's switch between "as on paper" and "device values", lines 10 to 16), (the Simulate paper white button inside the indicator, beta 14, was APPROVED by Sebastian on 2026-10-08 and left this list), plus M-CHART-SLOW-NO-PROFILE (new, 2026-10-08, beta 12: the "taking longer than usual" window of a chart built without a pre-conditioning profile no longer speaks of pre-conditioning profiles and refinement charts), plus M-PRINT-JOB-NOT-AS-SENT (new, 2026-10-08, beta 15: the job read back from the printing system is not what ChromIQ sent; Sebastian did not approve it as worded, its opening sentence is wrong when the paper profile is the only problem), M-PRINT-JOB-UNTAGGED (new, 2026-10-08, beta 15: that case's own window) and M-PRINT-PAPER-PROFILE-UNKNOWN (new, 2026-10-08, beta 15: the direct route does not know which paper profile the driver of this model chooses, so it asks instead of guessing), (B5's two Epson colour-matching texts, the status line when ChromIQ set the Epson colour matching back to ColorSync and the window when it could not, were APPROVED by Basti on 2026-10-10 and left this list), (B3's two printing texts, what a verification print needs and the status line for a chart that went with the job's own profile on a PostScript queue, were APPROVED by Basti on 2026-10-10 and left this list), (the note and marks of the Print Chart tab's quality row, beta 16, were APPROVED by Sebastian on 2026-10-09 and left this list), (the confirmation window's colour rows and the status line after sending, beta 15, were APPROVED by Sebastian on 2026-10-08 and left this list) — all defined in the awaiting-review section below, (three 4.3.5 texts corrected by its combined review, the window for extra inks printed as a mix, the grey-steps help of FROM PROFILE GAMUT and the note for profiles made through the dialog to a PostScript printer, were APPROVED by Basti in their corrected wording on 2026-10-11 and left this list), (four 4.3.5 printing texts, the verification note's two dialog-route paragraphs, the status line for a chart sent to a PostScript printer as its own RGB and the window for a chart whose inks macOS converts, were APPROVED by Basti on 2026-10-11 and left this list), (the five texts of the PostScript printer's "Print like" choice, 4.3.5 beta 2, were APPROVED by Basti on 2026-10-13 in his own rewording and left this list), (the patch cards' plain-words lines of the patch error limit and the neighbour check, 4.3.5 beta 2, were APPROVED by Knut and Basti on 2026-10-13, without "only" in the first neighbour line, and left this list), (the underlay paragraph of the CR30 and ColorMunki / i1Studio Calibration Complete windows, and the two texts asked after the macOS print dialog, were APPROVED by Basti on 2026-10-13 and left this list) (the "Print like" help's new headline and the question before a "Preview" run goes by the direct route were APPROVED by Basti on 2026-10-13 and left this list too) (the nine 4.3.5 beta 3 texts, the 3D tool's colour key and its “Show:” help, the strip-letter warning, why the macOS print dialog shows a colour profile, the PostScript question and its two choices explained, the row's help and the line under it in the project rule's words, and the direct-route question renamed in the same words, were APPROVED by Knut on 2026-10-13, #182 6152691121, and left this list; so did the From Profile Gamut module's no-profile text, now also a window when a preset is picked) (the verification's red neighbour line in its closing summary, and one set of to-do points in both Calibration Complete windows, 4.3.5 beta 4, were APPROVED by Knut on 2026-10-14, #182 6166519230, and left this list), plus M-CAL-DONE-STEPS-PATCH and M-VERIFY-ALL-PATCHES-READ (new, 4.3.5 beta 5, Knut #182 6166519230: the same two for a patch-by-patch read) and M-HELP-PS-NOTE-PROJECT (new, 4.3.5 beta 5: the help cards' PostScript note in the project rule's words), plus M-END-WRITTEN (new, 4.3.5 beta 5 regression review: the ending window once ChromIQ's engine has already written the session's readings, where the approved ending window says they are not in the file yet) and a new headline for M-ALL-STRIPS-PATCHES-LEFT (it was one word from the approved navigation question's), plus M-CONVERT-TOOL-MISSING, M-CONVERT-TOOL-FAILED, M-CONVERT-NO-TI3, M-CONVERT-NO-REFERENCE, M-CONVERT-CXF-UNREADABLE, M-CONVERT-CXF-NO-DEVICE-VALUES, M-CONVERT-CXF-NO-PATCHES, M-CONVERT-CXF-COUNTS-DIFFER, M-CONVERT-CXF-NO-SPECTRUM, M-CONVERT-CXF-UNEQUAL-SPECTRA and M-CONVERT-TXT-NOT-MEASUREMENT (new, 4.3.5 beta 6, after #209: the file converter's reasons, which reached every language in English). Since 4.3.5 beta 5 every message on this list is SHOWN in the app while it waits (Knut, #182 6166519230: "You must always release the suggested text").
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PATCHSET-KEPT-UNCHECKED (new, beta 45, B8-1460: a chart made before its record said whether its patch set was given, and whose patches targen could not be asked about, keeps them rather than Generate replacing them in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) and M-INSTRUMENT-BUSY (new, 2026-09-02, #159 — Tools ▸ Read single patches now reads a CR30 with ChromIQ's own driver, which is the first time two windows can reach for one instrument; every existing guard answers from process state and cannot see a reader that spawns no process, and the instrument hands its last reading to whoever asks, so the fault it prevents is a plausible wrong colour rather than an error), (the window for a CR30 that stopped answering during a spot session, new in beta 17, was APPROVED by Basti on 2026-10-10 and left this list), (the log line for a CR30 press made before the spot window said Ready, new in the review of beta 17, was APPROVED by Basti on 2026-10-10 and left this list), plus M-SPOT-CLEAR and M-SPOT-UNSAVED (new, 2026-09-03 — Tools ▸ Read single patches could throw a whole measuring session away in silence by two separate routes: Clear had no question and no undo, and Close, the red window button and Escape all discarded the readings without a word. Knut found the first of them by pressing the spacebar, which the Measure tab uses as the reading trigger), plus M-SCAN-REF-SHORT, M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED and M-SCAN-PROFILE-ARCHIVED (new, 2026-09-03 — review 5 of Tools ▸ Build profile with scanner or camera found the app building a profile from data that is not the chart it thinks it is, with every indicator on screen green: a reference file holding a correct SUBSET of the target builds from a sixth of the sheet and scores BETTER on colprof's own self-check than the correct build, an upside-down scan passes every pre-build check, and a scan with two of every five patches clipped to white builds clean and silent. The mechanisms are in the code and can ship ahead of these words; the fourth message says where a rebuilt profile's predecessor went, now that it is archived instead of overwritten), plus M-SCAN-DARK, M-SCAN-FIT-UNSUPPORTED and M-SCAN-SELFCHECK-UNUSABLE (new, 2026-09-04 — beta 8 items B8-01 and B8-03, the two places where the same window tells the user a bad profile is a good one. Every guard in it is scale-invariant and an exposure slip is pure scale, so an under-exposed scan passes all of them in silence and builds a profile 21.7 ΔE out; and colprof's self-check is measured against the rows it was fitted to, so it is smallest exactly when there is least to fit — a one-colour reference scores a perfect 0.007 and a profile whose white point is nan is not checked at all, both ending "Install it as your scanner's input profile"), plus M-SCAN-LOADED and M-SCAN-DIAGNOSTIC (new, 2026-09-03, beta 8 items B8-16 and B8-15 — the same window said nothing at all when a scan was loaded, so a 24-patch photograph loaded under a 288-patch target left an empty log and a live Run button; and it accepted one of ArgyllCMS's own diagnostic images as a scan, which Knut did in his beta.7 log, and then reported a misplacement that was not real about a read that had been fine), plus M-SCAN-ALIGN-NO-BETTER (revised wording only, 2026-09-04, beta 8 item B8-42 — the headline is unchanged and approved; the body used to describe the recogniser alone, and the merged placement button reaches this ending only when the search AND the reshaping have both declined, so it now says both and names “Check alignment”, the one check in the window that can tell a grid one whole patch out from the right answer), plus M-SCAN-CONVERTED and M-SCAN-FIT-TOO-FAR (new, 2026-09-04, beta 8 — the photograph path, revised the same day for B8-42's merged placement button. The window offers “a scan or photo” and Argyll reads TIFF only, so a camera JPEG aligned perfectly on screen and then failed inside scanin; and a sheet that is bowed AND photographed at an angle is read wrongly at its own corners — measured over 48 bow × lens × tilt conditions, each distortion alone costs nothing and two together put 102 patches over 1 ΔE00, which is why the four corners can now be reshaped onto the patches under a bound of three quarters of a patch pitch. Four further messages written for that button on the same day are WITHDRAWN, never having been approved — they are named and accounted for in the awaiting-review section below, and they went with the button itself, which B8-42 merged into Auto align), plus M-SCAN-ALIGN-NOT-SEATED (revised wording, 2026-09-04, beta 8 items B8-02 and B8-42 — Auto align's seventh refusal, and the first one about geometry rather than colour. The quad it is able to return is always a rotated rectangle, so a sheet photographed off square gets a grid that is systematically wrong — and every check it had looks at the chart's COLOURS, which a shear does not disturb because the patches keep their brightness order while sliding onto their neighbours. Measured at 8 degrees of compound tilt: 20 of 23 targets accepted, ten of them more than half a patch out, while the window printed “agrees … to 0.98” beside its own sentence “anything below 0.80 is refused”. Its body is reworded for B8-42 because the placement it refuses may now have come from reshaping the user's own corners rather than from the recogniser, so “it found the chart, but …” would not always be true), plus M-SCAN-SHOT-EMPTY and M-SCAN-TARGET-CHANGED (new, 2026-09-04, beta 8 item B8-32 — two silences in the same window found by the regression sweep: an averaging slot left empty is dropped without a word, so the window shows “Scan 2 of 2” while the build reads one scan and averages nothing; and changing the Target type discards the loaded scan, its placement and every other shot on the page, into a log that is cleared in the same block), plus M-SCAN-WP-DEFAULT (new, 2026-09-05 — the white-point handling a scanner or camera profile is built with moved from “Map chart white to white” to “Scale white to a perfect white surface” (`colprof -u -R`), because the old default clipped every original brighter than the test chart's own white board — 84 % reflectance on the scan it was measured from — irreversibly onto white, at no gain in accuracy. Basti ruled that existing remembered settings adopt the new default rather than being pinned to the old one: “our user base is not very big at the moment so i want the better default”. The RULING is his; this message is the announcement that goes with it, and its wording is new and waits here), plus M-REPORT-CHART-MISMATCH-NO-GREY (new, 2026-09-24, beta 40 challenge B: the strip named “Neutral grey ramp” with 16 steps under a list with no grey row, and on a FROM PROFILE GAMUT chart, whose grey steps are its neutral aims; this closing names no grey lever), plus M-THRESHOLDS-NOT-CERTIFICATION (new, 2026-09-08, #182: the note at the foot of the Report limits window saying that ChromIQ measures against a standard's published values and never certifies anything, and naming the requirements it cannot measure; revised twice after Knut approved section C of 5802027116, and the revision of 2026-09-24 about “–” was accepted by him in 5816616607, but the sentence about where a Custom column starts from (B8-978) has not been put to him, so it still waits here), plus M-SCAN-ALIGN-NOT-FOUND-HEX (new, 2026-09-11 — Auto align cannot find a hexagonal chart and never could: measured on Knut's own CR30 honeycomb against a rectangular chart of the same 648 colours, the honeycomb moves 0.0 px from every starting placement while the rectangle lands 0.6 px from the true corners, and only the SEARCH stage declines, with zero candidates, because it borrows scanin's recogniser and that hunts the straight horizontal patch edges a grid of rectangles has. The refusal was already safe; what was wrong is that it told the user to drag the corners roughly round the chart and press again, which narrows a search that will find nothing however narrow it is. Behaviour unchanged, wording new, so it waits here), plus M-SCAN-ALIGN-PLACED-UNCHECKED and M-SCAN-ALIGN-PLACED-NOT-SEATED (new, 2026-09-11, #182 — Knut ruled that Auto align, when it cannot place the grid well enough to trust, must “place its best attempt and tell user to check it” rather than leave the corners alone. Two of the nine endings had a candidate and discarded it, so the user never saw what ChromIQ had found; both now apply it with the one-press undo armed, and these are what is said instead of the shared “Auto align left your corners exactly where they are”. The checks themselves are unchanged), plus M-IMPORT-DONE-PROFILING (new, 2026-09-15 — the Measure tab's IMPORT module now files into a profiling run as well as a verification, asked for by a tester and ruled on by Sebastian; the approved import-done window speaks only of verifications and of a dated folder a profiling run does not have, so its twin is new wording and waits here), plus M-IMPORT-DEVICE-FROM-CHART (new, 2026-09-12 — i1Profiler's measure tool reads a chart it did not generate, so it has no colour space to express device values in and exports none at all. ChromIQ refused such a file with "No device RGB columns", about a user's complete measurement of her own verification chart, taken on an i1iO. The pairing never needed those values: the chart printed a NAME beside every patch, the export carries those names, and the chart knows what was printed at each of them, so the chart supplies the device values exactly as it does for a measurement made here. What it cannot then do is check the file against the chart, because that check compares device values, so this window says so and leaves the judgement with the person who printed the sheet) , plus M-VERIFY-UNCHECKED-METRICS (new, 2026-09-22, #182: what the report does with a metric the chart cannot answer; its last paragraph was reworded for K31 after Knut approved section C of 5802027116, and not in the words that post proposed, so the revision waits here), plus M-REPORT-DELETE-FAILED and M-REPORT-NOT-WRITABLE (new, 2026-09-23, challenge C of beta 39, both revised by re-challenge R2 after Knut had been shown them in 5802027116, for a remedy that names the right folder and a plural that follows the folders; the revisions wait here) plus M-RUN-DELETE-REPORTS-LOCKED (new, 2026-09-23, re-challenge R2 of beta 39: a run delete refused because the reports naming the later runs cannot be renumbered said it had tried to remove the reports folder, and had no headline; the behaviour is unchanged, the wording is ours and waits here) plus M-REPORT-UPDATE-NOTHING-LEFT (new, 2026-09-23, re-challenge R1 of beta 39: “Update without them” on a report whose every measurement was gone wrote a report covering nothing under its old verdict and scope; the press is now refused, the wording is ours and waits here) (the two K49 notes on the paper row and the two solid rows, which say that they compare a measurement with its profile's own description while the cube-corner table keeps the ideal values, were APPROVED by Knut in 5845588201 and left this list) (the four K37 notes about the paper white and the strip corners were APPROVED by Knut in 5824834975 once "sheet" was reworded, and left this list), (the Report Scope line saying that an earlier version worked a report out was APPROVED by Knut in 5831246553 once its last sentence, which named the Update button, was reworded, K39-1, and left this list) (the variant of the unchanged question and the red line after "New report…", K39-2 and K39-3, were APPROVED by Knut in 5832385126 and left this list) (the note for a date whose measurement is no longer on disk, B8-1500, was APPROVED by Knut in 5858874320 and left this list) (the line for a calibration found while the ChromIQ layout engine lays the chart out, B8-1655, was APPROVED by Knut in 5865088296 and left this list) (the fourteen K59 texts of option C and of "change" for "drift", about a sheet printed raw and the opening of a report of sheets printed both ways, were APPROVED by Knut in 5850164956 and left this list) plus M-CM-K-CHART-THROUGH, M-CM-RAW-UNCALIBRATED, M-CAL-APPLIED-TWICE and M-CAL-CALIBRATED-TWICE (new, 2026-10-02, #182 5959070209: Sebastian approved the behaviour, a warning before the printer calibration is applied twice to a profile from an older layout-engine -K chart, and verification prints of a -K run that carry the calibration; the wording is ours and waits here) plus M-PATCH-COLOUR-RANGE (new, 2026-10-02, #182 k10: the colour-range rule for yellow outlines was approved by Knut in 5961180259 and by Sebastian; its post gave one line of card text, and the lines the cards now carry, the range on its own line, a count of three, the confirmed patches it learned from, are ours; revised for beta 9, Knut 5979886227: no "spaced", and two lines for a patch confirmed by similar patches; and, for Knut 5980576263, a "read it again" line on a red card and a "no need to read it again" line on a yellow one, which Knut approved in 5982038838 together with the two similar-patches lines; and, for beta 10, Knut 5982206917, the lines that name the failed test and its numbers on a red card in a learned range; and, for Knut 5982600086, the lines saying whether the reading landed where its confirmed patches' readings did) (the six lines of a verification card whose profile was made after the sheet was printed, Knut's own sentence, were APPROVED by Knut in 5983480953 and left this list; the four lines beside them are ours and wait) (the ten lines of a verification card that speak of the profile's accuracy instead of what the printer cannot reach, #203 5982702169, were APPROVED by Knut in 5982788316 and left this list) (the hover-card line saying a verification patch's expected colour is the profile's prediction was APPROVED by Knut in 5965408335 and left this list) (the two "Continue to next / Jump to unread" questions of 5958921500 Q2 were APPROVED by Knut in 5962907586 and left this list) plus M-STRIP-READ-TWICE, M-CR-STRIPS, M-CR-START-OVER and M-CR-PRECONDITIONING (new, 2026-10-03, #182: Knut approved the Check & Refine redesign and the live "strip read twice" check on the pictures in 5963737221, in 5963903650; the words the pictures and the question showed are kept verbatim, the few they did not show are ours, and none of it has had his word on the wording yet; beta 9 removed M-CR-STRIPS' two "Not offered again" lines, Knut 5980560281) plus M-CAL-TABLE-REPAIRED and M-CAL-TABLE-DAMAGED (new, 2026-10-03, beta 7: a measurement whose copy of the printer calibration an earlier engine wrote damaged is repaired in place from its chart before any ArgyllCMS tool loads it, the original kept in old/, as Basti ruled; the first says so, the second replaces the build-failed text that blamed the user when no chart could be found to repair from; the wording is ours and waits here) plus M-CHART-PATTERN-REFUSED, M-CHART-LOCATIONS-UNREADABLE, M-CHART-LEGACY-STOCK and M-CHART-LEGACY-ENDED (new, 2026-10-03, forum report and Knut's ruling #182 5965589190: the strip pattern "0-9" made a 14-strip chart neither ArgyllCMS chartread nor ChromIQ's engine could read, because ChromIQ printed "10" where Argyll's pattern stops at 9; ChromIQ now labels every new chart exactly as ArgyllCMS does and refuses a pattern the readers could not read back, the Measure tab says so before starting any reader on a sheet no reader can measure, and a sheet printed with ChromIQ's old labels is read by ChromIQ's engine as printed while a user of ArgyllCMS chartread is told plainly that chartread cannot read it; the wording is ours and waits here) plus M-PROFILE-VERIFY (revised, 2026-10-03, #182: Knut ruled in 5964384250 Q1 that a rebuild archives the profile only, so “Build here anyway” no longer moves the dated verifications, and in 5964076758 Q4 that “Each was printed through the profile” must be reworded, because it is untrue for raw and FROM PROFILE GAMUT sheets) and M-VERIFY-EARLIER-PROFILE, M-VERIFY-EARLIER-PROFILE-KEEP-CHART, M-VERIFY-EARLIER-PROFILE-NO-CHART, M-VERIFY-CHART-EARLIER-PROFILE and M-VERIFY-EARLIER-ARCHIVED-HERE (new, 2026-10-03, #182 §6f: the one window Knut asked for when Verification is chosen after the profile was replaced, 5964384250 and 5965626117; the behaviour is his, the wording is ours) plus M-CAL-REQUESTED, M-CAL-REQUESTED-DONE and M-CAL-REQUESTED-FAILED (new, 2026-10-03, #182: Knut 5965478577 and 5965735823 and Basti 5965500670 approved calibrating between strips or patches with K or an optional Calibrate button, on ChromIQ's engine only; the placement window keeps the session on Cancel, the short completion window says to carry on, and a failure locks reading until a calibration succeeds; the wording is ours and waits here) plus M-PATCHSET-CAL-INKS and M-VIEW-RGB-ONLY (new, 2026-10-03, beta 7, the CMYK/CR30 forum report: the first refuses a preset's or loaded patch set the printer calibration does not fit and names “Edit patch recipe (override preset)”, the second is the one line every RGB-only view shows for a CMYK or multi-ink measurement; Basti approved the behaviour, the wording is ours and waits here) (the no-instrument window for when nothing is connected at all, new in beta 8, was APPROVED by Knut in 5979780372, "all are ok", and left this list) plus M-PATCH-CORRECTED-VARIANTS (new, 2026-10-04, beta 11: the two lines of the green outline Knut's approved example did not cover; the green outline itself and its words were approved by Knut in 5984277558), plus M-PATCH-NEIGHBOUR-VARIANTS and M-MEASURED-SUSPECTS (new, 2026-10-04, beta 11, #182: Knut approved the neighbour check in 5983470377, answer 5, and its threshold box in 5983725218; the rule is confirmed in 10.9, the card lines and the closing window's summary of suspected misreads are ours and wait here), plus M-PATCH-UNSETTLED (new, 2026-10-07, beta 12, #182: Knut ruled in 6045500910 that a re-read past the limit that agrees with no earlier reading stays red and its card says so, 10.10a; the words are ours and wait here), plus M-REPORT-THROUGH-PROFILE (new, 2026-10-07, beta 12, #182: Knut ruled in 6045500910 that a verification printed through its profile is judged against its source colours on in-gamut patches and against the profile's own prediction; the words are ours and wait here), plus M-PREVIEW-AS-PRINTED (new, 2026-10-07, beta 12, #182: Knut ruled in 6045500910 answer 4 that the chart preview looks as the paper will look printed, and Basti in 6045468325 asked for a small indicator saying what the preview shows; the words are ours and wait here; extended 2026-10-08 for Basti's switch between "as on paper" and "device values", lines 10 to 16), (the Simulate paper white button inside the indicator, beta 14, was APPROVED by Sebastian on 2026-10-08 and left this list), plus M-CHART-SLOW-NO-PROFILE (new, 2026-10-08, beta 12: the "taking longer than usual" window of a chart built without a pre-conditioning profile no longer speaks of pre-conditioning profiles and refinement charts), plus M-PRINT-JOB-NOT-AS-SENT (new, 2026-10-08, beta 15: the job read back from the printing system is not what ChromIQ sent; Sebastian did not approve it as worded, its opening sentence is wrong when the paper profile is the only problem), M-PRINT-JOB-UNTAGGED (new, 2026-10-08, beta 15: that case's own window) and M-PRINT-PAPER-PROFILE-UNKNOWN (new, 2026-10-08, beta 15: the direct route does not know which paper profile the driver of this model chooses, so it asks instead of guessing), (B5's two Epson colour-matching texts, the status line when ChromIQ set the Epson colour matching back to ColorSync and the window when it could not, were APPROVED by Basti on 2026-10-10 and left this list), (B3's two printing texts, what a verification print needs and the status line for a chart that went with the job's own profile on a PostScript queue, were APPROVED by Basti on 2026-10-10 and left this list), (the note and marks of the Print Chart tab's quality row, beta 16, were APPROVED by Sebastian on 2026-10-09 and left this list), (the confirmation window's colour rows and the status line after sending, beta 15, were APPROVED by Sebastian on 2026-10-08 and left this list) — all defined in the awaiting-review section below, (three 4.3.5 texts corrected by its combined review, the window for extra inks printed as a mix, the grey-steps help of FROM PROFILE GAMUT and the note for profiles made through the dialog to a PostScript printer, were APPROVED by Basti in their corrected wording on 2026-10-11 and left this list), (four 4.3.5 printing texts, the verification note's two dialog-route paragraphs, the status line for a chart sent to a PostScript printer as its own RGB and the window for a chart whose inks macOS converts, were APPROVED by Basti on 2026-10-11 and left this list), (the five texts of the PostScript printer's "Print like" choice, 4.3.5 beta 2, were APPROVED by Basti on 2026-10-13 in his own rewording and left this list), (the patch cards' plain-words lines of the patch error limit and the neighbour check, 4.3.5 beta 2, were APPROVED by Knut and Basti on 2026-10-13, without "only" in the first neighbour line, and left this list), (the underlay paragraph of the CR30 and ColorMunki / i1Studio Calibration Complete windows, and the two texts asked after the macOS print dialog, were APPROVED by Basti on 2026-10-13 and left this list) (the "Print like" help's new headline and the question before a "Preview" run goes by the direct route were APPROVED by Basti on 2026-10-13 and left this list too) (the nine 4.3.5 beta 3 texts, the 3D tool's colour key and its “Show:” help, the strip-letter warning, why the macOS print dialog shows a colour profile, the PostScript question and its two choices explained, the row's help and the line under it in the project rule's words, and the direct-route question renamed in the same words, were APPROVED by Knut on 2026-10-13, #182 6152691121, and left this list; so did the From Profile Gamut module's no-profile text, now also a window when a preset is picked) (the verification's red neighbour line in its closing summary, and one set of to-do points in both Calibration Complete windows, 4.3.5 beta 4, were APPROVED by Knut on 2026-10-14, #182 6166519230, and left this list) (the beta 5 texts, the patch-by-patch Calibration Complete and verification closing windows, the help cards' PostScript note, the ending window once the engine has written the file and the every-strip-read window with its new headline, were APPROVED by Knut on 2026-10-15, #182 6181524471; the eleven file-converter texts of beta 6 the same day, #182 6181598560; all left this list). Since 4.3.5 beta 5 every message on this list is SHOWN in the app while it waits (Knut, #182 6166519230: "You must always release the suggested text").
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -2646,7 +2646,7 @@ from the same ruling. Only the unit differs.*
 
 ### M-PATCH-NEIGHBOUR · APPROVED · the neighbour check on a patch's hover card — Measure tab preview, #182 beta 17
 
-*Changed at Knut's request, 2026-10-14 ([#182 6167582807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6167582807)), in 4.3.5 beta 5: "On every patch hover card, wherever 'it' refers to the patch being judged, replace it by 'patch <ID>'", e.g. "The 4 patches most similar to patch B3 are about ...". {loc} is that patch ("B3"), as on the card's first line "Patch B3". The lines below carry the new words; the exact wording awaits his confirmation (**Confirmed by:** *nobody yet.*). Where a sentence needed more than the swap, it was reworded as little as possible: "the patches most similar to it" became "the patches most similar in colour" where the patch is already named in the sentence, and the yellow cards say "Without that confirmation, patch {loc} would be red for being / for standing out ...". "it" that means a reading, a value or a range is left as it was ("So it is probably not a misread", "it is real, keep it for the profile").*
+*Changed at Knut's request, 2026-10-14 ([#182 6167582807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6167582807)), in 4.3.5 beta 5: "On every patch hover card, wherever 'it' refers to the patch being judged, replace it by 'patch <ID>'", e.g. "The 4 patches most similar to patch B3 are about ...". {loc} is that patch ("B3"), as on the card's first line "Patch B3". The lines below carry the new words. **Confirmed by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), item 7 of 6176326618, "All the messages are otherwise approved"). Where a sentence needed more than the swap, it was reworded as little as possible: "the patches most similar to it" became "the patches most similar in colour" where the patch is already named in the sentence, and the yellow cards say "Without that confirmation, patch {loc} would be red for being / for standing out ...". "it" that means a reading, a value or a range is left as it was ("So it is probably not a misread", "it is real, keep it for the profile").*
 
 **Approved by:** Knut, 2026-10-09, #182 [6078174421](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6078174421) (*"Every card: 'This patch is ΔE 6.2 further from its expected colour than the 4 patches nearest in colour (median).' ('further from' is replaced with 'closer to' when below 0. When ΔE 0.0 then the value should not be shown, and the text should be 'This patch has equal distance from its expected colour as the 4 patches nearest in colour (median)') - A red card: 'Red outline: ΔE 13.2 further from its expected colour than the 4 patches nearest in colour (median), passing the neighbour limit (10). Probably a misread: read it again.' ... This should be clear enough."*), and [6084176226](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6084176226) (*"Question 5: Are these the cards you want?" "Yes, good."*, to the k56 mock-ups of [6083412660](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6083412660), which carry lines 5 to 10: every card ends with "Checked again after each strip is read: …" or, patch by patch, "… after each patch is read", then "See Preferences ▸ Measurement for threshold values.", an empty line between topics, and no "buffer" anywhere ([6082015002](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6082015002))).
 
@@ -3091,7 +3091,7 @@ from the same ruling. Only the unit differs.*
 
 ### M-PATCH-CARD-PLAIN · APPROVED · every patch-error and neighbour-check line of a patch's hover card, in plain words — Measure tab preview, #182 4.3.5 beta 2
 
-*Changed at Knut's request, 2026-10-14 ([#182 6167582807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6167582807)), in 4.3.5 beta 5: "On every patch hover card, wherever 'it' refers to the patch being judged, replace it by 'patch <ID>'", e.g. "The 4 patches most similar to patch B3 are about ...". {loc} is that patch ("B3"), as on the card's first line "Patch B3". The lines below carry the new words; the exact wording awaits his confirmation (**Confirmed by:** *nobody yet.*). Where a sentence needed more than the swap, it was reworded as little as possible: "the patches most similar to it" became "the patches most similar in colour" where the patch is already named in the sentence, and the yellow cards say "Without that confirmation, patch {loc} would be red for being / for standing out ...". "it" that means a reading, a value or a range is left as it was ("So it is probably not a misread", "it is real, keep it for the profile"). Also from the same comment: the card leaves an empty line after "Difference between the two colours" and its two numbers, so the sentence that follows is clearly separated from them.*
+*Changed at Knut's request, 2026-10-14 ([#182 6167582807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6167582807)), in 4.3.5 beta 5: "On every patch hover card, wherever 'it' refers to the patch being judged, replace it by 'patch <ID>'", e.g. "The 4 patches most similar to patch B3 are about ...". {loc} is that patch ("B3"), as on the card's first line "Patch B3". The lines below carry the new words. **Confirmed by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), item 7 of 6176326618, "All the messages are otherwise approved"). Where a sentence needed more than the swap, it was reworded as little as possible: "the patches most similar to it" became "the patches most similar in colour" where the patch is already named in the sentence, and the yellow cards say "Without that confirmation, patch {loc} would be red for being / for standing out ...". "it" that means a reading, a value or a range is left as it was ("So it is probably not a misread", "it is real, keep it for the profile"). Also from the same comment: the card leaves an empty line after "Difference between the two colours" and its two numbers, so the sentence that follows is clearly separated from them.*
 
 *Approved by: Knut and Basti, 2026-10-13. Knut accepted the v3 wording below with one change, which Basti approved the same day: the word "only" is dropped from the first neighbour-check line ("The {n} patches most similar to it are about {median} off their expected colours."), so the line states the figure without judging it. Switched on in 4.3.5 beta 3: the card now shows these lines in place of the texts they replace (listed below), in English and all 13 translations.*
 
@@ -3314,6 +3314,295 @@ module's input, so without one there is nothing to ask.*
 > Read the strip highlighted in the preview: the output field below names it too.
 > Repeat for each strip until all are read. Then press <b>d</b> to finish and save.
 
+### M-ALL-STRIPS-PATCHES-LEFT · APPROVED (revised 2026-08-14, headline 2026-10-14) · every strip read, but patches inside them are not — Measure tab
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), "All the messages are otherwise approved", the beta 5 texts of [6176326618](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6176326618)).
+
+> **All strips are read, but some patches are not**
+>
+> Every strip has been read, but {n} patches still have no reading. Everything you have read so far is safe.
+>
+> This usually happens when some patches were read one at a time in **Patch-by-patch mode** and a few were stepped over.
+>
+> To finish them, start measuring again with **Patch-by-patch mode** ticked and **Refine / resume existing measurement (-r)** ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.
+>
+> • **Re-read Individual Strips**: stay in this session and read a strip again now. Use **f** and **b** to move between strips, **n** to jump to the next unread one, and **d** when you are done.
+>
+> • **Close**: finish here. ChromIQ asks whether to keep what you have measured so far, so nothing is decided behind your back.
+
+*With one patch left the headline is* **All strips are read, but one patch is not**.
+
+*Punctuation only, after the approval (4.3.5 beta 7, CLAUDE.md's em dash rule): the two bullets took a colon after the button's name in place of the em dash, as the other windows' button bullets have it, in English and in all 13 languages. No word changed.*
+
+*Headline revised 2026-10-14 (4.3.5 beta 5 regression review), wording only.
+It read "Some patches are still unread", one word away from the approved
+navigation question M-UNREAD-NEXT-OR-JUMP-STRIP / -PATCH ("Some patches are
+still not read"), which can open in the same session and asks something else:
+where the reader goes next, while this one stands in for "All Strips Read".
+They are different situations, so this window keeps its own and its headline
+now says how it differs. When it opens changed too (behaviour, awaiting
+confirmation): on a resume whose every strip already counted as read when the
+session opened, the first strip read again made the engine report the chart
+complete, and this window came straight after Calibration Complete. There it
+now waits until the session has read every strip; where a strip was still
+unread at the start, reading the last one brings it, as before
+(`MeasureManager.patches_left_is_news`).*
+
+*Revised after Knut's review of the first draft (2026-08-14), which he corrected
+on three counts.*
+
+**1. The cause was wrong.** The first draft said *"a slight wobble as the
+instrument passes over them is enough"*. His answer: *"is not likely. if not
+enough patches are registered it is caught. The likely reason is that a user has
+used patch-by-patch mode to read some patches and missed some."* The message now
+says that instead. Nothing here asserts a mechanism that has not been observed.
+
+**2. The button was invented.** The first draft told the user to press
+**"Stop & Save"**, which is not a button this app has. His answer: *"The button
+'Stop & Save' is not the wording used for other windows … like the All Patches
+Read (for patch-by-patch mode) and All Strips Read (for strip mode) [which] have
+one button to Close, which calls the window where user decides to stop and save,
+or stop and discard. This is the unified exit method defined in the design spec,
+which you would have known."* He is right that it is defined, and right that I
+should have read it: `measurement_exit_strategy.md` §"The single exit".
+
+**3. Every button needs its own explanation** — *"the rules used in the design
+specification is that all windows have an explanation for each button in a
+window"* — so both now carry one.
+
+**It must exist in all four cases.** Strip mode and patch-by-patch, on ChromIQ's
+engine and on stock ArgyllCMS chartread, are four separate windows with different
+exit keys behind the same buttons (`measurement_exit_strategy.md`, Tables 1 and
+2). A window raised from one parser only reaches half the users, and the stock
+half working is what has hidden that four times already. So this window is to be
+raised from code both `_handle_line` and `_handle_engine_line` reach, and its
+Close must delegate to `_confirm_end_of_session`, which already knows which mode
+and which reader it is in rather than sending a key of its own.
+
+**4. It is a STRIP-MODE window, so its button re-reads strips.** The first
+revision offered "Re-read Patches", which he corrected: *"this message is for a
+strip mode session (and this message only happens during strip mode), not a
+patch-by-patch session. Here one would 'Re-read strips'."* The button now matches
+the completion window it stands in for, and the guidance in the body still points
+at patch-by-patch + resume, because that is how the missing patches get finished
+in a later session — which he approved separately.
+
+**Close — ruled 2026-08-14.** He answered **(A)**: *"Close should raise the 'Keep
+what you have measured so far?' window. However, the description 'keeps the
+measurement, goes nowhere' is still correct, because it is referring to the other
+button that says to jump to build profile tab."* So the row in
+`measurement_exit_strategy.md` is not stale — it was read against the wrong
+button. Close raises the ending; the Go-to-tab button is the one that keeps the
+measurement and moves on.
+
+**Both readers, per his instruction:** *"If this check is possible to implement
+for the stock argyllcms chartread engine also, then the button commands should be
+made to use the correct command for the specific chartread engine, according to
+the measurement exit strategy in the design specification. Use the All Strips
+Read window for each engine as basis for the correct action to use to re-read or
+to Close / exit."* So both buttons take their keys from the All Strips Read row
+of Table 1 (engine) and Table 2 (stock) rather than sending anything of their
+own.
+
+### M-CAL-DONE-STEPS-PATCH · APPROVED · the same to-do points in the Calibration Complete window of a patch-by-patch read — Measure tab, 4.3.5 beta 5
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), "All the messages are otherwise approved", the beta 5 texts of [6176326618](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6176326618)).
+
+*New 2026-10-14. Knut, approving M-CAL-DONE-STEPS ([6166519230](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6166519230)): "same message applies also to patch-by-patch mode, adapted to patch reading (not strip reading)". The patch-by-patch window ("Calibration Complete — How to Measure", the window title unchanged) had the instrument's single-patch steps in a paragraph after "Place the instrument on the highlighted patch in the preview and take a reading. The next patch is highlighted automatically.". Now the same numbered frame as the strip window: step 1 and 3 below, step 2 the instrument's own single-patch steps (as before, with M-CAL-DONE-UNDERLAY where it applies), then the patch-by-patch key list and "These instructions are always visible in the output log below." as before. Shown since 4.3.5 beta 5.*
+
+> **How to measure patch by patch, after the calibration**
+>
+> <b>Calibration complete. You are ready to measure patch by patch.</b>
+> Place the instrument on the patch highlighted in the preview: the output field below names it too.
+> Repeat for each patch until all are read: the next patch is highlighted automatically. Then press <b>d</b> to finish and save.
+
+### M-VERIFY-ALL-PATCHES-READ · APPROVED · the window that closes a verification read patch by patch, with its summary — Measure tab, 4.3.5 beta 5
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), "All the messages are otherwise approved", the beta 5 texts of [6176326618](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6176326618)).
+
+*New 2026-10-14. Knut, approving M-MEASURED-SUSPECTS-VERIFY ([6166519230](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6166519230)): "same message applies also to patch-by-patch mode, in the 'All Patches Read' window". A verification read patch by patch closed on the STRIP window ("Verification Measurement — All Strips Read", "All strips have been read", "Re-read Individual Strips"), measured on screen in 4.3.5 beta 5. It now has its own window, worded for patches, with the same "Summary:" list under it as the strip window (the reading times where there are any, and M-MEASURED-SUSPECTS with M-MEASURED-SUSPECTS-VERIFY's red line). Its buttons: "Re-read Patches" (the profiling "All Patches Read" window's) and "Finish". The headline is the window title; the body is rich text, as the strip window's. Shown since 4.3.5 beta 5.*
+
+> **Verification Measurement: All Patches Read**
+>
+> <b>All patches have been read.</b><br><br>This is a <b>verification measurement</b> of a colour-managed print, so it will be saved as a separate <b>verify</b> file and is <b>not</b> for building a profile.<br><br>Click <b>Finish</b> to save it, then open it in <b>Tools ▸ Inspect a measurement</b> to check how the profile performed. Or click <b>Re-read Patches</b> to read a patch again (<b>f</b>&nbsp;/&nbsp;<b>b</b> to move, <b>n</b> for the next unread, click a patch in the preview to jump to it, <b>d</b> when done).
+
+### M-HELP-PS-NOTE-PROJECT · APPROVED · the help cards' note on PostScript printers, in the words of the project rule — Help cards, 4.3.5 beta 5
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), "All the messages are otherwise approved", the beta 5 texts of [6176326618](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6176326618)).
+
+*New 2026-10-14 (left over from the beta 4 review). The approved note (4.3.5 beta 3, Knut and Basti 2026-10-13) said the "Print like" row "appears when the print dialog opens on a PostScript printer, and ChromIQ uses your choice for this run and all its verification charts". Since 4.3.5 beta 2 the choice is asked after the dialog, at the project's first print to a PostScript printer through it, and kept for the whole project (M-PRINT-PS-ASK-EXPLAINED, M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED); the row shows the choice afterwards, and a change there applies to that run and its verification charts. Only those two sentences change; the rest of the note is the approved text. {print_like}, {photoshop}, {preview}: the row's label and its two choices as the Print Chart tab shows them. Shown since 4.3.5 beta 5.*
+
+> **PostScript printers: choose how you print your photos**
+>
+> Many colour laser printers are PostScript printers: they take the page in a printer language called PostScript. Through the macOS print dialog they can receive the chart in two ways. Choose the way you print your photos. ChromIQ asks after you click Print in the print dialog, the first time a chart of this project goes to a PostScript printer, and keeps your answer for the whole project: its calibration, its runs and their verification charts. The “{print_like}” row on the Print Chart tab then shows the choice, and a change made there applies to that run and its verification charts only.
+> • “{photoshop}”: choose this if you print from Photoshop with “Photoshop Manages Colors” and this profile as the printer profile. The chart's values go to the printer unchanged.
+> • “{preview}”: choose this if you print from Preview or another app that leaves printing to macOS. The printer then adjusts the colours with its own settings, the same way for the chart and for your photos.
+>
+> A run you refine from another one starts with that run's choice. Sent straight to the printer, without the dialog, the chart always goes the Photoshop way.
+>
+> If the print dialog has an RGB colour setting for the printer (on an HP Color LaserJet, “RGB Color”), ChromIQ sets it to Device. Do the same for your photos.
+
+### M-END-WRITTEN · APPROVED · the ending window once ChromIQ's engine has already written the session's readings — Measure tab, 4.3.5 beta 5
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), "All the messages are otherwise approved", the beta 5 texts of [6176326618](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6176326618)).
+
+*New 2026-10-14 (4.3.5 beta 5 regression review). M-END's first sentence, "They are not in your measurement file yet", is true of stock ArgyllCMS chartread, which writes the `.ti3` only on a clean exit (§0), and untrue of ChromIQ's engine, which writes it after every strip (and patch) it accepts; since beta 5 "Discard and stop" takes those readings out again (§2, the awaiting-confirmation block). So once the session has changed the file on disk the window keeps M-END's headline and buttons and shows this body instead. {kept} is M-END's approved sentence, "Your previous measurement of {m} patches is put back exactly as it was." (with its paragraph break), when a measurement was there before, including one "Measure anyway" moved to `old/` at Start; otherwise nothing. Shown since 4.3.5 beta 5.*
+
+> **Keep what you have measured so far?**
+>
+> You have read {n} patches in this session. ChromIQ's engine has already written them into your measurement file.
+>
+> What each button does:
+>
+> •  Save and stop: keeps them in this run's measurement file and ends the session. You can carry on later with “Refine / resume existing measurement (-r)”, reading only the strips or patches that are still missing.
+>
+> •  Discard and stop: ends the session and keeps nothing from it. The file this session wrote is moved to an “old” folder, never deleted.{kept}
+>
+> •  Keep measuring: closes this window and carries on where you were.
+
+*With one patch read:* "You have read 1 patch in this session. ChromIQ's engine has already written it into your measurement file." and "Save and stop: keeps it in this run's measurement file …", the rest as above.
+
+### M-CONVERT-TOOL-MISSING · APPROVED · the file converter cannot find its ArgyllCMS program — every import and conversion door, 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*New 2026-10-15, after #209. The reporter's screenshot showed a Russian window whose only English paragraph was the reason it opened: `ReferenceConvertError` (`workflow/reference_convert.py`) carried hard-coded English text into every window that shows it, and no translation could reach it. Each of the converter's reasons is now a message here, M-CONVERT-*, rendered in the user's language when it is raised (the language is fixed for the session, and `core.i18n` needs no Qt), and the exception carries the message's ID and headline. They all share one headline, the one the Measure tab's import and Build Profile's "Load measurement data" already show for a failed conversion. Where they appear: the Measure tab's IMPORT module (profiling and verification runs), Build Profile's "Load measurement data" and its calibration loader (Run type = Calibration), the Measurement Report's "Add Profile's Measurements", Tools > Convert i1Profiler (its log), and the scanner windows (their note and log). `{tool}` is the program's file name as it is in the ArgyllCMS folder (`txt2ti3.exe` on Windows); `{detail}` is the program's own last line, left as it wrote it; `{name}` is the file's name. Wording ours; shown since 4.3.5 beta 6.*
+
+> **The file could not be converted**
+>
+> ChromIQ converts this file with a program that comes with ArgyllCMS ({tool}), and that program is not in the ArgyllCMS folder ChromIQ is set to use.
+>
+> Open Preferences (⚙) and check the ArgyllCMS folder: it should be the “bin” folder inside your ArgyllCMS installation. Then try again.
+>
+> Your file has not been changed.
+
+### M-CONVERT-TOOL-FAILED · APPROVED · the converter's ArgyllCMS program stopped with an error — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*When the program printed nothing, `{detail}` is its file name and exit code. See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> The ArgyllCMS program that converts this file ({tool}) stopped with an error. This usually means the file is not in a form that program can read, or it is damaged.
+>
+> Your file has not been changed.
+>
+> Details: {detail}
+
+### M-CONVERT-NO-TI3 · APPROVED · txt2ti3 finished without writing a measurement — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> The conversion finished but did not produce a measurement (.ti3 file). This usually means the file is not an i1Profiler measurement export, for example a list of patches that have not been measured yet.
+>
+> Your file has not been changed.
+
+### M-CONVERT-NO-REFERENCE · APPROVED · a scanner target reference converted to nothing — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> The conversion finished but did not produce a reference file. The file may not be a target reference of this kind.
+>
+> Your file has not been changed.
+
+### M-CONVERT-CXF-UNREADABLE · APPROVED · an i1Profiler CxF3 file (.mxf / .cxf) that is not readable XML — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> {name} could not be read as an i1Profiler measurement (CxF3 file). It may be damaged or only partly saved.
+>
+> Your file has not been changed.
+>
+> Details: {detail}
+
+### M-CONVERT-CXF-NO-DEVICE-VALUES · APPROVED · a CxF3 measurement without RGB or CMYK device values for every patch (extended inks included) — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> {name} does not give the chart’s RGB or CMYK values (device values) for every patch. ChromIQ can import i1Profiler measurements of RGB and CMYK charts only.
+>
+> Your file has not been changed.
+
+### M-CONVERT-CXF-NO-PATCHES · APPROVED · a CxF3 measurement with no patches — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> {name} holds no measured patches.
+>
+> Your file has not been changed.
+
+### M-CONVERT-CXF-COUNTS-DIFFER · APPROVED · a CxF3 measurement whose patches and readings do not pair up — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> {name} does not hold as many readings as patches (patches: {patches}, readings: {readings}), so ChromIQ cannot tell which reading belongs to which patch.
+>
+> Your file has not been changed.
+
+### M-CONVERT-CXF-NO-SPECTRUM · APPROVED · a CxF3 reading without a reflectance spectrum — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> A reading in {name} has no spectral data (reflectance spectrum), and ChromIQ needs it to work out the colour of each patch.
+>
+> Your file has not been changed.
+
+### M-CONVERT-CXF-UNEQUAL-SPECTRA · APPROVED · CxF3 readings of different spectral lengths — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*See M-CONVERT-TOOL-MISSING for where these messages appear.*
+
+> **The file could not be converted**
+>
+> The readings in {name} do not all cover the same wavelengths (their reflectance spectra differ in length), so ChromIQ cannot convert them.
+>
+> Your file has not been changed.
+
+### M-CONVERT-TXT-NOT-MEASUREMENT · APPROVED · Build Profile's window when its txt2ti3 run fails — 4.3.5 beta 6
+
+**Approved by:** Knut, 2026-10-15 ([#182 6181598560](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181598560), "Specified messages 1 to 11 ... Approved from my point of view", the texts of [6181127728](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181127728)).
+
+*Build Profile's "Load measurement data" converts an i1Profiler `.txt` with txt2ti3 through `ArgyllRunner`; when that fails it opens this window. It was the one converter window never handed to `tr()`, so it was English in every language. The wording is the one it always had, without its dash. When the program printed a line containing "error", a last paragraph follows: "Details: {detail}" (`measurement_messages.convert_details`, the same words as in M-CONVERT-TOOL-FAILED). Shown since 4.3.5 beta 6.*
+
+> **This file could not be read as measurement data**
+>
+> ChromIQ tried to convert this file into measurement data it can use, but the conversion failed. This usually means the file is not an i1Profiler measurement export: for example, it is a list of patches or reference values rather than actual readings, or it has no colour measurements in it.
+>
+> What to do:
+> • In i1Profiler, make sure you have actually measured the chart, then save the measured data.
+> • The saved file must contain both the device values (RGB or CMYK) and the measured colour (Lab/XYZ or spectral) for every patch.
+> • Load that saved measurement file here.
+
 ## M-PROPOSED. Messages awaiting review
 
 *This section is where a new or revised message goes: add it to
@@ -3341,7 +3630,8 @@ live in 4.3.5 beta 5.
 **Approved texts changed at Knut's request** are changed in place in §M, with
 the request named under the entry, and stay approved; the exact new wording
 waits for his confirmation there (first case: the patch cards' "patch {loc}"
-for "it", 4.3.5 beta 5, #182 6167582807).
+for "it", 4.3.5 beta 5, #182 6167582807, confirmed by Knut 2026-10-15,
+#182 6181524471).
 
 ### M-PRINT-JOB-NOT-AS-SENT · PROPOSED · a window when the job read back from the printing system does not carry what ChromIQ sent, beta 15
 
@@ -4755,7 +5045,7 @@ With more than one file, the headline is **ChromIQ repaired these measurement fi
 
 ### M-PATCH-COLOUR-RANGE · PROPOSED · the colour range on a flagged patch's hover card — Measure tab preview, #182 k10
 
-*Changed at Knut's request, 2026-10-14 ([#182 6167582807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6167582807)), in 4.3.5 beta 5: "On every patch hover card, wherever 'it' refers to the patch being judged, replace it by 'patch <ID>'", e.g. "The 4 patches most similar to patch B3 are about ...". {loc} is that patch ("B3"), as on the card's first line "Patch B3". The lines below carry the new words; the exact wording awaits his confirmation (**Confirmed by:** *nobody yet.*). Where a sentence needed more than the swap, it was reworded as little as possible: "the patches most similar to it" became "the patches most similar in colour" where the patch is already named in the sentence, and the yellow cards say "Without that confirmation, patch {loc} would be red for being / for standing out ...". "it" that means a reading, a value or a range is left as it was ("So it is probably not a misread", "it is real, keep it for the profile").*
+*Changed at Knut's request, 2026-10-14 ([#182 6167582807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6167582807)), in 4.3.5 beta 5: "On every patch hover card, wherever 'it' refers to the patch being judged, replace it by 'patch <ID>'", e.g. "The 4 patches most similar to patch B3 are about ...". {loc} is that patch ("B3"), as on the card's first line "Patch B3". The lines below carry the new words. **Confirmed by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), item 7 of 6176326618, "All the messages are otherwise approved"). Where a sentence needed more than the swap, it was reworded as little as possible: "the patches most similar to it" became "the patches most similar in colour" where the patch is already named in the sentence, and the yellow cards say "Without that confirmation, patch {loc} would be red for being / for standing out ...". "it" that means a reading, a value or a range is left as it was ("So it is probably not a misread", "it is real, keep it for the profile").*
 
 *New 2026-10-02. The rule was approved (Knut [5961180259](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5961180259), Sebastian, on [5961078418](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5961078418)); the post's one line of card text, "Blue: 2 of 3 spaced confirmations so far", is split so the range's name stands alone on a line of its own (a nominative every language can say), and the sentences below are ours. Nothing counts but the fixed 3, so no language needs plural forms. The card breaks its lines by hand, so each line below is one line on the card; the headline is the range line. `{range}` is one of: dark grey, mid grey, light grey, pink/rose, red, orange/brown, yellow, yellow-green, green, cyan/turquoise, blue/purple, magenta (purple/violet was merged into blue in beta 11, Knut [5983470377](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983470377), answer 4; named "blue/purple" since 4.3.5, Knut [6103148331](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6103148331), as the other merged ranges carry both names). **4.3.5 (Knut 6103148331, awaiting confirmation):** a red card for both reasons (the limit and the neighbour check) shows the headline and, with one or two confirmations, line 2 too, above M-PATCH-NEIGHBOUR's two re-read lines, so the patch is not read as belonging to no range. `{locs}` is the range's confirmed patches in reading order, the first three and then "…". Which lines a card shows: a red card, the headline and, with one or two confirmations, lines 1 and 2, or with three, lines 7 and 8; a confirmed (yellow) card, the headline and lines 1 and 2, or with three, line 9; a learned (yellow) card, the headline, line 2 and lines 3 to 6; a card confirmed by similar patches opens with lines 10 and 11 instead of "Yellow outline: confirmed by a re-read" and its two ΔE values.*
 
@@ -5127,92 +5417,6 @@ sheet unrecorded, exactly as today.*
 > With colour management: the sheet was printed from another application (for example Photoshop) with this run's profile applied. Measuring it checks your whole everyday printing chain, and the report judges it relative to the sheet's own paper white — so the paper is not counted against the profile.
 >
 > Not sure is always safe: the report simply notes that the printing method is not recorded, and judges the colours as they are. Your answer is stored with this measurement only — it changes nothing else.
-
-### M-ALL-STRIPS-PATCHES-LEFT · PROPOSED (revised 2026-08-14, headline 2026-10-14) · every strip read, but patches inside them are not — Measure tab
-
-> **All strips are read, but some patches are not**
->
-> Every strip has been read, but {n} patches still have no reading. Everything you have read so far is safe.
->
-> This usually happens when some patches were read one at a time in **Patch-by-patch mode** and a few were stepped over.
->
-> To finish them, start measuring again with **Patch-by-patch mode** ticked and **Refine / resume existing measurement (-r)** ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.
->
-> • **Re-read Individual Strips** — stay in this session and read a strip again now. Use **f** and **b** to move between strips, **n** to jump to the next unread one, and **d** when you are done.
->
-> • **Close** — finish here. ChromIQ asks whether to keep what you have measured so far, so nothing is decided behind your back.
-
-*With one patch left the headline is* **All strips are read, but one patch is not**.
-
-*Headline revised 2026-10-14 (4.3.5 beta 5 regression review), wording only.
-It read "Some patches are still unread", one word away from the approved
-navigation question M-UNREAD-NEXT-OR-JUMP-STRIP / -PATCH ("Some patches are
-still not read"), which can open in the same session and asks something else:
-where the reader goes next, while this one stands in for "All Strips Read".
-They are different situations, so this window keeps its own and its headline
-now says how it differs. When it opens changed too (behaviour, awaiting
-confirmation): on a resume whose every strip already counted as read when the
-session opened, the first strip read again made the engine report the chart
-complete, and this window came straight after Calibration Complete. There it
-now waits until the session has read every strip; where a strip was still
-unread at the start, reading the last one brings it, as before
-(`MeasureManager.patches_left_is_news`).*
-
-*Revised after Knut's review of the first draft (2026-08-14), which he corrected
-on three counts.*
-
-**1. The cause was wrong.** The first draft said *"a slight wobble as the
-instrument passes over them is enough"*. His answer: *"is not likely. if not
-enough patches are registered it is caught. The likely reason is that a user has
-used patch-by-patch mode to read some patches and missed some."* The message now
-says that instead. Nothing here asserts a mechanism that has not been observed.
-
-**2. The button was invented.** The first draft told the user to press
-**"Stop & Save"**, which is not a button this app has. His answer: *"The button
-'Stop & Save' is not the wording used for other windows … like the All Patches
-Read (for patch-by-patch mode) and All Strips Read (for strip mode) [which] have
-one button to Close, which calls the window where user decides to stop and save,
-or stop and discard. This is the unified exit method defined in the design spec,
-which you would have known."* He is right that it is defined, and right that I
-should have read it: `measurement_exit_strategy.md` §"The single exit".
-
-**3. Every button needs its own explanation** — *"the rules used in the design
-specification is that all windows have an explanation for each button in a
-window"* — so both now carry one.
-
-**It must exist in all four cases.** Strip mode and patch-by-patch, on ChromIQ's
-engine and on stock ArgyllCMS chartread, are four separate windows with different
-exit keys behind the same buttons (`measurement_exit_strategy.md`, Tables 1 and
-2). A window raised from one parser only reaches half the users, and the stock
-half working is what has hidden that four times already. So this window is to be
-raised from code both `_handle_line` and `_handle_engine_line` reach, and its
-Close must delegate to `_confirm_end_of_session`, which already knows which mode
-and which reader it is in rather than sending a key of its own.
-
-**4. It is a STRIP-MODE window, so its button re-reads strips.** The first
-revision offered "Re-read Patches", which he corrected: *"this message is for a
-strip mode session (and this message only happens during strip mode), not a
-patch-by-patch session. Here one would 'Re-read strips'."* The button now matches
-the completion window it stands in for, and the guidance in the body still points
-at patch-by-patch + resume, because that is how the missing patches get finished
-in a later session — which he approved separately.
-
-**Close — ruled 2026-08-14.** He answered **(A)**: *"Close should raise the 'Keep
-what you have measured so far?' window. However, the description 'keeps the
-measurement, goes nowhere' is still correct, because it is referring to the other
-button that says to jump to build profile tab."* So the row in
-`measurement_exit_strategy.md` is not stale — it was read against the wrong
-button. Close raises the ending; the Go-to-tab button is the one that keeps the
-measurement and moves on.
-
-**Both readers, per his instruction:** *"If this check is possible to implement
-for the stock argyllcms chartread engine also, then the button commands should be
-made to use the correct command for the specific chartread engine, according to
-the measurement exit strategy in the design specification. Use the All Strips
-Read window for each engine as basis for the correct action to use to re-read or
-to Close / exit."* So both buttons take their keys from the All Strips Read row
-of Table 1 (engine) and Table 2 (stock) rather than sending anything of their
-own.
 
 ### M-ENGINE-FELL-BACK · PROPOSED · ChromIQ's own measuring engine could not use the instrument — Measure tab
 
@@ -6680,7 +6884,7 @@ alone.
 
 ### M-PATCH-UNSETTLED · PROPOSED · a re-read past the limit that agrees with no earlier reading — Measure tab preview, #182 beta 12
 
-*Changed at Knut's request, 2026-10-14 ([#182 6167582807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6167582807)), in 4.3.5 beta 5: "On every patch hover card, wherever 'it' refers to the patch being judged, replace it by 'patch <ID>'", e.g. "The 4 patches most similar to patch B3 are about ...". {loc} is that patch ("B3"), as on the card's first line "Patch B3". The lines below carry the new words; the exact wording awaits his confirmation (**Confirmed by:** *nobody yet.*). Where a sentence needed more than the swap, it was reworded as little as possible: "the patches most similar to it" became "the patches most similar in colour" where the patch is already named in the sentence, and the yellow cards say "Without that confirmation, patch {loc} would be red for being / for standing out ...". "it" that means a reading, a value or a range is left as it was ("So it is probably not a misread", "it is real, keep it for the profile").*
+*Changed at Knut's request, 2026-10-14 ([#182 6167582807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6167582807)), in 4.3.5 beta 5: "On every patch hover card, wherever 'it' refers to the patch being judged, replace it by 'patch <ID>'", e.g. "The 4 patches most similar to patch B3 are about ...". {loc} is that patch ("B3"), as on the card's first line "Patch B3". The lines below carry the new words. **Confirmed by:** Knut, 2026-10-15 ([#182 6181524471](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6181524471), item 7 of 6176326618, "All the messages are otherwise approved"). Where a sentence needed more than the swap, it was reworded as little as possible: "the patches most similar to it" became "the patches most similar in colour" where the patch is already named in the sentence, and the yellow cards say "Without that confirmation, patch {loc} would be red for being / for standing out ...". "it" that means a reading, a value or a range is left as it was ("So it is probably not a misread", "it is real, keep it for the profile").*
 
 *New 2026-10-07. Knut, [6045500910](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6045500910) answer 2: a patch red by the limit, read again past the limit and not the same as before, stays red, "and message should say that the two measurements were not similar and both above error threshold, and needs another measurement to confirm what is the reoccurring and correct value for the patch." The rule is CONFIRMED in 10.10a; the words are ours and wait here. The card breaks its lines by hand; the headline stands under the card's separator. `{de}`: this reading's ΔE\*ab; `{prevs}`: the earlier readings past the limit, in the order read, one decimal each, joined by ", "; `{limit}`: the limit, one decimal; `{n}`: how many readings, 3 or more (lines 2 and 3 cover two). Which lines: the headline, line 1, (for a patch the neighbour check also suspects, M-PATCH-NEIGHBOUR's lines 2 to 5 with "It also does not fit"), a blank line, lines 2 and 3 for two readings or lines 4 and 5 for more, a blank line, lines 6 and 7, a blank line, and "(Preferences ▸ Measurement, “Flag a patch…”)". Example: "Red outline: the readings do not agree / ΔE\*ab 150.4 now; before: 120.3 / / The two readings are not similar, / and both are past your limit 95.0. / / Read it again: a reading that matches / one of them shows which value is real."*
 
@@ -6783,175 +6987,6 @@ alone.
 > • Rebuild with the faster layout (recommended): ChromIQ stops this attempt and immediately rebuilds the same chart, with the same number of patches, using a different patch-arrangement method that doesn't suffer from this slowdown. The patches are still spread evenly through the colour space, and it usually finishes in under a second.
 >
 > • Cancel: stop building the chart. Nothing is saved.
-
-### M-CAL-DONE-STEPS-PATCH · PROPOSED · the same to-do points in the Calibration Complete window of a patch-by-patch read — Measure tab, 4.3.5 beta 5
-
-*New 2026-10-14. Knut, approving M-CAL-DONE-STEPS ([6166519230](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6166519230)): "same message applies also to patch-by-patch mode, adapted to patch reading (not strip reading)". The patch-by-patch window ("Calibration Complete — How to Measure", the window title unchanged) had the instrument's single-patch steps in a paragraph after "Place the instrument on the highlighted patch in the preview and take a reading. The next patch is highlighted automatically.". Now the same numbered frame as the strip window: step 1 and 3 below, step 2 the instrument's own single-patch steps (as before, with M-CAL-DONE-UNDERLAY where it applies), then the patch-by-patch key list and "These instructions are always visible in the output log below." as before. Shown since 4.3.5 beta 5.*
-
-> **How to measure patch by patch, after the calibration**
->
-> <b>Calibration complete. You are ready to measure patch by patch.</b>
-> Place the instrument on the patch highlighted in the preview: the output field below names it too.
-> Repeat for each patch until all are read: the next patch is highlighted automatically. Then press <b>d</b> to finish and save.
-
-### M-VERIFY-ALL-PATCHES-READ · PROPOSED · the window that closes a verification read patch by patch, with its summary — Measure tab, 4.3.5 beta 5
-
-*New 2026-10-14. Knut, approving M-MEASURED-SUSPECTS-VERIFY ([6166519230](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6166519230)): "same message applies also to patch-by-patch mode, in the 'All Patches Read' window". A verification read patch by patch closed on the STRIP window ("Verification Measurement — All Strips Read", "All strips have been read", "Re-read Individual Strips"), measured on screen in 4.3.5 beta 5. It now has its own window, worded for patches, with the same "Summary:" list under it as the strip window (the reading times where there are any, and M-MEASURED-SUSPECTS with M-MEASURED-SUSPECTS-VERIFY's red line). Its buttons: "Re-read Patches" (the profiling "All Patches Read" window's) and "Finish". The headline is the window title; the body is rich text, as the strip window's. Shown since 4.3.5 beta 5.*
-
-> **Verification Measurement: All Patches Read**
->
-> <b>All patches have been read.</b><br><br>This is a <b>verification measurement</b> of a colour-managed print, so it will be saved as a separate <b>verify</b> file and is <b>not</b> for building a profile.<br><br>Click <b>Finish</b> to save it, then open it in <b>Tools ▸ Inspect a measurement</b> to check how the profile performed. Or click <b>Re-read Patches</b> to read a patch again (<b>f</b>&nbsp;/&nbsp;<b>b</b> to move, <b>n</b> for the next unread, click a patch in the preview to jump to it, <b>d</b> when done).
-
-### M-HELP-PS-NOTE-PROJECT · PROPOSED · the help cards' note on PostScript printers, in the words of the project rule — Help cards, 4.3.5 beta 5
-
-*New 2026-10-14 (left over from the beta 4 review). The approved note (4.3.5 beta 3, Knut and Basti 2026-10-13) said the "Print like" row "appears when the print dialog opens on a PostScript printer, and ChromIQ uses your choice for this run and all its verification charts". Since 4.3.5 beta 2 the choice is asked after the dialog, at the project's first print to a PostScript printer through it, and kept for the whole project (M-PRINT-PS-ASK-EXPLAINED, M-PRINT-PS-FORM-HELP-PROJECT-EXPLAINED); the row shows the choice afterwards, and a change there applies to that run and its verification charts. Only those two sentences change; the rest of the note is the approved text. {print_like}, {photoshop}, {preview}: the row's label and its two choices as the Print Chart tab shows them. Shown since 4.3.5 beta 5.*
-
-> **PostScript printers: choose how you print your photos**
->
-> Many colour laser printers are PostScript printers: they take the page in a printer language called PostScript. Through the macOS print dialog they can receive the chart in two ways. Choose the way you print your photos. ChromIQ asks after you click Print in the print dialog, the first time a chart of this project goes to a PostScript printer, and keeps your answer for the whole project: its calibration, its runs and their verification charts. The “{print_like}” row on the Print Chart tab then shows the choice, and a change made there applies to that run and its verification charts only.
-> • “{photoshop}”: choose this if you print from Photoshop with “Photoshop Manages Colors” and this profile as the printer profile. The chart's values go to the printer unchanged.
-> • “{preview}”: choose this if you print from Preview or another app that leaves printing to macOS. The printer then adjusts the colours with its own settings, the same way for the chart and for your photos.
->
-> A run you refine from another one starts with that run's choice. Sent straight to the printer, without the dialog, the chart always goes the Photoshop way.
->
-> If the print dialog has an RGB colour setting for the printer (on an HP Color LaserJet, “RGB Color”), ChromIQ sets it to Device. Do the same for your photos.
-
-### M-END-WRITTEN · PROPOSED · the ending window once ChromIQ's engine has already written the session's readings — Measure tab, 4.3.5 beta 5
-
-*New 2026-10-14 (4.3.5 beta 5 regression review). M-END's first sentence, "They are not in your measurement file yet", is true of stock ArgyllCMS chartread, which writes the `.ti3` only on a clean exit (§0), and untrue of ChromIQ's engine, which writes it after every strip (and patch) it accepts; since beta 5 "Discard and stop" takes those readings out again (§2, the awaiting-confirmation block). So once the session has changed the file on disk the window keeps M-END's headline and buttons and shows this body instead. {kept} is M-END's approved sentence, "Your previous measurement of {m} patches is put back exactly as it was." (with its paragraph break), when a measurement was there before, including one "Measure anyway" moved to `old/` at Start; otherwise nothing. Shown since 4.3.5 beta 5.*
-
-> **Keep what you have measured so far?**
->
-> You have read {n} patches in this session. ChromIQ's engine has already written them into your measurement file.
->
-> What each button does:
->
-> •  Save and stop: keeps them in this run's measurement file and ends the session. You can carry on later with “Refine / resume existing measurement (-r)”, reading only the strips or patches that are still missing.
->
-> •  Discard and stop: ends the session and keeps nothing from it. The file this session wrote is moved to an “old” folder, never deleted.{kept}
->
-> •  Keep measuring: closes this window and carries on where you were.
-
-*With one patch read:* "You have read 1 patch in this session. ChromIQ's engine has already written it into your measurement file." and "Save and stop: keeps it in this run's measurement file …", the rest as above.
-
-### M-CONVERT-TOOL-MISSING · PROPOSED · the file converter cannot find its ArgyllCMS program — every import and conversion door, 4.3.5 beta 6
-
-*New 2026-10-15, after #209. The reporter's screenshot showed a Russian window whose only English paragraph was the reason it opened: `ReferenceConvertError` (`workflow/reference_convert.py`) carried hard-coded English text into every window that shows it, and no translation could reach it. Each of the converter's reasons is now a message here, M-CONVERT-*, rendered in the user's language when it is raised (the language is fixed for the session, and `core.i18n` needs no Qt), and the exception carries the message's ID and headline. They all share one headline, the one the Measure tab's import and Build Profile's "Load measurement data" already show for a failed conversion. Where they appear: the Measure tab's IMPORT module (profiling and verification runs), Build Profile's "Load measurement data" and its calibration loader (Run type = Calibration), the Measurement Report's "Add Profile's Measurements", Tools > Convert i1Profiler (its log), and the scanner windows (their note and log). `{tool}` is the program's file name as it is in the ArgyllCMS folder (`txt2ti3.exe` on Windows); `{detail}` is the program's own last line, left as it wrote it; `{name}` is the file's name. Wording ours; shown since 4.3.5 beta 6.*
-
-> **The file could not be converted**
->
-> ChromIQ converts this file with a program that comes with ArgyllCMS ({tool}), and that program is not in the ArgyllCMS folder ChromIQ is set to use.
->
-> Open Preferences (⚙) and check the ArgyllCMS folder: it should be the “bin” folder inside your ArgyllCMS installation. Then try again.
->
-> Your file has not been changed.
-
-### M-CONVERT-TOOL-FAILED · PROPOSED · the converter's ArgyllCMS program stopped with an error — 4.3.5 beta 6
-
-*When the program printed nothing, `{detail}` is its file name and exit code. See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> The ArgyllCMS program that converts this file ({tool}) stopped with an error. This usually means the file is not in a form that program can read, or it is damaged.
->
-> Your file has not been changed.
->
-> Details: {detail}
-
-### M-CONVERT-NO-TI3 · PROPOSED · txt2ti3 finished without writing a measurement — 4.3.5 beta 6
-
-*See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> The conversion finished but did not produce a measurement (.ti3 file). This usually means the file is not an i1Profiler measurement export, for example a list of patches that have not been measured yet.
->
-> Your file has not been changed.
-
-### M-CONVERT-NO-REFERENCE · PROPOSED · a scanner target reference converted to nothing — 4.3.5 beta 6
-
-*See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> The conversion finished but did not produce a reference file. The file may not be a target reference of this kind.
->
-> Your file has not been changed.
-
-### M-CONVERT-CXF-UNREADABLE · PROPOSED · an i1Profiler CxF3 file (.mxf / .cxf) that is not readable XML — 4.3.5 beta 6
-
-*See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> {name} could not be read as an i1Profiler measurement (CxF3 file). It may be damaged or only partly saved.
->
-> Your file has not been changed.
->
-> Details: {detail}
-
-### M-CONVERT-CXF-NO-DEVICE-VALUES · PROPOSED · a CxF3 measurement without RGB or CMYK device values for every patch (extended inks included) — 4.3.5 beta 6
-
-*See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> {name} does not give the chart’s RGB or CMYK values (device values) for every patch. ChromIQ can import i1Profiler measurements of RGB and CMYK charts only.
->
-> Your file has not been changed.
-
-### M-CONVERT-CXF-NO-PATCHES · PROPOSED · a CxF3 measurement with no patches — 4.3.5 beta 6
-
-*See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> {name} holds no measured patches.
->
-> Your file has not been changed.
-
-### M-CONVERT-CXF-COUNTS-DIFFER · PROPOSED · a CxF3 measurement whose patches and readings do not pair up — 4.3.5 beta 6
-
-*See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> {name} does not hold as many readings as patches (patches: {patches}, readings: {readings}), so ChromIQ cannot tell which reading belongs to which patch.
->
-> Your file has not been changed.
-
-### M-CONVERT-CXF-NO-SPECTRUM · PROPOSED · a CxF3 reading without a reflectance spectrum — 4.3.5 beta 6
-
-*See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> A reading in {name} has no spectral data (reflectance spectrum), and ChromIQ needs it to work out the colour of each patch.
->
-> Your file has not been changed.
-
-### M-CONVERT-CXF-UNEQUAL-SPECTRA · PROPOSED · CxF3 readings of different spectral lengths — 4.3.5 beta 6
-
-*See M-CONVERT-TOOL-MISSING for where these messages appear.*
-
-> **The file could not be converted**
->
-> The readings in {name} do not all cover the same wavelengths (their reflectance spectra differ in length), so ChromIQ cannot convert them.
->
-> Your file has not been changed.
-
-### M-CONVERT-TXT-NOT-MEASUREMENT · PROPOSED · Build Profile's window when its txt2ti3 run fails — 4.3.5 beta 6
-
-*Build Profile's "Load measurement data" converts an i1Profiler `.txt` with txt2ti3 through `ArgyllRunner`; when that fails it opens this window. It was the one converter window never handed to `tr()`, so it was English in every language. The wording is the one it always had, without its dash. When the program printed a line containing "error", a last paragraph follows: "Details: {detail}" (`measurement_messages.convert_details`, the same words as in M-CONVERT-TOOL-FAILED). Shown since 4.3.5 beta 6.*
-
-> **This file could not be read as measurement data**
->
-> ChromIQ tried to convert this file into measurement data it can use, but the conversion failed. This usually means the file is not an i1Profiler measurement export: for example, it is a list of patches or reference values rather than actual readings, or it has no colour measurements in it.
->
-> What to do:
-> • In i1Profiler, make sure you have actually measured the chart, then save the measured data.
-> • The saved file must contain both the device values (RGB or CMYK) and the measured colour (Lab/XYZ or spectral) for every patch.
-> • Load that saved measurement file here.
 
 ### M-x. Which table uses which message
 
