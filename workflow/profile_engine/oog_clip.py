@@ -427,6 +427,10 @@ A67_DC = (1.0, 60.0, 35.0)
 # source L* 85-95: base67 prints C* 42, colprof 66; Findings agent67-01)
 A67_DCALL_TOKEN = "a67-darkchroma-all"
 A67_LIFT_TOKEN = "a67-liftchroma"
+# a67-camratio: the chroma weight = colprof's Jab ratio at the target, every
+# L* (weights, a67_cam_wc); range CHROMIQ_A67_CAM "lo:hi"
+A67_CAM_TOKEN = "a67-camratio"
+A67_CAM = (0.35, 3.0)
 A67_LIFT = (3.0, 8.0)
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
@@ -687,6 +691,24 @@ class SpaceView:
 
 
 # --- the metric -------------------------------------------------------------
+def a67_cam_wc(lab: np.ndarray, rng=(0.35, 3.0), e: float = 0.5) -> np.ndarray:
+    """Agent 67: colprof's chroma : lightness weight ratio at CIELAB targets
+    (see weights, a67-camratio)."""
+    lab = np.asarray(lab, float)
+    c = np.hypot(lab[:, 1], lab[:, 2])
+    u = np.zeros_like(lab)
+    ok = c > 1e-6
+    u[ok, 1] = lab[ok, 1] / c[ok]
+    u[ok, 2] = lab[ok, 2] / c[ok]
+    u[~ok, 1] = 1.0
+    j0 = lab_to_argyll_jab(lab)
+    jl = lab_to_argyll_jab(lab + np.array([e, 0.0, 0.0])[None, :])
+    jc = lab_to_argyll_jab(lab + e * u)
+    s_j = np.linalg.norm(jl - j0, axis=1) / e
+    s_c = np.linalg.norm(jc - j0, axis=1) / e
+    return np.clip((s_c / np.maximum(s_j, 1e-6)) ** 2, rng[0], rng[1])
+
+
 def weights(target_s: np.ndarray, p: dict = PARAMS,
             angle: np.ndarray | None = None) -> np.ndarray:
     """(N,3,3) W with |W (y - t)|^2 = wJ dJ^2 + wC dRad^2 + wH(C) dTan^2 in
@@ -703,6 +725,14 @@ def weights(target_s: np.ndarray, p: dict = PARAMS,
     lt = lt * lt * (3.0 - 2.0 * lt)
     wj = p["wj"] * (1.0 + (p["wj_light"] - 1.0) * lt)
     wc = p["wc"] * np.ones(n)
+    if (p.get("a67_cam") and not p.get("a51") and p.get("space") == "lab"
+            and getattr(_REL, "on", False)):
+        # Agent 67 (a67-camratio): colprof's clip weights (Jab J 4 : C 1)
+        # expressed in CIELAB at the target: cost 4 sJ^2 dL^2 + sC^2 dC^2,
+        # sJ = dJ/dL*, sC = d|Jab|/dC* along the chroma ray (local), so with
+        # our wj 4 the chroma weight is (sC / sJ)^2 (dark red ~2.8, dark
+        # yellow ~0.7, light spring / cyan ~0.45), held to A67_CAM range.
+        wc = a67_cam_wc(target_s, p["a67_cam"])
     if p.get("a67_dc") and not p.get("a51") and getattr(_REL, "on", False):
         # Agent 67 (a67-darkchroma): colprof's chroma : lightness ratio in
         # the dark (ink devices, colorimetric table only)
