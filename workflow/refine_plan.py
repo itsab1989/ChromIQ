@@ -281,6 +281,9 @@ class RefinePlan:
     rest: "list[StripAdvice]" = field(default_factory=list)
     #: The chart's labels, for chart order (None: letters A, B ... AA).
     labels: object = None
+    #: #211: every strip's patches above the limit, as the check found them
+    #: (the per-patch data guided refinement walks in patch-by-patch mode).
+    over_patches: "dict[str, list[Patch]]" = field(default_factory=dict)
 
     @property
     def offered(self) -> "list[StripAdvice]":
@@ -308,6 +311,21 @@ class RefinePlan:
                       key=lambda x: _strip_number(x[0], self.labels))
 
 
+    def chosen_patches(self, first_only: bool = True
+                       ) -> "list[tuple[str, float]]":
+        """(patch, error) above the limit in the strips :meth:`chosen` picks,
+        in CHART order: by strip as :meth:`chosen` orders them, then by place
+        in the strip (#211: guided refinement patch by patch goes to these,
+        not to every patch of the strips)."""
+        out: "list[tuple[str, float]]" = []
+        for strip, _de in self.chosen(first_only):
+            ps = list(self.over_patches.get(strip, ()))
+            ps.sort(key=lambda p: (p.pos if p.pos is not None else 10 ** 6,
+                                   len(p.loc), p.loc))
+            out.extend((p.loc, p.de) for p in ps)
+        return out
+
+
 def recommends_start_over(n_above: int, n_total: int) -> bool:
     """More than half of ALL patches above the limit (strictly greater)."""
     return n_total > 0 and n_above / n_total > START_OVER_SHARE
@@ -330,6 +348,7 @@ def build_plan(patches: "list[Patch]", threshold: float,
         # NO "confirmed" EXCEPTION (Knut, #182 5980560281): a patch the
         # Measure tab outlines yellow is offered like any other above the limit.
         strips.setdefault(p.strip, []).append(p)
+    plan.over_patches = {k: list(v) for k, v in strips.items()}
     for strip, over in strips.items():
         over.sort(key=lambda p: p.de, reverse=True)
         worst = over[0]

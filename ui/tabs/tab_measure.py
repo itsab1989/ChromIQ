@@ -5627,11 +5627,46 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._start_btn.setText(tr("Start Measurement"))
 
     def _load_refine_strips(self, path: Path) -> None:
-        from workflow.profcheck_runner import parse_refine_strips
+        from workflow.profcheck_runner import (parse_refine_patches,
+                                               parse_refine_strips)
         try:
             self._strip_list = parse_refine_strips(path)
         except Exception:
             self._strip_list = []
+        # #211: the patches above the limit, for guidance patch by patch
+        try:
+            self._refine_patch_list = parse_refine_patches(path)
+        except Exception:
+            self._refine_patch_list = []
+
+    def _guided_patches(self) -> "list[str]":
+        """The patches guided refinement visits in patch-by-patch mode (#211,
+        Basti 2026-10-15): the quality check's own patches above the limit,
+        in chart order. A Refine_Strips file written before 4.3.5 beta 8
+        holds strips only; then every patch of its strips, in chart order,
+        and the log says why."""
+        listed = list(getattr(self, "_refine_patch_list", None) or [])
+        if listed:
+            return listed
+        strips = set(self._strip_list or [])
+        if not strips:
+            return []
+        try:
+            from workflow.measurement_report import parse_ti3
+            chart = parse_ti3(Path(self._chart_file_for(self._ti1_path)))
+            locs = [str(x) for x in (chart.sample_locs or [])]
+        except Exception:      # noqa: BLE001 — no chart, no guide
+            log.debug("could not list the chart's patches", exc_info=True)
+            return []
+        from workflow.patch_flags import sorted_locs
+        out = sorted_locs(l for l in locs if self._strip_of(l) in strips)
+        if out:
+            self._log.appendPlainText(tr(
+                "[Guided Refinement] This refinement list was written by an "
+                "older ChromIQ and names strips only, so every patch of "
+                "{strips} is visited."
+            ).format(strips=", ".join(self._strip_list)))
+        return out
 
     def start_guided_refinement(self, ti3: Path, strips_file: Path) -> None:
         """Called by main window when user launches guided refinement from Check & Refine tab."""
@@ -7560,7 +7595,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._guided_refinement_active = guided
         self._resume_active = resume_cb.isChecked()
 
-        self._manager.set_guided_strips(self._strip_list if guided else [])
+        # #211: PATCH BY PATCH, THE GUIDE GOES PATCH BY PATCH (Basti,
+        # 2026-10-15): to the patches the quality check found above the
+        # limit, never strip by strip. The engine jumps to a patch by name;
+        # stock chartread has no such jump, so it keeps the strip guide.
+        self._guided_patch_list = []
+        if guided and bool(getattr(params, "patch_by_patch", False)) \
+                and getattr(params, "engine_helper", None):
+            self._guided_patch_list = self._guided_patches()
+        if self._guided_patch_list:
+            self._manager.set_guided_patches(self._guided_patch_list)
+        else:
+            self._manager.set_guided_strips(self._strip_list if guided else [])
 
         self._manager.start(
             params,
@@ -11266,6 +11312,42 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             footnote.setStyleSheet(_dim_style)
             layout.addWidget(footnote)
 
+        elif self._guided_refinement_active and getattr(
+                self, "_guided_patch_list", None):
+            # #211: the guide goes patch by patch in patch-by-patch mode
+            pl = self._guided_patch_list
+            n = len(pl)
+            dlg.setWindowTitle(tr("Calibration Complete, Guided Refinement Ready"))
+            body = (tr("<b>Calibration complete. The app will take you to "
+                       "the patch.</b><br><br>There is <b>1 patch</b> above "
+                       "the limit to re-measure: {first}. The app moves the "
+                       "reader to it for you.").format(first=pl[0])
+                    if n == 1 else
+                    tr("<b>Calibration complete. The app will take you to "
+                       "each patch in turn.</b><br><br>There are <b>{n} "
+                       "patches</b> above the limit to re-measure, in chart "
+                       "order: {names}. The app moves the reader to each one "
+                       "for you; only those patches are read again, not "
+                       "their whole strips.").format(n=n, names=", ".join(pl)))
+            msg = QLabel(body, dlg)
+            msg.setWordWrap(True)
+            layout.addWidget(msg)
+            hint = QLabel(tr("Watch the <b>highlighted patch</b> in the preview "
+                             "panel on the right, or follow the output field "
+                             "below: it names each patch and counts them."),
+                          dlg)
+            hint.setWordWrap(True)
+            hint.setStyleSheet(_plain_style)
+            layout.addWidget(hint)
+            first_lbl = QLabel(
+                tr("<b>First patch: {first}.</b> When it's highlighted, "
+                   "measure it like this:<br><br>{how}").format(
+                       first=pl[0], how=_how), dlg)
+            first_lbl.setTextFormat(Qt.TextFormat.RichText)
+            first_lbl.setWordWrap(True)
+            layout.addWidget(first_lbl)
+            self._add_calibrate_key_note(layout, dlg, _dim_style)
+
         elif self._guided_refinement_active and self._strip_list:
             first = self._strip_list[0]
             n = len(self._strip_list)
@@ -11702,6 +11784,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                            "successfully.</b>") if n == 1 else
                         tr("<b>All {n} chart strips have been re-measured "
                            "successfully.</b>").format(n=n))
+            _pl = getattr(self, "_guided_patch_list", None) or []
+            if _pl:
+                # #211: counted in the patches the guide visited
+                _opening = (tr("<b>The patch has been re-measured "
+                               "successfully.</b>") if len(_pl) == 1 else
+                            tr("<b>All {n} patches have been re-measured "
+                               "successfully.</b>").format(n=len(_pl)))
             msg = QLabel(
                 _opening
                 + tr("<br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b> — keeps chartread running so you can scan additional strips yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between strips, <b>n</b> to jump to the next unread one, and <b>d</b> when you are done. The automatic strip navigation is switched off for the rest of this session."),
@@ -11863,6 +11952,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if self._guided_refinement_active:
                 # Hand back full keyboard control; disable auto-navigation.
                 self._guided_refinement_active = False
+                self._guided_patch_list = []
                 self._manager.set_guided_strips([])
             QApplication.instance().installEventFilter(self)
 
