@@ -7202,7 +7202,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return M.M_REFINE_REBUILD.render(build_tab=self._profile_tab_name(),
                                          check_tab=check)
 
-    def _blocked_by_a_misfitting_measurement(self, params) -> bool:
+    def _blocked_by_a_misfitting_measurement(self, params=None) -> bool:
         """True, and M-RESUME-LAYOUT-DIFFERS shown, when Refine / resume would
         resume a measurement whose readings are not filed where this chart
         prints their patches (#211, `measurement_pairing.resume_fit`).
@@ -7219,7 +7219,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         ti1 = getattr(self, "_ti1_path", None)
         if ti1 is None:
             return False
-        resumes = bool(getattr(params, "resume", False))
+        if params is not None:
+            resumes = bool(getattr(params, "resume", False))
+        else:
+            # Asked before the parameters are collected, by the same rule
+            # they are (`_collect_guided` / `_collect_manual`).
+            cb = (self._resume_cb if self._current_mode() == "guided"
+                  else self._m_resume_cb)
+            resumes = self._resume_has_anything_to_resume(cb.isChecked())
         ti3 = Path(ti1).with_suffix(".ti3")
         staged = self._verification_to_stage()
         if staged is not None:
@@ -7340,6 +7347,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         if self._blocked_by_unusable_target_instrument():
             return
+        # …and when the measurement it would resume does not fit this chart's
+        # layout (#211): both readers resume BY LOCATION, so carrying on would
+        # put old readings on the wrong patches and drop others. Before every
+        # question that can write (the stored chart, the replace question),
+        # the archive and the instrument: nothing is touched.
+        if self._blocked_by_a_misfitting_measurement():
+            return
         # #131: enter measurement mode so per-patch/strip sounds are allowed and
         # the selected clips are pre-loaded for zero-latency playback. On stock
         # ArgyllCMS chartread ChromIQ stays quiet — Argyll beeps for itself
@@ -7401,12 +7415,6 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         params = self._collect_params()
         if not self._confirm_nonrandom_bidir(params):
-            return
-        # …and when the measurement it would resume does not fit this chart's
-        # layout (#211): both readers resume BY LOCATION, so carrying on would
-        # put old readings on the wrong patches and drop others. Before the
-        # replace question, the archive and the instrument: nothing is touched.
-        if self._blocked_by_a_misfitting_measurement(params):
             return
         # A REFINEMENT: re-reading a finished measurement the run has built a
         # profile from. Its ending says the profile does not update by itself

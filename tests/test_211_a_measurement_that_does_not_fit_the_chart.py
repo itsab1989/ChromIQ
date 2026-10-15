@@ -216,10 +216,11 @@ def test_one_reading_has_its_own_sentence(tab):
     assert f"1 of its {len(LOCS)} readings is not filed" in shown[0][1]
 
 
-def test_on_start_asks_before_the_replace_question_and_the_archive():
+def test_on_start_asks_before_every_question_that_writes_and_the_archive():
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure._on_start)
-    i = src.index("self._blocked_by_a_misfitting_measurement(params)")
+    i = src.index("self._blocked_by_a_misfitting_measurement()")
+    assert i < src.index("self._snapshot_verification_chart()")
     assert i < src.index("self._confirm_replacing_measurement()")
     assert i < src.index("self._archive_measurement_before_replacing()")
     assert i < src.index("self._begin_session_guard(")
@@ -363,3 +364,15 @@ def test_the_engine_collapses_issue_211s_shape_which_is_why_it_is_refused(
         "the engine kept every row; if that is now true, the refusal can be "
         "reconsidered")
     assert ev["loc"]
+
+
+def test_without_parameters_the_resume_tick_decides(tab):
+    t, run, ti2, shown = tab
+    page = [f"{s}{p}" for s in "AB" for p in range(1, 4)]
+    _measurement(run, ti2, loc_of=lambda sid, _l: page[(sid - 1) % 6])
+    for cb in (t._resume_cb, t._m_resume_cb):
+        cb.setChecked(False)
+    assert t._blocked_by_a_misfitting_measurement() is False
+    for cb in (t._resume_cb, t._m_resume_cb):
+        cb.setChecked(True)
+    assert t._blocked_by_a_misfitting_measurement() is True
