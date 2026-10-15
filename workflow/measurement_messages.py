@@ -4821,6 +4821,39 @@ M_REPORT_PAPER_WHITE_FROM_PROFILE = _m(
     "report's other measurements are judged as usual.",
     approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
 
+# --- PROPOSED (#210, Basti 2026-10-15): the paper patch was measured much
+# darker than other patches of the same sheet ---------------------------------
+#
+# A forum user's SELPHY report took an orange reading (L* 43) as "paper
+# white": strip 7 was read one patch out, so patch 7D held another patch's
+# colour. Ink only ever darkens the paper, so the patch printed with no ink is
+# the lightest of its sheet (or within a few L* of it), whatever the paper's
+# own tint: a coloured paper never trips this. Shown as a warning in the
+# measurement's detailed data, and the report goes on with that paper white.
+# Report text (K18, §19.1 of measurement_report_limits.md): causes, no
+# ChromIQ how-to. {loc}/{L}/{a}/{b}: the paper patch; {lighter_loc}/
+# {lighter_L}: the lightest reading; {dl}: how much lighter it is.
+M_REPORT_PAPER_WHITE_DOUBT = _m(
+    "M-REPORT-PAPER-WHITE-DOUBT",
+    "This paper white does not look like paper",
+    "The paper white of this measurement comes from patch {loc}, the patch "
+    "printed with no ink. It was measured at L* {L}, a* {a}, b* {b}, while "
+    "patch {lighter_loc} of the same measurement reads L* {lighter_L}, which "
+    "is {dl} lighter.\n\n"
+    "Ink can only make paper darker, so the patch with no ink is normally the "
+    "lightest patch of the sheet, or within a few L* of it. That holds for "
+    "white, cream and coloured papers alike, because the paper's own colour "
+    "is in every patch. A difference this large usually means the reading of "
+    "{loc} is not a reading of the bare paper: the instrument may have slipped "
+    "by a patch along the strip, a strip may have been read in the wrong "
+    "place, or the chart may have been printed with colour management, which "
+    "puts ink on the paper patch too.\n\n"
+    "The results of this measurement are worked out with this paper white "
+    "all the same. Every value judged relative to the paper may therefore be "
+    "off, and the figures above should be read with that in mind.",
+    approved=False)   # proposed, 4.3.5 beta 8 (#210)
+
+
 # (b) No profile could be read, so the sheet stays in absolute Lab. The note
 # travels with every row whose verdict that moves (the colour-difference,
 # control-strip, gamut, grey-balance, tone-ramp and evenness rows of that
@@ -6272,7 +6305,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_DELETE_FAILED, M_REPORT_NOT_WRITABLE,
     M_RUN_DELETE_REPORTS_LOCKED,
     M_REPORT_SCOPE_RUN_DELETED, M_REPORT_NO_PAPER_PATCH,
-    M_REPORT_PAPER_WHITE_FROM_PROFILE,
+    M_REPORT_PAPER_WHITE_FROM_PROFILE, M_REPORT_PAPER_WHITE_DOUBT,
     M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE,
     M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
     M_REPORT_SOLIDS_PREDICTED, M_REPORT_PAPER_AGAINST_PROFILE,

@@ -1229,6 +1229,35 @@ def paper_white_row(lab, device100, space: str = "RGB") -> "int | None":
         return None
 
 
+#: #210: HOW MUCH LIGHTER THAN THE PAPER PATCH ANOTHER READING MAY BE before
+#: the paper white is called into doubt (L*, D50). Ink only darkens paper, so
+#: on any paper, white, cream or coloured, the patch printed with no ink is the
+#: lightest of its sheet; what can still put another reading above it is
+#: instrument noise (well under 1 L*), a fluorescent paper read under a
+#: different light (a few L* at most) and a patch with so little ink that it
+#: matches the paper. 8 L* clears all three. The forum user's misread paper
+#: patch was 51 L* below the lightest reading of its sheet.
+PAPER_WHITE_DOUBT_DL = 8.0
+
+
+def paper_white_doubt(lab, wi: "int | None", locs) -> "dict | None":
+    """The facts M-REPORT-PAPER-WHITE-DOUBT states, or None when the paper
+    white (reading *wi*) is the lightest reading of *lab*, or within
+    :data:`PAPER_WHITE_DOUBT_DL` of it. *locs*: each reading's location."""
+    if wi is None or not lab:
+        return None
+    try:
+        li = int(np.argmax([float(l[0]) for l in lab]))
+        dl = float(lab[li][0]) - float(lab[wi][0])
+    except (IndexError, TypeError, ValueError):
+        return None
+    if not dl > PAPER_WHITE_DOUBT_DL:
+        return None
+    return {"lighter_loc": str(locs[li]) if locs is not None else str(li),
+            "lighter_L": round(float(lab[li][0]), 2),
+            "dl": round(dl, 2)}
+
+
 def _device_values_of(data, ti3_path: "Path | None" = None):
     """Device values (0..100) per reading of *data*, or None.
 
@@ -1299,7 +1328,8 @@ def measurement_facts(ti3_path: "str | Path", *, data=None,
                 "hex": _srgb_hex(tuple(data.xyz[bi])),
             },
         }
-    return {
+    _locs = data.sample_locs if data.sample_locs else data.sample_ids
+    out = {
         "patches": data.n_patches,
         "paper_patch": True,
         "paper_white": {
@@ -1313,6 +1343,13 @@ def measurement_facts(ti3_path: "str | Path", *, data=None,
             "hex": _srgb_hex(tuple(data.xyz[bi])),
         },
     }
+    # #210: a paper patch measured far darker than the sheet's lightest
+    # reading is probably not a reading of the paper. Recorded, so the report
+    # can say so; nothing is changed or withheld because of it.
+    doubt = paper_white_doubt(lab, wi, _locs)
+    if doubt is not None:
+        out["paper_white_doubt"] = doubt
+    return out
 
 
 def point_lightness(point) -> "float | None":
