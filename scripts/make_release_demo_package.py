@@ -539,6 +539,11 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-PAPER-WHITE-FROM-PROFILE": [
         "Report-Limits-Strip-And-Gamut/run4: write {\"colour\": \"through-profile\", \"intent\": \"relative\", \"route\": \"chromiq\", \"profile\": \"Report-Limits-Strip-And-Gamut.icc\"} as Report-Limits-Strip-And-Gamut-verify.print.json into the 2028-11-23 date's chart/ folder; New report…, detailed data, Generate report (it reads the print record again; the saved reports need not be deleted): Paper white reads N-A with this note, naming the run's profile",
     ],
+    # #210 (4.3.5 beta 8): no demo sheet ships with a misread paper patch, so
+    # one step outside ChromIQ first.
+    "M-REPORT-PAPER-WHITE-DOUBT": [
+        "any run of the pack: in its .ti3, give the paper patch (RGB 100 100 100) the XYZ of a dark patch of the same file, then New report…, detailed data, Generate report: the warning sits under Paper white",
+    ],
     "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE": [
         "the same, then rename run4's Report-Limits-Strip-And-Gamut.icc and Generate report again (New report…): the colour rows of that date carry this note",
     ],
