@@ -1892,6 +1892,14 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         # surface crossings free of knees: the plain anchor ramp,
         # a66-clipanchor, added grey-saturation knees, Findings agent66-01 s5).
         weak = (residual > 0.5) & (residual <= deep_oog)
+        if REFIT_ANCHOR.get("all"):
+            # Agent 67 (a67-guardall): the in-gamut nodes too. Next to the
+            # gamut surface the refit also pulls IN-GAMUT nodes off their
+            # exact inversion (FOGRA node L* 21.9, a* -8, b* 16: exact,
+            # refit prints L* 19.9), between clipped nodes the guard already
+            # holds: the dark green band of mid h080/h090 (Findings
+            # agent67-01). a44-exactkeep (tol 2) did not restore it.
+            weak = residual <= deep_oog
         if fixed_nodes is not None and len(fixed_nodes):
             weak[fixed_nodes] = False
         if weak.any():
@@ -2250,6 +2258,7 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     REFIT_ANCHOR["on"] = is_additive is False and bool(t & {"a66-clipanchor", "a66-clipanchor-dark"})
     REFIT_ANCHOR["dark"] = "a66-clipanchor-dark" in t
     REFIT_ANCHOR["guard"] = is_additive is False and "a66-refitguard" in t
+    REFIT_ANCHOR["all"] = is_additive is False and "a67-guardall" in t
     _rg = os.environ.get("CHROMIQ_A66_GUARD", "1.5:4").split(":")
     REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"] = float(_rg[0]), float(_rg[1])
     _rl = os.environ.get("CHROMIQ_A66_ANCHOR_LC", "60:8").split(":")
