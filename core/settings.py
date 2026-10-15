@@ -135,6 +135,13 @@ DEFAULTS: dict[str, Any] = {
     # default route on macOS; this key never changes that, and Settings greys
     # the box out while the dialog is on.
     "pdf_print_fallback":        True,
+    # "Warn me if a strip looks misaligned" (the chart-reading engine's
+    # --safenet, #50). ON by default since 4.3.5 beta 8 (Basti, #210): it
+    # had been off since it was added, and blind on real prints until #210
+    # widened its fit bar. A Preferences setting, so global (per_target_
+    # settings.md §1.1); schema 30 moves users who carried the old OFF
+    # (_migrate_safenet_default).
+    "misalign_safenet":          True,
     # Step 3 — measure
     "measure_disable_bidir":       True,
     # Suppresses the "forcing bidirectional on a non-randomised chart" warning
@@ -1002,7 +1009,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 29
+SETTINGS_SCHEMA = 30
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1243,6 +1250,9 @@ class AppSettings:
         if stored_schema < 28 and self._migrate_pdf_print_fallback_default():
             dropped.append("pdf_print_fallback (the exact-size PDF is now on "
                            "by default for ChromIQ's own lp printing)")
+        if stored_schema < 30 and self._migrate_safenet_default():
+            dropped.append("misalign_safenet (the misaligned-strip warning is "
+                           "now on by default)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
@@ -1411,6 +1421,30 @@ class AppSettings:
         if is_true:
             return False
         self._qs.remove("pdf_print_fallback")
+        return True
+
+    def _migrate_safenet_default(self) -> bool:
+        """schema 30 (4.3.5 beta 8, Basti on #210): "Warn me if a strip looks
+        misaligned" is on by default.
+
+        The same reasoning as schema 28 (pdf_print_fallback): the box defaulted
+        to OFF since #50 and Preferences → OK writes every key, so a stored
+        ``False`` is what anyone gets who ever pressed OK, and until #210 the
+        check could not fire on a real print anyway, so nobody had a reason to
+        choose it off. Every stored ``False`` is the echo of the old default and
+        is dropped; a stored ``True`` was a choice and is already right. From
+        schema 30 on a stored ``False`` is respected: this runs once.
+
+        It is a Preferences setting, global by docs/design/per_target_settings.md
+        §1.1, so no run or target stores it and nothing per target moves."""
+        raw = self._qs.value("misalign_safenet", None)
+        if raw is None:
+            return False
+        is_true = raw is True or (isinstance(raw, str)
+                                  and raw.strip().lower() in ("true", "1", "yes"))
+        if is_true:
+            return False
+        self._qs.remove("misalign_safenet")
         return True
 
     def _migrate_misread_parameters(self) -> list[str]:
