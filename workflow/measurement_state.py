@@ -73,10 +73,21 @@ class Ti3Facts:
     claimed: "int | None" = None      # B
     held: "int | None" = None         # C
     expected: "int | None" = None     # A, from the .ti2
+    #: How many DESIGN patches have a reading, judged by location; ``None``
+    #: when the files cannot be compared by location. Differs from *held* when
+    #: the file carries readings of the fill-up squares that complete the last
+    #: strip (see :func:`unread_design_locations`).
+    design_read: "int | None" = None
 
     @property
     def has_readings(self) -> bool:
         return bool(self.held)
+
+    @property
+    def patches_read(self) -> "int | None":
+        """The number to put before "of {expected} patches": design patches
+        with a reading when that is known, the row count otherwise."""
+        return self.design_read if self.design_read is not None else self.held
 
     @property
     def can_resume(self) -> bool:
@@ -307,6 +318,48 @@ def _engine_fill_up_rows(path: "Path | str", text: str, body: str) -> int:
     return surplus
 
 
+def unread_design_locations(ti3_path: "Path | str | None",
+                            ti2_path: "Path | str | None") -> "set[str] | None":
+    """The design patches of the chart *ti2_path* that *ti3_path* holds no
+    reading for, by ``SAMPLE_LOC``; ``None`` when that cannot be told.
+
+    THIS IS WHAT "COMPLETE" MEANS: every patch of the design has a reading. A
+    row count cannot say it on a chart from ChromIQ's own layout engine, whose
+    fill-up squares carry real ids, so chartread and the engine both write
+    readings for them: a file two design patches short then holds as many rows
+    as the design has patches (398 rows for a 390-patch design on a 400-square
+    sheet), and a count calls it complete. On screen that resume never raised
+    its completion window (4.3.5 beta 7 regression review). Stock chartread's
+    resume asked by location since 4aad735ec; this is that question, kept in
+    one place so every caller of :func:`classify` gets the same answer.
+
+    ``None``, and the caller keeps its count, when either file carries no
+    locations, a row of the measurement has none, or the measurement names a
+    location this chart does not have: then the two files cannot be compared
+    by name, and a name mismatch must never make a measurement look partial.
+    """
+    if ti3_path is None or ti2_path is None:
+        return None
+    if not Path(ti3_path).is_file() or not Path(ti2_path).is_file():
+        return None
+    try:
+        from workflow.measurement_pairing import chart_locations
+        chart = chart_locations(ti2_path)
+        held = chart_locations(ti3_path)
+    except Exception:      # noqa: BLE001 — a question, never a blocker
+        log.debug("could not compare %s with %s by location", ti3_path,
+                  ti2_path, exc_info=True)
+        return None
+    if not chart or not held or not all(chart) or not all(held):
+        return None
+    on_sheet = set(chart)
+    have = set(held)
+    if not have <= on_sheet:
+        return None
+    padding = padding_locations(ti2_path)
+    return {x for x in chart if x not in padding and x not in have}
+
+
 def classify(ti3_path: "Path | str | None",
              ti2_path: "Path | str | None" = None) -> Ti3Facts:
     """Which row of specification §3a this measurement file is on."""
@@ -336,12 +389,17 @@ def classify(ti3_path: "Path | str | None",
         return Ti3Facts(Ti3State.MISMATCHED, claimed, held, expected)
     if sheet is None and expected is not None and held > expected:
         return Ti3Facts(Ti3State.MISMATCHED, claimed, held, expected)
-    if expected is not None and held < expected:
-        return Ti3Facts(Ti3State.PARTIAL, claimed, held, expected)
-    if expected is not None:
-        return Ti3Facts(Ti3State.COMPLETE, claimed, held, expected)
-    # No chart to compare against: readings exist, and that is all we know.
-    return Ti3Facts(Ti3State.PARTIAL, claimed, held, None)
+    if expected is None:
+        # No chart to compare against: readings exist, and that is all we know.
+        return Ti3Facts(Ti3State.PARTIAL, claimed, held, None)
+    # BY LOCATION WHERE THE FILES ALLOW IT (`unread_design_locations`): the
+    # count alone called a file two design patches short complete when it also
+    # held the fill-up squares' readings.
+    unread = unread_design_locations(ti3_path, ti2_path)
+    read = None if unread is None else max(0, expected - len(unread))
+    if held < expected or unread:
+        return Ti3Facts(Ti3State.PARTIAL, claimed, held, expected, read)
+    return Ti3Facts(Ti3State.COMPLETE, claimed, held, expected, read)
 
 
 def can_resume(ti3_path: "Path | str | None",
@@ -496,7 +554,7 @@ def progress_from_files(ti3_path: "Path | str | None",
     facts = classify(ti3_path, ti2_path)
     if facts.state not in PROGRESS_STATES:
         return None
-    return progress_percent(facts.held, facts.expected)
+    return progress_percent(facts.patches_read, facts.expected)
 
 
 def drop_locations(ti3_path: "Path | str", locs) -> int:
