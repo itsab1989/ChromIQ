@@ -7101,6 +7101,15 @@ alone.
 >
 > The results of this measurement are worked out with this paper white all the same. Every value judged relative to the paper may therefore be off, and the figures above should be read with that in mind.
 
+### Help texts on the outlines after the beta 8 rules · PROPOSED · the Measure tab's help and Preferences ▸ Measurement, 4.3.5 beta 8 review
+
+*New 2026-10-16, review of 4.3.5 beta 8. Beta 8 changed the similar-patch rule (10.12, confirmed by Knut, 6196599132) and decided that a strip the misalignment warning flags confirms nothing (#210, Basti 2026-10-15), and left the help describing the old rules: "expected colours less than ΔE 6 apart" in the Measure tab's help and in Preferences, "Only its own re-read does that here: similar patches … do not count for this check" in the neighbour check's help, and "It ends only when you read that patch once more and the new reading is not outlined or gives a different colour", which a slipped reading is without ending anything. The behaviour is the confirmed or decided one; these words are ours, shown from this beta on (Knut 6166519230) and translated into all thirteen languages. Line 1: the Measure tab's yellow-outline help, its second bullet. Line 2: Preferences' "RED AND YELLOW", the clause on similar patches. Line 3: the neighbour check's help, its yellow bullet. Line 4: a new sentence after "… or gives a different colour." in the outlines' help (Measure tab and Preferences, one text).*
+
+> 1. •  confirmed by similar patches: patches of its colour range, read in other strips, whose expected colours are within the colour-neighbour radius, were read off in the same way (their errors agree within the same-reading tolerance), which is as good as reading it twice;
+> 2. … when similar patches (of its colour range, read in other strips, with expected colours within the colour-neighbour radius) are off in the same way (within the same-reading tolerance), or when its colour range …
+> 3. •  Yellow: the difference is real. Its own re-read gave the same colour (within the same-reading tolerance), or similar patches are off in the same way: patches of its colour range, read in other strips, that the neighbour check flags too, with expected colours within the colour-neighbour radius and errors that agree within the same-reading tolerance. A learned colour range, which can turn a patch past the patch error limit yellow, does not count for this check.
+> 4. A reading from a strip that “Warn me if a strip looks misaligned” flagged does not end it: that strip was probably read a patch or two out, so none of its readings is ever yellow or confirms anything, and the patch is yellow again when it is next read with the same colour.
+
 ### M-x. Which table uses which message
 
 **Calibration replacement** (`docs/design/calibration_run_type_plan.md` Table C,

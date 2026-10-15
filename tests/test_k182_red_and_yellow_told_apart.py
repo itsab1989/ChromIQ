@@ -59,7 +59,9 @@ def test_the_measure_tab_help_covers_both_colours_the_limits_and_check_refine():
     # hover help each carry them.
     assert src.count("tr(_OVERLAY_TIP_COLOURS)") >= 3
     assert src.count("tr(_OVERLAY_TIP_LIMITS)") >= 3
-    assert "confirmed by similar patches: patches in other strips" in src
+    # 4.3.5 beta 8 (§10.12): similar patches are of its colour range, read
+    # in other strips, within the colour-neighbour radius.
+    assert "confirmed by similar patches: patches of its colour range" in src
 
 
 def test_no_help_still_describes_the_retired_spacing():
