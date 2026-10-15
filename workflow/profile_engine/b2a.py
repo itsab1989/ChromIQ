@@ -2257,6 +2257,11 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     _ra = os.environ.get("CHROMIQ_A66_ANCHOR", "0.5:2.5").split(":")
     REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"] = float(_ra[0]), float(_ra[1])
     p["a66_blendsep_req"] = is_additive is False and oog_clip.A66_BLENDSEP_TOKEN in t
+    # Agent 67 (a67-darkchroma): the ink devices' colorimetric clip weighs
+    # chroma like colprof in the dark (oog_clip.weights)
+    p["a67_dc"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_DC"].split(":"))
+                    if os.environ.get("CHROMIQ_A67_DC") else oog_clip.A67_DC)
+                   if is_additive is False and oog_clip.A67_DC_TOKEN in t else None)
     p["a66_sep_tol"] = float(os.environ.get("CHROMIQ_A66_SEPTOL", "0.10"))
     if is_additive is False and oog_clip.A66_BPC_TOKEN in t and p.get("dm_on"):
         p["dm_band"] = float(os.environ.get("CHROMIQ_A66_BAND", "15"))

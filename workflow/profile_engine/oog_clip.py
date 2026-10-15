@@ -412,6 +412,17 @@ A66_BPC_TOKEN = "a66-cmykbpc"
 # one separation.
 A66_BLENDSEP_TOKEN = "a66-blendsep"
 A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
+# Agent 67 (a67-darkchroma): ink devices, colorimetric table. The engine's
+# clip metric is lightness-first (J 4 : C 0.35, 11:1); colprof's is J 4 : C 1
+# in CIECAM02 Jab (xlut.c JCCWEIGHT 2, CCCWEIGHT 1, squared by rev_set_lchw).
+# Near black that ratio decides how long a colour keeps its colour: ours
+# keeps the target's L* and gives the chroma up (FOGRA sat red, source L* 22:
+# prints L* 24.5 C* 37.5, colprof L* 29.7 C* 46). With the token the chroma
+# weight rises smoothly (smoothstep in target L*) from wc above A67_DC[1] to
+# A67_DC[0] below A67_DC[2] (CHROMIQ_A67_DC "wc:Lhi:Llo"); the hue weight's
+# top (wh) is unchanged. Findings agent67-01.
+A67_DC_TOKEN = "a67-darkchroma"
+A67_DC = (1.0, 60.0, 35.0)
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
 _REL = threading.local()
@@ -687,6 +698,12 @@ def weights(target_s: np.ndarray, p: dict = PARAMS,
     lt = lt * lt * (3.0 - 2.0 * lt)
     wj = p["wj"] * (1.0 + (p["wj_light"] - 1.0) * lt)
     wc = p["wc"] * np.ones(n)
+    if p.get("a67_dc") and not p.get("a51") and getattr(_REL, "on", False):
+        # Agent 67 (a67-darkchroma): colprof's chroma : lightness ratio in
+        # the dark (ink devices, colorimetric table only)
+        wcd, l_hi, l_lo = p["a67_dc"]
+        u = np.clip((l_hi - target_s[:, 0]) / max(l_hi - l_lo, 1e-9), 0.0, 1.0)
+        wc = wc + (wcd - p["wc"]) * u * u * (3.0 - 2.0 * u)
     wh = p["wc"] + (p["wh"] - p["wc"]) * s
     if p.get("neutral_fade"):
         # a neutral target is clipped to the nearest colour, as integration 2
