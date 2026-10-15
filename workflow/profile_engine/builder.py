@@ -1368,7 +1368,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             k_prior_col = {"l_axis": _l, "k_curve": _k,
                            "neutral_only": True}
     axis = None
-    if accurate and not meas.is_additive and n >= 4:
+    # Agent 66 (a66-cmyaxis): a 3-ink device without black (CMY) gets the
+    # same neutral axis, neutral column and dark clip floor as the ink
+    # devices with K. Without it nothing holds the CMY colorimetric table's
+    # dark end: the clip's lightness-first metric sends every colour ramp
+    # (and the grey) into the deepest corner under the ink limit, which on a
+    # CMY printer is chromatic (X3c: Lab 0 printed L* 16, C* 25 blue-violet;
+    # colprof L* 25.6, C* 3; Findings agent66-01 s6).
+    _cmy_axis = (accurate and not meas.is_additive and n == 3
+                 and "a66-cmyaxis" in candidates)
+    if (accurate and not meas.is_additive and n >= 4) or _cmy_axis:
         # The neutral axis solved once by continuation from paper white,
         # put on the B2A neutral column, with everything darker than the
         # neutral black clipped along the axis (research agent5-03 item 5:
