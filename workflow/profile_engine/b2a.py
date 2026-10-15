@@ -1712,7 +1712,7 @@ def build_b2a_clut(model: ForwardModel, grid: int, *,
 
 # Agent 66 (a66-clipanchor): anchor ramp of the refit for clipped nodes on
 # ink devices (refine_b2a_clut); set per build by set_research_tokens.
-REFIT_ANCHOR = {"on": False, "lo": 0.5, "hi": 2.5}
+REFIT_ANCHOR = {"on": False, "lo": 0.5, "hi": 2.5, "dark": False, "l_max": 60.0, "c_min": 8.0}
 
 
 def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
@@ -1829,7 +1829,17 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         # smoothly (smoothstep) from 0.05 at residual lo to 4.0 at hi.
         lo, hi = REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"]
         u = np.clip((residual - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
-        anchor_w = np.maximum(anchor_w, 0.05 + 3.95 * u * u * (3.0 - 2.0 * u))
+        u = u * u * (3.0 - 2.0 * u)
+        if REFIT_ANCHOR.get("dark") and node_lab is not None:
+            # a66-clipanchor-dark: only dark chromatic nodes (node L* below
+            # l_max, faded over 10 L*; chroma above c_min, faded over 5):
+            # the pale clipped nodes near paper white and the near-neutral
+            # dark column keep the refit's weak anchor (Y4: those lost)
+            nl = np.asarray(node_lab, float)
+            fl = np.clip((REFIT_ANCHOR["l_max"] - nl[:, 0]) / 10.0, 0.0, 1.0)
+            fc = np.clip((np.hypot(nl[:, 1], nl[:, 2]) - REFIT_ANCHOR["c_min"]) / 5.0, 0.0, 1.0)
+            u = u * (fl * fl * (3.0 - 2.0 * fl)) * (fc * fc * (3.0 - 2.0 * fc))
+        anchor_w = np.maximum(anchor_w, 0.05 + 3.95 * u)
     if fixed_nodes is not None and len(fixed_nodes):
         anchor_w[fixed_nodes] = 4.0
     if node_lab is None:
@@ -2215,7 +2225,10 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     # [floor, floor + band] linearly) instead of the hard max(L*, floor);
     # band CHROMIQ_A66_BAND (default 15) L*. The lightness weight stays as
     # integration 8b has it (dm_wj 1).
-    REFIT_ANCHOR["on"] = is_additive is False and "a66-clipanchor" in t
+    REFIT_ANCHOR["on"] = is_additive is False and bool(t & {"a66-clipanchor", "a66-clipanchor-dark"})
+    REFIT_ANCHOR["dark"] = "a66-clipanchor-dark" in t
+    _rl = os.environ.get("CHROMIQ_A66_ANCHOR_LC", "60:8").split(":")
+    REFIT_ANCHOR["l_max"], REFIT_ANCHOR["c_min"] = float(_rl[0]), float(_rl[1])
     _ra = os.environ.get("CHROMIQ_A66_ANCHOR", "0.5:2.5").split(":")
     REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"] = float(_ra[0]), float(_ra[1])
     p["a66_blendsep_req"] = is_additive is False and oog_clip.A66_BLENDSEP_TOKEN in t
