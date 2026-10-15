@@ -1712,7 +1712,8 @@ def build_b2a_clut(model: ForwardModel, grid: int, *,
 
 # Agent 66 (a66-clipanchor): anchor ramp of the refit for clipped nodes on
 # ink devices (refine_b2a_clut); set per build by set_research_tokens.
-REFIT_ANCHOR = {"on": False, "lo": 0.5, "hi": 2.5, "dark": False, "l_max": 60.0, "c_min": 8.0}
+REFIT_ANCHOR = {"on": False, "lo": 0.5, "hi": 2.5, "dark": False, "l_max": 60.0, "c_min": 8.0,
+                "guard": False, "g_lo": 1.5, "g_hi": 4.0}
 
 
 def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
@@ -1881,6 +1882,27 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         p_all = np.vstack([p_all, to01(model.predict(extra))])
         y_all = np.vstack([y_all, model.shape_device(extra)])
         w_all = np.concatenate([w_all, np.ones(len(extra))])
+    if REFIT_ANCHOR.get("guard") and accurate and not is_additive:
+        # Agent 66 (a66-refitguard): a clipped node near the surface (weak
+        # anchor) whose refitted value prints far from the clip's own answer
+        # was extrapolated, not smoothed (FOGRA node L* 25, a* -8, b* 24:
+        # clip L* 24.4, refit L* 19, the dark olive blotch). Such nodes go
+        # back to the clip's answer, smoothly with the size of the jump;
+        # everything else keeps the refit (which is what keeps the gamut
+        # surface crossings free of knees: the plain anchor ramp,
+        # a66-clipanchor, added grey-saturation knees, Findings agent66-01 s5).
+        weak = (residual > 0.5) & (residual <= deep_oog)
+        if fixed_nodes is not None and len(fixed_nodes):
+            weak[fixed_nodes] = False
+        if weak.any():
+            lab_ref = model.predict(np.clip(model.unshape_device(refined[weak]), 0.0, 1.0))
+            lab_clip = model.predict(np.clip(dev_clut[weak], 0.0, 1.0))
+            e = np.linalg.norm(lab_ref - lab_clip, axis=1)
+            g0, g1 = REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"]
+            u = np.clip((e - g0) / max(g1 - g0, 1e-9), 0.0, 1.0)
+            u = u * u * (3.0 - 2.0 * u)
+            refined[weak] = ((1.0 - u)[:, None] * refined[weak]
+                             + u[:, None] * model.shape_device(dev_clut[weak]))
     if limit is not None:
         raw = model.unshape_device(refined)
         total = raw.sum(1)
@@ -2227,6 +2249,9 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     # integration 8b has it (dm_wj 1).
     REFIT_ANCHOR["on"] = is_additive is False and bool(t & {"a66-clipanchor", "a66-clipanchor-dark"})
     REFIT_ANCHOR["dark"] = "a66-clipanchor-dark" in t
+    REFIT_ANCHOR["guard"] = is_additive is False and "a66-refitguard" in t
+    _rg = os.environ.get("CHROMIQ_A66_GUARD", "1.5:4").split(":")
+    REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"] = float(_rg[0]), float(_rg[1])
     _rl = os.environ.get("CHROMIQ_A66_ANCHOR_LC", "60:8").split(":")
     REFIT_ANCHOR["l_max"], REFIT_ANCHOR["c_min"] = float(_rl[0]), float(_rl[1])
     _ra = os.environ.get("CHROMIQ_A66_ANCHOR", "0.5:2.5").split(":")
