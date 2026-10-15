@@ -713,6 +713,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # variants he asked for in the same post,
                                  # and the help cards' PostScript note in the
                                  # project rule's words (4.3.5 beta 5):
+                                 # 4.3.5 beta 7: the calibration loader
+                                 # could not SAVE the converted file and
+                                 # said it could not read it. Our words.
+                                 "M-CONVERT-NOT-SAVED",
                                  # (Their patch-by-patch variants, the help
                                  # cards' PostScript note, M-END-WRITTEN,
                                  # M-ALL-STRIPS-PATCHES-LEFT under its 4.3.5

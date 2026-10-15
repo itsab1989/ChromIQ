@@ -348,6 +348,28 @@ def _role_named_fallback(icc_path) -> "str | None":
     return None
 
 
+#: The grey of a file note ("No file selected", the chosen measurement's
+#: path). It was ``#909090`` on every appearance: 2.71:1 on Light's panel
+#: (4.3.5 beta 6 regression review), and 3.05:1 on Neutral, where so faint a
+#: grey reads as "disabled". Light now takes a darker grey (5.1:1 on its
+#: panel), Dark keeps #909090 (5.6:1), Neutral its tertiary ink (8.13:1).
+#: Set through :func:`_paint_note` and re-resolved by
+#: ``TabProfile.set_appearance`` when the appearance changes.
+_NOTE_INK = "_chromiq_note_ink"
+
+
+def _note_ink(mode: "str | None" = None) -> str:
+    from ui import neutral_styles as _nm
+    from ui.theme import by_mode
+    return by_mode("#66625c", "#909090", _nm.NM_TEXT_FAINT, mode)
+
+
+def _paint_note(label, mode: "str | None" = None) -> None:
+    """Paint *label* in the file-note grey of the current appearance."""
+    label.setProperty(_NOTE_INK, True)
+    label.setStyleSheet(f"color: {_note_ink(mode)}; font-size: 11px;")
+
+
 class TabProfile(QWidget):
     """Step 4: build and install ICC profile from .ti3 measurements."""
 
@@ -674,7 +696,7 @@ class TabProfile(QWidget):
         # The load + reveal buttons now live in the header's upper-right; this
         # frame just shows which measurement is selected.
         self._file_lbl = QLabel(tr("No file selected"), file_grp)
-        self._file_lbl.setStyleSheet("color: #909090; font-size: 11px;")
+        _paint_note(self._file_lbl)
         self._file_lbl.setWordWrap(True)
         fg.addWidget(self._file_lbl, stretch=1)
         cc.addWidget(file_grp)
@@ -1208,7 +1230,7 @@ class TabProfile(QWidget):
         # 2026-08-11). The button object stays for its wiring and tests.
         self._pc_load_btn.setVisible(False)
         self._pc_ti3_lbl = QLabel(tr("No file selected — measure a calibration chart first."), grp_ti3)
-        self._pc_ti3_lbl.setStyleSheet("color: #909090; font-size: 11px;")
+        _paint_note(self._pc_ti3_lbl)
         self._pc_ti3_lbl.setWordWrap(True)
         in_row.addWidget(self._pc_ti3_lbl, stretch=1)
         ti3_g.addLayout(in_row)
@@ -1640,7 +1662,16 @@ class TabProfile(QWidget):
         current appearance's text colour from the app stylesheet, and follows
         a change of appearance too."""
         self._pc_ti3_lbl.setText(str(ti3))
+        self._pc_ti3_lbl.setProperty(_NOTE_INK, False)
         self._pc_ti3_lbl.setStyleSheet("font-size: 11px;")
+
+    def set_appearance(self, mode: str) -> None:
+        """MainWindow.apply_theme's broadcast: the file notes take the new
+        appearance's grey (``_note_ink``)."""
+        for lbl in (getattr(self, "_file_lbl", None),
+                    getattr(self, "_pc_ti3_lbl", None)):
+            if lbl is not None and lbl.property(_NOTE_INK):
+                _paint_note(lbl, mode)
 
     def _convert_calibration_measurement(self, src: Path) -> "Path | None":
         """An i1Profiler calibration measurement as a ``.ti3`` printcal reads.
@@ -1673,7 +1704,6 @@ class TabProfile(QWidget):
                 while dest.exists():
                     dest = artefact(src.parent / f"{src.stem}-{n}", ".ti3")
                     n += 1
-                shutil.copy2(out, dest)
             except ReferenceConvertError as exc:
                 InfoDialog(exc.title or tr("The file could not be converted"),
                            str(exc), self, min_width=560).exec()
@@ -1685,6 +1715,19 @@ class TabProfile(QWidget):
                                   name=src.name,
                                   reason=getattr(exc, "strerror", None) or exc),
                            self, min_width=560).exec()
+                return None
+            # THE SAVE IS NOT THE READ (4.3.5 beta 7). The conversion has
+            # worked by now; a failure to save the result beside the export (a
+            # read-only folder, a full disk) was reported as ChromIQ being
+            # unable to READ the file, which it had just read.
+            try:
+                shutil.copy2(out, dest)
+            except OSError as exc:
+                from workflow import measurement_messages as M
+                title, body = M.M_CONVERT_NOT_SAVED.render(
+                    name=src.name, saved_as=dest.name, folder=str(dest.parent),
+                    reason=getattr(exc, "strerror", None) or exc)
+                InfoDialog(title, body, self, min_width=560).exec()
                 return None
         self._pc_log.appendPlainText(tr(
             "[OK] Converted {name} to Argyll's .ti3 format.").format(

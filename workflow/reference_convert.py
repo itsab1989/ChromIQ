@@ -885,9 +885,12 @@ def _run(argyll_bin: Path, tool: str, args: list[str],
     if r.returncode != 0:
         tail = (r.stderr or r.stdout or "").strip().splitlines()[-1:]
         # The tool's own line is technical and stays as the tool wrote it;
-        # with none, the exit code is the only detail there is.
+        # with none, the exit code is the only detail there is, and that one
+        # is ours, so it is said in the user's language (4.3.5 beta 7).
+        from core.i18n import tr
         detail = tail[0].strip() if tail and tail[0].strip() else \
-            f"{exe.name}: exit code {r.returncode}"
+            tr("{tool}: exit code {code}").format(tool=exe.name,
+                                                  code=r.returncode)
         raise _failure(M.M_CONVERT_TOOL_FAILED, tool=exe.name, detail=detail)
 
 

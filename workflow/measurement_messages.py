@@ -6203,6 +6203,27 @@ M_CONVERT_TXT_NOT_MEASUREMENT = _m(
     "\u2022 Load that saved measurement file here.",
     approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
+# --- PROPOSED: the converted calibration measurement could not be saved ------
+#: 4.3.5 beta 7. Build Profile with Run type = Calibration converts an
+#: i1Profiler export (.txt / .mxf / .cxf) and saves the result as
+#: ``<stem>.ti3`` beside the export (``TabProfile.
+#: _convert_calibration_measurement``). When that save failed (a read-only
+#: folder, a full disk) the window said ChromIQ "could not read" the file as a
+#: measurement, which sent the user looking at a file that was fine. {name}:
+#: the export's file name; {saved_as}: the file name it was to be saved under;
+#: {folder}: the folder; {reason}: the system's own words.
+M_CONVERT_NOT_SAVED = _m(
+    "M-CONVERT-NOT-SAVED",
+    "The converted measurement could not be saved",
+    "ChromIQ converted {name}, but could not save the result as {saved_as} "
+    "in this folder:\n{folder}\n\n"
+    "The folder may be read-only, or the disk may be full.\n\n"
+    "Your file has not been changed. Copy it to a folder you can save to, for "
+    "example one in your home folder, and load it from there.\n\n"
+    "Details: {reason}",
+    approved=False)
+
+
 #: The paragraph a converter window adds when the ArgyllCMS program printed an
 #: error line of its own. Read through the function, not across the import
 #: (see `not_opened_no_project`).
@@ -6220,6 +6241,7 @@ CONVERT_MESSAGES = (
     M_CONVERT_CXF_NO_DEVICE_VALUES, M_CONVERT_CXF_NO_PATCHES,
     M_CONVERT_CXF_COUNTS_DIFFER, M_CONVERT_CXF_NO_SPECTRUM,
     M_CONVERT_CXF_UNEQUAL_SPECTRA, M_CONVERT_TXT_NOT_MEASUREMENT,
+    M_CONVERT_NOT_SAVED,
 )
 
 
