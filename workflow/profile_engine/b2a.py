@@ -1892,7 +1892,19 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         # surface crossings free of knees: the plain anchor ramp,
         # a66-clipanchor, added grey-saturation knees, Findings agent66-01 s5).
         weak = (residual > 0.5) & (residual <= deep_oog)
-        if REFIT_ANCHOR.get("all"):
+        g_scale = None
+        if REFIT_ANCHOR.get("alldark") and node_lab is not None:
+            # Agent 67 (a67-guardall-dark): the wider guard (in-gamut nodes,
+            # band 0.75 -> 2) only in the dark, where the bands are: node
+            # L* below 40 fully, smoothstep to a66-refitguard's own guard
+            # (clipped nodes only, 1.5 -> 4) at L* 55. Everywhere guardall
+            # cost B2A p95 on the synthetic sets (XKH / X3 / X3m +10..31 %,
+            # interpolation between exact nodes of different separations).
+            _u = np.clip((55.0 - np.asarray(node_lab, float)[:, 0]) / 15.0, 0.0, 1.0)
+            _u = _u * _u * (3.0 - 2.0 * _u)
+            weak = residual <= deep_oog
+            g_scale = _u
+        elif REFIT_ANCHOR.get("all"):
             # Agent 67 (a67-guardall): the in-gamut nodes too. Next to the
             # gamut surface the refit also pulls IN-GAMUT nodes off their
             # exact inversion (FOGRA node L* 21.9, a* -8, b* 16: exact,
@@ -1907,8 +1919,16 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
             lab_clip = model.predict(np.clip(dev_clut[weak], 0.0, 1.0))
             e = np.linalg.norm(lab_ref - lab_clip, axis=1)
             g0, g1 = REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"]
-            u = np.clip((e - g0) / max(g1 - g0, 1e-9), 0.0, 1.0)
+            if g_scale is not None:
+                gs = g_scale[weak]
+                g0 = 1.5 - 0.75 * gs
+                g1 = 4.0 - 2.0 * gs
+            u = np.clip((e - g0) / np.maximum(g1 - g0, 1e-9), 0.0, 1.0)
             u = u * u * (3.0 - 2.0 * u)
+            if g_scale is not None:
+                # in-gamut nodes: the guard fades out above the dark
+                ing = residual[weak] <= 0.5
+                u = np.where(ing, u * gs, u)
             refined[weak] = ((1.0 - u)[:, None] * refined[weak]
                              + u[:, None] * model.shape_device(dev_clut[weak]))
     if limit is not None:
@@ -2259,6 +2279,7 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     REFIT_ANCHOR["dark"] = "a66-clipanchor-dark" in t
     REFIT_ANCHOR["guard"] = is_additive is False and "a66-refitguard" in t
     REFIT_ANCHOR["all"] = is_additive is False and "a67-guardall" in t
+    REFIT_ANCHOR["alldark"] = is_additive is False and "a67-guardall-dark" in t
     # Agent 67 (a67-guardall): the guard band 0.75 -> 2 dE (G1 probe)
     _rg = os.environ.get("CHROMIQ_A66_GUARD", "0.75:2" if REFIT_ANCHOR["all"] else "1.5:4").split(":")
     REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"] = float(_rg[0]), float(_rg[1])
