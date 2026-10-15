@@ -1637,6 +1637,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # must not move the number, because that patch was already read.
         self._manager.strip_measured.connect(self._count_strip_progress)
         self._manager.patch_measured.connect(self._count_patch_progress)
+        # …and stock ArgyllCMS chartread's accepted reads, which carry no
+        # values but do say which strip or patch was read (4.3.5 beta 7: on
+        # stock chartread the count stayed where the session started, so a
+        # fresh chart ended on "N patches still have no reading").
+        if hasattr(self._manager, "stock_strip_read"):
+            self._manager.stock_strip_read.connect(self._count_strip_progress)
+            self._manager.stock_patch_read.connect(self._count_patch_progress)
         # #131 Phase 2: reading pace is judged per STRIP, not per patch. Knut
         # (2026-07-26): timing single patches in patch-by-patch mode has no
         # value — pace only means something while swiping a whole strip — so

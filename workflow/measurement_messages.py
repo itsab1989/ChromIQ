@@ -2871,7 +2871,8 @@ M_END_WRITTEN = _m(
 #:   check), hover values and the next patch's highlight: `_on_strip_measured`,
 #:   `_on_patch_measured` and `_on_patch_ready`, the same engine-only signals;
 #: * "Was a strip read twice?": `strip_read_twice`, engine only;
-#: * progress: counted from `strip_measured` / `patch_measured` only;
+#: * (not the progress: since 4.3.5 beta 7 stock chartread's accepted reads
+#:   are counted too, `stock_strip_read` / `stock_patch_read`);
 #: * saving after every strip: the engine's `.ti3` autosave
 #:   (`readings_saved`); stock chartread writes on a clean ending only;
 #: * the Wrong Strip Read and unexpected-reading windows: raised from the
@@ -2894,7 +2895,6 @@ M_ENGINE_FELL_BACK = _m(
     "outlines (patch error limit and neighbour check) and no values on hover. "
     "Patch by patch, it does not highlight the next patch.\n"
     "•  “Was a strip read twice?” is not asked.\n"
-    "•  The progress percentage above the preview does not move.\n"
     "•  Your readings are saved only when the measurement ends, not after "
     "every strip.\n"
     "•  A wrong strip or a very unexpected reading is not shown in a window: "

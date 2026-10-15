@@ -38,9 +38,10 @@ def test_the_beeps_sentence_is_gone_and_the_list_is_there():
     assert "—" not in body
     assert "{reason}" in body
     bullets = [ln for ln in body.split("\n") if ln.startswith("•")]
-    assert len(bullets) == 8, bullets
+    assert len(bullets) == 7, bullets
+    assert "progress" not in body, "stock chartread's reads are counted now"
     for word in ("sounds", "reading speed", "outlines", "read twice",
-                 "progress", "saved only when", "wrong strip", "Calibrate"):
+                 "saved only when", "wrong strip", "Calibrate"):
         assert word in body, word
 
 
@@ -49,7 +50,7 @@ def test_every_language_carries_the_new_text_and_not_the_old():
         d = json.loads(f.read_text(encoding="utf-8"))
         assert M.M_ENGINE_FELL_BACK.body in d, f.name
         text = d[M.M_ENGINE_FELL_BACK.body]
-        assert text.count("•") == 8 and "{reason}" in text, f.name
+        assert text.count("•") == 7 and "{reason}" in text, f.name
         assert not [k for k in d if "double every one of them" in k], f.name
 
 
@@ -156,7 +157,6 @@ def test_the_preview_speed_and_progress_hang_on_engine_signals():
         else inspect.getsource(tab_measure)
     for slot, signal in (("_on_strip_measured", "strip_measured"),
                          ("_report_strip_pace", "strip_measured"),
-                         ("_count_strip_progress", "strip_measured"),
                          ("_on_patch_measured", "patch_measured"),
                          ("_on_patch_ready", "patch_ready"),
                          ("_on_strip_read_twice", "strip_read_twice")):

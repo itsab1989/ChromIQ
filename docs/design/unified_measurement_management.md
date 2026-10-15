@@ -5430,7 +5430,6 @@ sheet unrecorded, exactly as today.*
 > •  There is no reading speed check.
 > •  The preview shows no measured colours, no red, yellow or green outlines (patch error limit and neighbour check) and no values on hover. Patch by patch, it does not highlight the next patch.
 > •  “Was a strip read twice?” is not asked.
-> •  The progress percentage above the preview does not move.
 > •  Your readings are saved only when the measurement ends, not after every strip.
 > •  A wrong strip or a very unexpected reading is not shown in a window: ArgyllCMS asks about it in the output field below. Answer with the key it names there.
 > •  Calibrate (the K key) and clicking a strip or patch in the preview to go to it are not available.
@@ -5446,12 +5445,11 @@ sheet unrecorded, exactly as today.*
 | preview colours, outlines, hover values | `_on_strip_measured` / `_on_patch_measured` (the patch error limit, the neighbour check, the cards) hang on `strip_measured` / `patch_measured`, engine only; so does the closing window's list of suspected misreads | proved |
 | next patch highlight | `_on_patch_ready`, engine only; stock chartread's "Ready to read patch" gives a status line | code |
 | "Was a strip read twice?" | `strip_read_twice`, engine only (`_read_twice_was_active` asks `engine_active`) | code |
-| progress | counted from `strip_measured` / `patch_measured` only (`_count_strip_progress`, `_count_patch_progress`) | proved (stays 0.0 %) |
 | saved after every strip | the engine writes the `.ti3` after every accepted strip (`readings_saved`, the auto-save note); stock chartread writes it on a clean ending only (§0) | proved (no note), code |
 | wrong strip, unexpected reading | the windows answer the engine's typed events (`wrong_strip`, `unexpected_response`); `_WRONG_STRIP_RE` and `_UNEXPECTED_RESP_RE` are matched nowhere, so chartread's own prompts (chartread.c 1854, 1887) reach the log only, where the user's key is passed on | code |
 | Calibrate, click to go | `can_calibrate_on_request` and `_on_preview_strip_clicked` / `_on_preview_patch_clicked` require the live engine | proved |
 
-Not on the list because it still works on stock chartread: the strip highlight, f / b / n / d, the misread, instrument-error and sensor-position windows, Save and stop, the "Are you sure" question on unread patches, the measurement-finished sound.
+Not on the list because it still works on stock chartread: the progress percentage (since 4.3.5 beta 7 each strip or patch stock chartread accepts is counted from the chart, `stock_strip_read` / `stock_patch_read`; before, it stayed where the session started, and a fresh chart read whole ended on "N patches still have no reading"), the strip highlight, f / b / n / d, the misread, instrument-error and sensor-position windows, Save and stop, the "Are you sure" question on unread patches, the measurement-finished sound.
 
 *Why it was proposed.* Knut asked for it directly (#148, 2026-08-14): *"there should be a defined and approved instrument error message in the design specification for this error, is there not? I think there should be a warning message so the user knows."* It is shown as a window since 4.3.5 beta 5, after the line in the measurement log (`workflow/measure_manager.py`). It opens on the restart before any reading (`engine_fell_back`); the mid-chart resume (`engine_fell_back_resumed`) still gives a status line only.
 

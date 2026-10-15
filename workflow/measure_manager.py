@@ -131,6 +131,9 @@ _INFO_SCAN_TOL_IGNORED_RE    = re.compile(r"Modified patch consistency tolerance
 _XY_PLACE_SHEET_RE     = re.compile(r"Please place sheet\s+(\d+)\s+of\s+(\d+)\s+on table", re.IGNORECASE)
 _XY_SHEET_OK_RE        = re.compile(r"Sheet\s+(\d+)\s+of\s+(\d+)\s+read OK", re.IGNORECASE)
 _SPOT_READY_RE         = re.compile(r"Ready to read patch\s+'([^']+)'", re.IGNORECASE)
+#: The same prompt's location, "Ready to read patch '66' at 'A2'"
+#: (chartread.c 2146): the patch a following " Patch read OK" belongs to.
+_SPOT_AT_RE            = re.compile(r"Ready to read patch\s+'[^']*'\s+at\s+'([^']+)'", re.IGNORECASE)
 _ABORT_CONFIRM_RE      = re.compile(r"Abort\s*\?\s*-\s*Are you sure\s*\?\s*\[y/n\]", re.IGNORECASE)
 _PATCH_NOT_FOUND_RE    = re.compile(r"Patch\s+'([^']+)'\s+not found", re.IGNORECASE)
 
@@ -408,6 +411,15 @@ class MeasureManager(QObject):
     #: expected colours), so it is judged as a reading of B. See
     #: answer_read_twice.
     strip_filed_as             = pyqtSignal(dict)
+    #: Stock ArgyllCMS chartread read a strip (``{"strip", "patches": [{"loc"}]}``,
+    #: every location of that strip in the chart) or one patch (``{"loc"}``).
+    #: It reports no values, only that the read was accepted, and chartread
+    #: always reads a strip whole, a resumed one too. Without these the
+    #: progress and the unread count stayed at the session's start on stock
+    #: chartread, so every fresh chart ended on "N patches still have no
+    #: reading" (4.3.5 beta 7).
+    stock_strip_read           = pyqtSignal(dict)
+    stock_patch_read           = pyqtSignal(dict)
 
     def __init__(self, runner: "ArgyllRunner", parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -623,6 +635,12 @@ class MeasureManager(QObject):
                 _t if _t.suffix.lower() == ".ti2" else _t.with_suffix(".ti2"))
         except Exception:      # noqa: BLE001 — labels never block a read
             self._labels = None
+        _t1 = Path(params.ti1_path)
+        self._chart_ti2 = _t1 if _t1.suffix.lower() == ".ti2" else _t1.with_suffix(".ti2")
+        self._stock_locs: "dict[str, list[str]]" = {}
+        self._stock_strip = ""
+        self._stock_patch = ""
+        self._stock_all_read_at_start = False
         cwd  = params.ti1_path.parent
         if params.resume:
             # chartread -r (stock and the engine alike) loads the .ti3 it
@@ -884,6 +902,7 @@ class MeasureManager(QObject):
         captures the per-run callbacks before invoking them, precisely so a
         follow-on run can register its own (same pattern as targen→printtarg)."""
         log.info("chartread: %s  [cwd=%s]", " ".join(args), cwd)
+        self._prepare_stock_count("-r" in args)
         self._runner.run(
             "chartread",
             args,
@@ -892,6 +911,80 @@ class MeasureManager(QObject):
             on_finish=on_finish,
             use_pty=True,
         )
+
+    def _prepare_stock_count(self, resume: bool) -> None:
+        """The chart's locations, strip by strip, for counting what stock
+        chartread reads (`stock_strip_read`).
+
+        Stock chartread says only "Strip read OK", after the menu that named
+        the strip, and it always reads a strip whole: on a fresh chart, and
+        on a ``-r`` resume, where a strip read again replaces every reading
+        in it. So the strip's locations in the ``.ti2`` are what it read.
+
+        Whether every strip already counted as read when the session opened
+        is chartread's own rule (chartread.c 1520, 1578): a strip is read
+        when its first patch has a reading. That is what
+        :meth:`patches_left_is_news` needs on stock chartread, where the
+        engine's session map does not exist.
+        """
+        self._stock_locs = {}
+        self._stock_padding = set()
+        self._stock_strip = ""
+        self._stock_patch = ""
+        self._stock_all_read_at_start = False
+        try:
+            from workflow.measurement_pairing import chart_locations
+            ti2 = getattr(self, "_chart_ti2", None)
+            if ti2 is None or not Path(ti2).is_file():
+                return
+            labels = getattr(self, "_labels", None)
+            from workflow.measurement_state import padding_locations
+            try:
+                self._stock_padding = set(padding_locations(ti2))
+            except Exception:      # noqa: BLE001
+                self._stock_padding = set()
+            for loc in chart_locations(ti2):
+                strip = None
+                if labels is not None:
+                    try:
+                        strip = labels.strip_of(loc)
+                    except Exception:      # noqa: BLE001
+                        strip = None
+                strip = strip or _strip_name_of(labels, loc)
+                if strip:
+                    self._stock_locs.setdefault(strip, []).append(loc)
+            if resume and self._stock_locs:
+                ti3 = Path(ti2).with_suffix(".ti3")
+                held = set(chart_locations(ti3)) if ti3.is_file() else set()
+                self._stock_all_read_at_start = all(
+                    locs[0] in held for locs in self._stock_locs.values())
+        except Exception:      # noqa: BLE001 — a count never blocks a read
+            log.warning("could not lay out the chart's strips for stock "
+                        "chartread", exc_info=True)
+            self._stock_locs = {}
+
+    def _count_stock_read(self, line: str) -> None:
+        """One accepted read on stock chartread: which patches it covered."""
+        if _SPOT_READY_RE.search(line) is None and \
+                re.search(r"patch\s+read\s+ok", line, re.IGNORECASE):
+            loc = getattr(self, "_stock_patch", "")
+            self._readings_count += 1
+            if loc:
+                self.stock_patch_read.emit({"loc": loc})
+            return
+        strip = getattr(self, "_stock_strip", "")
+        locs = (getattr(self, "_stock_locs", {}) or {}).get(strip, [])
+        # The chart's fill-up squares are not patches of the design: the
+        # count of patches read leaves them out, as "still have no reading"
+        # and the progress do (Knut, #182 5958921500).
+        pad = getattr(self, "_stock_padding", set()) or set()
+        self._readings_count += (len([x for x in locs if x not in pad])
+                                 if locs else 1)
+        if strip:
+            self._strips_read_this_session.add(strip)
+        if locs:
+            self.stock_strip_read.emit(
+                {"strip": strip, "patches": [{"loc": x} for x in locs]})
 
     def _handle_cal_failed(self, detail: str,
                            on_line: Callable[[str], None]) -> None:
@@ -2260,6 +2353,12 @@ class MeasureManager(QObject):
         has read every strip; where a strip was still unread at the start,
         reading the last one is the news, as before.
         """
+        if (not getattr(self, "_engine_active", True)
+                and getattr(self, "_stock_locs", None)):
+            # Stock chartread: the same rule from its own reads.
+            if not self._stock_all_read_at_start:
+                return True
+            return set(self._stock_locs) <= self._strips_read_this_session
         if not self._strips_all_read_at_start:
             return True
         return self._read_the_whole_chart_this_session()
@@ -3031,11 +3130,23 @@ class MeasureManager(QObject):
         # The "Are you sure [y/n]" auto-answer belonged to the old strip-menu
         # chain and is unreachable now that Save-Partial is two 'q' commands. The
         # user-driven prompt above (_UNREAD_CONFIRM_RE) is untouched.
+        if _STRIP_MENU_RE.search(line):
+            # The strip a following "Strip read OK" belongs to: only the
+            # menu's own line, never "Seem to have read strip pass B rather
+            # than A", after which chartread files the reading as A.
+            _m = _STRIP_PASS_RE.search(line)
+            if _m:
+                self._stock_strip = self._strip_name(_m.group(1))
+        _m = _SPOT_AT_RE.search(line)
+        if _m:
+            self._stock_patch = _m.group(1).strip()
         if _STRIP_OK_RE.search(line):
             # Something was read in this session — which is what tells a resume
             # that a later "all stripes read" is real news.
             self._read_something = True
-            self._readings_count += 1
+            # Counted in PATCHES, as the engine counts them: the ending window
+            # says "You have read {n} patches", and it said 25 for 25 strips.
+            self._count_stock_read(line)
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
         if (_ALL_DONE_RE.search(line)
