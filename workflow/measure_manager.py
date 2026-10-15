@@ -3136,7 +3136,10 @@ class MeasureManager(QObject):
             # than A", after which chartread files the reading as A.
             _m = _STRIP_PASS_RE.search(line)
             if _m:
-                self._stock_strip = self._strip_name(_m.group(1))
+                try:
+                    self._stock_strip = self._strip_name(_m.group(1))
+                except Exception:      # noqa: BLE001 — a count never breaks a read
+                    self._stock_strip = _m.group(1)
         _m = _SPOT_AT_RE.search(line)
         if _m:
             self._stock_patch = _m.group(1).strip()
