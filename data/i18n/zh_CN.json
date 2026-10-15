@@ -7009,5 +7009,5 @@
  "Load calibration measurement": "载入校准测量",
  "The converted measurement could not be saved": "无法保存转换后的测量",
  "ChromIQ converted {name}, but could not save the result as {saved_as} in this folder:\n{folder}\n\nThe folder may be read-only, or the disk may be full.\n\nYour file has not been changed. Copy it to a folder you can save to, for example one in your home folder, and load it from there.\n\nDetails: {reason}": "ChromIQ 已转换 {name}，但无法将结果以 {saved_as} 保存到此文件夹：\n{folder}\n\n该文件夹可能是只读的，或者磁盘已满。\n\n你的文件没有被更改。请把它复制到一个可以保存的文件夹（例如你的个人文件夹中的某个文件夹），再从那里载入。\n\n详细信息：{reason}",
- "{tool}: exit code {code}": "{tool}：退出代码 {code}"
+ "{tool}: exit code {code}": "{tool}：退出码 {code}"
 }

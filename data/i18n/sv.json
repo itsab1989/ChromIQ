@@ -7009,5 +7009,5 @@
  "Load calibration measurement": "Läs in kalibreringsmätning",
  "The converted measurement could not be saved": "Den konverterade mätningen kunde inte sparas",
  "ChromIQ converted {name}, but could not save the result as {saved_as} in this folder:\n{folder}\n\nThe folder may be read-only, or the disk may be full.\n\nYour file has not been changed. Copy it to a folder you can save to, for example one in your home folder, and load it from there.\n\nDetails: {reason}": "ChromIQ konverterade {name}, men kunde inte spara resultatet som {saved_as} i den här mappen:\n{folder}\n\nMappen kan vara skrivskyddad, eller så är disken full.\n\nDin fil har inte ändrats. Kopiera den till en mapp där du kan spara, till exempel en i din hemmapp, och läs in den därifrån.\n\nDetaljer: {reason}",
- "{tool}: exit code {code}": "{tool}: avslutningskod {code}"
+ "{tool}: exit code {code}": "{tool}: avslutskod {code}"
 }
