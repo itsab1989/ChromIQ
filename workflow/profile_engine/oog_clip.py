@@ -423,6 +423,9 @@ A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
 # top (wh) is unchanged. Findings agent67-01.
 A67_DC_TOKEN = "a67-darkchroma"
 A67_DC = (1.0, 60.0, 35.0)
+# a67-darkchroma-all: the same weight at every target L* (FOGRA sat green
+# source L* 85-95: base67 prints C* 42, colprof 66; Findings agent67-01)
+A67_DCALL_TOKEN = "a67-darkchroma-all"
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
 _REL = threading.local()
