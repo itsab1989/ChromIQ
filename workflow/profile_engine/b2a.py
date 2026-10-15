@@ -1929,8 +1929,24 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                 # in-gamut nodes: the guard fades out above the dark
                 ing = residual[weak] <= 0.5
                 u = np.where(ing, u * gs, u)
+            back = model.shape_device(dev_clut[weak])
+            if REFIT_ANCHOR.get("polish") and (u > 0).any():
+                # Agent 67 (a67-guardpolish): instead of the per-node answer
+                # (whose separation can differ from its refitted neighbours,
+                # which cost B2A p95 between the nodes), the refitted value is
+                # polished toward the colour the per-node answer prints,
+                # starting from and weakly held at the refit's own inks
+                rows = np.flatnonzero(u > 0)
+                seed = np.clip(model.unshape_device(refined[weak][rows]), 0.0, 1.0)
+                pw = np.full(seed.shape, float(REFIT_ANCHOR.get("polish_w", 0.05)))
+                pol = _gauss_newton(model, lab_clip[rows], seed.copy(), np.arange(n),
+                                    iters=8, damping=0.05, ink_limit=limit,
+                                    prior=seed, prior_w=pw, boundary_fd=True,
+                                    channel_max=channel_max)
+                back = back.copy()
+                back[rows] = model.shape_device(np.clip(pol, 0.0, 1.0))
             refined[weak] = ((1.0 - u)[:, None] * refined[weak]
-                             + u[:, None] * model.shape_device(dev_clut[weak]))
+                             + u[:, None] * back)
     if limit is not None:
         raw = model.unshape_device(refined)
         total = raw.sum(1)
@@ -2280,6 +2296,8 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     REFIT_ANCHOR["guard"] = is_additive is False and "a66-refitguard" in t
     REFIT_ANCHOR["all"] = is_additive is False and "a67-guardall" in t
     REFIT_ANCHOR["alldark"] = is_additive is False and "a67-guardall-dark" in t
+    REFIT_ANCHOR["polish"] = is_additive is False and "a67-guardpolish" in t
+    REFIT_ANCHOR["polish_w"] = float(os.environ.get("CHROMIQ_A67_POLISHW", "0.05"))
     # Agent 67 (a67-guardall): the guard band 0.75 -> 2 dE (G1 probe)
     _rg = os.environ.get("CHROMIQ_A66_GUARD", "0.75:2" if REFIT_ANCHOR["all"] else "1.5:4").split(":")
     REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"] = float(_rg[0]), float(_rg[1])
