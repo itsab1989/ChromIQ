@@ -7110,6 +7110,16 @@ alone.
 > 3. •  Yellow: the difference is real. Its own re-read gave the same colour (within the same-reading tolerance), or similar patches are off in the same way: patches of its colour range, read in other strips, that the neighbour check flags too, with expected colours within the colour-neighbour radius and errors that agree within the same-reading tolerance. A learned colour range, which can turn a patch past the patch error limit yellow, does not count for this check.
 > 4. A reading from a strip that “Warn me if a strip looks misaligned” flagged does not end it: that strip was probably read a patch or two out, so none of its readings is ever yellow or confirms anything, and the patch is yellow again when it is next read with the same colour.
 
+### Re-measurement Complete, patch by patch: the next steps say patches · PROPOSED · the Measure tab, 4.3.5 beta 8 regression review
+
+*New 2026-10-16, regression review of 4.3.5 beta 8. In guided refinement patch by patch (#211) the window's first line counts patches ("All {n} patches have been re-measured successfully.") while its "Continue Measuring Manually" bullet still said "keeps chartread running so you can scan additional strips yourself ... use f / b to move between strips ... The automatic strip navigation is switched off". In patch mode the two bullets are now these words (strip by strip they are unchanged). The behaviour is unchanged; the words are ours, shown from this beta on (Knut 6166519230).*
+
+> What would you like to do next?
+>
+> •  **Build Profile**: saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.
+>
+> •  **Continue Measuring Manually**: keeps the measurement running so you can read more patches yourself. You will have **full manual control**: use **f** / **b** to move between patches, **n** to jump to the next unread one, click a patch in the preview to jump to it, and press **d** when you are done. The automatic patch navigation is switched off for the rest of this session.
+
 ### M-x. Which table uses which message
 
 **Calibration replacement** (`docs/design/calibration_run_type_plan.md` Table C,

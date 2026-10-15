@@ -11927,11 +11927,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             _rt, _rb = self._refine_rebuild_texts()
             _rebuild = ("<br><br><b>" + _html.escape(_rt) + "</b><br>"
                         + _html.escape(_rb).replace("\n", "<br>"))
-            msg = QLabel(
-                _opening + _rebuild
-                + tr("<br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b> — keeps chartread running so you can scan additional strips yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between strips, <b>n</b> to jump to the next unread one, and <b>d</b> when you are done. The automatic strip navigation is switched off for the rest of this session."),
-                dlg,
-            )
+            if _pl:
+                # PATCH BY PATCH, THE NEXT STEPS SAY PATCHES TOO (review of
+                # 4.3.5 beta 8): the opening counts patches, so "scan
+                # additional strips" under it read as another mode's text.
+                _next = tr("<br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b>: saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b>: keeps the measurement running so you can read more patches yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between patches, <b>n</b> to jump to the next unread one, click a patch in the preview to jump to it, and press <b>d</b> when you are done. The automatic patch navigation is switched off for the rest of this session.")
+            else:
+                _next = tr("<br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b> — keeps chartread running so you can scan additional strips yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between strips, <b>n</b> to jump to the next unread one, and <b>d</b> when you are done. The automatic strip navigation is switched off for the rest of this session.")
+            msg = QLabel(_opening + _rebuild + _next, dlg)
         elif is_cal:
             dlg.setWindowTitle(tr("Calibration Measurement Complete"))
             msg = QLabel(
