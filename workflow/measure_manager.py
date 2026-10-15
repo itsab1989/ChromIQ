@@ -1003,9 +1003,9 @@ class MeasureManager(QObject):
         have read {n} patches".
         """
         warned = getattr(self, "_stock_warned", None)
-        self._stock_warned = None
         if not warned:
             return
+        self._stock_warned = None
         strip, menu_before = warned
         if not strip or menu_line.strip() == menu_before:
             return
@@ -3163,11 +3163,18 @@ class MeasureManager(QObject):
             # printing " Strip read OK" (1899-1900: it breaks out of the retry
             # loop straight to saving the values), so the read is known only
             # from the menu that follows (see _stock_kept_after_warning).
-            self._stock_warned = (getattr(self, "_stock_strip", ""),
-                                  getattr(self, "_stock_menu_line", ""))
+            try:
+                self._stock_warned = (getattr(self, "_stock_strip", ""),
+                                      getattr(self, "_stock_menu_line", ""))
+            except Exception:      # noqa: BLE001 — a count never breaks a read
+                pass
         if _STRIP_MENU_RE.search(line):
-            self._stock_kept_after_warning(line)
-            self._stock_menu_line = line.strip()
+            try:
+                self._stock_kept_after_warning(line)
+                self._stock_menu_line = line.strip()
+            except Exception:      # noqa: BLE001 — a count never breaks a read
+                log.debug("could not count a strip kept after a warning",
+                          exc_info=True)
             # The strip a following "Strip read OK" belongs to: only the
             # menu's own line, never "Seem to have read strip pass B rather
             # than A", after which chartread files the reading as A.

@@ -116,10 +116,14 @@ def test_stock_chartread_feeds_none_of_the_engine_only_signals(tmp_path):
     assert mgr.can_calibrate_on_request() is False
 
 
-def test_the_wrong_strip_and_unexpected_patterns_are_matched_nowhere():
-    src = inspect.getsource(sys.modules[MeasureManager.__module__])
-    for rx in ("_WRONG_STRIP_RE", "_UNEXPECTED_RESP_RE"):
-        assert not re.search(rx + r"\.(search|match|findall)", src), rx
+def test_the_wrong_strip_and_unexpected_prompts_raise_no_window_on_stock():
+    """Stock chartread's own prompts reach the log only. The stock parser
+    looks at "very unexpected response" for one thing, the count of a strip
+    kept there (review of beta 7), and never raises its window."""
+    src = inspect.getsource(MeasureManager._handle_line)
+    assert not re.search(r"_WRONG_STRIP_RE\.(search|match|findall)", src)
+    for sig in ("wrong_strip", "unexpected_response"):
+        assert f"self.{sig}.emit" not in src, sig
 
 
 def test_the_per_reading_sounds_are_dropped_on_stock_chartread():

@@ -2877,7 +2877,8 @@ M_END_WRITTEN = _m(
 #:   (`readings_saved`); stock chartread writes on a clean ending only;
 #: * the Wrong Strip Read and unexpected-reading windows: raised from the
 #:   engine's typed events; stock chartread's own prompts reach the log only
-#:   (`_WRONG_STRIP_RE` and `_UNEXPECTED_RESP_RE` are matched nowhere);
+#:   (the stock parser raises neither window; it reads "very unexpected
+#:   response" only to count a strip kept there);
 #: * Calibrate / K (`can_calibrate_on_request`) and a click on the preview
 #:   (`_on_preview_strip_clicked`, `_on_preview_patch_clicked`): engine only.
 M_ENGINE_FELL_BACK = _m(
