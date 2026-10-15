@@ -172,10 +172,11 @@ def test_the_measure_tab_counts_them_as_progress():
     assert "stock_patch_read.connect(self._count_patch_progress)" in src
 
 
-def test_fill_up_squares_are_not_counted_as_patches_read(tmp_path):
-    """printtarg's fill-up rows carry SAMPLE_ID 0; they are read with their
-    strip but are no patch of the design, as the progress and "still have no
-    reading" already treat them."""
+def test_printtarg_padding_is_not_counted_as_a_patch_read(tmp_path):
+    """printtarg's padding rows carry SAMPLE_ID 0; they are swiped with their
+    strip but no reader ever records one, so they are no patch read. (The
+    layout engine's fill-up squares are patches and DO count, Knut #182
+    6191934889: see the test below.)"""
     ti2 = _ti2(tmp_path)
     text = ti2.read_text(encoding="latin-1").replace(
         f"NUMBER_OF_SETS {len(STRIPS) * PER}",
@@ -252,9 +253,10 @@ def _with_fill_up(tmp_path):
     return ti2
 
 
-def test_a_fill_up_square_read_patch_by_patch_is_not_a_patch_read(tmp_path):
-    """Patch by patch, chartread offers the fill-up squares too ("(Padding
-    Patch)", chartread.c 2146); strip mode already leaves them out."""
+def test_printtarg_padding_read_patch_by_patch_is_not_a_patch_read(tmp_path):
+    """Patch by patch, chartread offers printtarg's padding too ("(Padding
+    Patch)", chartread.c 2146) and never records it; strip mode already
+    leaves it out."""
     ti2 = _with_fill_up(tmp_path)
     runner = _Runner()
     mgr = MeasureManager(runner)
@@ -345,12 +347,11 @@ def test_a_patch_by_patch_resume_waits_for_a_read(tmp_path):
 
 
 def test_a_resume_short_of_a_patch_is_not_complete_by_its_row_count(tmp_path):
-    """ChromIQ's layout engine gives its fill-up squares real ids, so
-    chartread writes them, and a file one design patch short holds as many
-    rows as the design has patches (`measurement_state.classify` called that
-    COMPLETE until beta 8). Judged by location, the chart was not complete, and reading
-    the missing patch is the completion. Found on screen (review of beta 7):
-    the "All Patches Read" window never came for such a resume."""
+    """A file one patch short is not complete, and reading the missing patch
+    is the completion. ChromIQ's layout engine's fill-up square (C4 here) is
+    a patch like any other (Knut, #182 6191934889), and it has its reading.
+    Found on screen (review of beta 7): the "All Patches Read" window never
+    came for such a resume."""
     ti2 = _ti2(tmp_path)
     ti2.write_text(ti2.read_text(encoding="latin-1").replace(
         'ORIGINATOR "test"', 'ORIGINATOR "ChromIQ layout engine"'),
@@ -374,3 +375,23 @@ def test_a_resume_short_of_a_patch_is_not_complete_by_its_row_count(tmp_path):
     feed(" Patch read OK")
     feed("Ready to read patch '8' at 'B4' (All patches read!)")
     assert fired == [1]
+
+
+def test_a_layout_engine_fill_up_square_is_a_patch_read(tmp_path):
+    """Knut, #182 6191934889: the layout engine's fill-up squares are read as
+    real patches and count, strip by strip, as every other square does."""
+    ti2 = _ti2(tmp_path)
+    ti2.write_text(ti2.read_text(encoding="latin-1").replace(
+        'ORIGINATOR "test"', 'ORIGINATOR "ChromIQ layout engine"'),
+        encoding="latin-1")
+    (tmp_path / "chart.ti1").write_text(
+        "CTI1\n\nNUMBER_OF_SETS 11\nBEGIN_DATA\nEND_DATA\n", encoding="latin-1")
+    runner = _Runner()
+    mgr = MeasureManager(runner)
+    mgr._guided_state = "disabled"
+    mgr.start(MeasureParams(ti1_path=ti2.with_suffix(".ti1")),
+              lambda _l: None, lambda _c: None)
+    feed = runner.runs[-1]["on_line"]
+    feed(_menu("C"))
+    feed(" Strip read OK")
+    assert mgr.readings_this_session == PER

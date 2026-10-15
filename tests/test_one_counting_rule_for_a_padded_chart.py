@@ -1,31 +1,13 @@
-"""A chart's fill-up rows are discounted at EVERY door, not at one of them.
+"""A chart is counted by ONE rule at every door.
 
-2026-09-11's measurement-import round found that a chart's last strip is filled
-out with rows that are not part of the design, that ChromIQ's own layout engine
-pads exactly as printtarg does, and that a user's complete 4,000-patch
-measurement of a 4,014-row chart had been filed as "part of the chart was not
-measured". It put `workflow.measurement_import._chart_patch_count` through
-`measurement_state.expected_patches`, which is the one place that knows the
-rule, and its own comment named the sibling it was copying away from:
-``tab_measure._chart_patch_count``.
-
-That sibling was left reading the raw ``NUMBER_OF_SETS``, and it is the harsher
-door of the two. It does not label a measurement partial; it REFUSES it:
-
-    the verification chart has 4014 patches, but this file holds 4000
-    measurements
-
-Measured on both kinds of padded chart, before the fix:
-
-    ==========  =================  ============================  ==============
-    chart       expected_patches   measurement_import            TabMeasure
-    ==========  =================  ============================  ==============
-    printtarg   4000               4000                          **4014**
-    engine      4000               4000                          **4014**
-    ==========  =================  ============================  ==============
-
-The same count also names the chart's size in the import panel's own
-description, so the box said 4,014 while the file that matched it held 4,000.
+2026-09-11's measurement-import round put every door through
+`measurement_state.expected_patches` after the Measure tab's verification
+import had been left reading the raw ``NUMBER_OF_SETS`` (it refused a
+measurement the other door filed). That one-place rule stays; WHAT it counts
+changed on 2026-10-15 with Knut's ruling (#182 6191934889): the fill-up
+squares of ChromIQ's layout engine are patches, counted and to be read, so
+an engine chart of 400 designed + 14 fill-up has 414 patches. printtarg's
+``SAMPLE_ID`` 0 padding is still left out, because no reader records it.
 """
 from __future__ import annotations
 
@@ -89,13 +71,14 @@ def measure_tab(qtbot):
     return tab
 
 
-@pytest.mark.parametrize("which", ["printtarg_chart", "engine_chart"])
-def test_every_door_counts_the_designed_patches(which, request, measure_tab):
+@pytest.mark.parametrize("which, n", [("printtarg_chart", 400),
+                                      ("engine_chart", 414)])
+def test_every_door_counts_the_same_patches(which, n, request, measure_tab):
     ti2 = request.getfixturevalue(which)
 
-    assert expected_patches(ti2) == 400, "the rule itself"
-    assert IMPORT_COUNT(ti2) == 400, "the profile-build import"
-    assert measure_tab._chart_patch_count(ti2) == 400, \
+    assert expected_patches(ti2) == n, "the rule itself"
+    assert IMPORT_COUNT(ti2) == n, "the profile-build import"
+    assert measure_tab._chart_patch_count(ti2) == n, \
         "the Measure tab's verification import"
 
 
@@ -110,19 +93,33 @@ def test_nothing_to_read_is_still_None(tmp_path, measure_tab):
     assert measure_tab._chart_patch_count(tmp_path / "gone.ti2") is None
 
 
-def test_a_complete_measurement_of_a_padded_chart_is_not_refused(
-        engine_chart, measure_tab, tmp_path):
-    """The sentence the user met. 400 readings of a 414-row chart is complete."""
-    ti3 = tmp_path / "m.ti3"
+def _measurement(path, n):
     rows = [f'{i} "A{i}" 50.0 50.0 50.0 50.0 50.0 50.0'
             for i in range(1, 401)]
-    ti3.write_text(
+    rows += [f'{400 + k} "Z{k}" 100.0 100.0 100.0 95.0 100.0 108.0'
+             for k in range(1, 15)]
+    rows = rows[:n]
+    path.write_text(
         f'CTI3\n\nDESCRIPTOR "x"\nDEVICE_CLASS "OUTPUT"\nCOLOR_REP "RGB_XYZ"\n\n'
         f"NUMBER_OF_FIELDS {len(_FIELDS.split())}\n"
         f"BEGIN_DATA_FORMAT\n{_FIELDS}\nEND_DATA_FORMAT\n\n"
         f"NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n" + "\n".join(rows)
         + "\nEND_DATA\n", encoding="utf-8")
+    return path
 
+
+def test_every_square_read_is_not_refused(engine_chart, measure_tab,
+                                          tmp_path):
+    """414 readings of a 414-square chart is complete."""
+    ti3 = _measurement(tmp_path / "m.ti3", 414)
+    assert measure_tab._import_mismatch_reason(ti3, engine_chart) is None
+
+
+def test_the_designed_patches_alone_are_a_partial(engine_chart, measure_tab,
+                                                  tmp_path):
+    """400 readings of a 414-square chart: 14 squares unread (Knut,
+    #182 6191934889), so the verification door treats it as it treats any
+    partial measurement, and states the chart's real count."""
+    ti3 = _measurement(tmp_path / "m.ti3", 400)
     reason = measure_tab._import_mismatch_reason(ti3, engine_chart)
-
-    assert reason is None or "414" not in reason, reason
+    assert reason and "414" in reason and "400" in reason

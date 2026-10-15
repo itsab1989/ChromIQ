@@ -288,15 +288,19 @@ stored answer stays. (`MeasureManager._after_a_read`.)
 **Confirmed by:** *nobody yet.*
 
 * **Unread is counted per patch, from the file the engine resumes from**
-  (`<chart>.ti3`, which a resumed verification is copied to first), and the
-  fill-up squares that complete the last strip are never counted as unread.
+  (`<chart>.ti3`, which a resumed verification is copied to first). The
+  fill-up squares that complete the last strip count like any other patch
+  (superseded 2026-10-15 by Knut's ruling, §3a "every square of the chart
+  counts"); only `printtarg`'s `SAMPLE_ID` 0 padding, which no reader
+  records, is never unread.
 * **The progress counts each design patch once** (fixed 2026-10-03 at Knut's
   request, #182 5963044182: *"Re-reads shall not increase the Progress"*). It
   used to start a resumed session from the file's row count and add every
   patch read, so a re-read counted twice and the header said 100 % beside
   "21 patches on this chart have no reading yet" (review AR). The file's
-  patches are now kept by location and joined with the session's, fill-up
-  squares left out (`TabMeasure._progress_measured`).
+  patches are now kept by location and joined with the session's, every
+  square counted, fill-up included (§3a, Knut 2026-10-15)
+  (`TabMeasure._progress_measured`).
 
 #### ⏳ Awaiting confirmation: after the chart's completion window, every read moves on (4.3.5 beta 4)
 
@@ -390,7 +394,7 @@ Found by the regression review of 4.3.5 beta 4 and reproduced on screen by the r
 
 | | Where | Meaning |
 |---|---|---|
-| **A** | `.ti2` `NUMBER_OF_SETS` | how many patches the chart HAS |
+| **A** | `.ti2` rows, less `printtarg`'s `SAMPLE_ID` 0 padding | how many patches the chart HAS: every square a reader records, fill-up included (§3a, Knut 2026-10-15) |
 | **B** | `.ti3` `NUMBER_OF_SETS` | how many the file CLAIMS |
 | **C** | rows between `BEGIN_DATA`/`END_DATA` | how many it actually HOLDS |
 | **C₀** | C, measured **before** the session starts | the baseline |
@@ -408,6 +412,18 @@ Found by the regression review of 4.3.5 beta 4 and reproduced on screen by the r
 | Partial (`0 < C < A`) | ✓ | ✓ | expected after a partial session | offer resume, name the count | **M-REPLACE-PARTIAL** |
 | Complete (`C = A`) | ✓ | ✓ | fully measured | §6 warning before re-measuring | **M-REPLACE-COMPLETE** |
 | `C > A` | ✓ | ✓ | **does not belong to this chart** | refuse, explain | **M-TI3-MISMATCH** |
+
+#### Confirmed behaviour: every square of the chart counts, fill-up included
+
+**Confirmed by:** Knut, 2026-10-15, #182 [6191934889](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6191934889)
+
+In Knut's words: *"All fill-up patches are patches that are randomly redistributed on the layout and are read as real patches. ALL patches in the chart, fill-up or not, shall be counted to get a complete chart. If two patches are missing and not read, then the chart is not completed. IF the user wants to avoid fill-up patches, he must design the chart and the patch set so that it fills the chart fully."* And: *"The rule today ... 'covers the whole design and is complete' is wrong. All designed and fill-up patches are to be regarded as part of the chart and must be read. If they are read during a measurement, but the count differs after stopping and then resuming again, then there is a bug in the code that does not count patches read correctly."*
+
+* **A is every square of the chart**, designed or fill-up. "Complete" means every one of them has a reading; a measurement with two squares unread is Partial, and the counts shown to the user count all squares ("398 of the chart's 400 patches").
+* **Asked by location** wherever the files carry locations (`measurement_state.unread_locations`, inside `classify`), so a file holding a reading twice under one name is not complete by count. A file without locations keeps the count rule, counting all squares.
+* **One rule everywhere:** ChromIQ's engine and stock chartread, strip and patch by patch, a resume, verification and calibration charts, the progress figure, the completion windows, the Start Measurement message, the Build Profile tab's label and both import doors (`expected_patches`, `classify`, `padding_locations`).
+
+*How 4.3.5 beta 8 builds it (not part of the ruling):* `printtarg`'s padding rows, which carry `SAMPLE_ID` 0, are still left out of A. Neither reader ever records one (`chartread.c` and the engine skip them when writing the `.ti3` and when looking for the next unread patch), so counting them would leave every such chart partial for ever; they are not the "fill-up patches ... read as real patches" of the ruling. ChromIQ's own layout engine's fill-up squares carry ordinary ids, are read and written like any other patch, and now count. This supersedes the beta-7/beta-8 rule that left them out ("fill-up excluded patch by patch", "stock completeness by location", and the rejected beta-8 proposal "complete = every designed patch read").
 
 ✅ = approved by Knut, 2026-08-04 — full text in **§M**, with the rest of the approved catalogue. 🆕 = **PROPOSED**, awaiting review — full text in **§M-PROPOSED**. Every message not marked here was approved earlier.
 
@@ -7334,24 +7350,25 @@ run whose chart has the same inks. "No device columns" and "the wrong device
 columns" are still different files and different faults: a CMYK file never
 takes the §I.11 name pairing.
 
-**I.12 · The count is judged against the SHEET, not the design.** §I.10 says a
+**I.12 · The count is judged against every square of the chart.** §I.10 says a
 measurement holding more readings than the chart has patches is refused as a
-different chart. A chart's last strip is filled out with rows that are not part
-of the design, and the person reading the sheet reads them too, so her 408-patch
-design printed as 420 squares gives a complete measurement of 420. Judged against
-408 it was refused; the chart preview two inches away said 420.
+different chart. A chart's last strip is filled out with fill-up squares, and
+the person reading the sheet reads them too, so her 408-patch design printed as
+420 squares gives a complete measurement of 420. Judged against 408 it was
+refused; the chart preview two inches away said 420.
 
-So a chart now answers two questions with two numbers:
-
-| number | what it is | what it decides |
-|---|---|---|
-| designed patches (`expected_patches`) | what the `.ti1` asked for | below it, the measurement is PARTIAL |
-| sheet squares (`sheet_patches`) | what the `.ti2` prints, fill-up included | above it, it is a DIFFERENT CHART |
-
-Between the two the measurement covers the whole design and is complete. The same
-rule is applied by `measurement_state.classify`, so the state machine and both
-import doors cannot disagree, and the import panel now names both numbers where
-they differ instead of only the design.
+> **Amended 2026-10-15, CONFIRMED by Knut, #182 [6191934889](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6191934889).**
+> The rule first written here, *"Between the two the measurement covers the
+> whole design and is complete"*, is withdrawn: *"All designed and fill-up
+> patches are to be regarded as part of the chart and must be read."* A chart
+> now has ONE patch count, every square of it, fill-up included
+> (`expected_patches`); a measurement holding fewer is PARTIAL, and one
+> holding more is a DIFFERENT CHART. The 408-of-420 file above is partial
+> (12 squares unread), and the 420-of-420 file complete. `sheet_patches`
+> differs from it only by `printtarg`'s `SAMPLE_ID` 0 padding, which no
+> reader records (§3a). `measurement_state.classify` and both import doors
+> apply it, so they cannot disagree, and the partial windows name the
+> chart's patches read, every square counted.
 
 **The verification door and the profiling door judge through one function.** The
 Measure tab had its own copy of §I.5's rule; the profiling door learned to read a

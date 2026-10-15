@@ -987,8 +987,9 @@ class MeasureManager(QObject):
         if _SPOT_READY_RE.search(line) is None and \
                 re.search(r"patch\s+read\s+ok", line, re.IGNORECASE):
             loc = getattr(self, "_stock_patch", "")
-            # A fill-up square is no patch of the design, here as in strip
-            # mode below (review of 4.3.5 beta 7).
+            # printtarg's padding (SAMPLE_ID 0, "(Padding Patch)") is never
+            # recorded, so it is no patch read. ChromIQ's layout engine's
+            # fill-up squares are patches and count (Knut, #182 6191934889).
             if loc not in (getattr(self, "_stock_padding", set()) or set()):
                 self._readings_count += 1
             if loc:
@@ -996,9 +997,9 @@ class MeasureManager(QObject):
             return
         strip = getattr(self, "_stock_strip", "")
         locs = (getattr(self, "_stock_locs", {}) or {}).get(strip, [])
-        # The chart's fill-up squares are not patches of the design: the
-        # count of patches read leaves them out, as "still have no reading"
-        # and the progress do (Knut, #182 5958921500).
+        # printtarg's padding (SAMPLE_ID 0) is never recorded, so it is left
+        # out of the count; every other square of the strip, the layout
+        # engine's fill-up included, is a patch (Knut, #182 6191934889).
         pad = getattr(self, "_stock_padding", set()) or set()
         self._readings_count += (len([x for x in locs if x not in pad])
                                  if locs else 1)
@@ -1329,8 +1330,10 @@ class MeasureManager(QObject):
           ``<chart>.ti3`` (``-r`` only; without it the engine starts empty), and
           a staged verification is copied to exactly that file before the read
           starts (`TabMeasure._stage_verification_for_resume`);
-        * a fill-up square is never unread, because it was never part of the
-          design (:func:`workflow.measurement_state.padding_locations`).
+        * printtarg's padding (``SAMPLE_ID`` 0) is never unread, because no
+          reader records it (:func:`workflow.measurement_state.padding_locations`);
+          the layout engine's fill-up squares are patches and can be unread
+          (Knut, #182 6191934889).
 
         Anything unreadable leaves the map empty, which means "unknown" and
         keeps the beta-4 rule unchanged: no question is ever asked from a guess.
@@ -2328,12 +2331,9 @@ class MeasureManager(QObject):
     def _measurement_was_complete(chart: "str | None", strips: list) -> bool:
         """Whether the chart's own .ti3 already held every reading.
 
-        Every patch of the DESIGN, judged by location where the files allow it
-        (`measurement_state.unread_design_locations`, inside `classify`): a
-        row count called a file two patches short complete when it also held
-        the readings of the layout engine's fill-up squares, and a resume of
-        it then never announced the chart it completed (4.3.5 beta 7
-        regression review, engine strip mode and a calibration chart).
+        Every patch of the chart, fill-up squares included (Knut, #182
+        6191934889), judged by location where the files allow it
+        (`measurement_state.unread_locations`, inside `classify`).
 
         Falls back to the strip flags only when there is no chart path to
         resolve — they are coarse (per strip, not per patch) but they are

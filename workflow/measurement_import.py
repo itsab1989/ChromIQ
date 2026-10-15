@@ -194,15 +194,13 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             # NOT a partial. More readings than the SHEET carries squares means
             # it is a measurement of something else.
             #
-            # AGAINST THE SHEET, NOT AGAINST THE DESIGN. A chart's last strip
-            # is filled out with rows that are not part of the design, and the
-            # person reading it reads them too — so a complete measurement of a
-            # 408-patch design printed as 420 squares holds 420. Judged against
-            # 408 it was called "a measurement of a different chart" and
-            # refused, on a user's own verification of her own profile,
-            # 2026-09-11. `expected_patches` is the design and says when a
-            # measurement is SHORT; `sheet_patches` is the paper and says when
-            # it is somebody else's.
+            # AGAINST EVERY ROW OF THE CHART. A chart's last strip may be
+            # filled out, and the person reading it reads those squares too:
+            # a complete measurement of a 408-patch design printed as 420
+            # squares holds 420 (a user's verification, 2026-09-11). Since
+            # Knut's ruling (#182 6191934889) those squares are patches and
+            # `expected_patches` counts them; `sheet_patches` differs from it
+            # only by printtarg's SAMPLE_ID 0 padding.
             return ImportVerdict(False, tr(
                 "the chart carries {chart} patches on the sheet, but this file "
                 "holds {got} measurements, so it is a measurement of a "
@@ -217,7 +215,7 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             # to stop asking whether they are readings of this chart at all.
             partial = True
         else:
-            n_read = _design_patches_read(ti3, chart_ti2, n_chart)
+            n_read = _patches_read_by_location(ti3, chart_ti2, n_chart)
             partial = n_read is not None
 
     else:
@@ -354,7 +352,7 @@ def _assess_non_rgb(ti3: Path, chart_ti2: "Path | None",
         if n_got < n_chart:
             partial = True
         else:
-            n_read = _design_patches_read(ti3, chart_ti2, n_chart)
+            n_read = _patches_read_by_location(ti3, chart_ti2, n_chart)
             partial = n_read is not None
 
     from workflow.measurement_report import PATCH_IDENTITY_TOL
@@ -460,46 +458,42 @@ def _chart_patch_count(ti2: "Path | None") -> int:
     # on every chart — which returned 0 here, silently switched the count check
     # off, and let a partial through as an ordinary import.
     #
-    # THROUGH `expected_patches`, NOT A `NUMBER_OF_SETS` OF ITS OWN. A chart's
-    # last strip is filled out with patches that are not part of the design —
-    # printtarg's carry `SAMPLE_ID` 0, ChromIQ's layout engine's are copies of
-    # the media patch — and the Build Profile tab has discounted them since
-    # report 16. This door counted the raw header instead, so the same
-    # measurement was "complete" to one part of the app and "partial" to the
-    # other: a user's complete 4,000-patch measurement of a 4,014-row chart was
-    # filed with "part of the chart was not measured" on 2026-09-11. One
-    # counting rule, in one place.
+    # THROUGH `expected_patches`, NOT A `NUMBER_OF_SETS` OF ITS OWN: one
+    # counting rule, in one place. Every patch a reader records counts, the
+    # fill-up squares of ChromIQ's layout engine included (Knut, #182
+    # 6191934889); only printtarg's `SAMPLE_ID` 0 padding, which no reader
+    # records, is left out.
     if ti2 is None:
         return 0
     from workflow.measurement_state import expected_patches
     return int(expected_patches(Path(ti2)) or 0)
 
 
-def _design_patches_unread(ti3: Path, ti2: "Path | None") -> bool:
-    """Whether a measurement holding at least as many rows as the design has
+def _patches_unread(ti3: Path, ti2: "Path | None") -> bool:
+    """Whether a measurement holding at least as many rows as the chart has
     patches still lacks a reading for one of them, judged by location.
 
-    A count is not enough on a chart from ChromIQ's layout engine: its fill-up
-    squares carry real ids and are read with the rest, so a file two design
-    patches short can hold as many rows as the design asks for. The same
-    question `measurement_state.classify` asks (4.3.5 beta 8); ``False`` when
-    the files cannot be compared by location, which keeps the count's answer.
+    Every patch counts, the fill-up squares of ChromIQ's layout engine
+    included (Knut, #182 6191934889). The same question
+    `measurement_state.classify` asks; ``False`` when the files cannot be
+    compared by location, which keeps the count's answer.
     """
     if ti2 is None:
         return False
-    from workflow.measurement_state import unread_design_locations
-    return bool(unread_design_locations(ti3, ti2))
+    from workflow.measurement_state import unread_locations
+    return bool(unread_locations(ti3, ti2))
 
 
-def _design_patches_read(ti3: Path, ti2: "Path | None",
+def _patches_read_by_location(ti3: Path, ti2: "Path | None",
                          n_chart: int) -> "int | None":
-    """How many of the chart's *n_chart* design patches *ti3* has a reading
-    for, when the location question finds one unread (`_design_patches_unread`);
+    """How many of the chart's *n_chart* patches (fill-up squares included)
+    *ti3* has a reading for, when the location question finds one unread
+    (`_patches_unread`);
     ``None`` when none is, or the files cannot be compared by location."""
     if ti2 is None:
         return None
-    from workflow.measurement_state import unread_design_locations
-    unread = unread_design_locations(ti3, ti2)
+    from workflow.measurement_state import unread_locations
+    unread = unread_locations(ti3, ti2)
     if not unread:
         return None
     return max(0, n_chart - len(unread))

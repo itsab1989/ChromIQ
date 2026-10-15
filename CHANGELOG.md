@@ -2,10 +2,13 @@
 
 ## v4.3.5-beta.8
 
+### Changed
+
+- **Every square of a chart counts, the fill-up squares too** (#182, Knut's ruling). On a chart made by ChromIQ's layout engine the squares that fill up the last strip are read and saved like every other patch, and a measurement is complete only when all of them have a reading. Until now they were left out of the count, so a measurement could be called complete with squares unread, and "390 of 390" could stand beside a sheet of 400 squares. Every count you see (the progress, "All Strips Read" and "All Patches Read", the Start Measurement message, the Build Profile tab and both import doors) now counts every square, with ChromIQ's engine and with ArgyllCMS's chartread, strip by strip and patch by patch, on a resume, and on verification and calibration charts. If you would rather not read fill-up squares, design the patch set so that it fills the chart exactly.
+
 ### Fixed
 
-- **With ChromIQ's own measuring engine, a resumed measurement could count as complete while patches were missing, and then never announced that it was finished.** On a chart made by ChromIQ's layout engine the squares that fill up the last strip are read and saved too, so a file missing two patches could hold as many readings as the chart has patches. After reading the missing patches the progress showed 100 % but no "All Strips Read" window came (the same on a calibration chart). Completeness is now judged by which patches of the chart have a reading, the same rule ArgyllCMS's chartread already used since beta 7. Re-reading one strip of a finished chart stays silent as before.
-- **The same file was called fully measured elsewhere too**: Start Measurement warned "This chart is fully measured", Build Profile offered it as a whole chart, and an import of such a file was filed as complete. These now say how many of the chart's patches have a reading.
+- **With ChromIQ's own measuring engine, a resumed measurement could count as complete while patches were missing, and then never announced that it was finished.** Completeness is now judged by which squares of the chart have a reading. Re-reading one strip of a finished chart stays silent as before.
 
 ## v4.3.5-beta.7
 

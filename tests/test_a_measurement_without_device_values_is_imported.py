@@ -159,10 +159,19 @@ def test_a_non_rgb_device_measurement_is_still_refused(tmp_path):
 
 
 # --- 2. the counting rule, in both directions -----------------------------
-def test_the_design_and_the_sheet_are_different_numbers(chart):
-    assert expected_patches(chart) == DESIGNED
+def test_every_square_of_the_sheet_is_a_patch(chart):
+    """Knut, #182 6191934889: the fill-up squares are patches like any other,
+    so the chart's patch count is the sheet's (the design is 408 of them)."""
+    assert expected_patches(chart) == SHEET
     assert sheet_patches(chart) == SHEET
     assert DESIGNED != SHEET, "the fixture must reproduce her padded chart"
+
+
+def test_the_designed_patches_alone_are_partial(tmp_path, chart):
+    m = _measurement(tmp_path / "m.ti3", _reading_order()[:DESIGNED])
+    v = assess(m, chart)
+    assert v.ok and v.partial, v.reason
+    assert classify(m, chart).state.value == "partial"
 
 
 def test_a_measurement_of_the_whole_sheet_is_complete_not_foreign(tmp_path,
@@ -180,7 +189,7 @@ def test_a_short_measurement_is_still_called_short(tmp_path, chart):
     m = _measurement(tmp_path / "m.ti3", _reading_order()[:300])
     v = assess(m, chart)
     assert v.ok and v.partial, v.reason
-    assert (v.n_chart, v.n_measured) == (DESIGNED, 300)
+    assert (v.n_chart, v.n_measured) == (SHEET, 300)
 
 
 def test_more_readings_than_the_sheet_carries_is_a_different_chart(tmp_path,

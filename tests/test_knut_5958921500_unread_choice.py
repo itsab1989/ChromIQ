@@ -233,9 +233,10 @@ def test_padding_is_never_unread(tmp_path):
     assert asked == [] and _gotos(r) == ["B"]
 
 
-def test_the_layout_engines_fill_up_is_never_unread(tmp_path):
-    """ChromIQ's own layout engine pads with ordinary ids; the .ti1 says how
-    many rows were designed (workflow.measurement_state._engine_fill_up_rows)."""
+def test_the_layout_engines_fill_up_can_be_unread(tmp_path):
+    """ChromIQ's own layout engine pads with ordinary ids, and those squares
+    are patches that must be read (Knut, #182 6191934889): they are not
+    padding, so they can be unread like any other patch."""
     from workflow.measurement_state import padding_locations
     ti2 = _write_chart(tmp_path)
     text = ti2.read_text(encoding="utf-8").replace(
@@ -246,7 +247,7 @@ def test_the_layout_engines_fill_up_is_never_unread(tmp_path):
         "CTI1\n\nBEGIN_DATA_FORMAT\nSAMPLE_ID RGB_R RGB_G RGB_B\n"
         "END_DATA_FORMAT\nNUMBER_OF_SETS 10\nBEGIN_DATA\nEND_DATA\n",
         encoding="utf-8")
-    assert padding_locations(ti2) == {"D2", "D3"}
+    assert padding_locations(ti2) == set()
 
 
 def test_no_chart_means_unknown_and_the_beta_4_rule(tmp_path):

@@ -1,17 +1,22 @@
-"""An engine resume asks "was the chart already complete" by location (4.3.5 beta 8).
+"""Every square of the chart counts, fill-up included (Knut, #182 6191934889).
 
-Found on screen by the beta-7 regression review: ChromIQ's layout engine gives
-the fill-up squares that complete the last strip real ids, so chartread and
-ChromIQ's own engine both write readings for them. A file two design patches
-short (C5 and D3) then held 398 rows for a 390-patch design on a 400-square
-sheet, and `measurement_state.classify` counted it COMPLETE. The engine's
-session_start took that as "the chart was already finished", so reading C and
-D took the progress to 100 % and no completion window came. The same on a
-calibration chart (62 rows, A3 and B2 missing). Stock chartread had been fixed
-for the same blind spot in 4aad735ec by asking by location; the question now
-lives in `classify` itself (`unread_design_locations`), so the engine, stock
-chartread, the Start Measurement message, the Profile tab and the progress all
-get one answer.
+Knut's ruling of 2026-10-15, confirmed: *"All fill-up patches are patches that
+are randomly redistributed on the layout and are read as real patches. ALL
+patches in the chart, fill-up or not, shall be counted to get a complete
+chart. If two patches are missing and not read, then the chart is not
+completed."* It replaces the beta-8 proposal ("complete = every designed patch
+read, fill-up squares do not count").
+
+So a chart from ChromIQ's layout engine with 10 designed patches and 2
+fill-up squares has 12 patches: a file holding the 10 designed ones is
+2 short, a file holding all 12 is complete, and the question is asked by
+location in `classify` (`unread_locations`), so the engine, stock chartread,
+the Start Measurement message, the Profile tab, the progress and the import
+doors all get one answer. Only printtarg's ``SAMPLE_ID`` 0 padding stays out,
+because no reader ever records it.
+
+(Was ``test_b8_engine_resume_judges_completeness_by_location.py``, which
+pinned the rejected design-only rule.)
 """
 from __future__ import annotations
 
@@ -26,8 +31,8 @@ from workflow.measure_manager import MeasureManager
 from workflow.measurement_state import Ti3State, classify, progress_from_files
 
 
-def unread_design_locations(ti3, ti2):
-    from workflow.measurement_state import unread_design_locations as f
+def unread_locations(ti3, ti2):
+    from workflow.measurement_state import unread_locations as f
     return f(ti3, ti2)
 
 
@@ -84,40 +89,67 @@ def _fill_gap(folder: Path) -> Path:
 
 # ---- the definition ----------------------------------------------------------
 
-def test_a_file_with_fill_up_readings_and_a_design_gap_is_partial(tmp_path):
+def test_the_chart_has_every_square_as_a_patch(tmp_path):
+    from workflow.measurement_state import expected_patches, sheet_patches
+    ti2 = _engine_chart(tmp_path)
+    assert expected_patches(ti2) == len(SHEET) == sheet_patches(ti2)
+
+
+def test_a_file_with_a_gap_is_partial_and_counts_every_square(tmp_path):
     ti2 = _engine_chart(tmp_path)
     ti3 = _fill_gap(tmp_path)
     facts = classify(ti3, ti2)
-    assert facts.held == DESIGN, "as many rows as the design has patches"
     assert facts.state is Ti3State.PARTIAL
-    assert facts.design_read == DESIGN - 2
-    assert facts.patches_read == DESIGN - 2
-    assert unread_design_locations(ti3, ti2) == {"A3", "B2"}
-    assert progress_from_files(ti3, ti2) == pytest.approx(80.0)
+    assert facts.expected == len(SHEET)
+    assert facts.located_read == facts.patches_read == len(SHEET) - 2
+    assert unread_locations(ti3, ti2) == {"A3", "B2"}
+    assert progress_from_files(ti3, ti2) == pytest.approx(
+        100.0 * (len(SHEET) - 2) / len(SHEET))
 
 
-def test_every_design_patch_read_is_complete_with_or_without_fill_up(tmp_path):
+def test_the_designed_patches_alone_are_not_a_complete_chart(tmp_path):
+    """The rejected rule called this complete. Two squares are unread."""
     ti2 = _engine_chart(tmp_path)
-    assert classify(_ti3(tmp_path, SHEET), ti2).state is Ti3State.COMPLETE
-    design = [x for x in SHEET if x not in FILL]
-    assert classify(_ti3(tmp_path, design), ti2).state is Ti3State.COMPLETE
-
-
-def test_the_control_without_fill_up_rows_stays_partial(tmp_path):
-    ti2 = _engine_chart(tmp_path)
-    ti3 = _ti3(tmp_path, [x for x in SHEET if x not in FILL | {"A3", "B2"}])
+    ti3 = _ti3(tmp_path, [x for x in SHEET if x not in FILL])
     facts = classify(ti3, ti2)
     assert facts.state is Ti3State.PARTIAL
-    assert facts.patches_read == DESIGN - 2
+    assert facts.patches_read == DESIGN
+    assert unread_locations(ti3, ti2) == FILL
+
+
+def test_every_square_read_is_complete(tmp_path):
+    ti2 = _engine_chart(tmp_path)
+    facts = classify(_ti3(tmp_path, SHEET), ti2)
+    assert facts.state is Ti3State.COMPLETE
+    assert facts.patches_read == len(SHEET)
+
+
+def test_printtargs_padding_is_still_left_out(tmp_path):
+    """printtarg's SAMPLE_ID 0 rows are never recorded by any reader, so a
+    file holding every other square is complete."""
+    rows = [f'{"0" if loc in FILL else i + 1} "{loc}" 50.0 50.0 50.0 '
+            f'20.0 21.0 22.0' for i, loc in enumerate(SHEET)]
+    ti2 = tmp_path / "pt.ti2"
+    ti2.write_text(
+        'CTI2\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n'
+        'SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n'
+        f'END_DATA_FORMAT\n\nNUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n'
+        + "\n".join(rows) + "\nEND_DATA\n", encoding="latin-1")
+    ti3 = _ti3(tmp_path, [x for x in SHEET if x not in FILL])
+    facts = classify(ti3, ti2)
+    assert facts.expected == DESIGN
+    assert facts.state is Ti3State.COMPLETE
 
 
 def test_names_the_chart_does_not_have_keep_the_count(tmp_path):
-    """A file that cannot be compared by name must never be made partial by
-    the comparison: the count's answer stands."""
+    """A file that cannot be compared by name must never be judged by the
+    comparison: the count's answer stands."""
     ti2 = _engine_chart(tmp_path)
-    ti3 = _ti3(tmp_path, [f"Z{i}" for i in range(1, DESIGN + 1)])
-    assert unread_design_locations(ti3, ti2) is None
+    ti3 = _ti3(tmp_path, [f"Z{i}" for i in range(1, len(SHEET) + 1)])
+    assert unread_locations(ti3, ti2) is None
     assert classify(ti3, ti2).state is Ti3State.COMPLETE
+    short = _ti3(tmp_path, [f"Z{i}" for i in range(1, DESIGN + 1)])
+    assert classify(short, ti2).state is Ti3State.PARTIAL
 
 
 # ---- the engine's session_start -------------------------------------------
@@ -165,13 +197,25 @@ def _ready(strip, all_done=True):
             "all_done": all_done}
 
 
-def test_an_engine_resume_of_a_file_with_a_design_gap_was_not_complete(
+def test_an_engine_resume_of_a_file_with_a_gap_was_not_complete(
         tmp_path):
     ti2 = _engine_chart(tmp_path)
     _fill_gap(tmp_path)
     m, _fired = _engine_resume(ti2)
     _feed(m, _start(ti2))
     assert m._chart_was_complete is False
+
+
+def test_an_engine_resume_of_the_design_alone_was_not_complete(tmp_path):
+    """The fill-up squares unread: reading strip C completes the chart, and
+    that is news."""
+    ti2 = _engine_chart(tmp_path)
+    _ti3(tmp_path, [x for x in SHEET if x not in FILL])
+    m, fired = _engine_resume(ti2)
+    _feed(m, _start(ti2))
+    assert m._chart_was_complete is False
+    _feed(m, _ready("C"), _read("C"), _ready("C"))
+    assert fired, "reading the fill-up squares completes the chart"
 
 
 def test_reading_the_gap_on_the_engine_announces_the_completion(tmp_path):
@@ -212,17 +256,19 @@ def test_stock_and_engine_share_the_one_definition():
     assert "_measurement_was_complete(" in src
     assert "chart_locations(ti3)" in src, "the strip-read rule stays"
     from workflow import measurement_state
-    assert "unread_design_locations(" in inspect.getsource(
+    assert "unread_locations(" in inspect.getsource(
         measurement_state.classify)
 
 
 # ---- the import door asks the same question --------------------------------
 
-def test_an_import_with_a_design_gap_is_filed_as_partial(tmp_path):
-    from workflow.measurement_import import _design_patches_unread
+def test_an_import_with_a_gap_is_filed_as_partial(tmp_path):
+    from workflow.measurement_import import assess
     ti2 = _engine_chart(tmp_path)
-    assert _design_patches_unread(_fill_gap(tmp_path), ti2) is True
-    assert _design_patches_unread(_ti3(tmp_path, SHEET), ti2) is False
+    assert assess(_fill_gap(tmp_path), ti2).partial
+    assert assess(_ti3(tmp_path, [x for x in SHEET if x not in FILL]),
+                  ti2).partial, "the fill-up squares are part of the chart"
+    assert not assess(_ti3(tmp_path, SHEET), ti2).partial
 
 
 def test_an_import_partial_by_location_states_the_patches_read(tmp_path):
@@ -235,10 +281,11 @@ def test_an_import_partial_by_location_states_the_patches_read(tmp_path):
     message and the Profile tab."""
     from workflow.measurement_import import assess
     ti2 = _engine_chart(tmp_path)
-    v = assess(_fill_gap(tmp_path), ti2)
+    # 12 rows, one location twice and A3 missing: partial by location only.
+    v = assess(_ti3(tmp_path, [x if x != "A3" else "A1" for x in SHEET]), ti2)
     assert v.ok and v.partial
-    assert v.n_measured == DESIGN, "the rows are still the rows"
-    assert v.patches_read == DESIGN - 2
+    assert v.n_measured == len(SHEET), "the rows are still the rows"
+    assert v.patches_read == len(SHEET) - 1
     short = assess(_ti3(tmp_path, SHEET[:5]), ti2)
     assert short.partial and short.patches_read == 5
     whole = assess(_ti3(tmp_path, SHEET), ti2)

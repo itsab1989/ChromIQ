@@ -254,21 +254,29 @@ def _engine_ti2(tmp_path, *, designed=4, fill_up=2, steps=3,
     return ti2
 
 
-def test_the_engines_fill_up_patches_are_not_counted_as_patches(tmp_path):
-    """4 designed + 2 fill-up = 6 rows, and the chart has 4 patches."""
+def test_the_engines_fill_up_patches_are_counted_as_patches(tmp_path):
+    """4 designed + 2 fill-up = 6 rows, and the chart has 6 patches: Knut,
+    #182 6191934889, every square counts. `fill_up_rows` still says how many
+    of them are fill-up."""
+    from workflow.measurement_state import fill_up_rows
     ti2 = _engine_ti2(tmp_path)
-    assert expected_patches(ti2) == 4
+    assert expected_patches(ti2) == 6
+    assert fill_up_rows(ti2) == 2
 
 
 def test_a_chart_with_no_fill_up_is_unchanged(tmp_path):
+    from workflow.measurement_state import fill_up_rows
     ti2 = _engine_ti2(tmp_path, fill_up=0)
     assert expected_patches(ti2) == 4
+    assert fill_up_rows(ti2) == 0
 
 
 def test_a_chart_that_is_not_the_engines_keeps_every_row(tmp_path):
     """A ``.ti1`` sitting beside a printtarg chart must never shrink it."""
+    from workflow.measurement_state import fill_up_rows
     ti2 = _engine_ti2(tmp_path, originator="Argyll printtarg")
     assert expected_patches(ti2) == 6
+    assert fill_up_rows(ti2) == 0
 
 
 def test_a_chart_with_no_ti1_beside_it_keeps_every_row(tmp_path):
@@ -276,7 +284,9 @@ def test_a_chart_with_no_ti1_beside_it_keeps_every_row(tmp_path):
     there is nothing to subtract, and guessing is not allowed."""
     ti2 = _engine_ti2(tmp_path)
     (tmp_path / "chart.ti1").unlink()
+    from workflow.measurement_state import fill_up_rows
     assert expected_patches(ti2) == 6
+    assert fill_up_rows(ti2) == 0
 
 
 def test_trailing_rows_that_differ_are_not_fill_up(tmp_path):
@@ -287,18 +297,23 @@ def test_trailing_rows_that_differ_are_not_fill_up(tmp_path):
     ti2.write_text(text.replace('6 "F2" 100.00000 100.00000 100.00000',
                                 '6 "F2" 100.00000 100.00000 99.00000'),
                    encoding="utf-8")
+    from workflow.measurement_state import fill_up_rows
     assert expected_patches(ti2) == 6
+    assert fill_up_rows(ti2) == 0
 
 
 def test_a_surplus_bigger_than_one_strip_is_not_fill_up(tmp_path):
     """Padding completes ONE pass, so it is always smaller than a strip. A
     larger difference means the ``.ti1`` is not this chart's."""
+    from workflow.measurement_state import fill_up_rows
     ti2 = _engine_ti2(tmp_path, fill_up=3, steps=3)
     assert expected_patches(ti2) == 7
+    assert fill_up_rows(ti2) == 0
 
 
-def test_a_complete_measurement_of_a_padded_chart_is_not_partial(tmp_path):
-    """The sentence she was shown: "part of the chart was not measured"."""
+def test_the_designed_patches_of_a_padded_chart_are_partial(tmp_path):
+    """Knut, #182 6191934889: the two fill-up squares are unread, so the
+    chart is not complete (the rule of 2026-09-11 called this complete)."""
     ti2 = _engine_ti2(tmp_path)
     ti3 = tmp_path / "chart.ti3"
     ti3.write_text(_ti3([("L1", "100.0000", "white"), ("L2", "50.0000", "grey"),
@@ -308,10 +323,8 @@ def test_a_complete_measurement_of_a_padded_chart_is_not_partial(tmp_path):
     verdict = assess(ti3, ti2)
 
     assert verdict.ok, verdict.reason
-    assert not verdict.partial, (
-        f"a complete measurement was filed as partial: "
-        f"{verdict.n_measured} of {verdict.n_chart}")
-    assert verdict.n_chart == 4
+    assert verdict.partial
+    assert (verdict.n_measured, verdict.n_chart) == (4, 6)
 
 
 def test_a_genuinely_partial_measurement_is_still_partial(tmp_path):
@@ -323,4 +336,4 @@ def test_a_genuinely_partial_measurement_is_still_partial(tmp_path):
     verdict = assess(ti3, ti2)
 
     assert verdict.ok and verdict.partial
-    assert (verdict.n_measured, verdict.n_chart) == (2, 4)
+    assert (verdict.n_measured, verdict.n_chart) == (2, 6)

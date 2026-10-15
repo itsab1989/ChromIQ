@@ -8197,8 +8197,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         stops judging them (the caller then forgets them there)."""
         # Every patch set aside (this strip's, and any earlier strip's still
         # waiting to be read again, which shows no reading either), and the
-        # strip's fill-up squares, which are never counted but were swiped
-        # with it: the engine holds the same set-aside colours for them.
+        # strip's fill-up squares, which were swiped with it: the engine holds
+        # the same set-aside colours for them.
         name = self._strip_name(strip)
         locs = set(self._set_aside_locs())
         for boxes in self._patch_boxes:
@@ -12553,12 +12553,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _chart_patch_count(ti2: "Path | None") -> "int | None":
         """The chart's patch count: what a complete measurement of it holds.
 
-        THROUGH `expected_patches`, NOT A `NUMBER_OF_SETS` OF ITS OWN. A chart's
-        last strip is filled out with rows that are not part of the design, and
-        `measurement_state.expected_patches` is the one place that knows how to
-        discount them for both layout engines (printtarg marks them `SAMPLE_ID`
-        0, ChromIQ's numbers them like any other row). Three other places in
-        this tab already ask it.
+        THROUGH `expected_patches`, NOT A `NUMBER_OF_SETS` OF ITS OWN.
+        `measurement_state.expected_patches` is the one place that knows which
+        rows of a chart are patches: every row a reader records, the layout
+        engine's fill-up squares included (Knut, #182 6191934889), and not
+        printtarg's `SAMPLE_ID` 0 padding, which no reader records. Three other
+        places in this tab already ask it.
 
         This one read the raw header, and it is the door that REFUSES: on a
         4,014-row chart of 4,000 designed patches it told the user "the
@@ -15918,7 +15918,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if ti2 is not None and ti2.is_file():
                 self._progress_padding = padding_locations(ti2)
         except Exception:  # noqa: BLE001
-            log.debug("could not read the chart's fill-up squares", exc_info=True)
+            log.debug("could not read the chart's padding rows", exc_info=True)
         if from_files:
             try:
                 from workflow.measurement_pairing import measurement_locations
@@ -15938,13 +15938,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._refresh_progress()
 
     def _progress_measured(self, total: "int | None" = None) -> int:
-        """How many DIFFERENT design patches have a reading (#182 5963044182).
+        """How many DIFFERENT patches have a reading (#182 5963044182).
 
         Knut: *"Re-reads shall not increase the Progress, and the total
         progress shall always count patches (not strips) measured compared to
         number of patches in chart."* The file's patches and this session's are
-        joined by location, fill-up squares left out (they are not in the
-        chart's total either), and the result never passes the total. A file
+        joined by location, printtarg's padding left out (no reader records it,
+        and it is not in the chart's total either; the layout engine's fill-up
+        squares are patches and count, Knut #182 6191934889), and the result
+        never passes the total. A file
         whose rows carry no location falls back to its row count.
         """
         live = {loc for loc in getattr(self, "_progress_locs", ())
@@ -17198,8 +17200,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         a = facts.expected
         c = facts.held or 0
         path = str(ti3)
-        # The partial message names DESIGN patches read, not rows: the rows
-        # include the layout engine's fill-up squares (`patches_read`).
+        # The partial message names the chart's patches read, by location
+        # where the files allow it (`patches_read`), every square counted
+        # (Knut, #182 6191934889).
         read = facts.patches_read or 0
 
         if facts.state is Ti3State.MISMATCHED:
