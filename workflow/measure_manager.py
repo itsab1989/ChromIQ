@@ -38,7 +38,12 @@ _STRIP_PASS_RE = re.compile(r"[Ss]trip\s+pass\s+'?([^\s'(]+)'?")
 # this one means chartread is sitting at the menu, waiting for a command.
 _STRIP_MENU_RE         = re.compile(r"Ready\s+to\s+read\s+strip",                re.IGNORECASE)
 
-_ALL_DONE_RE           = re.compile(r"ALL\s+ROWS\s+READ",                        re.IGNORECASE)
+#: Stock chartread's "every patch has a reading": strip mode's menu suffix
+#: "(!! ALL ROWS READ !!)" (chartread.c 1539) and patch by patch's prompt
+#: suffix "(All patches read!)" (2115, 2146). The second was never matched,
+#: so a stock patch-by-patch read never reached its "All Patches Read"
+#: window (review of 4.3.5 beta 7).
+_ALL_DONE_RE           = re.compile(r"ALL\s+ROWS\s+READ|All\s+patches\s+read!", re.IGNORECASE)
 _CALIBRATION_RE        = re.compile(r"Calibration\s+complete",                   re.IGNORECASE)
 _CALIBRATION_PROMPT_RE = re.compile(r"Set\s+instrument\s+sensor\s+to\s+calibration\s+position", re.IGNORECASE)
 # chartread prints "Strip read failed …" from the shared path even patch by
@@ -960,6 +965,12 @@ class MeasureManager(QObject):
                 held = set(chart_locations(ti3)) if ti3.is_file() else set()
                 self._stock_all_read_at_start = all(
                     locs[0] in held for locs in self._stock_locs.values())
+            if resume:
+                # As the engine learns it at session_start: a resume of a
+                # chart whose file is already complete completes nothing
+                # until it is read whole again (`_all_done_is_news`).
+                self._chart_was_complete = self._measurement_was_complete(
+                    str(ti2), [])
         except Exception:      # noqa: BLE001 — a count never blocks a read
             log.warning("could not lay out the chart's strips for stock "
                         "chartread", exc_info=True)
@@ -2395,6 +2406,9 @@ class MeasureManager(QObject):
         wanted = {str(s.get("strip", "")).strip()
                   for s in (self._session_strips or [])
                   if str(s.get("strip", "")).strip()}
+        if not wanted and not getattr(self, "_engine_active", True):
+            # Stock chartread has no session map: the chart's own strips.
+            wanted = set(getattr(self, "_stock_locs", None) or ())
         if not wanted:
             return False
         return wanted <= self._strips_read_this_session
@@ -3196,9 +3210,15 @@ class MeasureManager(QObject):
             self._count_stock_read(line)
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
-        if (_ALL_DONE_RE.search(line)
-                and not (self._is_resume and _STRIP_RE.search(line))
-                and self._all_done_is_news()):
+        # On a resume, chartread's first menu already says ALL ROWS READ when
+        # the file it loaded holds every strip; that is not a completion
+        # (4a737abb0, the reason for the old `_is_resume` skip). The skip
+        # covered every menu of a resume, though, so a stock -r session never
+        # announced the chart it did complete (review of 4.3.5 beta 7).
+        # `_all_done_is_news` makes the distinction itself: on a resume
+        # nothing is news before something has been read, and a chart that
+        # was already complete is news only once read whole again.
+        if _ALL_DONE_RE.search(line) and self._all_done_is_news():
             self.all_stripes_done.emit()
         if _CALIBRATION_PROMPT_RE.search(line):
             self.calibration_prompt.emit("", "", False)

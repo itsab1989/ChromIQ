@@ -240,3 +240,86 @@ def test_the_last_strip_kept_after_the_question_completes_the_chart(tmp_path):
     feed(_menu("C", done=True))
     assert [s["strip"] for s in strips] == ["A", "B", "C"]
     assert done == [3], "counted before the completion is announced"
+
+
+def _with_fill_up(tmp_path):
+    ti2 = _ti2(tmp_path)
+    text = ti2.read_text(encoding="latin-1").replace(
+        f"NUMBER_OF_SETS {len(STRIPS) * PER}",
+        f"NUMBER_OF_SETS {len(STRIPS) * PER + 1}").replace(
+        "\nEND_DATA\n", '\n0 "C5" 50.0 50.0 50.0 20.0 21.0 22.0\nEND_DATA\n')
+    ti2.write_text(text, encoding="latin-1")
+    return ti2
+
+
+# ---- the completion windows on stock chartread (review of beta 7) ---------
+
+def _done_counter(mgr):
+    fired = []
+    mgr.all_stripes_done.connect(lambda: fired.append(1))
+    return fired
+
+
+def test_a_stock_resume_announces_the_chart_it_completes(tmp_path):
+    """-r with strip C unread: reading it is a completion, and chartread's
+    next menu says ALL ROWS READ. The old `_is_resume` skip swallowed every
+    such line of a resume, so no window ever came on stock chartread."""
+    _ti3(tmp_path, [f"{s}{p}" for s in "AB" for p in range(1, PER + 1)])
+    mgr, feed, _strips, _ = _stock(tmp_path, resume=True)
+    fired = _done_counter(mgr)
+    feed(_menu("C"))
+    feed(" Strip read OK")
+    feed(_menu("C", done=True))
+    assert fired == [1]
+
+
+def test_a_stock_resume_of_a_complete_chart_is_silent_at_the_start(tmp_path):
+    """4a737abb0's case: the first menu of a resume of a finished chart
+    already says ALL ROWS READ. Nothing has been completed."""
+    _ti3(tmp_path, [f"{s}{p}" for s in STRIPS for p in range(1, PER + 1)])
+    mgr, feed, _strips, _ = _stock(tmp_path, resume=True)
+    fired = _done_counter(mgr)
+    feed(_menu("A", done=True))
+    assert fired == []
+
+
+def test_a_strip_read_again_on_a_complete_chart_completes_nothing(tmp_path):
+    """Knut, #131: re-reading one strip of a finished chart is no completion,
+    on stock chartread as on the engine..."""
+    _ti3(tmp_path, [f"{s}{p}" for s in STRIPS for p in range(1, PER + 1)])
+    mgr, feed, _strips, _ = _stock(tmp_path, resume=True)
+    fired = _done_counter(mgr)
+    feed(_menu("A", done=True))
+    feed(" Strip read OK")
+    feed(_menu("B", done=True))
+    assert fired == []
+    # ...but the whole chart read again is (Basti, 2026-08-08)
+    feed(" Strip read OK")               # B
+    feed(_menu("C", done=True))
+    assert fired == []
+    feed(" Strip read OK")               # C: every strip read this session
+    feed(_menu("C", done=True))
+    assert fired == [1]
+
+
+def test_stock_patch_by_patch_recognises_all_patches_read(tmp_path):
+    """chartread.c 2146: patch by patch, completion is "(All patches read!)"
+    on the prompt, never "ALL ROWS READ"."""
+    mgr, feed, _strips, _ = _stock(tmp_path, patch_by_patch=True)
+    fired = _done_counter(mgr)
+    feed("Ready to read patch '12' at 'C4'")
+    feed(" Patch read OK")
+    feed("Ready to read patch '1' at 'A1' (All patches read!)")
+    assert fired == [1]
+
+
+def test_a_patch_by_patch_resume_waits_for_a_read(tmp_path):
+    _ti3(tmp_path, [f"{s}{p}" for s in STRIPS for p in range(1, PER + 1)
+                    if f"{s}{p}" != "B3"])
+    mgr, feed, _strips, _ = _stock(tmp_path, resume=True, patch_by_patch=True)
+    fired = _done_counter(mgr)
+    feed("Ready to read patch '7' at 'B3'")
+    assert fired == []
+    feed(" Patch read OK")
+    feed("Ready to read patch '8' at 'B4' (All patches read!)")
+    assert fired == [1]
