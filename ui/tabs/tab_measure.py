@@ -16547,7 +16547,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _judge_patch(self, loc, exp_lab, meas_lab, de, flagged, *,
                      standout=None, live=True,
-                     reread_only=False, warn=None) -> "tuple[object, dict]":
+                     reread_only=False, warn=None,
+                     slipped=False) -> "tuple[object, dict]":
         """The outline for one patch and the hover card's extra facts.
 
         Returns ``(flag, extra)``: *flag* is what the preview draws (no
@@ -16603,7 +16604,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                          reread_only=bool(reread_only),
                                          limit=limit,
                                          warn=None if warn is None
-                                         else bool(warn))
+                                         else bool(warn),
+                                         slipped=bool(slipped))
         except Exception:          # noqa: BLE001 — never lose the red outline
             log.debug("could not judge patch %s", loc, exc_info=True)
             return bool(flagged), extra
@@ -16881,10 +16883,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 _slip = loc in getattr(self, "_slipped_locs", ())
                 flag, extra = self._judge_patch(
                     loc, exp_lab, meas_lab, de, warn or sus,
-                    standout=standout, live=False,
-                    reread_only=sus or _slip, warn=warn)
-                if _slip and not sus:
-                    extra["reread_only"] = False   # #210, not a suspect
+                    standout=standout, live=False, reread_only=sus,
+                    warn=warn, slipped=_slip)
                 extra.update(self._neighbour_extra(f if sus else None))
                 page, box = self._locate_patch(loc)
                 if page < 0 or box is None:
@@ -16974,12 +16974,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         again when a later reading changes its neighbours.
 
         *slipped* (#210): the reading comes from a strip the misalignment
-        safety net flagged. It is judged as a reading that is NOT a re-read
-        (``live`` False: it can neither confirm by agreeing with an earlier
-        reading nor be confirmed by a later one agreeing with it) and as a
-        patch only its own re-read may settle (``reread_only``: similar
-        patches of other strips cannot confirm it either). The card is not
-        told it is a neighbour suspect when it is not one."""
+        safety net flagged. The judge keeps that on the reading
+        (``FlagJudge.judge(slipped=)``): it is never a re-read, no later
+        reading is compared with it, it is nobody's similar patch and it is
+        never yellow itself (Basti, 2026-10-15)."""
         loc = str(loc)
         f = self._neighbour_suspect(loc)
         if not hasattr(self, "_nb_inputs"):
@@ -16995,12 +16993,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         slipped = loc in self._slipped_locs
         flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de,
                                         bool(warn) or f is not None,
-                                        standout=standout,
-                                        live=live and not slipped,
-                                        reread_only=f is not None or slipped,
-                                        warn=bool(warn))
-        if slipped and f is None:
-            extra["reread_only"] = False
+                                        standout=standout, live=live,
+                                        reread_only=f is not None,
+                                        warn=bool(warn), slipped=slipped)
         extra.update(self._neighbour_extra(f))
         return flag, extra
 
@@ -17019,10 +17014,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             _slip = loc in getattr(self, "_slipped_locs", ())
             flag, extra = self._judge_patch(
                 loc, exp_lab, meas_lab, de, warn or f.suspect,
-                standout=standout, live=False,
-                reread_only=f.suspect or _slip, warn=warn)
-            if _slip and not f.suspect:
-                extra["reread_only"] = False     # #210, not a neighbour suspect
+                standout=standout, live=False, reread_only=f.suspect,
+                warn=warn, slipped=_slip)
             extra.update(self._neighbour_extra(f if f.suspect else None))
             page, box = self._locate_patch(loc)
             if page < 0 or box is None:

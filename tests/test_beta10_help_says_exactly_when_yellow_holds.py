@@ -56,8 +56,11 @@ def test_the_rule_the_help_describes_is_the_one_the_code_runs():
     src = inspect.getsource(patch_flags.FlagJudge.judge)
     # A clean LIVE reading drops the confirmation; a repaint does not.
     assert "if live and self._refs.pop(loc, None) is not None:" in src
-    # A different colour on a live re-read drops it too.
-    assert "elif live and own is not None:" in src
+    # A different colour on a live re-read drops it too. A re-read is a
+    # live reading of a strip the misalignment safety net did not flag
+    # (#210, Basti 2026-10-15): a slipped reading is of another patch.
+    assert "reread = live and not slipped" in src
+    assert "elif reread and own is not None:" in src
     # _like answers through _match since the landing waiver (5982600086).
     like = inspect.getsource(patch_flags.FlagJudge._match)
     assert "standout > ref.standout + STANDOUT_MARGIN_DE" in like

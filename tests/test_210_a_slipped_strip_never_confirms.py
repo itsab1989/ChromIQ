@@ -9,13 +9,12 @@ The engine now carries the safety net's verdict in the strip_read event itself
 (``"misaligned": <offset>``), so the tab knows while it judges the patches.
 Ordinary identical re-reads still confirm (the first test is the control).
 
-NOT COVERED, AND WHY: a slipped reading is kept in the yellow rule's history
-as an earlier reading, so a later reading the safety net did NOT flag that
-happens to give the same colour for a patch confirms against it. Closing that
-needs `workflow/patch_flags.py` (the judge's own history), which was out of
-reach for this change; the exact change is in the #210 report. In practice the
-net judges the same values the same way, so a re-read repeating the slip is
-flagged again and covered by the test below.
+The judge itself keeps the verdict on the reading
+(``FlagJudge.judge(slipped=)``, Basti's decision 2026-10-15): a later reading
+the safety net did NOT flag is never compared with a slipped one, so it
+cannot confirm against it either (the gap the first #210 change left), and a
+slipped reading is nobody's similar patch. The judge-level cases are in
+``tests/test_210_a_slipped_reading_confirms_nothing_in_the_judge.py``.
 """
 from __future__ import annotations
 
@@ -73,3 +72,20 @@ def test_the_engine_puts_the_verdict_in_the_strip_read_event():
     i_emit = src.index("cq_emit_strip_read(scb, stipa")
     i_det = src.index("mis = cq_detect_misalign(")
     assert i_det < i_emit, "worked out after the event that needs it"
+
+
+def test_an_unflagged_re_read_never_confirms_against_the_slip(qapp, tmp_path):
+    """The gap: the slipped reading and a later reading the net did NOT flag
+    give the same colour. MUTATION: let the judge's earlier readings keep the
+    slipped ones and this turns yellow."""
+    tab = _tab(tmp_path, settings=SETTINGS)
+    _read_all(tab)
+    tab._on_strip_measured(_slipped("B", {"B3": 0.6}))
+    assert _flags(tab)["B3"] is True
+    tab._on_strip_measured(_strip("B", {"B3": 0.6}))
+    assert _flags(tab)["B3"] is True, "confirmed against a slipped reading"
+    assert "B3" not in tab._flag_judge().confirmed
+    # ... and a third, ordinary reading that agrees with that second one
+    # confirms as always.
+    tab._on_strip_measured(_strip("B", {"B3": 0.6}))
+    assert _flags(tab)["B3"] == pf.FLAG_CONFIRMED

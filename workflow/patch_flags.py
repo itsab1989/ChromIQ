@@ -528,6 +528,12 @@ class _Reading:
     #: strip test on, its strip's fence). ``flagged`` is this OR the
     #: neighbour check.
     pe: bool = False
+    #: Read in a strip the misalignment safety net flagged (#210, Basti
+    #: 2026-10-15): filed a patch or two out, so it is a reading of another
+    #: patch. It never confirms anything and nothing confirms it: no
+    #: re-read is compared with it, it is nobody's similar patch, and it is
+    #: never yellow itself.
+    slipped: bool = False
 
 
 @dataclass
@@ -649,6 +655,8 @@ def _pair_ok(test: str, a: _Reading, b: _Reading, radius: float,
         return False
     if not (a.strip and b.strip and a.strip != b.strip):
         return False
+    if a.slipped or b.slipped:
+        return False           # read a patch or two out (#210)
     if a.unsettled or b.unsettled:
         return False           # readings that disagree (6045500910)
     if not within(_norm(_sub(a.exp_lab, b.exp_lab)), radius):
@@ -831,7 +839,7 @@ class FlagJudge:
         of it (6188067361, 4.2: Y-learn counts "re-reads or PE similar
         patches"; the statistics Knut approved were measured so)."""
         rd = self._last.get(loc)
-        if rd is None or not rd.pe or rd.unsettled:
+        if rd is None or not rd.pe or rd.unsettled or rd.slipped:
             return False
         return any(not self._nb_red(q)
                    for q in self._raw[TEST_PE].get(loc, ()))
@@ -932,8 +940,8 @@ class FlagJudge:
         confirmation the current limit does not show teaches nothing."""
         ref = self._refs.get(loc)
         rd = self._last.get(loc)
-        if ref is None or rd is None or not rd.flagged:
-            return None
+        if ref is None or rd is None or not rd.flagged or rd.slipped:
+            return None                  # a slipped last reading: #210
         return ref
 
     # ---- the colour ranges ---------------------------------------------------
@@ -1268,6 +1276,15 @@ class FlagJudge:
         unsettled = self._unsettled.get(loc, ()) if own is None else ()
         pe = bool(rd.pe)
         nb = bool(rd.reread_only)
+        if rd.slipped:
+            # Read in a strip the misalignment safety net flagged (#210,
+            # Basti 2026-10-15): a reading of the wrong patch. Red for every
+            # test it triggers; no re-read, similar patch or learned range
+            # may vouch for it.
+            return Verdict(FLAG_RED, colour_range=rng, range_k=k,
+                           range_locs=locs, reread_only=nb,
+                           pe_state=STATE_RED if pe else "",
+                           nb_state=STATE_RED if nb else "")
         if unsettled:
             # A re-read past the limit like none of its earlier readings
             # stays red until a reading settles it (Knut, #182 6045500910,
@@ -1331,7 +1348,8 @@ class FlagJudge:
               strip: "str | None" = None,
               reread_only: bool = False,
               limit: "float | None" = None,
-              warn: "bool | None" = None) -> Verdict:
+              warn: "bool | None" = None,
+              slipped: bool = False) -> Verdict:
         """The outline for this reading of *loc*, as things stand now.
 
         *flagged* is the red rule's answer (past the limit and, reading strips
@@ -1353,6 +1371,14 @@ class FlagJudge:
         *limit* is the ΔE the limit check flags at (the caller's
         ``_patch_warn_limit``); without it the two rules that speak of the
         limit itself ((a)/(c) and (d) below) are not applied.
+        *slipped* (#210, Basti 2026-10-15): the reading comes from a strip
+        the misalignment safety net flagged, so it is a reading of another
+        patch. It is remembered (a repaint finds it), but it is never a
+        re-read: no rule below compares it with an earlier reading, no
+        later reading is compared with it, it is nobody's similar patch,
+        it teaches no colour range, it turns nothing green, and it is red
+        whenever it is flagged. Identical re-reads of strips the net did
+        not flag still confirm.
 
         THE RE-READ RULES (Knut, #182 6045500910, for a patch red by the
         limit). A live re-read is compared with EVERY earlier reading of the
@@ -1379,8 +1405,14 @@ class FlagJudge:
         exp_lab = tuple(float(v) for v in exp_lab[:3])
         prev = self._last.get(loc)
         hist = self._history.setdefault(loc, [])
-        earlier = list(hist) if live else []
-        if live and prev is not None and (not hist or hist[-1] is not prev):
+        slipped = bool(slipped)
+        # A re-read is a live reading of a strip the safety net did not
+        # flag; the earlier readings it is compared with leave the slipped
+        # ones out (#210).
+        reread = live and not slipped
+        earlier = [r for r in hist if not r.slipped] if reread else []
+        if (reread and prev is not None and not prev.slipped
+                and (not hist or hist[-1] is not prev)):
             # A reading taken over from a stored memory (``load``) is the
             # previous reading too.
             earlier.append(prev)
@@ -1402,7 +1434,7 @@ class FlagJudge:
         # (a)/(c): past the limit again, and like none of the earlier flagged
         # readings, of which one or more were past the limit too.
         unsettled: tuple = ()
-        if live and flagged and lim is not None and above(de, lim):
+        if reread and flagged and lim is not None and above(de, lim):
             red_before = [r for r in earlier if r.flagged]
             if (any(past(r) for r in red_before)
                     and not any(same(meas_lab, r.meas_lab)
@@ -1413,12 +1445,13 @@ class FlagJudge:
         rd = _Reading(meas_lab, de, bool(flagged), exp_lab,
                       None if standout is None else float(standout),
                       None if strip is None else str(strip),
-                      bool(reread_only and flagged), bool(unsettled), pe)
+                      bool(reread_only and flagged), bool(unsettled), pe,
+                      slipped)
         if live:
             hist.append(rd)
             if unsettled:
                 self._unsettled[loc] = unsettled
-            else:
+            elif not slipped:
                 self._unsettled.pop(loc, None)
         elif hist and same(meas_lab, hist[-1].meas_lab):
             # A repaint of the same reading: it only brings the flag up to
@@ -1458,7 +1491,7 @@ class FlagJudge:
         # under it (Knut 6045500910: "if any of the previous measurements
         # were above the threshold").
         over = None
-        if live and lim is not None and not above(de, lim):
+        if reread and lim is not None and not above(de, lim):
             for r in reversed(earlier):
                 if past(r):
                     over = r
@@ -1482,6 +1515,15 @@ class FlagJudge:
             # (d) for the limit (6045500910) already makes a re-read under
             # the limit green whatever its colour. So a live re-read that
             # the neighbour check no longer flags is green the same way.
+            if slipped:
+                # #210: a reading of another patch corrects nothing and
+                # takes nothing away; what was shown before stays.
+                self._verdicts.pop(loc, None)
+                corr = self._corrected.get(loc)
+                if corr is not None:
+                    return Verdict(FLAG_CORRECTED, prev_de=corr[0],
+                                   corrected_by=corr[1])
+                return Verdict(FLAG_NONE)
             pending = self._pending.pop(loc, None)
             if over is not None:
                 # Red by both tests before: the card's neighbour wording,
@@ -1513,7 +1555,7 @@ class FlagJudge:
                 if r.flagged and same(meas_lab, r.meas_lab):
                     match = r
                     break
-        if live:
+        if reread:
             # Flagged again by a live reading: no longer corrected.
             self._corrected.pop(loc, None)
             pending = self._pending.get(loc)
@@ -1545,7 +1587,7 @@ class FlagJudge:
                     shift=_sub(meas_lab, exp_lab), de=de, prev_de=match.de,
                     standout=rd.standout)
                 self._refs_changed()
-            elif live and own is not None:
+            elif reread and own is not None:
                 # Re-read to a clearly different colour: it is not confirmed now.
                 self._refs.pop(loc, None)
                 self._refs_changed()
