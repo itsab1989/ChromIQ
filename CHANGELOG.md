@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.3.5-beta.7
+
+### Changed
+
+- **"Measuring with ArgyllCMS instead" says what stops working** (#182). When ChromIQ's own measuring engine cannot use the instrument and ArgyllCMS's chartread takes over, the window now lists, checked against the code, what ChromIQ cannot do until that measurement ends: the sounds for each reading, the reading speed check, the colours, outlines and hover values in the preview, "Was a strip read twice?", confirming a patch read again, the question where to go after a re-read, saving after every strip, the windows for a wrong strip or a very unexpected reading, and Calibrate (K) or clicking the preview to go to a strip or patch. The sentence about doubled beeps is gone. The text is shown and waits for approval (§M).
+- **Knut's approvals of 2026-10-15 are recorded**: the beta 5 texts and the eleven file conversion texts. The bullets of "All strips are read, but some patches are not" use a colon instead of a dash.
+
+### Fixed
+
+- **Measuring with ArgyllCMS's chartread counted strips as patches.** A chart read whole ended on "All strips are read, but … patches still have no reading" instead of "All Strips Read", the next window said "You have read 25 patches" when 25 was the number of strips, and the progress stayed at 0 %. Each strip's patches are now counted when chartread reports the strip read (or kept after "very unexpected response"), and patch by patch each patch it reads; fill-up squares are left out. This also applies when chartread is chosen in Preferences.
+- **With chartread, a resumed measurement never announced that it was complete, and patch by patch never showed "All Patches Read"** (also the verification window). Both now appear once, at the end; re-reading one strip of a finished chart stays silent as before.
+- **A resumed chartread measurement with fill-up squares in its file could count as complete while patches were missing**: completeness is now judged by which patches have a reading.
+- **Build Profile, Light theme: "No file selected" was hard to read.** The note now has a grey per theme (contrast 5.1:1 in Light).
+- **A converted calibration measurement that could not be saved was reported as a file that could not be read.** It now has its own window saying the folder may be read-only or the disk full, and that your file is unchanged (new text, waits for approval).
+- **The detail "txt2ti3: exit code 3" was English in every language**; it is translated now.
+
 ## v4.3.5-beta.6
 
 ### Fixed
