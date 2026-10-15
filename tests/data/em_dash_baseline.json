@@ -209,7 +209,6 @@
   "ChromIQ — Printer Profiling",
   "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.",
   "ChromIQ's own chart-layout generator — an alternative to printtarg. It records exactly where every patch sits, so scans of its charts can be read with perfect knowledge of the geometry.",
-  "ChromIQ's own measuring engine could not use your instrument this time, so the measurement has been started again using ArgyllCMS's chartread. Carry on measuring exactly as you would normally — nothing you have already read is lost.\n\nOne thing changes while this is running: ChromIQ's measurement sounds are silent. ArgyllCMS makes its own beeps as it reads, and playing ChromIQ's sounds on top would double every one of them. The beeps you hear are coming from ArgyllCMS.\n\nReason: {reason}",
   "ChromIQ's session log — attach it to a bug report.",
   "Click to jump to this strip. It has already been read — clicking lets you measure it again.",
   "Close Project\n\nPuts ChromIQ back where it starts, with no project open.\n\nNothing is deleted and nothing on disk changes — every run, chart, measurement and profile stays where it is, and you can open the project again at any time with “Open Project”. Only what you have typed and not yet used is let go.",

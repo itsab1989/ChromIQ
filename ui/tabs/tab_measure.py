@@ -9360,14 +9360,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             snd._reading_engine = False
 
     def _on_engine_fell_back(self, reason: str) -> None:
-        self._silence_for_stock_chartread()
         """ChromIQ's engine could not drive the instrument, so the run restarted
-        on stock ArgyllCMS chartread. Say so plainly — the measurement carries on
+        on stock ArgyllCMS chartread. Say so plainly: the measurement carries on
         and the user needs no different handling, but they should know which
-        reader they are now using (the live preview stays off, for one), and
-        that ChromIQ's sounds are silent now: M-ENGINE-FELL-BACK (Knut, #148),
-        in a window since it is shown while it waits in §M-PROPOSED (Knut,
-        #182 6166519230)."""
+        reader they are now using and what of ChromIQ's own measuring does not
+        work with it (Knut, #182 6181524471: the sounds, the speed check, the
+        live preview and its outlines, ...): M-ENGINE-FELL-BACK (Knut, #148),
+        in a window, shown while it waits in §M-PROPOSED (#182 6166519230)."""
+        self._silence_for_stock_chartread()
         self._log.appendPlainText(tr(
             "[Engine] Switched to ArgyllCMS chartread because ChromIQ's own "
             "measuring engine could not use your instrument ({reason}). "
@@ -9404,12 +9404,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._exec_measurement_window(box)
 
     def _on_engine_fell_back_resumed(self, reason: str) -> None:
-        self._silence_for_stock_chartread()
         """Like _on_engine_fell_back, but the engine had already measured part of
         the chart when the instrument failed (#134). The manager writes the full,
         reassuring explanation to the log; here we add a brief, non-blocking
         status flash so the good news — nothing was lost, just carry on — is
         impossible to miss without interrupting the measurement."""
+        self._silence_for_stock_chartread()
         self._flash_status(
             tr("Your measured strips are safe — continuing on ArgyllCMS "
                "chartread from where you left off."),

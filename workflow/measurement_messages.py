@@ -2858,22 +2858,50 @@ M_END_WRITTEN = _m(
 #: knows."* He is right that there is none — the fallback is announced only in
 #: the measurement log, which is easy to miss mid-measurement.
 #:
-#: The second paragraph is the one that matters for #148. Falling back also
-#: silences ChromIQ's per-patch and per-strip sounds, because stock chartread
-#: beeps for itself and cannot be quietened (his own ruling, #131). That
-#: suppression is correct and stays; what was missing is saying so, which left a
-#: user with every reason to report the sound feature as broken.
+#: Revised for 4.3.5 beta 7 (Knut, #182 6181524471): the sentence about
+#: doubled beeps is gone, and the window lists what does not work while stock
+#: chartread measures, each point taken from the code, not assumed:
+#:
+#: * sounds: `core.sound.SoundManager.play` drops every per-reading sound
+#:   while `_reading_engine` is False, which `TabMeasure.
+#:   _silence_for_stock_chartread` sets on the fallback;
+#: * reading speed: `_report_strip_pace` needs `scan_started` and
+#:   `strip_measured`, which only `MeasureManager._handle_engine_line` emits;
+#: * the preview's measured colours, outlines (patch error limit, neighbour
+#:   check), hover values and the next patch's highlight: `_on_strip_measured`,
+#:   `_on_patch_measured` and `_on_patch_ready`, the same engine-only signals;
+#: * "Was a strip read twice?": `strip_read_twice`, engine only;
+#: * progress: counted from `strip_measured` / `patch_measured` only;
+#: * saving after every strip: the engine's `.ti3` autosave
+#:   (`readings_saved`); stock chartread writes on a clean ending only;
+#: * the Wrong Strip Read and unexpected-reading windows: raised from the
+#:   engine's typed events; stock chartread's own prompts reach the log only
+#:   (`_WRONG_STRIP_RE` and `_UNEXPECTED_RESP_RE` are matched nowhere);
+#: * Calibrate / K (`can_calibrate_on_request`) and a click on the preview
+#:   (`_on_preview_strip_clicked`, `_on_preview_patch_clicked`): engine only.
 M_ENGINE_FELL_BACK = _m(
     "M-ENGINE-FELL-BACK",
     "Measuring with ArgyllCMS instead",
     "ChromIQ's own measuring engine could not use your instrument this time, "
     "so the measurement has been started again using ArgyllCMS's chartread. "
-    "Carry on measuring exactly as you would normally — nothing you have "
-    "already read is lost.\n\n"
-    "One thing changes while this is running: ChromIQ's measurement sounds are "
-    "silent. ArgyllCMS makes its own beeps as it reads, and playing ChromIQ's "
-    "sounds on top would double every one of them. The beeps you hear are "
-    "coming from ArgyllCMS.\n\n"
+    "Carry on measuring as you normally would: nothing you have already read "
+    "is lost.\n\n"
+    "Until this measurement ends, these ChromIQ features do not work:\n\n"
+    "•  ChromIQ's sounds for each reading are silent. The beeps you hear come "
+    "from ArgyllCMS.\n"
+    "•  There is no reading speed check.\n"
+    "•  The preview shows no measured colours, no red, yellow or green "
+    "outlines (patch error limit and neighbour check) and no values on hover. "
+    "Patch by patch, it does not highlight the next patch.\n"
+    "•  “Was a strip read twice?” is not asked.\n"
+    "•  The progress percentage above the preview does not move.\n"
+    "•  Your readings are saved only when the measurement ends, not after "
+    "every strip.\n"
+    "•  A wrong strip or a very unexpected reading is not shown in a window: "
+    "ArgyllCMS asks about it in the output field below. Answer with the key it "
+    "names there.\n"
+    "•  Calibrate (the K key) and clicking a strip or patch in the preview to "
+    "go to it are not available.\n\n"
     "Reason: {reason}", approved=False)
 
 # --- PROPOSED: a strip or patch pattern the readers cannot use -----------

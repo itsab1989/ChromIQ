@@ -415,6 +415,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # it silences ChromIQ's sounds without saying
                                  # so — which is half of why the sound feature
                                  # looked broken.
+                                 # Knut, #182 6181524471 (2026-10-15): the
+                                 # beeps sentence out, and a list of what
+                                 # does not work while ArgyllCMS measures,
+                                 # verified in the code: revised, waiting.
                                  "M-ENGINE-FELL-BACK",
                                  # 2026-10-03, forum report: the strip pattern
                                  # "0-9" made a chart neither reader could
