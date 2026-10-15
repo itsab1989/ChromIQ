@@ -342,3 +342,35 @@ def test_a_patch_by_patch_resume_waits_for_a_read(tmp_path):
     feed(" Patch read OK")
     feed("Ready to read patch '8' at 'B4' (All patches read!)")
     assert fired == [1]
+
+
+def test_a_resume_short_of_a_patch_is_not_complete_by_its_row_count(tmp_path):
+    """ChromIQ's layout engine gives its fill-up squares real ids, so
+    chartread writes them, and a file one design patch short holds as many
+    rows as the design has patches (`measurement_state.classify` calls that
+    COMPLETE). Judged by location, the chart was not complete, and reading
+    the missing patch is the completion. Found on screen (review of beta 7):
+    the "All Patches Read" window never came for such a resume."""
+    ti2 = _ti2(tmp_path)
+    ti2.write_text(ti2.read_text(encoding="latin-1").replace(
+        'ORIGINATOR "test"', 'ORIGINATOR "ChromIQ layout engine"'),
+        encoding="latin-1")
+    # The design is 11 patches; C4 is the engine's one fill-up square.
+    (tmp_path / "chart.ti1").write_text(
+        "CTI1\n\nNUMBER_OF_SETS 11\nBEGIN_DATA\nEND_DATA\n", encoding="latin-1")
+    _ti3(tmp_path, [f"{s}{p}" for s in STRIPS for p in range(1, PER + 1)
+                    if f"{s}{p}" != "B3"])
+    from workflow.measurement_state import Ti3State, classify
+    assert classify(tmp_path / "chart.ti3", ti2).state is Ti3State.COMPLETE
+    runner = _Runner()
+    mgr = MeasureManager(runner)
+    mgr._guided_state = "disabled"
+    fired = _done_counter(mgr)
+    mgr.start(MeasureParams(ti1_path=ti2.with_suffix(".ti1"), resume=True,
+                            patch_by_patch=True),
+              lambda _l: None, lambda _c: None)
+    feed = runner.runs[-1]["on_line"]
+    feed("Ready to read patch '7' at 'B3'")
+    feed(" Patch read OK")
+    feed("Ready to read patch '8' at 'B4' (All patches read!)")
+    assert fired == [1]

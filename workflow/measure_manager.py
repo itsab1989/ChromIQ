@@ -968,9 +968,18 @@ class MeasureManager(QObject):
             if resume:
                 # As the engine learns it at session_start: a resume of a
                 # chart whose file is already complete completes nothing
-                # until it is read whole again (`_all_done_is_news`).
-                self._chart_was_complete = self._measurement_was_complete(
-                    str(ti2), [])
+                # until it is read whole again (`_all_done_is_news`). Asked
+                # by LOCATION: every patch of the design has a reading. A
+                # count is not enough, because ChromIQ's layout engine gives
+                # its fill-up squares real ids, chartread writes them, and a
+                # file two patches short then holds as many rows as the
+                # design has patches.
+                ti3 = Path(ti2).with_suffix(".ti3")
+                held = set(chart_locations(ti3)) if ti3.is_file() else set()
+                design = [x for locs in self._stock_locs.values()
+                          for x in locs if x not in self._stock_padding]
+                self._chart_was_complete = bool(design) and all(
+                    x in held for x in design)
         except Exception:      # noqa: BLE001 — a count never blocks a read
             log.warning("could not lay out the chart's strips for stock "
                         "chartread", exc_info=True)
