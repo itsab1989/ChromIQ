@@ -1750,6 +1750,62 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # ceiling on the nodes is a ceiling on the table. Curve space here.
         top = model.shape_device(channel_max[None, :])
         dev_clut_shaped = np.minimum(dev_clut_shaped, top)
+    # Research Agent 69 (a69-cmykport*): the CMYK colorimetric B2A1 the way
+    # colprof builds it (cmykport.py: K = the -kr curve clipped to the K
+    # locus, Lab nearest then CAM Jab clip, per node, no refit / floor /
+    # column / black pin), whole or blended into the engine's own table.
+    from workflow.profile_engine import cmykport as _a69
+    _a69m = (_a69.mode(candidates)
+             if _a69.applies(candidates, accurate=accurate,
+                             is_additive=meas.is_additive, n=n,
+                             letters=meas.channel_letters) else None)
+    if _a69m is not None:
+        _l_min = (float(axis["l_black"]) if axis is not None
+                  and axis.get("l_black") is not None
+                  else float(model.predict(np.ones((1, n)))[0, 0]))
+        if os.environ.get("CHROMIQ_A69_DUMP"):
+            import pickle
+            with open(os.environ["CHROMIQ_A69_DUMP"], "wb") as _fh:
+                pickle.dump({"model": model, "node_lab": node_lab,
+                             "dev_clut": dev_clut, "residual": residual,
+                             "shaped": dev_clut_shaped, "grid": b2a_grid,
+                             "ink_limit": ink_limit,
+                             "channel_max": channel_max, "l_min": _l_min},
+                            _fh)
+        _pern = _a69m["pernode"]
+        _pure, _a69i = _a69.colprof_table(
+            model, node_lab, dev_clut, residual, ink_limit=ink_limit,
+            channel_max=channel_max, l_min=_l_min,
+            ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
+            progress=lambda m: _emit(settings, m))
+        _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
+        if channel_max is not None:
+            _pure_s = np.minimum(_pure_s, model.shape_device(
+                channel_max[None, :]))
+        if ((_a69m["grid17"] or _a69m["in17"])
+                and (b2a_grid - 1) % 16 == 0):
+            _st = (b2a_grid - 1) // 16
+            _up = _a69.upsample(_pure_s.reshape(
+                b2a_grid, b2a_grid, b2a_grid, n)[::_st, ::_st, ::_st]
+                .reshape(-1, n), 17, b2a_grid)
+            if _a69m["in17"]:
+                # the fine grid where the node is printable, colprof's
+                # 17 grid where it clipped (a58 keep-grid33in, for CMYK)
+                _u = np.clip(np.asarray(residual, float) / float(
+                    os.environ.get("CHROMIQ_A69_BAND", "2.0")), 0.0, 1.0)
+                _w = (_u * _u * (3.0 - 2.0 * _u))[:, None]
+                _pure_s = (1.0 - _w) * _pure_s + _w * _up
+            else:
+                _pure_s = _up
+        if _a69m["dark"]:
+            _w = _a69.dark_weight(node_lab, _l_min)[:, None]
+            dev_clut_shaped = (1.0 - _w) * dev_clut_shaped + _w * _pure_s
+        else:
+            dev_clut_shaped = _pure_s
+        _emit(settings, f"Colorimetric table: colprof's CMYK recipe "
+                        f"(research a69-cmykport; {_a69i['inside']} nodes "
+                        f"on the K rule, {_a69i['clipped']} clipped, "
+                        f"K curve from L* {_l_min:.1f}).")
     # The B2A half of the white pin (see _pin_media_white for the A2B half),
     # and the black corner: L*=0 → the chart's deepest measured black.
     # Agent 59 (a59-pernodeout): the coarse (clipped) half of keep-grid33in
@@ -1775,7 +1831,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         device_black = dev_clut[black_node].copy()
     if channel_max is not None:
         device_black = np.minimum(device_black, channel_max)
-    if _a58k("black"):
+    if _a58k("black") and (_a69m is None or _a69m["keepblack"]):
         # (Agent 58: colprof pins no black into an RGB B2A1; xlut.c:3443-
         # 3447 uses RGB 0 only as the perceptual black point)
         dev_clut_shaped = b2a_mod.pin_black_node(
