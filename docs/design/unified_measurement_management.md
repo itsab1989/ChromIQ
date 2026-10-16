@@ -8749,15 +8749,27 @@ A test that is not triggered (—) does not count: the other test alone decides.
 **Confirmed by:** Basti, 2026-10-15 (his decision on #210: *"Slipped strip can't confirm"*).
 
 * A reading from a strip the misalignment safety net flagged (the engine's `"misaligned"` in the strip_read event) was read a patch or two out, so it is a reading of another patch. The judge keeps that on the reading (`FlagJudge.judge(slipped=True)`, `_Reading.slipped`) and leaves it out of every confirmation: no re-read is compared with it (a later reading the net did NOT flag that gives the same colour stays red, and a slip that repeats an earlier reading or another slip is not a re-read), it is nobody's similar patch for either test and has none (12.1), it is never Y-learn and teaches no range, and a clean slipped reading turns nothing green. It is red for every test it triggers. An earlier re-read confirmation is not forgotten by a slipped reading, but does not vouch for it while it is the patch's last reading. Ordinary identical re-reads still confirm. Tests: `tests/test_210_a_slipped_reading_confirms_nothing_in_the_judge.py`, `tests/test_210_a_slipped_strip_never_confirms.py`.
+
+#### ⏳ Awaiting confirmation: a slipped reading is remembered after the session (#210, 4.3.5 beta 9)
+
+**Confirmed by:** *nobody yet.* (It carries out the confirmed rule above after a session ends; the way it does so has not been confirmed.)
+
 * **Remembered after the session (4.3.5 beta 9).** A slipped reading stays slipped once the session ends. The memory beside the measurement (`<stem>.confirmed.json`, valid only for the `.ti3` whose SHA-256 it holds) lists the patches whose stored reading came from a slipped strip under `"slipped"`, and an unsettled patch's earlier readings carry their own `"slipped": true`. When the measurement is reopened or a session resumes it, those stored readings are judged as slipped again, exactly as in the session: a later reading with the same colour, flagged or not, is not a re-read of them and cannot confirm against them. A reading of the patch that the safety net does not flag replaces the slipped one, and from then on the patch is judged normally. A memory written before 4.3.5 beta 9 has no `"slipped"` and is read as before (nothing slipped). `workflow/confirmed_patches.py`, `TabMeasure._load_confirmed_memory` / `_save_confirmed_memory`; `tests/test_210_a_slipped_reading_is_remembered_after_the_session.py`.
 
 #### Confirmed behaviour: a Preferences change during a measurement
 
 **Confirmed by:** Basti, 2026-10-16 (item 11 of the beta 8 regression review: *"11 is ok"*).
 
-* A patch error limit, neighbour limit, colour-neighbour radius or same-reading tolerance changed in Preferences ▸ Measurement **while a measurement is running** takes effect from the next strip (patch by patch: the next patch) read: the outlines and cards already on the preview stay as they were until then, and from that reading on the patches are judged with the new values (12.4, T9). The neighbour check's own on/off switch is the exception and applies at once, in a session too (k44). `MainWindow` calls `TabMeasure.refresh_patch_flags` when Preferences closes with OK; during a session it repaints nothing and the judge reads the current values at the next reading.
+* The same-reading tolerance changed in Preferences ▸ Measurement **while a measurement is running** takes effect from the next strip (patch by patch: the next patch) read: the outlines and cards already on the preview stay as they were until then, and from that reading on the patches are judged with the new values (12.4, T9). `MainWindow` calls `TabMeasure.refresh_patch_flags` when Preferences closes with OK; during a session it repaints nothing and the judge reads the current values at the next reading.
 * Changed **after the measurement**, with the measurement shown from disk, the change judges every patch again at once.
 * Measured on screen in the regression review of 4.3.5 beta 8 (`~/Desktop/ChromIQ-work/2026-10-16_b8_regression/`, cases E07-live and E07-tol): the tolerance lowered from 3 to 2 during a session left A1 yellow until the next strip, which turned it red; from disk the same change turned it red at once.
+
+#### ⏳ Awaiting confirmation: the other measurement limits during a measurement
+
+**Confirmed by:** *nobody yet.*
+
+* The patch error limit, the neighbour limit and the colour-neighbour radius go through the same path as the tolerance above (`MainWindow` → `TabMeasure.refresh_patch_flags`, which repaints nothing during a session; the judge reads the current values at the next reading), so they too take effect from the next strip (patch by patch: the next patch). Only the tolerance was measured on screen and agreed (item 11 of the beta 8 regression review).
+* The neighbour check's own on/off switch is the exception and applies at once, in a session too (k44, awaiting confirmation in the k43/k44 section above).
 
 ## 11. Check & Refine: what is offered for re-measuring, and a strip read twice (#182)
 
