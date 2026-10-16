@@ -3740,9 +3740,6 @@ class Project:
                         new_stem, exc_info=True)
 
     # ---- run access
-    def run(self, run_id: str) -> Run:
-        return Run(self, run_id)
-
     def current_run(self) -> Run:
         return Run(self, self._manifest.current_run)
 

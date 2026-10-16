@@ -1411,10 +1411,6 @@ class MeasurementTargetBar(QWidget):
                             QEvent.Type.PaletteChange):
             self._fit_widths(getattr(self, "_last_labels", ()))
 
-    def showEvent(self, event) -> None:         # noqa: N802
-        super().showEvent(event)
-        self._fit_widths(getattr(self, "_last_labels", ()))
-
     #: How narrow a box may be squeezed when the rail cannot hold the row at
     #: its comfortable width. Elided text is a poor second best — but it is far
     #: better than boxes climbing over each other, or over the version.
@@ -2317,6 +2313,12 @@ class MeasurementTargetBar(QWidget):
 
         ``showEvent`` runs after polish and before the first paint, so the
         numbers are right the first time they are drawn.
+
+        Every later show re-measures too (dup1, beta 9): this class used to
+        define ``showEvent`` twice, and the first definition, which re-fitted
+        on EVERY show (#130, 2026-07-26, "stays that width" on a later visit),
+        was silently replaced by this one, which only fitted once. Both are
+        kept: the polish and the pin the first time, the fit every time.
         """
         super().showEvent(event)
         if not getattr(self, "_fitted_on_show", False):
@@ -2324,13 +2326,22 @@ class MeasurementTargetBar(QWidget):
             self.ensurePolished()
             self._fit_widths(getattr(self, "_last_labels", ()))
             self._pin_row_when_alone()
+        else:
+            self._fit_widths(getattr(self, "_last_labels", ()))
 
     def resizeEvent(self, event) -> None:      # noqa: N802
         """Re-pin when the width changes — the hint wraps differently, so the
-        height it needs changes with it."""
+        height it needs changes with it — and re-elide the location line.
+
+        This was two methods of the same name (dup1, beta 9): the second, the
+        location line's, replaced the first, so the re-pin never ran from
+        August 5 on. ``_pin_row_when_alone`` counts on it: it skips a pass
+        while the hint has no width yet and leaves the pin to "the next one,
+        a resize"."""
         super().resizeEvent(event)
         if event.oldSize().width() != event.size().width():
             self._pin_row_when_alone()
+        self._apply_location_text()
 
     def _apply_hint_text(self) -> None:
         """Say what can be done from here, which depends on the preference.
@@ -2448,10 +2459,6 @@ class MeasurementTargetBar(QWidget):
                                                  room))
         else:
             self._location.setText(full)
-
-    def resizeEvent(self, event) -> None:      # noqa: N802
-        super().resizeEvent(event)
-        self._apply_location_text()
 
     # ---- rebuild the run + verification lists from the project -----------
     def refresh(self) -> None:

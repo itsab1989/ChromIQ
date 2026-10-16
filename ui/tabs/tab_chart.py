@@ -12810,16 +12810,6 @@ class TabChart(QWidget):
             "regenerate."
         )
 
-    def _tc918_tooltip(self) -> str:
-        """Tooltip text for the ti1-based TC9.18 built-in preset."""
-        return (
-            "Built-in chart — cannot be deleted.\n"
-            "Loads the fixed TC9.18 patch set and lays it out with\n"
-            "printtarg -ii1 -pA4 -t300 -L -m12 -M12 -b, then creates the\n"
-            "target right away. You can adjust any setting afterwards and\n"
-            "regenerate."
-        )
-
     def _munki_tooltip(self, patches: int, white: int, black: int, grey: int) -> str:
         """Tooltip text for a ColorMunki built-in preset."""
         return (
