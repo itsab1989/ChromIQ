@@ -513,3 +513,101 @@ def test_the_engine_files_it_after_a_misread_of_the_next_strip(tmp_path):
     locs = list(parse_ti3(base.with_suffix(".ti3")).sample_locs)
     assert not [x for x in locs if x.startswith(c)]
     assert len([x for x in locs if x.startswith(b)]) > 0
+
+
+# ---- k85 (beta 9): the move decides the swipe's direction again, against B --
+#
+# The engine decides a swipe's direction while the reader is on C. On a
+# fixed-order chart it only looks for a backward swipe when C reads
+# differently both ways (cq_bidi_ok), so a C that reads alike both ways never
+# asks, and B swiped backwards there was moved onto B backwards: measured on
+# the replay instrument, dE 85 against B's colours, where the same swipe
+# with the reader on B came out at 0. The move now mirrors the row when B's
+# colours fit the mirrored order better, under the rule a reading taken on B
+# would get (cq_orient_moved_row).
+
+def _make_strip_read_alike_both_ways(ti2: Path, strip: str) -> None:
+    """Rewrite *strip*'s expected colours in *ti2* so it reads the same
+    forwards and backwards (its second half mirrors its first)."""
+    import re
+    text = ti2.read_text(encoding="latin-1").splitlines()
+    fields, in_fmt, in_data, recs = [], False, False, []
+    for i, ln in enumerate(text):
+        s = ln.strip()
+        if s == "BEGIN_DATA_FORMAT":
+            in_fmt = True
+        elif s == "END_DATA_FORMAT":
+            in_fmt = False
+        elif in_fmt:
+            fields += s.split()
+        elif s == "BEGIN_DATA":
+            in_data = True
+        elif s == "END_DATA":
+            in_data = False
+        elif in_data and s:
+            recs.append(i)
+    ix = {f: n for n, f in enumerate(fields)}
+    rows = {}
+    for i in recs:
+        v = text[i].split()
+        loc = v[ix["SAMPLE_LOC"]].strip('"')
+        if re.fullmatch(rf"{strip}\d+", loc):
+            rows[int(loc[len(strip):])] = (i, v)
+    n = max(rows)
+    for k in range(1, n // 2 + 1):
+        src = rows[k][1]
+        i, v = rows[n + 1 - k]
+        for f in ("XYZ_X", "XYZ_Y", "XYZ_Z", "RGB_R", "RGB_G", "RGB_B"):
+            if f in ix:
+                v[ix[f]] = src[ix[f]]
+        text[i] = " ".join(v)
+    ti2.write_text("\n".join(text) + "\n", encoding="latin-1")
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not HELPER.exists(),
+                    reason="chromiq-chartread helper not built")
+@pytest.mark.parametrize("backwards", [False, True],
+                         ids=["forwards", "backwards"])
+def test_a_backward_swipe_of_b_lands_on_b_the_right_way_round(tmp_path,
+                                                              backwards):
+    from workflow.layout_engine.chart import build_chart
+    from workflow.ti3_analysis import parse_ti3
+    targen = shutil.which("targen") or "/Applications/Argyll/bin/targen"
+    if not Path(targen).exists():
+        pytest.skip("Argyll targen not available")
+    base = tmp_path / "chart"
+    subprocess.run([targen, "-v0", "-d2", "-G", "-f120", str(base)],
+                   check=True, capture_output=True, cwd=tmp_path, timeout=120)
+    build_chart(base.with_suffix(".ti1"), base, instrument="i1", paper="A4",
+                randomize=False)
+    _make_strip_read_alike_both_ways(base.with_suffix(".ti2"), "C")
+    replay = tmp_path / "replay.txt"
+    write_replay_script(base.with_suffix(".ti2"), replay)
+    s = ReplaySession(base, replay, ["-S"])
+    try:
+        s.wait_event("session_start", timeout=60)
+        for cmd in ({"cmd": "goto", "strip": "B"}, {"cmd": "swipe"},
+                    {"cmd": "goto", "strip": "C"},
+                    {"cmd": "swipe", "as": "B", "reversed": backwards}):
+            i = s.event_index()
+            s.send(**cmd)
+            if cmd["cmd"] == "swipe":
+                s.wait_event("strip_read", after=i, timeout=60)
+            s.wait_event("strip_ready", after=i, timeout=60)
+        i = s.event_index()
+        s.send(cmd="file_as", strip="C", **{"as": "B"})
+        moved = s.wait_event("strip_filed_as", after=i, timeout=60)
+        s.wait_event("strip_ready", after=i, strip="C", timeout=60)
+    finally:
+        s.proc.kill()
+        s.finish()
+    worst = max(p["de"] for p in moved["patches"])
+    assert worst < 0.5, (
+        f"B's reading landed on B {'mirrored' if backwards else 'shifted'}: "
+        f"worst patch {worst} from B's colours")
+    data = parse_ti3(base.with_suffix(".ti3"))
+    by_loc = dict(zip(data.sample_locs, data.xyz.tolist()))
+    for p in moved["patches"]:
+        if p["loc"] in by_loc:
+            assert by_loc[p["loc"]] == pytest.approx(p["xyz"], abs=1e-3)

@@ -644,6 +644,58 @@ static void cq_move_row(chcol **scols, int stipa, int fr, int to) {
 	}
 }
 
+/* k85 (4.3.5 beta 9): "I read strip B" when B was swiped BACKWARDS with the
+ * reader on C. The direction of a swipe is decided while the reader is on C,
+ * and on a fixed-order chart it is looked for only when C reads differently
+ * both ways (cq_bidi_ok): a strip C that reads alike both ways never asks,
+ * so B's backward reading was filed as it came and moved onto B backwards
+ * (measured on the replay instrument: dE 85 against B's colours, 0 when the
+ * same swipe was taken with the reader on B). The move decides the direction
+ * again, against B, under the same rule a reading taken on B would get:
+ * mirrored when the instrument reads both ways, recognition is not switched
+ * off, the chart allows it for B, and B's colours fit the mirrored order
+ * better. Returns 1 when it mirrored the row. */
+static double cq_row_mean_de(chcol **scols, int stipa, int to, int rev) {
+	double sum = 0.0;
+	int i, n = 0;
+	for (i = 0; i < stipa; i++) {
+		chcol *m = scols[to * stipa + (rev ? stipa - 1 - i : i)];
+		chcol *e = scols[to * stipa + i];
+		if (!m->rr)
+			continue;
+		sum += xyzLabDE(1.0, m->XYZ, e->eXYZ);
+		n++;
+	}
+	return n > 0 ? sum / (double)n : 0.0;
+}
+
+static int cq_orient_moved_row(chcol **scols, int stipa, int to, int may_flip) {
+	int i, j;
+	double fwd, rev;
+	if (!may_flip)
+		return 0;
+	fwd = cq_row_mean_de(scols, stipa, to, 0);
+	rev = cq_row_mean_de(scols, stipa, to, 1);
+	if (!(rev < fwd))
+		return 0;
+	for (i = 0; i < stipa / 2; i++) {
+		chcol *a = scols[to * stipa + i], *b = scols[to * stipa + stipa - 1 - i];
+		double t3[3];
+		xspect tsp;
+		inst_meas_type tm;
+		inst_meas_cond tc;
+		int tr;
+		for (j = 0; j < 3; j++) {
+			t3[j] = a->XYZ[j]; a->XYZ[j] = b->XYZ[j]; b->XYZ[j] = t3[j];
+		}
+		tsp = a->sp; a->sp = b->sp; b->sp = tsp;
+		tm = a->mtype; a->mtype = b->mtype; b->mtype = tm;
+		tc = a->mcond; a->mcond = b->mcond; b->mcond = tc;
+		tr = a->rr; a->rr = b->rr; b->rr = tr;
+	}
+	return 1;
+}
+
 /* The strip a file_as moved, with its patches under their new locations:
  * the same per-patch schema as strip_read, so the GUI judges it as a
  * reading of that strip. */
@@ -2430,6 +2482,12 @@ a1log *log			/* verb, debug & error log */
 								 && cq_row_read(scols, stipa, fr)) {
 									int acc = 0;
 									cq_move_row(scols, stipa, fr, to);
+									/* k85: the direction, decided again
+									 * against B (see cq_orient_moved_row). */
+									cq_orient_moved_row(scols, stipa, to,
+									    (cap2 & inst2_bidi_scan)
+									    && (((rand && disbidi == 0) || disbidi == 2)
+									        || (!rand && disbidi == 0 && cq_bidi_ok(to))));
 									cq_emit_strip_filed_as(&scols[to * stipa],
 									    stipa, cq_file_to, cq_file_from);
 									cq_write_ti3_atomic();
