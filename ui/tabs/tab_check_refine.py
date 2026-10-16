@@ -1888,9 +1888,19 @@ class TabCheckRefine(QWidget):
         # is grouped and ordered by ITS strips, not by the letters in "12C".
         from workflow.layout_engine.labels import labels_for_measurement
         labels = labels_for_measurement(self._ti3_path)
-        return build_plan(parse_patches(result.raw_log, result.patch_errors,
+        plan = build_plan(parse_patches(result.raw_log, result.patch_errors,
                                         labels),
                           threshold, de, labels)
+        # #211: every reading is counted, never merged by location; say in
+        # the log when the locations cannot name one patch each.
+        if plan.shared_locations or plan.no_location:
+            log.warning(
+                "Check & Refine: %d patches checked; %d locations name more "
+                "than one patch (their patches are all counted, grouped by "
+                "strip letter, never merged) and %d patches have no location "
+                "(counted, in no strip)",
+                plan.n_total, plan.shared_locations, plan.no_location)
+        return plan
 
     @staticmethod
     def _report_summary_text(result, plan: RefinePlan) -> str:

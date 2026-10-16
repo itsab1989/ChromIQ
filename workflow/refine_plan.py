@@ -65,8 +65,12 @@ BLEND_T = (0.15, 0.92)
 BLEND_MAX_OFF = 0.25
 
 #: profcheck -v2: "[de] n @ LOC: <device> -> <profile Lab> should be <measured Lab>"
+#: One patch line of profcheck -v2: "[ΔE] <SAMPLE_ID> @ <SAMPLE_LOC>: ...",
+#: the " @ <SAMPLE_LOC>" left out when the file has no locations
+#: (profcheck.c 1189). Groups: ΔE, id, location (or None).
+_ROW = re.compile(r"^\s*\[([\d.]+)\]\s+([^\s:]+)(?:\s+@\s+([^\s:]+))?:")
 _PATCH_LINE = re.compile(
-    r"^\s*\[([\d.]+)\]\s+\d+\s+@\s+([^\s:]+):\s+[^>]*->\s+"
+    r"^\s*\[([\d.]+)\]\s+([^\s:]+)(?:\s+@\s+([^\s:]+))?:\s+[^>]*->\s+"
     r"(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+should be\s+"
     r"(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*$")
 _LOC = re.compile(r"^([A-Za-z]+)(\d+)$")
@@ -134,6 +138,7 @@ class Patch:
     pred: "tuple[float, float, float] | None" = None   # what the profile predicts
     meas: "tuple[float, float, float] | None" = None   # what was measured
     sidx: "int | None" = None  # 0-based strip, when the chart's labels say
+    sid: str = ""   # the reading's SAMPLE_ID, as profcheck printed it
 
 
 def _split_loc(loc: str, labels=None) -> "tuple[str, int | None]":
@@ -155,29 +160,56 @@ def _split_loc(loc: str, labels=None) -> "tuple[str, int | None]":
 def parse_patches(log_text: str,
                   patch_errors: "list[tuple[str, float]] | None" = None,
                   labels=None) -> "list[Patch]":
-    """Every patch of a profcheck -v2 output, split lines mended first.
+    """Every patch of a profcheck -v2 output, split lines mended first: ONE
+    Patch PER LINE profcheck printed, in its order.
 
-    *patch_errors* (``ProfcheckResult.patch_errors``) is the fallback for a
-    patch whose colours could not be read: the rules that need only the error
-    still apply to it.
+    #211: a measurement converted from i1Profiler can name its 1,680 patches
+    A1 … T21 on each of four pages, so a location repeats. Keyed by
+    location, the check kept the last of each and the window said "2 of 420
+    patches" for 1,680 readings. Nothing here merges two readings because
+    they share a location, and a reading without one (a file with no
+    SAMPLE_LOC: profcheck then prints no " @ ") is a patch all the same,
+    with no strip.
+
+    *patch_errors* (``ProfcheckResult.patch_errors``) is used only when the
+    output holds no patch line (a caller with the errors alone): one patch
+    per entry, again never merged.
     """
-    out: "dict[str, Patch]" = {}
+    out: "list[Patch]" = []
     for line in mend_split_lines(log_text or "").splitlines():
-        m = _PATCH_LINE.match(line)
-        if not m:
+        r = _ROW.match(line)
+        if not r:
             continue
-        loc = m.group(2)
-        strip, pos = _split_loc(loc, labels)
-        v = [float(x) for x in m.groups()[2:]]
-        out[loc] = Patch(loc, float(m.group(1)), strip, pos,
-                         (v[0], v[1], v[2]), (v[3], v[4], v[5]),
-                         _strip_number(strip, labels))
+        loc = r.group(3) or ""
+        strip, pos = _split_loc(loc, labels) if loc else ("", None)
+        sidx = _strip_number(strip, labels) if loc else None
+        m = _PATCH_LINE.match(line)
+        if m:
+            v = [float(x) for x in m.groups()[3:]]
+            out.append(Patch(loc, float(r.group(1)), strip, pos,
+                             (v[0], v[1], v[2]), (v[3], v[4], v[5]), sidx,
+                             r.group(2)))
+        else:
+            out.append(Patch(loc, float(r.group(1)), strip, pos, sidx=sidx,
+                             sid=r.group(2)))
+    if out:
+        return out
     for loc, de in patch_errors or ():
-        if loc not in out:
-            strip, pos = _split_loc(loc, labels)
-            out[loc] = Patch(loc, float(de), strip, pos,
-                             sidx=_strip_number(strip, labels))
-    return list(out.values())
+        strip, pos = _split_loc(loc, labels)
+        out.append(Patch(loc, float(de), strip, pos,
+                         sidx=_strip_number(strip, labels)))
+    return out
+
+
+def shared_locations(patches: "list[Patch]") -> "set[str]":
+    """The locations more than one patch of the check is filed under (#211):
+    on such a measurement a location does not name one patch."""
+    seen: "set[str]" = set()
+    twice: "set[str]" = set()
+    for p in patches:
+        if p.loc:
+            (twice if p.loc in seen else seen).add(p.loc)
+    return twice
 
 
 def _strip_number(strip: str, labels=None) -> int:
@@ -284,6 +316,10 @@ class RefinePlan:
     #: #211: every strip's patches above the limit, as the check found them
     #: (the per-patch data guided refinement walks in patch-by-patch mode).
     over_patches: "dict[str, list[Patch]]" = field(default_factory=dict)
+    #: #211: how many locations hold more than one patch, and how many
+    #: patches have no location (both 0 on a chart ChromIQ made).
+    shared_locations: int = 0
+    no_location: int = 0
 
     @property
     def offered(self) -> "list[StripAdvice]":
@@ -340,10 +376,18 @@ def build_plan(patches: "list[Patch]", threshold: float,
     plan = RefinePlan(threshold, len(patches), n_over, limit,
                       recommends_start_over(n_over, len(patches)), de_name,
                       labels=labels)
-    by_loc = {p.loc: p for p in patches}
+    # A neighbour is looked up by location, so only a location that names
+    # ONE patch may be used for it (#211: never another page's patch).
+    shared = shared_locations(patches)
+    plan.shared_locations = len(shared)
+    plan.no_location = sum(1 for p in patches if not p.loc)
+    by_loc = {p.loc: p for p in patches if p.loc and p.loc not in shared}
     strips: "dict[str, list[Patch]]" = {}
     for p in patches:
         if p.de <= threshold:
+            continue
+        if not p.loc:
+            # counted above, but with no location it is in no strip
             continue
         # NO "confirmed" EXCEPTION (Knut, #182 5980560281): a patch the
         # Measure tab outlines yellow is offered like any other above the limit.
@@ -354,6 +398,8 @@ def build_plan(patches: "list[Patch]", threshold: float,
         worst = over[0]
         advice = None
         for p in over:                          # worst first within the strip
+            if p.loc in shared:
+                continue                        # its place names no one patch
             partner = blend_partner(p, by_loc, labels)
             if partner:
                 advice = StripAdvice(strip, BLEND, p.loc, p.de, len(over),

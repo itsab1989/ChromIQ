@@ -810,13 +810,24 @@ def accuracy_vs_reference(data: Ti3Data,
 
 def accuracy_from_profcheck(data: Ti3Data,
                             patch_errors: list[tuple[str, float]],
+                            patch_rows: "list[tuple[str, str, float]] | None" = None,
                             ) -> AccuracyResult | None:
     """Bucket profcheck's per-patch (id, ΔE) errors by measured hue.
 
     profcheck already ran the device values through the profile and compared to
     the measurement; we only re-organise its numbers into the neutral/6-hue view.
     profcheck identifies patches by SAMPLE_LOC, so match on that first and fall
-    back to SAMPLE_ID for files without locations."""
+    back to SAMPLE_ID for files without locations.
+
+    #211: when the file's locations repeat (a converted measurement whose
+    pages share A1 … T21) a location names several patches, and keyed by it
+    every patch of the location would get one page's error. Then, with
+    *patch_rows* (``ProfcheckResult.patch_rows``), every patch is matched by
+    its SAMPLE_ID instead."""
+    locs = [str(x) for x in (data.sample_locs or [])]
+    if patch_rows and len(set(locs)) != len(locs):
+        by_sid = {sid: de for sid, _loc, de in patch_rows}
+        return _build_accuracy(data, by_sid, "profile", data.sample_ids)
     des = {pid: de for pid, de in patch_errors}
     res = _build_accuracy(data, des, "profile", data.sample_locs)
     if res is None:

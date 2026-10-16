@@ -19,7 +19,10 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _SUMMARY_RE   = re.compile(r"max\.\s*=\s*([\d.]+).*?avg\.\s*=\s*([\d.]+)", re.IGNORECASE)
-_PATCH_RE     = re.compile(r"^\s*\[([\d.]+)\]\s+\d+\s+@\s+([^\s:]+):", re.MULTILINE)
+#: "[ΔE] <SAMPLE_ID> @ <SAMPLE_LOC>:", or "[ΔE] <SAMPLE_ID>:" for a file
+#: without locations (profcheck.c 1189). Groups: ΔE, id, location or None.
+_PATCH_RE     = re.compile(r"^\s*\[([\d.]+)\]\s+([^\s:]+)(?:\s+@\s+([^\s:]+))?:",
+                           re.MULTILINE)
 _STRIP_LETTER = re.compile(r"^([A-Za-z]+)")
 
 
@@ -101,6 +104,8 @@ class ProfcheckResult:
     avg_de: float | None = None
     peak_de: float | None = None
     patch_errors: list[tuple[str, float]] = field(default_factory=list)
+    #: (SAMPLE_ID, SAMPLE_LOC or "", ΔE) per line, in profcheck's order
+    patch_rows: list[tuple[str, str, float]] = field(default_factory=list)
     raw_log: str = ""
 
 
@@ -240,10 +245,15 @@ class ProfcheckRunner:
             result.peak_de = float(m.group(1))
             result.avg_de  = float(m.group(2))
 
+        # One entry per line profcheck printed, never merged by location
+        # (#211: a converted measurement can file four pages' patches under
+        # the same A1 … T21). A reading without a location is named by its
+        # SAMPLE_ID, as profcheck names it.
         for m in _PATCH_RE.finditer(text):
             de_val   = float(m.group(1))
-            patch_id = m.group(2)
-            result.patch_errors.append((patch_id, de_val))
+            loc = m.group(3) or ""
+            result.patch_errors.append((loc or m.group(2), de_val))
+            result.patch_rows.append((m.group(2), loc, de_val))
 
         return result
 
@@ -407,6 +417,8 @@ def strips_to_refine(
     sorted in chartread order (A, B … Z, AA, AB …) for forward-only navigation."""
     strip_max: dict[str, float] = {}
     for patch_id, de in patch_errors:
+        if patch_id.isdigit():
+            continue        # a reading named by its SAMPLE_ID: no strip
         m = _STRIP_LETTER.match(patch_id)
         letter = m.group(1).upper() if m else patch_id.upper()
         if de > threshold:
@@ -418,6 +430,8 @@ def total_strip_count(patch_errors: list[tuple[str, float]]) -> int:
     """Count the total number of distinct strips present in the measurement data."""
     strips: set[str] = set()
     for patch_id, _ in patch_errors:
+        if patch_id.isdigit():
+            continue        # a reading named by its SAMPLE_ID: no strip
         m = _STRIP_LETTER.match(patch_id)
         strips.add(m.group(1).upper() if m else patch_id.upper())
     return len(strips)
@@ -521,7 +535,9 @@ def parse_refine_patches(path: Path) -> "list[str]":
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith(PATCH_LINE_PREFIX):
             loc = line[len(PATCH_LINE_PREFIX):].split("\t")[0].strip()
-            if loc:
+            # A location listed twice (#211: a measurement whose pages share
+            # their locations) is one place to go to, visited once.
+            if loc and loc not in out:
                 out.append(loc)
     return out
 

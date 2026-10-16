@@ -509,7 +509,7 @@ class Ti3InfoDialog(QDialog):
             res = self._pc_runner.parse_results()
             if res.patch_errors:
                 self._accuracy = accuracy_from_profcheck(
-                    self._analysis.data, res.patch_errors)
+                    self._analysis.data, res.patch_errors, res.patch_rows)
                 self._accuracy_msg = ""
             else:
                 fail = self._pc_runner.primary_failure()
