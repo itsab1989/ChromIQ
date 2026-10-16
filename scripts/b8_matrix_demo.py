@@ -1160,6 +1160,31 @@ def scenarios() -> "list[dict]":  # noqa: C901 — a table, one entry per case
          chk(4, "C9", "yellow", lt.row4("C9", DE(again(U)), 20, rng="orange", k=1,
                                         locs=["C9"]), [RED_], pe="y")],
         mode="later"))
+    # ---- #210, 4.3.5 beta 9: a slipped reading is remembered -------------------
+    # A1 read past the limit, then strip A read again and the misalignment
+    # safety net flags it ({"misaligned": 1} in the event): the slip repeats
+    # the colour but confirms nothing. The session ends with the slipped
+    # reading in the file; a resumed session reads strip A once, cleanly, with
+    # the same colour: still red (in the session it would be); a second clean
+    # reading agrees with the first and confirms it (row 4).
+    L.append(S("E10", "a slipped reading stays slipped after the session "
+               "(resume)", [
+        ("strip", "A", {"A1": U}),
+        ("strip", "A", {"A1": again(U)}, {"misaligned": 1})],
+        [chk(2, "A1", "red", c.row2("A1", DE(again(U))), [YEL], pe="y",
+             nb="n", note="in the session, after the slipped re-read")],
+        disk=True, after=[
+            ("resume",),
+            ("expect", chk(2, "A1", "red", c.row2("A1", DE(again(U))), [YEL],
+                           note="resumed: the stored slipped reading, red")),
+            ("strip", "A", {"A1": again(U)}),
+            ("expect", chk(2, "A1", "red", c.row2("A1", DE(again(U))), [YEL],
+                           note="first clean reading, the slip's colour: red")),
+            ("strip", "A", {"A1": again(U)}),
+            ("expect", chk(4, "A1", "yellow",
+                           c.row4("A1", DE(again(U)), DE(again(U)), k=1,
+                                  locs=["A1"]), [RED_],
+                           note="second clean reading agrees: yellow"))]))
     # ---- light and dark --------------------------------------------------------
     L.append(S("D-light", "appearance light: red, yellow (re-read, similar, "
                "learned) and green outlines", learn_by_reread + [

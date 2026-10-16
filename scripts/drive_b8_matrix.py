@@ -539,6 +539,38 @@ class Driver:
         res["ok"] = not res["missing"] and not res["unexpected"]
         return res
 
+    def emit_strip(self, st) -> None:
+        """One strip read: ("strip", letter, readings[, event extras]); the
+        extras (e.g. {"misaligned": 1}, the engine's safety net, #210) go
+        into the strip_read event as the engine puts them there."""
+        ev = {"strip": st[1],
+              "patches": [self.reading(loc, err) for loc, err in st[2].items()]}
+        if len(st) > 3:
+            ev.update(st[3])
+        self.mt._manager.strip_measured.emit(ev)
+        pump(self.app, 150)
+
+    def resume(self, sc) -> None:
+        """The session ends with its file and memory written, and a new one
+        resumes that measurement (Refine / resume): the tab's own session
+        start, `_on_session_map` with `_session_resumes`, which loads the
+        memory and repaints the stored readings."""
+        self.end_with_file(sc)
+        mt = self.mt
+        mt._session_live = False
+        pump(self.app, 200)
+        self.views_on()
+        mt._session_resumes = True
+        mt._strips_read_again = []
+        mt._session_live = True
+        mt._live_expected = self.le
+        mt._manager.session_map.emit([{"strip": s, "read": True,
+                                       "verifiable": True}
+                                      for s in demo.STRIPS])
+        pump(self.app, 800)
+        log(f"  session resumed: slipped from the memory "
+            f"{sorted(getattr(mt, '_slipped_locs', ()))[:8]}")
+
     # ---- one scenario ------------------------------------------------------------
     def run(self, sc) -> dict:
         log(f"== {sc['id']}: {sc['title']}")
@@ -556,11 +588,7 @@ class Driver:
             staged.setdefault(m.group(1) if m else "", []).append(ck)
         for st in sc["steps"]:
             if st[0] == "strip":
-                mt._manager.strip_measured.emit(
-                    {"strip": st[1],
-                     "patches": [self.reading(loc, err)
-                                 for loc, err in st[2].items()]})
-                pump(self.app, 150)
+                self.emit_strip(st)
             elif st[0] == "patch":
                 mt._manager.patch_measured.emit(self.reading(st[1], st[2]))
                 pump(self.app, 150)
@@ -584,7 +612,11 @@ class Driver:
                                                       sc["summary"])
             log(f"  summary: {res['summary_check']}")
         for st in sc.get("after", []):
-            if st[0] == "end":
+            if st[0] == "resume":
+                self.resume(sc)
+            elif st[0] == "strip":
+                self.emit_strip(st)
+            elif st[0] == "end":
                 self.end_with_file(sc)
                 mt._session_live = False
                 pump(self.app, 200)
