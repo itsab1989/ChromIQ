@@ -7423,6 +7423,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # What "Was a strip read twice?" asked during this measurement, for
         # its closing window (#182 beta 11).
         self._read_twice_log = []
+        # …and which "I read strip B" answers the engine really carried out
+        # (strip_filed_as), as (from, to): only those are "counted as B" in
+        # the closing summary (k85, beta 9).
+        self._read_twice_filed = []
         # Strips the person read again on purpose (moved the reader back to
         # a strip already read and read it), for the closing summary (Knut,
         # #182 6103148331: "Strip read twice: none found" read as wrong after
@@ -8279,6 +8283,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         check, the yellow and green memory, the outlines and the cards). The
         strip it came off was cleared when the answer came
         (``_release_read_twice_hold``) and is unread until it is read."""
+        # The move HAPPENED: only now may the closing summary say the reading
+        # was counted as B (k85, beta 9). Recorded before the live check, so
+        # a move the engine made as the session closed is not lost.
+        try:
+            self._read_twice_filed = list(
+                getattr(self, "_read_twice_filed", []) or [])
+            self._read_twice_filed.append(
+                (str(ev.get("filed_from", "")), str(ev.get("strip", ""))))
+        except Exception:      # noqa: BLE001 — a summary never blocks a read
+            pass
         if not getattr(self, "_session_live", False):
             return
         try:
@@ -15597,11 +15611,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     n=len(again), list=", ".join(again)))
             if self._read_twice_was_active():
                 log_ = list(getattr(self, "_read_twice_log", []) or [])
+                # "Counted as B" only when the engine really moved the
+                # reading (k85, beta 9): an engine built before 4.3.5, a
+                # refused move, or one still waiting for the engine's strip
+                # menu leaves the reading set aside, and the line says so.
+                filed = list(getattr(self, "_read_twice_filed", []) or [])
                 items = []
                 for strip, like, choice in log_:
-                    key = {"reread": M._SUM_TWICE_REREAD,
-                           "was_like": M._SUM_TWICE_WAS_LIKE}.get(
-                               choice, M._SUM_TWICE_KEPT)
+                    if choice == "was_like":
+                        if (strip, like) in filed:
+                            filed.remove((strip, like))
+                            key = M._SUM_TWICE_WAS_LIKE
+                        else:
+                            key = M._SUM_TWICE_WAS_LIKE_NOT_MOVED
+                    else:
+                        key = {"reread": M._SUM_TWICE_REREAD}.get(
+                            choice, M._SUM_TWICE_KEPT)
                     items.append(tr(key).format(strip=strip, like=like))
                 if not items:
                     lines.append(tr(M._SUM_TWICE_NONE))

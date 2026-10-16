@@ -2479,13 +2479,20 @@ _SUM_READ_AGAIN = "Strips you read again ({n}): {list}."
 _SUM_TWICE_REREAD = "{strip} (like {like}, read again)"
 _SUM_TWICE_WAS_LIKE = "{strip} (like {like}, counted as {like})"
 _SUM_TWICE_KEPT = "{strip} (like {like}, kept)"
+#: 4.3.5 beta 9 (k85): "I read strip {like}" answered, but the engine never
+#: moved the reading (an engine built before 4.3.5, a refused move, or a
+#: move still waiting for the engine's strip menu): the reading is set aside,
+#: as after Re-read, so the line must not say "counted as {like}".
+_SUM_TWICE_WAS_LIKE_NOT_MOVED = ("{strip} (like {like}, set aside, not "
+                                 "counted as {like})")
 M_MEASURED_SUSPECTS = _m(
     "M-MEASURED-SUSPECTS",
     _SUM_HEADLINE,
     "\n".join((_SUM_NB_NONE, _SUM_NB_RED_ONE, _SUM_NB_RED, _SUM_NB_KEPT_ONE, _SUM_NB_KEPT,
                _SUM_NB_PARTLY, _SUM_NB_NONE_CHECKED, _SUM_READ_AGAIN_ONE, _SUM_READ_AGAIN,
                _SUM_TWICE_NONE, _SUM_TWICE_ONE, _SUM_TWICE,
-               _SUM_TWICE_REREAD, _SUM_TWICE_WAS_LIKE, _SUM_TWICE_KEPT)),
+               _SUM_TWICE_REREAD, _SUM_TWICE_WAS_LIKE, _SUM_TWICE_KEPT,
+               _SUM_TWICE_WAS_LIKE_NOT_MOVED)),
     approved=False)
 
 # --- APPROVED: the same to-do points in both Calibration Complete windows ----

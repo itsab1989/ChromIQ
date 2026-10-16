@@ -237,6 +237,14 @@ def test_reread_is_unchanged(qapp, tmp_path, monkeypatch, checks):
     assert tab._manager.set_aside_locs() == {f"C{k}" for k in range(1, PER)}
 
 
+def _twice_line(tab):
+    tab._manager._engine_active = True
+    lines = [x for x in tab._misread_summary().splitlines()
+             if x.startswith("Was a strip read twice?")]
+    assert len(lines) == 1, tab._misread_summary()
+    return lines[0]
+
+
 def test_the_closing_summary_says_counted_as_b(qapp, tmp_path, monkeypatch):
     from workflow import measurement_messages as M
     tab = _filing_tab(tmp_path, monkeypatch)
@@ -244,6 +252,67 @@ def test_the_closing_summary_says_counted_as_b(qapp, tmp_path, monkeypatch):
     assert tab._read_twice_log == [("C", "B", "was_like")]
     assert M._SUM_TWICE_WAS_LIKE.format(strip="C", like="B") == \
         "C (like B, counted as B)"
+    assert _twice_line(tab).endswith(": C (like B, counted as B).")
+
+
+# k85 (beta 9): "counted as B" only when the engine really moved it.
+
+def test_the_summary_says_set_aside_when_the_engine_refused(qapp, tmp_path,
+                                                            monkeypatch):
+    tab = _filing_tab(tmp_path, monkeypatch)
+    _run(qapp, tab, [_sread("A"), _sready("B"), _sread("B"), _sready("C")])
+    _answer(monkeypatch, "was_like")
+    _run(qapp, tab, [_swipe("C", "B")])
+    _feed(tab._manager, {"event": "file_as_refused", "strip": "C",
+                         "as": "B"})
+    assert _twice_line(tab).endswith(
+        ": C (like B, set aside, not counted as B).")
+
+
+def test_the_summary_says_set_aside_for_an_engine_without_file_as(
+        qapp, tmp_path, monkeypatch):
+    tab = _tab(tmp_path, monkeypatch)
+    _run(qapp, tab, [_sread("A"), _sready("B"), _sread("B"), _sready("C")])
+    _answer(monkeypatch, "was_like")
+    _run(qapp, tab, [_swipe("C", "B")])
+    assert _twice_line(tab).endswith(
+        ": C (like B, set aside, not counted as B).")
+
+
+def test_the_summary_says_set_aside_while_the_move_still_waits(
+        qapp, tmp_path, monkeypatch):
+    """Answered while the engine was mid-swipe: the move is held for its
+    strip menu, and until it is made the reading is not B's."""
+    tab = _filing_tab(tmp_path, monkeypatch)
+    _run(qapp, tab, [_sread("A"), _sready("B"), _sread("B"), _sready("C")])
+    _answer(monkeypatch, "was_like")
+    busy = [True]
+    monkeypatch.setattr(tab._manager, "_file_as_must_wait",
+                        lambda: busy[0])
+    tab._sent.clear()
+    _run(qapp, tab, [_swipe("C", "B")])
+    assert tab._manager._held_file_as == [("C", "B")]
+    assert _twice_line(tab).endswith(
+        ": C (like B, set aside, not counted as B).")
+    # The engine reaches its menu, takes the move and carries it out.
+    # (That menu may take the reader's own move first; the engine keeps one
+    # key, so the held move goes out at the menu after.)
+    busy[0] = False
+    for strip in ("C", "D"):
+        _feed(tab._manager, {"event": "strip_ready", "strip": strip,
+                             "read": strip == "C", "all_done": False})
+    assert tab._manager._held_file_as == []
+    _engine_answers(tab)
+    assert _twice_line(tab).endswith(": C (like B, counted as B).")
+
+
+def test_two_answers_each_get_their_own_word(qapp, tmp_path, monkeypatch):
+    tab = _filing_tab(tmp_path, monkeypatch)
+    tab._read_twice_log = [("C", "B", "was_like"), ("E", "D", "was_like")]
+    tab._read_twice_filed = [("E", "D")]
+    line = _twice_line(tab)
+    assert ("C (like B, set aside, not counted as B), "
+            "E (like D, counted as D)") in line
 
 
 def test_an_engine_without_file_as_keeps_the_old_way(qapp, tmp_path,
