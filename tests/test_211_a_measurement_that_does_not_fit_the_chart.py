@@ -214,7 +214,7 @@ def test_one_reading_has_its_own_sentence(tab):
     t, run, ti2, shown = tab
     _measurement(run, ti2, loc_of=lambda sid, loc: "Z9" if sid == 2 else loc)
     assert t._blocked_by_a_misfitting_measurement(_P(True)) is True
-    assert f"1 of its {len(LOCS)} readings is not filed" in shown[0][1]
+    assert f"1 of its {len(LOCS)} readings does not sit where" in shown[0][1]
 
 
 def test_on_start_asks_before_every_question_that_writes_and_the_archive():

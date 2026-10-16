@@ -125,7 +125,7 @@ def test_the_red_neighbour_card_is_knuts(qapp):
     assert any(r.startswith("Probably a misread: read patch K19") for r in rows)
     assert ("Read patch K19 again to find out. Similar patches read in "
             "other strips that stand out in the same way can also confirm "
-            "it." in t)
+            "patch K19." in t)
     # gone since 4.3.5 beta 8 (Knut, #182 6196599132)
     assert "Only its own re-read" not in t
     assert "Same value after a re-read: it is real, keep it for the profile." \
