@@ -34,7 +34,18 @@ Schema 1::
         "C7":  {"kind": "peer", "test": "pe", "with": ["K2", "R9"]},
         "D2":  {"kind": "corrected", "de": 58.1, "by": "neighbour"},
         "J28": {"kind": "unsettled", "prevs": [120.3],
-                "readings": [{"de": 120.3, "meas_lab": [..]}]}}}
+                "readings": [{"de": 120.3, "meas_lab": [..],
+                              "slipped": true}]}},
+     "slipped": ["B1", "B2", …]}
+
+``slipped`` (#210, Basti's decision 2026-10-15; kept since 4.3.5 beta 9):
+the patches whose reading in the ``.ti3`` came from a strip the
+misalignment safety net flagged. A slipped reading confirms nothing and
+nothing confirms it, in the session and after it: reopened or resumed, the
+Measure tab judges those stored readings as slipped again, so a later
+identical reading cannot confirm against them. An unsettled patch's earlier
+reading carries its own ``"slipped": true``. Files written before have
+neither and are read as before (nothing slipped).
 
 ``corrected`` (Knut, #182 5984277558): a patch that was red and whose live
 re-read fits now, drawn green; the first reading's ΔE and the rule that
@@ -81,6 +92,17 @@ KIND_UNSETTLED = "unsettled"
 
 MODE_STRIP = "strip"
 MODE_PATCH = "patch"
+
+
+def sorted_slipped(locs) -> "list[str]":
+    """*locs* (any iterable of locations, or None) in chart order."""
+    if not locs:
+        return []
+    try:
+        from workflow.patch_flags import sorted_locs
+        return list(sorted_locs(str(v) for v in locs if v))
+    except Exception:      # noqa: BLE001 — order is never worth a lost record
+        return sorted(str(v) for v in locs if v)
 
 
 def confirmed_path(ti3_path: "str | Path") -> Path:
@@ -138,7 +160,10 @@ def _clean_entry(entry: dict) -> "dict | None":
                 if len(lab) != 3 or any(v != v or abs(v) == float("inf")
                                         for v in lab + [de]):
                     return None
-                readings.append({"de": de, "meas_lab": lab})
+                one = {"de": de, "meas_lab": lab}
+                if r.get("slipped") is True:
+                    one["slipped"] = True        # #210
+                readings.append(one)
         except (KeyError, TypeError, ValueError):
             return None
         if not prevs or not readings or any(
@@ -189,7 +214,20 @@ def _clean_patches(patches: dict) -> dict:
     return out
 
 
-def write(ti3_path: "str | Path", patches: dict, mode: str) -> "Path | None":
+def _clean_slipped(locs) -> "list[str]":
+    """The ``slipped`` list as stored: patch locations, each once, in the
+    order given; anything else is dropped (a damaged or hand-edited file)."""
+    out: "list[str]" = []
+    if not isinstance(locs, (list, tuple)):
+        return out
+    for v in locs:
+        if isinstance(v, str) and v and v not in out:
+            out.append(v)
+    return out
+
+
+def write(ti3_path: "str | Path", patches: dict, mode: str,
+          slipped=None) -> "Path | None":
     """Write the memory for *ti3_path*, stamped with its current hash.
 
     Atomic (``write_json_atomically``): a crash leaves the previous file or the
@@ -204,6 +242,8 @@ def write(ti3_path: "str | Path", patches: dict, mode: str) -> "Path | None":
         "ti3_sha256": ti3_sha256(ti3_path),
         "mode": MODE_PATCH if mode == MODE_PATCH else MODE_STRIP,
         "patches": _clean_patches(patches),
+        # #210: the patches whose stored reading came from a slipped strip
+        "slipped": _clean_slipped(sorted_slipped(slipped)),
     }
     dst = confirmed_path(ti3_path)
     try:
@@ -235,6 +275,7 @@ def load(ti3_path: "str | Path") -> "dict | None":
     if not want or want != ti3_sha256(ti3_path):
         return None
     data["patches"] = _clean_patches(data.get("patches") or {})
+    data["slipped"] = _clean_slipped(data.get("slipped") or [])
     if data.get("mode") not in (MODE_STRIP, MODE_PATCH):
         data["mode"] = None
     return data
@@ -272,7 +313,8 @@ def carry(src_ti3: "str | Path", before_sha: "str | None",
     data = read_raw(src_ti3)
     if data is None or not before_sha or data.get("ti3_sha256") != before_sha:
         return None
-    out = write(dst_ti3, data.get("patches") or {}, data.get("mode") or MODE_STRIP)
+    out = write(dst_ti3, data.get("patches") or {}, data.get("mode") or MODE_STRIP,
+                _clean_slipped(data.get("slipped") or []))
     src_mem = confirmed_path(src_ti3)
     if out is not None and src_mem != out:
         try:

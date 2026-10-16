@@ -16106,10 +16106,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # back from it, which never holds the peers.
         try:
             from workflow import confirmed_patches as cp
-            on_disk = (cp.load(ti3) or {}).get("patches") or {}
+            stored = cp.load(ti3) or {}
+            on_disk = stored.get("patches") or {}
+            slipped_on_disk = stored.get("slipped") or []
         except Exception:      # noqa: BLE001
-            on_disk = {}
-        if exported == on_disk:
+            on_disk, slipped_on_disk = {}, []
+        if (exported == on_disk and sorted(slipped_on_disk)
+                == sorted(getattr(self, "_slipped_locs", ()) or ())):
             return
         self._save_confirmed_memory(
             ti3, getattr(self, "_memory_mode", None)
@@ -17150,7 +17153,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not data:
             return None
         judge.load(data.get("patches") or {})
+        # #210 (Basti, 2026-10-15): the patches whose stored reading came
+        # from a slipped strip are judged as slipped again, reopened or
+        # resumed, exactly as in the session that read them: a later
+        # identical reading cannot confirm against them. The judge reset
+        # above emptied the set; a file written before has none.
+        self._slipped_locs = set(data.get("slipped") or ())
         self._memory_written = judge.export()
+        self._memory_slipped_written = sorted(self._slipped_locs)
         return data.get("mode")
 
     def _save_confirmed_memory(self, ti3, mode: "str | None" = None) -> None:
@@ -17161,8 +17171,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         try:
             from workflow import confirmed_patches as cp
             exported = self._flag_judge().export()
-            cp.write(ti3, exported, mode or self._session_memory_mode())
+            slipped = sorted(getattr(self, "_slipped_locs", ()) or ())
+            cp.write(ti3, exported, mode or self._session_memory_mode(),
+                     slipped=slipped)
             self._memory_written = exported
+            self._memory_slipped_written = slipped
         except Exception:      # noqa: BLE001 — never break a measurement
             log.warning("could not save the confirmed patches beside %s", ti3,
                         exc_info=True)
@@ -17201,7 +17214,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             exported = self._flag_judge().export()
         except Exception:      # noqa: BLE001
             return
-        if exported == (getattr(self, "_memory_written", None) or {}):
+        slipped = sorted(getattr(self, "_slipped_locs", ()) or ())
+        if (exported == (getattr(self, "_memory_written", None) or {})
+                and slipped == (getattr(self, "_memory_slipped_written",
+                                        None) or [])):
             return
         self._save_confirmed_memory(Path(self._ti1_path).with_suffix(".ti3"))
 

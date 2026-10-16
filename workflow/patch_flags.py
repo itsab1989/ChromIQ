@@ -1060,8 +1060,11 @@ class FlagJudge:
             if loc in out or rd is None or not rd.flagged or not hist:
                 continue
             out[loc] = {"kind": "unsettled", "prevs": list(prevs),
-                        "readings": [{"de": r.de, "meas_lab": list(r.meas_lab)}
-                                     for r in hist[:-1] if r.flagged]}
+                        "readings": [
+                            {"de": r.de, "meas_lab": list(r.meas_lab),
+                             # #210: a slipped one stays slipped when loaded
+                             **({"slipped": True} if r.slipped else {})}
+                            for r in hist[:-1] if r.flagged]}
         return out
 
     def load(self, patches: dict) -> int:
@@ -1093,7 +1096,8 @@ class FlagJudge:
                     prevs = tuple(float(x) for x in e.get("prevs") or ())
                     readings = [
                         _Reading(tuple(float(v) for v in r["meas_lab"][:3]),
-                                 float(r["de"]), True)
+                                 float(r["de"]), True,
+                                 slipped=r.get("slipped") is True)
                         for r in e.get("readings") or ()]
                 except (KeyError, TypeError, ValueError):
                     continue
