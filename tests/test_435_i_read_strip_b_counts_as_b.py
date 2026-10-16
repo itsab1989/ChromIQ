@@ -266,7 +266,7 @@ def test_the_summary_says_set_aside_when_the_engine_refused(qapp, tmp_path,
     _feed(tab._manager, {"event": "file_as_refused", "strip": "C",
                          "as": "B"})
     assert _twice_line(tab).endswith(
-        ": C (like B, set aside, not counted as B).")
+        ": C (like B, not moved to B, so not used).")
 
 
 def test_the_summary_says_set_aside_for_an_engine_without_file_as(
@@ -276,7 +276,7 @@ def test_the_summary_says_set_aside_for_an_engine_without_file_as(
     _answer(monkeypatch, "was_like")
     _run(qapp, tab, [_swipe("C", "B")])
     assert _twice_line(tab).endswith(
-        ": C (like B, set aside, not counted as B).")
+        ": C (like B, not moved to B, so not used).")
 
 
 def test_the_summary_says_set_aside_while_the_move_still_waits(
@@ -293,7 +293,7 @@ def test_the_summary_says_set_aside_while_the_move_still_waits(
     _run(qapp, tab, [_swipe("C", "B")])
     assert tab._manager._held_file_as == [("C", "B")]
     assert _twice_line(tab).endswith(
-        ": C (like B, set aside, not counted as B).")
+        ": C (like B, not moved to B, so not used).")
     # The engine reaches its menu, takes the move and carries it out.
     # (That menu may take the reader's own move first; the engine keeps one
     # key, so the held move goes out at the menu after.)
@@ -311,7 +311,7 @@ def test_two_answers_each_get_their_own_word(qapp, tmp_path, monkeypatch):
     tab._read_twice_log = [("C", "B", "was_like"), ("E", "D", "was_like")]
     tab._read_twice_filed = [("E", "D")]
     line = _twice_line(tab)
-    assert ("C (like B, set aside, not counted as B), "
+    assert ("C (like B, not moved to B, so not used), "
             "E (like D, counted as D)") in line
 
 

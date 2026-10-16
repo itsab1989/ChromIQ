@@ -512,7 +512,7 @@ def test_red_for_both_reasons_needs_a_re_read_and_its_card_says_so(
     assert also in text
     # N2 without its first sentence: the red ending asks for the re-read
     # (Basti, 2026-10-16)
-    assert text.index(also) < text.index(M._CARDS_NB_REREAD_OTHERS)
+    assert text.index(also) < text.index(M._CARDS_NB_REREAD_OTHERS.format(loc="D6"))
     assert M._CARDS_NB_REREAD.format(loc="D6") not in text
     assert M._CARD_RANGE_RED_LEARNED_1 not in lines
     assert " ".join(text.split()).endswith(" ".join(

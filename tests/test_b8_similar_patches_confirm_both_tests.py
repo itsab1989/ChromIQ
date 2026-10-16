@@ -102,7 +102,7 @@ def _n2_once(text, loc):
     """Rows 12, 21 and 22: N2 without its first sentence, because the red
     ending asks for the re-read itself, so the card says it once (Basti,
     2026-10-16, item 10 of the beta 8 review)."""
-    assert M._CARDS_NB_REREAD_OTHERS in text
+    assert M._CARDS_NB_REREAD_OTHERS.format(loc=loc) in text
     assert M._CARDS_NB_REREAD.format(loc=loc) not in text
     assert text.count(M._CARD_RED_READ_AGAIN.format(loc=loc)) == 1
 

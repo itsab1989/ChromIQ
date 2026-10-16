@@ -1332,10 +1332,12 @@ class MeasureManager(QObject):
         self._guided_idx += 1
         if self._guided_idx >= len(self._guided_strips):
             self._guided_state = "idle_done"
-            on_line(tr("[Guided Refinement] All {n} target patches "
-                       "measured.").format(n=len(self._guided_strips))
+            on_line(tr("[Guided Refinement] All {n} patches above the "
+                       "limit have been read again.").format(
+                           n=len(self._guided_strips))
                     if len(self._guided_strips) != 1 else
-                    tr("[Guided Refinement] The target patch is measured."))
+                    tr("[Guided Refinement] The patch above the limit has "
+                       "been read again."))
             return True
         nxt = self._guided_strips[self._guided_idx]
         self._guided_state = "navigating"

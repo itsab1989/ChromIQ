@@ -1265,7 +1265,7 @@ class _PatchInfoTile(QWidget):
             if whole:
                 add_text(tr(_mm._CARDS_NB_REREAD).format(loc=loc))
             else:
-                add_text(tr(_mm._CARDS_NB_REREAD_OTHERS))
+                add_text(tr(_mm._CARDS_NB_REREAD_OTHERS).format(loc=loc))
 
         def nb_fmt(text: str) -> str:
             """A neighbour-check sentence with the patch's figures: Knut's

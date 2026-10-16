@@ -6998,6 +6998,8 @@ alone.
 
 ### M-PATCH-SIMILAR · PROPOSED · similar patches confirm each test on a patch's hover card — Measure tab preview, #182 4.3.5 beta 8
 
+*Text review of 4.3.5 beta 9: N2 (both forms) ends "can also confirm patch {loc}" for "can also confirm it" (Knut's rule of 6167582807: the patch being judged is named, never "it"); N4 says "so the neighbour check's part is confirmed" for "so that part is confirmed". Still proposed.*
+
 *New 2026-10-15. The behaviour is CONFIRMED (Knut, [#182 6196599132](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6196599132): "I confirm all the cases and approve the solution you recommend", to the draft "two tests, one outline" of [6188067361](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6188067361); §10.12). These lines are that draft's texts N1 to N4 and N8, ours, shown from this beta on (Knut 6166519230) and waiting here. Line numbers below are the draft's: N1 (lines 1 and 2, more than one similar patch / one) stands under "Yellow outline: confirmed by similar patches" for the neighbour check's similar patches, followed by M-PATCH-CARD-PLAIN's "Without that confirmation, patch {loc} would be red for standing out by …"; N2 (line 3) replaces M-PATCH-NEIGHBOUR's two "Only its own re-read …" lines on every red card of the neighbour check; N3 (lines 4 to 6) stands under "Red outline: too far off its expected colour" when the patch error limit's part is confirmed by similar patches (line 4, line 5 for one) or judged like patch {like} of its learned colour range (line 6) while the neighbour check keeps the patch red; N4 (line 7) stands under the limit's sentence when the neighbour check's part is confirmed and the limit's is not; N8 (line 8) on a card yellow by the neighbour check's similar patches after a re-read corrected the reading past the patch error limit. Changed from the draft: "Its" and "It" that meant the patch say "patch {loc}" (Knut 6167582807), and "so it stays red" says "so its outline stays red". `{locs}`: the similar patches in reading order, the first three then "…"; `{loc}` the patch; `{like}` the confirmed patch of its range it was judged like. N5 has no words of its own (both yellow sentences), N6 and N7 are M-PATCH-COLOUR-RANGE's lines 2 and 11.*
 
 *Line 4 (4.3.5 beta 9) is N2 without its first sentence. It stands instead of line 3 on the red cards whose red ending asks for the re-read itself ("Read patch {loc} again to find out.", or for a verification whose profile is newer than the print "… read patch {loc} again to find out."): §10.12.5 rows 12, 21 and 22, so the card says it once. Everywhere else (row 8) line 3 stays whole. **Dropping the duplicate sentence was approved by:** Basti, 2026-10-16 (item 10 of the beta 8 review: *"i would agree to drop as you recommended"*). The words of the lines here still wait for review.*
@@ -7006,19 +7008,21 @@ alone.
 >
 > Stand out from their neighbours in the same way, read in other strips: {locs}.
 > Stands out from its neighbours in the same way, read in another strip: {locs}.
-> Read patch {loc} again to find out. Similar patches read in other strips that stand out in the same way can also confirm it.
-> Similar patches read in other strips that stand out in the same way can also confirm it.
+> Read patch {loc} again to find out. Similar patches read in other strips that stand out in the same way can also confirm patch {loc}.
+> Similar patches read in other strips that stand out in the same way can also confirm patch {loc}.
 > Similar patches ({locs}) confirm the difference of patch {loc} from its expected colour. But patch {loc} still stands out from the patches most similar in colour, so its outline stays red.
 > A similar patch ({locs}) confirms the difference of patch {loc} from its expected colour. But patch {loc} still stands out from the patches most similar in colour, so its outline stays red.
 > The difference of patch {loc} from its expected colour is like that of patch {like} of its colour range. But patch {loc} still stands out from the patches most similar in colour, so its outline stays red.
-> Patch {loc} stands out from its neighbours in the same way as {locs}, so that part is confirmed. But patch {loc} is still too far off its expected colour, so its outline stays red.
+> Patch {loc} stands out from its neighbours in the same way as {locs}, so the neighbour check's part is confirmed. But patch {loc} is still too far off its expected colour, so its outline stays red.
 > The earlier reading past the patch error limit was corrected by the re-read.
 
 ### M-MEASURED-SUSPECTS · PROPOSED · the suspected misreads in the window that closes a measurement — Measure tab, #182 beta 11
 
+*Text review of 4.3.5 beta 9: the k85 line reads "{strip} (like {like}, not moved to {like}, so not used)" for "… set aside, not counted as {like}": "set aside" is this document's word, not the user's; the reading is dropped from the measurement (`_drop_set_aside_readings`) or replaced. Still proposed.*
+
 *New 2026-10-04, revised in the review of beta 11. Knut, [5983470377](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983470377) answer 5: "The Measurement Completed window, which today has a summary of some things (like the reading speeds) should also hold a short summary of the detected suspected misreads from the neighbour-test method and (if active) the strip misreading test." The behaviour is his, the words are ours and wait here. The headline names the block in the model and is not shown: the lines stand under the reading-time summary of the closing window (All Strips Read, All Patches Read, Re-measurement Complete, Calibration Measurement Complete, and the averaging window), and **never on a verification's closing window**. Lines 1 to 7 only where the neighbour check applies (10.9): line 7 alone when no patch could be checked; otherwise line 1, or line 2 or 3, then line 4 or 5 when suspects its re-reads confirmed were kept as real (only a re-read can, 5984174575), and line 6 when not every patch could be checked. Lines 8 to 10 only when "Was a strip read twice?" watched the measurement (strips read with ChromIQ's engine, outside guided refinement): line 8 when it asked nothing, otherwise line 9 or 10 with each strip it asked about as line 11, 12 or 13 by its answer (Re-read, the other strip read on purpose, Keep or closed; line 12 said "set aside" until 4.3.5, when that answer began to count the reading as the other strip, Knut 6102031563). **4.3.5 (Knut, [6103148331](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6103148331)):** he read seven strips again on purpose (moving the reader back to them) and the window said "Strip read twice: none found", which he read as wrong; that check looks only for a reading that looks like another strip. The two new lines after line 7 name the strips read again on purpose (a successful reading of a strip already read in this measurement), and lines 8 to 10 now name the check by its window's question (they read "Strip read twice: none found." / "…1 strip looked like another, {list}." / "…{n} strips looked like another, {list}."). Since 4.3.5 the closing window shows all of its summary lines as a bullet list under the heading "Summary:" (Knut's request in the same comment). `{locs}`: the patches still red, in chart order, the first ten and then "…".*
 
-*4.3.5 beta 9 (k85): a new last line, "{strip} (like {like}, set aside, not counted as {like})", stands for an "I read strip {like}" answer the engine never carried out (an engine built before 4.3.5, a refused move, or one still waiting for the engine's strip menu). Before it, such a reading was listed as "counted as {like}", which it was not. Shown from this beta on, waiting here.*
+*4.3.5 beta 9 (k85): a new last line, "{strip} (like {like}, not moved to {like}, so not used)", stands for an "I read strip {like}" answer the engine never carried out (an engine built before 4.3.5, a refused move, or one still waiting for the engine's strip menu). Before it, such a reading was listed as "counted as {like}", which it was not. Shown from this beta on, waiting here.*
 
 > **Suspected misreads**
 >
@@ -7037,7 +7041,7 @@ alone.
 > {strip} (like {like}, read again)
 > {strip} (like {like}, counted as {like})
 > {strip} (like {like}, kept)
-> {strip} (like {like}, set aside, not counted as {like})
+> {strip} (like {like}, not moved to {like}, so not used)
 
 ### M-CHART-SLOW-NO-PROFILE · PROPOSED · the "taking longer than usual" window of a chart built WITHOUT a pre-conditioning profile — Create Chart, while targen runs
 
@@ -7057,11 +7061,13 @@ alone.
 
 ### M-RESUME-LAYOUT-DIFFERS · PROPOSED · Refine / resume on a measurement whose readings do not fit the chart's layout — Measure tab, Start, before anything is archived or opened
 
+*Text review of 4.3.5 beta 9: the first sentence says the readings "do not sit where this chart prints their patch" for "are not filed under the place where this chart prints that patch" (plainer). Still proposed.*
+
 *New 2026-10-15, issue #211. ChromIQ's engine and ArgyllCMS chartread resume BY LOCATION: for each patch of the chart they take the first row of the .ti3 with that SAMPLE_LOC, and write one row per patch of the chart with the chart's id and device values. A measurement converted from i1Profiler named its 1,680 patches A1 … T21 on each of four pages, so the resume put 420 readings on whatever this chart prints at those places, dropped 1,260, and the shrink check (§3b) put the old file back with the session's new readings in it. Measuring a sheet another program printed is out of scope (Basti, 2026-10-15), so ChromIQ refuses the resume before anything happens. `{wrong}` counts the rows that would not survive as the same patch (a location the chart does not have, one an earlier row already holds, or one where the chart prints another SAMPLE_ID), `{rows}` the file's rows, `{tab}` the Build Profile tab's name. `measurement_pairing.resume_fit`, `TabMeasure._blocked_by_a_misfitting_measurement`.*
 
 > **This measurement does not fit this chart**
 >
-> ChromIQ cannot carry on with this run's measurement, because {wrong} of its {rows} readings are not filed under the place where this chart prints that patch.
+> ChromIQ cannot carry on with this run's measurement, because {wrong} of its {rows} readings do not sit where this chart prints their patch.
 >
 > This usually means the measurement was made with another program on a sheet that program printed and laid out its own way, for example a chart printed and read in i1Profiler, and was then converted or imported into this run. The readings themselves are fine, and a profile can be built from them. But carrying on puts the readings back onto this chart's patches by their place on the sheet, and on this chart those places hold other patches: readings would land on the wrong patches, and some would be dropped.
 >
@@ -7074,7 +7080,7 @@ alone.
 
 *With `{wrong}` = 1:*
 
-> ChromIQ cannot carry on with this run's measurement, because 1 of its {rows} readings is not filed under the place where this chart prints that patch.
+> ChromIQ cannot carry on with this run's measurement, because 1 of its {rows} readings does not sit where this chart prints its patch.
 >
 > This usually means the measurement was made with another program on a sheet that program printed and laid out its own way, for example a chart printed and read in i1Profiler, and was then converted or imported into this run. The readings themselves are fine, and a profile can be built from them. But carrying on puts the readings back onto this chart's patches by their place on the sheet, and on this chart that place holds another patch: a reading would land on the wrong patch, or be dropped.
 >
@@ -7101,24 +7107,28 @@ alone.
 
 ### M-REPORT-PAPER-WHITE-DOUBT · PROPOSED · a warning under the paper white of a measurement whose paper patch reads much darker than its lightest patch · Measurement Report (window and PDF), 4.3.5 beta 8
 
+*Text review of 4.3.5 beta 9: "{dl} L* lighter" (the unit was missing), and the last sentence in plainer order. Still proposed.*
+
 *New 2026-10-15 (#210, Basti: "when the paper-white patch is far from white, WARN clearly (which patch, its values, why it looks wrong) and keep going; coloured papers must still work"). Shown in "Detailed data per measurement", under "Paper white and darkest black", when another reading of the same measurement is more than 8 L* lighter than the paper patch (`measurement_report.PAPER_WHITE_DOUBT_DL`). Lightness against the sheet's own lightest reading, not against white, so cream and coloured papers never trip it: ink only darkens the paper. The report is worked out with that paper white all the same. Report text (K18): causes, no ChromIQ how-to. {loc}, {L}, {a}, {b}: the paper patch; {lighter_loc}, {lighter_L}: the lightest reading; {dl}: the difference. Wording ours; shown from 4.3.5 beta 8.*
 
 > **This paper white does not look like paper**
 >
-> The paper white of this measurement comes from patch {loc}, the patch printed with no ink. It was measured at L* {L}, a* {a}, b* {b}, while patch {lighter_loc} of the same measurement reads L* {lighter_L}, which is {dl} lighter.
+> The paper white of this measurement comes from patch {loc}, the patch printed with no ink. It was measured at L* {L}, a* {a}, b* {b}, while patch {lighter_loc} of the same measurement reads L* {lighter_L}, which is {dl} L* lighter.
 >
 > Ink can only make paper darker, so the patch with no ink is normally the lightest patch of the sheet, or within a few L* of it. That holds for white, cream and coloured papers alike, because the paper's own colour is in every patch. A difference this large usually means the reading of {loc} is not a reading of the bare paper: the instrument may have slipped by a patch along the strip, a strip may have been read in the wrong place, or the chart may have been printed with colour management, which puts ink on the paper patch too.
 >
-> The results of this measurement are worked out with this paper white all the same. Every value judged relative to the paper may therefore be off, and the figures above should be read with that in mind.
+> The results of this measurement are worked out with this paper white all the same, so every value that is judged relative to the paper may be off: read this measurement's figures above with that in mind.
 
 ### Help texts on the outlines after the beta 8 rules · PROPOSED · the Measure tab's help and Preferences ▸ Measurement, 4.3.5 beta 8 review
+
+*Text review of 4.3.5 beta 9: line 4 split in two and "out of place" for "out"; same meaning. Still proposed.*
 
 *New 2026-10-16, review of 4.3.5 beta 8. Beta 8 changed the similar-patch rule (10.12, confirmed by Knut, 6196599132) and decided that a strip the misalignment warning flags confirms nothing (#210, Basti 2026-10-15), and left the help describing the old rules: "expected colours less than ΔE 6 apart" in the Measure tab's help and in Preferences, "Only its own re-read does that here: similar patches … do not count for this check" in the neighbour check's help, and "It ends only when you read that patch once more and the new reading is not outlined or gives a different colour", which a slipped reading is without ending anything. The behaviour is the confirmed or decided one; these words are ours, shown from this beta on (Knut 6166519230) and translated into all thirteen languages. Line 1: the Measure tab's yellow-outline help, its second bullet. Line 2: Preferences' "RED AND YELLOW", the clause on similar patches. Line 3: the neighbour check's help, its yellow bullet. Line 4: a new sentence after "… or gives a different colour." in the outlines' help (Measure tab and Preferences, one text).*
 
 > 1. •  confirmed by similar patches: patches of its colour range, read in other strips, whose expected colours are within the colour-neighbour radius, were read off in the same way (their errors agree within the same-reading tolerance), which is as good as reading it twice;
 > 2. … when similar patches (of its colour range, read in other strips, with expected colours within the colour-neighbour radius) are off in the same way (within the same-reading tolerance), or when its colour range …
 > 3. •  Yellow: the difference is real. Its own re-read gave the same colour (within the same-reading tolerance), or similar patches are off in the same way: patches of its colour range, read in other strips, that the neighbour check flags too, with expected colours within the colour-neighbour radius and errors that agree within the same-reading tolerance. A learned colour range, which can turn a patch past the patch error limit yellow, does not count for this check.
-> 4. A reading from a strip that “Warn me if a strip looks misaligned” flagged does not end it: that strip was probably read a patch or two out, so none of its readings is ever yellow or confirms anything, and the patch is yellow again when it is next read with the same colour.
+> 4. A reading from a strip that “Warn me if a strip looks misaligned” flagged does not end it. That strip was probably read a patch or two out of place, so its readings are never yellow and never confirm anything; when the patch is next read with the same colour as before, it is yellow again.
 
 ### Re-measurement Complete, patch by patch: the next steps say patches · PROPOSED · the Measure tab, 4.3.5 beta 8 regression review
 
@@ -8947,7 +8957,7 @@ Built in `workflow/refine_plan.py`; proved by
 * **An engine that does not understand it** (one built before 4.3.5) is never sent it: the answer then does what 4.3.4 did (the reading is set aside and the reader goes to {like}). If the engine refuses the move (`file_as_refused`), the reading stays set aside, as after Re-read.
 * **Re-read strip {strip}:** as in 4.3.4: the reading is set aside unjudged, {strip} counts as unread, and the reader goes back to {strip}, whose next reading replaces it.
 * **The closing window's line** for this answer reads "{strip} (like {like}, counted as {like})" (M-MEASURED-SUSPECTS line 12; it said "set aside").
-* **…only when the engine really moved the reading** (k85, 4.3.5 beta 9). The line used to say "counted as {like}" for every "I read strip {like}" answer, also when the reading was never moved: an engine built before 4.3.5, a move the engine refused, or one still waiting for the engine's strip menu. Each of those leaves the reading set aside (the rules above), so the line now reads "{strip} (like {like}, set aside, not counted as {like})" for them (M-MEASURED-SUSPECTS, new last line, proposed). Proved by `tests/test_435_i_read_strip_b_counts_as_b.py` and on screen with the real engine on its replay instrument.
+* **…only when the engine really moved the reading** (k85, 4.3.5 beta 9). The line used to say "counted as {like}" for every "I read strip {like}" answer, also when the reading was never moved: an engine built before 4.3.5, a move the engine refused, or one still waiting for the engine's strip menu. Each of those leaves the reading set aside (the rules above), so the line now reads "{strip} (like {like}, not moved to {like}, so not used)" for them (M-MEASURED-SUSPECTS, new last line, proposed). Proved by `tests/test_435_i_read_strip_b_counts_as_b.py` and on screen with the real engine on its replay instrument.
 * **The move decides the swipe's direction again, against {like}** (k85, 4.3.5 beta 9). The engine decides a swipe's direction while the reader is on {strip}; on a fixed-order chart it looks for a backward swipe only when {strip} reads differently both ways, so with the reader on a strip that reads alike both ways, {like} swiped backwards was moved onto {like} backwards (replay instrument: ΔE 85 from {like}'s colours). The move now mirrors the row when {like}'s colours fit the mirrored order better, under the rule a reading taken on {like} would get. Every other case measured was already right (40 of 40).
 * **Proved** by `tests/test_435_i_read_strip_b_counts_as_b.py`: the four endings on the four chart types, with the patch error limit and with the neighbour check doing the flagging, on a fresh measurement and over an earlier reading of {strip}, against the same reading of {like} taken with the reader on {like}; and the real engine on its replay instrument (the reader on {strip}, the saved `.ti3` holding the reading under {like} and nothing under {strip}).
 

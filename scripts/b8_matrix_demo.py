@@ -478,7 +478,7 @@ class Ctx:
                 + self.range_block(rng, k, locs)
                 # N2 without its first sentence: the red ending asks for
                 # the re-read (Basti, 2026-10-16, item 10)
-                + [M("_CARDS_NB_REREAD_OTHERS")] + self.red_ending(loc))
+                + [M("_CARDS_NB_REREAD_OTHERS", loc=loc)] + self.red_ending(loc))
 
     def row13(self, loc, de, nb_peers, rng="green", k=0, locs=()):
         return ([M("_CARDP_LIMIT_HEAD"), self.limit(loc, de),
@@ -494,7 +494,7 @@ class Ctx:
                             locs=fmt_locs(peers)))
         return ([M("_CARDP_LIMIT_HEAD"), n3,
                  self.nb_text("_CARDP_NB_ALSO", loc),
-                 M("_CARDS_NB_REREAD_OTHERS")] + self.red_ending(loc))
+                 M("_CARDS_NB_REREAD_OTHERS", loc=loc)] + self.red_ending(loc))
 
 
 #: Sentences that must be on no card since beta 8 (UMM 10.12).
@@ -510,7 +510,7 @@ def chk(case, loc, outline, card=None, absent=(), pe="", nb="", note=""):
     intended input (each test triggered or not on the last reading:
     "y" / "n" / "" not checked)."""
     absent = list(absent)
-    if card is not None and M("_CARDS_NB_REREAD_OTHERS") in card:
+    if card is not None and M("_CARDS_NB_REREAD_OTHERS", loc=loc) in card:
         # rows 12, 21, 22: the whole N2 must not be there too, or the card
         # says "Read patch … again" twice (Basti, 2026-10-16, item 10)
         absent.append(M("_CARDS_NB_REREAD", loc=loc))

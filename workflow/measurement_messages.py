@@ -2130,13 +2130,13 @@ _CARDS_NB_PEER_ONE = ("Stands out from its neighbours in the same way, read "
 #: re-read" lines.
 _CARDS_NB_REREAD = ("Read patch {loc} again to find out. Similar patches read "
                     "in other strips that stand out in the same way can also "
-                    "confirm it.")
+                    "confirm patch {loc}.")
 #: N2 without its first sentence: on the red cards that end with the red
 #: ending, which says "Read patch {loc} again to find out." itself (10.12.5
 #: rows 12, 21 and 22), so the card says it once. Basti, 2026-10-16 (item 10
 #: of the beta 8 review: "i would agree to drop as you recommended").
 _CARDS_NB_REREAD_OTHERS = ("Similar patches read in other strips that stand "
-                           "out in the same way can also confirm it.")
+                           "out in the same way can also confirm patch {loc}.")
 #: N3: red, the patch error limit's part confirmed by similar patches (or
 #: judged like a patch of its learned range), the neighbour check's not.
 _CARDS_PE_PEER_NB_RED = ("Similar patches ({locs}) confirm the difference of "
@@ -2156,7 +2156,8 @@ _CARDS_PE_LEARNED_NB_RED = ("The difference of patch {loc} from its expected "
 #: N4: red, the neighbour check's part confirmed by similar patches, the
 #: patch error limit's not.
 _CARDS_NB_PEER_PE_RED = ("Patch {loc} stands out from its neighbours in the "
-                         "same way as {locs}, so that part is confirmed. But "
+                         "same way as {locs}, so the neighbour check's part is "
+                         "confirmed. But "
                          "patch {loc} is still too far off its expected "
                          "colour, so its outline stays red.")
 #: N8: yellow by the neighbour check's similar patches after a re-read
@@ -2483,8 +2484,8 @@ _SUM_TWICE_KEPT = "{strip} (like {like}, kept)"
 #: moved the reading (an engine built before 4.3.5, a refused move, or a
 #: move still waiting for the engine's strip menu): the reading is set aside,
 #: as after Re-read, so the line must not say "counted as {like}".
-_SUM_TWICE_WAS_LIKE_NOT_MOVED = ("{strip} (like {like}, set aside, not "
-                                 "counted as {like})")
+_SUM_TWICE_WAS_LIKE_NOT_MOVED = ("{strip} (like {like}, not moved to "
+                                 "{like}, so not used)")
 M_MEASURED_SUSPECTS = _m(
     "M-MEASURED-SUSPECTS",
     _SUM_HEADLINE,
@@ -4918,7 +4919,7 @@ M_REPORT_PAPER_WHITE_DOUBT = _m(
     "The paper white of this measurement comes from patch {loc}, the patch "
     "printed with no ink. It was measured at L* {L}, a* {a}, b* {b}, while "
     "patch {lighter_loc} of the same measurement reads L* {lighter_L}, which "
-    "is {dl} lighter.\n\n"
+    "is {dl} L* lighter.\n\n"
     "Ink can only make paper darker, so the patch with no ink is normally the "
     "lightest patch of the sheet, or within a few L* of it. That holds for "
     "white, cream and coloured papers alike, because the paper's own colour "
@@ -4928,8 +4929,8 @@ M_REPORT_PAPER_WHITE_DOUBT = _m(
     "place, or the chart may have been printed with colour management, which "
     "puts ink on the paper patch too.\n\n"
     "The results of this measurement are worked out with this paper white "
-    "all the same. Every value judged relative to the paper may therefore be "
-    "off, and the figures above should be read with that in mind.",
+    "all the same, so every value that is judged relative to the paper may "
+    "be off: read this measurement's figures above with that in mind.",
     approved=False)   # proposed, 4.3.5 beta 8 (#210)
 
 
@@ -6385,8 +6386,7 @@ M_RESUME_LAYOUT_DIFFERS = _m(
     "M-RESUME-LAYOUT-DIFFERS",
     "This measurement does not fit this chart",
     "ChromIQ cannot carry on with this run's measurement, because {wrong} of "
-    "its {rows} readings are not filed under the place where this chart "
-    "prints that patch.\n\n"
+    "its {rows} readings do not sit where this chart prints their patch.\n\n"
     "This usually means the measurement was made with another program on a "
     "sheet that program printed and laid out its own way, for example a "
     "chart printed and read in i1Profiler, and was then converted or imported "
@@ -6405,8 +6405,7 @@ M_RESUME_LAYOUT_DIFFERS = _m(
     "Nothing has been measured, and nothing has been changed.",
     body_one=(
         "ChromIQ cannot carry on with this run's measurement, because 1 of "
-        "its {rows} readings is not filed under the place where this chart "
-        "prints that patch.\n\n"
+        "its {rows} readings does not sit where this chart prints its patch.\n\n"
         "This usually means the measurement was made with another program on "
         "a sheet that program printed and laid out its own way, for example a "
         "chart printed and read in i1Profiler, and was then converted or "

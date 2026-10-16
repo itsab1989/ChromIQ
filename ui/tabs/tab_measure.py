@@ -1213,10 +1213,10 @@ _OVERLAY_TIP_LIMITS = (
     "It ends only when you read that patch once more and the new "
     "reading is not outlined or gives a different colour. A reading "
     "from a strip that “Warn me if a strip looks misaligned” flagged "
-    "does not end it: that strip was probably read a patch or two "
-    "out, so none of its readings is ever yellow or confirms "
-    "anything, and the patch is yellow again when it is next read "
-    "with the same colour. The outlines "
+    "does not end it. That strip was probably read a patch or two "
+    "out of place, so its readings are never yellow and never confirm "
+    "anything; when the patch is next read with the same colour as "
+    "before, it is yellow again. The outlines "
     "never change your measurements.\n"
     "\n"
     "Check & Refine judges on its own and ignores these outlines. It "
@@ -5677,9 +5677,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         out = sorted_locs(l for l in locs if self._strip_of(l) in strips)
         if out:
             self._log.appendPlainText(tr(
-                "[Guided Refinement] This refinement list was written by an "
-                "older ChromIQ and names strips only, so every patch of "
-                "{strips} is visited."
+                "[Guided Refinement] This list of strips to refine was saved "
+                "by an older ChromIQ and names whole strips only, so every "
+                "patch of these strips is visited: {strips}."
             ).format(strips=", ".join(self._strip_list)))
         return out
 
