@@ -45,13 +45,13 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 #: worktree before touching anything else.
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 1309),
+                    "Need reflection spot, strip, xy or chart reading capability", 1362),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 1368),
+                    "Setting Colorimeter Correction Matrix failed with error", 1421),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 1390),
+                    "Reading CCMX/CCSS File", 1443),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 1714),
+                    "Setting instrument mode failed with error", 1767),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",
