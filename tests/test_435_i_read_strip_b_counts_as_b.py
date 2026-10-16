@@ -340,6 +340,28 @@ def test_a_refused_file_as_leaves_the_reading_set_aside(qapp, tmp_path,
     assert tab._manager.set_aside_locs() == {f"C{k}" for k in range(1, PER)}
 
 
+def test_a_refused_file_as_sends_the_reader_back_as_after_reread(
+        qapp, tmp_path, monkeypatch):
+    """UMM 11b: a refused move leaves the reading set aside "as after
+    Re-read", and Re-read sends the reader back to the strip. The engine
+    refuses at the menu of the strip after the read (D), so until the k85
+    leftover was fixed the reader carried on to D with C unread."""
+    tab = _filing_tab(tmp_path, monkeypatch)
+    _run(qapp, tab, [_sread("A"), _sready("B"), _sread("B"), _sready("C")])
+    _answer(monkeypatch, "was_like")
+    tab._sent.clear()
+    _run(qapp, tab, [_swipe("C", "B"), _sready("D")])
+    assert _commands(tab) == [{"cmd": "file_as", "strip": "C", "as": "B"}]
+    tab._sent.clear()
+    _feed(tab._manager, {"event": "file_as_refused", "strip": "C",
+                         "as": "B"},
+          {"event": "strip_ready", "strip": "D", "read": False,
+           "all_done": False})
+    for _ in range(4):
+        qapp.processEvents()
+    assert _commands(tab) == [{"cmd": "goto", "strip": "C"}]
+
+
 # ---- the window's words ---------------------------------------------------
 
 

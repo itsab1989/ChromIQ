@@ -2803,6 +2803,15 @@ class MeasureManager(QObject):
             log.warning("the engine refused to file strip %s's reading as "
                         "strip %s; it stays set aside", ev.get("strip"),
                         ev.get("as"))
+            # …AND THE READER GOES BACK TO IT, "as after Re-read" (UMM 11b,
+            # k85 leftover of the beta 9 review): the engine stays where its
+            # strip menu was, which after the read is the NEXT strip, so
+            # without this the reader carried on to D while C was unread.
+            _fr = str(ev.get("strip", "")).strip()
+            if _fr and not self._an_ending_is_under_way():
+                log.info("read twice: reader back to strip %s, whose "
+                         "reading was set aside", _fr)
+                self.goto_strip(_fr)
 
         elif kind == "spot_ready":
             # Engine patch-by-patch mode: the read loop is now sitting on this
