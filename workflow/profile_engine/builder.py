@@ -1814,6 +1814,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _u = np.clip(np.asarray(residual, float) / float(
                 os.environ.get("CHROMIQ_A69_BAND", "2.0")), 0.0, 1.0)
             _w = _u * _u * (3.0 - 2.0 * _u)
+            if _a69m["oogdark"]:
+                # a69-cmykport-oogdark: only the dark end (colour to black);
+                # full up to black + l, out by black + l + w (CHROMIQ_A69_DARK)
+                _w = _w * _a69.dark_weight(node_lab, _l_min)
             if fixed_nodes is not None and len(fixed_nodes):
                 _w[fixed_nodes] = 0.0
             _w = _w[:, None]
