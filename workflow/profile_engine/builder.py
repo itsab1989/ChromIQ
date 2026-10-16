@@ -1797,7 +1797,28 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _pure_s = (1.0 - _w) * _pure_s + _w * _up
             else:
                 _pure_s = _up
-        if _a69m["dark"]:
+        if _a69m["oog"]:
+            # Agent 69 (a69-cmykport-oog): the engine's own table where the
+            # node is printable (its K, its neutral column), colprof's
+            # recipe on colprof's 17 grid where it clipped, handed over
+            # over CHROMIQ_A69_BAND dE of clip distance; the neutral column
+            # nodes stay the engine's. -oogpn: the printable side is the
+            # engine's per-node answer without the smoothing refit.
+            _ours = (np.clip(model.shape_device(dev_clut), 0.0, 1.0)
+                     if _a69m["oogpn"] else dev_clut_shaped)
+            _st = (b2a_grid - 1) // 16
+            _up = (_a69.upsample(_pure_s.reshape(
+                b2a_grid, b2a_grid, b2a_grid, n)[::_st, ::_st, ::_st]
+                .reshape(-1, n), 17, b2a_grid)
+                if (b2a_grid - 1) % 16 == 0 else _pure_s)
+            _u = np.clip(np.asarray(residual, float) / float(
+                os.environ.get("CHROMIQ_A69_BAND", "2.0")), 0.0, 1.0)
+            _w = _u * _u * (3.0 - 2.0 * _u)
+            if fixed_nodes is not None and len(fixed_nodes):
+                _w[fixed_nodes] = 0.0
+            _w = _w[:, None]
+            dev_clut_shaped = (1.0 - _w) * _ours + _w * _up
+        elif _a69m["dark"]:
             _w = _a69.dark_weight(node_lab, _l_min)[:, None]
             dev_clut_shaped = (1.0 - _w) * dev_clut_shaped + _w * _pure_s
         else:
@@ -1831,7 +1852,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         device_black = dev_clut[black_node].copy()
     if channel_max is not None:
         device_black = np.minimum(device_black, channel_max)
-    if _a58k("black") and (_a69m is None or _a69m["keepblack"]):
+    if _a58k("black") and (_a69m is None or _a69m["keepblack"]
+                           or _a69m["oog"]):
         # (Agent 58: colprof pins no black into an RGB B2A1; xlut.c:3443-
         # 3447 uses RGB 0 only as the perceptual black point)
         dev_clut_shaped = b2a_mod.pin_black_node(

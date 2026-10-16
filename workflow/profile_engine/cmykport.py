@@ -42,7 +42,7 @@ TOKEN = "a69-cmykport"
 TOKENS = ("a69-cmykport", "a69-cmykport-17", "a69-cmykport-ourk",
           "a69-cmykport-ourclip", "a69-cmykport-pernode",
           "a69-cmykport-dark", "a69-cmykport-keepblack",
-          "a69-cmykport-17in")
+          "a69-cmykport-17in", "a69-cmykport-oog", "a69-cmykport-oogpn")
 
 # Argyll constants
 KSMTH = 0.09          # ICXINKDEFSMTH, xicc.h:183
@@ -59,6 +59,8 @@ def mode(candidates) -> dict | None:
         return None
     return {"grid17": "a69-cmykport-17" in c,
             "in17": "a69-cmykport-17in" in c,
+            "oog": "a69-cmykport-oog" in c or "a69-cmykport-oogpn" in c,
+            "oogpn": "a69-cmykport-oogpn" in c,
             "ourk": "a69-cmykport-ourk" in c,
             "ourclip": "a69-cmykport-ourclip" in c,
             "pernode": "a69-cmykport-pernode" in c,
