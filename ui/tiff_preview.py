@@ -1257,9 +1257,15 @@ class _PatchInfoTile(QWidget):
             return one_stop(tr(one if len(locs) == 1 else many).format(
                 locs=first_three(locs), loc=loc))
 
-        def nb_reread() -> None:
-            """N2: what can still confirm a neighbour-check red."""
-            add_text(tr(_mm._CARDS_NB_REREAD).format(loc=loc))
+        def nb_reread(whole: bool = True) -> None:
+            """N2: what can still confirm a neighbour-check red. *whole*
+            False on a card whose red ending asks for the re-read itself
+            (10.12.5 rows 12, 21, 22): only N2's second sentence, so "Read
+            patch {loc} again to find out." is said once (Basti, 2026-10-16)."""
+            if whole:
+                add_text(tr(_mm._CARDS_NB_REREAD).format(loc=loc))
+            else:
+                add_text(tr(_mm._CARDS_NB_REREAD_OTHERS))
 
         def nb_fmt(text: str) -> str:
             """A neighbour-check sentence with the patch's figures: Knut's
@@ -1437,7 +1443,7 @@ class _PatchInfoTile(QWidget):
                     rows.append((None, ""))
                     add_text(nb_fmt(_mm._CARDP_NB_ALSO))
                 rows.append((None, ""))
-                nb_reread()
+                nb_reread(whole=False)
             else:
                 # The limit by its name, its value and its chart type, and
                 # the strip test by its name (beta 17, the k56 cards Knut
@@ -1470,7 +1476,7 @@ class _PatchInfoTile(QWidget):
                             k=range_k)))
                     add_confirmed_list()
                     rows.append((None, ""))
-                nb_reread()
+                nb_reread(whole=False)
             elif rng in _mm.RANGE_NAMES:
                 rows.append((None, ""))
                 add_range_line()

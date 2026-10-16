@@ -2131,6 +2131,12 @@ _CARDS_NB_PEER_ONE = ("Stands out from its neighbours in the same way, read "
 _CARDS_NB_REREAD = ("Read patch {loc} again to find out. Similar patches read "
                     "in other strips that stand out in the same way can also "
                     "confirm it.")
+#: N2 without its first sentence: on the red cards that end with the red
+#: ending, which says "Read patch {loc} again to find out." itself (10.12.5
+#: rows 12, 21 and 22), so the card says it once. Basti, 2026-10-16 (item 10
+#: of the beta 8 review: "i would agree to drop as you recommended").
+_CARDS_NB_REREAD_OTHERS = ("Similar patches read in other strips that stand "
+                           "out in the same way can also confirm it.")
 #: N3: red, the patch error limit's part confirmed by similar patches (or
 #: judged like a patch of its learned range), the neighbour check's not.
 _CARDS_PE_PEER_NB_RED = ("Similar patches ({locs}) confirm the difference of "
@@ -2162,7 +2168,7 @@ M_PATCH_SIMILAR = _m(
     "M-PATCH-SIMILAR",
     _CARDS_HEADLINE,
     "\n".join((_CARDS_NB_PEER, _CARDS_NB_PEER_ONE, _CARDS_NB_REREAD,
-               _CARDS_PE_PEER_NB_RED, _CARDS_PE_PEER_NB_RED_ONE,
+               _CARDS_NB_REREAD_OTHERS, _CARDS_PE_PEER_NB_RED, _CARDS_PE_PEER_NB_RED_ONE,
                _CARDS_PE_LEARNED_NB_RED, _CARDS_NB_PEER_PE_RED,
                _CARDS_PE_CORRECTED)),
     approved=False)
@@ -2980,7 +2986,7 @@ M_ENGINE_FELL_BACK = _m(
     "names there.\n"
     "•  Calibrate (the K key) and clicking a strip or patch in the preview to "
     "go to it are not available.\n\n"
-    "Reason: {reason}", approved=False)
+    "Reason: {reason}", approved=True)   # Knut, 2026-10-15 (#182 6191537939): "message accepted"
 
 # --- PROPOSED: a strip or patch pattern the readers cannot use -----------
 #: Forum report, 2026-10-03: the strip pattern "0-9" made a 14-strip chart
@@ -6314,7 +6320,7 @@ M_CONVERT_TXT_NOT_MEASUREMENT = _m(
     "\u2022 Load that saved measurement file here.",
     approved=True)   # Knut, 2026-10-15 (#182 6181598560): "Approved from my point of view"
 
-# --- PROPOSED: the converted calibration measurement could not be saved ------
+# --- APPROVED: the converted calibration measurement could not be saved ------
 #: 4.3.5 beta 7. Build Profile with Run type = Calibration converts an
 #: i1Profiler export (.txt / .mxf / .cxf) and saves the result as
 #: ``<stem>.ti3`` beside the export (``TabProfile.
@@ -6332,7 +6338,7 @@ M_CONVERT_NOT_SAVED = _m(
     "Your file has not been changed. Copy it to a folder you can save to, for "
     "example one in your home folder, and load it from there.\n\n"
     "Details: {reason}",
-    approved=False)
+    approved=True)   # Knut, 2026-10-15 (#182 6191537939): "approved"
 
 
 #: The paragraph a converter window adds when the ArgyllCMS program printed an

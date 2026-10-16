@@ -20,13 +20,11 @@ from pathlib import Path
 
 #: Checks whose verdict is not PASS/FAIL by the table alone, (scenario,
 #: stage, loc) -> (verdict, reason).
-JUDGED = {
-    ("E07-live", "right-after", "A1"): (
-        "NOT COVERED BY SPEC",
-        "During a session, Preferences OK (refresh_patch_flags) returns at "
-        "once; the new tolerance is applied with the next strip (checked: "
-        "red after strip H). 10.12.4 T9 says 'judged again' without saying "
-        "whether during a session that is at once or at the next reading."),
+JUDGED: dict = {
+    # ("E07-live", "right-after", "A1") was NOT COVERED BY SPEC until Basti
+    # confirmed it on 2026-10-16 (item 11): a Preferences change during a
+    # measurement takes effect from the next strip read. It is an ordinary
+    # check now (UMM 10.12, "a Preferences change during a measurement").
 }
 
 #: Rows of 10.12.5 with no reachable state, and how they are covered.

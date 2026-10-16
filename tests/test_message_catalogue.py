@@ -426,8 +426,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-PATCH-SIMILAR",
                                  # Knut, #182 6181524471 (2026-10-15): the
                                  # beeps sentence out, and a list of what
                                  # does not work while ArgyllCMS measures,
-                                 # verified in the code: revised, waiting.
-                                 "M-ENGINE-FELL-BACK",
+                                 # verified in the code: revised, and
+                                 # APPROVED by Knut 2026-10-15 (#182
+                                 # 6191537939, "message accepted"); it left
+                                 # this set.
                                  # 2026-10-03, forum report: the strip pattern
                                  # "0-9" made a chart neither reader could
                                  # read. Create Chart refuses such a pattern
@@ -723,8 +725,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-PATCH-SIMILAR",
                                  # project rule's words (4.3.5 beta 5):
                                  # 4.3.5 beta 7: the calibration loader
                                  # could not SAVE the converted file and
-                                 # said it could not read it. Our words.
-                                 "M-CONVERT-NOT-SAVED",
+                                 # said it could not read it. Our words,
+                                 # APPROVED by Knut 2026-10-15 (#182
+                                 # 6191537939); it left this set.
                                  # 4.3.5 beta 8 (#210): a paper patch read
                                  # much darker than its sheet. Our words.
                                  "M-REPORT-PAPER-WHITE-DOUBT",

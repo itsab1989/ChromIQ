@@ -98,6 +98,15 @@ def _card(qapp, loc, v, *, pe, nb, de=None, kind="estimated"):
     return " ".join(" ".join(x for x in lines if x).split()), lines
 
 
+def _n2_once(text, loc):
+    """Rows 12, 21 and 22: N2 without its first sentence, because the red
+    ending asks for the re-read itself, so the card says it once (Basti,
+    2026-10-16, item 10 of the beta 8 review)."""
+    assert M._CARDS_NB_REREAD_OTHERS in text
+    assert M._CARDS_NB_REREAD.format(loc=loc) not in text
+    assert text.count(M._CARD_RED_READ_AGAIN.format(loc=loc)) == 1
+
+
 def _ab(v):
     return f"ΔE*ab {float(v):.2f}"
 
@@ -354,7 +363,7 @@ def test_row_08_nb_red(qapp):
     assert v.flag is pf.FLAG_RED and (v.pe_state, v.nb_state) == ("", "red")
     text, lines = _card(qapp, "A1", v, pe=False, nb=True)
     assert _nb_fmt(M._CARDP_NB_RED, "A1") in text
-    assert M._CARDS_NB_REREAD.format(loc="A1") in text
+    assert M._CARDS_NB_REREAD.format(loc="A1") in text      # row 8: whole
     assert "Only its own re-read" not in text
 
 
@@ -400,7 +409,7 @@ def test_row_12_both_red(qapp):
     text, lines = _card(qapp, "A1", v, pe=True, nb=True)
     assert M._CARDP_LIMIT_HEAD in lines and _limit_red("A1") in text
     assert _nb_fmt(M._CARDP_NB_ALSO, "A1") in text
-    assert M._CARDS_NB_REREAD.format(loc="A1") in text
+    _n2_once(text, "A1")
 
 
 def test_row_13_pe_red_nb_similar(qapp):
@@ -489,7 +498,7 @@ def test_row_21_pe_similar_nb_red(qapp):
     assert M._CARDP_LIMIT_HEAD in lines
     assert M._CARDS_PE_PEER_NB_RED_ONE.format(locs="B1", loc="A1") in text
     assert _nb_fmt(M._CARDP_NB_ALSO, "A1") in text
-    assert M._CARDS_NB_REREAD.format(loc="A1") in text
+    _n2_once(text, "A1")
     assert _limit_red("A1") not in text
 
 
@@ -502,6 +511,7 @@ def test_row_22_pe_learned_nb_red(qapp):
     text, _ = _card(qapp, "A1", v, pe=True, nb=True)
     assert M._CARDS_PE_LEARNED_NB_RED.format(loc="A1", like=v.like_loc) in text
     assert _nb_fmt(M._CARDP_NB_ALSO, "A1") in text
+    _n2_once(text, "A1")
 
 
 def test_row_23_both_similar(qapp):

@@ -476,7 +476,9 @@ class Ctx:
         return ([M("_CARDP_LIMIT_HEAD"), self.limit(loc, de),
                  self.nb_text("_CARDP_NB_ALSO", loc)]
                 + self.range_block(rng, k, locs)
-                + [M("_CARDS_NB_REREAD", loc=loc)] + self.red_ending(loc))
+                # N2 without its first sentence: the red ending asks for
+                # the re-read (Basti, 2026-10-16, item 10)
+                + [M("_CARDS_NB_REREAD_OTHERS")] + self.red_ending(loc))
 
     def row13(self, loc, de, nb_peers, rng="green", k=0, locs=()):
         return ([M("_CARDP_LIMIT_HEAD"), self.limit(loc, de),
@@ -492,7 +494,7 @@ class Ctx:
                             locs=fmt_locs(peers)))
         return ([M("_CARDP_LIMIT_HEAD"), n3,
                  self.nb_text("_CARDP_NB_ALSO", loc),
-                 M("_CARDS_NB_REREAD", loc=loc)] + self.red_ending(loc))
+                 M("_CARDS_NB_REREAD_OTHERS")] + self.red_ending(loc))
 
 
 #: Sentences that must be on no card since beta 8 (UMM 10.12).
@@ -507,6 +509,11 @@ def chk(case, loc, outline, card=None, absent=(), pe="", nb="", note=""):
     sentences in order, *absent* what must not be on it; *pe* / *nb* the
     intended input (each test triggered or not on the last reading:
     "y" / "n" / "" not checked)."""
+    absent = list(absent)
+    if card is not None and M("_CARDS_NB_REREAD_OTHERS") in card:
+        # rows 12, 21, 22: the whole N2 must not be there too, or the card
+        # says "Read patch … again" twice (Basti, 2026-10-16, item 10)
+        absent.append(M("_CARDS_NB_REREAD", loc=loc))
     return {"case": case, "loc": loc, "outline": outline,
             "card": None if card is None else list(card),
             "absent": list(absent),
@@ -989,9 +996,12 @@ def scenarios() -> "list[dict]":  # noqa: C901 — a table, one entry per case
         ("strip", "A", {"A1": U}), ("strip", "B", {"B1": add(U, e(x=2.5))}),
         ("set", "tol", 2.0), ("refresh",), ("check", "right after"),
         ("strip", "H", {"H12": noise("H12")})],
-        [chk("E07", "A1", "red", c.row2("A1", 20), [YEL], pe="y", nb="n",
-             note="at 'right after' Preferences OK, in the session (T9: "
-                  "judged again)"),
+        [chk("E07", "A1", "yellow", c.row5("A1", 20, ["B1"], k=2,
+                                           locs=["A1", "B1"]), [RED_],
+             pe="y", nb="n",
+             note="at 'right after' Preferences OK, in the session: "
+                  "unchanged until the next strip (Basti, 2026-10-16, "
+                  "item 11; UMM 10.12)"),
          chk("E07", "A1", "red", c.row2("A1", 20), [YEL], pe="y", nb="n",
              note="after the next strip")]))
     L.append(S("E07-limit", "Preferences: limit raised hides a Y-re, lowered "
