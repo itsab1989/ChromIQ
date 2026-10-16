@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.3.5-beta.9
+
+### Changed
+
+- **A red outline's card asks you to read the patch again only once** (#182). When a patch is red for both checks, or red by the neighbour check while similar patches already confirm its large difference, the card said "Read patch … again to find out." twice: once in the neighbour check's lines and once at its end. It now says it once, at the end; the neighbour check's lines keep "Similar patches read in other strips that stand out in the same way can also confirm it." Basti agreed to the change.
+- **Two approvals are recorded**: "Measuring with ArgyllCMS instead" and "The converted measurement could not be saved" (Knut, 2026-10-15).
+
+### Fixed
+
+- **The quality check counted a measurement whose patches share their names as far fewer patches** (#211). A measurement converted from i1Profiler can name its patches A1 to T21 on each of four pages. Check & Refine kept one patch per name, so the Profile Quality window said "2 of 420 patches above your tolerance" for 1,680 readings. Every patch the check measured now counts, two patches with the same name are never merged, and a measurement without patch names is counted too.
+- **A reading from a strip the misalignment check flagged could still confirm a patch after the measurement was closed** (#210). Inside a measurement such a reading never confirms anything, but once it ended nothing remembered where the reading came from, so carrying on later with the same colour turned the patch yellow. The measurement's memory file now keeps which readings came from a flagged strip, and reopening or resuming treats them exactly as during the measurement.
+
 ## v4.3.5-beta.8
 
 ### Changed
