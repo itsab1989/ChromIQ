@@ -1919,7 +1919,31 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                    if _a69.A70_EDGEADAPT in candidates else None))
         _emit(settings, f"Colorimetric table: gamut edge softened at "
                         f"{_es['nodes']} nodes (research a70-edgesmooth).")
+    if _a69m is not None and os.environ.get("CHROMIQ_A71_DUMP"):
+        # Agent 71: the table after edge smoothing, before the black shell
+        import pickle
+        _bn1 = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        with open(os.environ["CHROMIQ_A71_DUMP"], "wb") as _fh:
+            pickle.dump({"pre_shell": dev_clut_shaped.copy(),
+                         "black_dev": np.clip(dev_clut[_bn1], 0.0, 1.0),
+                         "l_min": _l_min, "residual": residual,
+                         "node_lab": node_lab, "grid": b2a_grid}, _fh)
     if (_a69m is not None and _a69m["oog"]
+            and _a69.A71_DARKRAY in candidates):
+        # Agent 71 (a71-darkray): the dark end below the black darkens
+        # steadily into the table's black (cmykport.dark_end; Findings
+        # agent71-01); replaces a70-blackshell.
+        _bn = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        _bd = np.clip(dev_clut[_bn], 0.0, 1.0)
+        if channel_max is not None:
+            _bd = np.minimum(_bd, channel_max)
+        dev_clut_shaped, _dr = _a69.dark_end(
+            dev_clut_shaped, residual, node_lab, b2a_grid, model, _bd,
+            _l_min, ink_limit=ink_limit, fixed_nodes=fixed_nodes)
+        _emit(settings, f"Colorimetric table: dark end ({_dr['mode']}, "
+                        f"{_dr.get('moved', _dr['nodes'])} nodes; research "
+                        f"a71-darkray).")
+    elif (_a69m is not None and _a69m["oog"]
             and _a69.A70_BLACKSHELL in candidates):
         # Agent 70 (a70-blackshell): below the printable black the clipped
         # nodes lean toward the table's black (cmykport.black_shell).
