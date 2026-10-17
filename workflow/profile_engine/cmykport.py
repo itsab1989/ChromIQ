@@ -689,13 +689,18 @@ def _tri(shaped: np.ndarray, grid: int, axes, pts: np.ndarray) -> np.ndarray:
 
 
 def _path(d: np.ndarray, db: np.ndarray, w: np.ndarray, kind: str,
-          q: float = 3.0) -> np.ndarray:
+          q: float = 3.0, kf: float | None = None) -> np.ndarray:
     w = np.asarray(w, float)[:, None]
     if kind == "linear":
         return (1.0 - w) * d + w * db[None, :]
     out = d.copy()
     out[:, 3] = d[:, 3] + (db[3] - d[:, 3]) * (1.0 - (1.0 - w[:, 0]) ** q)
     out[:, :3] = d[:, :3] + (db[None, :3] - d[:, :3]) * w ** q
+    if kind == "kfold" and kf is not None:
+        # K first, but above the fold only as fast as C/M/Y leave
+        rem = 1.0 - w[:, 0] ** q
+        kmax = np.maximum(d[:, 3], kf + (db[3] - kf) * (1.0 - rem))
+        out[:, 3] = np.minimum(out[:, 3], kmax)
     return out
 
 
@@ -728,9 +733,10 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     floor, default 0:3:0:10:0. Nodes printing darker than the black are
     first lifted (all inks scaled down) to the black's L*, which keeps their
     colour (CHROMIQ_A71_LIFT=0: toward the black instead)."""
-    top, step, tol, sweeps, floor = (float(v) for v in (
-        params or os.environ.get("CHROMIQ_A71_RAY") or "0:3:0:10:0"
-    ).split(":"))
+    pv = [float(v) for v in (params or os.environ.get("CHROMIQ_A71_RAY")
+                             or "0:3:0:10:0").split(":")]
+    top, step, tol, sweeps, floor = pv[:5]
+    gam = pv[5] if len(pv) > 5 else 0.0
     lift = os.environ.get("CHROMIQ_A71_LIFT", "1") == "1"
     nl = np.asarray(node_lab, float)
     out = np.asarray(shaped, float).copy()
@@ -751,9 +757,13 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     d0 = np.clip(model.unshape_device(out[ri]), 0.0, 1.0)
     ts = np.linspace(0.0, 1.0, 21)
     best, kind = None, "linear"
-    for k in ("linear", "klead"):
+    kf = k_fold(model)
+    kinds = ("linear", "klead") + (("kfold",) if kf is not None
+                                   and os.environ.get("CHROMIQ_A71_KFOLD")
+                                   == "1" else ())
+    for k in kinds:
         Lp = np.stack([model.predict(_tac(_path(d0, db, np.full(len(ri), t),
-                                                k), lim))[:, 0]
+                                                k, kf=kf), lim))[:, 0]
                        for t in ts], 1)
         r = float(np.mean(np.max(Lp - np.minimum.accumulate(Lp, axis=1),
                                  axis=1) > 0.3))
@@ -774,6 +784,12 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
                      0.0, 1.0)
         Lo = model.predict(do)[:, 0]
         cap = np.maximum(Lo + tol, lb)
+        if gam > 0:
+            # descend toward the black in proportion to how far along the
+            # line the node still is from the black corner (L* 0)
+            rho = (np.linalg.norm(nl[ri], axis=1)
+                   / np.maximum(np.linalg.norm(outer, axis=1), 1e-9)) ** gam
+            cap = np.minimum(cap, np.maximum(lb + (Lo - lb) * rho, lb))
         bad = (Lc > cap) | (Lc < lb - floor)
         if not bad.any():
             break
@@ -802,12 +818,13 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
         wbest = np.ones(len(bi))
         found = np.zeros(len(bi), bool)
         for wv in ws:
-            dd = _tac(_path(dcur[bi], db, np.full(len(bi), wv), kind), lim)
+            dd = _tac(_path(dcur[bi], db, np.full(len(bi), wv), kind,
+                            kf=kf), lim)
             Lw = model.predict(dd)[:, 0]
             ok = (Lw <= cap[bi]) & (Lw >= lb - floor) & ~found
             wbest[ok] = wv
             found |= ok
-        dd = _tac(_path(dcur[bi], db, wbest, kind), lim)
+        dd = _tac(_path(dcur[bi], db, wbest, kind, kf=kf), lim)
         out[ri[bi]] = np.clip(model.shape_device(dd), 0.0, 1.0)
         moved[bi] = True
     info["moved"] = int(moved.sum())
