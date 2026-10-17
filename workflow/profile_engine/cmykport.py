@@ -730,13 +730,21 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     is the one that darkens monotonically on this printer (linear, or K first
     and C/M/Y late where linear mixes print lighter, i1iSis / i1Pro). Sweeps
     run from the outside in. Params (env CHROMIQ_A71_RAY) top:step:tol:sweeps:
-    floor, default 0:3:0:10:0. Nodes printing darker than the black are
+    floor:gamma:cmin, default 0:3:a:10:0:0:6 (tol a = 0 with a fold at the
+    black, 0.3 without; nodes within C* cmin of the neutral axis untouched). Nodes printing darker than the black are
     first lifted (all inks scaled down) to the black's L*, which keeps their
     colour (CHROMIQ_A71_LIFT=0: toward the black instead)."""
-    pv = [float(v) for v in (params or os.environ.get("CHROMIQ_A71_RAY")
-                             or "0:3:0:10:0").split(":")]
+    ps = (params or os.environ.get("CHROMIQ_A71_RAY")
+          or "0:3:a:10:0:0:6").split(":")
+    kf = k_fold(model)
+    if ps[2] == "a":
+        # without a fold at the black, model wiggles below 0.3 L* are noise
+        # (moving those nodes cost chroma on XKB); with one they are real
+        ps[2] = "0" if kf is not None else "0.3"
+    pv = [float(v) for v in ps]
     top, step, tol, sweeps, floor = pv[:5]
     gam = pv[5] if len(pv) > 5 else 0.0
+    cmin = pv[6] if len(pv) > 6 else 0.0
     lift = os.environ.get("CHROMIQ_A71_LIFT", "1") == "1"
     nl = np.asarray(node_lab, float)
     out = np.asarray(shaped, float).copy()
@@ -746,6 +754,8 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     axes = [np.unique(nl[:, k]) for k in range(3)]
     reg = (np.asarray(residual, float) >= 0.5) & (nl[:, 0] < l_min + top)
     reg &= np.linalg.norm(nl, axis=1) > 1e-6
+    # the neutral column and its neighbours stay the engine's (grey ramps)
+    reg &= np.hypot(nl[:, 1], nl[:, 2]) > cmin
     if fixed_nodes is not None and len(fixed_nodes):
         reg[np.asarray(fixed_nodes)] = False
     ri = np.flatnonzero(reg)
@@ -757,7 +767,6 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     d0 = np.clip(model.unshape_device(out[ri]), 0.0, 1.0)
     ts = np.linspace(0.0, 1.0, 21)
     best, kind = None, "linear"
-    kf = k_fold(model)
     kinds = ("linear", "klead") + (("kfold",) if kf is not None
                                    and os.environ.get("CHROMIQ_A71_KFOLD")
                                    == "1" else ())
