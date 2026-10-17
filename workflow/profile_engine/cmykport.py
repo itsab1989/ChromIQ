@@ -628,10 +628,10 @@ def black_shell(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     black ramp's last cells do not interpolate between a dark-blue clip
     answer (K 0.5 + C/M) and the black corner (K 1) through a lighter mix
     (i1iSis sRGB blue: printed L* 22.7 -> 27.4 -> 17.5 over the last 2 % of
-    the ramp; SWOP C5 violet 1.5-2 L*). Weight smoothstep((l_min - off -
-    L*) / (l_min - off)) ** p * smoothstep(1 - C* / cmax); scaled down on a
-    printer whose inks strongly LIGHTEN the black (i1Pro: the blend itself
-    crosses that fold). Params (env CHROMIQ_A70_SHELL) off:p:cmax, default
+    the ramp). Weight smoothstep((l_min - off - L*) / (l_min - off)) ** p *
+    smoothstep(1 - C* / cmax); only on a printer whose inks lighten the
+    black by about 1 L* (i1iSis), off without a fold and off on a strong one
+    (i1Pro: the blend itself crosses it). Params (env CHROMIQ_A70_SHELL) off:p:cmax, default
     3:0.5:80."""
     off, p, cmax = (float(v) for v in (params or os.environ.get(
         "CHROMIQ_A70_SHELL") or "3:0.5:80").split(":"))
@@ -643,7 +643,17 @@ def black_shell(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     w[np.asarray(residual, float) < 0.5] = 0.0
     ff = 1.0
     if model is not None:
-        ff = float(_ss((3.0 - fold_at_black(model)) / 2.0))
+        # only on a printer with a fold at the black (i1iSis: inks lighten K
+        # 1 by 1.0 L*); presses (<= 0.1) and fitted synthetic printers (0.4-
+        # 0.6, model noise) keep the table as it is: there the shell only
+        # added a chroma knee at L* 10 (eyecheck GRACoL proxy 41 -> 63);
+        # off again on a strong fold (i1Pro, 5 L*) that the blend crosses
+        # (the same fold test as a70-foldcap: a fold that reaches the black
+        # and peaks above FOLD_PEAK; synthetic fitted models show up to
+        # 0.8 L* of noise at K 1 and do not pass it)
+        f1 = fold_at_black(model)
+        ff = (float(_ss((3.0 - f1) / 2.0))
+              if k_fold(model) is not None else 0.0)
     w = w * ff
     out = (1.0 - w[:, None]) * shaped + w[:, None] * np.asarray(
         black_dev_shaped, float)[None, :]

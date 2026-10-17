@@ -89,7 +89,7 @@ def test_adaptive_layer_never_moves_more_than_the_plain_one():
 def test_black_shell_moves_only_clipped_nodes_below_the_black():
     lab, tab, res, g = _table()
     blk = np.array([0.0, 0.0, 0.0, 1.0])
-    out, info = P.black_shell(tab, res, lab, blk, l_min=20.0, params="3:0.5:80")
+    out, info = P.black_shell(tab, res, lab, blk, l_min=20.0, model=_MildFold(), params="3:0.5:80")
     moved = np.abs(out - tab).max(1) > 0
     assert not moved[lab[:, 0] >= 17.0].any()
     assert not moved[res < 0.5].any()
@@ -104,3 +104,19 @@ class _FoldBlack:
         d = np.atleast_2d(d)
         L = 100.0 - 80.0 * d[:, 3] + 40.0 * d[:, :3].sum(1) * (d[:, 3] > 0.9)
         return np.stack([L, np.zeros(len(d)), np.zeros(len(d))], 1)
+
+
+class _MildFold:
+    """i1iSis-like: 5-20 % C/M/Y on K 1 lightens the print by about 1 L*."""
+
+    def predict(self, d):
+        d = np.atleast_2d(d)
+        L = 100.0 - 80.0 * d[:, 3] + 10.0 * np.minimum(d[:, :3].max(1), 0.2) * (d[:, 3] > 0.9)
+        return np.stack([L, np.zeros(len(d)), np.zeros(len(d))], 1)
+
+
+def test_black_shell_off_on_a_press():
+    lab, tab, res, g = _table()
+    out, info = P.black_shell(tab, res, lab, np.array([0.0, 0.0, 0.0, 1.0]), l_min=20.0, model=_Press(),
+                              params="3:0.5:80")
+    assert np.array_equal(out, tab) and info["fold_factor"] == 0.0
