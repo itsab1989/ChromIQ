@@ -730,21 +730,27 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     is the one that darkens monotonically on this printer (linear, or K first
     and C/M/Y late where linear mixes print lighter, i1iSis / i1Pro). Sweeps
     run from the outside in. Params (env CHROMIQ_A71_RAY) top:step:tol:sweeps:
-    floor:gamma:cmin, default 0:3:a:10:0:0:6 (tol a = 0.3 where the straight
-    path toward the black darkens steadily, else 0; nodes within C* cmin of
-    the neutral axis untouched). Nodes printing darker than the black are
+    floor:gamma:cmin:cdesc, default 0:3:a:10:0:a:6:12 (tol a = 0.3 where the
+    straight path toward the black darkens steadily, else 0; gamma a = 0
+    there, else 1: below C* cdesc the cap also descends toward the black's
+    L* by (|node| / |outer point|) ** gamma; nodes within C* cmin of the
+    neutral axis untouched). Nodes printing darker than the black are
     first lifted (all inks scaled down) to the black's L*, which keeps their
     colour (CHROMIQ_A71_LIFT=0: toward the black instead)."""
     ps = (params or os.environ.get("CHROMIQ_A71_RAY")
-          or "0:3:a:10:0:0:6").split(":")
+          or "0:3:a:10:0:a:6:12").split(":")
     kf = k_fold(model)
     auto_tol = ps[2] == "a"
     if auto_tol:
         ps[2] = "0"
+    auto_gam = len(ps) > 5 and ps[5] == "a"
+    if auto_gam:
+        ps[5] = "0"
     pv = [float(v) for v in ps]
     top, step, tol, sweeps, floor = pv[:5]
     gam = pv[5] if len(pv) > 5 else 0.0
     cmin = pv[6] if len(pv) > 6 else 0.0
+    cdesc = pv[7] if len(pv) > 7 else 1e9
     lift = os.environ.get("CHROMIQ_A71_LIFT", "1") == "1"
     nl = np.asarray(node_lab, float)
     out = np.asarray(shaped, float).copy()
@@ -786,7 +792,16 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
         # noise: moving those nodes cost chroma on XKB (oog_ramp_jump
         # 4.2 -> 10); where it does not (i1iSis), every rise is real
         tol = 0.3
+    if auto_gam and kind != "linear":
+        # where only the K-first path darkens (i1iSis), near the neutral
+        # axis (C* < cdesc) the last cells must also DESCEND into the black
+        # in proportion to how far along the line they are: there the
+        # printer's fold makes K-heavy mixes with a little C/M/Y print up to
+        # 2 L* lighter than the model says (proxy), a light stripe before
+        # the black (i1iSis proxy blue rise 9.5 -> 2.3, colprof 2.2)
+        gam = 1.0
     info["tol"] = tol
+    info["gamma"] = gam
     apex = np.array([RAY_APEX, 0.0, 0.0])
     v = nl[ri] - apex
     v /= np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-9)
@@ -805,7 +820,9 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
             # line the node still is from the black corner (L* 0)
             rho = (np.linalg.norm(nl[ri], axis=1)
                    / np.maximum(np.linalg.norm(outer, axis=1), 1e-9)) ** gam
-            cap = np.minimum(cap, np.maximum(lb + (Lo - lb) * rho, lb))
+            dcap = np.maximum(lb + (Lo - lb) * rho, lb)
+            near = np.hypot(nl[ri, 1], nl[ri, 2]) < cdesc
+            cap = np.where(near, np.minimum(cap, dcap), cap)
         bad = (Lc > cap) | (Lc < lb - floor)
         if not bad.any():
             break
