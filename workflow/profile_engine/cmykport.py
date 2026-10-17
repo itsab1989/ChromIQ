@@ -730,17 +730,17 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     is the one that darkens monotonically on this printer (linear, or K first
     and C/M/Y late where linear mixes print lighter, i1iSis / i1Pro). Sweeps
     run from the outside in. Params (env CHROMIQ_A71_RAY) top:step:tol:sweeps:
-    floor:gamma:cmin, default 0:3:a:10:0:0:6 (tol a = 0 with a fold at the
-    black, 0.3 without; nodes within C* cmin of the neutral axis untouched). Nodes printing darker than the black are
+    floor:gamma:cmin, default 0:3:a:10:0:0:6 (tol a = 0.3 where the straight
+    path toward the black darkens steadily, else 0; nodes within C* cmin of
+    the neutral axis untouched). Nodes printing darker than the black are
     first lifted (all inks scaled down) to the black's L*, which keeps their
     colour (CHROMIQ_A71_LIFT=0: toward the black instead)."""
     ps = (params or os.environ.get("CHROMIQ_A71_RAY")
           or "0:3:a:10:0:0:6").split(":")
     kf = k_fold(model)
-    if ps[2] == "a":
-        # without a fold at the black, model wiggles below 0.3 L* are noise
-        # (moving those nodes cost chroma on XKB); with one they are real
-        ps[2] = "0" if kf is not None else "0.3"
+    auto_tol = ps[2] == "a"
+    if auto_tol:
+        ps[2] = "0"
     pv = [float(v) for v in ps]
     top, step, tol, sweeps, floor = pv[:5]
     gam = pv[5] if len(pv) > 5 else 0.0
@@ -780,6 +780,13 @@ def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
             best, kind = r, k
     kind = os.environ.get("CHROMIQ_A71_PATH", kind)
     info["path"] = kind
+    if auto_tol and kind == "linear":
+        # where the straight mix toward the black already darkens steadily
+        # (presses, synthetic printers), model wiggles below 0.3 L* are
+        # noise: moving those nodes cost chroma on XKB (oog_ramp_jump
+        # 4.2 -> 10); where it does not (i1iSis), every rise is real
+        tol = 0.3
+    info["tol"] = tol
     apex = np.array([RAY_APEX, 0.0, 0.0])
     v = nl[ri] - apex
     v /= np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-9)
