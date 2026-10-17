@@ -1811,7 +1811,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 b2a_grid, b2a_grid, b2a_grid, n)[::_st, ::_st, ::_st]
                 .reshape(-1, n), 17, b2a_grid)
                 if (b2a_grid - 1) % 16 == 0 else _pure_s)
-            _band = float(os.environ.get("CHROMIQ_A69_BAND", "2.0"))
+            # hand-over band: 2 dE (a58's) by default, 6 dE with oogfine
+            # (Agent 69 D-25: of6 = 50 WORSE rows vs of4 75, oog 239)
+            _band = float(os.environ.get(
+                "CHROMIQ_A69_BAND", "6.0" if _a69m["oogfine"] else "2.0"))
             if _a69m["oogfine"]:
                 # a69-cmykport-oogfine: near the gamut surface the clipped
                 # nodes take colprof's recipe on the fine grid, handed over
