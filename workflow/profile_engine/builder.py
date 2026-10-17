@@ -1904,6 +1904,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         f"(research a69-cmykport; {_a69i['inside']} nodes "
                         f"on the K rule, {_a69i['clipped']} clipped, "
                         f"K curve from L* {_l_min:.1f}).")
+    if (_a69m is not None and _a69m["oog"]
+            and _a69.A70_EDGESMOOTH in candidates):
+        # Agent 70 (a70-edgesmooth): soften the slope break where colour-to-
+        # black ramps leave the gamut (cmykport.edge_smooth; Findings
+        # agent70-01): a few Jacobi passes over chromatic dark nodes in a
+        # thin band across the gamut boundary.
+        dev_clut_shaped, _es = _a69.edge_smooth(
+            dev_clut_shaped, residual, node_lab, b2a_grid,
+            fixed_nodes=fixed_nodes)
+        _emit(settings, f"Colorimetric table: gamut edge softened at "
+                        f"{_es['nodes']} nodes (research a70-edgesmooth).")
     # The B2A half of the white pin (see _pin_media_white for the A2B half),
     # and the black corner: L*=0 → the chart's deepest measured black.
     # Agent 59 (a59-pernodeout): the coarse (clipped) half of keep-grid33in

@@ -419,3 +419,84 @@ def oog_target(model, node_lab, dev_clut, residual, *, ink_limit,
     u = np.clip(np.asarray(residual, float) / band, 0.0, 1.0)
     w = u * u * (3.0 - 2.0 * u)
     return up, w, info
+
+
+A70_EDGESMOOTH = "a70-edgesmooth"
+
+
+def _nb_morph(m, op):
+    out = m.copy()
+    for ax in range(3):
+        for sh in (1, -1):
+            r = np.roll(m, sh, axis=ax)
+            idx = [slice(None)] * 3
+            idx[ax] = 0 if sh == 1 else -1
+            r[tuple(idx)] = m[tuple(idx)]
+            out = op(out, r)
+    return out
+
+
+def edge_layers(inside: np.ndarray, grid: int, depth: int = 6):
+    """Grid distance (in cells, 1..depth) of every in-gamut node to the
+    nearest clipped node (``dep``) and of every clipped node to the nearest
+    in-gamut node (``hgt``); 0 where farther than ``depth``."""
+    ins = inside.reshape(grid, grid, grid)
+    dep = np.zeros(ins.shape)
+    hgt = np.zeros(ins.shape)
+    cur = ins.copy()
+    for k in range(1, depth + 1):
+        nxt = _nb_morph(cur, np.logical_and)
+        dep[cur & ~nxt] = k
+        cur = nxt
+    cur = ~ins
+    for k in range(1, depth + 1):
+        nxt = _nb_morph(cur, np.logical_and)
+        hgt[cur & ~nxt] = k
+        cur = nxt
+    return dep.reshape(-1), hgt.reshape(-1)
+
+
+def edge_smooth(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
+                grid: int, fixed_nodes=None, params: str | None = None):
+    """Agent 70 (a70-edgesmooth): soften the slope break where the colour-to-
+    black ramps leave the gamut. In-gamut nodes print their target exactly
+    and the clipped neighbour prints the surface colour, so along a ramp the
+    printed L* follows the source with slope 1 and then the surface: a band
+    edge at the boundary node plane (FOGRA mid yellow, L* 21.9). colprof's
+    17 grid softens the same break over its wider cells (at an accuracy cost
+    there). Here a few Jacobi passes average chromatic dark nodes with their
+    six neighbours in a thin band across the boundary: clipped nodes up to
+    ``hmax`` cells out (weight ``ac``), the first in-gamut layer (``a1``) and
+    the second (``a2``). Params (env CHROMIQ_A70_EDGE)
+    a1:a2:hmax:iters:lmax:cmin:ac, default 0.3:0:3:4:75:6:0.5."""
+    p = (params or os.environ.get("CHROMIQ_A70_EDGE")
+         or "0.3:0:3:4:75:6:0.5").split(":")
+    a1, a2, hmax, it, lmax, cmin, ac = (float(v) for v in p)
+    nl = np.asarray(node_lab, float)
+    inside = np.asarray(residual, float) < 0.5
+    dep, hgt = edge_layers(inside, grid)
+    a = np.zeros(len(nl))
+    a[dep == 1] = a1
+    a[dep == 2] = a2
+    a[(hgt >= 1) & (hgt <= hmax)] = ac
+    chrom = np.hypot(nl[:, 1], nl[:, 2]) > cmin
+    a[~chrom | (nl[:, 0] >= lmax)] = 0.0
+    if fixed_nodes is not None and len(fixed_nodes):
+        a[np.asarray(fixed_nodes)] = 0.0
+    g = grid
+    T = np.asarray(shaped, float).reshape(g, g, g, -1).copy()
+    W = a.reshape(g, g, g, 1)
+    for _ in range(int(it)):
+        nb = np.zeros_like(T)
+        cnt = np.zeros((g, g, g, 1))
+        for ax in range(3):
+            for sh in (1, -1):
+                r = np.roll(T, sh, axis=ax)
+                v = np.ones((g, g, g, 1))
+                idx = [slice(None)] * 3
+                idx[ax] = 0 if sh == 1 else g - 1
+                v[tuple(idx)] = 0.0
+                nb += r * v
+                cnt += v
+        T = (1.0 - W) * T + W * (nb / cnt)
+    return T.reshape(-1, shaped.shape[1]), {"nodes": int((a > 0).sum())}
