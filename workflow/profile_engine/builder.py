@@ -1646,7 +1646,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 model, node_lab, dev_clut, residual, ink_limit=ink_limit,
                 channel_max=channel_max, l_min=_a70_lmin, grid=b2a_grid,
                 oogfine=_a70m["oogfine"],
-                progress=lambda m: _emit(settings, m))
+                progress=lambda m: _emit(settings, m),
+                fold=_a70c.A70_FOLDCAP in candidates)
             _wf = _a70_w.copy()
             if fixed_nodes is not None and len(fixed_nodes):
                 _wf[fixed_nodes] = 0.0
@@ -1828,7 +1829,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             model, node_lab, dev_clut, residual, ink_limit=ink_limit,
             channel_max=channel_max, l_min=_l_min,
             ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
-            progress=lambda m: _emit(settings, m))
+            progress=lambda m: _emit(settings, m),
+            fold=_a69.A70_FOLDCAP in candidates)
         _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
         if channel_max is not None:
             _pure_s = np.minimum(_pure_s, model.shape_device(

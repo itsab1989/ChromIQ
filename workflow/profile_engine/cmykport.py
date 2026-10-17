@@ -149,6 +149,37 @@ def k_target(l_star: np.ndarray, l_min: float, l_max: float = 100.0,
     return kcurve(L, c)
 
 
+# --- Agent 70: the ink fold near black -----------------------------------------
+A70_FOLDCAP = "a70-foldcap"
+FOLD_DL = 0.5         # L* a single ink may LIGHTEN the print before it counts
+FOLD_C0, FOLD_C1 = 6.0, 12.0   # target C*: cap relaxed below C0, full above C1
+
+
+def k_fold(model, n: int = 4):
+    """Where the ink fold near black starts: the lowest K of the run (0.5..1,
+    step 0.01) that reaches K 1 in which adding a little C, M or Y (5-20 %)
+    to K alone makes the print LIGHTER by more than FOLD_DL L*, minus 0.01;
+    None when the printer has no fold at the black (presses)."""
+    ks = np.arange(0.50, 1.0001, 0.01)
+    base = np.zeros((len(ks), n))
+    base[:, 3] = ks
+    l0 = model.predict(base)[:, 0]
+    worst = np.full(len(ks), -np.inf)
+    for c in (0.05, 0.1, 0.2):
+        for ch in range(3):
+            d = base.copy()
+            d[:, ch] = c
+            worst = np.maximum(worst, model.predict(d)[:, 0] - l0)
+    hit = worst > FOLD_DL
+    if not hit[-1]:
+        return None
+    # the fold that reaches the black: the last run of hits ending at K 1
+    j = len(ks) - 1
+    while j > 0 and hit[j - 1]:
+        j -= 1
+    return float(max(ks[j] - 0.01, 0.5))
+
+
 # --- solvers ----------------------------------------------------------------
 def _project_cmy(d: np.ndarray, limit, cmax) -> np.ndarray:
     """Clamp C, M, Y to their box and project them under ``limit - K``
@@ -315,7 +346,7 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray, *, limit,
 def colprof_table(model, node_lab: np.ndarray, d_ours: np.ndarray,
                   residual: np.ndarray, *, ink_limit, channel_max, l_min: float,
                   ourk: bool = False, ourclip: bool = False,
-                  progress=None) -> tuple[np.ndarray, dict]:
+                  progress=None, fold: bool = False) -> tuple[np.ndarray, dict]:
     """The colorimetric B2A1 per node, colprof's recipe (module docstring).
 
     ``d_ours``: the engine's own per-node answer (feasible start for the
@@ -349,9 +380,34 @@ def colprof_table(model, node_lab: np.ndarray, d_ours: np.ndarray,
     if len(oo) and not ourclip:
         if progress:
             progress("colprof clip (Lab nearest, then CAM Jab)…")
-        d_n = nearest_lab(model, node_lab[oo], d_ours[oo], limit=limit,
-                          cmax=cmax)
-        out[oo] = cam_clip(model, node_lab[oo], d_n, limit=limit, cmax=cmax)
+        kf = k_fold(model) if fold else None
+        info["k_fold"] = kf
+        if kf is None:
+            d_n = nearest_lab(model, node_lab[oo], d_ours[oo], limit=limit,
+                              cmax=cmax)
+            out[oo] = cam_clip(model, node_lab[oo], d_n, limit=limit,
+                               cmax=cmax)
+        else:
+            # Agent 70 (a70-foldcap): on a printer whose inks LIGHTEN the
+            # print above some K (i1Pro: K 0.97 alone L* 26, + 8 % C/M/Y
+            # L* 28-30; i1iSis from K 0.8), the clip of a chromatic target
+            # jumps between a K+C/M/Y answer and the K-only black and the
+            # ramp goes dark, colour, dark. Chromatic clipped nodes may not
+            # use K above the fold; the cap relaxes toward the neutrals.
+            cc = np.hypot(node_lab[oo, 1], node_lab[oo, 2])
+            for lo, hi, frac in ((FOLD_C1, np.inf, 0.0),
+                                 (FOLD_C0, FOLD_C1, 0.5),
+                                 (-1.0, FOLD_C0, 1.0)):
+                sel = oo[(cc > lo) & (cc <= hi)]
+                if not len(sel):
+                    continue
+                cm = cmax.copy()
+                cm[3] = min(cm[3], kf + frac * (cm[3] - kf))
+                seed = np.minimum(d_ours[sel], cm[None])
+                d_n = nearest_lab(model, node_lab[sel], seed, limit=limit,
+                                  cmax=cm)
+                out[sel] = cam_clip(model, node_lab[sel], d_n, limit=limit,
+                                    cmax=cm)
     info["clipped"] = int(len(oo))
     return out, info
 
@@ -391,7 +447,8 @@ A70_PORTREFIT = "a70-portrefit"
 
 
 def oog_target(model, node_lab, dev_clut, residual, *, ink_limit,
-               channel_max, l_min, grid, oogfine, progress=None):
+               channel_max, l_min, grid, oogfine, progress=None,
+               fold=False):
     """The a69-cmykport-oog(+oogfine) clipped-node target as the builder
     blends it: (shaped device table, hand-over weight w per node). Same
     arithmetic as the builder's oog branch (band CHROMIQ_A69_BAND, fine
@@ -399,7 +456,7 @@ def oog_target(model, node_lab, dev_clut, residual, *, ink_limit,
     n = model.n_channels
     pure, info = colprof_table(model, node_lab, dev_clut, residual,
                                ink_limit=ink_limit, channel_max=channel_max,
-                               l_min=l_min, progress=progress)
+                               l_min=l_min, progress=progress, fold=fold)
     pure_s = np.clip(model.shape_device(pure), 0.0, 1.0)
     if channel_max is not None:
         pure_s = np.minimum(pure_s, model.shape_device(

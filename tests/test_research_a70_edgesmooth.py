@@ -43,3 +43,26 @@ def test_layers():
     d = dep.reshape(5, 5, 5)
     h = hgt.reshape(5, 5, 5)
     assert (d[2, 2, 2] == 1) and (d[2, 2, 1] == 2) and (h[2, 2, 3] == 1) and (h[2, 2, 4] == 2)
+
+
+class _Fold:
+    """A toy CMYK printer: L* falls with K; above K 0.9 any C/M/Y lightens the print (the i1Pro fold)."""
+
+    def predict(self, d):
+        d = np.atleast_2d(d)
+        L = 100.0 - 75.0 * d[:, 3] - 10.0 * d[:, :3].sum(1)
+        lift = np.where(d[:, 3] > 0.9, 30.0 * d[:, :3].sum(1), 0.0)
+        return np.stack([L + lift, np.zeros(len(d)), np.zeros(len(d))], 1)
+
+
+class _Press(_Fold):
+    def predict(self, d):
+        d = np.atleast_2d(d)
+        L = 100.0 - 75.0 * d[:, 3] - 10.0 * d[:, :3].sum(1)
+        return np.stack([L, np.zeros(len(d)), np.zeros(len(d))], 1)
+
+
+def test_k_fold_found_only_where_inks_lighten_the_black():
+    assert P.k_fold(_Press()) is None
+    kf = P.k_fold(_Fold())
+    assert kf is not None and 0.88 <= kf <= 0.91
