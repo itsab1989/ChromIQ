@@ -1919,6 +1919,20 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                    if _a69.A70_EDGEADAPT in candidates else None))
         _emit(settings, f"Colorimetric table: gamut edge softened at "
                         f"{_es['nodes']} nodes (research a70-edgesmooth).")
+    if (_a69m is not None and _a69m["oog"]
+            and _a69.A70_BLACKSHELL in candidates):
+        # Agent 70 (a70-blackshell): below the printable black the clipped
+        # nodes lean toward the table's black (cmykport.black_shell).
+        _bn = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        _bd = np.clip(dev_clut[_bn], 0.0, 1.0)
+        if channel_max is not None:
+            _bd = np.minimum(_bd, channel_max)
+        _bd = np.clip(model.shape_device(_bd[None, :])[0], 0.0, 1.0)
+        dev_clut_shaped, _bs = _a69.black_shell(
+            dev_clut_shaped, residual, node_lab, _bd, _l_min, model=model)
+        _emit(settings, f"Colorimetric table: {_bs['nodes']} nodes below "
+                        f"the black lean toward it (research a70-blackshell, "
+                        f"fold factor {_bs['fold_factor']:.2f}).")
     # The B2A half of the white pin (see _pin_media_white for the A2B half),
     # and the black corner: L*=0 → the chart's deepest measured black.
     # Agent 59 (a59-pernodeout): the coarse (clipped) half of keep-grid33in

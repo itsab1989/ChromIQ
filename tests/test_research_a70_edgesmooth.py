@@ -84,3 +84,23 @@ def test_adaptive_layer_never_moves_more_than_the_plain_one():
     dep, hgt = P.edge_layers(res < 0.5, g)
     m = dep == 1
     assert np.all(np.abs(adapt - tab)[m].max(1) <= np.abs(plain - tab)[m].max(1) + 1e-9)
+
+
+def test_black_shell_moves_only_clipped_nodes_below_the_black():
+    lab, tab, res, g = _table()
+    blk = np.array([0.0, 0.0, 0.0, 1.0])
+    out, info = P.black_shell(tab, res, lab, blk, l_min=20.0, params="3:0.5:80")
+    moved = np.abs(out - tab).max(1) > 0
+    assert not moved[lab[:, 0] >= 17.0].any()
+    assert not moved[res < 0.5].any()
+    assert info["nodes"] > 0
+    # with a strong fold at the black (i1Pro-like) the shell is off
+    out2, info2 = P.black_shell(tab, res, lab, blk, l_min=20.0, model=_FoldBlack(), params="3:0.5:80")
+    assert np.array_equal(out2, tab) and info2["fold_factor"] == 0.0
+
+
+class _FoldBlack:
+    def predict(self, d):
+        d = np.atleast_2d(d)
+        L = 100.0 - 80.0 * d[:, 3] + 40.0 * d[:, :3].sum(1) * (d[:, 3] > 0.9)
+        return np.stack([L, np.zeros(len(d)), np.zeros(len(d))], 1)

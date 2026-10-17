@@ -600,3 +600,51 @@ def edge_smooth(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
                 cnt += v
         T = (1.0 - W) * T + W * (nb / cnt)
     return T.reshape(-1, shaped.shape[1]), {"nodes": int((a > 0).sum())}
+
+
+A70_BLACKSHELL = "a70-blackshell"
+
+
+def fold_at_black(model, n: int = 4) -> float:
+    """How much 5-20 % of C, M or Y LIGHTENS the print at K 1 (L*; <= 0 on a
+    press, 1 on i1iSis, 5 on i1Pro)."""
+    base = np.zeros((1, n))
+    base[0, 3] = 1.0
+    l0 = float(model.predict(base)[0, 0])
+    worst = -np.inf
+    for c in (0.05, 0.1, 0.2):
+        for ch in range(3):
+            d = base.copy()
+            d[0, ch] = c
+            worst = max(worst, float(model.predict(d)[0, 0]) - l0)
+    return worst
+
+
+def black_shell(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
+                black_dev_shaped: np.ndarray, l_min: float, model=None,
+                params: str | None = None):
+    """Agent 70 (a70-blackshell): below the printable black the clipped nodes
+    lean toward the table's black as L* -> 0 and C* -> 0, so a colour-to-
+    black ramp's last cells do not interpolate between a dark-blue clip
+    answer (K 0.5 + C/M) and the black corner (K 1) through a lighter mix
+    (i1iSis sRGB blue: printed L* 22.7 -> 27.4 -> 17.5 over the last 2 % of
+    the ramp; SWOP C5 violet 1.5-2 L*). Weight smoothstep((l_min - off -
+    L*) / (l_min - off)) ** p * smoothstep(1 - C* / cmax); scaled down on a
+    printer whose inks strongly LIGHTEN the black (i1Pro: the blend itself
+    crosses that fold). Params (env CHROMIQ_A70_SHELL) off:p:cmax, default
+    3:0.5:80."""
+    off, p, cmax = (float(v) for v in (params or os.environ.get(
+        "CHROMIQ_A70_SHELL") or "3:0.5:80").split(":"))
+    nl = np.asarray(node_lab, float)
+    top = max(l_min - off, 1e-6)
+    wl = _ss((top - nl[:, 0]) / top) ** p
+    wc = _ss(1.0 - np.hypot(nl[:, 1], nl[:, 2]) / cmax)
+    w = wl * wc
+    w[np.asarray(residual, float) < 0.5] = 0.0
+    ff = 1.0
+    if model is not None:
+        ff = float(_ss((3.0 - fold_at_black(model)) / 2.0))
+    w = w * ff
+    out = (1.0 - w[:, None]) * shaped + w[:, None] * np.asarray(
+        black_dev_shaped, float)[None, :]
+    return out, {"nodes": int((w > 0.01).sum()), "fold_factor": ff}
