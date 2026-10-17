@@ -43,7 +43,8 @@ TOKENS = ("a69-cmykport", "a69-cmykport-17", "a69-cmykport-ourk",
           "a69-cmykport-ourclip", "a69-cmykport-pernode",
           "a69-cmykport-dark", "a69-cmykport-keepblack",
           "a69-cmykport-17in", "a69-cmykport-oog", "a69-cmykport-oogpn",
-          "a69-cmykport-oogdark")
+          "a69-cmykport-oogdark", "a69-cmykport-oogfine",
+          "a69-cmykport-darkin")
 
 # Argyll constants
 KSMTH = 0.09          # ICXINKDEFSMTH, xicc.h:183
@@ -65,6 +66,8 @@ def mode(candidates) -> dict | None:
             "oog": "a69-cmykport-oog" in c or "a69-cmykport-oogpn" in c,
             "oogpn": "a69-cmykport-oogpn" in c,
             "oogdark": "a69-cmykport-oogdark" in c,
+            "oogfine": "a69-cmykport-oogfine" in c,
+            "darkin": "a69-cmykport-darkin" in c,
             "ourk": "a69-cmykport-ourk" in c,
             "ourclip": "a69-cmykport-ourclip" in c,
             "pernode": "a69-cmykport-pernode" in c,

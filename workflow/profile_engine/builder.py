@@ -1811,9 +1811,28 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 b2a_grid, b2a_grid, b2a_grid, n)[::_st, ::_st, ::_st]
                 .reshape(-1, n), 17, b2a_grid)
                 if (b2a_grid - 1) % 16 == 0 else _pure_s)
-            _u = np.clip(np.asarray(residual, float) / float(
-                os.environ.get("CHROMIQ_A69_BAND", "2.0")), 0.0, 1.0)
+            _band = float(os.environ.get("CHROMIQ_A69_BAND", "2.0"))
+            if _a69m["oogfine"]:
+                # a69-cmykport-oogfine: near the gamut surface the clipped
+                # nodes take colprof's recipe on the fine grid, handed over
+                # to its 17 grid from _band to CHROMIQ_A69_FINE dE out
+                _fb = float(os.environ.get("CHROMIQ_A69_FINE", "8.0"))
+                _v = np.clip((np.asarray(residual, float) - _band)
+                             / max(_fb - _band, 1e-6), 0.0, 1.0)
+                _v = (_v * _v * (3.0 - 2.0 * _v))[:, None]
+                _up = (1.0 - _v) * _pure_s + _v * _up
+            _u = np.clip(np.asarray(residual, float) / _band, 0.0, 1.0)
             _w = _u * _u * (3.0 - 2.0 * _u)
+            if _a69m["darkin"]:
+                # a69-cmykport-darkin: just above the black the printable
+                # nodes take colprof's recipe too (its K rule), so both sides
+                # of the in-gamut / clipped seam hold one separation
+                # (CHROMIQ_A69_DARKIN l:w above the black)
+                _dl, _dw = (float(v) for v in os.environ.get(
+                    "CHROMIQ_A69_DARKIN", "10:10").split(":"))
+                _x = np.clip((_l_min + _dl + _dw - node_lab[:, 0])
+                             / max(_dw, 1e-6), 0.0, 1.0)
+                _w = np.maximum(_w, _x * _x * (3.0 - 2.0 * _x))
             if _a69m["oogdark"]:
                 # a69-cmykport-oogdark: only the dark end (colour to black);
                 # full up to black + l, out by black + l + w (CHROMIQ_A69_DARK)
