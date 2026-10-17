@@ -384,3 +384,38 @@ def dark_weight(node_lab: np.ndarray, l_black: float) -> np.ndarray:
     u = np.clip((l_black + l0 + w - np.asarray(node_lab, float)[:, 0])
                 / max(w, 1e-6), 0.0, 1.0)
     return u * u * (3.0 - 2.0 * u)
+
+
+# --- Agent 70 (a70-portrefit) -------------------------------------------------
+A70_PORTREFIT = "a70-portrefit"
+
+
+def oog_target(model, node_lab, dev_clut, residual, *, ink_limit,
+               channel_max, l_min, grid, oogfine, progress=None):
+    """The a69-cmykport-oog(+oogfine) clipped-node target as the builder
+    blends it: (shaped device table, hand-over weight w per node). Same
+    arithmetic as the builder's oog branch (band CHROMIQ_A69_BAND, fine
+    hand-over CHROMIQ_A69_FINE)."""
+    n = model.n_channels
+    pure, info = colprof_table(model, node_lab, dev_clut, residual,
+                               ink_limit=ink_limit, channel_max=channel_max,
+                               l_min=l_min, progress=progress)
+    pure_s = np.clip(model.shape_device(pure), 0.0, 1.0)
+    if channel_max is not None:
+        pure_s = np.minimum(pure_s, model.shape_device(
+            np.asarray(channel_max, float)[None, :]))
+    st = (grid - 1) // 16
+    up = (upsample(pure_s.reshape(grid, grid, grid, n)[::st, ::st, ::st]
+                   .reshape(-1, n), 17, grid)
+          if (grid - 1) % 16 == 0 else pure_s)
+    band = float(os.environ.get("CHROMIQ_A69_BAND",
+                                "6.0" if oogfine else "2.0"))
+    if oogfine:
+        fb = float(os.environ.get("CHROMIQ_A69_FINE", "8.0"))
+        v = np.clip((np.asarray(residual, float) - band)
+                    / max(fb - band, 1e-6), 0.0, 1.0)
+        v = (v * v * (3.0 - 2.0 * v))[:, None]
+        up = (1.0 - v) * pure_s + v * up
+    u = np.clip(np.asarray(residual, float) / band, 0.0, 1.0)
+    w = u * u * (3.0 - 2.0 * u)
+    return up, w, info

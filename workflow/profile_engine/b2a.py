@@ -1733,8 +1733,12 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     ucs: bool = False,
                     channel_max: np.ndarray | None = None,
                     fixed_nodes: np.ndarray | None = None,
-                    progress=None) -> np.ndarray:
+                    progress=None,
+                    anchor_min: np.ndarray | None = None) -> np.ndarray:
     """Refit the B2A CLUT as one smooth field over exact inverse samples.
+
+    ``anchor_min`` (Agent 70, a70-portrefit): a per-node floor on the node
+    anchor weight (the port's clipped nodes enter the fit as firm anchors).
 
     ``fixed_nodes``: node indices whose value is already decided (the
     neutral column of :func:`apply_neutral_axis`); they get the heavy
@@ -1843,6 +1847,8 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         anchor_w = np.maximum(anchor_w, 0.05 + 3.95 * u)
     if fixed_nodes is not None and len(fixed_nodes):
         anchor_w[fixed_nodes] = 4.0
+    if anchor_min is not None:
+        anchor_w = np.maximum(anchor_w, np.asarray(anchor_min, float))
     if node_lab is None:
         node_lab = lab_grid(grid)
     # Fit in *curve space* — the CLUT stores shaped device values (the output
