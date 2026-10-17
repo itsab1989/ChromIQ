@@ -1,5 +1,48 @@
 # Changelog
 
+## v4.3.5
+
+**Fixes and refinements from Knut's tests of 4.3.4 and from the forum.** Measuring is more careful about misreads: "I read strip B" files the reading as strip B, every square of a chart counts, similar patches can confirm either check, and a new safety net warns when a strip was read one patch out. Check & Refine counts every patch and guides you patch by patch. On a PostScript printer you choose once per project how the chart's colours go to the printer, verification charts print through the profile by default, and From Profile Gamut charts are spread evenly over everything your printer can print. ChromIQ no longer hangs after choosing a verification run, the downloaded disk image opens again on every Mac, and Windows imports i1Profiler files on the Measure tab again.
+
+### Changed
+
+- **Measuring: "I read strip B" files the reading as strip B** (#182). When "Was a strip read twice?" asks about a reading filed under the strip that was due (say C) and you answer I read strip B, ChromIQ's measuring engine moves the reading onto strip B, spectral values included, and the outlines, the patch cards and the saved measurement all have it as B; a strip B swiped backwards lands the right way round. The reader stays on C, which still has to be read. If the reading cannot be moved, it is set aside as after "Re-read", the reader goes back to strip C, and the closing summary says "not moved to B, so not used".
+- **Measuring: every square of a chart counts, the fill-up squares too** (#182). A measurement is complete only when every square has a reading, and every count you see (the progress, "All Strips Read" and "All Patches Read", Start Measurement, Build Profile and both import doors) counts the same way, with ChromIQ's engine and with ArgyllCMS's chartread, strip by strip or patch by patch, on a resume, and on verification and calibration charts.
+- **Measuring: similar patches can confirm a patch for each of the two checks** (#182). A patch is outlined because it is too far from its expected colour or because it stands out from the patches nearest to it in colour. Each reason is judged on its own and can be confirmed by the patch's own re-read or by similar patches read in other strips; the outline is red if either is still red, yellow if either is confirmed, green if a re-read corrected it. The patch card says which check is confirmed and by which patches.
+- **Measuring: "Warn me if a strip looks misaligned" is on by default and works on real prints** (#210). It checks after each strip whether every reading was filed one patch out, also for a strip swiped from the far end. Tested on 192 real strips from three instruments, it found the three misread strips of the forum report and none of the good ones. A reading from a strip it flags never confirms a patch, also after the measurement is closed and resumed.
+- **Measuring: thresholds are compared and shown with two decimals**: at a limit of 5.00, ΔE 5.00 is not red and 5.01 is (#182).
+- **Measuring: the patch cards are in plain words**: each line says first what it means, then the numbers with their unit, the difference between the expected and the measured colour has its own section, and a long card gets wider instead of taller so it fits on a small screen (#182).
+- **Measuring: the Calibration Complete window of a CR30 or a ColorMunki / i1Studio says to lay the chart on a white, even surface**, because these instruments have no reading board (#182).
+- **Check & Refine: guided refinement in patch-by-patch mode visits only the patches above the limit** (#211), and after a refinement ChromIQ says to build the profile and run "Analyse Profile Quality" again before judging the quality.
+- **Measurement Report: choosing "Validation print check (ISO 12647-8)" or "Contract proof check (ISO 12647-7)" selects that standard's limit set** in "Judged against" (#182).
+- **Printing: on a PostScript printer the macOS print dialog sends the chart the way you choose, once per project.** The first time a chart of the project goes to a PostScript printer, ChromIQ asks after you click Print: "Send the colours unchanged (like Photoshop)", the default, where the chart reaches the printer as its own RGB, or "Let the printer adjust the colours (like Preview)", as 4.3.4 sent it. The answer is kept for the calibration, every run and their verifications; a run can have its own choice under "Colours to the printer" on the Print Chart tab. Switching "Use default macOS printer dialog" in Preferences asks again.
+- **Printing: a verification chart from a preset or Manual prints through the run's profile by default** (#182), and the Print Chart tab says how to use the macOS print dialog for it.
+- **Printing: six help cards explain how to print the chart, and why, in folded notes** (#182).
+- **Chart layout: From Profile Gamut charts are spread evenly over everything your printer can print** (#182). The spacing follows the number of colours, grey steps run from black to white, and the colours are chosen from beyond sRGB and Adobe RGB too, so wide-gamut printers are tested in their strongest colours. The first click no longer freezes the window, and a run with no finished profile says so. Charts you already made stay as they are.
+- **Chart layout: Show patch distribution (3D) can show the chart as colours through the profile**, inside a shaded skin of everything the profile can print, with a key above the plot (#182).
+- **Chart layout: the i1Pro built-in presets follow Knut's review** (margins, ruler marks, names with their patch set), and there is a new "i1Pro · Letter-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page" preset (#182).
+- **Install Profile asks before it replaces an installed profile of the same name** and lets you give the installed copy another name; with "Name the installed copy after the description" ticked, it follows the description as it reads when you click Install (#182).
+
+### Fixed
+
+- **ChromIQ could hang for good after you chose Verification as the run type or switched runs in a verification** (#182, macOS 14). It no longer does.
+- **Measuring with ArgyllCMS's chartread counted strips as patches**, and a resumed measurement never announced that it was complete.
+- **"Discard and stop" kept the readings of the session** in some cases; the earlier measurement is now put back and the session's file moved to an old/ folder, never deleted.
+- **A patch the neighbour check had made red did not turn green after a re-read that cleared it** (#182).
+- **A verification stopped part way looked finished**, and after "All Strips Read" and a re-read the reader stayed on the strip just read (#182).
+- **Check & Refine counted a measurement whose patches share their names as far fewer patches** (#211), for example "2 of 420" for 1,680 readings of an i1Profiler measurement of four pages. Every patch now counts, and shares are shown with one decimal (0.3% instead of 0%).
+- **Check & Refine: Refine / resume on a measurement made with another program lost the new readings** (#211). ChromIQ now checks first that every reading sits where this chart prints that patch, and when it does not, stops before anything is changed and explains what you can do.
+- **Measurement Report: "Restore chart used" followed by a redraw lost two of the chart's files**, so a verification showed no figures (#182). The report also warns when its paper white is not a reading of the paper (#210).
+- **Printing: a PostScript printer received the chart colour-managed through the macOS print dialog**; it now gets the chart as its own RGB unless you choose otherwise (see Changed). A profile made from such a chart with 4.3.4 or earlier should have its profiling chart printed again.
+- **Printing: charts that are not RGB** (CMY, CMY + orange, five to seven inks) print with their own inks named, a CMY + orange chart no longer prints its orange as black, and a paper the PostScript printer does not offer is refused instead of printed on another size.
+- **Printing: a chart sent through the macOS print dialog to a printer whose driver takes CMYK** no longer depends on the profile set in ColorSync Utility.
+- **Chart layout: "By columns / rows" could print fewer patches per strip than asked** (#182), also on an X-Rite DTP51, and a grid that cannot fit now says so in red.
+- **Chart layout: Create Chart scrolls on a short window** (1280 x 800) instead of squeezing its fields over one another, and Show patch distribution (3D) opens inside the screen.
+- **The downloaded disk image (DMG) could be refused by macOS with only "Move to Trash" offered** (forum report). Homebrew installs were not affected.
+- **Windows: importing an i1Profiler .txt on the Measure tab said txt2ti3 could not be found** (#209), and the same was true wherever ChromIQ looked for an ArgyllCMS program itself. Build Profile with Run type Calibration now loads an i1Profiler measurement directly.
+- **Windows and Linux: the Licences page now shows the third-party notices.**
+- **Translations: the reasons a file could not be converted or read are in all 13 languages**, counts of patches read correctly in Russian, Ukrainian and Polish, and several Russian and Ukrainian sentences now put the run name in the right case.
+
 ## v4.3.5-beta.9
 
 ### Changed
