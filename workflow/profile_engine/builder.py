@@ -1914,7 +1914,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # thin band across the gamut boundary.
         dev_clut_shaped, _es = _a69.edge_smooth(
             dev_clut_shaped, residual, node_lab, b2a_grid,
-            fixed_nodes=fixed_nodes)
+            fixed_nodes=fixed_nodes, model=model,
+            adapt=(os.environ.get("CHROMIQ_A70_ADAPT", "2:5")
+                   if _a69.A70_EDGEADAPT in candidates else None))
         _emit(settings, f"Colorimetric table: gamut edge softened at "
                         f"{_es['nodes']} nodes (research a70-edgesmooth).")
     # The B2A half of the white pin (see _pin_media_white for the A2B half),

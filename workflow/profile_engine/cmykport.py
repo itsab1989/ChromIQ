@@ -488,6 +488,7 @@ def oog_target(model, node_lab, dev_clut, residual, *, ink_limit,
 
 
 A70_EDGESMOOTH = "a70-edgesmooth"
+A70_EDGEADAPT = "a70-edgeadapt"
 
 
 def _nb_morph(m, op):
@@ -523,7 +524,8 @@ def edge_layers(inside: np.ndarray, grid: int, depth: int = 6):
 
 
 def edge_smooth(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
-                grid: int, fixed_nodes=None, params: str | None = None):
+                grid: int, fixed_nodes=None, params: str | None = None,
+                model=None, adapt: str | None = None):
     """Agent 70 (a70-edgesmooth): soften the slope break where the colour-to-
     black ramps leave the gamut. In-gamut nodes print their target exactly
     and the clipped neighbour prints the surface colour, so along a ramp the
@@ -544,6 +546,31 @@ def edge_smooth(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     a = np.zeros(len(nl))
     a[dep == 1] = a1
     a[dep == 2] = a2
+    if model is not None and adapt:
+        # Agent 70 (a70-edgeadapt): the in-gamut layer moves only as much
+        # as the break next to it needs: its weight rises (smoothstep) with
+        # how far its clipped neighbours print from their own targets, from
+        # b0 to b1 dE (CHROMIQ_A70_ADAPT, default 2:5). Where the gamut
+        # surface is close to the targets there is no break to soften and
+        # the in-gamut node keeps its exact value (synthetic X3 B2A p95:
+        # 1.55 with the plain weight, 1.25 adaptive, base 0.86).
+        b0, b1 = (float(v) for v in adapt.split(":"))
+        pr = model.predict(np.clip(model.unshape_device(
+            np.asarray(shaped, float)), 0.0, 1.0))
+        off = np.linalg.norm(pr - nl, axis=1)
+        off[inside] = 0.0
+        O = off.reshape(grid, grid, grid)
+        nb = np.zeros_like(O)
+        for ax in range(3):
+            for sh in (1, -1):
+                r = np.roll(O, sh, axis=ax)
+                idx = [slice(None)] * 3
+                idx[ax] = 0 if sh == 1 else -1
+                r[tuple(idx)] = 0.0
+                nb = np.maximum(nb, r)
+        nb = nb.reshape(-1)
+        m1 = dep == 1
+        a[m1] = a1 * _ss((nb[m1] - b0) / max(b1 - b0, 1e-6))
     a[(hgt >= 1) & (hgt <= hmax)] = ac
     chrom = np.hypot(nl[:, 1], nl[:, 2]) > cmin
     a[~chrom | (nl[:, 0] >= lmax)] = 0.0

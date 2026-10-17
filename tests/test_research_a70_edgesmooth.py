@@ -66,3 +66,21 @@ def test_k_fold_found_only_where_inks_lighten_the_black():
     assert P.k_fold(_Press()) is None
     kf = P.k_fold(_Fold())
     assert kf is not None and 0.88 <= kf <= 0.91
+
+
+class _Lin:
+    def unshape_device(self, x):
+        return x
+
+    def predict(self, d):
+        d = np.atleast_2d(d)
+        return np.stack([100.0 - 100.0 * d[:, 3], 50.0 * d[:, 0], 50.0 * d[:, 1]], 1)
+
+
+def test_adaptive_layer_never_moves_more_than_the_plain_one():
+    lab, tab, res, g = _table()
+    plain, _ = P.edge_smooth(tab, res, lab, g, params="0.3:0:2:4:75:6:0.5")
+    adapt, _ = P.edge_smooth(tab, res, lab, g, params="0.3:0:2:4:75:6:0.5", model=_Lin(), adapt="2:5")
+    dep, hgt = P.edge_layers(res < 0.5, g)
+    m = dep == 1
+    assert np.all(np.abs(adapt - tab)[m].max(1) <= np.abs(plain - tab)[m].max(1) + 1e-9)
