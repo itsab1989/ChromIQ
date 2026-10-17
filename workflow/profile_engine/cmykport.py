@@ -152,7 +152,13 @@ def k_target(l_star: np.ndarray, l_min: float, l_max: float = 100.0,
 # --- Agent 70: the ink fold near black -----------------------------------------
 A70_FOLDCAP = "a70-foldcap"
 FOLD_DL = 0.5         # L* a single ink may LIGHTEN the print before it counts
-FOLD_C0, FOLD_C1 = 6.0, 12.0   # target C*: cap relaxed below C0, full above C1
+FOLD_C0, FOLD_C1 = 6.0, 12.0   # target C*: cap gone below C0, full above C1
+FOLD_L0, FOLD_L1 = -10.0, 0.0   # target L* - black: cap gone below L0, full above L1
+
+
+def _ss(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3.0 - 2.0 * x)
 
 
 def k_fold(model, n: int = 4):
@@ -394,15 +400,18 @@ def colprof_table(model, node_lab: np.ndarray, d_ours: np.ndarray,
             # jumps between a K+C/M/Y answer and the K-only black and the
             # ramp goes dark, colour, dark. Chromatic clipped nodes may not
             # use K above the fold; the cap relaxes toward the neutrals.
+            # the cap relaxes toward the neutrals (C* below FOLD_C1, gone
+            # below FOLD_C0) and toward the black (target L* below the
+            # black + FOLD_L1, gone at the black + FOLD_L0), so dark targets
+            # still reach the K-only black, at the end of the ramp
             cc = np.hypot(node_lab[oo, 1], node_lab[oo, 2])
-            for lo, hi, frac in ((FOLD_C1, np.inf, 0.0),
-                                 (FOLD_C0, FOLD_C1, 0.5),
-                                 (-1.0, FOLD_C0, 1.0)):
-                sel = oo[(cc > lo) & (cc <= hi)]
-                if not len(sel):
-                    continue
+            fc = _ss((FOLD_C1 - cc) / (FOLD_C1 - FOLD_C0))
+            fl = _ss((l_min + FOLD_L1 - node_lab[oo, 0]) / (FOLD_L1 - FOLD_L0))
+            frac = np.round(np.maximum(fc, fl) * 4.0) / 4.0
+            for f in np.unique(frac):
+                sel = oo[frac == f]
                 cm = cmax.copy()
-                cm[3] = min(cm[3], kf + frac * (cm[3] - kf))
+                cm[3] = min(cm[3], kf + f * (cm[3] - kf))
                 seed = np.minimum(d_ours[sel], cm[None])
                 d_n = nearest_lab(model, node_lab[sel], seed, limit=limit,
                                   cmax=cm)
