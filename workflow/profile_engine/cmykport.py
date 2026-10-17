@@ -151,7 +151,9 @@ def k_target(l_star: np.ndarray, l_min: float, l_max: float = 100.0,
 
 # --- Agent 70: the ink fold near black -----------------------------------------
 A70_FOLDCAP = "a70-foldcap"
-FOLD_DL = 0.5         # L* a single ink may LIGHTEN the print before it counts
+FOLD_DL = 1.0         # L* a single ink may LIGHTEN the print before it counts
+FOLD_KEEP = 0.5       # the fold region: lightening above this, run ending at K 1
+FOLD_PEAK = 1.5       # and reaching this somewhere (else model noise)
 FOLD_C0, FOLD_C1 = 6.0, 12.0   # target C*: cap gone below C0, full above C1
 FOLD_L0, FOLD_L1 = -10.0, 0.0   # target L* - black: cap gone below L0, full above L1
 
@@ -162,11 +164,14 @@ def _ss(x):
 
 
 def k_fold(model, n: int = 4):
-    """Where the ink fold near black starts: the lowest K of the run (0.5..1,
-    step 0.01) that reaches K 1 in which adding a little C, M or Y (5-20 %)
-    to K alone makes the print LIGHTER by more than FOLD_DL L*, minus 0.01;
-    None when the printer has no fold at the black (presses)."""
-    ks = np.arange(0.50, 1.0001, 0.01)
+    """Where the ink fold near black starts, or None. Adding 5-20 % of C, M or
+    Y to K alone must make the print LIGHTER: the fold region is the run of K
+    (0.7..1, step 0.01) ending at K 1 in which it lightens by more than
+    FOLD_KEEP L*; it counts only if it lightens by FOLD_PEAK somewhere in it
+    (fitted synthetic printers show up to 0.8 L* of noise at K 1, i1iSis 2,
+    i1Pro 5); the fold starts at the first K of the run above FOLD_DL,
+    minus 0.01."""
+    ks = np.arange(0.70, 1.0001, 0.01)
     base = np.zeros((len(ks), n))
     base[:, 3] = ks
     l0 = model.predict(base)[:, 0]
@@ -176,14 +181,16 @@ def k_fold(model, n: int = 4):
             d = base.copy()
             d[:, ch] = c
             worst = np.maximum(worst, model.predict(d)[:, 0] - l0)
-    hit = worst > FOLD_DL
-    if not hit[-1]:
+    if worst[-1] <= FOLD_KEEP:
         return None
-    # the fold that reaches the black: the last run of hits ending at K 1
     j = len(ks) - 1
-    while j > 0 and hit[j - 1]:
+    while j > 0 and worst[j - 1] > FOLD_KEEP:
         j -= 1
-    return float(max(ks[j] - 0.01, 0.5))
+    run = worst[j:]
+    if run.max() < FOLD_PEAK:
+        return None
+    first = j + int(np.flatnonzero(run > FOLD_DL)[0])
+    return float(max(ks[first] - 0.01, 0.7))
 
 
 # --- solvers ----------------------------------------------------------------
