@@ -191,11 +191,11 @@ def _build_icc(run_dir: Path, stem: str) -> bool:
         print(f"    (colprof failed for {stem}: {exc}) — no profile written")
         return False
     # ArgyllCMS writes the Windows ICC extension (.icm) on Windows and .icc on
-    # macOS/Linux. ChromIQ's demo layout — and Run.profile_icc — is spelled .icc
-    # everywhere, so canonicalise the output. Without this a demo built on
-    # Windows has <stem>.icm and looks profile-less to any test that checks
-    # Run.profile_icc (#130, Windows gate). The app itself tolerates either name
-    # via ProfileBuilder.expected_icc_path(); the demo just picks the canonical one.
+    # macOS/Linux. The demo layout is spelled .icc everywhere, so canonicalise
+    # the output: tests compare against literal "<stem>.icc" names. The app
+    # itself finds either name (Run.profile_icc via core.file_manager.
+    # profile_file, #210); THIS RENAME IS WHY THE SUITE NEVER SAW that it once
+    # did not, so tests/test_a_windows_profile_is_found.py covers the .icm.
     icc = run_dir / f"{stem}.icc"
     icm = run_dir / f"{stem}.icm"
     if not icc.is_file() and icm.is_file():

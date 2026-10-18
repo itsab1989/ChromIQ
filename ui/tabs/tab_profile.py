@@ -325,7 +325,8 @@ def _align_form_labels(panel: QWidget) -> None:
         w.setFixedWidth(col)
 
 
-_ROLE_NAMED_PROFILES = ("merged.icc", "calibrated.icc", "preconditioning.icc")
+_ROLE_NAMED_PROFILES = ("merged.icc", "merged.icm", "calibrated.icc",
+                        "preconditioning.icc")
 
 
 def _role_named_fallback(icc_path) -> "str | None":

@@ -575,7 +575,9 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
                         else "-f")
         args += _k_args(settings)
         r = run_text(args + [str(base)], capture_output=True)
-        icc = base.with_suffix(".icc")
+        # colprof writes .icm on Windows (#210)
+        from core.file_manager import profile_file
+        icc = profile_file(base.with_suffix(".icc"), base.with_suffix(".icm"))
         if r.returncode != 0 or not icc.exists():
             raise OracleUnavailable(
                 f"colprof oracle failed: {(r.stderr or r.stdout)[:200]}")
@@ -757,7 +759,9 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
         r = run_text([str(colprof), "-qm", "-S", str(source_gamut),
                       *_k_args(settings), str(base)],
                      capture_output=True)
-        icc = base.with_suffix(".icc")
+        # colprof writes .icm on Windows (#210)
+        from core.file_manager import profile_file
+        icc = profile_file(base.with_suffix(".icc"), base.with_suffix(".icm"))
         if r.returncode != 0 or not icc.exists():
             raise OracleUnavailable(
                 f"proxy colprof failed: {(r.stderr or r.stdout)[:200]}")

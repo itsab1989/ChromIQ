@@ -143,7 +143,9 @@ def archive_run_for_replace(run: Run, *, verification: bool) -> "Path | None":
     # Every sub-folder except old/ itself — the chart they belonged to is going.
     paths += [d for d in run.dir.iterdir() if d.is_dir() and d.name != "old"] \
         if run.dir.exists() else []
-    return run.archive_to_old([p for p in paths if p.exists()])
+    # dict.fromkeys: `profile_icc` IS the `.icm` on a Windows-built run, and
+    # the same file archived twice fails the second move.
+    return run.archive_to_old([p for p in dict.fromkeys(paths) if p.exists()])
 
 
 def _copy_chart_set(src_ti2: Path, src_ti1: "Path | None", tiffs: "list[Path]",

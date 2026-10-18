@@ -743,14 +743,21 @@ class ProfileBuilder:
         # whereas with_suffix() would instead look for "<name>.icc". Check the
         # literal appended form first so such a profile is still found, then the
         # legacy replace form for plain names.
+        #
+        # Within each form, `profile_file` decides between .icc and .icm the
+        # way `Run.profile_icc` does (the newer wins, #210). Preferring .icc
+        # here while the run preferred .icm let a rebuild archive a stale .icc
+        # and then let colprof overwrite the newer .icm unarchived.
+        from core.file_manager import profile_file
         base = params.ti3_path.with_suffix("")
-        candidates: list[Path] = []
-        for ext in (".icc", ".icm"):
-            candidates.append(Path(str(base) + ext))   # what colprof actually writes
-            candidates.append(base.with_suffix(ext))   # legacy / extension-free names
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate
+        for icc, icm in (
+                # what colprof actually writes
+                (Path(str(base) + ".icc"), Path(str(base) + ".icm")),
+                # legacy / extension-free names
+                (base.with_suffix(".icc"), base.with_suffix(".icm"))):
+            found = profile_file(icc, icm)
+            if found.exists():
+                return found
         return Path(str(base) + ".icc")
 
     # ------------------------------------------------------------------

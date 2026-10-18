@@ -80,6 +80,29 @@ def test_a_ti1_or_a_cht_answers_when_there_is_no_ti2(tmp_path):
             == "Moab_Satin_240"
 
 
+def test_a_page_numbered_leftover_does_not_answer_for_a_chart_with_its_ti2(tmp_path):
+    """A forum user's run held a ``<stem>_01`` table beside a fresh multi-page
+    chart, and every build there answered ``<stem>_01``: "could not stamp
+    chart meta.json ... <stem>_01.ti2", 89 times. The ``.ti2`` decides first."""
+    for leftover in (".cht", ".ti1"):
+        for name in ("CP1500-576p-ChromIQ", "Moab_Satin_240"):
+            d = tmp_path / f"{name}{leftover[1:]}"
+            d.mkdir()
+            tifs = _chart(d, name, pages=5)
+            (d / f"{name}_01{leftover}").write_text("x", encoding="utf-8")
+            assert chart_stem_from_pages(tifs) == name
+
+
+def test_a_multi_page_scanner_target_keeps_its_name(tmp_path):
+    """A multi-page scanner target writes ``<stem>_NN.cht`` per page."""
+    d = tmp_path / "scan"
+    d.mkdir()
+    tifs = _chart(d, "Paper", pages=3)
+    for i in (1, 2, 3):
+        (d / f"Paper_{i:02d}.cht").write_text("x", encoding="utf-8")
+    assert chart_stem_from_pages(tifs) == "Paper"
+
+
 def test_with_no_chart_table_at_all_it_falls_back_to_the_old_reading(tmp_path):
     """No table on disk means no evidence, and a caller in a flow that has not
     written one must be no worse off than it was."""

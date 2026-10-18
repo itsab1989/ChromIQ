@@ -1061,7 +1061,8 @@ class ChartCreator:
         s = run.stem
         results = [run.dir / f"{s}.ti3", run.dir / f"{s}.icc",
                    run.dir / f"{s}.icm", run.dir / "merged.ti3",
-                   run.dir / "merged.icc", run.dir / "calibrated.icc"]
+                   run.dir / "merged.icc", run.dir / "merged.icm",
+                   run.dir / "calibrated.icc"]
         if not any(p.exists() for p in results):
             return
         on_line(tr(

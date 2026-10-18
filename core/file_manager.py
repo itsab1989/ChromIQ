@@ -456,6 +456,30 @@ def resolve_existing(path: Path) -> Path:
     return Path(same[0])
 
 
+def profile_file(icc: Path, icm: Path) -> Path:
+    """The profile colprof wrote: *icc*, or *icm* when only that one exists.
+
+    ArgyllCMS appends its platform's ICC extension to the basename it is
+    given, and on Windows that extension is ``.icm``. Asking for ``.icc``
+    alone made every built profile on Windows invisible: a verification was
+    refused with "This run has no profile to verify yet" beside the profile
+    colprof had just written (forum report, issue #210).
+
+    When BOTH exist the newer one wins, because the older is a leftover: a
+    profile renamed to ``.icc`` by hand, then rebuilt as ``.icm``, must not
+    keep answering for the run. Neither existing gives *icc*, so a writer
+    still creates the canonical name.
+    """
+    if not icm.exists():
+        return icc
+    if not icc.exists():
+        return icm
+    try:
+        return icm if icm.stat().st_mtime > icc.stat().st_mtime else icc
+    except OSError:
+        return icc
+
+
 def _existing_folder_spelling(parent: Path, name: str) -> str:
     """The name *parent* really holds for *name*, when the two are one folder.
 
@@ -595,6 +619,17 @@ def chart_stem_from_pages(tiffs: "list[Path] | tuple[Path, ...]",
 
     Falls back to the old name-only reading when no table is on disk yet, so a
     caller in a flow that has not written one is no worse off than before.
+
+    ONE TABLE AT A TIME, FOR BOTH NAMES: ``.ti2`` first, then ``.ti1``, then
+    ``.cht``. Asking every table of the page-numbered name first let a
+    leftover answer for a chart that has its ``.ti2``: a multi-page scanner
+    target writes ``<stem>_01.cht`` (``scanin_target.py``,
+    ``layout_engine/chart.py``), and a forum user's run held a ``<stem>_01``
+    table that was not the ``.ti2``. Every multi-page build in that run then
+    answered ``<stem>_01``: "could not stamp chart meta.json ...
+    <stem>_01.ti2" in his log, 89 times over three versions, and a ``.ti2``
+    that does not exist went on to the Measure tab. A chart just built always
+    has its ``.ti2``, so that decides first.
     """
     if not tiffs:
         return fallback
@@ -602,9 +637,10 @@ def chart_stem_from_pages(tiffs: "list[Path] | tuple[Path, ...]",
     folder, full = first.parent, first.stem
     m = _PAGE_TAIL_RE.match(full)
     trunc = m.group(1) if m else None
-    for cand in ((full, trunc) if trunc else (full,)):
-        if any((folder / f"{cand}{ext}").exists() for ext in _CHART_TABLE_EXTS):
-            return cand
+    for ext in _CHART_TABLE_EXTS:
+        for cand in ((full, trunc) if trunc else (full,)):
+            if (folder / f"{cand}{ext}").exists():
+                return cand
     return trunc or full
 
 
@@ -2224,19 +2260,23 @@ class Run:
     @property
     def merged_ti3(self) -> Path:             return self.dir / "merged.ti3"
     @property
-    def merged_icc(self) -> Path:             return self.dir / "merged.icc"
+    def merged_icc(self) -> Path:
+        return profile_file(self.dir / "merged.icc", self.dir / "merged.icm")
 
     # ---- profile output
-    # colprof reading <stem>.ti3 writes <stem>.icc (stem-coupled). When a merge
-    # ran, the deliverable is merged.icc instead — see built_profile_icc().
+    # colprof reading <stem>.ti3 writes <stem>.icc (stem-coupled) on macOS and
+    # Linux, and <stem>.icm on Windows. When a merge ran, the deliverable is
+    # merged.icc / merged.icm instead — see built_profile_icc().
     @property
-    def profile_icc(self) -> Path:            return self.artefact(".icc")
+    def profile_icc(self) -> Path:
+        return profile_file(self.artefact(".icc"), self.artefact(".icm"))
 
     def built_profile_icc(self) -> Path:
         """The profile a user should treat as the run's output.
 
         ``merged.icc`` when a pre-conditioning merge produced one, else the
-        plain ``chart.icc``.
+        plain ``chart.icc`` (either one spelled ``.icm`` when that is what
+        colprof wrote, see :func:`profile_file`).
         """
         return self.merged_icc if self.merged_icc.exists() else self.profile_icc
 
@@ -2618,7 +2658,8 @@ class Run:
         results = [self.artefact(".ti3"), self.partial_ti3,
                    self.artefact(".icc"),
                    self.artefact(".icm"), self.dir / "merged.ti3",
-                   self.dir / "merged.icc", self.dir / "calibrated.icc"]
+                   self.dir / "merged.icc", self.dir / "merged.icm",
+                   self.dir / "calibrated.icc"]
         if keep_results:
             results = []
         # reads/ IS ARCHIVED, NOT DELETED. `clear_reads()` used to `rmtree` it
@@ -2708,10 +2749,11 @@ class Run:
         ) + ((
             ".ti3",                      # the measurement (chartread output)
             ".ti3.engine-partial",       # …and the engine partial beside it
-            ".icc",                      # the profile (colprof output)
+            ".icc", ".icm",              # the profile (colprof output)
         ) if not keep_results else ())
         role_named = () if keep_results else (
             "merged.ti3", "merged.icc",  # build-time refinement merge outputs
+            "merged.icm",                # …as colprof spells it on Windows
             "calibrated.icc",            # applycal output
         )
         for p in ([self.artefact(ext) for ext in stem_exts]

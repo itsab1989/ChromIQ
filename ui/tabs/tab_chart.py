@@ -10389,6 +10389,7 @@ class TabChart(QWidget):
             # said the profile keeps its inner name (seen on screen, beta 38
             # fixes round).
             built = any((r.dir / f"{stored}.icc").is_file()
+                        or (r.dir / f"{stored}.icm").is_file()
                         or r.merged_icc.is_file()
                         for r in Project.load(root).all_runs())
         except Exception:                            # noqa: BLE001
