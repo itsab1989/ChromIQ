@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.3.6
+
+**A Windows fix for verification and From Profile Gamut charts.** On Windows, ArgyllCMS saves a profile with the ending .icm instead of .icc, and parts of ChromIQ only looked for .icc.
+
+### Fixed
+
+- **Windows: a run whose profile was saved as .icm was treated as having no profile** (forum report). Choosing Run type Verification refused every measurement with "This run has no profile to verify yet", and From Profile Gamut refused the run, although the profile had been built. ChromIQ now finds the run's profile whether it ends in .icc or .icm (the newer one when both exist), for verification, From Profile Gamut, rebuilding a profile and keeping the earlier one, and ChromIQ's own profile engine.
+- **A chart whose name ends in digits could be confused with one of its page files.** A leftover page file such as `<name>_01` no longer stands in for a multi-page chart that has its own chart file, which on Windows filled the log with "could not stamp chart meta.json" warnings.
+
 ## v4.3.5
 
 **Fixes and refinements from Knut's tests of 4.3.4 and from the forum.** Measuring is more careful about misreads: "I read strip B" files the reading as strip B, every square of a chart counts, similar patches can confirm either check, and a new safety net warns when a strip was read one patch out. Check & Refine counts every patch and guides you patch by patch. On a PostScript printer you choose once per project how the chart's colours go to the printer, verification charts print through the profile by default, and From Profile Gamut charts are spread evenly over everything your printer can print. ChromIQ no longer hangs after choosing a verification run, the downloaded disk image opens again on every Mac, and Windows imports i1Profiler files on the Measure tab again.
