@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.3.7
+
+**A Windows fix: no more flashing command windows.**
+
+### Fixed
+
+- **Windows: command windows flashed open for a moment while ChromIQ worked** (forum report). Right after choosing Run type Verification, and in several other places (From Profile Gamut, Build Profile, the quality check, starting a measurement, the ArgyllCMS test in Preferences, the 3D patch distribution), every ArgyllCMS tool ChromIQ started opened its own black console window for a split second, up to dozens in a row. ChromIQ now starts these tools without a window, as it already did for the tools whose output it shows in the log. Everything works as before.
+
 ## v4.3.6
 
 **A Windows fix for verification and From Profile Gamut charts.** On Windows, ArgyllCMS saves a profile with the ending .icm instead of .icc, and parts of ChromIQ only looked for .icc.
