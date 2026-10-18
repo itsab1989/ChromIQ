@@ -164,6 +164,11 @@ def main() -> int:
     # See `core/argyll_env.py`.
     from core.argyll_env import install_in_process_environment
     install_in_process_environment()
+    # No console window for any tool this process starts (Windows, windowed
+    # build): sixty xicclu.exe windows flashed on a switch to Verification.
+    # See `core/console_windows.py`.
+    from core import console_windows
+    console_windows.install()
     # The display name is set LATER, once the catalogue is loaded — see the
     # `setApplicationDisplayName` call below `set_language`.
 

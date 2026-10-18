@@ -205,6 +205,9 @@ def build_app():
     # as main() does: no Argyll tool may hang on a stuck serial port
     from core.argyll_env import install_in_process_environment
     install_in_process_environment()
+    # as main() does: no console window for a tool on Windows
+    from core import console_windows
+    console_windows.install()
     for fp in resource_path("assets/fonts").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(fp))
     app.setStyle(WinButtonLayoutStyle("Fusion"))
