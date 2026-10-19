@@ -193,7 +193,12 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a63-palefine",
      # Agent 63: at quality l the keep-grid33in coarse table is never
      # coarser than colprof's -qm grid 17; research, opt-in
-     "a63-lowgrid"})
+     "a63-lowgrid",
+     # Agent 65: ink devices' colorimetric clip measures hue along colprof's
+     # CIECAM02 (or IPT) hue lines instead of Oklab's; research, opt-in
+     "a65-cmykhue", "a65-cmykhue-ipt", "a65-cmykhue-pass2",
+     "a65-cmykhue-jab", "a65-cmykhue-iptspace", "a65-cmykhue-jabdark",
+     "a65-cmykhue-bluejab", "a65-cmykhue-bluejabdark"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two

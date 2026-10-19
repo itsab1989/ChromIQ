@@ -100,6 +100,10 @@ PARAMS: dict = {
     # Agent 62 (a62-camhue): with a51 on, a target lifted to the floor keeps
     # its CIECAM02 hue (camhue_lift)
     "a62": False,
+    # Agent 65 (a65-cmykhue*): on ink devices (no a51 there) the colorimetric
+    # clip's hue frame follows this space's constant-hue lines instead of
+    # Oklab's ("" = off): "cam02" is colprof's own clip hue (Argyll CIECAM02)
+    "a65": "",
 }
 
 DEFAULTS = dict(PARAMS)
@@ -197,7 +201,42 @@ def ipt_to_lab(ipt):
     return _lab_from_xyz65((np.linalg.inv(_IPT_LMS) @ lms.T).T)
 
 
+def _jab_inverse(jab, iters: int = 12):
+    """Agent 65: Argyll CIECAM02 Jab -> D50 Lab (lab_to_argyll_jab inverted
+    by damped Newton steps with a numerical Jacobian, row by row in one
+    vectorised pass; the map is smooth and close to 1:1 in L, hue)."""
+    jab = np.atleast_2d(np.asarray(jab, float))
+    # start: J ~ L*, the opponent axes rescaled by the chroma ratio
+    lab = jab.copy()
+    lab[:, 0] = np.clip(jab[:, 0], 0.0, 100.0)
+    for _ in range(iters):
+        f0 = lab_to_argyll_jab(lab)
+        r = f0 - jab
+        if np.abs(r).max() < 1e-6:
+            break
+        jac = np.empty((len(lab), 3, 3))
+        h = 1e-4
+        for k in range(3):
+            d = lab.copy()
+            d[:, k] += h
+            jac[:, :, k] = (lab_to_argyll_jab(d) - f0) / h
+        try:
+            step = np.linalg.solve(jac, r[:, :, None])[:, :, 0]
+        except np.linalg.LinAlgError:
+            step = np.einsum("nij,nj->ni", np.linalg.pinv(jac), r)
+        lab = lab - np.clip(step, -20.0, 20.0)
+    # a row that did not converge (none on the B2A grid at any chroma
+    # fraction; possible far outside the spectrum locus) keeps the start
+    bad = ~(np.linalg.norm(lab_to_argyll_jab(lab) - jab, axis=1) < 1e-2)
+    if bad.any():
+        lab[bad] = jab[bad]
+        lab[bad, 0] = np.clip(jab[bad, 0], 0.0, 100.0)
+    return lab
+
+
 def _pair(space: str):
+    if space == "cam02":
+        return lab_to_argyll_jab, _jab_inverse
     if space == "oklab":
         return lab_to_oklab, oklab_to_lab
     if space == "ipt":
@@ -331,6 +370,31 @@ A51_PARAMS = {"space": "cam02", "wj": 4.0, "wc": 1.0, "wh": 4.84}
 # are not constant-hue in the dark blue), and the clip then adds red: a
 # violet patch near the black on the blue ramps (Findings agent62-01).
 A62_TOKEN = "a62-camhue"
+# Agent 65 (a65-cmykhue): ink devices keep the engine's own colorimetric clip
+# (a51's metric there made contours: X3 4 -> 142) but its hue frame follows
+# Argyll's CIECAM02 constant-hue lines, colprof's clip hue, instead of
+# Oklab's: Oklab's blue hue lines bend toward purple (out-of-gamut blues
+# +2..+3 IPT deg on every CMYK set, colprof -0.3..-0.9; Findings agent65-01).
+# "-ipt" uses IPT hue lines instead; "-pass2" re-aims the frame once at the
+# chroma the clip reached (the hue line is curved).
+A65_TOKEN = "a65-cmykhue"
+A65_IPT_TOKEN = "a65-cmykhue-ipt"
+A65_PASS2_TOKEN = "a65-cmykhue-pass2"
+# the engine's weights with the whole metric in Argyll CIECAM02 Jab (hue =
+# colprof's) or in IPT, instead of CIELAB with an Oklab hue frame
+A65_JAB_TOKEN = "a65-cmykhue-jab"
+A65_IPTSPACE_TOKEN = "a65-cmykhue-iptspace"
+# a65-cmykhue-jabdark: the Jab clip handed over to the engine's own clip near
+# the black: weight of the own clip 1 up to A65_DARK[0] L* above the floor,
+# smoothstep to 0 over A65_DARK[1] L* above that
+A65_JABDARK_TOKEN = "a65-cmykhue-jabdark"
+A65_DARK = (10.0, 10.0)
+# a65-cmykhue-bluejab: the Jab clip only for targets of CIECAM02 hue in the
+# blue window: weight 0 below 200 deg, smoothstep to 1 at 250, 1 to 290,
+# smoothstep to 0 at 340 (pure sRGB blue 259, violet 283, azure 248; chain 7: the gentler window; 220-240-300-320 was the first try)
+A65_BLUE_TOKEN = "a65-cmykhue-bluejab"
+A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
+A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
 _REL = threading.local()
 
@@ -345,6 +409,23 @@ def table_params(p: dict = None) -> dict:
     """PARAMS with the a51 overrides when the a51 token is on and this
     thread builds the colorimetric table; otherwise PARAMS itself."""
     p = PARAMS if p is None else p
+    if (p.get("a65") and not p.get("a51")
+            and getattr(_REL, "on", False)):
+        # Agent 65 (a65-cmykhue): the ink devices' colorimetric clip keeps
+        # the engine's metric (weights, band, ink priors) but measures hue
+        # along colprof's CIECAM02 hue lines (Findings agent65-01)
+        q = dict(p)
+        mode = str(p["a65"])
+        if mode.startswith("space-"):
+            # the whole metric (same weights) measured in that space, the
+            # hue frame its own hue (no Oklab hue line)
+            q["space"] = mode[len("space-"):]
+            q["hue_from"] = ""
+        else:
+            q["hue_from"] = mode
+        if p.get("a65_pass2"):
+            q["pass2"] = True
+        return q
     if not p.get("a51") or not getattr(_REL, "on", False):
         return p
     q = dict(p)
@@ -724,13 +805,57 @@ def _descend(b2a, view, t_s, d0, w, *, free, iters, damping, limit, prior,
 
 def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
                channel_max, prior, prior_w, gn_kw, damping, hue_seeds=None,
-               progress_label="") -> np.ndarray:
+               progress_label="", _params=None) -> np.ndarray:
     """New device values for every node with residual > blend_lo.
 
     ``d_near``: the nearest-clip answer (first pass + retry) for ALL nodes;
     returns a full copy with the clipped rows replaced."""
     from workflow.profile_engine import b2a
-    p = table_params()
+    p = table_params() if _params is None else _params
+    if _params is None and p.get("a65") and (p.get("a65_dark") or p.get("a65_blue")):
+        # Agent 65 (a65-cmykhue-jabdark / -bluejab / -bluejabdark): the Jab
+        # clip only where it is needed, the engine's own clip (CIELAB, Oklab
+        # frame: int-8b's answer) elsewhere, blended in device space with
+        # smooth weights: near the black (dark: 1 up to A65_DARK[0] L* above
+        # the floor, smoothstep to 0 over A65_DARK[1]) and outside the blue
+        # CIECAM02 hue window (A65_BLUE, faded in with the target's chroma).
+        # Measured: the Jab metric everywhere made the CMYK colour-to-black
+        # ramps less even and cost cyan / red ramps (eyecheck FOGRA, SWOP).
+        tl = np.asarray(target_lab, float)
+        u = np.zeros(len(tl))
+        if p.get("a65_dark"):
+            fl = dark_floor()
+            if fl is not None:
+                cl, cw = A65_DARK
+                v = np.clip((fl + cl + cw - tl[:, 0]) / cw, 0.0, 1.0)
+                u = np.maximum(u, v * v * (3.0 - 2.0 * v))
+        if p.get("a65_blue"):
+            j = lab_to_argyll_jab(tl)
+            h = np.degrees(np.arctan2(j[:, 2], j[:, 1])) % 360.0
+            import os
+            lo0, lo1, hi1, hi0 = (tuple(float(x) for x in os.environ["CHROMIQ_A65_BLUE"].split(":"))
+                                  if os.environ.get("CHROMIQ_A65_BLUE") else A65_BLUE)
+            win = np.clip(np.minimum((h - lo0) / (lo1 - lo0), (hi0 - h) / (hi0 - hi1)), 0.0, 1.0)
+            win = win * win * (3.0 - 2.0 * win)
+            cs = np.clip(np.hypot(j[:, 1], j[:, 2]) / max(float(p["c_fade"]), 1e-9), 0.0, 1.0)
+            win = win * cs * cs * (3.0 - 2.0 * cs)
+            u = np.maximum(u, 1.0 - win)
+        kw = dict(free=free, limit=limit, channel_max=channel_max,
+                  prior=prior, prior_w=prior_w, gn_kw=gn_kw,
+                  damping=damping, hue_seeds=hue_seeds,
+                  progress_label=progress_label)
+        d_lo = clip_nodes(model, target_lab, d_near, residual, _params=PARAMS, **kw)
+        if (u >= 1.0).all():
+            return d_lo
+        hi = dict(p)
+        hi["a65_dark"] = hi["a65_blue"] = False
+        d_hi = clip_nodes(model, target_lab, d_near, residual, _params=hi, **kw)
+        out = (1.0 - u[:, None]) * d_hi + u[:, None] * d_lo
+        if limit is not None:
+            over = out.sum(1) > limit
+            if over.any():
+                out[over] = b2a.project_tac(out[over], limit)
+        return out
     out = d_near.copy()
     sel = np.flatnonzero(residual > p["blend_lo"])
     if not len(sel):
