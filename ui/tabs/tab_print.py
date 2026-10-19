@@ -595,6 +595,28 @@ class TabPrint(QWidget):
         self._quality_choices = None
         self._restoring: bool = False
         self._mode: str = "dark"
+        # ---- the printer and its options, per target (Knut, 2026-10-20) ----
+        #: The printer the selected target stored (``print_settings["printer"]``
+        #: of its meta.json), or None when it has none: then the saved
+        #: defaults apply (per_target_settings.md §5a).
+        self._target_printer: "str | None" = None
+        #: The selected target's stored options, per queue
+        #: (``print_settings["printer_options"]``); a queue missing here opens
+        #: on its saved defaults (``print_opts_<queue>``).
+        self._target_printer_opts: "dict[str, dict[str, str]]" = {}
+        #: The store (its folder) whose settings are on screen. A write goes to
+        #: that store only: values loaded for run 1 are never filed onto run 2.
+        self._print_loaded_for: "str | None" = None
+        #: The printer and options as the last load put them on screen; a
+        #: target with nothing stored that is only looked at keeps nothing
+        #: stored, so it goes on following the saved defaults (§4 S4/S9).
+        self._printer_loaded_snapshot: "tuple | None" = None
+        #: True when the target on screen was seeded from the run before it
+        #: (a run made while this tab showed another run, §4a).
+        self._printer_seeded: bool = False
+        #: (project folder, run ids) at the last load: a run that is not in it
+        #: was made since, from the run on screen.
+        self._print_runs_seen: "tuple[str, frozenset] | None" = None
 
         self._build_ui()
 
@@ -1935,9 +1957,14 @@ class TabPrint(QWidget):
 
     # ---- per-target settings (#130 feature A, §11 Q5) --------------------
     def save_target_settings(self, store=None, key=None) -> bool:
-        """Record the Colour / Rendering intent / Route choices against the
+        """Record the Colour / Rendering intent / Route choices, and the
+        printer with every option row (Knut, 2026-10-20), against the
         selected target — the same duck-typed contract Create Chart, Measure
-        and Build Profile follow, called by MainWindow on the L1/W6 events."""
+        and Build Profile follow, called by MainWindow on the L1/W6 events.
+
+        Only into the store whose settings are on screen: values loaded for
+        one target are never filed onto another (§2.0), which a write from a
+        hidden tab after a run change would otherwise do."""
         if getattr(self, "_updating_cm", False) \
                 or getattr(self, "_loading_print_settings", False):
             return False
@@ -1953,6 +1980,12 @@ class TabPrint(QWidget):
             return False
         try:
             from workflow import verification_print as vp
+            fingerprint = str(getattr(store, "dir", store))
+            loaded_for = self._print_loaded_for
+            if loaded_for is not None and loaded_for != fingerprint:
+                log.debug("print settings not written: the screen shows %s, "
+                          "not %s", loaded_for, fingerprint)
+                return False
             wanted = {
                 "colour": self._cm_user_colour or "",
                 "intent": self._cm_selected_intent(),
@@ -1960,12 +1993,15 @@ class TabPrint(QWidget):
                           if self._cm_route_ext_rb.isChecked()
                           else vp.ROUTE_CHROMIQ),
             }
-            fingerprint = str(getattr(store, "dir", store))
+            printer, opts = self._printer_snapshot()
+            if loaded_for == fingerprint and printer:
+                wanted["printer"] = printer
+                wanted["printer_options"] = opts
             if self._print_written.get(fingerprint) == wanted:
                 return False
             meta = store.load_meta()
             if not hasattr(meta, "print_settings"):
-                return False           # a Calibration store — no Colour row
+                return False
             stored = dict(getattr(meta, "print_settings") or {})
             merged = dict(stored)
             # A forced state (§3.1a / A4) leaves the user's stored Colour
@@ -1974,12 +2010,27 @@ class TabPrint(QWidget):
                 merged["colour"] = wanted["colour"]
             merged["intent"] = wanted["intent"]
             merged["route"] = wanted["route"]
+            # The printer and its options: only once the target has its own,
+            # or they were changed on screen, or seeded from the run before
+            # (§4a). A target that was merely looked at keeps nothing stored
+            # and goes on following the saved defaults (§4 S4/S9).
+            if "printer" in wanted and (
+                    stored.get("printer") or self._printer_seeded
+                    or (printer, opts) != self._printer_loaded_snapshot):
+                merged["printer"] = printer
+                per_queue = dict(stored.get("printer_options") or {}) \
+                    if isinstance(stored.get("printer_options"), dict) else {}
+                per_queue[printer] = dict(opts)
+                merged["printer_options"] = per_queue
             if merged == stored:
                 self._print_written[fingerprint] = wanted
                 return False
             meta.print_settings = merged
             store.save_meta(meta)
             self._print_written[fingerprint] = wanted
+            if "printer" in merged:
+                self._target_printer = merged["printer"]
+                self._target_printer_opts = dict(merged.get("printer_options") or {})
             log.debug("print settings written for %s", getattr(store, "id", store))
             return True
         except Exception:      # noqa: BLE001 — never lose the tab over a write
@@ -2003,9 +2054,20 @@ class TabPrint(QWidget):
                 log.warning("Could not read the target's Print settings",
                             exc_info=True)
                 stored = {}
+        # the printer and its options (Knut, 2026-10-20): the target's own,
+        # a verification's run's, a new run's seed, else the saved defaults
+        if store is not None:
+            printer, per_queue, seeded = self._printer_settings_to_load(store, stored)
+            self._target_printer = printer
+            self._target_printer_opts = per_queue
+            self._printer_seeded = seeded
+            self._print_loaded_for = str(getattr(store, "dir", store))
+            self._note_runs_seen()
         self._loading_print_settings = True
         self._updating_cm = True
         try:
+            if store is not None:
+                self._apply_target_printer()
             colour = stored.get("colour") or ""
             self._cm_user_colour = colour if colour in (
                 vp.COLOUR_THROUGH, vp.COLOUR_RAW) else None
@@ -2026,6 +2088,10 @@ class TabPrint(QWidget):
     # ------------------------------------------------------------------
 
     def _refresh_printers(self) -> None:
+        # A refresh keeps the printer on screen; the first listing opens on
+        # the selected target's own printer, else the saved default.
+        first = self._printer_combo.count() == 0
+        shown = "" if first else (self._printer_combo.currentData() or "")
         self._printer_combo.blockSignals(True)
         self._printer_combo.clear()
         printers = self._module.detect_printers()
@@ -2035,12 +2101,126 @@ class TabPrint(QWidget):
             self._printer_combo.addItem(tr("No printers found"), "")
         self._printer_combo.blockSignals(False)
 
-        last = self._settings.get("last_printer", "")
+        last = shown or self._wanted_printer()
         if last:
             idx = self._printer_combo.findData(last)
             if idx >= 0:
                 self._printer_combo.setCurrentIndex(idx)
         self._on_printer_changed()
+        if first:
+            self._printer_loaded_snapshot = self._printer_snapshot()
+
+    # ---- the printer and its options, per target (Knut, 2026-10-20) -------
+    #: Knut, 2026-10-20: "All the print settings should be 100% individual
+    #: per run and should never change on a run based on settings made on a
+    #: different run, while moving back and forth between runs."  Until 4.3.7
+    #: the printer and every option row lived only on screen (and in Save as
+    #: Defaults), so the run you came from was what the next run showed and
+    #: printed with. Now they are the target's, in ``print_settings`` of its
+    #: meta.json beside the Colour / intent / route choices
+    #: (per_target_settings.md §5a).
+
+    def _wanted_printer(self) -> str:
+        """The printer the selected target opens on: its own, else the
+        saved default (Save as Defaults, ``last_printer``)."""
+        return self._target_printer or str(self._settings.get("last_printer", "") or "")
+
+    def _saved_options_for(self, printer: str) -> "dict[str, str]":
+        """The option values *printer* opens on for the selected target: the
+        target's own for that queue, else the saved defaults."""
+        own = self._target_printer_opts.get(printer)
+        if isinstance(own, dict):
+            return {str(k): str(v) for k, v in own.items()}
+        saved: dict[str, str] = {}
+        raw_saved = self._settings.get(f"print_opts_{printer}", "")
+        if raw_saved:
+            for pair in str(raw_saved).split("|"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    saved[k] = v
+        return saved
+
+    def _printer_snapshot(self) -> "tuple[str, dict[str, str]]":
+        """The printer on screen and every option row's value ("" is
+        "Printer Default")."""
+        printer = self._printer_combo.currentData() or ""
+        return printer, {k: (c.currentData() or "")
+                         for k, c in self._option_combos.items()}
+
+    def _apply_target_printer(self) -> None:
+        """Put the selected target's printer and options on screen. Before
+        the printer list was first read (the tab not yet shown) it is left to
+        `_refresh_printers`, which asks `_wanted_printer` too."""
+        if not getattr(self, "_printers_loaded", False) \
+                or self._printer_combo.count() == 0:
+            return
+        want = self._wanted_printer()
+        cb = self._printer_combo
+        idx = cb.findData(want) if want else -1
+        if idx < 0:
+            if self._target_printer:
+                log.info("Print: the target's printer %s is not listed; "
+                         "opened on %s", self._target_printer,
+                         cb.itemData(0) or "none")
+            idx = 0
+        cb.blockSignals(True)
+        try:
+            cb.setCurrentIndex(idx)
+        finally:
+            cb.blockSignals(False)
+        self._on_printer_changed()
+        self._printer_loaded_snapshot = self._printer_snapshot()
+
+    def _printer_settings_to_load(self, store, stored: dict):
+        """(printer, options per queue, seeded) for *store*: its own; else,
+        for a verification, its run's (the sheet must print as the run's
+        did); else, for a run made from the run on screen since the last
+        load, the screen (§4a); else (None, {}, False): the saved defaults."""
+        own = stored.get("printer")
+        if isinstance(own, str) and own:
+            opts = stored.get("printer_options")
+            return own, (dict(opts) if isinstance(opts, dict) else {}), False
+        if self._target_is_verification():
+            run = self._cm_run()
+            try:
+                ps = dict(getattr(run.load_meta(), "print_settings", None) or {}) \
+                    if run is not None else {}
+            except Exception:  # noqa: BLE001 - a default must never raise
+                ps = {}
+            if isinstance(ps.get("printer"), str) and ps.get("printer"):
+                opts = ps.get("printer_options")
+                return ps["printer"], (dict(opts) if isinstance(opts, dict) else {}), False
+            return None, {}, False
+        from core.file_manager import Calibration
+        if isinstance(store, Calibration):
+            return None, {}, False
+        seen = self._print_runs_seen
+        run_id = getattr(store, "id", None)
+        try:
+            project = self._target_ctl.project_or_none()
+            root = str(project.root)
+        except Exception:  # noqa: BLE001
+            return None, {}, False
+        if (seen is not None and seen[0] == root and run_id
+                and run_id not in seen[1] and self._print_loaded_for is not None
+                and getattr(self, "_printers_loaded", False)
+                and self._printer_combo.currentData()):
+            printer, opts = self._printer_snapshot()
+            log.info("Print: %s is new; it starts on the printer settings of "
+                     "the run before it (%s)", run_id, printer)
+            return printer, {printer: opts}, True
+        return None, {}, False
+
+    def _note_runs_seen(self) -> None:
+        try:
+            project = self._target_ctl.project_or_none()
+            if project is None:
+                self._print_runs_seen = None
+                return
+            self._print_runs_seen = (str(project.root),
+                                     frozenset(r.id for r in project.all_runs()))
+        except Exception:  # noqa: BLE001
+            self._print_runs_seen = None
 
     def _on_printer_changed(self) -> None:
         printer = self._printer_combo.currentData() or ""
@@ -2161,13 +2341,9 @@ class TabPrint(QWidget):
             self._opts_layout.addWidget(box)
             return
 
-        saved_printer_opts: dict[str, str] = {}
-        raw_saved = self._settings.get(f"print_opts_{printer}", "")
-        if raw_saved:
-            for pair in str(raw_saved).split("|"):
-                if "=" in pair:
-                    k, v = pair.split("=", 1)
-                    saved_printer_opts[k] = v
+        # the selected target's own values for this printer, else the saved
+        # defaults (Knut, 2026-10-20: every print setting is the run's own)
+        saved_printer_opts = self._saved_options_for(printer)
 
         for i, (opt_name, (label, value_pairs)) in enumerate(opts.items()):
             self._raw_value_pairs[opt_name] = value_pairs

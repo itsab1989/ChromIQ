@@ -1132,11 +1132,13 @@ class RunMeta:
     #: Its own key for the same reason measure_settings has one: three tabs
     #: sharing a dict would make a renamed key on one look stale on another.
     profile_settings: dict = field(default_factory=dict)
-    #: The Print Chart tab's verification-print choices for this target
-    #: (#130 feature A, §11 Q5): ``{"colour", "intent", "route"}``. Its own key
-    #: for the same reason the others have one. Only runs carry it — a
-    #: calibration never shows the Colour row, so ``CalibrationMeta`` has no
-    #: counterpart and the tab skips a calibration store.
+    #: The Print Chart tab's settings for this target: the verification-print
+    #: choices (#130 feature A, §11 Q5) ``{"colour", "intent", "route"}``,
+    #: the run's own PostScript form (``"postscript"``, §1.3), and since
+    #: 4.3.8 the printer and every option row (``"printer"``,
+    #: ``"printer_options": {queue: {option: value}}``; Knut, 2026-10-20,
+    #: per_target_settings.md §5a). Its own key for the same reason the
+    #: others have one. ``CalibrationMeta`` keeps the printer part too.
     print_settings: dict = field(default_factory=dict)
 
     # #130 (Knut, beta.148): the Profile Description the user typed for THIS
@@ -1473,6 +1475,12 @@ class CalibrationMeta:
     #: Its own key for the same reason measure_settings has one: three tabs
     #: sharing a dict would make a renamed key on one look stale on another.
     profile_settings: dict = field(default_factory=dict)
+    #: The Print Chart tab's settings for the calibration chart: the printer
+    #: and its option rows (Knut, 2026-10-20: every print setting belongs to
+    #: the sheet it prints, per_target_settings.md §5a), the same key a run
+    #: keeps them under. The PostScript form is not here: the calibration
+    #: follows the project's (§1.3).
+    print_settings: dict = field(default_factory=dict)
 
 
     #: Keys a NEWER ChromIQ wrote that this build does not declare. Carried,
