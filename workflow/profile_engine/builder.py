@@ -1750,6 +1750,109 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # ceiling on the nodes is a ceiling on the table. Curve space here.
         top = model.shape_device(channel_max[None, :])
         dev_clut_shaped = np.minimum(dev_clut_shaped, top)
+    # Research Agent 69 (a69-cmykport*): the CMYK colorimetric B2A1 the way
+    # colprof builds it (cmykport.py: K = the -kr curve clipped to the K
+    # locus, Lab nearest then CAM Jab clip, per node, no refit / floor /
+    # column / black pin), whole or blended into the engine's own table.
+    from workflow.profile_engine import cmykport as _a69
+    _a69m = (_a69.mode(candidates)
+             if _a69.applies(candidates, accurate=accurate,
+                             is_additive=meas.is_additive, n=n,
+                             letters=meas.channel_letters) else None)
+    if _a69m is not None:
+        _l_min = (float(axis["l_black"]) if axis is not None
+                  and axis.get("l_black") is not None
+                  else float(model.predict(np.ones((1, n)))[0, 0]))
+        if os.environ.get("CHROMIQ_A69_DUMP"):
+            import pickle
+            with open(os.environ["CHROMIQ_A69_DUMP"], "wb") as _fh:
+                pickle.dump({"model": model, "node_lab": node_lab,
+                             "dev_clut": dev_clut, "residual": residual,
+                             "shaped": dev_clut_shaped, "grid": b2a_grid,
+                             "ink_limit": ink_limit,
+                             "channel_max": channel_max, "l_min": _l_min},
+                            _fh)
+        _pern = _a69m["pernode"]
+        _pure, _a69i = _a69.colprof_table(
+            model, node_lab, dev_clut, residual, ink_limit=ink_limit,
+            channel_max=channel_max, l_min=_l_min,
+            ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
+            progress=lambda m: _emit(settings, m))
+        _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
+        if channel_max is not None:
+            _pure_s = np.minimum(_pure_s, model.shape_device(
+                channel_max[None, :]))
+        if ((_a69m["grid17"] or _a69m["in17"])
+                and (b2a_grid - 1) % 16 == 0):
+            _st = (b2a_grid - 1) // 16
+            _up = _a69.upsample(_pure_s.reshape(
+                b2a_grid, b2a_grid, b2a_grid, n)[::_st, ::_st, ::_st]
+                .reshape(-1, n), 17, b2a_grid)
+            if _a69m["in17"]:
+                # the fine grid where the node is printable, colprof's
+                # 17 grid where it clipped (a58 keep-grid33in, for CMYK)
+                _u = np.clip(np.asarray(residual, float) / float(
+                    os.environ.get("CHROMIQ_A69_BAND", "2.0")), 0.0, 1.0)
+                _w = (_u * _u * (3.0 - 2.0 * _u))[:, None]
+                _pure_s = (1.0 - _w) * _pure_s + _w * _up
+            else:
+                _pure_s = _up
+        if _a69m["oog"]:
+            # Agent 69 (a69-cmykport-oog): the engine's own table where the
+            # node is printable (its K, its neutral column), colprof's
+            # recipe on colprof's 17 grid where it clipped, handed over
+            # over CHROMIQ_A69_BAND dE of clip distance; the neutral column
+            # nodes stay the engine's. -oogpn: the printable side is the
+            # engine's per-node answer without the smoothing refit.
+            _ours = (np.clip(model.shape_device(dev_clut), 0.0, 1.0)
+                     if _a69m["oogpn"] else dev_clut_shaped)
+            _st = (b2a_grid - 1) // 16
+            _up = (_a69.upsample(_pure_s.reshape(
+                b2a_grid, b2a_grid, b2a_grid, n)[::_st, ::_st, ::_st]
+                .reshape(-1, n), 17, b2a_grid)
+                if (b2a_grid - 1) % 16 == 0 else _pure_s)
+            # hand-over band: 2 dE (a58's) by default, 6 dE with oogfine
+            # (Agent 69 D-25: of6 = 50 WORSE rows vs of4 75, oog 239)
+            _band = float(os.environ.get(
+                "CHROMIQ_A69_BAND", "6.0" if _a69m["oogfine"] else "2.0"))
+            if _a69m["oogfine"]:
+                # a69-cmykport-oogfine: near the gamut surface the clipped
+                # nodes take colprof's recipe on the fine grid, handed over
+                # to its 17 grid from _band to CHROMIQ_A69_FINE dE out
+                _fb = float(os.environ.get("CHROMIQ_A69_FINE", "8.0"))
+                _v = np.clip((np.asarray(residual, float) - _band)
+                             / max(_fb - _band, 1e-6), 0.0, 1.0)
+                _v = (_v * _v * (3.0 - 2.0 * _v))[:, None]
+                _up = (1.0 - _v) * _pure_s + _v * _up
+            _u = np.clip(np.asarray(residual, float) / _band, 0.0, 1.0)
+            _w = _u * _u * (3.0 - 2.0 * _u)
+            if _a69m["darkin"]:
+                # a69-cmykport-darkin: just above the black the printable
+                # nodes take colprof's recipe too (its K rule), so both sides
+                # of the in-gamut / clipped seam hold one separation
+                # (CHROMIQ_A69_DARKIN l:w above the black)
+                _dl, _dw = (float(v) for v in os.environ.get(
+                    "CHROMIQ_A69_DARKIN", "10:10").split(":"))
+                _x = np.clip((_l_min + _dl + _dw - node_lab[:, 0])
+                             / max(_dw, 1e-6), 0.0, 1.0)
+                _w = np.maximum(_w, _x * _x * (3.0 - 2.0 * _x))
+            if _a69m["oogdark"]:
+                # a69-cmykport-oogdark: only the dark end (colour to black);
+                # full up to black + l, out by black + l + w (CHROMIQ_A69_DARK)
+                _w = _w * _a69.dark_weight(node_lab, _l_min)
+            if fixed_nodes is not None and len(fixed_nodes):
+                _w[fixed_nodes] = 0.0
+            _w = _w[:, None]
+            dev_clut_shaped = (1.0 - _w) * _ours + _w * _up
+        elif _a69m["dark"]:
+            _w = _a69.dark_weight(node_lab, _l_min)[:, None]
+            dev_clut_shaped = (1.0 - _w) * dev_clut_shaped + _w * _pure_s
+        else:
+            dev_clut_shaped = _pure_s
+        _emit(settings, f"Colorimetric table: colprof's CMYK recipe "
+                        f"(research a69-cmykport; {_a69i['inside']} nodes "
+                        f"on the K rule, {_a69i['clipped']} clipped, "
+                        f"K curve from L* {_l_min:.1f}).")
     # The B2A half of the white pin (see _pin_media_white for the A2B half),
     # and the black corner: L*=0 → the chart's deepest measured black.
     # Agent 59 (a59-pernodeout): the coarse (clipped) half of keep-grid33in
@@ -1775,7 +1878,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         device_black = dev_clut[black_node].copy()
     if channel_max is not None:
         device_black = np.minimum(device_black, channel_max)
-    if _a58k("black"):
+    if _a58k("black") and (_a69m is None or _a69m["keepblack"]
+                           or _a69m["oog"]):
         # (Agent 58: colprof pins no black into an RGB B2A1; xlut.c:3443-
         # 3447 uses RGB 0 only as the perceptual black point)
         dev_clut_shaped = b2a_mod.pin_black_node(
