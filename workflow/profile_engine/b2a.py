@@ -2919,6 +2919,64 @@ def a43_floor_axis(model: ForwardModel, axis: dict,
     return out
 
 
+# Research token "a68-clipkeep" (Agent 68, ProfileEngineResearch Findings/
+# agent68-01-knutspot.md). refine_b2a_clut fits ONE least-squares field over
+# exact inverse samples. Where the forward model is folded (Knut's laser
+# printer: 17.5 % of the device cube has a negative Jacobian, and near the
+# bright spring-green surface 64 % of the device points landing there are
+# on the reversed sheet, 1.8 % of the cube squeezed into 0.02 % of Lab),
+# thousands of samples from two branches share the cells next to the gamut
+# surface and the field answers them with a seesaw: the clipped node L* 68.8
+# a* -48 b* 16 kept its heavy anchor (residual 8.8 > deep_oog) and still
+# went from its clip RGB .31/.78/.45 (prints a* -40.8) to .70/.53/.63
+# (prints a* +23, pink-grey), 67 dE76 from its own clip. a44b then takes
+# the refit's print as that clipped node's target ("clips stay"), so the
+# spot is kept. Rule: a clipped node (per-node residual > A68_CLIPPED)
+# whose refit prints more than A68_LO dE76 from what its own per-node clip
+# prints is blended back to that clip, fully from A68_HI (smoothstep in
+# between). In-gamut nodes are a44's business; pinned nodes are untouched.
+# RGB colorimetric table only (builder); CHROMIQ_A68 = "lo:hi" for sweeps.
+A68_TOKEN = "a68-clipkeep"
+A68_LO = 6.0
+A68_HI = 12.0
+A68_CLIPPED = 1.0
+
+
+def a68_band():
+    v = os.environ.get("CHROMIQ_A68")
+    if v:
+        lo, hi = (float(x) for x in v.split(":"))
+        return lo, hi
+    return A68_LO, A68_HI
+
+
+def clip_keep(model: ForwardModel, shaped: np.ndarray, pernode: np.ndarray,
+              residual: np.ndarray, *, keep_out: np.ndarray | None = None,
+              band: tuple | None = None, clipped_at: float = A68_CLIPPED):
+    """Research a68-clipkeep (see the comment above A68_TOKEN).
+    ``shaped``: the refitted CLUT (curve space); ``pernode``: the per-node
+    inversion (device); ``residual``: its clip distance. Returns
+    ``(shaped, info)``; ``shaped`` is a new array only when a node moved."""
+    lo, hi = a68_band() if band is None else band
+    pn = np.asarray(pernode, float)
+    have = np.clip(model.unshape_device(np.clip(shaped, 0.0, 1.0)), 0.0, 1.0)
+    e = np.linalg.norm(model.predict(have) - model.predict(pn), axis=1)
+    u = np.clip((e - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+    v = u * u * (3.0 - 2.0 * u)
+    v[np.asarray(residual, float) <= clipped_at] = 0.0
+    if keep_out is not None and len(keep_out):
+        v[np.asarray(keep_out, int)] = 0.0
+    info = {"nodes": int((v > 0).sum()), "full": int((v >= 1).sum()),
+            "max_de": float(e[v > 0].max()) if (v > 0).any() else 0.0}
+    if not info["nodes"]:
+        return shaped, info
+    out = np.array(shaped, float, copy=True)
+    sel = v > 0
+    out[sel] = ((1.0 - v[sel, None]) * out[sel]
+                + v[sel, None] * model.shape_device(pn[sel]))
+    return out, info
+
+
 # Research token "a44b-smoothexact" (Agent 44, Findings/agent44-01 s9). On
 # Knut's laser printer the response is folded (12-21 % of the device cube
 # has a non-positive Jacobian in every reference, colprof's A2B included),

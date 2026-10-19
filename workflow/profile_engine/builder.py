@@ -198,7 +198,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # CIECAM02 (or IPT) hue lines instead of Oklab's; research, opt-in
      "a65-cmykhue", "a65-cmykhue-ipt", "a65-cmykhue-pass2",
      "a65-cmykhue-jab", "a65-cmykhue-iptspace", "a65-cmykhue-jabdark",
-     "a65-cmykhue-bluejab", "a65-cmykhue-bluejabdark"})
+     "a65-cmykhue-bluejab", "a65-cmykhue-bluejabdark",
+     # Agent 68: the RGB colorimetric refit may not throw a clipped node far
+     # off its own clip (Knut's spring-green spot); research, opt-in
+     "a68-clipkeep"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -1672,6 +1675,18 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # the n>3 path had 10,000 samples for 35,937 nodes).
             **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
                if "b2a33s" in candidates else {}))
+    if (accurate and meas.is_additive and n == 3
+            and b2a_mod.A68_TOKEN in candidates and _a58k("refit")):
+        # Research Agent 68 (a68-clipkeep, b2a.clip_keep): on a folded RGB
+        # response the refit's least-squares field throws a clipped node far
+        # off its own clip (Knut: L* 68.8 a* -48 b* 16 printed a* +19.5 among
+        # neighbours at a* -29..-39); such a node takes its clip back.
+        dev_clut_shaped, _ck = b2a_mod.clip_keep(
+            model, dev_clut_shaped, dev_clut, residual,
+            keep_out=fixed_nodes)
+        if _ck["nodes"]:
+            _emit(settings, f"Clip kept at {_ck['nodes']} clipped nodes the "
+                            f"smoothing refit had thrown off it.")
     from workflow.profile_engine import oog_clip as _oogc
     _oogc.set_dark_floor(None)          # Agent 29b: colorimetric table done
     _oogc.set_colorimetric(False)       # Agent 51: colorimetric table done
