@@ -1710,6 +1710,12 @@ def build_b2a_clut(model: ForwardModel, grid: int, *,
                             progress=progress)
 
 
+# Agent 66 (a66-clipanchor): anchor ramp of the refit for clipped nodes on
+# ink devices (refine_b2a_clut); set per build by set_research_tokens.
+REFIT_ANCHOR = {"on": False, "lo": 0.5, "hi": 2.5, "dark": False, "l_max": 60.0, "c_min": 8.0,
+                "guard": False, "g_lo": 1.5, "g_hi": 4.0}
+
+
 def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     residual: np.ndarray, grid: int, *,
                     ink_limit: float | None = None,
@@ -1813,6 +1819,28 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
     # out of gamut (their clamp IS the answer there), light anchors elsewhere
     # (keep the fit stable where samples are sparse, let data win).
     anchor_w = np.where(residual > deep_oog, 4.0, 0.05)
+    if REFIT_ANCHOR.get("on") and accurate and not is_additive:
+        # Agent 66 (a66-clipanchor): on ink devices the clipped nodes just
+        # outside the gamut (residual between blend_lo and deep_oog) kept a
+        # weak anchor, so the refit extrapolated them from the in-gamut
+        # samples on one side of the surface: dark yellow / olive nodes went
+        # K-heavy and printed up to 6 L* too dark between firmly anchored
+        # neighbours (FOGRA node L* 25, a* -8, b* 24: clip answer L* 24.4,
+        # refit L* 19; Findings agent66-01 s3b). The anchor now rises
+        # smoothly (smoothstep) from 0.05 at residual lo to 4.0 at hi.
+        lo, hi = REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"]
+        u = np.clip((residual - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+        u = u * u * (3.0 - 2.0 * u)
+        if REFIT_ANCHOR.get("dark") and node_lab is not None:
+            # a66-clipanchor-dark: only dark chromatic nodes (node L* below
+            # l_max, faded over 10 L*; chroma above c_min, faded over 5):
+            # the pale clipped nodes near paper white and the near-neutral
+            # dark column keep the refit's weak anchor (Y4: those lost)
+            nl = np.asarray(node_lab, float)
+            fl = np.clip((REFIT_ANCHOR["l_max"] - nl[:, 0]) / 10.0, 0.0, 1.0)
+            fc = np.clip((np.hypot(nl[:, 1], nl[:, 2]) - REFIT_ANCHOR["c_min"]) / 5.0, 0.0, 1.0)
+            u = u * (fl * fl * (3.0 - 2.0 * fl)) * (fc * fc * (3.0 - 2.0 * fc))
+        anchor_w = np.maximum(anchor_w, 0.05 + 3.95 * u)
     if fixed_nodes is not None and len(fixed_nodes):
         anchor_w[fixed_nodes] = 4.0
     if node_lab is None:
@@ -1854,6 +1882,27 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         p_all = np.vstack([p_all, to01(model.predict(extra))])
         y_all = np.vstack([y_all, model.shape_device(extra)])
         w_all = np.concatenate([w_all, np.ones(len(extra))])
+    if REFIT_ANCHOR.get("guard") and accurate and not is_additive:
+        # Agent 66 (a66-refitguard): a clipped node near the surface (weak
+        # anchor) whose refitted value prints far from the clip's own answer
+        # was extrapolated, not smoothed (FOGRA node L* 25, a* -8, b* 24:
+        # clip L* 24.4, refit L* 19, the dark olive blotch). Such nodes go
+        # back to the clip's answer, smoothly with the size of the jump;
+        # everything else keeps the refit (which is what keeps the gamut
+        # surface crossings free of knees: the plain anchor ramp,
+        # a66-clipanchor, added grey-saturation knees, Findings agent66-01 s5).
+        weak = (residual > 0.5) & (residual <= deep_oog)
+        if fixed_nodes is not None and len(fixed_nodes):
+            weak[fixed_nodes] = False
+        if weak.any():
+            lab_ref = model.predict(np.clip(model.unshape_device(refined[weak]), 0.0, 1.0))
+            lab_clip = model.predict(np.clip(dev_clut[weak], 0.0, 1.0))
+            e = np.linalg.norm(lab_ref - lab_clip, axis=1)
+            g0, g1 = REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"]
+            u = np.clip((e - g0) / max(g1 - g0, 1e-9), 0.0, 1.0)
+            u = u * u * (3.0 - 2.0 * u)
+            refined[weak] = ((1.0 - u)[:, None] * refined[weak]
+                             + u[:, None] * model.shape_device(dev_clut[weak]))
     if limit is not None:
         raw = model.unshape_device(refined)
         total = raw.sum(1)
@@ -2189,6 +2238,28 @@ def set_research_tokens(tokens, *, is_additive) -> None:
         p["a65_pass2"] = oog_clip.A65_PASS2_TOKEN in t
         p["a65_dark"] = bool(t & {oog_clip.A65_JABDARK_TOKEN, oog_clip.A65_BLUEDARK_TOKEN})
         p["a65_blue"] = bool(t & {oog_clip.A65_BLUE_TOKEN, oog_clip.A65_BLUEDARK_TOKEN})
+    # Agent 66 (a66-cmykprop): neighbour propagation in the ink devices'
+    # colorimetric clip (oog_clip.table_params)
+    p["a66_prop"] = (int(os.environ.get("CHROMIQ_A66_PROP", "3"))
+                     if is_additive is False and oog_clip.A66_PROP_TOKEN in t else 0)
+    # Agent 66 (a66-cmykbpc): on ink devices the colorimetric clip's dark
+    # floor becomes a29's BPC-like band (dark_target_l: [0, floor + band] ->
+    # [floor, floor + band] linearly) instead of the hard max(L*, floor);
+    # band CHROMIQ_A66_BAND (default 15) L*. The lightness weight stays as
+    # integration 8b has it (dm_wj 1).
+    REFIT_ANCHOR["on"] = is_additive is False and bool(t & {"a66-clipanchor", "a66-clipanchor-dark"})
+    REFIT_ANCHOR["dark"] = "a66-clipanchor-dark" in t
+    REFIT_ANCHOR["guard"] = is_additive is False and "a66-refitguard" in t
+    _rg = os.environ.get("CHROMIQ_A66_GUARD", "1.5:4").split(":")
+    REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"] = float(_rg[0]), float(_rg[1])
+    _rl = os.environ.get("CHROMIQ_A66_ANCHOR_LC", "60:8").split(":")
+    REFIT_ANCHOR["l_max"], REFIT_ANCHOR["c_min"] = float(_rl[0]), float(_rl[1])
+    _ra = os.environ.get("CHROMIQ_A66_ANCHOR", "0.5:2.5").split(":")
+    REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"] = float(_ra[0]), float(_ra[1])
+    p["a66_blendsep_req"] = is_additive is False and oog_clip.A66_BLENDSEP_TOKEN in t
+    p["a66_sep_tol"] = float(os.environ.get("CHROMIQ_A66_SEPTOL", "0.10"))
+    if is_additive is False and oog_clip.A66_BPC_TOKEN in t and p.get("dm_on"):
+        p["dm_band"] = float(os.environ.get("CHROMIQ_A66_BAND", "15"))
     # research knobs for the fade's order and shape (Agent 56 A/B only)
     p["a56_r"] = float(os.environ.get("CHROMIQ_A56_R", "2.0"))
     p["a56_shape"] = os.environ.get("CHROMIQ_A56_SHAPE", "rat")

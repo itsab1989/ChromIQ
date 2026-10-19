@@ -393,6 +393,24 @@ A65_DARK = (10.0, 10.0)
 # blue window: weight 0 below 200 deg, smoothstep to 1 at 250, 1 to 290,
 # smoothstep to 0 at 340 (pure sRGB blue 259, violet 283, azure 248; chain 7: the gentler window; 220-240-300-320 was the first try)
 A65_BLUE_TOKEN = "a65-cmykhue-bluejab"
+# Agent 66 (a66-cmykprop): on ink devices the colorimetric clip runs the
+# existing neighbour propagation (PARAMS "propagate", 0 by default) for
+# CHROMIQ_A66_PROP rounds (default 3): neighbouring dark out-of-gamut nodes
+# no longer settle in different ink separations (Findings agent66-01 s3).
+A66_PROP_TOKEN = "a66-cmykprop"
+# Agent 66 (a66-cmykbpc): ink devices, colorimetric table: the dark floor as
+# a29's linear band (dm_band, CHROMIQ_A66_BAND L*, default 15) instead of the
+# hard floor, so target L* below floor + band keeps its order and spacing.
+A66_BPC_TOKEN = "a66-cmykbpc"
+# Agent 66 (a66-blendsep): ink devices, colorimetric table. Near the gamut
+# surface (residual 0.5..10) a node's answer is a DEVICE-space blend of the
+# nearest clip and the weighted clip. When the two sit in different ink
+# separations (e.g. K-heavy vs CMY-heavy dark olive), the blend prints a
+# colour neither of them is: dark yellow / olive ramps dip and stall
+# (Findings agent66-01 s3b). With the token the nearest clip's COLOUR is first
+# re-separated from the weighted clip's answer, so both ends of the blend share
+# one separation.
+A66_BLENDSEP_TOKEN = "a66-blendsep"
 A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
@@ -409,6 +427,17 @@ def table_params(p: dict = None) -> dict:
     """PARAMS with the a51 overrides when the a51 token is on and this
     thread builds the colorimetric table; otherwise PARAMS itself."""
     p = PARAMS if p is None else p
+    q = _table_params(p)
+    if p.get("a66_prop") and not p.get("a51") and getattr(_REL, "on", False):
+        q = dict(q)
+        q["propagate"] = int(p["a66_prop"])
+    if p.get("a66_blendsep_req") and not p.get("a51") and getattr(_REL, "on", False):
+        q = dict(q)
+        q["a66_blendsep"] = True
+    return q
+
+
+def _table_params(p: dict) -> dict:
     if (p.get("a65") and not p.get("a51")
             and getattr(_REL, "on", False)):
         # Agent 65 (a65-cmykhue): the ink devices' colorimetric clip keeps
@@ -844,7 +873,10 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
                   prior=prior, prior_w=prior_w, gn_kw=gn_kw,
                   damping=damping, hue_seeds=hue_seeds,
                   progress_label=progress_label)
-        d_lo = clip_nodes(model, target_lab, d_near, residual, _params=PARAMS, **kw)
+        d_lo = clip_nodes(model, target_lab, d_near, residual,
+                          _params=(dict(PARAMS, propagate=p.get("propagate", 0),
+                                        a66_blendsep=p.get("a66_blendsep", False))
+                                   if (p.get("propagate") or p.get("a66_blendsep")) else PARAMS), **kw)
         if (u >= 1.0).all():
             return d_lo
         hi = dict(p)
@@ -1000,6 +1032,26 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         e1 = np.linalg.norm(model.predict(d2) - y, axis=1)
         ok = e1 < 0.5
         best[ok] = d2[ok]
+    d_near_sel = d_near[sel]
+    if p.get("a66_blendsep"):
+        # Agent 66 (a66-blendsep): re-separate the nearest clip's colour from
+        # the weighted clip's answer where the two answers' inks differ, so
+        # the device-space blend below mixes one separation, not two.
+        dn = d_near_sel.copy()
+        far = np.abs(dn - best).max(1) > float(p.get("a66_sep_tol", 0.10))
+        if far.any():
+            y = model.predict(dn[far])
+            d2 = b2a._gauss_newton(model, y, best[far].copy(), free, iters=p["iters"],
+                                   damping=damping, ink_limit=limit,
+                                   prior=None if pr is None else pr[far],
+                                   prior_w=None if pw is None else pw[far],
+                                   progress_label=f"{progress_label}: "
+                                   "one separation for the hand-over", **gn_kw)
+            e = np.linalg.norm(model.predict(d2) - y, axis=1)
+            ok = e < 0.5
+            rows = np.flatnonzero(far)[ok]
+            dn[rows] = d2[ok]
+        d_near_sel = dn
     # Continuous hand-over to the nearest clip near the surface.
     lo, hi = p["blend_lo"], p["blend_hi"]
     if p.get("blend_light"):
@@ -1016,7 +1068,7 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         # takes the weighted clip of the lifted target instead
         u = np.clip(lift / max(float(p.get("dm_blend", 1.0)), 1e-9), 0.0, 1.0)
         bf = np.maximum(bf, u * u * (3.0 - 2.0 * u))
-    out[sel] = (1.0 - bf)[:, None] * d_near[sel] + bf[:, None] * best
+    out[sel] = (1.0 - bf)[:, None] * d_near_sel + bf[:, None] * best
     if limit is not None:
         tot = out[sel].sum(1)
         over = tot > limit
