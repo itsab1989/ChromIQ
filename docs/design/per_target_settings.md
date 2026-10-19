@@ -550,6 +550,8 @@ Knut, 2026-10-07, #182 [6045500910](https://github.com/itsab1989/ChromIQ/issues/
 
 **In scope: Create Chart, Measure, Build Profile, Calibration & Profiling.**
 Print Chart and Check & Refine *"can be kept as is for now"*.
+(Print Chart: proposed in scope since 2026-10-20 on Knut's report, see §5a;
+not yet confirmed by a person, and the table row below says so.)
 
 Measure was out of scope in the analysis and Knut put it in — *"Add measure tab
 too"*, and, on the §1 list, *"Looks ok, but measure tab must be included."* The
@@ -560,10 +562,65 @@ and the resume tick that disagreed with itself.
 | Tab | In scope | Store |
 |---|---|---|
 | 1. Create Chart | ✅ | `<stem>.channels.json` (extended) |
-| 2. Print Chart | ❌ for now | — |
+| 2. Print Chart | proposed: yes, see §5a (Knut, 2026-10-20; not yet confirmed) | `runs/runN/meta.json` / `runs/runN/verifications/meta.json` / `cal/meta.json`, key `print_settings` |
 | 3. Measure | ✅ | `runs/runN/meta.json` / `cal/meta.json` |
 | 4. Build Profile / Calibration & Profiling | ✅ | `runs/runN/meta.json` / `cal/meta.json` |
 | 5. Check & Refine | ❌ for now | — |
+
+### 5a. ⏳ Awaiting confirmation: every Print Chart setting is the run's own (4.3.8)
+
+**Confirmed by:** *nobody yet.*
+
+Knut, by email, 2026-10-20 ("Print Chart settings bug"):
+
+> *"When printing a chart in run1, where I define printer settings in Print
+> Chart tab, and then define another run (run2), with another paper and chart,
+> then define print settings in Print chart tab, and then go back to run 1, the
+> print settings on run1 changed to what I selected in run2… All the print
+> settings should be 100% individual per run and should never change on a run
+> based on settings made on a different run, while moving back and forth
+> between runs…"*
+
+This is §0's rule (*"several actors can change that parameter"*) applied to the
+tab §5 left out. Knut has stepped back; Basti approves in his place, and only
+explicitly. Until then this section is a proposal that the code already follows.
+
+**What was wrong (4.3.7, measured on screen).** The printer and every option row
+(paper size, media type, paper source, quality, every row the driver offers)
+were kept only on screen and in Save as Defaults (`last_printer`,
+`print_opts_<queue>` in the preferences). No run change and no tab change
+reloaded them, so the run looked at last decided what every run showed and
+printed with, and a restart put every run back on the saved defaults. The
+Colour / Rendering intent / Route rows (feature A, §11 Q5) and the PostScript
+form row (§1.3) were already per target.
+
+| # | Rule, as built | Where |
+|---|---|---|
+| PS-1 | The printer and every option row belong to the target, beside the rows that already did: `print_settings["printer"]` and `print_settings["printer_options"] = {queue: {option: value}}` ("" is "Printer Default"), in the store §10 F1 names (run, the run's verifications, the calibration). Options are kept per queue, so choosing another printer for a run and going back to the first keeps both | `TabPrint.save_target_settings`, `_printer_snapshot` |
+| PS-2 | Loaded at §2's events (L1 tab shown, L3/L4 target change of the visible tab), written at §3's (W6 tab left, Q-1 pulldown opened, app quit, Close Project) | `TabPrint.load_target_settings`, `_apply_target_printer`, MainWindow as for every storing tab |
+| PS-3 | A write goes only to the target whose values are on screen. Close Project asks every tab to save; the Print tab, last loaded for run 1 and hidden while the bar moved to run 2, writes nothing (§2.0) | `_print_loaded_for` |
+| PS-4 | Nothing stored (§4 S4/S5/S8/S9, every run made before 4.3.8): the saved defaults, else the first printer at "Printer Default". Looking at such a target stores nothing, so it keeps following the saved defaults until a value is changed on it. No migration | `_wanted_printer`, `_saved_options_for` |
+| PS-5 | A verification with nothing of its own prints with its run's printer and options (the sheet must print as the run's did). Changing them on the verification gives it its own (F1); the run's are not touched | `_printer_settings_to_load` |
+| PS-6 | A run made since the tab last loaded (Generate on New run, a preset making a run) starts on the printer settings of the run that was on screen, and keeps them (§4a's rule; held in memory, not in `cache/new_run.json`: after a restart such a run is PS-4). A duplicated run carries its source's (`DUPLICATE_META_CARRY` already lists `print_settings`). The calibration never seeds and is never seeded (N-6) | `_printer_settings_to_load`, `_note_runs_seen` |
+| PS-7 | The calibration keeps its own printer and options in `cal/meta.json` (`CalibrationMeta.print_settings`, new; an older ChromIQ carries the key unread). Its PostScript form stays the project's (§1.3) | `core/file_manager.py` |
+| PS-8 | A printer that is no longer installed: the target opens on the saved default printer, and keeps the stored options of the missing one under its queue name | `_apply_target_printer` |
+
+**Stays global, and why:** Save as Defaults (`last_printer`,
+`print_opts_<queue>`) is the seed for a target with nothing stored (§1.1 "the
+defaults in Preferences"); "Use default macOS printer dialog", "Confirm before
+printing" and the PDF fallback are Preferences (§1.1); the quality row's
+preselection from the macOS dialog's history (`printer_memory`) is a starting
+point per printer and paper, not a choice, and a stored quality wins over it.
+
+**Not covered, said plainly:** on the macOS dialog route the printer, paper and
+driver options are chosen in macOS's own print dialog, which ChromIQ opens and
+does not fill from the run; macOS keeps what was last used there. That is not a
+control of this tab, and making it per run would mean storing and restoring the
+dialog's print settings, which needs its own measurement on screen first.
+
+Tests: `tests/test_438_b_print_settings_belong_to_their_run.py` (Knut's steps,
+printer per run, restart, verification, calibration, new run, the hidden-tab
+write, MainWindow's own events).
 
 ---
 
