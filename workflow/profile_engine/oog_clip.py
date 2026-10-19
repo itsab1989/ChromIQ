@@ -412,6 +412,28 @@ A66_BPC_TOKEN = "a66-cmykbpc"
 # one separation.
 A66_BLENDSEP_TOKEN = "a66-blendsep"
 A65_BLUEDARK_TOKEN = "a65-cmykhue-bluejabdark"
+# Agent 67 (a67-darkchroma): ink devices, colorimetric table. The engine's
+# clip metric is lightness-first (J 4 : C 0.35, 11:1); colprof's is J 4 : C 1
+# in CIECAM02 Jab (xlut.c JCCWEIGHT 2, CCCWEIGHT 1, squared by rev_set_lchw).
+# Near black that ratio decides how long a colour keeps its colour: ours
+# keeps the target's L* and gives the chroma up (FOGRA sat red, source L* 22:
+# prints L* 24.5 C* 37.5, colprof L* 29.7 C* 46). With the token the chroma
+# weight rises smoothly (smoothstep in target L*) from wc above A67_DC[1] to
+# A67_DC[0] below A67_DC[2] (CHROMIQ_A67_DC "wc:Lhi:Llo"); the hue weight's
+# top (wh) is unchanged. Findings agent67-01.
+A67_DC_TOKEN = "a67-darkchroma"
+A67_DC = (1.0, 60.0, 35.0)
+# a67-darkchroma-all: the same weight at every target L* (FOGRA sat green
+# source L* 85-95: base67 prints C* 42, colprof 66; Findings agent67-01)
+A67_DCALL_TOKEN = "a67-darkchroma-all"
+A67_LIFT_TOKEN = "a67-liftchroma"
+# a67-camratio: the chroma weight = colprof's Jab ratio at the target, every
+# L* (weights, a67_cam_wc); range CHROMIQ_A67_CAM "lo:hi"
+A67_CAM_TOKEN = "a67-camratio"
+A67_CAM = (0.35, 3.0)
+A67_CAMFLOOR_TOKEN = "a67-camratio-floor"
+A67_CAMFLOOR = (2.0, 10.0)
+A67_LIFT = (3.0, 8.0)
 A65_BLUE = (200.0, 250.0, 290.0, 340.0)
 _HK = {"on": True}
 _REL = threading.local()
@@ -671,6 +693,24 @@ class SpaceView:
 
 
 # --- the metric -------------------------------------------------------------
+def a67_cam_wc(lab: np.ndarray, rng=(0.35, 3.0), e: float = 0.5) -> np.ndarray:
+    """Agent 67: colprof's chroma : lightness weight ratio at CIELAB targets
+    (see weights, a67-camratio)."""
+    lab = np.asarray(lab, float)
+    c = np.hypot(lab[:, 1], lab[:, 2])
+    u = np.zeros_like(lab)
+    ok = c > 1e-6
+    u[ok, 1] = lab[ok, 1] / c[ok]
+    u[ok, 2] = lab[ok, 2] / c[ok]
+    u[~ok, 1] = 1.0
+    j0 = lab_to_argyll_jab(lab)
+    jl = lab_to_argyll_jab(lab + np.array([e, 0.0, 0.0])[None, :])
+    jc = lab_to_argyll_jab(lab + e * u)
+    s_j = np.linalg.norm(jl - j0, axis=1) / e
+    s_c = np.linalg.norm(jc - j0, axis=1) / e
+    return np.clip((s_c / np.maximum(s_j, 1e-6)) ** 2, rng[0], rng[1])
+
+
 def weights(target_s: np.ndarray, p: dict = PARAMS,
             angle: np.ndarray | None = None) -> np.ndarray:
     """(N,3,3) W with |W (y - t)|^2 = wJ dJ^2 + wC dRad^2 + wH(C) dTan^2 in
@@ -687,6 +727,31 @@ def weights(target_s: np.ndarray, p: dict = PARAMS,
     lt = lt * lt * (3.0 - 2.0 * lt)
     wj = p["wj"] * (1.0 + (p["wj_light"] - 1.0) * lt)
     wc = p["wc"] * np.ones(n)
+    if (p.get("a67_cam") and not p.get("a51") and p.get("space") == "lab"
+            and getattr(_REL, "on", False)):
+        # Agent 67 (a67-camratio): colprof's clip weights (Jab J 4 : C 1)
+        # expressed in CIELAB at the target: cost 4 sJ^2 dL^2 + sC^2 dC^2,
+        # sJ = dJ/dL*, sC = d|Jab|/dC* along the chroma ray (local), so with
+        # our wj 4 the chroma weight is (sC / sJ)^2 (dark red ~2.8, dark
+        # yellow ~0.7, light spring / cyan ~0.45), held to A67_CAM range.
+        wc = a67_cam_wc(target_s, p["a67_cam"])
+        fb = p.get("a67_camfloor")
+        fl = dark_floor() if fb else None
+        if fl is not None:
+            # a67-camratio-floor: near the table's black the weight hands
+            # back to the engine's lightness-first one (smoothstep over
+            # floor + fb[0] .. floor + fb[1]): a chroma-keeping weight there
+            # turned ramps lighter again just above the black (i1iSis mid
+            # green: printed L* 28.3 -> 29.9 while the source darkened)
+            v = np.clip((target_s[:, 0] - fl - fb[0]) / max(fb[1] - fb[0], 1e-9), 0.0, 1.0)
+            v = v * v * (3.0 - 2.0 * v)
+            wc = p["wc"] + (wc - p["wc"]) * v
+    if p.get("a67_dc") and not p.get("a51") and getattr(_REL, "on", False):
+        # Agent 67 (a67-darkchroma): colprof's chroma : lightness ratio in
+        # the dark (ink devices, colorimetric table only)
+        wcd, l_hi, l_lo = p["a67_dc"]
+        u = np.clip((l_hi - target_s[:, 0]) / max(l_hi - l_lo, 1e-9), 0.0, 1.0)
+        wc = wc + (wcd - p["wc"]) * u * u * (3.0 - 2.0 * u)
     wh = p["wc"] + (p["wh"] - p["wc"]) * s
     if p.get("neutral_fade"):
         # a neutral target is clipped to the nearest colour, as integration 2
@@ -929,6 +994,18 @@ def clip_nodes(model, target_lab, d_near, residual, *, free, limit,
         if (mult > 1.0).any():
             w = w.copy()
             w[:, 0, :] *= np.sqrt(mult)[:, None]
+    if (lift is not None and p.get("a67_lift") and not p.get("a51")
+            and getattr(_REL, "on", False)):
+        # Agent 67 (a67-liftchroma): a target below the black (lifted to the
+        # floor) weighs chroma more, rising smoothly with its depth below
+        # the black (x A67_LIFT[0] at A67_LIFT[1] L* deep): colprof keeps a
+        # deep magenta's chroma at a lighter L* (S3c source L* 10: colprof
+        # prints L* 36.5 C* 46, the floor clip L* 34.6 C* 25)
+        km, span = p["a67_lift"]
+        u = np.clip(lift / max(span, 1e-9), 0.0, 1.0)
+        u = u * u * (3.0 - 2.0 * u)
+        w = w.copy()
+        w[:, 1, :] *= np.sqrt(1.0 + (km - 1.0) * u)[:, None]
     n = model.n_channels
     cloud = clip_cloud(n, limit, channel_max, np.random.default_rng(2525),
                        light=True, faces=p["faces"])

@@ -1892,6 +1892,26 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         # surface crossings free of knees: the plain anchor ramp,
         # a66-clipanchor, added grey-saturation knees, Findings agent66-01 s5).
         weak = (residual > 0.5) & (residual <= deep_oog)
+        g_scale = None
+        if REFIT_ANCHOR.get("alldark") and node_lab is not None:
+            # Agent 67 (a67-guardall-dark): the wider guard (in-gamut nodes,
+            # band 0.75 -> 2) only in the dark, where the bands are: node
+            # L* below 40 fully, smoothstep to a66-refitguard's own guard
+            # (clipped nodes only, 1.5 -> 4) at L* 55. Everywhere guardall
+            # cost B2A p95 on the synthetic sets (XKH / X3 / X3m +10..31 %,
+            # interpolation between exact nodes of different separations).
+            _u = np.clip((55.0 - np.asarray(node_lab, float)[:, 0]) / 15.0, 0.0, 1.0)
+            _u = _u * _u * (3.0 - 2.0 * _u)
+            weak = residual <= deep_oog
+            g_scale = _u
+        elif REFIT_ANCHOR.get("all"):
+            # Agent 67 (a67-guardall): the in-gamut nodes too. Next to the
+            # gamut surface the refit also pulls IN-GAMUT nodes off their
+            # exact inversion (FOGRA node L* 21.9, a* -8, b* 16: exact,
+            # refit prints L* 19.9), between clipped nodes the guard already
+            # holds: the dark green band of mid h080/h090 (Findings
+            # agent67-01). a44-exactkeep (tol 2) did not restore it.
+            weak = residual <= deep_oog
         if fixed_nodes is not None and len(fixed_nodes):
             weak[fixed_nodes] = False
         if weak.any():
@@ -1899,10 +1919,34 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
             lab_clip = model.predict(np.clip(dev_clut[weak], 0.0, 1.0))
             e = np.linalg.norm(lab_ref - lab_clip, axis=1)
             g0, g1 = REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"]
-            u = np.clip((e - g0) / max(g1 - g0, 1e-9), 0.0, 1.0)
+            if g_scale is not None:
+                gs = g_scale[weak]
+                g0 = 1.5 - 0.75 * gs
+                g1 = 4.0 - 2.0 * gs
+            u = np.clip((e - g0) / np.maximum(g1 - g0, 1e-9), 0.0, 1.0)
             u = u * u * (3.0 - 2.0 * u)
+            if g_scale is not None:
+                # in-gamut nodes: the guard fades out above the dark
+                ing = residual[weak] <= 0.5
+                u = np.where(ing, u * gs, u)
+            back = model.shape_device(dev_clut[weak])
+            if REFIT_ANCHOR.get("polish") and (u > 0).any():
+                # Agent 67 (a67-guardpolish): instead of the per-node answer
+                # (whose separation can differ from its refitted neighbours,
+                # which cost B2A p95 between the nodes), the refitted value is
+                # polished toward the colour the per-node answer prints,
+                # starting from and weakly held at the refit's own inks
+                rows = np.flatnonzero(u > 0)
+                seed = np.clip(model.unshape_device(refined[weak][rows]), 0.0, 1.0)
+                pw = np.full(seed.shape, float(REFIT_ANCHOR.get("polish_w", 0.05)))
+                pol = _gauss_newton(model, lab_clip[rows], seed.copy(), np.arange(n),
+                                    iters=8, damping=0.05, ink_limit=limit,
+                                    prior=seed, prior_w=pw, boundary_fd=True,
+                                    channel_max=channel_max)
+                back = back.copy()
+                back[rows] = model.shape_device(np.clip(pol, 0.0, 1.0))
             refined[weak] = ((1.0 - u)[:, None] * refined[weak]
-                             + u[:, None] * model.shape_device(dev_clut[weak]))
+                             + u[:, None] * back)
     if limit is not None:
         raw = model.unshape_device(refined)
         total = raw.sum(1)
@@ -2250,13 +2294,36 @@ def set_research_tokens(tokens, *, is_additive) -> None:
     REFIT_ANCHOR["on"] = is_additive is False and bool(t & {"a66-clipanchor", "a66-clipanchor-dark"})
     REFIT_ANCHOR["dark"] = "a66-clipanchor-dark" in t
     REFIT_ANCHOR["guard"] = is_additive is False and "a66-refitguard" in t
-    _rg = os.environ.get("CHROMIQ_A66_GUARD", "1.5:4").split(":")
+    REFIT_ANCHOR["all"] = is_additive is False and "a67-guardall" in t
+    REFIT_ANCHOR["alldark"] = is_additive is False and "a67-guardall-dark" in t
+    REFIT_ANCHOR["polish"] = is_additive is False and "a67-guardpolish" in t
+    REFIT_ANCHOR["polish_w"] = float(os.environ.get("CHROMIQ_A67_POLISHW", "0.05"))
+    # Agent 67 (a67-guardall): the guard band 0.75 -> 2 dE (G1 probe)
+    _rg = os.environ.get("CHROMIQ_A66_GUARD", "0.75:2" if REFIT_ANCHOR["all"] else "1.5:4").split(":")
     REFIT_ANCHOR["g_lo"], REFIT_ANCHOR["g_hi"] = float(_rg[0]), float(_rg[1])
     _rl = os.environ.get("CHROMIQ_A66_ANCHOR_LC", "60:8").split(":")
     REFIT_ANCHOR["l_max"], REFIT_ANCHOR["c_min"] = float(_rl[0]), float(_rl[1])
     _ra = os.environ.get("CHROMIQ_A66_ANCHOR", "0.5:2.5").split(":")
     REFIT_ANCHOR["lo"], REFIT_ANCHOR["hi"] = float(_ra[0]), float(_ra[1])
     p["a66_blendsep_req"] = is_additive is False and oog_clip.A66_BLENDSEP_TOKEN in t
+    # Agent 67 (a67-darkchroma): the ink devices' colorimetric clip weighs
+    # chroma like colprof in the dark (oog_clip.weights)
+    p["a67_dc"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_DC"].split(":"))
+                    if os.environ.get("CHROMIQ_A67_DC") else oog_clip.A67_DC)
+                   if is_additive is False and oog_clip.A67_DC_TOKEN in t else None)
+    p["a67_cam"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_CAM"].split(":"))
+                     if os.environ.get("CHROMIQ_A67_CAM") else oog_clip.A67_CAM)
+                    if is_additive is False and oog_clip.A67_CAM_TOKEN in t else None)
+    p["a67_camfloor"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_CAMFLOOR"].split(":"))
+                          if os.environ.get("CHROMIQ_A67_CAMFLOOR") else oog_clip.A67_CAMFLOOR)
+                         if is_additive is False and oog_clip.A67_CAMFLOOR_TOKEN in t else None)
+    p["a67_lift"] = ((tuple(float(x) for x in os.environ["CHROMIQ_A67_LIFT"].split(":"))
+                      if os.environ.get("CHROMIQ_A67_LIFT") else oog_clip.A67_LIFT)
+                     if is_additive is False and oog_clip.A67_LIFT_TOKEN in t else None)
+    if is_additive is False and oog_clip.A67_DCALL_TOKEN in t and not os.environ.get("CHROMIQ_A67_DC"):
+        # a67-darkchroma-all: colprof's chroma : lightness ratio at every L*
+        # (the light out-of-gamut greens / cyans too); wins over -darkchroma
+        p["a67_dc"] = (1.0, 101.0, 100.0)
     p["a66_sep_tol"] = float(os.environ.get("CHROMIQ_A66_SEPTOL", "0.10"))
     if is_additive is False and oog_clip.A66_BPC_TOKEN in t and p.get("dm_on"):
         p["dm_band"] = float(os.environ.get("CHROMIQ_A66_BAND", "15"))
