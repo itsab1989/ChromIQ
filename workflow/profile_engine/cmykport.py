@@ -658,3 +658,262 @@ def black_shell(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     out = (1.0 - w[:, None]) * shaped + w[:, None] * np.asarray(
         black_dev_shaped, float)[None, :]
     return out, {"nodes": int((w > 0.01).sum()), "fold_factor": ff}
+
+
+# --- Agent 71 (a71-darkray) ----------------------------------------------------
+A71_DARKRAY = "a71-darkray"
+RAY_APEX = -16.0      # colour-to-black ramps are straight lines toward L* -16 (CIE f(t) = t^(1/3))
+
+
+def _tri(shaped: np.ndarray, grid: int, axes, pts: np.ndarray) -> np.ndarray:
+    """Trilinear lookup of a (grid^3, n) Lab-input table at Lab points (as a
+    CMM reads a Lab-input table)."""
+    T = shaped.reshape(grid, grid, grid, -1)
+    idx, frac = [], []
+    for k in range(3):
+        ax = axes[k]
+        x = np.clip(pts[:, k], ax[0], ax[-1])
+        i = np.clip(np.searchsorted(ax, x, side="right") - 1, 0, grid - 2)
+        idx.append(i)
+        frac.append((x - ax[i]) / (ax[i + 1] - ax[i]))
+    out = 0.0
+    for a in (0, 1):
+        wa = frac[0] if a else 1.0 - frac[0]
+        for b in (0, 1):
+            wb = frac[1] if b else 1.0 - frac[1]
+            for c in (0, 1):
+                wc = frac[2] if c else 1.0 - frac[2]
+                out = out + (wa * wb * wc)[:, None] * T[idx[0] + a, idx[1] + b,
+                                                          idx[2] + c]
+    return out
+
+
+def _path(d: np.ndarray, db: np.ndarray, w: np.ndarray, kind: str,
+          q: float = 3.0, kf: float | None = None) -> np.ndarray:
+    w = np.asarray(w, float)[:, None]
+    if kind == "linear":
+        return (1.0 - w) * d + w * db[None, :]
+    out = d.copy()
+    out[:, 3] = d[:, 3] + (db[3] - d[:, 3]) * (1.0 - (1.0 - w[:, 0]) ** q)
+    out[:, :3] = d[:, :3] + (db[None, :3] - d[:, :3]) * w ** q
+    if kind == "kfold" and kf is not None:
+        # K first, but above the fold only as fast as C/M/Y leave
+        rem = 1.0 - w[:, 0] ** q
+        kmax = np.maximum(d[:, 3], kf + (db[3] - kf) * (1.0 - rem))
+        out[:, 3] = np.minimum(out[:, 3], kmax)
+    return out
+
+
+def _tac(d: np.ndarray, lim) -> np.ndarray:
+    if lim is None:
+        return d
+    s = d.sum(1)
+    over = s > lim
+    if over.any():
+        f = np.clip((lim - d[:, 3]) / np.maximum(d[:, :3].sum(1), 1e-6),
+                    0.0, 1.0)
+        d = d.copy()
+        d[over, :3] *= f[over, None]
+    return d
+
+
+def dark_ray(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
+             grid: int, model, black_dev: np.ndarray, l_min: float, *,
+             ink_limit=None, fixed_nodes=None, params: str | None = None):
+    """Agent 71 (a71-darkray): below the printable black, a colour-to-black
+    ramp must darken steadily into the black. Ramps are straight lines in
+    Lab toward L* -16 (``RAY_APEX``), so for every clipped node below
+    ``l_min + top`` the table must print no lighter than at the point one
+    step further OUT along that line (its "outer" point), and no darker than
+    the table's own black. Nodes that break either rule move along a device
+    path toward the black (unshaped ``black_dev``) just far enough. The path
+    is the one that darkens monotonically on this printer (linear, or K first
+    and C/M/Y late where linear mixes print lighter, i1iSis / i1Pro). Sweeps
+    run from the outside in. Params (env CHROMIQ_A71_RAY) top:step:tol:sweeps:
+    floor:gamma:cmin:cdesc, default 0:3:a:10:0:a:6:12 (tol a = 0.3 where the
+    straight path toward the black darkens steadily, else 0; gamma a = 0
+    there, else 1: below C* cdesc the cap also descends toward the black's
+    L* by (|node| / |outer point|) ** gamma; nodes within C* cmin of the
+    neutral axis untouched). Nodes printing darker than the black are
+    first lifted (all inks scaled down) to the black's L*, which keeps their
+    colour (CHROMIQ_A71_LIFT=0: toward the black instead)."""
+    ps = (params or os.environ.get("CHROMIQ_A71_RAY")
+          or "0:3:a:10:0:a:6:12").split(":")
+    kf = k_fold(model)
+    auto_tol = ps[2] == "a"
+    if auto_tol:
+        ps[2] = "0"
+    auto_gam = len(ps) > 5 and ps[5] == "a"
+    if auto_gam:
+        ps[5] = "0"
+    pv = [float(v) for v in ps]
+    top, step, tol, sweeps, floor = pv[:5]
+    gam = pv[5] if len(pv) > 5 else 0.0
+    cmin = pv[6] if len(pv) > 6 else 0.0
+    cdesc = pv[7] if len(pv) > 7 else 1e9
+    lift = os.environ.get("CHROMIQ_A71_LIFT", "1") == "1"
+    nl = np.asarray(node_lab, float)
+    out = np.asarray(shaped, float).copy()
+    lim = None if ink_limit is None else float(ink_limit) / 100.0
+    db = np.clip(np.asarray(black_dev, float), 0.0, 1.0)
+    lb = float(model.predict(db[None])[0, 0])
+    axes = [np.unique(nl[:, k]) for k in range(3)]
+    reg = (np.asarray(residual, float) >= 0.5) & (nl[:, 0] < l_min + top)
+    reg &= np.linalg.norm(nl, axis=1) > 1e-6
+    # the neutral column and its neighbours stay the engine's (grey ramps)
+    reg &= np.hypot(nl[:, 1], nl[:, 2]) > cmin
+    if fixed_nodes is not None and len(fixed_nodes):
+        reg[np.asarray(fixed_nodes)] = False
+    ri = np.flatnonzero(reg)
+    info = {"nodes": int(len(ri)), "moved": 0, "path": "", "black_l": lb}
+    if not len(ri):
+        return out, info
+    # the path: the one whose mixes from the region's nodes to the black
+    # darken monotonically (fewest L* rises on the model)
+    d0 = np.clip(model.unshape_device(out[ri]), 0.0, 1.0)
+    ts = np.linspace(0.0, 1.0, 21)
+    best, kind = None, "linear"
+    kinds = ("linear", "klead") + (("kfold",) if kf is not None
+                                   and os.environ.get("CHROMIQ_A71_KFOLD")
+                                   == "1" else ())
+    for k in kinds:
+        Lp = np.stack([model.predict(_tac(_path(d0, db, np.full(len(ri), t),
+                                                k, kf=kf), lim))[:, 0]
+                       for t in ts], 1)
+        r = float(np.mean(np.max(Lp - np.minimum.accumulate(Lp, axis=1),
+                                 axis=1) > 0.3))
+        if best is None or r < best - 0.02:
+            best, kind = r, k
+    kind = os.environ.get("CHROMIQ_A71_PATH", kind)
+    info["path"] = kind
+    if auto_tol and kind == "linear":
+        # where the straight mix toward the black already darkens steadily
+        # (presses, synthetic printers), model wiggles below 0.3 L* are
+        # noise: moving those nodes cost chroma on XKB (oog_ramp_jump
+        # 4.2 -> 10); where it does not (i1iSis), every rise is real
+        tol = 0.3
+    if auto_gam and kind != "linear":
+        # where only the K-first path darkens (i1iSis), near the neutral
+        # axis (C* < cdesc) the last cells must also DESCEND into the black
+        # in proportion to how far along the line they are: there the
+        # printer's fold makes K-heavy mixes with a little C/M/Y print up to
+        # 2 L* lighter than the model says (proxy), a light stripe before
+        # the black (i1iSis proxy blue rise 9.5 -> 2.3, colprof 2.2)
+        gam = 1.0
+    info["tol"] = tol
+    info["gamma"] = gam
+    apex = np.array([RAY_APEX, 0.0, 0.0])
+    v = nl[ri] - apex
+    v /= np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-9)
+    outer = nl[ri] + step * v
+    moved = np.zeros(len(ri), bool)
+    ws = np.linspace(0.0, 1.0, 26)
+    for _ in range(int(sweeps)):
+        dcur = np.clip(model.unshape_device(out[ri]), 0.0, 1.0)
+        Lc = model.predict(dcur)[:, 0]
+        do = np.clip(model.unshape_device(_tri(out, grid, axes, outer)),
+                     0.0, 1.0)
+        Lo = model.predict(do)[:, 0]
+        cap = np.maximum(Lo + tol, lb)
+        if gam > 0:
+            # descend toward the black in proportion to how far along the
+            # line the node still is from the black corner (L* 0)
+            rho = (np.linalg.norm(nl[ri], axis=1)
+                   / np.maximum(np.linalg.norm(outer, axis=1), 1e-9)) ** gam
+            dcap = np.maximum(lb + (Lo - lb) * rho, lb)
+            near = np.hypot(nl[ri, 1], nl[ri, 2]) < cdesc
+            cap = np.where(near, np.minimum(cap, dcap), cap)
+        bad = (Lc > cap) | (Lc < lb - floor)
+        if not bad.any():
+            break
+        if lift:
+            # nodes printing darker than the black: less ink (all inks
+            # scaled down) until they print the black's L*, so the ramp
+            # keeps its colour into the last cell instead of greying out
+            lo = np.flatnonzero((Lc < lb - floor) & ~(Lc > cap))
+            if len(lo):
+                fs = np.linspace(0.0, 0.5, 51)
+                fb = np.zeros(len(lo))
+                got = np.zeros(len(lo), bool)
+                for fv in fs:
+                    Lw = model.predict(dcur[lo] * (1.0 - fv))[:, 0]
+                    ok = (Lw >= lb - floor) & ~got
+                    fb[ok] = fv
+                    got |= ok
+                fb[~got] = 0.5
+                dcur[lo] = dcur[lo] * (1.0 - fb[:, None])
+                out[ri[lo]] = np.clip(model.shape_device(dcur[lo]), 0.0, 1.0)
+                moved[lo] = True
+                bad[lo] = False
+                if not bad.any():
+                    continue
+        bi = np.flatnonzero(bad)
+        wbest = np.ones(len(bi))
+        found = np.zeros(len(bi), bool)
+        for wv in ws:
+            dd = _tac(_path(dcur[bi], db, np.full(len(bi), wv), kind,
+                            kf=kf), lim)
+            Lw = model.predict(dd)[:, 0]
+            ok = (Lw <= cap[bi]) & (Lw >= lb - floor) & ~found
+            wbest[ok] = wv
+            found |= ok
+        dd = _tac(_path(dcur[bi], db, wbest, kind, kf=kf), lim)
+        out[ri[bi]] = np.clip(model.shape_device(dd), 0.0, 1.0)
+        moved[bi] = True
+    info["moved"] = int(moved.sum())
+    return out, info
+
+
+FOLD_STRONG = 3.0     # L* by which C/M/Y lighten K 1: above this the ray repair is not used
+
+
+def k_shell(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
+            model, black_dev: np.ndarray, l_min: float, *, ink_limit=None,
+            fixed_nodes=None, params: str | None = None):
+    """Agent 71 (a71-darkray on a strong fold at the black, i1Pro): the
+    a70-blackshell lean of clipped nodes below the black toward the table's
+    black, but along a K-first path (K moves as 1-(1-w)^q, C/M/Y as w^q) in
+    device space: on a printer whose C/M/Y LIGHTEN a heavy K, the straight
+    mix prints lighter than both ends and the K-first one darkens steadily.
+    Weight smoothstep((l_min - off - L*) / (l_min - off)) ** p *
+    smoothstep(1 - C* / cmax). Params (env CHROMIQ_A71_KSHELL) off:p:cmax:q,
+    default 3:0.5:80:3."""
+    off, p, cmax, q = (float(v) for v in (params or os.environ.get(
+        "CHROMIQ_A71_KSHELL") or "3:0.5:80:3").split(":"))
+    nl = np.asarray(node_lab, float)
+    top = max(l_min - off, 1e-6)
+    w = (_ss((top - nl[:, 0]) / top) ** p
+         * _ss(1.0 - np.hypot(nl[:, 1], nl[:, 2]) / cmax))
+    w[np.asarray(residual, float) < 0.5] = 0.0
+    if fixed_nodes is not None and len(fixed_nodes):
+        w[np.asarray(fixed_nodes)] = 0.0
+    out = np.asarray(shaped, float).copy()
+    sel = np.flatnonzero(w > 1e-4)
+    if len(sel):
+        lim = None if ink_limit is None else float(ink_limit) / 100.0
+        db = np.clip(np.asarray(black_dev, float), 0.0, 1.0)
+        d = np.clip(model.unshape_device(out[sel]), 0.0, 1.0)
+        dd = _tac(_path(d, db, w[sel], "klead", q), lim)
+        out[sel] = np.clip(model.shape_device(dd), 0.0, 1.0)
+    return out, {"nodes": int(len(sel))}
+
+
+def dark_end(shaped, residual, node_lab, grid, model, black_dev, l_min, *,
+             ink_limit=None, fixed_nodes=None):
+    """Agent 71 (a71-darkray): the dark end of the colorimetric table
+    (replaces a70-blackshell). On a printer whose C/M/Y lighten the black
+    strongly (by FOLD_STRONG L* or more at K 1, i1Pro), ``k_shell``; else
+    ``dark_ray``."""
+    f1 = fold_at_black(model)
+    if k_fold(model) is not None and f1 >= FOLD_STRONG:
+        out, info = k_shell(shaped, residual, node_lab, model, black_dev,
+                            l_min, ink_limit=ink_limit,
+                            fixed_nodes=fixed_nodes)
+        info["mode"] = "k-shell"
+    else:
+        out, info = dark_ray(shaped, residual, node_lab, grid, model,
+                             black_dev, l_min, ink_limit=ink_limit,
+                             fixed_nodes=fixed_nodes)
+        info["mode"] = "ray"
+    info["fold"] = float(f1)
+    return out, info
