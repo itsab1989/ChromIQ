@@ -1133,6 +1133,20 @@ Basti, 2026-10-12, on D1: *"personally i think giving the user the choice here i
 
 When "Use default macOS printer dialog" is switched in Preferences, only the project's choice is asked again (P15). A run's own choice made on the Print Chart tab's "Colours to the printer" row (P4), and the choice a refined run takes from its parent (P13), stay and keep winning over the project's answer for that run and its verification charts.
 
+#### ⏳ Awaiting confirmation: a verification chart follows the way its profiling chart actually went (4.3.8, Knut's run 6)
+
+**Confirmed by:** *nobody yet.* **This changes P3 and adds to P14**, so it needs Sebastian's approval before it ships (Knut has stepped back).
+
+Found from Knut's run 6 (report folder `2026-10-19_knut_highverif`, FINDINGS.md): a FROM PROFILE GAMUT chart printed raw on 2026-10-14 with 4.3.5 beta 5 by the direct route (lp, ChromIQ's PostScript, DeviceRGB) to his HP Color LaserJet 5550 measured mean ΔE00 8.7 against its profile (pure green ΔE76 39 from the same RGB on the profiling sheet). The profile came from a chart printed on 2026-10-01 through the 4.3.2 macOS dialog, where macOS sent it CIEBased and the printer converted it (D1's "consequence" above). Against a profile his printer made from a direct-route sheet on 2026-10-10 the same sheet measures mean ΔE00 2.0, as good as any of his verifications. The rule "the verification chart goes as its profiling chart went" (P3's purpose, and the industry rule above) was broken, and nothing could notice: P3 reads only a stored *choice*, P14 fires only when that choice is `macos`, the project had none (its charts predate the choice), and the print record said `route: chromiq` for both ways.
+
+| # | Condition | Action | Where |
+|---|---|---|---|
+| P16 | every print ChromIQ makes | the print record also says `path` (`dialog` / `direct`), `printer` (the queue) and, on a PostScript printer, `postscript` (the form the colours reached it in: `device` on the direct route, the submitted form on the dialog route), and `app_version` | `verification_print.write_print_record`, `tab_print._note_print_path` |
+| P17 | a verification chart, the run's profiling chart has a record with `postscript` | that form applies after the run's own row choice (P4) and before its parent's (P13) and the project's (P3): the dialog sends it without asking; the direct route asks P14 when it is `macos` | `tab_print._ps_form_stored`, `_profiling_chart_form` |
+| P18 | a verification chart by the DIRECT route to a PostScript printer, the run's profiling chart's record has no `path` and is older than 4.3.5 beta 1 (2026-10-11 04:42), or there is no record and the run's profile is dated before it (ICC header, UTC; Knut's run 6 is a duplicated run whose profiling record did not come along, profile 2026-10-02 22:39 UTC) | before anything is sent, the approved M-PRINT-VERIFY-PS-EARLIER in a window: "Print anyway", Cancel (default; nothing sent, no record). Not asked when P14 was | `tab_print._confirm_verify_after_an_old_dialog_profile` |
+
+Open for Sebastian: a profiling chart printed by 4.3.5 to 4.3.7 has no `postscript` in its record either; for it the stored choice (P3) still applies, which is what those versions printed with on the dialog route.
+
 #### ⏳ Awaiting confirmation: what the industry prints a verification chart through (4.3.5 beta 3)
 
 **Confirmed by:** *nobody yet.*

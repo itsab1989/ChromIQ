@@ -295,13 +295,30 @@ def print_record_path(ti2_path: Path) -> Path:
     return ti2_path.with_name(f"{ti2_path.stem}.print.json")
 
 
+#: How ChromIQ handed a sheet to the printing system (4.3.8): through the
+#: macOS print dialog, or by its own direct route (lp). ``route`` above says
+#: only "ChromIQ printed it" (A18) and is the same for both.
+PATH_DIALOG = "dialog"
+PATH_DIRECT = "direct"
+
+
 def write_print_record(ti2_path: Path, *, colour: str, intent: str,
                        profile: "Path | None", route: str,
                        source_profile: str = "",
-                       calibration: "dict | None" = None) -> "Path | None":
+                       calibration: "dict | None" = None,
+                       path: str = "", printer: str = "",
+                       postscript: str = "") -> "Path | None":
     """Record how the sheet was produced (A15–A18). Returns the path, or None
     when the record could not be written (never raises — a failed record must
-    not stop a print job that is already correct)."""
+    not stop a print job that is already correct).
+
+    *path*, *printer* and *postscript* (4.3.8, Knut's run 6): which way the
+    sheet went (``PATH_DIALOG`` / ``PATH_DIRECT``), to which queue, and, on a
+    PostScript printer, the form the colours reached it in
+    (``ppd_color.POSTSCRIPT_DEVICE_RGB`` / ``POSTSCRIPT_AS_MACOS``). On a
+    PostScript printer the two forms print measurably different colours, so a
+    verification chart must go the way its profiling chart went, and only
+    this record can say which way that was."""
     rec: dict = {
         "printed_at": datetime.now().isoformat(timespec="seconds"),
         "colour": colour,                                     # A15
@@ -309,6 +326,17 @@ def write_print_record(ti2_path: Path, *, colour: str, intent: str,
         "route": route,                                       # A18
         "source_profile": str(source_profile or ""),
     }
+    if path:
+        rec["path"] = str(path)
+    if printer:
+        rec["printer"] = str(printer)
+    if postscript:
+        rec["postscript"] = str(postscript)
+    try:
+        from core.version import APP_VERSION
+        rec["app_version"] = str(APP_VERSION)
+    except Exception:  # noqa: BLE001 - a record never fails over its version
+        pass
     if profile is not None and colour == COLOUR_THROUGH:      # A17
         profile = Path(profile)
         rec["profile"] = profile.name
@@ -323,16 +351,84 @@ def write_print_record(ti2_path: Path, *, colour: str, intent: str,
         # how the profiling chart and this chart were printed, and whether
         # ChromIQ applied the calibration at print time (and which one).
         rec["printer_calibration"] = dict(calibration)
-    path = print_record_path(ti2_path)
+    record_path = print_record_path(ti2_path)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(rec, indent=2), encoding="utf-8")
+        record_path.parent.mkdir(parents=True, exist_ok=True)
+        record_path.write_text(json.dumps(rec, indent=2), encoding="utf-8")
     except OSError:
-        log.warning("could not write the print record %s", path, exc_info=True)
+        log.warning("could not write the print record %s", record_path, exc_info=True)
         return None
-    log.info("print record written: %s (%s, %s, %s)", path.name,
-             rec["colour"], rec["intent"] or "-", rec["route"])
-    return path
+    log.info("print record written: %s (%s, %s, %s%s)", record_path.name,
+             rec["colour"], rec["intent"] or "-", rec["route"],
+             "".join(f", {k} {rec[k]}" for k in ("path", "postscript", "printer")
+                     if rec.get(k)))
+    return record_path
+
+
+#: When the first ChromIQ release that sends a PostScript printer the chart as
+#: its own RGB through the macOS dialog came out (4.3.5 beta 1, tagged
+#: 2026-10-11 04:42 CEST). A print record from before it that does not say
+#: which way it went may have gone through 4.3.4's dialog, where macOS marked
+#: the chart as sRGB (or with the queue's ColorSync profile) and the printer
+#: converted it (M-PRINT-VERIFY-PS-EARLIER).
+_DIALOG_SENT_DEVICE_RGB_SINCE = "2026-10-11T04:42:00"
+
+
+def recorded_postscript_form(rec: "dict | None") -> str:
+    """The PostScript form a print record says the sheet went in, or "" when
+    it does not say (a record written before 4.3.8, or a printer that is not
+    PostScript)."""
+    if not isinstance(rec, dict):
+        return ""
+    from workflow import ppd_color as forms
+    got = rec.get("postscript")
+    return got if got in forms.POSTSCRIPT_FORMS else ""
+
+
+#: The same moment in UTC, for an ICC header's creation date.
+_DIALOG_SENT_DEVICE_RGB_SINCE_UTC = "2026-10-11T02:42:00"
+
+
+def record_may_be_from_the_old_dialog(rec: "dict | None") -> bool:
+    """True for a record of a sheet ChromIQ printed that does not say which
+    way it went and is older than 4.3.5: it may have gone through 4.3.4's
+    macOS dialog, which let a PostScript printer convert the colours."""
+    if not isinstance(rec, dict) or rec.get("path"):
+        return False
+    if rec.get("route", ROUTE_CHROMIQ) != ROUTE_CHROMIQ:
+        return False
+    when = str(rec.get("printed_at") or "").strip()
+    return bool(when) and when < _DIALOG_SENT_DEVICE_RGB_SINCE
+
+
+def icc_created_utc(path: "Path | None") -> str:
+    """An ICC profile's creation date from its header (UTC, ISO), or ""."""
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(36)
+        if len(head) < 36:
+            return ""
+        import struct
+        y, mo, d, h, mi, se = struct.unpack(">6H", head[24:36])
+        if not (1990 <= y <= 9999 and 1 <= mo <= 12 and 1 <= d <= 31):
+            return ""
+        return f"{y:04d}-{mo:02d}-{d:02d}T{h:02d}:{mi:02d}:{se:02d}"
+    except (OSError, TypeError, ValueError):
+        return ""
+
+
+def profiling_chart_may_be_from_the_old_dialog(rec: "dict | None",
+                                               profile: "Path | None") -> bool:
+    """Whether a run's profiling chart may have gone through 4.3.4's macOS
+    dialog, which nothing recorded: its print record says so
+    (``record_may_be_from_the_old_dialog``), or there is no record and the
+    profile made from it is older than 4.3.5 (Knut's run 6: a duplicated run
+    whose profiling chart's record did not come along; its profile is dated
+    2026-10-02)."""
+    if isinstance(rec, dict):
+        return record_may_be_from_the_old_dialog(rec)
+    made = icc_created_utc(profile) if profile is not None else ""
+    return bool(made) and made < _DIALOG_SENT_DEVICE_RGB_SINCE_UTC
 
 
 def record_answers_how_printed(rec: "dict | None") -> bool:

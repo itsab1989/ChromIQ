@@ -1316,13 +1316,86 @@ class TabPrint(QWidget):
 
     def _ps_form_stored(self) -> "str | None":
         """The form chosen for the selected target: the run's own (or its
-        parent's), else the project's; None when nothing was chosen yet."""
+        parent's), else the project's; None when nothing was chosen yet.
+
+        A VERIFICATION chart (4.3.8, Knut's run 6): after the run's own choice
+        on the row, the form its profiling chart was recorded printed in
+        (``_profiling_chart_form``) comes before the parent's and the
+        project's. That is a fact about this run's sheet, not a preference:
+        on a PostScript printer the two forms print measurably different
+        colours, so the verification chart must go the same way."""
         run = self._ps_form_run()
         if run is not None:
+            if self._target_is_verification():
+                explicit = self._ps_run_explicit_form(run)
+                if explicit is not None:
+                    return explicit
+                recorded = self._profiling_chart_form(run)
+                if recorded:
+                    return recorded
             own = self._ps_run_own_form(run)
             if own is not None:
                 return own
         return self._ps_project_form()
+
+    def _target_is_verification(self) -> bool:
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            return bool(ctl is not None and ctl.target.is_verification())
+        except Exception:  # noqa: BLE001
+            return False
+
+    @staticmethod
+    def _ps_run_explicit_form(run) -> "str | None":
+        """*run*'s own choice from the row (its ``meta.json``), not inherited."""
+        from workflow import ppd_color as forms
+        try:
+            got = (getattr(run.load_meta(), "print_settings", None) or {}).get("postscript")
+        except Exception:  # noqa: BLE001
+            return None
+        return got if got in forms.POSTSCRIPT_FORMS else None
+
+    @staticmethod
+    def _profiling_chart_record(run) -> "dict | None":
+        """The print record of *run*'s profiling chart, or None."""
+        from workflow import verification_print as vp
+        try:
+            rec_path = vp.print_record_path(Path(run.chart_ti2))
+            if not rec_path.is_file():
+                return None
+            import json as _json
+            data = _json.loads(rec_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 - a record never stops a print
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _profiling_chart_form(self, run) -> str:
+        """The PostScript form *run*'s profiling chart was printed in, as its
+        print record says (4.3.8 and later), else ""."""
+        from workflow import verification_print as vp
+        return vp.recorded_postscript_form(self._profiling_chart_record(run))
+
+    def _is_postscript_queue(self, printer: str) -> bool:
+        """True when *printer*'s PPD makes it a PostScript queue."""
+        from workflow import ppd_color as forms
+        try:
+            ppd = forms.ppd_path_for_queue(printer) if printer else None
+            if not ppd:
+                return False
+            from core.text_io import read_text
+            return forms.is_postscript_queue(read_text(Path(ppd), lenient=True))
+        except Exception:  # noqa: BLE001 - a question must never stop a print
+            return False
+
+    def _note_print_path(self, path: str, printer: str, postscript: str = "") -> None:
+        """Add which way the sheet goes to the held print record (4.3.8)."""
+        pending = getattr(self, "_pending_print_record", None)
+        if pending is None:
+            return
+        _ti2, kwargs = pending
+        kwargs["path"] = path
+        kwargs["printer"] = printer or ""
+        kwargs["postscript"] = postscript or ""
 
     def _ps_form_can_be_asked(self) -> bool:
         """Whether a target with no choice is asked after the dialog (Basti,
@@ -2593,6 +2666,10 @@ class TabPrint(QWidget):
             return
         if like_preview not in ("anyway", None):
             return
+        # 4.3.8 (Knut's run 6): a verification chart whose profiling chart may
+        # have gone through 4.3.4's dialog, where the printer converted it.
+        if like_preview is None and not self._confirm_verify_after_an_old_dialog_profile(printer):
+            return
 
         # 4.3.5 B2: a chart that is not RGB on a queue that converts its inks
         # (RGB raster) or may print them as a mix (DeviceN). None, and no
@@ -2619,6 +2696,11 @@ class TabPrint(QWidget):
         elif mismatch:
             log.warning("Preflight disabled; printing despite mismatch: %s", mismatch)
 
+        from workflow import ppd_color as _forms
+        from workflow import verification_print as _vp
+        self._note_print_path(
+            _vp.PATH_DIRECT, printer,
+            _forms.POSTSCRIPT_DEVICE_RGB if self._is_postscript_queue(printer) else "")
         submitted = False
         for path, frame in pages:
             if self._send_page(path, frame, orientation, page_size_pt):
@@ -2921,14 +3003,64 @@ class TabPrint(QWidget):
         from workflow import ppd_color as forms
         if self._ps_form_stored() != forms.POSTSCRIPT_AS_MACOS:
             return False
-        try:
-            ppd = forms.ppd_path_for_queue(printer) if printer else None
-            if not ppd:
-                return False
-            from core.text_io import read_text
-            return forms.is_postscript_queue(read_text(Path(ppd), lenient=True))
-        except Exception:  # noqa: BLE001 - a question must never stop a print
+        return self._is_postscript_queue(printer)
+
+    def _verify_after_an_old_dialog_profile(self, printer: str) -> bool:
+        """True when a VERIFICATION chart is about to go by the direct route
+        to a PostScript printer while its run's profiling chart was printed by
+        ChromIQ 4.3.4 or earlier without saying which way
+        (``profiling_chart_may_be_from_the_old_dialog``: its record, or with
+        no record the profile's date). Through 4.3.4's dialog macOS
+        marked the chart as sRGB, or with the queue's ColorSync profile, and
+        the printer converted it; the direct route sends the printer's own
+        RGB, so the sheet will not match the profile (Knut's run 6, printed
+        2026-10-14: mean dE00 8.7 against its profile, 2.0 against a profile
+        made by the direct route on the same printer)."""
+        if not is_macos() or not self._target_is_verification():
             return False
+        run = self._cm_run()
+        if run is None:
+            return False
+        from workflow import verification_print as vp
+        rec = self._profiling_chart_record(run)
+        try:
+            profile = run.built_profile_icc()
+        except Exception:  # noqa: BLE001
+            profile = None
+        if not vp.profiling_chart_may_be_from_the_old_dialog(rec, profile):
+            return False
+        return self._is_postscript_queue(printer)
+
+    def _confirm_verify_after_an_old_dialog_profile(self, printer: str) -> bool:
+        """M-PRINT-VERIFY-PS-EARLIER (approved by Basti, 2026-10-11) as a
+        window before a direct-route print (4.3.8): True prints, False sends
+        nothing. Not asked when it does not apply."""
+        if not self._verify_after_an_old_dialog_profile(printer):
+            return True
+        from workflow import measurement_messages as MM
+        title, body = MM.M_PRINT_VERIFY_PS_EARLIER.render()
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        set_warning_icon(dlg)
+        dlg.setText(title)
+        dlg.setInformativeText(body)
+        anyway_btn = dlg.addButton(tr(MM._PRINT_LIKE_PREVIEW_BTN_ANYWAY),
+                                   QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(cancel_btn)
+        dlg.setEscapeButton(cancel_btn)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(dlg)
+        fit_message_box_buttons(dlg)
+        dlg.exec()
+        if dlg.clickedButton() is anyway_btn:
+            log.warning("Print: a verification chart sent by the direct route to %s "
+                        "although its profiling chart may have gone through the "
+                        "4.3.4 dialog", printer)
+            return True
+        log.info("Print: cancelled at M-PRINT-VERIFY-PS-EARLIER; nothing sent")
+        return False
 
     def _ask_direct_like_preview(self, printer: str) -> "str | None":
         """M-PRINT-DIRECT-LIKE-PREVIEW (approved by Basti, 2026-10-13). None when it does not
@@ -3637,7 +3769,13 @@ class TabPrint(QWidget):
                                              if self._ps_form_can_be_asked() else None)))
                     if submitted:
                         from workflow import native_print_macos as _npm
+                        from workflow import verification_print as _vp
                         sub = _npm.last_submission
+                        self._note_print_path(
+                            _vp.PATH_DIALOG,
+                            (getattr(sub, "queue", None) or getattr(sub, "printer_display", None)
+                             or printer or "") if sub is not None else (printer or ""),
+                            (getattr(sub, "postscript_form", None) or "") if sub is not None else "")
                         if sub is not None:
                             self._start_read_back(_DialogReadBack(sub))
                             if sub.cmyk_raster:
