@@ -1594,6 +1594,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 fixed_nodes = np.union1d(fixed_nodes, _sh)
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
+    _a70_cache = None
     if n > 3 and "joint-sep" in candidates:
         # #123 W2: re-solve the whole separation field as one global
         # optimisation (smoothness in the objective, TAC by projection),
@@ -1619,8 +1620,46 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # (profout.c:82, USE_LEASTSQUARES_APROX undefined): no refit
         dev_clut_shaped = np.clip(model.shape_device(dev_clut), 0.0, 1.0)
     else:
+        # Agent 70 (a70-portrefit): with the a69 oog port on, the port's
+        # clipped-node answers are computed BEFORE the smoothing refit and
+        # enter it as anchors (weight rising with the hand-over weight), so
+        # the in-gamut nodes next to the gamut surface are fitted against the
+        # neighbours the written table really holds. Before, the refit fitted
+        # them against its own extrapolated (K-heavy, darker) clipped nodes
+        # and the port then replaced those: FOGRA dark yellow node L* 21.9,
+        # a* -8, b* 16 printed 19.9 between port neighbours printing 19.4,
+        # a dip-and-stall on every mid yellow ramp (Findings agent70-01).
+        _a70_dev, _a70_amin = dev_clut, None
+        _a70_cache = None
+        from workflow.profile_engine import cmykport as _a70c
+        _a70m = (_a70c.mode(candidates)
+                 if _a70c.applies(candidates, accurate=accurate,
+                                  is_additive=meas.is_additive, n=n,
+                                  letters=meas.channel_letters) else None)
+        if (_a70m is not None and _a70m["oog"] and not _a70m["oogpn"]
+                and not _a70m["oogdark"] and not _a70m["darkin"]
+                and _a70c.A70_PORTREFIT in candidates):
+            _a70_lmin = (float(axis["l_black"]) if axis is not None
+                         and axis.get("l_black") is not None
+                         else float(model.predict(np.ones((1, n)))[0, 0]))
+            _a70_up, _a70_w, _a70_info = _a70c.oog_target(
+                model, node_lab, dev_clut, residual, ink_limit=ink_limit,
+                channel_max=channel_max, l_min=_a70_lmin, grid=b2a_grid,
+                oogfine=_a70m["oogfine"],
+                progress=lambda m: _emit(settings, m),
+                fold=_a70c.A70_FOLDCAP in candidates)
+            _wf = _a70_w.copy()
+            if fixed_nodes is not None and len(fixed_nodes):
+                _wf[fixed_nodes] = 0.0
+            _blend = ((1.0 - _wf)[:, None]
+                      * np.clip(model.shape_device(dev_clut), 0.0, 1.0)
+                      + _wf[:, None] * _a70_up)
+            _a70_dev = np.clip(model.unshape_device(_blend), 0.0, 1.0)
+            _a70_amin = 0.05 + 3.95 * _wf
+            _a70_cache = (_a70_up, _a70_w, _a70_info)
         dev_clut_shaped = b2a_mod.refine_b2a_clut(
-            model, dev_clut, residual, b2a_grid,
+            model, _a70_dev, residual, b2a_grid,
+            anchor_min=_a70_amin,
             ink_limit=ink_limit, is_additive=meas.is_additive,
             channel_letters=meas.channel_letters,
             node_lab=node_lab, lab_to01=codec.lab_to01, k_prior=k_prior_col,
@@ -1773,11 +1812,25 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                              "channel_max": channel_max, "l_min": _l_min},
                             _fh)
         _pern = _a69m["pernode"]
+    if _a69m is not None and _a70_cache is not None:
+        # Agent 70 (a70-portrefit): the port table was computed before the
+        # refit (above); the same hand-over, now onto the anchored refit.
+        _up, _w, _a69i = _a70_cache
+        _w = _w.copy()
+        if fixed_nodes is not None and len(fixed_nodes):
+            _w[fixed_nodes] = 0.0
+        _w = _w[:, None]
+        dev_clut_shaped = (1.0 - _w) * dev_clut_shaped + _w * _up
+        _emit(settings, f"Colorimetric table: colprof's CMYK recipe for the "
+                        f"clipped nodes, anchored in the refit (research "
+                        f"a70-portrefit; {_a69i['clipped']} clipped).")
+    elif _a69m is not None:
         _pure, _a69i = _a69.colprof_table(
             model, node_lab, dev_clut, residual, ink_limit=ink_limit,
             channel_max=channel_max, l_min=_l_min,
             ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
-            progress=lambda m: _emit(settings, m))
+            progress=lambda m: _emit(settings, m),
+            fold=_a69.A70_FOLDCAP in candidates)
         _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
         if channel_max is not None:
             _pure_s = np.minimum(_pure_s, model.shape_device(
@@ -1853,6 +1906,33 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         f"(research a69-cmykport; {_a69i['inside']} nodes "
                         f"on the K rule, {_a69i['clipped']} clipped, "
                         f"K curve from L* {_l_min:.1f}).")
+    if (_a69m is not None and _a69m["oog"]
+            and _a69.A70_EDGESMOOTH in candidates):
+        # Agent 70 (a70-edgesmooth): soften the slope break where colour-to-
+        # black ramps leave the gamut (cmykport.edge_smooth; Findings
+        # agent70-01): a few Jacobi passes over chromatic dark nodes in a
+        # thin band across the gamut boundary.
+        dev_clut_shaped, _es = _a69.edge_smooth(
+            dev_clut_shaped, residual, node_lab, b2a_grid,
+            fixed_nodes=fixed_nodes, model=model,
+            adapt=(os.environ.get("CHROMIQ_A70_ADAPT", "2:5")
+                   if _a69.A70_EDGEADAPT in candidates else None))
+        _emit(settings, f"Colorimetric table: gamut edge softened at "
+                        f"{_es['nodes']} nodes (research a70-edgesmooth).")
+    if (_a69m is not None and _a69m["oog"]
+            and _a69.A70_BLACKSHELL in candidates):
+        # Agent 70 (a70-blackshell): below the printable black the clipped
+        # nodes lean toward the table's black (cmykport.black_shell).
+        _bn = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        _bd = np.clip(dev_clut[_bn], 0.0, 1.0)
+        if channel_max is not None:
+            _bd = np.minimum(_bd, channel_max)
+        _bd = np.clip(model.shape_device(_bd[None, :])[0], 0.0, 1.0)
+        dev_clut_shaped, _bs = _a69.black_shell(
+            dev_clut_shaped, residual, node_lab, _bd, _l_min, model=model)
+        _emit(settings, f"Colorimetric table: {_bs['nodes']} nodes below "
+                        f"the black lean toward it (research a70-blackshell, "
+                        f"fold factor {_bs['fold_factor']:.2f}).")
     # The B2A half of the white pin (see _pin_media_white for the A2B half),
     # and the black corner: L*=0 → the chart's deepest measured black.
     # Agent 59 (a59-pernodeout): the coarse (clipped) half of keep-grid33in

@@ -149,6 +149,50 @@ def k_target(l_star: np.ndarray, l_min: float, l_max: float = 100.0,
     return kcurve(L, c)
 
 
+# --- Agent 70: the ink fold near black -----------------------------------------
+A70_FOLDCAP = "a70-foldcap"
+FOLD_DL = 1.0         # L* a single ink may LIGHTEN the print before it counts
+FOLD_KEEP = 0.5       # the fold region: lightening above this, run ending at K 1
+FOLD_PEAK = 1.5       # and reaching this somewhere (else model noise)
+FOLD_C0, FOLD_C1 = 6.0, 12.0   # target C*: cap gone below C0, full above C1
+FOLD_L0, FOLD_L1 = -10.0, 0.0   # target L* - black: cap gone below L0, full above L1
+
+
+def _ss(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def k_fold(model, n: int = 4):
+    """Where the ink fold near black starts, or None. Adding 5-20 % of C, M or
+    Y to K alone must make the print LIGHTER: the fold region is the run of K
+    (0.7..1, step 0.01) ending at K 1 in which it lightens by more than
+    FOLD_KEEP L*; it counts only if it lightens by FOLD_PEAK somewhere in it
+    (fitted synthetic printers show up to 0.8 L* of noise at K 1, i1iSis 2,
+    i1Pro 5); the fold starts at the first K of the run above FOLD_DL,
+    minus 0.01."""
+    ks = np.arange(0.70, 1.0001, 0.01)
+    base = np.zeros((len(ks), n))
+    base[:, 3] = ks
+    l0 = model.predict(base)[:, 0]
+    worst = np.full(len(ks), -np.inf)
+    for c in (0.05, 0.1, 0.2):
+        for ch in range(3):
+            d = base.copy()
+            d[:, ch] = c
+            worst = np.maximum(worst, model.predict(d)[:, 0] - l0)
+    if worst[-1] <= FOLD_KEEP:
+        return None
+    j = len(ks) - 1
+    while j > 0 and worst[j - 1] > FOLD_KEEP:
+        j -= 1
+    run = worst[j:]
+    if run.max() < FOLD_PEAK:
+        return None
+    first = j + int(np.flatnonzero(run > FOLD_DL)[0])
+    return float(max(ks[first] - 0.01, 0.7))
+
+
 # --- solvers ----------------------------------------------------------------
 def _project_cmy(d: np.ndarray, limit, cmax) -> np.ndarray:
     """Clamp C, M, Y to their box and project them under ``limit - K``
@@ -315,7 +359,7 @@ def cam_clip(model, target_lab: np.ndarray, d_lab: np.ndarray, *, limit,
 def colprof_table(model, node_lab: np.ndarray, d_ours: np.ndarray,
                   residual: np.ndarray, *, ink_limit, channel_max, l_min: float,
                   ourk: bool = False, ourclip: bool = False,
-                  progress=None) -> tuple[np.ndarray, dict]:
+                  progress=None, fold: bool = False) -> tuple[np.ndarray, dict]:
     """The colorimetric B2A1 per node, colprof's recipe (module docstring).
 
     ``d_ours``: the engine's own per-node answer (feasible start for the
@@ -349,9 +393,37 @@ def colprof_table(model, node_lab: np.ndarray, d_ours: np.ndarray,
     if len(oo) and not ourclip:
         if progress:
             progress("colprof clip (Lab nearest, then CAM Jab)…")
-        d_n = nearest_lab(model, node_lab[oo], d_ours[oo], limit=limit,
-                          cmax=cmax)
-        out[oo] = cam_clip(model, node_lab[oo], d_n, limit=limit, cmax=cmax)
+        kf = k_fold(model) if fold else None
+        info["k_fold"] = kf
+        if kf is None:
+            d_n = nearest_lab(model, node_lab[oo], d_ours[oo], limit=limit,
+                              cmax=cmax)
+            out[oo] = cam_clip(model, node_lab[oo], d_n, limit=limit,
+                               cmax=cmax)
+        else:
+            # Agent 70 (a70-foldcap): on a printer whose inks LIGHTEN the
+            # print above some K (i1Pro: K 0.97 alone L* 26, + 8 % C/M/Y
+            # L* 28-30; i1iSis from K 0.8), the clip of a chromatic target
+            # jumps between a K+C/M/Y answer and the K-only black and the
+            # ramp goes dark, colour, dark. Chromatic clipped nodes may not
+            # use K above the fold; the cap relaxes toward the neutrals.
+            # the cap relaxes toward the neutrals (C* below FOLD_C1, gone
+            # below FOLD_C0) and toward the black (target L* below the
+            # black + FOLD_L1, gone at the black + FOLD_L0), so dark targets
+            # still reach the K-only black, at the end of the ramp
+            cc = np.hypot(node_lab[oo, 1], node_lab[oo, 2])
+            fc = _ss((FOLD_C1 - cc) / (FOLD_C1 - FOLD_C0))
+            fl = _ss((l_min + FOLD_L1 - node_lab[oo, 0]) / (FOLD_L1 - FOLD_L0))
+            frac = np.round(np.maximum(fc, fl) * 4.0) / 4.0
+            for f in np.unique(frac):
+                sel = oo[frac == f]
+                cm = cmax.copy()
+                cm[3] = min(cm[3], kf + f * (cm[3] - kf))
+                seed = np.minimum(d_ours[sel], cm[None])
+                d_n = nearest_lab(model, node_lab[sel], seed, limit=limit,
+                                  cmax=cm)
+                out[sel] = cam_clip(model, node_lab[sel], d_n, limit=limit,
+                                    cmax=cm)
     info["clipped"] = int(len(oo))
     return out, info
 
@@ -384,3 +456,205 @@ def dark_weight(node_lab: np.ndarray, l_black: float) -> np.ndarray:
     u = np.clip((l_black + l0 + w - np.asarray(node_lab, float)[:, 0])
                 / max(w, 1e-6), 0.0, 1.0)
     return u * u * (3.0 - 2.0 * u)
+
+
+# --- Agent 70 (a70-portrefit) -------------------------------------------------
+A70_PORTREFIT = "a70-portrefit"
+
+
+def oog_target(model, node_lab, dev_clut, residual, *, ink_limit,
+               channel_max, l_min, grid, oogfine, progress=None,
+               fold=False):
+    """The a69-cmykport-oog(+oogfine) clipped-node target as the builder
+    blends it: (shaped device table, hand-over weight w per node). Same
+    arithmetic as the builder's oog branch (band CHROMIQ_A69_BAND, fine
+    hand-over CHROMIQ_A69_FINE)."""
+    n = model.n_channels
+    pure, info = colprof_table(model, node_lab, dev_clut, residual,
+                               ink_limit=ink_limit, channel_max=channel_max,
+                               l_min=l_min, progress=progress, fold=fold)
+    pure_s = np.clip(model.shape_device(pure), 0.0, 1.0)
+    if channel_max is not None:
+        pure_s = np.minimum(pure_s, model.shape_device(
+            np.asarray(channel_max, float)[None, :]))
+    st = (grid - 1) // 16
+    up = (upsample(pure_s.reshape(grid, grid, grid, n)[::st, ::st, ::st]
+                   .reshape(-1, n), 17, grid)
+          if (grid - 1) % 16 == 0 else pure_s)
+    band = float(os.environ.get("CHROMIQ_A69_BAND",
+                                "6.0" if oogfine else "2.0"))
+    if oogfine:
+        fb = float(os.environ.get("CHROMIQ_A69_FINE", "8.0"))
+        v = np.clip((np.asarray(residual, float) - band)
+                    / max(fb - band, 1e-6), 0.0, 1.0)
+        v = (v * v * (3.0 - 2.0 * v))[:, None]
+        up = (1.0 - v) * pure_s + v * up
+    u = np.clip(np.asarray(residual, float) / band, 0.0, 1.0)
+    w = u * u * (3.0 - 2.0 * u)
+    return up, w, info
+
+
+A70_EDGESMOOTH = "a70-edgesmooth"
+A70_EDGEADAPT = "a70-edgeadapt"
+
+
+def _nb_morph(m, op):
+    out = m.copy()
+    for ax in range(3):
+        for sh in (1, -1):
+            r = np.roll(m, sh, axis=ax)
+            idx = [slice(None)] * 3
+            idx[ax] = 0 if sh == 1 else -1
+            r[tuple(idx)] = m[tuple(idx)]
+            out = op(out, r)
+    return out
+
+
+def edge_layers(inside: np.ndarray, grid: int, depth: int = 6):
+    """Grid distance (in cells, 1..depth) of every in-gamut node to the
+    nearest clipped node (``dep``) and of every clipped node to the nearest
+    in-gamut node (``hgt``); 0 where farther than ``depth``."""
+    ins = inside.reshape(grid, grid, grid)
+    dep = np.zeros(ins.shape)
+    hgt = np.zeros(ins.shape)
+    cur = ins.copy()
+    for k in range(1, depth + 1):
+        nxt = _nb_morph(cur, np.logical_and)
+        dep[cur & ~nxt] = k
+        cur = nxt
+    cur = ~ins
+    for k in range(1, depth + 1):
+        nxt = _nb_morph(cur, np.logical_and)
+        hgt[cur & ~nxt] = k
+        cur = nxt
+    return dep.reshape(-1), hgt.reshape(-1)
+
+
+def edge_smooth(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
+                grid: int, fixed_nodes=None, params: str | None = None,
+                model=None, adapt: str | None = None):
+    """Agent 70 (a70-edgesmooth): soften the slope break where the colour-to-
+    black ramps leave the gamut. In-gamut nodes print their target exactly
+    and the clipped neighbour prints the surface colour, so along a ramp the
+    printed L* follows the source with slope 1 and then the surface: a band
+    edge at the boundary node plane (FOGRA mid yellow, L* 21.9). colprof's
+    17 grid softens the same break over its wider cells (at an accuracy cost
+    there). Here a few Jacobi passes average chromatic dark nodes with their
+    six neighbours in a thin band across the boundary: clipped nodes up to
+    ``hmax`` cells out (weight ``ac``), the first in-gamut layer (``a1``) and
+    the second (``a2``). Params (env CHROMIQ_A70_EDGE)
+    a1:a2:hmax:iters:lmax:cmin:ac, default 0.3:0:3:4:75:6:0.5."""
+    p = (params or os.environ.get("CHROMIQ_A70_EDGE")
+         or "0.3:0:3:4:75:6:0.5").split(":")
+    a1, a2, hmax, it, lmax, cmin, ac = (float(v) for v in p)
+    nl = np.asarray(node_lab, float)
+    inside = np.asarray(residual, float) < 0.5
+    dep, hgt = edge_layers(inside, grid)
+    a = np.zeros(len(nl))
+    a[dep == 1] = a1
+    a[dep == 2] = a2
+    if model is not None and adapt:
+        # Agent 70 (a70-edgeadapt): the in-gamut layer moves only as much
+        # as the break next to it needs: its weight rises (smoothstep) with
+        # how far its clipped neighbours print from their own targets, from
+        # b0 to b1 dE (CHROMIQ_A70_ADAPT, default 2:5). Where the gamut
+        # surface is close to the targets there is no break to soften and
+        # the in-gamut node keeps its exact value (synthetic X3 B2A p95:
+        # 1.55 with the plain weight, 1.25 adaptive, base 0.86).
+        b0, b1 = (float(v) for v in adapt.split(":"))
+        pr = model.predict(np.clip(model.unshape_device(
+            np.asarray(shaped, float)), 0.0, 1.0))
+        off = np.linalg.norm(pr - nl, axis=1)
+        off[inside] = 0.0
+        O = off.reshape(grid, grid, grid)
+        nb = np.zeros_like(O)
+        for ax in range(3):
+            for sh in (1, -1):
+                r = np.roll(O, sh, axis=ax)
+                idx = [slice(None)] * 3
+                idx[ax] = 0 if sh == 1 else -1
+                r[tuple(idx)] = 0.0
+                nb = np.maximum(nb, r)
+        nb = nb.reshape(-1)
+        m1 = dep == 1
+        a[m1] = a1 * _ss((nb[m1] - b0) / max(b1 - b0, 1e-6))
+    a[(hgt >= 1) & (hgt <= hmax)] = ac
+    chrom = np.hypot(nl[:, 1], nl[:, 2]) > cmin
+    a[~chrom | (nl[:, 0] >= lmax)] = 0.0
+    if fixed_nodes is not None and len(fixed_nodes):
+        a[np.asarray(fixed_nodes)] = 0.0
+    g = grid
+    T = np.asarray(shaped, float).reshape(g, g, g, -1).copy()
+    W = a.reshape(g, g, g, 1)
+    for _ in range(int(it)):
+        nb = np.zeros_like(T)
+        cnt = np.zeros((g, g, g, 1))
+        for ax in range(3):
+            for sh in (1, -1):
+                r = np.roll(T, sh, axis=ax)
+                v = np.ones((g, g, g, 1))
+                idx = [slice(None)] * 3
+                idx[ax] = 0 if sh == 1 else g - 1
+                v[tuple(idx)] = 0.0
+                nb += r * v
+                cnt += v
+        T = (1.0 - W) * T + W * (nb / cnt)
+    return T.reshape(-1, shaped.shape[1]), {"nodes": int((a > 0).sum())}
+
+
+A70_BLACKSHELL = "a70-blackshell"
+
+
+def fold_at_black(model, n: int = 4) -> float:
+    """How much 5-20 % of C, M or Y LIGHTENS the print at K 1 (L*; <= 0 on a
+    press, 1 on i1iSis, 5 on i1Pro)."""
+    base = np.zeros((1, n))
+    base[0, 3] = 1.0
+    l0 = float(model.predict(base)[0, 0])
+    worst = -np.inf
+    for c in (0.05, 0.1, 0.2):
+        for ch in range(3):
+            d = base.copy()
+            d[0, ch] = c
+            worst = max(worst, float(model.predict(d)[0, 0]) - l0)
+    return worst
+
+
+def black_shell(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
+                black_dev_shaped: np.ndarray, l_min: float, model=None,
+                params: str | None = None):
+    """Agent 70 (a70-blackshell): below the printable black the clipped nodes
+    lean toward the table's black as L* -> 0 and C* -> 0, so a colour-to-
+    black ramp's last cells do not interpolate between a dark-blue clip
+    answer (K 0.5 + C/M) and the black corner (K 1) through a lighter mix
+    (i1iSis sRGB blue: printed L* 22.7 -> 27.4 -> 17.5 over the last 2 % of
+    the ramp). Weight smoothstep((l_min - off - L*) / (l_min - off)) ** p *
+    smoothstep(1 - C* / cmax); only on a printer whose inks lighten the
+    black by about 1 L* (i1iSis), off without a fold and off on a strong one
+    (i1Pro: the blend itself crosses it). Params (env CHROMIQ_A70_SHELL) off:p:cmax, default
+    3:0.5:80."""
+    off, p, cmax = (float(v) for v in (params or os.environ.get(
+        "CHROMIQ_A70_SHELL") or "3:0.5:80").split(":"))
+    nl = np.asarray(node_lab, float)
+    top = max(l_min - off, 1e-6)
+    wl = _ss((top - nl[:, 0]) / top) ** p
+    wc = _ss(1.0 - np.hypot(nl[:, 1], nl[:, 2]) / cmax)
+    w = wl * wc
+    w[np.asarray(residual, float) < 0.5] = 0.0
+    ff = 1.0
+    if model is not None:
+        # only on a printer with a fold at the black (i1iSis: inks lighten K
+        # 1 by 1.0 L*); presses (<= 0.1) and fitted synthetic printers (0.4-
+        # 0.6, model noise) keep the table as it is: there the shell only
+        # added a chroma knee at L* 10 (eyecheck GRACoL proxy 41 -> 63);
+        # off again on a strong fold (i1Pro, 5 L*) that the blend crosses
+        # (the same fold test as a70-foldcap: a fold that reaches the black
+        # and peaks above FOLD_PEAK; synthetic fitted models show up to
+        # 0.8 L* of noise at K 1 and do not pass it)
+        f1 = fold_at_black(model)
+        ff = (float(_ss((3.0 - f1) / 2.0))
+              if k_fold(model) is not None else 0.0)
+    w = w * ff
+    out = (1.0 - w[:, None]) * shaped + w[:, None] * np.asarray(
+        black_dev_shaped, float)[None, :]
+    return out, {"nodes": int((w > 0.01).sum()), "fold_factor": ff}
