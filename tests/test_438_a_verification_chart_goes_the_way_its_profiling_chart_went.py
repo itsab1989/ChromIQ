@@ -30,6 +30,7 @@ So (report folder 2026-10-19_knut_highverif):
 from __future__ import annotations
 
 import inspect
+from types import SimpleNamespace
 import json
 import os
 
@@ -349,3 +350,56 @@ def test_the_direct_route_records_the_printers_own_rgb_on_a_postscript_queue(
     tab._commit_print_record(True)
     rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert (rec["path"], rec["printer"], rec["postscript"]) == ("direct", "HP", DEVICE)
+
+
+# ---- R3-1 (Basti, 2026-10-20): no M-PRINT-JOB-UNTAGGED after the P18 window's
+# "Use the print dialog": the user chose to let the printer adjust the colours
+def _untagged_report():
+    return SimpleNamespace(read=True, ok=False, mismatches=[], job_id="7",
+                           paper_profile=None, carried={}, tag_matches_job=False)
+
+
+def test_r3_1_no_untagged_warning_after_use_the_print_dialog(qapp, tmp_path, mac,
+                                                             monkeypatch):
+    from workflow import native_print_macos as npm
+    s, fm, ctl = _env(tmp_path)
+    tab = _tab(s, ctl)
+    warned = []
+    monkeypatch.setattr(mac, "warn", lambda *a, **k: warned.append(a))
+    reads = []
+    monkeypatch.setattr(tab, "_start_read_back",
+                        lambda work, *a, **k: reads.append(k))
+
+    def fake(pages, **kw):
+        npm.last_submission = npm.Submission("HP", {}, 0.0, b"", None)
+        return True
+    monkeypatch.setattr(npm, "print_frames", fake)
+    # the P18 window's "Use the print dialog"
+    tab._ps_form_this_print = MACOS
+    tab._print_native([(tmp_path / "p.tif", 0)], printer="HP")
+    tab._ps_form_this_print = None
+    assert reads and reads[-1].get("printer_adjusts_by_choice") is True
+    tab._report_job_ticket(_untagged_report(), printer_adjusts_by_choice=True)
+    assert warned == []
+    assert "7" in tab._status_lbl.text()
+
+
+def test_r3_1_the_untagged_warning_stays_everywhere_else(qapp, tmp_path, mac,
+                                                         monkeypatch):
+    from workflow import native_print_macos as npm
+    s, fm, ctl = _env(tmp_path)
+    tab = _tab(s, ctl)
+    warned = []
+    monkeypatch.setattr(mac, "warn", lambda *a, **k: warned.append(a))
+    reads = []
+    monkeypatch.setattr(tab, "_start_read_back",
+                        lambda work, *a, **k: reads.append(k))
+
+    def fake(pages, **kw):
+        npm.last_submission = npm.Submission("HP", {}, 0.0, b"", None)
+        return True
+    monkeypatch.setattr(npm, "print_frames", fake)
+    tab._print_native([(tmp_path / "p.tif", 0)], printer="HP")
+    assert not reads[-1].get("printer_adjusts_by_choice")
+    tab._report_job_ticket(_untagged_report())
+    assert len(warned) == 1

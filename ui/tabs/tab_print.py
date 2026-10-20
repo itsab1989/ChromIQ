@@ -3449,7 +3449,8 @@ class TabPrint(QWidget):
         return ""
 
     # -- the read-back, off the GUI thread ------------------------------------------
-    def _start_read_back(self, work, ink_conversion=None) -> None:
+    def _start_read_back(self, work, ink_conversion=None, *,
+                         printer_adjusts_by_choice: bool = False) -> None:
         """Run *work* (a blocking read-back returning a TicketReport) on a
         background thread and report it when it is done, or say it could not be
         read after ``print_ticket.READ_BACK_TIMEOUT_S`` (review 2026-10-08: it
@@ -3464,6 +3465,7 @@ class TabPrint(QWidget):
         # 4.3.5 B2: what ``_ink_conversion`` found for the chart of this job
         # (None for every RGB chart, so their status lines are unchanged).
         rb.ink_conversion = ink_conversion
+        rb.printer_adjusts_by_choice = printer_adjusts_by_choice
         self._read_backs.append(rb)
         if not self._read_back_timer.isActive():
             self._read_back_timer.start()
@@ -3489,16 +3491,21 @@ class TabPrint(QWidget):
                     self._set_status(tr(MM._PRINT_JOB_UNREAD))
                     continue
                 conv = getattr(rb, "ink_conversion", None)
-                if conv is None:
+                chosen = bool(getattr(rb, "printer_adjusts_by_choice", False))
+                if conv is None and not chosen:
                     self._report_job_ticket(rb.report)
-                else:
+                elif not chosen:
                     self._report_job_ticket(rb.report, conv)
+                else:
+                    self._report_job_ticket(rb.report, conv,
+                                            printer_adjusts_by_choice=True)
         finally:
             self._reporting_read_back = False
         if not self._read_backs:
             self._read_back_timer.stop()
 
-    def _report_job_ticket(self, rep, ink_conversion=None) -> None:
+    def _report_job_ticket(self, rep, ink_conversion=None, *,
+                           printer_adjusts_by_choice: bool = False) -> None:
         """Say what the job read back from the printing system carries
         (M-PRINT-JOB-CONFIRMED), or show M-PRINT-JOB-NOT-AS-SENT /
         M-PRINT-JOB-UNTAGGED."""
@@ -3514,6 +3521,14 @@ class TabPrint(QWidget):
             return
         if not rep.read:
             self._set_status(tr(MM._PRINT_JOB_UNREAD))
+            return
+        if not rep.ok and not rep.mismatches and printer_adjusts_by_choice:
+            # R3-1 (Basti, 2026-10-20): the user chose, in the P18 window, to
+            # let the printer adjust the colours; that the chart went
+            # untagged is what was asked for, so no warning, the plain line
+            log.info("print ticket: job %s untagged, as chosen (Use the print "
+                     "dialog in M-PRINT-VERIFY-PS-EARLIER-ASK)", rep.job_id)
+            self._set_status(tr(MM._PRINT_JOB_SENT_PLAIN).format(job=rep.job_id))
             return
         if not rep.ok and not rep.mismatches:
             # the only problem: the chart could not be given the job's profile
@@ -4098,7 +4113,15 @@ class TabPrint(QWidget):
                              or printer or "") if sub is not None else (printer or ""),
                             (getattr(sub, "postscript_form", None) or "") if sub is not None else "")
                         if sub is not None:
-                            self._start_read_back(_DialogReadBack(sub))
+                            # R3-1 (Basti, 2026-10-20): after the P18 window's
+                            # "Use the print dialog" the user chose to let the
+                            # printer adjust the colours, so M-PRINT-JOB-UNTAGGED
+                            # is not shown for this print
+                            if getattr(self, "_ps_form_this_print", None):
+                                self._start_read_back(_DialogReadBack(sub),
+                                                      printer_adjusts_by_choice=True)
+                            else:
+                                self._start_read_back(_DialogReadBack(sub))
                             if sub.cmyk_raster:
                                 cmyk_printer = sub.printer_display or ""
                 except PaperNotOnPrinter as exc:
