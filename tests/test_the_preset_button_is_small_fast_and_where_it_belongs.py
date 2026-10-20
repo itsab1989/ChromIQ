@@ -258,11 +258,16 @@ def test_the_window_opens_on_the_preset_the_pulldown_is_on(verification_tab,
             if other is not None:
                 break
         dlg._tree.setCurrentItem(other)
-        kept = other.text(0)
+        # THE PRESET, NOT ITS PAINTED TEXT: the "●  " of a chart made for
+        # verification is added when the background assessment finishes, which
+        # can be before or after the refresh (a warm cache from an earlier run
+        # made it fail on every second run, 4.3.8-beta.1 included, 2026-10-20)
+        kept = other.data(0, Qt.ItemDataRole.UserRole).label
         dlg.refresh()
         qapp.processEvents()
         assert dlg._tree.currentItem() is not None
-        assert dlg._tree.currentItem().text(0) == kept, \
+        now = dlg._tree.currentItem().data(0, Qt.ItemDataRole.UserRole)
+        assert now is not None and now.label == kept, \
             "a refresh threw the reader back to the preset they came in on"
     finally:
         dlg.close()
