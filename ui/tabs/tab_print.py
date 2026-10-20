@@ -2055,6 +2055,13 @@ class TabPrint(QWidget):
         when the target has nothing stored (§4 S4/S5)."""
         from workflow.per_target_settings import store_for_target
         from workflow import verification_print as vp
+        # WHERE A NEW RUN CAME FROM IS NOTED BEFORE IT IS LOADED (re-review
+        # N1). MainWindow's visible-tab load is connected to the bar's
+        # `changed` before this tab's own `_note_target_change`, so with the
+        # Print tab on screen a new run opened on the saved defaults and took
+        # its source's printer only at the next visit. Noting is idempotent:
+        # the later call from the signal finds nothing new.
+        self._note_target_change()
         store = store_for_target(getattr(self, "_target_ctl", None))
         stored: dict = {}
         if store is not None:

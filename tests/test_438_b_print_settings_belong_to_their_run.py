@@ -492,3 +492,47 @@ def test_d1_the_first_listing_of_printers_is_not_a_choice(qapp, tmp_path):
     assert _screen(tab)[0] == QB
     tab.save_target_settings()
     assert "printer" not in _stored(fm.project().run("run1"))
+
+
+# ------------------------------------------------- re-review N1 (PS-6, §4a)
+def test_n1_a_new_run_opens_on_its_source_with_the_print_tab_visible(
+        qapp, tmp_path, monkeypatch):
+    """With the Print tab on screen, MainWindow's visible-tab load ran before
+    the tab noted where the new run came from, so the run opened on the saved
+    defaults and took its source's printer only at the next visit. Someone
+    who printed straight away printed with the defaults."""
+    import ui.tabs.tab_print as tp
+    monkeypatch.setattr(tp, "PrintModule", _FakeCups)
+    from ui.main_window import MainWindow
+
+    s = AppSettings()
+    s.set("custom_output_path", str(tmp_path / "out"))
+    s.set("session_project", "")
+    s.set("restore_last_session", False)
+    s.set("use_native_print_dialog", False)
+    s.set("last_printer", QA)
+    win = MainWindow(s)
+    try:
+        qapp.processEvents()
+        win._file_mgr.set_target_name("N One")
+        proj = win._file_mgr.project()
+        proj.current_run().ensure_dir()
+        run2 = proj.new_run()
+        run2.ensure_dir()
+        _store_printer(run2, QB, {"PageSize": "A3", "MediaType": "Matte"})
+        ctl = win._target_ctl
+        tab = win._tab_print
+        tab.reload_printers()
+        win._tabs.setCurrentWidget(tab)
+        ctl.set_profile_run("run2"); qapp.processEvents()
+        assert _screen(tab) == (QB, {"PageSize": "A3", "MediaType": "Matte"})
+        ctl.set_profile_run(""); qapp.processEvents()          # New run
+        run3 = proj.new_run()                                   # Generate
+        run3.ensure_dir()
+        ctl.set_profile_run(run3.id); qapp.processEvents()
+        # at once, not at the next visit
+        assert _screen(tab) == (QB, {"PageSize": "A3", "MediaType": "Matte"})
+        win._tabs.setCurrentWidget(win._tab_chart); qapp.processEvents()
+        assert _stored(proj.run(run3.id))["printer"] == QB
+    finally:
+        win.close()
