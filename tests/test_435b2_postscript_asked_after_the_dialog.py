@@ -532,7 +532,15 @@ def test_the_two_long_choices_stand_one_above_the_other_when_they_cannot_fit(qap
     monkeypatch.setattr(box, "screen", lambda: _Screen(1280, 705))
     fit_message_box_buttons(box, stack_when_too_wide=True)
     bb = box.findChild(QDialogButtonBox)
-    assert bb.orientation() == Qt.Orientation.Vertical
+    # THE INVARIANT, ON EVERY PLATFORM: never a row wider than the box Qt
+    # allows (800 here). Where the labels stay on one line (macOS: about 1100
+    # px side by side) that means stacked. Where the button font wraps them
+    # onto two lines (Windows, measured 2026-10-20: 314 + 264 + 86 px) the row
+    # fits, and side by side is right; that is why this failed on Windows.
+    row = (sum(b.sizeHint().width() for b in box.buttons())
+           + 6 * (len(box.buttons()) - 1)
+           + box.layout().contentsMargins().left() + box.layout().contentsMargins().right())
+    assert bb.orientation() == Qt.Orientation.Vertical or row <= 800, row
     # short labels on a wide screen stay side by side
     small = QMessageBox()
     small.setText("x")
@@ -564,7 +572,11 @@ def test_choices_that_fit_side_by_side_stay_side_by_side(qapp, monkeypatch):
     box.show()
     qapp.processEvents()
     bb = box.findChild(QDialogButtonBox)
-    need = bb.x() + bb.sizeHint().width() + box.contentsMargins().right()
+    # the right-hand margin is the box's contents margin on macOS and its
+    # layout's on Windows (11 px there, 0 on macOS): count both, or on Windows
+    # "need" came out 11 px short and the function rightly stacked at need + 4
+    need = (bb.x() + bb.sizeHint().width() + box.contentsMargins().right()
+            + box.layout().contentsMargins().right())
     box.hide()
     assert need < 990
 

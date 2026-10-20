@@ -5893,8 +5893,8 @@ M_PRINT_WIN_SPOOLER_FAILED = _m(
     "ChromIQ could not hand the chart over to {printer}. Windows gave this reason: {reason}\n\nNothing was printed.\n\nWhat you can do: open Printers & scanners in the Windows settings, choose this printer and check that it is not paused or set to offline, and that no old print job is stuck in its queue. Then print again.",
     approved=False)
 #: Windows 11's own print dialog (shown for a dialog with a parent window
-#: since 24H2) opens on the printer last used from the app and ignores the
-#: one ChromIQ preselects (measured, #205). When ChromIQ's own route hands an
+#: since 24H2) opens on the Windows default printer and ignores the one
+#: ChromIQ preselects (measured, #205; review finding 5). When ChromIQ's own route hands an
 #: RGB chart for a printer that is not PostScript to the dialog and the dialog
 #: comes back with another printer, this window asks. {wanted}: the printer
 #: chosen on the Print Chart tab; {chosen}: the dialog's. Buttons: "Print on
@@ -5902,7 +5902,7 @@ M_PRINT_WIN_SPOOLER_FAILED = _m(
 M_PRINT_WIN_DIALOG_OTHER_PRINTER = _m(
     "M-PRINT-WIN-DIALOG-OTHER-PRINTER",
     "The print dialog chose another printer",
-    "You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on the printer you last used from ChromIQ, not on the one ChromIQ asks for, so the wrong printer is easy to miss.\n\nDo you want to print the chart on {chosen}? If not, press Cancel, print again and choose {wanted} in the print dialog.",
+    "You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on your default printer (with \u201cLet Windows manage my default printer\u201d switched on, that is the printer you used last), not on the one ChromIQ asks for, so the wrong printer is easy to miss.\n\nDo you want to print the chart on {chosen}? If not, press Cancel, print again and choose {wanted} in the print dialog.",
     approved=False)
 _PRINT_OTHER_PRINTER_BTN = "Print on {printer}"
 

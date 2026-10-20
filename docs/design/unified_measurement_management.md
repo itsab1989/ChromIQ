@@ -7206,11 +7206,11 @@ alone.
 
 ### M-PRINT-WIN-DIALOG-OTHER-PRINTER · PROPOSED · a window when the Windows print dialog comes back with another printer than the one ChromIQ's own route handed it · Print Chart tab, Windows, 4.3.8
 
-*New 2026-10-20 (#205). Measured on Windows 11 25H2: a `QPrintDialog` with a parent window is shown as Windows 11's own print dialog (WinUI), which opens on the printer last used from the app and ignores the one Qt preselects; without a parent the classic dialog opens on the preselected one (report folder 03, `probe_preselect_*.json`). On ChromIQ's own route an RGB chart for a printer that is not PostScript is handed to the Windows dialog on that printer; when the dialog returns another one, this window asks before anything is printed. Buttons: "Print on {chosen}" and Cancel (the default: nothing printed, no print record). Never on the dialog route itself, which preselects no printer. Wording ours, shown from 4.3.8 beta 2 on.*
+*New 2026-10-20 (#205). Measured on Windows 11 25H2: a `QPrintDialog` with a parent window is shown as Windows 11's own print dialog (WinUI), which opens on the Windows default printer and ignores the one Qt preselects (with "Let Windows manage my default printer" on, the default is the printer used last); without a parent the classic dialog opens on the preselected one (report folder 03, `probe_preselect_*.json`). On ChromIQ's own route an RGB chart for a printer that is not PostScript is handed to the Windows dialog on that printer; when the dialog returns another one, this window asks before anything is printed. Buttons: "Print on {chosen}" and Cancel (the default: nothing printed, no print record). Never on the dialog route itself, which preselects no printer. Wording ours, shown from 4.3.8 beta 2 on.*
 
 > **The print dialog chose another printer**
 >
-> You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on the printer you last used from ChromIQ, not on the one ChromIQ asks for, so the wrong printer is easy to miss.
+> You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on your default printer (with “Let Windows manage my default printer” switched on, that is the printer you used last), not on the one ChromIQ asks for, so the wrong printer is easy to miss.
 >
 > Do you want to print the chart on {chosen}? If not, press Cancel, print again and choose {wanted} in the print dialog.
 

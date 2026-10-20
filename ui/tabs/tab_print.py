@@ -364,8 +364,10 @@ _WIN_NOT_POSTSCRIPT_BODY = (
     "<b>{printer}</b> uses a printer driver that cannot receive "
     "PostScript, so ChromIQ cannot send the chart to it "
     "directly.<br><br><b>What happens when you click Print:</b><br>• An "
-    "<b>RGB chart</b> opens in the Windows print dialog, with this printer "
-    "already chosen. Choose the paper and quality there. Then open the "
+    "<b>RGB chart</b> opens in the Windows print dialog. Check that this "
+    "printer is the one chosen at the top of the dialog: Windows 11 opens "
+    "it on your default printer, and ChromIQ asks before printing on "
+    "another one. Choose the paper and quality there. Then open the "
     "printer's Properties window and switch its colour adjustment "
     "off:<br>&nbsp;&nbsp;– Epson: “Epson Color Controls” → Off (No Color "
     "Adjustment)<br>&nbsp;&nbsp;– Canon: “Color Options” → Manual → "
@@ -3216,7 +3218,9 @@ class TabPrint(QWidget):
         set_warning_icon(box)
         box.setText(title)
         box.setInformativeText(body)
-        go = box.addButton(tr(MM._PRINT_OTHER_PRINTER_BTN).format(printer=chosen),
+        # '&' would be a mnemonic on a button (review finding 7)
+        go = box.addButton(tr(MM._PRINT_OTHER_PRINTER_BTN).format(
+                               printer=chosen.replace("&", "&&")),
                            QMessageBox.ButtonRole.AcceptRole)
         cancel = box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(cancel)
@@ -4013,6 +4017,15 @@ class TabPrint(QWidget):
     def _on_print_done(self, code: int) -> None:
         if code == 0:
             self._set_status(tr("Print job submitted successfully."))
+        elif is_windows() and getattr(self._printer, "last_error_is_chart", False):
+            # the chart could not be read or turned into PostScript: ChromIQ's
+            # own failure, said as everywhere else (review finding 6)
+            self._set_status(tr("TIFF Error"))
+            QMessageBox.critical(
+                self, tr("TIFF Error"),
+                tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(
+                    name=getattr(self._printer, "last_chart_name", ""),
+                    exc=getattr(self._printer, "last_error", "")))
         elif is_windows():
             # #205: the spooler's own reason; there is no CUPS, nor lp
             from workflow import measurement_messages as MM
@@ -4470,10 +4483,11 @@ class TabPrint(QWidget):
             return
 
         # #205: Windows 11's own print dialog (the one Windows shows for a
-        # dialog with a parent window since 24H2) opens on the printer last
-        # used from this app and ignores the one ChromIQ preselects (measured:
-        # report folder 03, probe_preselect_*.json; the classic dialog honours
-        # it). When ChromIQ's own route handed THIS printer over and the dialog
+        # dialog with a parent window since 24H2) opens on the WINDOWS DEFAULT
+        # printer and ignores the one ChromIQ preselects (measured: report
+        # folder 03, probe_preselect_*.json; the classic dialog honours it).
+        # With "Let Windows manage my default printer" on, the default is the
+        # printer used last, from any app. When ChromIQ's own route handed THIS printer over and the dialog
         # came back with another one, nothing is printed without asking.
         chosen = qprinter.printerName()
         if printer and chosen and chosen != printer \

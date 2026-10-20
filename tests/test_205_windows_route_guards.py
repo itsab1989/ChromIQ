@@ -1,0 +1,155 @@
+"""#205 review, finding 10: the guards a mutation run could remove with every
+test still green (07_review/mutate_out.txt), now each held by a test; and
+findings 6 and 7 (a chart ChromIQ cannot read is not "Windows did not
+accept the print job"; "&" in a printer name is not a mnemonic).
+"""
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PyQt6.QtCore import QSettings                       # noqa: E402
+
+from core.settings import AppSettings                    # noqa: E402
+from workflow import win_spooler                          # noqa: E402
+from tests.test_205_windows_direct_print import (         # noqa: E402,F401
+    _FakeDialog, _FakePainter, _FakePrinter, _rgb_tiff, dialog_route, _REAL_PRINT_NATIVE_QT)
+
+
+def _tab(tmp_path):
+    from ui.tabs.tab_print import TabPrint
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "g.ini"), QSettings.Format.IniFormat)
+    return TabPrint(s)
+
+
+# ---- the macOS-only questions stay macOS-only ---------------------------------
+def test_the_like_preview_question_is_never_asked_off_macos(qapp, tmp_path, monkeypatch):
+    from ui.tabs import tab_print as tp
+    from workflow import ppd_color as forms
+    tab = _tab(tmp_path)
+    monkeypatch.setattr(tab, "_ps_form_stored", lambda: forms.POSTSCRIPT_AS_MACOS)
+    monkeypatch.setattr(tab, "_is_postscript_queue", lambda p: True)
+    monkeypatch.setattr(tp, "is_macos", lambda: True)
+    assert tab._direct_print_needs_like_preview_question("Q") is True
+    monkeypatch.setattr(tp, "is_macos", lambda: False)
+    assert tab._direct_print_needs_like_preview_question("Q") is False
+
+
+def test_the_windows_route_never_gets_a_paper_profile_row(qapp, tmp_path, monkeypatch):
+    """A Canon/Epson-style paper profile is a CUPS job feature; the raw route
+    carries none, whatever the PPD looks like."""
+    from ui.tabs.tab_print import TabPrint
+    from workflow import measurement_messages as MM
+    from workflow.cups_printer import CupsRawPrinter
+    from workflow.win_raw_printer import WindowsRawPrinter
+
+    class _PP:
+        label = "Canon Photo Paper Pro Luster"
+        known, is_default = True, True
+
+        class rule:
+            own_colour_off_needs_paper_profile = False
+
+    monkeypatch.setattr(CupsRawPrinter, "_reference_paper_profile",
+                        staticmethod(lambda tiff, cfg: _PP()))
+
+    class _Self:
+        _printer = WindowsRawPrinter()
+    rows = TabPrint._colour_rows(_Self(), "Q", {}, tmp_path / "x.tif")
+    assert [r[0] for r in rows] == [MM._PRINT_ROW_COLOUR]
+
+    class _Mac:
+        _printer = CupsRawPrinter()
+    rows = TabPrint._colour_rows(_Mac(), "Q", {}, tmp_path / "x.tif")
+    assert MM._PRINT_ROW_PAPER_PROFILE in [r[0] for r in rows]
+
+
+# ---- the dialog route's 2 % slack ---------------------------------------------
+@pytest.mark.parametrize("over, prints", [(1.015, True), (1.03, False)])
+def test_a_chart_a_little_larger_than_the_paper_still_prints(dialog_route, tmp_path, over, prints):
+    """2 % slack, as `_chart_larger_than_page`: a chart that overhangs the
+    paper by 1.5 % prints (its white margin is clipped), one 3 % larger is
+    refused."""
+    tab, events = dialog_route
+    # larger than A4 in BOTH directions, so turning it cannot help
+    w_px = int(round(595 * over / 72 * 300))
+    h_px = int(round(842 * over / 72 * 300))
+    tiff = _rgb_tiff(tmp_path / "c.tif", w=w_px, h=h_px)
+    tab._print_native_qt([(tiff, 0)])
+    assert bool(_FakePainter.draws) is prints
+    assert events[-1] == ("record", prints)
+
+
+# ---- the spooler ----------------------------------------------------------------
+def test_a_job_being_deleted_is_not_stuck(monkeypatch):
+    J = win_spooler.JobFacts
+    monkeypatch.setattr(win_spooler, "jobs", lambda p: [
+        J(1, "a", "RAW", win_spooler.JOB_STATUS_ERROR, "", 1),
+        J(2, "b", "RAW", win_spooler.JOB_STATUS_ERROR | win_spooler.JOB_STATUS_DELETING, "", 1),
+        J(3, "c", "RAW", win_spooler.JOB_STATUS_PAUSED | win_spooler.JOB_STATUS_DELETED, "", 1),
+        J(4, "d", "RAW", 0, "", 1),
+    ])
+    assert win_spooler.stuck_jobs("Q") == [1]
+
+
+def test_the_windows_printer_list_comes_from_the_spooler(monkeypatch):
+    from workflow import print_manager as pm
+    monkeypatch.setattr(pm.sys, "platform", "win32")
+    monkeypatch.setattr(pm, "CUPS_AVAILABLE", False)
+    monkeypatch.setattr(win_spooler, "list_printers", lambda: ["zeta", "Alpha", "beta"])
+    assert pm.PrintModule().detect_printers() == ["Alpha", "beta", "zeta"]
+    monkeypatch.setattr(pm, "CUPS_AVAILABLE", True)       # a fake CUPS keeps CUPS
+    assert pm._windows_spooler() is False
+
+
+def test_the_ppd_of_a_windows_queue_is_its_drivers(monkeypatch):
+    from workflow import ppd_color
+    monkeypatch.setattr(ppd_color.sys, "platform", "win32")
+    monkeypatch.setattr(win_spooler, "ppd_path", lambda q: r"C:\drv\%s.ppd" % q)
+    assert ppd_color.ppd_path_for_queue("Q") == r"C:\drv\Q.ppd"
+
+
+# ---- finding 6: ChromIQ's own failure is said as ChromIQ's ----------------------
+def test_a_chart_that_cannot_be_read_is_not_a_spooler_refusal(qapp, tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+    from ui.tabs import tab_print as tp
+    from workflow.cups_printer import PrintConfig
+    from workflow.win_raw_printer import WindowsRawPrinter
+    bad = tmp_path / "broken.tif"
+    bad.write_bytes(b"not a tiff")
+    pr = WindowsRawPrinter()
+    monkeypatch.setattr(win_spooler, "submit", lambda *a, **k: pytest.fail("submitted"))
+    codes = []
+    pr.print_job_ps(bad, PrintConfig("Q"), on_finish=codes.append)
+    assert codes == [-1] and pr.last_error_is_chart and pr.last_chart_name == "broken.tif"
+    tab = _tab(tmp_path)
+    tab._printer = pr
+    monkeypatch.setattr(tp, "is_windows", lambda: True)
+    shown = []
+    monkeypatch.setattr(QMessageBox, "critical",
+                        staticmethod(lambda parent, title, body: shown.append((title, body))))
+    monkeypatch.setattr(tab, "_show_print_refusal",
+                        lambda *a: pytest.fail("shown as a spooler refusal"))
+    tab._on_print_done(-1)
+    assert shown and "broken.tif" in shown[0][1]
+
+
+# ---- finding 7: "&" in a printer name on a button --------------------------------
+def test_an_ampersand_in_a_printer_name_is_no_mnemonic(qapp, tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+    tab = _tab(tmp_path)
+    seen = []
+
+    def _exec(box):
+        seen.extend(b.text() for b in box.buttons())
+        return 0
+    monkeypatch.setattr(QMessageBox, "exec", _exec)
+    assert tab._confirm_other_printer("Office Inkjet", "HP & Co Laser") is False
+    assert "Print on HP && Co Laser" in seen

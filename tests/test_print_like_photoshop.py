@@ -181,6 +181,9 @@ def _capture_lp(monkeypatch):
     return sent
 
 
+@pytest.mark.skipif(sys.platform != "darwin",
+                    reason="the paper-profile reference job is macOS-only "
+                           "(CupsRawPrinter._reference_paper_profile)")
 @pytest.mark.parametrize("vendor", ["canon", "epson"])
 @pytest.mark.parametrize("pdf", [False, True])
 def test_lp_reference_job_keys_and_tag(tmp_path, monkeypatch, vendor, pdf):
