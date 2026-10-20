@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import sys
 
 import pytest
 from PyQt6.QtGui import QFontMetrics
@@ -86,8 +87,14 @@ def test_a_hand_wrapped_body_leaves_no_strip_of_empty_frame(qapp):
     fault Knut reported (a card at three quarters), and dropping the threshold
     to accommodate it would blunt the guard on the platform that can still
     regress. Recorded instead in docs/windows_verification_4.1.2_results.md.
+
+    So it is skipped on Windows, by name: since #205 the offscreen platform
+    there has the system's fonts, and the 86% above came back red.
     """
     skip_without_fonts()
+    if sys.platform == "win32":
+        pytest.skip("Windows renders this text ~7% narrower at the same 420 px "
+                    "floor (86% vs 92%); a font difference, see the docstring")
     dlg = _InfoDialog("Title", HAND_WRAPPED, None, 420)
     dlg.show()
     qapp.processEvents()

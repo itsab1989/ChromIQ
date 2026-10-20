@@ -72,7 +72,8 @@ def test_every_results_table_fits_the_page_with_no_word_broken(code, n_runs,
     Metric cells alone does NOT go red: the measuring loop then simply
     chooses fewer columns, which is the point of measuring.)"""
     import core.i18n as i18n
-    from ui.dialogs.measurement_report_dialog import _words_broken_across_lines
+    from ui.dialogs.measurement_report_dialog import (
+        _TABLE_FIT_SLACK_PX, _words_broken_across_lines)
     before = getattr(i18n, "current_language", lambda: "en")()
     try:
         i18n.set_language(code)
@@ -81,7 +82,9 @@ def test_every_results_table_fits_the_page_with_no_word_broken(code, n_runs,
         columns = 0
         for t in tables:
             doc = _laid_out(t)
-            assert doc.size().width() <= 679.5, (
+            # The app's own allowance for Qt rounding the Metric share up
+            # (K32): 680 px on Windows' fonts is that rounding, not a column.
+            assert doc.size().width() <= 679.0 + _TABLE_FIT_SLACK_PX, (
                 f"{code}, {n_runs} dates: a results table is "
                 f"{doc.size().width():.0f} px wide on a 679 px page")
             broken = _words_broken_across_lines(doc)

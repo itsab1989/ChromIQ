@@ -720,7 +720,14 @@ def _breaks_anywhere(ch: str) -> bool:
 
 
 def _is_word_cut(prev: str, nxt: str) -> bool:
-    """Whether a line ending between *prev* and *nxt* cuts a word."""
+    """Whether a line ending between *prev* and *nxt* cuts a word.
+
+    A break after a compound's own hyphen ("Gamut-" over "Rand") is where
+    German typesetting breaks such a word, so it is not a cut. Measured on
+    Windows' fonts (#205): the German Metric label broke there at any
+    column count, and every results table fell to one date each."""
+    if prev == "-" and nxt.isalpha():
+        return False
     return (not prev.isspace() and not nxt.isspace() and prev != "/"
             and not _breaks_anywhere(prev) and not _breaks_anywhere(nxt))
 

@@ -109,6 +109,8 @@ def test_a_latin_word_cut_inside_a_japanese_text_still_is():
     assert _is_word_cut("9", "5")          # "P9|5"
     assert not _is_word_cut(" ", "r")
     assert not _is_word_cut("/", "M")
+    assert not _is_word_cut("-", "R")      # "Gamut-|Rand" (#205, Windows)
+    assert _is_word_cut("-", "0")          # a minus is not a hyphen
 
 
 def test_the_full_japanese_and_chinese_labels_are_back():
