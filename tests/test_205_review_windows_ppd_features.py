@@ -137,7 +137,7 @@ def test_ghostscript_applies_a_featurebegin_choice(tmp_path):
                    encoding="latin-1")
     r = subprocess.run([_ghostscript(), "-q", "-dSAFER", "-dBATCH", "-dNOPAUSE",
                         "-sDEVICE=nullpage", str(job)],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     assert r.stdout.strip() == "stationery-heavyweight"
 

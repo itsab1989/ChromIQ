@@ -90,10 +90,10 @@ from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox,  # noqa: E402
 RESULT: dict = {"mode": "ON SCREEN (real windows on the Windows desktop)",
                 "lang": ARGS.lang, "tree": str(TREE), "scenes": [], "findings": []}
 RESULT["head"] = subprocess.run(["git", "-C", str(TREE), "rev-parse", "HEAD"],
-                                capture_output=True, text=True, timeout=30).stdout.strip()
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30).stdout.strip()
 RESULT["dirty"] = bool(subprocess.run(["git", "-C", str(TREE), "status", "--porcelain",
                                        "--untracked-files=no"],
-                                      capture_output=True, text=True, timeout=30).stdout.strip())
+                                      capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30).stdout.strip())
 
 
 def log(msg: str) -> None:

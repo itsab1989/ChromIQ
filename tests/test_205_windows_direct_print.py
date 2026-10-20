@@ -671,7 +671,7 @@ def test_a_raw_job_reaches_a_file_port_byte_for_byte(tmp_path):
         import subprocess
         out = subprocess.run(["powershell", "-NoProfile", "-Command",
                               f"(Get-Printer '{queue}').PortName"],
-                             capture_output=True, text=True, timeout=60).stdout.strip()
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60).stdout.strip()
         port = Path(out) if out else None
     except Exception:  # noqa: BLE001
         port = None
