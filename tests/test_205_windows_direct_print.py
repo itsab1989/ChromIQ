@@ -477,6 +477,9 @@ class _FakePrinter:
     def setPrinterName(self, n):
         self.name = n
 
+    def printerName(self):
+        return self.name
+
     def setFullPage(self, v):
         self.full_page = v
 
@@ -764,3 +767,62 @@ def test_ghostscript_puts_every_ink_on_its_own_plane(tmp_path):
     orange = 255 - tifffile.imread(str(tmp_path / "p(Orange).tif")).astype(int)
     black = 255 - tifffile.imread(str(tmp_path / "p(Black).tif")).astype(int)
     assert orange[4, 3 * 8 + 4] == 200 and black.max() == 0
+
+
+# ---- 9. Windows 11's own print dialog keeps its own printer ---------------------
+# Measured (report folder 03, probe_preselect_*.json): with a parent window the
+# dialog Windows 11 shows opens on the printer last used from the app, whatever
+# Qt preselects. On ChromIQ's own route that is the printer handed over.
+
+class _ElsewhereDialog(_FakeDialog):
+    def exec(self):
+        self.printer.setPrinterName("Office Laser")     # the dialog's own choice
+        return super().exec()
+
+
+@pytest.mark.parametrize("answer", [True, False])
+def test_another_printer_from_the_dialog_is_asked_about(dialog_route, tmp_path, monkeypatch, answer):
+    import PyQt6.QtPrintSupport as QtPS
+    tab, events = dialog_route
+    monkeypatch.setattr(QtPS, "QPrintDialog", _ElsewhereDialog)
+    asked = []
+    monkeypatch.setattr(tab, "_confirm_other_printer",
+                        lambda wanted, chosen: asked.append((wanted, chosen)) or answer)
+    tab._print_native_qt([(_rgb_tiff(tmp_path / "c.tif"), 0)], printer="Office Inkjet")
+    assert asked == [("Office Inkjet", "Office Laser")]
+    assert bool(_FakePainter.draws) is answer
+    assert events[-1] == ("record", answer)
+
+
+def test_the_plain_dialog_route_never_asks(dialog_route, tmp_path, monkeypatch):
+    """No printer handed over (the default route): whatever the dialog chose."""
+    import PyQt6.QtPrintSupport as QtPS
+    tab, events = dialog_route
+    monkeypatch.setattr(QtPS, "QPrintDialog", _ElsewhereDialog)
+    monkeypatch.setattr(tab, "_confirm_other_printer",
+                        lambda *a: pytest.fail("asked on the dialog route"))
+    tab._print_native_qt([(_rgb_tiff(tmp_path / "c.tif"), 0)])
+    assert _FakePainter.draws and events == [("record", True)]
+
+
+# ---- 10. a printer's old option rows are gone at once -----------------------------
+def test_removed_option_rows_are_hidden_at_once(qapp, tmp_path):
+    """Seen on screen (#205): the rows of the printer before stayed drawn over
+    the new printer's box while a window opened right after the change was
+    up, because a deferred delete waits for that window's exec() to end."""
+    from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+    from ui.tabs.tab_print import TabPrint
+    host = QWidget()
+    outer = QVBoxLayout(host)
+    row = QHBoxLayout()
+    lbl = QLabel("Media Type:", host)
+    row.addWidget(lbl)
+    outer.addLayout(row)
+    box = QLabel("box", host)
+    outer.addWidget(box)
+    host.show()
+    qapp.processEvents()
+    assert lbl.isVisible()
+    TabPrint._clear_layout(outer)
+    assert lbl.isHidden() and box.isHidden()      # before any event is processed
+    host.close()

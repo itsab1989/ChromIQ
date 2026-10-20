@@ -2465,6 +2465,12 @@ class TabPrint(QWidget):
                         w.currentIndexChanged.disconnect()
                     except (TypeError, RuntimeError):
                         pass
+                # HIDDEN NOW, deleted later (#205, seen on screen): a deferred
+                # delete posted before a window's exec() runs only after that
+                # window closes, so the previous printer's rows stayed drawn
+                # over the new printer's box while the confirmation window was
+                # open
+                w.hide()
                 w.deleteLater()
                 continue
             sub = item.layout()
@@ -3199,6 +3205,32 @@ class TabPrint(QWidget):
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
+
+    def _confirm_other_printer(self, wanted: str, chosen: str) -> bool:
+        """M-PRINT-WIN-DIALOG-OTHER-PRINTER: the Windows print dialog came back
+        with another printer than the one handed to it. True prints on
+        *chosen*; Cancel (the default) prints nothing."""
+        from workflow import measurement_messages as MM
+        title, body = MM.M_PRINT_WIN_DIALOG_OTHER_PRINTER.render(
+            wanted=wanted, chosen=chosen)
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        set_warning_icon(box)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr(MM._PRINT_OTHER_PRINTER_BTN).format(printer=chosen),
+                           QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
+        box.exec()
+        if box.clickedButton() is go:
+            log.warning("Print: printed on %s, which the Windows print dialog chose, "
+                        "instead of %s", chosen, wanted)
+            return True
+        log.info("Print: cancelled; the Windows print dialog chose %s, not %s",
+                 chosen, wanted)
+        return False
 
     def _print_windows_not_postscript(self, pages: list[tuple[Path, int]],
                                       printer: str) -> None:
@@ -4436,6 +4468,18 @@ class TabPrint(QWidget):
         dialog = QPrintDialog(qprinter, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             # Cancelled at the OS dialog: nothing was printed, so no record.
+            self._commit_print_record(False)
+            return
+
+        # #205: Windows 11's own print dialog (the one Windows shows for a
+        # dialog with a parent window since 24H2) opens on the printer last
+        # used from this app and ignores the one ChromIQ preselects (measured:
+        # report folder 03, probe_preselect_*.json; the classic dialog honours
+        # it). When ChromIQ's own route handed THIS printer over and the dialog
+        # came back with another one, nothing is printed without asking.
+        chosen = qprinter.printerName()
+        if printer and chosen and chosen != printer \
+                and not self._confirm_other_printer(printer, chosen):
             self._commit_print_record(False)
             return
 

@@ -123,6 +123,7 @@ AWAITING_APPROVAL: "set[str]" = {
     # #205 (4.3.8): the Windows print route, proposed 2026-10-20
     "M-PRINT-WIN-INKS-NOT-POSTSCRIPT", "M-PRINT-WIN-DIALOG-NOT-RGB",
     "M-PRINT-WIN-DIALOG-TOO-BIG", "M-PRINT-WIN-SPOOLER-FAILED",
+    "M-PRINT-WIN-DIALOG-OTHER-PRINTER",
     "M-PATCH-SIMILAR",
                                  # (M-PRINT-VERIFY-PS-EARLIER-ASK, the P18
                                  # window's own wording, sat here for one

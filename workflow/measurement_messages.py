@@ -5892,6 +5892,19 @@ M_PRINT_WIN_SPOOLER_FAILED = _m(
     "Windows did not accept the print job",
     "ChromIQ could not hand the chart over to {printer}. Windows gave this reason: {reason}\n\nNothing was printed.\n\nWhat you can do: open Printers & scanners in the Windows settings, choose this printer and check that it is not paused or set to offline, and that no old print job is stuck in its queue. Then print again.",
     approved=False)
+#: Windows 11's own print dialog (shown for a dialog with a parent window
+#: since 24H2) opens on the printer last used from the app and ignores the
+#: one ChromIQ preselects (measured, #205). When ChromIQ's own route hands an
+#: RGB chart for a printer that is not PostScript to the dialog and the dialog
+#: comes back with another printer, this window asks. {wanted}: the printer
+#: chosen on the Print Chart tab; {chosen}: the dialog's. Buttons: "Print on
+#: {chosen}" (_PRINT_OTHER_PRINTER_BTN) and Cancel, the default.
+M_PRINT_WIN_DIALOG_OTHER_PRINTER = _m(
+    "M-PRINT-WIN-DIALOG-OTHER-PRINTER",
+    "The print dialog chose another printer",
+    "You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on the printer you last used from ChromIQ, not on the one ChromIQ asks for, so this is easy to miss.\n\nDo you want to print the chart on {chosen}? If not, press Cancel, print again and choose {wanted} in the print dialog.",
+    approved=False)
+_PRINT_OTHER_PRINTER_BTN = "Print on {printer}"
 
 # --- APPROVED: the P18 window's own wording, 4.3.8 (Basti, 2026-10-20) -----
 #: Basti, 2026-10-20: the window before the direct route sends a verification
@@ -6553,6 +6566,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_PS_PAPER_NOT_LISTED, M_PRINT_DIRECT_LIKE_PREVIEW,
     M_PRINT_WIN_INKS_NOT_POSTSCRIPT, M_PRINT_WIN_DIALOG_NOT_RGB,
     M_PRINT_WIN_DIALOG_TOO_BIG, M_PRINT_WIN_SPOOLER_FAILED,
+    M_PRINT_WIN_DIALOG_OTHER_PRINTER,
     M_PRINT_PS_ASK, M_PRINT_PS_FORM_APPLIES,
     M_PRINT_PS_FORM_APPLIES_PROJECT,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,
