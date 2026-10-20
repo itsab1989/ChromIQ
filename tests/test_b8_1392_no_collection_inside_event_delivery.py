@@ -41,8 +41,23 @@ REPO = Path(__file__).resolve().parent.parent
 #: next tracked allocation collect, which with automatic collection on is the
 #: filter call itself. With the collector installed nothing collects there,
 #: and the trees are still deleted, later, by the timer.
+#: On macOS the crash below is deliberate, and a crashing Python.app gets
+#: "Python wurde unerwartet beendet" on the owner's screen, once per gate
+#: (Basti, 2026-10-20). So before faulthandler takes the signals, each one is
+#: pointed at libc's ``_exit``: faulthandler still prints its C stack (the
+#: frame the test reads), then restores that handler and re-raises, and the
+#: process ends with the signal's number instead of being reported as a crash.
 _SCRIPT = textwrap.dedent("""
     import faulthandler, gc, os, sys, time
+    if sys.platform == "darwin":
+        import ctypes, signal
+        _libc = ctypes.CDLL(None)
+        _libc.signal.restype = ctypes.c_void_p
+        _libc.signal.argtypes = (ctypes.c_int, ctypes.c_void_p)
+        _quiet_exit = ctypes.cast(_libc._exit, ctypes.c_void_p)
+        for _sig in (signal.SIGSEGV, signal.SIGBUS, signal.SIGILL,
+                     signal.SIGFPE, signal.SIGABRT):
+            _libc.signal(int(_sig), _quiet_exit)
     faulthandler.enable()
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     sys.path.insert(0, {repo!r})
