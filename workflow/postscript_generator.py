@@ -156,6 +156,7 @@ class PostScriptGenerator:
         return self._build_ps(
             w, h, tiff_w_pt, tiff_h_pt, page_w, page_h,
             bits, n_ch, cs_block, encoded,
+            devicen=cs_block.startswith("[/DeviceN"),
         )
 
     # ------------------------------------------------------------------
@@ -310,6 +311,7 @@ class PostScriptGenerator:
         bits: int, n_ch: int,
         cs_block: str,
         encoded_data: str,
+        devicen: bool = False,
     ) -> str:
         # PostScript Level 3 is required for /FlateDecode (added in PS L3,
         # universal on every printer ChromIQ supports — HP CLJ ≥ 5550,
@@ -325,6 +327,36 @@ class PostScriptGenerator:
         # All Pages". setpagedevice is part of PS L3 and overrides the device
         # default, so the interpreter itself disables duplex. (Issue #15
         # third failure mode, reported after 3.5.2 fixed the colorimage bits.)
+        #
+        # A DEVICEN CHART IS DRAWN WITH `image`, NEVER `colorimage` (#205,
+        # measured with Ghostscript 2026-10-20). `colorimage` ignores the
+        # current colour space: its component count alone picks DeviceGray,
+        # DeviceRGB or DeviceCMYK, and it takes only 1, 3 or 4 (PLRM). So the
+        # `[/DeviceN ...] setcolorspace` above was overridden: a CMY + Orange
+        # chart (4 inks) was drawn as CMYK, its orange on the BLACK plane, and
+        # a 5 to 7 ink chart ended the job with /rangecheck in colorimage.
+        # The dictionary form of `image` paints in the current colour space,
+        # one Decode pair per ink, the same interleaved samples. Gray, RGB and
+        # CMYK keep `colorimage` exactly as before (the old HP interpreters of
+        # issue #15 were tuned against it).
+        if devicen:
+            decode = " ".join(["0 1"] * n_ch)
+            image_op = (
+                f"<< /ImageType 1 /Width {w_px} /Height {h_px} "
+                f"/BitsPerComponent {bits}\n"
+                f"/Decode [{decode}]\n"
+                f"/ImageMatrix [{w_px} 0 0 -{h_px} 0 {h_px}]\n"
+                f"/DataSource currentfile /ASCII85Decode filter /FlateDecode filter\n"
+                f">> image\n"
+            )
+        else:
+            image_op = (
+                f"{w_px} {h_px} {bits}\n"
+                f"[{w_px} 0 0 -{h_px} 0 {h_px}]\n"
+                f"currentfile /ASCII85Decode filter /FlateDecode filter\n"
+                f"false {n_ch}\n"
+                f"colorimage\n"
+            )
         return (
             f"%!PS-Adobe-3.0\n"
             f"%%LanguageLevel: 3\n"
@@ -338,11 +370,7 @@ class PostScriptGenerator:
             f"\n"
             f"{x_off:.2f} {y_off:.2f} translate\n"
             f"{tiff_w_pt:.2f} {tiff_h_pt:.2f} scale\n"
-            f"{w_px} {h_px} {bits}\n"
-            f"[{w_px} 0 0 -{h_px} 0 {h_px}]\n"
-            f"currentfile /ASCII85Decode filter /FlateDecode filter\n"
-            f"false {n_ch}\n"
-            f"colorimage\n"
+            f"{image_op}"
             f"{encoded_data}\n"
             f"\n"
             f"showpage\n"

@@ -59,7 +59,9 @@ def _separated(path: Path, n: int, codes: list[str] | None, *, rep: str | None =
 
 
 def _decoded_ps_image(ps: str) -> bytes:
-    i = ps.index("colorimage")
+    # a DeviceN chart is drawn with the dictionary form of `image` since #205
+    # (`colorimage` ignores the DeviceN colour space), the others `colorimage`
+    i = ps.index("colorimage") if "colorimage" in ps else ps.index(">> image")
     start = ps.index("\n", i) + 1
     end = ps.index("~>", start)
     return zlib.decompress(base64.a85decode(re.sub(r"\s", "", ps[start:end])))
