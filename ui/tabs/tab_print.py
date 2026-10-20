@@ -52,6 +52,10 @@ _PAGE_SIZE_KEYS = {"EPIJ_Size", "media", "PageSize"}
 #: How close (sum of both sides, in points) a paper must be to the chart for
 #: the paper size preselection to call it the chart's own size (~3.5 mm)
 _PRESELECT_CLOSE_PT = 10.0
+#: How much smaller than the chart a preselected paper may be: rounding of
+#: the page image's pixels only (a 100 dpi 4 x 6 in chart is 1.4 pt wider
+#: than its sheet), never a cut-off chart (re-review of 4.3.8).
+_PRESELECT_ROUNDING_PT = 3.0
 # Option names whose "on" value means borderless is enabled (native vendor
 # toggles + the synthetic key surfaced by PrintModule for drivers that
 # encode borderless in PageSize variants or EPIJ_PSrc).
@@ -2518,6 +2522,19 @@ class TabPrint(QWidget):
         def _fit(d):
             return min(abs(d[0] - tw) + abs(d[1] - th), abs(d[0] - th) + abs(d[1] - tw))
 
+        # NEVER A PAPER SMALLER THAN THE CHART (re-review of 4.3.8). The
+        # nearest sheet within the mismatch check's 8 % used to win, so a
+        # chart image smaller than its sheet (made without printtarg -M,
+        # e.g. 561 x 808 pt for A4) got a smaller paper (7.75 x 10.75 in,
+        # 558 x 774 pt, on an HP 5550) and the direct route, which never
+        # scales, cut 12 mm off it. A paper qualifies only if the chart fits
+        # on it in either orientation (within rounding); ChromIQ's own -M
+        # charts are the size of their sheet and get it as before.
+        def _holds(d):
+            t = _PRESELECT_ROUNDING_PT
+            return ((d[0] >= tw - t and d[1] >= th - t)
+                    or (d[0] >= th - t and d[1] >= tw - t))
+
         miss, dims = _mismatch(d_raw, d_shown)
         if dims is None:
             return
@@ -2526,7 +2543,7 @@ class TabPrint(QWidget):
         # was printed shrunk to 95 % onto it. A default paper that matches
         # only within that tolerance gives way to a paper of the chart's own
         # size; one within a few points of the chart stays.
-        default_fit = _fit(dims) if miss is None else None
+        default_fit = _fit(dims) if (miss is None and _holds(dims)) else None
         if default_fit is not None and default_fit <= _PRESELECT_CLOSE_PT:
             return          # the driver's default paper is the chart's
         best = None
@@ -2535,7 +2552,7 @@ class TabPrint(QWidget):
             if not raw:
                 continue
             miss, dims = _mismatch(raw, combo.itemText(i))
-            if dims is None or miss is not None:
+            if dims is None or miss is not None or not _holds(dims):
                 continue
             fit = _fit(dims)
             if best is None or fit < best[0]:
