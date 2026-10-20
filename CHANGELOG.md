@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.3.8-beta.1
+
+**Print settings belong to each run, and a verification chart is printed the same way as its profiling chart.**
+
+### Changed
+- **Every run keeps its own printer and print options** (#182, Knut). The printer and every option row on the Print Chart tab (Page Size, Media Type, Paper Source, Quality and the other driver rows) used to be shared: the run you set last decided what every run showed and printed with, and after a restart every run fell back to the saved defaults. Now each run keeps its own, when you switch back and forth between runs and after a restart. A new run starts from the run you were on (a refined run from its parent), the calibration keeps its own settings and never passes them on, and a verification chart prints with its run's settings unless you change them there. Older runs open on your saved defaults until you set something on them, and just looking at a run stores nothing. On the macOS print dialog route, the paper, media and quality you choose inside that dialog are still remembered by macOS itself. Basti approved the rule.
+- **A verification chart goes to a PostScript printer the same way as its profiling chart** (#182, Knut). A profile describes the printer as its chart was printed: through the macOS print dialog, where a PostScript printer may adjust the colours itself, or through ChromIQ's own printing, which sends the colours unchanged. A verification chart printed the other way measured far worse than the profile really is. Every print record now says how the chart was sent, to which printer, how the colours went to a PostScript printer and with which ChromIQ version, and a verification chart follows the way its profiling chart went. Basti approved the rules.
+- **A run whose profiling chart was printed before ChromIQ 4.3.5 asks before its verification chart goes to a PostScript printer by ChromIQ's own printing.** Those versions did not record how a chart was sent, so a window explains both cases: "Print anyway" if the profiling chart went through ChromIQ's own printing, or "Use the print dialog" to print this verification chart through the macOS print dialog, letting the printer adjust the colours as Preview does. Cancel is the default and sends nothing. (New text, approved by Basti.)
+
+### Fixed
+- **The paper chosen for a chart is never smaller than the chart.** With Page Size at "Printer Default", a chart made outside ChromIQ could get a paper smaller than the chart, for example 7.75x10.75 for an A4 chart on an HP printer, and about 12 mm of the chart was cut off without a warning. ChromIQ now only picks a paper the chart fits on. Charts made by ChromIQ get the same paper as before.
+- **Close Project no longer writes one run's print settings into another run.**
+
 ## v4.3.7
 
 **A Windows fix: no more flashing command windows.**
