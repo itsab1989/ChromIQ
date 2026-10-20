@@ -607,16 +607,23 @@ class TabPrint(QWidget):
         #: The store (its folder) whose settings are on screen. A write goes to
         #: that store only: values loaded for run 1 are never filed onto run 2.
         self._print_loaded_for: "str | None" = None
-        #: The printer and options as the last load put them on screen; a
-        #: target with nothing stored that is only looked at keeps nothing
-        #: stored, so it goes on following the saved defaults (§4 S4/S9).
-        self._printer_loaded_snapshot: "tuple | None" = None
-        #: True when the target on screen was seeded from the run before it
-        #: (a run made while this tab showed another run, §4a).
+        #: True once the USER changed the printer or an option row since the
+        #: last load. Only then are they written: a target that is merely
+        #: looked at keeps nothing stored (§4 S4/S9), whatever the app itself
+        #: preselects for the chart (review of fix/4.3.8, D1), and a stored
+        #: printer that is no longer installed is kept (PS-8, D4).
+        self._printer_dirty: bool = False
+        #: True when the target on screen was seeded from the run it was made
+        #: from (§4a, PS-6): then the seed is written like a choice.
         self._printer_seeded: bool = False
-        #: (project folder, run ids) at the last load: a run that is not in it
-        #: was made since, from the run on screen.
-        self._print_runs_seen: "tuple[str, frozenset] | None" = None
+        #: Where a run made in this session came from, as the bar saw it
+        #: (review D2/D3): {(project folder, run id): source}, a source being
+        #: ("run", id) / ("verification", id) or None (the calibration, N-6).
+        self._print_born_from: dict = {}
+        #: The target and the run ids at the bar's last change, and the target
+        #: "New run" was chosen from.
+        self._print_prev: "tuple | None" = None
+        self._print_new_run_source = None
 
         self._build_ui()
 
@@ -771,7 +778,7 @@ class TabPrint(QWidget):
         )
         scl.addWidget(self._opts_grp)
 
-        self._printer_combo.currentIndexChanged.connect(self._on_printer_changed)
+        self._printer_combo.currentIndexChanged.connect(self._on_printer_picked)
 
         # Warning label — inside the scroll area too (same request): it is an
         # info box, and it is tall.
@@ -1025,6 +1032,11 @@ class TabPrint(QWidget):
             # A run-type or run change moves the Colour/Intent rows in or out
             # (§3.1 table) — recompute rather than wait for the next tab visit.
             controller.changed.connect(self._update_colour_row_visible)
+            # Where a new run comes from is a fact of the bar, not of this
+            # tab's screen (review D2/D3): noted at every change, read when
+            # the new run is first loaded here.
+            controller.changed.connect(self._note_target_change)
+            self._note_target_change()
 
     # ------------------------------------------------------------------
     # Feature A (#130) — printing a verification chart through its profile.
@@ -2010,13 +2022,12 @@ class TabPrint(QWidget):
                 merged["colour"] = wanted["colour"]
             merged["intent"] = wanted["intent"]
             merged["route"] = wanted["route"]
-            # The printer and its options: only once the target has its own,
-            # or they were changed on screen, or seeded from the run before
-            # (§4a). A target that was merely looked at keeps nothing stored
-            # and goes on following the saved defaults (§4 S4/S9).
-            if "printer" in wanted and (
-                    stored.get("printer") or self._printer_seeded
-                    or (printer, opts) != self._printer_loaded_snapshot):
+            # The printer and its options: only when the user changed them
+            # since the load, or they were seeded from the run this one was
+            # made from (§4a). A target that was merely looked at keeps what
+            # it had: nothing (§4 S4/S9), or a printer no longer installed
+            # (PS-8).
+            if "printer" in wanted and (self._printer_dirty or self._printer_seeded):
                 merged["printer"] = printer
                 per_queue = dict(stored.get("printer_options") or {}) \
                     if isinstance(stored.get("printer_options"), dict) else {}
@@ -2062,7 +2073,7 @@ class TabPrint(QWidget):
             self._target_printer_opts = per_queue
             self._printer_seeded = seeded
             self._print_loaded_for = str(getattr(store, "dir", store))
-            self._note_runs_seen()
+            self._printer_dirty = False
         self._loading_print_settings = True
         self._updating_cm = True
         try:
@@ -2105,10 +2116,12 @@ class TabPrint(QWidget):
         if last:
             idx = self._printer_combo.findData(last)
             if idx >= 0:
+                # not the user's pick: the combo's signal stays blocked, or
+                # the first look at a run would store the saved default
+                self._printer_combo.blockSignals(True)
                 self._printer_combo.setCurrentIndex(idx)
+                self._printer_combo.blockSignals(False)
         self._on_printer_changed()
-        if first:
-            self._printer_loaded_snapshot = self._printer_snapshot()
 
     # ---- the printer and its options, per target (Knut, 2026-10-20) -------
     #: Knut, 2026-10-20: "All the print settings should be 100% individual
@@ -2157,11 +2170,15 @@ class TabPrint(QWidget):
         want = self._wanted_printer()
         cb = self._printer_combo
         idx = cb.findData(want) if want else -1
+        if idx < 0 and self._target_printer:
+            # PS-8: a printer no longer installed opens on the saved default
+            # (review D4); the run's stored printer stays until the user
+            # changes something
+            idx = cb.findData(str(self._settings.get("last_printer", "") or ""))
+            log.info("Print: the target's printer %s is not listed; opened on "
+                     "%s", self._target_printer,
+                     cb.itemData(max(idx, 0)) or "none")
         if idx < 0:
-            if self._target_printer:
-                log.info("Print: the target's printer %s is not listed; "
-                         "opened on %s", self._target_printer,
-                         cb.itemData(0) or "none")
             idx = 0
         cb.blockSignals(True)
         try:
@@ -2169,7 +2186,6 @@ class TabPrint(QWidget):
         finally:
             cb.blockSignals(False)
         self._on_printer_changed()
-        self._printer_loaded_snapshot = self._printer_snapshot()
 
     def _printer_settings_to_load(self, store, stored: dict):
         """(printer, options per queue, seeded) for *store*: its own; else,
@@ -2194,33 +2210,102 @@ class TabPrint(QWidget):
         from core.file_manager import Calibration
         if isinstance(store, Calibration):
             return None, {}, False
-        seen = self._print_runs_seen
-        run_id = getattr(store, "id", None)
+        # §4a / PS-6: a run made in this session starts on the printer
+        # settings of the run it was made from, as the bar saw it (review
+        # D2/D3), never on whatever this tab showed last; a calibration never
+        # seeds (N-6); a duplicate carries exactly what its source had.
         try:
+            meta = store.load_meta()
             project = self._target_ctl.project_or_none()
-            root = str(project.root)
+            key = (str(project.root), getattr(store, "id", None))
         except Exception:  # noqa: BLE001
             return None, {}, False
-        if (seen is not None and seen[0] == root and run_id
-                and run_id not in seen[1] and self._print_loaded_for is not None
-                and getattr(self, "_printers_loaded", False)
-                and self._printer_combo.currentData()):
-            printer, opts = self._printer_snapshot()
-            log.info("Print: %s is new; it starts on the printer settings of "
-                     "the run before it (%s)", run_id, printer)
-            return printer, {printer: opts}, True
-        return None, {}, False
+        if getattr(meta, "duplicated_from", None):
+            return None, {}, False
+        if key not in self._print_born_from:
+            return None, {}, False
+        source = self._print_born_from.pop(key)
+        parent = getattr(meta, "parent_run", None)
+        if parent:
+            source = ("run", parent)        # refined: from its parent run
+        got = self._printer_settings_of_source(project, source)
+        if got is None:
+            return None, {}, False
+        printer, opts = got
+        log.info("Print: %s is new; it starts on the printer settings of %s "
+                 "(%s)", key[1], source, printer)
+        return printer, opts, True
 
-    def _note_runs_seen(self) -> None:
+    @staticmethod
+    def _printer_settings_of_source(project, source):
+        """(printer, options per queue) stored by *source*, or None. A
+        verification with none of its own gives its run's."""
+        if not source:
+            return None
+        kind, run_id = source
         try:
-            project = self._target_ctl.project_or_none()
+            if not run_id or not project.has_run(run_id):
+                return None
+            run = project.run(run_id)
+            from core.file_manager import Run as _Run
+            stores = [run]
+            if kind == "verification":
+                stores.insert(0, _Run.for_dir(run.verifications_dir))
+            for st in stores:
+                if not Path(getattr(st, "dir", "")).is_dir():
+                    continue
+                ps = dict(getattr(st.load_meta(), "print_settings", None) or {})
+                printer = ps.get("printer")
+                if isinstance(printer, str) and printer:
+                    opts = ps.get("printer_options")
+                    return printer, (dict(opts) if isinstance(opts, dict) else {})
+        except Exception:  # noqa: BLE001 - a seed is never worth a crash
+            log.warning("Could not read the printer settings of %s", source,
+                        exc_info=True)
+        return None
+
+    def _note_target_change(self) -> None:
+        """Remember, at every change of the bar, the target that was left and
+        the runs that existed while it was selected, so a run that appears
+        later knows which run it was made from (§4a)."""
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            project = ctl.project_or_none() if ctl is not None else None
             if project is None:
-                self._print_runs_seen = None
+                self._print_prev = None
                 return
-            self._print_runs_seen = (str(project.root),
-                                     frozenset(r.id for r in project.all_runs()))
+            root = str(project.root)
+            target = ctl.target
+            ids = frozenset(r.id for r in project.all_runs())
         except Exception:  # noqa: BLE001
-            self._print_runs_seen = None
+            self._print_prev = None
+            return
+        prev = self._print_prev
+        if prev is not None and prev[0] == root:
+            _root, p_type, p_run, p_ids = prev
+            if p_type == "calibration":
+                source = None                          # N-6
+            elif not p_run:
+                source = self._print_new_run_source    # chosen from New run
+            else:
+                source = (p_type, p_run)
+            if target.is_new_run() and p_run:
+                self._print_new_run_source = source
+            elif target.is_calibration():
+                pass
+            elif target.profile_run and target.profile_run not in p_ids:
+                self._print_born_from[(root, target.profile_run)] = source
+        elif prev is None or prev[0] != root:
+            self._print_new_run_source = None
+        run_type = "calibration" if target.is_calibration() else (
+            "verification" if target.is_verification() else "run")
+        self._print_prev = (root, run_type, target.profile_run, ids)
+
+    def _on_printer_picked(self) -> None:
+        """The user chose a printer (the combo's own signal; every programmatic
+        change blocks it)."""
+        self._printer_dirty = True
+        self._on_printer_changed()
 
     def _on_printer_changed(self) -> None:
         printer = self._printer_combo.currentData() or ""
@@ -2481,6 +2566,10 @@ class TabPrint(QWidget):
     def _on_option_changed(self, combo_index: int) -> None:
         if not self._ordered_opts:
             return
+        if not self._restoring:
+            # a row the user changed (the app's own restores and the paper
+            # preselection run under `_restoring`)
+            self._printer_dirty = True
 
         # When the user changes a combo interactively, reset all later combos
         # so stale selections don't leak through into newly-invalid contexts.

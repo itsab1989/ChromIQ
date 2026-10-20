@@ -329,3 +329,166 @@ def test_two_runs_switched_back_and_forth_in_the_main_window(qapp, tmp_path,
         assert _stored(proj.run("run2"))["printer"] == QB
     finally:
         win.close()
+
+
+# ---------------------------------------------- review of fix/4.3.8, D1-D4
+def _preselect_like_the_chart_does(tab, value):
+    """What `_preselect_paper_for_chart` does after a load: the app, not the
+    user, sets the paper size row (under `_restoring`)."""
+    combo = tab._option_combos["PageSize"]
+    tab._restoring = True
+    try:
+        combo.setCurrentIndex(combo.findData(value))
+    finally:
+        tab._restoring = False
+
+
+def test_d1_the_paper_preselected_for_the_chart_is_not_a_choice(qapp, tmp_path):
+    """Viewing must store nothing (PS-4): the paper size the app preselects
+    for the chart after the load is not a change made by the user."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _tab(s, ctl)
+    tab.load_target_settings()
+    _shown(tab)
+    _preselect_like_the_chart_does(tab, "A3")
+    tab.save_target_settings()
+    assert "printer" not in _stored(fm.project().run("run1"))
+
+
+def test_d1_the_real_preselection_stores_nothing(qapp, tmp_path):
+    """The same through the real `_preselect_paper_for_chart`: an A4 chart
+    on a queue whose default paper is Letter."""
+    from PIL import Image
+    s, fm, ctl = _env(tmp_path)
+    ppd = tmp_path / "q.ppd"
+    ppd.write_text('*PPD-Adobe: "4.3"\n*OpenUI *PageSize/Page Size: PickOne\n'
+                   '*DefaultPageSize: Letter\n*PageSize A4/A4: ""\n'
+                   '*PageSize Letter/Letter: ""\n*PageSize A3/A3: ""\n'
+                   '*CloseUI: *PageSize\n', encoding="utf-8")
+    sizes = {"A4": (595.0, 842.0), "Letter": (612.0, 792.0), "A3": (842.0, 1191.0)}
+    tif = tmp_path / "chart_01.tif"
+    Image.new("RGB", (2480, 3508), (255, 255, 255)).save(tif, dpi=(300, 300))
+    tab = _tab(s, ctl)
+    tab._module._find_ppd_path = lambda q: str(ppd)
+    tab._module.get_page_size_points = lambda q, raw, shown=None: sizes.get(raw)
+    tab._module.get_imageable_area_points = lambda *a, **k: None
+    tab.load_target_settings()
+    _shown(tab)
+    tab.load_tiffs([tif])
+    assert tab._option_combos["PageSize"].currentData() == "A4"   # preselected
+    tab.save_target_settings()
+    assert "printer" not in _stored(fm.project().run("run1"))
+    # a real choice afterwards IS stored
+    _choose(tab, QA, MediaType="Matte")
+    tab._print_written.clear()
+    tab.save_target_settings()
+    assert _stored(fm.project().run("run1"))["printer_options"][QA]["MediaType"] == "Matte"
+
+
+def test_d2_a_calibration_never_seeds_a_run(qapp, tmp_path):
+    """N-6: the Print tab last showed the calibration; a run made on Create
+    Chart afterwards must not take the calibration's printer."""
+    s, fm, ctl = _env(tmp_path, calibration=True)
+    proj = fm.project()
+    proj.calibration.dir.mkdir(parents=True, exist_ok=True)
+    tab = _tab(s, ctl)
+    ctl.set_run_type(RUN_TYPE_CALIBRATION)
+    tab.load_target_settings()
+    _shown(tab)
+    _choose(tab, QB, PageSize="A3", MediaType="Matte")
+    tab.save_target_settings()
+    # elsewhere: Profiling, New run, Generate
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    ctl.set_profile_run("")
+    run3 = proj.new_run()
+    run3.ensure_dir()
+    ctl.set_profile_run(run3.id)
+    tab.load_target_settings()
+    assert _screen(tab)[0] != QB or _screen(tab)[1] != {"PageSize": "A3", "MediaType": "Matte"}
+    tab.save_target_settings()
+    assert "printer" not in _stored(proj.run(run3.id))
+
+
+def _store_printer(store, printer, opts):
+    meta = store.load_meta()
+    ps = dict(meta.print_settings or {})
+    ps["printer"] = printer
+    ps["printer_options"] = {printer: dict(opts)}
+    meta.print_settings = ps
+    store.save_meta(meta)
+
+
+def test_d3_a_new_run_is_seeded_from_the_run_it_was_made_from(qapp, tmp_path):
+    """§4a: the run selected when New run was chosen, not the run the Print
+    tab happened to show last."""
+    s, fm, ctl = _env(tmp_path)
+    proj = fm.project()
+    _store_printer(proj.run("run2"), QB, {"PageSize": "A3", "MediaType": "Matte"})
+    tab = _tab(s, ctl)
+    tab.load_target_settings()                    # Print shows run1
+    _shown(tab)
+    _choose(tab, QA, PageSize="A4", MediaType="Glossy")
+    tab.save_target_settings()
+    # elsewhere: run2, then New run, Generate
+    ctl.set_profile_run("run2")
+    ctl.set_profile_run("")
+    run3 = proj.new_run()
+    run3.ensure_dir()
+    ctl.set_profile_run(run3.id)
+    tab.load_target_settings()
+    assert _screen(tab) == (QB, {"PageSize": "A3", "MediaType": "Matte"})
+    tab.save_target_settings()
+    assert _stored(proj.run(run3.id))["printer"] == QB
+
+
+def test_d3_a_duplicate_of_a_run_with_nothing_stored_carries_nothing(qapp, tmp_path):
+    s, fm, ctl = _env(tmp_path)
+    proj = fm.project()
+    tab = _tab(s, ctl)
+    tab.load_target_settings()                    # Print shows run1
+    _shown(tab)
+    _choose(tab, QA, PageSize="A4", MediaType="Glossy")
+    tab.save_target_settings()
+    ctl.set_profile_run("run2")                   # nothing stored
+    dup = proj.duplicate_run(proj.run("run2"))
+    ctl.set_profile_run(dup.id)
+    tab.load_target_settings()
+    tab.save_target_settings()
+    assert "printer" not in _stored(proj.run(dup.id))
+    assert _screen(tab)[1] != {"PageSize": "A4", "MediaType": "Glossy"}
+
+
+def test_d4_a_printer_no_longer_installed(qapp, tmp_path):
+    """PS-8: opens on the saved default printer, and looking keeps the run's
+    stored printer untouched."""
+    s, fm, ctl = _env(tmp_path)
+    s.set("last_printer", QB)
+    run1 = fm.project().run("run1")
+    _store_printer(run1, "Gone_Queue", {"PageSize": "A4"})
+    tab = _tab(s, ctl)
+    _shown(tab)
+    tab.load_target_settings()
+    assert _screen(tab)[0] == QB
+    tab.save_target_settings()
+    stored = _stored(run1)
+    assert stored["printer"] == "Gone_Queue"
+    assert stored["printer_options"] == {"Gone_Queue": {"PageSize": "A4"}}
+    # a change made by the user is stored, and the old queue's options kept
+    _choose(tab, QB, MediaType="Matte")
+    tab.save_target_settings()
+    stored = _stored(run1)
+    assert stored["printer"] == QB
+    assert stored["printer_options"]["Gone_Queue"] == {"PageSize": "A4"}
+
+
+def test_d1_the_first_listing_of_printers_is_not_a_choice(qapp, tmp_path):
+    """The tab's first showing selects the saved default printer; that is
+    not the user's pick either."""
+    s, fm, ctl = _env(tmp_path)
+    s.set("last_printer", QB)
+    tab = _tab(s, ctl)
+    tab.load_target_settings()
+    _shown(tab)
+    assert _screen(tab)[0] == QB
+    tab.save_target_settings()
+    assert "printer" not in _stored(fm.project().run("run1"))
