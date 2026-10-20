@@ -146,7 +146,8 @@ def test_ghostscript_applies_a_featurebegin_choice(tmp_path):
 
 def test_the_failure_window_gets_windows_sentence_alone(tmp_path, monkeypatch):
     import ctypes
-    monkeypatch.setattr(ctypes, "get_last_error", lambda: 1801)
+    # ctypes.get_last_error exists only on Windows; the gate runs on macOS too
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 1801, raising=False)
     monkeypatch.setattr(ctypes, "FormatError",
                         lambda code=None: "Der Druckername ist unzulässig.  ",
                         raising=False)
