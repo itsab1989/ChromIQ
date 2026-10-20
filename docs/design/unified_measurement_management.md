@@ -7146,10 +7146,10 @@ alone.
 
 > **How was this run’s profiling chart printed?**
 >
-> This run’s profiling chart was printed with ChromIQ 4.3.4 or earlier. Those versions did not record how a chart was sent to the printer, so ChromIQ cannot tell which way it went. A verification chart only gives a fair result if it goes to the printer the same way as the profiling chart did.
+> This run’s profiling chart was printed before ChromIQ 4.3.5. Those versions did not record how a chart was sent to the printer, so ChromIQ cannot tell which way it went. A verification chart only gives a fair result if it goes to the printer the same way as the profiling chart did.
 >
 > •  If you printed it with ChromIQ’s own printing (“Use default macOS printer dialog” switched off in Preferences), everything is fine. Choose “Print anyway”.
-> •  If you printed it through the macOS print dialog, the printer adjusted its colours on the way. Choose “Use the print dialog” to print this verification chart the same way, letting the printer adjust the colours as Preview does, so it matches the profile. Or print and measure the profiling chart again with this version of ChromIQ, and build its profile again, before you verify it.
+> •  If you printed it through the macOS print dialog, the printer adjusted its colours on the way. Choose “Use the print dialog” to print this verification chart the same way, letting the printer adjust the colours as Preview does, as it did for the profile. Or print and measure the profiling chart again with this version of ChromIQ, and build its profile again, before you verify it.
 
 ### M-x. Which table uses which message
 

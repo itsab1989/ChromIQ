@@ -5865,7 +5865,7 @@ _PRINT_LIKE_PREVIEW_BTN_ANYWAY = "Print anyway"
 M_PRINT_VERIFY_PS_EARLIER_ASK = _m(
     "M-PRINT-VERIFY-PS-EARLIER-ASK",
     "How was this run\u2019s profiling chart printed?",
-    "This run\u2019s profiling chart was printed with ChromIQ 4.3.4 or earlier. "
+    "This run\u2019s profiling chart was printed before ChromIQ 4.3.5. "
     "Those versions did not record how a chart was sent to the printer, so "
     "ChromIQ cannot tell which way it went. A verification chart only gives a "
     "fair result if it goes to the printer the same way as the profiling "
@@ -5876,7 +5876,7 @@ M_PRINT_VERIFY_PS_EARLIER_ASK = _m(
     "\u2022  If you printed it through the macOS print dialog, the printer "
     "adjusted its colours on the way. Choose \u201cUse the print dialog\u201d "
     "to print this verification chart the same way, letting the printer "
-    "adjust the colours as Preview does, so it matches the profile. Or print "
+    "adjust the colours as Preview does, as it did for the profile. Or print "
     "and measure the profiling chart again with this version of ChromIQ, and "
     "build its profile again, before you verify it.",
     approved=False)

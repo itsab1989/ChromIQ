@@ -234,7 +234,10 @@ def test_knuts_run_is_warned_before_the_direct_route_sends_his_verification_char
     # the tab's note keeps the approved M-PRINT-VERIFY-PS-EARLIER
     title, body = MM.M_PRINT_VERIFY_PS_EARLIER_ASK.render()
     assert seen[0][0] == title and seen[0][1] == body
-    assert "4.3.4" in body and "Print anyway" in body and "Use the print dialog" in body
+    # R3-2 (Basti, 2026-10-20): exact whether or not the chart has a record
+    assert "printed before ChromIQ 4.3.5" in body and "4.3.4" not in body
+    assert "as it did for the profile" in body and "matches the profile" not in body
+    assert "Print anyway" in body and "Use the print dialog" in body
     assert sorted(seen[0][2]) == ["Cancel", "Print anyway", "Use the print dialog"]
     assert seen[0][3] == "Cancel", "nothing is sent unless the user says so"
     _answer(monkeypatch, mac, "Print anyway")
