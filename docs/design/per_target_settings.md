@@ -550,8 +550,8 @@ Knut, 2026-10-07, #182 [6045500910](https://github.com/itsab1989/ChromIQ/issues/
 
 **In scope: Create Chart, Measure, Build Profile, Calibration & Profiling.**
 Print Chart and Check & Refine *"can be kept as is for now"*.
-(Print Chart: proposed in scope since 2026-10-20 on Knut's report, see §5a;
-not yet confirmed by a person, and the table row below says so.)
+(Print Chart: in scope since 2026-10-20 on Knut's report, see §5a, confirmed
+by Basti, 2026-10-20.)
 
 Measure was out of scope in the analysis and Knut put it in — *"Add measure tab
 too"*, and, on the §1 list, *"Looks ok, but measure tab must be included."* The
@@ -562,14 +562,14 @@ and the resume tick that disagreed with itself.
 | Tab | In scope | Store |
 |---|---|---|
 | 1. Create Chart | ✅ | `<stem>.channels.json` (extended) |
-| 2. Print Chart | proposed: yes, see §5a (Knut, 2026-10-20; not yet confirmed) | `runs/runN/meta.json` / `runs/runN/verifications/meta.json` / `cal/meta.json`, key `print_settings` |
+| 2. Print Chart | ✅ since 4.3.8, see §5a (Knut's rule of 2026-10-20, confirmed by Basti, 2026-10-20) | `runs/runN/meta.json` / `runs/runN/verifications/meta.json` / `cal/meta.json`, key `print_settings` |
 | 3. Measure | ✅ | `runs/runN/meta.json` / `cal/meta.json` |
 | 4. Build Profile / Calibration & Profiling | ✅ | `runs/runN/meta.json` / `cal/meta.json` |
 | 5. Check & Refine | ❌ for now | — |
 
-### 5a. ⏳ Awaiting confirmation: every Print Chart setting is the run's own (4.3.8)
+### 5a. ✅ Confirmed behaviour: every Print Chart setting is the run's own (4.3.8)
 
-**Confirmed by:** *nobody yet.*
+**Confirmed by:** Basti, 2026-10-20
 
 Knut, by email, 2026-10-20 ("Print Chart settings bug"):
 
@@ -582,8 +582,8 @@ Knut, by email, 2026-10-20 ("Print Chart settings bug"):
 > between runs…"*
 
 This is §0's rule (*"several actors can change that parameter"*) applied to the
-tab §5 left out. Knut has stepped back; Basti approves in his place, and only
-explicitly. Until then this section is a proposal that the code already follows.
+tab §5 left out. Knut has stepped back; Basti approved the rule and the rules
+PS-1 to PS-8 below, as built, on 2026-10-20.
 
 **What was wrong (4.3.7, measured on screen).** The printer and every option row
 (paper size, media type, paper source, quality, every row the driver offers)
