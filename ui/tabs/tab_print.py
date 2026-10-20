@@ -1446,7 +1446,10 @@ class TabPrint(QWidget):
         None (ask after the dialog) when there is none and it can be asked;
         else the default."""
         from workflow import ppd_color as forms
-        once = getattr(self, "_ps_form_this_print", None)
+        try:
+            once = getattr(self, "_ps_form_this_print", None)
+        except RuntimeError:   # a wrapper whose QWidget was never built (tests)
+            once = None
         if once:
             return once        # M-PRINT-VERIFY-PS-EARLIER-ASK's "Use the print dialog"
         stored = self._ps_form_stored()
