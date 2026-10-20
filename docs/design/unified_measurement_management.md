@@ -7178,7 +7178,7 @@ alone.
 >
 > Nothing was printed.
 >
-> What you can do: untick “Use default Windows printer dialog” in Preferences and print again. A PostScript printer then receives the chart directly from ChromIQ, with every colour value unchanged. If your printer does not understand PostScript, print the chart from a RIP (printing software that controls the printer itself), or make an RGB chart in step 1.
+> What you can do: if your printer understands PostScript, untick “Use default Windows printer dialog” in Preferences and print again: ChromIQ then sends it the chart directly, with every colour value unchanged. Otherwise print the chart from a RIP (printing software that controls the printer itself), or make an RGB chart in step 1.
 
 ### M-PRINT-WIN-DIALOG-TOO-BIG · PROPOSED · a window when the chart is larger than the paper chosen in the Windows print dialog · Print Chart tab, Windows, 4.3.8
 
@@ -7210,7 +7210,7 @@ alone.
 
 > **The print dialog chose another printer**
 >
-> You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on the printer you last used from ChromIQ, not on the one ChromIQ asks for, so this is easy to miss.
+> You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on the printer you last used from ChromIQ, not on the one ChromIQ asks for, so the wrong printer is easy to miss.
 >
 > Do you want to print the chart on {chosen}? If not, press Cancel, print again and choose {wanted} in the print dialog.
 

@@ -292,8 +292,8 @@ _TT_PRINT_WINDOWS_DIALOG_EXTRA = (
     "printer driver. ChromIQ tells you if you try.\n\n**Prefer to print "
     "without a dialog?** Untick \"Use default Windows printer dialog\" in "
     "Preferences. ChromIQ then sends the chart directly to a PostScript "
-    "printer, bypassing its driver, so no colour setting can get in the "
-    "way."
+    "printer, bypassing the printer driver, so no colour setting can get "
+    "in the way."
 )
 
 #: #205 (4.3.8): the help of ChromIQ's own route on Windows.
@@ -332,11 +332,11 @@ _TT_BODY_PRINT_WINDOWS_DIRECT = (
 _WIN_DIALOG_NOTICE_EXTRA = (
     "ChromIQ prints the chart at exactly 100% size, centred on the paper, "
     "so choose a paper size in the dialog that the chart fits on. CMYK and "
-    "multi-ink charts cannot go through this dialog.\n\nWould you rather "
-    "print without a dialog? Untick \"Use default Windows printer dialog\" "
-    "in Preferences. A PostScript printer then receives the chart directly "
-    "from ChromIQ, bypassing its driver, so no colour setting can get in "
-    "the way."
+    "multi-ink charts cannot go through this dialog: ChromIQ tells you if "
+    "you try.\n\nWould you rather print without a dialog? Untick \"Use "
+    "default Windows printer dialog\" in Preferences. A PostScript printer "
+    "then receives the chart directly from ChromIQ, bypassing the printer "
+    "driver, so no colour setting can get in the way."
 )
 
 #: #205 (4.3.8): the tab's notice on ChromIQ's own Windows route.
@@ -347,9 +347,9 @@ _WIN_DIRECT_NOTICE = (
     "pigment inks to dry fully before measuring (at least 1 h; 24 h for "
     "best accuracy).\n\nChromIQ prints this chart itself, without a print "
     "dialog. A PostScript printer receives the chart directly, bypassing "
-    "its driver, so nothing can change the colours on the way: it gets the "
-    "chart's own colour values at exactly 100% size. The settings above "
-    "are part of the print job. Settings made in the printer's own "
+    "the printer driver, so nothing can change the colours on the way: it "
+    "gets the chart's own colour values at exactly 100% size. The settings "
+    "above are part of the print job. Settings made in the printer's own "
     "Properties window in Windows are not used.\n\nA printer that does not "
     "understand PostScript (most home and photo inkjets) gets an RGB chart "
     "through the Windows print dialog, where you switch its colour "
@@ -379,10 +379,8 @@ _WIN_NOT_POSTSCRIPT_BODY = (
     "chart directly with every colour value unchanged."
 )
 _WIN_PS_NO_OPTIONS = (
-    "This PostScript printer's driver offers no settings to choose here. "
-    "The chart is printed on the paper the printer driver uses by default. "
-    "If the chart is larger than that paper, ChromIQ warns you before "
-    "printing."
+    "This PostScript printer's driver offers no settings to choose here. ChromIQ asks "
+    "the printer for a page the size of the chart, so load paper the chart fits on."
 )
 
 # ---------------------------------------------------------------------------

@@ -344,8 +344,12 @@ def main() -> int:
     settings.set("update_notify", False)
     settings.set("restore_last_session", False)
     settings.set("confirm_before_printing", True)
-    from core.i18n import set_language
+    # as main() does: the catalogue, the window titles, and Qt's own strings
+    # (the standard OK / Cancel / Close buttons)
+    from core.i18n import install_qt_translator, set_language, tr
     set_language(ARGS.lang)
+    app.setApplicationDisplayName(tr("ChromIQ — Printer Profiling"))
+    install_qt_translator(app)
     RESULT["settings_file"] = settings._qs.fileName()
     RESULT["dialog_route_is_the_default"] = bool(settings.get("use_native_print_dialog", None))
 

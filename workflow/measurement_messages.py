@@ -5872,7 +5872,7 @@ M_PRINT_WIN_INKS_NOT_POSTSCRIPT = _m(
 M_PRINT_WIN_DIALOG_NOT_RGB = _m(
     "M-PRINT-WIN-DIALOG-NOT-RGB",
     "This chart cannot go through the Windows print dialog",
-    "This chart has {inks}, but the Windows print dialog can only pass RGB colours to the printer. Sending it this way would change every patch\u2019s colour on the way, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.\n\nNothing was printed.\n\nWhat you can do: untick \u201cUse default Windows printer dialog\u201d in Preferences and print again. A PostScript printer then receives the chart directly from ChromIQ, with every colour value unchanged. If your printer does not understand PostScript, print the chart from a RIP (printing software that controls the printer itself), or make an RGB chart in step 1.",
+    "This chart has {inks}, but the Windows print dialog can only pass RGB colours to the printer. Sending it this way would change every patch\u2019s colour on the way, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.\n\nNothing was printed.\n\nWhat you can do: if your printer understands PostScript, untick \u201cUse default Windows printer dialog\u201d in Preferences and print again: ChromIQ then sends it the chart directly, with every colour value unchanged. Otherwise print the chart from a RIP (printing software that controls the printer itself), or make an RGB chart in step 1.",
     approved=False)
 #: The Windows dialog route places the chart at exactly 100 % since 4.3.8;
 #: until then it scaled every chart to fill the paper's printable area. A
@@ -5902,7 +5902,7 @@ M_PRINT_WIN_SPOOLER_FAILED = _m(
 M_PRINT_WIN_DIALOG_OTHER_PRINTER = _m(
     "M-PRINT-WIN-DIALOG-OTHER-PRINTER",
     "The print dialog chose another printer",
-    "You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on the printer you last used from ChromIQ, not on the one ChromIQ asks for, so this is easy to miss.\n\nDo you want to print the chart on {chosen}? If not, press Cancel, print again and choose {wanted} in the print dialog.",
+    "You chose {wanted} on the Print Chart tab, but the Windows print dialog was set to {chosen} when you pressed Print. Windows 11 opens its print dialog on the printer you last used from ChromIQ, not on the one ChromIQ asks for, so the wrong printer is easy to miss.\n\nDo you want to print the chart on {chosen}? If not, press Cancel, print again and choose {wanted} in the print dialog.",
     approved=False)
 _PRINT_OTHER_PRINTER_BTN = "Print on {printer}"
 
