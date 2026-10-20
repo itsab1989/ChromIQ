@@ -4036,9 +4036,13 @@ class TabPrint(QWidget):
                         from workflow import native_print_macos as _npm
                         from workflow import verification_print as _vp
                         sub = _npm.last_submission
+                        # P16: the record names the QUEUE; the dialog knows
+                        # only the name macOS shows (review of fix/4.3.8, D5)
+                        _shown = getattr(sub, "printer_display", None) if sub is not None else None
                         self._note_print_path(
                             _vp.PATH_DIALOG,
-                            (getattr(sub, "queue", None) or getattr(sub, "printer_display", None)
+                            (getattr(sub, "queue", None)
+                             or (_npm._queue_name(_shown) if _shown else None)
                              or printer or "") if sub is not None else (printer or ""),
                             (getattr(sub, "postscript_form", None) or "") if sub is not None else "")
                         if sub is not None:

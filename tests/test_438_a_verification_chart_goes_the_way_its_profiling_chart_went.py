@@ -294,11 +294,15 @@ def test_the_dialog_route_records_the_form_the_job_went_in(qapp, tmp_path, mac, 
         npm.last_submission = sub
         return True
     monkeypatch.setattr(npm, "print_frames", fake)
+    # P16: `printer` is the QUEUE, not the name macOS shows (review of
+    # fix/4.3.8, D5); the dialog only knows the display name
+    monkeypatch.setattr(npm, "_queue_name", lambda shown: {
+        "HP Color LaserJet 5550": "HP_CLJ5550_PostScript"}.get(shown, shown))
     monkeypatch.setattr(tab, "_start_read_back", lambda *a, **k: None)
     tab._print_native([(tmp_path / "p.tif", 0)])
     rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert (rec["path"], rec["printer"], rec["postscript"]) == (
-        "dialog", "HP Color LaserJet 5550", MACOS)
+        "dialog", "HP_CLJ5550_PostScript", MACOS)
 
 
 def test_the_direct_route_records_the_printers_own_rgb_on_a_postscript_queue(
