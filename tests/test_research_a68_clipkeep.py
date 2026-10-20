@@ -17,11 +17,12 @@ class _Lin:
         return np.sqrt(np.clip(np.asarray(s, float), 0.0, None))
 
 
-def test_off_by_default_and_known():
+def test_integration9_default_with_off_switch():
     from workflow.profile_engine import builder
     assert "a68-clipkeep" in builder.ENGINE_CANDIDATE_TOKENS
-    assert "a68-clipkeep" not in builder.ACCURATE_DEFAULT_TOKENS
-    assert "a68-clipkeep" not in builder.accurate_candidates([])
+    assert "a68-clipkeep" in builder.ACCURATE_DEFAULT_TOKENS
+    assert "a68-clipkeep" in builder.accurate_candidates([])
+    assert "a68-clipkeep" not in builder.accurate_candidates(["no-a68-clipkeep"])
 
 
 def test_far_clipped_node_takes_its_clip_back(monkeypatch):

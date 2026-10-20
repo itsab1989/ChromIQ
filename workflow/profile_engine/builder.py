@@ -166,6 +166,17 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a58-keep-a40", "no-a60-darkacc", "no-a62-camhue",
      # Integration 8b: the off switches of its two new defaults
      "no-a63-palefine", "no-a63-lowgrid",
+     # Integration 9: its defaults (research tokens of Agents 65-71 that
+     # were not registered here), their off switches, and the CMY scope
+     "a66-cmyaxis", "a66-refitguard", "a67-camratio", "a67-guardall-dark",
+     "a67-guardpolish", "a69-cmykport", "a69-cmykport-oog",
+     "a69-cmykport-oogfine", "a70-edgesmooth", "a70-edgeadapt",
+     "a70-foldcap", "a70-blackshell", "a71-darkray", "a72-cmyonly",
+     "no-a65-cmykhue-bluejab", "no-a66-cmyaxis", "no-a66-refitguard",
+     "no-a67-camratio", "no-a67-guardall-dark", "no-a67-guardpolish",
+     "no-a68-clipkeep", "no-a69-cmykport", "no-a69-cmykport-oog",
+     "no-a69-cmykport-oogfine", "no-a70-edgesmooth", "no-a70-edgeadapt",
+     "no-a70-foldcap", "no-a71-darkray", "no-a72-cmyonly",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -307,6 +318,38 @@ INT8_TOKENS = frozenset({
 # coarse table is never coarser than colprof's -qm grid 17 (a63-lowgrid).
 # RGB Maximum accuracy B2A1 only; each has a "no-<token>" switch.
 INT8B_TOKENS = frozenset({"a63-palefine", "a63-lowgrid"})
+# Integration 9 (2026-10-20, Agent 72, Findings/agent72-01-integration9.md;
+# Basti's eye verdicts RESUME.md s66-s73): ON as well
+#   CMYK (4 inks): a65-cmykhue-bluejab (the colorimetric clip measures hue in
+#     CIECAM02 Jab inside the blue hue window; it acts on every ink device,
+#     CMY included), a69-cmykport + a69-cmykport-oog + a69-cmykport-oogfine
+#     (colprof's per-node clip recipe for the clipped CMYK nodes, the
+#     engine's table where printable), a70-edgesmooth + a70-edgeadapt (the
+#     slope break at the gamut edge of colour-to-black ramps softened),
+#     a70-foldcap (printers whose inks lighten the black), a71-darkray (the
+#     dark end below the black; replaces a70-blackshell, which stays off);
+#   CMY (3 inks, no black): a66-cmyaxis (neutral axis, column and dark
+#     floor), and INT9_CMY_TOKENS below;
+#   RGB: a68-clipkeep (a clipped node keeps its clip where the refit throws
+#     it far off, on a folded response such as Knut's printer).
+INT9_TOKENS = frozenset({
+    "a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
+    "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
+    "a70-edgeadapt", "a70-foldcap", "a71-darkray"})
+# a67-camratio (colprof's Jab chroma : lightness balance per target),
+# a67-guardall-dark + a67-guardpolish (the B2A refit no longer pulls dark
+# near-surface nodes too dark) passed Basti's eye on CMY ONLY and were
+# rejected on CMYK (2026-10-16). The two guard tokens act only through
+# a66-refitguard (b2a.refine_b2a_clut), which is therefore part of the set:
+# the CMY candidate Basti judged (Agent 67's cmy-gpcr) had it on. On by
+# default, but while "a72-cmyonly" is in the set (the default) they are
+# taken out of every build that is not a 3-channel ink device;
+# "no-a72-cmyonly" gives back Agent 67's research behaviour (all ink
+# devices), "no-<token>" switches one off.
+INT9_CMY_TOKENS = frozenset({
+    "a66-refitguard", "a67-camratio", "a67-guardall-dark",
+    "a67-guardpolish"})
+A72_CMY_ONLY = "a72-cmyonly"
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
@@ -316,7 +359,18 @@ ACCURATE_DEFAULT_TOKENS = frozenset({
     "a40-inklimit", "a42-nearblack", "a43-shadowdetail-width",
     "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
     "a44b-smoothexact", "a45-c1space", "a45-darkend",
-    "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS
+    "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS | INT9_TOKENS \
+    | INT9_CMY_TOKENS | {A72_CMY_ONLY}
+
+
+def scope_device_tokens(candidates, *, n: int, is_additive: bool) -> frozenset:
+    """Integration 9: with "a72-cmyonly" in the set, INT9_CMY_TOKENS act on
+    a 3-channel ink device (CMY) only; every other device gets the set
+    without them. Without "a72-cmyonly" the set is returned unchanged."""
+    candidates = frozenset(candidates)
+    if A72_CMY_ONLY in candidates and (is_additive or n != 3):
+        return candidates - INT9_CMY_TOKENS
+    return candidates
 
 
 # Research integration 2 (2026-10-05): Agent 15's repaired GP layer
@@ -944,6 +998,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # #123 candidates only ever modify the maximum-accuracy pipeline.
     candidates = accurate_candidates(settings.engine_candidates) \
         if accurate else frozenset()
+    # Integration 9: the CMY-only defaults leave every other device's set
+    candidates = scope_device_tokens(candidates, n=n,
+                                     is_additive=meas.is_additive)
     if accurate:
         # Maximum-accuracy mode: unbiased media white/black from duplicate
         # patches (after the -R/-u mutations above), measured extra-ink hues.

@@ -35,8 +35,16 @@ _INT8 = {"a58-purecolprof", "a58-keep-black", "a58-keep-grid33in",
 # integration 8b (Findings/agent63-01-pale.md): pale in-gamut accuracy near
 # the paper white, and no coarse table below grid 17 at quality l; RGB only
 _INT8B = {"a63-palefine", "a63-lowgrid"}
+# integration 9 (Findings/agent72-01-integration9.md): CMYK (a65 blue, a69
+# port, a70 edge/fold, a71 dark end), CMY (a66-cmyaxis + the CMY-only a67 set
+# with a66-refitguard, scoped by a72-cmyonly), RGB (a68-clipkeep)
+_INT9 = {"a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
+         "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
+         "a70-edgeadapt", "a70-foldcap", "a71-darkray",
+         "a66-refitguard", "a67-camratio", "a67-guardall-dark",
+         "a67-guardpolish", "a72-cmyonly"}
 _DEF = ({"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6
-        | _INT7 | _INT8 | _INT8B)
+        | _INT7 | _INT8 | _INT8B | _INT9)
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -59,11 +67,11 @@ def test_agent9_tokens_are_off_by_default():
 
 def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-b2a33s"}) == ({"rgbpos", "v4prm", "rgbcol"}
-                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _FIN3)
+                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _FIN3)
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
                                 "no-rgbcol", "no-fin3"}
-                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B}) == frozenset()
-    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B:
+                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9}) == frozenset()
+    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9:
         assert "no-" + t in ENGINE_CANDIDATE_TOKENS
 
 
@@ -112,3 +120,27 @@ def test_colpin_is_off_and_f09_on_by_default():
     assert "v4prm" in accurate_candidates(frozenset())
     assert "v4prm" not in accurate_candidates({"no-v4prm"})
     assert candidates_from_env("no-v4prm") == {"no-v4prm"}
+
+
+def test_integration9_cmy_tokens_act_on_cmy_only():
+    from workflow.profile_engine.builder import (INT9_CMY_TOKENS,
+                                                 scope_device_tokens)
+    on = accurate_candidates(frozenset())
+    assert INT9_CMY_TOKENS <= on
+    # CMY (3 ink channels): kept
+    assert scope_device_tokens(on, n=3, is_additive=False) == on
+    # CMYK, 6 inks, RGB: taken out, nothing else touched
+    for n, add in ((4, False), (6, False), (3, True)):
+        assert scope_device_tokens(on, n=n, is_additive=add) == on - INT9_CMY_TOKENS
+    # "no-a72-cmyonly" gives Agent 67's research behaviour back (every device)
+    raw = accurate_candidates({"no-a72-cmyonly"})
+    assert scope_device_tokens(raw, n=4, is_additive=False) == raw
+    assert INT9_CMY_TOKENS <= raw
+    # one CMY token switched off stays off on CMY
+    one = accurate_candidates({"no-a67-camratio"})
+    assert "a67-camratio" not in scope_device_tokens(one, n=3, is_additive=False)
+
+
+def test_a70_blackshell_stays_off():
+    assert "a70-blackshell" not in accurate_candidates(frozenset())
+    assert "a70-blackshell" in ENGINE_CANDIDATE_TOKENS

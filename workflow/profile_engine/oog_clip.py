@@ -104,6 +104,11 @@ PARAMS: dict = {
     # clip's hue frame follows this space's constant-hue lines instead of
     # Oklab's ("" = off): "cam02" is colprof's own clip hue (Argyll CIECAM02)
     "a65": "",
+    # Agents 66 / 67 (set by b2a.set_research_tokens on every build; read
+    # with these same defaults through .get, so listing them here changes no
+    # build, it only lets a reset compare equal to DEFAULTS; integration 9)
+    "a66_prop": 0, "a66_blendsep_req": False, "a66_sep_tol": 0.10,
+    "a67_dc": None, "a67_cam": None, "a67_camfloor": None, "a67_lift": None,
 }
 
 DEFAULTS = dict(PARAMS)
