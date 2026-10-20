@@ -993,6 +993,37 @@ def _no_real_editor_render(monkeypatch):
                         lambda self, *a, **k: None, raising=False)
 
 
+class SpoolerReachedFromATest(RuntimeError):
+    """A test reached the Windows spooler without asking for it."""
+
+
+@pytest.fixture(autouse=True)
+def _no_real_spooler_jobs(monkeypatch, request):
+    """No test sends a job to, or deletes one from, a real Windows queue.
+
+    Until #205 nothing could: ``AppSettings.get`` forced the dialog route on
+    Windows. Since 4.3.8 a test that sets ``use_native_print_dialog`` False
+    reaches ChromIQ's own route, ``WindowsRawPrinter`` and
+    ``win_spooler.submit`` - and on the development VM the default printer is
+    a real Epson on the network. A test that means to talk to a test queue
+    marks itself ``@pytest.mark.real_spooler``; every other one gets a
+    ``SpoolerReachedFromATest`` instead of a print."""
+    if request.node.get_closest_marker("real_spooler"):
+        return
+    try:
+        from workflow import win_spooler
+    except Exception:
+        return
+
+    def _refuse(*_a, **_k):
+        raise SpoolerReachedFromATest(
+            "a test reached the Windows spooler; mark it real_spooler if it "
+            "means to, and print only to a ChromIQ-Test queue")
+
+    monkeypatch.setattr(win_spooler, "submit", _refuse)
+    monkeypatch.setattr(win_spooler, "cancel_jobs", _refuse)
+
+
 @pytest.fixture(autouse=True)
 def _no_native_print_dialog(monkeypatch):
     """Never let a test open the Qt native print dialog — it blocks for ever.
@@ -1000,12 +1031,13 @@ def _no_native_print_dialog(monkeypatch):
     The same "passes on Mac, hangs on Windows" shape as the editor render above.
     ``TabPrint._print_native_qt`` opens ``QPrintDialog(...).exec()``, a modal
     with no one to click it, so any test that reaches it wedges the headless
-    suite until it is killed. And it IS reached on Windows even when a test sets
-    ``use_native_print_dialog`` False: ``AppSettings.get`` forces that flag True
-    on Windows (there is no ``lp`` there), so ``_on_print_current`` takes the
-    native branch, whereas on macOS the same branch goes to the driver-native
-    path instead of a Qt modal — which is why it only hangs on Windows (#130,
-    beta.221 gate). Tests that care about the print path stub ``_print_pages`` /
+    suite until it is killed. Until 4.3.8 it was reached on Windows even when a
+    test set ``use_native_print_dialog`` False, because ``AppSettings.get``
+    forced that flag True there; since #205 ChromIQ's own route can hand an RGB
+    chart for a printer that is not PostScript to this dialog too. On macOS the
+    native branch goes to the driver-native path instead of a Qt modal, which
+    is why it only hangs on Windows (#130, beta.221 gate). Tests that care about
+    the print path stub ``_print_pages`` /
     ``_print_native`` themselves and assert on the conversion + record, which
     happen before this call; this only removes the un-clickable window.
     """

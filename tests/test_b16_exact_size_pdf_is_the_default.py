@@ -88,8 +88,16 @@ def test_it_runs_once_so_a_later_off_is_respected(tmp_path):
 
 @pytest.mark.parametrize("route", [True, False, "true", "false"])
 def test_the_migration_never_touches_the_print_route(tmp_path, route):
+    """The schema-28 step leaves the route alone. On Windows a stored OFF
+    from before schema 31 is dropped by ANOTHER step (#205,
+    ``_migrate_windows_print_dialog``: it was never a choice there), which
+    ``test_205_windows_direct_print`` pins; so there only an ON is asked."""
+    import sys
     s = _settings(tmp_path, False, use_native_print_dialog=route)
     s.migrate()
+    if sys.platform == "win32" and str(route).lower() == "false":
+        assert s._qs.value("use_native_print_dialog") is None
+        return
     assert s._qs.value("use_native_print_dialog") == route
 
 

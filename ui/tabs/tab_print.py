@@ -45,6 +45,7 @@ from workflow.page_geometry import (
     read_tiff_dimensions_points,
 )
 from workflow.print_manager import PrintModule
+from workflow.win_raw_printer import WindowsRawPrinter
 
 # CUPS option names that represent a paper-size selection — used to find which
 # combo value to look up in the PPD when computing orientation / mismatch.
@@ -278,6 +279,111 @@ _TT_BODY_PRINT_WINDOWS = (
     "pigment inks) before measuring."
 )
 
+
+#: #205 (4.3.8): what the Windows dialog route does since 4.3.8, after the
+#: help above (kept as it was approved and translated).
+_TT_PRINT_WINDOWS_DIALOG_EXTRA = (
+    "**Size:** ChromIQ prints the chart at exactly 100% size, centred on "
+    "the paper, so that every patch is where your measuring instrument "
+    "expects it. Choose a paper size in the dialog that the chart fits on. "
+    "If the chart is larger than the paper, ChromIQ tells you instead of "
+    "shrinking it.\n\n**CMYK and multi-ink charts** cannot go through the "
+    "Windows print dialog, because Windows passes only RGB colours to the "
+    "printer driver. ChromIQ tells you if you try.\n\n**Prefer to print "
+    "without a dialog?** Untick \"Use default Windows printer dialog\" in "
+    "Preferences. ChromIQ then sends the chart directly to a PostScript "
+    "printer, bypassing its driver, so no colour setting can get in the "
+    "way."
+)
+
+#: #205 (4.3.8): the help of ChromIQ's own route on Windows.
+_TT_BODY_PRINT_WINDOWS_DIRECT = (
+    "This step prints the chart from step 1 directly, without a print "
+    "dialog.\n\n**How the chart reaches the printer:**\n• A PostScript "
+    "printer receives the chart straight from ChromIQ. (PostScript is a "
+    "printer language that many office, large-format and professional "
+    "photo printers understand.) The printer driver is bypassed, so "
+    "nothing on the way can adjust the colours: the printer gets the "
+    "chart's own RGB, CMYK or ink values, at exactly 100% size. CMYK and "
+    "multi-ink charts work too.\n• Most home and photo inkjet printers do "
+    "not understand PostScript. For these, ChromIQ opens the Windows print "
+    "dialog for an RGB chart. There, open the printer's Properties window "
+    "and switch its colour adjustment off. A CMYK or multi-ink chart "
+    "cannot reach such a printer unchanged, so ChromIQ tells you and does "
+    "not print it.\n\n**Before you print:**\n• Load the exact paper you chose "
+    "in step 1. Different paper = different profile.\n• Make sure the "
+    "printer is on, has ink, and is selected below.\n• Use the same ink, "
+    "paper and print settings every time you re-profile this printer: the "
+    "profile only matches that recipe.\n\n**How to use this screen:**\n• Pick "
+    "the printer and the paper size, and the media type and quality if the "
+    "printer offers them. ChromIQ puts these settings into the print job "
+    "itself. Settings you made earlier in the printer's own Properties "
+    "window in Windows are not used for this print.\n• Click \"Print\". No "
+    "print dialog appears: the chart goes straight to the "
+    "printer.\n\n**After printing:** let the print dry fully (at least 1 "
+    "hour, 24 h for best accuracy with pigment inks) before measuring. Wet "
+    "ink reads wrong.\n\nIf you'd rather use the Windows print dialog for "
+    "every printer, tick \"Use default Windows printer dialog\" in "
+    "Preferences."
+)
+
+#: #205 (4.3.8): the tab's notice on the Windows dialog route gains this
+#: paragraph after its approved text.
+_WIN_DIALOG_NOTICE_EXTRA = (
+    "ChromIQ prints the chart at exactly 100% size, centred on the paper, "
+    "so choose a paper size in the dialog that the chart fits on. CMYK and "
+    "multi-ink charts cannot go through this dialog.\n\nWould you rather "
+    "print without a dialog? Untick \"Use default Windows printer dialog\" "
+    "in Preferences. A PostScript printer then receives the chart directly "
+    "from ChromIQ, bypassing its driver, so no colour setting can get in "
+    "the way."
+)
+
+#: #205 (4.3.8): the tab's notice on ChromIQ's own Windows route.
+_WIN_DIRECT_NOTICE = (
+    "⚠  Check that all print settings above match the paper you are "
+    "printing on.\n\nWrong media type or quality settings put down the wrong "
+    "amount of ink, and the colours you measure will be wrong. Allow "
+    "pigment inks to dry fully before measuring (at least 1 h; 24 h for "
+    "best accuracy).\n\nChromIQ prints this chart itself, without a print "
+    "dialog. A PostScript printer receives the chart directly, bypassing "
+    "its driver, so nothing can change the colours on the way: it gets the "
+    "chart's own colour values at exactly 100% size. The settings above "
+    "are part of the print job. Settings made in the printer's own "
+    "Properties window in Windows are not used.\n\nA printer that does not "
+    "understand PostScript (most home and photo inkjets) gets an RGB chart "
+    "through the Windows print dialog, where you switch its colour "
+    "adjustment off yourself. ChromIQ does not print a CMYK or multi-ink "
+    "chart on such a printer, because its colours would be changed."
+)
+
+#: #205 (4.3.8): the options box for a printer whose driver is not PostScript
+#: on ChromIQ's own Windows route, in place of the macOS AirPrint box.
+_WIN_NOT_POSTSCRIPT_TITLE = "This printer does not understand PostScript"
+_WIN_NOT_POSTSCRIPT_BODY = (
+    "<b>{printer}</b> uses a printer driver that cannot receive "
+    "PostScript, so ChromIQ cannot send the chart to it "
+    "directly.<br><br><b>What happens when you click Print:</b><br>• An "
+    "<b>RGB chart</b> opens in the Windows print dialog, with this printer "
+    "already chosen. Choose the paper and quality there. Then open the "
+    "printer's Properties window and switch its colour adjustment "
+    "off:<br>&nbsp;&nbsp;– Epson: “Epson Color Controls” → Off (No Color "
+    "Adjustment)<br>&nbsp;&nbsp;– Canon: “Color Options” → Manual → "
+    "None<br>&nbsp;&nbsp;– HP: “Color Options” → Application Managed "
+    "Colors<br>&nbsp;&nbsp;– Others: look for “No Color Management”, “Off” "
+    "or “Application Controlled”<br>• A <b>CMYK or multi-ink chart</b> "
+    "cannot reach this printer without its driver changing the colours, so "
+    "ChromIQ does not print it.<br><br>This is normal for most home and "
+    "photo inkjet printers. A printer with a PostScript driver, or a RIP "
+    "(printing software that controls the printer itself), receives the "
+    "chart directly with every colour value unchanged."
+)
+_WIN_PS_NO_OPTIONS = (
+    "This PostScript printer's driver offers no settings to choose here. "
+    "The chart is printed on the paper the printer driver uses by default. "
+    "If the chart is larger than that paper, ChromIQ warns you before "
+    "printing."
+)
 
 # ---------------------------------------------------------------------------
 # Feature A (#130) — the §6 help and state texts of
@@ -584,7 +690,9 @@ class TabPrint(QWidget):
         super().__init__(parent)
         self._settings = settings
         self._module   = PrintModule()
-        self._printer  = CupsRawPrinter()
+        # #205: ChromIQ's own route on Windows sends a PostScript printer the
+        # chart raw through the spooler, with the same call as CUPS' lp
+        self._printer  = WindowsRawPrinter() if is_windows() else CupsRawPrinter()
         self._tiff_pages: list[Path] = []
         self._current_ti2: Path | None = None
         self._target_ctl = None          # shared Profile-run / Run-type controller (#130)
@@ -1638,6 +1746,10 @@ class TabPrint(QWidget):
         try:
             if bool(self._settings.get("use_native_print_dialog", False)) and is_macos():
                 return True
+            if bool(self._settings.get("use_native_print_dialog", False)) and is_windows():
+                # as before #205: the Windows dialog route had no printer list,
+                # and the printer is chosen only in the dialog
+                return False
             queue = self._printer_combo.currentData() or ""
             return bool(queue) and _queue_cmyk_raster(queue) is not None
         except Exception:  # noqa: BLE001 - a notice must never break the tab
@@ -2405,6 +2517,9 @@ class TabPrint(QWidget):
             return
 
         opts = self._module.query_options(printer)
+        if not opts and is_windows():
+            self._add_windows_no_options_box(printer)
+            return
         if not opts:
             box = QFrame(self)
             box.setFrameShape(QFrame.Shape.NoFrame)
@@ -2491,6 +2606,34 @@ class TabPrint(QWidget):
         self._restoring = False
         self._refresh_quality_row(keep_current=True)
         self._preselect_paper_for_chart()
+
+    def _add_windows_no_options_box(self, printer: str) -> None:
+        """#205: a Windows printer with nothing to choose on ChromIQ's own
+        route: a PostScript driver whose PPD offers no choice (a line), or a
+        driver that is not PostScript (the box: what Print will do)."""
+        from workflow import win_spooler
+        if win_spooler.is_postscript(printer):
+            lbl = QLabel(tr(_WIN_PS_NO_OPTIONS), self)
+            lbl.setWordWrap(True)
+            self._opts_layout.addWidget(lbl)
+            return
+        box = QFrame(self)
+        box.setFrameShape(QFrame.Shape.NoFrame)
+        box.setObjectName("airprintInfoBox")
+        box_layout = QVBoxLayout(box)
+        box_layout.setContentsMargins(10, 8, 10, 8)
+        box_layout.setSpacing(6)
+        title = QLabel(tr(_WIN_NOT_POSTSCRIPT_TITLE), box)
+        title.setObjectName("airprintInfoTitle")
+        box_layout.addWidget(title)
+        body = QLabel(tr(_WIN_NOT_POSTSCRIPT_BODY).format(
+            printer=_html_escape(printer)), box)
+        body.setWordWrap(True)
+        body.setTextFormat(Qt.TextFormat.RichText)
+        body.setObjectName("airprintInfoBody")
+        box_layout.addWidget(body)
+        self._apply_airprint_box_styles(box)
+        self._opts_layout.addWidget(box)
 
     def _preselect_paper_for_chart(self) -> None:
         """Beta 16 package (Basti, 2026-10-09): a paper size row left at
@@ -2924,6 +3067,12 @@ class TabPrint(QWidget):
         if not self._handle_stuck_jobs(printer):
             return
 
+        if is_windows() and not self._windows_queue_takes_postscript(printer):
+            # #205: the driver takes RGB only; an RGB chart goes through the
+            # Windows dialog (on this printer), any other is refused
+            self._print_windows_not_postscript(pages, printer)
+            return
+
         selected_opts = {k: (c.currentData() or "") for k, c in self._option_combos.items()}
         first_tiff, _ = pages[0]
         orientation, page_size_pt, mismatch = self._compute_geometry(
@@ -3012,6 +3161,64 @@ class TabPrint(QWidget):
             if self._send_page(path, frame, orientation, page_size_pt):
                 submitted = True
         self._commit_print_record(submitted)
+
+    @staticmethod
+    def _windows_queue_takes_postscript(printer: str) -> bool:
+        from workflow import win_spooler
+        return win_spooler.is_postscript(printer)
+
+    @staticmethod
+    def _non_rgb_inks(pages: list[tuple[Path, int]]) -> "str | None":
+        """The inks of the first page that is not RGB (``chart_inks
+        .ink_set_label``), None when every page is RGB or grey. A page that
+        cannot be read counts as RGB here: the print path says why it cannot
+        print it, as before."""
+        from workflow import chart_inks
+        for tiff, frame in pages:
+            try:
+                codes = (_find_sidecar_channels(tiff)
+                         or chart_inks.sidecar_ink_codes(tiff))
+                if chart_inks.is_rgb_page(tiff, frame, codes):
+                    continue
+                n, phot = chart_inks.page_photometric(tiff, frame)
+                if n < 3:
+                    continue           # grey: GDI carries it as it is
+                plan = chart_inks.plan_for(n, phot, codes)
+                inks = list(plan.codes) if plan is not None else codes
+                return chart_inks.ink_set_label(inks, n)
+            except Exception:  # noqa: BLE001
+                log.debug("ink check of %s failed", tiff, exc_info=True)
+        return None
+
+    def _show_print_refusal(self, title: str, body: str) -> None:
+        """A §M refusal: its headline IN the box, the body under it."""
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        set_warning_icon(box)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+
+    def _print_windows_not_postscript(self, pages: list[tuple[Path, int]],
+                                      printer: str) -> None:
+        """#205: ChromIQ's own route, a Windows printer whose driver is not
+        PostScript. Its driver takes RGB only (GDI), so an RGB chart is handed
+        to the Windows print dialog opened on this printer, and a CMYK or
+        multi-ink chart is refused (M-PRINT-WIN-INKS-NOT-POSTSCRIPT): through
+        the driver every patch would be converted."""
+        inks = self._non_rgb_inks(pages)
+        if inks is None:
+            log.info("Print: %s is not a PostScript printer; the RGB chart goes "
+                     "through the Windows print dialog", printer)
+            self._print_native(pages, printer=printer)
+            return
+        from workflow import measurement_messages as MM
+        log.warning("Print: refused a %s chart on %s, which is not a PostScript "
+                    "printer (M-PRINT-WIN-INKS-NOT-POSTSCRIPT)", inks, printer)
+        self._show_print_refusal(*MM.M_PRINT_WIN_INKS_NOT_POSTSCRIPT.render(
+            printer=printer, inks=inks))
+        self._commit_print_record(False)
 
     def _commit_print_record(self, submitted: bool) -> None:
         """Write the held print record, or drop it (R6 F5).
@@ -3264,6 +3471,9 @@ class TabPrint(QWidget):
         from workflow import measurement_messages as MM
         from workflow.cups_printer import CupsRawPrinter, PrintConfig
         pp = None
+        if isinstance(getattr(self, "_printer", None), WindowsRawPrinter):
+            # #205: raw PostScript, no paper-profile job on Windows
+            return [(tr(MM._PRINT_ROW_COLOUR), tr("Off (forced)"))]
         if first_tiff is not None:
             pp = CupsRawPrinter._reference_paper_profile(
                 first_tiff, PrintConfig(printer_name=printer, options=selected_opts))
@@ -3307,6 +3517,9 @@ class TabPrint(QWidget):
         project's) is "Preview and most other apps": the direct route can
         only send the chart as the printer's own RGB."""
         from workflow import ppd_color as forms
+        if not is_macos():
+            # its choices are those of the macOS dialog (#205: not Windows)
+            return False
         if self._ps_form_stored() != forms.POSTSCRIPT_AS_MACOS:
             return False
         return self._is_postscript_queue(printer)
@@ -3770,6 +3983,14 @@ class TabPrint(QWidget):
     def _on_print_done(self, code: int) -> None:
         if code == 0:
             self._set_status(tr("Print job submitted successfully."))
+        elif is_windows():
+            # #205: the spooler's own reason; there is no CUPS, nor lp
+            from workflow import measurement_messages as MM
+            title, body = MM.M_PRINT_WIN_SPOOLER_FAILED.render(
+                printer=self._printer_combo.currentData() or "",
+                reason=getattr(self._printer, "last_error", "") or "?")
+            self._set_status(title)
+            self._show_print_refusal(title, body)
         else:
             self._set_status(tr("Print failed (lp exit code {code}).").format(code=code))
             QMessageBox.critical(
@@ -3868,7 +4089,10 @@ class TabPrint(QWidget):
 
     def _compute_print_tooltip(self) -> tuple[str, str]:
         if is_windows():
-            return tr(_TT_TITLE_PRINT), tr(_TT_BODY_PRINT_WINDOWS)
+            if bool(self._settings.get("use_native_print_dialog", True)):
+                return tr(_TT_TITLE_PRINT), (tr(_TT_BODY_PRINT_WINDOWS) + "\n\n"
+                                             + tr(_TT_PRINT_WINDOWS_DIALOG_EXTRA))
+            return tr(_TT_TITLE_PRINT), tr(_TT_BODY_PRINT_WINDOWS_DIRECT)
         if is_linux():
             return tr(_TT_TITLE_PRINT), tr(_TT_BODY_PRINT_LINUX)
         if is_macos():
@@ -4026,9 +4250,12 @@ class TabPrint(QWidget):
                     "\"Application Controlled\"\n\n"
                     "Allow pigment inks to dry fully before measuring "
                     "(at least 1 h; 24 h for best accuracy).")
+                    + "\n\n" + tr(_WIN_DIALOG_NOTICE_EXTRA)
                 )
             else:
                 self._warn_lbl.setText(self._macos_dialog_notice())
+        elif is_windows():
+            self._warn_lbl.setText(tr(_WIN_DIRECT_NOTICE))
         else:
             if is_macos() and bool(self._settings.get("pdf_print_fallback", True)):
                 fallback_sentence = tr(
@@ -4158,25 +4385,89 @@ class TabPrint(QWidget):
             if cmyk_printer is not None:
                 self._tell_cmyk_raster_once(cmyk_printer)
             return
-        self._print_native_qt(pages)
+        self._print_native_qt(pages, printer=printer)
 
-    def _print_native_qt(self, pages: list[tuple[Path, int]]) -> None:
-        from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
-        from PyQt6.QtGui import QPainter, QImage
+    def _print_native_qt(self, pages: list[tuple[Path, int]],
+                         printer: "str | None" = None) -> None:
+        """The Windows print dialog route (Qt's QPrintDialog, GDI).
+
+        Since 4.3.8 (#205) the chart is placed on the paper at EXACTLY 100 %,
+        centred, turned a quarter when only that fits, as ChromIQ's
+        PostScript places it. Until then it was scaled to fill the printable
+        area (``KeepAspectRatio`` into the painter's viewport): an A4 chart on
+        A4 came out at the printable area's size, and a small chart was
+        enlarged to the page, so no patch was where the instrument expected
+        it. A chart larger than the paper chosen in the dialog is not shrunk:
+        nothing is printed (M-PRINT-WIN-DIALOG-TOO-BIG). And a chart that is
+        not RGB is refused before the dialog (M-PRINT-WIN-DIALOG-NOT-RGB):
+        GDI carries RGB only, and it used to be converted without a word.
+        *printer*: the queue the dialog opens on (ChromIQ's own route hands
+        over an RGB chart for a printer that is not PostScript)."""
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QImage, QPageLayout, QPainter
+        from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
         from PyQt6.QtWidgets import QDialog
+        from workflow import measurement_messages as MM
 
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        dialog = QPrintDialog(printer, self)
+        inks = self._non_rgb_inks(pages)
+        if inks is not None:
+            log.error("Windows print dialog refused a %s chart "
+                      "(M-PRINT-WIN-DIALOG-NOT-RGB)", inks)
+            self._show_print_refusal(*MM.M_PRINT_WIN_DIALOG_NOT_RGB.render(inks=inks))
+            self._commit_print_record(False)
+            return
+
+        sizes: list[tuple[float, float]] = []
+        for tiff_path, _frame in pages:
+            try:
+                sizes.append(read_tiff_dimensions_points(tiff_path))
+            except Exception as exc:  # noqa: BLE001 - said below, per page
+                log.warning("Native print: no size for %s: %s", tiff_path.name, exc)
+                sizes.append((0.0, 0.0))
+
+        qprinter = QPrinter(QPrinter.PrinterMode.HighResolution)
+        if printer:
+            qprinter.setPrinterName(printer)
+        # the chart's own size on the paper: no margins, the paper's corner
+        # is the painter's origin
+        qprinter.setFullPage(True)
+        if sizes and sizes[0][0] > sizes[0][1]:
+            qprinter.setPageOrientation(QPageLayout.Orientation.Landscape)
+        dialog = QPrintDialog(qprinter, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             # Cancelled at the OS dialog: nothing was printed, so no record.
             self._commit_print_record(False)
             return
 
-        painter = QPainter(printer)
+        paper = qprinter.pageLayout().fullRectPoints()
+        pw, ph = float(paper.width()), float(paper.height())
+        turns: list[bool] = []
+        for (w, h), (tiff_path, _frame) in zip(sizes, pages):
+            fits = w <= pw * 1.02 and h <= ph * 1.02
+            fits_turned = h <= pw * 1.02 and w <= ph * 1.02
+            if w and h and not fits and not fits_turned:
+                def _mm(a: float, b: float) -> str:
+                    return f"{a * 25.4 / 72:.0f} × {b * 25.4 / 72:.0f} mm"
+                log.error("Windows print dialog: %s is %.0f x %.0f pt, larger than "
+                          "the paper %.0f x %.0f pt; nothing printed",
+                          tiff_path.name, w, h, pw, ph)
+                self._show_print_refusal(*MM.M_PRINT_WIN_DIALOG_TOO_BIG.render(
+                    chart=_mm(w, h), paper=_mm(pw, ph)))
+                self._commit_print_record(False)
+                return
+            turns.append(bool(w and h and not fits))
+
+        painter = QPainter(qprinter)
+        if not painter.isActive():
+            log.error("Windows print dialog: the printer did not start the job")
+            self._commit_print_record(False)
+            return
+        res = float(qprinter.resolution())
+        page_px = qprinter.pageLayout().fullRectPixels(int(res))
         drawn = 0
-        for i, (tiff_path, frame) in enumerate(pages):
+        for i, ((tiff_path, frame), (w, h), turn) in enumerate(zip(pages, sizes, turns)):
             if i > 0:
-                printer.newPage()
+                qprinter.newPage()
             try:
                 img = Image.open(tiff_path)
                 n_frames = getattr(img, "n_frames", 1)
@@ -4191,14 +4482,26 @@ class TabPrint(QWidget):
                 if qimg.isNull():
                     log.warning("Native print: QImage is null for %s frame %d", tiff_path.name, frame)
                     continue
+                if not (w and h):
+                    log.warning("Native print: %s has no size; not printed", tiff_path.name)
+                    continue
+                cw, ch = w / 72.0 * res, h / 72.0 * res      # device pixels
+                dw, dh = (ch, cw) if turn else (cw, ch)       # as it lies on the paper
+                x0 = (page_px.width() - dw) / 2.0
+                y0 = (page_px.height() - dh) / 2.0
                 painter.save()
-                rect = painter.viewport()
-                size = qimg.size()
-                size.scale(rect.size(), Qt.AspectRatioMode.KeepAspectRatio)
-                painter.setViewport(rect.x(), rect.y(), size.width(), size.height())
-                painter.setWindow(qimg.rect())
-                painter.drawImage(0, 0, qimg)
+                painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+                if turn:
+                    painter.translate(x0 + dw, y0)
+                    painter.rotate(90)
+                    painter.drawImage(QRectF(0.0, 0.0, cw, ch), qimg)
+                else:
+                    painter.drawImage(QRectF(x0, y0, cw, ch), qimg)
                 painter.restore()
+                log.info("Native print: %s frame %d at 100%% (%.1f x %.1f mm)%s on "
+                         "%.1f x %.1f mm paper", tiff_path.name, frame,
+                         w * 25.4 / 72, h * 25.4 / 72, ", turned" if turn else "",
+                         pw * 25.4 / 72, ph * 25.4 / 72)
                 drawn += 1
             except Exception as exc:
                 log.warning("Native print: cannot render %s frame %d: %s", tiff_path.name, frame, exc)

@@ -15,6 +15,7 @@ import functools
 import pathlib
 from dataclasses import dataclass
 import re
+import sys
 from core.text_io import read_text
 from core.logger import get_logger
 
@@ -1480,6 +1481,10 @@ def paper_profile_for_queue(queue_name: str, options: dict[str, str] | None = No
 
 
 def ppd_path_for_queue(queue_name: str) -> str | None:
+    if sys.platform == "win32":
+        # #205: a Windows PostScript driver's PPD (its data file), else None
+        from workflow import win_spooler
+        return win_spooler.ppd_path(queue_name)
     for base in ("/etc/cups/ppd", "/private/etc/cups/ppd"):
         p = pathlib.Path(f"{base}/{queue_name}.ppd")
         if p.exists():

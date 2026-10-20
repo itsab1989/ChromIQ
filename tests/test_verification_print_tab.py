@@ -40,21 +40,10 @@ def _env(tmp_path):
     s.set("custom_output_path", str(tmp_path))
     # The lp path is the deterministic one for tests; the native dialog would
     # open a real window (and its failure path a real modal) offscreen.
+    # Until 4.3.8 `AppSettings.get` answered True for this key on Windows
+    # whatever was stored, and this store had to be patched to honour it; since
+    # #205 Windows has ChromIQ's own route and the stored value counts there too.
     s.set("use_native_print_dialog", False)
-    if os.name == "nt":
-        # `AppSettings.get` answers True for this key on Windows whatever is
-        # stored (there is no lp there, core/settings.py), so the lp path these
-        # tests drive was never reached and the radio stub saw nothing. The
-        # stored value is honoured for THIS store only, so the conversion and
-        # the record behind the radio are checked on Windows too.
-        _get = s.get
-
-        def _honour_the_stored_route(key, default=None):
-            if key == "use_native_print_dialog":
-                return str(s._qs.value(key, False)).lower() in ("true", "1")
-            return _get(key, default)
-
-        s.get = _honour_the_stored_route
     fm = FileManager(s)
     Project.create(tmp_path / "P", "P").current_run().ensure_dir()
     fm.set_target_name("P")
@@ -113,6 +102,10 @@ def _ready_to_print(tab, s, *, exit_code: int = 0, reachable: bool = True,
     tab._printer_combo.setCurrentIndex(0)
     tab._printer.is_printer_reachable = lambda name: reachable
     tab._module.get_stuck_jobs = lambda name: []
+    # #205: on Windows "A printer" stands for a PostScript queue, the one
+    # kind ChromIQ's own route sends `print_job_ps` (any other is handed to
+    # the Windows dialog, or refused)
+    tab._windows_queue_takes_postscript = lambda name: True
     sent: list = []
 
     def _fake_lp(tiff_path, config, ink_channels=None, on_finish=None,
@@ -260,8 +253,8 @@ def test_raw_choice_is_recorded_and_prints_unconverted(
     monkeypatch.setattr(
         "workflow.verification_print.convert_pages_through_profile",
         lambda *a, **k: pytest.fail("raw must not convert"))
-    # Windows forces use_native_print_dialog True (no lp); pin the lp path so
-    # the same assertion holds on every platform.
+    # Pin ChromIQ's own route (lp; on Windows, since #205, the spooler) so the
+    # same assertion holds on every platform.
     s.set("use_native_print_dialog", False)
     sent = _ready_to_print(tab, s)
     tab._cm_raw_rb.setChecked(True)
@@ -355,6 +348,8 @@ def test_a_job_the_queue_refuses_leaves_no_print_record(
     monkeypatch.setattr(QMessageBox, "critical", staticmethod(
         lambda *a, **k: None))
     sent = _ready_to_print(tab, s, exit_code=1)
+    # #205: on Windows the spooler's refusal has its own window
+    monkeypatch.setattr(tab, "_show_print_refusal", lambda *a, **k: None)
 
     tab._on_print_current()
     assert len(sent) == 1                    # it really was submitted

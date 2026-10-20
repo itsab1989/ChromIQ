@@ -119,7 +119,11 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # 5979780372, "all are ok" (question 1 of 5979436912, its wording).
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
-AWAITING_APPROVAL: "set[str]" = {"M-PATCH-SIMILAR",
+AWAITING_APPROVAL: "set[str]" = {
+    # #205 (4.3.8): the Windows print route, proposed 2026-10-20
+    "M-PRINT-WIN-INKS-NOT-POSTSCRIPT", "M-PRINT-WIN-DIALOG-NOT-RGB",
+    "M-PRINT-WIN-DIALOG-TOO-BIG", "M-PRINT-WIN-SPOOLER-FAILED",
+    "M-PATCH-SIMILAR",
                                  # (M-PRINT-VERIFY-PS-EARLIER-ASK, the P18
                                  # window's own wording, sat here for one
                                  # round: Basti approved it on 2026-10-20.)

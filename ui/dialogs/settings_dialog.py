@@ -35,7 +35,7 @@ from core.platform_paths import (
     default_argyll_bin_dir,
     is_macos,
     is_windows,
-    native_print_supported,
+    print_route_switch_supported,
 )
 from core.updater import UpdateChecker, WEBSITE_URL, _RELEASES_PAGE
 from core.version import APP_VERSION
@@ -3715,22 +3715,48 @@ class SettingsDialog(QDialog):
         # (The measurement-report options moved to their own Reports tab, Knut.)
         _beta.addStretch()
 
-        self._native_print_check = QCheckBox(tr("Use default macOS printer dialog"), self)
-        native_tip = TooltipButton(
-            tr("Use default macOS printer dialog"),
-            tr("When enabled, clicking Print in the Print Chart tab opens the standard\n"
-            "macOS print dialog instead of ChromIQ's built-in PostScript / CUPS pipeline.\n\n"
-            "ChromIQ sets application colour matching for you and attaches the paper "
-            "profile of the medium you choose; you do not need to change colour "
-            "settings in the dialog.\n\n"
-            "The dialog works with any printer: where the driver has paper profiles, "
-            "its own dialog chooses one. ChromIQ's own route knows the paper profiles "
-            "of the Canon and Epson models whose drivers it can read or which it has "
-            "measured, and learns any other model one paper type at a time, from a "
-            "print through this dialog."),
-            self,
-            min_width=620,
-        )
+        if is_windows():
+            # #205 (4.3.8): Windows has ChromIQ's own route too, and the same
+            # switch; the dialog stays the default
+            native_label = tr("Use default Windows printer dialog")
+            native_body = tr(
+                "When this is ticked (the default), clicking Print on the Print Chart "
+                "tab opens the familiar Windows print dialog. You choose the printer, "
+                "paper and quality there, just as in any other program.\n\nWindows "
+                "printer drivers usually adjust colours to make photos look nicer. For "
+                "a profiling chart that must not happen, so switch the colour "
+                "adjustment off in the printer's Properties window before printing. "
+                "The Print Chart tab shows where to find this setting on Epson, Canon "
+                "and HP printers. ChromIQ prints the chart at exactly 100% size, "
+                "centred on the paper.\n\nWhen this is unticked, ChromIQ prints the "
+                "chart itself, without a dialog. You choose the printer, the paper "
+                "size and, where the printer offers them, the media type and quality "
+                "directly on the Print Chart tab.\n  • A PostScript printer receives "
+                "the chart directly from ChromIQ. (PostScript is a printer language "
+                "that many office, large-format and professional photo printers "
+                "understand.) The printer driver is bypassed, so nothing can adjust "
+                "the colours on the way: the printer gets the chart's own RGB, CMYK or "
+                "ink values, at exactly 100% size. This also works for CMYK and "
+                "multi-ink charts.\n  • Most home and photo inkjet printers do not "
+                "understand PostScript. For those, an RGB chart still goes through the "
+                "Windows print dialog. A CMYK or multi-ink chart cannot be printed on "
+                "such a printer without its colours being changed, so ChromIQ tells "
+                "you and does not print it.\n\n**Default:** on")
+        else:
+            native_label = tr("Use default macOS printer dialog")
+            native_body = tr(
+                "When enabled, clicking Print in the Print Chart tab opens the standard\n"
+                "macOS print dialog instead of ChromIQ's built-in PostScript / CUPS pipeline.\n\n"
+                "ChromIQ sets application colour matching for you and attaches the paper "
+                "profile of the medium you choose; you do not need to change colour "
+                "settings in the dialog.\n\n"
+                "The dialog works with any printer: where the driver has paper profiles, "
+                "its own dialog chooses one. ChromIQ's own route knows the paper profiles "
+                "of the Canon and Epson models whose drivers it can read or which it has "
+                "measured, and learns any other model one paper type at a time, from a "
+                "print through this dialog.")
+        self._native_print_check = QCheckBox(native_label, self)
+        native_tip = TooltipButton(native_label, native_body, self, min_width=620)
 
         self._pdf_fallback_check = QCheckBox(
             tr("Exact-size PDF fallback (ChromIQ printing)"), self
@@ -3766,19 +3792,33 @@ class SettingsDialog(QDialog):
         self._confirm_print_check = QCheckBox(
             tr("Confirm print settings before printing"), self
         )
+        if is_windows():
+            # #205: the same window on ChromIQ's own Windows route, which has
+            # no CUPS
+            confirm_body = tr(
+                "When this is ticked, ChromIQ shows a summary before every print, so "
+                "you can check everything once more before paper and ink are used:\n\n  "
+                "• Printer, paper size, media type, quality and paper tray\n  • Whether "
+                "the chart is printed upright or turned (chosen automatically)\n  • "
+                "That double-sided printing and colour management are switched off\n  • "
+                "Any problem ChromIQ noticed, for example a chart that is larger than "
+                "the paper\n\nThe summary appears when ChromIQ prints the chart itself "
+                "(\"Use default Windows printer dialog\" unticked). With the Windows "
+                "print dialog, the dialog itself is where you check your "
+                "settings.\n\nHighly recommended: a profiling chart printed with the "
+                "wrong settings wastes expensive paper and ink.")
+        else:
+            confirm_body = tr(
+                "When enabled, ChromIQ shows a summary dialog of every option that "
+                "will be sent to CUPS before each print job:\n\n"
+                "  • Printer, paper size, media type, quality, tray, borderless\n"
+                "  • Auto-detected orientation (portrait or landscape)\n"
+                "  • The forced-off state of duplex and colour management\n"
+                "  • Any detected mismatches (e.g. paper size ≠ chart size)\n\n"
+                "Highly recommended — profiling targets waste expensive paper and "
+                "ink when printed with the wrong settings.")
         confirm_tip = TooltipButton(
-            tr("Confirm Print Settings"),
-            tr("When enabled, ChromIQ shows a summary dialog of every option that "
-            "will be sent to CUPS before each print job:\n\n"
-            "  • Printer, paper size, media type, quality, tray, borderless\n"
-            "  • Auto-detected orientation (portrait or landscape)\n"
-            "  • The forced-off state of duplex and colour management\n"
-            "  • Any detected mismatches (e.g. paper size ≠ chart size)\n\n"
-            "Highly recommended — profiling targets waste expensive paper and "
-            "ink when printed with the wrong settings."),
-            self,
-            min_width=560,
-        )
+            tr("Confirm Print Settings"), confirm_body, self, min_width=560)
 
         # The CUPS preflight summary and the PDF fallback only apply to
         # ChromIQ's own print pipeline. When the macOS print dialog is in use,
@@ -3851,15 +3891,15 @@ class SettingsDialog(QDialog):
             _bh_cell(self._declutter_check, declutter_tip),
             _bh_cell(self._splash_check, splash_tip),
         ]
-        if native_print_supported():
+        if print_route_switch_supported():
             bh_cells.append(_bh_cell(self._native_print_check, native_tip))
         # The exact-size PDF fallback addresses a macOS-specific CUPS filter
         # behaviour (cgimagetopdf); skip it elsewhere.
         if is_macos():
             bh_cells.append(_bh_cell(self._pdf_fallback_check, pdf_fallback_tip))
-        # The CUPS preflight summary is a macOS/Linux concept; skip it on Windows.
-        if not is_windows():
-            bh_cells.append(_bh_cell(self._confirm_print_check, confirm_tip))
+        # The confirmation window belongs to ChromIQ's own route, which Windows
+        # has too since #205 (4.3.8): every platform shows it.
+        bh_cells.append(_bh_cell(self._confirm_print_check, confirm_tip))
 
         for i, cell in enumerate(bh_cells):
             bh.addWidget(cell, i // 2, i % 2)
@@ -5734,7 +5774,7 @@ class SettingsDialog(QDialog):
         """Grey out the options that only apply to ChromIQ's own lp pipeline
         while the macOS print dialog is selected — that dialog is its own
         confirmation step, and no PS→PDF/TIFF fallback runs on its path."""
-        if native_print_supported():
+        if print_route_switch_supported():
             lp_path_active = not self._native_print_check.isChecked()
             self._confirm_print_check.setEnabled(lp_path_active)
             self._pdf_fallback_check.setEnabled(lp_path_active)

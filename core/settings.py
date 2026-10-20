@@ -105,8 +105,11 @@ DEFAULTS: dict[str, Any] = {
     # true passthrough) and sets AP_ApplicationColorMatching on the session, in
     # addition to the driver's own no-colour key (e.g. Canon CNIJIntent2=1001).
     # See workflow/native_print_macos.py.  macOS users can still opt back to
-    # ChromIQ's lp path in Settings; Windows has no lp path so it stays
-    # force-locked on there (in get()).
+    # ChromIQ's lp path in Settings. Windows has the same switch since #205
+    # (4.3.8): off sends a PostScript printer ChromIQ's own PostScript raw
+    # through the spooler (workflow/win_raw_printer.py); the dialog stays the
+    # default there too. Until then get() forced it on, because Windows had no
+    # route of ChromIQ's own.
     "use_native_print_dialog":   is_windows() or is_macos(),
     # How many times "Use default macOS printer dialog" has been switched
     # (Knut, #182, 2026-10-13: when that setting changes, the project must
@@ -1009,7 +1012,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 30
+SETTINGS_SCHEMA = 31
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1253,6 +1256,10 @@ class AppSettings:
         if stored_schema < 30 and self._migrate_safenet_default():
             dropped.append("misalign_safenet (the misaligned-strip warning is "
                            "now on by default)")
+        if stored_schema < 31 and self._migrate_windows_print_dialog():
+            dropped.append("use_native_print_dialog (Windows: a value stored "
+                           "while it was forced on; the dialog stays the "
+                           "default)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
@@ -1421,6 +1428,29 @@ class AppSettings:
         if is_true:
             return False
         self._qs.remove("pdf_print_fallback")
+        return True
+
+    def _migrate_windows_print_dialog(self) -> bool:
+        """schema 31 (4.3.8, #205): Windows honours "use_native_print_dialog"
+        for the first time. Until now ``get`` forced it True there, so a value
+        stored before this schema was never a choice on Windows: Preferences
+        showed no box, and no other window writes the key. A stored ``False``
+        (a settings file carried over, a script) would silently switch an
+        upgrading user to ChromIQ's own route, so it is dropped and resolves
+        to the default, the Windows dialog. A stored ``True`` already is.
+        Not on macOS, where the box has always been the user's. Removed
+        directly, so "print_dialog_setting_changes" does not count it as a
+        switch."""
+        if not is_windows():
+            return False
+        raw = self._qs.value("use_native_print_dialog", None)
+        if raw is None:
+            return False
+        is_true = raw is True or (isinstance(raw, str)
+                                  and raw.strip().lower() in ("true", "1", "yes"))
+        if is_true:
+            return False
+        self._qs.remove("use_native_print_dialog")
         return True
 
     def _migrate_safenet_default(self) -> bool:
@@ -1771,13 +1801,11 @@ class AppSettings:
         return changed
 
     def get(self, key: str, default: Any = None) -> Any:
-        # On Windows the OS print dialog is the only path that works (no CUPS,
-        # no driver-side colour-management toggle we can reach from PostScript).
-        # Force the setting True regardless of stored value so a stale False
-        # carried over from an older install can't strand the user on the
-        # non-functional bypass UI.
-        if key == "use_native_print_dialog" and is_windows():
-            return True
+        # Until 4.3.8 "use_native_print_dialog" was forced True on Windows,
+        # where ChromIQ had no route of its own. Since #205 it has one, and a
+        # stored value counts as on macOS. A False stored before 4.3.8 cannot
+        # exist: the Windows Preferences had no box to untick, and the forced
+        # value is what they saved (_save_and_close writes every key).
         fallback = DEFAULTS.get(key, default)
         val = self._qs.value(key, fallback)
         # QSettings can return strings for booleans — coerce

@@ -32,6 +32,13 @@ _EPSON_PSRC_STANDARD = "2"
 _EPSON_PSRC_BORDERLESS = "3"
 
 
+def _windows_spooler() -> bool:
+    """True where printers come from the Windows spooler (#205): Windows, and
+    no CUPS (a Windows install never has pycups; a test that stands a fake
+    CUPS up on Windows keeps the CUPS branches)."""
+    return sys.platform == "win32" and not CUPS_AVAILABLE
+
+
 class PrintModule:
     """Detect installed printers and query their supported options."""
 
@@ -47,7 +54,20 @@ class PrintModule:
         self._borderless_state: dict[str, dict] = {}
 
     def detect_printers(self) -> list[str]:
-        """Return filtered list of non-AirPrint printer names from CUPS."""
+        """Return filtered list of non-AirPrint printer names from CUPS.
+
+        On Windows: every queue the spooler lists (#205). A queue whose driver
+        is not PostScript stays in the list; the Print Chart tab says what
+        ChromIQ's own route does with it."""
+        if _windows_spooler():
+            from workflow import win_spooler
+            try:
+                result = sort_names(win_spooler.list_printers())
+            except OSError as exc:
+                log.warning("detect_printers (spooler) error: %s", exc)
+                return []
+            log.debug("Detected printers: %s", result)
+            return result
         if not CUPS_AVAILABLE:
             return []
         try:
@@ -210,28 +230,13 @@ class PrintModule:
         Returns dict: CUPS_option_name → (category_label, [(display_label, raw_cups_value), ...]).
         """
         result: dict[str, tuple[str, list[tuple[str, str]]]] = {}
-        if not CUPS_AVAILABLE:
+        if not CUPS_AVAILABLE and not _windows_spooler():
             return result
         try:
-            r = run_text(
-                ["lpoptions", "-p", printer, "-l"],
-                capture_output=True, timeout=15,
-                stdin=subprocess.DEVNULL,
-            )
-            # Parse all options: opt_name → (label, [raw_value, ...])
-            all_opts: dict[str, tuple[str, list[str]]] = {}
-            for line in r.stdout.splitlines():
-                if ":" not in line:
-                    continue
-                key_part, vals_part = line.split(":", 1)
-                key_part = key_part.strip()
-                opt_name  = key_part.split("/")[0].strip()
-                opt_label = key_part.split("/")[1].strip() if "/" in key_part else opt_name
-                vals = [v.lstrip("*") for v in vals_part.split() if v.strip()]
-                if len(vals) >= 2:
-                    all_opts[opt_name] = (opt_label, vals)
-
-            ppd_labels = self._parse_ppd_labels(printer)
+            if _windows_spooler():
+                all_opts, ppd_labels = self._windows_ppd_options(printer)
+            else:
+                all_opts, ppd_labels = self._lpoptions(printer),                     self._parse_ppd_labels(printer)
 
             # For each category, pick the first matching option
             for exact_names, label_keywords in self._CATEGORY_SEARCHES:
@@ -298,6 +303,46 @@ class PrintModule:
         result = self._reorder_for_display(result)
         log.debug("Options for %s: %d configurable options", printer, len(result))
         return result
+
+    @staticmethod
+    def _lpoptions(printer: str) -> dict[str, tuple[str, list[str]]]:
+        """Every option ``lpoptions -l`` lists: name -> (label, [raw values])."""
+        r = run_text(
+            ["lpoptions", "-p", printer, "-l"],
+            capture_output=True, timeout=15,
+            stdin=subprocess.DEVNULL,
+        )
+        all_opts: dict[str, tuple[str, list[str]]] = {}
+        for line in r.stdout.splitlines():
+            if ":" not in line:
+                continue
+            key_part, vals_part = line.split(":", 1)
+            key_part = key_part.strip()
+            opt_name  = key_part.split("/")[0].strip()
+            opt_label = key_part.split("/")[1].strip() if "/" in key_part else opt_name
+            vals = [v.lstrip("*") for v in vals_part.split() if v.strip()]
+            if len(vals) >= 2:
+                all_opts[opt_name] = (opt_label, vals)
+        return all_opts
+
+    @classmethod
+    def _windows_ppd_options(cls, printer: str):
+        """``(all_opts, labels)`` as ``_lpoptions`` / ``_parse_ppd_labels``
+        give them, read from the PPD of a Windows PostScript driver (#205);
+        empty for any other driver. ``lpoptions`` lists only options with two
+        or more choices, and so does this."""
+        ppd = cls._find_ppd_path(printer)
+        if not ppd:
+            return {}, {}
+        from workflow.win_raw_printer import ppd_options
+        all_opts: dict[str, tuple[str, list[str]]] = {}
+        labels: dict[str, dict[str, str]] = {}
+        for key, (label, values) in ppd_options(
+                read_text(pathlib.Path(ppd), lenient=True)).items():
+            if len(values) >= 2:
+                all_opts[key] = (label, [v for v, _l in values])
+                labels[key] = {v: lbl for v, lbl in values}
+        return all_opts, labels
 
     @classmethod
     def _reorder_for_display(
@@ -476,6 +521,10 @@ class PrintModule:
 
     @staticmethod
     def _find_ppd_path(printer: str) -> str | None:
+        if _windows_spooler():
+            # #205: the PPD of the queue's PostScript driver, else None
+            from workflow import win_spooler
+            return win_spooler.ppd_path(printer)
         for base in ("/etc/cups/ppd", "/private/etc/cups/ppd"):
             p = pathlib.Path(f"{base}/{printer}.ppd")
             if p.exists():
@@ -583,7 +632,17 @@ class PrintModule:
         return labels
 
     def get_stuck_jobs(self, printer: str) -> list[int]:
-        """Return job IDs in definitively stuck states: held=4, stopped=6, aborted=8."""
+        """Return job IDs in definitively stuck states: held=4, stopped=6, aborted=8.
+
+        On Windows: jobs paused, in error, offline, out of paper, blocked or
+        waiting for the user (``win_spooler.stuck_jobs``)."""
+        if _windows_spooler():
+            from workflow import win_spooler
+            try:
+                return win_spooler.stuck_jobs(printer)
+            except OSError as exc:
+                log.warning("get_stuck_jobs (spooler) error: %s", exc)
+                return []
         if not CUPS_AVAILABLE:
             return []
         try:
@@ -602,6 +661,15 @@ class PrintModule:
 
     def cancel_all_jobs(self, printer: str) -> int:
         """Cancel all non-completed jobs for *printer*. Returns number cancelled."""
+        if _windows_spooler():
+            from workflow import win_spooler
+            try:
+                count = win_spooler.cancel_jobs(printer)
+            except OSError as exc:
+                log.warning("cancel_all_jobs (spooler) error: %s", exc)
+                return 0
+            log.info("Cancelled %d job(s) for printer %s", count, printer)
+            return count
         if not CUPS_AVAILABLE:
             return 0
         try:

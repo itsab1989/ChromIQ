@@ -5853,6 +5853,46 @@ M_PRINT_DIRECT_LIKE_PREVIEW = _m(
 _PRINT_LIKE_PREVIEW_BTN_DIALOG = "Use the print dialog"
 _PRINT_LIKE_PREVIEW_BTN_ANYWAY = "Print anyway"
 
+# --- PROPOSED: ChromIQ's own print route on Windows, 4.3.8 (#205) ----------
+#: Basti, 2026-10-10 (#205): Windows gets the macOS switch. With "Use default
+#: Windows printer dialog" off, a PostScript printer gets ChromIQ's own
+#: PostScript raw through the spooler (``workflow/win_raw_printer.py``); a
+#: printer whose driver is not PostScript takes RGB only, so an RGB chart goes
+#: through the Windows dialog and any other chart is refused (this window,
+#: as ``ChartIsNotRGB`` on the macOS dialog route). {printer} is the queue,
+#: {inks} ``chart_inks.ink_set_label``.
+M_PRINT_WIN_INKS_NOT_POSTSCRIPT = _m(
+    "M-PRINT-WIN-INKS-NOT-POSTSCRIPT",
+    "This printer cannot print this chart unchanged",
+    "{printer} does not understand PostScript, so ChromIQ can only send it the chart through its printer driver, and that driver accepts RGB colours only. This chart is {inks}. On the way through the driver every patch would be converted into RGB, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.\n\nNothing was printed.\n\nWhat you can do:\n\u2022 Print this chart on a PostScript printer.\n\u2022 Print it from a RIP (printing software that controls the printer itself): the chart is stored as TIFF files in the run folder, with its own colour values.\n\u2022 Or make an RGB chart for this printer in step 1.",
+    approved=False)
+#: The Windows print dialog carries RGB only (Qt draws the page through
+#: GDI). Until 4.3.8 it converted any other chart on the way without a word
+#: (``Image.convert("RGB")``), the fault R26-F8 fixed on the macOS dialog.
+M_PRINT_WIN_DIALOG_NOT_RGB = _m(
+    "M-PRINT-WIN-DIALOG-NOT-RGB",
+    "This chart cannot go through the Windows print dialog",
+    "This chart is {inks}, but the Windows print dialog can only pass RGB colours to the printer. Sending it this way would change every patch\u2019s colour on the way, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.\n\nNothing was printed.\n\nWhat you can do: untick \u201cUse default Windows printer dialog\u201d in Preferences and print again. A PostScript printer then receives the chart directly from ChromIQ, with every colour value unchanged. If your printer does not understand PostScript, print the chart from a RIP (printing software that controls the printer itself), or make an RGB chart in step 1.",
+    approved=False)
+#: The Windows dialog route places the chart at exactly 100 % since 4.3.8;
+#: until then it scaled every chart to fill the paper's printable area. A
+#: chart larger than the paper chosen in the dialog (2 % slack, either
+#: orientation) is not shrunk: nothing is printed. {chart} and {paper} are
+#: "W × H mm".
+M_PRINT_WIN_DIALOG_TOO_BIG = _m(
+    "M-PRINT-WIN-DIALOG-TOO-BIG",
+    "The chart does not fit on this paper",
+    "The chart measures {chart}, but the paper chosen in the print dialog is only {paper}.\n\nA profiling chart must be printed at exactly 100% size, so that every patch is where your measuring instrument expects it. ChromIQ therefore does not shrink the chart to fit.\n\nNothing was printed. Print again and choose a paper size in the dialog that the chart fits on. It may lie either way round: ChromIQ turns it automatically.",
+    approved=False)
+#: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
+#: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
+#: job (exit code ...)", which names a system Windows does not have.
+M_PRINT_WIN_SPOOLER_FAILED = _m(
+    "M-PRINT-WIN-SPOOLER-FAILED",
+    "Windows did not accept the print job",
+    "ChromIQ could not hand the chart over to {printer}. Windows gave this reason: {reason}\n\nNothing was printed.\n\nWhat you can do: open Printers & scanners in the Windows settings, choose this printer and check that it is not paused or set to offline, and that no old print job is stuck in its queue. Then print again.",
+    approved=False)
+
 # --- APPROVED: the P18 window's own wording, 4.3.8 (Basti, 2026-10-20) -----
 #: Basti, 2026-10-20: the window before the direct route sends a verification
 #: chart to a PostScript printer, when the run's profiling chart was printed
@@ -6511,6 +6551,8 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_JOB_DEVICE_RGB,
     M_PRINT_PS_FORM_CHOICE, M_PRINT_PS_FORM_HELP, M_PRINT_PS_FORM_HELP_TITLE,
     M_PRINT_PS_PAPER_NOT_LISTED, M_PRINT_DIRECT_LIKE_PREVIEW,
+    M_PRINT_WIN_INKS_NOT_POSTSCRIPT, M_PRINT_WIN_DIALOG_NOT_RGB,
+    M_PRINT_WIN_DIALOG_TOO_BIG, M_PRINT_WIN_SPOOLER_FAILED,
     M_PRINT_PS_ASK, M_PRINT_PS_FORM_APPLIES,
     M_PRINT_PS_FORM_APPLIES_PROJECT,
     M_PRINT_JOB_EPSON_MATCHING_RESET, M_PRINT_JOB_EPSON_MATCHING,

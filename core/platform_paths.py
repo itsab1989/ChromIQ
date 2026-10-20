@@ -465,6 +465,14 @@ def native_print_supported() -> bool:
     return is_macos()
 
 
+def print_route_switch_supported() -> bool:
+    """True where Preferences offers "Use default ... printer dialog": the
+    choice between the OS print dialog and ChromIQ's own route. macOS (lp) and,
+    since #205, Windows (raw PostScript through the spooler). Linux has only
+    ChromIQ's own route."""
+    return is_macos() or is_windows()
+
+
 # ---------------------------------------------------------------------------
 # Naming the platform's own file manager
 # ---------------------------------------------------------------------------
