@@ -1207,6 +1207,38 @@ _RUN_TMP_PID = __import__("re").compile(r"^chromiq-run-(\d+)-")
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if sys.platform == "win32":
+        # `os.kill(pid, 0)` CANNOT ANSWER THIS ON WINDOWS. It is implemented as
+        # OpenProcess + TerminateProcess, and OpenProcess keeps succeeding for a
+        # process that has exited while its kernel object is still referenced —
+        # so every finished run looked alive and its temp folder was never
+        # swept. Measured 2026-10-17: a child that had exited AND had its handle
+        # closed still answered "alive". Ask the process object instead: it is
+        # signalled exactly when the process has ended.
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        k32.OpenProcess.restype = wintypes.HANDLE
+        k32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        k32.WaitForSingleObject.restype = wintypes.DWORD
+        k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        k32.CloseHandle.restype = wintypes.BOOL
+        SYNCHRONIZE = 0x00100000
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        ERROR_ACCESS_DENIED = 5
+        WAIT_OBJECT_0 = 0
+        handle = k32.OpenProcess(
+            SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            # Denied means it is there and belongs to somebody else; anything
+            # else (ERROR_INVALID_PARAMETER for a free pid) means it is gone.
+            return ctypes.get_last_error() == ERROR_ACCESS_DENIED
+        try:
+            return k32.WaitForSingleObject(handle, 0) != WAIT_OBJECT_0
+        finally:
+            k32.CloseHandle(handle)
+
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

@@ -22,6 +22,14 @@ from tests.conftest import (_KEEP_FOREVER, _STALE_AFTER_HOURS,
                             _sweep_stale_temp_dirs)
 
 
+#: `os.utime` on Windows has no `follow_symlinks=False` (NotImplementedError);
+#: these folders hold no symlink for it to matter, so it is only asked for
+#: where the platform has it. Same guard as
+#: `test_session_cleanup_never_touches_personal_data.py`.
+_NO_FOLLOW = ({"follow_symlinks": False}
+              if os.utime in os.supports_follow_symlinks else {})
+
+
 def _aged(path: Path, hours: float) -> Path:
     """Make a folder look *hours* old, portably (os.utime works on Windows)."""
     path.mkdir(parents=True, exist_ok=True)
@@ -30,7 +38,7 @@ def _aged(path: Path, hours: float) -> Path:
     # Everything inside too, deepest first: since review D the sweep keeps a
     # folder with ANYTHING in it changed in the last half hour.
     for p in sorted(path.rglob("*"), key=lambda q: len(q.parts), reverse=True):
-        os.utime(p, (when, when), follow_symlinks=False)
+        os.utime(p, (when, when), **_NO_FOLLOW)
     os.utime(path, (when, when))
     return path
 
