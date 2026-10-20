@@ -229,8 +229,13 @@ def _api():
 
 def _error(what: str) -> SpoolerError:
     code = ctypes.get_last_error()
-    return SpoolerError(code, f"{what}: {ctypes.FormatError(code).strip()}"
-                        if hasattr(ctypes, "FormatError") else f"{what}: {code}")
+    text = (ctypes.FormatError(code).strip() if hasattr(ctypes, "FormatError")
+            else str(code))
+    err = SpoolerError(code, f"{what}: {text}")
+    #: Windows' own sentence alone, for the window (#205 review: str() of the
+    #: error reads "[Errno 1801] OpenPrinter('...'): ..."); the log keeps all
+    err.windows_text = text
+    return err
 
 
 class _Printer:

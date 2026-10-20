@@ -40,6 +40,38 @@ _OPENUI_RE = re.compile(
     r'^\*(?:JCL)?OpenUI\s+\*(\S+?)\s*(?:/([^:]*))?:\s*(PickOne|Boolean|PickMany)',
     re.M | re.I)
 _ORDER_RE = re.compile(r'^\*(?:Non)?OrderDependency:\s*([\d.]+)\s+(\S+)\s+\*(\S+)', re.M)
+_INCLUDE_RE = re.compile(r'^\*Include:\s*"([^"]+)"[ \t]*$', re.M)
+
+#: PSCRIPT5's prolog defines ``featurebegin`` / ``featurecleanup``, which the
+#: Xerox v4 PPDs and the Microsoft PS Class Driver's call in every choice
+#: (``featurebegin{<< /MediaType (...) >> setpagedevice}featurecleanup``). A
+#: raw job carries no such prolog, so without these the ``stopped`` around the
+#: feature swallowed an ``undefined`` and the choice was never applied (#205
+#: review, measured with Ghostscript). Defined only where the printer lacks them.
+_FEATUREBEGIN_SHIM = ("/featurebegin where { pop } { userdict /featurebegin { } put "
+                      "userdict /featurecleanup { exec } put } ifelse")
+
+
+def read_ppd(path: "str | Path", _depth: int = 0) -> str:
+    """A Windows driver's PPD with its ``*Include`` files in place (#205
+    review): Microsoft's HP DesignJet T1300ps / Z3200ps data file is a stub
+    whose Media Type and Paper Source live in ``*Include: "hpips3.PPD"``.
+    CUPS resolves includes on macOS; a Windows PPD is read here. A relative
+    name is looked up beside the including file; a missing one is left out."""
+    p = Path(path)
+    text = read_text(p, lenient=True)
+    if _depth >= 8 or "*Include" not in text:
+        return text
+
+    def _inline(m: "re.Match[str]") -> str:
+        name = m.group(1).strip()
+        inc = Path(name) if Path(name).is_absolute() else p.parent / name
+        if not inc.is_file():
+            log.warning("PPD %s includes %s, which is not there; left out", p, name)
+            return ""
+        return read_ppd(inc, _depth + 1)
+
+    return _INCLUDE_RE.sub(_inline, text)
 
 
 def _decode(label: str) -> str:
@@ -84,7 +116,8 @@ def ppd_options(ppd_text: str) -> "dict[str, tuple[str, list[tuple[str, str]]]]"
 def feature_code(ppd_text: str, option: str, value: str) -> "str | None":
     """The PostScript code of *option*'s choice *value* in the PPD, None when
     the PPD has no such choice. The quoted string may span lines (it ends at
-    the next ``"``); a code that names a ``^`` invocation is kept as written."""
+    the next ``"``). A symbol value (``*InputSlot Upper: ^UpperTray``) is not
+    resolved: such a choice has no code here and is left out of the job."""
     m = re.search(rf'^\*{re.escape(option)}\s+{re.escape(value)}\s*(?:/[^:]*)?:\s*"',
                   ppd_text, re.M)
     if not m:
@@ -155,6 +188,8 @@ def with_features(ps_text: str, ppd_text: str, options: "dict[str, str]") -> str
     block = ""
     if setup:
         parts = ["%%BeginSetup"]
+        if any("featurebegin" in code for _o, _k, _v, code in setup):
+            parts.append(_FEATUREBEGIN_SHIM)
         for _order, option, value, code in setup:
             parts.append(
                 f"[{{\n%%BeginFeature: *{option} {value}\n{code}\n%%EndFeature\n"
@@ -214,15 +249,27 @@ class WindowsRawPrinter:
         once, with 0 when the spooler took the job, else -1."""
         self.last_job_id = None
         self.last_error = ""
+        self.last_error_is_chart = False
+        self.last_chart_name = tiff_path.name
         self.last_expected = {}
         code = -1
         try:
             data = self.job_bytes(tiff_path, config, ink_channels, page_size_pt)
+        except Exception as exc:  # noqa: BLE001 - ChromIQ's own failure, not Windows'
+            # (review finding 6) the chart could not be read or turned into
+            # PostScript: the tab says so, never "Windows did not accept"
+            self.last_error, self.last_error_is_chart = str(exc), True
+            log.error("Windows raw print: could not build the job for %s: %s",
+                      tiff_path.name, exc)
+            if on_finish:
+                on_finish(code)
+            return
+        try:
             self.last_job_id = win_spooler.submit(
                 config.printer_name, data, f"ChromIQ - {tiff_path.name}")
             code = 0
         except Exception as exc:  # noqa: BLE001 - the window says why
-            self.last_error = str(exc)
+            self.last_error = getattr(exc, "windows_text", "") or str(exc)
             log.error("Windows raw print of %s to %s failed: %s",
                       tiff_path.name, config.printer_name, exc)
         if on_finish:
@@ -238,7 +285,7 @@ class WindowsRawPrinter:
             tiff_path, ink_channels=ink_channels, page_size_pt=page_size_pt)
         ppd = win_spooler.ppd_path(config.printer_name)
         if ppd:
-            ps_text = with_features(ps_text, read_text(Path(ppd), lenient=True),
+            ps_text = with_features(ps_text, read_ppd(ppd),
                                     dict(config.options or {}))
         log.info("Windows raw print: %s to %s, options %s", tiff_path.name,
                  config.printer_name,

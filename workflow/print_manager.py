@@ -334,11 +334,12 @@ class PrintModule:
         ppd = cls._find_ppd_path(printer)
         if not ppd:
             return {}, {}
-        from workflow.win_raw_printer import ppd_options
+        from workflow.win_raw_printer import ppd_options, read_ppd
         all_opts: dict[str, tuple[str, list[str]]] = {}
         labels: dict[str, dict[str, str]] = {}
-        for key, (label, values) in ppd_options(
-                read_text(pathlib.Path(ppd), lenient=True)).items():
+        # with its *Include files (#205 review: the HP DesignJet T1300ps /
+        # Z3200ps keep Media Type and Paper Source in an included PPD)
+        for key, (label, values) in ppd_options(read_ppd(ppd)).items():
             if len(values) >= 2:
                 all_opts[key] = (label, [v for v, _l in values])
                 labels[key] = {v: lbl for v, lbl in values}
