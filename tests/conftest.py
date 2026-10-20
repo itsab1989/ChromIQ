@@ -33,6 +33,28 @@ import sys
 import tempfile
 
 import pytest
+
+# ---------------------------------------------------------------------------
+# ON WINDOWS THE OFFSCREEN PLATFORM GETS THE SYSTEM'S FONTS
+# ---------------------------------------------------------------------------
+# Qt's `offscreen` plugin reads fonts from its own font folder, not from
+# Windows, so on Windows it has NONE (QFontInfo comes back with no family and
+# pixel size -1). Every text then measures as tofu, and
+# `QFontMetrics.boundingRect` reports a right edge of about +100,000 px
+# whatever the family: measured 2026-10-20, "Build printer profile" in
+# Georgia 30 px is 100,629 px offscreen, 264 px on the real `windows`
+# platform, 265 px offscreen with this folder. That was the scanner window's
+# "floor of ~101,000 px in every language" (17 reds in every Windows gate),
+# and it made every other text measurement of a Windows gate a guess: the
+# bundled fonts registered below cover Inter, not Georgia, Menlo or Consolas.
+# The app never runs offscreen, so this is the suite's fault, not the app's.
+# Set before any QApplication exists, and inherited by every probe the
+# suite starts in a subprocess.
+if sys.platform == "win32" and not os.environ.get("QT_QPA_FONTDIR"):
+    _win_fonts = pathlib.Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+    if _win_fonts.is_dir():
+        os.environ["QT_QPA_FONTDIR"] = str(_win_fonts)
+
 # ---------------------------------------------------------------------------
 # ONE QApplication PER WORKER, HELD FOR THE WHOLE RUN
 # ---------------------------------------------------------------------------

@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from core.resource_path import argyll_tool_path   # "cctiff.exe" on Windows (#209)
+
 from tests.argyll_env import argyll_bin_dir, argyll_tool
 from workflow import colorimetric_preview as CP
 
@@ -66,7 +68,7 @@ def test_a_conversion_leaves_no_folder_and_no_file(tmp_path, monkeypatch):
     CP._cache.clear()
     bin_dir = tmp_path / "bin"
     (bin_dir).mkdir()
-    (bin_dir / "cctiff").write_text("", encoding="utf-8")
+    argyll_tool_path(bin_dir, "cctiff").write_text("", encoding="utf-8")
     (tmp_path / "ref").mkdir()
     (tmp_path / "ref" / "sRGB.icm").write_bytes(b"x")
     tif = tmp_path / "page.tif"
@@ -146,7 +148,7 @@ def test_a_chromiq_killed_during_a_conversion_is_swept_by_the_next(tmp_path):
     root = tmp_path / "tmproot"
     root.mkdir()
     (tmp_path / "bin").mkdir()
-    (tmp_path / "bin" / "cctiff").write_text("", encoding="utf-8")
+    argyll_tool_path(tmp_path / "bin", "cctiff").write_text("", encoding="utf-8")
     (tmp_path / "ref").mkdir()
     (tmp_path / "ref" / "sRGB.icm").write_bytes(b"x")
     (tmp_path / "page.tif").write_bytes(b"x")
@@ -202,7 +204,7 @@ def test_the_pages_in_memory_are_bounded_by_bytes_too(tmp_path, monkeypatch):
     CP._cache.clear()
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    (bin_dir / "cctiff").write_text("", encoding="utf-8")
+    argyll_tool_path(bin_dir, "cctiff").write_text("", encoding="utf-8")
     (tmp_path / "ref").mkdir()
     (tmp_path / "ref" / "sRGB.icm").write_bytes(b"x")
     prof = tmp_path / "p.icc"

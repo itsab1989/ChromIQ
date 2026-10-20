@@ -1060,6 +1060,12 @@ def test_the_build_refuses_a_set_this_chromiq_does_not_offer(gen, monkeypatch,
         fake.mkdir()
         (fake / "targen").write_text("", encoding="utf-8")
         monkeypatch.setattr(gen, "ARGYLL", fake)
+        # …and the sRGB profile it checks for beside it (SRGB is worked out
+        # from the default Argyll folder at import, a macOS path)
+        srgb = tmp_path / "ref" / "sRGB.icm"
+        srgb.parent.mkdir()
+        srgb.write_bytes(b"icc")
+        monkeypatch.setattr(gen, "SRGB", srgb)
     rc = gen.main([str(tmp_path)])
     out = capsys.readouterr().out
     assert rc == 2, "the build did not refuse"
