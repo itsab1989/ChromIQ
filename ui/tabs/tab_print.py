@@ -1446,6 +1446,9 @@ class TabPrint(QWidget):
         None (ask after the dialog) when there is none and it can be asked;
         else the default."""
         from workflow import ppd_color as forms
+        once = getattr(self, "_ps_form_this_print", None)
+        if once:
+            return once        # M-PRINT-VERIFY-PS-EARLIER-ASK's "Use the print dialog"
         stored = self._ps_form_stored()
         if stored is not None:
             return stored
@@ -2957,8 +2960,19 @@ class TabPrint(QWidget):
             return
         # 4.3.8 (Knut's run 6): a verification chart whose profiling chart may
         # have gone through 4.3.4's dialog, where the printer converted it.
-        if like_preview is None and not self._confirm_verify_after_an_old_dialog_profile(printer):
-            return
+        # Basti, 2026-10-20: the window offers that way too.
+        if like_preview is None:
+            old_way = self._ask_verify_after_an_old_dialog_profile(printer)
+            if old_way == "dialog":
+                from workflow import ppd_color as _f
+                self._ps_form_this_print = _f.POSTSCRIPT_AS_MACOS
+                try:
+                    self._print_native(pages, printer=printer)
+                finally:
+                    self._ps_form_this_print = None
+                return
+            if old_way not in ("anyway", None):
+                return
 
         # 4.3.5 B2: a chart that is not RGB on a queue that converts its inks
         # (RGB raster) or may print them as a mix (DeviceN). None, and no
@@ -3320,19 +3334,25 @@ class TabPrint(QWidget):
             return False
         return self._is_postscript_queue(printer)
 
-    def _confirm_verify_after_an_old_dialog_profile(self, printer: str) -> bool:
-        """M-PRINT-VERIFY-PS-EARLIER (approved by Basti, 2026-10-11) as a
-        window before a direct-route print (4.3.8): True prints, False sends
-        nothing. Not asked when it does not apply."""
+    def _ask_verify_after_an_old_dialog_profile(self, printer: str) -> "str | None":
+        """M-PRINT-VERIFY-PS-EARLIER-ASK (proposed; Basti's decision of
+        2026-10-20) as a window before a direct-route print (4.3.8, P18):
+        None when it does not apply (the print goes on), else "dialog" (send
+        it through the macOS print dialog, letting the printer adjust the
+        colours, as the old profiling chart may have gone), "anyway", or ""
+        (Cancel, the default: nothing sent). The tab's note keeps the approved
+        M-PRINT-VERIFY-PS-EARLIER."""
         if not self._verify_after_an_old_dialog_profile(printer):
-            return True
+            return None
         from workflow import measurement_messages as MM
-        title, body = MM.M_PRINT_VERIFY_PS_EARLIER.render()
+        title, body = MM.M_PRINT_VERIFY_PS_EARLIER_ASK.render()
         dlg = QMessageBox(self)
         dlg.setWindowTitle(title)
         set_warning_icon(dlg)
         dlg.setText(title)
         dlg.setInformativeText(body)
+        dialog_btn = dlg.addButton(tr(MM._PRINT_LIKE_PREVIEW_BTN_DIALOG),
+                                   QMessageBox.ButtonRole.AcceptRole)
         anyway_btn = dlg.addButton(tr(MM._PRINT_LIKE_PREVIEW_BTN_ANYWAY),
                                    QMessageBox.ButtonRole.DestructiveRole)
         cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
@@ -3343,13 +3363,18 @@ class TabPrint(QWidget):
         keep_message_box_inside_the_work_area(dlg)
         fit_message_box_buttons(dlg)
         dlg.exec()
-        if dlg.clickedButton() is anyway_btn:
+        clicked = dlg.clickedButton()
+        if clicked is dialog_btn:
+            log.info("Print: a verification chart handed to the macOS print dialog, "
+                     "letting the printer adjust the colours (M-PRINT-VERIFY-PS-EARLIER-ASK)")
+            return "dialog"
+        if clicked is anyway_btn:
             log.warning("Print: a verification chart sent by the direct route to %s "
                         "although its profiling chart may have gone through the "
                         "4.3.4 dialog", printer)
-            return True
-        log.info("Print: cancelled at M-PRINT-VERIFY-PS-EARLIER; nothing sent")
-        return False
+            return "anyway"
+        log.info("Print: cancelled at M-PRINT-VERIFY-PS-EARLIER-ASK; nothing sent")
+        return ""
 
     def _ask_direct_like_preview(self, printer: str) -> "str | None":
         """M-PRINT-DIRECT-LIKE-PREVIEW (approved by Basti, 2026-10-13). None when it does not

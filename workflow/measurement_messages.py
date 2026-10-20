@@ -5853,6 +5853,34 @@ M_PRINT_DIRECT_LIKE_PREVIEW = _m(
 _PRINT_LIKE_PREVIEW_BTN_DIALOG = "Use the print dialog"
 _PRINT_LIKE_PREVIEW_BTN_ANYWAY = "Print anyway"
 
+# --- PROPOSED: the P18 window's own wording, 4.3.8 -------------------------
+#: Basti, 2026-10-20: the window before the direct route sends a verification
+#: chart to a PostScript printer, when the run's profiling chart was printed
+#: by ChromIQ 4.3.4 or earlier, stays, with a wording of its own that covers
+#: both ways the profiling chart may have gone, because ChromIQ cannot tell
+#: them apart. Its buttons: _PRINT_LIKE_PREVIEW_BTN_DIALOG (prints this chart
+#: through the macOS print dialog, letting the printer adjust the colours),
+#: _PRINT_LIKE_PREVIEW_BTN_ANYWAY, and Cancel (the default). The note on the
+#: tab keeps the approved M-PRINT-VERIFY-PS-EARLIER.
+M_PRINT_VERIFY_PS_EARLIER_ASK = _m(
+    "M-PRINT-VERIFY-PS-EARLIER-ASK",
+    "How was this run\u2019s profiling chart printed?",
+    "This run\u2019s profiling chart was printed with ChromIQ 4.3.4 or earlier. "
+    "Those versions did not record how a chart was sent to the printer, so "
+    "ChromIQ cannot tell which way it went. A verification chart only gives a "
+    "fair result if it goes to the printer the same way as the profiling "
+    "chart did.\n\n"
+    "\u2022  If you printed it with ChromIQ\u2019s own printing (\u201cUse "
+    "default macOS printer dialog\u201d switched off in Preferences), "
+    "everything is fine. Choose \u201cPrint anyway\u201d.\n"
+    "\u2022  If you printed it through the macOS print dialog, the printer "
+    "adjusted its colours on the way. Choose \u201cUse the print dialog\u201d "
+    "to print this verification chart the same way, letting the printer "
+    "adjust the colours as Preview does, so it matches the profile. Or print "
+    "and measure the profiling chart again with this version of ChromIQ, and "
+    "build its profile again, before you verify it.",
+    approved=False)
+
 # --- PROPOSED: the "Print like" help and line in the PROJECT rule, beta 2 ---
 #: Final review of beta 2 (2026-10-13): since the choice belongs to the
 #: project (M-PRINT-PS-ASK), the approved help's "ChromIQ uses the one you
@@ -6479,7 +6507,8 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_JOB_UNTAGGED, M_PRINT_PAPER_PROFILE_UNKNOWN, M_PRINT_QUALITY,
     M_PRINT_CMYK_RASTER_ROUTE, M_PRINT_INKS_CONVERTED, M_PRINT_INKS_APPROXIMATE,
     M_PRINT_VERIFY_ROUTE, M_PRINT_JOB_TAGGED_INTENT, M_HELP_GAMUT_SIZE_SPREAD,
-    M_PRINT_VERIFY_PS_EARLIER, M_PRINT_JOB_DEVICE_RGB,
+    M_PRINT_VERIFY_PS_EARLIER, M_PRINT_VERIFY_PS_EARLIER_ASK,
+    M_PRINT_JOB_DEVICE_RGB,
     M_PRINT_PS_FORM_CHOICE, M_PRINT_PS_FORM_HELP, M_PRINT_PS_FORM_HELP_TITLE,
     M_PRINT_PS_PAPER_NOT_LISTED, M_PRINT_DIRECT_LIKE_PREVIEW,
     M_PRINT_PS_ASK, M_PRINT_PS_FORM_APPLIES,

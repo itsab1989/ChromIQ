@@ -227,14 +227,46 @@ def test_knuts_run_is_warned_before_the_direct_route_sends_his_verification_char
     tab = _tab(s, ctl)
     assert tab._verify_after_an_old_dialog_profile("HP") is True
     seen = _answer(monkeypatch, mac, "cancel")
-    assert tab._confirm_verify_after_an_old_dialog_profile("HP") is False
-    title, body = MM.M_PRINT_VERIFY_PS_EARLIER.render()
-    assert MM.M_PRINT_VERIFY_PS_EARLIER.approved
+    assert tab._ask_verify_after_an_old_dialog_profile("HP") == ""
+    # Basti, 2026-10-20: the window has its own wording, covering both ways
+    # the profiling chart may have gone (ChromIQ cannot tell them apart);
+    # the tab's note keeps the approved M-PRINT-VERIFY-PS-EARLIER
+    title, body = MM.M_PRINT_VERIFY_PS_EARLIER_ASK.render()
     assert seen[0][0] == title and seen[0][1] == body
-    assert sorted(seen[0][2]) == ["Cancel", "Print anyway"]
+    assert "4.3.4" in body and "Print anyway" in body and "Use the print dialog" in body
+    assert sorted(seen[0][2]) == ["Cancel", "Print anyway", "Use the print dialog"]
     assert seen[0][3] == "Cancel", "nothing is sent unless the user says so"
     _answer(monkeypatch, mac, "Print anyway")
-    assert tab._confirm_verify_after_an_old_dialog_profile("HP") is True
+    assert tab._ask_verify_after_an_old_dialog_profile("HP") == "anyway"
+    _answer(monkeypatch, mac, "Use the print dialog")
+    assert tab._ask_verify_after_an_old_dialog_profile("HP") == "dialog"
+
+
+def test_use_the_print_dialog_sends_it_like_preview(qapp, tmp_path, mac, ps_queue,
+                                                     monkeypatch):
+    """(c) of Basti's decision: through the macOS print dialog, letting the
+    printer adjust the colours, the way the old profiling chart went; for this
+    print only, nothing stored."""
+    from workflow import native_print_macos as npm
+    s, fm, ctl = _env(tmp_path)
+    _profiling_record(fm, KNUTS_PROFILING_RECORD)
+    tab = _tab(s, ctl)
+    got = []
+    monkeypatch.setattr(tab, "_print_native",
+                        lambda pages, printer=None: got.append(
+                            (printer, tab._ps_form_for_dialog())))
+    monkeypatch.setattr(tab, "_ask_verify_after_an_old_dialog_profile",
+                        lambda printer: "dialog")
+    monkeypatch.setattr(tab, "_ask_direct_like_preview", lambda printer: None)
+    monkeypatch.setattr(tab, "_unknown_paper_profile", lambda *a: None)
+    monkeypatch.setattr(tab._printer, "is_printer_reachable", lambda q: True)
+    monkeypatch.setattr(tab, "_handle_stuck_jobs", lambda q: True)
+    monkeypatch.setattr(tab, "_compute_geometry", lambda *a: ("portrait", (595.0, 842.0), None))
+    tab._printer_combo.addItem("HP", "HP")
+    tab._printer_combo.setCurrentIndex(0)
+    tab._print_pages([(tmp_path / "p.tif", 0)])
+    assert got == [("HP", MACOS)]
+    assert tab._ps_form_for_dialog() != MACOS or tab._ps_form_stored() == MACOS
 
 
 def test_the_warning_is_not_shown_where_it_does_not_apply(
@@ -265,14 +297,14 @@ def test_the_warning_is_not_shown_where_it_does_not_apply(
     # nothing is asked, and True goes on printing
     asked = []
     monkeypatch.setattr(mac.QMessageBox, "exec", lambda box: asked.append(1) or 0)
-    assert tab._confirm_verify_after_an_old_dialog_profile("Q") is True
+    assert tab._ask_verify_after_an_old_dialog_profile("Q") is None
     assert asked == []
 
 
 def test_the_direct_route_asks_and_notes_the_way_before_it_sends_anything():
     from ui.tabs import tab_print as tp
     src = inspect.getsource(tp.TabPrint._print_pages)
-    asked = src.index("self._confirm_verify_after_an_old_dialog_profile(printer)")
+    asked = src.index("self._ask_verify_after_an_old_dialog_profile(printer)")
     noted = src.index("self._note_print_path(")
     assert src.index("self._ask_direct_like_preview(printer)") < asked
     assert asked < src.index("self._show_preflight(") < noted < src.index("self._send_page(")
