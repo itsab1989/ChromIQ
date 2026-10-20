@@ -5853,7 +5853,7 @@ M_PRINT_DIRECT_LIKE_PREVIEW = _m(
 _PRINT_LIKE_PREVIEW_BTN_DIALOG = "Use the print dialog"
 _PRINT_LIKE_PREVIEW_BTN_ANYWAY = "Print anyway"
 
-# --- PROPOSED: the P18 window's own wording, 4.3.8 -------------------------
+# --- APPROVED: the P18 window's own wording, 4.3.8 (Basti, 2026-10-20) -----
 #: Basti, 2026-10-20: the window before the direct route sends a verification
 #: chart to a PostScript printer, when the run's profiling chart was printed
 #: by ChromIQ 4.3.4 or earlier, stays, with a wording of its own that covers
@@ -5879,7 +5879,7 @@ M_PRINT_VERIFY_PS_EARLIER_ASK = _m(
     "adjust the colours as Preview does, as it did for the profile. Or print "
     "and measure the profiling chart again with this version of ChromIQ, and "
     "build its profile again, before you verify it.",
-    approved=False)
+    approved=True)  # Basti, 2026-10-20: "text sounds ok", with the two R3-2 corrections
 
 # --- PROPOSED: the "Print like" help and line in the PROJECT rule, beta 2 ---
 #: Final review of beta 2 (2026-10-13): since the choice belongs to the

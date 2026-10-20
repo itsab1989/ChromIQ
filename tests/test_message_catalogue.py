@@ -120,9 +120,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {"M-PATCH-SIMILAR",
-                                 # Basti, 2026-10-20: the P18 window's own
-                                 # wording (4.3.8), shown while proposed
-                                 "M-PRINT-VERIFY-PS-EARLIER-ASK",
+                                 # (M-PRINT-VERIFY-PS-EARLIER-ASK, the P18
+                                 # window's own wording, sat here for one
+                                 # round: Basti approved it on 2026-10-20.)
                                  "M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # #211, 2026-10-15: a resume whose readings
                                  # do not fit the chart's layout is refused
