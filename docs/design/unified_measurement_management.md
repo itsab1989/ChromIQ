@@ -7159,7 +7159,7 @@ alone.
 
 > **This printer cannot print this chart unchanged**
 >
-> {printer} does not understand PostScript, so ChromIQ can only send it the chart through its printer driver, and that driver accepts RGB colours only. This chart is {inks}. On the way through the driver every patch would be converted into RGB, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.
+> {printer} does not understand PostScript, so ChromIQ can only send it the chart through its printer driver, and that driver accepts RGB colours only. This chart has {inks}. On the way through the driver every patch would be converted into RGB, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.
 >
 > Nothing was printed.
 >
@@ -7174,7 +7174,7 @@ alone.
 
 > **This chart cannot go through the Windows print dialog**
 >
-> This chart is {inks}, but the Windows print dialog can only pass RGB colours to the printer. Sending it this way would change every patch’s colour on the way, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.
+> This chart has {inks}, but the Windows print dialog can only pass RGB colours to the printer. Sending it this way would change every patch’s colour on the way, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.
 >
 > Nothing was printed.
 >

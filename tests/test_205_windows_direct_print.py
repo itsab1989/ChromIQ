@@ -690,3 +690,77 @@ def test_a_raw_job_reaches_a_file_port_byte_for_byte(tmp_path):
             ctypes.WinDLL("winspool.drv").SetDefaultPrinterW(default)
     assert port.read_bytes() == data
     assert win_spooler.default_printer() == default
+
+
+# ---- 8. a DeviceN chart's inks each reach their own colorant ------------------
+# Found by rendering the Windows route's port files with Ghostscript (#205,
+# 2026-10-20), and true of the macOS direct route alike: `colorimage` ignores
+# the current colour space, so ChromIQ's DeviceN chart was drawn as CMYK (a
+# CMY + Orange chart's orange on the BLACK plane) and a 5 to 7 ink chart ended
+# in /rangecheck. Report folder 01_spooler_round_trip/devicen_proof_*.json.
+
+def _ink_tiff(path: Path, codes, value=200) -> Path:
+    import json
+    import tifffile
+    n = len(codes)
+    arr = np.zeros((8, 8 * n, n), np.uint8)
+    for i in range(n):
+        arr[:, i * 8:(i + 1) * 8, i] = value
+    kw = dict(photometric="separated", resolution=(300, 300), resolutionunit=2)
+    if n > 4:
+        kw["extrasamples"] = ("unspecified",) * (n - 4)
+    tifffile.imwrite(str(path), arr, **kw)
+    path.with_suffix(".channels.json").write_text(
+        json.dumps({"ink_channels": list(codes)}), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("codes", [["c", "m", "y", "o"], ["c", "m", "y", "k", "lc", "lm"]])
+def test_a_devicen_chart_is_drawn_in_its_own_colour_space(tmp_path, codes):
+    import base64
+    import re
+    import zlib
+    from workflow.postscript_generator import PostScriptGenerator
+    tif = _ink_tiff(tmp_path / "inks.tif", codes)
+    ps = PostScriptGenerator().generate(tif, ink_channels=codes)
+    assert "[/DeviceN [" in ps
+    assert "colorimage" not in ps
+    assert f"/Decode [{' '.join(['0 1'] * len(codes))}]" in ps
+    start = ps.index(">> image\n") + len(">> image\n")
+    data = zlib.decompress(base64.a85decode(re.sub(r"\s", "", ps[start:ps.index("~>", start)])))
+    import tifffile
+    assert data == tifffile.imread(str(tif)).tobytes()
+
+
+def test_rgb_and_cmyk_charts_keep_colorimage(tmp_path):
+    import tifffile
+    from workflow.postscript_generator import PostScriptGenerator
+    rgb = _rgb_tiff(tmp_path / "rgb.tif")
+    cmyk = tmp_path / "cmyk.tif"
+    tifffile.imwrite(str(cmyk), np.zeros((8, 8, 4), np.uint8), photometric="separated",
+                     resolution=(300, 300), resolutionunit=2)
+    for tif, n in ((rgb, 3), (cmyk, 4)):
+        ps = PostScriptGenerator().generate(tif)
+        assert f"false {n}\ncolorimage\n" in ps and ">> image" not in ps
+
+
+def _ghostscript() -> "str | None":
+    import shutil
+    return shutil.which("gswin64c") or shutil.which("gs")
+
+
+@pytest.mark.skipif(_ghostscript() is None, reason="needs Ghostscript")
+def test_ghostscript_puts_every_ink_on_its_own_plane(tmp_path):
+    import subprocess
+    import tifffile
+    from workflow.postscript_generator import PostScriptGenerator
+    codes = ["c", "m", "y", "o"]
+    tif = _ink_tiff(tmp_path / "cmyo.tif", codes)
+    psf = tmp_path / "cmyo.ps"
+    psf.write_text(PostScriptGenerator().generate(tif, ink_channels=codes), encoding="ascii")
+    subprocess.run([_ghostscript(), "-q", "-dSAFER", "-dBATCH", "-dNOPAUSE",
+                    "-sDEVICE=tiffsep", "-r300", f"-sOutputFile={tmp_path / 'p.tif'}",
+                    str(psf)], check=True, timeout=120)
+    orange = 255 - tifffile.imread(str(tmp_path / "p(Orange).tif")).astype(int)
+    black = 255 - tifffile.imread(str(tmp_path / "p(Black).tif")).astype(int)
+    assert orange[4, 3 * 8 + 4] == 200 and black.max() == 0

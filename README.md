@@ -302,14 +302,23 @@ Pick your printer and print the chart. **On macOS the native print dialog is now
 the default** — ChromIQ opens the OS print sheet and *locks the driver's colour
 controls off for you* (via PyObjC), so colour management can't sneak back in.
 The per-brand steps for confirming colour is disabled are shown right in the tab.
-On Windows and Linux the OS print sheet opens the same way, with per-brand
-instructions for turning ICM off.
+On Windows the Windows print dialog opens the same way by default, with
+per-brand instructions for switching the driver's colour adjustment off; the
+chart is placed at exactly 100 % size, centred on the paper.
 
 > [!TIP]
 > Prefer the old behaviour on macOS? Turn **Use default macOS printer dialog**
 > *off* in Preferences and ChromIQ falls back to its direct **PostScript
 > pipeline**, which bypasses colour management automatically with no dialog at
 > all — handy for batch printing.
+>
+> **New in 4.3.8, the same on Windows:** turn **Use default Windows printer
+> dialog** *off* and ChromIQ sends a PostScript printer the chart directly,
+> bypassing its driver, with its own RGB, CMYK or ink values and at 100 %. You
+> pick the paper, media type and quality on the Print Chart tab. A printer that
+> does not understand PostScript (most home and photo inkjets) still gets an
+> RGB chart through the Windows dialog; CMYK and multi-ink charts are refused
+> there, because the driver would change their colours.
 
 ### Step 3 — Measure
 The chart from Step 1 loads automatically. Follow the on-screen prompts:

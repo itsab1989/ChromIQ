@@ -1196,6 +1196,35 @@ every row — "do not convert these colours."** Feature A does not complicate th
 external route; it removes the only reason someone would have wanted their
 external application to colour-manage.
 
+### 3.9 Printing on Windows: the two routes (#205, 4.3.8)
+
+#### ⏳ Awaiting confirmation: what was built and measured
+
+**Confirmed by:** *nobody yet.*
+
+Basti, #205 (2026-10-10): Windows gets the macOS switch. Preferences ▸ "Use
+default Windows printer dialog", **on by default** (Basti, 2026-10-20: "like
+macos the os default path should be default"). Measured and driven on
+Windows 11 25H2 ARM64; evidence in
+`~/Desktop/ChromIQ-work/2026-10-20_205_windows_direct_print`.
+
+| Condition | Action | Code |
+|---|---|---|
+| Switch on (the default) | The Windows print dialog (Qt, GDI). The chart is placed at exactly 100 %, centred on the paper chosen there, turned a quarter when only that fits. Until 4.3.8 it was scaled into the printable area (measured: A4 on A4 93.2 %, an A5-size chart 135.7 %, A3 on A4 64.8 %) | `TabPrint._print_native_qt` |
+| Switch on, chart larger than the paper in either orientation (2 % slack) | Nothing printed, no print record: M-PRINT-WIN-DIALOG-TOO-BIG | same |
+| Switch on, chart not RGB (from its ink list) | Refused before the dialog, no record: M-PRINT-WIN-DIALOG-NOT-RGB. Until 4.3.8 a CMYK chart was converted to RGB without a word, a 5 to 7 ink chart failed in PIL | `TabPrint._non_rgb_inks` |
+| Switch off, a PostScript printer (its driver's data file is a PPD, or the driver is PSCRIPT5) | ChromIQ's own PostScript (the macOS direct route's: DeviceRGB, DeviceCMYK or DeviceN, the chart's own values, 1:1) with the PPD code of the chosen options, raw through the spooler: RAW for a v3 driver, XPS_PASS for a v4 (XPS) driver. Measured byte-identical at the port on 33 PostScript drivers, and rendered pixel-exact with Ghostscript | `win_spooler`, `win_raw_printer` |
+| Switch off, a printer that is not PostScript, RGB chart | The Windows print dialog, opened on that printer | `TabPrint._print_windows_not_postscript` |
+| Switch off, a printer that is not PostScript, any other chart | Refused, no record: M-PRINT-WIN-INKS-NOT-POSTSCRIPT | same |
+| Switch off, the spooler refuses the job | M-PRINT-WIN-SPOOLER-FAILED, no record | `TabPrint._on_print_done` |
+
+Found on the way, and true of the macOS direct route as well: a DeviceN chart
+(CMY + one ink, or 5 to 7 inks) was drawn with `colorimage`, which ignores the
+DeviceN colour space, so the extra ink printed as black (4 inks) or the job
+ended in `/rangecheck` (5 to 7 inks). Since 4.3.8 such a chart is drawn with
+the dictionary form of `image` (`postscript_generator._build_ps`), measured
+ink by ink with Ghostscript's `tiffsep`.
+
 ---
 
 ## 5. Implementation plan, ordered to be de-risked

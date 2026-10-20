@@ -5864,7 +5864,7 @@ _PRINT_LIKE_PREVIEW_BTN_ANYWAY = "Print anyway"
 M_PRINT_WIN_INKS_NOT_POSTSCRIPT = _m(
     "M-PRINT-WIN-INKS-NOT-POSTSCRIPT",
     "This printer cannot print this chart unchanged",
-    "{printer} does not understand PostScript, so ChromIQ can only send it the chart through its printer driver, and that driver accepts RGB colours only. This chart is {inks}. On the way through the driver every patch would be converted into RGB, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.\n\nNothing was printed.\n\nWhat you can do:\n\u2022 Print this chart on a PostScript printer.\n\u2022 Print it from a RIP (printing software that controls the printer itself): the chart is stored as TIFF files in the run folder, with its own colour values.\n\u2022 Or make an RGB chart for this printer in step 1.",
+    "{printer} does not understand PostScript, so ChromIQ can only send it the chart through its printer driver, and that driver accepts RGB colours only. This chart has {inks}. On the way through the driver every patch would be converted into RGB, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.\n\nNothing was printed.\n\nWhat you can do:\n\u2022 Print this chart on a PostScript printer.\n\u2022 Print it from a RIP (printing software that controls the printer itself): the chart is stored as TIFF files in the run folder, with its own colour values.\n\u2022 Or make an RGB chart for this printer in step 1.",
     approved=False)
 #: The Windows print dialog carries RGB only (Qt draws the page through
 #: GDI). Until 4.3.8 it converted any other chart on the way without a word
@@ -5872,7 +5872,7 @@ M_PRINT_WIN_INKS_NOT_POSTSCRIPT = _m(
 M_PRINT_WIN_DIALOG_NOT_RGB = _m(
     "M-PRINT-WIN-DIALOG-NOT-RGB",
     "This chart cannot go through the Windows print dialog",
-    "This chart is {inks}, but the Windows print dialog can only pass RGB colours to the printer. Sending it this way would change every patch\u2019s colour on the way, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.\n\nNothing was printed.\n\nWhat you can do: untick \u201cUse default Windows printer dialog\u201d in Preferences and print again. A PostScript printer then receives the chart directly from ChromIQ, with every colour value unchanged. If your printer does not understand PostScript, print the chart from a RIP (printing software that controls the printer itself), or make an RGB chart in step 1.",
+    "This chart has {inks}, but the Windows print dialog can only pass RGB colours to the printer. Sending it this way would change every patch\u2019s colour on the way, so the printed sheet would no longer match the chart file, and a measurement of it would describe colours that were never printed.\n\nNothing was printed.\n\nWhat you can do: untick \u201cUse default Windows printer dialog\u201d in Preferences and print again. A PostScript printer then receives the chart directly from ChromIQ, with every colour value unchanged. If your printer does not understand PostScript, print the chart from a RIP (printing software that controls the printer itself), or make an RGB chart in step 1.",
     approved=False)
 #: The Windows dialog route places the chart at exactly 100 % since 4.3.8;
 #: until then it scaled every chart to fill the paper's printable area. A
