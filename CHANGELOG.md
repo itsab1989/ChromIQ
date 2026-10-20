@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.3.8-beta.2
+
+**Windows gets ChromIQ's own print route, and charts print at 100 % through the Windows print dialog.**
+
+### Added
+- **Windows: ChromIQ's own print route** (#205). Preferences has a new switch, "Use default Windows printer dialog" (on by default, as on macOS). Switched off, a PostScript printer gets ChromIQ's own PostScript directly through the Windows spooler, with the printer options you chose on the Print Chart tab, so RGB, CMY, CMYK and multi-ink charts reach the printer unchanged. A printer whose driver is not PostScript gets an RGB chart through the Windows print dialog and refuses a CMYK or multi-ink chart with an explanation. (New texts, shown and waiting for approval.)
+
+### Fixed
+- **Windows: the print dialog route printed no chart at 100 %** (#205). It scaled every chart into the printable area (an A4 chart on A4 at 93 %, an A5 chart enlarged to 136 %). The chart is now placed 1:1 and centred, turned when only that fits. A chart larger than the paper chosen in the dialog, or a CMYK or multi-ink chart that the dialog would turn into RGB without a word, is refused with an explanation instead of printed wrongly. (New texts, shown and waiting for approval.)
+- **Windows: when Windows 11's print dialog comes back with another printer than the one ChromIQ handed it, ChromIQ asks before printing** (#205). Cancel is the default. (New text, shown and waiting for approval.)
+- **A chart with extra inks (for example CMY plus orange) printed its extra ink in the wrong channel through ChromIQ's own PostScript** (macOS direct route, and the new Windows route). The orange patch landed on the black ink, and a six-ink chart ended the job with an error. Every ink now lands on its own channel at its own value. Gray, RGB and CMYK charts are printed byte for byte as before.
+- **The option rows of the previous printer no longer stay drawn over the next printer's** while a confirmation window is open (every platform).
+- **Windows: finished test and tool folders in the temp folder are cleaned up again.** Windows reported every finished process as still running, so they were never removed.
+
 ## v4.3.8-beta.1
 
 **Print settings belong to each run, and a verification chart is printed the same way as its profiling chart.**
