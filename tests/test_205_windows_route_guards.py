@@ -153,3 +153,32 @@ def test_an_ampersand_in_a_printer_name_is_no_mnemonic(qapp, tmp_path, monkeypat
     monkeypatch.setattr(QMessageBox, "exec", _exec)
     assert tab._confirm_other_printer("Office Inkjet", "HP & Co Laser") is False
     assert "Print on HP && Co Laser" in seen
+
+
+# ---- regression review of the review's fixes: two minor notes ------------------
+def test_a_ppd_that_includes_itself_is_read_once(tmp_path):
+    from workflow.win_raw_printer import read_ppd
+    a = tmp_path / "a.ppd"
+    b = tmp_path / "b.ppd"
+    a.write_text('*PPD-Adobe: "4.3"\n*Include: "b.ppd"\n*Include: "a.ppd"\n*A: "1"\n',
+                 encoding="latin-1")
+    b.write_text('*B: "2"\n*Include: "a.ppd"\n', encoding="latin-1")
+    text = read_ppd(a)
+    assert text.count('*A: "1"') == 1 and text.count('*B: "2"') == 1
+
+
+def test_the_failure_window_names_the_chart_not_a_temporary_page(qapp, tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+    from ui.tabs import tab_print as tp
+    from workflow.win_raw_printer import WindowsRawPrinter
+    tab = _tab(tmp_path)
+    pr = WindowsRawPrinter()
+    pr.last_error, pr.last_error_is_chart, pr.last_chart_name = "boom", True, "tmpab12cd.tif"
+    tab._printer = pr
+    tab._page_name_for_messages = "WinPrint-RGB_02.tif"
+    monkeypatch.setattr(tp, "is_windows", lambda: True)
+    shown = []
+    monkeypatch.setattr(QMessageBox, "critical",
+                        staticmethod(lambda parent, title, body: shown.append(body)))
+    tab._on_print_done(-1)
+    assert "WinPrint-RGB_02.tif" in shown[0] and "tmpab12cd" not in shown[0]

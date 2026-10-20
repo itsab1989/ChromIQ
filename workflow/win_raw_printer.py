@@ -52,16 +52,25 @@ _FEATUREBEGIN_SHIM = ("/featurebegin where { pop } { userdict /featurebegin { } 
                       "userdict /featurecleanup { exec } put } ifelse")
 
 
-def read_ppd(path: "str | Path", _depth: int = 0) -> str:
+def read_ppd(path: "str | Path", _depth: int = 0,
+             _chain: "frozenset[str]" = frozenset()) -> str:
     """A Windows driver's PPD with its ``*Include`` files in place (#205
     review): Microsoft's HP DesignJet T1300ps / Z3200ps data file is a stub
     whose Media Type and Paper Source live in ``*Include: "hpips3.PPD"``.
     CUPS resolves includes on macOS; a Windows PPD is read here. A relative
-    name is looked up beside the including file; a missing one is left out."""
+    name is looked up beside the including file; a missing one is left out,
+    and so is a file that would include itself (directly or through others):
+    the regression review measured a self-include grow to 512 copies under
+    the depth limit alone."""
     p = Path(path)
     text = read_text(p, lenient=True)
     if _depth >= 8 or "*Include" not in text:
         return text
+    try:
+        me = str(p.resolve()).lower()
+    except OSError:
+        me = str(p).lower()
+    chain = _chain | {me}
 
     def _inline(m: "re.Match[str]") -> str:
         name = m.group(1).strip()
@@ -69,7 +78,14 @@ def read_ppd(path: "str | Path", _depth: int = 0) -> str:
         if not inc.is_file():
             log.warning("PPD %s includes %s, which is not there; left out", p, name)
             return ""
-        return read_ppd(inc, _depth + 1)
+        try:
+            key = str(inc.resolve()).lower()
+        except OSError:
+            key = str(inc).lower()
+        if key in chain:
+            log.warning("PPD %s includes %s, which includes it again; left out", p, name)
+            return ""
+        return read_ppd(inc, _depth + 1, chain)
 
     return _INCLUDE_RE.sub(_inline, text)
 

@@ -3940,6 +3940,9 @@ class TabPrint(QWidget):
             from workflow.chart_inks import sidecar_ink_codes
             ink_channels = sidecar_ink_codes(tiff_path)
         self._printer.last_job_id = None
+        # the chart's own name for a failure window: the file printed may be
+        # a temporary single page (regression review of #205)
+        self._page_name_for_messages = tiff_path.name
         self._printer.print_job_ps(
             print_path, config,
             ink_channels=ink_channels,
@@ -4024,7 +4027,8 @@ class TabPrint(QWidget):
             QMessageBox.critical(
                 self, tr("TIFF Error"),
                 tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(
-                    name=getattr(self._printer, "last_chart_name", ""),
+                    name=getattr(self, "_page_name_for_messages", "")
+                    or getattr(self._printer, "last_chart_name", ""),
                     exc=getattr(self._printer, "last_error", "")))
         elif is_windows():
             # #205: the spooler's own reason; there is no CUPS, nor lp
