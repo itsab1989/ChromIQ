@@ -172,6 +172,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a67-guardpolish", "a69-cmykport", "a69-cmykport-oog",
      "a69-cmykport-oogfine", "a70-edgesmooth", "a70-edgeadapt",
      "a70-foldcap", "a70-blackshell", "a71-darkray", "a72-cmyonly",
+     "a72-max4ink", "no-a72-max4ink",
      "no-a65-cmykhue-bluejab", "no-a66-cmyaxis", "no-a66-refitguard",
      "no-a67-camratio", "no-a67-guardall-dark", "no-a67-guardpolish",
      "no-a68-clipkeep", "no-a69-cmykport", "no-a69-cmykport-oog",
@@ -350,6 +351,13 @@ INT9_CMY_TOKENS = frozenset({
     "a66-refitguard", "a67-camratio", "a67-guardall-dark",
     "a67-guardpolish"})
 A72_CMY_ONLY = "a72-cmyonly"
+# a65-cmykhue-bluejab acts on every ink device in the code, but it was
+# measured and judged on CMYK (Agent 65) and CMY (Agent 67's cmy-gpcr) only;
+# on 5-7 inks it moved the X5 B2A1 unvalidated (integration 9 check (c)).
+# While "a72-max4ink" is in the set (the default) it acts on 3- and 4-channel
+# ink devices only; "no-a72-max4ink" lets it act on 5+ inks as before.
+INT9_MAX4_TOKENS = frozenset({"a65-cmykhue-bluejab"})
+A72_MAX4_INK = "a72-max4ink"
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
@@ -360,16 +368,19 @@ ACCURATE_DEFAULT_TOKENS = frozenset({
     "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
     "a44b-smoothexact", "a45-c1space", "a45-darkend",
     "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS | INT9_TOKENS \
-    | INT9_CMY_TOKENS | {A72_CMY_ONLY}
+    | INT9_CMY_TOKENS | {A72_CMY_ONLY, A72_MAX4_INK}
 
 
 def scope_device_tokens(candidates, *, n: int, is_additive: bool) -> frozenset:
     """Integration 9: with "a72-cmyonly" in the set, INT9_CMY_TOKENS act on
-    a 3-channel ink device (CMY) only; every other device gets the set
-    without them. Without "a72-cmyonly" the set is returned unchanged."""
+    a 3-channel ink device (CMY) only; with "a72-max4ink", INT9_MAX4_TOKENS
+    act on ink devices of at most 4 channels only. Without the scope token
+    its tokens are left as they are."""
     candidates = frozenset(candidates)
     if A72_CMY_ONLY in candidates and (is_additive or n != 3):
-        return candidates - INT9_CMY_TOKENS
+        candidates = candidates - INT9_CMY_TOKENS
+    if A72_MAX4_INK in candidates and not is_additive and n > 4:
+        candidates = candidates - INT9_MAX4_TOKENS
     return candidates
 
 

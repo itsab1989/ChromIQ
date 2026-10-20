@@ -42,7 +42,7 @@ _INT9 = {"a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
          "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
          "a70-edgeadapt", "a70-foldcap", "a71-darkray",
          "a66-refitguard", "a67-camratio", "a67-guardall-dark",
-         "a67-guardpolish", "a72-cmyonly"}
+         "a67-guardpolish", "a72-cmyonly", "a72-max4ink"}
 _DEF = ({"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6
         | _INT7 | _INT8 | _INT8B | _INT9)
 
@@ -129,9 +129,13 @@ def test_integration9_cmy_tokens_act_on_cmy_only():
     assert INT9_CMY_TOKENS <= on
     # CMY (3 ink channels): kept
     assert scope_device_tokens(on, n=3, is_additive=False) == on
-    # CMYK, 6 inks, RGB: taken out, nothing else touched
-    for n, add in ((4, False), (6, False), (3, True)):
+    # CMYK, RGB: taken out, nothing else touched; 6 inks: bluejab out too
+    for n, add in ((4, False), (3, True)):
         assert scope_device_tokens(on, n=n, is_additive=add) == on - INT9_CMY_TOKENS
+    assert (scope_device_tokens(on, n=6, is_additive=False)
+            == on - INT9_CMY_TOKENS - {"a65-cmykhue-bluejab"})
+    assert "a65-cmykhue-bluejab" in scope_device_tokens(
+        accurate_candidates({"no-a72-max4ink"}), n=6, is_additive=False)
     # "no-a72-cmyonly" gives Agent 67's research behaviour back (every device)
     raw = accurate_candidates({"no-a72-cmyonly"})
     assert scope_device_tokens(raw, n=4, is_additive=False) == raw
