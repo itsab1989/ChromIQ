@@ -438,6 +438,13 @@ DEFAULTS: dict[str, Any] = {
     # it's the OS's own dialog: it can't carry ChromIQ's custom sidebar shortcuts
     # or the built-in image-preview pane (Qt/OS limitation — see ui/widgets.py).
     "use_native_file_dialogs":   False,
+    # Build Profile's "Name the installed copy after the description": ON by
+    # default (Knut, 2026-10-20, K2). OFF, every run of a project installs
+    # under the project's one file name, so run 2's Install found run 1's copy
+    # ("A profile with this name is already installed") while the two
+    # descriptions differ. A choice the person makes is kept, as before; it is
+    # an install preference (your setup), not a per-run setting.
+    "install_named_by_description": True,
     "show_welcome_dialog":       True,
     "show_splash":               True,     # startup branding splash (main.py)
     "window_maximized":          False,

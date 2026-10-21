@@ -6292,7 +6292,7 @@ class TabProfile(QWidget):
         cb = QCheckBox(tr("Name the installed copy after the description"),
                        row)
         cb.setChecked(bool(self._settings.get("install_named_by_description",
-                                              False)))
+                                              True)))
         cb.toggled.connect(self._on_install_name_toggled)
         lay.addWidget(cb)
         lay.addStretch(1)

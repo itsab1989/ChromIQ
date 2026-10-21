@@ -9143,3 +9143,15 @@ How 4.3.4 beta 1 builds it (`TabMeasure._hold_for_read_twice`, `_release_read_tw
 * **Check & Refine's button** has no description field: it names the copy after the description inside the profile, as before, and asks the same question.
 * **The scanner window** installs under the profile's file name, as before, and asks the same question.
 * Tests: `tests/test_435_install_asks_before_replacing.py`.
+
+### ⏳ Awaiting confirmation: the tick's default and the installed copy's extension (4.3.8 beta 3, K2)
+
+**Confirmed by:** *nobody yet.*
+
+Knut, 2026-10-20 (mail "Small bug and results from profiling"): run 1 was installed with "Name the installed copy after the description" off, so the copy kept the project's file name, and run 2's Install then found it ("A profile with this name is already installed"). He asked for the tick to be on by default, and for the file name and the description inside to follow the Profile description field for .icc and .icm alike.
+
+* **On by default.** A new user, or one who never touched it, has the tick on (`core/settings.DEFAULTS["install_named_by_description"]`). A choice made by unticking it is kept.
+* **One setting, not per run.** It is an install preference (§1.1 of `per_target_settings.md`, "your setup"): the Guided and Manual boxes and both Install buttons read the same value, it is not written into a run's Build Profile store, and switching runs neither changes nor resets it (measured on screen, run1 → run2 → run1 → run3).
+* **The extension is kept.** With the tick on, an `.icm` profile is installed as `<description>.icm` (it became `.icc` before); the plain copy and the install window already kept it.
+* A description longer than 100 characters still gives a file name cut to 100 (`MAX_INSTALL_STEM`, the Windows path limit) while the description inside is the whole text.
+* Tests: `tests/test_k2_install_named_by_description.py`.

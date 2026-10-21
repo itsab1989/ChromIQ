@@ -337,7 +337,7 @@ def installed_profile_name(description: "str | None", settings) -> "str | None":
     the rule (:meth:`ProfileBuilder.install_profile`).
     """
     try:
-        if not settings.get("install_named_by_description", False):
+        if not settings.get("install_named_by_description", True):
             return None
     except Exception:      # noqa: BLE001 — a name must never break an install
         return None
@@ -358,7 +358,13 @@ def install_destination(icc_path: Path,
     if dest_name:
         return _profile_dir() / Path(dest_name).name
     if install_name:
-        name = f"{install_name}.icc"
+        # THE SOURCE'S OWN EXTENSION, .icc or .icm (K2, Knut 2026-10-20). It
+        # was always ".icc", so an .icm profile installed under the
+        # description became an .icc file, unlike the plain copy and the
+        # install window (which keeps the extension it is shown).
+        ext = icc_path.suffix if icc_path.suffix.lower() in (".icc", ".icm") \
+            else ".icc"
+        name = f"{install_name}{ext}"
     elif fallback_stem:
         name = f"{fallback_stem}{icc_path.suffix}"
     else:

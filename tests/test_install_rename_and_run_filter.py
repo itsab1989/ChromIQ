@@ -46,6 +46,9 @@ def _profile_tab(tmp_path):
 def test_install_name_follows_checkbox_and_description(qapp, tmp_path):
     tab, s = _profile_tab(tmp_path)
     tab._desc_edit.setText('Epson P900 / Baryta "matt" 2026')
+    # ON by default since K2 (Knut 2026-10-20); unticked → the plain copy
+    assert tab._install_name_cb.isChecked()
+    tab._install_name_cb.setChecked(False)
     assert tab._install_name() is None            # checkbox off → plain copy
     tab._install_name_cb.setChecked(True)
     assert s.get("install_named_by_description", False)
