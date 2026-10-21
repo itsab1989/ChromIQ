@@ -471,15 +471,23 @@ def tab(qapp, monkeypatch):
     t.deleteLater()
 
 
-def _answer_window(qapp, button_text, seen):
+def _answer_window(qapp, button_text, seen, give_up_s=10.0):
     """Click *button_text* (or close) in the unread window once it is up."""
     from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import QApplication, QLabel, QPushButton
+    import time as _time
+    # THE POLL ENDS. A test that expects NO window (the question queued as
+    # the measurement ends) never stops it otherwise, and it kept re-arming
+    # every 10 ms for the rest of the worker's run: on 2026-10-21 it was on
+    # the stack of a later file's test that hung a gate for 20 minutes
+    # (agent 6, test_one_button_places_the_grid).
+    give_up = _time.monotonic() + give_up_s
 
     def _click():
         dlg = QApplication.activeModalWidget()
         if dlg is None or dlg.objectName() != "unread_choice_window":
-            QTimer.singleShot(10, _click)
+            if _time.monotonic() < give_up:
+                QTimer.singleShot(10, _click)
             return
         seen.append((dlg.windowTitle(),
                      [lb.text() for lb in dlg.findChildren(QLabel)],
@@ -492,6 +500,7 @@ def _answer_window(qapp, button_text, seen):
                 b.click()
                 return
     QTimer.singleShot(0, _click)
+    return _click
 
 
 def _tab_gotos(tab):
@@ -755,3 +764,30 @@ def test_a_question_queued_as_the_measurement_ends_never_opens(
     assert seen == []
     assert not mgr.unread_choice_pending()
     assert _tab_gotos(tab) == []
+
+
+def test_the_window_poll_ends_when_no_window_comes(qapp, monkeypatch):
+    """The helper's poll must not outlive its test (agent 6, 2026-10-21)."""
+    import time as _time
+    from PyQt6.QtCore import QTimer
+    mine = {"fn": None, "n": 0}
+    real = QTimer.singleShot
+
+    def counting(ms, fn):
+        if fn is mine["fn"]:
+            mine["n"] += 1
+        return real(ms, fn)
+    monkeypatch.setattr(QTimer, "singleShot", staticmethod(counting))
+    mine["fn"] = _answer_window(qapp, "Continue to next", [], give_up_s=0.3)
+
+    def spin(s):
+        end = _time.monotonic() + s
+        while _time.monotonic() < end:
+            qapp.processEvents()
+            _time.sleep(0.002)
+    spin(0.2)
+    assert mine["n"] > 1, "the poll did not run"
+    spin(0.4)                       # past its 0.3 s
+    n = mine["n"]
+    spin(0.3)
+    assert mine["n"] == n, "the poll is still re-arming after its deadline"
