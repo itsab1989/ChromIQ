@@ -4628,6 +4628,35 @@ class TiffPreview(QWidget):
                             (label_size.width() - _cw) / 2 + B,
                             (label_size.height() - _ch) / 2 + B)
 
+        if self._margin_guides or self._measured_guides:
+            self._draw_margin_guides(
+                painter, B, scaled.width() / dpr, scaled.height() / dpr)
+
+        if self._helper_markers or self._helper_markers_pending:
+            self._draw_helper_markers(
+                painter, B, scaled.width() / dpr, scaled.height() / dpr)
+        if self._helper_markers_pending and cap_h:
+            self._draw_pending_marker_caption(
+                painter, B, scaled.width() / dpr,
+                B + scaled.height() / dpr, cap_h)
+
+        # #126 engine overlays (split patches, hover outline, legend). BOTH
+        # scales, because `scaled` is a whole number of device pixels on each
+        # axis and `KeepAspectRatio` cannot make the two ratios equal.
+        self._draw_cq_overlay(painter,
+                              (scaled.width() / dpr) / max(1, self._pixmap.width()),
+                              B, B,
+                              (scaled.height() / dpr) / max(1, self._pixmap.height()))
+
+        # THE SCAN ARROWS GO ON TOP, LAST (Knut, 2026-10-20, K1). They were
+        # painted first, under everything, and the lower arrow now sits just
+        # under the last row of patches (Basti, #182 6001610646), which is the
+        # very band the "expected / measured" legend chip is placed in: the
+        # arrow slid in and out of sight behind the chip's dark panel while
+        # the strip moved across the middle of the sheet. The arrow is the
+        # live cue for where to read next; the chip is a key that can be read
+        # around a 20 px triangle. Painted last, the arrow is never covered by
+        # the chip, the guides or the helper markers.
         if (self.active_stripe_on_screen() >= 0 and self._stripe_rects
                 and not self._hex_zigzag and not self._no_swipe):
             # sx/sy: device pixels per original image pixel
@@ -4655,7 +4684,7 @@ class TiffPreview(QWidget):
                     path.lineTo(cx + rw / 2, y)
                     path.lineTo(cx, y + arrow_h)
                 path.closeSubpath()
-                painter.fillPath(path, self._overlay_accent(self._OVERLAY_ARROW))
+                self._fill_scan_arrow(painter, path)
 
                 # Bidirectional reading: mirror a second arrow near the
                 # chart's bottom edge (not the strip's own bottom — that
@@ -4670,27 +4699,8 @@ class TiffPreview(QWidget):
                     bot.lineTo(cx + rw / 2, y_bot)
                     bot.lineTo(cx, y_tip)
                     bot.closeSubpath()
-                    painter.fillPath(bot, self._overlay_accent(self._OVERLAY_ARROW))
+                    self._fill_scan_arrow(painter, bot)
 
-        if self._margin_guides or self._measured_guides:
-            self._draw_margin_guides(
-                painter, B, scaled.width() / dpr, scaled.height() / dpr)
-
-        if self._helper_markers or self._helper_markers_pending:
-            self._draw_helper_markers(
-                painter, B, scaled.width() / dpr, scaled.height() / dpr)
-        if self._helper_markers_pending and cap_h:
-            self._draw_pending_marker_caption(
-                painter, B, scaled.width() / dpr,
-                B + scaled.height() / dpr, cap_h)
-
-        # #126 engine overlays (split patches, hover outline, legend). BOTH
-        # scales, because `scaled` is a whole number of device pixels on each
-        # axis and `KeepAspectRatio` cannot make the two ratios equal.
-        self._draw_cq_overlay(painter,
-                              (scaled.width() / dpr) / max(1, self._pixmap.width()),
-                              B, B,
-                              (scaled.height() / dpr) / max(1, self._pixmap.height()))
 
         painter.end()
         self._img_label.setPixmap(canvas)
@@ -4737,6 +4747,24 @@ class TiffPreview(QWidget):
                 self._exposed_cache.clear()
             self._exposed_cache[key] = hit
         return hit
+
+    def _fill_scan_arrow(self, painter: QPainter, path: QPainterPath) -> None:
+        """Fill one scan arrow in the overlay accent, with a thin light halo.
+
+        The halo is paper-white, so on the sheet it cannot be seen; over the
+        legend chip's dark panel (where the lower arrow sits on a chart with a
+        tight bottom margin, K1) it outlines the arrow, which in Neutral is
+        near-black and would otherwise all but vanish into the chip.
+        """
+        from PyQt6.QtGui import QPen
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        halo = QPen(QColor(255, 255, 255, 230))
+        halo.setWidthF(2.0)
+        halo.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        painter.strokePath(path, halo)
+        painter.fillPath(path, self._overlay_accent(self._OVERLAY_ARROW))
+        painter.restore()
 
     def _draw_cq_overlay(self, painter: QPainter,
                          s: float, ox: float, oy: float,
