@@ -3079,6 +3079,25 @@ M_AUTOSAVE_NOT_SAVED = _m(
     "after the next strip, and resuming this measurement uses that file.",
     approved=False)
 
+# --- PROPOSED: the line under the chart while a save has failed (M3) ------
+#: Basti, 2026-10-21: when the engine's automatic save fails
+#: (M-AUTOSAVE-NOT-SAVED, in the log), the line under the chart that says
+#: "Auto-save on, every strip is written to disk the moment it is accepted"
+#: is not true any more, and it is where the person is looking. It turns into
+#: this warning, and goes back to the normal line after the next save that
+#: works (the engine's "saved" event). The title is the line's first words,
+#: for the catalogue; the line shows the body.
+M_AUTOSAVE_RETRYING = _m(
+    "M-AUTOSAVE-RETRYING",
+    "Auto-save did not work, ChromIQ tries again",
+    "⚠  Auto-save did not work: the latest readings could not be written "
+    "to the measurement file. Nothing is lost. Every strip read so far is "
+    "kept in a temporary file beside it, and ChromIQ tries to save again "
+    "after the next strip, so you can keep measuring. If this line stays, "
+    "another program (a virus scanner or a cloud sync folder, for example) "
+    "may be holding the file; the log on this tab names it.",
+    approved=False)
+
 # --- PROPOSED: no instrument is connected at all -------------------------
 #: Knut, #182 5969949735 (beta 7): when ChromIQ refuses to start because no
 #: instrument is attached (the only serial port is the computer's own, see
@@ -6626,6 +6645,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,
     M_CHART_LEGACY_STOCK, M_CHART_LEGACY_ENDED,
     M_AUTOSAVE_NOT_SAVED,
+    M_AUTOSAVE_RETRYING,
     M_PATCHSET_MISSING,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,

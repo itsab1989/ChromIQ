@@ -394,6 +394,9 @@ class MeasureManager(QObject):
     #: chart's TARGET_INSTRUMENT does not (#131 Phase 2)
     instrument_detected        = pyqtSignal(str)
     readings_saved             = pyqtSignal(str, int)  # (.ti3 path, patches on disk)
+    #: The engine's automatic save failed (M3): (.ti3 path, kept temp, code).
+    #: The next save that works emits `readings_saved` again.
+    autosave_failed            = pyqtSignal(str, str, str)
     # Engine spot (patch-by-patch) mode: the patch to read next, and a patch's
     # measured result — the single-patch analogues of stripe_changed/strip_measured.
     patch_ready                = pyqtSignal(dict)      # {id, loc, read, all_done, exyz}
@@ -1157,6 +1160,10 @@ class MeasureManager(QObject):
         code = ev.get("code", "?")
         log.warning("engine: the readings could not be saved to %s (error %s); "
                     "kept in %s", path, code, temp)
+        try:
+            self.autosave_failed.emit(path, temp, str(code))
+        except Exception:      # noqa: BLE001 — never stop a read over this
+            log.debug("autosave_failed not emitted", exc_info=True)
         try:
             _title, body = M.M_AUTOSAVE_NOT_SAVED.render(
                 name=Path(path).name if path else "?",

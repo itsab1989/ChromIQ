@@ -1665,6 +1665,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._manager.chart_measured.connect(self._on_chart_measured)
         self._manager.chart_reading.connect(self._on_chart_reading)
         self._manager.readings_saved.connect(self._on_readings_saved)
+        self._manager.autosave_failed.connect(self._on_autosave_failed)
         self._manager.instrument_disconnected.connect(self._on_instrument_disconnected)
         self._manager.device_busy.connect(self._on_device_busy)
         self._manager.no_instrument.connect(self._on_no_instrument)
@@ -19454,7 +19455,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "continue where you left off."))
 
     def _on_readings_saved(self, path: str, n: int) -> None:
+        # A save that worked: the normal line again, after a failed one too.
         self._set_autosave_banner(n)
+
+    def _on_autosave_failed(self, path: str, temp: str, code: str) -> None:
+        """The engine's automatic save failed (M3): the line under the chart
+        says so, M-AUTOSAVE-RETRYING, until a later save works (Basti,
+        2026-10-21). The log carries M-AUTOSAVE-NOT-SAVED with the file names."""
+        if not self._manager.engine_active:
+            return
+        from workflow import measurement_messages as M
+        _title, body = M.M_AUTOSAVE_RETRYING.render()
+        self._preview.set_notice(body, warn=True)
 
     def _apply_engine_params(self, p: MeasureParams) -> MeasureParams:
         """Attach the chart-reading engine when selected and usable."""

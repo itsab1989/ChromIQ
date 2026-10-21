@@ -122,6 +122,8 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 AWAITING_APPROVAL: "set[str]" = {
     # M3 (4.3.8 beta 3): the engine could not save the readings, proposed 2026-10-21
     "M-AUTOSAVE-NOT-SAVED",
+    # M3 (4.3.8 beta 3): the line under the chart while a save failed, 2026-10-21
+    "M-AUTOSAVE-RETRYING",
     # #205 (4.3.8): the Windows print route, proposed 2026-10-20
     "M-PRINT-WIN-INKS-NOT-POSTSCRIPT", "M-PRINT-WIN-DIALOG-NOT-RGB",
     "M-PRINT-WIN-DIALOG-TOO-BIG", "M-PRINT-WIN-SPOOLER-FAILED",

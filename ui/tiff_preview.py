@@ -2224,6 +2224,8 @@ class TiffPreview(QWidget):
             return
         self._mode = new_mode
         self._apply_mode_styles()
+        if getattr(self, "_notice_lbl", None) is not None:
+            self._style_notice()        # a warning notice follows the theme
         # AND REPAINT THE CANVAS, which nothing else was doing. The overlays
         # (the strip arrow, the patch ring, the aiming circle) and the
         # interactive surround are painted INTO a pixmap and handed to the
@@ -2355,15 +2357,39 @@ class TiffPreview(QWidget):
         hdr = getattr(self, "_header", None)
         return None if hdr is None else hdr.progress()
 
-    def set_notice(self, text: str | None) -> None:
+    _NOTICE_QSS = ("QLabel { background: transparent; border-radius: 4px;"
+                   " padding: 4px 10px; margin: 4px 8px; font-size: 11px; }")
+
+    def set_notice(self, text: str | None, *, warn: bool = False) -> None:
         """Show an advisory notice at the bottom of the preview (same style as
-        the render badge), or hide it (text=None/empty)."""
+        the render badge), or hide it (text=None/empty).
+
+        *warn*: the notice is a warning (M3, a failed auto-save), drawn on the
+        app's warning colours (`ui.warning_sign.warning_colours`: amber with a
+        near-black text in Light and Dark, Neutral's accent pairing), so it
+        cannot be read past as the usual reassurance."""
+        self._notice_warn = bool(text) and warn
+        self._style_notice()
         if text:
             self._notice_lbl.setText(text)
             self._notice_lbl.setVisible(True)
         else:
             self._notice_lbl.clear()
             self._notice_lbl.setVisible(False)
+
+    def notice_is_warning(self) -> bool:
+        return bool(getattr(self, "_notice_warn", False))
+
+    def _style_notice(self) -> None:
+        if not getattr(self, "_notice_warn", False):
+            self._notice_lbl.setStyleSheet(self._NOTICE_QSS)
+            return
+        from ui.warning_sign import warning_colours
+        bg, fg = warning_colours(self._mode)
+        self._notice_lbl.setStyleSheet(
+            "QLabel { background: %s; color: %s; border-radius: 4px;"
+            " padding: 4px 10px; margin: 4px 8px; font-size: 11px;"
+            " font-weight: 600; }" % (bg, fg))
 
     def set_frame_color(self, color: "QColor | None", *,
                         keep_border: bool = True) -> None:
@@ -3814,9 +3840,8 @@ class TiffPreview(QWidget):
         # grey block against a light panel in light mode (Basti, beta.143).
         # Leaving background and text to the palette makes it match whichever
         # theme is on, and keeps matching when the theme is switched at runtime.
-        self._notice_lbl.setStyleSheet(
-            "QLabel { background: transparent; border-radius: 4px;"
-            " padding: 4px 10px; margin: 4px 8px; font-size: 11px; }")
+        self._notice_lbl.setStyleSheet(self._NOTICE_QSS)
+        self._notice_warn = False
         self._notice_lbl.setVisible(False)
         layout.addWidget(self._notice_lbl)
 
