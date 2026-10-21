@@ -885,3 +885,6 @@ A heartfelt thanks to **soul-traveller** for
 — a mature, in several areas more comprehensive printer-profiling tool. If you
 prefer working from proven, pre-made test charts rather than randomly generated
 targets, his project ships an excellent curated collection for exactly that.
+Knut has also tested ChromIQ on his own printers and instruments from the early
+betas on, and most of the behaviour written down in `docs/design/` was agreed
+with him on [issue #182](https://github.com/itsab1989/ChromIQ/issues/182).
