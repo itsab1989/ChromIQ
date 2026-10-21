@@ -3759,6 +3759,7 @@ class TiffPreview(QWidget):
         #: rectangle there would be nothing left to test against, so it would
         #: reappear immediately and flicker at the boundary.
         self._legend_rect = None        # QRect in canvas coords, or None
+        self._legend_paint = None       # (x, y, w, h, text) placed, to paint (K1)
         self._legend_geom = None        # the (ox, oy) that rect was drawn in
         self._legend_pointer = None     # last pointer position, label coords
         self._legend_hidden = False
@@ -4646,17 +4647,19 @@ class TiffPreview(QWidget):
         self._draw_cq_overlay(painter,
                               (scaled.width() / dpr) / max(1, self._pixmap.width()),
                               B, B,
-                              (scaled.height() / dpr) / max(1, self._pixmap.height()))
+                              (scaled.height() / dpr) / max(1, self._pixmap.height()),
+                              legend=False)
 
-        # THE SCAN ARROWS GO ON TOP, LAST (Knut, 2026-10-20, K1). They were
-        # painted first, under everything, and the lower arrow now sits just
-        # under the last row of patches (Basti, #182 6001610646), which is the
-        # very band the "expected / measured" legend chip is placed in: the
-        # arrow slid in and out of sight behind the chip's dark panel while
-        # the strip moved across the middle of the sheet. The arrow is the
-        # live cue for where to read next; the chip is a key that can be read
-        # around a 20 px triangle. Painted last, the arrow is never covered by
-        # the chip, the guides or the helper markers.
+        # THE SCAN ARROWS GO OVER THE OVERLAY AND UNDER THE LEGEND CHIP (K1).
+        # Knut, 2026-10-20: the lower arrow now sits just under the last row
+        # of patches (Basti, #182 6001610646), which is the very band the
+        # "expected / measured" chip is placed in, and the chip's dark panel
+        # hid it. The first fix painted the arrow over the chip, and then the
+        # arrow covered the chip's words. Basti, 2026-10-21, as Knut asked:
+        # the arrow goes UNDER the chip, the chip's panel is see-through
+        # enough for the arrow to show clearly, and only its TEXT stays on
+        # top, outlined so it reads on paper, on a dark patch and over the
+        # arrow alike (`_paint_legend_chip`).
         if (self.active_stripe_on_screen() >= 0 and self._stripe_rects
                 and not self._hex_zigzag and not self._no_swipe):
             # sx/sy: device pixels per original image pixel
@@ -4701,6 +4704,8 @@ class TiffPreview(QWidget):
                     bot.closeSubpath()
                     self._fill_scan_arrow(painter, bot)
 
+        # The chip last of all: over the arrows, but see-through (K1).
+        self._paint_legend_chip(painter)
 
         painter.end()
         self._img_label.setPixmap(canvas)
@@ -4768,7 +4773,8 @@ class TiffPreview(QWidget):
 
     def _draw_cq_overlay(self, painter: QPainter,
                          s: float, ox: float, oy: float,
-                         sy: "float | None" = None) -> None:
+                         sy: "float | None" = None,
+                         legend: bool = True) -> None:
         """#126 chart-reading engine overlays, drawn in canvas coordinates
         (image px × scale + offset). Three layers: the split-patch results for
         the current page, a hover outline for click-to-jump, and a small
@@ -4802,8 +4808,13 @@ class TiffPreview(QWidget):
         any of this both used the same number and the mismatch was exactly
         zero, so that one was introduced by the fix and is not a pre-existing
         rounding. Re-measured after: every one of 1,539,163 logical pixels
-        inside a patch and under its own overlay box named the right patch."""
+        inside a patch and under its own overlay box named the right patch.
+
+        `legend=False` places the chip (its rectangle is still recorded for
+        the hover test) but leaves the painting to `_paint_legend_chip`, so a
+        caller can draw the scan arrows in between (K1)."""
         sy = s if sy is None else sy
+        self._legend_paint = None
         from PyQt6.QtGui import QPen, QPainterPath as _QP
 
         # Device-pixel snapping: see the split-patch block below. Read once —
@@ -6320,12 +6331,48 @@ class TiffPreview(QWidget):
             self._legend_geom = (ox, oy)
             # Drawn at the CURRENT opacity, not switched. Both the panel and
             # its text fade together, so it dims away rather than blinking.
-            op = self._legend_opacity
-            if op > 0.01:
-                painter.fillRect(cx, cy, tw, th,
-                                 QColor(20, 20, 20, int(190 * op)))
-                painter.setPen(QColor(244, 242, 239, int(255 * op)))
-                painter.drawText(cx + 8, cy + th - 6, txt)
+            self._legend_paint = (cx, cy, tw, th, txt)
+            if legend:
+                self._paint_legend_chip(painter)
+
+    #: The chip's panel alpha at full opacity (of 255). It was 190, a nearly
+    #: solid dark panel that hid the scan arrow below the last row (K1). At
+    #: 80 the arrow, the paper and the patches all show through; the words do
+    #: not depend on the panel any more, because each glyph carries its own
+    #: dark outline.
+    _LEGEND_PANEL_ALPHA = 80
+    #: Width of that outline, logical px (half of it falls outside the glyph).
+    _LEGEND_TEXT_OUTLINE = 2.2
+
+    def _paint_legend_chip(self, painter: QPainter) -> None:
+        """Paint the legend chip `_draw_cq_overlay` placed, if any.
+
+        A see-through panel, then the text in the chip's light colour over a
+        dark outline (Basti, 2026-10-21, K1). Measured on screen on Knut's
+        run 1 chart (light, dark, neutral): the text against the darkest pixel
+        beside it is 12.8:1 (median, 12.1:1 at the 10th percentile), where the
+        old solid panel gave 7.2:1, and the number of text pixels is the same
+        whichever strip's arrow is under the chip, so the arrow never covers a
+        letter.
+        """
+        geom = getattr(self, "_legend_paint", None)
+        op = self._legend_opacity
+        if geom is None or op <= 0.01:
+            return
+        cx, cy, tw, th, txt = geom
+        from PyQt6.QtGui import QPen
+        painter.save()
+        painter.fillRect(cx, cy, tw, th,
+                         QColor(20, 20, 20, int(self._LEGEND_PANEL_ALPHA * op)))
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        path = QPainterPath()
+        path.addText(float(cx + 8), float(cy + th - 6), painter.font(), txt)
+        halo = QPen(QColor(20, 20, 20, int(220 * op)))
+        halo.setWidthF(self._LEGEND_TEXT_OUTLINE)
+        halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.strokePath(path, halo)
+        painter.fillPath(path, QColor(244, 242, 239, int(255 * op)))
+        painter.restore()
 
     def _draw_margin_guides(
         self, painter: QPainter, border: float, disp_w: float, disp_h: float
