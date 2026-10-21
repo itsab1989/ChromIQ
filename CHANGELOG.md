@@ -1,5 +1,29 @@
 # Changelog
 
+## v4.3.8
+
+**For everyone updating from 4.3.7: print settings belong to each run, Windows gets ChromIQ's own print route, the instrument's button can retry a failed strip, and a good strip reading is never lost when a swipe is recognised as another strip.** The details of each change are in the three beta entries below.
+
+### Added
+- **Press the instrument's button to retry a failed strip** (i1Pro, i1Pro 2, i1Pro 3, i1Pro 3 Plus, ColorMunki). In the Strip Read Failed window the first press works like Retry, the second press starts the scan as usual. Tested on a real ColorMunki.
+- **Windows: ChromIQ's own print route** (#205), as on macOS: Preferences > "Use default Windows printer dialog" switched off sends a PostScript printer ChromIQ's own PostScript, so RGB, CMY, CMYK and multi-ink charts reach the printer unchanged.
+- **Check & Refine, gamut comparison: profile A gets its own opacity and colour sliders,** so a smaller gamut inside a larger one becomes visible.
+- **A warning before a profile or a calibration is built from a measurement with unread strips.** It names the missing strips and how many patches they hold. "Go back and measure" is the default; "Build anyway" builds as before. (New texts, shown and waiting for approval.)
+
+### Changed
+- **Every run keeps its own printer and print options** (#182), and a verification chart goes to a PostScript printer the same way as its profiling chart.
+- **The Strip Read Failed window explains each kind of failure on its own**, including "Reading is too short" (the instrument stopped reading almost at once, for example a press without a swipe). Before, every failure was told to scan more slowly.
+- **"Name the installed copy after the description" is on by default** for everyone who never changed it.
+- **macOS: the log records where alert sounds play when a measurement starts.** The instrument's "ready" beep is the system alert sound. If System Settings > Sound > "Play sound effects through" points at the built-in speakers while you listen on headphones, you will not hear it.
+
+### Fixed
+- **"I read strip B" no longer throws away the good reading of the strip the swipe was filed under** (Knut). A swipe of strip U made while ChromIQ expected strip V overwrote V's earlier, good reading; after "I read strip U" V was left unread, and a profile could be built from fewer patches without a word. V now gets its earlier reading back.
+- **Windows: a measurement could fail to save after a strip** when another program held the file for a moment. The save now replaces the file in one step and retries; if it still fails, the readings are kept in a safety copy that the next load uses, and the line under the chart says so.
+- **A verification or Windows print dialog chart printed at the wrong size,** the paper chosen for a chart could be smaller than the chart, and charts with extra inks printed an ink in the wrong channel through ChromIQ's own PostScript.
+- **The scan arrow under the last row was hidden behind the "expected / measured" label** (Knut).
+- **An .icm profile was installed as .icc, and X.icc beside X.icm made two profiles of the same name.**
+- **Did you know? On a Mac you can use the Mac's own Open and Save windows:** Preferences > Behaviour > "Use the operating system's file browser" (off by default; checked on macOS 27, also in full screen). The manual's FAQ Q.06 now describes it correctly.
+
 ## v4.3.8-beta.3
 
 **The instrument's own button can retry a strip that failed, and the Strip Read Failed window now explains each kind of failure on its own.**
