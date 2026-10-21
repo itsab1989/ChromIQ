@@ -8,6 +8,7 @@ from PyQt6.QtCore import QSize, QTimer, QUrl, Qt
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -16,6 +17,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSlider,
+    QSpacerItem,
     QVBoxLayout,
     QWidget,
 )
@@ -190,6 +192,62 @@ class GamutPanel(QWidget):
                 " font-family: Menlo, Consolas, 'Courier New', monospace;"
                 " font-size: 12px; font-weight: bold;")
 
+    #: The colour each profile's letter is written in (K3), per appearance.
+    #: Light takes darker shades of the app's cyan and magenta so a bold
+    #: letter reads on the light panel; Neutral has no hues, so both letters
+    #: are its main ink and the letter itself tells them apart.
+    _LETTER_COLOURS = {
+        "light":   ("#0b7486", "#c2234f"),
+        "dark":    ("#37bcd6", "#ff4573"),
+        "neutral": (neutral_styles.NM_TEXT_MAIN, neutral_styles.NM_TEXT_MAIN),
+    }
+
+    def letter_colours(self) -> "tuple[str, str]":
+        """(profile A's colour, profile B's colour) in this appearance."""
+        return self._LETTER_COLOURS.get(self._mode, self._LETTER_COLOURS["dark"])
+
+    def _apply_letter_colours(self) -> None:
+        if getattr(self, "_a_letter", None) is None:
+            return
+        for lt, col in zip((self._a_letter, self._b_letter), self.letter_colours()):
+            lt.setStyleSheet(
+                f"color: {col}; background: transparent; font-weight: 800;"
+                " font-family: Menlo, Consolas, 'Courier New', monospace;"
+                " font-size: 13px;")
+
+    def _set_slider_tooltips(self) -> None:
+        """Say on every slider which gamut it changes and what it does (K3)."""
+        a_op = tr(
+            "How solid profile A is drawn in the Combined view. Profile A is "
+            "the one in the Profile field. At 100 % it is solid, as before; "
+            "lower it to see profile B through it, for example when B lies "
+            "inside A. Only the picture changes, never the profiles.")
+        a_sat = tr(
+            "How colourful profile A is drawn in the Combined view. At 100 % "
+            "it shows its own colours; towards 0 % it turns grey, which makes "
+            "profile B easier to tell apart. Only the picture changes, never "
+            "the profiles.")
+        b_op = tr(
+            "How solid profile B is drawn in the Combined view. Profile B is "
+            "the one in the Compare with field. At 100 % it is solid, at 0 % "
+            "it cannot be seen; 50 % lets you see profile A through it. Only "
+            "the picture changes, never the profiles.")
+        b_sat = tr(
+            "How colourful profile B is drawn in the Combined view. At 100 % "
+            "it shows its own colours; towards 0 % it turns grey, which makes "
+            "profile A easier to tell apart. Only the picture changes, never "
+            "the profiles.")
+        for tip, ws in ((a_op, (self._a_opacity_slider, self._a_opacity_label)),
+                        (a_sat, (self._a_sat_slider, self._a_sat_label)),
+                        (b_op, (self._opacity_slider, self._opacity_label)),
+                        (b_sat, (self._sat_slider, self._sat_label))):
+            for w in ws:
+                w.setToolTip(tip)
+        self._a_letter.setToolTip(tr(
+            "Profile A: the one in the Profile field."))
+        self._b_letter.setToolTip(tr(
+            "Profile B: the one in the Compare with field."))
+
     def set_appearance(self, mode: str) -> None:
         """Switch viewer + header colors between dark and light themes."""
         from ui.theme import accept_mode
@@ -251,8 +309,11 @@ class GamutPanel(QWidget):
         # new mode's wordmark colour.
         if getattr(self, "_opacity_slider", None) is not None:
             ss = self._slider_stylesheet()
-            self._opacity_slider.setStyleSheet(ss)
-            self._sat_slider.setStyleSheet(ss)
+            for sl in (self._opacity_slider, self._sat_slider,
+                       self._a_opacity_slider, self._a_sat_slider):
+                sl.setStyleSheet(ss)
+            self._apply_letter_colours()
+            self._update_profile_header()
         # The volume figure carried a module-level violet baked in at build
         # time, so it kept it through every theme switch. It follows the
         # appearance now.
@@ -298,13 +359,20 @@ class GamutPanel(QWidget):
             return
         parts: list[str] = []
         tooltip_lines: list[str] = []
+        # The letters in each profile's colour, as at the start of the slider
+        # rows (K3), so the two say which gamut is which in the same way.
+        import html as _html
+        col_a, col_b = self.letter_colours()
         if primary:
-            parts.append(f"A: {self._elide_middle(primary.stem, 28)}")
+            parts.append(f"<b style='color:{col_a}'>A:</b> "
+                         f"{_html.escape(self._elide_middle(primary.stem, 28))}")
             tooltip_lines.append(f"A: {primary}")
         if compare:
-            parts.append(f"B: {self._elide_middle(compare.stem, 28)}")
+            parts.append(f"<b style='color:{col_b}'>B:</b> "
+                         f"{_html.escape(self._elide_middle(compare.stem, 28))}")
             tooltip_lines.append(f"B: {compare}")
-        self._profile_lbl.setText("   ".join(parts))
+        self._profile_lbl.setTextFormat(Qt.TextFormat.RichText)
+        self._profile_lbl.setText("&nbsp;&nbsp;&nbsp;".join(parts))
         tooltip = "\n".join(tooltip_lines)
         for w in (self._hdr_lbl, self._profile_lbl, self._viewer_widget):
             w.setToolTip(tooltip)
@@ -373,13 +441,18 @@ class GamutPanel(QWidget):
         _mode_font.setWeight(QFont.Weight.Bold)
 
         self._view_toggle_row = QWidget(self)
-        toggle_layout = QHBoxLayout(self._view_toggle_row)
-        toggle_layout.setContentsMargins(12, 6, 12, 6)
+        _toggle_col = QVBoxLayout(self._view_toggle_row)
+        _toggle_col.setContentsMargins(12, 6, 12, 6)
+        _toggle_col.setSpacing(6)
+        _buttons_row = QWidget(self._view_toggle_row)
+        toggle_layout = QHBoxLayout(_buttons_row)
+        toggle_layout.setContentsMargins(0, 0, 0, 0)
         toggle_layout.setSpacing(8)
+        _toggle_col.addWidget(_buttons_row)
 
-        self._view_primary_btn  = QPushButton(tr("PROFILE A"), self._view_toggle_row)
-        self._view_combined_btn = QPushButton(tr("COMBINED"),  self._view_toggle_row)
-        self._view_compare_btn  = QPushButton(tr("PROFILE B"), self._view_toggle_row)
+        self._view_primary_btn  = QPushButton(tr("PROFILE A"), _buttons_row)
+        self._view_combined_btn = QPushButton(tr("COMBINED"),  _buttons_row)
+        self._view_compare_btn  = QPushButton(tr("PROFILE B"), _buttons_row)
         for btn in (self._view_primary_btn, self._view_combined_btn, self._view_compare_btn):
             btn.setCheckable(True)
             btn.setObjectName("mode_btn")
@@ -394,42 +467,67 @@ class GamutPanel(QWidget):
         toggle_layout.addWidget(self._view_primary_btn)
         toggle_layout.addWidget(self._view_combined_btn)
         toggle_layout.addWidget(self._view_compare_btn)
+        toggle_layout.addStretch()
 
-        # ── Per-compare-profile controls (shown only in Combined mode) ──
+        # ── One row of sliders per gamut, UNDER the buttons (K3) ──────
+        # Knut, 2026-10-20: "the smaller plain paper is completely inside the
+        # bigger Epson Photo paper gamut ... I could not see any difference
+        # when using the sliders". The one row there was acted on profile B
+        # only, and A was always drawn solid, so a B inside A stayed hidden.
+        # Basti, 2026-10-21: two rows, "A  Opacity  Sat." and "B  Opacity
+        # Sat.", a small letter in each profile's colour at the start; A
+        # starts at 100 % so the view is unchanged until it is moved; B keeps
+        # its old defaults (50 % / 100 %). Both rows belong to the Combined
+        # view, the only one that draws the two gamuts together.
         self._compare_controls = QWidget(self._view_toggle_row)
-        _cl = QHBoxLayout(self._compare_controls)
-        _cl.setContentsMargins(0, 10, 0, 0)
-        _cl.setSpacing(6)
-        _cl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        self._opacity_slider = QSlider(Qt.Orientation.Horizontal, self._compare_controls)
-        self._opacity_slider.setRange(0, 100)
-        self._opacity_slider.setValue(50)
-        self._opacity_slider.setFixedWidth(80)
-        self._opacity_slider.setStyleSheet(self._slider_stylesheet())
-        self._opacity_label = QLabel("50%", self._compare_controls)
-        self._opacity_label.setFixedWidth(34)
-        self._sat_slider = QSlider(Qt.Orientation.Horizontal, self._compare_controls)
-        self._sat_slider.setRange(0, 100)
-        self._sat_slider.setValue(100)
-        self._sat_slider.setFixedWidth(80)
-        self._sat_slider.setStyleSheet(self._slider_stylesheet())
-        self._sat_label = QLabel("100%", self._compare_controls)
-        self._sat_label.setFixedWidth(34)
-        _cl.addWidget(QLabel(tr("Opacity:")))
-        _cl.addWidget(self._opacity_slider)
-        _cl.addWidget(self._opacity_label)
-        _cl.addSpacing(10)
-        _cl.addWidget(QLabel(tr("Sat.:")))
-        _cl.addWidget(self._sat_slider)
-        _cl.addWidget(self._sat_label)
+        _cg = QGridLayout(self._compare_controls)
+        _cg.setContentsMargins(0, 2, 0, 0)
+        _cg.setHorizontalSpacing(6)
+        _cg.setVerticalSpacing(4)
+
+        def _slider(value: int) -> "tuple[QSlider, QLabel]":
+            sl = QSlider(Qt.Orientation.Horizontal, self._compare_controls)
+            sl.setRange(0, 100)
+            sl.setValue(value)
+            sl.setFixedWidth(96)
+            sl.setStyleSheet(self._slider_stylesheet())
+            lbl = QLabel(tr("{value}%").format(value=value), self._compare_controls)
+            lbl.setFixedWidth(40)
+            return sl, lbl
+
+        self._a_letter = QLabel("A", self._compare_controls)
+        self._b_letter = QLabel("B", self._compare_controls)
+        for lt in (self._a_letter, self._b_letter):
+            lt.setFixedWidth(16)
+            lt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._a_opacity_slider, self._a_opacity_label = _slider(100)
+        self._a_sat_slider, self._a_sat_label = _slider(100)
+        self._opacity_slider, self._opacity_label = _slider(50)
+        self._sat_slider, self._sat_label = _slider(100)
+        for row, (letter, op, op_l, sat, sat_l) in enumerate((
+                (self._a_letter, self._a_opacity_slider, self._a_opacity_label,
+                 self._a_sat_slider, self._a_sat_label),
+                (self._b_letter, self._opacity_slider, self._opacity_label,
+                 self._sat_slider, self._sat_label))):
+            op_name = QLabel(tr("Opacity:"), self._compare_controls)
+            sat_name = QLabel(tr("Sat.:"), self._compare_controls)
+            _cg.addWidget(letter, row, 0)
+            _cg.addWidget(op_name, row, 1)
+            _cg.addWidget(op, row, 2)
+            _cg.addWidget(op_l, row, 3)
+            _cg.addItem(QSpacerItem(10, 1), row, 4)
+            _cg.addWidget(sat_name, row, 5)
+            _cg.addWidget(sat, row, 6)
+            _cg.addWidget(sat_l, row, 7)
+        _cg.setColumnStretch(8, 1)
+        self._set_slider_tooltips()
+        self._apply_letter_colours()
         self._compare_controls.setVisible(False)
         self._opacity_slider.valueChanged.connect(self._on_opacity_changed)
         self._sat_slider.valueChanged.connect(self._on_saturation_changed)
-
-        toggle_layout.addSpacing(16)
-        toggle_layout.addWidget(self._compare_controls)
-        toggle_layout.setAlignment(self._compare_controls, Qt.AlignmentFlag.AlignVCenter)
-        toggle_layout.addStretch()
+        self._a_opacity_slider.valueChanged.connect(self._on_primary_opacity_changed)
+        self._a_sat_slider.valueChanged.connect(self._on_primary_saturation_changed)
+        _toggle_col.addWidget(self._compare_controls)
 
         self._view_toggle_row.setVisible(False)
         root.addWidget(self._view_toggle_row)
@@ -906,6 +1004,11 @@ class GamutPanel(QWidget):
         self._restore_camera()
         if not self._view_combined_btn.isChecked():
             return
+        # K3: profile A's own sliders, pushed only once they are off 100 %, so
+        # a page nobody touched draws A exactly as it always did.
+        a_op, a_sat = self._a_opacity_slider.value(), self._a_sat_slider.value()
+        if a_op != 100 or a_sat != 100:
+            self._web_view.page().runJavaScript(self._primary_js(a_op, a_sat))
         t = 1.0 - self._opacity_slider.value() / 100.0
         s = self._sat_slider.value() / 100.0
         # M2 (mavtop): switching to A/B and back to Combined RELOADS the scene,
@@ -938,6 +1041,28 @@ class GamutPanel(QWidget):
             f"window._chromiqCompareSat={s:.2f};"
             " if(window._chromiqApplyCompare) window._chromiqApplyCompare();"
         )
+
+    @staticmethod
+    def _primary_js(opacity: int, sat: int) -> str:
+        """Profile A's look on the Combined page (the page script's
+        `_chromiqPrimaryOpacity` / `_chromiqPrimarySat`, workflow/viewgam_runner)."""
+        return (f"window._chromiqPrimaryOpacity={1.0 - opacity / 100.0:.2f};"
+                f" window._chromiqPrimarySat={sat / 100.0:.2f};"
+                " if(window._chromiqApplyPrimary) window._chromiqApplyPrimary();")
+
+    def _on_primary_opacity_changed(self, value: int) -> None:
+        self._a_opacity_label.setText(tr("{value}%").format(value=value))
+        self._push_primary()
+
+    def _on_primary_saturation_changed(self, value: int) -> None:
+        self._a_sat_label.setText(tr("{value}%").format(value=value))
+        self._push_primary()
+
+    def _push_primary(self) -> None:
+        if self._web_view is None or not self._view_combined_btn.isChecked():
+            return
+        self._web_view.page().runJavaScript(self._primary_js(
+            self._a_opacity_slider.value(), self._a_sat_slider.value()))
 
     # ------------------------------------------------------------------
     # Slots — file browse
@@ -1217,6 +1342,8 @@ class GamutPanel(QWidget):
         self._edges_cb.setChecked(bool(s.get("gamut_edges", False)))
         self._opacity_slider.setValue(int(s.get("gamut_compare_opacity", 50)))
         self._sat_slider.setValue(int(s.get("gamut_compare_sat", 100)))
+        self._a_opacity_slider.setValue(int(s.get("gamut_primary_opacity", 100)))
+        self._a_sat_slider.setValue(int(s.get("gamut_primary_sat", 100)))
 
     def _on_save_defaults(self) -> None:
         s = self._settings
@@ -1229,6 +1356,8 @@ class GamutPanel(QWidget):
         s.set("gamut_edges",     self._edges_cb.isChecked())
         s.set("gamut_compare_opacity", self._opacity_slider.value())
         s.set("gamut_compare_sat",     self._sat_slider.value())
+        s.set("gamut_primary_opacity", self._a_opacity_slider.value())
+        s.set("gamut_primary_sat",     self._a_sat_slider.value())
 
 
 # ---------------------------------------------------------------------------

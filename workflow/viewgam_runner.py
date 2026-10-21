@@ -330,9 +330,11 @@ def _build_compare_overlay_html(
 ) -> bool:
     """Merge compare gamut scene into primary's colorful HTML as a transparent overlay.
 
-    Profile A keeps its natural per-vertex colors and is fully opaque.
-    Profile B keeps its natural colors but is rendered semi-transparent so
-    Profile A remains visible beneath it.
+    Profile A keeps its natural per-vertex colors and is fully opaque until
+    its own sliders move it (K3: the gamut panel's A row sets
+    `_chromiqPrimaryOpacity` / `_chromiqPrimarySat`). Profile B keeps its
+    natural colors but is rendered semi-transparent so Profile A remains
+    visible beneath it.
     Returns True on success.
     """
     try:
