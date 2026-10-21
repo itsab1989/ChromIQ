@@ -6619,7 +6619,7 @@ M_STRIP_FAILED_INCONSISTENT = _m(
     "This usually has one of these causes:\n"
     "• The speed changed while the instrument was on a patch, or the "
     "instrument tilted or lifted a little.\n"
-    "• The movement drifted sideways, so part of a patch was read from the "
+    "• The instrument slid to one side, so part of a patch was read from the "
     "strip next to it. Narrow strips make this easier to do.\n"
     "• The patch itself is not printed evenly, for example because of "
     "banding, a clogging nozzle or a mark on the paper.\n\n"

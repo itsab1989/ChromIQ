@@ -7270,7 +7270,7 @@ alone.
 >
 > This usually has one of these causes:
 > • The speed changed while the instrument was on a patch, or the instrument tilted or lifted a little.
-> • The movement drifted sideways, so part of a patch was read from the strip next to it. Narrow strips make this easier to do.
+> • The instrument slid to one side, so part of a patch was read from the strip next to it. Narrow strips make this easier to do.
 > • The patch itself is not printed evenly, for example because of banding, a clogging nozzle or a mark on the paper.
 >
 > What to do: put the instrument flat on the white paper before the first patch. If your instrument gives a short beep when it is ready, wait for it. Then move at one even speed and keep the instrument in the middle of the strip all the way to the white paper after the last patch. A ruler or a straight edge helps.

@@ -194,7 +194,9 @@ def test_eight_files_skip_wholesale_without_it():
     # relies on.
     # 14 in part with M3 (2026-10-21): the real engine refusing a save keeps
     # the temporary file and says so.
-    assert len(whole) == 10 and len(partial) == 14, (
+    # 15 in part with B1 (2026-10-21): the instrument's button as Retry,
+    # driven through the real engine's replay instrument.
+    assert len(whole) == 10 and len(partial) == 15, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")
