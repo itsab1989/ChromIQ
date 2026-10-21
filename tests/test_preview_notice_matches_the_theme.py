@@ -17,13 +17,24 @@ import pytest
 
 
 def _notice_style() -> str:
-    import inspect
-
+    """The notice's ordinary style. Since M3 (2026-10-21) it is one constant,
+    `TiffPreview._NOTICE_QSS`, because a failed auto-save shows the same label
+    as a WARNING on the app's warning colours (`set_notice(..., warn=True)`);
+    every other notice, this one included, keeps the palette's colours."""
     from ui.tiff_preview import TiffPreview
+    return TiffPreview._NOTICE_QSS
 
-    src = inspect.getsource(TiffPreview)
-    i = src.index("_notice_lbl.setStyleSheet")
-    return src[i:i + 400]
+
+def test_only_a_warning_takes_colours_of_its_own(qtbot):
+    from ui.tiff_preview import TiffPreview
+    p = TiffPreview()
+    qtbot.addWidget(p)
+    p.set_notice("No chart for this profile run yet")
+    assert p._notice_lbl.styleSheet() == TiffPreview._NOTICE_QSS
+    p.set_notice("warning", warn=True)
+    assert "color:" in p._notice_lbl.styleSheet()
+    p.set_notice("No chart for this profile run yet")
+    assert p._notice_lbl.styleSheet() == TiffPreview._NOTICE_QSS
 
 
 def test_the_notice_sets_no_colour_of_its_own():
