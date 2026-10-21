@@ -632,6 +632,14 @@ class MeasureManager(QObject):
         on_finish: Callable[[int], None],
     ) -> None:
         args = self._build_args(params)
+        # M2 (Knut's missing i1Pro 2 ready beep): the beep is the macOS system
+        # alert, so log how its volume and device were set. One background
+        # thread per start, never on the GUI thread, never per strip.
+        try:
+            from core.alert_sound import log_alert_sound_state_async
+            log_alert_sound_state_async()
+        except Exception:      # noqa: BLE001 — a log line never blocks a read
+            log.debug("alert sound state not logged", exc_info=True)
         #: The system port a refused start would have opened, or None. The
         #: tab reads it to tell "no instrument is connected" (nothing was
         #: asked of any instrument) from "the instrument did not answer".
