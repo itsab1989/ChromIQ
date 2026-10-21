@@ -578,6 +578,31 @@ def failure_kind(detail: str) -> str:
     return "other"
 
 
+def misread_kind(detail: str) -> str:
+    """Which Strip Read Failed text a driver's misread sentence gets (B1/M1).
+
+    ``"too_many"``, ``"too_few"``, ``"inconsistent"``, ``"edges"``,
+    ``"too_fast"`` or ``"other"``. The sentences are the drivers' own and are
+    the same in the i1Pro, i1Pro 3 and ColorMunki drivers (i1pro.c:455-475,
+    i1pro3.c:419-439, munki.c:465-485). "Reading is too short" is a read that
+    timed out (i1pro_imp.c:11802), not a measure of speed, so it gets the
+    general text; so does "Number of patches to match is wrong", an internal
+    check (i1pro_imp.c:2961).
+    """
+    low = (detail or "").lower()
+    if "too many patches" in low:
+        return "too_many"
+    if "not enough patches" in low:
+        return "too_few"
+    if "reading is inconsistent" in low and "calibration" not in low:
+        return "inconsistent"
+    if "start and end on the media" in low:
+        return "edges"
+    if "not enough samples per patch" in low:
+        return "too_fast"
+    return "other"
+
+
 def failure_advice(detail: str, config: "PaceConfig") -> str:
     """A sentence about *why* a strip failed, in terms of the thresholds
     currently set in Preferences — never a fixed number, so changing a setting

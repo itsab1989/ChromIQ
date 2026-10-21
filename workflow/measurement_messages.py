@@ -6547,6 +6547,167 @@ M_REFINE_REBUILD = _m(
     approved=False)
 
 
+# --- PROPOSED: the Strip Read Failed window, one text per error (B1/M1) -----
+#: Basti, 2026-10-21 (forum 149774, agent 1's M1 analysis): every strip
+#: misread used to get the same advice, "scan more slowly and steadily, or
+#: raise the Patch consistency tolerance", which does not help "Too many
+#: patches" at all. Each error the drivers report (the same sentences in the
+#: i1Pro, i1Pro 3 and ColorMunki drivers, i1pro.c:455-475) now gets its own
+#: cause and remedy, taken from where the driver raises it
+#: (i1pro_imp.c:6974-7026 and 7160-7201). Picked by
+#: core.measure_pace.misread_kind. {reason} is the driver's own sentence.
+#: M-STRIP-FAILED-BUTTON is added only when the engine says the connected
+#: instrument's button can answer the window ("button_retry"): i1Pro,
+#: i1Pro 2, i1Pro 3 and ColorMunki.
+M_STRIP_FAILED_TOO_MANY = _m(
+    "M-STRIP-FAILED-TOO-MANY",
+    "The instrument found more patches than this strip has",
+    "While you move along the strip, the instrument looks for the places "
+    "where the colour changes, and counts a patch between each two of them. "
+    "This time it counted more patches than are printed on the strip. It "
+    "could then not tell which reading belongs to which patch, so it kept "
+    "none of them. The strips you have already read are not affected.\n\n"
+    "This usually has one of these causes:\n"
+    "• The movement was not even. A pause, a hesitation or a change of speed "
+    "in the middle of the strip looks like one more colour change.\n"
+    "• Two neighbouring patches have very similar colours. The narrow divider "
+    "printed between them can then be counted as a patch of its own. If the "
+    "same strip fails again and again while the others read well, this is "
+    "the most likely reason.\n"
+    "• The patches are small. The closer they are to the smallest size your "
+    "instrument can read, the more easily this happens.\n\n"
+    "What to do: put the instrument down on the white paper before the first "
+    "patch. If your instrument gives a short beep when it is ready, wait for "
+    "it. Then move in one smooth movement at an even speed, and keep going "
+    "until the instrument is on the white paper after the last patch. Try not "
+    "to stop or slow down on the way. A ruler or a straight edge along the "
+    "strip helps to keep the movement straight and even.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+M_STRIP_FAILED_TOO_FEW = _m(
+    "M-STRIP-FAILED-TOO-FEW",
+    "The instrument found fewer patches than this strip has",
+    "While you move along the strip, the instrument looks for the places "
+    "where the colour changes, and counts a patch between each two of them. "
+    "This time it found fewer patches than are printed on the strip. It could "
+    "then not match its readings to the patches, so it kept none of them. "
+    "The strips you have already read are not affected.\n\n"
+    "This usually has one of these causes:\n"
+    "• The movement started after the first patch or stopped before the last "
+    "one, so a patch at one end was never seen.\n"
+    "• The movement was too quick, so a patch passed under the instrument "
+    "before it could take enough readings of it.\n"
+    "• Two neighbouring patches have very similar colours, so the instrument "
+    "did not notice the change from one to the other.\n\n"
+    "What to do: put the instrument down on the white paper before the first "
+    "patch. If your instrument gives a short beep when it is ready, wait for "
+    "it. Then move steadily, a little more slowly than last time if you were "
+    "quick, and keep going until the instrument is on the white paper after "
+    "the last patch.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+M_STRIP_FAILED_INCONSISTENT = _m(
+    "M-STRIP-FAILED-INCONSISTENT",
+    "The readings of one patch did not agree with each other",
+    "Your instrument takes many readings of each patch as it moves along the "
+    "strip. On this strip, the readings of at least one patch differed from "
+    "each other by more than the patch consistency tolerance allows, so the "
+    "instrument rejected the strip and kept none of it. The strips you have "
+    "already read are not affected.\n\n"
+    "This usually has one of these causes:\n"
+    "• The speed changed while the instrument was on a patch, or the "
+    "instrument tilted or lifted a little.\n"
+    "• The movement drifted sideways, so part of a patch was read from the "
+    "strip next to it. Narrow strips make this easier to do.\n"
+    "• The patch itself is not printed evenly, for example because of "
+    "banding, a clogging nozzle or a mark on the paper.\n\n"
+    "What to do: put the instrument flat on the white paper before the first "
+    "patch. If your instrument gives a short beep when it is ready, wait for "
+    "it. Then move at one even speed and keep the instrument in the middle of "
+    "the strip all the way to the white paper after the last patch. A ruler "
+    "or a straight edge helps.\n\n"
+    "If the strip keeps failing, look at it closely. A patch that is visibly "
+    "uneven means the print is the problem, and printing the chart again "
+    "helps more than reading it again. On a textured paper, a higher “Patch "
+    "consistency tolerance (-T)” on the Measure tab makes this check more "
+    "forgiving from the next measurement on. ChromIQ starts it at 0.7, which "
+    "is a little stricter than the instrument's own 1.0.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+M_STRIP_FAILED_EDGES = _m(
+    "M-STRIP-FAILED-EDGES",
+    "The movement did not start and end on the white paper",
+    "The instrument compares what it saw at the very start of the movement "
+    "with what it saw at the very end. Both should be the plain white paper "
+    "before and after the strip. This time the two were too different, so "
+    "the instrument could not be sure where the strip began and ended, and it "
+    "kept none of the readings. The strips you have already read are not "
+    "affected.\n\n"
+    "This usually happens when the movement started on the first patch "
+    "instead of the paper in front of it, or stopped on the last patch, or "
+    "ran off the edge of the sheet at the end.\n\n"
+    "What to do: put the instrument down on the white paper a little before "
+    "the first patch. If your instrument gives a short beep when it is ready, "
+    "wait for it. Then move along the strip and stop only when the instrument "
+    "is on the white paper after the last patch.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+M_STRIP_FAILED_TOO_FAST = _m(
+    "M-STRIP-FAILED-TOO-FAST",
+    "The movement was too quick",
+    "The instrument needs several readings of every patch. This time it "
+    "passed at least one patch before it had taken enough of them, so it "
+    "kept none of the readings of this strip. The strips you have already "
+    "read are not affected.\n\n"
+    "What to do: put the instrument down on the white paper before the first "
+    "patch. If your instrument gives a short beep when it is ready, wait for "
+    "it. Then move more slowly, at an even speed, until the instrument is on "
+    "the white paper after the last patch.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+M_STRIP_FAILED_OTHER = _m(
+    "M-STRIP-FAILED-OTHER",
+    "The strip could not be read",
+    "The instrument could not turn this movement into one reading for every "
+    "patch on the strip, so it kept none of the readings of this strip. The "
+    "strips you have already read are not affected.\n\n"
+    "What to do: put the instrument flat on the white paper before the first "
+    "patch. If your instrument gives a short beep when it is ready, wait for "
+    "it. Then move in one smooth movement at an even speed along the middle "
+    "of the strip, until the instrument is on the white paper after the last "
+    "patch. If the same message keeps coming back, the instrument's own "
+    "words below say what it found.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+M_STRIP_FAILED_BUTTON = _m(
+    "M-STRIP-FAILED-BUTTON",
+    "You can also use the button on your instrument",
+    "Instead of clicking Retry, you can press the button on your instrument "
+    "once. That closes this window and gets the same strip ready to be read "
+    "again, exactly as Retry does. Then put the instrument on the white paper "
+    "before the strip and read it the way you always do, with the button. "
+    "The first press reads nothing, so an accidental press only brings you "
+    "back to reading this strip.",
+    approved=False)
+
+#: misread_kind() -> the message for it.
+STRIP_FAILED_ADVICE = {
+    "too_many": M_STRIP_FAILED_TOO_MANY,
+    "too_few": M_STRIP_FAILED_TOO_FEW,
+    "inconsistent": M_STRIP_FAILED_INCONSISTENT,
+    "edges": M_STRIP_FAILED_EDGES,
+    "too_fast": M_STRIP_FAILED_TOO_FAST,
+    "other": M_STRIP_FAILED_OTHER,
+}
+STRIP_FAILED_MESSAGES = (*STRIP_FAILED_ADVICE.values(), M_STRIP_FAILED_BUTTON)
+
+
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_CAL_FOUND_ENGINE,
@@ -6665,6 +6826,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
     M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
     *CONVERT_MESSAGES,
+    *STRIP_FAILED_MESSAGES,
     M_RESUME_LAYOUT_DIFFERS, M_REFINE_REBUILD,
 )}
 

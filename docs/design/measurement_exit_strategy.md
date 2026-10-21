@@ -99,6 +99,10 @@ whether the handler works.**
 | **Unexpected Response** | Use Anyway / Retry / Give Up / *dismissed* | as Wrong Strip Read | | ✅ |
 | **Strip Read Interrupted** | Continue / Give Up | `\r`, `GIVE_UP_PENDING` | | ✅ |
 | **Place the sheet** (XY mode) | Continue / Give Up | `\r`, `GIVE_UP_PENDING` | | ✅ |
+| **Strip Read Failed** | Retry | `\r` → `{"cmd":"ok"}` | read the same strip again | ✅ not an exit |
+| | *the instrument's button* (i1Pro, i1Pro 2, i1Pro 3 / 3 Plus, ColorMunki; **note 10**, approved by Basti 2026-10-21) | the window's own Retry is clicked → `\r` → `{"cmd":"ok"}` | exactly Retry; the next press is the normal scan press | ✅ not an exit |
+| | Skip Strip | `skip_current_strip()` | | ✅ not an exit |
+| | Save Partial & Quit | `send_save_partial_and_quit()` | the two-`q` chain | ⚠️ as note 1 |
 | **Patch Read Failed** | Retry | `retry` | | ✅ not an exit |
 | | Skip Patch | `skip` | | ✅ not an exit |
 | | Save Partial & Quit | `send_save_partial_and_quit()` | the two-`q` chain | ⚠️ **note 1 — left as it is, by his ruling** |
@@ -383,3 +387,34 @@ not been put to them as rows.
 * **Not for the CR30 and not for whole-sheet readers** (Knut, 5965735823): a log
   line, and the helper ignores the request on those paths too.
 
+## Note 10 — the instrument's button is Retry at Strip Read Failed (B1, 4.3.8)
+
+**Approved by:** Basti, 2026-10-21 (approver while Knut is away), forum 149774.
+⏳ **Awaiting confirmation** of the rows as built. **Confirmed by:** *nobody yet.*
+
+After a failed strip the window can be answered from the instrument, so the
+user does not have to reach for the computer between two swipes.
+
+* **Two presses.** Press 1 is Retry: the window's own Retry button is clicked,
+  so it sends what Retry sends and nothing else. Press 2 is the normal scan
+  press of the strip that is armed again. One press cannot do both: the driver
+  counts a scan press only after the strip has been re-armed
+  (i1pro_imp.c:2994), and a scan must not start before the instrument is
+  placed.
+* **Where it works.** Only where the driver's switch thread reports a press
+  outside a scan: i1Pro, i1Pro 2, i1Pro 3 and 3 Plus (`i1pro3`), ColorMunki. The
+  engine's misread event says so (`"button_retry": true`) and only then does
+  the window mention the button (M-STRIP-FAILED-BUTTON). Not the DTP20, DTP22,
+  DTP41 or SpectroScan (no switch thread; the DTP41 is motorised and the
+  SpectroScan reads no strips), not the CR30 (it reads patch by patch, so
+  this window is never its window; its own button already takes the
+  reading), not the i1iSis (left alone), and not on stock ArgyllCMS chartread.
+* **Where it never works.** The engine reports a press (`{"event":"switch"}`)
+  only while it waits at the misread prompt (a gate opened around that one
+  wait). Never at Wrong Strip Read, Strip Read Interrupted, a calibration, the
+  strip menu (where a press is the scan trigger, as always), or Patch Read
+  Failed. The app acts on it only while the Strip Read Failed window is open
+  and offered the button, so a click and a press can never both be applied.
+* **Debounce.** A press within 0.3 s of the window opening is ignored: it is
+  the press or release that ended the failed scan, not an answer.
+* The press plays no sound (`measurement_window_sounds.md` §4d).

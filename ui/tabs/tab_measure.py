@@ -324,6 +324,29 @@ def _save_partial_name() -> str:
     return tr("Save Partial && Quit").replace("&&", "&amp;")
 
 
+def _catalogue_html(title: str, body: str) -> str:
+    """A §M message as the rich text of a measurement window: the headline in
+    bold, then the body with its paragraphs and "•" lines kept."""
+    text = html.escape(body).replace("\n\n", "<br><br>").replace("\n", "<br>")
+    return f"<b>{html.escape(title)}</b><br><br>{text}<br><br>"
+
+
+def _strip_failed_advice_html(reason: str) -> str:
+    """The Strip Read Failed window's advice for the driver's *reason*: its
+    own cause and remedy per error (B1/M1, M-STRIP-FAILED-*)."""
+    from core.measure_pace import misread_kind
+    from workflow import measurement_messages as M
+    msg = M.STRIP_FAILED_ADVICE[misread_kind(reason)]
+    return _catalogue_html(*msg.render(reason=reason or "misread"))
+
+
+def _strip_failed_button_html() -> str:
+    """M-STRIP-FAILED-BUTTON: shown only when the instrument's button can
+    answer the window (B1)."""
+    from workflow import measurement_messages as M
+    return _catalogue_html(*M.M_STRIP_FAILED_BUTTON.render())
+
+
 def _xyz_d50_to_srgb8(xyz: "list[float]") -> tuple[int, int, int]:
     """D50 XYZ (0..100) → display sRGB 0..255 (Bradford to D65). Preview
     colouring only — never feeds back into measurement data (#126)."""
@@ -1634,6 +1657,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # #131 2026-07-27, after my first fix missed this).
         self._manager.strip_error.connect(self._report_failed_strip_pace)
         self._manager.strip_error.connect(self._on_strip_error)
+        self._manager.instrument_button.connect(self._on_instrument_button)
         # #126 chart-reading engine
         self._manager.session_map.connect(self._on_session_map)
         self._manager.strip_measured.connect(self._on_strip_measured)
@@ -6427,7 +6451,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             deferred = getattr(self, "_deferred_strip_error", None)
             if deferred is not None:
                 self._deferred_strip_error = None
-                self._on_strip_error(deferred)
+                self._on_strip_error(deferred, bool(getattr(
+                    self, "_deferred_strip_error_button", False)))
             if box.clickedButton() is not go:
                 self._manager.abort()
                 # Measuring was declined, so a calibration for it would be a
@@ -10480,8 +10505,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         unread = [s for s, done in read_map.items() if not done]
         return unread == [current] if current else False
 
-    def _on_strip_error(self, reason: str) -> None:
+    def _on_strip_error(self, reason: str, button: "bool | None" = None) -> None:
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
+
+        # B1: can the instrument's button answer this window? The engine says
+        # so on its misread event (manager.misread_button_retry, set only
+        # while this signal is delivered); a deferred window keeps the answer.
+        if button is None:
+            button = bool(getattr(self._manager, "misread_button_retry", False))
 
         # ONE QUESTION AT A TIME. A pre-measurement window — "This chart was
         # made for a different instrument" — runs its own event loop, so
@@ -10494,6 +10525,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # same rule for the same reason.
         if getattr(self, "_pre_measure_window_open", False):
             self._deferred_strip_error = reason
+            self._deferred_strip_error_button = bool(button)
             return
 
         # Sound FIRST: this handler opens a modal dialog and blocks inside its
@@ -10557,12 +10589,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "sheet is lying flat."
             ).format(reason=reason) + "<br><br>"
         else:
-            advice = tr(
-                "<b>The strip could not be read:</b> {reason}<br><br>"
-                "Re-position your instrument at the beginning of the strip and try again. "
-                "If the error keeps occurring, try scanning more slowly and steadily, or "
-                "raise the <i>Patch consistency tolerance</i> setting before the next run."
-            ).format(reason=reason) + "<br><br>"
+            # B1/M1 (Basti, 2026-10-21): each error its own cause and remedy,
+            # from the §M catalogue (M-STRIP-FAILED-*), instead of one text
+            # for all that told "Too many patches" to scan more slowly.
+            advice = _strip_failed_advice_html(reason)
+            if button:
+                advice += _strip_failed_button_html()
 
         # Worked out before the text, because the second choice changes both
         # its name and what it does when this is the only unread stripe.
@@ -10685,7 +10717,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        self._exec_measurement_window(dlg)
+        # B1: while this window is up, a press of the instrument's button is
+        # its Retry (see _on_instrument_button). Only for a strip misread whose
+        # instrument reports presses; never for a patch or a lost connection.
+        import time as _time
+        self._strip_error_window = (
+            {"dlg": dlg, "retry": retry_btn, "shown": _time.monotonic()}
+            if button and not _spot and not is_coms else None)
+        try:
+            self._exec_measurement_window(dlg)
+        finally:
+            self._strip_error_window = None
         self._pace_prompt_open = False
         if getattr(self, "_all_done_deferred", False) and chosen[0] not in (
                 "retry", "skip"):
@@ -10715,6 +10757,34 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         QApplication.instance().installEventFilter(self)
         # On the save path chartread will exit on its own once 'y' is sent,
         # and _on_measure_done will then re-enable the UI and auto-arm resume.
+
+    #: B1: a press within this long of the Strip Read Failed window opening
+    #: is ignored. It is the press (or release) that ended the failed scan,
+    #: arriving just after the engine reported the failure, not an answer.
+    BUTTON_RETRY_DEBOUNCE_S = 0.3
+
+    def _on_instrument_button(self) -> None:
+        """B1 (Basti, 2026-10-21): the instrument's button at the misread
+        prompt. If the Strip Read Failed window is up, offered the button, and
+        has been up for longer than the debounce, the press is its Retry,
+        through the very button the user would click. Anywhere else it is
+        dropped: the engine reports a press only at that prompt, and the
+        window is the single decider, so a click and a press can never both
+        be applied."""
+        import time as _time
+        w = getattr(self, "_strip_error_window", None)
+        if not w or not w["dlg"].isVisible():
+            log.info("instrument button: pressed with no Strip Read Failed "
+                     "window open, ignored")
+            return
+        age = _time.monotonic() - w["shown"]
+        if age < self.BUTTON_RETRY_DEBOUNCE_S:
+            log.info("instrument button: pressed %.0f ms after the window "
+                     "opened, ignored (the press that ended the scan)",
+                     age * 1000)
+            return
+        log.info("instrument button: Retry")
+        w["retry"].click()
 
     def _on_calibration_prompt(self, cond: str = "", message: str = "",
                                optional: bool = False) -> None:

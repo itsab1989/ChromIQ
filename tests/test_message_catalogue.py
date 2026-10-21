@@ -120,6 +120,12 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # B1/M1 (4.3.8): the Strip Read Failed window, one text per error, and
+    # the instrument's button as Retry. Basti approved the behaviour on
+    # 2026-10-21; the wording is ours and waits here.
+    "M-STRIP-FAILED-TOO-MANY", "M-STRIP-FAILED-TOO-FEW",
+    "M-STRIP-FAILED-INCONSISTENT", "M-STRIP-FAILED-EDGES",
+    "M-STRIP-FAILED-TOO-FAST", "M-STRIP-FAILED-OTHER", "M-STRIP-FAILED-BUTTON",
     # M3 (4.3.8 beta 3): the engine could not save the readings, proposed 2026-10-21
     "M-AUTOSAVE-NOT-SAVED",
     # #205 (4.3.8): the Windows print route, proposed 2026-10-20
@@ -1150,6 +1156,9 @@ MODULE_LEVEL_WINDOW_SOURCES = [
     ("ui.measurement_filing", "say_filed_but_not_opened"),   # M-IMPORT-NOT-OPENED
     ("ui.ti2_loader", "_say_the_replace_failed"),            # M-IMPORT-REPLACE-FOLDER-FAILED
     ("ui.txt_loader", "_say_the_replace_failed"),            # …and its twin
+    # B1/M1: the Strip Read Failed window's advice and its button paragraph
+    ("ui.tabs.tab_measure", "_strip_failed_advice_html"),
+    ("ui.tabs.tab_measure", "_strip_failed_button_html"),
 ]
 
 

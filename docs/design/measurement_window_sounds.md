@@ -214,6 +214,17 @@ replaced (M-VERIFY-EARLIER-PROFILE, M-VERIFY-EARLIER-PROFILE-KEEP-CHART,
 M-VERIFY-EARLIER-PROFILE-NO-CHART, M-VERIFY-CHART-EARLIER-PROFILE; unified measurement management §6f) is not a
 measurement window and plays no sound (`ui/earlier_profile_offer.py`).
 
+## 4d. The instrument's button as Retry plays nothing of its own (B1, 4.3.8)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* (Basti approved the
+behaviour on 2026-10-21; that no sound goes with it is ours.)
+
+Pressing the instrument's button at *Strip read failed* (unified measurement
+management M-STRIP-FAILED-BUTTON, `measurement_exit_strategy.md` note 10) is that
+window's Retry, so it plays what Retry plays: nothing. The window's own sound
+(§1 row 1, §3) is unchanged, and the strip that is then read beeps as every
+strip does (§4a).
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session
