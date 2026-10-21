@@ -2754,7 +2754,7 @@ M_BUILD_INCOMPLETE = _m(
     "What each button does:\n"
     "•  Go back and measure: nothing is built. ChromIQ takes you to the "
     "Measure tab. Tick “Refine / resume existing measurement (-r)” and press "
-    "Start Measurement: everything you have measured is kept, and you only "
+    "Continue Measurement: everything you have measured is kept, and you only "
     "need to read the strips listed here.\n"
     "•  Build anyway: the profile is built now from the {read} patches that "
     "have a reading.",
@@ -2769,7 +2769,7 @@ M_BUILD_INCOMPLETE = _m(
         "What each button does:\n"
         "•  Go back and measure: nothing is built. ChromIQ takes you to the "
         "Measure tab. Tick “Refine / resume existing measurement (-r)” and "
-        "press Start Measurement: everything you have measured is kept, and "
+        "press Continue Measurement: everything you have measured is kept, and "
         "you only need to read the strip listed here.\n"
         "•  Build anyway: the profile is built now from the {read} patches "
         "that have a reading."),
@@ -2790,7 +2790,7 @@ M_BUILD_INCOMPLETE_CAL = _m(
     "What each button does:\n"
     "•  Go back and measure: nothing is made. ChromIQ takes you to the "
     "Measure tab. Tick “Refine / resume existing measurement (-r)” and press "
-    "Start Measurement: everything you have measured is kept, and you only "
+    "Continue Measurement: everything you have measured is kept, and you only "
     "need to read the strips listed here.\n"
     "•  Build anyway: the calibration is made now from the {read} patches "
     "that have a reading.",
@@ -2805,7 +2805,7 @@ M_BUILD_INCOMPLETE_CAL = _m(
         "What each button does:\n"
         "•  Go back and measure: nothing is made. ChromIQ takes you to the "
         "Measure tab. Tick “Refine / resume existing measurement (-r)” and "
-        "press Start Measurement: everything you have measured is kept, and "
+        "press Continue Measurement: everything you have measured is kept, and "
         "you only need to read the strip listed here.\n"
         "•  Build anyway: the calibration is made now from the {read} patches "
         "that have a reading."),

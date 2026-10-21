@@ -583,3 +583,32 @@ def test_every_build_route_asks_first():
     src = inspect.getsource(TabProfile._on_printcal_run)
     assert src.index("self._confirm_build_from_incomplete(") < \
         src.index("self._printcal_runner.run(")
+
+
+def test_the_build_window_names_the_button_the_user_will_see():
+    """Review 9 (2026-10-21): M-BUILD-INCOMPLETE(-CAL) told the user to tick
+    "Refine / resume existing measurement (-r)" and press "Start
+    Measurement", but with that box ticked the button reads "Continue
+    Measurement" (TabMeasure._refresh_start_button_label). Every body names
+    the label the button really carries then, in every language."""
+    from workflow import measurement_messages as M
+    tab_src = (Path(__file__).resolve().parents[1] / "ui" / "tabs"
+               / "tab_measure.py").read_text(encoding="utf-8")
+    assert 'self._start_btn.setText(tr("Continue Measurement"))' in tab_src
+    assert 'QCheckBox(tr("Refine / resume existing measurement (-r)")' in tab_src
+    bodies = [m.body for m in (M.M_BUILD_INCOMPLETE, M.M_BUILD_INCOMPLETE_CAL)]
+    bodies += [m.body_one for m in (M.M_BUILD_INCOMPLETE,
+                                    M.M_BUILD_INCOMPLETE_CAL)]
+    for body in bodies:
+        assert "press Continue Measurement:" in body
+        assert "Start Measurement" not in body
+    i18n_dir = Path(__file__).resolve().parents[1] / "data" / "i18n"
+    for f in sorted(i18n_dir.glob("*.json")):
+        cat = json.loads(f.read_text(encoding="utf-8"))
+        cont = cat.get("Continue Measurement")
+        start = cat.get("Start Measurement")
+        for body in bodies:
+            got = cat.get(body)
+            assert got, f"{f.name}: build-incomplete body not translated"
+            assert cont in got, f"{f.name}: does not name {cont!r}"
+            assert start not in got, f"{f.name}: still names {start!r}"

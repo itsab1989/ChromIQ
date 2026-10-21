@@ -5276,7 +5276,7 @@ With more than one file, the headline is **ChromIQ repaired these measurement fi
 > A profile can be built from it, but it would know your printer only from the {read} patches that were measured. Where readings are missing it has to fill in the colours from the patches around them, so the profile can be less accurate there, and nothing would point it out to you later.
 >
 > What each button does:
-> •  Go back and measure: nothing is built. ChromIQ takes you to the Measure tab. Tick “Refine / resume existing measurement (-r)” and press Start Measurement: everything you have measured is kept, and you only need to read the strips listed here.
+> •  Go back and measure: nothing is built. ChromIQ takes you to the Measure tab. Tick “Refine / resume existing measurement (-r)” and press Continue Measurement: everything you have measured is kept, and you only need to read the strips listed here.
 > •  Build anyway: the profile is built now from the {read} patches that have a reading.
 
 *Exactly one patch missing (`{missing}` = 1):*
@@ -5290,7 +5290,7 @@ With more than one file, the headline is **ChromIQ repaired these measurement fi
 > A profile can be built from it, but it would know your printer only from the {read} patches that were measured. Where a reading is missing it has to fill in the colour from the patches around it, so the profile can be less accurate there, and nothing would point it out to you later.
 >
 > What each button does:
-> •  Go back and measure: nothing is built. ChromIQ takes you to the Measure tab. Tick “Refine / resume existing measurement (-r)” and press Start Measurement: everything you have measured is kept, and you only need to read the strip listed here.
+> •  Go back and measure: nothing is built. ChromIQ takes you to the Measure tab. Tick “Refine / resume existing measurement (-r)” and press Continue Measurement: everything you have measured is kept, and you only need to read the strip listed here.
 > •  Build anyway: the profile is built now from the {read} patches that have a reading.
 
 The lines of `{strips}`, and the button:
@@ -5315,7 +5315,7 @@ The lines of `{strips}`, and the button:
 > A calibration can be made from it, but it would know your printer's inks only from the {read} patches that were measured. Where readings are missing it has to fill in the steps from the patches around them, so the calibration can be less accurate there, and nothing would point it out to you later.
 >
 > What each button does:
-> •  Go back and measure: nothing is made. ChromIQ takes you to the Measure tab. Tick “Refine / resume existing measurement (-r)” and press Start Measurement: everything you have measured is kept, and you only need to read the strips listed here.
+> •  Go back and measure: nothing is made. ChromIQ takes you to the Measure tab. Tick “Refine / resume existing measurement (-r)” and press Continue Measurement: everything you have measured is kept, and you only need to read the strips listed here.
 > •  Build anyway: the calibration is made now from the {read} patches that have a reading.
 
 *Exactly one patch missing (`{missing}` = 1):*
@@ -5329,7 +5329,7 @@ The lines of `{strips}`, and the button:
 > A calibration can be made from it, but it would know your printer's inks only from the {read} patches that were measured. Where a reading is missing it has to fill in the step from the patches around it, so the calibration can be less accurate there, and nothing would point it out to you later.
 >
 > What each button does:
-> •  Go back and measure: nothing is made. ChromIQ takes you to the Measure tab. Tick “Refine / resume existing measurement (-r)” and press Start Measurement: everything you have measured is kept, and you only need to read the strip listed here.
+> •  Go back and measure: nothing is made. ChromIQ takes you to the Measure tab. Tick “Refine / resume existing measurement (-r)” and press Continue Measurement: everything you have measured is kept, and you only need to read the strip listed here.
 > •  Build anyway: the calibration is made now from the {read} patches that have a reading.
 
 ### M-CR-STRIPS · PROPOSED · which strips to re-measure, and why — Check & Refine, the result window and its saved report
