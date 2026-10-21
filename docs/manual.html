@@ -1409,9 +1409,11 @@
       </div>
 
       <div class="faq-item">
-        <div class="faq-q"><span class="q">Q.06</span><h4>I see a pink / magenta screen during measurement on Apple Silicon.</h4></div>
+        <div class="faq-q"><span class="q">Q.06</span><h4>The screen turns pink / magenta when a file window opens on a Mac with Apple Silicon.</h4></div>
         <div class="faq-a"><span class="a">A.</span><div>
-          <p>Fixed in an early release by disabling native file dialogs during measurement. Upgrade to the latest release from the GitHub Releases page if you are still seeing this.</p>
+          <p>On some Macs with Apple Silicon (M1, M2, M3), the whole screen could turn pink or magenta when ChromIQ opened the macOS file window, the Finder-style window for opening or saving a file. That is why ChromIQ uses its own built-in file browser by default, in every window and not only while you measure. With the built-in browser the pink screen does not appear, and you do not need to do anything.</p>
+          <p>If you prefer the file window you know from the rest of your Mac, you can switch it on yourself: open Preferences, and in the Behaviour section tick <b>Use the operating system's file browser</b>, then press OK. ChromIQ then opens the macOS file window from the next time it asks you for a file.</p>
+          <p>If the screen turns pink or magenta after that, switch the option off again in the same place and press OK, and ChromIQ goes back to its own file browser. If the screen stays pink and ChromIQ no longer responds, quit it (press Cmd+Q, or choose Force Quit from the Apple menu), start it again and switch the option off before you open a file.</p>
         </div></div>
       </div>
 
