@@ -178,6 +178,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a68-clipkeep", "no-a69-cmykport", "no-a69-cmykport-oog",
      "no-a69-cmykport-oogfine", "no-a70-edgesmooth", "no-a70-edgeadapt",
      "no-a70-foldcap", "no-a71-darkray", "no-a72-cmyonly",
+     # Agent 73 (ink test): colprof's -kr K prior for the colorimetric
+     # table on a printer with a strong ink fold and a light C+M+Y black;
+     # research, opt-in
+     "a73-kfirst",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -333,6 +337,12 @@ INT8B_TOKENS = frozenset({"a63-palefine", "a63-lowgrid"})
 #     floor), and INT9_CMY_TOKENS below;
 #   RGB: a68-clipkeep (a clipped node keeps its clip where the refit throws
 #     it far off, on a folded response such as Knut's printer).
+# Agent 73 (a73-kfirst): the fold test. Colour ink on solid K must lighten
+# it by this much (cmykport.fold_at_black: i1iSis 1, fitted XFI 0.9, i1Pro
+# 5, fitted XFP 3.0) AND the C+M+Y black under the limit be this much
+# lighter than solid K (XFP / i1Pro 9.8, XFI / i1iSis 3.4).
+A73_FOLD_MIN = 2.0
+A73_CMYGAP_MIN = 6.0
 INT9_TOKENS = frozenset({
     "a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
     "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
@@ -1393,6 +1403,42 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # agent5-03 item 5). The proxy anchor still shapes the perceptual and
     # saturation tables (build_mapped_b2a below). Costs ink: section 6.
     k_prior_col = None if accurate else anchor
+    # a73-kfirst: True when its fold test fired (then the a70-foldcap K cap
+    # on chromatic clipped nodes is off too: on such a printer it forces the
+    # dark clipped colours onto the light C/M/Y branch, Findings agent73-01)
+    _a73_kfirst = False
+    if (accurate and not meas.is_additive and n == 4
+            and "a73-kfirst" in candidates and "K" in meas.channel_letters
+            and meas.channel_letters.index("K") == 3):
+        # Research Agent 73 (ink test, Findings/agent73-01): on a printer
+        # whose colour inks LIGHTEN heavy black (ink fold) and whose C+M+Y
+        # black under the ink limit is much lighter than solid K, the late
+        # GCR locus separates the dark end on a C/M/Y-heavy, low-K branch
+        # that dead-ends L* units above the black; the column and every dark
+        # ramp must then cross to the K-only black between two table nodes,
+        # and the blends across that switch print LIGHTER than both ends (a
+        # grey flash before black, B2A1 dark median 6.4 dE00 on the fitted
+        # i1Pro-like printer XFP, colprof 1.7). There colprof's default
+        # black rule (-kr, K first) is the K prior of the colorimetric table
+        # too, as in Fast. Other printers are untouched.
+        from workflow.profile_engine import cmykport as _a73cp
+        _f1 = _a73cp.fold_at_black(model)
+        _lim = (float(ink_limit) / 100.0) if ink_limit else 4.0
+        _c = min(1.0, max(_lim, 0.0) / 3.0)
+        _l_cmy = float(model.predict(np.array([[_c, _c, _c, 0.0]]))[0, 0])
+        _l_k = float(model.predict(np.array([[0.0, 0.0, 0.0, 1.0]]))[0, 0])
+        _need = _f1 >= A73_FOLD_MIN and (_l_cmy - _l_k) >= A73_CMYGAP_MIN
+        _emit(settings, f"Ink fold check (a73-kfirst): colour ink on solid K "
+                        f"lightens by {_f1:.1f} L*, C+M+Y black L* "
+                        f"{_l_cmy:.1f} vs K {_l_k:.1f}: "
+                        + ("K first." if _need else "no change."))
+        if _need:
+            _a73_kfirst = True
+            _ls = np.linspace(0.0, 100.0, 201)
+            k_prior_col = {"l_axis": _ls, "k_curve": b2a_mod.argyll_k_curve(
+                _ls, params=b2a_mod.K_RULE_PARAMS["r"],
+                l_min=max(float(black_l), 2.0) if black_l is not None
+                else 5.0)}
     if (accurate and not meas.is_additive and n >= 4
             and ("a9-nramp" in candidates or "a9-nramps" in candidates)
             and "K" in meas.channel_letters):
@@ -1718,7 +1764,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 channel_max=channel_max, l_min=_a70_lmin, grid=b2a_grid,
                 oogfine=_a70m["oogfine"],
                 progress=lambda m: _emit(settings, m),
-                fold=_a70c.A70_FOLDCAP in candidates)
+                fold=(_a70c.A70_FOLDCAP in candidates and not _a73_kfirst))
             _wf = _a70_w.copy()
             if fixed_nodes is not None and len(fixed_nodes):
                 _wf[fixed_nodes] = 0.0
@@ -1913,7 +1959,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_max=channel_max, l_min=_l_min,
             ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
             progress=lambda m: _emit(settings, m),
-            fold=_a69.A70_FOLDCAP in candidates)
+            fold=(_a69.A70_FOLDCAP in candidates and not _a73_kfirst))
         _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
         if channel_max is not None:
             _pure_s = np.minimum(_pure_s, model.shape_device(
