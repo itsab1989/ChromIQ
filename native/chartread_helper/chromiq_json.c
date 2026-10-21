@@ -98,6 +98,13 @@ static volatile int   cq_cal_gate = 0;       /* strip/patch loop is waiting  */
 static volatile int   cq_cal_in_request = 0; /* a requested cal is prompting */
 static volatile int   cq_cal_cancel = 0;     /* {"cmd":"cal_cancel"} for it  */
 
+/* CHROMIQ_EXT (B1, Basti 2026-10-21): the instrument's button as Retry.
+ * Open ONLY while the strip loop waits at the misread prompt ("Strip Read
+ * Failed"); cq_event_callback reports a press as {"event":"switch"} only
+ * while it is open. The engine never acts on the press itself: the GUI
+ * decides, through the same path as its Retry button. */
+static volatile int   cq_switch_gate = 0;
+
 /* CHROMIQ_EXT #159: the external-values line channel.
  *
  * -x mode reads a whole LINE from stdin (a measurement, or a one-letter
@@ -199,6 +206,10 @@ static void cq_handle_line(const char *line) {
 			cq_swipe_as[0] = '\0';
 		if (!cq_json_get(line, "fault", cq_swipe_fault, sizeof(cq_swipe_fault)))
 			cq_swipe_fault[0] = '\0';
+		/* B1: "reason" is the driver's sentence a misread reports, e.g.
+		 * "Too many patches", so the GUI's per-error advice is testable. */
+		if (!cq_json_get(line, "reason", cq_swipe_reason, sizeof(cq_swipe_reason)))
+			cq_swipe_reason[0] = '\0';
 		cq_swipe_reversed = 0;
 		/* "reversed":true is a bare token — cq_json_get only reads strings,
 		 * so probe for the raw text. */
@@ -207,6 +218,15 @@ static void cq_handle_line(const char *line) {
 		(void)rev;
 		cq_swipe_pending = 1;
 		cq_lock_give();
+		return;
+	}
+
+	if (strcmp(cmd, "switch") == 0) {
+		/* B1, replay only: the instrument's button was pressed, as the
+		 * driver's switch thread reports it -- a trigger while the strip is
+		 * armed, otherwise an inst_event_switch. Ignored with a real
+		 * instrument (cq_replay_switch_press does nothing then). */
+		cq_replay_switch_press();
 		return;
 	}
 
@@ -428,6 +448,7 @@ volatile int cq_swipe_pending = 0;
 char cq_swipe_as[8]      = "";
 int  cq_swipe_reversed   = 0;
 char cq_swipe_fault[16]  = "";
+char cq_swipe_reason[96] = "";
 
 static void cq_sleep_ms(int ms) {
 #ifdef NT
@@ -501,6 +522,21 @@ void cq_cal_gate_set(int on) {
 	cq_lock_take();
 	cq_cal_gate = on ? 1 : 0;
 	cq_lock_give();
+}
+
+/* B1: the misread prompt's gate for the instrument's button. */
+void cq_switch_gate_set(int on) {
+	cq_lock_take();
+	cq_switch_gate = on ? 1 : 0;
+	cq_lock_give();
+}
+
+int cq_switch_gate_open(void) {
+	int r;
+	cq_lock_take();
+	r = cq_switch_gate;
+	cq_lock_give();
+	return r;
 }
 
 /* 1 when a request is waiting AND the gate is open; the request is taken. */

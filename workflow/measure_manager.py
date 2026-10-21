@@ -346,6 +346,14 @@ class MeasureManager(QObject):
     # progress); it runs at the next strip or patch prompt.
     calibration_request_held = pyqtSignal()
     strip_error            = pyqtSignal(str) # emitted on strip read failure; carries the reason string
+    #: B1 (Basti, 2026-10-21): the instrument's button was pressed while the
+    #: engine waited at the misread prompt ({"event":"switch"}). The engine
+    #: reports it only there; the Strip Read Failed window decides whether it
+    #: is its Retry. See also :attr:`misread_button_retry`.
+    instrument_button      = pyqtSignal()
+    #: True only while strip_error is being delivered for an engine misread
+    #: whose instrument can answer it with its button ("button_retry").
+    misread_button_retry: bool = False
     instrument_disconnected = pyqtSignal()   # emitted on USB communication failure
     device_busy             = pyqtSignal()   # emitted when instrument is held by another process
     no_instrument           = pyqtSignal()     # emitted when no instrument is detected at startup
@@ -2748,6 +2756,15 @@ class MeasureManager(QObject):
             self._scan_in_progress = True
             self.scan_started.emit()
 
+        elif kind == "switch":
+            # B1: a press of the instrument's button at the misread prompt.
+            # Only the engine sends it, only while it waits there; the window
+            # that is up decides what it means (TabMeasure._on_instrument_button).
+            log.debug("engine: the instrument's button was pressed at the "
+                      "retry prompt")
+            if self._at_retry_prompt:
+                self.instrument_button.emit()
+
         elif kind == "scan_ready":
             # The driver's ready-to-scan moment, the beep (#202). Emitted by
             # the engine's event callback on Argyll's helper thread, after the
@@ -3098,7 +3115,11 @@ class MeasureManager(QObject):
                               "failure already reported — not raising a second "
                               "window")
                     return
+                # B1: whether this instrument's button can answer the window
+                # (the engine knows the connected model and the strip mode).
+                self.misread_button_retry = bool(ev.get("button_retry"))
                 self.strip_error.emit(detail or "misread")
+                self.misread_button_retry = False
             elif ekind == "patch_not_found":
                 # A goto the engine could not make. During guided refinement
                 # patch by patch, leave that patch out instead of asking for

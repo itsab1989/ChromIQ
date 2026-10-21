@@ -11,7 +11,11 @@
  * All *faults* and *wrong swipes* are injected live via the JSON command
  * channel (see chromiq_json.c): {"cmd":"swipe"} triggers reading the armed
  * strip; optional fields "as":"<label>" (values of another strip),
- * "reversed":true, "fault":"misread|coms|needs_cal|wrong_config".
+ * "reversed":true, "fault":"misread|coms|needs_cal|wrong_config", and with
+ * a misread "reason":"<the driver's sentence>" (B1, e.g. "Too many patches").
+ * {"cmd":"switch"} presses the instrument's button (B1): a trigger while a
+ * strip waits for one, otherwise an inst_event_switch, as the i1Pro's switch
+ * thread reports it.
  *
  * AGPL-3.0 — see ../instlib/License.txt. Part of ChromIQ issue #126. */
 
@@ -344,9 +348,34 @@ static char *cq_inst_interp_error(inst *p, inst_code ec) {
 	}
 }
 
+/* B1: the sentence the last scripted misread asked for ("reason"), so the
+ * GUI sees the driver's own words, as it does with a real instrument. */
+static char cq_last_reason[96] = "";
+
 static char *cq_interp_error(inst *p, int ec) {
-	(void)p; (void)ec;
+	(void)p;
+	if ((ec & inst_mask) == inst_misread && cq_last_reason[0] != '\0')
+		return cq_last_reason;
 	return "replay";
+}
+
+/* B1: the instrument's button. The replay instance and whether its strip is
+ * waiting for a trigger, which is when a real driver hides the press from
+ * the event callback and counts it as the trigger instead. */
+static inst *volatile cq_replay_inst = NULL;
+static volatile int cq_replay_waiting = 0;
+
+void cq_replay_switch_press(void) {
+	inst *p = cq_replay_inst;
+	if (!cq_replay_active() || p == NULL)
+		return;
+	if (cq_replay_waiting) {
+		cq_trigger_ready_ms = 700;
+		cq_trigger_pending = 1;
+		return;
+	}
+	if (p->eventcallback != NULL)
+		p->eventcallback(p->event_cntx, inst_event_switch);
 }
 
 static int cq_last_scomerr(inst *p) {
@@ -356,6 +385,8 @@ static int cq_last_scomerr(inst *p) {
 
 static void cq_del(inst *p) {
 	if (p != NULL) {
+		if (cq_replay_inst == p)
+			cq_replay_inst = NULL;
 		if (p->log != NULL)
 			del_a1log(p->log);
 		free(p);
@@ -373,14 +404,17 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 
 	(void)name; (void)sguide; (void)pwid; (void)gwid; (void)twid;
 
+	cq_replay_waiting = 1;		/* B1: a press now is the trigger */
 	for (;;) {
 		/* Give the registered uicallback a chance — console keys and JSON
 		 * nav commands surface here as inst_user_abort/inst_user_trig,
 		 * exactly like a real driver polling during its wait. */
 		if (cq->uicallback != NULL) {
 			inst_code uev = cq->uicallback(cq->uic_cntx, inst_armed);
-			if (uev == inst_user_abort)
+			if (uev == inst_user_abort) {
+				cq_replay_waiting = 0;
 				return inst_user_abort;
+			}
 			/* inst_user_trig means "read now": treat as swipe of the
 			 * armed strip with no overrides. */
 			if (uev == inst_user_trig) {
@@ -400,6 +434,7 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 		if (cq_trigger_pending) {
 			int delay = cq_trigger_ready_ms;
 			cq_trigger_pending = 0;
+			cq_replay_waiting = 0;	/* B1: from here a press is an event */
 			if (cq->uicallback != NULL)
 				cq->uicallback(cq->uic_cntx, inst_triggered);
 			if (p->eventcallback != NULL)
@@ -411,10 +446,14 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 		if (cq_swipe_pending) {
 			char fault[16];
 			cq_swipe_pending = 0;
+			cq_replay_waiting = 0;
 			strncpy(fault, cq_swipe_fault, sizeof(fault) - 1);
 			fault[sizeof(fault) - 1] = '\0';
+			cq_last_reason[0] = '\0';
 
 			if (fault[0] != '\0') {
+				strncpy(cq_last_reason, cq_swipe_reason, sizeof(cq_last_reason) - 1);
+				cq_last_reason[sizeof(cq_last_reason) - 1] = '\0';
 				if (strcmp(fault, "misread") == 0)
 					return inst_misread;
 				if (strcmp(fault, "coms") == 0)
@@ -586,5 +625,6 @@ inst *cq_new_replay_inst(a1log *log,
 	p->uicallback         = uicallback;
 	p->uic_cntx           = cntx;
 
+	cq_replay_inst = (inst *)p;
 	return (inst *)p;
 }

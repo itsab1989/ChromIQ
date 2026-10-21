@@ -1077,9 +1077,21 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
  *
  * The event line goes out through cq_emit_raw, which holds stdout's lock for
  * the whole line, so it cannot split a strip_read the main thread is writing.
- * Every other event (switch, mconf) is ignored, as it was with no callback. */
+ *
+ * B1 (Basti, 2026-10-21): a press of the instrument's button, which the
+ * i1Pro, i1Pro 3 and ColorMunki drivers' switch threads report here whenever
+ * no scan is waiting for it (i1pro_imp.c:11163, i1pro3_imp.c:4969,
+ * munki_imp.c:8491), is passed on as {"event":"switch"} -- but ONLY while
+ * the strip loop waits at the misread prompt (cq_switch_gate_set). The GUI
+ * turns it into its own Retry; nothing here acts on it. Every other event
+ * (mconf, a press anywhere else) is ignored, as it was with no callback. */
 void cq_event_callback(void *cntx, inst_event_type event) {
 	(void)cntx;
+	if (event == inst_event_switch) {
+		if (cq_switch_gate_open())
+			cq_emit_simple("switch");
+		return;
+	}
 	if (event != inst_event_scan_ready)
 		return;
 	/* EMIT FIRST, THEN BEEP. On Windows msec_beep(0, ...) is Beep(), which
@@ -1099,6 +1111,22 @@ void test_event_callback(void *cntx, inst_event_type event) {
 		normal_beep();
 }
 #endif
+
+/* CHROMIQ_EXT B1: can the instrument's button answer the misread prompt?
+ * Only where the driver runs a switch thread that reports a press outside
+ * a scan (the i1Pro line, i1Pro 3 / 3 Plus included, and the ColorMunki),
+ * and only when the strip was armed for the switch (uswitch != 0). The
+ * DTP20/22/41 and the SpectroScan advertise a switch trigger but have no such
+ * thread, so their presses never reach cq_event_callback. The replay
+ * instrument is an i1Pro (cq_new_replay_inst). */
+static int cq_button_retry_ok(inst *it, int uswitch) {
+	devType t;
+	if (uswitch == 0 || it == NULL)
+		return 0;
+	t = it->dtype;
+	return t == instI1Pro || t == instI1Pro2 || t == instI1Pro3
+	    || t == instColorMunki;
+}
 
 /* Deal with an instrument error. */
 /* Return 0 to retry, 1 to abort */
@@ -2649,8 +2677,20 @@ a1log *log			/* verb, debug & error log */
 							empty_con_chars();
 						printf("\nStrip read failed due to misread (%s)\n",it->interp_error(it, rv));
 						printf("Hit Esc to give up, any other key to retry%s:",fl_end); do_fflush();
-						cq_emit_error("misread", it->interp_error(it, rv));
+						/* CHROMIQ_EXT B1: the event says whether this
+						 * instrument's button can answer the window, and the
+						 * gate lets a press through only while we wait here. */
+						if (cq_json) {
+							char esc_[512];
+							cq_json_escape(esc_, sizeof(esc_), it->interp_error(it, rv));
+							cq_emit_raw("{\"event\":\"error\",\"kind\":\"misread\","
+							            "\"detail\":\"%s\",\"button_retry\":%s}", esc_,
+							            cq_button_retry_ok(it, uswitch) ? "true" : "false");
+							cq_switch_gate_set(1);
+						}
 						ch = cq_json ? cq_wait_char() : next_con_char();
+						if (cq_json)
+							cq_switch_gate_set(0);
 						if (ch == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 							printf("\n");
 							cq_write_ti3_atomic();	/* CHROMIQ_EXT: never lose readings */

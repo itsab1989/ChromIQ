@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-21 legacy-labels+calibrate-on-request+file-as+atomic-autosave"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-21 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry"
 const char *cq_helper_build_string(void);
 
 
@@ -102,6 +102,18 @@ int  cq_cal_take_cancel(void);
 int  cq_poll_char(void);                 /* non-blocking key, or CQ_KEY_NONE */
 void cq_sleep_poll(void);                /* the 20 ms poll interval */
 
+/* ---- the instrument's button as Retry (B1, Basti 2026-10-21) ----------
+ * The strip loop opens this gate only around its wait at the misread
+ * prompt. cq_event_callback turns an inst_event_switch into
+ * {"event":"switch"} only while it is open; every other prompt (Wrong Strip,
+ * calibration, the menu) never sees a press reported. The misread error
+ * event carries "button_retry":true when the connected instrument's driver
+ * reports presses outside a scan (i1Pro, i1Pro 2, i1Pro 3, ColorMunki). */
+void cq_switch_gate_set(int on);
+int  cq_switch_gate_open(void);
+/* Replay only: {"cmd":"switch"} -- a press of the fake instrument's button. */
+void cq_replay_switch_press(void);
+
 /* Outcome of one requested calibration (cq_run_requested_calibration). */
 #define CQ_CALREQ_DONE        0
 #define CQ_CALREQ_CANCELLED   1
@@ -124,6 +136,7 @@ extern volatile int cq_swipe_pending;
 extern char cq_swipe_as[8];
 extern int  cq_swipe_reversed;
 extern char cq_swipe_fault[16];
+extern char cq_swipe_reason[96];   /* B1: a misread's driver sentence */
 
 /* #202: a pending instrument trigger injected by {"cmd":"trigger"} (replay
  * only). The replay instrument then does what the i1Pro driver does when its
