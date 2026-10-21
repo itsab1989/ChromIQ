@@ -81,6 +81,7 @@
 #include <time.h>
 #include <ctype.h>
 #include <string.h>
+#include <errno.h>
 #ifndef SALONEINSTLIB
 #include "copyright.h"
 #include "aconfig.h"
@@ -480,13 +481,51 @@ static void cq_write_ti3_atomic(void) {
 	         cq_sctx.fe, cq_sctx.dolab, cq_sctx.npat, cq_sctx.nchan,
 	         cq_sctx.cols, cq_sctx.wpat, tmpname, cq_sctx.ocg);
 
+	{
+		int rc = 0;
+		unsigned long oserr = 0;
 #ifdef NT
-	/* rename() can't replace an existing file on Windows */
-	remove(realname);
+		/* ONE ATOMIC REPLACE, WITH A SHORT RETRY (M3, jctay 2026-10-20).
+		 * This used to be remove(realname) and then rename(): two steps, so
+		 * a rename refused after the remove left NO .ti3 at all and every
+		 * strip only in the .cqtmp, and a failure was reported and the
+		 * session went on. MoveFileEx(REPLACE_EXISTING) replaces in one
+		 * step on NTFS (what Python's os.replace does); a virus scanner or
+		 * the indexer holding the fresh file for a moment (sharing / lock
+		 * violation, access denied) is waited out for up to ~1 s. The ANSI
+		 * call, like the rename() and fopen() it sits beside. If it still
+		 * fails, the .cqtmp is KEPT (it holds every accepted strip) and the
+		 * error names it, so the app can say so and a resume can use it. */
+		int tries;
+		rc = -1;
+		for (tries = 0; tries < 10; tries++) {
+			if (MoveFileExA(tmpname, realname,
+			                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+				rc = 0;
+				break;
+			}
+			oserr = (unsigned long)GetLastError();
+			if (oserr != ERROR_SHARING_VIOLATION && oserr != ERROR_LOCK_VIOLATION
+			 && oserr != ERROR_ACCESS_DENIED)
+				break;
+			Sleep(100);
+		}
+#else
+		/* POSIX rename() replaces atomically. */
+		if (rename(tmpname, realname) != 0) {
+			rc = -1;
+			oserr = (unsigned long)errno;
+		}
 #endif
-	if (rename(tmpname, realname) != 0) {
-		cq_emit_error("autosave_rename", realname);
-		return;
+		if (rc != 0) {
+			char esc_tmp[512];
+			cq_json_escape(esc, sizeof(esc), realname);
+			cq_json_escape(esc_tmp, sizeof(esc_tmp), tmpname);
+			cq_emit_raw("{\"event\":\"error\",\"kind\":\"autosave_rename\","
+			            "\"detail\":\"%s\",\"temp\":\"%s\",\"code\":%lu}",
+			            esc, esc_tmp, oserr);
+			return;
+		}
 	}
 
 	for (i = 0; i < cq_sctx.npat; i++)

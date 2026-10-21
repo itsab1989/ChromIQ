@@ -447,6 +447,62 @@ def has_any_readings(ti3_path: "Path | str | None") -> bool:
                                Ti3State.NO_DATA_BLOCK, Ti3State.UNREADABLE)
 
 
+#: The engine's temporary save, beside the measurement (`<name>.ti3.cqtmp`).
+ENGINE_AUTOSAVE_SUFFIX = ".cqtmp"
+
+
+def engine_autosave_temp(ti3_path: "Path | str") -> Path:
+    """Where chromiq-chartread writes a save before it replaces the .ti3."""
+    p = Path(ti3_path)
+    return p.with_name(p.name + ENGINE_AUTOSAVE_SUFFIX)
+
+
+def recover_engine_autosave(ti3_path: "Path | str | None") -> bool:
+    """Put the engine's kept temporary save in place of the .ti3 (M3).
+
+    The engine saves every accepted strip to ``<name>.ti3.cqtmp`` and then
+    replaces the ``.ti3`` with it. When that replace fails (jctay's Windows
+    log, 2026-10-20: a virus scanner or the indexer holding the file), the
+    temporary file is kept and is the NEWEST copy of the readings, while the
+    ``.ti3`` is one strip or more behind, or (before the engine's atomic
+    replace) gone. A successful save renames the temporary file away, so one
+    that is still there and newer than the ``.ti3`` is always the one to keep.
+
+    Returns True when it was moved into place. Never raises: a resume that
+    cannot use it carries on with the ``.ti3`` as it is.
+    """
+    if not ti3_path:
+        return False
+    import os
+    import time
+    ti3 = Path(ti3_path)
+    tmp = engine_autosave_temp(ti3)
+    try:
+        if not tmp.is_file() or not has_any_readings(tmp):
+            return False
+        if ti3.exists() and has_any_readings(ti3) \
+                and tmp.stat().st_mtime < ti3.stat().st_mtime:
+            return False               # older than the measurement: stale
+    except OSError:
+        return False
+    for attempt in range(10):
+        try:
+            os.replace(tmp, ti3)
+            log.warning("the engine's kept save %s replaced %s: it holds the "
+                        "latest readings (the last save had failed)",
+                        tmp.name, ti3.name)
+            return True
+        except PermissionError:        # held for a moment (Windows)
+            time.sleep(0.1)
+        except OSError as exc:
+            log.warning("could not put %s in place of %s: %s",
+                        tmp.name, ti3.name, exc)
+            return False
+    log.warning("could not put %s in place of %s: still in use", tmp.name,
+                ti3.name)
+    return False
+
+
 class SessionVerdict(Enum):
     """What to do with what a session left behind — specification §3b."""
 

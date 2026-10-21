@@ -3063,6 +3063,22 @@ M_CHART_LEGACY_ENDED = _m(
     "What went wrong: {reason}",
     approved=False)
 
+# --- PROPOSED: the engine could not save the readings (M3) ----------------
+#: jctay's Windows log, 2026-10-20: the engine's save after an accepted strip
+#: failed ({"event":"error","kind":"autosave_rename"}) and nobody was told.
+#: The engine now replaces the file in one step and retries for about a
+#: second; when even that fails it keeps the temporary file, which holds every
+#: accepted strip, and says so. Shown in the Measure log (the session goes on,
+#: so no window interrupts the reading). {name} is the measurement's file
+#: name, {temp} the kept temporary file, {code} the system's error number.
+M_AUTOSAVE_NOT_SAVED = _m(
+    "M-AUTOSAVE-NOT-SAVED",
+    "The readings could not be saved",
+    "ChromIQ could not save the readings to {name} (error {code}). Nothing "
+    "is lost: every strip read so far is kept in {temp}, ChromIQ tries again "
+    "after the next strip, and resuming this measurement uses that file.",
+    approved=False)
+
 # --- PROPOSED: no instrument is connected at all -------------------------
 #: Knut, #182 5969949735 (beta 7): when ChromIQ refuses to start because no
 #: instrument is attached (the only serial port is the computer's own, see
@@ -6609,6 +6625,7 @@ CATALOGUE = {m.id: m for m in (
     M_ENGINE_FELL_BACK,
     M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,
     M_CHART_LEGACY_STOCK, M_CHART_LEGACY_ENDED,
+    M_AUTOSAVE_NOT_SAVED,
     M_PATCHSET_MISSING,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,

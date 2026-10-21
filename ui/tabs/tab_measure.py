@@ -4386,6 +4386,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._averaging_active = False   # new chart → fresh averaging session
         self._ti1_path = path
         self._ti1_lbl.setText(str(path))
+        # M3: an engine save that could not replace the .ti3 left the newest
+        # readings in `<name>.ti3.cqtmp`; put them in place before anything
+        # below counts, shows or resumes the measurement.
+        self._recover_engine_autosave()
         # #153: pick this chart up where it was left, from its own .ti3.
         self._reset_progress()
         # Only when there is a laid-out chart to read. chartread measures the
@@ -7372,6 +7376,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         if self._runner.is_running:
             return
+        self._recover_engine_autosave()       # M3, before §3a looks at the .ti3
         # #130 (Knut): "New run" names a run that does not exist yet, so there is
         # nothing to measure. Say so, and explain how to create one.
         if self._blocked_by_new_run():
@@ -18391,6 +18396,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not ti3.is_file() or _cgats_has_no_readings(ti3):
             return None
         return ti3
+
+    def _recover_engine_autosave(self) -> bool:
+        """M3: the engine's kept save (``<name>.ti3.cqtmp``) replaces the
+        chart's .ti3 when it is the newer copy of the readings
+        (:func:`workflow.measurement_state.recover_engine_autosave`)."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if not ti1:
+            return False
+        try:
+            from workflow.measurement_state import recover_engine_autosave
+            return recover_engine_autosave(Path(ti1).with_suffix(".ti3"))
+        except Exception:      # noqa: BLE001 — never block loading or starting
+            log.debug("engine autosave not recovered", exc_info=True)
+            return False
 
     def _existing_ti3_for_chart(self) -> "Path | None":
         """The measured .ti3 of what the bar selects (#134), or None.

@@ -1141,6 +1141,22 @@ class MeasureManager(QObject):
             return False        # stock chartread reads the chart the same way
         return self._engine_fatal is not None or not self._engine_saw_event
 
+    def _on_autosave_failed(self, ev: dict, on_line) -> None:
+        """Say that the engine could not save the readings (M-AUTOSAVE-NOT-SAVED)."""
+        from workflow import measurement_messages as M
+        path = str(ev.get("detail") or "")
+        temp = str(ev.get("temp") or (path + ".cqtmp" if path else ""))
+        code = ev.get("code", "?")
+        log.warning("engine: the readings could not be saved to %s (error %s); "
+                    "kept in %s", path, code, temp)
+        try:
+            _title, body = M.M_AUTOSAVE_NOT_SAVED.render(
+                name=Path(path).name if path else "?",
+                temp=Path(temp).name if temp else "?", code=code)
+            on_line("[Engine] " + body)
+        except Exception:      # noqa: BLE001 — a message must never stop a read
+            log.debug("autosave message not rendered", exc_info=True)
+
     def _resumable_partial_ti3(self, ti1_path: Path) -> Path | None:
         """The engine's autosaved measurement for this chart, if there is one to
         resume from (#134).
@@ -1168,9 +1184,11 @@ class MeasureManager(QObject):
         autosave, exactly what a crash is most likely to leave behind, is still
         handed to chartread rather than abandoned.
         """
-        from workflow.measurement_state import has_any_readings
+        from workflow.measurement_state import (has_any_readings,
+                                                recover_engine_autosave)
         ti3 = ti1_path.with_suffix(".ti3")
         try:
+            recover_engine_autosave(ti3)
             if has_any_readings(ti3):
                 return ti3
         except OSError:
@@ -3112,6 +3130,13 @@ class MeasureManager(QObject):
                 self._at_retry_prompt = True
                 detail = str(ev.get("detail") or "")
                 self.generic_instrument_error.emit(detail or "read error", detail)
+            elif ekind == "autosave_rename":
+                # M3 (jctay, Windows, 2026-10-20): the save after an accepted
+                # strip failed. This was ignored; the session goes on, so the
+                # person is told in the log, and the engine keeps the
+                # temporary file that holds every accepted strip (a resume
+                # uses it: measurement_state.recover_engine_autosave).
+                self._on_autosave_failed(ev, on_line)
             elif ekind == "needs_cal":
                 on_line("[Engine] Instrument needs calibration…")
             elif ekind == "no_instrument":
