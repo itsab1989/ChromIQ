@@ -50,6 +50,28 @@ run-type changes, ten tab changes. No chart file was written in any of them.
 | Restore Used Chart, the pages half | Redraws only when the stored copy carried no page images, and the chart itself is kept if the redraw would change it | yes |
 | Imports a chart file (.ti2) | Copies. When no printable pages came with it, they are drawn from what the file itself records | see below |
 
+## The patch set editor's CMYK and multi-ink sets (#207)
+
+**Ruling: Basti, 2026-10-21** (the approver while Knut is away), on issue
+#207: *"option 2"*, port all of the research branch's work, the bug fixes and
+the design changes alike. His condition: **the RGB part of the editor must not
+change.** Saved charts never change; only a patch set generated from now on
+follows the new rules.
+
+> **⏳ Awaiting confirmation. Confirmed by:** *nobody yet.* How it was built,
+> measured by the suite and on screen.
+
+| | As built (New patch set, device CMYK or CMYK + extra inks) |
+|---|---|
+| Ensure unique colours | moves a patch only along the inks it already has, never switches one on or off, never over the ink limit; paper white and single-ink patches are never moved (R3) |
+| Near-neutral greys with a preconditioning profile | inside the ink limit (R4) |
+| Ink order | the generators get Argyll's order (CMYKOGV...), whatever order the inks were added in (R5) |
+| Neutral grey ramp below a 300 % limit | spread from paper white to the darkest grey the limit allows, every step its own patch; unchanged at 300 % and more (R7) |
+| New ticks, all OFF unless chosen | "more light steps" on Per-ink ramps (R6), "as grid" on Ink-pair overprints (R2), "3-4 inks per patch" on Fill remaining gaps (R1): mostly 3- and 4-ink patches, about 8 % with 5+ inks, some on the ink-limit face, complementary inks together half as often (by the preconditioning profile's measured hues, else by the ink letters) |
+| "Multi-ink, professional layout" (★, Load setup from preset) | listed only while the device is CMYK or CMYK + extra inks; ticks the rows above; keeps inks, ink limit, fill size, instrument, paper and layout |
+| RGB | unchanged: same patches for every generator switch, same window, same setup list |
+| A chart made before | loads and lays out exactly as saved: the patches are in the chart file, nothing regenerates them |
+
 ## The chart file import (Knut, 2026-09-11)
 
 He chose between two readings of his own *"loading a ti2 should generate"*:

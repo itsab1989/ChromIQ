@@ -476,6 +476,35 @@ from workflow import patch_generators_nd as NDG
 log = get_logger(__name__)
 
 
+_MULTI_INK_SETUP_KEY = "__multi_ink_professional__"
+#: The rows "Multi-ink, professional layout" sets (agent 18, D-16): the
+#: composition of the professional ECG / FOGRA55 charts at a small budget.
+_MULTI_INK_SETUP = {"perink_n": 12, "pairs_n": 3, "perink_n_small": 10,
+                    "pairs_n_small": 2, "richblack_n": 6,
+                    "richblack_k": 3, "neutral_n": 12}
+#: The tooltip of that setup's entry in "Load setup from preset" (#207).
+_MULTI_INK_SETUP_TIP = (
+    "A ready-made patch set for a printer with more inks than CMYK, built "
+    "the way professional expanded-gamut charts (FOGRA55, the ECG charts) "
+    "are: most patches have three or four inks, the combinations a "
+    "separation really prints.\n\n"
+    "Choosing it switches to \u201cGenerate colour sets\u201d and ticks: "
+    "\u201cPer-ink ramps\u201d with 12 steps and more light steps, "
+    "\u201cInk-pair overprints\u201d as a grid with 3 values per ink, the "
+    "\u201cRich-black ramp\u201d, the \u201cNeutral grey ramp\u201d with 12 "
+    "steps, \u201cPure white & black\u201d, \u201cEnsure unique "
+    "colours\u201d and \u201cFill remaining gaps\u201d with 3-4 inks per "
+    "patch. \u201cEven coverage (targen)\u201d, the ink-triple overprints "
+    "and the near-neutral greys are switched off. When \u201cFill remaining "
+    "gaps\u201d is set to 600 patches or fewer, the ramps get 10 steps and "
+    "the pair grids 2 values per ink, so the fixed sets leave room for the "
+    "fill.\n\n"
+    "Your inks, the ink limit, the number of patches in total, the "
+    "instrument, the paper and the layout stay as they are, and every row "
+    "can still be changed afterwards. It works for plain CMYK too, where "
+    "the difference is smaller.")
+
+
 def _patches_label(n: int) -> str:
     """Count-bearing patch label with explicit singular / plural (no "(s)")."""
     return (tr("{n} patch") if n == 1 else tr("{n} patches")).format(n=n)
@@ -1073,6 +1102,9 @@ class _NewChartDialog(QDialog):
         self._preset_setup_combo.addItem(tr("None"), None)
         for pname in self._preset_recipes:
             self._preset_setup_combo.addItem(pname, pname)
+        # The built-in "Multi-ink, professional layout" SETUP is listed only
+        # while the device is CMYK or CMYK + extra inks (#207, Basti: the RGB
+        # part of the editor must not change); _sync_multi_ink_setup_item.
         _as_compact(self._preset_setup_combo)
         self._preset_setup_combo.activated.connect(
             self._on_preset_setup_selected)
@@ -1666,7 +1698,13 @@ class _NewChartDialog(QDialog):
         codes = ["c", "m", "y", "k"]
         if self._device_type.currentData() == "cmykplus":
             codes += [c for c in self._extra_inks if c not in codes]
-        return codes
+        # Argyll's canonical colorant order, the order of the chart's own
+        # COLOR_REP and fields (R.color_rep_for_inks), of targen's output and
+        # of a preconditioning profile: an ink-specific set (pair grids,
+        # separation fill) must write each value into its ink's own column,
+        # whatever order the inks were added in (agent 18 R5).
+        order = {c: i for i, c in enumerate(R._INK_BIT_ORDER)}
+        return sorted(codes, key=lambda c: order.get(c, len(order)))
 
     def _nch_state(self) -> int:
         """1 = RGB (everything as today), 2 = multi-ink without a usable
@@ -1789,6 +1827,7 @@ class _NewChartDialog(QDialog):
         current state (1 RGB / 2 no-profile / 3 profile) — #72."""
         dt = self._device_type.currentData() or "rgb"
         multi = dt != "rgb"
+        self._sync_multi_ink_setup_item(multi)
         self._nch_inks_row.setVisible(dt == "cmykplus")
         self._nch_limit_row.setVisible(multi)
         self._limit_tip.setVisible(multi)   # ⓘ is in the grid, not the row
@@ -1800,6 +1839,25 @@ class _NewChartDialog(QDialog):
         self._apply_gen_state_gating(self._nch_state())
         self._update_gen_counts()
         self._do_push_live_preview()
+
+    def _sync_multi_ink_setup_item(self, multi: bool) -> None:
+        """List the built-in "Multi-ink, professional layout" setup (agent 18,
+        D-16; #207) at the end of "Load setup from preset" while the device is
+        CMYK or CMYK + extra inks, and take it out again for RGB, so the RGB
+        window's list is exactly what it was before #207."""
+        combo = getattr(self, "_preset_setup_combo", None)
+        if combo is None:
+            return
+        ix = combo.findData(_MULTI_INK_SETUP_KEY)
+        if multi and ix < 0:
+            combo.addItem("\u2605 " + tr("Multi-ink, professional layout"),
+                          _MULTI_INK_SETUP_KEY)
+            combo.setItemData(combo.count() - 1, tr(_MULTI_INK_SETUP_TIP),
+                              Qt.ItemDataRole.ToolTipRole)
+        elif not multi and ix >= 0:
+            if combo.currentIndex() == ix:
+                combo.setCurrentIndex(0)
+            combo.removeItem(ix)
 
     # Generator-row classification for the three-state model (#72): RGB-cube
     # constructs never generalise (a 9-step factorial in 7 channels is ~4.8 M
@@ -1827,7 +1885,7 @@ class _NewChartDialog(QDialog):
         # once and restored on the way back to state 1.
         if not self._gen_orig_tooltips:
             for name in self._GEN_CUBE_BOUND + self._GEN_PERCEPTUAL + (
-                    "nearneutral",):
+                    "nearneutral", "unique"):
                 cb = getattr(self, f"_gen_{name}")
                 self._gen_orig_tooltips[name] = cb.toolTip()
         tip_cube = tr(
@@ -1873,6 +1931,21 @@ class _NewChartDialog(QDialog):
                            self._gen_orig_tooltips[name]))
         self._gen_nearneutral.setToolTip(
             self._gen_orig_tooltips["nearneutral"] if rgb else tip_rings_nch)
+        # #207 (R3): on a multi-ink printer the nudge keeps a patch's inks and
+        # the ink limit, and leaves single-ink steps alone; RGB keeps its text.
+        self._gen_unique.setToolTip(
+            self._gen_orig_tooltips["unique"] if rgb else tr(
+                "When sets are combined, nudge repeated or nearly identical "
+                "colours apart by a small offset, so the chart does not "
+                "spend patches measuring the same colour twice. When you are "
+                "adding to a chart that already has patches, the new colours "
+                "are kept clear of those as well.\n\n"
+                "On a multi-ink printer a patch is only moved along the inks "
+                "it already has: no ink is ever switched on, and the patch "
+                "stays inside the ink limit. Paper white and single-ink "
+                "patches (the steps of the per-ink ramps) are never moved, "
+                "because their exact values are what the profile needs, so "
+                "such a patch can appear twice."))
         for w in self._nch_gen_widgets:
             w.setVisible(not rgb)
         # The fold button lives next to the cube; hide both in state 2 (no
@@ -2107,6 +2180,10 @@ class _NewChartDialog(QDialog):
                     "richblack": self._nch_richblack.isChecked(),
                     "richblack_n": self._nch_richblack_n.value(),
                     "richblack_k": self._nch_richblack_k.value(),
+                    # agent 18 (D-16); absent in older states = off
+                    "perink_light": self._nch_perink_light.isChecked(),
+                    "pairs_grid": self._nch_pairs_grid.isChecked(),
+                    "fill_sparse": self._gen_fill_sparse.isChecked(),
                 },
             }}
         return {
@@ -2222,6 +2299,9 @@ class _NewChartDialog(QDialog):
         self._nch_pairs.setChecked(bool(gen.get("pairs", True)))
         self._nch_triples.setChecked(bool(gen.get("triples", False)))
         self._nch_richblack.setChecked(bool(gen.get("richblack", False)))
+        self._nch_perink_light.setChecked(bool(gen.get("perink_light", False)))
+        self._nch_pairs_grid.setChecked(bool(gen.get("pairs_grid", False)))
+        self._gen_fill_sparse.setChecked(bool(gen.get("fill_sparse", False)))
         for key, spin, default in (("targen_n", self._nch_targen_n, 800),
                                    ("perink_n", self._nch_perink_n, 8),
                                    ("pairs_n", self._nch_pairs_n, 4),
@@ -2288,8 +2368,58 @@ class _NewChartDialog(QDialog):
             pass
         return out
 
+    def _apply_multi_ink_setup(self) -> None:
+        """The "Multi-ink, professional layout" setup: ramps with more light
+        steps, every ink pair as a grid, the CMY grey and rich black, white
+        and black, unique colours, and a fill of 3- and 4-ink patches; even
+        coverage (targen) off. Ink set, ink limit and fill size are kept; an
+        RGB window switches to CMYK + extra inks first."""
+        if (self._nch_device_type() == "2"
+                and getattr(self, "_device_type", None) is not None):
+            ix = self._device_type.findData("cmykplus")
+            if ix >= 0:
+                self._device_type.setCurrentIndex(ix)
+        st = _MULTI_INK_SETUP
+        # The sets are GENERATED: without this the window stayed on its
+        # source mode (targen seeding by default), and Create built a
+        # 200-patch targen chart while every row on screen said otherwise
+        # (agent 18b, found driving the app, 2026-10-05).
+        if getattr(self, "_mode_generate", None) is not None \
+                and self._mode_generate.isEnabled():
+            self._mode_generate.setChecked(True)
+            self._refresh_source_widgets()
+        # A small chart keeps a smaller fixed part (challenge S2): at <= 600
+        # patches 10 ramp steps and 2-level pair grids, as the battery's
+        # `ndnew` arm was built.
+        small = (getattr(self, "_gen_fill_to", None) is not None
+                 and self._gen_fill_to.value() <= 600)
+        self._nch_targen.setChecked(False)
+        self._nch_perink.setChecked(True)
+        self._nch_perink_n.setValue(st["perink_n_small"] if small else st["perink_n"])
+        self._nch_perink_light.setChecked(True)
+        self._nch_pairs.setChecked(True)
+        self._nch_pairs_n.setValue(st["pairs_n_small"] if small else st["pairs_n"])
+        self._nch_pairs_grid.setChecked(True)
+        self._nch_triples.setChecked(False)
+        self._nch_richblack.setChecked(True)
+        self._nch_richblack_n.setValue(st["richblack_n"])
+        self._nch_richblack_k.setValue(st["richblack_k"])
+        self._gen_neutral.setChecked(True)
+        self._gen_neutral_n.setValue(st["neutral_n"])
+        self._gen_nearneutral.setChecked(False)
+        self._gen_whiteblack.setChecked(True)
+        self._gen_unique.setChecked(True)
+        self._gen_fill.setChecked(True)
+        self._gen_fill_sparse.setChecked(True)
+        self._refresh_nch_state()
+        self._update_gen_counts()
+
     def _on_preset_setup_selected(self, idx: int) -> None:
         name = self._preset_setup_combo.itemData(idx)
+        if name == _MULTI_INK_SETUP_KEY:
+            self._apply_multi_ink_setup()
+            self._do_push_live_preview()
+            return
         rec = self._preset_recipes.get(name) if name else None
         if isinstance(rec, dict):
             self._apply_gen_state(rec)
@@ -2731,6 +2861,30 @@ class _NewChartDialog(QDialog):
         _fill_row.addWidget(QLabel(
             tr("patches in total") if self._existing_patches
             else tr("patches"), self._gen_panel))
+        # Multi-ink only (shown with the other multi-ink widgets): fill with
+        # 3- and 4-ink patches where separations live, instead of the
+        # all-inks cloud (agent 18, D-16).
+        self._gen_fill_sparse = QCheckBox(tr("3-4 inks per patch"),
+                                          self._gen_panel)
+        self._gen_fill_sparse.setChecked(False)
+        self._gen_fill_sparse.setToolTip(tr(
+            "Multi-ink printers only. Fills the chart with patches of three "
+            "or four inks, the way a separation prints a colour. Inks on "
+            "opposite sides of the colour circle are put together less "
+            "often: with a preconditioning profile ChromIQ reads where each "
+            "ink really prints, otherwise it goes by the ink's name (cyan "
+            "with orange or red, magenta with green, yellow with violet or "
+            "blue). A light "
+            "ink counts together with its dark ink.\n\n"
+            "Professional expanded-gamut charts (FOGRA55, the ECG charts) "
+            "are built this way: most of their patches have three or four "
+            "inks, under one in ten has five or more. A few such patches are "
+            "kept here too, for the deepest dark colours, and some patches "
+            "sit right at the ink limit, where the shadows are. Without this "
+            "tick the fill spreads patches evenly over all inks at once, "
+            "where a separation rarely goes."))
+        self._gen_fill_sparse.toggled.connect(self._update_gen_counts)
+        _fill_row.addWidget(self._gen_fill_sparse)
         _fill_row.addStretch()
         _fill_w = QWidget(self._gen_panel); _fill_w.setLayout(_fill_row)
         self._gen_fill_count = _count_label()
@@ -2836,6 +2990,7 @@ class _NewChartDialog(QDialog):
         # multi-ink devices. State-1 stays pixel-identical (hidden grid rows
         # collapse to zero height).
         self._nch_gen_widgets: list = []   # every widget of the 3 rows
+        self._nch_gen_widgets.append(self._gen_fill_sparse)
 
         def _nch_add(w, row: int, col: int):
             gg.addWidget(w, row, col)
@@ -2846,17 +3001,23 @@ class _NewChartDialog(QDialog):
         self._nch_targen.setChecked(True)
         self._nch_targen.setToolTip(
             tr("Spreads patches evenly across every ink combination your "
-               "printer can mix — the backbone of a good multi-ink profile, "
-               "and the multi-ink replacement for the RGB cube sets.\n\n"
+               "printer can mix: the backbone of a good CMYK profile, and "
+               "the multi-ink replacement for the RGB cube sets.\n\n"
                "Argyll's targen places each patch so the whole ink space is "
                "covered without wasteful clumps, always staying inside the "
-               "ink limit above. \"Patches\" is simply how many you want — "
+               "ink limit above. \"Patches\" is simply how many you want: "
                "more patches, finer coverage, longer measuring.\n\n"
                "With a preconditioning profile set, the spread follows your "
                "printer's real response instead of the theoretical ink "
                "space, so patches land where the printer actually needs "
-               "them. For a first-ever chart (no profile yet), this set plus "
-               "the ramps below is exactly the right starting point."))
+               "them. For a first CMYK chart (no profile yet), this set plus "
+               "the ramps below is a good starting point.\n\n"
+               "With extra inks, many of these patches print five or more "
+               "inks at once (about three in four with seven inks), which a "
+               "real separation rarely does. For such a printer the "
+               "\u201cMulti-ink, professional layout\u201d setup in "
+               "\u201cLoad setup from preset\u201d at the top of this window "
+               "is the better start."))
         self._nch_targen.toggled.connect(self._update_gen_counts)
         self._nch_targen_n = _spin(8, 4000, 800)
         self._nch_targen_count = _count_label()
@@ -2883,28 +3044,67 @@ class _NewChartDialog(QDialog):
         _nch_add(self._nch_perink, 1, 0)
         _nch_add(QLabel(tr("steps/ink:")), 1, 1)
         _nch_add(self._nch_perink_n, 1, 2)
+        self._nch_perink_light = QCheckBox(tr("more light steps"),
+                                           self._gen_panel)
+        self._nch_perink_light.setChecked(False)
+        self._nch_perink_light.setToolTip(tr(
+            "Places more of the ramp's steps in the light tones (for 11 "
+            "steps: 3, 8, 14, 22, 31, 40 % and on to 100 %) instead of "
+            "even steps. Inks change fastest in the light tones, and "
+            "professional multi-ink charts put about half their ramp steps "
+            "below 40 %."))
+        self._nch_perink_light.toggled.connect(self._update_gen_counts)
+        gg.addWidget(self._nch_perink_light, 1, 3, 1, 4)
+        self._nch_gen_widgets.append(self._nch_perink_light)
         _nch_add(self._nch_perink_count, 1, 7)
         self._nch_pairs = QCheckBox(tr("Ink-pair overprints"), self._gen_panel)
         self._nch_pairs.setChecked(True)
         self._nch_pairs.setToolTip(
-            tr("Two inks printed on top of each other, stepped up together, "
-               "for every possible pair of your inks.\n\n"
+            tr("Two inks printed on top of each other, for every possible "
+               "pair of your inks.\n\n"
                "Mixing on paper is where printers surprise you: cyan over "
-               "yellow doesn't just add up — the inks bleed, trap and darken "
+               "yellow doesn't just add up, the inks bleed, trap and darken "
                "differently on every paper. These patches show the profile "
-               "exactly how each pair really combines, which sharpens all "
-               "the mixed colours in between.\n\n"
-               "Safe by design: each ink in a pair stays at or below half "
-               "the ink limit, so no overprint patch can ever exceed it. "
-               "\"Steps/pair\" is the number of tones per pair — with many "
-               "inks the pair count grows quickly, so a small number of "
-               "steps is usually plenty."))
+               "how each pair combines, which sharpens all the mixed colours "
+               "in between.\n\n"
+               "Without \u201cas grid\u201d, both inks of a pair are stepped "
+               "up together at the same value, and each stays at or below "
+               "half the ink limit, so no patch can exceed it. "
+               "\"Steps/pair\" is then the number of tones per pair. With "
+               "many inks the pair count grows quickly, so a small number of "
+               "steps is usually plenty.\n\n"
+               "With \u201cas grid\u201d, every pair becomes a small grid "
+               "of its own, which also samples mixtures such as full magenta "
+               "with a little orange, and \"Steps/pair\" is the number of "
+               "values per ink (see the tip of that tick)."))
         self._nch_pairs.toggled.connect(self._update_gen_counts)
         self._nch_pairs_n = _spin(1, 32, 4)
         self._nch_pairs_count = _count_label()
         _nch_add(self._nch_pairs, 2, 0)
         _nch_add(QLabel(tr("steps/pair:")), 2, 1)
         _nch_add(self._nch_pairs_n, 2, 2)
+        self._nch_pairs_grid = QCheckBox(tr("as grid"), self._gen_panel)
+        self._nch_pairs_grid.setChecked(False)
+        self._nch_pairs_grid.setToolTip(tr(
+            "Samples every ink pair as a small grid, both inks stepped on "
+            "their own, instead of both inks at the same value. "
+            "\"Steps/pair\" is then the number of values per ink: for 3, "
+            "each ink at 19, 54 and 100 %, nine patches per pair. A grid "
+            "shows the profile the colours between the two inks, such as "
+            "full magenta with a little orange.\n\n"
+            "Cyan, magenta and yellow with each other get two more values, "
+            "because a separation mixes them most. Inks on opposite sides of "
+            "the colour circle (such as cyan and orange) get a coarser grid "
+            "of at most 2 x 2 (35 and 100 %), because a separation rarely prints them "
+            "together. A light ink with its own dark ink gets a grid of the "
+            "hand-over from light to dark (the light ink at 25 to 100 % with "
+            "the dark ink at 5 to 100 %).\n\n"
+            "A grid patch that would go over the ink limit is scaled down, "
+            "both inks by the same amount, so every patch keeps exactly its "
+            "two inks and stays inside the limit."))
+        self._nch_pairs_grid.toggled.connect(self._update_gen_counts)
+        gg.addWidget(self._nch_pairs_grid, 2, 3, 1, 4)
+        self._nch_gen_widgets.append(self._nch_pairs_grid)
         _nch_add(self._nch_pairs_count, 2, 7)
         self._nch_triples = QCheckBox(tr("Ink-triple overprints"),
                                       self._gen_panel)
@@ -3371,6 +3571,16 @@ class _NewChartDialog(QDialog):
         return G.white_black_count(self._gen_whiteblack_n.value(),
                                    have_w, have_b)
 
+    def _nch_pairs_patch_count(self) -> int:
+        """Patches the Ink-pair row adds: the diagonal, or the grid."""
+        if self._nch_pairs_grid.isChecked():
+            codes = self._nch_ink_codes()
+            return NDG.ink_pair_grids_count(
+                codes, self._nch_pairs_n.value(),
+                comp=self._nch_complementary_pairs(codes, self._nch_state()))
+        return NDG.ink_pair_overprints_count(len(self._nch_ink_codes()),
+                                             self._nch_pairs_n.value())
+
     def _update_gen_counts(self, *_a) -> None:
         """Refresh each generator's patch count + the running total, and gate
         the per-row spin boxes on their checkbox."""
@@ -3385,8 +3595,7 @@ class _NewChartDialog(QDialog):
                  lambda: NDG.per_ink_ramps_count(
                      len(self._nch_ink_codes()), self._nch_perink_n.value())),
                 (self._nch_pairs, self._nch_pairs_n, self._nch_pairs_count,
-                 lambda: NDG.ink_pair_overprints_count(
-                     len(self._nch_ink_codes()), self._nch_pairs_n.value())),
+                 self._nch_pairs_patch_count),
                 (self._nch_triples, self._nch_triples_n,
                  self._nch_triples_count,
                  lambda: NDG.ink_triple_overprints_count(
@@ -3409,6 +3618,9 @@ class _NewChartDialog(QDialog):
                             if state != 1 else "")
                 _hint_count_inactive(lbl, cb.isChecked())
             self._nch_richblack_k.setEnabled(self._nch_richblack.isChecked())
+            self._nch_perink_light.setEnabled(self._nch_perink.isChecked())
+            self._nch_pairs_grid.setEnabled(self._nch_pairs.isChecked())
+            self._gen_fill_sparse.setEnabled(self._gen_fill.isChecked())
         # Grey each row's size control(s) when its set is unticked.
         for cb, spins in (
             (self._gen_cube, (self._gen_cube_n,)),
@@ -3500,8 +3712,7 @@ class _NewChartDialog(QDialog):
                 (self._nch_targen, lambda: self._nch_targen_n.value()),
                 (self._nch_perink, lambda: NDG.per_ink_ramps_count(
                     len(self._nch_ink_codes()), self._nch_perink_n.value())),
-                (self._nch_pairs, lambda: NDG.ink_pair_overprints_count(
-                    len(self._nch_ink_codes()), self._nch_pairs_n.value())),
+                (self._nch_pairs, self._nch_pairs_patch_count),
                 (self._nch_triples, lambda: NDG.ink_triple_overprints_count(
                     len(self._nch_ink_codes()),
                     self._nch_triples_n.value())),
@@ -3595,6 +3806,9 @@ class _NewChartDialog(QDialog):
         limit = float(self._ink_limit.value())
         program: list[tuple] = []
         self.nch_moved_note = ""
+        # Which inks are complementary: from the preconditioning profile's
+        # measured solids in state 3, else from the ink letters (challenge S4)
+        comp = self._nch_complementary_pairs(codes, state)
         if self._nch_targen.isChecked():
             extra_args = [f"-D{self._INK_DFLAG[c]}" for c in codes[4:]]
             extra_args.append(f"-l{int(limit)}")
@@ -3604,11 +3818,17 @@ class _NewChartDialog(QDialog):
                 self._bin_dir, self._nch_targen_n.value(), device="4",
                 extra_args=extra_args))
         if self._nch_perink.isChecked():
-            program.extend(NDG.per_ink_ramps(n, self._nch_perink_n.value(),
-                                             ink_limit=limit))
+            program.extend(NDG.per_ink_ramps(
+                n, self._nch_perink_n.value(), ink_limit=limit,
+                spacing=("light" if self._nch_perink_light.isChecked()
+                         else "linear")))
         if self._nch_pairs.isChecked():
-            program.extend(NDG.ink_pair_overprints(
-                n, self._nch_pairs_n.value(), ink_limit=limit))
+            if self._nch_pairs_grid.isChecked():
+                program.extend(NDG.ink_pair_grids(
+                    codes, self._nch_pairs_n.value(), ink_limit=limit, comp=comp))
+            else:
+                program.extend(NDG.ink_pair_overprints(
+                    n, self._nch_pairs_n.value(), ink_limit=limit))
         if self._nch_triples.isChecked():
             program.extend(NDG.ink_triple_overprints(
                 n, self._nch_triples_n.value(), ink_limit=limit))
@@ -3674,7 +3894,8 @@ class _NewChartDialog(QDialog):
                     steps, off, rings, n, ink_limit=limit))
         if self._gen_unique.isChecked():
             program = NDG.enforce_min_distance_nd(
-                program, _GEN_MIN_DIST, existing=self._existing_patches)
+                program, _GEN_MIN_DIST, existing=self._existing_patches,
+                ink_limit=limit)
         if self._gen_whiteblack.isChecked():
             have_w, have_b = NDG.count_white_black_device(
                 program, n, k_index=k_ix, ink_limit=limit)
@@ -3685,12 +3906,43 @@ class _NewChartDialog(QDialog):
             program.extend(anchors)
         if self._gen_fill.isChecked():
             seed = list(self._existing_patches) + program
-            topup = NDG.fill_gaps_nd(
-                seed, self._effective_fill_target(), n_channels=n,
-                ink_limit=limit)
+            if self._gen_fill_sparse.isChecked():
+                topup = NDG.separation_fill_nd(
+                    seed, self._effective_fill_target(), codes,
+                    ink_limit=limit, comp=comp)
+            else:
+                topup = NDG.fill_gaps_nd(
+                    seed, self._effective_fill_target(), n_channels=n,
+                    ink_limit=limit)
             self._built_row_counts["fill"] = len(topup)
             program.extend(topup)
         return program
+
+    def _nch_complementary_pairs(self, codes, state: int) -> set:
+        """Ink pairs on opposite sides of the hue circle, for the pair grids
+        and the 3-4-ink fill. In state 3 the preconditioning profile says
+        where each solid really prints (one xicclu run); a user's "orange"
+        may be a red-orange, and FOGRA55's yellow and violet are only 142
+        degrees apart. Otherwise, or if the lookup fails, the ink letters
+        decide. Never two process inks (see NDG.complementary_pairs)."""
+        if state == 3 and self._precond_path:
+            cache = self.__dict__.setdefault("_nch_comp_cache", {})
+            key = (self._precond_path, tuple(codes))
+            if key in cache:
+                return set(cache[key])
+            try:
+                import math
+                from workflow.xicclu_runner import forward_lab
+                solids = [tuple(100.0 if j == i else 0.0 for j in range(len(codes)))
+                          for i in range(len(codes))]
+                labs = forward_lab(solids, self._precond_path, self._bin_dir)
+                hues = {i: (math.degrees(math.atan2(b, a)) % 360.0, math.hypot(a, b))
+                        for i, (_l, a, b) in enumerate(labs)}
+                cache[key] = NDG.complementary_pairs(codes, hues=hues)
+                return set(cache[key])
+            except Exception:  # noqa: BLE001 - the letters are the stated fallback
+                log.info("measured ink hues unavailable; complementary pairs by letter")
+        return NDG.complementary_pairs(codes)
 
     def _generator_cache_key(self) -> "tuple | None":
         """Everything :meth:`_build_generated_program` reads, as one hashable
@@ -3731,7 +3983,10 @@ class _NewChartDialog(QDialog):
         try:
             state = json.dumps(self._generator_build_state(), sort_keys=True,
                                default=str)
-            existing = tuple((float(p[0]), float(p[1]), float(p[2]))
+            # EVERY channel: an N-ink chart in the Add flow differs in its
+            # extra inks too, and keying only the first three served a stale
+            # fill (challenge M5, agent 18).
+            existing = tuple(tuple(float(v) for v in p)
                              for p in (self._existing_patches or []))
             return (type(self).__name__, state, self._nch_state(),
                     self._effective_fill_target(), existing,

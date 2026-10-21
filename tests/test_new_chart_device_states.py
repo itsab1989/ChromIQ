@@ -104,8 +104,11 @@ def test_extra_ink_chips_and_ink_set_label(dlg):
     assert not dlg._nch_inks_row.isHidden()
     dlg._on_add_ink(dlg._nch_add_ink.findData("g"))
     dlg._on_add_ink(dlg._nch_add_ink.findData("o"))
-    assert dlg._extra_inks == ["g", "o"]
-    assert dlg._nch_ink_codes() == ["c", "m", "y", "k", "g", "o"]
+    assert dlg._extra_inks == ["g", "o"]       # the chips keep the click order
+    # ... but the generators get the inks in Argyll's canonical order, the
+    # order of the chart's own columns (agent 18 R5: an ink-specific set
+    # would otherwise write into the wrong column).
+    assert dlg._nch_ink_codes() == ["c", "m", "y", "k", "o", "g"]
     # Label shows the canonical targen order (CMYKOG), not the click order.
     assert "CMYKOG" in dlg._nch_inkset_lbl.text()
     dlg._remove_ink("g")
@@ -157,7 +160,10 @@ def test_device_state_persists_and_round_trips(dlg, qapp, tmp_path):
                                    "pairs": False, "pairs_n": 4,
                                    "triples": False, "triples_n": 2,
                                    "richblack": False, "richblack_n": 6,
-                                   "richblack_k": 3}
+                                   "richblack_k": 3,
+                                   # agent 18 (D-16), off by default
+                                   "perink_light": False, "pairs_grid": False,
+                                   "fill_sparse": False}
     fresh = _NewChartDialog(tmp_path, _FakeSettings())
     fresh._apply_gen_state(st)
     assert fresh._device_type.currentData() == "cmykplus"
