@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.3.8-beta.3
+
+**The instrument's own button can retry a strip that failed, and the Strip Read Failed window now explains each kind of failure on its own.**
+
+### Added
+- **Press the instrument's button to retry a failed strip** (i1Pro, i1Pro 2, i1Pro 3, i1Pro 3 Plus and ColorMunki; idea from the printerknowledge.com forum). In the Strip Read Failed window, the first press works like the Retry button and gets the strip ready again; the second press starts the scan as usual. A press in the first moment after the window opens, in the Wrong Strip window or during a calibration is ignored. The window only mentions the button when the connected instrument has one. (New texts, shown and waiting for approval.)
+- **Check & Refine, gamut comparison: profile A gets its own opacity and colour sliders.** The two rows, one for A and one for B, appear in the Combined view. A starts fully solid, so nothing changes until you move it; made see-through, a smaller gamut inside a larger one becomes visible. Save as Defaults keeps both rows. (New tooltips, shown and waiting for approval.)
+
+### Changed
+- **The Strip Read Failed window gives advice that fits the failure.** "Too many patches", "Not enough patches", "Reading is inconsistent", "Swipe didn't start and end on the media" and "too fast" each get their own explanation of what usually causes them and what to try; anything else gets a general text. Before, every failure was told to scan more slowly. The window is never cut off, also on small screens. (New texts, shown and waiting for approval.)
+- **"Name the installed copy after the description" is on by default** for everyone who never changed it. Anyone who switched it off keeps it off.
+- **macOS: the log records the system alert volume when a measurement starts.** The "ready to measure" beep is the system alert sound, so a muted alert volume silences it. This makes that visible in the log.
+
+### Fixed
+- **The scan arrow under the last row was hidden behind the "expected / measured" label** (Knut). The label is now see-through and the arrow shows through it; the label's text stays readable on top.
+- **An .icm profile was installed as .icc** when the installed copy was named after its description. It now keeps its extension.
+- **Installing X.icm while X.icc is installed (or the other way round) made two profiles with the same name.** It now asks with the same "already installed" window, and Replace leaves one. On Linux, where folders tell upper and lower case apart, a name that differs only in case is a different profile and is left alone.
+- **Windows: a measurement could fail to save after a strip** when another program (for example the virus scanner) held the file for a moment, and nobody was told (forum report). The save now replaces the file in one step and tries again briefly; if it still fails, the readings are kept in a safety copy, the line under the chart turns into a warning until a save works again, and the next load or Start uses the safety copy. An old safety copy is never put back over newer readings: it is moved to the old/ folder. (New texts, shown and waiting for approval.)
+- **Manual, FAQ Q.06:** the pink-screen answer now says what the app really does: ChromIQ's own file browser is the default, the Mac's own file window can be switched on in Preferences > Behaviour, and switched off again if the screen turns pink.
+- **Windows test suite:** several tests that failed only on Windows pass there again (fonts on the offscreen platform, tool names with .exe, hyphenated line breaks, wrapped row labels).
+
 ## v4.3.8-beta.2
 
 **Windows gets ChromIQ's own print route, and charts print at 100 % through the Windows print dialog.**
