@@ -376,6 +376,12 @@ def preload_warm_up(settings) -> None:
 #
 # So: not this way. Do not reintroduce a permanently-playing voice without
 # testing on an external USB audio interface, not only built-in speakers.
+#
+# N2 (4.3.9) keeps the hardware running during a measurement in a DIFFERENT
+# shape, core/audio_keepalive.py: its own QAudioSink per device, nothing else
+# plays through it, only while a measurement is open, only with the warm-up
+# switched on, never on Bluetooth or AirPlay. If it dies, only it dies. Still
+# not tested on a USB audio device here: Knut's dock is the first one.
 
 
 def bundled_sounds_root() -> Path:
@@ -465,6 +471,9 @@ class SoundManager:
         #: event. Knut's ruling (#131, 2026-07-27): "the ChromIQ sounds should
         #: not at all be wired or used for stock argyllcms chartread".
         self._reading_engine = True
+        #: N2: the stream that keeps the sound hardware running during a
+        #: measurement (core.audio_keepalive), made on first use.
+        self._keepalive = None
 
     # -- lifecycle ----------------------------------------------------------
     def enabled(self) -> bool:
@@ -482,7 +491,15 @@ class SoundManager:
         self._in_measurement = True
         self._reading_engine = bool(reading_engine)
         if not self.enabled():
+            # Sounds switched off: nothing here touches the device at all.
+            self.stop_keep_awake()
             return
+        # N2 (Knut, 4.3.8-beta.3): with the warm-up on, the sound hardware is
+        # kept running for the whole measurement, so neither the instrument's
+        # ready beep (ArgyllCMS's own, played by macOS on the alert device,
+        # R-202-1) nor a "Strip read OK" ten seconds after the last sound
+        # starts into a stopped device.
+        self._keep_awake()
         self._preload(ALL_EVENTS)
         # Pre-loading puts the SAMPLES in memory; it does nothing about the
         # DEVICE, which is asleep until something wakes it and swallows the
@@ -497,6 +514,39 @@ class SoundManager:
         """Leave measurement mode. Completion sounds may still play afterwards
         (they pre-load on demand)."""
         self._in_measurement = False
+        self.stop_keep_awake()
+
+    def _keep_awake(self) -> None:
+        """Start :mod:`core.audio_keepalive` for this measurement, when the
+        user has "Wake the audio device before playing a sound" on. Never when
+        it is off: then nothing here touches the device (warm_up_enabled)."""
+        if not warm_up_enabled(self._settings):
+            self.stop_keep_awake()
+            return
+        try:
+            if self._keepalive is None:
+                from core.audio_keepalive import AudioKeepAlive
+                self._keepalive = AudioKeepAlive()
+                try:
+                    from PyQt6.QtCore import QCoreApplication
+                    app = QCoreApplication.instance()
+                    if app is not None:
+                        app.aboutToQuit.connect(self.stop_keep_awake)
+                except Exception:      # noqa: BLE001
+                    pass
+            self._keepalive.start()
+        except Exception as exc:      # noqa: BLE001 — never break a measurement
+            log.debug("could not keep the audio device awake: %s", exc)
+
+    def stop_keep_awake(self) -> None:
+        ka = getattr(self, "_keepalive", None)
+        if ka is not None:
+            ka.stop()
+
+    @property
+    def keeping_awake(self) -> bool:
+        ka = getattr(self, "_keepalive", None)
+        return bool(ka is not None and ka.running)
 
     def _preload(self, events) -> None:
         cls = _sound_effect_cls()

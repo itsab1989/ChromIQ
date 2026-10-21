@@ -1893,6 +1893,9 @@ def pytest_configure(config):
     # A measurement keeps the computer awake (core/keep_awake.py). A test run
     # starts many, with fakes; none of them may hold Basti's Mac awake.
     os.environ["CHROMIQ_NO_KEEP_AWAKE"] = "1"
+    # ...and none may play a stream into its real sound devices (N2,
+    # core/audio_keepalive.py): a measurement armed with the warm-up on would.
+    os.environ["CHROMIQ_NO_AUDIO_KEEPALIVE"] = "1"
     _enter_the_run_temp(config)
     _enforce_the_helper(config)
     # as main() does: every Argyll tool and helper a test starts skips the

@@ -5999,6 +5999,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._sound.arm(reading_engine=self._engine_wanted())
             if not getattr(self, "_session_live", False):
                 self._sound.disarm()      # preload only; no measurement running
+        elif not on and getattr(self, "_sound", None) is not None:
+            # N2: sounds switched off mid-measurement: the keep-alive goes too.
+            stop = getattr(self._sound, "stop_keep_awake", None)
+            if stop is not None:
+                stop()
 
     def _engine_wanted(self) -> bool:
         """Whether this measurement will run on ChromIQ's own reading engine.
