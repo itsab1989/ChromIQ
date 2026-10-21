@@ -457,7 +457,31 @@ def engine_autosave_temp(ti3_path: "Path | str") -> Path:
     return p.with_name(p.name + ENGINE_AUTOSAVE_SUFFIX)
 
 
-def recover_engine_autosave(ti3_path: "Path | str | None") -> bool:
+def _autosave_is_newer(ti3: Path, ti2_path: "Path | str | None") -> bool:
+    """Whether the kept ``.cqtmp`` beside *ti3* is a newer copy of THIS
+    measurement (see :func:`recover_engine_autosave`). Never raises."""
+    tmp = engine_autosave_temp(ti3)
+    try:
+        if not tmp.is_file():
+            return False
+        if ti2_path is not None and not Path(ti2_path).is_file():
+            ti2_path = None
+        got = classify(tmp, ti2_path)
+        if got.state not in (Ti3State.PARTIAL, Ti3State.COMPLETE):
+            return False               # cut short, empty, or another chart's
+        if ti3.exists() and has_any_readings(ti3):
+            if tmp.stat().st_mtime < ti3.stat().st_mtime:
+                return False           # older than the measurement: stale
+            held = classify(ti3, ti2_path).held or 0
+            if (got.held or 0) < held:
+                return False           # fewer readings: not a newer copy
+        return True
+    except Exception:      # noqa: BLE001 — never raises
+        return False
+
+
+def recover_engine_autosave(ti3_path: "Path | str | None",
+                            ti2_path: "Path | str | None" = None) -> bool:
     """Put the engine's kept temporary save in place of the .ti3 (M3).
 
     The engine saves every accepted strip to ``<name>.ti3.cqtmp`` and then
@@ -468,6 +492,15 @@ def recover_engine_autosave(ti3_path: "Path | str | None") -> bool:
     replace) gone. A successful save renames the temporary file away, so one
     that is still there and newer than the ``.ti3`` is always the one to keep.
 
+    ONLY A WELL-FORMED FILE OF THIS CHART, NEVER FEWER READINGS (review of
+    M3, 2026-10-21). A file cut short (its NUMBER_OF_SETS disagrees with its
+    rows), one holding more readings than *ti2_path* lays out (another
+    chart's), or one holding fewer readings than the ``.ti3`` is not a newer
+    copy of this measurement and is left where it is. A session's end sets a
+    left-over one aside (:func:`set_aside_engine_autosave`), so a measurement
+    put back by "Discard and stop" (its copy keeps the OLD date) or moved
+    away (a filed verification, a replaced chart) is not overwritten by it.
+
     Returns True when it was moved into place. Never raises: a resume that
     cannot use it carries on with the ``.ti3`` as it is.
     """
@@ -477,13 +510,7 @@ def recover_engine_autosave(ti3_path: "Path | str | None") -> bool:
     import time
     ti3 = Path(ti3_path)
     tmp = engine_autosave_temp(ti3)
-    try:
-        if not tmp.is_file() or not has_any_readings(tmp):
-            return False
-        if ti3.exists() and has_any_readings(ti3) \
-                and tmp.stat().st_mtime < ti3.stat().st_mtime:
-            return False               # older than the measurement: stale
-    except OSError:
+    if not _autosave_is_newer(ti3, ti2_path):
         return False
     for attempt in range(10):
         try:
@@ -501,6 +528,51 @@ def recover_engine_autosave(ti3_path: "Path | str | None") -> bool:
     log.warning("could not put %s in place of %s: still in use", tmp.name,
                 ti3.name)
     return False
+
+
+def set_aside_engine_autosave(ti3_path: "Path | str | None",
+                              old_dir: "Path | str | None" = None,
+                              ti2_path: "Path | str | None" = None,
+                              *, discarded: bool = False) -> "Path | None":
+    """Move a left-over ``<name>.ti3.cqtmp`` into *old_dir* (M3 review).
+
+    Called when a session has ended, after :func:`recover_engine_autosave`
+    had its chance. One that is NOT a newer copy of the measurement (the
+    engine's final save writes the ``.ti3`` itself and never touches the
+    temporary file, so it is older; or it is cut short, or another chart's)
+    would, left beside it, let a later recovery put it over a measurement
+    that "Discard and stop" put back or a verification filed away. One that
+    IS newer but could not be put in place (the ``.ti3`` still locked) stays,
+    so the next load or Start recovers it, unless the session was
+    *discarded*: then nothing of it may come back. Moved, never deleted.
+    Returns where it went, or None.
+    """
+    if not ti3_path:
+        return None
+    import shutil
+    from datetime import datetime
+    ti3 = Path(ti3_path)
+    tmp = engine_autosave_temp(ti3)
+    try:
+        if not tmp.is_file():
+            return None
+        if not discarded and _autosave_is_newer(ti3, ti2_path):
+            return None                # the next load or Start recovers it
+        dest_dir = Path(old_dir) if old_dir else ti3.parent / "old"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        target = dest_dir / f"unused-{stamp}-{tmp.name}"
+        n = 1
+        while target.exists():
+            target = dest_dir / f"unused-{stamp}_{n}-{tmp.name}"
+            n += 1
+        shutil.move(str(tmp), str(target))
+        log.info("the engine's unused save %s set aside to %s", tmp.name,
+                 target)
+        return target
+    except Exception:      # noqa: BLE001 — tidying never blocks a session end
+        log.warning("could not set aside %s", tmp.name, exc_info=True)
+        return None
 
 
 class SessionVerdict(Enum):

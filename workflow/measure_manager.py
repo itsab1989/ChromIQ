@@ -1196,7 +1196,7 @@ class MeasureManager(QObject):
                                                 recover_engine_autosave)
         ti3 = ti1_path.with_suffix(".ti3")
         try:
-            recover_engine_autosave(ti3)
+            recover_engine_autosave(ti3, ti1_path.with_suffix(".ti2"))
             if has_any_readings(ti3):
                 return ti3
         except OSError:

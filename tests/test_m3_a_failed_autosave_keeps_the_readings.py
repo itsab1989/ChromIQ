@@ -157,7 +157,7 @@ def test_load_start_and_the_fallback_resume_all_recover():
     from workflow.measure_manager import MeasureManager
     assert "self._recover_engine_autosave()" in inspect.getsource(TabMeasure.set_ti1_path)
     assert "self._recover_engine_autosave()" in inspect.getsource(TabMeasure._on_start)
-    assert "recover_engine_autosave(ti3)" in inspect.getsource(
+    assert "recover_engine_autosave(ti3" in inspect.getsource(
         MeasureManager._resumable_partial_ti3)
 
 

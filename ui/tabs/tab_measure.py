@@ -14059,6 +14059,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._sync_calibrate_btn_visible()
         # A reading "Was a strip read twice?" set aside, and never replaced,
         # leaves the file before anything judges or counts it.
+        self._settle_engine_autosave_at_end()      # M3: before anything reads it
         self._drop_set_aside_readings()
         self._finish_session_guard()
         # Superseded by the guard for any run it protects; still the only
@@ -18406,10 +18407,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return False
         try:
             from workflow.measurement_state import recover_engine_autosave
-            return recover_engine_autosave(Path(ti1).with_suffix(".ti3"))
+            return recover_engine_autosave(Path(ti1).with_suffix(".ti3"),
+                                           Path(ti1).with_suffix(".ti2"))
         except Exception:      # noqa: BLE001 — never block loading or starting
             log.debug("engine autosave not recovered", exc_info=True)
             return False
+
+    def _settle_engine_autosave_at_end(self) -> None:
+        """M3 review: at a session's end, a kept save that is the newest copy
+        of the readings goes into place BEFORE anything judges the file, and
+        one that is not is set aside to old/, so a later load cannot put it
+        over a measurement "Discard and stop" puts back or a verification
+        filed away."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if not ti1:
+            return
+        try:
+            from workflow.measurement_state import set_aside_engine_autosave
+            self._recover_engine_autosave()
+            guard = getattr(self, "_session_guard", None)
+            set_aside_engine_autosave(
+                Path(ti1).with_suffix(".ti3"), getattr(guard, "old_dir", None),
+                Path(ti1).with_suffix(".ti2"),
+                discarded=bool(getattr(self, "_discard_chosen", False)))
+        except Exception:      # noqa: BLE001 — never block a session's end
+            log.debug("engine autosave not settled", exc_info=True)
 
     def _existing_ti3_for_chart(self) -> "Path | None":
         """The measured .ti3 of what the bar selects (#134), or None.
