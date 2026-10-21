@@ -582,12 +582,16 @@ def misread_kind(detail: str) -> str:
     """Which Strip Read Failed text a driver's misread sentence gets (B1/M1).
 
     ``"too_many"``, ``"too_few"``, ``"inconsistent"``, ``"edges"``,
-    ``"too_fast"`` or ``"other"``. The sentences are the drivers' own and are
-    the same in the i1Pro, i1Pro 3 and ColorMunki drivers (i1pro.c:455-475,
-    i1pro3.c:419-439, munki.c:465-485). "Reading is too short" is a read that
-    timed out (i1pro_imp.c:11802), not a measure of speed, so it gets the
-    general text; so does "Number of patches to match is wrong", an internal
-    check (i1pro_imp.c:2961).
+    ``"too_fast"``, ``"too_short"`` or ``"other"``. The sentences are the
+    drivers' own and are the same in the i1Pro, i1Pro 3 and ColorMunki drivers
+    (i1pro.c:455-475, i1pro3.c:419-439, munki.c:465-485). "Reading is too
+    short" (Basti, 2026-10-21) is raised when the scan ended before the
+    instrument had delivered even the first, minimum number of readings it
+    asked for (munki_imp.c:9045, i1pro_imp.c:11800, ``treadings < inummeas``;
+    about 0.1 s of readings in the ColorMunki's strip mode, munki_imp.c:719):
+    measured on Basti's ColorMunki, a press of the button without a swipe.
+    It is not a measure of speed. "Number of patches to match is wrong", an
+    internal check (i1pro_imp.c:2961), keeps the general text.
     """
     low = (detail or "").lower()
     if "too many patches" in low:
@@ -600,6 +604,8 @@ def misread_kind(detail: str) -> str:
         return "edges"
     if "not enough samples per patch" in low:
         return "too_fast"
+    if "reading is too short" in low:
+        return "too_short"
     return "other"
 
 

@@ -6794,6 +6794,35 @@ M_STRIP_FAILED_TOO_FAST = _m(
     "What the instrument reported: {reason}",
     approved=False)
 
+#: "Reading is too short" (Basti, 2026-10-21, proved on his ColorMunki: a
+#: press of the button with no swipe gives exactly this). The drivers raise it
+#: when the scan ended before the instrument had delivered the minimum number
+#: of readings it asks for first (munki_imp.c:9045, i1pro_imp.c:11800; about
+#: 0.1 s of readings in the ColorMunki's strip mode, munki_imp.c:719). In
+#: strip mode the i1Pro and the ColorMunki read for as long as the button is
+#: held down.
+M_STRIP_FAILED_TOO_SHORT = _m(
+    "M-STRIP-FAILED-TOO-SHORT",
+    "The reading stopped almost as soon as it started",
+    "The instrument stopped reading after only a moment, before it had taken "
+    "even the smallest number of readings it needs for a strip. So it could "
+    "not look for any patches, and it kept nothing of this strip. The strips "
+    "you have already read are not affected.\n\n"
+    "This usually has one of these causes:\n"
+    "• The button was pressed and let go straight away, without a movement "
+    "along the strip. When you read a strip with the button, the instrument "
+    "reads only for as long as you hold the button down.\n"
+    "• The button was let go too early, while the instrument was still at the "
+    "start of the strip.\n\n"
+    "What to do: put the instrument down on the white paper before the first "
+    "patch. Press the button and keep holding it down. If your instrument "
+    "gives a short beep when it is ready, wait for it. Then move along the "
+    "whole strip in one smooth movement at an even speed, and let go of the "
+    "button only when the instrument is on the white paper after the last "
+    "patch.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
 M_STRIP_FAILED_OTHER = _m(
     "M-STRIP-FAILED-OTHER",
     "The strip could not be read",
@@ -6827,6 +6856,7 @@ STRIP_FAILED_ADVICE = {
     "inconsistent": M_STRIP_FAILED_INCONSISTENT,
     "edges": M_STRIP_FAILED_EDGES,
     "too_fast": M_STRIP_FAILED_TOO_FAST,
+    "too_short": M_STRIP_FAILED_TOO_SHORT,
     "other": M_STRIP_FAILED_OTHER,
 }
 STRIP_FAILED_MESSAGES = (*STRIP_FAILED_ADVICE.values(), M_STRIP_FAILED_BUTTON)

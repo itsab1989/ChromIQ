@@ -7101,5 +7101,7 @@
  "•  Strip {strip}: {n} of its {total} patches have no reading": "•  色条 {strip}：{total} 个色块中有 {n} 个没有读数",
  "•  Strip {strip}: 1 of its {total} patches has no reading": "•  色条 {strip}：{total} 个色块中有 1 个没有读数",
  "•  and {n} more strips": "•  以及另外 {n} 条色条",
- "•  and 1 more strip": "•  以及另外 1 条色条"
+ "•  and 1 more strip": "•  以及另外 1 条色条",
+ "The reading stopped almost as soon as it started": "读取几乎刚开始就停止了",
+ "The instrument stopped reading after only a moment, before it had taken even the smallest number of readings it needs for a strip. So it could not look for any patches, and it kept nothing of this strip. The strips you have already read are not affected.\n\nThis usually has one of these causes:\n• The button was pressed and let go straight away, without a movement along the strip. When you read a strip with the button, the instrument reads only for as long as you hold the button down.\n• The button was let go too early, while the instrument was still at the start of the strip.\n\nWhat to do: put the instrument down on the white paper before the first patch. Press the button and keep holding it down. If your instrument gives a short beep when it is ready, wait for it. Then move along the whole strip in one smooth movement at an even speed, and let go of the button only when the instrument is on the white paper after the last patch.\n\nWhat the instrument reported: {reason}": "仪器只读了一瞬间就停止了，连读取一个色条所需的最少读数都还没有取到。因此它无法查找任何色块，也没有保留这个色条的任何内容。你已经读取的色条不受影响。\n\n这通常是以下原因之一：\n• 按下按钮后马上就松开了，没有沿色条移动仪器。用按钮读取色条时，仪器只在你按住按钮期间读取。\n• 按钮松开得太早，仪器还在色条的开头。\n\n怎么做：把仪器放在第一个色块之前的白纸上。按下按钮并一直按住。如果你的仪器在准备好时会发出短促的提示音，请等它响。然后以均匀的速度一次平稳地移过整个色条，直到仪器位于最后一个色块之后的白纸上再松开按钮。\n\n仪器报告的内容：{reason}"
 }

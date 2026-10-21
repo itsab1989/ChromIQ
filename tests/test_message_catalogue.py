@@ -130,6 +130,8 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-STRIP-FAILED-TOO-MANY", "M-STRIP-FAILED-TOO-FEW",
     "M-STRIP-FAILED-INCONSISTENT", "M-STRIP-FAILED-EDGES",
     "M-STRIP-FAILED-TOO-FAST", "M-STRIP-FAILED-OTHER", "M-STRIP-FAILED-BUTTON",
+    # "Reading is too short" gets its own text (Basti, 2026-10-21)
+    "M-STRIP-FAILED-TOO-SHORT",
     # M3 (4.3.8 beta 3): the engine could not save the readings, proposed 2026-10-21
     "M-AUTOSAVE-NOT-SAVED",
     # M3 (4.3.8 beta 3): the line under the chart while a save failed, 2026-10-21

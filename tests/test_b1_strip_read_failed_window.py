@@ -33,7 +33,7 @@ DRIVER_SENTENCES = {
     "Reading is inconsistent": "inconsistent",
     "Swipe didn't start and end on the media": "edges",
     "Not enough samples per patch - Slow Down!": "too_fast",
-    "Reading is too short": "other",
+    "Reading is too short": "too_short",
     "Number of patches to match is wrong": "other",
     "Light level is too low": "other",
     "White calibration reading is inconsistent": "other",
