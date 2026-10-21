@@ -331,6 +331,35 @@ def _catalogue_html(title: str, body: str) -> str:
     return f"<b>{html.escape(title)}</b><br><br>{text}<br><br>"
 
 
+def _fit_text_window(dlg, scroll, label) -> int:
+    """Open *dlg* tall enough for the whole of *label* (inside *scroll*), up
+    to 90 % of the screen; past that *scroll* scrolls. Returns the height.
+
+    Without an explicit size Qt opens a dialog at no more than 2/3 of the
+    screen height and squeezes the word-wrapped label, which cut the last
+    lines of the Strip Read Failed window off (review of B1/M1, 2026-10-21).
+    """
+    from PyQt6.QtGui import QGuiApplication
+    from PyQt6.QtWidgets import QStyle
+    lay = dlg.layout()
+    lay.activate()
+    width = max(dlg.minimumWidth(), dlg.sizeHint().width())
+    m = lay.contentsMargins()
+    sb = dlg.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent)
+    text_w = max(1, width - m.left() - m.right() - sb)
+    body_h = max(0, label.heightForWidth(text_w))
+    others = sum(lay.itemAt(i).sizeHint().height() for i in range(lay.count())
+                 if lay.itemAt(i).widget() is not scroll)
+    chrome = (m.top() + m.bottom() + others
+              + lay.spacing() * max(0, lay.count() - 1))
+    screen = dlg.screen() or QGuiApplication.primaryScreen()
+    cap = (int(screen.availableGeometry().height() * 0.9)
+           if screen is not None else chrome + body_h)
+    height = min(chrome + body_h + 4, cap)
+    dlg.resize(width, height)
+    return height
+
+
 def _strip_failed_advice_html(reason: str) -> str:
     """The Strip Read Failed window's advice for the driver's *reason*: its
     own cause and remedy per error (B1/M1, M-STRIP-FAILED-*)."""
@@ -10653,7 +10682,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             ).format(save_partial=_save_partial_name())
         msg = QLabel(advice + choices + save_text, dlg)
         msg.setWordWrap(True)
-        layout.addWidget(msg)
+        # THE TEXT SCROLLS RATHER THAN BEING CUT OFF (review of B1/M1). Left
+        # to itself Qt opens a dialog at no more than 2/3 of the screen height
+        # and squeezes the label, so the longest texts (M-STRIP-FAILED-
+        # INCONSISTENT with the button paragraph) lost their last lines, the
+        # Save Partial & Quit explanation, on a 1117 pt screen; on 800 pt far
+        # more. `_fit_text_window` sizes it to the text, up to 90 % of the
+        # screen, and past that this area scrolls.
+        from PyQt6.QtWidgets import QFrame, QScrollArea
+        msg_scroll = QScrollArea(dlg)
+        msg_scroll.setWidget(msg)
+        msg_scroll.setWidgetResizable(True)
+        msg_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        msg_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        msg_scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        msg_scroll.viewport().setStyleSheet("background: transparent;")
+        msg.setStyleSheet("background: transparent;")
+        layout.addWidget(msg_scroll, 1)
 
         # "retry" → send "\r"                     (any key = retry)
         # "skip"  → the manager picks the next unread strip, or simply the next
@@ -10718,6 +10764,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
+        _fit_text_window(dlg, msg_scroll, msg)
         # B1: while this window is up, a press of the instrument's button is
         # its Retry (see _on_instrument_button). Only for a strip misread whose
         # instrument reports presses; never for a patch or a lost connection.

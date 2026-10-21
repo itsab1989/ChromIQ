@@ -237,3 +237,36 @@ def test_the_manager_passes_a_press_on_only_at_the_retry_prompt(tab):
     mgr._at_retry_prompt = True
     _feed(mgr, {"event": "switch"})
     assert presses == [1]
+
+
+# ---------------------------------------------------------------------------
+# the text is never cut off (review of B1/M1, agent 6, 2026-10-21)
+# ---------------------------------------------------------------------------
+def test_the_longest_text_is_never_cut_off(tab, monkeypatch):
+    """On screen the Inconsistent text with the button paragraph lost its last
+    lines: Qt opened the window at 2/3 of the screen height and squeezed the
+    label. The text now sits in a scroll area and the window is sized to it,
+    up to 90 % of the screen: all of it is on screen, or it scrolls."""
+    from PyQt6.QtWidgets import QApplication, QLabel, QScrollArea
+    got = {}
+
+    def during(dlg):
+        QApplication.processEvents()
+        area = [a for a in dlg.findChildren(QScrollArea)
+                if isinstance(a.widget(), QLabel)]
+        got["area"] = bool(area)
+        if area:
+            a = area[0]
+            need = a.widget().heightForWidth(a.viewport().width())
+            got["fits"] = a.viewport().height() >= need - 2
+            got["scrolls"] = a.verticalScrollBar().maximum() > 0
+            cap = dlg.screen().availableGeometry().height() * 0.9
+            got["sized"] = dlg.height() > dlg.screen().availableGeometry().height() * 2 / 3 \
+                or got["fits"]
+            got["capped"] = dlg.height() <= cap + 1
+        dlg.reject()
+
+    _open(tab, monkeypatch, "Reading is inconsistent", True, during=during)
+    assert got.get("area"), "the window's text is not in a scroll area"
+    assert got["fits"] or got["scrolls"], "text cut off with no way to reach it"
+    assert got["sized"] and got["capped"], got
