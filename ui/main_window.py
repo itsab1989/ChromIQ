@@ -2659,6 +2659,10 @@ class MainWindow(QMainWindow):
         # pushed here simply never arrives.
         if hasattr(self._tab_measure, "refresh_progress_setting"):
             self._tab_measure.refresh_progress_setting()
+        # N2: "Wake the audio device" switched off mid-measurement stops the
+        # keep-alive stream now, not when the measurement ends.
+        if hasattr(self._tab_measure, "refresh_sound_keep_awake"):
+            self._tab_measure.refresh_sound_keep_awake()
         # The patch-reading limits may have changed: the outlines on the
         # preview follow at once (Knut, #182 5979886227).
         if hasattr(self._tab_measure, "refresh_patch_flags"):

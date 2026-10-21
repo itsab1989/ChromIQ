@@ -227,6 +227,37 @@ def _settles_the_replaced_chart(fn):
     return settled
 
 
+def _disarms_a_start_that_did_not_start(fn):
+    """Run *fn* (Start), then leave measurement mode again unless a session
+    really started (``_session_live``).
+
+    Start arms the sound before the questions the user can answer "no" to
+    (the verification guard, the stored chart, the bidirectional question,
+    M-REPLACE), and with "Wake the audio device" on, arming starts the N2
+    keep-alive stream (core/audio_keepalive.py). Each of those refusals
+    returned without disarming, so the stream kept the sound hardware running
+    until the next measurement ended or the app quit (agent 12's review of
+    4.3.9). One decorator rather than a call before every return, for the
+    reason _settles_the_replaced_chart gives.
+    """
+    import functools
+
+    @functools.wraps(fn)
+    def disarmed(self, *args):
+        try:
+            return fn(self, *args)
+        finally:
+            if not getattr(self, "_session_live", False):
+                snd = getattr(self, "_sound", None)
+                if snd is not None:
+                    try:
+                        snd.disarm()
+                    except Exception:      # noqa: BLE001 — tidy-up only
+                        log.debug("disarm after a refused start failed",
+                                  exc_info=True)
+    return disarmed
+
+
 def _REREAD_TOOLTIP() -> str:
     """What "Re-read Individual Strips" actually does — spelled out, because
     nothing said it (Knut, #131 2026-07-27: "the descriptions of the buttons do
@@ -7433,6 +7464,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                 new_run_guard_message("measure"))
         return True
 
+    @_disarms_a_start_that_did_not_start
     @_settles_the_replaced_chart
     def _on_start(self) -> None:
         if not self._ti1_path:
@@ -16246,6 +16278,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._refresh_progress()
         except Exception:      # noqa: BLE001
             log.debug("could not count patch progress", exc_info=True)
+
+    def refresh_sound_keep_awake(self) -> None:
+        """N2: Preferences closed with OK. A changed "Wake the audio device"
+        (or sounds) switch reaches a running measurement's keep-alive stream
+        at once instead of at the end of the measurement (agent 12, 4.3.9)."""
+        snd = getattr(self, "_sound", None)
+        refresh = getattr(snd, "refresh_keep_awake", None)
+        if refresh is not None:
+            try:
+                refresh()
+            except Exception:      # noqa: BLE001 — never break a measurement
+                log.debug("keep-alive refresh failed", exc_info=True)
 
     def refresh_progress_setting(self) -> None:
         """Apply a changed "Show measurement progress bar" straight away (#153).

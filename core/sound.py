@@ -538,6 +538,18 @@ class SoundManager:
         except Exception as exc:      # noqa: BLE001 — never break a measurement
             log.debug("could not keep the audio device awake: %s", exc)
 
+    def refresh_keep_awake(self) -> None:
+        """Follow a changed "Wake the audio device" or sounds switch while a
+        measurement is open (Preferences closed with OK): switched off, the
+        stream stops at once, so "turn it straight back off" (the option's
+        help text) works mid-measurement too; switched on, it starts. Outside
+        a measurement nothing is started."""
+        if self._in_measurement and self.enabled() \
+                and warm_up_enabled(self._settings):
+            self._keep_awake()
+        else:
+            self.stop_keep_awake()
+
     def stop_keep_awake(self) -> None:
         ka = getattr(self, "_keepalive", None)
         if ka is not None:
