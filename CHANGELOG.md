@@ -1,5 +1,24 @@
 # Changelog
 
+## v4.3.9
+
+**For everyone updating from 4.3.8: the gamut comparison shows a smaller gamut inside a larger one, the instrument's "ready" beep is no longer swallowed by a sleeping USB speaker, and the patch set editor makes much better CMYK and multi-ink charts.**
+
+### Added
+- **Patch set editor, CMYK and CMYK + extra inks: a ready-made "Multi-ink, professional layout"** (#207). It builds a chart the way professional charts for printers with extra inks are built: most patches carry three or four inks, as the printer driver really prints colours, instead of every ink at once. Three new options can also be ticked on their own: more light steps in the single-ink ramps, ink pairs sampled as a small grid, and a gap fill with 3 to 4 inks per patch. They are off unless you or the ready-made layout switch them on. The RGB patch sets are not changed in any way. (New texts, shown and waiting for approval.)
+
+### Changed
+- **macOS: with "Wake the audio device before playing a sound" on, a measurement keeps the sound hardware awake** (Knut). A USB speaker, for example in a docking station, goes to sleep between sounds and then swallows the start of the next one, which is why the instrument's "ready" beep could not be heard and the "Patch read OK" tick was cut off. While a measurement is open, ChromIQ now plays an inaudible signal to the wired sound device, which stops when the measurement ends or the option is switched off. Bluetooth and AirPlay devices are never used for it. The option's help text explains this. (New text, shown and waiting for approval.)
+
+### Fixed
+- **Check & Refine, gamut comparison: a see-through profile A still hid profile B inside it** (Knut). B only appeared below about 10 % opacity of A. Now all of B is visible inside A at any opacity, in every view; after a re-run, B's opacity also matches its slider again.
+- **Patch set editor, CMYK and CMYK + extra inks** (#207):
+  - "Ensure unique colours" could switch on an ink a patch did not have and push a patch over the ink limit. It now only moves a patch along the inks it already has, inside the limit, and never moves single-ink ramp steps.
+  - The grey rings made with a pre-conditioning profile could go over the ink limit.
+  - Extra inks could be written in the order you added them instead of Argyll's ink order.
+  - Below an ink limit of 300 %, the dark end of the neutral grey ramp piled up onto a few identical patches.
+  - Charts saved before this version load and lay out exactly as saved.
+
 ## v4.3.8
 
 **For everyone updating from 4.3.7: print settings belong to each run, Windows gets ChromIQ's own print route, the instrument's button can retry a failed strip, and a good strip reading is never lost when a swipe is recognised as another strip.** The details of each change are in the three beta entries below.
