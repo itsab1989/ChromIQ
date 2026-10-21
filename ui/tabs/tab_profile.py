@@ -387,6 +387,9 @@ class TabProfile(QWidget):
     about_to_load_ti3   = pyqtSignal()      # emitted before state changes, for snapshot saving
     cal_file_created    = pyqtSignal(Path)  # printcal done; fill -K/-I silently, stay on tab
     cal_chart_requested = pyqtSignal(Path)  # user chose "Go to Create Chart" in result dialog
+    #: M-BUILD-INCOMPLETE's "Go back and measure" (Basti, 2026-10-21): the
+    #: main window shows the Measure tab.
+    measure_requested   = pyqtSignal()
 
     def __init__(
         self,
@@ -1758,6 +1761,11 @@ class TabProfile(QWidget):
             return
         if self._cal_ti3_path is None or not self._cal_ti3_path.exists():
             self._pc_log.setPlainText(tr("[ERROR] No input .ti3 file selected."))
+            return
+        # Patches with no reading: asked before anything is made (Basti,
+        # 2026-10-21).
+        if not self._confirm_build_from_incomplete(self._cal_ti3_path,
+                                                   calibration=True):
             return
 
         self._pc_log.clear()
@@ -5544,6 +5552,71 @@ class TabProfile(QWidget):
         except Exception:      # noqa: BLE001
             return None
 
+    def _confirm_build_from_incomplete(self, ti3, calibration: bool = False
+                                       ) -> bool:
+        """M-BUILD-INCOMPLETE (M-BUILD-INCOMPLETE-CAL for printcal): the
+        chart has patches this measurement holds no reading for. Names the
+        strips and the count; "Go back and measure" (the default) builds
+        nothing and shows the Measure tab, "Build anyway" goes ahead. True
+        when the build may go ahead, and always when nothing is missing or
+        that cannot be told."""
+        from workflow.incomplete_measurement import (LISTED_STRIPS,
+                                                     missing_readings)
+        gap = missing_readings(ti3)
+        if gap is None:
+            return True
+
+        from PyQt6.QtWidgets import QMessageBox
+
+        from ui.widgets import fit_message_box_buttons
+        from workflow import measurement_messages as M
+
+        lines = []
+        for g in gap.strips[:LISTED_STRIPS]:
+            if g.missing >= g.total:
+                lines.append(tr(M._BUILD_INCOMPLETE_STRIP_ALL).format(
+                    strip=g.strip, total=g.total))
+            elif g.missing == 1:
+                lines.append(tr(M._BUILD_INCOMPLETE_STRIP_ONE).format(
+                    strip=g.strip, total=g.total))
+            else:
+                lines.append(tr(M._BUILD_INCOMPLETE_STRIP_SOME).format(
+                    strip=g.strip, n=g.missing, total=g.total))
+        more = len(gap.strips) - LISTED_STRIPS
+        if more == 1:
+            lines.append(tr(M._BUILD_INCOMPLETE_MORE_ONE))
+        elif more > 1:
+            lines.append(tr(M._BUILD_INCOMPLETE_MORE).format(n=more))
+        msg = M.M_BUILD_INCOMPLETE_CAL if calibration else M.M_BUILD_INCOMPLETE
+        title, body = msg.render(missing=gap.missing, expected=gap.expected,
+                                 read=gap.read, strips="\n".join(lines))
+        log.info("build asked about an incomplete measurement %s: %d of %d "
+                 "patches have no reading (%s)", ti3, gap.missing,
+                 gap.expected, ", ".join(f"{g.strip}:{g.missing}"
+                                         for g in gap.strips))
+        box = QMessageBox(self)
+        box.setObjectName("build_incomplete_window")
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        back = box.addButton(tr(M._BUILD_INCOMPLETE_GO_BACK),
+                             QMessageBox.ButtonRole.RejectRole)
+        go = box.addButton(tr("Build anyway"),
+                           QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(back)
+        box.setEscapeButton(back)
+        fit_message_box_buttons(box)
+        box.exec()
+        if box.clickedButton() is go:
+            log.info("build anyway, from %d of %d patches", gap.read,
+                     gap.expected)
+            return True
+        log.info("build not started: back to Measure for the %d missing "
+                 "patches", gap.missing)
+        self.measure_requested.emit()
+        return False
+
     def _confirm_building_outside_the_selected_run(self) -> bool:
         """M-BUILD-ELSEWHERE — ask before a build lands in a run the bar does
         not show. True when the build may go ahead."""
@@ -5814,6 +5887,12 @@ class TabProfile(QWidget):
         # and every dated verification measurement out of the way, and the
         # builder is only launched afterwards. See the method.
         if self._refuse_when_the_profiler_is_not_installed(engine):
+            return
+        # PATCHES WITH NO READING (Basti, 2026-10-21). Knut's run 1 ended with
+        # Save partial and strip V unread, and this button built from 1917 of
+        # the chart's 1944 patches without a word on screen. Asked before
+        # anything is archived, like every question here.
+        if not self._confirm_build_from_incomplete(self._ti3_path):
             return
         # The profile is written beside the measurement it is built from, so a
         # measurement belonging to another run quietly builds into that run.

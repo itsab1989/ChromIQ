@@ -120,6 +120,10 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # Basti's rulings of 2026-10-21 (4.3.8 beta 4): "I read strip B" gives the
+    # strip back its earlier reading, and a build from a partial measurement
+    # asks first
+    "M-STRIP-READ-TWICE-EARLIER", "M-BUILD-INCOMPLETE", "M-BUILD-INCOMPLETE-CAL",
     # B1/M1 (4.3.8): the Strip Read Failed window, one text per error, and
     # the instrument's button as Retry. Basti approved the behaviour on
     # 2026-10-21; the wording is ours and waits here.

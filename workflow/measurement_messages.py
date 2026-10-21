@@ -2707,6 +2707,111 @@ M_STRIP_READ_TWICE = _m(
     "measuring goes on.",
     approved=False)
 
+#: Basti, 2026-10-21 (Knut's run 1 of 2026-10-20): when strip {strip} had a
+#: valid reading before this swipe, "I read strip {like}" gives it that
+#: reading back instead of leaving it unread, and the line for that button
+#: says so. Shown instead of M-STRIP-READ-TWICE when
+#: MeasureManager.earlier_reading_comes_back(strip) is True.
+M_STRIP_READ_TWICE_EARLIER = _m(
+    "M-STRIP-READ-TWICE-EARLIER",
+    "Was a strip read twice?",
+    "Strip {strip} looks very like strip {like}, which you already measured. "
+    "Did you read strip {like} again?\n\n"
+    "•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it "
+    "again and the new reading replaces this one.\n\n"
+    "•  I read strip {like}: this reading is counted as strip {like} and "
+    "replaces its earlier reading. Strip {strip} gets back the reading it "
+    "had before this swipe, so nothing of it is lost and it does not have to "
+    "be measured again. The reader stays on strip {strip}: to go on with "
+    "another strip, click it in the chart.\n\n"
+    "•  Keep, it is strip {strip}: this reading stays as strip {strip}, and "
+    "measuring goes on.",
+    approved=False)
+
+# --- PROPOSED: building from a measurement with patches missing -------------
+#: Basti, 2026-10-21: Knut's run 1 ended with Save partial and strip V unread,
+#: and Build Profile built from 1917 of 1944 patches without a word. Before a
+#: build from a measurement whose chart has patches with no reading, this
+#: window names the strips and the count, with Go back and measure (the
+#: default, nothing built, the Measure tab) or Build anyway.
+#: workflow/incomplete_measurement.py decides; ui/tabs/tab_profile.py shows
+#: it. {strips} is the list below, one line per strip.
+_BUILD_INCOMPLETE_GO_BACK = "Go back and measure"
+_BUILD_INCOMPLETE_STRIP_ALL = "•  Strip {strip}: none of its {total} patches has a reading"
+_BUILD_INCOMPLETE_STRIP_SOME = "•  Strip {strip}: {n} of its {total} patches have no reading"
+_BUILD_INCOMPLETE_STRIP_ONE = "•  Strip {strip}: 1 of its {total} patches has no reading"
+_BUILD_INCOMPLETE_MORE = "•  and {n} more strips"
+_BUILD_INCOMPLETE_MORE_ONE = "•  and 1 more strip"
+M_BUILD_INCOMPLETE = _m(
+    "M-BUILD-INCOMPLETE",
+    "Some patches of this chart have no reading",
+    "{missing} of the chart's {expected} patches have no reading in this "
+    "measurement:\n\n{strips}\n\n"
+    "A profile can be built from it, but it would know your printer only from "
+    "the {read} patches that were measured. Where readings are missing it has "
+    "to fill in the colours from the patches around them, so the profile can "
+    "be less accurate there, and nothing would point it out to you later.\n\n"
+    "What each button does:\n"
+    "•  Go back and measure: nothing is built. ChromIQ takes you to the "
+    "Measure tab. Tick “Refine / resume existing measurement (-r)” and press "
+    "Start Measurement: everything you have measured is kept, and you only "
+    "need to read the strips listed here.\n"
+    "•  Build anyway: the profile is built now from the {read} patches that "
+    "have a reading.",
+    body_one=(
+        "One of the chart's {expected} patches has no reading in this "
+        "measurement:\n\n{strips}\n\n"
+        "A profile can be built from it, but it would know your printer only "
+        "from the {read} patches that were measured. Where a reading is "
+        "missing it has to fill in the colour from the patches around it, so "
+        "the profile can be less accurate there, and nothing would point it "
+        "out to you later.\n\n"
+        "What each button does:\n"
+        "•  Go back and measure: nothing is built. ChromIQ takes you to the "
+        "Measure tab. Tick “Refine / resume existing measurement (-r)” and "
+        "press Start Measurement: everything you have measured is kept, and "
+        "you only need to read the strip listed here.\n"
+        "•  Build anyway: the profile is built now from the {read} patches "
+        "that have a reading."),
+    count_key="missing", title_one="One patch of this chart has no reading",
+    approved=False)
+#: The same for a calibration (Build Profile, Run type = Calibration, "Run
+#: printcal"): printcal is what builds from the measurement there.
+M_BUILD_INCOMPLETE_CAL = _m(
+    "M-BUILD-INCOMPLETE-CAL",
+    "Some patches of this chart have no reading",
+    "{missing} of the calibration chart's {expected} patches have no reading "
+    "in this measurement:\n\n{strips}\n\n"
+    "A calibration can be made from it, but it would know your printer's "
+    "inks only from the {read} patches that were measured. Where readings "
+    "are missing it has to fill in the steps from the patches around them, "
+    "so the calibration can be less accurate there, and nothing would point "
+    "it out to you later.\n\n"
+    "What each button does:\n"
+    "•  Go back and measure: nothing is made. ChromIQ takes you to the "
+    "Measure tab. Tick “Refine / resume existing measurement (-r)” and press "
+    "Start Measurement: everything you have measured is kept, and you only "
+    "need to read the strips listed here.\n"
+    "•  Build anyway: the calibration is made now from the {read} patches "
+    "that have a reading.",
+    body_one=(
+        "One of the calibration chart's {expected} patches has no reading in "
+        "this measurement:\n\n{strips}\n\n"
+        "A calibration can be made from it, but it would know your printer's "
+        "inks only from the {read} patches that were measured. Where a reading "
+        "is missing it has to fill in the step from the patches around it, so "
+        "the calibration can be less accurate there, and nothing would point "
+        "it out to you later.\n\n"
+        "What each button does:\n"
+        "•  Go back and measure: nothing is made. ChromIQ takes you to the "
+        "Measure tab. Tick “Refine / resume existing measurement (-r)” and "
+        "press Start Measurement: everything you have measured is kept, and "
+        "you only need to read the strip listed here.\n"
+        "•  Build anyway: the calibration is made now from the {read} patches "
+        "that have a reading."),
+    count_key="missing", title_one="One patch of this chart has no reading",
+    approved=False)
+
 # --- PROPOSED: the Check & Refine result window (#182, the redesign) -------
 #: Knut approved the design on the pictures (#182 5963903650 on 5963737221):
 #: two lists, worst first, a reason for each strip listed first, the choice
@@ -6800,7 +6905,8 @@ CATALOGUE = {m.id: m for m in (
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST, M_NO_INSTRUMENT_NONE,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT, M_END_WRITTEN,
     M_UNREAD_NEXT_OR_JUMP_STRIP, M_UNREAD_NEXT_OR_JUMP_PATCH,
-    M_STRIP_READ_TWICE,
+    M_STRIP_READ_TWICE, M_STRIP_READ_TWICE_EARLIER,
+    M_BUILD_INCOMPLETE, M_BUILD_INCOMPLETE_CAL,
     M_CR_STRIPS, M_CR_START_OVER, M_CR_PRECONDITIONING,
     M_ENGINE_FELL_BACK,
     M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,

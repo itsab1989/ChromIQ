@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-21 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-21b legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier"
 const char *cq_helper_build_string(void);
 
 
@@ -71,6 +71,9 @@ const char *cq_helper_build_string(void);
 #define CQ_KEY_FILE_AS 1001
 const char *cq_take_file_as(void); /* "as" label for CQ_KEY_FILE_AS; the
                                       "strip" label is cq_take_goto()'s */
+int cq_take_file_as_keep(void);    /* nz: "earlier":"keep" -- the strip the
+                                      reading came off gets back the reading
+                                      it had before that swipe (2026-10-21) */
 void  cq_cmd_start(void);          /* start the stdin command thread */
 int   cq_cmd_take_key(void);       /* CQ_KEY_NONE if no command pending */
 const char *cq_take_goto(void);    /* target strip label for CQ_KEY_GOTO */

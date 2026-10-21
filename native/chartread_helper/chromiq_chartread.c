@@ -683,6 +683,83 @@ static void cq_move_row(chcol **scols, int stipa, int fr, int to) {
 	}
 }
 
+/* CHROMIQ_EXT (Basti, 2026-10-21; Knut's run 1 of 2026-10-20): THE READING A
+ * SWIPE REPLACED. Every strip the engine reads is filed under the strip it is
+ * positioned on, so a swipe of strip U made with the reader on V, which was
+ * already read, overwrites V's good reading before anyone is asked. When the
+ * answer is then "I read strip U", moving the swipe to U used to leave V with
+ * nothing: Knut's V was read at 16:01, lost at 16:06, and the profile was
+ * built from 1917 of 1944 patches. So the transfer keeps a copy of the row it
+ * replaces (one level: the reading just before the latest swipe), and a
+ * file_as that asks for it ("earlier":"keep") puts it back on the strip the
+ * swipe came off instead of leaving that strip unread. */
+typedef struct {
+	double XYZ[3];
+	xspect sp;
+	inst_meas_type mtype;
+	inst_meas_cond mcond;
+	int rr;
+} cq_saved_patch;
+static cq_saved_patch *cq_prev = NULL;	/* npat entries, by patch index */
+static char *cq_prev_has = NULL;		/* per row: nz if cq_prev holds its earlier reading */
+static int cq_prev_rows = 0;
+
+/* Before a swipe is transferred onto row *r*: keep what the row holds, if
+ * anything. */
+static void cq_remember_row(chcol **scols, int stipa, int npat, int r) {
+	int i, j, rows = (npat + stipa - 1) / stipa;
+	if (cq_prev == NULL) {
+		cq_prev = (cq_saved_patch *)calloc((size_t)rows * stipa, sizeof(cq_saved_patch));
+		cq_prev_has = (char *)calloc((size_t)rows, 1);
+		if (cq_prev == NULL || cq_prev_has == NULL) {
+			free(cq_prev); free(cq_prev_has);
+			cq_prev = NULL; cq_prev_has = NULL;
+			return;		/* no copy: a later file_as leaves the row unread, as before */
+		}
+		cq_prev_rows = rows;
+	}
+	if (r < 0 || r >= cq_prev_rows)
+		return;
+	cq_prev_has[r] = (char)(cq_row_read(scols, stipa, r) != 0);
+	if (!cq_prev_has[r])
+		return;
+	for (i = 0; i < stipa && r * stipa + i < npat; i++) {
+		chcol *s = scols[r * stipa + i];
+		cq_saved_patch *d = &cq_prev[r * stipa + i];
+		for (j = 0; j < 3; j++)
+			d->XYZ[j] = s->XYZ[j];
+		d->sp = s->sp;
+		d->mtype = s->mtype;
+		d->mcond = s->mcond;
+		d->rr = s->rr;
+	}
+}
+
+/* Put row *r*'s earlier reading back. Returns 1 when there was one. */
+static int cq_restore_row(chcol **scols, int stipa, int npat, int r) {
+	int i, j;
+	if (cq_prev == NULL || r < 0 || r >= cq_prev_rows || !cq_prev_has[r])
+		return 0;
+	for (i = 0; i < stipa && r * stipa + i < npat; i++) {
+		chcol *d = scols[r * stipa + i];
+		cq_saved_patch *s = &cq_prev[r * stipa + i];
+		for (j = 0; j < 3; j++)
+			d->XYZ[j] = s->XYZ[j];
+		d->sp = s->sp;
+		d->mtype = s->mtype;
+		d->mcond = s->mcond;
+		d->rr = s->rr;
+	}
+	cq_prev_has[r] = 0;
+	return 1;
+}
+
+/* The copy of row *r* no longer describes a reading it could get back. */
+static void cq_forget_row(int r) {
+	if (cq_prev_has != NULL && r >= 0 && r < cq_prev_rows)
+		cq_prev_has[r] = 0;
+}
+
 /* k85 (4.3.5 beta 9): "I read strip B" when B was swiped BACKWARDS with the
  * reader on C. The direction of a swipe is decided while the reader is on C,
  * and on a fixed-order chart it is looked for only when C reads differently
@@ -738,17 +815,50 @@ static int cq_orient_moved_row(chcol **scols, int stipa, int to, int may_flip) {
 /* The strip a file_as moved, with its patches under their new locations:
  * the same per-patch schema as strip_read, so the GUI judges it as a
  * reading of that strip. */
+static void cq_emit_patch_list(chcol **scb, int stipa) {
+	int i;
+	for (i = 0; i < stipa; i++) {
+		double lab_m[3], lab_e[3], xyz[3];
+		double de;
+		int j;
+		for (j = 0; j < 3; j++)
+			xyz[j] = scb[i]->XYZ[j] / 100.0;
+		icmXYZ2Lab(&icmD50, lab_m, xyz);
+		for (j = 0; j < 3; j++)
+			xyz[j] = scb[i]->eXYZ[j] / 100.0;
+		icmXYZ2Lab(&icmD50, lab_e, xyz);
+		de = icmLabDE(lab_m, lab_e);
+		fprintf(stdout,
+		        "%s{\"id\":\"%s\",\"loc\":\"%s\",\"xyz\":[%.4f,%.4f,%.4f],"
+		        "\"exyz\":[%.4f,%.4f,%.4f],\"de\":%.2f}",
+		        i > 0 ? "," : "", scb[i]->id, scb[i]->loc,
+		        scb[i]->XYZ[0], scb[i]->XYZ[1], scb[i]->XYZ[2],
+		        scb[i]->eXYZ[0], scb[i]->eXYZ[1], scb[i]->eXYZ[2], de);
+	}
+}
+
+/* *frb*, when not NULL, is the row the reading came off, which got its
+ * earlier reading back (2026-10-21): "restored":true and its patches as
+ * "from_patches". Without it, "restored":false: that strip is unread. */
 static void cq_emit_strip_filed_as(chcol **scb, int stipa, const char *label,
-	const char *from) {
+	const char *from, chcol **frb) {
 	int i;
 
 	if (!cq_json)
 		return;
 
 	cq_out_lock();
-	fprintf(stdout,
-	        "\n{\"event\":\"strip_filed_as\",\"strip\":\"%s\",\"from\":\"%s\","
-	        "\"patches\":[", label, from);
+	if (frb != NULL) {
+		fprintf(stdout,
+		        "\n{\"event\":\"strip_filed_as\",\"strip\":\"%s\",\"from\":\"%s\","
+		        "\"restored\":true,\"from_patches\":[", label, from);
+		cq_emit_patch_list(frb, stipa);
+		fprintf(stdout, "],\"patches\":[");
+	} else {
+		fprintf(stdout,
+		        "\n{\"event\":\"strip_filed_as\",\"strip\":\"%s\",\"from\":\"%s\","
+		        "\"restored\":false,\"patches\":[", label, from);
+	}
 	for (i = 0; i < stipa; i++) {
 		double lab_m[3], lab_e[3], xyz[3];
 		double de;
@@ -986,6 +1096,9 @@ static int cq_jumped = 0;
  * consumed at the strip menu ('m'). */
 static char cq_file_from[16] = "";
 static char cq_file_to[16] = "";
+/* ...and whether the strip it came off gets its earlier reading back
+ * ("earlier":"keep", 2026-10-21). */
+static int cq_file_keep = 0;
 
 /* Recognition figures of the last accepted strip, captured where the
  * sweep computes them (inner scope) for the strip_read event emitted
@@ -1045,6 +1158,7 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 				cq_file_from[sizeof(cq_file_from) - 1] = '\0';
 				strncpy(cq_file_to, cq_take_file_as(), sizeof(cq_file_to) - 1);
 				cq_file_to[sizeof(cq_file_to) - 1] = '\0';
+				cq_file_keep = cq_take_file_as_keep();
 				c = 'm';
 			} else {
 				c = CQ_KEY_NONE;
@@ -2555,8 +2669,20 @@ a1log *log			/* verb, debug & error log */
 									    (cap2 & inst2_bidi_scan)
 									    && (((rand && disbidi == 0) || disbidi == 2)
 									        || (!rand && disbidi == 0 && cq_bidi_ok(to))));
-									cq_emit_strip_filed_as(&scols[to * stipa],
-									    stipa, cq_file_to, cq_file_from);
+									/* 2026-10-21: the strip the swipe came
+									 * off gets back the reading it had
+									 * before the swipe, when the GUI asks
+									 * for it (that reading was valid); else
+									 * it is unread, as before. */
+									{
+										int back = cq_file_keep
+										    && cq_restore_row(scols, stipa, npat, fr);
+										cq_forget_row(fr);
+										cq_forget_row(to);
+										cq_emit_strip_filed_as(&scols[to * stipa],
+										    stipa, cq_file_to, cq_file_from,
+										    back ? &scols[fr * stipa] : NULL);
+									}
 									cq_write_ti3_atomic();
 									oroi = fr;
 									for (stix = 0; pis[stix] != 0
@@ -2570,6 +2696,7 @@ a1log *log			/* verb, debug & error log */
 									            cq_file_from, cq_file_to);
 								}
 								cq_file_from[0] = cq_file_to[0] = '\0';
+								cq_file_keep = 0;
 								break;
 							} else if (cq_json && (ch == 'k' || ch == 'K')) {
 								/* CHROMIQ_EXT: calibrate between strips, then
@@ -3010,6 +3137,11 @@ a1log *log			/* verb, debug & error log */
 				cq_jumped = 0;
 				continue;
 			}
+
+			/* CHROMIQ_EXT (2026-10-21): what this swipe replaces, for a
+			 * later "I read strip B" that moves it off this strip. */
+			if (cq_json)
+				cq_remember_row(scols, stipa, npat, oroi);
 
 			/* Transfer the values (including DTP51 offset) */
 			scb = &scols[oroi * stipa];
@@ -4093,7 +4225,7 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
@@ -5049,6 +5181,7 @@ int main(int argc, char *argv[]) {
 		fprintf(stdout,
 		        "\n{\"event\":\"session_start\",\"chart\":\"%s\",\"randomised\":%s,"
 		        "\"file_as\":true,"	/* CHROMIQ_EXT: {"cmd":"file_as"} is understood */
+		        "\"file_as_keeps_earlier\":true,"	/* ...with "earlier":"keep" (2026-10-21) */
 		        "\"patches\":%d,\"steps_per_pass\":%d,\"strips\":[",
 		        cesc, rand ? "true" : "false", npat, stipa);
 		for (ri = 0, acc = 0, six = 0; ri < totpa; ri++) {

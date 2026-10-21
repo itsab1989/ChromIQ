@@ -1656,6 +1656,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # judged as B's (Knut, #182 6102031563).
         if hasattr(self._manager, "strip_filed_as"):
             self._manager.strip_filed_as.connect(self._on_strip_filed_as)
+        # ...and when the strip it came off was to get its earlier reading
+        # back and did not, that strip is cleared after all (Basti 2026-10-21).
+        if hasattr(self._manager, "earlier_reading_lost"):
+            self._manager.earlier_reading_lost.connect(
+                self._on_earlier_reading_lost)
         if hasattr(self._manager, "set_before_goto_patch"):
             self._manager.set_before_goto_patch(self._note_patch_goto)
         # Opt-in scanner target: (re)build .cht + .cie from every finalised
@@ -8325,7 +8330,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # check forgets it now, not when the strip is next read (review of
         # beta 11), so it is neither a suspect in the closing window nor a
         # comparison for the patches of other strips.
-        self._neighbour_forget(self._set_aside_locs())
+        self._neighbour_forget(self._set_aside_locs()
+                               - self._earlier_coming_back_locs())
         # "Every strip read" came while the reading was held (the window
         # opened on the last strip): decided now, with the answer in
         # (review R1 of 4.3.4 beta 1).
@@ -8362,6 +8368,43 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — never break a measurement
             log.warning("could not judge strip %s's moved reading",
                         ev.get("strip"), exc_info=True)
+        if ev.get("restored_from") is not None:
+            # The strip the reading came off has its earlier reading again
+            # (Basti, 2026-10-21). Its patches were never taken off the
+            # preview (_release_read_twice_hold), so they still show that
+            # reading, judged as it was: only the counts and the read map
+            # change back.
+            try:
+                self._refresh_progress()
+                self._update_engine_read_map()
+            except Exception:  # noqa: BLE001 — never break a measurement
+                log.debug("could not redraw strip %s", ev.get("filed_from"),
+                          exc_info=True)
+
+    def _earlier_coming_back_locs(self) -> set:
+        """The patches of strips whose earlier reading the engine is giving
+        back after "I read strip B" (Basti, 2026-10-21): set aside for a
+        moment in the manager, but they keep what they show."""
+        back = getattr(self._manager, "_earlier_back", None) or ()
+        if not back:
+            return set()
+        try:
+            return {loc for loc, s in self._manager._loc_strip.items()
+                    if s in back}
+        except Exception:      # noqa: BLE001
+            return set()
+
+    def _on_earlier_reading_lost(self, strip: str) -> None:
+        """The earlier reading of *strip* was to come back and did not (the
+        engine refused the move, or the measurement ended first): the strip
+        is unread after all, so it is cleared as after Re-read."""
+        if not getattr(self, "_session_live", False):
+            return
+        try:
+            self._clear_set_aside_from_preview(strip)
+            self._neighbour_forget(self._set_aside_locs())
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.debug("could not clear strip %s", strip, exc_info=True)
 
     # ---- A reading "Was a strip read twice?" asks about waits for the answer
     #
@@ -8435,6 +8478,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not getattr(self, "_session_live", False):
             return
         if choice in ("reread", "was_like"):
+            # "I read strip B" when this strip had a valid reading of its own
+            # before the swipe: the engine gives that one back (Basti,
+            # 2026-10-21), so what the preview shows of it stays.
+            back = getattr(self._manager, "_earlier_back", None) or ()
+            if choice == "was_like" and strip in back:
+                return
             self._clear_set_aside_from_preview(strip)
             return
         try:
@@ -8488,7 +8537,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
         from workflow import measurement_messages as M
-        title, body = M.M_STRIP_READ_TWICE.render(strip=strip, like=like)
+        # Basti, 2026-10-21: when strip {strip} had a valid reading before
+        # this swipe, "I read strip {like}" gives that reading back, and the
+        # window's line for that button says so.
+        _keeps = getattr(self._manager, "earlier_reading_comes_back", None)
+        try:
+            keeps = bool(_keeps(strip)) if callable(_keeps) else False
+        except Exception:      # noqa: BLE001 — the plain wording then
+            keeps = False
+        msg = M.M_STRIP_READ_TWICE_EARLIER if keeps else M.M_STRIP_READ_TWICE
+        title, body = msg.render(strip=strip, like=like)
 
         dlg = QDialog(self)
         dlg.setObjectName("strip_read_twice_window")

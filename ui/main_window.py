@@ -381,6 +381,7 @@ class MainWindow(QMainWindow):
         self._tab_measure.measure_finished.connect(self._on_measure_done)
         self._tab_profile.cal_file_created.connect(self._on_cal_file_created)
         self._tab_profile.cal_chart_requested.connect(self._on_cal_chart_requested)
+        self._tab_profile.measure_requested.connect(self._on_measure_requested)
         self._tab_measure.proceed_to_profile.connect(self._on_proceed_to_profile)
         self._tab_measure.measurement_active.connect(self._on_measurement_active)
         self._tab_profile.profile_active.connect(self._on_profile_active)
@@ -1897,6 +1898,10 @@ class MainWindow(QMainWindow):
         """Fill -K/-I fields and navigate to Create Chart (user chose Go to Create Chart)."""
         self._tab_chart.set_cal_file_paths(cal_path)
         self._tabs.setCurrentWidget(self._tab_chart)
+
+    def _on_measure_requested(self) -> None:
+        """M-BUILD-INCOMPLETE's "Go back and measure": the Measure tab."""
+        self._tabs.setCurrentWidget(self._tab_measure)
 
     def _on_proceed_to_profile(self) -> None:
         self._tabs.setCurrentWidget(self._tab_profile)

@@ -427,6 +427,12 @@ class MeasureManager(QObject):
     #: expected colours), so it is judged as a reading of B. See
     #: answer_read_twice.
     strip_filed_as             = pyqtSignal(dict)
+    #: Basti, 2026-10-21: "I read strip B" was meant to give the strip the
+    #: reading came off its earlier reading back (earlier_reading_comes_back),
+    #: and it did not (the engine refused the move, had no earlier reading,
+    #: or the measurement ended first). That strip is unread after all: the
+    #: tab clears it as after Re-read.
+    earlier_reading_lost       = pyqtSignal(str)
     #: Stock ArgyllCMS chartread read a strip (``{"strip", "patches": [{"loc"}]}``,
     #: every location of that strip in the chart) or one patch (``{"loc"}``).
     #: It reports no values, only that the read was accepted, and chartread
@@ -509,6 +515,17 @@ class MeasureManager(QObject):
         #: file_as answers waiting for the engine's strip menu, as
         #: [(strip, as)] (see answer_read_twice).
         self._held_file_as: "list[tuple[str, str]]" = []
+        #: Basti, 2026-10-21 (Knut's run 1 of 2026-10-20): did the strip have
+        #: a VALID reading before its latest swipe? {strip: bool}, learnt at
+        #: each strip_read before the read map changes. "I read strip B" then
+        #: asks the engine to give that strip its earlier reading back.
+        self._had_valid_reading: "dict[str, bool]" = {}
+        #: Whether this build of the engine can do that (session_start says
+        #: "file_as_keeps_earlier").
+        self._engine_keeps_earlier: bool = False
+        #: Strips whose earlier reading was asked back from the engine and has
+        #: not come back yet (the answer is sent or held).
+        self._earlier_back: "set[str]" = set()
         #: Commands sent so far: a held file_as goes out only at a strip menu
         #: where nothing else was sent, because the engine keeps ONE pending
         #: key and a second command would overwrite the first.
@@ -717,6 +734,9 @@ class MeasureManager(QObject):
         # file_as never says so, and must not inherit the last one's word).
         self._engine_files_as = False
         self._held_file_as = []
+        self._had_valid_reading = {}
+        self._engine_keeps_earlier = False
+        self._earlier_back = set()
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
@@ -1989,9 +2009,12 @@ class MeasureManager(QObject):
                     log.info("read twice: the engine is not at its strip "
                              "menu; file_as %s -> %s is held until it is",
                              strip, like)
+                    if self.earlier_reading_comes_back(strip):
+                        self._earlier_back.add(strip)
                     return
-                self.send_command({"cmd": "file_as", "strip": strip,
-                                   "as": like})
+                if self.earlier_reading_comes_back(strip):
+                    self._earlier_back.add(strip)
+                self.send_command(self._file_as_command(strip, like))
                 return
             target = strip if choice == "reread" else like
             log.info("read twice: strip %s's reading set aside; reader to "
@@ -2021,12 +2044,44 @@ class MeasureManager(QObject):
                 log.warning("read twice: the measurement is ending; strip "
                             "%s's reading was never filed as strip %s and "
                             "stays set aside", strip, like)
+                if strip in self._earlier_back:
+                    self._earlier_back.discard(strip)
+                    self.earlier_reading_lost.emit(strip)
             self._held_file_as = []
             return
         strip, like = self._held_file_as.pop(0)
         log.info("read twice: the engine is at its strip menu; file_as %s "
                  "-> %s sent", strip, like)
-        self.send_command({"cmd": "file_as", "strip": strip, "as": like})
+        self.send_command(self._file_as_command(strip, like))
+
+    def _file_as_command(self, strip: str, like: str) -> dict:
+        """The engine's file_as for "I read strip *like*", asking it to give
+        *strip* its earlier reading back when that one was valid (Basti,
+        2026-10-21)."""
+        cmd = {"cmd": "file_as", "strip": strip, "as": like}
+        if strip in self._earlier_back:
+            cmd["earlier"] = "keep"
+        return cmd
+
+    def _strip_has_valid_reading(self, strip: str) -> bool:
+        """Has *strip* a reading of its own right now: every patch of it read
+        (this session or the file being resumed), and none of it set aside by
+        "Was a strip read twice?"."""
+        locs = [loc for loc, s in self._loc_strip.items()
+                if s == strip and loc not in self._padding_locs]
+        if not locs or strip in self._suspect_strips:
+            return False
+        return not any(loc in self._unread_locs for loc in locs)
+
+    def earlier_reading_comes_back(self, strip: str) -> bool:
+        """Will "I read strip B" give *strip* (the strip the engine filed the
+        reading in question under) back the valid reading it had before that
+        swipe? Basti, 2026-10-21: yes, whenever it had one and the engine can;
+        a strip that had none stays unread. Asked by the window before it is
+        shown (its line for that button says which), and when it is answered.
+        """
+        return bool(self._engine_files_as and self._engine_keeps_earlier
+                    and self._had_valid_reading.get(str(strip), False))
 
     def set_aside_locs(self) -> "set[str]":
         """Patches whose reading was asked about and NOT kept, and that have
@@ -2692,6 +2747,7 @@ class MeasureManager(QObject):
             # "I read strip B" moves the reading onto B in the engine (Knut,
             # #182 6102031563); an engine without the command says nothing.
             self._engine_files_as = bool(ev.get("file_as"))
+            self._engine_keeps_earlier = bool(ev.get("file_as_keeps_earlier"))
             self._build_read_map(ev.get("chart"), self._session_strips)
             self._learn_measured_strips(ev.get("chart"))
             self.session_map.emit(strips)
@@ -2805,6 +2861,11 @@ class MeasureManager(QObject):
                      if isinstance(p, dict)] if isinstance(_patches, list) else []
             if not any(_locs):
                 _locs = [loc for loc, st in self._loc_strip.items() if st == _s]
+            # Before this reading changes the read map: had the strip a
+            # valid reading of its own, which this swipe just replaced in the
+            # engine? (Basti 2026-10-21: "I read strip B" gives it back.)
+            if _s:
+                self._had_valid_reading[_s] = self._strip_has_valid_reading(_s)
             self._mark_read(_locs)
             _twice = self._check_read_twice(_s, _patches)
             self.strip_measured.emit(ev)
@@ -2824,13 +2885,23 @@ class MeasureManager(QObject):
             _to = str(ev.get("strip", "")).strip()
             _fr = str(ev.get("from", "")).strip()
             _patches = ev.get("patches")
+            # Basti, 2026-10-21: the strip it came off got its earlier, valid
+            # reading back ("restored", with that reading as from_patches).
+            _back = ev.get("from_patches") if ev.get("restored") else None
+            _back = _back if isinstance(_back, list) else None
+            _asked = _fr in self._earlier_back
+            self._earlier_back.discard(_fr)
             try:
                 from workflow.strip_read_twice import xyz_to_lab
-                vals = {}
-                for p in (_patches if isinstance(_patches, list) else []):
-                    loc, xyz = str(p.get("loc") or "").strip(), p.get("xyz")
-                    if loc and isinstance(xyz, (list, tuple)) and len(xyz) == 3:
-                        vals[loc] = xyz_to_lab(xyz)
+
+                def _labs_of(patches):
+                    out = {}
+                    for p in (patches if isinstance(patches, list) else []):
+                        loc, xyz = str(p.get("loc") or "").strip(), p.get("xyz")
+                        if loc and isinstance(xyz, (list, tuple)) and len(xyz) == 3:
+                            out[loc] = xyz_to_lab(xyz)
+                    return out
+                vals = _labs_of(_patches)
                 labs = self._by_strip(vals).get(_to)
                 if labs:
                     self._measured_strips[_to] = labs
@@ -2838,13 +2909,34 @@ class MeasureManager(QObject):
                 # B has a reading now, whatever it had before (review of
                 # fd8415715: an unread B kept counting as unread).
                 self._mark_read(vals.keys())
+                if _back is not None:
+                    # ...and A has its own again: read, trusted, compared
+                    # with as A, exactly as before the swipe.
+                    back = _labs_of(_back)
+                    blabs = self._by_strip(back).get(_fr)
+                    if blabs:
+                        self._measured_strips[_fr] = blabs
+                    self._suspect_strips.pop(_fr, None)
+                    self._mark_read(loc for loc, s in self._loc_strip.items()
+                                    if s == _fr)
+                    self._had_valid_reading[_fr] = True
             except Exception:      # noqa: BLE001 — never block a measurement
                 log.warning("could not learn strip %s's moved reading", _to,
                             exc_info=True)
             log.info("strip %s's reading filed as strip %s", _fr, _to)
-            self.strip_filed_as.emit({"event": "strip_read", "strip": _to,
-                                      "filed_from": _fr,
-                                      "patches": list(_patches or [])})
+            if _back is not None:
+                log.info("strip %s got back the reading it had before that "
+                         "swipe; it is read and stays as it was", _fr)
+            elif _asked:
+                log.warning("strip %s's earlier reading did not come back; "
+                            "it is unread and has to be measured", _fr)
+            out = {"event": "strip_read", "strip": _to, "filed_from": _fr,
+                   "patches": list(_patches or [])}
+            if _back is not None:
+                out["restored_from"] = list(_back)
+            self.strip_filed_as.emit(out)
+            if _asked and _back is None:
+                self.earlier_reading_lost.emit(_fr)
 
         elif kind == "file_as_refused":
             # The engine could not move the reading (an unknown strip, or
@@ -2858,6 +2950,9 @@ class MeasureManager(QObject):
             # strip menu was, which after the read is the NEXT strip, so
             # without this the reader carried on to D while C was unread.
             _fr = str(ev.get("strip", "")).strip()
+            if _fr in self._earlier_back:
+                self._earlier_back.discard(_fr)
+                self.earlier_reading_lost.emit(_fr)
             if _fr and not self._an_ending_is_under_way():
                 log.info("read twice: reader back to strip %s, whose "
                          "reading was set aside", _fr)

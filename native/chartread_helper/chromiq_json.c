@@ -90,6 +90,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src) {
 static volatile int   cq_pending_key = CQ_KEY_NONE;
 static char           cq_goto_label[16];
 static char           cq_file_as_label[16];  /* {"cmd":"file_as"}'s "as" */
+static int            cq_file_as_keep;       /* ...its "earlier":"keep" (2026-10-21) */
 
 /* CHROMIQ_EXT: the calibration the user asked for -- see the "calibrate"
  * command in cq_handle_line for why these are not the key slot. */
@@ -295,6 +296,7 @@ static void cq_handle_line(const char *line) {
 	 * the engine filed under "strip" is "as"'s: the strip loop moves it
 	 * there (cq_take_goto() carries "strip", cq_take_file_as() "as"). */
 	char ga[16] = "";
+	char ge[8] = "";
 	if (strcmp(cmd, "file_as") == 0
 	 && cq_json_get(line, "strip", gl, sizeof(gl))
 	 && cq_json_get(line, "as", ga, sizeof(ga)))
@@ -337,6 +339,10 @@ static void cq_handle_line(const char *line) {
 	if (key == CQ_KEY_FILE_AS) {
 		strncpy(cq_file_as_label, ga, sizeof(cq_file_as_label) - 1);
 		cq_file_as_label[sizeof(cq_file_as_label) - 1] = '\0';
+		/* "earlier":"keep": the strip the reading came off gets back the
+		 * reading it had before that swipe (Basti, 2026-10-21). */
+		cq_file_as_keep = cq_json_get(line, "earlier", ge, sizeof(ge))
+		                  && strcmp(ge, "keep") == 0;
 	}
 	/* Mirror the key onto the line channel so the SAME command works in -x,
 	 * where the read loop wants a line rather than a key. -x's parser reads
@@ -513,6 +519,10 @@ const char *cq_take_goto(void) {
 
 const char *cq_take_file_as(void) {
 	return cq_file_as_label;
+}
+
+int cq_take_file_as_keep(void) {
+	return cq_file_as_keep;
 }
 
 /* ------------------------------------------------------------------ */
