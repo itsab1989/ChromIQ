@@ -136,14 +136,24 @@ _COMPARE_CONTROLS_JS = """\
   // whatever is behind it (you'd only see through it at full transparency).
   // Switch depth-writing off while a gamut is translucent so the other gamut
   // shows through it, and back on when it's fully opaque (crisp solid).
+  //
+  // N1 (Knut, 4.3.8-beta.3): BOTH halves of that only work through nodes the
+  // page already holds. This x3dom (1.6.3) learns of a NEW element only from
+  // the DOMNodeInserted event, which Chromium has removed, so a <DepthMode>
+  // created here never reached the renderer and profile A kept writing depth
+  // at every opacity: a smaller B inside it stayed hidden until A fell under
+  // x3dom's alpha clip (0.1), "only below 10 %". The page is therefore built
+  // with a <DepthMode> in every Appearance (_with_depth_modes) and this only
+  // changes attributes, which x3dom does see. And x3dom sorts a shape into its
+  // opaque or transparent pass ONCE, from the transparency it had on load, so
+  // A (loaded opaque) was still drawn in the opaque pass. sortType is set
+  // explicitly here so a translucent gamut is drawn after an opaque one.
   function setDepth(app, transparent) {
     var dm = app.querySelector('depthmode');
-    if (transparent) {
-      if (!dm) { dm = document.createElement('depthmode'); app.appendChild(dm); }
-      dm.setAttribute('readOnly', 'true');
-    } else if (dm) {
-      dm.setAttribute('readOnly', 'false');
+    if (dm && dm.getAttribute('enableDepthTest') !== 'false') {
+      dm.setAttribute('readOnly', transparent ? 'true' : 'false');
     }
+    app.setAttribute('sortType', transparent ? 'transparent' : 'opaque');
   }
   function applyTransparency() {
     var T = String(typeof window._chromiqCompareOpacity !== 'undefined'
@@ -218,8 +228,31 @@ _COMPARE_CONTROLS_JS = """\
   function applyAllPrimary() { applyPrimaryTransparency(); applyPrimarySaturation(); }
   window._chromiqApplyPrimary = applyAllPrimary;
 
+  // N1: this x3dom (1.6.3) never fires 'x3dom-initialized', and a value set
+  // on an element before x3dom has built its node from it is lost. The panel
+  // pushes its slider values when the page has loaded, which can be before
+  // that, so a re-run analysis drew B at the page default (50 %) while its
+  // slider said 100 %. Wait until x3dom holds the scene's materials, then
+  // apply whatever the panel last asked for (or the defaults).
+  function whenX3domReady(fn) {
+    var tries = 0;
+    (function poll() {
+      var ms = document.querySelectorAll('material');
+      var ready = ms.length > 0;
+      for (var i = 0; ready && i < ms.length; i++) {
+        if (!ms[i]._x3domNode) ready = false;
+      }
+      if (ready) { fn(); return; }
+      if (++tries < 200) setTimeout(poll, 50);
+    })();
+  }
+  function applyEverything() { applyAll(); applyAllPrimary(); }
+  window._chromiqWhenReady = whenX3domReady;
+  document.addEventListener('DOMContentLoaded', function () {
+    whenX3domReady(applyEverything);
+  });
   document.addEventListener('x3dom-initialized', function () {
-    setTimeout(function () { applyAll(); applyAllPrimary(); }, 150);
+    setTimeout(applyEverything, 150);
   });
 })();
 """
@@ -321,6 +354,26 @@ def _to_wireframe(scene: str) -> str:
     return scene
 
 
+def _with_depth_modes(scene: str) -> str:
+    """Give every <Appearance> that has none a <DepthMode readOnly="false">,
+    the renderer's own default, so the opacity sliders can switch depth
+    writing off by changing an ATTRIBUTE (N1). This x3dom never notices an
+    element added later: it listens for DOMNodeInserted, which Chromium no
+    longer fires. Appearances that already carry one (the wireframe cage's
+    enableDepthTest="false") keep theirs."""
+    def add(m: "re.Match") -> str:
+        block = m.group(0)
+        if re.search(r"<DepthMode\b", block, re.IGNORECASE):
+            return block
+        return re.sub(r"(<Appearance\b[^>]*?)(/?)>",
+                      lambda a: (a.group(1) + '><DepthMode readOnly="false"></DepthMode></Appearance>'
+                                 if a.group(2) else
+                                 a.group(1) + '><DepthMode readOnly="false"></DepthMode>'),
+                      block, count=1, flags=re.IGNORECASE)
+    return re.sub(r"<Appearance\b[^>]*?/>|<Appearance\b.*?</Appearance>", add, scene,
+                  flags=re.IGNORECASE | re.DOTALL)
+
+
 def _build_compare_overlay_html(
     primary_html: Path,
     compare_html: Path,
@@ -360,7 +413,8 @@ def _build_compare_overlay_html(
             compare_scene,
         )
 
-        overlay = f'\n<Group id="chromiq-compare">\n{compare_scene}\n</Group>\n'
+        overlay = f'\n<Group id="chromiq-compare">\n{_with_depth_modes(compare_scene)}\n</Group>\n'
+        primary_text = _with_depth_modes(primary_text)
         result = re.sub(r"</[Ss]cene>", overlay + "</Scene>", primary_text, count=1, flags=re.IGNORECASE)
         if result == primary_text:
             return False

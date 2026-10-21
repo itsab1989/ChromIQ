@@ -1007,8 +1007,6 @@ class GamutPanel(QWidget):
         # K3: profile A's own sliders, pushed only once they are off 100 %, so
         # a page nobody touched draws A exactly as it always did.
         a_op, a_sat = self._a_opacity_slider.value(), self._a_sat_slider.value()
-        if a_op != 100 or a_sat != 100:
-            self._web_view.page().runJavaScript(self._primary_js(a_op, a_sat))
         t = 1.0 - self._opacity_slider.value() / 100.0
         s = self._sat_slider.value() / 100.0
         # M2 (mavtop): switching to A/B and back to Combined RELOADS the scene,
@@ -1016,10 +1014,20 @@ class GamutPanel(QWidget):
         # sliders keep their values — so the view looked wrong until a slider was
         # nudged. Re-APPLY the current values here (not just set the vars), exactly
         # as _on_opacity_changed / _on_saturation_changed do.
+        # N1: loadFinished can arrive before x3dom has built its nodes, and a
+        # value applied then is lost (a re-run analysis drew B at 50 % under a
+        # slider at 100 %). Set the values now and apply them once x3dom is
+        # ready (the page script's _chromiqWhenReady).
+        primary = (self._primary_js(a_op, a_sat).replace(
+            " if(window._chromiqApplyPrimary) window._chromiqApplyPrimary();", "")
+            if a_op != 100 or a_sat != 100 else "")
         self._web_view.page().runJavaScript(
-            f"window._chromiqCompareOpacity={t:.2f};"
+            primary
+            + f"window._chromiqCompareOpacity={t:.2f};"
             f" window._chromiqCompareSat={s:.2f};"
-            " if(window._chromiqApplyCompare) window._chromiqApplyCompare();"
+            " (window._chromiqWhenReady || function (f) { f(); })(function () {"
+            " if(window._chromiqApplyPrimary) window._chromiqApplyPrimary();"
+            " if(window._chromiqApplyCompare) window._chromiqApplyCompare(); });"
         )
 
     def _on_opacity_changed(self, value: int) -> None:
