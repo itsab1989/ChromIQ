@@ -86,8 +86,8 @@ def _alert_volume() -> "int | None":
     """The alert volume, 0..100, as System Settings shows it."""
     try:
         out = subprocess.run(["osascript", "-e", "get volume settings"],
-                             capture_output=True, text=True,
-                             timeout=_OSASCRIPT_TIMEOUT).stdout
+                             capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", timeout=_OSASCRIPT_TIMEOUT).stdout
         m = re.search(r"alert volume:\s*(\d+|missing value)", out)
         if m and m.group(1).isdigit():
             return int(m.group(1))

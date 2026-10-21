@@ -192,7 +192,9 @@ def test_eight_files_skip_wholesale_without_it():
     # 13 in part after the beta 8 review (2026-10-16): the engine's answer
     # to a jump it cannot make, which guided refinement patch by patch
     # relies on.
-    assert len(whole) == 10 and len(partial) == 13, (
+    # 14 in part with M3 (2026-10-21): the real engine refusing a save keeps
+    # the temporary file and says so.
+    assert len(whole) == 10 and len(partial) == 14, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

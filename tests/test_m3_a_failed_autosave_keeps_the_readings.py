@@ -87,7 +87,7 @@ def test_a_refused_save_keeps_the_temp_file_and_says_so(tmp_path):
         s.wait_event("strip_ready")
         # rename() over a non-empty folder is refused on every POSIX system
         ti3.mkdir()
-        (ti3 / "blocker").write_text("x")
+        (ti3 / "blocker").write_text("x", encoding="utf-8")
         idx = s.event_index()
         s.send(cmd="trigger", ready_ms="0")
         s.send(cmd="swipe")
