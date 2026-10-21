@@ -20,8 +20,9 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~10,370 tests, ~1:55
-QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~10,380 tests, ~3:10
+QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~27,100 tests
+QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~27,280 tests, ~9:30
+# measured 2026-10-21, 4.3.8: six gates 9:26-10:05 on an otherwise quiet machine
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
