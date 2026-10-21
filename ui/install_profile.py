@@ -69,21 +69,39 @@ def _exists(p: Path) -> bool:
         return False
 
 
+def _twins(p: Path) -> "list[Path]":
+    """The installed .icc/.icm files of *p*'s name other than *p* (K2)."""
+    from workflow.profile_builder import installed_twins
+    return installed_twins(p)
+
+
+def _taken(p: Path) -> bool:
+    """Is a profile of *p*'s NAME installed: *p* itself, or the same name
+    with the other extension (Basti, 2026-10-21, K2: X.icm and X.icc are one
+    name, so installing one over the other asks too)."""
+    return _exists(p) or bool(_twins(p))
+
+
 def ask_install_path(parent, dest: "Path | str") -> "Path | None":
     """The file the install should write, or None when it is cancelled.
 
     Nothing of that name installed: *dest*, nothing asked. Otherwise the
     window (M-PROFILE-INSTALL-REPLACE): *dest* when its name is kept
     (Replace), the same folder and extension with the name typed (Install),
-    None for Cancel."""
+    None for Cancel.
+
+    "Installed" counts the NAME, not the file: X.icm installed and X.icc about
+    to be (or the other way round) asks too, and the Install buttons remove the
+    other file once the new one is written
+    (`workflow.profile_builder.remove_installed_twins`)."""
     dest = Path(dest)
-    if not _exists(dest):
+    if not _taken(dest):
         return dest
     dlg = InstallNameDialog(parent, dest)
     chosen = dlg.ask()
     if chosen is None:
         log.info("%s is installed already: not installed (cancelled)", dest)
-    elif _same_file(chosen, dest) or _exists(chosen):
+    elif _same_file(chosen, dest) or _taken(chosen):
         log.info("installed profile %s is replaced", chosen)
     else:
         log.info("%s is installed already: installed as %s instead", dest, chosen)
@@ -176,7 +194,17 @@ def _install_name_dialog_class():
                 return
             self.ok_btn.setEnabled(True)
             t = self.target()
-            if _same_file(t, self._dest):
+            twins = [] if _exists(t) else _twins(t)
+            if twins:
+                # The name is installed with the OTHER extension: say which
+                # file that is, because the field shows this profile's own.
+                self.note.setText(tr(
+                    "The profile installed under this name is {other}. "
+                    "Replace removes it and installs this profile as {name} "
+                    "instead, so only one profile of this name stays "
+                    "installed.").format(other=twins[0].name, name=t.name))
+                self.ok_btn.setText(tr(M._INSTALL_REPLACE))
+            elif _same_file(t, self._dest):
                 self.note.setText("")
                 self.ok_btn.setText(tr(M._INSTALL_REPLACE))
             elif _exists(t):

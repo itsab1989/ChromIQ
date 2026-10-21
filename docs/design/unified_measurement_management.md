@@ -2791,6 +2791,8 @@ from the same ruling. Only the unit differs.*
 
 *The lines under the field: "Type a name for the installed profile.", "A name cannot contain / \ : * ? " < > | or begin with a dot.", "A name can have at most {n} characters.", "A profile named {name} is installed too. Replace overwrites it."*
 
+*PROPOSED line, 4.3.8 beta 3 (K2), shown in the beta, wording awaiting approval: when the name is installed with the OTHER extension (X.icm installed, X.icc being installed, or the other way round; Basti, 2026-10-21: the same stem is the same name), the line under the field says which file that is, because the field shows this profile's own: "The profile installed under this name is {other}. Replace removes it and installs this profile as {name} instead, so only one profile of this name stays installed."*
+
 > **A profile with this name is already installed**
 >
 > Keep the name to replace the installed profile, or give this profile another name.
@@ -9158,8 +9160,15 @@ How 4.3.4 beta 1 builds it (`TabMeasure._hold_for_read_twice`, `_release_read_tw
 
 Knut, 2026-10-20 (mail "Small bug and results from profiling"): run 1 was installed with "Name the installed copy after the description" off, so the copy kept the project's file name, and run 2's Install then found it ("A profile with this name is already installed"). He asked for the tick to be on by default, and for the file name and the description inside to follow the Profile description field for .icc and .icm alike.
 
-* **On by default.** A new user, or one who never touched it, has the tick on (`core/settings.DEFAULTS["install_named_by_description"]`). A choice made by unticking it is kept.
+* **On by default.** *Approved by Basti, 2026-10-21 (approver while Knut is away): on for everyone who never touched the box.* A new user, or one who never touched it, has the tick on (`core/settings.DEFAULTS["install_named_by_description"]`). A choice made by unticking it is kept.
 * **One setting, not per run.** It is an install preference (§1.1 of `per_target_settings.md`, "your setup"): the Guided and Manual boxes and both Install buttons read the same value, it is not written into a run's Build Profile store, and switching runs neither changes nor resets it (measured on screen, run1 → run2 → run1 → run3).
 * **The extension is kept.** With the tick on, an `.icm` profile is installed as `<description>.icm` (it became `.icc` before); the plain copy and the install window already kept it.
 * A description longer than 100 characters still gives a file name cut to 100 (`MAX_INSTALL_STEM`, the Windows path limit) while the description inside is the whole text.
 * Tests: `tests/test_k2_install_named_by_description.py`.
+
+**.icc and .icm with the same name are one name.** *Decided by Basti, 2026-10-21 (approver while Knut is away): "installing X.icm when X.icc is already installed must show the existing window, same as a same-extension clash".* Built in 4.3.8 beta 3, awaiting confirmation like the rest of this block:
+
+* `ui/install_profile.ask_install_path` asks when the file it would write exists OR an installed file has the same stem with the other extension, case not counted (`workflow/profile_builder.installed_twins`). The window is M-PROFILE-INSTALL-REPLACE, unchanged, plus the proposed line naming the installed file.
+* **Replace** writes the new file and then removes the other one (`remove_installed_twins`, called by `install_profile_file` and the scanner window), so one profile of that name stays installed. A file that cannot be removed (held open by another program) is left, logged, and never fails the install. **Cancel** changes nothing. A typed name that is installed with the other extension is shown the same way, and Replace treats it the same way.
+* The 100-character cut is kept as it is (Basti, 2026-10-21).
+* Tests: `tests/test_k2_icc_and_icm_are_one_name.py`.

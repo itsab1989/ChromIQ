@@ -909,6 +909,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         try:
             dest_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(self._last_profile, dest)
+            # One profile of a name: an .icm of this name goes when the .icc
+            # is installed, and the other way round (K2).
+            from workflow.profile_builder import remove_installed_twins
+            remove_installed_twins(dest)
         except OSError as exc:
             self._log.appendPlainText(
                 f"[ERROR] {tr('Installing the profile failed: {e}').format(e=exc)}")

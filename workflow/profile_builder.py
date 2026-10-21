@@ -428,8 +428,58 @@ def install_profile_file(icc_path: Path,
         if renamed is not data:
             dest.write_bytes(renamed)
             log.info("Installed copy's description set to %r", description)
+    remove_installed_twins(dest)
     log.info("Profile installed: %s", dest)
     return dest
+
+
+#: The two extensions an ICC profile is installed under. A profile folder
+#: lists "X.icc" and "X.icm" as two profiles of the same name.
+PROFILE_SUFFIXES = (".icc", ".icm")
+
+
+def installed_twins(dest: Path) -> "list[Path]":
+    """The OTHER installed files that carry *dest*'s name: the same stem
+    with .icc or .icm, case not counted (Basti, 2026-10-21, K2: "X.icm" and
+    "X.icc" are the same name). *dest* itself is never in the list, even when
+    the folder spells it in another case; a missing folder gives []."""
+    dest = Path(dest)
+    stem = dest.stem.casefold()
+    try:
+        entries = list(dest.parent.iterdir())
+    except OSError:
+        return []
+    out = []
+    for e in entries:
+        if e.stem.casefold() != stem or e.suffix.casefold() not in PROFILE_SUFFIXES:
+            continue
+        try:
+            if dest.exists() and os.path.samefile(e, dest):
+                continue        # the very file, perhaps spelt in another case
+        except OSError:
+            continue
+        if e.name == dest.name:
+            continue
+        out.append(e)
+    return sorted(out)
+
+
+def remove_installed_twins(dest: Path) -> "list[Path]":
+    """After *dest* was installed, remove the other files of its name
+    (`installed_twins`), so Replace leaves ONE profile of that name and not an
+    .icc beside an .icm (K2). Returns what was removed; a file that cannot be
+    removed is logged and left, and never fails an install that succeeded."""
+    removed = []
+    for twin in installed_twins(dest):
+        try:
+            twin.unlink()
+        except OSError as exc:
+            log.warning("Installed %s, but the earlier %s of the same name "
+                        "could not be removed: %s", dest.name, twin.name, exc)
+            continue
+        log.info("installed profile %s replaced by %s", twin.name, dest.name)
+        removed.append(twin)
+    return removed
 
 
 @dataclass
