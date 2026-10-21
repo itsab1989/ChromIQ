@@ -71,6 +71,22 @@ PT_PER_MM = 72.0 / 25.4          # ≈ 2.835
 MM_PER_PT = 25.4 / 72.0          # ≈ 0.3528
 
 
+class _RowLabel(QLabel):
+    """A wrapping row label that asks for the height of the lines it wraps to.
+
+    The grids in this panel size a row from its control, so a label that wraps
+    to a second line kept the one-line height and had a line cut in half. The
+    wider fonts on Windows showed it (#205): "Padrão da amostra:" and the
+    Ukrainian "Resolution:" got 22 px for 27. The height follows the width the
+    label is actually given, so a label with room stays on one line."""
+
+    def resizeEvent(self, event):  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        need = self.heightForWidth(self.width()) if self.wordWrap() else -1
+        if need > 0 and need != self.minimumHeight():
+            self.setMinimumHeight(need)
+
+
 def mm_to_pt(mm: float) -> float:
     """Round-trip-stable mm → points for the size spinboxes (0 stays 0=auto).
 
@@ -537,7 +553,7 @@ class LayoutOptionsPanel(QWidget):
                     align_left: bool = False):
             """label | control (control fills the column → no clipping).
             Returns the placed widgets so a whole row can be shown/hidden."""
-            lbl = QLabel(label, self)
+            lbl = _RowLabel(label, self)
             # A LABEL THAT CAN WRAP CAN ALSO SHRINK.
             #
             # An unwrapped QLabel reports its whole text as a hard minimum, so

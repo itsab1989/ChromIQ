@@ -36,13 +36,16 @@ class _FakeArgyll:
     calls and fabricates each tool's output file."""
     def __init__(self, tmp_path):
         self.bin = tmp_path / "bin"; self.bin.mkdir()
+        # under the platform's own names ("cxf2ti3.exe" on Windows), as
+        # ChromIQ looks them up (core.resource_path.argyll_tool_path, #209)
+        from core.resource_path import argyll_tool_path
         for t in ("cxf2ti3", "txt2ti3", "spec2cie"):
-            (self.bin / t).write_text("#!/bin/sh\n", encoding="utf-8")
+            argyll_tool_path(self.bin, t).write_text("#!/bin/sh\n", encoding="utf-8")
         self.calls = []
 
     def run(self, cmd, capture_output=True, text=True):
         self.calls.append(cmd)
-        tool = Path(cmd[0]).name
+        tool = Path(cmd[0]).stem       # without ".exe" on Windows
         if tool == "cxf2ti3":
             Path(cmd[2] + ".ti3").write_text("cie", encoding="utf-8")            # outbase.ti3
         elif tool == "txt2ti3":
@@ -64,7 +67,7 @@ def test_cxf_runs_cxf2ti3(tmp_path):
     fk = _FakeArgyll(tmp_path)
     out = convert_reference(ref, fk.bin, tmp_path / "out", runner=fk.run)
     assert out.suffix == ".ti3" and out.is_file()
-    assert [Path(c[0]).name for c in fk.calls] == ["cxf2ti3"]
+    assert [Path(c[0]).stem for c in fk.calls] == ["cxf2ti3"]
 
 
 def test_spectral_txt_runs_txt2ti3_then_spec2cie(tmp_path):
@@ -73,7 +76,7 @@ def test_spectral_txt_runs_txt2ti3_then_spec2cie(tmp_path):
     fk = _FakeArgyll(tmp_path)
     out = convert_reference(ref, fk.bin, tmp_path / "out", runner=fk.run)
     assert out.suffix == ".cie" and out.is_file()
-    assert [Path(c[0]).name for c in fk.calls] == ["txt2ti3", "spec2cie"]
+    assert [Path(c[0]).stem for c in fk.calls] == ["txt2ti3", "spec2cie"]
 
 
 def test_missing_tool_raises(tmp_path):
@@ -107,4 +110,4 @@ def test_i1profiler_measurement_txt_converted(tmp_path):
     out = convert_i1profiler_measurement(txt, fk.bin, tmp_path / "out",
                                          runner=fk.run)
     assert out.name == "meas.ti3" and out.is_file()
-    assert [Path(c[0]).name for c in fk.calls] == ["txt2ti3"]
+    assert [Path(c[0]).stem for c in fk.calls] == ["txt2ti3"]

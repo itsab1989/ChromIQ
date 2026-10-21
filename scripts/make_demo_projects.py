@@ -185,11 +185,17 @@ def _build_icc(run_dir: Path, stem: str) -> bool:
         # No -a: an OUTPUT profile can only use the cLUT algorithm, and
         # colprof refuses -aG outright ("Output profile can only be a cLUT
         # algorithm"). -qm keeps it quick enough for a demo.
+        # BUDGETED FOR A LOADED MACHINE, AND A FAILURE STOPS THE BUILD (Windows
+        # gate, 2026-10-20): one colprof takes 61 s on the idle 2-core ARM64
+        # VM, and the gate builds the demos while both cores run tests. At 300
+        # s colprof timed out, this printed "no profile written" and the build
+        # went on, and the suite cached that tree as complete: every later run
+        # inherited demos with no profile (3 + 4 phantom reds in the gate).
         _run_tool([colprof, "-v0", "-qm", f"-D{stem} (demo)", stem],
-                  cwd=run_dir, timeout=300)
+                  cwd=run_dir, timeout=1800)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        print(f"    (colprof failed for {stem}: {exc}) — no profile written")
-        return False
+        raise RuntimeError(f"colprof failed for {stem}: {exc}. No demo tree is "
+                         "built without its profile, so none is cached.")
     # ArgyllCMS writes the Windows ICC extension (.icm) on Windows and .icc on
     # macOS/Linux. The demo layout is spelled .icc everywhere, so canonicalise
     # the output: tests compare against literal "<stem>.icc" names. The app

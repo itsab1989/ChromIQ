@@ -140,8 +140,7 @@ def _fit_starts(candidates: list[int], n: int,
                 starts.append(pos)
             if hits < max(3, int(0.6 * n)):
                 continue
-            idx = list(range(n))
-            slope, intercept = np.polyfit(idx, starts, 1)
+            slope, intercept = _line_fit(starts)
             grid = [float(intercept + slope * i) for i in range(n + 1)]
             fits.append((hits, float(intercept), grid))
     fits.sort(key=lambda t: -t[0])
@@ -153,6 +152,28 @@ def _fit_starts(candidates: list[int], n: int,
         if len(out) >= 4:
             break
     return out
+
+
+def _line_fit(ys: "list[float]") -> "tuple[float, float]":
+    """(slope, intercept) of the least-squares line through (i, ys[i]).
+
+    THE SAME BITS ON EVERY MACHINE. ``np.polyfit`` solves this through
+    LAPACK, whose last bits depend on the BLAS it is linked with (Accelerate
+    on macOS, OpenBLAS on Windows ARM64): measured 2026-10-20, patch W13 of
+    the abw702 ColorMunki bundle came out 168 px tall on Windows and 167 on
+    the Mac, a grid line sitting a hair from .5 rounding the other way. The
+    closed form with exactly summed Python floats gives one answer
+    everywhere."""
+    import math
+    n = len(ys)
+    if n < 2:
+        return 0.0, float(ys[0]) if ys else 0.0
+    xm = (n - 1) / 2.0
+    ym = math.fsum(ys) / n
+    sxy = math.fsum((i - xm) * (y - ym) for i, y in enumerate(ys))
+    sxx = math.fsum((i - xm) ** 2 for i in range(n))
+    slope = sxy / sxx
+    return slope, ym - slope * xm
 
 
 def _column_candidates(img: np.ndarray, y0: int, y1: int) -> list[int]:
