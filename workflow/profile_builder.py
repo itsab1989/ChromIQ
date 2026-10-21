@@ -6,6 +6,7 @@ import os
 import re
 import shlex
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -442,16 +443,22 @@ def installed_twins(dest: Path) -> "list[Path]":
     """The OTHER installed files that carry *dest*'s name: the same stem
     with .icc or .icm, case not counted (Basti, 2026-10-21, K2: "X.icm" and
     "X.icc" are the same name). *dest* itself is never in the list, even when
-    the folder spells it in another case; a missing folder gives []."""
+    the folder spells it in another case; a missing folder gives [].
+
+    On Linux the name's case DOES count: its profile folders are
+    case-sensitive, so "myprofile.icm" is another profile than "MyProfile.icc"
+    and Replace must never remove it (review of K2). The extension's case
+    never counts."""
     dest = Path(dest)
-    stem = dest.stem.casefold()
+    _fold = (lambda t: t) if sys.platform.startswith("linux") else str.casefold
+    stem = _fold(dest.stem)
     try:
         entries = list(dest.parent.iterdir())
     except OSError:
         return []
     out = []
     for e in entries:
-        if e.stem.casefold() != stem or e.suffix.casefold() not in PROFILE_SUFFIXES:
+        if _fold(e.stem) != stem or e.suffix.casefold() not in PROFILE_SUFFIXES:
             continue
         try:
             if dest.exists() and os.path.samefile(e, dest):

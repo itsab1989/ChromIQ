@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -83,6 +84,8 @@ def test_cancel_changes_nothing(qapp, tmp_path, installed, monkeypatch):
     assert [p.name for p in installed.iterdir()] == ["P.icm"]
 
 
+@pytest.mark.skipif(sys.platform.startswith("linux"),
+                    reason="Linux profile folders are case-sensitive")
 def test_case_does_not_tell_the_names_apart(qapp, installed, monkeypatch):
     from ui.install_profile import ask_install_path
     (installed / "profile.ICM").write_bytes(b"old")
@@ -145,3 +148,22 @@ def test_the_scanner_window_removes_the_twin_too():
     from ui.dialogs.scanin_dialog import ScannerProfileDialog
     src = inspect.getsource(ScannerProfileDialog._install_profile)
     assert "remove_installed_twins(dest)" in src
+
+
+def test_on_linux_the_names_case_counts_and_nothing_is_removed(installed, monkeypatch):
+    """Review of K2: a Linux profile folder is case-sensitive, so a file whose
+    name differs only in case is another profile and is never a twin."""
+    monkeypatch.setattr(PB.sys, "platform", "linux")
+    other = installed / "myprofile.icm"
+    other.write_bytes(b"other")
+    dest = installed / "MyProfile.icc"
+    dest.write_bytes(b"new")
+    assert PB.installed_twins(dest) == []
+    assert PB.remove_installed_twins(dest) == []
+    assert other.exists()
+    # the extension's case still never counts
+    dest2 = installed / "Second.icc"
+    dest2.write_bytes(b"new")
+    twin = installed / "Second.ICM"
+    twin.write_bytes(b"twin")
+    assert PB.installed_twins(dest2) == [twin]
