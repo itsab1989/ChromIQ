@@ -198,7 +198,9 @@ def test_eight_files_skip_wholesale_without_it():
     # driven through the real engine's replay instrument.
     # 16 in part with 4.3.8 beta 4 (2026-10-21): "I read strip B" giving the
     # strip its earlier reading back, on the real engine's replay instrument.
-    assert len(whole) == 10 and len(partial) == 16, (
+    # 17 in part with 4.3.10 (forum post 149786): a perfect read of jctay's
+    # chart rebuilt, through the real engine.
+    assert len(whole) == 10 and len(partial) == 17, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

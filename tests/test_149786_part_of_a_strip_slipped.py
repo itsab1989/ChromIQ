@@ -386,7 +386,7 @@ def test_a_perfect_read_of_jctays_chart_files_every_reading_under_its_own_patch(
         s, p = location_key(cl, loc)
         strips.setdefault(s, {})[p] = _xyz(d)
     rp = tmp_path / "replay.txt"
-    with rp.open("w") as f:
+    with rp.open("w", encoding="utf-8") as f:
         f.write("PATCHES 13\n")
         for s in sorted(strips):
             f.write(f"STRIP {cl.strip(s)}\n")

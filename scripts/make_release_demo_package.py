@@ -544,6 +544,14 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-PAPER-WHITE-DOUBT": [
         "any run of the pack: in its .ti3, give the paper patch (RGB 100 100 100) the XYZ of a dark patch of the same file, then New report…, detailed data, Generate report: the warning sits under Paper white",
     ],
+    # Forum post 149786 (4.3.10): no demo sheet ships with a strip that
+    # slipped, so one step outside ChromIQ first.
+    "M-REPORT-STRIP-SHIFTED-LATE": [
+        "any run of the pack: in its .ti3, give the first patch of one strip the XYZ of the paper patch and each of its next 7 patches the XYZ of the patch before it in that strip (patch 9 on stays), then New report…, detailed data, Generate report: the paragraph sits above Worst patches and under Report Results",
+    ],
+    "M-REPORT-STRIP-SHIFTED-EARLY": [
+        "the same with each of the first 8 patches of a strip given the XYZ of the patch AFTER it in that strip",
+    ],
     "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE": [
         "the same, then rename run4's Report-Limits-Strip-And-Gamut.icc and Generate report again (New report…): the colour rows of that date carry this note",
     ],
