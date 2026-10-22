@@ -6728,21 +6728,59 @@ M_REFINE_REBUILD = _m(
 #: in the "Re-measurement Complete" window under its opening line. {check_tab}
 #: names the tab, {analyse} its button, {finish} and {cont} this window's two
 #: buttons.
+#:
+#: NOTHING IS SAVED YET WHEN THIS WINDOW OPENS (agent 17, the reviewer's
+#: finding): the reader still holds the new readings. Finish sends "d", the
+#: reader writes the measurement, and `_finalize_verification` files it in the
+#: date's folder; Continue keeps the reader running until the user presses d.
+#: The readings the date had before were copied into its old/ folder when the
+#: session started (`MeasurementSession.begin`, §2a).
 M_REFINE_VERIFY_DONE = _m(
     "M-REFINE-VERIFY-DONE",
-    "Your verification measurement is up to date",
-    "The strips you read again replace their old readings in this "
-    "verification measurement, in its own dated folder. The profile is not "
-    "changed: a verification only checks it.\n\n"
-    "To see the new figures, press \u201c{analyse}\u201d on the {check_tab} "
-    "tab again once you have finished, or open the Measurement Report for "
-    "this date.\n\n"
-    "{finish}: saves the verification measurement and ends the measuring "
-    "session.\n"
+    "The new readings are saved when you finish",
+    "The strips you read again will replace their old readings in this "
+    "verification measurement, in its own dated folder. They are not saved "
+    "yet: that happens when you press {finish}, or later, when you end the "
+    "session with d. A copy of the readings this date had before was put in "
+    "its \u201cold\u201d folder when you started, so nothing is lost. The "
+    "profile is not changed: a verification only checks it.\n\n"
+    "Once the new readings are saved, press \u201c{analyse}\u201d on the "
+    "{check_tab} tab again to see the new figures, or open the Measurement "
+    "Report for this date.\n\n"
+    "{finish}: saves the verification measurement in its dated folder and "
+    "ends the measuring session.\n"
     "{cont}: keeps the measurement running so you can read more strips "
     "yourself. You have full manual control: f and b move between strips, n "
-    "jumps to the next unread one, and d ends the session. The automatic "
-    "strip navigation is switched off for the rest of this session.",
+    "jumps to the next unread one, and d saves the measurement and ends the "
+    "session. The automatic strip navigation is switched off for the rest of "
+    "this session.",
+    approved=False)
+
+#: The same window when the guide re-read the verification PATCH BY PATCH
+#: (agent 17, the reviewer's finding): the opening line counts patches, so
+#: the text under it says patches too, as the profiling window does (review
+#: of 4.3.5 beta 8), and names the click on the preview that only a
+#: patch-by-patch session has.
+M_REFINE_VERIFY_DONE_PATCHES = _m(
+    "M-REFINE-VERIFY-DONE-PATCHES",
+    "The new readings are saved when you finish",
+    "The patches you read again will replace their old readings in this "
+    "verification measurement, in its own dated folder. They are not saved "
+    "yet: that happens when you press {finish}, or later, when you end the "
+    "session with d. A copy of the readings this date had before was put in "
+    "its \u201cold\u201d folder when you started, so nothing is lost. The "
+    "profile is not changed: a verification only checks it.\n\n"
+    "Once the new readings are saved, press \u201c{analyse}\u201d on the "
+    "{check_tab} tab again to see the new figures, or open the Measurement "
+    "Report for this date.\n\n"
+    "{finish}: saves the verification measurement in its dated folder and "
+    "ends the measuring session.\n"
+    "{cont}: keeps the measurement running so you can read more patches "
+    "yourself. You have full manual control: f and b move between patches, "
+    "n jumps to the next unread one, you can click a patch in the preview to "
+    "jump to it, and d saves the measurement and ends the session. The "
+    "automatic patch navigation is switched off for the rest of this "
+    "session.",
     approved=False)
 
 
@@ -7226,6 +7264,7 @@ CATALOGUE = {m.id: m for m in (
     M_BUILD_INCOMPLETE, M_BUILD_INCOMPLETE_CAL,
     M_CR_STRIPS, M_CR_START_OVER, M_CR_PRECONDITIONING,
     M_CR_VERIFICATION, M_CR_VERIFICATION_BY_HAND, M_REFINE_VERIFY_DONE,
+    M_REFINE_VERIFY_DONE_PATCHES,
     M_ENGINE_FELL_BACK,
     M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,
     M_CHART_LEGACY_STOCK, M_CHART_LEGACY_ENDED,

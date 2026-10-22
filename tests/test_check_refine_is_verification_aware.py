@@ -283,6 +283,41 @@ def test_the_reread_window_of_a_verification_never_offers_build_profile(
     monkeypatch.setattr(QDialog, "exec", grab)
     tab._show_verification_reread_done()
     assert seen["buttons"] == ["Continue Measuring Manually", "Finish"]
-    assert "Your verification measurement is up to date" in seen["labels"]
+    assert "The new readings are saved when you finish" in seen["labels"]
     assert "Build the profile again" not in seen["labels"]
+    # Nothing is saved while this window is open (the reviewer's finding):
+    # the text must not claim the measurement is already up to date.
+    assert "up to date" not in seen["labels"]
+    assert "They are not saved yet" in seen["labels"]
+    assert "move between strips" in seen["labels"]
+    tab.deleteLater()
+
+
+def test_a_reread_patch_by_patch_says_patches_not_strips(qapp, monkeypatch):
+    """The opening line counts patches when the guide went patch by patch, so
+    the text under it says patches too (M-REFINE-VERIFY-DONE-PATCHES), as the
+    profiling window does."""
+    from PyQt6.QtWidgets import QDialog, QLabel, QPushButton
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+    s = AppSettings()
+    tab = TabMeasure(ArgyllRunner(s), s)
+    tab._strip_list = ["C"]
+    tab._guided_patch_list = ["C8", "C9", "D2"]
+    seen = {}
+
+    def grab(self):
+        seen["buttons"] = [b.text() for b in self.findChildren(QPushButton)]
+        seen["labels"] = " ".join(lb.text() for lb in self.findChildren(QLabel))
+        return 0
+    monkeypatch.setattr(QDialog, "exec", grab)
+    tab._show_verification_reread_done()
+    labels = seen["labels"]
+    assert seen["buttons"] == ["Continue Measuring Manually", "Finish"]
+    assert "All 3 patches have been re-measured successfully." in labels
+    assert "The patches you read again" in labels
+    assert "move between patches" in labels
+    assert "click a patch in the preview" in labels
+    assert "strip" not in labels.lower()
     tab.deleteLater()

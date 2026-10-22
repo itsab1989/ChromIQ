@@ -7360,7 +7360,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _show_verification_reread_done(self) -> None:
         """"Re-measurement Complete" after the guide re-read strips of a
-        dated verification (M-REFINE-VERIFY-DONE). Finish saves it in its
+        dated verification (M-REFINE-VERIFY-DONE), or patches of one
+        (M-REFINE-VERIFY-DONE-PATCHES). Finish saves it in its
         dated folder; Continue Measuring Manually hands the keyboard back, as
         after a profiling refinement."""
         import html as _html
@@ -7388,7 +7389,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         cont_label = tr("Continue Measuring Manually")
         check = re.sub(r"^\s*\d+\s*[.)]\s*", "",
                        tr("5. Check & Refine")).strip() or tr("Check & Refine")
-        title, body = M.M_REFINE_VERIFY_DONE.render(
+        # PATCH BY PATCH, THE TEXT SAYS PATCHES TOO, as the profiling window
+        # does: the opening line above counts patches.
+        message = (M.M_REFINE_VERIFY_DONE_PATCHES if pl
+                   else M.M_REFINE_VERIFY_DONE)
+        title, body = message.render(
             check_tab=check, analyse=tr("Analyse Profile Quality"),
             finish=finish_label, cont=cont_label)
         msg = QLabel(opening + "<br><br><b>" + _html.escape(title) + "</b><br>"
