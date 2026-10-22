@@ -370,7 +370,9 @@ def test_the_built_in_engine_presets_against_the_60_percent_floor():
     # 187 with Knut's 7.5 mm "Full Page" chart (#182 5943544919), refused by neither.
     # 190 in 4.3.5-beta.2 (#182 6126438230): its Letter sibling, and the two
     # i1Pro "Full layout setup" charts, which now carry Knut's engine layout.
-    assert len(eng) == 190
+    # 191 in 4.3.10: Knut's 300-patch photo card (forum post 149787), 60.8 %
+    # of its sheet, refused by neither.
+    assert len(eng) == 191
     by_coverage, by_grid = [], []
     for p in eng:
         g = PE._evenness_grid_for(Path(resource_path(p.ti1_asset)),

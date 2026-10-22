@@ -104,7 +104,9 @@ def test_most_presets_now_answer_every_metric(rows, preset_certificates):
         full_gamut += g is not None and len(g.answered) == 18
         assert g is not None and len(g.answered) >= len(own.answered), r.key
     assert full_own == 0
-    assert full_gamut == 174
+    # 175 since 4.3.10: Knut's 300-patch photo card answers all 18 laid out
+    # from profile gamut, as the other photo cards do.
+    assert full_gamut == 175
 
 
 def test_a_gamut_answer_is_what_working_it_out_says(rows, preset_certificates,

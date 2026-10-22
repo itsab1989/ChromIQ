@@ -46,12 +46,14 @@ def test_the_marker_counts_are_what_the_registry_holds():
     # recipe.json, so all five are marked.
     # 4.3.5-beta.2 (#182 6126438230): + the Letter "Full Page" chart, with a
     # recipe.json, so it is marked.
-    assert len(tc.BUILTIN_PRESET_KEYS) == 190
+    # 4.3.10 (forum post 149787): + Knut's 300-patch photo card, with a
+    # recipe.json, so it is marked.
+    assert len(tc.BUILTIN_PRESET_KEYS) == 191
     assert len(tc.PREBUILT_PRESETS) == 0        # none ships since 4.3.1
     # 182 marked since the 7.5 mm "Full Page" chart (#182 5943544919), 183
-    # with its Letter sibling
-    assert (len(marked), len(unmarked)) == (183, 7)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 190
+    # with its Letter sibling, 184 with the 300-patch photo card
+    assert (len(marked), len(unmarked)) == (184, 7)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 191
 
 
 def test_no_red_river_row_carries_the_marker():

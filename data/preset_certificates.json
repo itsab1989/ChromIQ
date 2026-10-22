@@ -41833,6 +41833,301 @@
     }
    }
   },
+  "c88ee9fd45e3270ecac1ad84c293d6ec6abc90d6bb0c1296b2a2ddd66e92e166": {
+   "preset": "__chromiq_knut_i1_photo_100x150mm_300p_2pages_portrait_w7_5mm_tc3_00_equivalent_target_chromiq_editor__",
+   "label": "100x150mm-300p-2pages-Portrait-w7.5mm-TC3.00 Equivalent Target (ChromIQ Editor)",
+   "answered": 16,
+   "values": {
+    "all_de00_avg": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "best95_de00_avg": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "worst5_de00_avg": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "all_de00_max": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "all_de00_p95": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "grey_balance_neutral_ramp_avg": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": [
+      "printing_unrecorded"
+     ]
+    },
+    "grey_balance_neutral_ramp_max": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": [
+      "printing_unrecorded"
+     ]
+    },
+    "ramps_30_70_dl_max": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "substrate_de00_max": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": [
+      "paper_against_profile"
+     ]
+    },
+    "solids_de00_max": {
+     "value": null,
+     "reason": "needs_reference_file",
+     "graded": null,
+     "notes": []
+    },
+    "cmy_solids_dhab_max": {
+     "value": null,
+     "reason": "needs_reference_file",
+     "graded": null,
+     "notes": []
+    },
+    "control_strip_de00_avg": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "control_strip_de00_max": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "control_strip_de00_p95": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "surface_gamut_de00_avg": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "outer_gamut_226_de00_avg": {
+     "value": 0.0,
+     "reason": null,
+     "graded": null,
+     "notes": []
+    },
+    "repeat_patches_de00_max": {
+     "value": null,
+     "reason": "not_computed",
+     "graded": null,
+     "notes": []
+    },
+    "repeat_measurement_de00_max": {
+     "value": null,
+     "reason": "not_computed",
+     "graded": null,
+     "notes": []
+    },
+    "uniformity_sd": {
+     "value": 0.735,
+     "reason": null,
+     "graded": null,
+     "notes": [
+      "evenness_causes"
+     ],
+     "noise_p95": 1.235,
+     "area_min": 30,
+     "area_max": 40,
+     "area_effective": 32,
+     "area_pages": 2,
+     "area_pages_left": []
+    },
+    "uniformity_de00_max_from_mean": {
+     "value": 0.562,
+     "reason": null,
+     "graded": null,
+     "notes": [
+      "evenness_causes"
+     ],
+     "noise_p95": 0.725,
+     "area_min": 30,
+     "area_max": 40,
+     "area_effective": 32,
+     "area_pages": 2,
+     "area_pages_left": []
+    }
+   },
+   "gamut": {
+    "answered": 18,
+    "patches": 300,
+    "values": {
+     "all_de00_avg": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "best95_de00_avg": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "worst5_de00_avg": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "all_de00_max": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "all_de00_p95": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "grey_balance_neutral_ramp_avg": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "grey_balance_neutral_ramp_max": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "ramps_30_70_dl_max": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "substrate_de00_max": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "solids_de00_max": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": [
+       "solids_predicted"
+      ]
+     },
+     "cmy_solids_dhab_max": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": [
+       "solids_predicted"
+      ]
+     },
+     "control_strip_de00_avg": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "control_strip_de00_max": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "control_strip_de00_p95": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "surface_gamut_de00_avg": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "outer_gamut_226_de00_avg": {
+      "value": 0.0,
+      "reason": null,
+      "graded": null,
+      "notes": []
+     },
+     "repeat_patches_de00_max": {
+      "value": null,
+      "reason": "not_computed",
+      "graded": null,
+      "notes": []
+     },
+     "repeat_measurement_de00_max": {
+      "value": null,
+      "reason": "not_computed",
+      "graded": null,
+      "notes": []
+     },
+     "uniformity_sd": {
+      "value": 0.735,
+      "reason": null,
+      "graded": null,
+      "notes": [
+       "evenness_causes"
+      ],
+      "noise_p95": 1.235,
+      "area_min": 30,
+      "area_max": 40,
+      "area_effective": 32,
+      "area_pages": 2,
+      "area_pages_left": []
+     },
+     "uniformity_de00_max_from_mean": {
+      "value": 0.562,
+      "reason": null,
+      "graded": null,
+      "notes": [
+       "evenness_causes"
+      ],
+      "noise_p95": 0.725,
+      "area_min": 30,
+      "area_max": 40,
+      "area_effective": 32,
+      "area_pages": 2,
+      "area_pages_left": []
+     }
+    }
+   }
+  },
   "c8d800bf706d1206ab7bb0559eeee1db2a5f8ee7888f633b8082947769a0ea84": {
    "preset": "__chromiq_knut_i1_photo_100x150mm_720p_4pages_portrait_w7_5mm_maximised_no_clip_border__",
    "label": "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border",

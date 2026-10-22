@@ -689,6 +689,20 @@ holds them to each other.
 nineteen, photographs the listing and the panel each one fills in, and reports
 the layout notices with the stamp both on and off.
 
+#### The 300-patch card (Knut, forum post 149787, 2026-10-22)
+
+`100x150mm-300p-2pages-Portrait-w7.5mm-TC3.00 Equivalent Target (ChromIQ Editor)`
+fills the gap between the one-sheet 150/180-patch cards and the 600-patch
+card: two sheets of the standard cut (10 x 15 per sheet, clip band on). Its
+colour set is Knut's TC3.00 equivalent from the Patch Set Editor, which is
+what the tail of the name says. Imported exactly like the others
+(`import_knut_presets.py i1photo <folder> --write`); it validated against
+`_I1_PHOTO_BASE` with nothing of its own but the five sheet-scaled numbers.
+Its geometry is pinned in `tests/data/b8_1590_geometry_4310.json`, and its
+certificate answers the nine-sheet-area evenness and the grey balance like
+the 150p and 600p cards (16 metrics Manual, 18 laid out from profile gamut).
+It lands under the group's arrow until `data/preset_defaults.json` ticks it.
+
 ### The 7.5 mm i1Pro "Maximised - No Clip-border" cut (Knut, 2026-09-22) — eight charts
 
 *"I have created yet more presets for the i1Pro, to be added as built-in like

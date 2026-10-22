@@ -102,8 +102,9 @@ def test_registry_shape():
     # and five more in 4.3.1 (#182 5875467209).
     # +1 in 4.3.3-beta.1: the 7.5 mm "Full Page" chart (#182 5943544919)
     # +1 in 4.3.5-beta.2: its US Letter sibling (#182 6126438230)
-    assert len(KNUT_PRESETS) == 190      # 123 + 26 CR30 + 19 photo + 8 max + 14
-    assert len(KNUT_PRESET_KEYS) == 190  # all keys unique
+    # +1 in 4.3.10: Knut's 300-patch photo card (forum post 149787)
+    assert len(KNUT_PRESETS) == 191      # 123 + 26 CR30 + 20 photo + 8 max + 14
+    assert len(KNUT_PRESET_KEYS) == 191  # all keys unique
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("pharm_")) == 14
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).
@@ -114,7 +115,8 @@ def test_registry_shape():
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cm_")) == 45
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("p3_")) == 24
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cr30_")) == 26
-    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_photo_")) == 19
+    # 20 since 4.3.10: Knut's 300-patch card (forum post 149787)
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_photo_")) == 20
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w75max_")) == 8
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("redriver_")) == 6

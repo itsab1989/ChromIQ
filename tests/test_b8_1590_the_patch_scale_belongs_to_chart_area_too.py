@@ -65,6 +65,11 @@ V435_BETA2 = json.loads(
     (ROOT / "tests/data/b8_1590_geometry_435_beta2.json").read_text(
         encoding="utf-8"))
 SUPERSEDED = frozenset(V435_BETA2["presets"])
+#: Knut's 300-patch photo card (forum post 149787), from the fix/4.3.10 code
+#: that first ships it.
+V4310 = json.loads(
+    (ROOT / "tests/data/b8_1590_geometry_4310.json").read_text(
+        encoding="utf-8"))
 
 #: The presets Knut's ruling moves away from beta 44, named one by one so a
 #: preset cannot join or leave the list without this file changing.
@@ -114,8 +119,10 @@ def test_every_built_in_engine_preset_is_in_the_snapshot(qapp):
                                | set(BETA47_PHARMACIST["presets"])
                                | set(V431_PHARMACIST["presets"])
                                | set(V433_FULL_PAGE["presets"])
-                               | set(V435_BETA2["presets"]))
+                               | set(V435_BETA2["presets"])
+                               | set(V4310["presets"]))
     assert len(BETA44["presets"]) >= 170
+    assert len(V4310["presets"]) == 1
     assert len(V433_FULL_PAGE["presets"]) == 1
     assert len(V435_BETA2["presets"]) == 48
     assert len(BETA47_PHARMACIST["presets"]) == 9
@@ -151,6 +158,13 @@ def test_the_435_beta2_presets_lay_out_as_in_4_3_5_beta_2(qapp):
     wrong = sorted(k for k, want in V435_BETA2["presets"].items()
                    if _laid_out(presets[k]) != want)
     assert not wrong, wrong[:5]
+
+
+def test_the_4310_photo_card_lays_out_as_in_4_3_10(qapp):
+    presets = _presets()
+    wrong = sorted(k for k, want in V4310["presets"].items()
+                   if _laid_out(presets[k]) != want)
+    assert not wrong, wrong
 
 
 def test_knuts_435_beta2_change_moved_only_what_his_table_names(qapp):

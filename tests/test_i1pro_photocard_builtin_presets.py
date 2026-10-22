@@ -121,15 +121,21 @@ BASE_DELTA = {
 _NAME_RE = re.compile(
     r"^(?P<sheet>\d+x\d+)mm-(?P<patches>\d+)p-(?P<pages>\d+)pages?-"
     r"(?:(?P<orientation>Portrait|Landscape)-)?w(?P<width>[\d.]+)mm"
-    r"(?P<maximised>-Maximised-No Clip-border)?$")
+    r"(?P<maximised>-Maximised-No Clip-border)?"
+    # Knut's 300-patch card (forum post 149787, 4.3.10) names the colour set
+    # it carries: his TC3.00 equivalent from ChromIQ's Patch Set Editor.
+    r"(?P<colour_set>-TC3\.00 Equivalent Target \(ChromIQ Editor\))?$")
 
-#: What each name promises, transcribed from the nineteen filenames Knut sent:
+#: What each name promises, transcribed from the twenty filenames Knut sent
+#: (nineteen in September, the 300-patch card on 2026-10-22):
 #: (paper code, patches, pages, patch width mm, orientation token or None).
 PROMISED = {
     "100x150mm-150p-1page-Portrait-w7.5mm":
         ("100x150", 150, 1, 7.5, "Portrait"),
     "100x150mm-180p-1page-Portrait-w7.5mm-Maximised-No Clip-border":
         ("100x150", 180, 1, 7.5, "Portrait"),
+    "100x150mm-300p-2pages-Portrait-w7.5mm-TC3.00 Equivalent Target (ChromIQ Editor)":
+        ("100x150", 300, 2, 7.5, "Portrait"),
     "100x150mm-600p-4pages-Portrait-w7.5mm":
         ("100x150", 600, 4, 7.5, "Portrait"),
     "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border":
@@ -184,6 +190,8 @@ MARGINS = {
     "100x150mm-150p-1page-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
     "100x150mm-180p-1page-Portrait-w7.5mm-Maximised-No Clip-border":
         {**_SMALL, **_MAX_SIDES},
+    "100x150mm-300p-2pages-Portrait-w7.5mm-TC3.00 Equivalent Target (ChromIQ Editor)":
+        {**_SMALL, **_SMALL_SIDES},
     "100x150mm-600p-4pages-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
     "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border":
         {**_SMALL, **_MAX_SIDES},
@@ -229,16 +237,18 @@ def test_every_chart_registered():
     renamed, an asset folder lost — is invisible in a dropdown of 173 entries
     and would reach a user as "the chart I had is gone". The count and the
     names are both pinned so it cannot happen quietly."""
-    assert len(PHOTO) == 19
-    assert len({p.slug for p in PHOTO}) == 19        # slugs are the identity
+    # 20 since 4.3.10: Knut's 300-patch card (forum post 149787).
+    assert len(PHOTO) == 20
+    assert len({p.slug for p in PHOTO}) == 20        # slugs are the identity
     assert {p.name for p in PHOTO} == set(PROMISED)
     assert all(p.key in BUILTIN_PRESET_KEYS for p in PHOTO)
     assert all(p.combo_label in BUILTIN_PRESET_LABELS for p in PHOTO)
 
 
 def test_the_cut_is_taken_by_exactly_the_charts_whose_name_says_so():
-    """Nine of the nineteen are "Maximised - No Clip-border", and the name is
-    the promise: the band is off on exactly those, and on on the other ten."""
+    """Nine of the twenty are "Maximised - No Clip-border", and the name is
+    the promise: the band is off on exactly those, and on on the other
+    eleven."""
     named = {p.name for p in PHOTO if p.name.endswith(MAXIMISED_TAIL)}
     assert len(named) == 9
     for p in PHOTO:
@@ -291,7 +301,7 @@ def test_they_open_the_i1pro_group_smallest_sheet_first():
     withdrew those two (#182 5875467209) and added two "by Pharmacist" charts
     WITH a layout on the photo sizes between his, 4x6" and 5x7", which sort
     with his by sheet like every other row. So the group now opens with the
-    small sheets, smallest first: his ten 100 x 150 mm cards, the 4x6", the
+    small sheets, smallest first: his eleven 100 x 150 mm cards, the 4x6", the
     5x7", then his nine 130 x 180 mm cards, and every chart after them is on a
     named sheet (A4 / Letter / A3).
     """
@@ -301,7 +311,7 @@ def test_they_open_the_i1pro_group_smallest_sheet_first():
     photo = {p.key for p in PHOTO}
     small = len(PHOTO) + 2
     assert [o[:7] for o in overlays[:small]] == (
-        ["100x150"] * 10 + ["4x6in-6", "5x7in-7"] + ["130x180"] * 9)
+        ["100x150"] * 11 + ["4x6in-6", "5x7in-7"] + ["130x180"] * 9)
     assert set(keys[:small]) - photo == {
         "__chromiq_knut_pharm_i1_4x6in_600p_4pages_w7_5mm_real_world__",
         "__chromiq_knut_pharm_i1_5x7in_702p_3pages_w8_0mm_real_world__"}
