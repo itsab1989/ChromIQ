@@ -362,9 +362,12 @@ class MeasureManager(QObject):
     # #50 safety net: (strip, offset, base_de_str, best_de_str)
     strip_misaligned        = pyqtSignal(str, int, str, str)
     # Forum post 149786: part of a strip read one patch out, the rest in step,
-    # which the engine's whole-strip net cannot see (workflow/slipped_strip).
-    # (strip, offset, first_loc, last_loc, base_de_str, shifted_de_str)
-    strip_partly_misaligned = pyqtSignal(str, int, str, str, str, str)
+    # which the engine's whole-strip net cannot see (workflow/slipped_strip);
+    # also a whole strip the net missed, and a strip filed back to front
+    # (agent 14's review, 4.3.10). One dict, `_check_part_of_strip_slipped`:
+    # {"strip", "offset", "reversed", "whole", "first", "last", "lead",
+    #  "lead_paper", "base", "best"} (base/best: mean ΔE00, floats).
+    strip_partly_misaligned = pyqtSignal(dict)
     sensor_wrong_position   = pyqtSignal()          # emitted when instrument is in calibration position during scan
     usb_claimed_by_vm       = pyqtSignal()          # emitted when USB device is held exclusively by a VM
 
@@ -1906,10 +1909,18 @@ class MeasureManager(QObject):
         tries the whole strip, so it cannot see this; `workflow.slipped_strip`
         tries runs of neighbouring patches with the net's own thresholds.
 
+        It also finds a whole strip the net missed (the net judges with the
+        chart's design colours, a verification sheet is judged against the
+        profile's prediction) and a strip FILED BACK TO FRONT: the engine
+        turns a strip round when its colours fit the other direction better,
+        which a strip that slipped from end to end can do (agent 14 saw all 13
+        patches of one stored reversed, ``"reversed": true``, and nothing
+        asked).
+
         Only with "Warn me if a strip looks misaligned" on, and only when the
         engine's net said nothing about this strip. Marks the event
         ``misaligned`` (so the strip's readings confirm nothing, #210) and
-        returns the arguments of `strip_partly_misaligned`, or None."""
+        returns the finding `strip_partly_misaligned` carries, or None."""
         if not getattr(self, "_safenet_on", False):
             return None
         try:
@@ -1940,17 +1951,35 @@ class MeasureManager(QObject):
             return None
         locs = [str(p.get("loc") or "?") for p in patches]
         first, last = locs[run.first], locs[run.last]
-        ev["misaligned"] = run.offset
+        # Never 0: a strip filed back to front in step has offset 0, and the
+        # judge reads ``misaligned`` 0 as "nothing wrong" (#210).
+        ev["misaligned"] = run.offset or 1
         ev["slipped_run"] = {"first": first, "last": last,
-                             "offset": run.offset}
+                             "offset": run.offset,
+                             "reversed": run.reversed}
         strip = str(ev.get("strip", "?")).strip().upper()
-        log.warning("strip %s: patches %s to %s look read one patch %s "
-                    "(mean dE %.1f as read, %.1f shifted); the rest of the "
-                    "strip is in step", strip, first, last,
-                    "late" if run.offset > 0 else "early",
-                    run.base_de, run.shifted_de)
-        return (strip, run.offset, first, last, f"{run.base_de:.1f}",
-                f"{run.shifted_de:.1f}")
+        whole = run.covers(len(patches))
+        log.warning("strip %s: patches %s to %s look %s (mean dE76 %.1f as "
+                    "read, %.1f %s; dE00 %s / %s)", strip, first, last,
+                    "filed back to front" if run.reversed else
+                    "read one patch " + ("late" if run.offset > 0
+                                         else "early"),
+                    run.base_de, run.shifted_de,
+                    "the other way round" if run.reversed else "shifted",
+                    run.base_de00, run.shifted_de00)
+
+        return {
+            "strip": strip, "offset": run.offset, "reversed": run.reversed,
+            "whole": whole,
+            # The patches every number is averaged over, and apart from
+            # them the one the slip pushed out of step.
+            "first": locs[run.run_first], "last": locs[run.run_last],
+            "lead": locs[run.lead] if run.lead is not None else None,
+            "lead_paper": run.lead_paper,
+            # ΔE00, the unit of the report's tables (None only if the
+            # ΔE00 sums failed, and then the window says "?").
+            "base": run.base_de00, "best": run.shifted_de00,
+        }
 
     def _check_read_twice(self, strip: str, patches) -> "object | None":
         """Compare the strip just read with the strips already measured.
@@ -2943,19 +2972,12 @@ class MeasureManager(QObject):
             _twice = self._check_read_twice(_s, _patches)
             self.strip_measured.emit(ev)
             if _part is not None:
-                # A RUN THAT IS THE WHOLE STRIP is the engine net's finding,
-                # missed only because the net judged with the design colours
-                # (a verification judged against the profile's prediction).
-                # The part-of-a-strip question says "the rest of the strip was
-                # read correctly", which is then untrue: ask the whole-strip
-                # question instead (agent 14 review, 4.3.10).
-                _pl = [str(p.get("loc") or "?") for p in _patches
-                       if isinstance(p, dict)]
-                if _pl and (_part[2], _part[3]) == (_pl[0], _pl[-1]):
-                    self.strip_misaligned.emit(_part[0], _part[1],
-                                               _part[4], _part[5])
-                else:
-                    self.strip_partly_misaligned.emit(*_part)
+                # One question, worded for what was found: part of the strip,
+                # the whole strip (the net's finding, missed because the net
+                # judged with the design colours; the part-of-a-strip words
+                # "the rest of the strip was read correctly" would be untrue,
+                # agent 14's review), or the strip filed back to front.
+                self.strip_partly_misaligned.emit(_part)
             if _twice is not None:
                 self.strip_read_twice.emit(_twice.strip, _twice.like)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "

@@ -9020,27 +9020,42 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._exec_measurement_window(dlg)
         self._after_misaligned_strip_choice(choice[0], strip)
 
-    def _on_strip_partly_misaligned(self, strip: str, offset: int,
-                                    first: str, last: str,
-                                    base_de: str, best_de: str) -> None:
+    def _on_strip_partly_misaligned(self, finding: dict) -> None:
         """Forum post 149786: PART of a strip read one patch out of place and
         the rest in step, which the engine's whole-strip net cannot see
-        (`MeasureManager._check_part_of_strip_slipped`). The same question as
-        `_on_strip_misaligned`, naming the patches.
-        M-STRIP-PART-SLIPPED-LATE / -EARLY, proposed."""
+        (`MeasureManager._check_part_of_strip_slipped`); also the whole strip
+        the net missed, and a strip filed back to front (agent 14's review,
+        approved by Basti 2026-10-22). The same question as
+        `_on_strip_misaligned`, naming the patches, in ΔE00.
+        M-STRIP-PART-SLIPPED-LATE / -EARLY, M-STRIP-WHOLE-SLIPPED-LATE /
+        -EARLY, M-STRIP-REVERSED, proposed."""
         self._cue_window("STRIP_FAIL")
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
+        from workflow import measurement_messages as M
+        f = dict(finding or {})
+        strip = str(f.get("strip") or "?")
+        late = int(f.get("offset") or 0) > 0
+        if f.get("reversed"):
+            message = M.M_STRIP_REVERSED
+        elif f.get("whole"):
+            message = (M.M_STRIP_WHOLE_SLIPPED_LATE if late
+                       else M.M_STRIP_WHOLE_SLIPPED_EARLY)
+        else:
+            message = (M.M_STRIP_PART_SLIPPED_LATE if late
+                       else M.M_STRIP_PART_SLIPPED_EARLY)
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Strip may be misaligned"))
         dlg.setMinimumWidth(540)
         layout = QVBoxLayout(dlg)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
-        from workflow import measurement_messages as M
-        message = (M.M_STRIP_PART_SLIPPED_LATE if int(offset) > 0
-                   else M.M_STRIP_PART_SLIPPED_EARLY)
         msg = QLabel(_catalogue_html(*message.render(
-            strip=strip, first=first, last=last, base=base_de, best=best_de,
+            strip=strip, first=str(f.get("first") or "?"),
+            last=str(f.get("last") or "?"),
+            lead_line=M.slip_lead_line(f.get("lead"),
+                                       bool(f.get("lead_paper"))),
+            base=M.slip_de_text(f.get("base")),
+            best=M.slip_de_text(f.get("best")),
             remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
             stop=tr("Stop"))), dlg)
         choice = self._misaligned_strip_buttons(dlg, layout, msg)

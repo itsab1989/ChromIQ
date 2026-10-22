@@ -117,6 +117,11 @@ def test_jctays_slip_is_found_on_a_real_strip():
     assert run.offset == 1                   # each reading is the patch BEFORE
     assert (strip[run.first][0], strip[run.last][0]) == ("K1", "K8")
     assert run.shifted_de <= 0.5 * run.base_de
+    # Agent 14's review: the figures people read are averaged over the run
+    # itself (K2..K8), and K1, which read the paper, is named apart.
+    assert (strip[run.run_first][0], strip[run.run_last][0]) == ("K2", "K8")
+    assert strip[run.lead][0] == "K1" and run.lead_paper
+    assert not run.reversed
 
 
 def test_no_real_strip_read_correctly_is_named():
@@ -185,9 +190,11 @@ def test_the_session_flags_the_strip_and_asks(qapp):
     _feed(m, _event("K", strip, _slip(strip, 8)))
     assert judged == [1], "the judge must see the strip as slipped (#210)"
     assert len(asked) == 1
-    s, off, first, last, base, best = asked[0]
-    assert (s, off, first, last) == ("K", 1, "K1", "K8")
-    assert float(best) < float(base)
+    f = asked[0][0]
+    assert (f["strip"], f["offset"], f["first"], f["last"]) == ("K", 1, "K2", "K8")
+    assert (f["lead"], f["lead_paper"], f["whole"], f["reversed"]) == \
+        ("K1", True, False, False)
+    assert f["best"] < f["base"]
 
 
 def test_off_when_the_warning_is_off(qapp):
@@ -232,13 +239,20 @@ def test_the_measure_tab_asks_with_the_proposed_text(qapp, monkeypatch):
     monkeypatch.setattr(tab, "_exec_measurement_window", grab)
     went = []
     monkeypatch.setattr(tab._manager, "goto_strip", went.append)
-    tab._on_strip_partly_misaligned("36", 1, "36A", "36H", "48.9", "2.1")
+    tab._on_strip_partly_misaligned({
+        "strip": "36", "offset": 1, "reversed": False, "whole": False,
+        "first": "36B", "last": "36H", "lead": "36A", "lead_paper": True,
+        "base": 48.94, "best": 2.06})
     text = " ".join(seen["labels"])
     title, _body = M.M_STRIP_PART_SLIPPED_LATE.render(
-        strip="36", first="36A", last="36H", base="48.9", best="2.1",
-        remeasure="x", keep="y", stop="z")
+        strip="36", first="36B", last="36H", base="48.9", best="2.1",
+        lead_line="", remeasure="x", keep="y", stop="z")
     assert title in text
-    assert "Patches 36A to 36H of strip 36" in text
+    # jctay's strip as it happened: 36A read the paper, 36B..36H the patch
+    # before each, in the report's unit (agent 14's review).
+    assert "Patch 36A came out with the colour of the white paper." in text
+    assert "Patches 36B to 36H of strip 36" in text
+    assert "48.9 ΔE00" in text and "2.1 ΔE00" in text
     assert "before them" in text
     assert seen["buttons"][:2] == ["Re-measure this strip", "Keep it"]
     assert went == []                          # "Keep it" is the default
@@ -247,10 +261,10 @@ def test_the_measure_tab_asks_with_the_proposed_text(qapp, monkeypatch):
 
 def test_the_early_case_has_its_own_words():
     _t, late = M.M_STRIP_PART_SLIPPED_LATE.render(
-        strip="1", first="1A", last="1D", base="1", best="1",
+        strip="1", first="1A", last="1D", base="1", best="1", lead_line="",
         remeasure="r", keep="k", stop="s")
     _t, early = M.M_STRIP_PART_SLIPPED_EARLY.render(
-        strip="1", first="1A", last="1D", base="1", best="1",
+        strip="1", first="1A", last="1D", base="1", best="1", lead_line="",
         remeasure="r", keep="k", stop="s")
     assert "before them" in late and "after them" in early
 
@@ -315,6 +329,9 @@ def test_the_report_names_the_slipped_strip(tmp_path):
     f = found[0]
     assert (f["strip"], f["first"], f["last"], f["offset"]) == \
         ("K", "K1", "K8", 1)
+    assert (f["run_first"], f["run_last"], f["lead"], f["lead_paper"]) == \
+        ("K2", "K8", "K1", True)
+    assert f["shifted_de00"] < f["base_de00"] and not f["reversed"]
     # ...and those are the worst patches the reader sees
     top = {w["loc"] for w in r["worst_patches"][:8]}
     assert top == {f"K{i}" for i in range(1, 9)}
@@ -324,13 +341,20 @@ def test_the_report_window_says_it_above_the_worst_patches(qapp):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     r = {"created": "2026-10-22T18:51:24",
          "shifted_strips": [{"strip": "36", "first": "36A", "last": "36H",
-                             "offset": 1, "patches": 8, "base_de": 48.93,
-                             "shifted_de": 2.05}]}
+                             "offset": 1, "patches": 8, "base_de": 70.1,
+                             "shifted_de": 3.3, "run_first": "36B",
+                             "run_last": "36H", "lead": "36A",
+                             "lead_paper": True, "base_de00": 48.93,
+                             "shifted_de00": 2.06, "reversed": False}]}
     # it reads nothing of the window, so it is called without one
     html_ = MeasurementReportDialog._shifted_strips_html(None, r)
     title, _b = M.M_REPORT_STRIP_SHIFTED_LATE.render(
-        strip="36", first="36A", last="36H", base="48.93", best="2.05")
-    assert title in html_ and "36A to 36H" in html_
+        strip="36", first="36B", last="36H", base="48.9", best="2.1",
+        lead_line="")
+    assert title in html_ and "36B to 36H" in html_
+    assert "Patch 36A came out with the colour of the white paper." in html_
+    # ΔE00, as the tables below it; the CIE76 search figures never show
+    assert "2.1 ΔE00 against 48.9 ΔE00" in html_ and "70.1" not in html_
     assert MeasurementReportDialog._shifted_strips_html(None, {}) == ""
     src = (ROOT / "ui/dialogs/measurement_report_dialog.py").read_text(
         encoding="utf-8")
@@ -438,7 +462,9 @@ def test_the_session_judges_with_the_tabs_expected_colours(qapp):
         return [dict(p, exyz=real[p["loc"]]) for p in patches]
     m.set_expected_for_slip_check(tab_expected)
     got = m._check_part_of_strip_slipped(ev, ev["patches"])
-    assert got is not None and got[:4] == ("K", 1, "K1", "K8")
+    assert got is not None
+    assert (got["strip"], got["offset"], got["lead"], got["last"]) == \
+        ("K", 1, "K1", "K8")
 
 
 def test_the_measure_tab_hands_its_expected_colours_over():
@@ -451,25 +477,224 @@ def test_a_run_that_is_the_whole_strip_asks_the_whole_strip_question(qapp):
     judges with the design colours; a verification is judged against the
     profile's prediction), the run check finds every patch of the strip. The
     part-of-a-strip question would then say "The rest of the strip was read
-    correctly", which is untrue: there is no rest. Such a finding asks the
-    whole-strip question (`strip_misaligned`) instead, and still marks the
-    strip as slipped for #210."""
+    correctly", which is untrue: there is no rest. Such a finding asks its
+    own whole-strip question (M-STRIP-WHOLE-SLIPPED-LATE, in ΔE00 and naming
+    the patches; the net's old window named none and said the LAST patch
+    read the paper), and still marks the strip as slipped for #210."""
     from test_knut_5956210745_next_strip_after_a_read import _feed
     m = _manager()
     m._safenet_on = True
     strip = _strips()["K"]
     meas = [mx for _l, mx, _e in strip]
     whole = [_paper()] + meas[:-1]          # every reading one patch late
-    part, whole_q, judged = [], [], []
-    m.strip_partly_misaligned.connect(lambda *a: part.append(a))
-    m.strip_misaligned.connect(lambda *a: whole_q.append(a))
+    part, net_q, judged = [], [], []
+    m.strip_partly_misaligned.connect(lambda f: part.append(f))
+    m.strip_misaligned.connect(lambda *a: net_q.append(a))
     m.strip_measured.connect(lambda ev: judged.append(int(ev["misaligned"])))
     _feed(m, _event("K", strip, whole))
-    assert part == [], "a whole-strip slip must not claim the rest was right"
-    assert len(whole_q) == 1 and whole_q[0][:2] == ("K", 1)
-    assert float(whole_q[0][3]) < float(whole_q[0][2])
+    assert net_q == []
+    assert len(part) == 1 and part[0]["whole"] and not part[0]["reversed"]
+    assert (part[0]["offset"], part[0]["lead"], part[0]["lead_paper"]) == \
+        (1, strip[0][0], True)
     assert judged == [1]
     # ...and a slip that heals half way still asks the part-of-a-strip one
-    part.clear(), whole_q.clear()
+    part.clear()
     _feed(m, _event("K", strip, _slip(strip, 8)))
-    assert len(part) == 1 and whole_q == []
+    assert len(part) == 1 and not part[0]["whole"]
+
+
+def test_the_whole_strip_question_says_the_last_colour_was_lost(qapp,
+                                                                monkeypatch):
+    tab, seen = _tab_seeing(monkeypatch)
+    tab._on_strip_partly_misaligned({
+        "strip": "K", "offset": 1, "reversed": False, "whole": True,
+        "first": "K2", "last": "K14", "lead": "K1", "lead_paper": True,
+        "base": 40.0, "best": 1.5})
+    text = " ".join(seen["labels"])
+    title, _b = M.M_STRIP_WHOLE_SLIPPED_LATE.render(
+        strip="K", first="", last="", lead_line="", base="", best="",
+        remeasure="", keep="", stop="")
+    assert title in text
+    assert "the colour of its last patch was not read at all" in text
+    assert "The rest of the strip was read correctly" not in text
+    tab.deleteLater()
+
+
+# ---- 6. agent 14's review: a strip filed back to front ---------------------------
+
+def _reversed_whole_slip(strip):
+    """Agent 14 on screen (run_whole36_rev): strip read one patch late from
+    end to end, and the engine, finding the reverse direction fits better,
+    filed it back to front (``"reversed": true``)."""
+    meas = [mx for _l, mx, _e in strip]
+    return ([_paper()] + meas[:-1])[::-1]
+
+
+def test_a_strip_filed_back_to_front_is_found_on_a_real_strip():
+    for label in ("K", "C", "T"):
+        strip = _strips()[label]
+        run = slipped_run_in_strip_read(
+            _event(label, strip, _reversed_whole_slip(strip))["patches"])
+        assert run is not None, label
+        assert run.reversed, label
+        # none of the strip's patches holds its own reading: all named
+        assert (run.first, run.last) == (0, len(strip) - 1), label
+        assert run.lead == len(strip) - 1 and run.lead_paper, label
+        assert run.shifted_de00 < run.base_de00, label
+
+
+def test_a_slip_that_healed_and_was_filed_back_to_front_is_found_too():
+    strip = _strips()["K"]
+    run = slipped_run_in_strip_read(
+        _event("K", strip, _slip(strip, 8)[::-1])["patches"])
+    assert run is not None and run.reversed
+    assert (run.first, run.last) == (0, len(strip) - 1)
+
+
+def test_210s_own_strip_13_was_filed_back_to_front():
+    """Found by agent 15's re-measure of the real corpus: in #210's own data
+    strip 13 (Chart-192-Patches-new) reads, from 13B on, the mirrored patch
+    one place along, and 13A the paper. Nothing named it before."""
+    d = ROOT / "tests/data/slip_check_210_strip13.json"
+    import json
+    data = json.loads(d.read_text(encoding="utf-8"))
+    run = find_slipped_run(data["measured"], data["expected"])
+    assert run is not None and run.reversed
+    assert (run.first, run.last) == (0, 11) and run.lead == 0 and run.lead_paper
+
+
+def test_the_session_asks_about_a_strip_filed_back_to_front(qapp):
+    from test_knut_5956210745_next_strip_after_a_read import _feed
+    m = _manager()
+    m._safenet_on = True
+    strip = _strips()["K"]
+    asked, judged = [], []
+    m.strip_partly_misaligned.connect(lambda f: asked.append(f))
+    m.strip_measured.connect(lambda ev: judged.append(int(ev["misaligned"])))
+    ev = _event("K", strip, _reversed_whole_slip(strip))
+    ev["reversed"] = True
+    _feed(m, ev)
+    assert len(asked) == 1 and asked[0]["reversed"]
+    assert judged and judged[0] != 0, "its readings must confirm nothing (#210)"
+
+
+def _tab_seeing(monkeypatch):
+    from PyQt6.QtWidgets import QLabel, QPushButton
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+    s = AppSettings()
+    tab = TabMeasure(ArgyllRunner(s), s)
+    seen = {}
+
+    def grab(dlg):
+        seen["labels"] = [lb.text() for lb in dlg.findChildren(QLabel)]
+        seen["buttons"] = [b.text() for b in dlg.findChildren(QPushButton)]
+        return 0
+    monkeypatch.setattr(tab, "_exec_measurement_window", grab)
+    return tab, seen
+
+
+def test_the_measure_tab_says_back_to_front(qapp, monkeypatch):
+    tab, seen = _tab_seeing(monkeypatch)
+    tab._on_strip_partly_misaligned({
+        "strip": "36", "offset": 1, "reversed": True, "whole": True,
+        "first": "36A", "last": "36L", "lead": "36M", "lead_paper": True,
+        "base": 52.3, "best": 1.8})
+    text = " ".join(seen["labels"])
+    title, _b = M.M_STRIP_REVERSED.render(
+        strip="36", first="", last="", lead_line="", base="", best="",
+        remeasure="", keep="", stop="")
+    assert title == "Strip 36 was probably filed back to front"
+    assert title in text and "the other way round" in text
+    assert "Patch 36M came out with the colour of the white paper." in text
+    assert "52.3 ΔE00" in text and "1.8 ΔE00" in text
+    assert seen["buttons"][:2] == ["Re-measure this strip", "Keep it"]
+    tab.deleteLater()
+
+
+def test_the_report_names_a_strip_filed_back_to_front(tmp_path, qapp):
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.measurement_report import build_report
+    ti3 = _copy(tmp_path)
+    strip = _strips()["K"]
+    _write_readings(ti3, strip, _reversed_whole_slip(strip))
+    r = build_report(ti3)
+    found = r.get("shifted_strips")
+    assert found and len(found) == 1 and found[0]["reversed"]
+    assert (found[0]["first"], found[0]["last"]) == (strip[0][0], strip[-1][0])
+    html_ = MeasurementReportDialog._shifted_strips_html(None, r)
+    assert "Strip K looks filed back to front" in html_
+
+
+def _write_readings(ti3: Path, strip, new) -> None:
+    text = ti3.read_text(encoding="latin-1").split("\n")
+    by_loc = {loc: xyz for (loc, _m, _e), xyz in zip(strip, new)}
+    fmt: list = []
+    st = 0
+    for n, ln in enumerate(text):
+        s = ln.strip()
+        if s == "BEGIN_DATA_FORMAT":
+            st = 1
+            continue
+        if s == "END_DATA_FORMAT":
+            st = 0
+            continue
+        if st == 1:
+            fmt += s.split()
+            continue
+        if s == "BEGIN_DATA":
+            st = 2
+            continue
+        if s == "END_DATA":
+            st = 0
+            continue
+        if st == 2 and s:
+            parts = s.split()
+            loc = parts[fmt.index("SAMPLE_LOC")].strip('"')
+            if loc in by_loc:
+                i = fmt.index("XYZ_X")
+                parts[i:i + 3] = [f"{v:.6f}" for v in by_loc[loc]]
+                text[n] = " ".join(parts)
+    ti3.write_text("\n".join(text), encoding="latin-1")
+
+
+# ---- 7. agent 14's review: charts in plain order ("Preserve Patch Order") --------
+
+def _plain_order():
+    import json
+    return json.loads((ROOT / "tests/data/slip_check_plain_order_false_alarms.json"
+                       ).read_text(encoding="utf-8"))["strips"]
+
+
+def test_honest_strips_in_plain_order_are_not_called_slipped():
+    """Thirteen honest strips of charts in plain order, printed through real
+    printer profiles, that the check of 507c3ccbf called slipped: on a ramp a
+    print one step darker than the design looks like "the patch before it".
+    Agent 14 measured 0.6 % of such strips; agent 15 0 after this change."""
+    for s in _plain_order():
+        assert find_slipped_run(s["measured"], s["expected"]) is None, s["what"]
+
+
+def test_a_big_slip_in_plain_order_is_still_found():
+    """...while the slips that matter on the same strips are still found: a
+    long run of a plain-order strip read one patch late, judged against the
+    right expected colours (a verification), is named."""
+    from workflow.slipped_strip import SMOOTH_TRIGGER_DE
+    found = big = 0
+    for s in _plain_order():
+        e = s["expected"]
+        if len(e) < 6:
+            continue
+        slipped = [(96.0, 0.5, -3.0)] + e[:-1]
+        import math
+        # how far the slipped readings are off as read (the paper apart):
+        # a slip of one ramp step is the price of the rule, a big one is not
+        base = sum(math.dist(a, b) for a, b in zip(slipped[1:], e[1:])) \
+            / (len(e) - 1)
+        if base < SMOOTH_TRIGGER_DE + 5:
+            continue
+        big += 1
+        r = find_slipped_run(slipped, e)
+        found += bool(r and r.offset == 1 and not r.reversed)
+    assert big >= 1 and found == big, (found, big)

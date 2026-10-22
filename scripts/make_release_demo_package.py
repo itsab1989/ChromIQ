@@ -552,6 +552,9 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-STRIP-SHIFTED-EARLY": [
         "the same with each of the first 8 patches of a strip given the XYZ of the patch AFTER it in that strip",
     ],
+    "M-REPORT-STRIP-REVERSED": [
+        "the same with a whole strip: give its first patch the XYZ of the paper patch and every other patch the XYZ of the patch before it, then put the strip's readings in the reverse order (the last patch gets the first patch's new XYZ, and so on), then Generate report",
+    ],
     "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE": [
         "the same, then rename run4's Report-Limits-Strip-And-Gamut.icc and Generate report again (New report…): the colour rows of that date carry this note",
     ],

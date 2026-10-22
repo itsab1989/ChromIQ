@@ -317,21 +317,23 @@ def _evenness_grid_for(chart: Path, recipe: "dict | None",
     return {"reason": REASON_EVENNESS_LAID_OUT_LATER}
 
 
-def _predicted_grid(chart: Path, recipe: dict) -> dict:
-    """The page grid the layout engine will give *chart* under *recipe*.
+def predicted_strips(recipe: dict, npat: int
+                     ) -> "tuple[int, list[int], int]":
+    """(patches in each strip, strips on each page, patches in all with any
+    padding) that the layout engine gives *npat* patches under the layout
+    *recipe*, without building anything.
 
     The same chokepoint Create Chart's own capacity estimate goes through
     (`instruments.geom_from_build_kwargs` then `geometry.compute`), and the
     same per-page strip count `ti2_writer` writes into ``PASSES_IN_STRIPS2``.
-    `side_stamp` is left at `build_chart`'s own default, which is the app's.
-    `tests/test_evenness_across_the_sheet.py` builds real presets and holds
-    this prediction to the ``.ti2`` the build wrote.
-    """
+    Used by the evenness rows (`_predicted_grid`) and by the built-in
+    presets' tooltip, whose grid line read the recipe's area box (agent 14's
+    review: wrong for 181 of 185 presets)."""
     from workflow.layout_engine import geometry, instruments, papers
     from workflow.layout_engine.presets import LayoutRecipe
     rec = LayoutRecipe.from_dict(dict(recipe))
     kw = rec.build_kwargs()
-    npat = patch_count(chart)
+    npat = int(npat)
     if npat < 1:
         raise ValueError("no patches")
     kw.setdefault("side_stamp", True)
@@ -346,11 +348,28 @@ def _predicted_grid(chart: Path, recipe: dict) -> dict:
         on_page = min(per_page, remaining) if per_page else remaining
         strips.append((on_page + steps - 1) // steps)
         remaining -= on_page
+    return steps, strips, lay.total_patches
+
+
+def _predicted_grid(chart: Path, recipe: dict) -> dict:
+    """The page grid the layout engine will give *chart* under *recipe*.
+
+    The same chokepoint Create Chart's own capacity estimate goes through
+    (`instruments.geom_from_build_kwargs` then `geometry.compute`), and the
+    same per-page strip count `ti2_writer` writes into ``PASSES_IN_STRIPS2``.
+    `side_stamp` is left at `build_chart`'s own default, which is the app's.
+    `tests/test_evenness_across_the_sheet.py` builds real presets and holds
+    this prediction to the ``.ti2`` the build wrote.
+    """
+    from workflow.layout_engine.presets import LayoutRecipe
+    rec = LayoutRecipe.from_dict(dict(recipe))
+    npat = patch_count(chart)
+    steps, strips, total = predicted_strips(recipe, npat)
     # #182 E2: each page's coverage, from the same geometry widened the way
     # "Measured from Preview" widens a built chart's.
     from workflow.page_coverage import predicted_page_coverage
     cov = predicted_page_coverage(rec, npat)
-    grid = MR.evenness_grid_from_layout(strips, steps, lay.total_patches,
+    grid = MR.evenness_grid_from_layout(strips, steps, total,
                                         coverage=cov["pages"])
     grid["coverage_source"] = cov["source"]
     return grid

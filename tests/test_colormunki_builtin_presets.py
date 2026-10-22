@@ -231,7 +231,11 @@ def test_tooltip_describes_the_sheet_not_a_scanner():
     p = next(x for x in CM if x.slug.startswith("cm_a4_204p"))
     tip = TabChart._knut_tooltip(p.key)
     assert "204-patch" in tip and "ColorMunki" in tip
-    assert "17 patches across × 12 strips down" in tip
+    # The grid the engine really lays out (agent 14's review, 4.3.10): the
+    # recipe's area box (17 across x 12 down) read as "17 patches across x
+    # 12 strips down", which was the wrong way round.
+    assert "On the sheet: 17 strips of 12 patches each." in tip
+    assert "strips down" not in tip
     assert "ruler" in tip
     # These are read with a spectrophotometer — the scanner family's wording
     # ("scan it on a flatbed scanner") must not leak into them.

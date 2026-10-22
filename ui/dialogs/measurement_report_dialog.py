@@ -17825,13 +17825,25 @@ class MeasurementReportDialog(QDialog):
             return ""
         out = []
         for s in found:
-            msg = (M.M_REPORT_STRIP_SHIFTED_LATE
-                   if int(s.get("offset", 1) or 1) > 0
-                   else M.M_REPORT_STRIP_SHIFTED_EARLY)
+            if s.get("reversed"):
+                msg = M.M_REPORT_STRIP_REVERSED
+            else:
+                msg = (M.M_REPORT_STRIP_SHIFTED_LATE
+                       if int(s.get("offset", 1) or 1) > 0
+                       else M.M_REPORT_STRIP_SHIFTED_EARLY)
+            # ΔE00 over exactly the run's patches (agent 14's review). A
+            # finding without them came from a build before 4.3.10 shipped
+            # (never released); its CIE76 figures cannot be called ΔE00.
+            if s.get("base_de00") is None or s.get("shifted_de00") is None:
+                continue
             title, body = msg.render(
-                strip=str(s.get("strip", "?")), first=str(s.get("first", "?")),
-                last=str(s.get("last", "?")),
-                base=_fmt(s.get("base_de")), best=_fmt(s.get("shifted_de")))
+                strip=str(s.get("strip", "?")),
+                first=str(s.get("run_first") or s.get("first", "?")),
+                last=str(s.get("run_last") or s.get("last", "?")),
+                lead_line=M.slip_lead_line(s.get("lead"),
+                                           bool(s.get("lead_paper"))),
+                base=M.slip_de_text(s.get("base_de00")),
+                best=M.slip_de_text(s.get("shifted_de00")))
             if dated:
                 title = tr("Measurement of {date}: {finding}").format(
                     date=str(r.get("created") or ""), finding=title)

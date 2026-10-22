@@ -124,6 +124,10 @@ AWAITING_APPROVAL: "set[str]" = {
     # about while measuring and named in the report. Proposed 2026-10-22.
     "M-STRIP-PART-SLIPPED-LATE", "M-STRIP-PART-SLIPPED-EARLY",
     "M-REPORT-STRIP-SHIFTED-LATE", "M-REPORT-STRIP-SHIFTED-EARLY",
+    # Agent 14's review, approved by Basti 2026-10-22: the whole strip, and a
+    # strip filed back to front (the wording waits here).
+    "M-STRIP-WHOLE-SLIPPED-LATE", "M-STRIP-WHOLE-SLIPPED-EARLY",
+    "M-STRIP-REVERSED", "M-REPORT-STRIP-REVERSED",
     # Basti's rulings of 2026-10-21 (4.3.8 beta 4): "I read strip B" gives the
     # strip back its earlier reading, and a build from a partial measurement
     # asks first

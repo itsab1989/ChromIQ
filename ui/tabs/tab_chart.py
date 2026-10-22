@@ -99,6 +99,10 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+#: {built-in preset key: (patches in a strip, [strips on each page])}, for
+#: the presets' tooltip grid line (`TabChart._preset_grid_line`).
+_PRESET_GRID_CACHE: dict = {}
+
 #: "Stamp settings down the right edge" on a target with nothing stored and
 #: no saved defaults: OFF (Knut, #182 6045500910, answer 3: "Yes, stamp
 #: default OFF, and all stored built-in presets shall default have stamp
@@ -13278,6 +13282,46 @@ class TabChart(QWidget):
                                       PREBUILT_PRESET_NOTES.get(key, ""))
 
     @staticmethod
+    def _preset_grid_line(p) -> str:
+        """The tooltip's grid line for an engine-built preset *p*: how many
+        patches a strip holds and how many strips a sheet holds, as the
+        layout engine lays the preset's own patch set out
+        (`preset_eligibility.predicted_strips`, the arithmetic the evenness
+        rows use and `tests/test_evenness_across_the_sheet.py` holds to real
+        builds). It used to print the recipe's area box ("area_cols patches
+        across x area_rows strips down"), which is the box the engine fills,
+        not the strips it makes: wrong for 181 of 185 built-ins (the 300-patch
+        card has 10 strips of 15 patches) and for every hexagonal layout
+        (agent 14's review). "" when the layout cannot be worked out: a
+        wrong number is worse than none. Worked out once per preset (the
+        list's tooltips are built for every preset at once)."""
+        key = getattr(p, "key", None)
+        if key in _PRESET_GRID_CACHE:
+            steps, per_page = _PRESET_GRID_CACHE[key]
+        else:
+            try:
+                from workflow.preset_eligibility import predicted_strips
+                steps, per_page, _total = predicted_strips(
+                    dict(p.layout_recipe), int(p.patches))
+            except Exception:  # noqa: BLE001 - a tooltip line, never a failure
+                log.debug("no grid line for %s", key, exc_info=True)
+                steps, per_page = 0, []
+            _PRESET_GRID_CACHE[key] = (steps, per_page)
+        if not per_page or steps < 1:
+            return ""
+        strips = per_page[0]
+        one_page = len(per_page) == 1
+        if strips == 1:
+            t = (tr("On the sheet: 1 strip of {n} patches.") if one_page
+                 else tr("On each full sheet: 1 strip of {n} patches."))
+        else:
+            t = (tr("On the sheet: {strips} strips of {n} patches each.")
+                 if one_page else
+                 tr("On each full sheet: {strips} strips of {n} patches "
+                    "each."))
+        return "\n" + t.format(strips=strips, n=steps)
+
+    @staticmethod
     def _knut_tooltip(key: str) -> str:
         """Tooltip for a ti1 → printtarg built-in preset (TC9.18 or Full layout setup)."""
         p = KNUT_PRESETS_BY_KEY[key]
@@ -13308,15 +13352,31 @@ class TabChart(QWidget):
             # label, whose keys are stored settings and must not be renamed.
             instr = (p.group
                      or _MARGIN_INSTR_LABEL.get(p.instrument, p.instrument))
-            grid = ""
-            if rec.get("area_cols") and rec.get("area_rows"):
-                grid = (f"\n{rec['area_cols']} patches across × "
-                        f"{rec['area_rows']} strips down per sheet.")
             width = _WIDTH_TOKEN_RE.search(p.name)
+            paper = rec.get("paper", p.paper)
+            one_page = int(p.pages) == 1
+            if width:
+                head = (tr("A ready-made {patches}-patch target for the "
+                           "{instr} on {paper}, 1 page, {width} patches.")
+                        if one_page else
+                        tr("A ready-made {patches}-patch target for the "
+                           "{instr} on {paper}, {pages} pages, {width} "
+                           "patches."))
+            else:
+                head = (tr("A ready-made {patches}-patch target for the "
+                           "{instr} on {paper}, 1 page.")
+                        if one_page else
+                        tr("A ready-made {patches}-patch target for the "
+                           "{instr} on {paper}, {pages} pages."))
+            head = head.format(patches=p.patches, instr=instr, paper=paper,
+                               pages=p.pages,
+                               width=width.group(0)[2:] if width else "")
+            grid = TabChart._preset_grid_line(p)
             ruler = ""
             if rec.get("helper_markers"):
-                ruler = ("\nThe small helper marks along the edges let you line "
-                         "a ruler up with the strip\nyou are reading.")
+                ruler = "\n" + tr(
+                    "The small helper marks along the edges let you line "
+                    "a ruler up with the strip\nyou are reading.")
             # This family prints a wide empty band down one side — the run-up the
             # instrument needs before it reaches the first patch. Say so, or it
             # reads as wasted paper.
@@ -13329,23 +13389,23 @@ class TabChart(QWidget):
             # a CR30 owner something untrue about their own instrument.
             if rec.get("clip_border") and rec.get("clip_content_mode") == "notes":
                 if p.group == _CR30_GROUP:
-                    ruler += ("\nThe wide band down the side carries the chart's "
-                              "details. It is printed\nupside down so it reads "
-                              "the right way up when you turn the sheet.")
+                    ruler += "\n" + tr(
+                        "The wide band down the side carries the chart's "
+                        "details. It is printed\nupside down so it reads "
+                        "the right way up when you turn the sheet.")
                 else:
-                    ruler += ("\nThe wide white band down the side is the run-up your "
-                              "instrument needs before\nthe first patch; the chart's "
-                              "details are printed in it.")
+                    ruler += "\n" + tr(
+                        "The wide white band down the side is the run-up "
+                        "your instrument needs before\nthe first patch; the "
+                        "chart's details are printed in it.")
+            # Agent 14's review (approved by Basti, 2026-10-22): translated,
+            # no em dash, and the grid line from the real layout.
             return (
-                "Built-in chart — cannot be deleted.\n"
-                f"A ready-made {p.patches}-patch target for the {instr} on "
-                f"{rec.get('paper', p.paper)}, {p.pages} "
-                f"{'page' if p.pages == 1 else 'pages'}"
-                + (f", {width.group(0)[2:]} patches" if width else "") + "."
-                + grid + ruler +
-                "\nPicking it asks for a name and builds the chart right away. "
-                "The colours stay\nfixed, but every layout setting can be "
-                "changed and the chart regenerated."
+                tr("Built-in chart, it cannot be deleted.") + "\n"
+                + head + grid + ruler + "\n"
+                + tr("Picking it asks for a name and builds the chart right "
+                     "away. The colours stay\nfixed, but every layout "
+                     "setting can be changed and the chart regenerated.")
             )
         instr = "i1Pro" if p.instrument == _KNUT_I1 else "ColorMunki (double density)"
         family = ("TC9.18 + Spyderprint-greys" if p.suffix == KNUT_SUFFIX
