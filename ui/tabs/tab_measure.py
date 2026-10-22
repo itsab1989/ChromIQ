@@ -5618,7 +5618,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 found.append(plain) if not found else found.insert(0, plain)
             return found[-1] if found else None
 
-        refine_file = (_newest_refine(reports_subdir(self._ti1_path.parent))
+        refine_file = None
+        if has_ti3 and self._is_verification_run():
+            # A DATED VERIFICATION KEEPS ITS LIST IN ITS OWN reports/ (Check &
+            # Refine in Run type Verification, Basti 2026-10-22): the chart
+            # is shared by every date at the verifications/ root, but the
+            # strips worth re-reading belong to one date's measurement.
+            from workflow.run_compliance import reports_dir_for
+            refine_file = _newest_refine(reports_dir_for(ti3))
+        refine_file = (refine_file
+                       or _newest_refine(reports_subdir(self._ti1_path.parent))
                        or _newest_refine(self._ti1_path.parent))
         if refine_file is not None and refine_file.exists():
             self._refine_strips_path = refine_file
@@ -7348,6 +7357,72 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.debug("could not tell whether this is a refinement",
                       exc_info=True)
             return False
+
+    def _show_verification_reread_done(self) -> None:
+        """"Re-measurement Complete" after the guide re-read strips of a
+        dated verification (M-REFINE-VERIFY-DONE). Finish saves it in its
+        dated folder; Continue Measuring Manually hands the keyboard back, as
+        after a profiling refinement."""
+        import html as _html
+        import re
+        from PyQt6.QtWidgets import QHBoxLayout, QPushButton
+        from workflow import measurement_messages as M
+        dlg = QDialog(self)
+        dlg.setMinimumWidth(560)
+        dlg.setWindowTitle(tr("Re-measurement Complete"))
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        n = len(self._strip_list)
+        opening = (tr("<b>The chart strip has been re-measured "
+                      "successfully.</b>") if n == 1 else
+                   tr("<b>All {n} chart strips have been re-measured "
+                      "successfully.</b>").format(n=n))
+        pl = getattr(self, "_guided_patch_list", None) or []
+        if pl:
+            opening = (tr("<b>The patch has been re-measured "
+                          "successfully.</b>") if len(pl) == 1 else
+                       tr("<b>All {n} patches have been re-measured "
+                          "successfully.</b>").format(n=len(pl)))
+        finish_label = tr("Finish")
+        cont_label = tr("Continue Measuring Manually")
+        check = re.sub(r"^\s*\d+\s*[.)]\s*", "",
+                       tr("5. Check & Refine")).strip() or tr("Check & Refine")
+        title, body = M.M_REFINE_VERIFY_DONE.render(
+            check_tab=check, analyse=tr("Analyse Profile Quality"),
+            finish=finish_label, cont=cont_label)
+        msg = QLabel(opening + "<br><br><b>" + _html.escape(title) + "</b><br>"
+                     + _html.escape(body).replace("\n", "<br>"), dlg)
+        msg.setWordWrap(True)
+        lay.addWidget(msg)
+        summary = self._completion_summary()
+        if summary:
+            sum_lbl = QLabel(self._summary_html(summary), dlg)
+            sum_lbl.setTextFormat(Qt.TextFormat.RichText)
+            sum_lbl.setWordWrap(True)
+            sum_lbl.setStyleSheet("color: #909090; font-size: 11px;")
+            lay.addWidget(sum_lbl)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        cont = QPushButton(cont_label, dlg)
+        cont.clicked.connect(dlg.reject)
+        finish = QPushButton(finish_label, dlg)
+        finish.setObjectName("primary")
+        finish.setDefault(True)
+        finish.setAutoDefault(True)
+        finish.clicked.connect(dlg.accept)
+        row.addWidget(cont)
+        row.addWidget(finish)
+        lay.addLayout(row)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._manager.send_key("d")
+            self._arm_key_watchdog()
+        else:
+            self._guided_refinement_active = False
+            self._guided_patch_list = []
+            self._manager.set_guided_strips([])
+            QApplication.instance().installEventFilter(self)
 
     def _refine_rebuild_texts(self) -> "tuple[str, str]":
         """M-REFINE-REBUILD, with the two tabs named as the tab strip names
@@ -12179,6 +12254,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 self._arm_key_watchdog()
             else:
                 QApplication.instance().installEventFilter(self)
+            return
+
+        # GUIDED RE-READING OF A VERIFICATION (Check & Refine in Run type
+        # Verification, Basti 2026-10-22): the strips went back into the dated
+        # verification, which builds no profile, so this window says so and
+        # offers Finish, never "Go to Build Profile" (M-REFINE-VERIFY-DONE).
+        if self._verify_run and not is_cal and self._guided_refinement_active:
+            self._show_verification_reread_done()
             return
 
         # Measurement averaging (docs/dev_averaging.md): for a normal read (not a

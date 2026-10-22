@@ -302,6 +302,40 @@ _OBSERVERS = [
 ]
 
 
+def _verification_of(ti3: "Path | None"):
+    """The dated `Verification` *ti3* is the measurement of, or None."""
+    if ti3 is None:
+        return None
+    try:
+        from workflow.run_compliance import run_context_for
+        ctx = run_context_for(Path(ti3))
+        return ctx.verification if ctx is not None else None
+    except Exception:      # noqa: BLE001
+        return None
+
+
+def _run_and_date(verification) -> dict:
+    """{run} and {date} of M-CR-VERIFICATION-BY-HAND, as the bar shows them
+    ("Run 1", "2026-10-22 19:30")."""
+    from core.measurement_target import pretty_verification_date
+    rid = verification.run.id
+    n = rid[3:] if rid.startswith("run") else rid
+    return {"run": tr("Run {n}").format(n=n),
+            "date": pretty_verification_date(verification.id),
+            "resume": tr("Refine / resume existing measurement (-r)")}
+
+
+def _inside(path: Path, project) -> bool:
+    """Is *path* inside *project*'s folder?"""
+    if project is None:
+        return False
+    try:
+        Path(path).resolve().relative_to(Path(project.root).resolve())
+        return True
+    except (ValueError, OSError, AttributeError):
+        return False
+
+
 class TabCheckRefine(QWidget):
     """Step 5: check an ICC profile against .ti3 data and guide strip re-measurement."""
 
@@ -1494,13 +1528,17 @@ class TabCheckRefine(QWidget):
         try:
             from core.measurement_target import resolve_run
             proj = ctl.project_or_none()
-            # PROFILING RUNS ONLY. A verification's measurement lives in a
-            # dated folder and a CALIBRATION's lives in `cal/`, so for either
-            # of those `resolve_run(...).measurement_ti3` is the run's
-            # profiling measurement: a real file, belonging to something the
-            # bar is not pointing at. Build Profile's own follow guards only
-            # the first of the two; offering the wrong file is worse than
-            # offering none, so this guards both.
+            if proj is not None and ctl.target.is_verification():
+                self._follow_the_verification(ctl)
+                return
+            # PROFILING RUNS ONLY here. A verification's measurement lives in
+            # a dated folder (followed above, Basti's ruling of 2026-10-22)
+            # and a CALIBRATION's lives in `cal/`, so for either of those
+            # `resolve_run(...).measurement_ti3` is the run's profiling
+            # measurement: a real file, belonging to something the bar is not
+            # pointing at. A calibration makes a .cal, not a profile, so there
+            # is nothing here to follow it with (tool_availability.md: "a
+            # calibration has no profile to check"); the tab stays as it is.
             if (proj is None or ctl.target.is_verification()
                     or ctl.target.is_calibration()):
                 return
@@ -1520,6 +1558,70 @@ class TabCheckRefine(QWidget):
         except Exception:      # noqa: BLE001 - never break a selection change
             log.warning("Could not follow the bar in Check & Refine",
                         exc_info=True)
+
+    def _follow_the_verification(self, ctl) -> None:
+        """Run type Verification (Knut's report, Basti's ruling 2026-10-22):
+        show the dated verification measurement the bar selects and the
+        profile it was checked against (the run's own, `built_profile_icc`,
+        the one the Measure tab predicts a verification sheet with).
+
+        A date without a measurement yet ("New verification") offers nothing,
+        and then takes away any measurement of this project the tab still
+        holds (the profiling run's, or another date's): that file belongs to
+        something the bar is not pointing at, and analysing it under
+        Verification is what Knut was handed. A file from outside the
+        project, browsed or checked in place, is left alone."""
+        v = ctl.selected_verification()
+        ti3 = v.measurement_ti3 if v is not None else None
+        if ti3 is None or not ti3.is_file():
+            held = self._ti3_path
+            if (held is not None and not self._checking_in_place
+                    and _inside(held, ctl.project_or_none())):
+                self.clear_files()
+                log.info("Check & Refine: Verification without a measurement "
+                         "selected; the profiling files are no longer offered")
+            return
+        if ti3 == self._ti3_path:
+            return
+        self._checking_in_place = False
+        self._ti3_path = ti3
+        self._ti3_edit.setText(str(ti3))
+        self._auto_fill_icc(ti3, quiet=True)
+        self._update_run_btn()
+        self._detect_instrument(ti3)
+        log.info("Check & Refine: verification follows the bar -> %s", ti3)
+
+    def _can_point_the_bar_at(self, verification) -> bool:
+        """Can the Measure tab be pointed at *verification* safely? Only when
+        it belongs to the project that is open: the bar can then select its
+        run, Run type Verification and its date. A verification of another
+        project, or one checked where it lies, gets the plain explanation
+        (M-CR-VERIFICATION-BY-HAND) instead of a guide."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or self._checking_in_place:
+            return False
+        try:
+            proj = ctl.project_or_none()
+            if proj is None or not _inside(verification.dir, proj):
+                return False
+            return proj.has_run(verification.run.id)
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _point_the_bar_at(self, verification) -> None:
+        """Select *verification*'s run, Run type Verification and its date."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        from core.measurement_target import RUN_TYPE_VERIFICATION
+        ctl.set_profile_run(verification.run.id)
+        ctl.set_run_type(RUN_TYPE_VERIFICATION)
+        ctl.set_verification_id(verification.id)
+
+    def _is_verification_check(self) -> bool:
+        """Is the loaded measurement a dated verification? Asked of the FILE,
+        so a verification browsed to under any Run type is framed as one."""
+        return _verification_of(self._ti3_path) is not None
 
     def _on_browse_ti3(self) -> None:
         path = open_file_dialog(
@@ -1658,10 +1760,20 @@ class TabCheckRefine(QWidget):
         thrown at somebody who merely opened a project is not an answer.
         """
         candidates: list[Path] = []
-        run = Run.for_dir(ti3.parent)
-        if run.merged_icc.exists():
-            candidates.append(run.merged_icc)
-        candidates += [ti3.with_suffix(ext) for ext in (".icc", ".icm")]
+        ver = _verification_of(ti3)
+        if ver is not None:
+            # A DATED VERIFICATION HAS NO PROFILE BESIDE IT (Knut's report,
+            # Basti 2026-10-22): it checks the run's own profile, two folders
+            # up, the one its sheet was predicted with.
+            try:
+                candidates.append(Path(ver.run.built_profile_icc()))
+            except Exception:      # noqa: BLE001 - then nothing is offered
+                log.debug("no run profile for %s", ti3, exc_info=True)
+        else:
+            run = Run.for_dir(ti3.parent)
+            if run.merged_icc.exists():
+                candidates.append(run.merged_icc)
+            candidates += [ti3.with_suffix(ext) for ext in (".icc", ".icm")]
         for candidate in candidates:
             if candidate.exists():
                 self._icc_path = candidate
@@ -1838,7 +1950,8 @@ class TabCheckRefine(QWidget):
                 else:
                     from workflow.run_compliance import reports_dir_for
                     folder = ensure_subdir(reports_dir_for(self._ti3_path))
-                summary_text = self._report_summary_text(result, plan)
+                summary_text = self._report_summary_text(
+                    result, plan, _verification_of(self._ti3_path))
 
                 report_path = write_quality_report(folder, stem, summary_text, result.raw_log)
                 self._log.appendPlainText(
@@ -1886,8 +1999,17 @@ class TabCheckRefine(QWidget):
                          getattr(self, "_last_de_formula", "-k"))
         # The chart's own labels (#182 5965589190): a chart numbered by strip
         # is grouped and ordered by ITS strips, not by the letters in "12C".
-        from workflow.layout_engine.labels import labels_for_measurement
+        from workflow.layout_engine.labels import (labels_for_chart,
+                                                   labels_for_measurement)
         labels = labels_for_measurement(self._ti3_path)
+        if self._is_verification_check():
+            # A dated verification holds only its .ti3: its chart is the
+            # date's own copy or the shared verification chart, found as the
+            # Measurement Report finds it.
+            from workflow.measurement_report import _find_reference_ti2
+            chart = _find_reference_ti2(self._ti3_path)
+            if chart.is_file():
+                labels = labels_for_chart(chart)
         plan = build_plan(parse_patches(result.raw_log, result.patch_errors,
                                         labels),
                           threshold, de, labels)
@@ -1903,7 +2025,8 @@ class TabCheckRefine(QWidget):
         return plan
 
     @staticmethod
-    def _report_summary_text(result, plan: RefinePlan) -> str:
+    def _report_summary_text(result, plan: RefinePlan,
+                             verification=None) -> str:
         """The readable top of the saved Quality_Check .txt report.
 
         SAYS WHAT THE WINDOW SAYS (Knut, #182 5963903650, item 7): the same
@@ -1915,6 +2038,12 @@ class TabCheckRefine(QWidget):
         t = plan_text(plan, result.avg_de, result.peak_de)
         parts = [tr("Profile Quality Assessment: {grade}").format(
             grade=grade_display(grade))]
+        if verification:
+            # What the window says first, it says here too (item 7 above).
+            from workflow import measurement_messages as mm
+            vt, vb = mm.M_CR_VERIFICATION_BY_HAND.render(
+                **_run_and_date(verification))
+            parts.append(vt + "\n" + vb.split("\n\n")[0])
         parts.append("\n".join(x for x in (t.numbers, t.over) if x))
         parts.append(quality_explanation_body(result.avg_de, result.peak_de,
                                               plan.de_name))
@@ -1953,9 +2082,17 @@ class TabCheckRefine(QWidget):
         """
         grade = quality_grade(result.avg_de, result.peak_de)
         t = plan_text(plan, result.avg_de, result.peak_de)
+        # A DATED VERIFICATION (Knut's report, Basti 2026-10-22): the window
+        # judges the profile against an independent print and offers only
+        # what fits one. Asked of the file, never of the bar alone.
+        verification = _verification_of(self._ti3_path)
+        guide_here = (verification is not None
+                      and self._can_point_the_bar_at(verification))
 
         dlg = QDialog(self)
-        dlg.setWindowTitle(tr("Profile Quality Assessment"))
+        dlg.setWindowTitle(
+            tr("Profile Check Against a Verification Print")
+            if verification is not None else tr("Profile Quality Assessment"))
 
         layout = QVBoxLayout(dlg)
         layout.setSpacing(14)
@@ -1988,6 +2125,23 @@ class TabCheckRefine(QWidget):
             nums_lbl = QLabel(nums, dlg)
             nums_lbl.setWordWrap(True)
             layout.addWidget(nums_lbl)
+
+        if verification is not None:
+            from workflow import measurement_messages as mm
+            if guide_here:
+                vt, vb = mm.M_CR_VERIFICATION.render(
+                    guide=tr("Guide Me Through Re-reading These Strips"))
+            else:
+                vt, vb = mm.M_CR_VERIFICATION_BY_HAND.render(
+                    **_run_and_date(verification))
+            if not plan.offered:
+                # Nothing to re-read: the first paragraph alone.
+                vb = vb.split("\n\n")[0]
+            ver_lbl = QLabel(f"<b>{_html.escape(vt)}</b><br>"
+                             + _html.escape(vb).replace("\n", "<br>"), dlg)
+            ver_lbl.setObjectName("cr_verification_note")
+            ver_lbl.setWordWrap(True)
+            body_lay.addWidget(ver_lbl)
 
         # The grade's sentence; "Re-measuring the flagged strips can help"
         # stays (Knut, 5963360295).
@@ -2060,7 +2214,7 @@ class TabCheckRefine(QWidget):
 
         # Pre-conditioning, as what targen -c does: patches spread evenly by
         # how colours look, not aimed at the colours that measured badly.
-        if self._icc_path:
+        if self._icc_path and verification is None:
             from workflow import measurement_messages as mm
             precond_desc = QLabel(tr(mm._CR_PRECOND), dlg)
             precond_desc.setWordWrap(True)
@@ -2074,7 +2228,10 @@ class TabCheckRefine(QWidget):
         scanner_run = None
         scanner_cb = None
         try:
-            if self._ti3_path is not None:
+            # Not for a verification: the recognition files belong to the
+            # profiling chart, and a dated folder is no run (Run.for_dir would
+            # bind to it all the same).
+            if self._ti3_path is not None and verification is None:
                 candidate = Run.for_dir(self._ti3_path.parent)
                 if has_scanner_geometry(candidate.chart_channels_json):
                     scanner_run = candidate
@@ -2139,19 +2296,27 @@ class TabCheckRefine(QWidget):
         confirm_btn.clicked.connect(_on_confirm)
         close_btn = confirm_btn
 
+        # A verification is checked, not built from: installing its profile
+        # and starting a new chart from it belong to the profiling run
+        # (Basti, 2026-10-22).
         install_btn: QPushButton | None = None
-        if self._icc_path:
+        if self._icc_path and verification is None:
             install_label = _install_labels.get(grade, tr("Install Profile Anyway"))
             install_btn = QPushButton(install_label, dlg)
 
         precond_btn: QPushButton | None = None
-        if self._icc_path:
+        if self._icc_path and verification is None:
             precond_btn = QPushButton(tr("← Use as Pre-conditioning"), dlg)
 
         guide_btn: QPushButton | None = None
         # Offered whenever a patch is above the limit, start over advised or
         # not (Knut, #182 5963903650 Q2).
-        if strips_file and plan.offered and self._ti3_path:
+        if verification is not None:
+            if strips_file and plan.offered and guide_here:
+                guide_btn = QPushButton(
+                    "← " + tr("Guide Me Through Re-reading These Strips"), dlg)
+                guide_btn.setObjectName("primary")
+        elif strips_file and plan.offered and self._ti3_path:
             # The ← matches "← Use as Pre-conditioning" beside it: both leave
             # this tab leftwards (Measure and Create Chart), and the arrow
             # rule puts it on the side the button points (Sebastian,
@@ -2205,6 +2370,10 @@ class TabCheckRefine(QWidget):
                     except OSError as exc:
                         log.warning("could not rewrite %s: %s", strips_file, exc)
                 dlg.accept()
+                if verification is not None:
+                    # The Measure tab re-reads whatever the bar selects, so
+                    # the bar is pointed at THIS verification first.
+                    self._point_the_bar_at(verification)
                 self.guide_refinement_requested.emit(ti3, chosen)
 
             guide_btn.clicked.connect(_on_guide)

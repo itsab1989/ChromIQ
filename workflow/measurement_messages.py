@@ -2894,6 +2894,56 @@ M_CR_PRECONDITIONING = _m(
     _CR_PRECOND,
     approved=False)
 
+# --- PROPOSED: Check & Refine on a verification measurement (4.3.10) -------
+#: Knut's report, Basti's ruling of 2026-10-22: in Run type Verification the
+#: tab checks the run's profile against the dated verification measurement.
+#: That is a check against an independent print, not against the profile's
+#: own build data, so the result window says so first, and it offers only
+#: what fits a verification: no pre-conditioning, no install, and "Guide me"
+#: re-reads strips of the VERIFICATION. {guide} is that button's label.
+M_CR_VERIFICATION = _m(
+    "M-CR-VERIFICATION",
+    "Checked against a verification print",
+    "This check compares the profile with a verification measurement: a "
+    "chart that was printed and measured after the profile was built, so the "
+    "profile has never seen these readings. For every patch, the check takes "
+    "the RGB values that were sent to the printer, works out through the "
+    "profile the colour they should give, and compares it with the colour "
+    "that was measured. So the figures show how well the profile describes "
+    "your printer and paper on the day of this print, not how closely it "
+    "fits the data it was built from. They are usually somewhat higher than "
+    "a check of the profiling measurement.\n\n"
+    "{guide}: takes you to the Measure tab with this verification selected "
+    "and guides you through re-reading the strips listed here. The new "
+    "readings replace the old ones of those strips in this verification "
+    "measurement, so you can run the check again afterwards. The profile "
+    "itself is not changed, and nothing is added to the profiling run.",
+    approved=False)
+
+#: The same window when the verification cannot be re-read from here: it
+#: belongs to no project that is open (browsed to, or checked in place), so
+#: the Measure tab cannot be pointed at it safely. {run} and {date} name it,
+#: {resume} is the Measure tab's "Refine / resume" box, as it is labelled.
+M_CR_VERIFICATION_BY_HAND = _m(
+    "M-CR-VERIFICATION-BY-HAND",
+    "Checked against a verification print",
+    "This check compares the profile with a verification measurement: a "
+    "chart that was printed and measured after the profile was built, so the "
+    "profile has never seen these readings. For every patch, the check takes "
+    "the RGB values that were sent to the printer, works out through the "
+    "profile the colour they should give, and compares it with the colour "
+    "that was measured. So the figures show how well the profile describes "
+    "your printer and paper on the day of this print, not how closely it "
+    "fits the data it was built from. They are usually somewhat higher than "
+    "a check of the profiling measurement.\n\n"
+    "To re-read the strips listed here, open the project this verification "
+    "belongs to and choose {run}, Run type Verification and the date {date} "
+    "in the bar above the tabs. Then tick \u201c{resume}\u201d on the Measure "
+    "tab, start the measurement and read those strips again. The profile "
+    "itself is not changed.",
+    approved=False)
+
+
 # --- PROPOSED: after a read, the next strip/patch is not the unread one ---
 #: Knut, #182 5958921500, Q2, and the text is his: *"If strips still unread,
 #: then re-reading a read strip should not jump to next unread, but instead ask
@@ -6671,6 +6721,31 @@ M_REFINE_REBUILD = _m(
     approved=False)
 
 
+#: The same moment on a VERIFICATION (Check & Refine in Run type
+#: Verification, Basti 2026-10-22): the guide re-read strips of a dated
+#: verification, which builds no profile, so M-REFINE-REBUILD's "build the
+#: profile again" and the "Go to Build Profile" button are wrong there. Shown
+#: in the "Re-measurement Complete" window under its opening line. {check_tab}
+#: names the tab, {analyse} its button, {finish} and {cont} this window's two
+#: buttons.
+M_REFINE_VERIFY_DONE = _m(
+    "M-REFINE-VERIFY-DONE",
+    "Your verification measurement is up to date",
+    "The strips you read again replace their old readings in this "
+    "verification measurement, in its own dated folder. The profile is not "
+    "changed: a verification only checks it.\n\n"
+    "To see the new figures, press \u201c{analyse}\u201d on the {check_tab} "
+    "tab again once you have finished, or open the Measurement Report for "
+    "this date.\n\n"
+    "{finish}: saves the verification measurement and ends the measuring "
+    "session.\n"
+    "{cont}: keeps the measurement running so you can read more strips "
+    "yourself. You have full manual control: f and b move between strips, n "
+    "jumps to the next unread one, and d ends the session. The automatic "
+    "strip navigation is switched off for the rest of this session.",
+    approved=False)
+
+
 # --- PROPOSED: the Strip Read Failed window, one text per error (B1/M1) -----
 #: Basti, 2026-10-21 (forum 149774, agent 1's M1 analysis): every strip
 #: misread used to get the same advice, "scan more slowly and steadily, or
@@ -7140,6 +7215,7 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_READ_TWICE, M_STRIP_READ_TWICE_EARLIER,
     M_BUILD_INCOMPLETE, M_BUILD_INCOMPLETE_CAL,
     M_CR_STRIPS, M_CR_START_OVER, M_CR_PRECONDITIONING,
+    M_CR_VERIFICATION, M_CR_VERIFICATION_BY_HAND, M_REFINE_VERIFY_DONE,
     M_ENGINE_FELL_BACK,
     M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,
     M_CHART_LEGACY_STOCK, M_CHART_LEGACY_ENDED,

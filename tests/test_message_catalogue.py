@@ -128,6 +128,9 @@ AWAITING_APPROVAL: "set[str]" = {
     # strip filed back to front (the wording waits here).
     "M-STRIP-WHOLE-SLIPPED-LATE", "M-STRIP-WHOLE-SLIPPED-EARLY",
     "M-STRIP-REVERSED", "M-REPORT-STRIP-REVERSED",
+    # Knut's report, Basti's ruling of 2026-10-22: Check & Refine on a dated
+    # verification (the wording waits here).
+    "M-CR-VERIFICATION", "M-CR-VERIFICATION-BY-HAND", "M-REFINE-VERIFY-DONE",
     # Basti's rulings of 2026-10-21 (4.3.8 beta 4): "I read strip B" gives the
     # strip back its earlier reading, and a build from a partial measurement
     # asks first
