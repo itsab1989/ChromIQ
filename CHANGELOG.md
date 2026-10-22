@@ -1,5 +1,22 @@
 # Changelog
 
+## v4.3.10-beta.1
+
+**A strip that was read partly one patch out of place, or filed back to front, is now caught while you measure and named in the Measurement Report, Check & Refine works properly on a verification, and Knut's 300-patch photo card is a built-in preset.**
+
+### Added
+- **Create Chart: Knut's 300-patch chart for 10 × 15 cm photo paper as a built-in preset** (forum post 149787), under "More presets". Like the other built-ins it carries a certificate that shows which metrics a verification with it can give.
+- **A warning when part of a strip was read one patch out of place** (forum post 149786). Sometimes the instrument counts one patch too many near the start of a strip and gets back in step further along, so only some of the readings land under the wrong patches. ChromIQ now notices this right after the strip, names the patches, and offers to read the strip again. The Measurement Report names such a strip as well. (New texts, shown and waiting for approval.)
+- **A warning when a strip was probably filed back to front,** with its own question and its own paragraph in the Measurement Report. (New texts, shown and waiting for approval.)
+
+### Changed
+- **Check & Refine in Run type Verification checks the profile against the verification measurement** (Knut). The fields are filled with the selected dated verification and the run's own profile. The result window explains that this is a check against an independent print, and offers only what fits a verification: no pre-conditioning and no install. "Guide Me Through Re-reading These Strips" re-reads the flagged strips into the same dated verification, and the report is saved in that date's own reports folder. Check & Refine for profiling is unchanged. (New texts, shown and waiting for approval.)
+- **On charts made with "Preserve Patch Order",** a strip has to be clearly out of place before ChromIQ asks, because neighbouring patches there are very alike. Measured on about 200,000 simulated strips: no false warnings.
+- **The Create Chart presets' tooltip shows the real layout** of each built-in chart (for example "10 strips of 15 patches"), in your language. Before, it was wrong for almost every built-in chart.
+
+### Fixed
+- **Re-reading a verification walked through every strip** instead of only the ones the check listed, and the window afterwards offered to build a profile. It now goes to the listed strips only and offers Finish.
+
 ## v4.3.9
 
 **For everyone updating from 4.3.8: the gamut comparison shows a smaller gamut inside a larger one, the instrument's "ready" beep is no longer swallowed by a sleeping USB speaker, and the patch set editor makes much better CMYK and multi-ink charts.**
