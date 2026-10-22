@@ -361,6 +361,10 @@ class MeasureManager(QObject):
     unexpected_response     = pyqtSignal(str)       # carries the DeltaE value string
     # #50 safety net: (strip, offset, base_de_str, best_de_str)
     strip_misaligned        = pyqtSignal(str, int, str, str)
+    # Forum post 149786: part of a strip read one patch out, the rest in step,
+    # which the engine's whole-strip net cannot see (workflow/slipped_strip).
+    # (strip, offset, first_loc, last_loc, base_de_str, shifted_de_str)
+    strip_partly_misaligned = pyqtSignal(str, int, str, str, str, str)
     sensor_wrong_position   = pyqtSignal()          # emitted when instrument is in calibration position during scan
     usb_claimed_by_vm       = pyqtSignal()          # emitted when USB device is held exclusively by a VM
 
@@ -693,6 +697,11 @@ class MeasureManager(QObject):
             repair_embedded_cal(params.ti1_path.with_suffix(".ti3"),
                                 params.ti1_path.with_suffix(".ti2"))
         self._is_resume      = params.resume
+        #: "Warn me if a strip looks misaligned" (#50, on by default since
+        #: #210): the engine's whole-strip net is passed --safenet below, and
+        #: the part-of-a-strip check in `_check_part_of_strip_slipped` asks
+        #: the same switch (forum post 149786).
+        self._safenet_on     = bool(getattr(params, "engine_safenet", False))
         self._read_something = False
         self._readings_count = 0
         #: patch-by-patch (spot) reading, which answers keys differently — see
@@ -1883,6 +1892,66 @@ class MeasureManager(QObject):
         return {k: [v for _p, v in sorted(vs, key=lambda t: t[0])]
                 for k, vs in out.items()}
 
+    def set_expected_for_slip_check(self, fn) -> None:
+        """*fn* maps the engine's strip patches to the same patches with the
+        expected colours the Measure tab judges against (its
+        `_with_expected`), for `_check_part_of_strip_slipped`. None: the
+        engine's own."""
+        self._expected_for_slip_check = fn
+
+    def _check_part_of_strip_slipped(self, ev: dict, patches):
+        """Forum post 149786: a run of this strip's readings is shifted by one
+        patch while the rest is in step (the reader started on the paper and
+        fell back into step where it missed a boundary). The engine's net only
+        tries the whole strip, so it cannot see this; `workflow.slipped_strip`
+        tries runs of neighbouring patches with the net's own thresholds.
+
+        Only with "Warn me if a strip looks misaligned" on, and only when the
+        engine's net said nothing about this strip. Marks the event
+        ``misaligned`` (so the strip's readings confirm nothing, #210) and
+        returns the arguments of `strip_partly_misaligned`, or None."""
+        if not getattr(self, "_safenet_on", False):
+            return None
+        try:
+            if int(ev.get("misaligned", 0) or 0) != 0:
+                return None
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(patches, list):
+            return None
+        # THE EXPECTED COLOURS THE PREVIEW JUDGES WITH. On a verification
+        # sheet ChromIQ printed, those are the run profile's prediction
+        # (`workflow.verify_expected`), and the engine's own are the chart's
+        # design colours, which a real print misses by 20 to 50 ΔE: measured
+        # on screen with jctay's chart rebuilt, his strip-36 slip fitted its
+        # neighbours' design colours at 37 ΔE (the net's bar is 35) and went
+        # unseen; against the prediction it fits at 0.2. The tab hands its
+        # `_with_expected` over (`set_expected_for_slip_check`).
+        adapt = getattr(self, "_expected_for_slip_check", None)
+        if adapt is not None:
+            try:
+                patches = adapt(patches)
+            except Exception:      # noqa: BLE001 - the engine's own then
+                log.debug("expected colours for the slip check failed",
+                          exc_info=True)
+        from workflow.slipped_strip import slipped_run_in_strip_read
+        run = slipped_run_in_strip_read(patches)
+        if run is None:
+            return None
+        locs = [str(p.get("loc") or "?") for p in patches]
+        first, last = locs[run.first], locs[run.last]
+        ev["misaligned"] = run.offset
+        ev["slipped_run"] = {"first": first, "last": last,
+                             "offset": run.offset}
+        strip = str(ev.get("strip", "?")).strip().upper()
+        log.warning("strip %s: patches %s to %s look read one patch %s "
+                    "(mean dE %.1f as read, %.1f shifted); the rest of the "
+                    "strip is in step", strip, first, last,
+                    "late" if run.offset > 0 else "early",
+                    run.base_de, run.shifted_de)
+        return (strip, run.offset, first, last, f"{run.base_de:.1f}",
+                f"{run.shifted_de:.1f}")
+
     def _check_read_twice(self, strip: str, patches) -> "object | None":
         """Compare the strip just read with the strips already measured.
 
@@ -2867,8 +2936,14 @@ class MeasureManager(QObject):
             if _s:
                 self._had_valid_reading[_s] = self._strip_has_valid_reading(_s)
             self._mark_read(_locs)
+            # Before the emit, so the judge already knows this reading must
+            # not confirm anything (#210), exactly as for a strip the engine's
+            # own net flagged.
+            _part = self._check_part_of_strip_slipped(ev, _patches)
             _twice = self._check_read_twice(_s, _patches)
             self.strip_measured.emit(ev)
+            if _part is not None:
+                self.strip_partly_misaligned.emit(*_part)
             if _twice is not None:
                 self.strip_read_twice.emit(_twice.strip, _twice.like)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
@@ -3177,7 +3252,7 @@ class MeasureManager(QObject):
             # the user interrupted a strip themselves — that has its own window.
             self.strip_interrupted.emit()
 
-        elif kind == "strip_misaligned":            # #50 safety net (opt-in)
+        elif kind == "strip_misaligned":            # #50 safety net (on by default)
             self.strip_misaligned.emit(
                 str(ev.get("strip", "?")).upper(),
                 int(ev.get("offset", 0)),

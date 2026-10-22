@@ -1761,6 +1761,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._manager.wrong_strip.connect(self._on_wrong_strip)
         self._manager.unexpected_response.connect(self._on_unexpected_response)
         self._manager.strip_misaligned.connect(self._on_strip_misaligned)
+        self._manager.strip_partly_misaligned.connect(
+            self._on_strip_partly_misaligned)
+        # ...judged with the expected colours this tab judges with (the
+        # profile's prediction on a verification ChromIQ printed). A bound
+        # method, never a lambda (CLAUDE.md).
+        self._manager.set_expected_for_slip_check(self._with_expected)
         self._manager.sensor_wrong_position.connect(self._on_sensor_wrong_position)
         self._manager.usb_claimed_by_vm.connect(self._on_usb_claimed_by_vm)
         # A. Mid-measurement recovery dialogs
@@ -9010,6 +9016,41 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         ).format(strip=strip, patches=patches, base=base_de, best=best_de,
                  remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
                  stop=tr("Stop")), dlg)
+        choice = self._misaligned_strip_buttons(dlg, layout, msg)
+        self._exec_measurement_window(dlg)
+        self._after_misaligned_strip_choice(choice[0], strip)
+
+    def _on_strip_partly_misaligned(self, strip: str, offset: int,
+                                    first: str, last: str,
+                                    base_de: str, best_de: str) -> None:
+        """Forum post 149786: PART of a strip read one patch out of place and
+        the rest in step, which the engine's whole-strip net cannot see
+        (`MeasureManager._check_part_of_strip_slipped`). The same question as
+        `_on_strip_misaligned`, naming the patches.
+        M-STRIP-PART-SLIPPED-LATE / -EARLY, proposed."""
+        self._cue_window("STRIP_FAIL")
+        from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("Strip may be misaligned"))
+        dlg.setMinimumWidth(540)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 20, 24, 20)
+        from workflow import measurement_messages as M
+        message = (M.M_STRIP_PART_SLIPPED_LATE if int(offset) > 0
+                   else M.M_STRIP_PART_SLIPPED_EARLY)
+        msg = QLabel(_catalogue_html(*message.render(
+            strip=strip, first=first, last=last, base=base_de, best=best_de,
+            remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
+            stop=tr("Stop"))), dlg)
+        choice = self._misaligned_strip_buttons(dlg, layout, msg)
+        self._exec_measurement_window(dlg)
+        self._after_misaligned_strip_choice(choice[0], strip)
+
+    def _misaligned_strip_buttons(self, dlg, layout, msg) -> list:
+        """The message and buttons shared by both misaligned-strip questions.
+        Returns the one-item list the pressed button's answer lands in."""
+        from PyQt6.QtWidgets import QHBoxLayout, QPushButton
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
@@ -9037,10 +9078,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.addLayout(row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        self._exec_measurement_window(dlg)
-        if choice[0] == "remeasure":
+        return choice
+
+    def _after_misaligned_strip_choice(self, choice: str, strip: str) -> None:
+        """Re-measure jumps back to *strip*, Stop stops, Keep it keeps."""
+        if choice == "remeasure":
             self._manager.goto_strip(strip)     # re-read this strip next
-        elif choice[0] == "stop":
+        elif choice == "stop":
             self._on_stop()
 
     def _flash_status(self, text: str, duration_ms: int = 8000) -> None:

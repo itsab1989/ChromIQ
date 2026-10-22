@@ -120,6 +120,10 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # Forum post 149786 (4.3.10): part of a strip read one patch out, warned
+    # about while measuring and named in the report. Proposed 2026-10-22.
+    "M-STRIP-PART-SLIPPED-LATE", "M-STRIP-PART-SLIPPED-EARLY",
+    "M-REPORT-STRIP-SHIFTED-LATE", "M-REPORT-STRIP-SHIFTED-EARLY",
     # Basti's rulings of 2026-10-21 (4.3.8 beta 4): "I read strip B" gives the
     # strip back its earlier reading, and a build from a partial measurement
     # asks first

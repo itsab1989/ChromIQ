@@ -16137,6 +16137,10 @@ class MeasurementReportDialog(QDialog):
                      drift_judged=not any(_is_raw_drift(r) for r in runs)
                      or any(self._drift_judges(r) for r in runs)),
                  self._report_results_html(runs, _present)]
+        # Forum post 149786: a strip that slipped is named under the verdicts
+        # too, because it is what moved them.
+        parts.extend(self._shifted_strips_html(r, dated=len(runs) > 1)
+                     for r in runs)
         if for_pdf and charts_html:
             parts.append(
                 _h2(tr("Trend over time"), page_break=True) + _gap()
@@ -17751,6 +17755,10 @@ class MeasurementReportDialog(QDialog):
                          + "".join(crows) + "</table>")
 
         worst = r.get("worst_patches") or []
+        # Forum post 149786: a strip read one patch out puts its patches at
+        # the top of the Worst patches table with their neighbours' colours.
+        # Said right above the table, so the table explains itself.
+        parts.append(self._shifted_strips_html(r))
         if worst:
             # Two 8-row halves side by side in one 9-column table (empty middle
             # column) — same columns, half the height (Knut).
@@ -17803,6 +17811,35 @@ class MeasurementReportDialog(QDialog):
                          + "".join(rows) + "</table>")
 
         return "<div>" + "".join(parts) + "</div>"
+
+    def _shifted_strips_html(self, r: dict, *, dated: bool = False) -> str:
+        """M-REPORT-STRIP-SHIFTED-LATE / -EARLY for every strip of measurement
+        *r* whose readings look shifted by one patch (`report["shifted_strips"]`,
+        `workflow.slipped_strip`), or "" when there is none. *dated* names the
+        measurement, for the Report Results section of a report that covers
+        several."""
+        from workflow import measurement_messages as M
+        found = [s for s in (r.get("shifted_strips") or [])
+                 if isinstance(s, dict)]
+        if not found:
+            return ""
+        out = []
+        for s in found:
+            msg = (M.M_REPORT_STRIP_SHIFTED_LATE
+                   if int(s.get("offset", 1) or 1) > 0
+                   else M.M_REPORT_STRIP_SHIFTED_EARLY)
+            title, body = msg.render(
+                strip=str(s.get("strip", "?")), first=str(s.get("first", "?")),
+                last=str(s.get("last", "?")),
+                base=_fmt(s.get("base_de")), best=_fmt(s.get("shifted_de")))
+            if dated:
+                title = tr("Measurement of {date}: {finding}").format(
+                    date=str(r.get("created") or ""), finding=title)
+            out.append(
+                f"<div style='border-left:3px solid {_C['fail']};"
+                f"padding:4px 0 4px 8px;margin:8px 0'>"
+                f"<b>{html.escape(title)}</b><br>{html.escape(body)}</div>")
+        return "".join(out)
 
     def _detailed_section_html(self, runs: list) -> str:
         """The opt-in 'Detailed data per measurement run' section: each run on its

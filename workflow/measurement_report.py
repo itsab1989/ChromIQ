@@ -2122,6 +2122,31 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                 "expected_lab": [round(v, 2) for v in ref[data.sample_ids[i]]],
                 "measured_lab": [round(v, 2) for v in lab[i]],
             } for de, i in worst]
+            # Forum post 149786: a strip whose readings slipped by one patch
+            # puts its patches at the top of this table with the colours of
+            # their neighbours. Say which strip, so the table explains itself
+            # (`workflow.slipped_strip`); only when there is one.
+            try:
+                from workflow.layout_engine.labels import (
+                    labels_for_chart, labels_for_measurement)
+                _cl = (labels_for_chart(ref_ti2) if ref_ti2.is_file()
+                       else labels_for_measurement(ti3_path))
+                from workflow.slipped_strip import shifted_strips
+                _locs = list(data.sample_locs or [])
+                if _locs:
+                    # THE CORNERS TOO: a slip runs through them like any
+                    # other patch (jctay's 36H, rebuilt on screen, was one,
+                    # and leaving it out cut the run at 36G). Their
+                    # reference is what the chart expects of that patch,
+                    # which is all the comparison asks.
+                    _exp = [(tuple(ref[sid]) if sid in ref else None)
+                            for sid in data.sample_ids]
+                    _shift = shifted_strips(_locs, [tuple(v) for v in lab],
+                                            _exp, _cl)
+                    if _shift:
+                        report["shifted_strips"] = _shift
+            except Exception as exc:      # noqa: BLE001 — degrade, never fail
+                log.debug("shifted-strip check skipped: %s", exc)
 
             # #182 T1, Knut 2026-09-11: *"The 16 colors must just be
             # distributed and represent the profile tested … all the colors

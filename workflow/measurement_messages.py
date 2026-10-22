@@ -6862,7 +6862,97 @@ STRIP_FAILED_ADVICE = {
 STRIP_FAILED_MESSAGES = (*STRIP_FAILED_ADVICE.values(), M_STRIP_FAILED_BUTTON)
 
 
+# --- PROPOSED: part of a strip read one patch out (forum post 149786) -------
+#: jctay's i1Pro 3 read strip 36 of a 585-patch verification chart with
+#: patches 36A to 36H one patch late (36A read the paper) and the rest of the
+#: strip in step again. The engine's whole-strip net cannot see that;
+#: `workflow.slipped_strip` can. LATE: each reading has the colour of the
+#: patch before it; EARLY: of the patch after it. Shown by the Measure tab
+#: right after the strip is read, with the Re-measure / Keep it / Stop
+#: buttons of the "Strip may be misaligned" window.
+M_STRIP_PART_SLIPPED_LATE = _m(
+    "M-STRIP-PART-SLIPPED-LATE",
+    "Part of strip {strip} was probably read one patch out of place",
+    "Patches {first} to {last} of strip {strip} came out with the colours of "
+    "the patches just before them on the chart, not with their own. As read, "
+    "they miss their own colours by {base} ΔE on average. Compared with the "
+    "patch before each of them, they differ by only {best} ΔE. The rest of "
+    "the strip was read correctly.\n\n"
+    "This usually happens when the instrument takes the white paper in front "
+    "of the first patch for a patch, and later, further along the strip, "
+    "misses the change from one patch to the next. From there on its readings "
+    "are in step again, so only the patches in between are filed one place "
+    "too far along.\n\n"
+    "Readings filed under the wrong patch would make the profile, or a "
+    "verification report, wrong for those colours, so this strip should be "
+    "read again. Nothing else is affected: your other strips and everything "
+    "read so far are saved.\n\n"
+    "{remeasure}: go back to strip {strip} and read it again (recommended). "
+    "Put the instrument down on the white paper before the first patch, and "
+    "if it gives a short beep when it is ready, wait for it. Then move in one "
+    "smooth movement at an even speed until it is on the white paper after "
+    "the last patch.\n"
+    "{keep}: keep this reading as it is.\n"
+    "{stop}: stop measuring for now.",
+    approved=False)
+
+M_STRIP_PART_SLIPPED_EARLY = _m(
+    "M-STRIP-PART-SLIPPED-EARLY",
+    "Part of strip {strip} was probably read one patch out of place",
+    "Patches {first} to {last} of strip {strip} came out with the colours of "
+    "the patches just after them on the chart, not with their own. As read, "
+    "they miss their own colours by {base} ΔE on average. Compared with the "
+    "patch after each of them, they differ by only {best} ΔE. The rest of "
+    "the strip was read correctly.\n\n"
+    "This usually happens when the instrument misses the change from one "
+    "patch to the next, and later, further along the strip, counts a mark or "
+    "the white paper as a patch of its own. From there on its readings are in "
+    "step again, so only the patches in between are filed one place too "
+    "early.\n\n"
+    "Readings filed under the wrong patch would make the profile, or a "
+    "verification report, wrong for those colours, so this strip should be "
+    "read again. Nothing else is affected: your other strips and everything "
+    "read so far are saved.\n\n"
+    "{remeasure}: go back to strip {strip} and read it again (recommended). "
+    "Put the instrument down on the white paper before the first patch, and "
+    "if it gives a short beep when it is ready, wait for it. Then move in one "
+    "smooth movement at an even speed until it is on the white paper after "
+    "the last patch.\n"
+    "{keep}: keep this reading as it is.\n"
+    "{stop}: stop measuring for now.",
+    approved=False)
+
+#: The same finding in the Measurement Report, beside its Worst patches table
+#: and under its Report Results, one paragraph per strip
+#: (`report["shifted_strips"]`).
+M_REPORT_STRIP_SHIFTED_LATE = _m(
+    "M-REPORT-STRIP-SHIFTED-LATE",
+    "Strip {strip} looks shifted by one patch",
+    "The readings of patches {first} to {last} match the expected colours of "
+    "the patches just before them on the chart far better than their own "
+    "({best} ΔE against {base} ΔE on average). The instrument probably "
+    "slipped by one patch while this strip was read, so these readings were "
+    "filed under the wrong patches. Their large ΔE values come from that, not "
+    "from the printer or the profile, and they pull the figures of this "
+    "measurement up. Read strip {strip} again and make the report again.",
+    approved=False)
+
+M_REPORT_STRIP_SHIFTED_EARLY = _m(
+    "M-REPORT-STRIP-SHIFTED-EARLY",
+    "Strip {strip} looks shifted by one patch",
+    "The readings of patches {first} to {last} match the expected colours of "
+    "the patches just after them on the chart far better than their own "
+    "({best} ΔE against {base} ΔE on average). The instrument probably "
+    "slipped by one patch while this strip was read, so these readings were "
+    "filed under the wrong patches. Their large ΔE values come from that, not "
+    "from the printer or the profile, and they pull the figures of this "
+    "measurement up. Read strip {strip} again and make the report again.",
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
+    M_STRIP_PART_SLIPPED_LATE, M_STRIP_PART_SLIPPED_EARLY,
+    M_REPORT_STRIP_SHIFTED_LATE, M_REPORT_STRIP_SHIFTED_EARLY,
     M_LIMIT_RECOMMENDED,
     M_CAL_FOUND_ENGINE,
     M_REPORT_CHART_MISMATCH, M_REPORT_CHART_MISMATCH_LAYOUT,

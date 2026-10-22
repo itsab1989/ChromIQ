@@ -10210,3 +10210,15 @@ mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-02_beta3/U_impl_qc5/`.
 
 * The mock-up's help quoted the Print Chart radio buttons as “Raw, no profile” and “Raw, already converted”; the app's buttons read “Raw — no profile” and “Raw — already converted”, and a quoted control must read as the control does (`tests/test_a_quoted_control_names_the_control_the_reader_has.py`), so the help quotes them exactly. Renaming the buttons was not asked.
 * **Tests:** `tests/test_b17_presets_window_names_own_colours.py`.
+
+## 60. A strip read one patch out of place is named in the report (forum post 149786, 4.3.10)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+* **60.1 The case.** jctay's verification report (forum post 149786; Knut, 149787: *"in Worst Patches the Expected and Measured patches don't match"*) listed 36A to 36H as its eight worst patches, ΔE00 17 to 66 where every other patch of the chart was 5.5 or less. Sampled from his screenshot, the MEASURED swatch of each of 36B to 36H is the EXPECTED swatch of the patch before it (screen sRGB distance 0.9 to 3.3, against 19 to 76 to its own), and 36A's is the paper white. The report showed the truth: the strip's readings had slipped by one patch while measuring. The table pairs every patch's expected and measured colour by the patch's own sample ID (`build_report`: `ref[sample_id]` and `data.xyz[i]` of the same `i`), so it is not a display fault; but the report did not say what had happened.
+* **60.2 What the report says now.** `build_report` writes `report["shifted_strips"]` (`workflow/slipped_strip.shifted_strips`): every strip whose patches, in strip order (the chart's own labels, `labels_for_chart`), hold a run of at least 4 neighbouring readings that fit their neighbours' REFERENCE colours far better than their own, with the thresholds of the measuring-time check (UMM, "part of a strip read one patch out is flagged too"). The cube corners take part like every other patch (a slip runs through them; on screen, jctay's chart rebuilt, leaving them out cut his run at 36G where 36H is a corner). Nothing is written when no strip qualifies.
+* **60.3 Where.** One paragraph per such strip, M-REPORT-STRIP-SHIFTED-LATE or -EARLY (proposed), directly above the measurement's Worst patches table, and again under Report Results (headed with the measurement's date when the report covers several). No verdict, metric or limit changes: the slipped readings stay in every figure, and the paragraph says that they pull them up.
+* **60.4 Measured** on Basti's ET-8550 verification (`tests/data/g_basti_et8550_run1_verify`): as read, nothing is named; with strip K's first 8 patches slipped one late, strip K is named, K1 to K8, 59.5 ΔE as read against 3.5 shifted.
+* **Tests:** `tests/test_149786_part_of_a_strip_slipped.py`.
