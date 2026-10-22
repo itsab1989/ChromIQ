@@ -759,7 +759,7 @@ def test_tooltip_describes_an_engine_chart_on_the_card_it_is_cut_for():
     assert "cannot be deleted" in tip
     assert "600-patch" in tip and "i1Pro" in tip
     assert "100x150" in tip and "4 pages" in tip
-    assert "7.5mm patches" in tip
+    assert "7.5\u00a0mm patches" in tip   # the unit spaced off (agent 17)
     assert "helper marks" in tip
     # It IS a strip reader, so the run-up wording is the right one here.
     assert "run-up" in tip
