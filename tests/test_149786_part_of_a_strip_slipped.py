@@ -444,3 +444,32 @@ def test_the_session_judges_with_the_tabs_expected_colours(qapp):
 def test_the_measure_tab_hands_its_expected_colours_over():
     src = (ROOT / "ui/tabs/tab_measure.py").read_text(encoding="utf-8")
     assert "self._manager.set_expected_for_slip_check(self._with_expected)" in src
+
+
+def test_a_run_that_is_the_whole_strip_asks_the_whole_strip_question(qapp):
+    """Agent 14 review: when the engine's net misses a WHOLE-strip slip (it
+    judges with the design colours; a verification is judged against the
+    profile's prediction), the run check finds every patch of the strip. The
+    part-of-a-strip question would then say "The rest of the strip was read
+    correctly", which is untrue: there is no rest. Such a finding asks the
+    whole-strip question (`strip_misaligned`) instead, and still marks the
+    strip as slipped for #210."""
+    from test_knut_5956210745_next_strip_after_a_read import _feed
+    m = _manager()
+    m._safenet_on = True
+    strip = _strips()["K"]
+    meas = [mx for _l, mx, _e in strip]
+    whole = [_paper()] + meas[:-1]          # every reading one patch late
+    part, whole_q, judged = [], [], []
+    m.strip_partly_misaligned.connect(lambda *a: part.append(a))
+    m.strip_misaligned.connect(lambda *a: whole_q.append(a))
+    m.strip_measured.connect(lambda ev: judged.append(int(ev["misaligned"])))
+    _feed(m, _event("K", strip, whole))
+    assert part == [], "a whole-strip slip must not claim the rest was right"
+    assert len(whole_q) == 1 and whole_q[0][:2] == ("K", 1)
+    assert float(whole_q[0][3]) < float(whole_q[0][2])
+    assert judged == [1]
+    # ...and a slip that heals half way still asks the part-of-a-strip one
+    part.clear(), whole_q.clear()
+    _feed(m, _event("K", strip, _slip(strip, 8)))
+    assert len(part) == 1 and whole_q == []

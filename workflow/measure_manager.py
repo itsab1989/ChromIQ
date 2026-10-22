@@ -2943,7 +2943,19 @@ class MeasureManager(QObject):
             _twice = self._check_read_twice(_s, _patches)
             self.strip_measured.emit(ev)
             if _part is not None:
-                self.strip_partly_misaligned.emit(*_part)
+                # A RUN THAT IS THE WHOLE STRIP is the engine net's finding,
+                # missed only because the net judged with the design colours
+                # (a verification judged against the profile's prediction).
+                # The part-of-a-strip question says "the rest of the strip was
+                # read correctly", which is then untrue: ask the whole-strip
+                # question instead (agent 14 review, 4.3.10).
+                _pl = [str(p.get("loc") or "?") for p in _patches
+                       if isinstance(p, dict)]
+                if _pl and (_part[2], _part[3]) == (_pl[0], _pl[-1]):
+                    self.strip_misaligned.emit(_part[0], _part[1],
+                                               _part[4], _part[5])
+                else:
+                    self.strip_partly_misaligned.emit(*_part)
             if _twice is not None:
                 self.strip_read_twice.emit(_twice.strip, _twice.like)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
