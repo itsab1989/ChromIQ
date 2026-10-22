@@ -13368,9 +13368,18 @@ class TabChart(QWidget):
                         if one_page else
                         tr("A ready-made {patches}-patch target for the "
                            "{instr} on {paper}, {pages} pages."))
+            # The width as a reader of the tooltip's language writes it: a
+            # decimal comma where the language has one ("18,0 mm" in German)
+            # and a space before the unit, which stays on the number's line.
+            # The preset's NAME keeps "-w18.0mm"; that is an identifier.
+            if width:
+                from workflow.measurement_messages import locale_decimal
+                width_text = (locale_decimal(width.group(0)[2:-2])
+                              + "\u00a0mm")
+            else:
+                width_text = ""
             head = head.format(patches=p.patches, instr=instr, paper=paper,
-                               pages=p.pages,
-                               width=width.group(0)[2:] if width else "")
+                               pages=p.pages, width=width_text)
             grid = TabChart._preset_grid_line(p)
             ruler = ""
             if rec.get("helper_markers"):
@@ -13401,7 +13410,7 @@ class TabChart(QWidget):
             # Agent 14's review (approved by Basti, 2026-10-22): translated,
             # no em dash, and the grid line from the real layout.
             return (
-                tr("Built-in chart, it cannot be deleted.") + "\n"
+                tr("Built-in chart: it cannot be deleted.") + "\n"
                 + head + grid + ruler + "\n"
                 + tr("Picking it asks for a name and builds the chart right "
                      "away. The colours stay\nfixed, but every layout "

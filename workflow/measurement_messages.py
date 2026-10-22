@@ -7008,6 +7008,14 @@ _DECIMAL_COMMA = frozenset({"de", "es", "fr", "it", "nl", "no", "pl", "pt",
                             "ru", "sv", "uk"})
 
 
+def locale_decimal(text: str) -> str:
+    """*text*, a number written with a decimal point ("18.0"), with the
+    decimal comma of the language the sentence is in ("18,0" in German)."""
+    from core.i18n import current_language
+    return (text.replace(".", ",") if current_language() in _DECIMAL_COMMA
+            else text)
+
+
 def slip_de_text(v) -> str:
     """{base}/{best} of the slip messages: a ΔE00 with one decimal, with the
     decimal comma of the language the sentence is in ("48,9" in German)."""
@@ -7015,8 +7023,7 @@ def slip_de_text(v) -> str:
         t = f"{float(v):.1f}"
     except (TypeError, ValueError):
         return "?"
-    from core.i18n import current_language
-    return t.replace(".", ",") if current_language() in _DECIMAL_COMMA else t
+    return locale_decimal(t)
 
 
 def _slip_tail() -> str:
