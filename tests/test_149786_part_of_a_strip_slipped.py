@@ -698,3 +698,21 @@ def test_a_big_slip_in_plain_order_is_still_found():
         r = find_slipped_run(slipped, e)
         found += bool(r and r.offset == 1 and not r.reversed)
     assert big >= 1 and found == big, (found, big)
+
+
+def test_a_strip_filed_back_to_front_does_not_claim_no_patch_kept_its_reading():
+    """Taken the other way round, the middle patch of a strip is compared with
+    itself, so it can keep its own reading: "none of the patches holds its own
+    reading" was untrue (the reviewer's finding, 4.3.10). Both texts say which
+    patches hold other patches' readings, and that the middle one may not."""
+    from workflow import measurement_messages as M
+    for msg in (M.M_STRIP_REVERSED, M.M_REPORT_STRIP_REVERSED):
+        assert "none of" not in msg.body.lower(), msg.id
+        assert "patches {first} to {last} hold the readings of other" \
+            in msg.body, msg.id
+        assert "Only a patch in the middle of the strip can still hold its " \
+            "own reading." in msg.body, msg.id
+        # the comparison is spelled out, not "the patches at those places"
+        assert "at those places" not in msg.body, msg.id
+        assert "compared with the expected colour of its last patch" \
+            in msg.body, msg.id
