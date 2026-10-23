@@ -123,6 +123,10 @@ whether the handler works.**
 | | Cancel | a bare `return` from `_on_start` | the measurement never starts | ✅ *(see note 5)* |
 | **The instrument stopped answering** (M-CR30-INSTRUMENT-GONE) | (three buttons) | `_end_session(choice)` | the ending | ✅ *(see note 6)* |
 | **Instrument disconnected** (the shared handler, every instrument) | (three buttons) | `_end_session(choice)` | the ending | ✅ *(see note 7)* |
+| **The pause between pages** (M-PAGE-PAUSE / -END; Preferences ▸ Measurement, off by default; ⏳ awaiting confirmation, **note 11**) | Continue with page N, Return, space, *the instrument's button* | `{"cmd":"goto","strip":T}` (T: the first strip to read on the next page) | the engine leaves its hold and arms T; nothing is read | ✅ not an exit |
+| | Continue (after the last strip of the chart) | `{"cmd":"resume"}` | the engine goes on as without the pause: "All Strips Read" (or "Some patches are still not read") comes next, and is where the measurement is finished | ✅ not an exit |
+| | Re-read strip X, a click on a strip in the preview, f / b / n | `{"cmd":"goto","strip":X}`, `forward`, `back`, `next_unread` | the engine moves from the strip just read; once the strip is read the pause comes back | ✅ not an exit |
+| | Stop (the tab's button), Esc | the single exit: **"Keep what you have measured so far?"** | Save and stop's first `q` ends the hold and is left for the strip menu, which answers it with the give-up prompt; the second `q` writes the `.ti3` (measured on the replay engine) | ✅ the ending |
 | **All Strips Read / All Patches Read** | Go to … Tab | `d` | "done" — chartread writes and exits normally; keeps the measurement and moves on | ✅ not a failure exit |
 | | Re-read … | — | the window closes; the session continues | ✅ |
 | | Close | — | raises **"Keep what you have measured so far?"** — the single exit | ✅ |
@@ -418,3 +422,42 @@ user does not have to reach for the computer between two swipes.
 * **Debounce.** A press within 0.3 s of the window opening is ignored: it is
   the press or release that ended the failed scan, not an answer.
 * The press plays no sound (`measurement_window_sounds.md` §4d).
+
+## Note 11 — the pause between pages, and how it meets the ending windows (4.3.10)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* (Asked for by
+jctay, forum 149802; Basti asked for it as an option on 2026-10-23, as a
+review moment also after the last strip of the chart, with a note that comes
+and goes, and with nothing extra when that note is switched off.)
+
+* **What holds.** With Preferences ▸ Measurement ▸ *"Pause after each page so
+  I can check it"* on, the manager asks the engine at every strip menu to hold
+  after that strip (`hold_after`). Once the strip is read and accepted, and the
+  engine's own questions about it answered, the engine does not arm the next
+  strip: it reports `held` and waits. The Measure tab then decides: a pause
+  when the next strip to read is on another page, or after the last strip of
+  the chart (or the read that completed it); otherwise it lets the engine go
+  at once (`resume`). A question the tab asks about the strip (*Strip may be
+  misaligned*, *Was a strip read twice?*, *Strip read quickly*) is answered
+  first; its "read it again" answer leaves the hold through the menu as always.
+* **The instrument's button cannot start a scan in the hold.** The switch gate
+  is open only there and at the misread prompt (note 10); a press is reported,
+  the driver counts a scan press only after a strip is armed
+  (i1pro_imp.c:2994), so the press that continues is never the press that
+  reads. A press within 0.3 s of the pause is ignored (the end of the scan).
+* **No second question at the end.** The pause after the last strip is not a
+  window and asks nothing: Continue lets the engine go on, and the window that
+  already finishes a measurement (*All Strips Read*, or *Some patches are still
+  not read*) comes next and keeps its own buttons. A re-read made from that
+  pause holds *All Strips Read* back until the pause's own Continue, so the
+  finishing window never opens over a strip being read again.
+* **The note.** *"Show a note when it pauses"* (on by default, greyed while the
+  pause is off and keeping its value) fades in a see-through note over the
+  lower part of the chart preview (the legend chip's look and fast fade), with
+  Continue and Re-read buttons and the page's strips worth a second look; it
+  fades out once there has been time to read it (8 to 30 s, scaled to its
+  words), at the first click elsewhere or key, or at the instrument's button. Switched off, the pause shows nothing on screen but a
+  line in the measurement log; Return, space and the button still continue.
+* **Where it never holds.** Patch by patch, guided re-measurement, whole-sheet
+  readers, the CR30's external values, stock ArgyllCMS chartread, and an engine
+  that does not announce `hold_after` in its session start.

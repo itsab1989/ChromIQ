@@ -3789,6 +3789,17 @@ class TiffPreview(QWidget):
         self._legend_geom = None        # the (ox, oy) that rect was drawn in
         self._legend_pointer = None     # last pointer position, label coords
         self._legend_hidden = False
+        #: Something else is shown over the preview and the chip makes way for
+        #: it (the Measure tab's pause note, Basti 2026-10-23: "both labels
+        #: should not get in each other's way"). Hidden by the same fade as
+        #: the hover, and back once it is cleared.
+        self._legend_suppressed = False
+        #: Preferences ▸ Measurement ▸ "Show the expected · measured label on
+        #: the chart preview" (Basti, 2026-10-23; on by default). Off, the chip
+        #: is neither drawn nor placed, so hovering does nothing there and the
+        #: pause note's give-way and come-back cannot bring it back. Only the
+        #: LABEL: how the patches are drawn ("Each patch shows") is unchanged.
+        self._legend_enabled = True
         #: 1.0 fully visible, 0.0 fully gone. Basti asked for a fade rather
         #: than a switch -- *"can be a really fast one just not this completely
         #: instant on off"* -- so the chip is drawn at this opacity and the
@@ -4585,6 +4596,30 @@ class TiffPreview(QWidget):
         from ui.theme import accent_for
         return QColor(accent_for(colour, self._mode))
 
+    def _scaled_page(self, w: int, h: int, dpr: float) -> QPixmap:
+        """The page scaled to *w* x *h* device pixels (aspect kept, smooth),
+        REUSED while neither the page nor the size changed.
+
+        A repaint that only changes what is drawn OVER the page (the legend
+        chip's fade, a hover outline) used to scale the whole TIFF again, with
+        smooth filtering, on every step: about 11 ms of a 16 ms frame on a
+        300 dpi card, measured on screen during the chip's fade (Basti,
+        2026-10-23: "the fade ... sometimes does not look smooth"). The
+        pixmap's cacheKey changes whenever its pixels do, so a new or
+        repainted page is always scaled afresh."""
+        key = (self._pixmap.cacheKey(), int(w), int(h), float(dpr))
+        if getattr(self, "_scaled_key", None) == key:
+            return self._scaled_cache
+        scaled = self._pixmap.scaled(
+            int(w), int(h),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        scaled.setDevicePixelRatio(dpr)
+        self._scaled_cache = scaled
+        self._scaled_key = key
+        return scaled
+
     def _repaint_label(self) -> None:
         if not self._pixmap:
             return
@@ -4621,12 +4656,7 @@ class TiffPreview(QWidget):
             max(1, int((label_size.width()  - 2 * B) * dpr)),
             max(1, int((label_size.height() - 2 * B - cap_h) * dpr)),
         )
-        scaled = self._pixmap.scaled(
-            avail,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        scaled.setDevicePixelRatio(dpr)
+        scaled = self._scaled_page(avail.width(), avail.height(), dpr)
 
         # Canvas at device pixel dimensions; DPR tells Qt the logical display size.
         # The caption band is ADDED here as well as taken out of the scaling
@@ -6267,10 +6297,12 @@ class TiffPreview(QWidget):
                 y1 = round((r.y() + r.height()) * sy + oy)
                 painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 
-        if not (items and self._pixmap is not None):
+        chip = bool(getattr(self, "_legend_enabled", True))
+        if not (items and self._pixmap is not None and chip):
             self._legend_rect = None
             self._legend_geom = None
-        if items and self._pixmap is not None:
+            self._legend_paint = None
+        if items and self._pixmap is not None and chip:
             # Legend chip — text reflects the current view (Knut). No split
             # wording unless the split is actually shown; in Measured view the
             # not-yet-read patches still show their expected colour, so say so.
@@ -6365,9 +6397,9 @@ class TiffPreview(QWidget):
     #: 80 the arrow, the paper and the patches all show through; the words do
     #: not depend on the panel any more, because each glyph carries its own
     #: dark outline.
-    _LEGEND_PANEL_ALPHA = 80
+    _LEGEND_PANEL_ALPHA = 80          # == ui.see_through.PANEL_ALPHA
     #: Width of that outline, logical px (half of it falls outside the glyph).
-    _LEGEND_TEXT_OUTLINE = 2.2
+    _LEGEND_TEXT_OUTLINE = 2.2        # == ui.see_through.TEXT_OUTLINE
 
     def _paint_legend_chip(self, painter: QPainter) -> None:
         """Paint the legend chip `_draw_cq_overlay` placed, if any.
@@ -6382,21 +6414,16 @@ class TiffPreview(QWidget):
         """
         geom = getattr(self, "_legend_paint", None)
         op = self._legend_opacity
-        if geom is None or op <= 0.01:
+        if geom is None or op <= 0.01 or not getattr(self, "_legend_enabled", True):
             return
         cx, cy, tw, th, txt = geom
-        from PyQt6.QtGui import QPen
+        # The look is `ui.see_through`'s, shared with the Measure tab's pause
+        # note (Basti, 2026-10-23), so the two cannot drift apart.
+        from ui import see_through
         painter.save()
-        painter.fillRect(cx, cy, tw, th,
-                         QColor(20, 20, 20, int(self._LEGEND_PANEL_ALPHA * op)))
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        path = QPainterPath()
-        path.addText(float(cx + 8), float(cy + th - 6), painter.font(), txt)
-        halo = QPen(QColor(20, 20, 20, int(220 * op)))
-        halo.setWidthF(self._LEGEND_TEXT_OUTLINE)
-        halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.strokePath(path, halo)
-        painter.fillPath(path, QColor(244, 242, 239, int(255 * op)))
+        see_through.paint_panel(painter, QRect(cx, cy, tw, th), op)
+        see_through.paint_halo_text_cached(painter, int(cx + 8), int(cy + th - 6),
+                                           painter.font(), txt, op)
         painter.restore()
 
     def _draw_margin_guides(
@@ -6629,10 +6656,8 @@ class TiffPreview(QWidget):
         bg = QColor(_PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)["img_bg"])
         canvas.fill(bg)
         painter = QPainter(canvas)
-        scaled = self._pixmap.scaled(
-            max(1, int(disp_w * dpr)), max(1, int(disp_h * dpr)),
-            Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-        scaled.setDevicePixelRatio(dpr)
+        scaled = self._scaled_page(max(1, int(disp_w * dpr)),
+                                   max(1, int(disp_h * dpr)), dpr)
         x = (W - disp_w) / 2 + self._pan.x()
         y = (H - disp_h) / 2 + self._pan.y()
         painter.fillRect(int(x - B), int(y - B), int(disp_w + 2 * B),
@@ -6691,6 +6716,8 @@ class TiffPreview(QWidget):
         painted in, translated to wherever the image sits now. Panning or
         resizing between paints therefore cannot strand it.
         """
+        if getattr(self, "_legend_suppressed", False):
+            return True
         if self._legend_rect is None or self._legend_pointer is None:
             return False
         if self._paint_geom is None or self._legend_geom is None:
@@ -6726,7 +6753,8 @@ class TiffPreview(QWidget):
 
     #: How long the chip takes to fade, in ms. Short on purpose: this is a
     #: control getting out of the way, not an effect. Long enough that the eye
-    #: reads it as movement rather than a blink.
+    #: reads it as movement rather than a blink. The fade itself is
+    #: `ui.fade.Fade`, shared with the Measure tab's pause note (2026-10-23).
     LEGEND_FADE_MS = 110
 
     def _start_legend_fade(self, target: float) -> None:
@@ -6737,35 +6765,23 @@ class TiffPreview(QWidget):
         the old one, and sweeping the pointer on and off across the chip's edge
         SEGFAULTED: the reversal happens inside the running animation's own
         callback chain, and tearing that object down from under itself takes
-        the process with it. Reusing one object cannot hit that, and it is also
-        what makes a reversal continue from where the fade had got to instead
-        of snapping to the far end.
+        the process with it. `ui.fade.Fade` keeps one, and it STOPS FIRST,
+        THEN DECIDES: a re-hide requested while a SHOW fade was just starting
+        (opacity ~0.005, target 0.0, "close enough") used to return without
+        stopping it, and that show fade carried on to 1.0 -- the chip then sat
+        fully drawn under the pointer with `_legend_hidden` already True.
         """
-        from PyQt6.QtCore import QEasingCurve, QVariantAnimation
-        # STOP FIRST, THEN DECIDE. The early return below used to come before
-        # this, so a re-hide requested while a SHOW fade was just starting
-        # (opacity ~0.005, target 0.0, "close enough") returned without
-        # stopping it -- and that show fade carried on to 1.0. The chip then
-        # sat fully drawn under the pointer with `_legend_hidden` already True,
-        # so no further move could produce a transition and wiggling on it did
-        # not recover it. Flick off the chip and straight back on and you had
-        # it, every time.
-        anim = self._legend_fade
-        if anim is not None:
-            anim.stop()
-        if abs(self._legend_opacity - target) < 0.01:
-            self._legend_opacity = float(target)   # settle exactly
-            self._repaint_label()
-            return
-        if anim is None:
-            anim = QVariantAnimation(self)
-            anim.setDuration(self.LEGEND_FADE_MS)
-            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-            anim.valueChanged.connect(self._on_legend_fade_step)
-            self._legend_fade = anim
-        anim.setStartValue(float(self._legend_opacity))
-        anim.setEndValue(float(target))
-        anim.start()
+        fader = getattr(self, "_legend_fader", None)
+        if fader is None:
+            if abs(self._legend_opacity - target) < 0.01:
+                self._legend_opacity = float(target)   # settle exactly
+                self._repaint_label()
+                return
+            from ui.fade import Fade
+            fader = Fade(self, self._on_legend_fade_step, self.LEGEND_FADE_MS)
+            self._legend_fader = fader
+            self._legend_fade = fader.animation
+        fader.run(self._legend_opacity, target)
 
     def _on_legend_fade_step(self, value) -> None:
         self._legend_opacity = float(value)
@@ -6787,9 +6803,50 @@ class TiffPreview(QWidget):
             self._legend_hidden = hidden
             self._start_legend_fade(0.0 if hidden else 1.0)
 
+    def set_legend_suppressed(self, on: bool) -> None:
+        """Make the chip give way to something shown over the preview (the
+        Measure tab's pause note), with its own fast fade, and bring it back
+        when that is gone. Coming back, the pointer still decides: a chip the
+        pointer sits on stays hidden until it leaves, as always."""
+        on = bool(on)
+        if on == getattr(self, "_legend_suppressed", False):
+            return
+        self._legend_suppressed = on
+        hidden = self._legend_is_hidden()
+        if hidden != self._legend_hidden:
+            self._legend_hidden = hidden
+            self._start_legend_fade(0.0 if hidden else 1.0)
+
+    def set_legend_enabled(self, on: bool) -> None:
+        """Show or leave out the expected · measured label (the chip) on this
+        preview, at once. Off: no label, no hover behaviour, and nothing that
+        fades the chip in (the pause note's come-back included) can show it.
+        Back on: it is drawn at full strength, unless the pointer sits on it
+        or the pause note is up, as always."""
+        on = bool(on)
+        if on == getattr(self, "_legend_enabled", True):
+            return
+        self._legend_enabled = on
+        if self._legend_fade is not None:
+            self._legend_fade.stop()
+        if on:
+            self._legend_hidden = bool(getattr(self, "_legend_suppressed", False))
+            self._legend_opacity = 0.0 if self._legend_hidden else 1.0
+        if self._pixmap is not None:
+            self._repaint_label()
+
+    def legend_enabled(self) -> bool:
+        return bool(getattr(self, "_legend_enabled", True))
+
+    def legend_suppressed(self) -> bool:
+        return bool(getattr(self, "_legend_suppressed", False))
+
     def _forget_legend_pointer(self) -> None:
-        """The pointer has gone; the chip comes back."""
+        """The pointer has gone; the chip comes back (unless something shown
+        over the preview still holds it away)."""
         self._legend_pointer = None
+        if getattr(self, "_legend_suppressed", False):
+            return
         if self._legend_hidden:
             self._legend_hidden = False
             self._start_legend_fade(1.0)
@@ -6804,8 +6861,10 @@ class TiffPreview(QWidget):
         if self._legend_fade is not None:
             self._legend_fade.stop()
         self._legend_pointer = None
-        self._legend_hidden = False
-        self._legend_opacity = 1.0
+        # held away by the pause note: it stays away while the tab is hidden
+        held = bool(getattr(self, "_legend_suppressed", False))
+        self._legend_hidden = held
+        self._legend_opacity = 0.0 if held else 1.0
         super().hideEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # type: ignore[override]

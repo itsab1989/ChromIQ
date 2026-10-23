@@ -120,6 +120,12 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # The pause between pages (jctay 149802, Basti 2026-10-23), 4.3.10.
+    "M-PAGE-PAUSE", "M-PAGE-PAUSE-END", "M-PAGE-PAUSE-OTHER-PAGES",
+    "M-PAGE-PAUSE-BUTTON", "M-PAGE-PAUSE-FOUND", "M-PAGE-PAUSE-CONTROLS",
+    "M-PAGE-PAUSE-HELP",
+    # A chart a little larger than its paper (jctay 149803, Basti 2026-10-23).
+    "M-PRINT-CHART-CUT", "M-PRINT-CHART-CUT-PARTS",
     # Forum post 149786 (4.3.10): part of a strip read one patch out, warned
     # about while measuring and named in the report. Proposed 2026-10-22.
     "M-STRIP-PART-SLIPPED-LATE", "M-STRIP-PART-SLIPPED-EARLY",
@@ -955,6 +961,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_unread_choice_window"),
     # #182 5963903650 Q5: "Was a strip read twice?"
     ("ui.tabs.tab_measure", "TabMeasure", "_strip_read_twice_window"),
+    # The pause between pages (jctay 149802, Basti 2026-10-23).
+    ("ui.tabs.tab_measure", "TabMeasure", "_page_pause_texts"),
     # The verification pre-flight (#182, Knut, 2026-09-21). Its frame is
     # M-VERIFY-PREFLIGHT; the metric list under it is the presets window's own
     # `summary_lines`, which is not prose this method writes.

@@ -3217,8 +3217,8 @@ a1log *log			/* verb, debug & error log */
 				if (hn != NULL && cq_hold_matches(hn)) {
 					char glab[16] = "";
 					int hk;
-					printf("\nPaused after strip %s: waiting before the next strip.\n", hn);
-					do_fflush();
+					/* No prose line: the GUI decides whether this is a pause
+					 * the user sees, and most holds are let go at once. */
 					cq_emit_raw("{\"event\":\"held\",\"strip\":\"%s\",\"button\":%s}",
 					            hn, cq_button_retry_ok(it, uswitch) ? "true" : "false");
 					cq_switch_gate_set(1);

@@ -4250,6 +4250,54 @@ class SettingsDialog(QDialog):
         # first on the tab, in its original order, before the pace text.
         v.addWidget(self._measure_engine_block)
 
+        # The pause between pages (jctay, forum 149802; Basti 2026-10-23).
+        self._page_pause_cb = QCheckBox(
+            tr("Pause after each page so I can check it"), self)
+        self._page_pause_cb.setChecked(
+            bool(self._settings.get("measure_page_pause", False)))
+        page_pause_tip = TooltipButton(
+            tr("Pause After Each Page"), page_pause_help(), self)
+        pp_row = QHBoxLayout()
+        pp_row.setContentsMargins(0, 0, 0, 0)
+        pp_row.addWidget(self._page_pause_cb)
+        pp_row.addStretch()
+        pp_row.addWidget(page_pause_tip)
+        v.addLayout(pp_row)
+        # ...and its note, a dependent option: indented under it, ON by
+        # default, greyed (keeping its value) while the pause is off (Basti,
+        # 2026-10-23).
+        self._page_pause_note_cb = QCheckBox(
+            tr("Show a note when it pauses"), self)
+        self._page_pause_note_cb.setChecked(
+            bool(self._settings.get("measure_page_pause_note", True)))
+        page_pause_note_tip = TooltipButton(
+            tr("Show a Note When It Pauses"), page_pause_note_help(), self)
+        ppn_row = QHBoxLayout()
+        ppn_row.setContentsMargins(28, 0, 0, 0)
+        ppn_row.addWidget(self._page_pause_note_cb)
+        ppn_row.addStretch()
+        ppn_row.addWidget(page_pause_note_tip)
+        v.addLayout(ppn_row)
+        self._page_pause_note_cb.setEnabled(self._page_pause_cb.isChecked())
+        self._page_pause_cb.toggled.connect(self._page_pause_note_cb.setEnabled)
+
+        # The expected · measured label on the chart preview (Basti,
+        # 2026-10-23: "add an option ... to show the measured vs expected
+        # overlay ... on by default"). The LABEL only: how each patch is drawn
+        # stays with the Measure tab's own "Each patch shows".
+        self._preview_legend_cb = QCheckBox(
+            tr("Show the “expected · measured” label on the chart preview"), self)
+        self._preview_legend_cb.setChecked(
+            bool(self._settings.get("measure_preview_legend", True)))
+        preview_legend_tip = TooltipButton(
+            tr("Expected · Measured Label"), preview_legend_help(), self)
+        pl_row = QHBoxLayout()
+        pl_row.setContentsMargins(0, 0, 0, 0)
+        pl_row.addWidget(self._preview_legend_cb)
+        pl_row.addStretch()
+        pl_row.addWidget(preview_legend_tip)
+        v.addLayout(pl_row)
+
         intro = QLabel(tr(
             "Reading a strip too quickly is the most common reason a scan is "
             "rejected — the instrument simply does not gather enough light per "
@@ -7085,6 +7133,13 @@ class SettingsDialog(QDialog):
         if hasattr(self, "_sound_warmup"):
             s.set("sound_warm_up_device", self._sound_warmup.isChecked())
         # Measurement pace (#131 Phase 2)
+        if hasattr(self, "_page_pause_cb"):
+            s.set("measure_page_pause", self._page_pause_cb.isChecked())
+        if hasattr(self, "_preview_legend_cb"):
+            s.set("measure_preview_legend", self._preview_legend_cb.isChecked())
+        if hasattr(self, "_page_pause_note_cb"):
+            # stored whether greyed or not: greyed keeps the value
+            s.set("measure_page_pause_note", self._page_pause_note_cb.isChecked())
         if hasattr(self, "_pace_enable"):
             s.set("pace_hint_enabled", self._pace_enable.isChecked())
             # Only the rows that HAVE a rate box. The CR30 is deliberately
@@ -8058,3 +8113,97 @@ class SettingsDialog(QDialog):
         self._update_btn.setText(tr("Check for Updates"))
         self._update_status.setStyleSheet("font-size: 11px; color: #888;")
         self._update_status.setText(tr("Check failed: {reason}").format(reason=reason))
+
+
+def page_pause_help() -> str:
+    """The ⓘ of Preferences ▸ Measurement ▸ "Pause after each page so I can
+    check it" (jctay, forum 149802; Basti 2026-10-23). Says exactly when it
+    pauses, and when it does not."""
+    return tr(
+        "Stops the measurement after the last strip of each page, so you can "
+        "look over that page before you put the next one under the "
+        "instrument. It also stops after the very last strip of the chart, "
+        "so a chart of one page gets this pause too.\n\n"
+        "WHEN IT STOPS\n"
+        "After a strip has been read, whenever the next strip to read is on "
+        "another page, and after the last strip of the chart (or the strip "
+        "that completes it). A question ChromIQ asks about the strip you have "
+        "just read always comes first. While ChromIQ waits, nothing is read: "
+        "the instrument is not ready for the next strip, and the chart "
+        "preview still shows the page you have just read, with a red outline "
+        "on any patch whose reading looks wrong.\n\n"
+        "WHAT YOU CAN DO THERE\n"
+        "Read any strip of that page again: click it in the preview. ChromIQ "
+        "then stops again after it. When the page looks right, put the next "
+        "page under the instrument and press Return or the space bar. With an "
+        "i1Pro, i1Pro 2, i1Pro 3 or ColorMunki you can instead press the "
+        "button on the instrument once. That press only continues, it never "
+        "starts reading a strip, so the next strip is read with the next "
+        "press, as always. Stop works as it always does.\n\n"
+        "THE NOTE\n"
+        "With “Show a note when it pauses” on, a see-through note fades in "
+        "over the chart preview each time, says why nothing moves and what "
+        "to do, and names the strips of the page that are worth a second "
+        "look. It has its own Continue and Re-read buttons, and fades away "
+        "after a few seconds.\n\n"
+        "WHEN IT DOES NOT STOP\n"
+        "Patch-by-patch reading, guided re-measurement, instruments that "
+        "read a whole sheet at once, and measuring with ArgyllCMS chartread "
+        "instead of the ChromIQ chart-reading engine.\n\n"
+        "**Default:** off.")
+
+
+def preview_legend_help() -> str:
+    """The ⓘ of Preferences ▸ Measurement ▸ "Show the “expected · measured”
+    label on the chart preview" (Basti, 2026-10-23)."""
+    return tr(
+        "While you measure, and when you look at a measurement afterwards, "
+        "the chart preview on the Measure tab draws each patch you have read "
+        "split in two: the top-left half (◤) in the colour "
+        "the patch should have, the bottom-right half (◢) in the colour the "
+        "instrument measured. A small see-through label below the patches "
+        "explains this: “expected ◤ · measured ◢ (screen colours "
+        "approximate)”. If you choose to see only the expected or only the "
+        "measured colours, the label says that instead.\n\n"
+        "WHAT THIS OPTION CHANGES\n"
+        "Only whether that label is shown. Switched off, the preview has no "
+        "label at all, so nothing covers the bottom of the page. The change "
+        "is visible at once, also in the middle of a measurement.\n\n"
+        "WHAT IT DOES NOT CHANGE\n"
+        "How the patches are drawn: they are still split into expected and "
+        "measured colours, or shown whole, exactly as “Each patch shows” on "
+        "the Measure tab says. The red outlines on readings that look wrong, "
+        "the patch values when you hover over a patch, and the measurement "
+        "itself stay as they are.\n\n"
+        "Tip: you do not have to switch the label off to see what is under "
+        "it. Move the mouse onto it and it fades away until the mouse leaves "
+        "again.\n\n"
+        "**Default:** on.")
+
+
+def page_pause_note_help() -> str:
+    """The ⓘ of the dependent option "Show a note when it pauses"."""
+    return tr(
+        "Shows a note each time the measurement pauses after a page, so you "
+        "always know why nothing moves. It fades in over the lower part of "
+        "the chart preview, where you are looking anyway. It is see-through, "
+        "so the page you have just read still shows under it, and it fades "
+        "away again on its own, so nothing on the page stays hidden.\n\n"
+        "WHAT THE NOTE SAYS\n"
+        "Which page is done and which one comes next (or that this was the "
+        "last strip of the chart), which strips of the page are worth a "
+        "second look, and what to do now. It has a Continue button and a "
+        "button to read a strip again.\n\n"
+        "HOW LONG IT STAYS\n"
+        "Long enough to read it, between 8 and 30 seconds depending on how "
+        "much it says, or until you do something: click anywhere, press "
+        "a key, or press the button on the instrument. Once it has gone the "
+        "measurement still waits: Return, the space bar or the instrument's "
+        "button carry on.\n\n"
+        "SWITCHED OFF\n"
+        "ChromIQ waits silently at the end of each page, with nothing on "
+        "screen to say so apart from a line in the measurement log. Carry on "
+        "with Return, the space bar or the instrument's button, as above.\n\n"
+        "This option is only available while “Pause after each page so I "
+        "can check it” is on.\n\n"
+        "**Default:** on.")

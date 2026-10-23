@@ -2667,6 +2667,10 @@ class MainWindow(QMainWindow):
         # preview follow at once (Knut, #182 5979886227).
         if hasattr(self._tab_measure, "refresh_patch_flags"):
             self._tab_measure.refresh_patch_flags()
+        # The expected · measured label on the chart preview (Basti,
+        # 2026-10-23): on or off at once.
+        if hasattr(self._tab_measure, "refresh_preview_legend"):
+            self._tab_measure.refresh_preview_legend()
         # Engine-only Manual rows (#123) follow the engine beta + accuracy
         # mode — the Build Profile tab stays visible while Settings is
         # open, so its showEvent alone would miss the change.

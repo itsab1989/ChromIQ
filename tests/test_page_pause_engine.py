@@ -185,7 +185,7 @@ def test_stop_and_save_from_the_hold_writes_the_readings(tmp_path):
         s.finish()
     ti3 = base.with_suffix(".ti3")
     assert ti3.exists(), "the readings were not saved"
-    assert "BEGIN_DATA" in ti3.read_text(errors="replace")
+    assert "BEGIN_DATA" in ti3.read_text(encoding="utf-8", errors="replace")
 
 
 @needs_helper
