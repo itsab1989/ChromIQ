@@ -477,8 +477,10 @@ def _engine_page(tmp_path, name, *, markers=True, edge=2.0, length=2.0,
     Image.fromarray(a).save(p, dpi=(dpi, dpi))
     lay = {"engine": "chromiq"}
     if recipe:
+        # the sidecar's own names (LayoutRecipe.to_dict), as Knut's card has
         lay["recipe"] = {"instrument": "i1", "helper_markers": bool(markers),
-                         "helper_marker_edge": edge, "helper_marker_len": length}
+                         "helper_marker_edge_mm": edge,
+                         "helper_marker_len_mm": length}
     (tmp_path / f"{name}.channels.json").write_text(json.dumps({"layout": lay}),
                                                     encoding="utf-8")
     return p

@@ -563,8 +563,12 @@ def helper_markers(tiff_path: "str | Path", frame: int = 0):
         rec = _recipe_of(tiff_path)
         if not rec or not rec.get("helper_markers"):
             return {}
-        edge = float(rec.get("helper_marker_edge") or 2.0)
-        length = float(rec.get("helper_marker_len") or 2.0)
+        # the recipe as the sidecar keeps it (LayoutRecipe: "_mm" names),
+        # or as build kwargs spell them
+        edge = float(rec.get("helper_marker_edge_mm")
+                     or rec.get("helper_marker_edge") or 2.0)
+        length = float(rec.get("helper_marker_len_mm")
+                       or rec.get("helper_marker_len") or 2.0)
         got = _ink_mm(tiff_path, frame)
         if got is None:
             return {}
