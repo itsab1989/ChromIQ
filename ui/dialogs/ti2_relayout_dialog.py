@@ -66,20 +66,20 @@ def _acc() -> str:
     return accent_for(SPEC_MAGENTA)
 
 
-def _dis_ind() -> str:
-    """``background``/``border-color`` for a ticked-but-DISABLED indicator.
-
-    Mid-grey in the two coloured appearances. Neutral drops the fill instead
-    — a disabled control may not be the darkest thing on the panel. Its edge is
-    SOLID: the handoff made it dashed and the owner removed the dash on
-    2026-09-02 (*"deactivated options have dotted lines in neutral mode -
-    should be continuous"*). Do not restore it.
-    """
-    from ui.theme import APPEARANCE_NEUTRAL, active_mode
-    if active_mode() == APPEARANCE_NEUTRAL:
-        from ui import neutral_styles as _n
-        return f"background: transparent; border: 1px solid {_n.NM_DISABLED};"
-    return "background: #4a4a4a; border-color: #4a4a4a;"
+def _dis_ind(mode: "str | None" = None) -> str:
+    """``background``/``border``  for a ticked-but-DISABLED indicator: the
+    declarations of `tools_dialogs._disabled_indicator_qss`, so this window
+    greys a ticked box exactly as every other dialog does (4.3.11). A greyed
+    fill, never the bright magenta, and never the unticked look: a ticked
+    disabled box still shows its tick. Its edge is SOLID: the handoff made it
+    dashed and the owner removed the dash on 2026-09-02 (*"deactivated options
+    have dotted lines in neutral mode - should be continuous"*). Do not
+    restore it. (Light used #4a4a4a here, the solid dark square B8-1078 took
+    out of the other dialogs.)"""
+    import re
+    from ui.dialogs.tools_dialogs import _disabled_indicator_qss
+    body = re.search(r"\{(.*)\}", _disabled_indicator_qss(mode)).group(1)
+    return body.strip()
 
 
 def _magenta_tip(title: str, body: str, parent: QWidget | None = None,
@@ -3396,10 +3396,11 @@ class _NewChartDialog(QDialog):
             QRadioButton::indicator:checked {{
                 background: {_acc()}; border-color: {_acc()};
             }}
-            /* A ticked-but-disabled box must read as off — without this the
-               magenta :checked fill wins over Qt's disabled greying, so an
-               unselected panel (e.g. "Generate colour sets") still showed bright
-               ticks. The two-state selector outranks the single :checked rule. */
+            /* A ticked-but-disabled box is greyed: without this the magenta
+               :checked fill wins over Qt's disabled greying, so an unselected
+               panel (e.g. "Generate colour sets") still showed bright ticks.
+               It keeps a greyed tick (4.3.11). The two-state selector
+               outranks the single :checked rule. */
             QCheckBox::indicator:checked:disabled {{
                 {_dis_ind()}
             }}
@@ -5732,10 +5733,11 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             QRadioButton::indicator:checked {{
                 background: {_acc()}; border-color: {_acc()};
             }}
-            /* A ticked-but-disabled box must read as off — without this the
-               magenta :checked fill wins over Qt's disabled greying, so an
-               unselected panel (e.g. "Generate colour sets") still showed bright
-               ticks. The two-state selector outranks the single :checked rule. */
+            /* A ticked-but-disabled box is greyed: without this the magenta
+               :checked fill wins over Qt's disabled greying, so an unselected
+               panel (e.g. "Generate colour sets") still showed bright ticks.
+               It keeps a greyed tick (4.3.11). The two-state selector
+               outranks the single :checked rule. */
             QCheckBox::indicator:checked:disabled {{
                 {_dis_ind()}
             }}

@@ -163,12 +163,21 @@ def _disabled_indicator_qss(mode: "str | None" = None) -> str:
     lines in neutral mode - should be continuous"* — and it is not to come
     back. A ticked box that is disabled loses its ACTION fill; that, and the
     DISABLED value, are what carry it.
+
+    **AND A TICKED DISABLED BOX STILL SHOWS ITS TICK (4.3.11, Basti).** With
+    no fill at all a ticked, disabled box in Neutral drew exactly like an
+    unticked one, so a setting in force looked switched off. It now takes the
+    muted fill the app's own sheet gives a box that is locked on
+    (`NM_TEXT_FAINT`, as 4.3.10's Measure options and `#locked_on`): lighter
+    than the enabled ACTION fill, so the owner's "an enabled tick is darker
+    than a disabled one" still holds, and the edge stays solid. The Light and
+    Dark values were already a visible greyed fill.
     """
     mode = mode or active_mode()
     if mode == APPEARANCE_NEUTRAL:
         return (f"QCheckBox::indicator:checked:disabled,"
                 f" QRadioButton::indicator:checked:disabled {{"
-                f" background: transparent;"
+                f" background: {neutral_styles.NM_TEXT_FAINT};"
                 f" border: 1px solid {neutral_styles.NM_DISABLED}; }}")
     if mode == APPEARANCE_LIGHT:
         # B8-1078: a ticked box here is a filled square with no tick drawn, so

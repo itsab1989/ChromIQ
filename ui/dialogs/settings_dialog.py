@@ -6004,30 +6004,13 @@ class SettingsDialog(QDialog):
         # same neutral way (checkboxes, radios and the focus ring on text/number/
         # combo inputs).
         from ui.dialogs.tools_dialogs import neutral_controls_qss
-        # neutral_controls_qss restyles :checked indicators in the neutral colour,
-        # which would otherwise keep a *disabled* checked box looking active. Add a
-        # higher-specificity :checked:disabled rule so it greys out like the rest
-        # of the app (matching the global QCheckBox::indicator:disabled greys).
-        if mode == APPEARANCE_NEUTRAL:
-            # No fill — the handoff's shape for "disabled", and the only
-            # thing in this theme allowed to be faint. A fill of any value here
-            # is a disabled control shouting over the enabled ones. The edge is
-            # SOLID: the handoff made it dashed and the owner removed the dash
-            # on 2026-09-02 (*"deactivated options have dotted lines in neutral
-            # mode - should be continuous"*). Do not restore it.
-            disabled_qss = (
-                f"QCheckBox::indicator:checked:disabled {{"
-                f" background: transparent;"
-                f" border: 1px solid {neutral_styles.NM_DISABLED}; }}"
-            )
-        else:
-            dis_bg, dis_border = (
-                ("#eeece8", "#d0ccc6") if mode == "light" else ("#1f1f1f", "#3a3a3a")
-            )
-            disabled_qss = (
-                f"QCheckBox::indicator:checked:disabled {{"
-                f" background: {dis_bg}; border-color: {dis_border}; }}"
-            )
+        # neutral_controls_qss restyles :checked indicators in the window's
+        # colour; its own :checked:disabled rule (`_disabled_indicator_qss`)
+        # greys a disabled ticked box and KEEPS ITS TICK (4.3.11, Basti: the
+        # rule this window added on top drew every disabled ticked box, e.g.
+        # "Exact-size PDF fallback" under the macOS printer dialog, exactly
+        # like an unticked one, in all three appearances).
+        disabled_qss = ""
         # OK and Restore Factory Defaults, in THIS window's own sheet (Basti,
         # 2026-09-26: "why is preferences ok button now magenta?"). Opened
         # from the Create Chart tab (Edit layout defaults), this dialog is the

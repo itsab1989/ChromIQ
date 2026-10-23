@@ -412,8 +412,8 @@ QCheckBox::indicator:checked  {{ background: {ACCENT}; border-color: {ACCENT}; }
 QCheckBox::indicator:hover    {{ border-color: {ACCENT_HOVER}; }}
 QCheckBox:disabled            {{ color: #6a6a6a; }}
 QCheckBox::indicator:disabled {{ background: #1f1f1f; border-color: #3a3a3a; }}
-/* a box locked only while a measurement runs keeps its tick (keepsTick, Basti 2026-10-23) */
-QCheckBox[keepsTick="true"]::indicator:checked:disabled {{ background: #4a4a4a; border-color: #5a5a5a; }}
+/* a ticked box keeps its tick, greyed, when it is disabled (4.3.11, app-wide; 4.3.10 had it for the Measure tab only) */
+QCheckBox::indicator:checked:disabled {{ background: #4a4a4a; border-color: #5a5a5a; }}
 QRadioButton {{ spacing: 6px; }}
 QRadioButton::indicator {{
     width: 14px; height: 14px;
@@ -501,6 +501,7 @@ QLabel#section_title {{ font-size: 14px; font-weight: bold; color: #ffffff; }}
 QLabel#param_label, QCheckBox#param_label, QRadioButton#param_label {{ color: #c8c8c8; }}
 QLabel#param_label:disabled, QCheckBox#param_label:disabled, QRadioButton#param_label:disabled {{ color: #6a6a6a; }}
 QRadioButton#param_label::indicator:disabled {{ background: #1f1f1f; border-color: #3a3a3a; }}
+QRadioButton#param_label::indicator:checked:disabled {{ background: #4a4a4a; border-color: #4a4a4a; }}
 
 /* ---- Browse buttons ----------------------------------------------- */
 QPushButton#browse {{

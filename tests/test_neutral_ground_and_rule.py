@@ -273,8 +273,9 @@ def test_no_dashed_disabled_edge_survives_anywhere():
     src = inspect.getsource(SettingsDialog._apply_indicator_theme)
     assert "dashed" not in src.replace("made it dashed", "")
 
-    src = inspect.getsource(_dis_ind)
-    assert "1px solid" in src and "1px dashed" not in src
+    # _dis_ind takes the shared rule's declarations (4.3.11)
+    rule = _dis_ind(APPEARANCE_NEUTRAL)
+    assert "1px solid" in rule and "dashed" not in rule
 
 
 @pytest.mark.parametrize("selector", [

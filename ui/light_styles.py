@@ -413,11 +413,14 @@ QCheckBox#locked_on::indicator:checked:disabled {{
     background: {LM_TEXT_FAINT};
     border-color: {LM_BORDER_HI};
 }}
-/* …AND A BOX THAT IS ONLY LOCKED FOR A WHILE, still in force: the Measure
-   tab's options while a measurement runs (keepsTick, set by the tab). They
-   are what the reader is using, so a ticked one must still read as ticked
-   (Basti, 2026-10-23: "-r" and "-S" looked switched off during a run). */
-QCheckBox[keepsTick="true"]::indicator:checked:disabled {{
+/* …AND EVERY OTHER TICKED BOX THAT IS DISABLED (4.3.11). A disabled box
+   keeps the state it had, and a ticked one must still read as ticked,
+   greyed: a setting in force while it is locked (the Measure tab's options
+   during a run, Basti 2026-10-23), a ticked option in a group that is off
+   (Preferences ▸ "Confirm print settings before printing" under the macOS
+   printer dialog), anywhere. 4.3.10 fixed only the Measure tab (keepsTick);
+   this is the same look for all of them. */
+QCheckBox::indicator:checked:disabled {{
     background: {LM_TEXT_FAINT};
     border-color: {LM_BORDER_HI};
 }}
@@ -444,6 +447,11 @@ QRadioButton:disabled {{
 QRadioButton::indicator:disabled {{
     background: {LM_BG_WINDOW};
     border-color: {LM_BORDER};
+}}
+/* the chosen radio of a disabled group still shows which one it is */
+QRadioButton::indicator:checked:disabled {{
+    background: {LM_TEXT_FAINT};
+    border-color: {LM_BORDER_HI};
 }}
 
 /* -- Log / terminal output — v2 light variant --------------------- */
@@ -561,6 +569,7 @@ QRadioButton#param_label::indicator {{
 }}
 QRadioButton#param_label::indicator:checked {{ background: {ACCENT_BLUE}; border-color: {ACCENT_BLUE}; }}
 QRadioButton#param_label::indicator:disabled {{ background: {LM_BG_WINDOW}; border-color: {LM_BORDER}; }}
+QRadioButton#param_label::indicator:checked:disabled {{ background: {LM_TEXT_FAINT}; border-color: {LM_BORDER_HI}; }}
 
 /* -- Mode buttons (Guided / Manual / Expert) --------------------- */
 /* Default appearance. The per-tab QSS injection in main_window also

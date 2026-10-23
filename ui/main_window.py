@@ -898,9 +898,6 @@ class MainWindow(QMainWindow):
             primary_text         = "#ffffff"
             primary_disabled_bg  = "#e8e6e1"
             primary_disabled_fg  = "#a8a4a0"
-            # Greyed checkbox/radio indicator — matches light_styles disabled rule
-            disabled_ind_bg      = "#eeece8"   # LM_BG_WINDOW
-            disabled_ind_border  = "#d0ccc6"   # LM_BORDER
             # A box that is disabled BECAUSE it is forced on: muted accent, so
             # the tick still reads while the control stays obviously inactive.
             locked_on_bg         = _mix_hex(color, "#eeece8", 0.45)
@@ -919,9 +916,6 @@ class MainWindow(QMainWindow):
             primary_text         = "#0a0a0a"
             primary_disabled_bg  = "#1e1e1e"
             primary_disabled_fg  = "#484848"
-            # Greyed checkbox/radio indicator — matches styles.py disabled rule
-            disabled_ind_bg      = "#1f1f1f"
-            disabled_ind_border  = "#3a3a3a"
             locked_on_bg         = _mix_hex(color, "#1f1f1f", 0.45)
             patch_count_color    = "#ffffff"   # _PALETTE_DARK["wordmark"]
             log_color            = color
@@ -949,11 +943,15 @@ class MainWindow(QMainWindow):
                 QCheckBox::indicator:hover {{
                     border-color: {color};
                 }}
-                /* Greyed when the group is disabled — must beat :checked,
-                   otherwise an active box keeps its bright accent fill. */
+                /* Muted when the box is disabled: it must beat :checked, or
+                   a locked box keeps its bright accent fill, AND it must
+                   still read as ticked (4.3.11). This rule used to give a
+                   ticked, disabled box the unticked look, so every locked
+                   setting in force looked switched off; 4.3.10 excepted only
+                   the Measure tab's options (keepsTick). */
                 QCheckBox::indicator:checked:disabled {{
-                    background: {disabled_ind_bg};
-                    border-color: {disabled_ind_border};
+                    background: {locked_on_bg};
+                    border-color: {color};
                 }}
                 /* …EXCEPT when the box is disabled BECAUSE it is forced on.
                    The rule above makes a ticked-and-disabled box look
@@ -967,20 +965,13 @@ class MainWindow(QMainWindow):
                     background: {locked_on_bg};
                     border-color: {color};
                 }}
-                /* …and a box locked only while a measurement runs, whose
-                   setting is in force (keepsTick, the Measure tab's options;
-                   Basti 2026-10-23: "-r" and "-S" looked switched off). */
-                QCheckBox[keepsTick="true"]::indicator:checked:disabled {{
-                    background: {locked_on_bg};
-                    border-color: {color};
-                }}
                 QRadioButton::indicator:checked {{
                     background: {color};
                     border-color: {color};
                 }}
                 QRadioButton::indicator:checked:disabled {{
-                    background: {disabled_ind_bg};
-                    border-color: {disabled_ind_border};
+                    background: {locked_on_bg};
+                    border-color: {color};
                 }}
                 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus,
                 QComboBox:focus, QComboBox:on {{

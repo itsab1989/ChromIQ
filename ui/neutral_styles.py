@@ -541,9 +541,10 @@ QCheckBox#locked_on::indicator:checked:disabled {{
     background: {NM_TEXT_FAINT};
     border: 1px solid {NM_DISABLED};
 }}
-/* …AND A BOX THAT IS ONLY LOCKED FOR A WHILE, still in force (keepsTick:
-   the Measure tab's options while a measurement runs, Basti 2026-10-23). */
-QCheckBox[keepsTick="true"]::indicator:checked:disabled {{
+/* …AND EVERY OTHER TICKED BOX THAT IS DISABLED (4.3.11): a disabled box
+   keeps its state, so a ticked one still reads as ticked, greyed, anywhere
+   in the app (4.3.10 fixed only the Measure tab's options, keepsTick). */
+QCheckBox::indicator:checked:disabled {{
     background: {NM_TEXT_FAINT};
     border: 1px solid {NM_DISABLED};
 }}
@@ -569,6 +570,11 @@ QRadioButton:disabled {{
 }}
 QRadioButton::indicator:disabled {{
     background: transparent;
+    border: 1px solid {NM_DISABLED};
+}}
+/* the chosen radio of a disabled group still shows which one it is */
+QRadioButton::indicator:checked:disabled {{
+    background: {NM_TEXT_FAINT};
     border: 1px solid {NM_DISABLED};
 }}
 
@@ -712,6 +718,7 @@ QRadioButton#param_label::indicator {{
 }}
 QRadioButton#param_label::indicator:checked {{ background: {NM_ACTION}; border-color: {NM_ACTION}; }}
 QRadioButton#param_label::indicator:disabled {{ background: transparent; border: 1px solid {NM_DISABLED}; }}
+QRadioButton#param_label::indicator:checked:disabled {{ background: {NM_TEXT_FAINT}; border: 1px solid {NM_DISABLED}; }}
 
 /* -- Mode buttons (Guided / Manual / Expert) --------------------- */
 /* Default appearance. The per-tab QSS injection in main_window also targets

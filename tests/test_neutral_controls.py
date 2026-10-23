@@ -169,8 +169,13 @@ def test_an_enabled_tick_is_darker_than_a_disabled_one():
     enabled_fill = accent_for("#d0d0d0", APPEARANCE_NEUTRAL)
     dis = _disabled_indicator_qss(APPEARANCE_NEUTRAL)
     assert lightness(enabled_fill) < lightness(nm.NM_BG_PANEL)
-    # …and the disabled one carries NO fill at all, so it cannot be darker.
-    assert "background: transparent" in dis
+    # …and the disabled one's fill is lighter than the enabled one. Since
+    # 4.3.11 it HAS a muted fill (a ticked disabled box must still show its
+    # tick, Basti): NM_TEXT_FAINT, as #locked_on and 4.3.10's Measure options.
+    import re
+    fill = re.search(r"background:\s*(#[0-9a-fA-F]{6})", dis).group(1)
+    assert fill == nm.NM_TEXT_FAINT
+    assert lightness(fill) > lightness(enabled_fill)
     # SOLID, not dashed — the owner's 2026-09-02 ruling, see the module docstring.
     assert "solid" in dis and "dashed" not in dis
     assert nm.NM_DISABLED in dis
@@ -201,18 +206,19 @@ def test_a_ticked_greyed_box_in_light_is_not_a_dark_square():
     assert lightness(fill) < lightness(lm.LM_BG_WINDOW)
 
 
-def test_settings_dialog_disabled_checkbox_has_no_fill_in_neutral(wearing, qapp):
-    """The rule the Settings window adds ON TOP of the shared helper."""
+def test_settings_dialog_adds_no_unticked_look_of_its_own(wearing, qapp):
+    """Until 4.3.11 the Settings window added a :checked:disabled rule ON TOP
+    of the shared helper that drew a ticked, disabled box like an unticked
+    one in all three appearances ("Exact-size PDF fallback" under the macOS
+    printer dialog looked off while it was on). It now relies on the shared
+    rule, which keeps a greyed tick."""
     import inspect
     from ui.dialogs.settings_dialog import SettingsDialog
     src = inspect.getsource(SettingsDialog._apply_indicator_theme)
-    assert "APPEARANCE_NEUTRAL" in src
-    assert "background: transparent" in src
-    assert "1px solid {neutral_styles.NM_DISABLED}" in src
     assert "dashed {" not in src
-    # …and the two shipped branches are still there, untouched.
-    assert '("#eeece8", "#d0ccc6")' in src
-    assert '("#1f1f1f", "#3a3a3a")' in src
+    assert '("#eeece8", "#d0ccc6")' not in src
+    assert '("#1f1f1f", "#3a3a3a")' not in src
+    assert "background: transparent" not in src
 
 
 # ------------------------------------------------- fault 3: one accent, no hue
