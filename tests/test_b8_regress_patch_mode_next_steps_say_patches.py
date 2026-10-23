@@ -74,5 +74,36 @@ def test_strip_by_strip_keeps_the_strip_text(tab):
     t, texts = tab
     body = _open(t, texts, [], ["A", "B"])
     assert "Both chart strips have been re-measured successfully." in body
-    assert "scan additional strips yourself" in body
+    assert "read more strips yourself" in body
     assert "move between patches" not in body
+
+
+# ---- 4.3.11: the text names the three buttons as they read ----------------
+@pytest.mark.parametrize("patches", [[], ["A1", "B4"]])
+def test_the_next_steps_name_every_button_as_it_reads(tab, patches):
+    """The old text named a "Build Profile" button the window does not have
+    ("Go to Build Profile Tab →"), said it would build the profile, and never
+    explained Close. MUTATION: put the old `_next` strings back."""
+    t, texts = tab
+    body = _open(t, texts, patches, ["A", "B"])
+    tab_name = t._profile_tab_name()
+    assert f"Go to {tab_name} Tab →: saves the measurement" in body
+    assert "Close: saves the measurement and ends the measuring session" in body
+    assert "Continue Measuring Manually: keeps the measurement running" in body
+    assert "The profile is not built yet" in body
+    assert "<b>Build Profile</b>" not in body
+    assert "chartread" not in body
+    assert "—" not in body.split("What would you like")[1]
+
+
+def test_the_all_strips_read_window_explains_close_too(tab):
+    t, texts = tab
+    texts.clear()
+    t._guided_refinement_active = False
+    t._guided_patch_list = []
+    t._strip_list = ["A", "B"]
+    t._show_all_stripes_done()
+    body = "\n".join(texts)
+    assert "<b>Close</b> saves the measurement and ends the measuring session" in body
+    # before the grey line about the log, not after it
+    assert body.index("<b>Close</b>") < body.index("always visible in the output log")

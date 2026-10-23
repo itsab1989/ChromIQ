@@ -6863,6 +6863,50 @@ M_REFINE_VERIFY_DONE_PATCHES = _m(
     approved=False)
 
 
+#: The PROFILING re-read window's next steps ("Re-measurement Complete",
+#: guided refinement of a profiling run), 4.3.11 (agent 35, Basti: found
+#: faults are fixed now). Its old text named a "Build Profile" button the
+#: window does not have (the button reads "Go to Build Profile Tab →"), said
+#: that button would "create your updated ICC profile" (it only opens the
+#: tab), never explained "Close", and spoke of "chartread". Placeholders:
+#: {build} {close} {cont} the three buttons as they read, {tab} the tab's
+#: name, {build_profile} the button on that tab.
+def _refine_next_build() -> str:
+    """The {build} and {close} lines both next-step texts share. A
+    function, not a module constant, for the extractor (see _slip_tail)."""
+    return (
+    "{build}: saves the measurement, ends the measuring session and takes you "
+    "to the {tab} tab. The profile is not built yet: press \u201c{build_profile}"
+    "\u201d there when your settings are how you want them, and your updated "
+    "ICC profile is made from the new readings.\n"
+    "{close}: saves the measurement and ends the measuring session as well, "
+    "but stays on this tab. Go to the {tab} tab yourself whenever you are "
+    "ready to build the profile.\n")
+
+
+M_REFINE_DONE_NEXT = _m(
+    "M-REFINE-DONE-NEXT",
+    "What would you like to do next?",
+    _refine_next_build() +
+    "{cont}: keeps the measurement running so you can read more strips "
+    "yourself. You have full manual control: f and b move between strips, n "
+    "jumps to the next unread one, and d saves the measurement and ends the "
+    "session. The automatic strip navigation is switched off for the rest of "
+    "this session.",
+    approved=False)
+
+M_REFINE_DONE_NEXT_PATCHES = _m(
+    "M-REFINE-DONE-NEXT-PATCHES",
+    "What would you like to do next?",
+    _refine_next_build() +
+    "{cont}: keeps the measurement running so you can read more patches "
+    "yourself. You have full manual control: f and b move between patches, n "
+    "jumps to the next unread one, you can click a patch in the preview to "
+    "jump to it, and d saves the measurement and ends the session. The "
+    "automatic patch navigation is switched off for the rest of this "
+    "session.",
+    approved=False)
+
 # --- PROPOSED: the Strip Read Failed window, one text per error (B1/M1) -----
 #: Basti, 2026-10-21 (forum 149774, agent 1's M1 analysis): every strip
 #: misread used to get the same advice, "scan more slowly and steadily, or
@@ -7699,6 +7743,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR_STRIPS, M_CR_START_OVER, M_CR_PRECONDITIONING,
     M_CR_VERIFICATION, M_CR_VERIFICATION_BY_HAND, M_REFINE_VERIFY_DONE,
     M_REFINE_VERIFY_DONE_PATCHES,
+    M_REFINE_DONE_NEXT, M_REFINE_DONE_NEXT_PATCHES,
     M_ENGINE_FELL_BACK,
     M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,
     M_CHART_LEGACY_STOCK, M_CHART_LEGACY_ENDED,

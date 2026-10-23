@@ -12865,13 +12865,21 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             _rt, _rb = self._refine_rebuild_texts()
             _rebuild = ("<br><br><b>" + _html.escape(_rt) + "</b><br>"
                         + _html.escape(_rb).replace("\n", "<br>"))
-            if _pl:
-                # PATCH BY PATCH, THE NEXT STEPS SAY PATCHES TOO (review of
-                # 4.3.5 beta 8): the opening counts patches, so "scan
-                # additional strips" under it read as another mode's text.
-                _next = tr("<br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b>: saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b>: keeps the measurement running so you can read more patches yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between patches, <b>n</b> to jump to the next unread one, click a patch in the preview to jump to it, and press <b>d</b> when you are done. The automatic patch navigation is switched off for the rest of this session.")
-            else:
-                _next = tr("<br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b> — keeps chartread running so you can scan additional strips yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between strips, <b>n</b> to jump to the next unread one, and <b>d</b> when you are done. The automatic strip navigation is switched off for the rest of this session.")
+            # THE NEXT STEPS NAME THE THREE BUTTONS AS THEY READ (4.3.11):
+            # the old text named a "Build Profile" button the window does not
+            # have, said it would build the profile (it opens the tab), and
+            # never explained Close. Patch by patch it says patches (review
+            # of 4.3.5 beta 8). M-REFINE-DONE-NEXT / -PATCHES.
+            from workflow import measurement_messages as _MMn
+            _nt, _nb = (_MMn.M_REFINE_DONE_NEXT_PATCHES if _pl
+                        else _MMn.M_REFINE_DONE_NEXT).render(
+                build=tr("Go to {tab} Tab →").format(
+                    tab=self._profile_tab_name()),
+                close=tr("Close"), cont=tr("Continue Measuring Manually"),
+                tab=self._profile_tab_name(),
+                build_profile=tr("Build Profile"))
+            _next = ("<br><br><b>" + _html.escape(_nt) + "</b><br>"
+                     + _html.escape(_nb).replace("\n", "<br>"))
             msg = QLabel(_opening + _rebuild + _next, dlg)
         elif is_cal:
             dlg.setWindowTitle(tr("Calibration Measurement Complete"))
@@ -12918,6 +12926,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 dlg,
             )
 
+        if not self._guided_refinement_active:
+            # CLOSE IS EXPLAINED TOO (4.3.11): the window has three buttons
+            # and its text named two. Before the grey line about the log.
+            _close = (tr("<b>Close</b> saves the measurement and ends the "
+                         "measuring session as well, but stays on this tab: "
+                         "go to the {tab} tab yourself whenever you are ready "
+                         "to create the calibration file.")
+                      if is_cal else
+                      tr("<b>Close</b> saves the measurement and ends the "
+                         "measuring session as well, but stays on this tab: "
+                         "go to the {tab} tab yourself whenever you are ready "
+                         "to build the profile.")).format(
+                tab=self._profile_tab_name())
+            _t = msg.text()
+            _at = _t.rfind("<br><br><span")
+            msg.setText(_t[:_at] + "<br><br>" + _close + _t[_at:] if _at >= 0
+                        else _t + "<br><br>" + _close)
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
