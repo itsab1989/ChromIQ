@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-21b legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-23 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after"
 const char *cq_helper_build_string(void);
 
 
@@ -116,6 +116,28 @@ void cq_switch_gate_set(int on);
 int  cq_switch_gate_open(void);
 /* Replay only: {"cmd":"switch"} -- a press of the fake instrument's button. */
 void cq_replay_switch_press(void);
+
+/* ---- the pause between pages (jctay 149802, Basti 2026-10-23) ----------
+ * {"cmd":"hold_after","strip":"F"}: once strip F has been read and accepted
+ * (every question the engine asks about it answered), the strip loop does not
+ * arm the next strip. It reports {"event":"held","strip":"F","button":b} and
+ * waits, with the switch gate open, so a press of the instrument's button is
+ * reported as {"event":"switch"} and can never start a scan. The GUI decides
+ * which strips to hold after; every strip_ready forgets the request, so it
+ * applies only to the strip it was sent for.
+ *
+ * In the hold: {"cmd":"resume"} goes on as the engine would have (next
+ * unread); forward, back, next_unread and goto move from the strip just
+ * read; any other command (done, quit, file_as, a calibration request) ends
+ * the hold and is left waiting for the strip menu, which acts on it as
+ * always. */
+#define CQ_KEY_RESUME 1002   /* {"cmd":"resume"}: meaningful only in the hold */
+#define CQ_HOLD_OTHER 1003   /* cq_hold_wait: a command is left for the menu */
+void cq_hold_clear(void);
+int  cq_hold_matches(const char *strip);
+/* Block in the hold. Returns CQ_KEY_RESUME, 'f', 'b', 'n', CQ_KEY_GOTO (its
+ * label copied into *label*) or CQ_HOLD_OTHER. */
+int  cq_hold_wait(char *label, size_t labellen);
 
 /* Outcome of one requested calibration (cq_run_requested_calibration). */
 #define CQ_CALREQ_DONE        0

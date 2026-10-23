@@ -1141,6 +1141,10 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 	 * calibration runs there. */
 	if (purp == inst_negcoms || purp == inst_armed || purp == inst_measuring) {
 		int c = cq_cmd_take_key();
+		/* CHROMIQ_EXT: a resume belongs to the pause between pages and
+		 * nowhere else; here its low byte would be a trigger. */
+		if (c == CQ_KEY_RESUME)
+			c = CQ_KEY_NONE;
 		if (c == CQ_KEY_NONE && purp == inst_armed && cq_cal_take_request()) {
 			p->cut = 'k';
 			return inst_user_abort;
@@ -2563,7 +2567,11 @@ a1log *log			/* verb, debug & error log */
 				printf(" 'd' when done, Esc or 'q' to quit without saving.\n");
 				if (cq_json)	/* CHROMIQ_EXT: the engine's calibrate key */
 					printf(" 'k' to calibrate the instrument before the next strip.\n");
-				/* CHROMIQ_EXT: typed counterpart of the menu prompt */
+				/* CHROMIQ_EXT: typed counterpart of the menu prompt. A hold
+				 * asked for at an earlier strip is forgotten first: the GUI
+				 * asks again, for this strip, when it sees this event. */
+				if (cq_json)
+					cq_hold_clear();
 				cq_emit_raw("{\"event\":\"strip_ready\",\"strip\":\"%s\","
 				            "\"read\":%s,\"all_done\":%s}",
 				            nn, scols[oroi * stipa]->rr ? "true" : "false",
@@ -3196,6 +3204,52 @@ a1log *log			/* verb, debug & error log */
 					free(snn);
 			}
 			cq_write_ti3_atomic();
+
+			/* CHROMIQ_EXT (jctay 149802, Basti 2026-10-23): the pause between
+			 * pages. The GUI asked to hold after this strip, so the next one
+			 * is NOT armed: the reader waits here, outside any scan, and a
+			 * press of the instrument's button is only reported (the switch
+			 * gate), never counted as the start of a strip. The moves are
+			 * made from the strip just read; anything else is left for the
+			 * strip menu (cq_hold_wait). */
+			if (cq_json) {
+				char *hn = paix->aix(paix, oroi);
+				if (hn != NULL && cq_hold_matches(hn)) {
+					char glab[16] = "";
+					int hk;
+					printf("\nPaused after strip %s: waiting before the next strip.\n", hn);
+					do_fflush();
+					cq_emit_raw("{\"event\":\"held\",\"strip\":\"%s\",\"button\":%s}",
+					            hn, cq_button_retry_ok(it, uswitch) ? "true" : "false");
+					cq_switch_gate_set(1);
+					hk = cq_hold_wait(glab, sizeof(glab));
+					cq_switch_gate_set(0);
+					free(hn);
+					if (hk == 'f') {
+						incflag = 1;
+					} else if (hk == 'b') {
+						incflag = -1;
+					} else if (hk == CQ_KEY_GOTO) {
+						int found = cq_strip_row(paix, totpa, glab);
+						if (found >= 0) {
+							int acc = 0;
+							oroi = found;
+							for (stix = 0; pis[stix] != 0
+							     && acc + pis[stix] <= oroi; stix++)
+								acc += pis[stix];
+							pai = oroi - acc;
+							incflag = 0;
+						} else {
+							incflag = 2;
+						}
+					} else {	/* resume, next unread, or a command for the menu */
+						incflag = 2;
+					}
+					continue;
+				}
+				if (hn != NULL)
+					free(hn);
+			}
 
 			incflag = 2;		/* Skip to next unread */
 
@@ -5182,6 +5236,7 @@ int main(int argc, char *argv[]) {
 		        "\n{\"event\":\"session_start\",\"chart\":\"%s\",\"randomised\":%s,"
 		        "\"file_as\":true,"	/* CHROMIQ_EXT: {"cmd":"file_as"} is understood */
 		        "\"file_as_keeps_earlier\":true,"	/* ...with "earlier":"keep" (2026-10-21) */
+		        "\"hold_after\":true,"	/* the pause between pages (2026-10-23) */
 		        "\"patches\":%d,\"steps_per_pass\":%d,\"strips\":[",
 		        cesc, rand ? "true" : "false", npat, stipa);
 		for (ri = 0, acc = 0, six = 0; ri < totpa; ri++) {

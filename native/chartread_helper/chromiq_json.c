@@ -106,6 +106,12 @@ static volatile int   cq_cal_cancel = 0;     /* {"cmd":"cal_cancel"} for it  */
  * decides, through the same path as its Retry button. */
 static volatile int   cq_switch_gate = 0;
 
+/* CHROMIQ_EXT (jctay 149802, Basti 2026-10-23): the pause between pages.
+ * The strip the GUI asked the engine to hold after ({"cmd":"hold_after"}),
+ * empty for none. Cleared at every strip_ready (cq_hold_clear), so it is
+ * only ever about the strip just offered. */
+static char           cq_hold_strip[16] = "";
+
 /* CHROMIQ_EXT #159: the external-values line channel.
  *
  * -x mode reads a whole LINE from stdin (a measurement, or a one-letter
@@ -231,6 +237,19 @@ static void cq_handle_line(const char *line) {
 		return;
 	}
 
+	if (strcmp(cmd, "hold_after") == 0) {
+		/* The pause between pages: hold after this strip is accepted.
+		 * Not a key, so no prompt can ever read it as an answer. */
+		char st[16] = "";
+		if (!cq_json_get(line, "strip", st, sizeof(st)))
+			return;
+		cq_lock_take();
+		strncpy(cq_hold_strip, st, sizeof(cq_hold_strip) - 1);
+		cq_hold_strip[sizeof(cq_hold_strip) - 1] = '\0';
+		cq_lock_give();
+		return;
+	}
+
 	if (strcmp(cmd, "trigger") == 0) {
 		/* #202, replay only: the instrument's button was pressed. Optional
 		 * "ready_ms":"<n>" sets the delay to the ready-to-scan moment.
@@ -305,6 +324,8 @@ static void cq_handle_line(const char *line) {
 	 && (cq_json_get(line, "strip", gl, sizeof(gl))
 	  || cq_json_get(line, "patch", gl, sizeof(gl))))
 		key = CQ_KEY_GOTO;
+	else if (strcmp(cmd, "resume") == 0)
+		key = CQ_KEY_RESUME;           /* only the hold acts on it */
 	else if (strcmp(cmd, "next_unread") == 0)
 		key = 'n';
 	else if (strcmp(cmd, "forward") == 0)
@@ -474,7 +495,10 @@ static void cq_sleep_ms(int ms) {
 int cq_wait_char(void) {
 	for (;;) {
 		int k = cq_cmd_take_key();
-		if (k != CQ_KEY_NONE && k != CQ_KEY_GOTO && k != CQ_KEY_FILE_AS)
+		/* A resume means something only in the hold (cq_hold_wait); at
+		 * any prompt it is dropped, never taken as "any other key". */
+		if (k != CQ_KEY_NONE && k != CQ_KEY_GOTO && k != CQ_KEY_FILE_AS
+		 && k != CQ_KEY_RESUME)
 			return k;
 		cq_sleep_ms(20);
 	}
@@ -594,9 +618,61 @@ int cq_cal_take_cancel(void) {
 /* Non-blocking: the next waiting key, or CQ_KEY_NONE. A goto is dropped. */
 int cq_poll_char(void) {
 	int k = cq_cmd_take_key();
-	return (k == CQ_KEY_GOTO || k == CQ_KEY_FILE_AS) ? CQ_KEY_NONE : k;
+	return (k == CQ_KEY_GOTO || k == CQ_KEY_FILE_AS || k == CQ_KEY_RESUME)
+	       ? CQ_KEY_NONE : k;
 }
 
 void cq_sleep_poll(void) {
 	cq_sleep_ms(20);
+}
+
+/* ------------------------------------------------------------------ */
+/* CHROMIQ_EXT: the pause between pages (jctay 149802, Basti 2026-10-23). */
+
+void cq_hold_clear(void) {
+	cq_lock_take();
+	cq_hold_strip[0] = '\0';
+	cq_lock_give();
+}
+
+/* 1 when the GUI asked to hold after *strip*; the request is spent. */
+int cq_hold_matches(const char *strip) {
+	int r = 0;
+	cq_lock_take();
+	if (strip != NULL && cq_hold_strip[0] != '\0'
+	 && strcmp(cq_hold_strip, strip) == 0) {
+		r = 1;
+		cq_hold_strip[0] = '\0';
+	}
+	cq_lock_give();
+	return r;
+}
+
+/* The hold itself. The resume and the four moves are taken here; anything
+ * else that arrives (done, quit, file_as, ok, a calibration request) is LEFT
+ * where it is, so the strip menu that follows acts on it exactly as it would
+ * have without the hold. Nothing here ever triggers a reading. */
+int cq_hold_wait(char *label, size_t labellen) {
+	for (;;) {
+		int k, r = CQ_KEY_NONE;
+		cq_lock_take();
+		k = cq_pending_key;
+		if (k == CQ_KEY_RESUME || k == 'f' || k == 'b' || k == 'n') {
+			cq_pending_key = CQ_KEY_NONE;
+			r = k;
+		} else if (k == CQ_KEY_GOTO) {
+			cq_pending_key = CQ_KEY_NONE;
+			if (label != NULL && labellen > 0) {
+				strncpy(label, cq_goto_label, labellen - 1);
+				label[labellen - 1] = '\0';
+			}
+			r = k;
+		} else if (k != CQ_KEY_NONE || cq_cal_requested) {
+			r = CQ_HOLD_OTHER;
+		}
+		cq_lock_give();
+		if (r != CQ_KEY_NONE)
+			return r;
+		cq_sleep_ms(20);
+	}
 }
