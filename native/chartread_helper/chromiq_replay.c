@@ -413,6 +413,12 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 			inst_code uev = cq->uicallback(cq->uic_cntx, inst_armed);
 			if (uev == inst_user_abort) {
 				cq_replay_waiting = 0;
+				/* As the i1Pro and ColorMunki drivers do: their wait loop
+				 * calls inst_triggered however it ended, a command included
+				 * (i1pro_imp.c:3049, munki_imp.c:2132), then returns the
+				 * abort. Modelled so a test sees what a real instrument
+				 * makes of a goto at an armed strip (2026-10-23). */
+				cq->uicallback(cq->uic_cntx, inst_triggered);
 				return inst_user_abort;
 			}
 			/* inst_user_trig means "read now": treat as swipe of the

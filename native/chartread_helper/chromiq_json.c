@@ -326,6 +326,8 @@ static void cq_handle_line(const char *line) {
 		key = CQ_KEY_GOTO;
 	else if (strcmp(cmd, "resume") == 0)
 		key = CQ_KEY_RESUME;           /* only the hold acts on it */
+	else if (strcmp(cmd, "hold") == 0)
+		key = CQ_KEY_HOLD;             /* only an armed strip acts on it */
 	else if (strcmp(cmd, "next_unread") == 0)
 		key = 'n';
 	else if (strcmp(cmd, "forward") == 0)
@@ -498,7 +500,7 @@ int cq_wait_char(void) {
 		/* A resume means something only in the hold (cq_hold_wait); at
 		 * any prompt it is dropped, never taken as "any other key". */
 		if (k != CQ_KEY_NONE && k != CQ_KEY_GOTO && k != CQ_KEY_FILE_AS
-		 && k != CQ_KEY_RESUME)
+		 && k != CQ_KEY_RESUME && k != CQ_KEY_HOLD)
 			return k;
 		cq_sleep_ms(20);
 	}
@@ -618,7 +620,8 @@ int cq_cal_take_cancel(void) {
 /* Non-blocking: the next waiting key, or CQ_KEY_NONE. A goto is dropped. */
 int cq_poll_char(void) {
 	int k = cq_cmd_take_key();
-	return (k == CQ_KEY_GOTO || k == CQ_KEY_FILE_AS || k == CQ_KEY_RESUME)
+	return (k == CQ_KEY_GOTO || k == CQ_KEY_FILE_AS || k == CQ_KEY_RESUME
+	        || k == CQ_KEY_HOLD)
 	       ? CQ_KEY_NONE : k;
 }
 
@@ -657,7 +660,10 @@ int cq_hold_wait(char *label, size_t labellen) {
 		int k, r = CQ_KEY_NONE;
 		cq_lock_take();
 		k = cq_pending_key;
-		if (k == CQ_KEY_RESUME || k == 'f' || k == 'b' || k == 'n') {
+		if (k == CQ_KEY_HOLD) {
+			/* Already holding: a second hold changes nothing. */
+			cq_pending_key = CQ_KEY_NONE;
+		} else if (k == CQ_KEY_RESUME || k == 'f' || k == 'b' || k == 'n') {
 			cq_pending_key = CQ_KEY_NONE;
 			r = k;
 		} else if (k == CQ_KEY_GOTO) {

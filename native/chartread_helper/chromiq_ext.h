@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-23 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-23 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here"
 const char *cq_helper_build_string(void);
 
 
@@ -133,6 +133,15 @@ void cq_replay_switch_press(void);
  * always. */
 #define CQ_KEY_RESUME 1002   /* {"cmd":"resume"}: meaningful only in the hold */
 #define CQ_HOLD_OTHER 1003   /* cq_hold_wait: a command is left for the menu */
+/* {"cmd":"hold"} (agent 30, 2026-10-23): hold HERE, at the strip menu the
+ * engine is waiting at, without reading anything. Sent by the GUI while a
+ * window that finishes the measurement ("All Strips Read") is open, so a
+ * press of the instrument's button cannot start a reading that would replace
+ * a good strip behind that window. The hold is the one above (the switch gate
+ * open, a press only reported); resume offers the SAME strip again, the moves
+ * move from it, anything else is left for the menu. Taken only while a strip
+ * is armed (inst_armed); anywhere else it is dropped, never a trigger. */
+#define CQ_KEY_HOLD   1004
 void cq_hold_clear(void);
 int  cq_hold_matches(const char *strip);
 /* Block in the hold. Returns CQ_KEY_RESUME, 'f', 'b', 'n', CQ_KEY_GOTO (its

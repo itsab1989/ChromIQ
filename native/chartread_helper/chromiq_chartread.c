@@ -1105,6 +1105,14 @@ static int cq_file_keep = 0;
  * after the transfer (outer scope). */
 static double cq_last_bcorr = 0.0, cq_last_xbcorr = 0.0, cq_last_werror = 0.0;
 
+/* CHROMIQ_EXT (agent 30, 2026-10-23): the last inst_armed answer of the wait
+ * that is ending was a command or an abort, not a trigger. The i1Pro and
+ * ColorMunki drivers call inst_triggered after their wait loop however it
+ * ended (i1pro_imp.c:3049, munki_imp.c:2132), so a goto at an armed strip
+ * reached the GUI as {"event":"scan_started"} with nothing scanned: Basti's
+ * ColorMunki, 2026-10-23, after Continue at the end of the chart. */
+static int cq_wait_left_by_command = 0;
+
 /* JSON-mode uicallback: identical classification to def_uicallback, with
  * the command queue as the key source. The console is never polled in
  * JSON mode — stdin belongs to the command channel. */
@@ -1119,10 +1127,15 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		 * the only honest basis for judging reading pace in strip mode: the
 		 * instrument returns the whole strip at once, so there are no per-patch
 		 * events to time (#131, Knut 2026-07-26). */
-		if (cq_json)
+		/* ...but not when the wait was left by a command (a goto, a hold,
+		 * done, quit): nothing was triggered and nothing will be read. */
+		if (cq_json && !cq_wait_left_by_command)
 			cq_emit_raw("{\"event\":\"scan_started\"}");
+		cq_wait_left_by_command = 0;
 		return inst_ok;
 	}
+	if (purp == inst_armed)
+		cq_wait_left_by_command = 0;	/* a new poll of the wait */
 
 	/* CHROMIQ_EXT: a calibration the user asked for becomes the 'k' command
 	 * HERE and nowhere else: only while the instrument is armed and waiting
@@ -1145,8 +1158,15 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		 * nowhere else; here its low byte would be a trigger. */
 		if (c == CQ_KEY_RESUME)
 			c = CQ_KEY_NONE;
+		/* CHROMIQ_EXT: hold here ({"cmd":"hold"}), only at an armed strip
+		 * whose loop registered 'h' as a command (strip mode). Anywhere
+		 * else it is dropped: as a raw byte it would be a trigger. */
+		if (c == CQ_KEY_HOLD)
+			c = (purp == inst_armed && (p->uih['h'] & DUIH_CMND))
+			    ? 'h' : CQ_KEY_NONE;
 		if (c == CQ_KEY_NONE && purp == inst_armed && cq_cal_take_request()) {
 			p->cut = 'k';
+			cq_wait_left_by_command = 1;
 			return inst_user_abort;
 		}
 		if (c == CQ_KEY_GOTO) {
@@ -1171,8 +1191,11 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		if (c != CQ_KEY_NONE) {
 			p->cut = c;
 			c = p->uih[c & 0xff];
-			if (c & (DUIH_ABORT | DUIH_TERM | DUIH_CMND))
+			if (c & (DUIH_ABORT | DUIH_TERM | DUIH_CMND)) {
+				if (purp == inst_armed)
+					cq_wait_left_by_command = 1;
 				return inst_user_abort;
+			}
 			if (c & DUIH_TRIG)
 				return inst_user_trig;
 		}
@@ -2481,6 +2504,9 @@ a1log *log			/* verb, debug & error log */
 			/* CHROMIQ_EXT: 'm', a file_as command (Knut #182 6102031563).
 			 * Only ever produced by cq_uicallback from that command. */
 			inst_set_uih('m', 'm', DUIH_CMND);
+			/* CHROMIQ_EXT: 'h', hold here ({"cmd":"hold"}, 2026-10-23).
+			 * Only ever produced by cq_uicallback from that command. */
+			inst_set_uih('h', 'h', DUIH_CMND);
 		}
 
 		/* Allocate space for values from a pass/strip */
@@ -2706,6 +2732,50 @@ a1log *log			/* verb, debug & error log */
 								cq_file_from[0] = cq_file_to[0] = '\0';
 								cq_file_keep = 0;
 								break;
+							} else if (cq_json && ch == 'h') {
+								/* CHROMIQ_EXT (agent 30, 2026-10-23): hold
+								 * HERE, without a reading. The GUI asks for it
+								 * while the window that finishes the
+								 * measurement is open ("All Strips Read"), so
+								 * a press of the instrument's button cannot
+								 * start a reading of this strip behind it. The
+								 * same hold as after a strip (switch gate
+								 * open, a press only reported); resume offers
+								 * this strip again, the moves move from it,
+								 * and anything else (done, quit, a calibration
+								 * request) is left for this menu. */
+								char glab[16] = "";
+								int hk;
+								cq_emit_raw("{\"event\":\"held\",\"strip\":\"%s\","
+								            "\"button\":%s,\"here\":true}", nn,
+								            cq_button_retry_ok(it, uswitch) ? "true" : "false");
+								cq_switch_gate_set(1);
+								hk = cq_hold_wait(glab, sizeof(glab));
+								cq_switch_gate_set(0);
+								if (hk == 'f') {
+									incflag = 1;
+									break;
+								} else if (hk == 'b') {
+									incflag = -1;
+									break;
+								} else if (hk == 'n') {
+									incflag = 2;
+									break;
+								} else if (hk == CQ_KEY_GOTO) {
+									int found = cq_strip_row(paix, totpa, glab);
+									cq_jumped = 1;
+									if (found >= 0) {
+										int acc = 0;
+										oroi = found;
+										for (stix = 0; pis[stix] != 0
+										     && acc + pis[stix] <= oroi; stix++)
+											acc += pis[stix];
+										pai = oroi - acc;
+										incflag = 0;
+									}
+									break;
+								}
+								continue;	/* resume, or a command for this menu */
 							} else if (cq_json && (ch == 'k' || ch == 'K')) {
 								/* CHROMIQ_EXT: calibrate between strips, then
 								 * the SAME strip is offered again. Ahead of
@@ -5237,6 +5307,7 @@ int main(int argc, char *argv[]) {
 		        "\"file_as\":true,"	/* CHROMIQ_EXT: {"cmd":"file_as"} is understood */
 		        "\"file_as_keeps_earlier\":true,"	/* ...with "earlier":"keep" (2026-10-21) */
 		        "\"hold_after\":true,"	/* the pause between pages (2026-10-23) */
+		        "\"hold_here\":true,"	/* {"cmd":"hold"} at a strip menu (2026-10-23) */
 		        "\"patches\":%d,\"steps_per_pass\":%d,\"strips\":[",
 		        cesc, rand ? "true" : "false", npat, stipa);
 		for (ri = 0, acc = 0, six = 0; ri < totpa; ri++) {

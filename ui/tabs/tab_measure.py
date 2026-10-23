@@ -12601,6 +12601,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # (Knut, #182 6166519230: a proposed text is released, and approved
             # after).
             self._all_done_shown = True
+            self._hold_reader_for_window()
             # The manager is told the chart is closed only once this window
             # has been answered (`_show_patches_left`): told now, it went on
             # to ask "Some patches are still not read" about the read that
@@ -12624,13 +12625,41 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                               self._show_patches_left_pending)
             return
         self._all_done_shown = True
+        self._hold_reader_for_window()
         self._note_completion_to_manager()
 
         # The final strip's own "read OK" cue is still sounding when the chart
         # finishes, so the completion sound landed on top of it (Knut, #131
         # 2026-07-27). Give the cue its moment, then show the window — the
         # guard above has already been set, so this cannot run twice.
-        QTimer.singleShot(_ALL_DONE_SOUND_GAP_MS, self._show_all_stripes_done)
+        QTimer.singleShot(_ALL_DONE_SOUND_GAP_MS,
+                          self._show_all_stripes_done_while_held)
+
+    def _hold_reader_for_window(self) -> None:
+        """The window that finishes the measurement is about to open: the
+        reader holds where it is, so a press of the instrument's button
+        behind the window reads nothing (Basti's ColorMunki hand test,
+        2026-10-23: a press and a slide while "All Strips Read" was open
+        would have read strip F again and replaced its reading in the file).
+        """
+        hold = getattr(self._manager, "hold_for_window", None)
+        if callable(hold):
+            hold()
+
+    def _release_reader_after_window(self) -> None:
+        """The window closed and the measurement goes on: the reader offers
+        its strip again. Nothing happens when the window ended the
+        measurement (its own command already left the hold)."""
+        release = getattr(self._manager, "release_window_hold", None)
+        if callable(release):
+            release()
+
+    def _show_all_stripes_done_while_held(self) -> None:
+        """The timer's slot: the window, then the reader let go."""
+        try:
+            self._show_all_stripes_done()
+        finally:
+            self._release_reader_after_window()
 
     def _show_patches_left_pending(self) -> None:
         """The timer's slot: a bound method, never a lambda (CLAUDE.md).
@@ -12641,7 +12670,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 and self._a_question_is_open()):
             QTimer.singleShot(_QUESTION_WAIT_MS, self._show_patches_left_pending)
             return
-        self._show_patches_left(int(getattr(self, "_patches_left_n", 0) or 0))
+        try:
+            self._show_patches_left(int(getattr(self, "_patches_left_n", 0) or 0))
+        finally:
+            self._release_reader_after_window()
 
     def _show_patches_left(self, n: int) -> None:
         """M-ALL-STRIPS-PATCHES-LEFT: every strip is read and *n* patches in

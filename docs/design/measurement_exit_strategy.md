@@ -128,7 +128,7 @@ whether the handler works.**
 | | Re-read strip X, a click on a strip in the preview, f / b / n | `{"cmd":"goto","strip":X}`, `forward`, `back`, `next_unread` | the engine moves from the strip just read; once the strip is read the pause comes back | ✅ not an exit |
 | | Stop (the tab's button), Esc | the single exit: **"Keep what you have measured so far?"** | Save and stop's first `q` ends the hold and is left for the strip menu, which answers it with the give-up prompt; the second `q` writes the `.ti3` (measured on the replay engine) | ✅ the ending |
 | **All Strips Read / All Patches Read** | Go to … Tab | `d` | "done" — chartread writes and exits normally; keeps the measurement and moves on | ✅ not a failure exit |
-| | Re-read … | — | the window closes; the session continues | ✅ |
+| | Re-read … | — (⏳ since 4.3.10: `{"cmd":"resume"}`, **note 12**) | the window closes; the session continues | ✅ |
 | | Close | — | raises **"Keep what you have measured so far?"** — the single exit | ✅ |
 
 **The Close row, corrected 2026-08-14.** It read *"keeps the measurement, goes
@@ -468,3 +468,42 @@ and goes, and with nothing extra when that note is switched off.)
 * **Where it never holds.** Patch by patch, guided re-measurement, whole-sheet
   readers, the CR30's external values, stock ArgyllCMS chartread, and an engine
   that does not announce `hold_after` in its session start.
+
+## Note 12 — behind the window that finishes a measurement, the reader reads nothing (4.3.10)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* (Found in
+Basti's ColorMunki hand test of the end-of-chart pause, 2026-10-23, and
+reproduced on the replay engine on 4.3.9 and 4.3.10, on screen.)
+
+* **What went wrong.** On a chart whose last unread strip is not its last
+  strip (Basti's: A to F, all read but E), the read that completed the chart
+  moved the reader on to the next strip, F, which was already read, and the
+  engine was armed there while *All Strips Read* was open. A press of the
+  instrument's button and a slide behind that window read F again and
+  replaced its reading in the `.ti3`. 4.3.9, which has no pause, does the
+  same.
+* **Where the reader is.** The read that completes the chart leaves the
+  reader on the strip just read: no move while the completion window is
+  about to open (`MeasureManager._after_a_read`). A read made after that
+  window (its Re-read) still moves on to the next strip (Knut, #182
+  6154440320).
+* **The hold.** When *All Strips Read* (any of its forms) or *Some patches
+  are still not read* is about to open, the manager asks the engine to hold
+  at the strip it is armed at (`{"cmd":"hold"}`; the engine reports
+  `{"event":"held","here":true}`). It is the hold of note 11: the switch
+  gate is open, a press is only reported and does nothing, and no reading can
+  start. The window's buttons are unchanged: *Go to … Tab*, *Finish* and
+  *Close* send `d` as before, which ends the hold and finishes; Stop's
+  *Save and stop* is the same two `q`; *Re-read …* and *Keep measuring*
+  send `{"cmd":"resume"}`, and the same strip is offered again. A resume is
+  never sent after the window's own command, because the engine keeps one
+  waiting command and a resume would replace it.
+* **`scan_started` means a scan.** The i1Pro and ColorMunki drivers report
+  "triggered" after their wait however it ended, a command included, so a
+  goto at an armed strip came out as `scan_started` with nothing scanned (the
+  line in Basti's log). The engine now reports it only when the wait ended in
+  a trigger.
+* **Where it does not hold.** Patch by patch, whole-sheet readers, the CR30's
+  external values, stock ArgyllCMS chartread, and an engine that does not
+  announce `hold_here` in its session start: there the reader stays armed
+  behind the window, as before.

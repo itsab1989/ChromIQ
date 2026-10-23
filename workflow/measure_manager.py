@@ -370,6 +370,13 @@ class MeasureManager(QObject):
     _page_pause_on: bool = False
     _engine_holds: bool = False
     _engine_held: "dict | None" = None
+    #: The hold while a window that finishes the measurement is open
+    #: (``{"cmd":"hold"}``, see :meth:`hold_for_window`): None, ``"wanted"``
+    #: (to be sent at the strip menu) or ``"asked"`` (sent).
+    _engine_holds_here: bool = False
+    _window_hold: "str | None" = None
+    _window_hold_mark: int = 0
+    _in_strip_ready: bool = False
     instrument_disconnected = pyqtSignal()   # emitted on USB communication failure
     device_busy             = pyqtSignal()   # emitted when instrument is held by another process
     no_instrument           = pyqtSignal()     # emitted when no instrument is detected at startup
@@ -726,6 +733,9 @@ class MeasureManager(QObject):
         self._page_pause_on  = bool(getattr(params, "page_pause", False))
         self._engine_holds   = False
         self._engine_held: "dict | None" = None
+        self._engine_holds_here = False
+        self._window_hold = None
+        self._window_hold_mark = 0
         self._read_something = False
         self._readings_count = 0
         #: patch-by-patch (spot) reading, which answers keys differently — see
@@ -808,6 +818,7 @@ class MeasureManager(QObject):
         def _on_finish(code: int) -> None:
             self._pending_post_retry_key = None
             self._engine_held = None
+            self._window_hold = None
             self._at_retry_prompt = False
             self._at_unread_prompt = False
             self._save_partial_state = None
@@ -1674,7 +1685,8 @@ class MeasureManager(QObject):
             return None
         return labels[i + 1] if i + 1 < len(labels) else None
 
-    def _after_a_read(self, mode: str, at: str, all_done_news: bool) -> None:
+    def _after_a_read(self, mode: str, at: str, all_done_news: bool,
+                      completion_was_shown: "bool | None" = None) -> None:
         """After a strip or patch is read, decide where the reader goes next.
 
         *mode* is ``"strip"`` (from `strip_ready`) or ``"patch"`` (from the
@@ -1721,7 +1733,10 @@ class MeasureManager(QObject):
             return
         if self._spot_mode != (mode == "patch"):
             return
-        if all_done_news and not getattr(self, "_completion_shown", False):
+        if completion_was_shown is None:
+            completion_was_shown = bool(getattr(self, "_completion_shown",
+                                                False))
+        if all_done_news and not completion_was_shown:
             # Every strip has a reading, but one set aside by "Was a strip
             # read twice?" still holds another strip's colours: the reader
             # goes there, as the window said it would (review of bc038bc7).
@@ -2255,6 +2270,62 @@ class MeasureManager(QObject):
         import json as _json
         self._runner.write_stdin(_json.dumps(
             {"cmd": "hold_after", "strip": strip}) + "\n")
+
+    # ------------------------------------------------------------------
+    # The hold while a window that finishes the measurement is open
+    # (agent 30, 2026-10-23: Basti's ColorMunki hand test)
+    # ------------------------------------------------------------------
+
+    def _window_hold_applies(self) -> bool:
+        """Engine strip reading, with an engine that can hold at a menu."""
+        return bool(self._engine_active and self._engine_holds_here
+                    and not self._spot_mode and not self._whole_sheet
+                    and not self._external_values
+                    and self._runner.is_running)
+
+    def hold_for_window(self) -> None:
+        """A window that finishes the measurement ("All Strips Read", "Some
+        patches are still not read") is about to open: the engine holds at
+        the strip it is armed at, so a press of the instrument's button
+        behind the window is only reported and reads nothing. Without the
+        hold the engine stays armed, and a press and a slide read that strip
+        again and replace its reading in the file (measured on the replay
+        engine, 4.3.9 and 4.3.10). Released by :meth:`release_window_hold`
+        when the window lets the measurement go on; a command sent from the
+        window (done, quit) ends the hold by itself."""
+        if not self._window_hold_applies() or self._an_ending_is_under_way():
+            return
+        if self._window_hold is not None or self._engine_held is not None:
+            return
+        self._window_hold = "wanted"
+        if not self._in_strip_ready and not self._scan_in_progress:
+            # The engine is waiting at its menu already: hold now.
+            self._send_window_hold()
+
+    def _send_window_hold(self) -> None:
+        import json as _json
+        self._window_hold = "asked"
+        self._window_hold_mark = self._commands_sent
+        self._runner.write_stdin(_json.dumps({"cmd": "hold"}) + "\n")
+
+    def release_window_hold(self) -> None:
+        """The window closed and the measurement goes on (Re-read Individual
+        Strips, Keep measuring): the engine offers the strip again. Nothing
+        is written when the window sent a command of its own (done, quit):
+        the engine left the hold with it, and the engine keeps one waiting
+        command, so a resume now could only replace it."""
+        state = self._window_hold
+        self._window_hold = None
+        if state != "asked":
+            return
+        if not self._engine_active or not self._runner.is_running:
+            return
+        if self._commands_sent != self._window_hold_mark:
+            return
+        if self._engine_held is not None and not self._engine_held.get("window"):
+            return
+        import json as _json
+        self._runner.write_stdin(_json.dumps({"cmd": "resume"}) + "\n")
 
     @property
     def held_strip(self) -> "dict | None":
@@ -2977,6 +3048,7 @@ class MeasureManager(QObject):
             self._engine_files_as = bool(ev.get("file_as"))
             self._engine_keeps_earlier = bool(ev.get("file_as_keeps_earlier"))
             self._engine_holds = bool(ev.get("hold_after"))
+            self._engine_holds_here = bool(ev.get("hold_here"))
             self._build_read_map(ev.get("chart"), self._session_strips)
             self._learn_measured_strips(ev.get("chart"))
             self.session_map.emit(strips)
@@ -2984,6 +3056,10 @@ class MeasureManager(QObject):
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
             _sent_before = self._commands_sent
+            if self._window_hold == "asked":
+                # The engine has left the hold a window asked for (a command
+                # sent from the window, or its release): it is over.
+                self._window_hold = None
             if self._engine_held is not None:
                 # The engine has left the pause between pages.
                 self._engine_held = None
@@ -3003,11 +3079,23 @@ class MeasureManager(QObject):
             # A strip re-offered after a calibration completes nothing.
             news = (bool(ev.get("all_done")) and self._all_done_is_news()
                     and not self._rearmed_after_calibration)
+            # Whether the completion window had been shown BEFORE this read:
+            # the tab notes it as soon as it decides to show the window, from
+            # inside the emit below, and the read that completes the chart
+            # must not count as a read after it (Basti's ColorMunki,
+            # 2026-10-23: the reader went on to strip F, already read, and was
+            # armed there behind "All Strips Read").
+            _shown_before = bool(getattr(self, "_completion_shown", False))
             if news:
-                self.all_stripes_done.emit()
+                self._in_strip_ready = True
+                try:
+                    self.all_stripes_done.emit()
+                finally:
+                    self._in_strip_ready = False
             # On a complete chart the engine re-arms the strip it has just
             # read; move on to the next one (Knut, #182 5956210745).
-            self._after_a_read("strip", strip, news)
+            self._after_a_read("strip", strip, news,
+                               completion_was_shown=_shown_before)
             # Save-Partial no longer routes through the strip menu: it is two
             # 'q' commands (see send_save_partial_and_quit), which is the
             # sequence Knut verified by hand. Only the post-retry key is left.
@@ -3037,6 +3125,13 @@ class MeasureManager(QObject):
             # strip, unless something sent above is about to move it.
             if self._commands_sent == _sent_before:
                 self._ask_hold_after(strip)
+            # A window that finishes the measurement is open (or about to
+            # be): hold here, so the instrument's button reads nothing behind
+            # it. Last, and only when nothing above has moved the reader; if
+            # something has, the strip it moves to is held instead.
+            if (self._window_hold == "wanted"
+                    and self._commands_sent == _sent_before):
+                self._send_window_hold()
 
         elif kind == "scan_started":
             # The instrument has fired: the swipe starts NOW (#131). In strip
@@ -3055,8 +3150,22 @@ class MeasureManager(QObject):
             # that is up decides what it means (TabMeasure._on_instrument_button).
             log.debug("engine: the instrument's button was pressed at the "
                       "retry prompt")
+            if (self._engine_held is not None
+                    and self._engine_held.get("window")):
+                log.info("instrument button: pressed while a window that "
+                         "finishes the measurement is open; the reader holds, "
+                         "so nothing is read")
+                return
             if self._at_retry_prompt or self._engine_held is not None:
                 self.instrument_button.emit()
+
+        elif kind == "held" and ev.get("here"):
+            # The hold a window asked for (hold_for_window): no pause, nothing
+            # for the tab to decide.
+            _s = str(ev.get("strip", "")).strip()
+            self._engine_held = {"strip": _s, "button": bool(ev.get("button")),
+                                 "window": True}
+            log.debug("engine: holding at strip %s while a window is open", _s)
 
         elif kind == "held":
             # The pause between pages: the engine read the strip it was asked
