@@ -211,7 +211,8 @@ def _run(code: str, tmp_path: Path, **env) -> subprocess.CompletedProcess:
     e = dict(os.environ, PYTHONPATH=str(REPO), QT_QPA_PLATFORM="offscreen",
              CHROMIQ_LOG_DIR=str(tmp_path / "Logs"), **env)
     return subprocess.run([sys.executable, "-c", textwrap.dedent(code)], env=e,
-                          cwd=str(REPO), capture_output=True, text=True, timeout=240)
+                          cwd=str(REPO), capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=240)
 
 
 def test_main_writes_its_version_and_closed_normally(tmp_path):
