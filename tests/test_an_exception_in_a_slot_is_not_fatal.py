@@ -32,7 +32,7 @@ def _run(setup: str):
     code = _PROBE.format(root=str(ROOT), scripts=str(ROOT / "scripts"),
                          setup=setup)
     return subprocess.run([sys.executable, "-c", code], capture_output=True,
-                          text=True, timeout=120, env=env, cwd=str(ROOT))
+                          text=True, encoding="utf-8", timeout=120, env=env, cwd=str(ROOT))
 
 
 def test_the_drivers_hook_keeps_the_process_alive():
