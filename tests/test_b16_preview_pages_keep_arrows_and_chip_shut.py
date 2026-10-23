@@ -19,6 +19,7 @@ the replay instrument, Demo-Full-RGB run 3, four pages):
 """
 from __future__ import annotations
 
+import time
 import numpy as np
 import pytest
 from PIL import Image
@@ -46,6 +47,20 @@ def preview(qapp, tmp_path):
     top.resize(700, 600)
     pv.load_tiff(_pages(tmp_path, 3))
     top.show()
+    qapp.processEvents()
+    # LET THE PREVIEW'S OWN REFRESH HAPPEN FIRST (agent 22, 2026-10-23).
+    # `load_tiff` also starts an 80 ms debounced refresh, and every refresh
+    # works the print view out again: this bare preview has print preview
+    # off, so a refresh clears `_print_view` and HIDES the chip set by hand
+    # below. Once a worker is warm, the line above returns in about 1 ms with
+    # that timer still pending, and a loaded machine that pauses this worker
+    # for 80 ms lets it fire later, inside the test: Tab from Next then had
+    # nothing to reach ("the chip is no longer a keyboard stop", everyday
+    # tier on aa3ade0f7). In the app the chip is only ever shown by that
+    # refresh, so nothing there can undo it like this.
+    _deadline = time.monotonic() + 5.0
+    while pv._refresh_timer.isActive() and time.monotonic() < _deadline:
+        QTest.qWait(10)
     qapp.processEvents()
     yield top, pv
     top.close()

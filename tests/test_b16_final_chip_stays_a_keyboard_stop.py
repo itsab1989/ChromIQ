@@ -9,6 +9,7 @@ focus Qt moves because a button was DISABLED may not land on it.
 """
 from __future__ import annotations
 
+import time
 import numpy as np
 import pytest
 from PIL import Image
@@ -32,6 +33,20 @@ def preview(qapp, tmp_path):
     top.resize(700, 600)
     pv.load_tiff(pages)
     top.show()
+    qapp.processEvents()
+    # LET THE PREVIEW'S OWN REFRESH HAPPEN FIRST (agent 22, 2026-10-23).
+    # `load_tiff` also starts an 80 ms debounced refresh, and every refresh
+    # works the print view out again: this bare preview has print preview
+    # off, so a refresh clears `_print_view` and HIDES the chip set by hand
+    # below. Once a worker is warm, the line above returns in about 1 ms with
+    # that timer still pending, and a loaded machine that pauses this worker
+    # for 80 ms lets it fire later, inside the test: Tab from Next then had
+    # nothing to reach ("the chip is no longer a keyboard stop", everyday
+    # tier on aa3ade0f7). In the app the chip is only ever shown by that
+    # refresh, so nothing there can undo it like this.
+    _deadline = time.monotonic() + 5.0
+    while pv._refresh_timer.isActive() and time.monotonic() < _deadline:
+        QTest.qWait(10)
     qapp.processEvents()
     pv._set_print_view(device=True, title="Device values, no profile yet",
                        hint="", tooltip="t", switchable=False)
@@ -68,3 +83,16 @@ def test_paging_by_mouse_through_every_page_never_opens_the_chip(preview, qapp):
         assert not chip.is_open()
         assert top.focusWidget() in (pv._prev_btn, pv._next_btn)
         assert top.focusWidget().isEnabled()
+
+
+def test_a_paused_worker_cannot_hide_the_chip_before_the_test_starts(preview, qapp):
+    """The everyday tier on aa3ade0f7 failed the Tab test above while it
+    passed alone: the fixture had set the chip up while the preview's own
+    debounced refresh was still pending, and on a loaded machine that refresh
+    fired inside the test and hid it. Reproduced by pausing the worker for
+    longer than the debounce; the fixture now waits for it first."""
+    top, pv = preview
+    assert not pv._refresh_timer.isActive(), "a refresh is still pending"
+    time.sleep(0.12)                 # longer than _REFRESH_DELAY_MS (80 ms)
+    qapp.processEvents()
+    assert pv._print_chip.isVisible(), "the preview's own refresh hid the chip"
