@@ -1129,6 +1129,19 @@ def _detect_uniform_stripe_rects(tiff_path: Path, n_strips: int) -> list[QRect]:
         best: tuple[int, int] | None = None
         if under:
             best = max(under, key=lambda r: r[1] - r[0])
+            # …BUT A BAND OF ONE STRAY ROW IS NOT THE LABELS (agent 33's
+            # review, 2026-10-23). Where step 1 caught a single row of margin
+            # ink above the letters (a layout-engine verification chart with
+            # its run name and colour bar down the left margin, a CMYK
+            # calibration chart), the only run "under" it was that bar, and
+            # all 22 strips were laid on 1 px of it; step 2b, which reads the
+            # band inside the block, used to repair exactly this. A run at
+            # least three times wider than everything under the band is the
+            # patch block, as the widest run always was before.
+            widest = max(runs, key=lambda r: r[1] - r[0])
+            if (widest not in under and (widest[1] - widest[0] + 1)
+                    >= 3 * (best[1] - best[0] + 1)):
+                best = widest
         elif n_strips >= 2:
             # One cluster of label ink per strip; the strips are centred
             # under them, one pitch apart.

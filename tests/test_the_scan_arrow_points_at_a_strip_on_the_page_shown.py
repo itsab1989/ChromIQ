@@ -270,3 +270,19 @@ def test_a_page_with_one_strip_hangs_the_arrow_below_its_letter(tif):
     assert len(rects) == 1
     # "base" mode: the arrow is drawn from the rect top downwards
     assert rects[0].y() > _label_ink_bottom(path), (rects[0], _label_ink_bottom(path))
+
+
+def test_a_stray_row_above_the_labels_does_not_take_the_block(tmp_path):
+    """Agent 33's review of 269615f08: the label band of a CMYK calibration
+    chart (a 1000 px grey copy of a ChromIQ-built one) is a single row of
+    margin ink above the letters, and the only run under it is the bar down
+    the left margin. The block finder took that bar, and the four strips
+    were laid on 15 px of it (x 151 to 165); 4.3.10's first build, which
+    took the widest run, put them where they are, and so does this one."""
+    from pathlib import Path
+    from ui.tabs.tab_measure import _detect_uniform_stripe_rects
+    path = Path(resource_path(
+        "tests/fixtures/charts/stray_band_row/cmyk_cal_4strips.tif"))
+    rects = _detect_uniform_stripe_rects(path, 4)
+    assert [(r.x(), r.width()) for r in rects] == [
+        (173, 57), (230, 57), (287, 57), (344, 58)]
