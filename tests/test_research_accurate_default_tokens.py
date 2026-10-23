@@ -43,8 +43,12 @@ _INT9 = {"a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
          "a70-edgeadapt", "a70-foldcap", "a71-darkray",
          "a66-refitguard", "a67-camratio", "a67-guardall-dark",
          "a67-guardpolish", "a72-cmyonly", "a72-max4ink"}
+# integration 10 (Findings/agent76-01-integration10.md): CMYK pale out-of-gamut
+# lightness (a75) and the measured ink fold / dark end (a73 + a74)
+_INT10 = {"a75-lightkeep", "a73-kfirst", "a74-foldmeas", "a74-kfloor",
+          "a74-shellhold", "a74-shellhue"}
 _DEF = ({"b2a33s", "rgbpos", "v4prm", "rgbcol"} | _INT3 | _INT4 | _INT5 | _INT6
-        | _INT7 | _INT8 | _INT8B | _INT9)
+        | _INT7 | _INT8 | _INT8B | _INT9 | _INT10)
 
 
 def test_the_defaults_are_b2a33s_rgbpos_and_v4prm():
@@ -67,11 +71,11 @@ def test_agent9_tokens_are_off_by_default():
 
 def test_a_default_can_be_switched_off_for_research():
     assert accurate_candidates({"no-b2a33s"}) == ({"rgbpos", "v4prm", "rgbcol"}
-                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _FIN3)
+                                                  | _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10 | _FIN3)
     assert accurate_candidates({"no-rgbpos", "no-b2a33s", "no-v4prm",
                                 "no-rgbcol", "no-fin3"}
-                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9}) == frozenset()
-    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9:
+                               | {"no-" + t for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10}) == frozenset()
+    for t in _INT3 | _INT4 | _INT5 | _INT6 | _INT7 | _INT8 | _INT8B | _INT9 | _INT10:
         assert "no-" + t in ENGINE_CANDIDATE_TOKENS
 
 
@@ -148,3 +152,16 @@ def test_integration9_cmy_tokens_act_on_cmy_only():
 def test_a70_blackshell_stays_off():
     assert "a70-blackshell" not in accurate_candidates(frozenset())
     assert "a70-blackshell" in ENGINE_CANDIDATE_TOKENS
+
+
+def test_integration10_tokens_are_on_and_switchable():
+    from workflow.profile_engine.builder import INT10_TOKENS
+    assert INT10_TOKENS == _INT10
+    on = accurate_candidates(frozenset())
+    assert _INT10 <= on
+    for t in _INT10:
+        assert t not in accurate_candidates({"no-" + t})
+        assert "no-" + t in ENGINE_CANDIDATE_TOKENS
+    # the a74 stronger version (cmax 50) is an env setting, not a default
+    from workflow.profile_engine import cmykport
+    assert cmykport.A74_SHELL == "3:0.5:60:3"

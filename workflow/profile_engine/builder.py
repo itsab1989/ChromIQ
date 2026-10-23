@@ -173,7 +173,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a69-cmykport-oogfine", "a70-edgesmooth", "a70-edgeadapt",
      "a70-foldcap", "a70-blackshell", "a71-darkray", "a72-cmyonly",
      "a72-max4ink", "no-a72-max4ink",
-     # Agent 75 (int-9 CMYK losses vs colprof; research, opt-in):
+     # Agent 75 (int-9 CMYK losses vs colprof; default since integration 10):
      # a75-lightkeep = the engine's own table back for pale out-of-gamut
      # colours, CHROMIQ_A75_LIGHT l0:w:c0:cw:chi:chw
      "a75-lightkeep",
@@ -182,20 +182,24 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a68-clipkeep", "no-a69-cmykport", "no-a69-cmykport-oog",
      "no-a69-cmykport-oogfine", "no-a70-edgesmooth", "no-a70-edgeadapt",
      "no-a70-foldcap", "no-a71-darkray", "no-a72-cmyonly",
+     # Integration 10: the off switches of its new defaults
+     "no-a75-lightkeep", "no-a73-kfirst", "no-a74-foldmeas",
+     "no-a74-kfloor", "no-a74-shellhold", "no-a74-shellhue",
      # Agent 73 (ink test): colprof's -kr K prior for the colorimetric
      # table on a printer with a strong ink fold and a light C+M+Y black;
-     # research, opt-in
+     # default since integration 10
      "a73-kfirst",
      # Agent 74: the a71 k-shell (strong ink fold, i1Pro) holds colour
      # closer to the black (a74-shellhold) and keeps the clip hue while it
-     # fades (a74-shellhue); research, opt-in
+     # fades (a74-shellhue); default since integration 10
      "a74-shellhold", "a74-shellhue",
      # Agent 74: with a73-kfirst, near the black the K prior is at least
      # the K that alone prints the target L* (no heavy rich-black greys on
-     # a folding printer); research, opt-in
+     # a folding printer); default since integration 10
      "a74-kfloor",
      # Agent 74: a73-kfirst fires only on a MEASURED ink fold (heavy-K
-     # patches with colour print lighter than K alone); research, opt-in
+     # patches with colour print lighter than K alone); default since
+     # integration 10
      "a74-foldmeas",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
@@ -384,6 +388,23 @@ A72_CMY_ONLY = "a72-cmyonly"
 # ink devices only; "no-a72-max4ink" lets it act on 5+ inks as before.
 INT9_MAX4_TOKENS = frozenset({"a65-cmykhue-bluejab"})
 A72_MAX4_INK = "a72-max4ink"
+# Integration 10 (2026-10-23, Agent 76, Findings/agent76-01-integration10.md;
+# Basti's eye verdicts RESUME.md s76-s77): ON as well, CMYK (4 inks, K the
+# 4th channel) Maximum accuracy only (every one acts inside the a69 port
+# branch or behind the n == 4 ink-fold test):
+#   a75-lightkeep (pale out-of-gamut nodes take the engine's own table back
+#     from the a69 port, keeping their lightness; CHROMIQ_A75_LIGHT default
+#     72:24:16:6:45:15:0.8);
+#   a73-kfirst + a74-foldmeas (colprof's -kr K prior for the colorimetric
+#     table on a printer with a MEASURED strong ink fold and a light C+M+Y
+#     black; a70-foldcap off there), a74-kfloor (near the black the K prior
+#     is at least K alone), a74-shellhold (a71 k-shell cmax 60, the smoother
+#     default; the stronger cmax 50 stays off) and a74-shellhue (moved
+#     nodes keep their clip hue), the shell tokens on a measured fold only.
+# Each has a "no-<token>" switch.
+INT10_TOKENS = frozenset({
+    "a75-lightkeep", "a73-kfirst", "a74-foldmeas", "a74-kfloor",
+    "a74-shellhold", "a74-shellhue"})
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
@@ -394,7 +415,7 @@ ACCURATE_DEFAULT_TOKENS = frozenset({
     "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
     "a44b-smoothexact", "a45-c1space", "a45-darkend",
     "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS | INT9_TOKENS \
-    | INT9_CMY_TOKENS | {A72_CMY_ONLY, A72_MAX4_INK}
+    | INT9_CMY_TOKENS | {A72_CMY_ONLY, A72_MAX4_INK} | INT10_TOKENS
 
 
 def scope_device_tokens(candidates, *, n: int, is_additive: bool) -> frozenset:
