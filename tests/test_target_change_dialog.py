@@ -67,7 +67,7 @@ def test_the_heading_is_one_grammatical_sentence(qapp):
                  if l.text().startswith("You already created")]
         assert heads, "the heading is gone, or no longer starts the same way"
         assert heads[0] == (
-            'You already created the profile "gen-a", and have now asked for '
+            'You already created the project "gen-a", and have now asked for '
             'one called "gen-b".'), heads[0]
     finally:
         dlg.close()

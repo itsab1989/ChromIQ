@@ -62,6 +62,8 @@ class TargetChangeDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self._action = TargetChangeAction.CANCEL
+        #: the option buttons and the choice each one is (_option_button)
+        self._option_actions: "dict[QPushButton, TargetChangeAction]" = {}
         #: #182 K26: the project was OPENED from a folder whose name is not
         #: the name its files carry (a Finder duplicate, "X copy"), rather
         #: than renamed in the name field. Same window, two choices.
@@ -102,7 +104,7 @@ class TargetChangeDialog(QDialog):
         outer.setSpacing(14)
 
         heading = QLabel(
-            tr("You already created the profile \"{old_name}\", and have now asked for one called \"{new_name}\".").format(old_name=old_name, new_name=new_name),
+            tr("You already created the project \"{old_name}\", and have now asked for one called \"{new_name}\".").format(old_name=old_name, new_name=new_name),
             self,
         )
         heading.setWordWrap(True)
@@ -112,7 +114,7 @@ class TargetChangeDialog(QDialog):
         outer.addWidget(heading)
 
         intro = QLabel(
-            tr("Each profile is a separate folder on disk. Changing the name points "
+            tr("Each project is a separate folder on disk. Changing the name points "
             "ChromIQ at a different folder, so the work you already created would "
             "be left behind. What would you like to do?"),
             self,
@@ -139,18 +141,18 @@ class TargetChangeDialog(QDialog):
         # --- the three choices, most-likely / least-destructive first ---
         outer.addWidget(
             self._option_button(
-                tr('Rename the existing profile to "{new}"').format(new=new_name),
-                tr('Recommended when you deliberately intended to change the profile '
+                tr('Rename the existing project to "{new}"').format(new=new_name),
+                tr('Recommended when you deliberately intended to change the project '
                    'name. ChromIQ moves the existing folder to "{new}", keeping '
                    'everything inside it (calibration, any earlier runs), and then '
                    'regenerates the chart so the printed sheet and files carry the '
-                   'new name. You end up with one profile, correctly named. Saved '
-                   'measurement reports that name the profile follow the new '
+                   'new name. You end up with one project, correctly named. Saved '
+                   'measurement reports that name the project follow the new '
                    'name.\n\n'
                    'In the rare case that a file you added yourself already has the '
                    'name one of the renamed files needs, that file is kept and moved '
                    'aside with "_conflicted_at_renaming_procedure" added to its name, '
-                   'so nothing is lost and the profile\'s own files still end up '
+                   'so nothing is lost and the project\'s own files still end up '
                    'correctly named.').format(new=new_name),
                 TargetChangeAction.RENAME,
                 primary=True,
@@ -159,17 +161,17 @@ class TargetChangeDialog(QDialog):
         outer.addWidget(
             self._option_button(
                 tr('Create "{new}" and keep "{old}"').format(new=new_name, old=old_name),
-                tr('Safest option — nothing is deleted. ChromIQ creates a brand-new '
-                   'profile for "{new}" and leaves the existing "{old}" '
-                   'folder exactly as it is. You will have two separate profiles on '
-                   'disk.').format(new=new_name, old=old_name),
+                tr('This is the safest choice: nothing is deleted. ChromIQ creates a '
+                   'brand-new project for "{new}" and leaves the existing "{old}" '
+                   'folder exactly as it is. You will then have two separate '
+                   'projects on disk.').format(new=new_name, old=old_name),
                 TargetChangeAction.KEEP,
             )
         )
         outer.addWidget(
             self._option_button(
                 tr('Create "{new}" and delete "{old}"').format(new=new_name, old=old_name),
-                tr('ChromIQ creates the new "{new}" profile and moves the old '
+                tr('ChromIQ creates the new "{new}" project and moves the old '
                    '"{old}" folder to your {trash} with everything inside it '
                    '(charts, measurements, profiles). You can put it back from '
                    'there until you empty it, and the space on your disk comes '
@@ -298,7 +300,11 @@ class TargetChangeDialog(QDialog):
         # never drift from the rest of the app (Knut, #130 2026-07-26).
         from ui.widgets import fit_button_width
         fit_button_width(btn)
-        btn.clicked.connect(lambda: self._choose(action))
+        # A bound method, not a lambda capturing self (CLAUDE.md: a slot on a
+        # signal a widget's own child emits is a named method); the button
+        # says which choice it is.
+        self._option_actions[btn] = action
+        btn.clicked.connect(self._on_option_clicked)
         col.addWidget(btn)
 
         # Description uses the main text colour (not a muted grey) so the
@@ -311,6 +317,11 @@ class TargetChangeDialog(QDialog):
         desc.setMinimumWidth(520)
         col.addWidget(desc)
         return frame
+
+    def _on_option_clicked(self) -> None:
+        action = self._option_actions.get(self.sender())
+        if action is not None:
+            self._choose(action)
 
     def _choose(self, action: TargetChangeAction) -> None:
         self._action = action

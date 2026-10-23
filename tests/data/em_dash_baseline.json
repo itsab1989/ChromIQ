@@ -553,7 +553,6 @@
   "Run {n} is the only run in “{name}”. A project always has at least one run, so this run cannot be deleted on its own — deleting it would leave a project with nowhere to work.",
   "Runs printcal through all its calculations without writing the .cal\nfile to disk. Use this to check that your input file and settings are\ncorrect and to preview what targets would be computed — before\ncommitting to a real calibration run.",
   "Safe to tidy: everything inside a cache folder is always safe to delete — ChromIQ can recreate all of it. The reports folders are safe to delete too, if you don't need the history of your quality checks. Your measurements ({name}.ti3, reads/, cal/{name}-cal.ti3) are real ink on real paper — keep those; any profile can be rebuilt from them later. The quickest big tidy-up is deleting whole runN folders you no longer need.",
-  "Safest option — nothing is deleted. ChromIQ creates a brand-new profile for \"{new}\" and leaves the existing \"{old}\" folder exactly as it is. You will have two separate profiles on disk.",
   "Same as No Perceptual Gamut above, but applies to the saturation rendering\nintent. Disables the gamut source for the saturation intent, forcing it to\nuse the printer's own colorimetric gamut boundaries.\n\nAdvanced diagnostic option — leave unchecked for normal profiling.",
   "Save and recall named snapshots of all Manual mode settings.\n\n  +  Save current parameter values as a new named preset.\n  −  Delete the currently selected preset.\n  ▢  Open this tab's presets folder in {manager}.\n\nSelect a preset from the dropdown to instantly restore all\nvalues. The Default entry always resets to built-in defaults.\n\nPresets are stored as plain .json files — one per preset —\nin a ChromIQ folder under your system's Preferences / AppData\n/ config location. Use the folder button (▢) on the right of\nthe preset row to open it. To share a preset, copy the .json\nout of that folder and send it to a colleague; to install a\nshared preset, drop the .json into the matching folder on the\ntarget machine and ChromIQ will pick it up on the next launch.\n\nPresets persist between sessions.",
   "Save and recall named snapshots of all Manual mode settings.\n\n  +  Save current parameter values as a new named preset.\n  −  Delete the currently selected preset.\n  ▢  Open this tab's presets folder in {manager}.\n\nSelect a preset from the dropdown to instantly restore all\nvalues. The Default entry always resets to built-in defaults.\n\nPresets are stored as plain .json files — one per preset —\nin a ChromIQ folder under your system's Preferences / AppData\n/ config location. Use the folder button (▢) on the right of\nthe preset row to open it. To share a preset, copy the .json\nout of that folder and send it to a colleague; to install a\nshared preset, drop the .json into the matching folder on the\ntarget machine and ChromIQ will pick it up on the next launch.\n\nProfile Description is not saved — it is filled from the\n.ti3 filename. Presets persist between sessions.",
@@ -573,7 +572,6 @@
   "Sets a human-readable description embedded in the .cal file.\nPurely informational — does not affect the calibration curves.\n",
   "Sets how sensitive the quality check is when deciding which strips\nneed to be re-measured.\n\nA strip is flagged if any single patch on it has a colour error (ΔE)\nhigher than this value.\n\nLower value (e.g. 1.0) — more strict: flags strips with even small\nerrors. Use this for critical colour work where accuracy matters most.\n\nHigher value (e.g. 3.0 or 4.0) — more lenient: only flags strips with\nclearly visible errors. Use this to limit re-measurement to the worst\noffenders only.\n\nThe default of 2.0 is a good balance for most RGB printer profiles.\nNote: this does not affect the profcheck analysis itself — only which\nstrips appear in the re-measurement recommendation.",
   "Sets the copyright string embedded in the .cal file.\nPurely informational — does not affect the calibration curves.\n",
-  "Sets the dimensions of each sheet in the printed chart. The chart\nalways fills the page edge to edge — bigger paper fits more\npatches, which means a more detailed profile from fewer sheets.\n\nPick the same size you will actually print on, including its\norientation. Strip readers (i1Pro family) read top-to-bottom, so:\n\n  •  Portrait — longer strips, fewer of them. Standard choice.\n\n  •  Landscape (A4R, LetterR, 420×297…) — shorter strips, more\n     of them. Use this when your printer feeds landscape more\n     reliably, or when a portrait sheet would leave the last\n     strip too close to the paper edge.\n\nSelect \"Custom\" to enter exact width and height in millimetres\nwhen none of the named sizes match the paper you're using.\n\nIf you change paper size, the patch count and page count in the\ncommand preview update automatically.\n",
   "Sets the dimensions of each sheet in the printed chart. The chart always fills the page edge to edge — bigger paper fits more patches, which means a more detailed profile from fewer sheets.\n\nPick the same size you will actually print on, including its orientation. Strip readers (i1Pro family) read top-to-bottom, so:\n\n  •  Portrait — longer strips, fewer of them. Standard choice.\n\n  •  Landscape — shorter strips, more of them. Use this when your printer feeds landscape more reliably, or when a portrait sheet would leave the last strip too close to the paper edge.\n\nSome paper sizes are hidden depending on the selected instrument:\n\n  •  A3 Portrait is hidden for i1Pro — the landscape variant fits ~43% more patches.\n\n  •  Small photo formats (5×7\", 4×6\") are hidden for i1Pro 3 Plus — its large patches don't leave a usable profile on those.\n\nIf you change paper size mid-workflow, the recommended patch count and page count update automatically.",
   "Sets the manufacturer description embedded in the .cal file.\nPurely informational — does not affect the calibration curves.\n",
   "Sets the printer model description embedded in the .cal file.\nPurely informational — does not affect the calibration curves.\n",
@@ -1212,10 +1210,6 @@
   ],
   [
    "de",
-   "b4a407250044bbac"
-  ],
-  [
-   "de",
    "b53861ab84b95961"
   ],
   [
@@ -1344,10 +1338,6 @@
   ],
   [
    "es",
-   "b4a407250044bbac"
-  ],
-  [
-   "es",
    "b53861ab84b95961"
   ],
   [
@@ -1417,10 +1407,6 @@
   [
    "fr",
    "8bffe1411201ba10"
-  ],
-  [
-   "fr",
-   "b4a407250044bbac"
   ],
   [
    "fr",
@@ -1501,10 +1487,6 @@
   [
    "it",
    "b2a5a227b90a08d6"
-  ],
-  [
-   "it",
-   "b4a407250044bbac"
   ],
   [
    "it",
@@ -1652,10 +1634,6 @@
   ],
   [
    "nl",
-   "b4a407250044bbac"
-  ],
-  [
-   "nl",
    "b53861ab84b95961"
   ],
   [
@@ -1753,10 +1731,6 @@
   [
    "no",
    "ad7bab84bff621cd"
-  ],
-  [
-   "no",
-   "b4a407250044bbac"
   ],
   [
    "no",
@@ -1868,10 +1842,6 @@
   ],
   [
    "pl",
-   "b4a407250044bbac"
-  ],
-  [
-   "pl",
    "b53861ab84b95961"
   ],
   [
@@ -1949,10 +1919,6 @@
   [
    "pt",
    "ad7bab84bff621cd"
-  ],
-  [
-   "pt",
-   "b4a407250044bbac"
   ],
   [
    "pt",
@@ -2316,10 +2282,6 @@
   ],
   [
    "ru",
-   "b4a407250044bbac"
-  ],
-  [
-   "ru",
    "b53861ab84b95961"
   ],
   [
@@ -2593,10 +2555,6 @@
   [
    "sv",
    "ad7bab84bff621cd"
-  ],
-  [
-   "sv",
-   "b4a407250044bbac"
   ],
   [
    "sv",
