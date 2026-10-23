@@ -66,6 +66,76 @@ _CORNER_LABELS = {
     "Y": lambda: tr("Yellow"),
 }
 
+#: WHAT A CUBE CORNER'S ΔE00 IS MEASURED AGAINST, said in its Overview row
+#: (Basti, 2026-10-23, approved: "Red ΔE00 (against the ideal colour)").
+#: Worked out per date from the report itself (`workflow.measurement_report`
+#: `corners_block` and its callers):
+#:
+#: * a profiling chart, or a sheet printed raw ("design" / "device"): the
+#:   ideal colour of that corner, the sRGB colour of its device values (the
+#:   chart's design); white is a perfect white. On a sheet printed through
+#:   its profile with a white-mapping intent and no source reference, the
+#:   readings are taken relative to the sheet's own paper first;
+#: * a FROM PROFILE GAMUT chart ("colorimetric"): the ideal colour as well
+#:   (§32.5, Knut: "It is the ideal corner values"), except white, which
+#:   aims at the profile's paper white since §31.5 (told apart by the aim
+#:   itself, so an older reference that still aims at a perfect white says so);
+#: * a sheet printed through its profile ("source"): the colour it was
+#:   converted from.
+_CORNER_VS_IDEAL = "{corner} ΔE00 (against the ideal colour)"
+_CORNER_VS_IDEAL_REL = ("{corner} ΔE00 (against the ideal colour, relative "
+                        "to this sheet's paper)")
+_CORNER_VS_WHITE = "{corner} ΔE00 (against a perfect white)"
+_CORNER_VS_WHITE_REL = ("{corner} ΔE00 (against a perfect white, relative "
+                        "to this sheet's paper)")
+_CORNER_VS_PAPER = "{corner} ΔE00 (against the profile's paper white)"
+_CORNER_VS_SOURCE = "{corner} ΔE00 (against the colour it was converted from)"
+_CORNER_VS_MIXED = "{corner} ΔE00 (against each date's own reference)"
+_CORNER_AGAINST = {
+    "ideal": lambda: tr(_CORNER_VS_IDEAL),
+    "ideal_rel": lambda: tr(_CORNER_VS_IDEAL_REL),
+    "white": lambda: tr(_CORNER_VS_WHITE),
+    "white_rel": lambda: tr(_CORNER_VS_WHITE_REL),
+    "paper": lambda: tr(_CORNER_VS_PAPER),
+    "source": lambda: tr(_CORNER_VS_SOURCE),
+    "mixed": lambda: tr(_CORNER_VS_MIXED),
+}
+
+
+def _corner_against(r: dict, code: str) -> str:
+    """Which `_CORNER_AGAINST` wording is true of corner *code* on report
+    *r*; "" when it has no reference (no ΔE00 is shown then)."""
+    src = (r or {}).get("reference_source")
+    if src == "source":
+        return "source"
+    if src not in ("design", "device", "colorimetric"):
+        return ""
+    rel = (src in ("design", "device")
+           and (r or {}).get("yardstick") == "media-relative")
+    if code != "W":
+        return "ideal_rel" if rel else "ideal"
+    if src == "colorimetric":
+        for c in (r or {}).get("corners") or []:
+            if c.get("name") == "W" and c.get("expected_lab"):
+                L, a, b = (float(v) for v in c["expected_lab"][:3])
+                if abs(L - 100.0) > 0.5 or (a * a + b * b) ** 0.5 > 0.5:
+                    return "paper"
+        return "white"
+    return "white_rel" if rel else "white"
+
+
+def _corner_overview_label(code: str, runs: list) -> str:
+    """The Overview row's label for corner *code*: what its ΔE00 compares
+    against, when every date in the table agrees; otherwise a pointer to
+    each date's own reference."""
+    kinds = {k for k in (_corner_against(r, code) for r in runs) if k}
+    name = _CORNER_LABELS[code]()
+    if not kinds:
+        return tr("{corner} ΔE00").format(corner=name)
+    kind = kinds.pop() if len(kinds) == 1 else "mixed"
+    return _CORNER_AGAINST[kind]().format(corner=name)
+
+
 # Distinct, theme-legible line colours for each cube corner's trend line.
 _CORNER_LINE = {
     "W": "#9a9a9a", "K": "#555555", "R": "#e23b3b", "G": "#33a94a",
@@ -15599,7 +15669,7 @@ class MeasurementReportDialog(QDialog):
              num(lambda r: point_lightness(r.get("max_black")), 1)),
         ]
         for code in ("W", "K", "R", "G", "B", "C", "M", "Y"):
-            lbl = tr("{corner} ΔE00").format(corner=_CORNER_LABELS[code]())
+            lbl = _corner_overview_label(code, runs)
             row_getters.append((lbl, num((lambda r, c=code: corner_de(r, c)), 2)))
         return (_h2(tr("Overview of Measurement Metrics"), page_break=True)
                 + _gap() + self._chunked_metric_tables(runs, row_getters))

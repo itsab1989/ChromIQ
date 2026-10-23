@@ -3240,9 +3240,22 @@ class TabPrint(QWidget):
         100 % with only empty margin outside the paper."""
         from workflow import measurement_messages as MM
         c = plan.cut_mm
-        line = tr(MM._OVER_PAPER_LOG).format(
-            left=f"{c.get('left', 0):.1f}", right=f"{c.get('right', 0):.1f}",
-            top=f"{c.get('top', 0):.1f}", bottom=f"{c.get('bottom', 0):.1f}")
+        caption = bool(getattr(plan, "caption_cut", lambda: False)())
+        marks = dict(getattr(plan, "markers_cut", None) or {})
+        sides = {"left": f"{c.get('left', 0):.1f}",
+                 "right": f"{c.get('right', 0):.1f}",
+                 "top": f"{c.get('top', 0):.1f}",
+                 "bottom": f"{c.get('bottom', 0):.1f}"}
+        if marks:
+            words = {"top": MM._MARKS_TOP, "bottom": MM._MARKS_BOTTOM,
+                     "left": MM._MARKS_LEFT, "right": MM._MARKS_RIGHT}
+            listed = ", ".join(
+                tr(words[k]).format(n=marks[k])
+                for k in ("top", "bottom", "left", "right") if marks.get(k))
+            line = tr(MM._OVER_PAPER_LOG_MARKERS).format(marks=listed, **sides)
+        else:
+            line = tr(MM._OVER_PAPER_LOG_CAPTION if caption
+                      else MM._OVER_PAPER_LOG).format(**sides)
         log.info("Print: %s", line)
         try:
             self._set_status(line)
@@ -3252,6 +3265,13 @@ class TabPrint(QWidget):
         if pending is not None:
             pending[1]["outside_paper_mm"] = {k: round(float(v), 1)
                                               for k, v in c.items()}
+            if marks:
+                # which marks were cut, edge by edge (Basti, 2026-10-23)
+                pending[1]["ruler_marks_outside_paper"] = marks
+            if caption:
+                pending[1]["caption_outside_paper_mm"] = {
+                    k: round(float(v), 1)
+                    for k, v in plan.caption_cut_mm.items()}
 
     @staticmethod
     def _windows_queue_takes_postscript(printer: str) -> bool:

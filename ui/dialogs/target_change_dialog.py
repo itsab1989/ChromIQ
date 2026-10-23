@@ -67,7 +67,14 @@ class TargetChangeDialog(QDialog):
         #: than renamed in the name field. Same window, two choices.
         self._folder_renamed = bool(folder_renamed)
         self._built_profile = bool(built_profile)
-        self.setWindowTitle(tr("Rename Printer Profile"))
+        # THE TITLE SAYS WHICH CASE THIS IS (agent 22, 2026-10-23). Both cases
+        # are about a PROJECT folder, and "Rename Printer Profile" named
+        # neither: a project name typed anew in Create Chart, or a project
+        # opened from a folder whose name is not the one its files carry.
+        self.setWindowTitle(
+            tr("This project's folder and files have different names")
+            if self._folder_renamed else
+            tr("You have given this project a new name"))
         self.setMinimumWidth(580)
         # Cap generously: the option titles embed the (variable-length) target
         # names, so the dialog must be able to grow wide enough to show them in

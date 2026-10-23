@@ -7863,11 +7863,11 @@ alone.
 
 ### M-PRINT-CHART-CUT · PROPOSED · a chart a little larger than its paper, where more than empty margin would be cut — Print Chart, every route
 
-*New 2026-10-23, 4.3.10 (jctay, forum 149803: a 102 × 152 mm chart refused on the 100 × 148 mm paper of a 4 × 6 in printer; Knut 149804; Basti 2026-10-23: "ideally ... this gets printed without a warning on a printer like jctay has", and a window only "when the overhang would cut something that matters"). A chart larger than its paper by at most 5 mm and 3 % on each side is printed at exactly 100 %, with no question and a line in the log (`_OVER_PAPER_LOG`) and the print record (`outside_paper_mm`), when everything printed stays on the paper with 1 mm to spare and the blank paper the layout gave around it is kept up to the instrument's own lead (printtarg's 10 mm for the i1Pro, 20 mm i1Pro 3 Plus, 25 mm ColorMunki), moved off centre when that puts the cut into an empty margin (`workflow.overhang`). Never shrunk. Otherwise this window: the Windows and macOS print dialogs print nothing ({outcome} = "Nothing was printed."); ChromIQ's own route shows it in its confirmation window, whose Print still prints at 100 % ({outcome} = the "If you print anyway" sentence). Larger than 5 mm or 3 % keeps M-PRINT-WIN-DIALOG-TOO-BIG and the size mismatch warning. {why} is one of the three sentences in M-PRINT-CHART-CUT-PARTS. See `verification_printing_and_target.md` §O (awaiting confirmation).*
+*New 2026-10-23, 4.3.10 (jctay, forum 149803: a 102 × 152 mm chart refused on the 100 × 148 mm paper of a 4 × 6 in printer; Knut 149804; Basti 2026-10-23: "ideally ... this gets printed without a warning on a printer like jctay has", and a window only "when the overhang would cut something that matters"). A chart larger than its paper by at most 5 mm and 3 % on each side is printed at exactly 100 %, with no question and a line in the log (`_OVER_PAPER_LOG`) and the print record (`outside_paper_mm`), when everything printed stays on the paper with 1 mm to spare and the blank paper the layout gave around the patches is kept up to what ArgyllCMS's printtarg leaves for the instrument (along the strips, at both ends: 10 mm i1Pro, 20 mm i1Pro 3 Plus, 25 mm ColorMunki, 25 mm DTP41, 6.35 mm DTP51; across them only the i1Pro holder's 26 mm clip border when the layout has one; ChromIQ's own 5 mm for the SpectroScan and the CR30; agent 22 against the 3.5.0 source, 2026-10-23), moved off centre when that puts the cut into an empty margin (`workflow.overhang`). Never shrunk. Otherwise this window: the Windows and macOS print dialogs print nothing ({outcome} = "Nothing was printed."); ChromIQ's own route shows it in its confirmation window, whose Print still prints at 100 % ({outcome} = the "If you print anyway" sentence). Larger than 5 mm or 3 % keeps M-PRINT-WIN-DIALOG-TOO-BIG and the size mismatch warning. {why} is one of the three sentences in M-PRINT-CHART-CUT-PARTS. See `verification_printing_and_target.md` §O (awaiting confirmation).*
 
 > **Part of the chart would not be on this paper**
 >
-> The chart measures {chart}, and the paper is {paper}. ChromIQ never makes a chart smaller to fit, because every patch has to be exactly where your measuring instrument expects it. A chart only a little larger than the paper is printed at exactly 100 % when the part that does not fit is empty margin.
+> The chart measures {chart}, and the paper is {paper}. ChromIQ never makes a chart smaller to fit, because every patch has to be exactly where your measuring instrument expects it. A chart only a little larger than the paper is printed at exactly 100 % when the part that does not fit is empty margin, or only things no instrument reads: the end of the thin line of small print that ArgyllCMS writes along the edge of its charts (“ArgyllCMS - Chart …”), or the short ruler marks along the edge that only help you line up a ruler.
 >
 > Here it is not: {why} {outcome}
 >
@@ -7877,16 +7877,18 @@ alone.
 
 ### M-PRINT-CHART-CUT-PARTS · PROPOSED · the three reasons, the two endings and the log line of M-PRINT-CHART-CUT — Print Chart
 
-*New 2026-10-23, see M-PRINT-CHART-CUT. One line each: the reason when printed parts would be cut, when the instrument's white would be too short, when the chart cannot be read; the two endings; the line in the log when the chart was printed at 100 % with only empty margin outside the paper.*
+*New 2026-10-23, see M-PRINT-CHART-CUT. One line each: the reason when printed parts would be cut, when the instrument's white would be too short, when the chart cannot be read; the two endings; the line in the log when the chart was printed at 100 % with only empty margin outside the paper, and (`_OVER_PAPER_LOG_CAPTION`, agent 22, 2026-10-23) the same line when the end of printtarg's caption line is outside it too (Basti: the caption may be cut, and nothing else), and (`_OVER_PAPER_LOG_MARKERS`, Basti through the orchestrator, 2026-10-23) when some of the layout engine's ruler helper markers are, {marks} being "{n} at the top", "{n} at the bottom", "{n} on the left", "{n} on the right" joined with commas. The first reason no longer names the ruler marks, which may now be cut.*
 
 > **A chart a little larger than its paper: the reasons and the log line**
 >
-> printed parts of the chart, such as patches, strip letters, notes or the small ruler marks at the edge, would be cut off.
+> printed parts of the chart, such as patches, strip letters, numbers or notes, would be cut off.
 > the blank paper before the first or after the last patch of a strip, which your instrument needs to start and end each strip, would become too short.
 > ChromIQ cannot tell which parts of this chart are empty, so it does not risk cutting anything off.
 > Nothing was printed.
 > If you print anyway, the chart is printed at 100 % and that part is cut off.
 > Printed at exactly 100 %: the chart is a little larger than the paper, and only empty margin is outside it ({left} mm left, {right} mm right, {top} mm at the top, {bottom} mm at the bottom).
+> Printed at exactly 100 %: the chart is a little larger than the paper. Outside it are only empty margin and the end of ArgyllCMS’s line of small print along the edge (“ArgyllCMS - Chart …”), which no instrument reads ({left} mm left, {right} mm right, {top} mm at the top, {bottom} mm at the bottom). Every patch, letter and number is on the paper.
+> Printed at exactly 100 %: the chart is a little larger than the paper. Outside it are only empty margin and parts of the short ruler marks along its edge, which are there only to help you line up a ruler ({left} mm left, {right} mm right, {top} mm at the top, {bottom} mm at the bottom; ruler marks cut: {marks}). Every patch, letter and number is on the paper.
 
 ### M-x. Which table uses which message
 

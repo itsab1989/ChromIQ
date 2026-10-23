@@ -10222,3 +10222,19 @@ mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-02_beta3/U_impl_qc5/`.
 * **60.3 Where.** One paragraph per such strip, M-REPORT-STRIP-SHIFTED-LATE or -EARLY (proposed), directly above the measurement's Worst patches table, and again under Report Results (headed with the measurement's date when the report covers several). No verdict, metric or limit changes: the slipped readings stay in every figure, and the paragraph says that they pull them up.
 * **60.4 Measured** on Basti's ET-8550 verification (`tests/data/g_basti_et8550_run1_verify`): as read, nothing is named; with strip K's first 8 patches slipped one late, strip K is named, K1 to K8, 59.5 ΔE as read against 3.5 shifted.
 * **Tests:** `tests/test_149786_part_of_a_strip_slipped.py`.
+
+## 61. The Overview's cube-corner rows say what they compare against (Basti, 2026-10-23, 4.3.10)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+* **61.1 The ask.** Basti, 2026-10-23 (approved): the eight rows "White ΔE00" to "Yellow ΔE00" under "For information (no limit applies)" in the Overview of Measurement Metrics get a short addition saying what they compare against, e.g. "Red ΔE00 (against the ideal colour)".
+* **61.2 What each corner is compared with**, read from `workflow/measurement_report.py` (`corners_block` and `build_report`), per date's `reference_source`:
+  * a profiling chart, or a sheet printed raw (`design` / `device`): the ideal colour of the corner, the sRGB colour of its device values (the chart's design). White: a perfect white. Rows read "Red ΔE00 (against the ideal colour)" and "White ΔE00 (against a perfect white)";
+  * the same, on a sheet printed through its profile with a white-mapping intent where the source colours could not be had (`yardstick` media-relative): the readings are relative to the sheet's own paper first: "(against the ideal colour, relative to this sheet's paper)" and "(against a perfect white, relative to this sheet's paper)";
+  * a FROM PROFILE GAMUT chart (`colorimetric`): the ideal colour as well (§32.5, Knut: "It is the ideal corner values"), except white, which aims at the profile's paper white since §31.5: "White ΔE00 (against the profile's paper white)", told apart by the aim itself, so an older reference that still aims at a perfect white says "(against a perfect white)";
+  * a sheet printed through its profile (`source`): "(against the colour it was converted from)", for every corner.
+* **61.3 Several dates.** The Overview is one table with a column per date. When every date has the same reference the row says it; when they differ the row reads "(against each date's own reference)", and each date's "Reference for the ΔE figures" line says which.
+* **61.4 Unchanged:** the numbers, the detailed per-date corner table and the "Cube corners" trend graph.
+* **61.5 Translations** in all 13 languages (agent 22). **Tests:** `tests/test_overview_corner_rows_say_what_they_compare.py`.

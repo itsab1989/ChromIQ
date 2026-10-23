@@ -21,11 +21,19 @@ printed in):
   (patches, spacers, strip letters, notes, the ruler helper marks, stamps)
   stays on the paper with at least ``SAFETY_MM`` to spare for the printer's
   paper feed;
-* the white the instrument needs is kept: around everything printed, the
-  blank paper the layout gave is kept up to ``lead_mm(instrument)`` on every
-  side (the white before the first patch and after the last one that a strip
-  reader starts and ends on, and the white beside the outer strips). If the
-  layout gave less than that, none of it may be taken.
+* the white the instrument needs is kept: beyond the PATCHES, the blank
+  paper the layout gave is kept up to what ArgyllCMS's printtarg itself
+  leaves for that instrument (``keep_box``): along the strips, the white
+  before the first patch and after the last one that a strip reader starts
+  and ends on; across them, the i1Pro's 26 mm holder-clip border on the
+  left. If the layout gave less than that, none of it may be taken;
+* ONE printed thing may be cut, and only it: the caption line printtarg
+  writes along the chart's edge ("ArgyllCMS - Chart ...", Basti
+  2026-10-23). On a 4 x 6 in card it runs from edge to edge, and it is not
+  read by any instrument. Found by ``caption_box``; anything that cannot be
+  told apart from it with certainty counts as printed content. Likewise the
+  ruler helper markers ChromIQ's layout engine can draw along the edges
+  (``helper_markers``, Basti 2026-10-23): a visual aid for a person only.
 
 Inside those limits the chart is placed centred when that keeps everything;
 otherwise it is moved, as little as possible, towards the side whose margin
@@ -51,21 +59,67 @@ SAFETY_MM = 1.0
 #: Below this, there is no overhang at all (rounding of sizes in points).
 NO_OVERHANG_MM = 0.3
 
-#: The white a strip reader needs beyond the printed chart, per instrument,
-#: from ArgyllCMS printtarg's own geometry (lcar, the leading clear area, and
-#: tspa, the trailer): what printtarg leaves before the first and after the
-#: last patch of every strip. The larger of the two is used on every side.
-_LEAD_MM = {"i1": 10.0, "p3": 20.0, "CM": 25.0}
-#: Anything else (a patch-by-patch or whole-sheet reader): the patches only.
+#: THE WHITE A STRIP READER NEEDS, ALONG THE STRIP, from ArgyllCMS 3.5.0's
+#: own printtarg (``target/printtarg.c``, the instrument blocks of
+#: ``generate_file``; checked by agent 22 against the 3.5.0 source on
+#: 2026-10-23): ``lcar``, "Leading clear area before first patch. Will be
+#: white", and ``tspa``, "Clear space after last patch - run off". The
+#: larger of the two is kept at BOTH ends of the strips, because a strip can
+#: be read in either direction. Keys are ChromIQ's instrument codes ("p3" is
+#: printtarg's ``-i 3p``).
+#:
+#: * i1 (i1Pro, i1Pro 2, i1Pro 3; 5 mm aperture): lcar 10.0, tspa 10.0
+#:   (printtarg.c:2158, 2164);
+#: * p3 (i1Pro 3 Plus, 8 mm aperture): lcar 20.0, tspa 20.0 (:2171, 2177);
+#: * CM (ColorMunki): lcar 20.0, tspa 25.0 (:2217, 2223);
+#: * 41 (DTP41): lcar 0.5 in = 12.7, tspa two patch steps, 2 x (0.29 in +
+#:   0.08 in) = 18.8 at the default patch size and more with larger patches
+#:   (:2034-2040); 25 is kept, which covers patches up to a third larger;
+#: * 51 (DTP51): lcar 0.25 in = 6.35, tspa 0 (:2073, 2079);
+#: * SS (SpectroScan, an XY table that reads patch by patch): none (:2112,
+#:   2122).
+_STRIP_WHITE_MM = {"i1": 10.0, "p3": 20.0, "CM": 25.0, "41": 25.0,
+                   "51": 6.35}
+#: A reader that needs no strip white from printtarg (the SpectroScan, the
+#: CR30, which reads one patch at a time): ChromIQ keeps this much all the
+#: same. ChromIQ's own number, not ArgyllCMS's.
 _LEAD_OTHER_MM = 5.0
+#: ACROSS the strips printtarg asks for no instrument white, with one
+#: exception: the i1Pro family's holder, which grips the paper on the left
+#: ("need this for holder to grip paper and plastic spacer", printtarg.c:
+#: 2138-2139, ``lbord = 26.0 - bord``: 26 mm from the paper's left edge to
+#: the first strip). Kept on the left whenever the layout gave it.
+_HOLDER_CLIP_MM = {"i1": 26.0, "p3": 26.0}
+#: A chart whose patches start further left than the holder clip less this
+#: has no holder-clip border at all, and needs none kept.
+HOLDER_CLIP_TOL_MM = 1.0
+
+#: Kept for callers that ask for one number: the most any instrument needs.
+_LEAD_MM = dict(_STRIP_WHITE_MM)
 
 
 def lead_mm(instrument: "str | None") -> float:
-    """The white kept around the patches for *instrument*; for a chart whose
-    instrument is not known, the most any instrument needs."""
+    """The white kept at the ends of the strips for *instrument*; for a chart
+    whose instrument is not known, the most any instrument needs."""
     if not instrument:
-        return max(_LEAD_MM.values())
-    return _LEAD_MM.get(str(instrument), _LEAD_OTHER_MM)
+        return max(_STRIP_WHITE_MM.values())
+    return max(_STRIP_WHITE_MM.get(str(instrument), _LEAD_OTHER_MM),
+               _LEAD_OTHER_MM)
+
+
+def white_mm(instrument: "str | None") -> "dict[str, float]":
+    """The white kept beyond the patches on each side, in the chart's own
+    orientation (its strips run down the page, as printtarg and ChromIQ's
+    layout engine lay them): the strip white at the top and the bottom, the
+    holder clip on the left. A chart whose instrument is not known keeps
+    the most any instrument needs on every side, as before."""
+    if not instrument:
+        most = max(_STRIP_WHITE_MM.values())
+        return {"left": most, "right": most, "top": most, "bottom": most}
+    along = lead_mm(instrument)
+    return {"left": _HOLDER_CLIP_MM.get(str(instrument), 0.0), "right": 0.0,
+            "top": along, "bottom": along}
+
 
 
 @dataclass
@@ -103,6 +157,16 @@ class Plan:
     #: orientation (x to the right, y down): what a print route adds to its
     #: centred placement
     shift_mm: "tuple[float, float]" = (0.0, 0.0)
+    #: how much of printtarg's caption line is left off, per side, in mm
+    #: (empty when the chart has none, or none of it is left off)
+    caption_cut_mm: dict = field(default_factory=dict)
+
+    #: how many ruler helper markers are left off (wholly or in part), per
+    #: side of the chart: ``{"top": 12, ...}``; empty when none are
+    markers_cut: dict = field(default_factory=dict)
+
+    def caption_cut(self) -> bool:
+        return any(v > 0.05 for v in self.caption_cut_mm.values())
 
     def shift_pt(self) -> "tuple[float, float]":
         return (self.shift_mm[0] / MM_PER_PT, self.shift_mm[1] / MM_PER_PT)
@@ -130,11 +194,14 @@ def _axis(chart: float, paper: float, lo_keep: float, hi_keep: float):
 
 
 def plan(chart_mm: "tuple[float, float]", paper_mm: "tuple[float, float]",
-         content: "Box | None", keep: "Box | None" = None) -> Plan:
-    """The decision for one page. *content*: everything printed (the ink),
-    None when it could not be read (then only a chart that fits is safe).
-    *keep*: the white the instrument needs around it, as a box (see
-    :func:`keep_box`); defaults to *content*."""
+         content: "Box | None", keep: "Box | None" = None,
+         caption: "Box | None" = None, markers: "dict | None" = None) -> Plan:
+    """The decision for one page. *content*: everything printed that may not
+    be cut (the ink, less printtarg's caption line), None when it could not
+    be read (then only a chart that fits is safe). *keep*: the white the
+    instrument needs around it, as a box (see :func:`keep_box`); defaults to
+    *content*. *caption*: where the caption line is, if there is one: it may
+    be cut, and :attr:`Plan.caption_cut_mm` says how much of it is."""
     cw, ch = chart_mm
     pw, ph = paper_mm
     ox, oy = max(0.0, cw - pw), max(0.0, ch - ph)
@@ -160,22 +227,49 @@ def plan(chart_mm: "tuple[float, float]", paper_mm: "tuple[float, float]",
     cut = {"left": max(0.0, -xk), "right": max(0.0, xk + cw - pw),
            "top": max(0.0, -yk), "bottom": max(0.0, yk + ch - ph)}
     shift = (xk - (pw - cw) / 2.0, yk - (ph - ch) / 2.0)
-    return Plan(False, True, (xk, yk), cut, over_mm=(ox, oy), shift_mm=shift)
+    cap_cut = {}
+    if caption is not None:
+        cap_cut = {"left": max(0.0, -(xk + caption.left)),
+                   "right": max(0.0, xk + caption.right - pw),
+                   "top": max(0.0, -(yk + caption.top)),
+                   "bottom": max(0.0, yk + caption.bottom - ph)}
+    marks_cut = {}
+    for side, boxes in (markers or {}).items():
+        n = sum(1 for b in boxes
+                if xk + b.left < 0 or xk + b.right > pw
+                or yk + b.top < 0 or yk + b.bottom > ph)
+        if n:
+            marks_cut[side] = n
+    return Plan(False, True, (xk, yk), cut, over_mm=(ox, oy), shift_mm=shift,
+                caption_cut_mm=cap_cut, markers_cut=marks_cut)
 
 
 def keep_box(content: Box, chart_mm: "tuple[float, float]",
              instrument: "str | None",
              patches: "Box | None" = None) -> Box:
     """What must stay on the paper: everything printed (*content*), and the
-    PATCHES grown on every side by the instrument's white (:func:`lead_mm`),
+    PATCHES grown by the instrument's white on each side (:func:`white_mm`),
     never past the chart's own edge (a layout that gave less white than that
     keeps all of it). Without *patches* (none found) the whole content is
-    grown, which is the cautious answer."""
-    lead = lead_mm(instrument)
+    grown by the most any instrument needs on every side, which is the
+    cautious answer."""
     cw, ch = chart_mm
-    base = patches if patches is not None else content
-    grown = Box(max(0.0, base.left - lead), max(0.0, base.top - lead),
-                min(cw, base.right + lead), min(ch, base.bottom + lead))
+    if patches is None:
+        # which way the strips run is not known either: the strip white on
+        # every side (the most any instrument needs, when it is not known)
+        lead = lead_mm(instrument)
+        w = {"left": lead, "right": lead, "top": lead, "bottom": lead}
+        base = content
+    else:
+        w = white_mm(instrument)
+        base = patches
+        if w["left"] and base.left < w["left"] - HOLDER_CLIP_TOL_MM:
+            # the layout has no holder-clip border (printtarg -L, ChromIQ's
+            # "clip border" off): such a chart is read without the holder
+            w = dict(w, left=0.0)
+    grown = Box(max(0.0, base.left - w["left"]), max(0.0, base.top - w["top"]),
+                min(cw, base.right + w["right"]),
+                min(ch, base.bottom + w["bottom"]))
     return grown.union(content)
 
 
@@ -284,15 +378,265 @@ def patch_box(tiff_path: "str | Path", frame: int = 0) -> "Box | None":
         return None
 
 
+#: PRINTTARG'S CAPTION LINE ("ArgyllCMS - Chart \"<name>\" (Chart ID <n>)
+#: <date>", printtarg.c:3735) is drawn down the page just after the last
+#: strip: ``vstring(tro, x + pglth, y1, pglth, y2 - y1, label)`` with
+#: ``pglth = 5.0`` (printtarg.c:2805), i.e. in a 5 mm column that starts
+#: where the last strip ends. Its length follows the chart's name and the
+#: date, so on a 4 x 6 in card it can run from edge to edge. Basti,
+#: 2026-10-23: it may be cut, and nothing else may. These say where it may
+#: start and end, counted from the patches' right edge, with room for
+#: rounding at 150 to 300 dpi.
+CAPTION_START_MAX_MM = 1.5
+CAPTION_END_MAX_MM = 6.5
+#: Gaps inside the caption's column (between strokes of a letter) are
+#: bridged up to this; a wider gap ends it.
+CAPTION_GAP_MM = 1.0
+#: printtarg writes the caption for every instrument but the DTP51
+#: (``dopglabel = 0``, printtarg.c:2067). A chart whose instrument is not
+#: known can still carry one.
+_NO_CAPTION_INSTRUMENTS = {"51"}
+
+
+def _stems(p: Path) -> "list[str]":
+    import re
+    # "<stem>_01.tif" is page 1 of "<stem>": only that page suffix comes off
+    # (a name may end in digits of its own, "Progress300")
+    return list(dict.fromkeys([p.stem, re.sub(r"[_-]\d+$", "", p.stem)]))
+
+
+def made_by_printtarg(tiff_path: "str | Path") -> bool:
+    """True when the chart beside *tiff_path* was laid out by ArgyllCMS's
+    printtarg: its .ti2 says ``ORIGINATOR "Argyll printtarg"`` and its
+    sidecar does not carry ChromIQ's layout engine. Only such a chart has
+    printtarg's caption line."""
+    import json
+    p = Path(tiff_path)
+    for st in _stems(p):
+        side = p.parent / f"{st}.channels.json"
+        if side.is_file():
+            try:
+                lay = json.loads(side.read_text(encoding="utf-8")).get("layout")
+            except Exception:  # noqa: BLE001
+                lay = None
+            if isinstance(lay, dict) and lay.get("engine"):
+                return False
+    for st in _stems(p):
+        ti2 = p.parent / f"{st}.ti2"
+        if ti2.is_file():
+            try:
+                head = ti2.read_text(encoding="utf-8", errors="replace")[:2000]
+            except OSError:
+                continue
+            return 'ORIGINATOR "Argyll printtarg"' in head
+    return False
+
+
+def caption_box(tiff_path: "str | Path", frame: int = 0,
+                patches: "Box | None" = None) -> "Box | None":
+    """Where printtarg's caption line is on one page, in mm, or None.
+
+    Found only on a chart printtarg laid out (:func:`made_by_printtarg`),
+    and only where printtarg puts it: a column of ink that starts within
+    ``CAPTION_START_MAX_MM`` of the patches' right edge and ends within
+    ``CAPTION_END_MAX_MM`` of it. Anything further right (ChromIQ's own
+    notes or settings stamp, a mark) is not part of it and stays content.
+    None whenever that cannot be said with certainty: the caller then keeps
+    all of it."""
+    try:
+        import numpy as np
+        if not made_by_printtarg(tiff_path):
+            return None
+        if instrument_of(tiff_path) in _NO_CAPTION_INSTRUMENTS:
+            return None
+        if patches is None:
+            patches = patch_box(tiff_path, frame)
+        if patches is None:
+            return None
+        got = _ink_mm(tiff_path, frame)
+        if got is None:
+            return None
+        ink, mm = got
+        x0 = int(np.ceil(patches.right / mm))
+        cols = ink[:, x0:].any(axis=0)
+        xs = np.where(cols)[0]
+        if not len(xs):
+            return None
+        gap = max(1, int(round(CAPTION_GAP_MM / mm)))
+        start = end = int(xs[0])
+        for x in xs[1:]:
+            if x - end > gap:
+                break
+            end = int(x)
+        left = (x0 + start) * mm
+        right = (x0 + end + 1) * mm
+        if left - patches.right > CAPTION_START_MAX_MM:
+            return None
+        if right - patches.right > CAPTION_END_MAX_MM:
+            return None
+        band = ink[:, x0 + start:x0 + end + 1]
+        rows = np.where(band.any(axis=1))[0]
+        return Box(left, float(rows[0]) * mm, right, float(rows[-1] + 1) * mm)
+    except Exception:          # noqa: BLE001 - unreadable: keep everything
+        return None
+
+
+#: THE RULER HELPER MARKERS (#152, Knut) may be cut too (Basti, 2026-10-23,
+#: through the orchestrator): the short dashes ChromIQ's layout engine can
+#: draw along the page edges, ``helper_marker_edge`` mm from the edge and
+#: ``helper_marker_len`` mm long, pointing inward
+#: (`layout_engine.geometry.helper_marker_lines_mm`). They are purely a
+#: visual aid for a person lining a ruler up; no instrument or tool reads
+#: them. What the engine draws, and what each is for:
+#:
+#: * patches and spacers: read by the instrument -- never cut;
+#: * strip letters and their underline, row numbers (SpectroScan): a person
+#:   needs them to find the strip -- never cut;
+#: * the sheet text, the settings stamp, the clip-border notes, the
+#:   wordmark: the chart's own record -- never cut;
+#: * the ruler helper markers: a visual aid only -- MAY be cut.
+#:
+#: The engine prints no scanner fiducials (scanin is given the corners by
+#: hand, ``cht_writer``), and nothing here touches an i1iSis chart (its
+#: layout is i1Profiler's, ``instruments.DELEGATED``). A dash is recognised
+#: only as the engine draws it: a straight run the marker length long, at
+#: most ``MARKER_WIDTH_MAX_MM`` thick, starting the marker distance from its
+#: edge, with nothing else beside it in its band. A dash that crosses other
+#: ink (the help text allows them to overlap the clip-border notes) is not
+#: recognised and stays content.
+MARKER_WIDTH_MAX_MM = 0.6
+MARKER_TOL_MM = 0.6
+
+
+def _recipe_of(tiff_path: "str | Path") -> "dict | None":
+    import json
+    p = Path(tiff_path)
+    for st in _stems(p):
+        side = p.parent / f"{st}.channels.json"
+        if side.is_file():
+            try:
+                lay = json.loads(side.read_text(encoding="utf-8")).get("layout")
+            except Exception:  # noqa: BLE001
+                return None
+            if isinstance(lay, dict) and isinstance(lay.get("recipe"), dict):
+                return lay["recipe"]
+    return None
+
+
+def _dashes_in_band(band, mm: float, edge_mm: float, len_mm: float):
+    """The columns of *band* (rows run from the paper edge inward) that are
+    helper-marker dashes: a list of (first column, last column + 1)."""
+    import numpy as np
+    cols = np.where(band.any(axis=0))[0]
+    out = []
+    if not len(cols):
+        return out
+    groups = []
+    start = prev = int(cols[0])
+    for c in cols[1:]:
+        c = int(c)
+        if c != prev + 1:
+            groups.append((start, prev + 1))
+            start = c
+        prev = c
+    groups.append((start, prev + 1))
+    for a, b in groups:
+        if (b - a) * mm > MARKER_WIDTH_MAX_MM:
+            continue
+        rows = np.where(band[:, a:b].any(axis=1))[0]
+        r0, r1 = int(rows[0]), int(rows[-1]) + 1
+        if len(rows) != r1 - r0:            # one unbroken run, nothing else
+            continue
+        if abs(r0 * mm - edge_mm) > MARKER_TOL_MM:
+            continue
+        if abs((r1 - r0) * mm - len_mm) > MARKER_TOL_MM:
+            continue
+        out.append((a, b))
+    return out
+
+
+def helper_markers(tiff_path: "str | Path", frame: int = 0):
+    """The ruler helper markers on one page: ``{side: [Box, ...]}`` in mm,
+    for the sides they are on; ``{}`` when the chart has none, is not a
+    layout-engine chart, or none can be recognised."""
+    try:
+        rec = _recipe_of(tiff_path)
+        if not rec or not rec.get("helper_markers"):
+            return {}
+        edge = float(rec.get("helper_marker_edge") or 2.0)
+        length = float(rec.get("helper_marker_len") or 2.0)
+        got = _ink_mm(tiff_path, frame)
+        if got is None:
+            return {}
+        ink, mm = got
+        h, w = ink.shape
+        depth = int(round((edge + length + MARKER_TOL_MM) / mm))
+        found: dict = {}
+        if rec.get("helper_markers_top_bottom", True):
+            top = ink[:depth, :]
+            found["top"] = [Box(a * mm, edge, b * mm, edge + length)
+                            for a, b in _dashes_in_band(top, mm, edge, length)]
+            bot = ink[h - depth:, :][::-1, :]
+            found["bottom"] = [Box(a * mm, h * mm - edge - length, b * mm,
+                                   h * mm - edge)
+                               for a, b in _dashes_in_band(bot, mm, edge, length)]
+        if rec.get("helper_markers_sides", True):
+            left = ink[:, :depth].T
+            found["left"] = [Box(edge, a * mm, edge + length, b * mm)
+                             for a, b in _dashes_in_band(left, mm, edge, length)]
+            right = ink[:, w - depth:][:, ::-1].T
+            found["right"] = [Box(w * mm - edge - length, a * mm,
+                                  w * mm - edge, b * mm)
+                              for a, b in _dashes_in_band(right, mm, edge, length)]
+        return {k: v for k, v in found.items() if v}
+    except Exception:          # noqa: BLE001 - unreadable: keep everything
+        return {}
+
+
+def printed_box(tiff_path: "str | Path", frame: int = 0,
+                caption: "Box | None" = None,
+                markers: "dict | None" = None) -> "Box | None":
+    """What may not be cut on one page: everything printed (as
+    :func:`content_box`) less printtarg's caption line *caption* and the
+    ruler helper markers *markers* (:func:`helper_markers`)."""
+    if caption is None and not markers:
+        return content_box(tiff_path, frame)
+    try:
+        import numpy as np
+        got = _ink_mm(tiff_path, frame)
+        if got is None:
+            return None
+        ink, mm = got
+        ink = ink.copy()
+        if caption is not None:
+            x0 = int(round(caption.left / mm))
+            x1 = int(round(caption.right / mm))
+            ink[:, x0:x1] = False
+        h, w = ink.shape
+        for boxes in (markers or {}).values():
+            for b in boxes:
+                # the dash's own pixels, with a pixel of slack for rounding
+                x0 = max(0, int(np.floor(b.left / mm)) - 1)
+                x1 = min(w, int(np.ceil(b.right / mm)) + 1)
+                y0 = max(0, int(np.floor(b.top / mm)) - 1)
+                y1 = min(h, int(np.ceil(b.bottom / mm)) + 1)
+                ink[y0:y1, x0:x1] = False
+        rows = np.where(ink.any(axis=1))[0]
+        cols = np.where(ink.any(axis=0))[0]
+        if not len(rows):
+            return Box(0.0, 0.0, 0.0, 0.0)
+        return Box(float(cols[0]) * mm, float(rows[0]) * mm,
+                   float(cols[-1] + 1) * mm, float(rows[-1] + 1) * mm)
+    except Exception:          # noqa: BLE001 - unreadable: the old rule
+        return None
+
+
 def instrument_of(tiff_path: "str | Path") -> "str | None":
     """The chart's instrument code from its sidecar (``<stem>.channels.json``
     layout recipe), else from the .ti2 beside it; None when unknown."""
     import json
     p = Path(tiff_path)
-    import re
-    # "<stem>_01.tif" is page 1 of "<stem>": only that page suffix comes off
-    # (a name may end in digits of its own, "Progress300")
-    stems = [p.stem, re.sub(r"[_-]\d+$", "", p.stem)]
+    stems = _stems(p)
     for st in stems:
         side = p.parent / f"{st}.channels.json"
         if side.is_file():
@@ -300,6 +644,14 @@ def instrument_of(tiff_path: "str | Path") -> "str | None":
                 data = json.loads(side.read_text(encoding="utf-8"))
                 inst = ((data.get("layout") or {}).get("recipe") or {}).get(
                     "instrument")
+                if inst:
+                    return str(inst)
+                # a printtarg chart ChromIQ made: the Create Chart settings
+                # it was made with travel in the sidecar (K2), printtarg's
+                # "-i" among them, by ChromIQ's own code ("p3" for -i 3p)
+                rec = (data.get("create_chart_settings") or {}).get(
+                    "printtarg-i")
+                inst = rec.get("value") if isinstance(rec, dict) else None
                 if inst:
                     return str(inst)
             except Exception:  # noqa: BLE001
@@ -311,8 +663,16 @@ def instrument_of(tiff_path: "str | Path") -> "str | None":
                 text = ti2.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            for code, words in (("p3", ("i1 Pro 3 Plus", "i1Pro3Plus")),
-                                ("CM", ("ColorMunki",)), ("i1", ("i1 Pro", "i1Pro"))):
+            # printtarg names the instrument by ArgyllCMS's own table
+            # (spectro/insttypes.c inst_name): "GretagMacbeth i1 Pro" for
+            # BOTH -i i1 and -i 3p (printtarg.c:3341 makes 3p an i1Pro with a
+            # modifier), so such a chart is taken as the one that needs more
+            # white, the i1Pro 3 Plus. A chart cut too little is still read;
+            # one cut too much is not.
+            for code, words in (("CM", ("ColorMunki",)),
+                                ("41", ("DTP41",)), ("51", ("DTP51",)),
+                                ("SS", ("SpectroScan",)),
+                                ("p3", ("i1 Pro", "i1Pro"))):
                 if any(w in text for w in words):
                     return code
     return None
@@ -325,11 +685,13 @@ def plan_for_page(tiff_path: "str | Path", frame: int,
     orientation they are given in (the caller turns the page first)."""
     chart_mm = (chart_pt[0] * MM_PER_PT, chart_pt[1] * MM_PER_PT)
     paper_mm = (paper_pt[0] * MM_PER_PT, paper_pt[1] * MM_PER_PT)
-    content = content_box(tiff_path, frame)
-    keep = (keep_box(content, chart_mm, instrument_of(tiff_path),
-                     patch_box(tiff_path, frame))
+    patches = patch_box(tiff_path, frame)
+    caption = caption_box(tiff_path, frame, patches)
+    markers = helper_markers(tiff_path, frame)
+    content = printed_box(tiff_path, frame, caption, markers)
+    keep = (keep_box(content, chart_mm, instrument_of(tiff_path), patches)
             if content is not None else None)
-    return plan(chart_mm, paper_mm, content, keep)
+    return plan(chart_mm, paper_mm, content, keep, caption, markers)
 
 
 def paper_like_chart(chart_pt: "tuple[float, float]",
@@ -353,14 +715,23 @@ def plan_for_chart(pages, chart_pt: "tuple[float, float]",
     paper_mm = (pp[0] * MM_PER_PT, pp[1] * MM_PER_PT)
     content = None
     patches = None
+    caption = None
+    markers: dict = {}
     no_patches = False
     inst = None
     for path, frame in pages:
-        c = content_box(path, frame)
+        pb = patch_box(path, frame)
+        cap = caption_box(path, frame, pb)
+        mk = helper_markers(path, frame)
+        for side, boxes in mk.items():
+            # one plan for every page: a side's dashes are counted per page
+            markers.setdefault(side, []).extend(boxes)
+        c = printed_box(path, frame, cap, mk)
         if c is None:
             return plan(chart_mm, paper_mm, None)
         content = c if content is None else content.union(c)
-        pb = patch_box(path, frame)
+        if cap is not None:
+            caption = cap if caption is None else caption.union(cap)
         if pb is None:
             no_patches = True       # one page unknown: the cautious rule
         else:
@@ -370,7 +741,7 @@ def plan_for_chart(pages, chart_pt: "tuple[float, float]",
         return plan(chart_mm, paper_mm, None)
     return plan(chart_mm, paper_mm, content,
                 keep_box(content, chart_mm, inst,
-                         None if no_patches else patches))
+                         None if no_patches else patches), caption, markers)
 
 
 # ---------------------------------------------------------------------------

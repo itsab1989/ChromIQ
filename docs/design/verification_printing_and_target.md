@@ -1240,11 +1240,55 @@ Built in `workflow/overhang.py`; every route asks it the same question.
 **The rule.** A chart larger than the paper by at most 5 mm and at most 3 %
 on each axis is printed at exactly 100 %, never scaled, when everything that
 would fall off the paper is empty: no ink at all (patches, strip letters,
-notes, the ruler marks and printtarg's caption line count as ink), and the
-white the instrument needs around the PATCHES kept (i1Pro family 10 mm,
-i1Pro 3 Plus 20 mm, ColorMunki 25 mm, any other 5 mm; a chart whose
-instrument is not known keeps 25 mm), with 1 mm to spare for the paper
-feed. The chart is centred when that keeps all of it; otherwise it is moved
+numbers, notes, ChromIQ's settings stamp and the ruler marks count as ink;
+printtarg's caption line is the one exception, below), and the white the
+instrument needs beyond the PATCHES kept, with 1 mm to spare for the paper
+feed. The white is ArgyllCMS 3.5.0 printtarg's own (`target/printtarg.c`,
+checked against the source by agent 22, 2026-10-23): along the strips, at
+both ends because a strip can be read either way, the larger of `lcar`
+(the clear area before the first patch) and `tspa` (the run-off after the
+last): i1Pro family 10 mm (lines 2158, 2164), i1Pro 3 Plus 20 mm (2171,
+2177), ColorMunki 25 mm (2217, 2223: 20 before, 25 after), DTP41 25 mm
+(2034-2040: 12.7 before, two patch steps after, 18.8 mm at the default
+patch size), DTP51 6.35 mm (2073); across the strips printtarg asks for
+none, except the i1Pro holder's clip border on the left (2138-2139: 26 mm
+from the paper's edge), kept whenever the layout has one. The SpectroScan
+and the CR30 need none from printtarg; ChromIQ keeps 5 mm. A chart whose
+instrument is not known keeps 25 mm on every side. A printtarg chart that
+names only "GretagMacbeth i1 Pro" (printtarg writes that for the i1Pro and
+the i1Pro 3 Plus alike) is taken as the i1Pro 3 Plus.
+
+**printtarg's caption line may be cut (Basti, 2026-10-23, approved).** The
+line printtarg writes in a 5 mm column after the last strip ("ArgyllCMS -
+Chart "<name>" (Chart ID n) <date>", printtarg.c:2805, 3735) runs from
+edge to edge on a 4 x 6 in card, and no instrument reads it. On a chart
+printtarg laid out (its .ti2 says `ORIGINATOR "Argyll printtarg"`), a
+column of ink that starts within 1.5 mm of the patches' right edge and
+ends within 6.5 mm of it is that line, and may be cut; everything else,
+anything further right included, is content. The log line then says so
+(M-PRINT-CHART-CUT-PARTS `_OVER_PAPER_LOG_CAPTION`) and the print record
+keeps `caption_outside_paper_mm`. The DTP51 has no caption
+(`dopglabel = 0`).
+
+**The layout engine's ruler helper markers may be cut too (Basti,
+2026-10-23, through the orchestrator).** The short dashes along the page
+edges (#152, `geometry.helper_marker_lines_mm`, `helper_marker_edge` mm
+from the edge, `helper_marker_len` mm long) only help a person line up a
+ruler; no instrument or tool reads them. Everything else the engine draws
+is content: the patches and spacers (the instrument reads them), the strip
+letters, their underline and the row numbers (a person needs them to find
+the strip), the sheet text, the settings stamp, the clip-border notes and
+the wordmark (the chart's record). The engine prints no scanner fiducials,
+and nothing here touches an i1iSis chart (laid out by i1Profiler). A dash is
+recognised only on a chart whose recipe has the markers on, and only as
+the engine draws it (one straight run of the marker length, at most 0.6 mm
+thick, starting the marker distance from its edge, nothing beside it in
+its band); a dash that crosses other ink stays content. When some are off
+the paper, the log line names how many on which edge
+(M-PRINT-CHART-CUT-PARTS `_OVER_PAPER_LOG_MARKERS`) and the print record
+keeps `ruler_marks_outside_paper`. Every route asks the same plan, so the
+Windows and macOS dialogs print such a chart too, and still refuse when
+anything else would be cut. The chart is centred when that keeps all of it; otherwise it is moved
 just far enough that the cut falls in the side that has the room. More than
 that, or a chart that cannot be read as RGB or grey: the old answers stand.
 
@@ -1265,10 +1309,12 @@ Chart ...") runs from edge to edge on a card that small; the same chart
 with the caption whitened printed at 100 %, the job's patches 1.0 mm right
 and 2.2 mm up (100 x 148) or 1.2 mm up (100 x 150), exactly as planned
 (rendered with Ghostscript); Knut's 600-patch 10 x 15 cm card (ruler marks
-2 mm from the edge) is not safe on 100 x 148 mm. The named papers
+2 mm from the edge) is not safe on 100 x 148 mm (answered 2026-10-23: those
+marks may be cut, rule above). The named papers
 "10 x 15 cm (100 x 150 mm)" and "Postcard (100 x 148 mm)" in Create Chart
 are what makes a chart for such a printer fit. Whether printtarg's caption
-line may be cut is a question for Basti.
+line may be cut was a question for Basti; his answer (2026-10-23, yes, and
+only the caption) is the rule above, measured on screen by agent 22.
 
 ---
 

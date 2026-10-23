@@ -6091,7 +6091,10 @@ M_PRINT_CHART_CUT = _m(
     "a chart smaller to fit, because every patch has to be exactly where your "
     "measuring instrument expects it. A chart only a little larger than the "
     "paper is printed at exactly 100 % when the part that does not fit is "
-    "empty margin.\n\n"
+    "empty margin, or only things no instrument reads: the end of the thin "
+    "line of small print that ArgyllCMS writes along the edge of its charts "
+    "(\u201cArgyllCMS - Chart \u2026\u201d), or the short ruler marks along the "
+    "edge that only help you line up a ruler.\n\n"
     "Here it is not: {why} {outcome}\n\n"
     "What you can do:\n"
     "• Print on paper of the size the chart was made for, if your printer "
@@ -6103,8 +6106,7 @@ M_PRINT_CHART_CUT = _m(
     "is a new chart, so print and measure the new one.",
     approved=False)
 _CUT_WHY_CONTENT = ("printed parts of the chart, such as patches, strip "
-                    "letters, notes or the small ruler marks at the edge, "
-                    "would be cut off.")
+                    "letters, numbers or notes, would be cut off.")
 _CUT_WHY_LEAD = ("the blank paper before the first or after the last patch of "
                  "a strip, which your instrument needs to start and end each "
                  "strip, would become too short.")
@@ -6119,11 +6121,36 @@ _OVER_PAPER_LOG = ("Printed at exactly 100 %: the chart is a little larger "
                    "than the paper, and only empty margin is outside it "
                    "({left} mm left, {right} mm right, {top} mm at the top, "
                    "{bottom} mm at the bottom).")
+#: …and the same line when part of printtarg's caption line ("ArgyllCMS -
+#: Chart ...") is off the paper too (Basti, 2026-10-23: it may be cut).
+_OVER_PAPER_LOG_CAPTION = (
+    "Printed at exactly 100 %: the chart is a little larger than the paper. "
+    "Outside it are only empty margin and the end of ArgyllCMS\u2019s line of "
+    "small print along the edge (\u201cArgyllCMS - Chart \u2026\u201d), which no "
+    "instrument reads ({left} mm left, {right} mm right, {top} mm at the "
+    "top, {bottom} mm at the bottom). Every patch, letter and number is on "
+    "the paper.")
+#: …and when some of the ruler helper markers the layout engine drew along
+#: the edges are off the paper (Basti, 2026-10-23: they may be cut).
+_OVER_PAPER_LOG_MARKERS = (
+    "Printed at exactly 100 %: the chart is a little larger than the paper. "
+    "Outside it are only empty margin and parts of the short ruler marks "
+    "along its edge, which are there only to help you line up a ruler "
+    "({left} mm left, {right} mm right, {top} mm at the top, {bottom} mm at "
+    "the bottom; ruler marks cut: {marks}). Every patch, letter and number "
+    "is on the paper.")
+#: {marks} in that line: one entry per edge, "{n} at the top" and so on,
+#: joined with ", ".
+_MARKS_TOP = "{n} at the top"
+_MARKS_BOTTOM = "{n} at the bottom"
+_MARKS_LEFT = "{n} on the left"
+_MARKS_RIGHT = "{n} on the right"
 M_PRINT_CHART_CUT_PARTS = _m(
     "M-PRINT-CHART-CUT-PARTS",
     "A chart a little larger than its paper: the reasons and the log line",
     "\n".join((_CUT_WHY_CONTENT, _CUT_WHY_LEAD, _CUT_WHY_UNKNOWN,
-               _CUT_OUTCOME_NOTHING, _CUT_OUTCOME_ANYWAY, _OVER_PAPER_LOG)),
+               _CUT_OUTCOME_NOTHING, _CUT_OUTCOME_ANYWAY, _OVER_PAPER_LOG,
+               _OVER_PAPER_LOG_CAPTION, _OVER_PAPER_LOG_MARKERS)),
     approved=False)
 #: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
 #: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
