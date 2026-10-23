@@ -1976,6 +1976,13 @@ class MeasureManager(QObject):
             "first": locs[run.run_first], "last": locs[run.run_last],
             "lead": locs[run.lead] if run.lead is not None else None,
             "lead_paper": run.lead_paper,
+            # A short slip says where it sits (agent 19's study, approved by
+            # Basti 2026-10-23): "start" / "end" next to the patch that read
+            # the paper, "middle" with the patch read twice, so the question
+            # can say what happened there; "single" when the run is one patch.
+            "kind": run.kind,
+            "twice": locs[run.twice] if run.twice is not None else None,
+            "single": run.single,
             # ΔE00, the unit of the report's tables (None only if the
             # ΔE00 sums failed, and then the window says "?").
             "base": run.base_de00, "best": run.shifted_de00,

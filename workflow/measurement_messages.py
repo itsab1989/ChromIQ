@@ -7077,6 +7077,103 @@ M_STRIP_PART_SLIPPED_EARLY = _m(
     + _slip_tail(),
     approved=False)
 
+#: SHORT SLIPS (agent 19's study, approved by Basti 2026-10-23): a slip of
+#: one to three patches next to a patch that read the white paper at an end
+#: of the strip, or of two or three patches inside it where one patch was read
+#: twice (`workflow.slipped_strip`, `SlippedRun.kind`). The words above are
+#: true for a short slip at the start of a strip; these say what is different.
+#: A run of ONE patch, right after the first patch that read the paper.
+M_STRIP_ONE_SLIPPED_LATE = _m(
+    "M-STRIP-ONE-SLIPPED-LATE",
+    "Part of strip {strip} was probably read one patch out of place",
+    "{lead_line}Patch {first} of strip {strip} came out with the colour of "
+    "the patch just before it on the chart, not with its own. It misses its "
+    "own expected colour by {base} ΔE00, but the expected colour of the patch "
+    "before it by only {best} ΔE00. The rest of the strip was read "
+    "correctly.\n\n"
+    "This usually happens when the instrument takes the white paper in front "
+    "of the first patch for a patch of its own, and right after that misses "
+    "the change from one patch to the next. From there on its readings are in "
+    "step again, so only the first two patches of the strip came out "
+    "wrong.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: The mirror: a run of ONE patch, right before the last patch, which read
+#: the paper.
+M_STRIP_ONE_SLIPPED_EARLY = _m(
+    "M-STRIP-ONE-SLIPPED-EARLY",
+    "Part of strip {strip} was probably read one patch out of place",
+    "{lead_line}Patch {first} of strip {strip} came out with the colour of "
+    "the patch just after it on the chart, not with its own. It misses its "
+    "own expected colour by {base} ΔE00, but the expected colour of the patch "
+    "after it by only {best} ΔE00. The rest of the strip was read "
+    "correctly.\n\n"
+    "This usually happens when the instrument misses the change from one "
+    "patch to the next just before the end of the strip, and then takes the "
+    "white paper after the last patch for a patch of its own. So only the "
+    "last two patches of the strip came out wrong.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: Patches read one patch early right up to the end of the strip, whose last
+#: patch read the paper. M-STRIP-PART-SLIPPED-EARLY would say the readings
+#: are "in step again" after the slip, and nothing comes after it.
+M_STRIP_END_SLIPPED_EARLY = _m(
+    "M-STRIP-END-SLIPPED-EARLY",
+    "Part of strip {strip} was probably read one patch out of place",
+    "{lead_line}Patches {first} to {last} of strip {strip} came out with the "
+    "colours of the patches just after them on the chart, not with their "
+    "own. On average they miss their own expected colours by {base} ΔE00, "
+    "but the expected colour of the patch after each of them by only "
+    "{best} ΔE00. The rest of the strip was read correctly.\n\n"
+    "This usually happens when the instrument misses the change from one "
+    "patch to the next near the start of these patches. Every reading after "
+    "that is filed one place too early, and at the end the instrument takes "
+    "the white paper after the last patch for a patch of its own, so the last "
+    "patch of the strip gets the reading of the paper.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: Two or three patches inside the strip, one patch late, where the patch
+#: just before them was read twice ({twice}).
+M_STRIP_MID_SLIPPED_LATE = _m(
+    "M-STRIP-MID-SLIPPED-LATE",
+    "Part of strip {strip} was probably read one patch out of place",
+    "Patches {first} to {last} of strip {strip} came out with the colours of "
+    "the patches just before them on the chart, not with their own. On "
+    "average they miss their own expected colours by {base} ΔE00, but the "
+    "expected colour of the patch before each of them by only {best} ΔE00. "
+    "The rest of the strip was read correctly.\n\n"
+    "This usually happens when the instrument reads one patch twice: the "
+    "reading filed under patch {first} is almost the same as the reading of "
+    "patch {twice} just before it. A little further along, the instrument "
+    "misses the change from one patch to the next, and from there on its "
+    "readings are in step again. So only the patches in between are filed "
+    "one place too far along.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+#: Two or three patches inside the strip, one patch early, where the patch
+#: just after them was read twice ({twice}).
+M_STRIP_MID_SLIPPED_EARLY = _m(
+    "M-STRIP-MID-SLIPPED-EARLY",
+    "Part of strip {strip} was probably read one patch out of place",
+    "Patches {first} to {last} of strip {strip} came out with the colours of "
+    "the patches just after them on the chart, not with their own. On "
+    "average they miss their own expected colours by {base} ΔE00, but the "
+    "expected colour of the patch after each of them by only {best} ΔE00. "
+    "The rest of the strip was read correctly.\n\n"
+    "This usually happens when the instrument misses the change from one "
+    "patch to the next near the start of these patches, so from there on "
+    "each reading is filed one place too early. A little further along it "
+    "reads one patch twice: the reading filed under patch {last} is almost "
+    "the same as the reading of patch {twice} just after it. From there on "
+    "its readings are in step again, so only the patches in between are "
+    "filed one place too early.\n\n"
+    + _slip_tail(),
+    approved=False)
+
 #: The same check, when the run it finds is the WHOLE strip: the engine's
 #: own net judges with the chart's design colours and can miss it on a
 #: verification sheet, which is judged against the profile's prediction
@@ -7170,6 +7267,33 @@ M_REPORT_STRIP_SHIFTED_EARLY = _m(
     "report again.",
     approved=False)
 
+#: The report's paragraph when the run is ONE patch (a short slip at an end
+#: of the strip, next to the patch that read the paper): "patches {first} to
+#: {last}" and "on average" would be wrong for one patch.
+M_REPORT_PATCH_SHIFTED_LATE = _m(
+    "M-REPORT-PATCH-SHIFTED-LATE",
+    "Strip {strip} looks shifted by one patch",
+    "{lead_line}The reading of patch {first} matches the expected colour of "
+    "the patch just before it on the chart far better than its own: {best} "
+    "ΔE00 against {base} ΔE00. The instrument probably slipped by one patch "
+    "while this strip was read, so this reading was filed under the wrong "
+    "patch. The large ΔE00 values of these two patches come from that, not "
+    "from the printer or the profile, and they pull the figures of this "
+    "measurement up. Read strip {strip} again and make the report again.",
+    approved=False)
+
+M_REPORT_PATCH_SHIFTED_EARLY = _m(
+    "M-REPORT-PATCH-SHIFTED-EARLY",
+    "Strip {strip} looks shifted by one patch",
+    "{lead_line}The reading of patch {first} matches the expected colour of "
+    "the patch just after it on the chart far better than its own: {best} "
+    "ΔE00 against {base} ΔE00. The instrument probably slipped by one patch "
+    "while this strip was read, so this reading was filed under the wrong "
+    "patch. The large ΔE00 values of these two patches come from that, not "
+    "from the printer or the profile, and they pull the figures of this "
+    "measurement up. Read strip {strip} again and make the report again.",
+    approved=False)
+
 M_REPORT_STRIP_REVERSED = _m(
     "M-REPORT-STRIP-REVERSED",
     "Strip {strip} looks filed back to front",
@@ -7195,6 +7319,10 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_WHOLE_SLIPPED_LATE, M_STRIP_WHOLE_SLIPPED_EARLY, M_STRIP_REVERSED,
     M_REPORT_STRIP_SHIFTED_LATE, M_REPORT_STRIP_SHIFTED_EARLY,
     M_REPORT_STRIP_REVERSED,
+    M_STRIP_ONE_SLIPPED_LATE, M_STRIP_ONE_SLIPPED_EARLY,
+    M_STRIP_END_SLIPPED_EARLY, M_STRIP_MID_SLIPPED_LATE,
+    M_STRIP_MID_SLIPPED_EARLY,
+    M_REPORT_PATCH_SHIFTED_LATE, M_REPORT_PATCH_SHIFTED_EARLY,
     M_LIMIT_RECOMMENDED,
     M_CAL_FOUND_ENGINE,
     M_REPORT_CHART_MISMATCH, M_REPORT_CHART_MISMATCH_LAYOUT,

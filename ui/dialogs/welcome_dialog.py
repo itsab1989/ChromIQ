@@ -1172,14 +1172,18 @@ WORKFLOWS: list[dict] = [
                   "from the colour it should have (on a verification, the "
                   "colour the profile predicts). And with “{warn}” ticked in "
                   "Preferences ▸ Measurement (it is, unless you switched it "
-                  "off), it asks you to read a strip again when a longer run "
-                  "of its patches looks one place out. Choose “{remeasure}” "
+                  "off), it asks you to read a strip again when its patches "
+                  "look one place out: a longer run of them anywhere in the "
+                  "strip, and also a short slip of only a few patches, when "
+                  "the first or the last patch of the strip read the white "
+                  "paper or when one patch inside the strip was read twice. "
+                  "Choose “{remeasure}” "
                   "and read the strip again before you go on: it takes a few "
-                  "seconds now and spares you a wrong report later. A slip "
-                  "that spoils only the first two, three or four patches of a "
-                  "strip is not asked about, so when the first patches of a "
-                  "strip are outlined in red, simply read that strip "
-                  "again.").format(
+                  "seconds now and spares you a wrong report later. A short "
+                  "slip is not always recognised, because two or three "
+                  "patches can look like their neighbours by chance. So when "
+                  "the first patches of a strip are outlined in red and "
+                  "nothing asked, simply read that strip again.").format(
                       warn=tr("Warn me if a strip looks misaligned"),
                       remeasure=tr("Re-measure this strip"))),
               (tr("What a dated check is, and what it never touches"),

@@ -128,6 +128,12 @@ AWAITING_APPROVAL: "set[str]" = {
     # strip filed back to front (the wording waits here).
     "M-STRIP-WHOLE-SLIPPED-LATE", "M-STRIP-WHOLE-SLIPPED-EARLY",
     "M-STRIP-REVERSED", "M-REPORT-STRIP-REVERSED",
+    # Agent 19's short-slip study, approved by Basti 2026-10-23: the words for
+    # a slip of one patch, a slip inside the strip, and one up to its end.
+    "M-STRIP-ONE-SLIPPED-LATE", "M-STRIP-ONE-SLIPPED-EARLY",
+    "M-STRIP-END-SLIPPED-EARLY", "M-STRIP-MID-SLIPPED-LATE",
+    "M-STRIP-MID-SLIPPED-EARLY",
+    "M-REPORT-PATCH-SHIFTED-LATE", "M-REPORT-PATCH-SHIFTED-EARLY",
     # Knut's report, Basti's ruling of 2026-10-22: Check & Refine on a dated
     # verification (the wording waits here).
     "M-CR-VERIFICATION", "M-CR-VERIFICATION-BY-HAND", "M-REFINE-VERIFY-DONE",

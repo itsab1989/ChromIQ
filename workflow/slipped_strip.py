@@ -49,6 +49,15 @@ harness: 0 false alarms in 299,460 honest strips in plain order, where 596
 were flagged before; on a verification in plain order 90 % of whole-strip
 slips that put readings 20 ΔE or more off are still named, 99 % before).
 
+SHORT SLIPS (agent 19's study, approved by Basti 2026-10-23). jctay's
+verification of 2026-10-22 held eight slips of only two or three patches at
+the start of a strip, below the four patches a run needs. Two or three
+patches can match their neighbours by chance; two shapes of a short slip
+carry a fingerprint a chance match does not, and are looked for when no
+longer run is found: next to a patch at an END of the strip that read the
+white paper, and IN THE MIDDLE, bounded by patches read in step, where the
+instrument read one patch twice (see `SHORT_MAX`).
+
 The search judges in CIE76 ΔE (as the engine's net does). The numbers it
 reports for people to read are ΔE00, like every table of the Measurement
 Report (`SlippedRun.base_de00` / ``shifted_de00``), averaged over exactly the
@@ -101,6 +110,43 @@ SMOOTH_TRIGGER_DE = 25.0
 #: 299,460 honest strips in plain order (20 / 0.35 gave 42, 12 / 0.2 gave 21;
 #: agent 15's sweep, 2026-10-22).
 SMOOTH_RATIO = 0.3
+#: SHORT SLIPS (agent 19's study, approved by Basti 2026-10-23). A run of two
+#: or three patches can resemble its neighbours by chance, so `MIN_RUN` keeps
+#: the search above to four. Two shapes of a short slip carry a fingerprint a
+#: chance resemblance does not, and are looked for when the search above
+#: finds nothing:
+#:
+#: * AT AN END OF THE STRIP (`_short_slip_at_an_end`): the first patch read
+#:   the white paper although its own colour is not paper-like, and the next
+#:   one to three readings each carry the colour of the patch before them,
+#:   patch by patch; the patch after them is back in step. Mirrored: the last
+#:   patch read the paper and the one to three before it carry the colour of
+#:   the patch after them. A run of ONE such patch is one coincidence, so it
+#:   must also miss its own colour by `SMOOTH_TRIGGER_DE` (the paper patch)
+#:   and fit at `SMOOTH_RATIO` (the patch itself).
+#: * IN THE MIDDLE (`_short_slip_in_the_middle`): two or three patches, read
+#:   in step patches on both sides, and where the slip begins (late) or ends
+#:   (early) the instrument read one patch twice: two neighbouring READINGS
+#:   are nearly identical (`TWICE_DE`, `TWICE_SHARE`) while their expected
+#:   colours are far apart.
+#:
+#: Each patch is judged with the thresholds of the search above (TRIGGER_DE,
+#: RATIO, GOOD_DE, MIN_NEIGHBOUR_DE, and on a ramp SMOOTH_TRIGGER_DE and
+#: SMOOTH_RATIO), applied to EVERY patch, not on average. Measured by agent 19
+#: (2026-10-23, report folder 2026-10-22_forum_worst_patches/agent19): no new
+#: false alarm on 171 real measurements (4,505 strips, 94,605 strip trials
+#: with added noise) nor on jctay's 832 strip reads; 0.011 false alarms per
+#: 1000 honest synthetic strips (raw design colours, plain order), 0 on
+#: shuffled charts and on verifications; jctay's eight short slips of
+#: 2026-10-22 all found against the profile's prediction.
+SHORT_MAX = 3
+#: The neighbours of a middle slip must miss their own colours by no more
+#: than this share of the run's mean miss: they are read in step.
+SHORT_NEIGHBOUR_SHARE = 0.5
+#: The patch read twice: its two readings lie within this many ΔE76 of each
+#: other, and within `TWICE_SHARE` of the distance of their expected colours.
+TWICE_DE = 6.0
+TWICE_SHARE = 0.3
 
 
 @dataclass(frozen=True)
@@ -135,6 +181,21 @@ class SlippedRun:
     shifted_de00: "float | None" = None
     lead: "int | None" = None
     lead_paper: bool = False
+    #: Where a slip sits that the texts can say more about: "start" (the
+    #: first patch read the paper, the run right after it), "end" (the last
+    #: patch read the paper, the run right before it), "middle" (a short run
+    #: inside the strip that begins or ends where one patch was read twice),
+    #: or "" (anywhere else, or not known).
+    kind: str = ""
+    #: For a "middle" slip: the position of the patch that was read twice
+    #: (just before the run when it is late, just after it when it is early).
+    twice: "int | None" = None
+
+    @property
+    def single(self) -> bool:
+        """True when the run itself is one patch (a short slip at an end of
+        the strip, where the patch that read the paper is the other one)."""
+        return self.run_first == self.run_last
 
     @property
     def patches(self) -> int:
@@ -260,12 +321,16 @@ def find_slipped_run(measured: "Sequence[Sequence[float]]",
     neighbour's (one patch late or early), or, read the other way round, the
     patch at the mirrored place of the strip (filed back to front).
 
+    When no run of `MIN_RUN` or more is found, a SHORT slip of one to three
+    patches with its fingerprint (see `SHORT_MAX`) is looked for:
+    `SlippedRun.kind` says "start", "end" or "middle".
+
     *measured* and *expected* are Lab triples of ONE strip, in the order the
     patches stand in it. A patch with no reading may be given as None and is
     never part of a run. *paper*: the white paper's Lab, when known, for
     `SlippedRun.lead_paper`."""
     n = min(len(measured), len(expected))
-    if n < MIN_RUN + 1:
+    if n < 4:
         return None
     m = list(measured[:n])
     e = list(expected[:n])
@@ -275,6 +340,18 @@ def find_slipped_run(measured: "Sequence[Sequence[float]]",
     pairs = [_de(known[i], known[j]) for i in range(len(known))
              for j in range(i + 1, len(known))]
     spread = sum(pairs) / len(pairs) if pairs else 0.0
+    found = (_long_run(m, e, own, n, spread, paper) if n >= MIN_RUN + 1
+             else None)
+    if found is not None:
+        return found
+    # Nothing of four or more: a short slip with its fingerprint.
+    ramp = _is_ramp(known, spread)
+    return (_short_slip_at_an_end(m, e, own, n, ramp, paper)
+            or _short_slip_in_the_middle(m, e, own, n, ramp))
+
+
+def _long_run(m, e, own, n, spread, paper) -> "SlippedRun | None":
+    """The search for a run of `MIN_RUN` or more (see `find_slipped_run`)."""
     fwd = {o: _runs_for(own, m, e, n, o, False, spread) for o in (1, -1)}
     mir = {o: _runs_for(own, m, e, n, o, True, spread) for o in (0, 1, -1)}
     # (key, offset, reversed, segments, base, shifted); segments are
@@ -338,12 +415,153 @@ def find_slipped_run(measured: "Sequence[Sequence[float]]",
     # reading happens to sit near its own colour: name the whole strip.
     if rev:
         first, last = 0, n - 1
+    kind = ""
+    if not rev and lead_paper and off == 1 and lead == 0:
+        kind = "start"
+    elif not rev and lead_paper and off == -1 and lead == n - 1:
+        kind = "end"
     return SlippedRun(offset=(segments[0][2] if rev else off),
                       first=first, last=last, base_de=round(base, 2),
                       shifted_de=round(shifted, 2), reversed=rev,
                       run_first=run_first, run_last=run_last,
                       base_de00=base00, shifted_de00=sh00, lead=lead,
-                      lead_paper=lead_paper)
+                      lead_paper=lead_paper, kind=kind)
+
+
+def _is_ramp(known, spread: float) -> bool:
+    """The whole strip lies along a ramp ("Preserve Patch Order", a
+    calibration chart): its neighbours (the patches with an expected colour,
+    in strip order) are closer than `SMOOTH_Q` of its mean pair distance."""
+    if len(known) < 3:
+        return False
+    nbm = sum(_de(known[i], known[i + 1])
+              for i in range(len(known) - 1)) / (len(known) - 1)
+    return spread > 0 and nbm < SMOOTH_Q * spread
+
+
+def _fits_shifted(own: float, sh: float, nb: float, ramp: bool) -> bool:
+    """One patch of a short slip: far from its own colour, far closer to its
+    neighbour's, and the two expected colours far apart."""
+    trigger, ratio = ((SMOOTH_TRIGGER_DE, SMOOTH_RATIO) if ramp
+                      else (TRIGGER_DE, RATIO))
+    return (own >= trigger and sh <= ratio * own and sh <= GOOD_DE
+            and nb >= MIN_NEIGHBOUR_DE)
+
+
+def _short_run(m, e, pts, off, kind, lead=None, lead_paper=False,
+               twice=None) -> SlippedRun:
+    """A `SlippedRun` for a short slip whose run is the positions *pts* (in
+    strip order), each reading carrying the colour of the patch *off* places
+    before it."""
+    run_first, run_last = pts[0], pts[-1]
+    own = [_de(m[i], e[i]) for i in pts]
+    sh = [_de(m[i], e[i - off]) for i in pts]
+    try:
+        base00 = round(sum(_de00(m[i], e[i]) for i in pts) / len(pts), 1)
+        sh00 = round(sum(_de00(m[i], e[i - off]) for i in pts) / len(pts), 1)
+    except Exception:            # noqa: BLE001 - the figures are a courtesy
+        base00 = sh00 = None
+    first, last = run_first, run_last
+    if lead is not None:
+        first, last = min(first, lead), max(last, lead)
+    return SlippedRun(offset=off, first=first, last=last,
+                      base_de=round(sum(own) / len(own), 2),
+                      shifted_de=round(sum(sh) / len(sh), 2),
+                      run_first=run_first, run_last=run_last,
+                      base_de00=base00, shifted_de00=sh00, lead=lead,
+                      lead_paper=lead_paper, kind=kind, twice=twice)
+
+
+def _short_slip_at_one_end(m, e, own, n, ramp, paper, at_end):
+    """`_short_slip_at_an_end` at the strip's first patch (*at_end* False:
+    the run is one patch late) or at its last (True: one patch early)."""
+    idx = (lambda i: n - 1 - i) if at_end else (lambda i: i)
+    a = idx(0)
+    if m[a] is None or e[a] is None:
+        return None
+    # The patch that read the paper, and whose own colour is not the paper.
+    if not looks_like_paper(m[a], paper) or looks_like_paper(e[a]):
+        return None
+    if own[a] < TRIGGER_DE:
+        return None
+    k = 0
+    for t in range(1, SHORT_MAX + 1):
+        if t >= n - 1:
+            break
+        i, j = idx(t), idx(t - 1)        # reading i carries patch j's colour
+        if m[i] is None or e[i] is None or e[j] is None:
+            break
+        if not _fits_shifted(own[i], _de(m[i], e[j]), _de(e[i], e[j]), ramp):
+            break
+        k = t
+    if k < 1:
+        return None
+    if k == 1:
+        # One patch after the paper is one coincidence: ask for a far
+        # clearer fit.
+        i, j = idx(1), idx(0)
+        if own[a] < SMOOTH_TRIGGER_DE or _de(m[i], e[j]) > SMOOTH_RATIO * own[i]:
+            return None
+    nxt, prev = idx(k + 1), idx(k)
+    if m[nxt] is None or e[nxt] is None:
+        return None
+    if own[nxt] > _de(m[nxt], e[prev]):    # the next patch is back in step
+        return None
+    pts = sorted(idx(t) for t in range(1, k + 1))
+    return _short_run(m, e, pts, -1 if at_end else 1,
+                      "end" if at_end else "start", lead=a, lead_paper=True)
+
+
+def _short_slip_at_an_end(m, e, own, n, ramp, paper) -> "SlippedRun | None":
+    """A slip of one to three patches right after the first patch that read
+    the white paper, or right before the last one (see `SHORT_MAX`)."""
+    if n < 4:
+        return None
+    return (_short_slip_at_one_end(m, e, own, n, ramp, paper, False)
+            or _short_slip_at_one_end(m, e, own, n, ramp, paper, True))
+
+
+def _short_slip_in_the_middle(m, e, own, n, ramp) -> "SlippedRun | None":
+    """The longest run of two or three patches inside the strip that carry
+    their neighbours' colours, with patches read in step on both sides and
+    one patch read twice where the slip begins (late) or ends (early)."""
+    if n < 5:
+        return None
+    best = None
+    for off in (1, -1):
+        for length in range(SHORT_MAX, 1, -1):
+            for a in range(1, n - length):
+                b = a + length - 1
+                if b + 1 >= n:
+                    continue
+                ok = True
+                tot = 0.0
+                for i in range(a, b + 1):
+                    j = i - off
+                    if own[i] is None or e[j] is None or not _fits_shifted(
+                            own[i], _de(m[i], e[j]), _de(e[i], e[j]), ramp):
+                        ok = False
+                        break
+                    tot += own[i]
+                if not ok:
+                    continue
+                mean = tot / length
+                lo, hi = a - 1, b + 1
+                if own[lo] is None or own[hi] is None:
+                    continue
+                if (own[lo] > SHORT_NEIGHBOUR_SHARE * mean
+                        or own[hi] > SHORT_NEIGHBOUR_SHARE * mean):
+                    continue
+                p, q = (a, a - 1) if off == 1 else (b, b + 1)
+                if _de(m[p], m[q]) > min(TWICE_DE,
+                                         TWICE_SHARE * _de(e[p], e[q])):
+                    continue
+                if best is None or (b - a) > (best[1] - best[0]):
+                    best = (a, b, off, q)
+    if best is None:
+        return None
+    a, b, off, q = best
+    return _short_run(m, e, list(range(a, b + 1)), off, "middle", twice=q)
 
 
 _D50 = (96.42, 100.0, 82.49)
@@ -379,8 +597,8 @@ def shifted_strips(locs: "Sequence[str]", measured: "Sequence",
     """Every strip of a stored measurement whose readings look out of place,
     for the Measurement Report: ``[{"strip", "first", "last", "offset",
     "reversed", "patches", "run_first", "run_last", "lead", "lead_paper",
-    "base_de", "shifted_de", "base_de00", "shifted_de00", "whole"}]`` in
-    chart order (locations, not positions; ``lead`` None when no patch
+    "kind", "twice", "single", "base_de", "shifted_de", "base_de00",
+    "shifted_de00", "whole"}]`` in chart order (locations, not positions; ``lead`` None when no patch
     outside the run was spoiled).
 
     *locs*, *measured* and *expected* run in step (one entry per patch, Lab
@@ -422,6 +640,9 @@ def shifted_strips(locs: "Sequence[str]", measured: "Sequence",
                 "run_last": _loc(run.run_last),
                 "lead": _loc(run.lead),
                 "lead_paper": run.lead_paper,
+                "kind": run.kind,
+                "twice": _loc(run.twice),
+                "single": run.single,
                 "base_de": run.base_de,
                 "shifted_de": run.shifted_de,
                 "base_de00": run.base_de00,

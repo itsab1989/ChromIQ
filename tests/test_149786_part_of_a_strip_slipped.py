@@ -162,7 +162,17 @@ def test_a_run_needs_four_patches_and_distinct_neighbours():
     exp = [(50.0 + 30 * (i % 2), 40.0 * ((i * 7) % 3 - 1), 0.0)
            for i in range(10)]
     three = [exp[0]] + [exp[0], exp[1], exp[2]] + exp[4:]     # 3 late, healed
-    assert find_slipped_run(three, exp) is None
+    # Agent 19's short-slip rule "c" (approved by Basti 2026-10-23): three
+    # patches in the middle count when the patch before them was read twice,
+    # which is what this strip shows (readings 0 and 1 are the same). The
+    # four-patch rule itself still says nothing, and without the twice-read
+    # fingerprint neither does the short one.
+    run = find_slipped_run(three, exp)
+    assert run is not None and run.kind == "middle" and run.twice == 0
+    assert (run.first, run.last) == (1, 3)
+    no_twin = list(three)
+    no_twin[0] = (exp[0][0] - 9.0, exp[0][1] + 9.0, 9.0)
+    assert find_slipped_run(no_twin, exp) is None
     ramp = [(10.0 + i, 0.0, 0.0) for i in range(10)]          # 1 dE steps
     assert find_slipped_run([ramp[0]] + ramp[:-1], ramp) is None
 

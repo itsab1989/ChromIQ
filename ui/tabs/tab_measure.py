@@ -9108,7 +9108,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         approved by Basti 2026-10-22). The same question as
         `_on_strip_misaligned`, naming the patches, in ΔE00.
         M-STRIP-PART-SLIPPED-LATE / -EARLY, M-STRIP-WHOLE-SLIPPED-LATE /
-        -EARLY, M-STRIP-REVERSED, proposed."""
+        -EARLY, M-STRIP-REVERSED, and for a short slip (agent 19's study,
+        approved by Basti 2026-10-23) M-STRIP-ONE-SLIPPED-LATE / -EARLY,
+        M-STRIP-END-SLIPPED-EARLY, M-STRIP-MID-SLIPPED-LATE / -EARLY,
+        proposed."""
         self._cue_window("STRIP_FAIL")
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
         from workflow import measurement_messages as M
@@ -9120,6 +9123,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         elif f.get("whole"):
             message = (M.M_STRIP_WHOLE_SLIPPED_LATE if late
                        else M.M_STRIP_WHOLE_SLIPPED_EARLY)
+        elif f.get("single"):
+            # A short slip at an end of the strip whose run is one patch
+            # (agent 19's study, approved by Basti 2026-10-23).
+            message = (M.M_STRIP_ONE_SLIPPED_LATE if late
+                       else M.M_STRIP_ONE_SLIPPED_EARLY)
+        elif f.get("kind") == "middle":
+            message = (M.M_STRIP_MID_SLIPPED_LATE if late
+                       else M.M_STRIP_MID_SLIPPED_EARLY)
+        elif f.get("kind") == "end" and not late:
+            # Early right up to the last patch, which read the paper: nothing
+            # comes after the slip to be "in step again".
+            message = M.M_STRIP_END_SLIPPED_EARLY
         else:
             message = (M.M_STRIP_PART_SLIPPED_LATE if late
                        else M.M_STRIP_PART_SLIPPED_EARLY)
@@ -9136,6 +9151,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                        bool(f.get("lead_paper"))),
             base=M.slip_de_text(f.get("base")),
             best=M.slip_de_text(f.get("best")),
+            twice=str(f.get("twice") or "?"),
             remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
             stop=tr("Stop"))), dlg)
         choice = self._misaligned_strip_buttons(dlg, layout, msg)

@@ -17827,6 +17827,13 @@ class MeasurementReportDialog(QDialog):
         for s in found:
             if s.get("reversed"):
                 msg = M.M_REPORT_STRIP_REVERSED
+            elif s.get("single"):
+                # A short slip whose run is one patch (agent 19's study,
+                # approved by Basti 2026-10-23): "patches {first} to {last}"
+                # and "on average" would be wrong.
+                msg = (M.M_REPORT_PATCH_SHIFTED_LATE
+                       if int(s.get("offset", 1) or 1) > 0
+                       else M.M_REPORT_PATCH_SHIFTED_EARLY)
             else:
                 msg = (M.M_REPORT_STRIP_SHIFTED_LATE
                        if int(s.get("offset", 1) or 1) > 0
