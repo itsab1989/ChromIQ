@@ -171,15 +171,29 @@ def patch_loaders() -> None:
     tl.resolve_ti3 = _resolve_ti3
 
 
+#: Every exception that reached the drivers' sys.excepthook (one traceback
+#: per entry). A slot's exception does not end the app, as in main(); a drive
+#: reads this list so the run cannot be called a pass (userdrive.Drive).
+UNCAUGHT: list[str] = []
+
+
 def install_logging_excepthook() -> None:
     """main()'s ``_log_excepthook``, for a process that never imports main:
     an uncaught exception is written to the log as CRITICAL with its
-    traceback, and printed, instead of PyQt6 aborting the process."""
+    traceback, and printed, instead of PyQt6 aborting the process. It is also
+    kept in :data:`UNCAUGHT` for the drive's verdict."""
     import traceback
+    if getattr(sys.excepthook, "_chromiq_driver_hook", False):
+        return                      # installed already
     if sys.excepthook is not sys.__excepthook__:
         return                      # someone (main.py) already installed one
 
     def _hook(exc_type, exc, tb):
+        try:
+            UNCAUGHT.append("".join(
+                traceback.format_exception(exc_type, exc, tb)))
+        except Exception:           # noqa: BLE001
+            pass
         try:
             from core.logger import get_logger
             get_logger("driver").critical(
@@ -188,6 +202,7 @@ def install_logging_excepthook() -> None:
         except Exception:           # noqa: BLE001 - never fail in the hook
             pass
         sys.__excepthook__(exc_type, exc, tb)
+    _hook._chromiq_driver_hook = True
     sys.excepthook = _hook
 
 
@@ -211,6 +226,17 @@ def build_app():
     # a driver now does the same, and the drive's log check still flags the
     # CRITICAL line and the traceback (userdrive.finish).
     install_logging_excepthook()
+    # NO OTHER APPLICATION COMES UP ON BASTI'S SCREEN. "Open report", "Reveal
+    # folder", a help link: each would start Preview, Finder or the browser,
+    # which takes his keyboard and outlives the drive. Recorded instead
+    # (onscreen_capture.block_external_apps, EXTERNAL_OPENS). A driver that
+    # really must open one sets CHROMIQ_DRIVER_ALLOW_EXTERNAL_APPS=1.
+    if os.environ.get("CHROMIQ_DRIVER_ALLOW_EXTERNAL_APPS") != "1":
+        try:
+            from onscreen_capture import block_external_apps
+        except ImportError:
+            from scripts.onscreen_capture import block_external_apps
+        block_external_apps()
     # Basti's display sleeps after a while: keep it awake for THIS run only.
     try:
         from onscreen_capture import keep_display_awake

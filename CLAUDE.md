@@ -440,6 +440,40 @@ it again. It applies to this file's reader and to every agent briefed from it.
   right after constructing the QApplication. And start a `PopupWatchdog`
   (`scripts/onscreen_capture.py`) so an unscripted question never hangs the
   run.
+* **A DRIVE ALWAYS ENDS, WITH NOTHING LEFT ON BASTI'S SCREEN (4.3.11).**
+  On 2026-10-23 four drivers left a ChromIQ window hanging on his screen, each
+  fixed only in its own script. The shared harness now does it for every
+  driver, so build on `scripts/userdrive.Drive` (or at least
+  `capture_screens.build_app` + `PopupWatchdog`) and do not re-invent it:
+  * a script that RAISES ends the run: traceback in the notes, every open
+    window photographed and closed, `Drive.run` returns **2**;
+  * every drive has a HARD TIME LIMIT, `Drive(..., time_limit_s=)` or
+    `CHROMIQ_DRIVE_TIME_LIMIT`, default **600 s**: open windows photographed
+    (`zz-at-end-*.png`), run ended, **3**. A thread ends the process 90 s
+    later if the GUI thread is wedged;
+  * the run ends with `app.exit()`, never `app.quit()`: Qt 6's quit asks every
+    window to close and gives up if one refuses, which is how windows stayed;
+  * `Drive` starts a `PopupWatchdog` (`d.dog`) before the main window. A
+    question is dismissed after 1.5 s; a WORKING window (Preferences, the
+    report window) the driver has not claimed after **20 s**.
+    `d.top_dialog()` claims what it returns; `dog.claim(w)` and
+    `dog.expect_window(regex)` do it by hand. Closing is Escape / the box's
+    Escape answer / `reject()`, never an Accept, Yes or Destructive button,
+    and a window that refuses (it asks first and gets Cancel) is ended with
+    `done(Rejected)`. `policy="report"` is the explicit opt-in that leaves
+    windows open. Only the newest running watchdog acts, so a driver's own
+    one takes over from `d.dog`;
+  * an exception in an APP slot is logged as in `main()` (no abort) and turns
+    the verdict into **4** (`capture_screens.UNCAUGHT`);
+  * `build_app` blocks every opener of ANOTHER app (`QDesktopServices.openUrl`,
+    `webbrowser`, `os.system("open …")`, `os.startfile`): the URL is recorded
+    in the log, in `onscreen_capture.EXTERNAL_OPENS` and in the drive's
+    `opened-elsewhere.txt`. `CHROMIQ_DRIVER_ALLOW_EXTERNAL_APPS=1` only when
+    a scenario truly needs Preview or the browser;
+  * buttons are named in ENGLISH in every language: `d.answer("Cancel")`,
+    `d.click(w, "Save")`, `onscreen_capture.find_button` match `tr()` of the
+    label and Qt's own translation of a standard button.
+  `tests/test_a_driver_always_ends.py` pins all of it.
 * **BASTI'S DISPLAY GOES TO SLEEP AFTER A WHILE (2026-10-02).** A sleeping
   display is not a locked session, but a window on it can photograph as an
   empty buffer. `capture_window` wakes it first (`wake_the_display`,

@@ -534,6 +534,11 @@ def capture_window(win, path: Path, settle: float = 0.6,
         # pop-up (PopupWatchdog) says no.
         return False, ("the window could not be captured by its id, and the "
                        "rectangle fallback would have to hide it")
+    # AN OFFSCREEN APP HAS NO WINDOW ON ANY SCREEN. The rectangle fallback
+    # below would photograph whatever really is on Basti's screen there.
+    if QApplication.platformName() == "offscreen":
+        return False, ("the app runs on the offscreen platform, so there is "
+                       "no window on screen to photograph")
     win.raise_()                    # the rectangle needs the window on top
     win.activateWindow()
     QApplication.processEvents()
@@ -649,6 +654,149 @@ class FocusGiveBack:
             return False
 
 
+# -- buttons in every language ------------------------------------------------
+def _norm_label(text: str) -> str:
+    """A button's text as a user reads it: no mnemonic '&', no trailing
+    ellipsis, no surrounding blanks, case-blind."""
+    t = (text or "").replace("&", "").strip()
+    for tail in ("…", "..."):
+        if t.endswith(tail):
+            t = t[: -len(tail)].rstrip()
+    return t.casefold()
+
+
+def label_variants(english: str) -> set[str]:
+    """Every way the button labelled *english* can read in the running app.
+
+    A driver names a button in English; in a German drive the same button says
+    ``tr("Cancel")`` = "Abbrechen", and a Qt standard button is translated by
+    Qt's own translator. The first German drives clicked nothing because they
+    looked for "Cancel" (round B, 2026-09-22). Returned normalised (see
+    :func:`_norm_label`)."""
+    out = {_norm_label(english)}
+    try:
+        from core.i18n import tr
+        out.add(_norm_label(tr(english)))
+    except Exception:              # noqa: BLE001 - no catalogue: English only
+        pass
+    try:
+        from PyQt6.QtCore import QCoreApplication
+        for ctx in ("QPlatformTheme", "QDialogButtonBox", "QMessageBox",
+                    "QFileDialog"):
+            out.add(_norm_label(QCoreApplication.translate(ctx, english)))
+    except Exception:              # noqa: BLE001
+        pass
+    out.discard("")
+    return out
+
+
+def label_matches(text: str, english: str, *, exact: bool = True) -> bool:
+    """Does a button reading *text* carry the label *english* in the language
+    the app is running in? ``exact=False`` accepts the label as a part of the
+    text ("Save" finds "Save report as PDF")."""
+    have = _norm_label(text)
+    if not have:
+        return False
+    for want in label_variants(english):
+        if have == want or (not exact and want in have):
+            return True
+    return False
+
+
+def find_button(widget, english: str, *, exact: bool = True):
+    """The visible button in *widget* labelled *english*, in any language.
+    Exact matches win over partial ones; None when there is none."""
+    from PyQt6.QtWidgets import QAbstractButton
+    buttons = [b for b in widget.findChildren(QAbstractButton)
+               if b.isVisible() and b.text().strip()]
+    for b in buttons:
+        if label_matches(b.text(), english, exact=True):
+            return b
+    if not exact:
+        for b in buttons:
+            if label_matches(b.text(), english, exact=False):
+                return b
+    return None
+
+
+# -- no other application is ever started by a driver -------------------------
+#: Every URL or path a driver's app tried to hand to another application,
+#: in order. ``block_external_apps`` fills it; a drive writes it to its folder.
+EXTERNAL_OPENS: list[str] = []
+_EXTERNAL_LOG = None
+
+
+def _record_external(what: str) -> None:
+    EXTERNAL_OPENS.append(what)
+    try:
+        from core.logger import get_logger
+        get_logger("driver").info("driver: NOT opened in another app: %s", what)
+    except Exception:              # noqa: BLE001
+        pass
+    if _EXTERNAL_LOG is not None:
+        try:
+            with open(_EXTERNAL_LOG, "a", encoding="utf-8") as f:
+                f.write(time.strftime("%H:%M:%S ") + what + "\n")
+        except OSError:
+            pass
+
+
+def block_external_apps(log_file: "Path | None" = None) -> bool:
+    """Stop the app under a driver from opening anything in ANOTHER app.
+
+    "Open report", "Reveal folder", the release page, the bug-report link:
+    each hands a URL or a folder to Preview, Finder or the browser, which then
+    comes up on Basti's screen, takes his keyboard and stays behind after the
+    drive (agent 22, 2026-10-22, patched it per script). Every opener the app
+    uses is replaced by a recorder: ``QDesktopServices.openUrl``,
+    ``webbrowser.open``/``open_new``/``open_new_tab``, ``os.startfile`` and an
+    ``os.system`` that starts ``open``/``xdg-open``. The URL or path is kept in
+    :data:`EXTERNAL_OPENS`, written to the log and, with *log_file*, to that
+    file; the call answers "done", as the real one would. Idempotent; returns
+    True when it installed the block this time."""
+    global _EXTERNAL_LOG
+    if log_file is not None:
+        _EXTERNAL_LOG = Path(log_file)
+    import os as _os
+    import webbrowser
+    from PyQt6.QtGui import QDesktopServices
+    if getattr(QDesktopServices.openUrl, "_chromiq_blocked", False):
+        return False
+
+    def _open_url(url, *a, **k):
+        try:
+            text = url.toString()
+        except Exception:          # noqa: BLE001
+            text = str(url)
+        _record_external(f"QDesktopServices.openUrl {text}")
+        return True
+
+    def _web(url, *a, **k):
+        _record_external(f"webbrowser.open {url}")
+        return True
+
+    real_system = _os.system
+
+    def _system(cmd):
+        head = str(cmd).lstrip().split(" ", 1)[0]
+        if head in ("open", "/usr/bin/open", "xdg-open"):
+            _record_external(f"os.system {cmd}")
+            return 0
+        return real_system(cmd)
+
+    def _startfile(path, *a, **k):
+        _record_external(f"os.startfile {path}")
+
+    for fn in (_open_url, _web, _system, _startfile):
+        fn._chromiq_blocked = True
+    QDesktopServices.openUrl = _open_url
+    webbrowser.open = webbrowser.open_new = webbrowser.open_new_tab = _web
+    _os.system = _system
+    if hasattr(_os, "startfile"):          # Windows only
+        _os.startfile = _startfile
+    return True
+
+
 class PopupWatchdog:
     """Notice every pop-up a driver runs into, record it, and keep the run moving.
 
@@ -663,13 +811,34 @@ class PopupWatchdog:
     ``QMessageBox``. Qt keeps delivering timer events inside a dialog's
     ``exec()``, so this runs even while the driver is blocked.
 
-    **ONLY QUESTIONS ARE ANSWERED BY DEFAULT.** A message box, an input box
-    and a file dialog are questions; any other modal window (the Measurement
-    Report window, Preferences, the patch-set editor) is a working window the
-    driver opened on purpose. Those are logged once as ``window`` events and
-    never closed unless ``dismiss_windows=True``. The first version closed the
-    Measurement Report window two seconds after a driver opened it (challenge
-    of 2026-10-02, F_challenge_182).
+    **QUESTIONS ARE ANSWERED AT ONCE, AND NOTHING STAYS UP FOR EVER.** A
+    message box, an input box and a file dialog are questions, dismissed after
+    ``grace_s``. Any other modal window (the Measurement Report window,
+    Preferences, the patch-set editor) is a WORKING window, which a driver
+    usually opened on purpose: the first version closed the Measurement Report
+    window two seconds after a driver opened it (challenge of 2026-10-02,
+    F_challenge_182), so a working window gets ``window_grace_s`` (20 s) for
+    the driver to :meth:`claim` it (``userdrive.Drive.top_dialog`` does) or to
+    match an :meth:`expect_window` rule. An unclaimed one is then closed the
+    same safe way as a question. Before 4.3.11 it was left open for good, and
+    four drivers in one day (2026-10-23) left a window hanging on Basti's
+    screen. ``dismiss_windows=True`` closes working windows after ``grace_s``
+    like questions.
+
+    **HOW A WINDOW IS CLOSED NEVER SAVES OR DELETES ANYTHING.** Escape first,
+    which is a QMessageBox's own Escape answer (Cancel, Stop, Keep) or a
+    dialog's reject(); a box with no Escape answer gets reject(), which every
+    question in the app reads as "do nothing". No button with an Accept,
+    Destructive or Yes role is ever pressed. If the window is still up
+    ``retry_s`` later (a window whose reject() asks a question of its own,
+    such as the spot-read window with readings, keeps itself open when that
+    question is answered Cancel) it is ended with ``QDialog.done(Rejected)``,
+    which hides it without running its own reject() and so without the
+    question. All of this is logged.
+
+    **ONE WATCHDOG AT A TIME.** ``userdrive.Drive`` starts one; a driver that
+    starts its own as well (most did before 4.3.11) takes over, and the older
+    one waits until the newer one is stopped.
 
     For each pop-up it writes title, text and buttons to ``popups.log`` in
     ``report_dir`` and, with ``photograph=True``, a picture of it. Then:
@@ -678,9 +847,9 @@ class PopupWatchdog:
       how a driver says "this question is part of the scenario";
     * otherwise, after ``grace_s`` seconds, the policy decides: ``"dismiss"``
       (the default) presses the dialog's own Escape/Cancel answer, ``"report"``
-      leaves it open and logs ``STUCK`` every 10 s, ``"fail"`` dismisses it
-      and sets :attr:`unexpected`, so the driver can refuse to call its run a
-      pass.
+      (an explicit opt-in: it can leave a window on screen) leaves it open and
+      logs ``STUCK`` every 10 s, ``"fail"`` dismisses it and sets
+      :attr:`unexpected`, so the driver can refuse to call its run a pass.
 
     Dismissing is never the same as passing: every unscripted pop-up is in
     :attr:`events` with ``"unexpected": True`` and belongs in the round's
@@ -697,17 +866,30 @@ class PopupWatchdog:
         if dog.unexpected_events(): report them at the top of REPORT.md
     """
 
+    #: Watchdogs that are running, oldest first. Only the newest acts.
+    _live: list = []
+
     def __init__(self, report_dir: "Path | None" = None, *,
                  policy: str = "dismiss", grace_s: float = 1.5,
                  interval_ms: int = 400, photograph: bool = False,
-                 dismiss_windows: bool = False, log=print):
+                 dismiss_windows: bool = False, window_grace_s: float = 20.0,
+                 retry_s: float = 5.0, log=print):
         if policy not in ("dismiss", "report", "fail"):
             raise ValueError(f"unknown policy {policy!r}")
         self.report_dir = Path(report_dir) if report_dir else None
         self.policy, self.grace_s = policy, grace_s
         self.interval_ms, self.photograph, self._log = interval_ms, photograph, log
         self.dismiss_windows = dismiss_windows
+        self.window_grace_s, self.retry_s = window_grace_s, retry_s
         self.rules: list[tuple] = []
+        #: Regular expressions naming working windows the driver uses.
+        self.window_rules: list = []
+        #: id(widget) -> widget, for working windows the driver claimed. The
+        #: widget is held so its id cannot be reused by another window.
+        self._claimed: dict[int, object] = {}
+        #: id(widget) -> when its dismissal was scheduled.
+        self._dismissed_at: dict[int, float] = {}
+        self._escalated: set[int] = set()
         self.events: list[dict] = []
         self.unexpected = False
         #: id(widget) -> (widget, first seen). Holding the widget keeps its id
@@ -733,15 +915,37 @@ class PopupWatchdog:
         self.rules.append((re.compile(pattern, re.I | re.S), button))
         return self
 
+    def expect_window(self, pattern: str) -> "PopupWatchdog":
+        """A WORKING window whose title or class name matches *pattern* is the
+        driver's: it is never closed by this watchdog (the drive's own time
+        limit still ends a run that hangs in it)."""
+        import re
+        self.window_rules.append(re.compile(pattern, re.I | re.S))
+        return self
+
+    def claim(self, w) -> None:
+        """*w* is a window the driver is working in: leave it open."""
+        if w is not None:
+            self._claimed[id(w)] = w
+
+    def is_claimed(self, w) -> bool:
+        if self._claimed.get(id(w)) is w:
+            return True
+        return any(r.search(w.windowTitle()) or r.search(type(w).__name__)
+                   for r in self.window_rules)
+
     def start(self) -> "PopupWatchdog":
         from PyQt6.QtCore import QTimer
         self._timer = QTimer()
         self._timer.setInterval(self.interval_ms)
         self._timer.timeout.connect(self._tick)       # a bound method, never a lambda
         self._timer.start()
+        PopupWatchdog._live.append(self)
         return self
 
     def stop(self) -> None:
+        while self in PopupWatchdog._live:
+            PopupWatchdog._live.remove(self)
         if self._timer is not None:
             self._timer.stop()
             self._timer.deleteLater()
@@ -760,15 +964,31 @@ class PopupWatchdog:
     # -- what it looks at -----------------------------------------------------
     @staticmethod
     def _popups() -> list:
-        from PyQt6.QtWidgets import QApplication, QMessageBox
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
         found = []
         modal = QApplication.activeModalWidget()
         if modal is not None and modal.isVisible():
             found.append(modal)
         for w in QApplication.topLevelWidgets():
-            if isinstance(w, QMessageBox) and w.isVisible() and w not in found:
+            if w in found or not w.isVisible():
+                continue
+            # A modal UNDER the active one is still remembered (with its
+            # age and its dismissal), or it would be forgotten whenever its
+            # own question is in front and dismissed again each time.
+            if isinstance(w, QMessageBox) or (
+                    isinstance(w, QDialog) and w.windowModality()
+                    != Qt.WindowModality.NonModal):
                 found.append(w)
         return found
+
+    @staticmethod
+    def _under_another_modal(w) -> bool:
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QApplication
+        top = QApplication.activeModalWidget()
+        return (top is not None and top is not w and top.isVisible()
+                and w.windowModality() != Qt.WindowModality.NonModal)
 
     @staticmethod
     def _buttons(w) -> list:
@@ -820,9 +1040,10 @@ class PopupWatchdog:
 
     # -- what it does ---------------------------------------------------------
     def _find_button(self, w, label: str):
-        want = label.replace("&", "").strip().lower()
+        """The button labelled *label* (English) in whatever language the app
+        runs in: "Cancel" finds "Abbrechen" in a German drive."""
         for b in self._buttons(w):
-            if b.text().replace("&", "").strip().lower() == want:
+            if label_matches(b.text(), label):
                 return b
         return None
 
@@ -876,6 +1097,8 @@ class PopupWatchdog:
                 f.write(time.strftime("%H:%M:%S ") + line + "\n")
 
     def _tick(self) -> None:
+        if PopupWatchdog._live and PopupWatchdog._live[-1] is not self:
+            return                    # a newer watchdog is in charge
         now = time.monotonic()
         live = self._popups()
         alive_ids = {id(w) for w in live}
@@ -887,6 +1110,8 @@ class PopupWatchdog:
             self._rule_for.pop(gone, None)
             self._answered.discard(gone)
             self._dismissed.discard(gone)
+            self._dismissed_at.pop(gone, None)
+            self._escalated.discard(gone)
         for w in live:
             try:
                 self._look_at(w, now)
@@ -900,6 +1125,8 @@ class PopupWatchdog:
             self._first_sight(w, key, now)
         event = self._event_for[key]
         age = now - self._first_seen[key][1]
+        if self._under_another_modal(w):
+            return            # the window in front of it gets its turn first
         rule = self._rule_for.get(key)
         if rule is not None and key not in self._answered:
             button = self._find_button(w, rule[1])
@@ -924,20 +1151,57 @@ class PopupWatchdog:
         if age < self.grace_s:
             return
         if not self.is_question(w) and not self.dismiss_windows:
-            return                              # a working window: leave it be
+            # A WORKING WINDOW: the driver's if it says so, else given
+            # window_grace_s before it is closed like a question.
+            if self.is_claimed(w):
+                return
+            if age < self.window_grace_s:
+                return
+            if not event.get("unexpected"):
+                event["unexpected"] = True
+                self._note(f"  working window '{w.windowTitle()}' "
+                           f"({type(w).__name__}) unclaimed for {age:.0f} s")
         if self.policy == "report":
             if now - self._last_stuck_note.get(key, 0) >= 10:
                 self._last_stuck_note[key] = now
                 self._note(f"STUCK on '{w.windowTitle()}' for {age:.0f} s")
             return
         if key in self._dismissed:
+            self._escalate(w, key, event, now)
             return
         self._dismissed.add(key)
+        self._dismissed_at[key] = now
         action = self._dismiss(w)
         event["action"] = "; ".join(a for a in (event["action"], action) if a)
         if self.policy == "fail":
             self.unexpected = True
         self._note(f"  unscripted, {action}")
+
+    def _escalate(self, w, key: int, event: dict, now: float) -> None:
+        """Still up ``retry_s`` after its dismissal, and nothing above it: end
+        it with ``done(Rejected)``, once. A pop-up the dismissal itself raised
+        is in front and gets its own turn first."""
+        from PyQt6.QtCore import QTimer
+        from PyQt6.QtWidgets import QApplication, QDialog
+        if key in self._escalated:
+            return
+        if now - self._dismissed_at.get(key, now) < self.retry_s:
+            return
+        if self._under_another_modal(w):
+            return
+        self._escalated.add(key)
+        if isinstance(w, QDialog):
+            def _end(w=w):
+                from PyQt6 import sip
+                if not sip.isdeleted(w) and w.isVisible():
+                    w.done(QDialog.DialogCode.Rejected.value)
+            QTimer.singleShot(0, _end)
+            action = "still open, ended with done(Rejected)"
+        else:
+            QTimer.singleShot(0, w.hide)
+            action = "still open, hidden"
+        event["action"] = "; ".join(a for a in (event["action"], action) if a)
+        self._note(f"  '{w.windowTitle()}' {action}")
 
     def _first_sight(self, w, key: int, now: float) -> None:
         info = self.describe(w)
@@ -949,6 +1213,8 @@ class PopupWatchdog:
         question = self.is_question(w)
         event = dict(info, kind="question" if question else "window",
                      unexpected=rule is None and question, action="")
+        if not question and self.is_claimed(w):
+            event["claimed"] = True
         self.events.append(event)
         self._event_for[key] = event
         self._note(f"SEEN {info['class']} '{info['title']}' "

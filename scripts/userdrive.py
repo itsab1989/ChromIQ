@@ -30,6 +30,28 @@ it with `onscreen_capture.capture_window`, and clicks the button a user would.
 Sandboxing is enforced, not requested: the settings file, the presets folder
 and the ISO file (a licence holder's real values live on this machine and must
 never reach a proof folder) are set here before anything is imported.
+
+**A DRIVE ALWAYS ENDS, AND ENDS WITH NOTHING LEFT ON SCREEN (4.3.11).** Four
+drivers in one day (2026-10-23) left a ChromIQ window hanging on Basti's
+screen, each fixed only in its own script. The harness now does it for all:
+
+* a script that RAISES ends the run: the traceback goes into the notes, every
+  window is photographed and closed, the app quits, and :meth:`Drive.run`
+  returns 2 (non-zero, so ``sys.exit(rc)`` says so);
+* every run has a HARD TIME LIMIT (``time_limit_s``, default 600 s, or
+  ``CHROMIQ_DRIVE_TIME_LIMIT``): when it is up the open windows are
+  photographed and the run ends cleanly with 3. A last-resort thread ends the
+  process 90 s later if the GUI thread is wedged and could not do that;
+* a :class:`onscreen_capture.PopupWatchdog` runs from the start (``d.dog``):
+  an unscripted question is dismissed safely after 1.5 s, an unclaimed working
+  window after 20 s. :meth:`top_dialog` claims the window it returns;
+* an exception in one of the APP's slots is logged (as in main()) and makes
+  the run 4 instead of 0: the app did something wrong while being driven;
+* nothing the app hands to another application (a PDF to Preview, a folder to
+  Finder, a link to the browser) is opened: it is recorded in
+  ``opened-elsewhere.txt`` (``capture_screens.build_app``);
+* :meth:`answer` and :meth:`click` find a button by its ENGLISH label in any
+  language (``tr()`` of it, or Qt's own translation of a standard button).
 """
 from __future__ import annotations
 
@@ -37,6 +59,7 @@ import json
 import os
 import shutil
 import sys
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -69,10 +92,43 @@ def _sandbox(out: Path) -> None:
         ROOT / "data" / "compliance_sets" / "iso12647.json")
 
 
+#: Return codes of :meth:`Drive.run`.
+RC_OK, RC_SCRIPT_RAISED, RC_TIME_LIMIT, RC_APP_RAISED = 0, 2, 3, 4
+#: Default hard limit for one drive, in seconds.
+DEFAULT_TIME_LIMIT_S = 600.0
+#: How long after the time limit the last-resort thread ends the process.
+HARD_KILL_AFTER_S = 90.0
+
+
+def _time_limit(value) -> float:
+    if value is not None:
+        return float(value)
+    env = os.environ.get("CHROMIQ_DRIVE_TIME_LIMIT", "").strip()
+    try:
+        return float(env) if env else DEFAULT_TIME_LIMIT_S
+    except ValueError:
+        return DEFAULT_TIME_LIMIT_S
+
+
 class Drive:
+    # Class defaults, so a harness built with __new__ (the suite does) ends
+    # the same way.
+    time_limit_s: float = DEFAULT_TIME_LIMIT_S
+    _ending = False
+    _rc = RC_OK
+    dog = None
+    win = None
+    _external_at_start = 0
+    _uncaught_at_start = 0
+
     def __init__(self, out, projects=(), language: str = "en",
-                 appearance: str = "light", size=(1500, 1000)):
+                 appearance: str = "light", size=(1500, 1000), *,
+                 time_limit_s: "float | None" = None,
+                 popup_policy: str = "dismiss", watchdog: bool = True):
         self.out = Path(out).resolve()
+        self.time_limit_s = _time_limit(time_limit_s)
+        self._ending = False
+        self._rc = RC_OK
         self.shots = self.out / "photographs"
         self.shots.mkdir(parents=True, exist_ok=True)
         _sandbox(self.out)
@@ -92,6 +148,19 @@ class Drive:
         from scripts.capture_screens import build_app
         from PyQt6.QtWidgets import QApplication
         self.app = QApplication.instance() or build_app()
+        import onscreen_capture
+        # Recorded in THIS drive's folder too (build_app blocked the openers).
+        if os.environ.get("CHROMIQ_DRIVER_ALLOW_EXTERNAL_APPS") != "1":
+            onscreen_capture.block_external_apps(
+                self.out / "opened-elsewhere.txt")
+        self._external_at_start = len(onscreen_capture.EXTERNAL_OPENS)
+        self._uncaught_at_start = len(self._uncaught())
+        #: The drive's own pop-up watchdog, running before the first window.
+        self.dog = None
+        if watchdog:
+            self.dog = onscreen_capture.PopupWatchdog(
+                self.out, policy=popup_policy, photograph=True,
+                log=self._dog_line).start()
         from core.settings import AppSettings
         self.settings = AppSettings()
         self.work = self.out / "projects"
@@ -140,6 +209,16 @@ class Drive:
             focus.give_back()
         self.pump(2500)
         self.record["window_on_screen"] = bool(self.win.isVisible())
+
+    def _dog_line(self, line: str) -> None:
+        print(line, flush=True)
+        self.notes.append(line)
+
+    @staticmethod
+    def _uncaught() -> list:
+        mod = sys.modules.get("scripts.capture_screens") or sys.modules.get(
+            "capture_screens")
+        return list(getattr(mod, "UNCAUGHT", []) or [])
 
     # -- time ---------------------------------------------------------------
     def pump(self, ms: int = 300) -> None:
@@ -291,6 +370,8 @@ class Drive:
                 # a window the drive is working IN is never a question
                 self._known_windows = getattr(self, "_known_windows", set())
                 self._known_windows.add(id(w))
+                if getattr(self, "dog", None) is not None:
+                    self.dog.claim(w)
                 return w
         return None
 
@@ -344,9 +425,9 @@ class Drive:
             self.shot(w, name)
         buttons = [b for b in w.findChildren(QAbstractButton)
                    if b.isVisible() and b.text()]
-        choice = next((b for b in buttons
-                       if button_text.lower() in b.text().replace("&", "")
-                       .lower()), None)
+        # IN ANY LANGUAGE: "Cancel" finds "Abbrechen" in a German drive.
+        from onscreen_capture import find_button
+        choice = find_button(w, button_text, exact=False)
         self.record["modals"].append({
             "appeared": True, "class": type(w).__name__, "text": said,
             "buttons": [b.text() for b in buttons], "clicked":
@@ -358,6 +439,26 @@ class Drive:
             choice.click()
             self._modal_closed()
         return said
+
+    def button(self, widget, english: str, exact: bool = False):
+        """The visible button in *widget* labelled *english*, in whatever
+        language the drive runs in (``tr()`` of the label, or Qt's own
+        translation of a standard button). None when there is none."""
+        from onscreen_capture import find_button
+        return find_button(widget, english, exact=exact)
+
+    def click(self, widget, english: str, exact: bool = False) -> bool:
+        """Click the button labelled *english* in *widget*, in any language.
+        From inside a modal, the click is queued, so this step returns to the
+        modal's loop before it acts (see `_modal_closed`)."""
+        from PyQt6.QtCore import QTimer
+        b = self.button(widget, english, exact=exact)
+        self.note(f"   [click] {english!r} -> "
+                  f"{b.text() if b is not None else 'NO SUCH BUTTON'}")
+        if b is None:
+            return False
+        QTimer.singleShot(0, b.click)
+        return True
 
     def answer_file(self, path, name: str | None = None,
                     within_ms: int = 6000) -> bool:
@@ -457,29 +558,155 @@ class Drive:
 
     # -- running -----------------------------------------------------------
     def run(self, script) -> int:
-        """Step the generator from the event loop until it ends."""
+        """Step the generator from the event loop until it ends, raises, or
+        runs out of time; then close every window and return the verdict
+        (RC_OK 0, RC_SCRIPT_RAISED 2, RC_TIME_LIMIT 3, RC_APP_RAISED 4)."""
         from PyQt6.QtCore import QTimer
         gen = script(self)
-        state = {"rc": 0}
+        self.record["time_limit_s"] = self.time_limit_s
 
         def step():
+            if self._ending:
+                return
             self._closed_a_modal = False
             try:
                 wait = next(gen)
             except StopIteration:
-                self.app.quit()
+                self.end(RC_OK, "the script finished")
                 return
             except Exception:                              # noqa: BLE001
                 self.note("DRIVER ERROR\n" + traceback.format_exc())
-                state["rc"] = 2
-                self.app.quit()
+                self.end(RC_SCRIPT_RAISED, "the script raised (traceback "
+                         "above)")
                 return
-            QTimer.singleShot(int(wait or 0), step)
+            if not self._ending:
+                QTimer.singleShot(int(wait or 0), step)
 
+        def out_of_time():
+            self.end(RC_TIME_LIMIT, f"the time limit of "
+                     f"{self.time_limit_s:.0f} s was reached")
+
+        # A LAST RESORT FOR A WEDGED GUI THREAD. Everything above runs on the
+        # event loop; if a native call never returns, nothing there can end
+        # the run, and the window would stay on Basti's screen. This thread
+        # ends the process instead (os._exit stops the helper first).
+        def hard_stop():
+            try:
+                self.note(f"DRIVE KILLED: still running "
+                          f"{HARD_KILL_AFTER_S:.0f} s after the time limit")
+            finally:
+                os._exit(RC_TIME_LIMIT)
+
+        self._limit_timer = QTimer()
+        self._limit_timer.setSingleShot(True)
+        self._limit_timer.timeout.connect(out_of_time)
+        self._limit_timer.start(int(self.time_limit_s * 1000))
+        killer = threading.Timer(self.time_limit_s + HARD_KILL_AFTER_S,
+                                 hard_stop)
+        killer.daemon = True
+        killer.start()
         QTimer.singleShot(0, step)
-        self.app.exec()
+        try:
+            self.app.exec()
+        finally:
+            killer.cancel()
+            self._limit_timer.stop()
         self.finish()
-        return state["rc"]
+        return self._rc
+
+    # -- ending --------------------------------------------------------------
+    def end(self, rc: int, why: str) -> None:
+        """End the drive from inside the event loop: photograph what is open
+        (unless the script finished), close every window, then leave every
+        event loop. Safe to call from any step, and only the first call
+        counts. Runs as three timer turns, so nothing pumps on top of a modal
+        this step may just have closed."""
+        from PyQt6.QtCore import QTimer
+        if self._ending:
+            return
+        self._ending = True
+        self._rc = rc
+        self.record["ended"] = {"rc": rc, "why": why}
+        self.note(f"DRIVE ENDING ({rc}): {why}")
+        self._end_photo = rc != RC_OK
+        QTimer.singleShot(0, self._end_close_dialogs)
+
+    def _main_window(self) -> list:
+        """The main window as a list, empty when there is no real one."""
+        from PyQt6.QtWidgets import QWidget
+        return [self.win] if isinstance(self.win, QWidget) else []
+
+    def _open_windows(self) -> list:
+        from PyQt6.QtWidgets import QApplication
+        return [w for w in QApplication.topLevelWidgets()
+                if w.isVisible() and w is not self.win]
+
+    def _end_close_dialogs(self) -> None:
+        from PyQt6.QtCore import QTimer
+        from PyQt6.QtWidgets import QApplication, QDialog
+        from onscreen_capture import capture_window
+        if self._end_photo:
+            for i, w in enumerate(self._main_window() + self._open_windows()):
+                path = self.shots / f"zz-at-end-{i:02d}.png"
+                try:
+                    ok, why = capture_window(w, path, allow_hide=False)
+                except Exception as exc:                   # noqa: BLE001
+                    ok, why = False, str(exc)
+                self.record["photos"].append({"file": path.name, "ok": ok,
+                                              "why": why, "at_end": True})
+                self.note(f"   [photo at end] {path.name} "
+                          f"({w.windowTitle()!r}): "
+                          f"{'ok' if ok else 'FAILED ' + why}")
+        # The innermost modal first: rejecting it returns to the one below.
+        todo = []
+        top = QApplication.activeModalWidget()
+        if top is not None:
+            todo.append(top)
+        todo += [w for w in reversed(self._open_windows()) if w not in todo]
+        for w in todo:
+            self.note(f"   [end] closing {type(w).__name__} "
+                      f"{w.windowTitle()!r}")
+            if isinstance(w, QDialog):
+                w.reject()
+            else:
+                w.close()
+        QTimer.singleShot(1500, self._end_close_main)
+
+    def _end_close_main(self) -> None:
+        from PyQt6.QtCore import QTimer
+        from PyQt6.QtWidgets import QDialog
+        for w in self._open_windows():
+            # reject() was refused (a window that asks first, and the
+            # watchdog answered Cancel): done() hides it without asking
+            self.note(f"   [end] still open, ending: {type(w).__name__} "
+                      f"{w.windowTitle()!r}")
+            if isinstance(w, QDialog):
+                w.done(QDialog.DialogCode.Rejected.value)
+            else:
+                w.hide()
+        try:
+            for w in self._main_window():
+                if w.isVisible():
+                    w.close()         # its questions are answered by the dog
+        except Exception:                                  # noqa: BLE001
+            self.note("   [end] closing the main window raised:\n"
+                      + traceback.format_exc())
+        QTimer.singleShot(3000, self._end_leave)
+
+    def _end_leave(self) -> None:
+        for w in self._main_window() + self._open_windows():
+            try:
+                if w.isVisible():
+                    self.note(f"   [end] hiding {type(w).__name__} "
+                              f"{w.windowTitle()!r}")
+                    w.hide()
+            except RuntimeError:
+                pass
+        # exit(), NOT quit(): QGuiApplication.quit() asks every window to
+        # close first and gives up if one refuses, which is how a window
+        # stayed up. exit() leaves every running event loop, nested modal
+        # loops included, and makes a new exec() return at once.
+        self.app.exit(self._rc)
 
     def finish(self) -> None:
         """Save everything the log said while this drive ran, and flag the
@@ -497,6 +724,22 @@ class Drive:
         bad = [ln for ln in text.splitlines()
                if ("[WARNING]" in ln or "[ERROR]" in ln or "[CRITICAL]" in ln
                    or "Traceback" in ln) and "Settings SANDBOXED" not in ln]
+        import onscreen_capture
+        elsewhere = onscreen_capture.EXTERNAL_OPENS[self._external_at_start:]
+        self.record["opened_elsewhere"] = elsewhere
+        for what in elsewhere:
+            self.note(f"   NOT OPENED in another app: {what}")
+        uncaught = self._uncaught()[self._uncaught_at_start:]
+        self.record["app_exceptions"] = uncaught
+        if uncaught:
+            self.note(f"THE APP RAISED {len(uncaught)} exception(s) during "
+                      f"the drive; the first:\n{uncaught[0]}")
+            if self._rc == RC_OK:
+                self._rc = RC_APP_RAISED
+        if getattr(self, "dog", None) is not None:
+            self.dog.stop()
+            self.record["popups"] = self.dog.events
+        self.record["rc"] = self._rc
         self.record["log_lines"] = len(text.splitlines())
         self.record["log_warnings_and_errors"] = bad
         self.note(f"log: {len(text.splitlines())} lines during the drive, "
@@ -505,6 +748,10 @@ class Drive:
             self.note(f"   LOG {ln}")
         self._flush()
         try:
-            self.win.close()
+            # closed in the loop by `end`; never ask anything out here, where
+            # no event loop runs and a question would wait for ever
+            for w in self._main_window():
+                if w.isVisible():
+                    w.hide()
         except Exception:                                  # noqa: BLE001
             pass
