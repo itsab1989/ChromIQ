@@ -184,7 +184,7 @@ def test_an_enabled_tick_is_darker_than_a_disabled_one():
 def test_the_two_shipped_disabled_indicator_rules_did_not_move():
     from ui.dialogs.tools_dialogs import _disabled_indicator_qss
     rule = _disabled_indicator_qss(APPEARANCE_DARK)
-    assert "#4a4a4a" in rule
+    assert "#666666" in rule      # 4.3.11: readable (2.9 : 1), was #4a4a4a
     assert "dashed" not in rule
     # Light moved on purpose (B8-1078): #4a4a4a was the darkest thing on a
     # light window, a solid dark square in the report window's "Show detailed
@@ -202,7 +202,11 @@ def test_a_ticked_greyed_box_in_light_is_not_a_dark_square():
     from ui.dialogs.tools_dialogs import _disabled_indicator_qss
     rule = _disabled_indicator_qss(APPEARANCE_LIGHT)
     fill = re.search(r"background:\s*(#[0-9a-fA-F]{6})", rule).group(1)
-    assert lightness(fill) > lightness(lm.LM_TEXT_FAINT) - 0.15
+    # lighter than the light theme's dim text, so never a dark square; 4.3.11
+    # made it a little darker than LM_TEXT_FAINT so the tick reads at 2.7 : 1
+    # (the old bound, LM_TEXT_FAINT - 0.15 on a 0-255 scale, allowed nothing
+    # darker than LM_TEXT_FAINT itself)
+    assert lightness(fill) > lightness(lm.LM_TEXT_DIM)
     assert lightness(fill) < lightness(lm.LM_BG_WINDOW)
 
 

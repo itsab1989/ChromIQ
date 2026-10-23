@@ -186,13 +186,17 @@ def _disabled_indicator_qss(mode: "str | None" = None) -> str:
         # grey still reads as "filled", so still distinct from an unticked
         # disabled box, without shouting. LM_BORDER_HI is the light palette's
         # own hover/focus border grey.
-        from ui.light_styles import LM_BORDER_HI
+        # 4.3.11: the app sheet's own disabled tick (LM_TICK_DISABLED), 2.7 : 1
+        # against the window; LM_BORDER_HI was 1.9 : 1, the weakest of all.
+        from ui.light_styles import LM_BORDER_HI, LM_TICK_DISABLED
         return ("QCheckBox::indicator:checked:disabled,"
                 " QRadioButton::indicator:checked:disabled {"
-                f" background: {LM_BORDER_HI}; border-color: {LM_BORDER_HI}; }}")
+                f" background: {LM_TICK_DISABLED}; border-color: {LM_BORDER_HI}; }}")
+    # 4.3.11: #666666 (2.9 : 1 against the dark ground), not #4a4a4a (1.9 : 1),
+    # and still far from a live tick.
     return ("QCheckBox::indicator:checked:disabled,"
             " QRadioButton::indicator:checked:disabled {"
-            " background: #4a4a4a; border-color: #4a4a4a; }")
+            " background: #666666; border-color: #7a7a7a; }")
 from workflow.average_runner import AverageParams, AverageRunner
 from workflow.colverify_runner import (
     ColverifyParams,

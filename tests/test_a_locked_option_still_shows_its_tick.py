@@ -212,3 +212,67 @@ def test_in_the_patch_set_editor(qapp, mode):
     lay = QVBoxLayout(dlg)
     on, off = _pair(QCheckBox, dlg, lay)
     assert _measure(dlg, on, off, (on, off)) >= 60, mode
+
+
+# ---- 4.3.11 (d): the greyed tick is READABLE in every appearance ------------
+def _lum(c):
+    def f(v):
+        v = v / 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(c.red()) + 0.7152 * f(c.green()) + 0.0722 * f(c.blue())
+
+
+def _ratio(a, b):
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def _tab_pair(mode, index, kind=QCheckBox):
+    from ui.main_window import MainWindow
+    outer = QWidget()
+    outer.setStyleSheet(_app_sheet(mode))
+    lay = QVBoxLayout(outer)
+    tab = QWidget()
+    lay.addWidget(tab)
+    MainWindow._apply_tab_widget_styling(_StubWindow(tab, mode), index)
+    on, off = _pair(kind, tab, QVBoxLayout(tab))
+    live = kind("live", tab)
+    live.setChecked(True)
+    tab.layout().addWidget(live)
+    return outer, on, off, live
+
+
+@pytest.mark.parametrize("mode", MODES)
+@pytest.mark.parametrize("index", range(5))
+def test_the_greyed_tick_reads_at_least_2_5_to_1(qapp, mode, index):
+    """Measured 2026-10-23 before the change: light 2.1 : 1, dark 1.9 : 1 in
+    the app sheets, and in a tab's sheet down to 1.2 : 1 (the muted accent on
+    the yellow and green tabs). Now at least 2.5 : 1 against an unticked
+    disabled box everywhere, and still plainly not the live tick."""
+    outer, on, off, live = _tab_pair(mode, index)
+    for w in (on, off):
+        w.setEnabled(False)
+    outer.resize(300, 200)
+    outer.show()
+    QApplication.processEvents()
+    a, b, c = (_indicator_colour(w) for w in (on, off, live))
+    outer.close()
+    assert _ratio(a, b) >= 2.5, (mode, index, a.name(), b.name())
+    assert _diff(a, c) >= 60, (mode, index, a.name(), c.name())
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_the_dialogs_greyed_tick_reads_at_least_2_5_to_1(qapp, mode):
+    from ui.dialogs.tools_dialogs import neutral_controls_qss
+    dlg = QDialog()
+    dlg.setStyleSheet(_app_sheet(mode) + neutral_controls_qss("#ff2d9b", mode=mode))
+    lay = QVBoxLayout(dlg)
+    on, off = _pair(QCheckBox, dlg, lay)
+    for w in (on, off):
+        w.setEnabled(False)
+    dlg.resize(300, 160)
+    dlg.show()
+    QApplication.processEvents()
+    a, b = _indicator_colour(on), _indicator_colour(off)
+    dlg.close()
+    assert _ratio(a, b) >= 2.5, (mode, a.name(), b.name())

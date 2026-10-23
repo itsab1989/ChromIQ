@@ -413,7 +413,7 @@ QCheckBox::indicator:hover    {{ border-color: {ACCENT_HOVER}; }}
 QCheckBox:disabled            {{ color: #6a6a6a; }}
 QCheckBox::indicator:disabled {{ background: #1f1f1f; border-color: #3a3a3a; }}
 /* a ticked box keeps its tick, greyed, when it is disabled (4.3.11, app-wide; 4.3.10 had it for the Measure tab only) */
-QCheckBox::indicator:checked:disabled {{ background: #4a4a4a; border-color: #5a5a5a; }}
+QCheckBox::indicator:checked:disabled {{ background: #666666; border-color: #7a7a7a; }}
 QRadioButton {{ spacing: 6px; }}
 QRadioButton::indicator {{
     width: 14px; height: 14px;
@@ -435,7 +435,7 @@ QRadioButton::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT};
    switched-off option keeps a bright dot. */
 QRadioButton:disabled                     {{ color: #6a6a6a; }}
 QRadioButton::indicator:disabled          {{ background: #1f1f1f; border-color: #3a3a3a; }}
-QRadioButton::indicator:checked:disabled  {{ background: #4a4a4a; border-color: #4a4a4a; }}
+QRadioButton::indicator:checked:disabled  {{ background: #666666; border-color: #7a7a7a; }}
 
 /* ---- Log ---------------------------------------------------------- */
 QPlainTextEdit#log {{
@@ -501,7 +501,7 @@ QLabel#section_title {{ font-size: 14px; font-weight: bold; color: #ffffff; }}
 QLabel#param_label, QCheckBox#param_label, QRadioButton#param_label {{ color: #c8c8c8; }}
 QLabel#param_label:disabled, QCheckBox#param_label:disabled, QRadioButton#param_label:disabled {{ color: #6a6a6a; }}
 QRadioButton#param_label::indicator:disabled {{ background: #1f1f1f; border-color: #3a3a3a; }}
-QRadioButton#param_label::indicator:checked:disabled {{ background: #4a4a4a; border-color: #4a4a4a; }}
+QRadioButton#param_label::indicator:checked:disabled {{ background: #666666; border-color: #7a7a7a; }}
 
 /* ---- Browse buttons ----------------------------------------------- */
 QPushButton#browse {{

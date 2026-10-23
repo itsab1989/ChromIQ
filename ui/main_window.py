@@ -900,7 +900,10 @@ class MainWindow(QMainWindow):
             primary_disabled_fg  = "#a8a4a0"
             # A box that is disabled BECAUSE it is forced on: muted accent, so
             # the tick still reads while the control stays obviously inactive.
-            locked_on_bg         = _mix_hex(color, "#eeece8", 0.45)
+            # A disabled tick: the light sheet's own grey, with the tab's accent
+            # on its edge (4.3.11). The muted accent it replaces came out at
+            # 1.2 : 1 on the yellow and green tabs, a tick nobody could see.
+            locked_on_bg         = "#958f89"   # LM_TICK_DISABLED
             # Big "Calculated Patches" number anchors to the masthead
             # "Chrom" wordmark colour, not the tab's spectrum accent, so
             # it reads as a text anchor rather than a per-tab tint.
@@ -916,7 +919,9 @@ class MainWindow(QMainWindow):
             primary_text         = "#0a0a0a"
             primary_disabled_bg  = "#1e1e1e"
             primary_disabled_fg  = "#484848"
-            locked_on_bg         = _mix_hex(color, "#1f1f1f", 0.45)
+            # …the dark sheet's grey (4.3.11; the muted accent was 1.9 : 1 on
+            # the pink tab)
+            locked_on_bg         = "#666666"
             patch_count_color    = "#ffffff"   # _PALETTE_DARK["wordmark"]
             log_color            = color
 

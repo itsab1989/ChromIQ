@@ -38,6 +38,10 @@ LM_BORDER_HI   = "#b0aba4"   # hover / focus border
 LM_TEXT_MAIN   = "#22211f"   # primary text (matches design spec)
 LM_TEXT_DIM    = "#7a7570"   # secondary labels, GroupBox titles
 LM_TEXT_FAINT  = "#a8a4a0"   # placeholder, disabled text
+#: The fill of a ticked box (or chosen radio) that is DISABLED (4.3.11):
+#: 2.7 : 1 against the window, as readable as dark and neutral, and still a
+#: grey, plainly not the live accent tick.
+LM_TICK_DISABLED = "#958f89"
 
 # Mode buttons (segmented switch — Guided / Manual / Expert)
 LM_MODE_BG     = "#eeeae5"
@@ -410,7 +414,7 @@ QCheckBox::indicator:disabled {{
    known here, so this uses a neutral mid tone that reads as a tick in the
    light theme; the dark sheet in main_window.py tints its own with the accent. */
 QCheckBox#locked_on::indicator:checked:disabled {{
-    background: {LM_TEXT_FAINT};
+    background: {LM_TICK_DISABLED};
     border-color: {LM_BORDER_HI};
 }}
 /* …AND EVERY OTHER TICKED BOX THAT IS DISABLED (4.3.11). A disabled box
@@ -421,7 +425,7 @@ QCheckBox#locked_on::indicator:checked:disabled {{
    printer dialog), anywhere. 4.3.10 fixed only the Measure tab (keepsTick);
    this is the same look for all of them. */
 QCheckBox::indicator:checked:disabled {{
-    background: {LM_TEXT_FAINT};
+    background: {LM_TICK_DISABLED};
     border-color: {LM_BORDER_HI};
 }}
 QRadioButton {{
@@ -450,7 +454,7 @@ QRadioButton::indicator:disabled {{
 }}
 /* the chosen radio of a disabled group still shows which one it is */
 QRadioButton::indicator:checked:disabled {{
-    background: {LM_TEXT_FAINT};
+    background: {LM_TICK_DISABLED};
     border-color: {LM_BORDER_HI};
 }}
 
@@ -569,7 +573,7 @@ QRadioButton#param_label::indicator {{
 }}
 QRadioButton#param_label::indicator:checked {{ background: {ACCENT_BLUE}; border-color: {ACCENT_BLUE}; }}
 QRadioButton#param_label::indicator:disabled {{ background: {LM_BG_WINDOW}; border-color: {LM_BORDER}; }}
-QRadioButton#param_label::indicator:checked:disabled {{ background: {LM_TEXT_FAINT}; border-color: {LM_BORDER_HI}; }}
+QRadioButton#param_label::indicator:checked:disabled {{ background: {LM_TICK_DISABLED}; border-color: {LM_BORDER_HI}; }}
 
 /* -- Mode buttons (Guided / Manual / Expert) --------------------- */
 /* Default appearance. The per-tab QSS injection in main_window also
