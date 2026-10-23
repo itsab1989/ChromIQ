@@ -190,6 +190,10 @@ class SlippedRun:
     #: For a "middle" slip: the position of the patch that was read twice
     #: (just before the run when it is late, just after it when it is early).
     twice: "int | None" = None
+    #: Every patch the slip pushed out of step, when there can be more than
+    #: one (`whole_strip_shift`: a strip two patches out has two patches
+    #: holding what lies beyond it). Empty: `lead` alone says it.
+    leads: tuple = ()
 
     @property
     def single(self) -> bool:
@@ -615,6 +619,20 @@ def whole_strip_shift(measured: "Sequence[Sequence[float]]",
         lead_paper = looks_like_paper(m[lead], paper)
     else:
         lead = None
+    # EVERY PATCH WITHOUT A PARTNER (review 36): a strip two patches out has
+    # two of them, holding what lies beyond the strip, and the question names
+    # both. Only those that also miss their own colour count.
+    partnered = {i for i, _j in pts}
+    leads = tuple(i for i in range(n) if i not in partnered
+                  and m[i] is not None and e[i] is not None
+                  and _de(m[i], e[i]) >= TRIGGER_DE)
+    if len(leads) > 1:
+        first, last = min(first, *leads), max(last, *leads)
+        lead_paper = all(looks_like_paper(m[i], paper) for i in leads)
+        if lead is None or lead not in leads:
+            lead = leads[0]
+    else:
+        leads = ()
     if reversed_:
         first, last = 0, n - 1
     kind = ""
@@ -626,7 +644,8 @@ def whole_strip_shift(measured: "Sequence[Sequence[float]]",
                       base_de=round(base, 2), shifted_de=round(shifted, 2),
                       reversed=reversed_, run_first=run_first,
                       run_last=run_last, base_de00=base00, shifted_de00=sh00,
-                      lead=lead, lead_paper=lead_paper, kind=kind)
+                      lead=lead, lead_paper=lead_paper, kind=kind,
+                      leads=leads)
 
 
 def strip_read_labs(patches: "Sequence[dict]") -> tuple:

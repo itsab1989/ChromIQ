@@ -9227,10 +9227,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             strip=strip, first=str(f.get("first") or "?"),
             last=str(f.get("last") or "?"),
             lead_line=M.slip_lead_line(f.get("lead"),
-                                       bool(f.get("lead_paper"))),
+                                       bool(f.get("lead_paper")),
+                                       f.get("leads")),
             base=M.slip_de_text(f.get("base")),
             best=M.slip_de_text(f.get("best")),
             twice=str(f.get("twice") or "?"),
+            # M-STRIP-REVERSED says how far the strip also slipped (review 36)
+            shift_line=M.slip_shift_line(f.get("offset")),
+            middle_line=M.slip_middle_line(f.get("offset")),
             remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
             stop=tr("Stop"))), dlg)
         choice = self._misaligned_strip_buttons(dlg, layout, msg)

@@ -7161,15 +7161,69 @@ STRIP_FAILED_MESSAGES = (*STRIP_FAILED_ADVICE.values(), M_STRIP_FAILED_BUTTON)
 _SLIP_LEAD_PAPER = "Patch {lead} came out with the colour of the white paper. "
 _SLIP_LEAD_OTHER = ("Patch {lead} came out wrong as well, with a colour that "
                     "is neither its own nor its neighbour's. ")
+#: The same for the TWO patches a strip two patches out pushes out of step
+#: (review 36): both hold what lies beyond the strip.
+_SLIP_LEADS_PAPER = ("Patches {lead} and {lead2} came out with the colour of "
+                     "the white paper. ")
+_SLIP_LEADS_OTHER = ("Patches {lead} and {lead2} came out wrong as well, with "
+                     "colours that are neither their own nor their "
+                     "neighbours'. ")
 
 
-def slip_lead_line(lead: "str | None", paper: bool) -> str:
-    """{lead_line} of the slip messages: the sentence about the patch the
-    slip pushed out of step, ending in a space, or "" when there is none."""
+def slip_lead_line(lead: "str | None", paper: bool,
+                   leads: "Sequence[str] | None" = None) -> str:
+    """{lead_line} of the slip messages: the sentence about the patch (or,
+    with *leads*, the two patches) the slip pushed out of step, ending in a
+    space, or "" when there is none."""
+    if leads and len(leads) == 2:
+        return tr(_SLIP_LEADS_PAPER if paper else _SLIP_LEADS_OTHER).format(
+            lead=leads[0], lead2=leads[1])
     if not lead:
         return ""
     return tr(_SLIP_LEAD_PAPER if paper else _SLIP_LEAD_OTHER).format(
         lead=lead)
+
+
+#: {shift_line} of M-STRIP-REVERSED (review 36): a strip filed back to front
+#: can also have slipped by one or by two patches, and the comparison then
+#: takes the patch that many places along. Nothing when it did not slip.
+_SLIP_REVERSED_SHIFT_ONE = (
+    "The readings also slipped by one patch on the way, so each of these "
+    "comparisons moves one patch further along the strip. ")
+_SLIP_REVERSED_SHIFT_TWO = (
+    "The readings also slipped by two patches on the way, so each of these "
+    "comparisons moves two patches further along the strip. ")
+
+
+#: {middle_line} of M-STRIP-REVERSED: only a strip filed back to front IN
+#: STEP keeps one reading in its place, the patch in the middle; one that
+#: also slipped keeps none (review 36).
+_SLIP_REVERSED_MIDDLE = (" Only a patch in the middle of the strip can still "
+                         "hold its own reading.")
+
+
+def slip_middle_line(shift) -> str:
+    """{middle_line} of M-STRIP-REVERSED: the sentence about the middle
+    patch, starting with a space, for a strip that did not slip; else ""."""
+    try:
+        n = abs(int(shift or 0))
+    except (TypeError, ValueError):
+        n = 0
+    return "" if n else tr(_SLIP_REVERSED_MIDDLE)
+
+
+def slip_shift_line(shift) -> str:
+    """{shift_line} of M-STRIP-REVERSED for a slip of *shift* patches (0, 1
+    or 2; the sign does not matter), ending in a space, or ""."""
+    try:
+        n = abs(int(shift or 0))
+    except (TypeError, ValueError):
+        return ""
+    if n == 1:
+        return tr(_SLIP_REVERSED_SHIFT_ONE)
+    if n >= 2:
+        return tr(_SLIP_REVERSED_SHIFT_TWO)
+    return ""
 
 
 #: Languages that write a decimal comma inside a sentence, as the
@@ -7429,16 +7483,15 @@ M_STRIP_REVERSED = _m(
     "colours by {base} ΔE00. Taken the other way round, so that the reading "
     "of the strip's first patch is compared with the expected colour of its "
     "last patch, the reading of its second patch with the patch before the "
-    "last, and so on, they miss by only {best} ΔE00. (Where the reading also "
-    "slipped by one patch, each reading is compared with the patch beside "
-    "that place.) So the readings of this strip were probably filed in the "
+    "last, and so on, they miss by only {best} ΔE00. {shift_line}So the "
+    "readings of this strip were probably filed in the "
     "wrong order: patches {first} to {last} hold the readings of other "
-    "patches of the strip, not their own. Only a patch in the middle of the "
-    "strip can still hold its own reading.\n\n"
+    "patches of the strip, not their own.{middle_line}\n\n"
     "A strip can be read in either direction, and ChromIQ files each strip "
-    "in the direction its colours fit best. When the reading slips by one "
-    "patch on the way, for example because the instrument took the white "
-    "paper in front of the first patch for a patch, the colours can fit the "
+    "in the direction its colours fit best. When the reading slips by one or "
+    "two patches on the way, for example because the instrument took the "
+    "white paper in front of the first patch for a patch, the colours can "
+    "fit the "
     "wrong direction better, and the strip is then filed back to front.\n\n"
     + _slip_tail(),
     approved=False)

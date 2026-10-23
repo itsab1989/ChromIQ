@@ -2011,8 +2011,8 @@ class MeasureManager(QObject):
         log.warning("strip %s: patches %s to %s look %s (mean dE76 %.1f as "
                     "read, %.1f %s; dE00 %s / %s)", strip, first, last,
                     "filed back to front" if run.reversed else
-                    "read one patch " + ("late" if run.offset > 0
-                                         else "early"),
+                    f"read {abs(run.offset)} patch(es) "
+                    + ("late" if run.offset > 0 else "early"),
                     run.base_de, run.shifted_de,
                     "the other way round" if run.reversed else "shifted",
                     run.base_de00, run.shifted_de00)
@@ -2025,6 +2025,9 @@ class MeasureManager(QObject):
             "first": locs[run.run_first], "last": locs[run.run_last],
             "lead": locs[run.lead] if run.lead is not None else None,
             "lead_paper": run.lead_paper,
+            # ...and all of them when there are two (a strip two patches out,
+            # review 36), in strip order
+            "leads": [locs[i] for i in getattr(run, "leads", ())],
             # A short slip says where it sits (agent 19's study, approved by
             # Basti 2026-10-23): "start" / "end" next to the patch that read
             # the paper, "middle" with the patch read twice, so the question

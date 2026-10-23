@@ -614,7 +614,7 @@ def test_the_measure_tab_says_back_to_front(qapp, monkeypatch):
     text = " ".join(seen["labels"])
     title, _b = M.M_STRIP_REVERSED.render(
         strip="36", first="", last="", lead_line="", base="", best="",
-        remeasure="", keep="", stop="")
+        shift_line="", middle_line="", remeasure="", keep="", stop="")
     assert title == "Strip 36 was probably filed back to front"
     assert title in text and "the other way round" in text
     assert "Patch 36M came out with the colour of the white paper." in text
@@ -720,8 +720,12 @@ def test_a_strip_filed_back_to_front_does_not_claim_no_patch_kept_its_reading():
         assert "none of" not in msg.body.lower(), msg.id
         assert "patches {first} to {last} hold the readings of other" \
             in msg.body, msg.id
+        # the question says it only for a strip that did not slip as well
+        # (review 36): {middle_line}
+        middle = (M.slip_middle_line(0) if msg is M.M_STRIP_REVERSED
+                  else msg.body)
         assert "Only a patch in the middle of the strip can still hold its " \
-            "own reading." in msg.body, msg.id
+            "own reading." in middle, msg.id
         # the comparison is spelled out, not "the patches at those places"
         assert "at those places" not in msg.body, msg.id
         assert "compared with the expected colour of its last patch" \

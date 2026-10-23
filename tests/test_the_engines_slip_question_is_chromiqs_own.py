@@ -163,3 +163,76 @@ def test_the_engine_still_sends_only_numbers():
     i = c.index('"{\\"event\\":\\"strip_misaligned\\"')
     block = c[i - 600:i + 400]
     assert "empty paper" not in block and "misaligned" in block
+
+
+# ---- review 36: a strip filed back to front AND two patches out -------------
+
+def _reversed_two_out(strip, late=True):
+    meas = [mx for _l, mx, _e in strip]
+    read = ([_paper(), _paper()] + meas[:-2]) if late else \
+        (meas[2:] + [_paper(), _paper()])
+    return list(reversed(read))        # the engine filed it back to front
+
+
+@pytest.mark.parametrize("late,offset,ends", [(True, 2, (-2, -1)),
+                                              (False, -2, (0, 1))])
+def test_both_patches_beyond_a_strip_two_out_are_named(late, offset, ends):
+    """MUTATION: drop `leads` from `whole_strip_shift`: only one of the two
+    patches that hold the paper is named."""
+    strip = _strips()["K"]
+    m_lab, e_lab = strip_read_labs(
+        _event("K", strip, _reversed_two_out(strip, late))["patches"])
+    run = whole_strip_shift(m_lab, e_lab, offset, True)
+    n = len(strip)
+    assert run.leads == tuple(i % n for i in ends)
+    assert run.lead_paper
+    assert run.shifted_de00 <= 0.5 * run.base_de00
+
+
+def test_the_manager_hands_both_patches_on(qapp):
+    m = _manager()
+    m._safenet_on = True
+    strip = _strips()["K"]
+    part, _n = _asked(m, _engine_flagged("K", strip,
+                                         _reversed_two_out(strip)),
+                      _net("K", 2, other=True))
+    f = part[0]
+    assert f["reversed"] and f["offset"] == 2
+    assert f["leads"] == [strip[-2][0], strip[-1][0]]
+
+
+def _reversed_text(monkeypatch, offset, leads=None):
+    tab, seen = _tab_seeing(monkeypatch)
+    tab._on_strip_partly_misaligned({
+        "strip": "K", "offset": offset, "reversed": True, "whole": True,
+        "engine": True, "shift": abs(offset), "first": "K1", "last": "K12",
+        "lead": (leads or [None])[0], "leads": leads or [],
+        "lead_paper": True, "base": 35.2, "best": 6.3})
+    text = " ".join(seen["labels"])
+    tab.deleteLater()
+    return text
+
+
+def test_a_reversed_strip_two_out_says_two_and_names_both(qapp, monkeypatch):
+    """MUTATION: put the old "(Where the reading also slipped by one patch
+    ...)" sentence back in M-STRIP-REVERSED."""
+    text = _reversed_text(monkeypatch, 2, ["K13", "K14"])
+    assert "Patches K13 and K14 came out with the colour of the white " \
+        "paper." in text
+    assert "slipped by two patches on the way" in text
+    assert "by one patch" not in text
+    assert "Only a patch in the middle" not in text
+    assert "one or two patches on the way" in text
+
+
+def test_a_reversed_strip_one_out_says_one(qapp, monkeypatch):
+    text = _reversed_text(monkeypatch, 1, None)
+    assert "slipped by one patch on the way" in text
+    assert "Only a patch in the middle" not in text
+
+
+def test_a_reversed_strip_in_step_keeps_its_middle_patch(qapp, monkeypatch):
+    text = _reversed_text(monkeypatch, 0, None)
+    assert "slipped by" not in text
+    assert "Only a patch in the middle of the strip can still hold its own " \
+        "reading." in text
