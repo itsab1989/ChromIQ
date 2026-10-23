@@ -559,3 +559,31 @@ def test_the_dialog_routes_still_refuse_what_matters(tmp_path):
     title, body = TabPrint._overhang_text(plan, p, paper, anyway=False)
     assert "Nothing was printed." in body and "print anyway" not in body
     assert "ruler marks" in body                   # what may be cut, said
+
+
+def test_the_print_record_keeps_what_was_cut(tmp_path):
+    """Found on screen by agent 22: the record refused the two new keys and
+    the print crashed in its slot after the job was sent."""
+    import json
+    from workflow import verification_print as vp
+    ti2 = tmp_path / "c.ti2"
+    ti2.write_text("CTI2\n", encoding="utf-8")
+    path = vp.write_print_record(
+        ti2, colour=vp.COLOUR_RAW if hasattr(vp, "COLOUR_RAW") else "raw",
+        intent="", profile=None, route="chromiq",
+        outside_paper_mm={"top": 2.2}, caption_outside_paper_mm={"top": 2.2},
+        ruler_marks_outside_paper={"top": 12})
+    rec = json.loads(path.read_text(encoding="utf-8"))
+    assert rec["caption_outside_paper_mm"] == {"top": 2.2}
+    assert rec["ruler_marks_outside_paper"] == {"top": 12}
+
+
+def test_every_key_the_direct_route_notes_is_one_the_record_takes(tmp_path):
+    import inspect
+    from workflow import verification_print as vp
+    from ui.tabs import tab_print
+    params = inspect.signature(vp.write_print_record).parameters
+    src = inspect.getsource(tab_print.TabPrint._note_overhang)
+    import re
+    for key in re.findall(r'pending\[1\]\["(\w+)"\]', src):
+        assert key in params, key

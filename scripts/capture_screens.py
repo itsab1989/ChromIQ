@@ -171,6 +171,26 @@ def patch_loaders() -> None:
     tl.resolve_ti3 = _resolve_ti3
 
 
+def install_logging_excepthook() -> None:
+    """main()'s ``_log_excepthook``, for a process that never imports main:
+    an uncaught exception is written to the log as CRITICAL with its
+    traceback, and printed, instead of PyQt6 aborting the process."""
+    import traceback
+    if sys.excepthook is not sys.__excepthook__:
+        return                      # someone (main.py) already installed one
+
+    def _hook(exc_type, exc, tb):
+        try:
+            from core.logger import get_logger
+            get_logger("driver").critical(
+                "Uncaught exception:\n%s",
+                "".join(traceback.format_exception(exc_type, exc, tb)))
+        except Exception:           # noqa: BLE001 - never fail in the hook
+            pass
+        sys.__excepthook__(exc_type, exc, tb)
+    sys.excepthook = _hook
+
+
 def build_app():
     # Remember who has the keyboard BEFORE the app exists, and hand it back
     # whenever the app takes it (onscreen_capture.FocusGiveBack): a driver must
@@ -182,6 +202,15 @@ def build_app():
     focus = FocusGiveBack().remember()
     app = QApplication(sys.argv)
     app._chromiq_focus_give_back = focus.install(app)
+    # AS main() DOES: AN EXCEPTION IN A SLOT IS LOGGED, NOT FATAL. With the
+    # default sys.excepthook PyQt6 calls qFatal() on an exception raised in a
+    # slot, and the process aborts (SIGABRT), which on Basti's Mac pops up
+    # "Python quit unexpectedly" and files a crash report (agent 22,
+    # 2026-10-23: a Print button's slot raised TypeError in a driver). main.py
+    # installs a logging hook at import, so the shipped app logs and goes on;
+    # a driver now does the same, and the drive's log check still flags the
+    # CRITICAL line and the traceback (userdrive.finish).
+    install_logging_excepthook()
     # Basti's display sleeps after a while: keep it awake for THIS run only.
     try:
         from onscreen_capture import keep_display_awake
