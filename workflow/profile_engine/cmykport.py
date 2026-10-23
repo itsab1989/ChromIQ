@@ -457,17 +457,21 @@ def light_weight(node_lab: np.ndarray) -> np.ndarray:
     the near-neutral white above the paper keeps the port) and a
     high-chroma gate (1 below C* chi - chw, smoothstep to 0 at chi: bright
     saturated yellows and greens keep the port's chroma; with the engine's
-    clip there they print visibly duller, renders 2026-10-23).
-    Env CHROMIQ_A75_LIGHT=l0:w[:c0:cw[:chi:chw]], default 85:8:8:6:45:15."""
+    clip there they print visibly duller, renders 2026-10-23); at most
+    amp (a full hand-over makes a 1 JND knee near white on green / cyan
+    white-to-colour ramps, eyecheck). Env
+    CHROMIQ_A75_LIGHT=l0:w[:c0:cw[:chi:chw[:amp]]], default
+    72:24:8:6:45:15:0.8 (offline round, out/eye-o1)."""
     pv = [float(v) for v in os.environ.get("CHROMIQ_A75_LIGHT",
-                                           "85:8").split(":")]
+                                           "72:24").split(":")]
     l0, w = pv[0], pv[1]
     c0, cw = (pv[2], pv[3]) if len(pv) >= 4 else (8.0, 6.0)
     chi, chw = (pv[4], pv[5]) if len(pv) >= 6 else (45.0, 15.0)
+    amp = pv[6] if len(pv) >= 7 else 0.8
     nl = np.asarray(node_lab, float)
     ch = np.hypot(nl[:, 1], nl[:, 2])
     ss = lambda x: (lambda u: u * u * (3.0 - 2.0 * u))(np.clip(x, 0.0, 1.0))  # noqa: E731
-    return (ss((nl[:, 0] - l0) / max(w, 1e-6)) * ss((ch - c0) / max(cw, 1e-6))
+    return amp * (ss((nl[:, 0] - l0) / max(w, 1e-6)) * ss((ch - c0) / max(cw, 1e-6))
             * ss((chi - ch) / max(chw, 1e-6)))
 
 

@@ -1981,8 +1981,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 # full up to black + l, out by black + l + w (CHROMIQ_A69_DARK)
                 _w = _w * _a69.dark_weight(node_lab, _l_min)
             if _a69.A75_LIGHTKEEP in candidates:
-                # Agent 75 (a75-lightkeep): pale out-of-gamut nodes (L* 85+,
-                # C* 8-45, cmykport.light_weight) hand back to the engine's
+                # Agent 75 (a75-lightkeep): pale out-of-gamut nodes (L* 72+,
+                # C* 8-45, up to 0.8, cmykport.light_weight) hand back to the engine's
                 # own table: its clip keeps their lightness (FOGRA sRGB
                 # 200/255/200 prints 4.3 L* dark with the port, 2.7 engine).
                 _w = _w * (1.0 - _a69.light_weight(node_lab))
