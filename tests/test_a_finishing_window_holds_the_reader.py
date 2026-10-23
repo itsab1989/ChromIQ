@@ -358,3 +358,203 @@ def test_the_session_start_says_whether_the_engine_can_hold_here(tab):
     _feed(mgr, {"event": "session_start", "chart": "", "strips": STRIPS,
                 "hold_after": True})
     assert mgr._engine_holds_here is False
+
+
+# ---------------------------------------------------------------------------
+# patch by patch (agent 33, 2026-10-23)
+#
+# The same fault, one mode over. On a complete chart the spot loop stays
+# armed at a patch (read_sample), and a ColorMunki's or i1Pro's button
+# triggers a spot reading as it triggers a strip (munki_imp.c:2101-2133). On
+# the replay engine of 4.3.9 and of 4.3.10 before this, a press behind "All
+# Patches Read" read patch A1 again and the autosave wrote it at once. The
+# replay now treats a press while a patch is armed as the trigger it is.
+# ---------------------------------------------------------------------------
+
+def _spot_chart(tmp: Path):
+    from test_engine_spot import _make_chart
+    base = _make_chart(tmp, patches=12)
+    replay = tmp / "replay.txt"
+    write_replay_script(base.with_suffix(".ti2"), replay, noise=0.0)
+    return base, replay
+
+
+def _quit_spot(s):
+    # quit stops the spot read, and a second quit answers the give-up
+    # prompt (test_engine_spot.test_quit_aborts_without_saving)
+    s.send(cmd="quit")
+    s.wait_event("strip_interrupted", timeout=5)
+    s.send(cmd="quit")
+    s.finish(10)
+
+
+def _read_every_patch(s) -> dict:
+    ev = s.wait_event("spot_ready", timeout=10)
+    for _ in range(60):
+        if ev.get("all_done") and ev.get("read"):
+            return ev
+        i = s.event_index()
+        s.send(cmd="switch")                     # the instrument's button
+        s.wait_event("patch_read", after=i, timeout=5)
+        ev = s.wait_event("spot_ready", after=i, timeout=5)
+    raise AssertionError("the chart was never complete")
+
+
+@needs_helper
+def test_the_session_says_the_engine_can_hold_at_the_patch_menu(tmp_path):
+    base, replay = _spot_chart(tmp_path)
+    with ReplaySession(base, replay, extra_args=["-p"]) as s:
+        assert s.wait_event("session_start").get("hold_here_patch") is True
+        s.wait_event("spot_ready")
+        _quit_spot(s)
+
+
+@needs_helper
+def test_patch_by_patch_a_press_behind_the_window_reads_nothing(tmp_path):
+    base, replay = _spot_chart(tmp_path)
+    with ReplaySession(base, replay, extra_args=["-p"]) as s:
+        armed = _read_every_patch(s)["loc"]
+        # without the hold, a press reads the armed (already read) patch:
+        # the fault this guards against
+        i = s.event_index()
+        s.send(cmd="switch")
+        assert s.wait_event("patch_read", after=i)["loc"] == armed
+        armed = s.wait_event("spot_ready", after=i)["loc"]
+        # with it, the press is only reported
+        j = s.event_index()
+        s.send(cmd="hold")
+        held = s.wait_event("held", after=j)
+        assert held.get("here") is True and held["patch"] == armed
+        s.send(cmd="switch")
+        s.wait_event("switch", after=j)
+        time.sleep(0.6)
+        for name in ("scan_started", "patch_read", "saved", "spot_ready"):
+            assert not _events(s, j, name), f"{name} while the reader holds"
+        # Re-read Patches: the same patch is offered again and reads
+        k = s.event_index()
+        s.send(cmd="resume")
+        assert s.wait_event("spot_ready", after=k)["loc"] == armed
+        m = s.event_index()
+        s.send(cmd="switch")
+        assert s.wait_event("patch_read", after=m)["loc"] == armed
+        # Finish from the hold: done is left for the patch menu and saves
+        n = s.event_index()
+        s.send(cmd="hold")
+        s.wait_event("held", after=n)
+        s.send(cmd="done")
+        s.wait_event("done", after=n, timeout=10)
+        assert not _events(s, n, "patch_read")
+        assert s.finish(10) == 0
+
+
+@needs_helper
+def test_patch_by_patch_moves_from_the_hold(tmp_path):
+    base, replay = _spot_chart(tmp_path)
+    with ReplaySession(base, replay, extra_args=["-p"]) as s:
+        s.wait_event("spot_ready")
+        i = s.event_index()
+        s.send(cmd="hold")
+        s.wait_event("held", after=i)
+        j = s.event_index()
+        s.send(cmd="goto", patch="A3")
+        assert s.wait_event("spot_ready", after=j)["loc"] == "A3"
+        assert not _events(s, j, "patch_read")
+        k = s.event_index()
+        s.send(cmd="hold")
+        s.wait_event("held", after=k)
+        s.send(cmd="forward")
+        assert s.wait_event("spot_ready", after=k)["loc"] == "A4"
+        _quit_spot(s)
+
+
+def test_the_patch_loop_registers_the_hold_only_for_the_engine():
+    text = (SRC / "chromiq_chartread.c").read_text(encoding="utf-8")
+    at = text.index("/* Setup the keyboard trigger to return our commands */")
+    seg = text[at:text.index("/* Skip to next unread if first has been read */", at)]
+    assert "if (cq_json)\n\t\t\t\tinst_set_uih('h', 'h', DUIH_CMND);" in seg
+    at = text.index("cq_json && xtern == 0 && ch == 'h'")
+    seg = text[at:text.index("} else if (ch == 'f') {", at)]
+    assert "cq_switch_gate_set(1);\n\t\t\t\thk = cq_hold_wait" in seg
+    assert "cq_switch_gate_set(0);" in seg
+
+
+@pytest.fixture
+def spot_tab(tab):
+    mgr = tab._manager
+    mgr._spot_mode = True
+    mgr._engine_holds_here = True
+    mgr._engine_holds_here_patch = True
+    tab._spot_session = True
+    return tab
+
+
+def _read_the_last_patch(tab):
+    mgr = tab._manager
+    _feed(mgr, {"event": "patch_read", "loc": "E2", "xyz": [1, 1, 1],
+                "exyz": [1, 1, 1], "de": 0.0})
+    mgr._unread_locs = set()
+    _feed(mgr, {"event": "spot_ready", "loc": "F1", "read": True,
+                "all_done": True})
+
+
+def test_patch_by_patch_the_engine_holds_before_the_window_opens(spot_tab):
+    _read_the_last_patch(spot_tab)
+    assert spot_tab._written[-1] == {"cmd": "hold"}
+    assert not [w for w in spot_tab._written if w.get("cmd") == "goto"]
+    _feed(spot_tab._manager, {"event": "held", "patch": "F1", "button": True,
+                              "here": True})
+    assert spot_tab._manager._engine_held == {"strip": "F1", "button": True,
+                                               "window": True}
+    _settle()
+    assert spot_tab._shown and {"cmd": "hold"} in spot_tab._shown[0]
+
+
+def test_patch_by_patch_a_press_behind_the_window_does_nothing(spot_tab):
+    mgr = spot_tab._manager
+    presses = []
+    mgr.instrument_button.connect(lambda: presses.append(1))
+    _read_the_last_patch(spot_tab)
+    _feed(mgr, {"event": "held", "patch": "F1", "button": True, "here": True})
+    n = len(spot_tab._written)
+    _feed(mgr, {"event": "switch"})
+    _settle(100)
+    assert not presses and len(spot_tab._written) == n
+
+
+def test_patch_by_patch_reread_lets_the_engine_go(spot_tab):
+    mgr = spot_tab._manager
+    _read_the_last_patch(spot_tab)
+    _feed(mgr, {"event": "held", "patch": "F1", "button": True, "here": True})
+    spot_tab._release_reader_after_window()
+    assert spot_tab._written[-1] == {"cmd": "resume"}
+    _feed(mgr, {"event": "spot_ready", "loc": "F1", "read": True,
+                "all_done": True})
+    assert mgr._engine_held is None and mgr._window_hold is None
+
+
+def test_patch_by_patch_finish_is_never_followed_by_a_resume(spot_tab):
+    mgr = spot_tab._manager
+    _read_the_last_patch(spot_tab)
+    _feed(mgr, {"event": "held", "patch": "F1", "button": True, "here": True})
+    mgr.send_key("d")
+    spot_tab._release_reader_after_window()
+    assert spot_tab._written[-1] == {"cmd": "done"}
+    assert {"cmd": "resume"} not in spot_tab._written
+
+
+def test_patch_by_patch_no_hold_from_an_engine_that_cannot(spot_tab):
+    """A strip-only engine (4.3.10's first build) is not asked to hold at
+    the patch menu: there a hold would be dropped anyway."""
+    spot_tab._manager._engine_holds_here_patch = False
+    _read_the_last_patch(spot_tab)
+    assert {"cmd": "hold"} not in spot_tab._written
+
+
+def test_the_session_start_says_whether_the_engine_can_hold_at_a_patch(tab):
+    mgr = tab._manager
+    _feed(mgr, {"event": "session_start", "chart": "", "strips": STRIPS,
+                "hold_here": True, "hold_here_patch": True})
+    assert mgr._engine_holds_here_patch is True
+    _feed(mgr, {"event": "session_start", "chart": "", "strips": STRIPS,
+                "hold_here": True})
+    assert mgr._engine_holds_here_patch is False

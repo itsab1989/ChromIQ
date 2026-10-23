@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-23 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-23 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch"
 const char *cq_helper_build_string(void);
 
 
@@ -140,7 +140,8 @@ void cq_replay_switch_press(void);
  * a good strip behind that window. The hold is the one above (the switch gate
  * open, a press only reported); resume offers the SAME strip again, the moves
  * move from it, anything else is left for the menu. Taken only while a strip
- * is armed (inst_armed); anywhere else it is dropped, never a trigger. */
+ * is armed (inst_armed); anywhere else it is dropped, never a trigger.
+ * Patch by patch the same, at the patch menu (agent 33, 2026-10-23). */
 #define CQ_KEY_HOLD   1004
 void cq_hold_clear(void);
 int  cq_hold_matches(const char *strip);

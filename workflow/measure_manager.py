@@ -374,6 +374,8 @@ class MeasureManager(QObject):
     #: (``{"cmd":"hold"}``, see :meth:`hold_for_window`): None, ``"wanted"``
     #: (to be sent at the strip menu) or ``"asked"`` (sent).
     _engine_holds_here: bool = False
+    #: ...and at the patch menu too, patch by patch (agent 33, 2026-10-23).
+    _engine_holds_here_patch: bool = False
     _window_hold: "str | None" = None
     _window_hold_mark: int = 0
     _in_strip_ready: bool = False
@@ -734,6 +736,7 @@ class MeasureManager(QObject):
         self._engine_holds   = False
         self._engine_held: "dict | None" = None
         self._engine_holds_here = False
+        self._engine_holds_here_patch = False
         self._window_hold = None
         self._window_hold_mark = 0
         self._read_something = False
@@ -2277,16 +2280,26 @@ class MeasureManager(QObject):
     # ------------------------------------------------------------------
 
     def _window_hold_applies(self) -> bool:
-        """Engine strip reading, with an engine that can hold at a menu."""
-        return bool(self._engine_active and self._engine_holds_here
-                    and not self._spot_mode and not self._whole_sheet
+        """Engine strip or patch-by-patch reading, with an engine that can
+        hold at that menu.
+
+        PATCH BY PATCH TOO (agent 33, 2026-10-23). On a complete chart the
+        engine stays armed at a patch, and a ColorMunki's or i1Pro's button
+        triggers a spot reading as it triggers a strip (munki_imp.c:2101-
+        2133): a press behind "All Patches Read" replaced an already-read
+        patch, and the autosave wrote it at once (replay engine, 4.3.9 and
+        4.3.10 before this)."""
+        holds = (self._engine_holds_here_patch if self._spot_mode
+                 else self._engine_holds_here)
+        return bool(self._engine_active and holds
+                    and not self._whole_sheet
                     and not self._external_values
                     and self._runner.is_running)
 
     def hold_for_window(self) -> None:
-        """A window that finishes the measurement ("All Strips Read", "Some
-        patches are still not read") is about to open: the engine holds at
-        the strip it is armed at, so a press of the instrument's button
+        """A window that finishes the measurement ("All Strips Read", "All
+        Patches Read", "Some patches are still not read") is about to open:
+        the engine holds at the strip or patch it is armed at, so a press of the instrument's button
         behind the window is only reported and reads nothing. Without the
         hold the engine stays armed, and a press and a slide read that strip
         again and replace its reading in the file (measured on the replay
@@ -3049,6 +3062,7 @@ class MeasureManager(QObject):
             self._engine_keeps_earlier = bool(ev.get("file_as_keeps_earlier"))
             self._engine_holds = bool(ev.get("hold_after"))
             self._engine_holds_here = bool(ev.get("hold_here"))
+            self._engine_holds_here_patch = bool(ev.get("hold_here_patch"))
             self._build_read_map(ev.get("chart"), self._session_strips)
             self._learn_measured_strips(ev.get("chart"))
             self.session_map.emit(strips)
@@ -3161,8 +3175,8 @@ class MeasureManager(QObject):
 
         elif kind == "held" and ev.get("here"):
             # The hold a window asked for (hold_for_window): no pause, nothing
-            # for the tab to decide.
-            _s = str(ev.get("strip", "")).strip()
+            # for the tab to decide. Patch by patch it names the patch.
+            _s = str(ev.get("strip") or ev.get("patch") or "").strip()
             self._engine_held = {"strip": _s, "button": bool(ev.get("button")),
                                  "window": True}
             log.debug("engine: holding at strip %s while a window is open", _s)
@@ -3327,10 +3341,17 @@ class MeasureManager(QObject):
             # Engine patch-by-patch mode: the read loop is now sitting on this
             # patch. Drives the current-patch highlight + page flip.
             # Reaching the patch menu also means any failure prompt is closed.
+            _sent_before = self._commands_sent
             self._at_retry_prompt = False
             self._sensor_warning_open = False
             self._scan_in_progress = False
             self._saw_reader_prompt = True
+            if self._window_hold == "asked":
+                # The engine has left the hold a window asked for (a command
+                # sent from the window, or its release), as at strip_ready.
+                self._window_hold = None
+            if self._engine_held is not None and self._engine_held.get("window"):
+                self._engine_held = None
             rearmed = self._rearmed_after_calibration
             self._rearmed_after_calibration = False
             # WAS THE CHART ALREADY COMPLETE? In patch-by-patch the strip flags
@@ -3377,7 +3398,18 @@ class MeasureManager(QObject):
             # 2026-07-28 — the patch-mode half of the fault fixed in beta.69).
             if (ev.get("all_done") and self._all_done_is_news()
                     and not rearmed):
-                self.all_stripes_done.emit()
+                self._in_strip_ready = True
+                try:
+                    self.all_stripes_done.emit()
+                finally:
+                    self._in_strip_ready = False
+            # The hold for a window that finishes the measurement, as at
+            # strip_ready: last, and only when nothing above has moved the
+            # reader (the engine keeps one waiting command); if something
+            # has, the patch it moves to is held instead.
+            if (self._window_hold == "wanted"
+                    and self._commands_sent == _sent_before):
+                self._send_window_hold()
             self._flush_held_calibration()
 
         elif kind == "instrument":

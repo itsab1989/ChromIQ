@@ -503,7 +503,17 @@ reproduced on the replay engine on 4.3.9 and 4.3.10, on screen.)
   goto at an armed strip came out as `scan_started` with nothing scanned (the
   line in Basti's log). The engine now reports it only when the wait ended in
   a trigger.
-* **Where it does not hold.** Patch by patch, whole-sheet readers, the CR30's
-  external values, stock ArgyllCMS chartread, and an engine that does not
-  announce `hold_here` in its session start: there the reader stays armed
-  behind the window, as before.
+* **Patch by patch too** (agent 33's review, 2026-10-23). On a complete
+  chart the patch loop stays armed at a patch (A1 after the last one), and a
+  ColorMunki's or i1Pro's button triggers a spot reading exactly as it
+  triggers a strip, so a press behind *All Patches Read* read that patch
+  again and the autosave wrote it at once (replay engine, 4.3.9 and 4.3.10
+  before this). The patch menu now holds the same way (`{"cmd":"hold"}`,
+  `{"event":"held","patch":…,"here":true}`, announced as `hold_here_patch`
+  in the session start), with the same buttons: *Go to … Tab* and *Finish*
+  send `d`, *Re-read Patches* sends `{"cmd":"resume"}` and the same patch is
+  offered again.
+* **Where it does not hold.** Whole-sheet readers, the CR30's external
+  values, stock ArgyllCMS chartread, and an engine that does not announce
+  `hold_here` (strips) or `hold_here_patch` (patch by patch) in its session
+  start: there the reader stays armed behind the window, as before.

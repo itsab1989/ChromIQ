@@ -1159,7 +1159,7 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		if (c == CQ_KEY_RESUME)
 			c = CQ_KEY_NONE;
 		/* CHROMIQ_EXT: hold here ({"cmd":"hold"}), only at an armed strip
-		 * whose loop registered 'h' as a command (strip mode). Anywhere
+		 * or patch whose loop registered 'h' as a command. Anywhere
 		 * else it is dropped: as a raw byte it would be a trigger. */
 		if (c == CQ_KEY_HOLD)
 			c = (purp == inst_armed && (p->uih['h'] & DUIH_CMND))
@@ -3414,6 +3414,11 @@ a1log *log			/* verb, debug & error log */
 				inst_set_uih(0x1b, 0x1b, DUIH_ABORT);
 			inst_set_uih(0xd, 0xd, DUIH_TRIG);	/* Return */
 			inst_set_uih(' ', ' ', DUIH_TRIG);
+			/* CHROMIQ_EXT: 'h', hold here ({"cmd":"hold"}), patch by patch
+			 * as in strip mode (agent 33, 2026-10-23). Only ever produced by
+			 * cq_uicallback from that command. */
+			if (cq_json)
+				inst_set_uih('h', 'h', DUIH_CMND);
 		}
 
 		/* Skip to next unread if first has been read */
@@ -3839,6 +3844,39 @@ a1log *log			/* verb, debug & error log */
 					return -1;
 				}
 				continue;
+			} else if (cq_json && xtern == 0 && ch == 'h') {
+				/* CHROMIQ_EXT (agent 33, 2026-10-23): hold HERE, patch by
+				 * patch, without a reading: the strip loop's hold, for the
+				 * same reason. The GUI asks for it while the window that
+				 * finishes the measurement ("All Patches Read") is open,
+				 * because read_sample stays armed on a complete chart and a
+				 * press of a ColorMunki's or i1Pro's button triggers a
+				 * reading there (munki_imp.c:2101-2133), which replaced an
+				 * already-read patch and was saved at once (4.3.9 too).
+				 * Switch gate open: a press is only reported. Resume offers
+				 * this patch again, the moves move from it, and anything
+				 * else (done, quit, a calibration request) is left for this
+				 * menu. */
+				char glab[16] = "";
+				int hk;
+				cq_emit_raw("{\"event\":\"held\",\"patch\":\"%s\","
+				            "\"button\":%s,\"here\":true}", scols[pix]->loc,
+				            cq_button_retry_ok(it, uswitch) ? "true" : "false");
+				cq_switch_gate_set(1);
+				hk = cq_hold_wait(glab, sizeof(glab));
+				cq_switch_gate_set(0);
+				if (hk == 'f')
+					incflag = 1;
+				else if (hk == 'b')
+					incflag = -1;
+				else if (hk == 'n')
+					incflag = 3;
+				else if (hk == CQ_KEY_GOTO) {
+					strncpy(cq_goto_target, glab, sizeof(cq_goto_target) - 1);
+					cq_goto_target[sizeof(cq_goto_target) - 1] = '\0';
+					incflag = 4;
+				}
+				continue;	/* resume, a move, or a command for this menu */
 			} else if (ch == 'f') {
 				incflag = 1;
 				continue;
@@ -5308,6 +5346,7 @@ int main(int argc, char *argv[]) {
 		        "\"file_as_keeps_earlier\":true,"	/* ...with "earlier":"keep" (2026-10-21) */
 		        "\"hold_after\":true,"	/* the pause between pages (2026-10-23) */
 		        "\"hold_here\":true,"	/* {"cmd":"hold"} at a strip menu (2026-10-23) */
+		        "\"hold_here_patch\":true,"	/* ...and at the patch menu (agent 33) */
 		        "\"patches\":%d,\"steps_per_pass\":%d,\"strips\":[",
 		        cesc, rand ? "true" : "false", npat, stipa);
 		for (ri = 0, acc = 0, six = 0; ri < totpa; ri++) {

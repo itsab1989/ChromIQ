@@ -190,11 +190,12 @@ def test_the_gate_is_opened_only_at_the_misread_prompt_and_the_page_hold():
     """At the misread prompt (B1), since 4.3.10 in the pause between pages
     (``held``, tests/test_page_pause_engine.py), and in the hold while a window
     that finishes the measurement is open (``{"cmd":"hold"}``,
-    tests/test_a_finishing_window_holds_the_reader.py). All are waits outside
-    any scan; nowhere else may a press be reported."""
+    tests/test_a_finishing_window_holds_the_reader.py), at a strip and, since
+    agent 33's review, at a patch. All are waits outside any scan; nowhere
+    else may a press be reported."""
     text = (SRC / "chromiq_chartread.c").read_text(encoding="utf-8")
     opens = [m.start() for m in re.finditer(r"cq_switch_gate_set\(1\)", text)]
-    assert len(opens) == 3, f"the switch gate is opened {len(opens)} times"
+    assert len(opens) == 4, f"the switch gate is opened {len(opens)} times"
     before = text[max(0, opens[0] - 1500):opens[0]]
     assert "cq_json && ch == 'h'" in before
     assert '\\"event\\":\\"held\\"' in before
@@ -204,6 +205,9 @@ def test_the_gate_is_opened_only_at_the_misread_prompt_and_the_page_hold():
     before = text[max(0, opens[2] - 1500):opens[2]]
     assert "cq_hold_matches(hn)" in before
     assert '\\"event\\":\\"held\\"' in before
+    before = text[max(0, opens[3] - 1500):opens[3]]
+    assert "cq_json && xtern == 0 && ch == 'h'" in before
+    assert '\\"event\\":\\"held\\",\\"patch\\"' in before
 
 
 def test_the_callback_reports_a_press_only_through_the_gate():

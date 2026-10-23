@@ -511,15 +511,32 @@ static inst_code cq_read_sample(inst *p, char *name, ipatch *val,
 	cq_inst *cq = (cq_inst *)p;
 	(void)name; (void)clamp;
 
+	/* The instrument's button reads the patch, as on a ColorMunki or an
+	 * i1Pro, whose spot wait triggers on the switch exactly as their strip
+	 * wait does (munki_imp.c:2101-2133). Modelled so a test can press the
+	 * button patch by patch ({"cmd":"switch"}) as a person would (agent 33,
+	 * 2026-10-23); before, a press here was only reported. */
+	cq_replay_waiting = 1;
 	for (;;) {
+		int pressed = 0;
+		if (cq_trigger_pending) {
+			cq_trigger_pending = 0;
+			pressed = 1;
+		}
 		/* Same poll as cq_read_strip: nav/goto commands surface as
 		 * inst_user_abort, the read trigger as inst_user_trig. */
 		if (cq->uicallback != NULL) {
-			inst_code uev = cq->uicallback(cq->uic_cntx, inst_armed);
-			if (uev == inst_user_abort)
+			inst_code uev = pressed ? inst_user_trig
+			                        : cq->uicallback(cq->uic_cntx, inst_armed);
+			if (uev == inst_user_abort) {
+				cq_replay_waiting = 0;
 				return inst_user_abort;
+			}
+			if (pressed)
+				cq->uicallback(cq->uic_cntx, inst_triggered);
 			if (uev == inst_user_trig) {
 				char fault[16];
+				cq_replay_waiting = 0;
 				strncpy(fault, cq_swipe_fault, sizeof(fault) - 1);
 				fault[sizeof(fault) - 1] = '\0';
 				cq_swipe_fault[0] = '\0';
