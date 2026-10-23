@@ -229,25 +229,44 @@ def test_main_writes_its_version_and_closed_normally(tmp_path):
     assert lines[-1].startswith("=== ChromIQ closed normally ")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="a real fault, POSIX signal")
-def test_a_real_crash_after_the_dialog_is_still_written(tmp_path):
-    """The pause, forced on as if on Windows, hands faulthandler back: a real
-    fault after the dialog lands in the log with its stack."""
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+def test_crash_coverage_is_back_after_the_dialog(tmp_path):
+    """The pause, forced on as if on Windows, hands faulthandler back: a fatal
+    signal after the dialog lands in the log with its stack.
+
+    NO REAL CRASH. A real fault (or a fatal signal that kills the process)
+    makes macOS write a crash report and show "Python quit unexpectedly" on
+    the user's screen at every suite run. So SIGSEGV is set to be IGNORED
+    before faulthandler is armed, and then sent to the process itself:
+    faulthandler writes its dump, hands the signal back to the handler that
+    was there before (ignore), and the process goes on and leaves through
+    os._exit(0). Nothing dies, nothing reaches the crash reporter."""
     proc = _run("""
-        import types, ctypes
+        import os, signal, types
         from pathlib import Path
+        signal.signal(signal.SIGSEGV, signal.SIG_IGN)
         from core import crash_log
-        import os
         crash_log.arm(Path(os.environ["CHROMIQ_LOG_DIR"]), "1.2.3")
         crash_log.sys = types.SimpleNamespace(platform="win32")
         with crash_log.quiet_for_native_dialog():
             pass
         def after_the_dialog():
-            ctypes.string_at(0)
+            os.kill(os.getpid(), signal.SIGSEGV)
         after_the_dialog()
+        print("STILL ALIVE", flush=True)
+        os._exit(0)
     """, tmp_path)
-    assert proc.returncode != 0
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert "STILL ALIVE" in proc.stdout
     text = (tmp_path / "Logs" / "chromiq-crash.log").read_text(encoding="utf-8")
     assert "ChromIQ 1.2.3 ===" in text
     assert "Fatal Python error" in text and "after_the_dialog" in text
     assert "closed normally" not in text
+
+
+def test_no_test_here_crashes_a_process_for_real():
+    """A real fault in a test puts a crash report and a "quit unexpectedly"
+    window on the user's Mac (2026-10-23, 05:55). Keep them out of this file."""
+    src = Path(__file__).read_text(encoding="utf-8")
+    for bad in ("string_" + "at(0)", "_sig" + "segv(", "faulthandler." + "_read_null"):
+        assert bad not in src
