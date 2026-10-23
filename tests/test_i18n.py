@@ -211,6 +211,8 @@ def test_the_message_catalogue_reaches_the_translations():
         assert msg.body in keys, f"{mid}: body is not translatable"
         if msg.body_one:
             assert msg.body_one in keys, f"{mid}: singular body is not translatable"
+        if getattr(msg, "body_two", None):
+            assert msg.body_two in keys, f"{mid}: the two-body is not translatable"
 
 
 def test_the_catalogue_is_actually_translated_into_german():

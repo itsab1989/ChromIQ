@@ -94,3 +94,36 @@ def test_three_or_four_strips_read_right_in_russian_and_ukrainian(lang):
     t = cat["<b>All {n} chart strips have been re-measured successfully.</b>"]
     assert "({n})" in t
     assert not re.search(r"\{n\} (полос|смуг)", t)
+
+
+# ---- the two whole-chart messages (4.3.11, item 6e) -------------------------
+@pytest.mark.parametrize("n,want", [
+    (1, "The chart's one patch has been read"),
+    (2, "Both of the chart's patches have been read"),
+    (3, "All 3 patches have been read")])
+def test_replace_complete_counts_one_two_and_many(n, want):
+    from workflow import measurement_messages as M
+    _t, body = M.M_REPLACE_COMPLETE.render(a=n, path="/x")
+    assert body.startswith(want)
+
+
+@pytest.mark.parametrize("n,want", [
+    (1, "Its one reading names a patch"),
+    (2, "Both readings name a patch"),
+    (5, "All 5 readings name a patch")])
+def test_import_from_chart_counts_one_two_and_many(n, want):
+    """MUTATION: drop body_two (or the count_key): n = 2 reads 'All 2'."""
+    from workflow import measurement_messages as M
+    _t, body = M.M_IMPORT_DEVICE_FROM_CHART.render(count=n, chart="C.ti2")
+    assert want in body
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_the_one_and_two_forms_are_in_every_catalogue(lang):
+    from workflow import measurement_messages as M
+    cat = json.loads((ROOT / "data" / "i18n" / f"{lang}.json")
+                     .read_text(encoding="utf-8"))
+    for k in (M.M_REPLACE_COMPLETE.body_one, M.M_REPLACE_COMPLETE.body_two,
+              M.M_IMPORT_DEVICE_FROM_CHART.body_two):
+        assert cat.get(k), lang
+        assert "—" not in cat[k], lang

@@ -1135,7 +1135,8 @@ def test_no_message_carries_markdown_that_would_reach_the_screen():
     import re
     strings = []
     for mid, msg in sorted(M.CATALOGUE.items()):
-        strings += [(mid, msg.title), (mid, msg.body), (mid, msg.body_one or "")]
+        strings += [(mid, msg.title), (mid, msg.body), (mid, msg.body_one or ""),
+                    (mid, getattr(msg, "body_two", None) or "")]
     strings += list(M.FRAGMENTS.items())
     strings += [(k, v) for k, v in vars(M).items()
                 if k.startswith("M_") and isinstance(v, str)]

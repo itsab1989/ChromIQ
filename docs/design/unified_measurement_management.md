@@ -1006,6 +1006,35 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > *Refine / resume is left exactly as you set it before pressing Start; this window does not change your choice.*
 
+
+#### ⏳ Awaiting confirmation: the one- and two-patch forms (4.3.11)
+
+**Confirmed by:** *nobody yet.*
+
+*Agent 35, Basti's count rule: a chart of one or two patches is rare, and "All 1 patches" / "All 2 patches" is still wrong. The approved text above is unchanged for three or more; these two forms are shown from 4.3.11 (without the dash the approved text still carries) and wait for approval.*
+
+*One ({a} = 1):*
+
+> The chart's one patch has been read, and this run's profile was built from that measurement.
+>
+> Starting a new measurement replaces it. The finished measurement is moved to the run's “old” folder and nothing is deleted, but the profile in this run will no longer match the measurement beside it until you build it again.
+>
+> Refine / resume is left exactly as you set it before pressing Start; this window does not change your choice.
+>
+> The measurement file is:
+> {path}
+
+*Two ({a} = 2):*
+
+> Both of the chart's patches have been read, and this run's profile was built from that measurement.
+>
+> Starting a new measurement replaces it. The finished measurement is moved to the run's “old” folder and nothing is deleted, but the profile in this run will no longer match the measurement beside it until you build it again.
+>
+> Refine / resume is left exactly as you set it before pressing Start; this window does not change your choice.
+>
+> The measurement file is:
+> {path}
+
 ### M-REPLACE-UNCOUNTABLE · a measurement file with nothing readable in it — §3a
 
 *Approved by Knut, 2026-08-04 ("Accepted message"). Why it exists: with §5's partial message this case printed "**0 of the chart's ? patches have been read**", which reads as a fault in ChromIQ rather than a fact about the file. It must also not point at Refine / resume, because there is nothing in the file to resume from.*
@@ -5550,6 +5579,17 @@ chart's file name. Two buttons: **Import it** and **Cancel**.*
 > ChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.
 >
 > What ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.
+>
+> Import it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.
+
+
+*Two ({count} = 2), 4.3.11 (agent 35): "Both readings", never "All 2 readings". Until 4.3.11 the singular above was never shown either, because the message named no count; it now does.*
+
+> This file holds the colour of both its patches and no record of the ink that made them. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.
+>
+> ChromIQ can still file it. Both readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.
+>
+> What ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. Both names belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.
 >
 > Import it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.
 

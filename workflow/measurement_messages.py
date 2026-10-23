@@ -65,6 +65,9 @@ class Message:
     #: The headline used when :attr:`count_key` is exactly 1, for a headline
     #: that counts too ("One patch is still not read").
     title_one: "str | None" = None
+    #: The body used when :attr:`count_key` is exactly 2 (4.3.11): "Both
+    #: readings", never "All 2 readings".
+    body_two: "str | None" = None
 
     def render(self, **kw) -> "tuple[str, str]":
         """(title, body) with the placeholders filled and nothing left over."""
@@ -75,14 +78,19 @@ class Message:
                 body = self.body_one
             if self.title_one is not None:
                 head = self.title_one
+        if self.count_key and kw.get(self.count_key) == 2 \
+                and self.body_two is not None:
+            body = self.body_two
         title = tr(head).format(**kw) if "{" in head else tr(head)
         return title, tr(body).format(**kw)
 
 
 def _m(id_: str, title: str, body: str, *, approved: bool = True,
        body_one: "str | None" = None, count_key: str = "",
-       title_one: "str | None" = None) -> Message:
-    return Message(id_, title, body, approved, body_one, count_key, title_one)
+       title_one: "str | None" = None,
+       body_two: "str | None" = None) -> Message:
+    return Message(id_, title, body, approved, body_one, count_key, title_one,
+                   body_two)
 
 
 # --- PROPOSED: a CR30 chart while Preferences selects stock chartread ------
@@ -621,6 +629,29 @@ M_REPLACE_COMPLETE = _m(
     "that measurement.\n\n"
     "Starting a new measurement replaces it. The finished measurement is moved "
     "to the run's “old” folder and nothing is deleted — but the profile in this "
+    "run will no longer match the measurement beside it until you build it "
+    "again.\n\n"
+    "Refine / resume is left exactly as you set it before pressing Start; this "
+    "window does not change your choice.\n\n"
+    "The measurement file is:\n{path}",
+    # ONE AND TWO ARE SENTENCES OF THEIR OWN (4.3.11, Basti's count rule): a
+    # chart of one or two patches is rare, and "All 2 patches" is still wrong.
+    count_key="a",
+    body_one=
+    "The chart's one patch has been read, and this run's profile was built "
+    "from that measurement.\n\n"
+    "Starting a new measurement replaces it. The finished measurement is moved "
+    "to the run's “old” folder and nothing is deleted, but the profile in this "
+    "run will no longer match the measurement beside it until you build it "
+    "again.\n\n"
+    "Refine / resume is left exactly as you set it before pressing Start; this "
+    "window does not change your choice.\n\n"
+    "The measurement file is:\n{path}",
+    body_two=
+    "Both of the chart's patches have been read, and this run's profile was "
+    "built from that measurement.\n\n"
+    "Starting a new measurement replaces it. The finished measurement is moved "
+    "to the run's “old” folder and nothing is deleted, but the profile in this "
     "run will no longer match the measurement beside it until you build it "
     "again.\n\n"
     "Refine / resume is left exactly as you set it before pressing Start; this "
@@ -1606,6 +1637,22 @@ M_IMPORT_DEVICE_FROM_CHART = _m(
         "way carries the same names.\n\n"
         "Import it only if this is the measurement of the sheet "
         "printed from {chart}. Cancel changes nothing."),
+    body_two=(
+        "This file holds the colour of both its patches and no record of the "
+        "ink that made them. i1Profiler writes it that way when it measures a "
+        "chart it did not generate itself: there is no colour space for it to "
+        "put device values in, so it puts none.\n\n"
+        "ChromIQ can still file it. Both readings name a patch of {chart}, and "
+        "the chart knows what was printed at each of those names, so the chart "
+        "supplies the device values, exactly as it does for a measurement made "
+        "here.\n\n"
+        "What ChromIQ cannot do is check the file against the chart. That check "
+        "compares the device values in the measurement with the chart's, and "
+        "this file has none. Both names belong to this chart, which is as far "
+        "as names can go: another chart laid out the same way carries the same "
+        "names.\n\n"
+        "Import it only if this is the measurement of the sheet printed from "
+        "{chart}. Cancel changes nothing."),
     count_key="count",
     approved=False)
 

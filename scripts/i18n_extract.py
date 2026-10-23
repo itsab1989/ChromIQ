@@ -405,6 +405,8 @@ def _message_catalogue_keys() -> set[str]:
             out.add(msg.body_one)
         if getattr(msg, "title_one", None):
             out.add(msg.title_one)
+        if getattr(msg, "body_two", None):
+            out.add(msg.body_two)
     out |= set(mm.FRAGMENTS.values())
     # EVERY STRING CONSTANT IN THE MODULE, not a hand-kept list of names.
     #
