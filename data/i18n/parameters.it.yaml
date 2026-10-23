@@ -570,10 +570,18 @@ parameters:
         formato indicato dall'impostazione della carta della tua
         stampante: 4 × 6 pollici, 10 × 15 cm o Cartolina. Se non sei
         sicuro, guarda quali formati di carta offre la sua finestra di
-        stampa. Un grafico impaginato per una carta un po' più grande di
-        quella che la stampante accetta si può stampare solo se ciò che
-        non entra è margine vuoto; altrimenti ChromIQ ti chiede di
-        impaginarlo di nuovo per la carta più piccola.
+        stampa. Un grafico impaginato per una carta un po' più grande
+        di quella che la stampante accetta viene stampato esattamente
+        al 100 %, senza domande, quando tutto ciò che non entra nella
+        carta è margine vuoto, la fine della sottile riga in caratteri
+        piccoli che ArgyllCMS scrive sul bordo, o i brevi segni di
+        righello. Se si dovesse tagliare di più, ChromIQ te lo dice e
+        ti spiega perché. Dalla finestra di stampa di macOS o di
+        Windows il grafico allora non viene stampato; con la stampa
+        propria di ChromIQ puoi stamparlo comunque, senza quella
+        parte. La cosa migliore è impaginare di nuovo il grafico per
+        la carta più piccola: scegli qui quella carta e genera di
+        nuovo il grafico.
       labels:
         - "A2 verticale (420 × 594 mm)"
         - "A2 orizzontale (594 × 420 mm)"

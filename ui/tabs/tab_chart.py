@@ -2199,8 +2199,14 @@ _PHOTO_PAPER_TIP = (
     "ze your printer's own paper setting names: 4 × 6 in, 10 × 15 cm or Pos"
     "tcard. If you are not sure, look at the paper sizes its print dialog o"
     "ffers. A chart laid out for a slightly larger paper than the printer t"
-    "akes can only be printed when what does not fit is empty margin; other"
-    "wise ChromIQ asks you to lay it out again for the smaller paper."
+    "akes is printed at exactly 100 % with no question when all that does "
+    "not fit on the paper is empty margin, the end of ArgyllCMS's thin line "
+    "of small print along the edge, or the short ruler marks. If more would "
+    "be cut off, ChromIQ tells you so and why. Through the macOS or Windows "
+    "print dialog the chart is then not printed; with ChromIQ's own printing "
+    "you can still print it, with that part missing. The better way is to "
+    "lay the chart out again for the smaller paper: choose that paper here "
+    "and generate the chart again."
 )
 
 

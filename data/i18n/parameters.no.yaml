@@ -538,10 +538,17 @@ parameters:
         postkortskrivere som Canon SELPHY skriver ut 100 × 148 mm. Velg
         størrelsen som skriverens egen papirinnstilling nevner: 4 × 6
         tommer, 10 × 15 cm eller Postkort. Er du usikker, se hvilke
-        papirstørrelser utskriftsvinduet tilbyr. Et kart som er satt opp
-        for litt større papir enn skriveren tar, kan bare skrives ut når
-        det som ikke får plass, er tom marg; ellers ber ChromIQ deg sette
-        det opp på nytt for det mindre papiret.
+        papirstørrelser utskriftsvinduet tilbyr. Et kart som er satt
+        opp for litt større papir enn skriveren tar, skrives ut med
+        nøyaktig 100 % uten spørsmål når alt som ikke får plass på
+        papiret, er tom marg, slutten av den tynne linjen med liten
+        skrift som ArgyllCMS skriver langs kanten, eller de korte
+        linjalmerkene. Ville mer bli kuttet bort, sier ChromIQ fra og
+        forklarer hvorfor. Gjennom utskriftsvinduet i macOS eller
+        Windows blir kartet da ikke skrevet ut; med ChromIQs egen
+        utskrift kan du likevel skrive det ut, uten den delen. Det
+        beste er å sette opp kartet på nytt for det mindre papiret:
+        velg det papiret her og lag kartet på nytt.
       labels:
         - "A2 stående (420 × 594 mm)"
         - "A2 liggende (594 × 420 mm)"

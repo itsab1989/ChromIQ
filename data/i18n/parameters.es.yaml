@@ -576,10 +576,17 @@ parameters:
         tamaño que nombra el ajuste de papel de tu impresora: 4 × 6
         pulgadas, 10 × 15 cm o Postal. Si no estás seguro, mira qué
         tamaños de papel ofrece su cuadro de impresión. Una carta
-        preparada para un papel algo mayor que el que admite la impresora
-        solo se puede imprimir cuando lo que no cabe es margen vacío; si
-        no, ChromIQ te pide que la vuelvas a preparar para el papel más
-        pequeño.
+        preparada para un papel algo mayor que el que admite la
+        impresora se imprime exactamente al 100 % sin preguntar cuando
+        todo lo que no cabe en el papel es margen vacío, el final de
+        la fina línea de letra pequeña que ArgyllCMS escribe en el
+        borde o las marcas cortas de regla. Si fuera a cortarse algo
+        más, ChromIQ te lo dice y te explica por qué. Desde el cuadro
+        de impresión de macOS o de Windows la carta no se imprime
+        entonces; con la impresión propia de ChromIQ puedes imprimirla
+        igualmente, pero sin esa parte. Lo mejor es volver a preparar
+        la carta para el papel más pequeño: elige aquí ese papel y
+        genera la carta de nuevo.
       labels:
         - "A2 vertical (420 × 594 mm)"
         - "A2 horizontal (594 × 420 mm)"

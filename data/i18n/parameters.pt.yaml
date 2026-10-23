@@ -575,10 +575,17 @@ parameters:
         tamanho que a definição de papel da sua impressora indica: 4 × 6
         polegadas, 10 × 15 cm ou Postal. Se não tiver a certeza, veja que
         tamanhos de papel a janela de impressão oferece. Uma carta
-        disposta para um papel um pouco maior do que o que a impressora
-        aceita só pode ser impressa quando o que não cabe é margem vazia;
-        caso contrário, o ChromIQ pede-lhe que a volte a dispor para o
-        papel mais pequeno.
+        disposta para um papel um pouco maior do que o que a
+        impressora aceita é impressa exatamente a 100 %, sem
+        perguntas, quando tudo o que não cabe no papel é margem vazia,
+        o fim da fina linha de letra pequena que o ArgyllCMS escreve
+        na margem, ou as marcas curtas de régua. Se fosse cortado mais
+        do que isso, o ChromIQ avisa-o e explica porquê. Pela janela
+        de impressão do macOS ou do Windows, a carta não é então
+        impressa; com a impressão própria do ChromIQ, pode imprimi-la
+        mesmo assim, sem essa parte. O melhor é voltar a dispor a
+        carta para o papel mais pequeno: escolha aqui esse papel e
+        gere a carta de novo.
       labels:
         - "A2 vertical (420 × 594 mm)"
         - "A2 horizontal (594 × 420 mm)"

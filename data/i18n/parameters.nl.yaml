@@ -555,10 +555,17 @@ parameters:
         de papierinstelling van je printer noemt: 4 × 6 inch, 10 × 15 cm
         of Briefkaart. Weet je het niet zeker, kijk dan welke
         papierformaten het afdrukvenster aanbiedt. Een kaart die is
-        opgemaakt voor iets groter papier dan de printer gebruikt, kan
-        alleen worden geprint als wat niet past lege marge is; anders
-        vraagt ChromIQ je om hem opnieuw op te maken voor het kleinere
-        papier.
+        opgemaakt voor iets groter papier dan de printer gebruikt,
+        wordt zonder vraag op precies 100 % geprint als alles wat niet
+        op het papier past lege marge is, het einde van de dunne regel
+        kleine letters die ArgyllCMS langs de rand schrijft, of de
+        korte liniaalstreepjes. Zou er meer worden afgesneden, dan
+        zegt ChromIQ je dat en waarom. Via het afdrukvenster van macOS
+        of Windows wordt de kaart dan niet geprint; met de eigen
+        printfunctie van ChromIQ kun je hem toch printen, zonder dat
+        deel. Beter is het om de kaart opnieuw op te maken voor het
+        kleinere papier: kies hier dat papier en genereer de kaart
+        opnieuw.
       labels:
         - "A2 staand (420 × 594 mm)"
         - "A2 liggend (594 × 420 mm)"

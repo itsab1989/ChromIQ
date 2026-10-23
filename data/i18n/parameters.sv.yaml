@@ -540,10 +540,17 @@ parameters:
         som Canon SELPHY skriver ut 100 × 148 mm. Välj den storlek som
         skrivarens egen pappersinställning anger: 4 × 6 tum, 10 × 15 cm
         eller Vykort. Om du är osäker, titta på vilka pappersstorlekar
-        dess utskriftsfönster erbjuder. Ett diagram som lagts ut för något
-        större papper än skrivaren tar kan bara skrivas ut när det som
-        inte får plats är tom marginal; annars ber ChromIQ dig lägga ut
-        det igen för det mindre papperet.
+        dess utskriftsfönster erbjuder. Ett diagram som lagts ut för
+        något större papper än skrivaren tar skrivs ut med exakt 100 %
+        utan fråga när allt som inte får plats på papperet är tom
+        marginal, slutet av den tunna raden med liten text som
+        ArgyllCMS skriver längs kanten, eller de korta
+        linjalmarkeringarna. Skulle mer skäras bort säger ChromIQ till
+        och förklarar varför. Genom utskriftsfönstret i macOS eller
+        Windows skrivs diagrammet då inte ut; med ChromIQs egen
+        utskrift kan du skriva ut det ändå, utan den delen. Bäst är
+        att lägga ut diagrammet igen för det mindre papperet: välj det
+        papperet här och skapa diagrammet igen.
       labels:
         - "A2 stående (420 × 594 mm)"
         - "A2 liggande (594 × 420 mm)"

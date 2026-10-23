@@ -562,10 +562,17 @@ parameters:
         rozmiar, który podaje ustawienie papieru twojej drukarki: 4 × 6
         cali, 10 × 15 cm albo Pocztówka. Jeśli nie masz pewności, sprawdź,
         jakie rozmiary papieru oferuje jej okno drukowania. Wzorzec
-        rozłożony na trochę większy papier, niż przyjmuje drukarka, da się
-        wydrukować tylko wtedy, gdy to, co się nie mieści, jest pustym
-        marginesem; w przeciwnym razie ChromIQ poprosi o rozłożenie go na
-        nowo na mniejszy papier.
+        rozłożony na trochę większy papier, niż przyjmuje drukarka,
+        jest drukowany dokładnie w 100 % bez pytania, gdy wszystko, co
+        nie mieści się na papierze, jest pustym marginesem, końcem
+        cienkiej linii drobnego druku, którą ArgyllCMS pisze wzdłuż
+        krawędzi, albo krótkimi znacznikami linijki. Gdyby miało
+        zostać obcięte coś więcej, ChromIQ powie ci o tym i wyjaśni
+        dlaczego. Przez okno drukowania systemu macOS lub Windows
+        wzorzec nie zostanie wtedy wydrukowany; własnym drukowaniem
+        ChromIQ możesz go mimo to wydrukować, bez tej części.
+        Najlepiej rozłożyć wzorzec na nowo na mniejszy papier: wybierz
+        tu ten papier i wygeneruj wzorzec ponownie.
       labels:
         - "A2 pionowo (420 × 594 mm)"
         - "A2 poziomo (594 × 420 mm)"

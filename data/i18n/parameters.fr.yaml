@@ -582,9 +582,17 @@ parameters:
         imprimante : 4 × 6 pouces, 10 × 15 cm ou Carte postale. En cas de
         doute, regarde les tailles de papier que propose sa fenêtre
         d'impression. Une mire mise en page pour un papier un peu plus
-        grand que celui de l'imprimante ne peut être imprimée que si ce
-        qui ne tient pas est de la marge vide ; sinon ChromIQ te demande
-        de la remettre en page pour le papier plus petit.
+        grand que celui de l'imprimante est imprimée exactement à
+        100 %, sans question, quand tout ce qui ne tient pas sur le
+        papier est de la marge vide, la fin de la fine ligne en petits
+        caractères qu'ArgyllCMS écrit au bord, ou les petits repères
+        de règle. Si davantage devait être coupé, ChromIQ te le dit et
+        t'explique pourquoi. Par la fenêtre d'impression de macOS ou
+        de Windows, la mire n'est alors pas imprimée ; avec
+        l'impression propre à ChromIQ, tu peux quand même l'imprimer,
+        sans cette partie. Le mieux est de remettre la mire en page
+        pour le papier plus petit : choisis ici ce papier et génère la
+        mire de nouveau.
       labels:
         - "A2 portrait (420 × 594 mm)"
         - "A2 paysage (594 × 420 mm)"

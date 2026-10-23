@@ -610,10 +610,18 @@ parameters:
         wie der Canon SELPHY drucken 100 × 148 mm. Wähle die Größe, die
         die Papiereinstellung deines Druckers nennt: 4 × 6 Zoll, 10 × 15
         cm oder Postkarte. Wenn du unsicher bist, sieh nach, welche
-        Papiergrößen sein Druckdialog anbietet. Ein Chart, das für etwas
-        größeres Papier angelegt ist, als der Drucker nimmt, lässt sich
-        nur drucken, wenn das, was nicht passt, leerer Rand ist; sonst
-        bittet ChromIQ dich, es für das kleinere Papier neu anzulegen.
+        Papiergrößen sein Druckdialog anbietet. Ein Chart, das für
+        etwas größeres Papier angelegt ist, als der Drucker nimmt,
+        wird ohne Rückfrage mit genau 100 % gedruckt, wenn alles, was
+        nicht auf das Papier passt, leerer Rand ist, das Ende der
+        dünnen Zeile Kleingedrucktes, die ArgyllCMS am Rand schreibt,
+        oder die kurzen Linealmarken. Würde mehr abgeschnitten, sagt
+        ChromIQ dir das und warum. Über den Druckdialog von macOS oder
+        Windows wird das Chart dann nicht gedruckt; mit dem eigenen
+        Drucken von ChromIQ kannst du es trotzdem drucken, dann fehlt
+        dieser Teil. Besser ist es, das Chart für das kleinere Papier
+        neu anzulegen: Wähle hier dieses Papier und erstelle das Chart
+        neu.
 
     "-t":
       name: "TIFF-Ausgabe-DPI"
