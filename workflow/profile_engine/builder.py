@@ -190,6 +190,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # the K that alone prints the target L* (no heavy rich-black greys on
      # a folding printer); research, opt-in
      "a74-kfloor",
+     # Agent 74: a73-kfirst fires only on a MEASURED ink fold (heavy-K
+     # patches with colour print lighter than K alone); research, opt-in
+     "a74-foldmeas",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -351,6 +354,7 @@ INT8B_TOKENS = frozenset({"a63-palefine", "a63-lowgrid"})
 # lighter than solid K (XFP / i1Pro 9.8, XFI / i1iSis 3.4).
 A73_FOLD_MIN = 2.0
 A73_CMYGAP_MIN = 6.0
+A74_FOLDMEAS_MIN = 1.0
 INT9_TOKENS = frozenset({
     "a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
     "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
@@ -1436,6 +1440,28 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _l_cmy = float(model.predict(np.array([[_c, _c, _c, 0.0]]))[0, 0])
         _l_k = float(model.predict(np.array([[0.0, 0.0, 0.0, 1.0]]))[0, 0])
         _need = _f1 >= A73_FOLD_MIN and (_l_cmy - _l_k) >= A73_CMYGAP_MIN
+        if _need and "a74-foldmeas" in candidates:
+            # Agent 74 (a74-foldmeas): the model's fold reading near K 1 is
+            # an extrapolation where the chart is sparse (synthetic X3m and
+            # XKB on the September chart read 3.2 / 2.0 L* with NO fold in
+            # their truth, and a73-kfirst then cost B2A median +25..94 %).
+            # The fold must also be MEASURED: patches with K >= 0.9 and
+            # C+M+Y >= 0.1 print, at the median, at least A74_FOLDMEAS_MIN
+            # L* lighter than the model's K alone at the same K (real i1Pro
+            # +2.4, fold printers XFP +5..+6; X3m -5.0, XKB -1.7).
+            _dv = np.asarray(meas.device, float)
+            _sel = (_dv[:, 3] >= 0.9) & (_dv[:, :3].sum(1) >= 0.1)
+            _ex = None
+            if int(_sel.sum()) >= 10:
+                _kk = np.zeros((int(_sel.sum()), n))
+                _kk[:, 3] = _dv[_sel, 3]
+                _ex = float(np.median(
+                    np.asarray(meas.lab_relative, float)[_sel, 0]
+                    - model.predict(_kk)[:, 0]))
+            _emit(settings, "Ink fold check (a74-foldmeas): measured "
+                            + (f"{_ex:+.1f} L* vs K alone" if _ex is not None
+                               else "too few heavy-K patches"))
+            _need = _ex is not None and _ex >= A74_FOLDMEAS_MIN
         _emit(settings, f"Ink fold check (a73-kfirst): colour ink on solid K "
                         f"lightens by {_f1:.1f} L*, C+M+Y black L* "
                         f"{_l_cmy:.1f} vs K {_l_k:.1f}: "
