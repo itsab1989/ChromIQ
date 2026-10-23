@@ -1444,7 +1444,10 @@ class MeasureManager(QObject):
             on_line(tr("[Guided Refinement] All {n} patches above the "
                        "limit have been read again.").format(
                            n=len(self._guided_strips))
-                    if len(self._guided_strips) != 1 else
+                    if len(self._guided_strips) > 2 else
+                    tr("[Guided Refinement] Both patches above the limit "
+                       "have been read again.")
+                    if len(self._guided_strips) == 2 else
                     tr("[Guided Refinement] The patch above the limit has "
                        "been read again."))
             return True

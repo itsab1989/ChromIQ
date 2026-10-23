@@ -230,7 +230,7 @@ TABLE = [
          show_verif=True, locked=False, measuring=False,
          run_type=RUN_TYPE_VERIFICATION, run="run1", date="",
          restore=(True, False, "Select an existing Verification run date"),
-         delete=(True, True, "and all 2 results")),
+         delete=(True, True, "and both results")),
 
     dict(id="verification, New run selected",
          world={}, show_verif=True, locked=False, measuring=False,

@@ -320,6 +320,14 @@ def _noise_count_body(have, need, pages, low, high, total) -> str:
                       "pages together. The report measures the real noise on "
                       "the printed sheet."
                       ).format(have=have, need=need, pages=pages, total=total)
+        if pages == 2:
+            return tr("The report counts the same ninth of both pages together, "
+                      "and together each ninth holds {have} patches. On a typical "
+                      "print the chart's own noise would be below this limit only "
+                      "with at least {need} patches in each ninth, both pages "
+                      "together. The report measures the real noise on the "
+                      "printed sheet."
+                      ).format(have=have, need=need)
         if pages > 1:
             return tr("The report counts the same ninth of all {pages} pages "
                       "together, and together each ninth holds {have} "
@@ -344,6 +352,16 @@ def _noise_count_body(have, need, pages, low, high, total) -> str:
                   "on the printed sheet."
                   ).format(have=have, need=need, pages=pages, total=total,
                            low=low, high=high)
+    if pages == 2:
+        return tr("The report counts the same ninth of both pages together. "
+                  "Together the ninths hold {low} to {high} patches, {have} "
+                  "on average as the noise weighs them, where a ninth with "
+                  "fewer patches counts for more. On a typical print the "
+                  "chart's own noise would be below this limit only with an "
+                  "average of at least {need}, weighed the same way. The "
+                  "report measures the real noise on the printed sheet."
+                  ).format(have=have, need=need, low=low,
+                           high=high)
     if pages > 1:
         return tr("The report counts the same ninth of all {pages} pages "
                   "together. Together the ninths hold {low} to {high} "

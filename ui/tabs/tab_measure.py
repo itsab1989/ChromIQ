@@ -182,6 +182,30 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def remeasured_opening(strips: int, patches: int = 0) -> str:
+    """The first line of the "Re-measurement Complete" window.
+
+    Counted in patches when the guide went patch by patch (#211), else in
+    strips. ONE, TWO AND MANY ARE THREE SENTENCES (count rule, CLAUDE.md):
+    "All 2 chart strips have been re-measured" read as a machine counting,
+    and two is "both" in every language ChromIQ speaks."""
+    if patches:
+        if patches == 1:
+            return tr("<b>The patch has been re-measured successfully.</b>")
+        if patches == 2:
+            return tr("<b>Both patches have been re-measured "
+                      "successfully.</b>")
+        return tr("<b>All {n} patches have been re-measured "
+                  "successfully.</b>").format(n=patches)
+    if strips == 1:
+        return tr("<b>The chart strip has been re-measured successfully.</b>")
+    if strips == 2:
+        return tr("<b>Both chart strips have been re-measured "
+                  "successfully.</b>")
+    return tr("<b>All {n} chart strips have been re-measured "
+              "successfully.</b>").format(n=strips)
+
+
 @dataclass
 class _ReplacedStoredChart:
     """A dated verification's stored chart, set aside at Start because the
@@ -7481,17 +7505,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         lay = QVBoxLayout(dlg)
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
-        n = len(self._strip_list)
-        opening = (tr("<b>The chart strip has been re-measured "
-                      "successfully.</b>") if n == 1 else
-                   tr("<b>All {n} chart strips have been re-measured "
-                      "successfully.</b>").format(n=n))
         pl = getattr(self, "_guided_patch_list", None) or []
-        if pl:
-            opening = (tr("<b>The patch has been re-measured "
-                          "successfully.</b>") if len(pl) == 1 else
-                       tr("<b>All {n} patches have been re-measured "
-                          "successfully.</b>").format(n=len(pl)))
+        opening = remeasured_opening(len(self._strip_list), len(pl))
         finish_label = tr("Finish")
         cont_label = tr("Continue Measuring Manually")
         check = re.sub(r"^\s*\d+\s*[.)]\s*", "",
@@ -12885,21 +12900,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
 
         if self._guided_refinement_active:
-            n = len(self._strip_list)
             dlg.setWindowTitle(tr("Re-measurement Complete"))
             # The rest of the window is identical either way; only the opening
             # sentence counts, so only that varies (real plural, never "(s)").
-            _opening = (tr("<b>The chart strip has been re-measured "
-                           "successfully.</b>") if n == 1 else
-                        tr("<b>All {n} chart strips have been re-measured "
-                           "successfully.</b>").format(n=n))
+            # #211: patch by patch, it counts the patches the guide visited.
             _pl = getattr(self, "_guided_patch_list", None) or []
-            if _pl:
-                # #211: counted in the patches the guide visited
-                _opening = (tr("<b>The patch has been re-measured "
-                               "successfully.</b>") if len(_pl) == 1 else
-                            tr("<b>All {n} patches have been re-measured "
-                               "successfully.</b>").format(n=len(_pl)))
+            _opening = remeasured_opening(len(self._strip_list), len(_pl))
             import html as _html
             _rt, _rb = self._refine_rebuild_texts()
             _rebuild = ("<br><br><b>" + _html.escape(_rt) + "</b><br>"
@@ -14248,6 +14254,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "value of the one patch from the chart.") if n == 1 else tr(
                 "[OK] This measurement carries no device values, so ChromIQ "
                 "paired it with {chart} by patch name and took the device "
+                "values of both patches from the chart.") if n == 2 else tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
                 "values of all {count} patches from the chart.")).format(
                     chart=run.verify_chart_ti2.name, count=n))
 
@@ -14404,6 +14413,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "[OK] This measurement carries no device values, so ChromIQ "
                 "paired it with {chart} by patch name and took the device "
                 "value of the one patch from the chart.") if n == 1 else tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "values of both patches from the chart.") if n == 2 else tr(
                 "[OK] This measurement carries no device values, so ChromIQ "
                 "paired it with {chart} by patch name and took the device "
                 "values of all {count} patches from the chart.")).format(

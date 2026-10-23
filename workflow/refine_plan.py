@@ -517,7 +517,9 @@ def plan_text(plan: RefinePlan, avg: "float | None",
         n1 = len(plan.first)
         t.choice_first = (tr(mm._CR_CHOICE_FIRST_ONE) if n1 == 1 else
                           tr(mm._CR_CHOICE_FIRST_MANY).format(n=n1))
-        t.choice_all = tr(mm._CR_CHOICE_ALL).format(n=len(plan.offered))
+        # two is "both", never "all 2" (count rule)
+        t.choice_all = (tr(mm._CR_CHOICE_BOTH) if len(plan.offered) == 2
+                        else tr(mm._CR_CHOICE_ALL).format(n=len(plan.offered)))
     if plan.offered:
         t.order = tr(mm._CR_ORDER)
     return t

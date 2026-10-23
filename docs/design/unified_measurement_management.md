@@ -5355,6 +5355,8 @@ The lines of `{strips}`, and the button:
 
 *4.3.5 (Knut, [6103148331](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-6103148331): "4 of 1296 patches (0%)", "The percentage must have one decimal"): `{pct}` has one decimal (0.3), in both lines that carry it.*
 
+*4.3.11 (agent 35, Basti's count rule): when exactly two strips are offered, the choice reads "Re-measure both strips above your limit" instead of "Re-measure all 2 strips above your limit". New line, shown from 4.3.11, awaiting approval with the rest.*
+
 > **Re-measure these strips first**
 >
 > Average {de} {avg} | Largest {de} {peak}
@@ -5373,6 +5375,7 @@ The lines of `{strips}`, and the button:
 > Re-measure the strip listed first
 > Re-measure the {n} strips listed first
 > Re-measure all {n} strips above your limit
+> Re-measure both strips above your limit
 > The guide takes you through the chosen strips in chart order (A, B, C ...), the order the instrument reads them in.
 
 ### M-CR-START-OVER · PROPOSED · more than half of all patches are above the limit — Check & Refine, the result window and its saved report

@@ -73,6 +73,6 @@ def test_one_patch(tab):
 def test_strip_by_strip_keeps_the_strip_text(tab):
     t, texts = tab
     body = _open(t, texts, [], ["A", "B"])
-    assert "All 2 chart strips have been re-measured successfully." in body
+    assert "Both chart strips have been re-measured successfully." in body
     assert "scan additional strips yourself" in body
     assert "move between patches" not in body

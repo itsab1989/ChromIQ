@@ -2860,6 +2860,7 @@ _CR_REST_HEAD_MANY = (
 _CR_CHOICE_FIRST_ONE = "Re-measure the strip listed first"
 _CR_CHOICE_FIRST_MANY = "Re-measure the {n} strips listed first"
 _CR_CHOICE_ALL = "Re-measure all {n} strips above your limit"
+_CR_CHOICE_BOTH = "Re-measure both strips above your limit"
 _CR_ORDER = ("The guide takes you through the chosen strips in chart order "
              "(A, B, C ...), the order the instrument reads them in.")
 M_CR_STRIPS = _m(
@@ -2870,7 +2871,7 @@ M_CR_STRIPS = _m(
                _CR_N_IN_STRIP, _CR_REST_HEAD_MORE_ONE, _CR_REST_HEAD_MORE_MANY,
                _CR_REST_HEAD_ONE, _CR_REST_HEAD_MANY, _CR_CHOICE_FIRST_ONE,
                _CR_CHOICE_FIRST_MANY,
-               _CR_CHOICE_ALL, _CR_ORDER)),
+               _CR_CHOICE_ALL, _CR_CHOICE_BOTH, _CR_ORDER)),
     approved=False)
 M_CR_START_OVER = _m(
     "M-CR-START-OVER",

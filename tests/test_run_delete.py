@@ -147,7 +147,7 @@ def test_e8_new_verification_with_several_results(tmp_path):
         _verification(run, vid)
     plan = rd.plan_for(p, _Target("run1", "verification"))
     assert plan.kind == rd.KIND_VERIFY_ALL
-    assert "all 2" in rd.tooltip_for(plan)
+    assert "both results" in rd.tooltip_for(plan)  # two is "both", never "all 2"
 
 
 def test_e9_selecting_the_only_date_is_the_same_case_as_e7(tmp_path):

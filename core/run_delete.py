@@ -494,7 +494,10 @@ def _verify_all_message(plan: DeletePlan) -> str:
     lines = []
     if plan.has_verify_chart:
         lines.append(tr("•  the verification chart and its printable pages"))
-    if len(plan.verification_ids) > 1:
+    if len(plan.verification_ids) == 2:
+        lines.append(tr("•  both verification results:"))
+        lines += [f"     – {pretty_date(v)}" for v in plan.verification_ids]
+    elif len(plan.verification_ids) > 1:
         lines.append(tr("•  all {c} verification results:").format(
             c=len(plan.verification_ids)))
         lines += [f"     – {pretty_date(v)}" for v in plan.verification_ids]
@@ -569,6 +572,8 @@ def confirm_label(plan: DeletePlan) -> str:
         return tr("Delete run {n}").format(
             n=run_number(plan.run_id))
     if plan.kind == KIND_VERIFY_ALL:
+        if len(plan.verification_ids) == 2:
+            return tr("Delete both verifications")
         if len(plan.verification_ids) > 1:
             return tr("Delete all {c} verifications").format(
                 c=len(plan.verification_ids))
@@ -587,6 +592,9 @@ def tooltip_for(plan: DeletePlan) -> str:
     if plan.kind == KIND_LAST_RUN:
         return tr("Empty this run, or delete the whole project")
     if plan.kind == KIND_VERIFY_ALL:
+        if len(plan.verification_ids) == 2:
+            return tr("Delete this run's whole verification folder: the "
+                      "verification chart and both results")
         if len(plan.verification_ids) > 1:
             return tr("Delete this run's whole verification folder — the "
                       "verification chart and all {c} results").format(
