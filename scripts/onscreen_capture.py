@@ -838,16 +838,22 @@ class PopupWatchdog:
     screen. ``dismiss_windows=True`` closes working windows after ``grace_s``
     like questions.
 
-    **HOW A WINDOW IS CLOSED NEVER SAVES OR DELETES ANYTHING.** Escape first,
-    which is a QMessageBox's own Escape answer (Cancel, Stop, Keep) or a
-    dialog's reject(); a box with no Escape answer gets reject(), which every
-    question in the app reads as "do nothing". No button with an Accept,
-    Destructive or Yes role is ever pressed. If the window is still up
-    ``retry_s`` later (a window whose reject() asks a question of its own,
-    such as the spot-read window with readings, keeps itself open when that
-    question is answered Cancel) it is ended with ``QDialog.done(Rejected)``,
-    which hides it without running its own reject() and so without the
-    question. All of this is logged.
+    **HOW A WINDOW IS CLOSED.** Escape first, which is a QMessageBox's own
+    Escape answer (Cancel, Stop, Keep) or a dialog's reject(); a box with no
+    Escape answer, or whose Escape answer is an Accept, Apply, Yes or
+    Destructive button (Qt makes a lone button the Escape answer whatever it
+    says), gets reject(), which every question in the app reads as "do
+    nothing". No button with one of those roles is ever pressed. If the
+    window is still up ``retry_s`` later (a window whose reject() asks a
+    question of its own, such as the spot-read window with readings, keeps
+    itself open when that question is answered Cancel) it is ended with
+    ``QDialog.done(Rejected)``, which hides it WITHOUT running its own
+    reject() or closeEvent(): the question is never asked, so **the driven
+    app may discard unsaved readings, and whatever that reject() would have
+    released stays held (the spot-read window leaves the replay instrument
+    held; Preferences keeps a previewed theme)**. That is acceptable only
+    because everything under a driver is sandboxed; the watchdog is never
+    imported by the app. All of this is logged.
 
     **ONE WATCHDOG AT A TIME.** ``userdrive.Drive`` starts one; a driver that
     starts its own as well (most did before 4.3.11) takes over, and the older

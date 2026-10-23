@@ -467,7 +467,9 @@ it again. It applies to this file's reader and to every agent briefed from it.
     `dog.expect_window(regex)` do it by hand. Closing is Escape / the box's
     Escape answer / `reject()`, never an Accept, Yes or Destructive button,
     and a window that refuses (it asks first and gets Cancel) is ended with
-    `done(Rejected)`. `policy="report"` is the explicit opt-in that leaves
+    `done(Rejected)`, which skips its own reject(): in the sandboxed driven
+    app that may discard unsaved readings and leave the replay instrument held.
+    `policy="report"` is the explicit opt-in that leaves
     windows open. Only the newest running watchdog acts, so a driver's own
     one takes over from `d.dog`;
   * an exception in an APP slot is logged as in `main()` (no abort) and turns
