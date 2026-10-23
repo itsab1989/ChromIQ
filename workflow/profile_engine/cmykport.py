@@ -461,11 +461,12 @@ def light_weight(node_lab: np.ndarray) -> np.ndarray:
     amp (a full hand-over makes a 1 JND knee near white on green / cyan
     white-to-colour ramps, eyecheck). Env
     CHROMIQ_A75_LIGHT=l0:w[:c0:cw[:chi:chw[:amp]]], default
-    72:24:8:6:45:15:0.8 (offline round, out/eye-o1)."""
+    72:24:16:6:45:15:0.8 (offline rounds, out/eye-o1; c0 16 keeps the
+    absolute-intent white of i1Pro where int-9 has it)."""
     pv = [float(v) for v in os.environ.get("CHROMIQ_A75_LIGHT",
                                            "72:24").split(":")]
     l0, w = pv[0], pv[1]
-    c0, cw = (pv[2], pv[3]) if len(pv) >= 4 else (8.0, 6.0)
+    c0, cw = (pv[2], pv[3]) if len(pv) >= 4 else (16.0, 6.0)
     chi, chw = (pv[4], pv[5]) if len(pv) >= 6 else (45.0, 15.0)
     amp = pv[6] if len(pv) >= 7 else 0.8
     nl = np.asarray(node_lab, float)
