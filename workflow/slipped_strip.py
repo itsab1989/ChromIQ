@@ -567,6 +567,81 @@ def _short_slip_in_the_middle(m, e, own, n, ramp) -> "SlippedRun | None":
 _D50 = (96.42, 100.0, 82.49)
 
 
+def whole_strip_shift(measured: "Sequence[Sequence[float]]",
+                      expected: "Sequence[Sequence[float]]", offset: int,
+                      reversed_: bool = False,
+                      paper: "Sequence[float] | None" = None
+                      ) -> "SlippedRun | None":
+    """The engine's own whole-strip finding (#50's net: the strip fits
+    dramatically better shifted by *offset*, and with *reversed_* the other
+    way round), described like `find_slipped_run` describes a run, so the
+    question can name the patches and give ΔE00 (4.3.11, agent 35).
+
+    The engine judges with CIE76 and names nothing; its old window then said
+    the LAST patch read the paper whatever the direction, and gave ΔE76
+    beside ChromIQ's own ΔE00 texts. Here every reading is compared with the
+    expected colour of the patch it fits under that shift, averaged over the
+    patches that have such a partner (*offset* +1: all but the first, whose
+    slot holds what came before the strip; -1: all but the last). None when
+    no patch can be compared."""
+    n = min(len(measured), len(expected))
+    off = int(offset)
+    m, e = list(measured[:n]), list(expected[:n])
+    pts = []
+    for i in range(n):
+        j = _partner(i, n, off, reversed_)
+        if 0 <= j < n and m[i] is not None and e[i] is not None \
+                and e[j] is not None:
+            pts.append((i, j))
+    if not pts:
+        return None
+    base = sum(_de(m[i], e[i]) for i, _j in pts) / len(pts)
+    shifted = sum(_de(m[i], e[j]) for i, j in pts) / len(pts)
+    try:
+        base00 = round(sum(_de00(m[i], e[i]) for i, _j in pts) / len(pts), 1)
+        sh00 = round(sum(_de00(m[i], e[j]) for i, j in pts) / len(pts), 1)
+    except Exception:            # noqa: BLE001 - the figures are a courtesy
+        base00 = sh00 = None
+    run_first, run_last = pts[0][0], pts[-1][0]
+    lead = None
+    if (not reversed_ and off > 0) or (reversed_ and off < 0):
+        lead = run_first - 1
+    elif (not reversed_ and off < 0) or (reversed_ and off > 0):
+        lead = run_last + 1
+    first, last, lead_paper = run_first, run_last, False
+    if lead is not None and 0 <= lead < n and m[lead] is not None \
+            and e[lead] is not None and _de(m[lead], e[lead]) >= TRIGGER_DE:
+        first, last = min(first, lead), max(last, lead)
+        lead_paper = looks_like_paper(m[lead], paper)
+    else:
+        lead = None
+    if reversed_:
+        first, last = 0, n - 1
+    kind = ""
+    if not reversed_ and lead_paper and off == 1 and lead == 0:
+        kind = "start"
+    elif not reversed_ and lead_paper and off == -1 and lead == n - 1:
+        kind = "end"
+    return SlippedRun(offset=off, first=first, last=last,
+                      base_de=round(base, 2), shifted_de=round(shifted, 2),
+                      reversed=reversed_, run_first=run_first,
+                      run_last=run_last, base_de00=base00, shifted_de00=sh00,
+                      lead=lead, lead_paper=lead_paper, kind=kind)
+
+
+def strip_read_labs(patches: "Sequence[dict]") -> tuple:
+    """(measured, expected) Lab lists of a ``strip_read`` event's patches,
+    None where a patch carries no reading."""
+    meas, exp = [], []
+    for p in patches or ():
+        xyz, exyz = p.get("xyz"), p.get("exyz")
+        ok = (isinstance(xyz, (list, tuple)) and len(xyz) == 3
+              and isinstance(exyz, (list, tuple)) and len(exyz) == 3)
+        meas.append(xyz_to_lab(xyz) if ok else None)
+        exp.append(xyz_to_lab(exyz) if ok else None)
+    return meas, exp
+
+
 def xyz_to_lab(xyz: "Sequence[float]") -> "tuple[float, float, float]":
     """XYZ (Y = 100 for the white) to Lab under D50, as the engine does."""
     def f(t: float) -> float:

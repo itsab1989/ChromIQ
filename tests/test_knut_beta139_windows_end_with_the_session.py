@@ -36,7 +36,7 @@ class _Settings:
 
 #: Every window raised while a read is in progress.
 DURING_A_READ = [
-    "_prompt_too_fast_strip", "_on_strip_misaligned",
+    "_prompt_too_fast_strip",
     "_on_strip_partly_misaligned", "_on_wrong_strip",
     "_on_unexpected_response", "_on_sensor_wrong_position",
     "_on_strip_interrupted", "_legacy_patches_still_unread",

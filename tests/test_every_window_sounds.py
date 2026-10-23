@@ -36,7 +36,6 @@ EXPECTED_CUE = {
     "_warn_if_instrument_does_not_match_chart": "INSTRUMENT_ERROR",
     "_on_wrong_strip":                        "STRIP_FAIL",
     "_on_strip_interrupted":                  "STRIP_FAIL",
-    "_on_strip_misaligned":                   "STRIP_FAIL",
     "_on_strip_partly_misaligned":            "STRIP_FAIL",
     "_show_average_failed_dialog":            "STRIP_FAIL",
     "_on_unexpected_response":                "PATCH_OUT_OF_TOL",

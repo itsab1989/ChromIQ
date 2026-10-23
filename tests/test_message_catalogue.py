@@ -133,6 +133,8 @@ AWAITING_APPROVAL: "set[str]" = {
     # Agent 14's review, approved by Basti 2026-10-22: the whole strip, and a
     # strip filed back to front (the wording waits here).
     "M-STRIP-WHOLE-SLIPPED-LATE", "M-STRIP-WHOLE-SLIPPED-EARLY",
+    # 4.3.11, agent 35: the engine's whole-strip net, a strip two patches out
+    "M-STRIP-WHOLE-SLIPPED-TWO-LATE", "M-STRIP-WHOLE-SLIPPED-TWO-EARLY",
     "M-STRIP-REVERSED", "M-REPORT-STRIP-REVERSED",
     # Agent 19's short-slip study, approved by Basti 2026-10-23: the words for
     # a slip of one patch, a slip inside the strip, and one up to its end.

@@ -7288,6 +7288,42 @@ M_STRIP_WHOLE_SLIPPED_EARLY = _m(
     + _slip_tail(),
     approved=False)
 
+#: The engine's own net (#50) also finds a whole strip TWO patches out (it
+#: tries shifts of one and two). Until 4.3.11 that raised the net's own
+#: window, in CIE76 figures called "ΔE", naming no patch, and saying the
+#: last patch read the paper whichever way the strip slipped (agent 35).
+M_STRIP_WHOLE_SLIPPED_TWO_LATE = _m(
+    "M-STRIP-WHOLE-SLIPPED-TWO-LATE",
+    "Strip {strip} was probably read two patches out of place",
+    "{lead_line}Patches {first} to {last} of strip {strip} came out with the "
+    "colours of the patches two places before them on the chart, not with "
+    "their own. On average they miss their own expected colours by {base} "
+    "ΔE00, but the expected colour of the patch two places before each of "
+    "them by only {best} ΔE00. So the whole strip was read two patches late: "
+    "its first two patches hold readings of what lies in front of the strip, "
+    "and the colours of its last two patches were not read at all.\n\n"
+    "This usually happens when the instrument takes the white paper in front "
+    "of the first patch, or the edge of the sheet, for patches of their own. "
+    "Every reading after them is then filed two places too far along.\n\n"
+    + _slip_tail(),
+    approved=False)
+
+M_STRIP_WHOLE_SLIPPED_TWO_EARLY = _m(
+    "M-STRIP-WHOLE-SLIPPED-TWO-EARLY",
+    "Strip {strip} was probably read two patches out of place",
+    "{lead_line}Patches {first} to {last} of strip {strip} came out with the "
+    "colours of the patches two places after them on the chart, not with "
+    "their own. On average they miss their own expected colours by {base} "
+    "ΔE00, but the expected colour of the patch two places after each of "
+    "them by only {best} ΔE00. So the whole strip was read two patches "
+    "early: the colours of its first two patches were not read at all, and "
+    "its last two patches hold readings of what lies after the strip.\n\n"
+    "This usually happens when the instrument misses the changes between the "
+    "first few patches. Every reading after them is then filed two places "
+    "too early.\n\n"
+    + _slip_tail(),
+    approved=False)
+
 #: A strip FILED BACK TO FRONT (agent 14's review, approved by Basti
 #: 2026-10-22): the engine files a strip in the direction its colours fit
 #: best, and one that slipped by a patch can fit the wrong direction better.
@@ -7578,6 +7614,7 @@ CATALOGUE = {m.id: m for m in (
     M_PRINT_CHART_CUT, M_PRINT_CHART_CUT_PARTS,
     M_STRIP_PART_SLIPPED_LATE, M_STRIP_PART_SLIPPED_EARLY,
     M_STRIP_WHOLE_SLIPPED_LATE, M_STRIP_WHOLE_SLIPPED_EARLY, M_STRIP_REVERSED,
+    M_STRIP_WHOLE_SLIPPED_TWO_LATE, M_STRIP_WHOLE_SLIPPED_TWO_EARLY,
     M_REPORT_STRIP_SHIFTED_LATE, M_REPORT_STRIP_SHIFTED_EARLY,
     M_REPORT_STRIP_REVERSED,
     M_STRIP_ONE_SLIPPED_LATE, M_STRIP_ONE_SLIPPED_EARLY,

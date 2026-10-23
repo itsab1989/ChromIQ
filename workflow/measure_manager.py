@@ -2001,7 +2001,13 @@ class MeasureManager(QObject):
                              "offset": run.offset,
                              "reversed": run.reversed}
         strip = str(ev.get("strip", "?")).strip().upper()
-        whole = run.covers(len(patches))
+        return self._slip_finding(strip, locs, run)
+
+    def _slip_finding(self, strip: str, locs: list, run) -> dict:
+        """The dict `strip_partly_misaligned` carries, for *run* (a
+        `workflow.slipped_strip.SlippedRun`) over the patches *locs*."""
+        first, last = locs[run.first], locs[run.last]
+        whole = run.covers(len(locs))
         log.warning("strip %s: patches %s to %s look %s (mean dE76 %.1f as "
                     "read, %.1f %s; dE00 %s / %s)", strip, first, last,
                     "filed back to front" if run.reversed else
@@ -2030,6 +2036,63 @@ class MeasureManager(QObject):
             # ΔE00 sums failed, and then the window says "?").
             "base": run.base_de00, "best": run.shifted_de00,
         }
+
+    def _engine_slip_finding(self, ev: dict) -> dict:
+        """The engine's whole-strip net flagged a strip (``strip_misaligned``:
+        ``offset``, ``other_direction``). Its finding, described as the
+        part-of-a-strip check describes its own: the patches named, the
+        figures ΔE00 averaged over them, and the direction right. When
+        ChromIQ's own check finds the slip in these readings, its finding is
+        used as it is; otherwise the engine's shift is measured as given
+        (`slipped_strip.whole_strip_shift`). Never raises: without the
+        strip's readings the patches and figures are "?" and the direction is
+        the engine's."""
+        strip = str(ev.get("strip", "?")).strip().upper()
+        try:
+            off = int(ev.get("offset", 0) or 0)
+        except (TypeError, ValueError):
+            off = 0
+        rev = bool(ev.get("other_direction"))
+        fallback = {"strip": strip, "offset": off or 1, "reversed": rev,
+                    "whole": True, "engine": True, "shift": abs(off) or 1,
+                    "first": None, "last": None, "lead": None,
+                    "lead_paper": False, "kind": "", "twice": None,
+                    "single": False, "base": None, "best": None}
+        held = getattr(self, "_last_strip_patches", None)
+        if not held or held[0] != strip or not off:
+            log.warning("strip %s: the engine's net flagged a shift of %s "
+                        "without this strip's readings at hand", strip, off)
+            return fallback
+        patches = held[1]
+        adapt = getattr(self, "_expected_for_slip_check", None)
+        if adapt is not None:
+            try:
+                patches = adapt(patches)
+            except Exception:      # noqa: BLE001 - the engine's own then
+                log.debug("expected colours for the slip finding failed",
+                          exc_info=True)
+        try:
+            from workflow.slipped_strip import (find_slipped_run,
+                                                strip_read_labs,
+                                                whole_strip_shift)
+            meas, exp = strip_read_labs(patches)
+            run = find_slipped_run(meas, exp)
+            forced = run is None or (abs(off) > 1 and not run.reversed)
+            if forced:
+                run = whole_strip_shift(meas, exp, off, rev)
+            if run is None:
+                return fallback
+            locs = [str(p.get("loc") or "?") for p in patches]
+            f = self._slip_finding(strip, locs, run)
+            if forced:
+                f["whole"] = True     # the net's finding is the whole strip
+            f["engine"] = True
+            f["shift"] = abs(run.offset) or 1
+            return f
+        except Exception:          # noqa: BLE001 - a question, never a crash
+            log.warning("strip %s: could not describe the engine's slip",
+                        strip, exc_info=True)
+            return fallback
 
     def _check_read_twice(self, strip: str, patches) -> "object | None":
         """Compare the strip just read with the strips already measured.
@@ -3222,6 +3285,10 @@ class MeasureManager(QObject):
             _patches = ev.get("patches")
             self._readings_count += (len(_patches) if isinstance(_patches, list)
                                      else int(_patches or 1))
+            # For the engine's strip_misaligned, which follows this event and
+            # carries no readings of its own (`_engine_slip_finding`).
+            if isinstance(_patches, list):
+                self._last_strip_patches = (_s.upper(), list(_patches))
             # Before the emit: the tab answers it with modal windows whose
             # nested event loop can deliver the following strip_ready first.
             # A strip read under guided refinement is steered by that instead.
@@ -3583,6 +3650,13 @@ class MeasureManager(QObject):
                 int(ev.get("offset", 0)),
                 f"{ev.get('base_de', 0):.1f}",
                 f"{ev.get('best_de', 0):.1f}")
+            # THE QUESTION IS ChromIQ's OWN, IN ΔE00 AND NAMING THE PATCHES
+            # (4.3.11). The engine sends only the shift and two CIE76 means;
+            # its old window gave those as "ΔE" and said the LAST patch read
+            # the paper whichever way the strip slipped, while a late slip
+            # puts the paper in the FIRST patch. The same finding as the
+            # part-of-a-strip check's, worked out from this strip's readings.
+            self.strip_partly_misaligned.emit(self._engine_slip_finding(ev))
 
         elif kind == "error":
             self._scan_in_progress = False

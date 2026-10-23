@@ -1859,7 +1859,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._manager.no_instrument.connect(self._on_no_instrument)
         self._manager.wrong_strip.connect(self._on_wrong_strip)
         self._manager.unexpected_response.connect(self._on_unexpected_response)
-        self._manager.strip_misaligned.connect(self._on_strip_misaligned)
+        # The engine's net (#50) asks through strip_partly_misaligned too
+        # (4.3.11): MeasureManager._engine_slip_finding.
         self._manager.strip_partly_misaligned.connect(
             self._on_strip_partly_misaligned)
         # ...judged with the expected colours this tab judges with (the
@@ -9185,57 +9186,25 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             duration_ms=8000,
         )
 
-    def _on_strip_misaligned(self, strip: str, offset: int,
-                             base_de: str, best_de: str) -> None:
-        """Opt-in safety net (#50): a strip fit dramatically better shifted by a
-        patch — a likely one-off misread. Offer to re-measure it. This fires
-        AFTER the strip is already saved, so we don't answer a chartread prompt;
-        we just inform and, on request, jump back to re-read the strip."""
-        self._cue_window("STRIP_FAIL")
-        from PyQt6.QtWidgets import (
-            QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
-        )
-        n = abs(int(offset))
-        patches = (tr("one patch") if n == 1
-                   else tr("{n} patches").format(n=n))
-        dlg = QDialog(self)
-        dlg.setWindowTitle(tr("Strip may be misaligned"))
-        dlg.setMinimumWidth(540)
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(16)
-        layout.setContentsMargins(24, 20, 24, 20)
-        msg = QLabel(tr(
-            "<b>Strip {strip} may have been read slightly out of alignment.</b>"
-            "<br><br>Its colours came out much closer to the chart's design when "
-            "shifted by {patches} — the average colour error drops from {base} to "
-            "{best} ΔE. That usually means the reader locked onto the row one "
-            "patch off (for example it started on the blank paper before the "
-            "first patch), so every patch is filed one position out and the last "
-            "one reads the empty paper.<br><br>Nothing else is affected — your "
-            "other strips and everything read so far are saved. It is only this "
-            "one strip.<br><br>&nbsp;&nbsp;<b>{remeasure}</b> — jump "
-            "back to strip {strip} and scan it again (recommended).<br><br>"
-            "&nbsp;&nbsp;<b>{keep}</b> — accept this reading as it is.<br><br>"
-            "&nbsp;&nbsp;<b>{stop}</b> — stop measuring for now."
-        ).format(strip=strip, patches=patches, base=base_de, best=best_de,
-                 remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
-                 stop=tr("Stop")), dlg)
-        choice = self._misaligned_strip_buttons(dlg, layout, msg)
-        self._exec_measurement_window(dlg)
-        self._after_misaligned_strip_choice(choice[0], strip)
-
     def _on_strip_partly_misaligned(self, finding: dict) -> None:
         """Forum post 149786: PART of a strip read one patch out of place and
         the rest in step, which the engine's whole-strip net cannot see
         (`MeasureManager._check_part_of_strip_slipped`); also the whole strip
         the net missed, and a strip filed back to front (agent 14's review,
         approved by Basti 2026-10-22). The same question as
-        `_on_strip_misaligned`, naming the patches, in ΔE00.
+        engine net's old window, naming the patches, in ΔE00.
         M-STRIP-PART-SLIPPED-LATE / -EARLY, M-STRIP-WHOLE-SLIPPED-LATE /
         -EARLY, M-STRIP-REVERSED, and for a short slip (agent 19's study,
         approved by Basti 2026-10-23) M-STRIP-ONE-SLIPPED-LATE / -EARLY,
         M-STRIP-END-SLIPPED-EARLY, M-STRIP-MID-SLIPPED-LATE / -EARLY,
-        proposed."""
+        proposed.
+
+        SINCE 4.3.11 ALSO THE ENGINE'S OWN NET (#50). Its window gave CIE76
+        figures as "ΔE", named no patch, and said the LAST patch read the
+        paper for a strip read late, whose FIRST patch did. MeasureManager
+        now describes the net's finding the same way
+        (`_engine_slip_finding`), and it asks this question; a strip two
+        patches out asks M-STRIP-WHOLE-SLIPPED-TWO-LATE / -EARLY."""
         self._cue_window("STRIP_FAIL")
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
         from workflow import measurement_messages as M
@@ -9244,6 +9213,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         late = int(f.get("offset") or 0) > 0
         if f.get("reversed"):
             message = M.M_STRIP_REVERSED
+        elif f.get("whole") and int(f.get("shift") or 1) >= 2:
+            # The engine's net also finds a strip two patches out (4.3.11)
+            message = (M.M_STRIP_WHOLE_SLIPPED_TWO_LATE if late
+                       else M.M_STRIP_WHOLE_SLIPPED_TWO_EARLY)
         elif f.get("whole"):
             message = (M.M_STRIP_WHOLE_SLIPPED_LATE if late
                        else M.M_STRIP_WHOLE_SLIPPED_EARLY)

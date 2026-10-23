@@ -36,7 +36,6 @@ _WINDOW_SLOTS = {
     "_on_unexpected_response": "PATCH_OUT_OF_TOL",
     "_on_strip_interrupted": "STRIP_FAIL",
     "_on_unread_confirm": "STRIP_FAIL",
-    "_on_strip_misaligned": "STRIP_FAIL",
     "_on_strip_partly_misaligned": "STRIP_FAIL",
     "_on_abort_confirm": "INSTRUMENT_ERROR",
     "_on_calibration_prompt": "INSTRUMENT_ERROR",
