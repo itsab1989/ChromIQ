@@ -188,6 +188,16 @@ Capacities per sheet are measured like every other entry
 table's own flags; each table's 4x6 value measured again first as a check of
 the method, all equal). The i1Pro 3 Plus is not offered either (as for 4x6).
 
+**The preset lists (4.3.11, Basti 2026-10-23).** With the paper filter on,
+"10 × 15 cm (100 × 150 mm)" lists every preset whose paper is a custom
+100 x 150 mm (Knut's built-in i1Pro cards among them), and "Postcard" every
+custom 100 x 148 mm one, exact to half a millimetre in the orientation the
+code spells (`core.curated_presets.paper_matches`). Those presets are still
+Custom (`paper_class`), so they stay in the Custom list too, and they load
+and lay out exactly as saved: only which list shows them changed. Every other
+paper's list is unchanged. Driven on screen: in 4.3.10 the 10 × 15 cm list
+held nothing but "none".
+
 ## Answered, and so not built
 
 Whether importing a chart file should also offer "replace only the chart",

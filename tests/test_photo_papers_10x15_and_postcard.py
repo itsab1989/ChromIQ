@@ -128,3 +128,64 @@ def test_printtarg_lays_the_stored_capacity_on_one_card(tmp_path, code, mm):
     # printtarg's TIFF is the page less its default 6 mm margin on each side
     assert abs(w / 100 * 25.4 + 12 - mm[0]) < 1.0, w
     assert abs(h / 100 * 25.4 + 12 - mm[1]) < 1.0, h
+
+
+# ---- 4.3.11 (Basti, 2026-10-23): the photo papers list the custom presets
+# of their size too -------------------------------------------------------
+
+def test_picking_10x15cm_lists_the_custom_100x150_presets():
+    """Knut's 10 x 15 cm presets carry a custom 100 x 150. With the paper
+    filter on and "10 x 15 cm (100 x 150 mm)" picked, ae0d55c90 left them out
+    (a custom size is never TAKEN for the new paper). They are listed now,
+    and still under Custom. MUTATION: drop the photo-paper branch of
+    `curated_presets.paper_matches`: the first assert goes red."""
+    from core.curated_presets import paper_matches
+    assert paper_matches("100x150", "10x15cm")
+    assert paper_matches("100x148", "postcard")
+    assert paper_matches("100x150", "custom")        # still under Custom
+    assert paper_matches("100x148", "custom")
+    # exact size and orientation only, and only for its own paper
+    assert not paper_matches("150x100", "10x15cm")
+    assert not paper_matches("100x148", "10x15cm")
+    assert not paper_matches("100x150", "postcard")
+    assert not paper_matches("101x152", "10x15cm")
+
+
+def test_a_custom_size_still_is_not_the_photo_paper():
+    """The class is unchanged, so every list it was in and how it loads stay
+    exactly as before (byte-identical charts, certificates keyed as before)."""
+    from core.curated_presets import named_paper_of_size, paper_class
+    assert paper_class("100x150") == "custom"
+    assert named_paper_of_size("100x150") == ""
+    assert paper_class("100x148") == "custom"
+
+
+def test_no_other_paper_changes():
+    from core.curated_presets import paper_class, paper_matches
+    sizes = ["100x150", "100x148", "210x297", "297x210", "102x152", "150x100",
+             "A4", "4x6", "Letter", "10x15cm", "postcard", "203x254", ""]
+    for named in DB.PAPER_LABELS:
+        if named in NEW:
+            continue
+        for s in sizes:
+            mine = paper_class(s)
+            old = (not mine) or (mine == named)
+            assert paper_matches(s, named) == old, (s, named)
+
+
+def test_the_built_in_lists_on_10x15cm_hold_knuts_100x150_presets(qapp):
+    from ui.tabs.tab_chart import (KNUT_PRESETS_BY_KEY, builtin_preset_paper,
+                                   paper_filter_groups)
+    keys = [k for k, p in KNUT_PRESETS_BY_KEY.items() if p.paper == "100x150"]
+    assert len(keys) >= 10
+    groups = [("Knut", [("x", k) for k in KNUT_PRESETS_BY_KEY])]
+    on_card = {e[-1] for _h, es in paper_filter_groups(groups, "10x15cm")
+               for e in es}
+    on_custom = {e[-1] for _h, es in paper_filter_groups(groups, "custom")
+                 for e in es}
+    assert set(keys) <= on_card
+    assert set(keys) <= on_custom
+    assert all(builtin_preset_paper(k) == "100x150" for k in keys)
+    # the 4 x 6 in list is unchanged: none of them is on it
+    on_4x6 = {e[-1] for _h, es in paper_filter_groups(groups, "4x6") for e in es}
+    assert not (set(keys) & on_4x6)

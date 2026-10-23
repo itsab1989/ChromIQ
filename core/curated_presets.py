@@ -557,4 +557,32 @@ def paper_matches(preset_paper: Any, selected: str) -> bool:
     mine = paper_class(preset_paper)
     if not mine or not selected:
         return True
-    return mine in str(selected).split(SELECTION_SEP)
+    wanted = str(selected).split(SELECTION_SEP)
+    if mine in wanted:
+        return True
+    # THE PHOTO PAPERS LIST THE CUSTOM SIZE THEY ARE, TOO (Basti, 2026-10-23,
+    # 4.3.11). A custom 100 x 150 is never TAKEN for "10 x 15 cm" (it keeps
+    # its own class and every list it was in, so Knut's presets load and lay
+    # out as saved), but a person who picks "10 x 15 cm (100 x 150 mm)" is
+    # asking for exactly those presets, and found none. The same for the
+    # postcard's 100 x 148. Exact to the half millimetre, both orientations
+    # as the codes spell them; no other paper is affected.
+    if mine == CUSTOM_PAPER:
+        for photo in PHOTO_PAPERS_NOT_MATCHED_BY_SIZE & set(wanted):
+            if _is_size_of(preset_paper, photo):
+                return True
+    return False
+
+
+def _is_size_of(code: Any, named: str) -> bool:
+    """True when the custom ``WxH`` *code* is the size of the paper *named*,
+    each side within half a millimetre (as :func:`named_paper_of_size`)."""
+    from workflow.layout_engine.papers import dimensions_mm, parse_custom
+    dims = parse_custom(str(code or "").strip())
+    if dims is None:
+        return False
+    try:
+        nw, nh = dimensions_mm(named)
+    except ValueError:
+        return False
+    return abs(nw - dims[0]) < 0.5 and abs(nh - dims[1]) < 0.5
