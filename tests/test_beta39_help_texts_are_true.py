@@ -186,7 +186,8 @@ def test_a_rename_and_a_run_delete_say_the_reports_follow(english_keys):
            "new name" in _glossary("Printer profile project name")
     assert any("the saved measurement reports that name runs follow the new "
                "numbers" in k for k in english_keys)
-    assert any("Saved measurement reports that name the profile follow the "
+    # the rename window (agent 23: it says "project" where it means one)
+    assert any("Saved measurement reports that name the project follow the "
                "new name" in k for k in english_keys)
 
 
