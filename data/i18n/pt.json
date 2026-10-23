@@ -7225,7 +7225,7 @@
  "{corner} ΔE00 (against a perfect white)": "{corner} ΔE00 (face a um branco perfeito)",
  "{corner} ΔE00 (against a perfect white, relative to this sheet's paper)": "{corner} ΔE00 (face a um branco perfeito, relativo ao papel desta folha)",
  "{corner} ΔE00 (against the profile's paper white)": "{corner} ΔE00 (face ao branco do papel do perfil)",
- "{corner} ΔE00 (against the colour it was converted from)": "{corner} ΔE00 (face à cor a partir da qual foi convertida)",
+ "{corner} ΔE00 (against the colour it was converted from)": "{corner} ΔE00 (face à cor a partir da qual a folha foi convertida)",
  "{corner} ΔE00 (against each date's own reference)": "{corner} ΔE00 (face à referência própria de cada data)",
  "Printed at exactly 100 %: the chart is a little larger than the paper. Outside it are only empty margin and parts of the short ruler marks along its edge, which are there only to help you line up a ruler ({left} mm left, {right} mm right, {top} mm at the top, {bottom} mm at the bottom; ruler marks cut: {marks}). Every patch, letter and number is on the paper.": "Impresso exatamente a 100 %: a carta é um pouco maior do que o papel. De fora ficam só margem vazia e partes das marcas curtas de régua junto à margem, que só servem para alinhar uma régua ({left} mm à esquerda, {right} mm à direita, {top} mm em cima, {bottom} mm em baixo; marcas de régua cortadas: {marks}). Todas as amostras, letras e números estão no papel.",
  "{n} at the top": "{n} em cima",
