@@ -35,10 +35,10 @@ class _Win:
         self.shown = 0
 
     def raise_(self) -> None:
-        pass
+        raise AssertionError("capture_window raised the window (Basti's keyboard)")
 
     def activateWindow(self) -> None:
-        pass
+        raise AssertionError("capture_window activated the window (Basti's keyboard)")
 
     def hide(self) -> None:
         self.hidden += 1
@@ -85,7 +85,7 @@ def test_a_capture_that_matches_the_desktop_behind_it_is_thrown_away(
 
     monkeypatch.setattr(oc, "_grab_region", grab)
     shot = tmp_path / "shot.png"
-    ok, why = oc.capture_window(_Win(), shot, settle=0.0)
+    ok, why = oc.capture_window(_Win(), shot, settle=0.0, allow_hide=True)
     assert ok is False
     assert "behind the window" in why
     assert not shot.exists(), "a capture that proved nothing must not be left behind"
@@ -104,7 +104,7 @@ def test_a_capture_that_shows_the_window_is_kept(tmp_path, monkeypatch, qapp):
 
     monkeypatch.setattr(oc, "_grab_region", grab)
     shot = tmp_path / "shot.png"
-    ok, why = oc.capture_window(_Win(), shot, settle=0.0)
+    ok, why = oc.capture_window(_Win(), shot, settle=0.0, allow_hide=True)
     assert (ok, why) == (True, "")
     assert shot.exists()
     assert not (tmp_path / "shot__behind.png").exists(), \
@@ -115,7 +115,7 @@ def test_the_window_is_put_back_after_the_comparison(tmp_path, monkeypatch, qapp
     monkeypatch.setattr(oc, "session_is_locked", lambda: False)
     monkeypatch.setattr(oc, "_grab_region", lambda rect, p: _png(p, 130) or True)
     win = _Win()
-    oc.capture_window(win, tmp_path / "shot.png", settle=0.0)
+    oc.capture_window(win, tmp_path / "shot.png", settle=0.0, allow_hide=True)
     assert (win.hidden, win.shown) == (1, 1), \
         "a driver's window must be on screen again when the capture returns"
 
@@ -135,3 +135,17 @@ def test_the_window_server_is_asked_and_an_answer_comes_back(locked, monkeypatch
     state it is in — a helper that raises would be silently ignored by the
     ``except`` in the driver and the refusal would never happen."""
     assert isinstance(oc.session_is_locked(), bool)
+
+
+def test_a_failed_window_id_capture_is_a_failed_capture(tmp_path, monkeypatch, qapp):
+    """4.3.11: by default nothing falls back to the screen rectangle, and
+    nothing is raised, activated, hidden or shown. MUTATION: put the default
+    back to allow_hide=True: the window is hidden and shown."""
+    monkeypatch.setattr(oc, "session_is_locked", lambda: False)
+    monkeypatch.setattr(oc, "window_id_for", lambda _w: None)
+    took = []
+    monkeypatch.setattr(oc, "_grab_region", lambda r, p: took.append(r) or True)
+    win = _Win()
+    ok, why = oc.capture_window(win, tmp_path / "shot.png", settle=0.0)
+    assert ok is False and "by its id" in why
+    assert took == [] and (win.hidden, win.shown) == (0, 0)

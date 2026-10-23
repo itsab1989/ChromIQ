@@ -260,13 +260,11 @@ class Drive:
                       f"in this step (yield first)")
             return False
         self.pump(700)
-        # NEVER THE RECTANGLE ROUTE FOR A DIALOG: it raises the window (takes
-        # Basti's keyboard) and proves itself by HIDING it, and hiding a
-        # dialog inside exec() ends it as Rejected: the photograph would
-        # answer the question.
-        from PyQt6.QtWidgets import QDialog
-        ok, why = capture_window(win, path,
-                                 allow_hide=not isinstance(win, QDialog))
+        # NEVER THE RECTANGLE ROUTE (4.3.11), for any window: it needs the
+        # window in front, which takes Basti's keyboard, and proves itself by
+        # HIDING it, which ends a dialog's exec() as Rejected. A failed
+        # window-id capture is recorded as a failed photograph.
+        ok, why = capture_window(win, path, allow_hide=False)
         self.record["photos"].append({"file": path.name, "ok": ok, "why": why,
                                       "window": type(win).__name__})
         self.note(f"   [photo] {path.name}: {'ok' if ok else 'FAILED ' + why}")

@@ -467,8 +467,15 @@ def _difference(a: Path, b: Path) -> float:
 
 def capture_window(win, path: Path, settle: float = 0.6,
                    min_difference: float = 0.25,
-                   allow_hide: bool = True) -> tuple[bool, str]:
+                   allow_hide: bool = False) -> tuple[bool, str]:
     """Photograph *win* into *path*. Returns (ok, why-not).
+
+    BY ITS WINDOW ID ONLY, UNLESS *allow_hide* (4.3.11). The screen-rectangle
+    fallback needs the window to be the frontmost thing in that rectangle and
+    proves the picture by hiding and showing it again; it used to call
+    raise_() and activateWindow() first, which took Basti's keyboard. It now
+    never raises or activates anything, and runs only when a caller asks for
+    it; otherwise a failed window-id capture is reported as a failed capture.
 
     The caller is expected to REPORT a False at the top of its result. The file
     is not left behind when the capture could not be proved, so a later reader
@@ -538,12 +545,16 @@ def capture_window(win, path: Path, settle: float = 0.6,
     if not allow_hide:
         # The rectangle fallback proves itself by HIDING the window, and hiding
         # a dialog that is inside exec() ends that exec() as Rejected: the
-        # photograph would answer the question. A caller photographing a
-        # pop-up (PopupWatchdog) says no.
-        return False, ("the window could not be captured by its id, and the "
-                       "rectangle fallback would have to hide it")
-    win.raise_()                    # the rectangle needs the window on top
-    win.activateWindow()
+        # photograph would answer the question; and it only works with the
+        # window in front, which no driver may bring about (Basti's keyboard).
+        # Off unless asked for: a failed capture is reported as one.
+        return False, ("the window could not be captured by its id; the "
+                       "screen-rectangle fallback is off (it would have to "
+                       "hide the window, and it only works with the window in "
+                       "front, which a driver may not bring about)")
+    # NEVER raise_() OR activateWindow() HERE (4.3.11): that takes Basti's
+    # keyboard. A window that is not in front comes out as what covers it,
+    # and the hide/show proof below refuses that picture.
     QApplication.processEvents()
     time.sleep(settle)
     g = win.frameGeometry()
@@ -558,7 +569,6 @@ def capture_window(win, path: Path, settle: float = 0.6,
     time.sleep(0.35)
     got_empty = _grab_region(rect, empty)
     win.show()
-    win.raise_()
     QApplication.processEvents()
     time.sleep(settle)
     if not got_empty:

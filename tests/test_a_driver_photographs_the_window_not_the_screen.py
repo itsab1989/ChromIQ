@@ -860,8 +860,8 @@ def test_the_window_id_capture_does_not_bring_the_window_to_the_front():
     first_id_capture = src.index("wid = window_id_for(win)")
     assert "win.raise_()" not in src[:first_id_capture]
     assert "win.activateWindow()" not in src[:first_id_capture]
-    assert "win.raise_()" in src[src.index("g = win.frameGeometry()") - 400:], \
-        "the rectangle fallback still needs the window on top"
+    # 4.3.11: not even the rectangle fallback may (Basti's keyboard)
+    assert "win.raise_()" not in src and "win.activateWindow()" not in src
 
 
 def test_focus_give_back_never_acts_without_a_previous_app():

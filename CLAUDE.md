@@ -428,8 +428,10 @@ it again. It applies to this file's reader and to every agent briefed from it.
     returns the window's own buffer: measured 2026-09-13, a 700x528 picture
     with the title bar in it, taken while the window was on another Space and
     while the CLI refused. `capture_window` uses that first
-    (`window_id_for` finds the id via pyobjc) and keeps the rectangle, with its
-    hide/show proof, as the fallback.
+    (`window_id_for` finds the id via pyobjc). The rectangle, with its
+    hide/show proof, is an explicit opt-in (`allow_hide=True`) since 4.3.11
+    and never raises or activates anything: by default a failed window-id
+    capture is reported as a failed capture.
   * `tests/test_a_driver_photographs_the_window_not_the_screen.py` is what
     makes this stick: a driver that aims `screencapture -R` or `-l` at a window
     itself fails the suite, and so does a helper that reaches for the screen
