@@ -53,6 +53,7 @@ def _window_fake(question_open: bool, shown: list):
                  _a_question_is_open=lambda: question_open,
                  _patches_left_n=3, _fell_back_reason="no instrument",
                  _show_patches_left=lambda n: shown.append(("left", n)),
+                 _release_reader_after_window=lambda: None,
                  _show_engine_fell_back=lambda r: shown.append(("fell", r)),
                  _show_patches_left_pending=object(),
                  _show_engine_fell_back_pending=object())

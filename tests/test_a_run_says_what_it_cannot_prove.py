@@ -202,7 +202,9 @@ def test_eight_files_skip_wholesale_without_it():
     # chart rebuilt, through the real engine.
     # 18 in part with the pause between pages (4.3.10, forum post 149802):
     # the engine's hold after a strip, on its replay instrument.
-    assert len(whole) == 10 and len(partial) == 18, (
+    # 19 in part with the hold behind "All Strips Read" (4.3.10, Basti's
+    # ColorMunki hand test): {"cmd":"hold"} on the replay instrument.
+    assert len(whole) == 10 and len(partial) == 19, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")
