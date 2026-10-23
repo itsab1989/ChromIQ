@@ -52,29 +52,24 @@ sys.excepthook = _log_excepthook
 # raw fd directly — letting it be garbage-collected would close the fd.
 import faulthandler  # noqa: E402
 
-_crash_log = None
-try:
-    from datetime import datetime as _dt
-
-    from core.platform_paths import log_dir as _log_dir
-
-    _crash_dir = _log_dir()
-    _crash_dir.mkdir(parents=True, exist_ok=True)
-    _crash_log = open(_crash_dir / "chromiq-crash.log", "a", encoding="utf-8")
-    _crash_log.write(f"\n=== faulthandler armed {_dt.now():%Y-%m-%d %H:%M:%S} ===\n")
-    _crash_log.flush()
-    faulthandler.enable(file=_crash_log, all_threads=True)
-except Exception:
-    log.debug("Could not arm faulthandler to crash log; using stderr", exc_info=True)
-    faulthandler.enable()
-
 # The VERSION belongs in the very first line of every log. Without it a report
 # cannot be matched to a build, and "is this fixed?" turns into guesswork about
-# which release the user was actually running (#131, Knut 2026-07-27).
+# which release the user was actually running (#131, Knut 2026-07-27). The
+# crash log's start-up line carries it too (core/crash_log.py).
 try:
     from core.version import APP_VERSION as _APP_VERSION
 except Exception:      # noqa: BLE001 — never let logging block startup
     _APP_VERSION = "unknown"
+
+_crash_log = None
+try:
+    from core import crash_log as _crash
+    from core.platform_paths import log_dir as _log_dir
+
+    _crash_log = _crash.arm(_log_dir(), _APP_VERSION)
+except Exception:
+    log.debug("Could not arm faulthandler to crash log; using stderr", exc_info=True)
+    faulthandler.enable()
 
 log.info(
     "ChromIQ %s starting; python=%s platform=%s frozen=%s argv=%s",
@@ -406,6 +401,13 @@ def _hard_exit(code: int) -> None:
     There are no ``atexit`` hooks of our own to lose."""
     try:
         logging.shutdown()
+    except Exception:
+        pass
+    # The crash log says the session ended cleanly, so a start-up line with
+    # nothing after it reads as what it is: a session that did not.
+    try:
+        from core import crash_log as _crash_out
+        _crash_out.closed_normally(code)
     except Exception:
         pass
     try:

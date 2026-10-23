@@ -4481,7 +4481,13 @@ class TabPrint(QWidget):
         if sizes and sizes[0][0] > sizes[0][1]:
             qprinter.setPageOrientation(QPageLayout.Orientation.Landscape)
         dialog = QPrintDialog(qprinter, self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        # Windows' print dialog raises and handles COM exceptions of its own,
+        # which faulthandler writes into chromiq-crash.log as "Windows fatal
+        # exception" (core/crash_log.py). Paused for this one call only.
+        from core.crash_log import quiet_for_native_dialog
+        with quiet_for_native_dialog():
+            accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        if not accepted:
             # Cancelled at the OS dialog: nothing was printed, so no record.
             self._commit_print_record(False)
             return

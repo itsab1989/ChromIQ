@@ -676,4 +676,9 @@ def _exec_print_dialog(dlg) -> bool:
     tab's own dialog.
     """
     from PyQt6.QtWidgets import QDialog
-    return dlg.exec() == QDialog.DialogCode.Accepted
+
+    from core.crash_log import quiet_for_native_dialog
+    # The same Windows print dialog as the Print tab's: its own handled COM
+    # exceptions are not crashes (core/crash_log.py).
+    with quiet_for_native_dialog():
+        return dlg.exec() == QDialog.DialogCode.Accepted
