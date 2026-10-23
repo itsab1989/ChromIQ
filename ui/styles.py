@@ -412,6 +412,8 @@ QCheckBox::indicator:checked  {{ background: {ACCENT}; border-color: {ACCENT}; }
 QCheckBox::indicator:hover    {{ border-color: {ACCENT_HOVER}; }}
 QCheckBox:disabled            {{ color: #6a6a6a; }}
 QCheckBox::indicator:disabled {{ background: #1f1f1f; border-color: #3a3a3a; }}
+/* a box locked only while a measurement runs keeps its tick (keepsTick, Basti 2026-10-23) */
+QCheckBox[keepsTick="true"]::indicator:checked:disabled {{ background: #4a4a4a; border-color: #5a5a5a; }}
 QRadioButton {{ spacing: 6px; }}
 QRadioButton::indicator {{
     width: 14px; height: 14px;

@@ -541,6 +541,12 @@ QCheckBox#locked_on::indicator:checked:disabled {{
     background: {NM_TEXT_FAINT};
     border: 1px solid {NM_DISABLED};
 }}
+/* …AND A BOX THAT IS ONLY LOCKED FOR A WHILE, still in force (keepsTick:
+   the Measure tab's options while a measurement runs, Basti 2026-10-23). */
+QCheckBox[keepsTick="true"]::indicator:checked:disabled {{
+    background: {NM_TEXT_FAINT};
+    border: 1px solid {NM_DISABLED};
+}}
 QRadioButton {{
     spacing: 6px;
 }}

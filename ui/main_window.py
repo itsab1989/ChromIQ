@@ -967,6 +967,13 @@ class MainWindow(QMainWindow):
                     background: {locked_on_bg};
                     border-color: {color};
                 }}
+                /* …and a box locked only while a measurement runs, whose
+                   setting is in force (keepsTick, the Measure tab's options;
+                   Basti 2026-10-23: "-r" and "-S" looked switched off). */
+                QCheckBox[keepsTick="true"]::indicator:checked:disabled {{
+                    background: {locked_on_bg};
+                    border-color: {color};
+                }}
                 QRadioButton::indicator:checked {{
                     background: {color};
                     border-color: {color};

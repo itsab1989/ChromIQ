@@ -6062,6 +6062,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return engine_strip_rects_from_sidecar(
             self._ti1_path.with_suffix(".channels.json"), len(self._tiff_pages))
 
+    @staticmethod
+    def _options_keep_their_ticks(group) -> None:
+        """A ticked option still reads as ticked while it is locked.
+
+        The app's style greys a disabled box to the look of an unticked one
+        (right for a group that is switched off). These options are locked
+        only because a measurement is running WITH them: "Refine / resume"
+        and "Suppress warning messages" were in force and looked switched off
+        (Basti's screenshot, 2026-10-23). `keepsTick` gives them a greyed
+        fill instead (light_styles, neutral_styles, MainWindow's tab sheet)."""
+        from PyQt6.QtWidgets import QCheckBox
+        for cb in group.findChildren(QCheckBox):
+            if cb.property("keepsTick") is not True:
+                cb.setProperty("keepsTick", True)
+                cb.style().unpolish(cb)
+                cb.style().polish(cb)
+
     def _set_settings_enabled(self, enabled: bool) -> None:
         # Lock the measurement PARAMETERS during a read, but NOT the scroll areas
         # (so the panel stays scrollable, #42) nor the "Live preview" view group
@@ -6071,6 +6088,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         for w in (getattr(self, "_g_options", None), getattr(self, "_m_options", None),
                   getattr(self, "_m_presets_grp", None)):
             if w is not None:
+                self._options_keep_their_ticks(w)
                 w.setEnabled(enabled)
         self._file_grp.setEnabled(enabled)
         self._save_defaults_btn.setEnabled(enabled)

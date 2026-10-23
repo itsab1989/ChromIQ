@@ -413,6 +413,14 @@ QCheckBox#locked_on::indicator:checked:disabled {{
     background: {LM_TEXT_FAINT};
     border-color: {LM_BORDER_HI};
 }}
+/* …AND A BOX THAT IS ONLY LOCKED FOR A WHILE, still in force: the Measure
+   tab's options while a measurement runs (keepsTick, set by the tab). They
+   are what the reader is using, so a ticked one must still read as ticked
+   (Basti, 2026-10-23: "-r" and "-S" looked switched off during a run). */
+QCheckBox[keepsTick="true"]::indicator:checked:disabled {{
+    background: {LM_TEXT_FAINT};
+    border-color: {LM_BORDER_HI};
+}}
 QRadioButton {{
     spacing: 6px;
 }}
