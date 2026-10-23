@@ -901,7 +901,7 @@ def k_shell(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
 # --- Agent 74 (a74-shellhold, a74-shellhue) ------------------------------------
 A74_SHELLHOLD = "a74-shellhold"
 A74_SHELLHUE = "a74-shellhue"
-A74_SHELL = "3:0.5:50:3"   # k_shell off:p:cmax:q with a74-shellhold (a71 default 3:0.5:80:3)
+A74_SHELL = "3:0.5:60:3"   # k_shell off:p:cmax:q with a74-shellhold (a71 default 3:0.5:80:3; 3:0.5:50:3 holds colour longer, eyecheck +12)
 
 
 def shell_hue(pre: np.ndarray, out: np.ndarray, model, *, ink_limit=None,

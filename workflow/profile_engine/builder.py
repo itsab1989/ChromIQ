@@ -948,6 +948,21 @@ def _will_use_colprof_oracle(meas: Ti3Measurement,
     return any(i not in _COLORIMETRIC_INTENTS for i in mapped)
 
 
+
+def _a74_measured_fold(meas, model, n: int):
+    """Agent 74 (a74-foldmeas): the MEASURED ink fold at the black: median
+    of (printed L* - the model's L* for K alone at the same K) over the
+    patches with K >= 0.9 and C+M+Y >= 0.1, or None below 10 such patches
+    (real i1Pro +2.4, fold printers XFP +5..+6, X3m -5.0, XKB -1.7)."""
+    dv = np.asarray(meas.device, float)
+    sel = (dv[:, 3] >= 0.9) & (dv[:, :3].sum(1) >= 0.1)
+    if int(sel.sum()) < 10:
+        return None
+    kk = np.zeros((int(sel.sum()), n))
+    kk[:, 3] = dv[sel, 3]
+    return float(np.median(np.asarray(meas.lab_relative, float)[sel, 0]
+                           - model.predict(kk)[:, 0]))
+
 def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         settings: BuildSettings,
                         started: list | None = None) -> BuildResult:
@@ -1449,15 +1464,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # C+M+Y >= 0.1 print, at the median, at least A74_FOLDMEAS_MIN
             # L* lighter than the model's K alone at the same K (real i1Pro
             # +2.4, fold printers XFP +5..+6; X3m -5.0, XKB -1.7).
-            _dv = np.asarray(meas.device, float)
-            _sel = (_dv[:, 3] >= 0.9) & (_dv[:, :3].sum(1) >= 0.1)
-            _ex = None
-            if int(_sel.sum()) >= 10:
-                _kk = np.zeros((int(_sel.sum()), n))
-                _kk[:, 3] = _dv[_sel, 3]
-                _ex = float(np.median(
-                    np.asarray(meas.lab_relative, float)[_sel, 0]
-                    - model.predict(_kk)[:, 0]))
+            _ex = _a74_measured_fold(meas, model, n)
             _emit(settings, "Ink fold check (a74-foldmeas): measured "
                             + (f"{_ex:+.1f} L* vs K alone" if _ex is not None
                                else "too few heavy-K patches"))
@@ -2121,11 +2128,20 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _bd = np.clip(dev_clut[_bn], 0.0, 1.0)
         if channel_max is not None:
             _bd = np.minimum(_bd, channel_max)
+        # Agent 74: with a74-foldmeas the a74 shell tokens act only on a
+        # MEASURED fold (X3m on the September chart runs the k-shell on a
+        # fold its truth does not have)
+        _a74_shell_ok = True
+        if "a74-foldmeas" in candidates and (
+                _a69.A74_SHELLHOLD in candidates
+                or _a69.A74_SHELLHUE in candidates):
+            _mx = _a74_measured_fold(meas, model, n)
+            _a74_shell_ok = _mx is not None and _mx >= A74_FOLDMEAS_MIN
         dev_clut_shaped, _dr = _a69.dark_end(
             dev_clut_shaped, residual, node_lab, b2a_grid, model, _bd,
             _l_min, ink_limit=ink_limit, fixed_nodes=fixed_nodes,
-            hold=_a69.A74_SHELLHOLD in candidates,
-            hue=_a69.A74_SHELLHUE in candidates)
+            hold=_a69.A74_SHELLHOLD in candidates and _a74_shell_ok,
+            hue=_a69.A74_SHELLHUE in candidates and _a74_shell_ok)
         _emit(settings, f"Colorimetric table: dark end ({_dr['mode']}, "
                         f"{_dr.get('moved', _dr['nodes'])} nodes; research "
                         f"a71-darkray).")
