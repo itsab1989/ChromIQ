@@ -173,6 +173,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a69-cmykport-oogfine", "a70-edgesmooth", "a70-edgeadapt",
      "a70-foldcap", "a70-blackshell", "a71-darkray", "a72-cmyonly",
      "a72-max4ink", "no-a72-max4ink",
+     # Agent 75 (int-9 CMYK losses vs colprof; research, opt-in):
+     # a75-lightkeep = the engine's own table back for pale out-of-gamut
+     # colours, CHROMIQ_A75_LIGHT l0:w:c0:cw:chi:chw
+     "a75-lightkeep",
      "no-a65-cmykhue-bluejab", "no-a66-cmyaxis", "no-a66-refitguard",
      "no-a67-camratio", "no-a67-guardall-dark", "no-a67-guardpolish",
      "no-a68-clipkeep", "no-a69-cmykport", "no-a69-cmykport-oog",
@@ -1976,6 +1980,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 # a69-cmykport-oogdark: only the dark end (colour to black);
                 # full up to black + l, out by black + l + w (CHROMIQ_A69_DARK)
                 _w = _w * _a69.dark_weight(node_lab, _l_min)
+            if _a69.A75_LIGHTKEEP in candidates:
+                # Agent 75 (a75-lightkeep): pale out-of-gamut nodes (L* 72+,
+                # C* 8-45, up to 0.8, cmykport.light_weight) hand back to the engine's
+                # own table: its clip keeps their lightness (FOGRA sRGB
+                # 200/255/200 prints 4.3 L* dark with the port, 2.7 engine).
+                _w = _w * (1.0 - _a69.light_weight(node_lab))
             if fixed_nodes is not None and len(fixed_nodes):
                 _w[fixed_nodes] = 0.0
             _w = _w[:, None]
