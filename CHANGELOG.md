@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.3.10
+
+**For everyone updating from 4.3.9: ChromIQ now notices when a strip was read one patch out of place, even only a few patches of it, and names that strip in the Measurement Report. Measuring can pause after each page so you can look it over. A chart a little too large for small photo paper prints at full size when only empty margin goes over the edge. And Check & Refine checks a profile against a verification print.** The beta entry below has the first part of these changes.
+
+### Added
+- **Pause after each page** (jctay, forum post 149802): a new option in Preferences > Measurement, off by default. After the last strip of each page, and after the very last strip of the chart, ChromIQ waits so you can look the page over in the preview, read any strip again, and then go on. Press the button on your i1Pro or ColorMunki, or click Continue. That press only continues: it never starts a reading. A second option, on by default, shows a short note at the pause that says why nothing is moving and what to do next. (New texts, shown and waiting for approval.)
+- **A warning for short slips of only two or three patches** at the start or end of a strip, or in the middle of it, in addition to the longer slips 4.3.10-beta.1 already caught. It uses the same switch, "Warn me if a strip looks misaligned". Tested on every real measurement we have and on about two million simulated strips: no false warnings on the real ones. (New texts, shown and waiting for approval.)
+- **Create Chart: two new photo papers, "10 × 15 cm (100 × 150 mm)" and "Postcard (100 × 148 mm)"** (jctay, forum post 149803). Many printers sold for 4 × 6 in photos print exactly these sizes, not 102 × 152 mm. Charts and presets made before keep their paper as they were.
+- **Preferences > Measurement: "Show the expected · measured label on the chart preview"**, on by default.
+
+### Changed
+- **A chart a little larger than the paper is printed at exactly 100 %, without a question, when only empty margin, the end of ArgyllCMS's small print line or the short ruler marks go over the edge** (jctay and Knut, forum posts 149803/149804). Patches, strip letters and numbers, and the white paper the instrument needs before and after each strip are never cut. If more would be cut, ChromIQ says what and why: through the macOS or Windows print dialog nothing is printed then; with ChromIQ's own printing you can still print it. ChromIQ never shrinks a chart. (New texts, shown and waiting for approval.)
+- **The help card "Check a finished profile"** now includes checking the profile on the Check & Refine tab, re-reading the strips with the largest errors, starting every strip on the white paper rather than on its number, and making the report after re-reading (Knut). (New texts, shown and waiting for approval.)
+- **Names are shown exactly as you typed them.** The app's font turned an "x" between two digits into a multiplication sign, so a project called "Photo-4x6" showed as "Photo-4×6".
+- **Measurement Report, overview:** the rows for white, black and the solid colours say what they are compared with, for example "Red ΔE00 (against the ideal colour)", so they are not mistaken for the much smaller "solid colours" figure further down. (New texts, shown and waiting for approval.)
+- **The window that renames a project** has a title and text that say "project" where they mean the project, not "printer profile".
+- **Windows: the crash log names the ChromIQ version and notes when ChromIQ was closed normally**, and the harmless messages that the Windows print dialog wrote into it are gone, so a real crash is easy to tell apart.
+
+### Fixed
+- **The Measure tab's fades are smooth.** The new note and the "expected · measured" label fade in and out evenly.
+
 ## v4.3.10-beta.1
 
 **A strip that was read partly one patch out of place, or filed back to front, is now caught while you measure and named in the Measurement Report, Check & Refine works properly on a verification, and Knut's 300-patch photo card is a built-in preset.**
