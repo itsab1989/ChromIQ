@@ -182,6 +182,21 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "no-a68-clipkeep", "no-a69-cmykport", "no-a69-cmykport-oog",
      "no-a69-cmykport-oogfine", "no-a70-edgesmooth", "no-a70-edgeadapt",
      "no-a70-foldcap", "no-a71-darkray", "no-a72-cmyonly",
+     # Agent 73 (ink test): colprof's -kr K prior for the colorimetric
+     # table on a printer with a strong ink fold and a light C+M+Y black;
+     # research, opt-in
+     "a73-kfirst",
+     # Agent 74: the a71 k-shell (strong ink fold, i1Pro) holds colour
+     # closer to the black (a74-shellhold) and keeps the clip hue while it
+     # fades (a74-shellhue); research, opt-in
+     "a74-shellhold", "a74-shellhue",
+     # Agent 74: with a73-kfirst, near the black the K prior is at least
+     # the K that alone prints the target L* (no heavy rich-black greys on
+     # a folding printer); research, opt-in
+     "a74-kfloor",
+     # Agent 74: a73-kfirst fires only on a MEASURED ink fold (heavy-K
+     # patches with colour print lighter than K alone); research, opt-in
+     "a74-foldmeas",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -337,6 +352,13 @@ INT8B_TOKENS = frozenset({"a63-palefine", "a63-lowgrid"})
 #     floor), and INT9_CMY_TOKENS below;
 #   RGB: a68-clipkeep (a clipped node keeps its clip where the refit throws
 #     it far off, on a folded response such as Knut's printer).
+# Agent 73 (a73-kfirst): the fold test. Colour ink on solid K must lighten
+# it by this much (cmykport.fold_at_black: i1iSis 1, fitted XFI 0.9, i1Pro
+# 5, fitted XFP 3.0) AND the C+M+Y black under the limit be this much
+# lighter than solid K (XFP / i1Pro 9.8, XFI / i1iSis 3.4).
+A73_FOLD_MIN = 2.0
+A73_CMYGAP_MIN = 6.0
+A74_FOLDMEAS_MIN = 1.0
 INT9_TOKENS = frozenset({
     "a65-cmykhue-bluejab", "a66-cmyaxis", "a68-clipkeep", "a69-cmykport",
     "a69-cmykport-oog", "a69-cmykport-oogfine", "a70-edgesmooth",
@@ -930,6 +952,21 @@ def _will_use_colprof_oracle(meas: Ti3Measurement,
     return any(i not in _COLORIMETRIC_INTENTS for i in mapped)
 
 
+
+def _a74_measured_fold(meas, model, n: int):
+    """Agent 74 (a74-foldmeas): the MEASURED ink fold at the black: median
+    of (printed L* - the model's L* for K alone at the same K) over the
+    patches with K >= 0.9 and C+M+Y >= 0.1, or None below 10 such patches
+    (real i1Pro +2.4, fold printers XFP +5..+6, X3m -5.0, XKB -1.7)."""
+    dv = np.asarray(meas.device, float)
+    sel = (dv[:, 3] >= 0.9) & (dv[:, :3].sum(1) >= 0.1)
+    if int(sel.sum()) < 10:
+        return None
+    kk = np.zeros((int(sel.sum()), n))
+    kk[:, 3] = dv[sel, 3]
+    return float(np.median(np.asarray(meas.lab_relative, float)[sel, 0]
+                           - model.predict(kk)[:, 0]))
+
 def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         settings: BuildSettings,
                         started: list | None = None) -> BuildResult:
@@ -1397,6 +1434,77 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # agent5-03 item 5). The proxy anchor still shapes the perceptual and
     # saturation tables (build_mapped_b2a below). Costs ink: section 6.
     k_prior_col = None if accurate else anchor
+    # a73-kfirst: True when its fold test fired (then the a70-foldcap K cap
+    # on chromatic clipped nodes is off too: on such a printer it forces the
+    # dark clipped colours onto the light C/M/Y branch, Findings agent73-01)
+    _a73_kfirst = False
+    if (accurate and not meas.is_additive and n == 4
+            and "a73-kfirst" in candidates and "K" in meas.channel_letters
+            and meas.channel_letters.index("K") == 3):
+        # Research Agent 73 (ink test, Findings/agent73-01): on a printer
+        # whose colour inks LIGHTEN heavy black (ink fold) and whose C+M+Y
+        # black under the ink limit is much lighter than solid K, the late
+        # GCR locus separates the dark end on a C/M/Y-heavy, low-K branch
+        # that dead-ends L* units above the black; the column and every dark
+        # ramp must then cross to the K-only black between two table nodes,
+        # and the blends across that switch print LIGHTER than both ends (a
+        # grey flash before black, B2A1 dark median 6.4 dE00 on the fitted
+        # i1Pro-like printer XFP, colprof 1.7). There colprof's default
+        # black rule (-kr, K first) is the K prior of the colorimetric table
+        # too, as in Fast. Other printers are untouched.
+        from workflow.profile_engine import cmykport as _a73cp
+        _f1 = _a73cp.fold_at_black(model)
+        _lim = (float(ink_limit) / 100.0) if ink_limit else 4.0
+        _c = min(1.0, max(_lim, 0.0) / 3.0)
+        _l_cmy = float(model.predict(np.array([[_c, _c, _c, 0.0]]))[0, 0])
+        _l_k = float(model.predict(np.array([[0.0, 0.0, 0.0, 1.0]]))[0, 0])
+        _need = _f1 >= A73_FOLD_MIN and (_l_cmy - _l_k) >= A73_CMYGAP_MIN
+        if _need and "a74-foldmeas" in candidates:
+            # Agent 74 (a74-foldmeas): the model's fold reading near K 1 is
+            # an extrapolation where the chart is sparse (synthetic X3m and
+            # XKB on the September chart read 3.2 / 2.0 L* with NO fold in
+            # their truth, and a73-kfirst then cost B2A median +25..94 %).
+            # The fold must also be MEASURED: patches with K >= 0.9 and
+            # C+M+Y >= 0.1 print, at the median, at least A74_FOLDMEAS_MIN
+            # L* lighter than the model's K alone at the same K (real i1Pro
+            # +2.4, fold printers XFP +5..+6; X3m -5.0, XKB -1.7).
+            _ex = _a74_measured_fold(meas, model, n)
+            _emit(settings, "Ink fold check (a74-foldmeas): measured "
+                            + (f"{_ex:+.1f} L* vs K alone" if _ex is not None
+                               else "too few heavy-K patches"))
+            _need = _ex is not None and _ex >= A74_FOLDMEAS_MIN
+        _emit(settings, f"Ink fold check (a73-kfirst): colour ink on solid K "
+                        f"lightens by {_f1:.1f} L*, C+M+Y black L* "
+                        f"{_l_cmy:.1f} vs K {_l_k:.1f}: "
+                        + ("K first." if _need else "no change."))
+        if _need:
+            _a73_kfirst = True
+            _ls = np.linspace(0.0, 100.0, 201)
+            k_prior_col = {"l_axis": _ls, "k_curve": b2a_mod.argyll_k_curve(
+                _ls, params=b2a_mod.K_RULE_PARAMS["r"],
+                l_min=max(float(black_l), 2.0) if black_l is not None
+                else 5.0)}
+            if "a74-kfloor" in candidates:
+                # Agent 74 (a74-kfloor): near the black the K prior never
+                # asks for LESS K than K alone needs to print the target L*.
+                # On a folding printer colour ink first LIGHTENS heavy K, so
+                # a grey darker than its K-only value can only be reached by
+                # heavy C+M+Y on top (real i1Pro target L* 25-26: K .98 +
+                # C+M+Y 1.6-1.7), exactly where the model is least sure (the
+                # measured C .53 M .53 Y 1 K 1 patch: L* 23.7, model 28.2) and
+                # the references print a 4 L* dip (Findings agent74-01). The
+                # floor is full up to K-only black + 5 L* and gone at + 15.
+                _ks = np.linspace(0.0, 1.0, 401)
+                _dk = np.zeros((len(_ks), 4))
+                _dk[:, 3] = _ks
+                _lk = np.minimum.accumulate(model.predict(_dk)[:, 0])
+                _kal = np.interp(_ls, _lk[::-1], _ks[::-1])
+                _kal = np.where(_ls > _lk[-1], _kal, 1.0)
+                _x = np.clip((_lk[-1] + 15.0 - _ls) / 10.0, 0.0, 1.0)
+                _wf = _x * _x * (3.0 - 2.0 * _x)
+                _kc = k_prior_col["k_curve"]
+                k_prior_col["k_curve"] = _kc + _wf * np.maximum(_kal - _kc,
+                                                                0.0)
     if (accurate and not meas.is_additive and n >= 4
             and ("a9-nramp" in candidates or "a9-nramps" in candidates)
             and "K" in meas.channel_letters):
@@ -1722,7 +1830,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 channel_max=channel_max, l_min=_a70_lmin, grid=b2a_grid,
                 oogfine=_a70m["oogfine"],
                 progress=lambda m: _emit(settings, m),
-                fold=_a70c.A70_FOLDCAP in candidates)
+                fold=(_a70c.A70_FOLDCAP in candidates and not _a73_kfirst))
             _wf = _a70_w.copy()
             if fixed_nodes is not None and len(fixed_nodes):
                 _wf[fixed_nodes] = 0.0
@@ -1917,7 +2025,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_max=channel_max, l_min=_l_min,
             ourk=_a69m["ourk"] or _pern, ourclip=_a69m["ourclip"] or _pern,
             progress=lambda m: _emit(settings, m),
-            fold=_a69.A70_FOLDCAP in candidates)
+            fold=(_a69.A70_FOLDCAP in candidates and not _a73_kfirst))
         _pure_s = np.clip(model.shape_device(_pure), 0.0, 1.0)
         if channel_max is not None:
             _pure_s = np.minimum(_pure_s, model.shape_device(
@@ -2030,9 +2138,20 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _bd = np.clip(dev_clut[_bn], 0.0, 1.0)
         if channel_max is not None:
             _bd = np.minimum(_bd, channel_max)
+        # Agent 74: with a74-foldmeas the a74 shell tokens act only on a
+        # MEASURED fold (X3m on the September chart runs the k-shell on a
+        # fold its truth does not have)
+        _a74_shell_ok = True
+        if "a74-foldmeas" in candidates and (
+                _a69.A74_SHELLHOLD in candidates
+                or _a69.A74_SHELLHUE in candidates):
+            _mx = _a74_measured_fold(meas, model, n)
+            _a74_shell_ok = _mx is not None and _mx >= A74_FOLDMEAS_MIN
         dev_clut_shaped, _dr = _a69.dark_end(
             dev_clut_shaped, residual, node_lab, b2a_grid, model, _bd,
-            _l_min, ink_limit=ink_limit, fixed_nodes=fixed_nodes)
+            _l_min, ink_limit=ink_limit, fixed_nodes=fixed_nodes,
+            hold=_a69.A74_SHELLHOLD in candidates and _a74_shell_ok,
+            hue=_a69.A74_SHELLHUE in candidates and _a74_shell_ok)
         _emit(settings, f"Colorimetric table: dark end ({_dr['mode']}, "
                         f"{_dr.get('moved', _dr['nodes'])} nodes; research "
                         f"a71-darkray).")
