@@ -385,7 +385,39 @@ def test_a_file_dated_in_the_future_does_not_keep_a_dead_run(fake_temp):
     old = time.time() - (_STALE_AFTER_HOURS + 2) * 3600
     os.utime(deep.parent, (old, old))
     os.utime(run, (old, old))
-    folders, _ = _sweep_stale_temp_dirs()
+    # Swept two hours later: dating the file was the folder's last change,
+    # and the inode's change time (which os.utime cannot move ahead) says so
+    # (4.3.11; seen at once, it WAS changed just now).
+    real = time.time
+    try:
+        time.time = lambda: real() + 2 * 3600
+        folders, _ = _sweep_stale_temp_dirs()
+    finally:
+        time.time = real
+    assert not run.exists()
+    assert folders == 1
+
+
+def test_a_file_dated_hours_ahead_does_not_keep_a_dead_run_either(fake_temp):
+    """2026-10-21: 7.4 GB of dead run folders kept because a file was dated a
+    few hours ahead, inside the day of slack, so it read as "changed 0 min
+    ago" until the date came. MUTATION: make `_change_time` return the
+    modification date within the slack, as before 4.3.11."""
+    run = _aged(fake_temp / "chromiq-run-99999999-hours", _STALE_AFTER_HOURS + 2)
+    deep = run / "pytest-of-x" / "f.ti3"
+    deep.parent.mkdir(parents=True)
+    deep.write_text("x", encoding="utf-8")
+    ahead = time.time() + 3 * 3600
+    os.utime(deep, (ahead, ahead))
+    old = time.time() - (_STALE_AFTER_HOURS + 2) * 3600
+    os.utime(deep.parent, (old, old))
+    os.utime(run, (old, old))
+    real = time.time
+    try:
+        time.time = lambda: real() + 2 * 3600     # still before the date
+        folders, _ = _sweep_stale_temp_dirs()
+    finally:
+        time.time = real
     assert not run.exists()
     assert folders == 1
 

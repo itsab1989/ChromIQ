@@ -1369,12 +1369,26 @@ def _held_open_paths() -> "list[str]":
 _FUTURE_SLACK_S = 24 * 3600
 
 
+def _change_time(st, now: float) -> float:
+    """``scripts/session_cleanup.change_time``, the same rule: a modification
+    date in the future is replaced by the inode's change time, which a test's
+    ``os.utime`` cannot move ahead; only when that is ahead too (a clock put
+    back) does it count as "now", up to :data:`_FUTURE_SLACK_S` ahead."""
+    m = st.st_mtime
+    if m <= now:
+        return m
+    c = getattr(st, "st_ctime", m)
+    if c <= now:
+        return c
+    return now if m <= now + _FUTURE_SLACK_S else 0.0
+
+
 def _changed_since(folder: pathlib.Path, since: float) -> bool:
     """Whether anything in *folder*, at any depth, changed after *since*
     (and not in the future, see :data:`_FUTURE_SLACK_S`). Stops at the first
     such entry."""
     import time
-    future = time.time() + _FUTURE_SLACK_S
+    now = time.time()
     stack = [str(folder)]
     while stack:
         here = stack.pop()
@@ -1385,7 +1399,7 @@ def _changed_since(folder: pathlib.Path, since: float) -> bool:
                         st = child.stat(follow_symlinks=False)
                     except OSError:
                         continue
-                    if since < st.st_mtime <= future:
+                    if since < _change_time(st, now):
                         return True
                     if child.is_dir(follow_symlinks=False):
                         stack.append(child.path)

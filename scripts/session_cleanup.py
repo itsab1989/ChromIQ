@@ -80,19 +80,43 @@ def something_running() -> list[str]:
 #: A date further ahead than this is a test's fixture, not a change: one test
 #: dates a file in 2096, and every red or killed run holding it read as
 #: "changed 0 min ago" for ever. 34 run folders, 45 GB, kept as "in use"
-#: (2026-10-10). Up to a day ahead still counts as a change: a clock put
-#: back dates recent work in the future, and this sweep has no top-folder age
-#: check behind it. Same rule as tests/conftest.py::_FUTURE_SLACK_S.
+#: (2026-10-10). Up to a day ahead counts as a change only for a clock put
+#: back (`change_time`: the inode's own change time is in the future too).
+#: Same rule as tests/conftest.py::_FUTURE_SLACK_S.
 FUTURE_SLACK_S = 24 * 3600
 
 
-def _newest_mtime(path: Path) -> float:
-    """The newest change date at any depth, ignoring dates in the future."""
-    future = time.time() + FUTURE_SLACK_S
+def change_time(st, now: float) -> float:
+    """When the entry *st* (an ``os.stat_result``) really changed, as far as
+    "is somebody still using this?" is concerned.
+
+    Its modification date, unless that lies in the FUTURE. A test that dates a
+    file ahead (``os.utime``) or copies a fixture dated ahead cannot move the
+    inode's change time (``st_ctime``), which the system stamps with the real
+    clock at that moment: that is when the folder was last touched, and a
+    dead run folder then ages like any other. Before 4.3.11 a date up to a
+    day ahead counted as "changed 0 min ago" (and later than a day was
+    ignored), so a red run's folder holding such a file was kept on every
+    sweep until the date came: 7.4 GB had to be removed by hand on
+    2026-10-21. Only when the change time is in the future too, which is a
+    clock that was put back, does the date count as "now", up to a day ahead
+    (review of beta 18), and not at all beyond that."""
+    m = st.st_mtime
+    if m <= now:
+        return m
+    c = getattr(st, "st_ctime", m)
+    if c <= now:
+        return c
+    return now if m <= now + FUTURE_SLACK_S else 0.0
+
+
+def _newest_mtime(path: Path, now: "float | None" = None) -> float:
+    """The newest change at any depth (see `change_time` for a date in the
+    future), as seen at *now* (default: the clock)."""
+    now = time.time() if now is None else now
 
     def _m(p: Path) -> float:
-        m = p.lstat().st_mtime
-        return m if m <= future else 0.0
+        return change_time(p.lstat(), now)
 
     newest = 0.0
     try:
@@ -189,7 +213,7 @@ def in_use(path: Path, now: float, open_paths: "list[str]") -> str:
     m = re.match(r"chromiq-run-(\d+)-", path.name)
     if m and _pid_alive(int(m.group(1))):
         return f"its test run (pid {m.group(1)}) is still running"
-    age = now - _newest_mtime(path)
+    age = now - _newest_mtime(path, now)
     if age < IN_USE_FOR_S:
         return f"changed {max(0, int(age // 60))} min ago"
     if _held_open(path, open_paths):
@@ -283,7 +307,7 @@ def plan_and_kept(session_id: str = "") -> "tuple[list, list]":
         if not deletable:
             continue
         for p in paths:
-            if quiet and now - _newest_mtime(p) < quiet:
+            if quiet and now - _newest_mtime(p, now) < quiet:
                 continue
             if not is_ours(p):
                 continue

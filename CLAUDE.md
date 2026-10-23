@@ -344,6 +344,11 @@ i did a fresh install of macos."* The suite already cleans up after itself
   in the last 30 minutes, and anything a live process holds open: by the top
   folder's date alone it once deleted another session's running 3.27 GB run
   folder (review D, beta 12; `tests/test_temp_cleanup.py`).
+  A modification date in the FUTURE (tests date fixtures ahead) counts by
+  the inode's change time instead, which `os.utime` cannot move: before
+  4.3.11 a file dated a few hours ahead made a dead red-run folder "changed
+  0 min ago" on every sweep, and 7.4 GB were removed by hand on 2026-10-21
+  (`session_cleanup.change_time`, `conftest._change_time`).
 * `python3 scripts/disk_report.py` lists every place ChromIQ work writes to,
   with sizes and what is safe to remove; `--check` fails below 100 GB free or
   above 25 GB held. The monitor runs it every cycle (MONITOR.md step 2c).

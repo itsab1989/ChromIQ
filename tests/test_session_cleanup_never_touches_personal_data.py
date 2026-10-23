@@ -344,7 +344,10 @@ def test_a_file_dated_in_the_future_is_not_a_recent_change(three_folders):
     idle, _fresh, _held = three_folders
     future = time.time() + 70 * 365 * 86400
     os.utime(idle / "f.txt", (future, future))
-    assert S.in_use(idle, time.time(), []) == ""
+    # Seen two hours later: dating the file was the folder's last change.
+    # (Seen at once it WAS changed just now, which `change_time` now knows
+    # from the inode's own change time.)
+    assert S.in_use(idle, time.time() + 2 * 3600, []) == ""
 
 
 def test_a_file_dated_an_hour_ahead_is_still_a_recent_change(three_folders):
@@ -356,3 +359,54 @@ def test_a_file_dated_an_hour_ahead_is_still_a_recent_change(three_folders):
     soon = time.time() + 3600
     os.utime(idle / "f.txt", (soon, soon))
     assert "changed" in S.in_use(idle, time.time(), [])
+
+
+def test_a_file_dated_a_few_hours_ahead_does_not_keep_a_dead_folder(three_folders):
+    """2026-10-21: 7.4 GB of dead red-run folders had to be removed by hand.
+    A test dated a file a few hours ahead, inside the day of slack, so the
+    folder read as "changed 0 min ago" on every sweep until that date came.
+    The inode's change time says when the date was really set.
+
+    MUTATION: make `change_time` return ``m`` for any m within the slack, as
+    before 4.3.11: the folder is "changed 0 min ago" here."""
+    import time
+    idle, _fresh, _held = three_folders
+    t0 = time.time()
+    ahead = t0 + 3 * 3600
+    os.utime(idle / "f.txt", (ahead, ahead))
+    os.utime(idle, (t0 - 7200, t0 - 7200))
+    later = t0 + 2 * 3600            # two hours on: still before the date
+    assert S.in_use(idle, later, []) == ""
+    assert idle in {p for _w, p, _s in _plan_at(later)}
+
+
+def _plan_at(now):
+    import time as _t
+    real = _t.time
+    try:
+        S.time.time = lambda: now
+        return S.plan_and_kept("")[0]
+    finally:
+        S.time.time = real
+
+
+def test_change_time_rules():
+    """A future modification date counts by the inode's change time; only a
+    clock put back (both ahead) counts as now, and not beyond a day."""
+    from types import SimpleNamespace as St
+    now = 1_000_000_000.0
+    assert S.change_time(St(st_mtime=now - 50, st_ctime=now - 10), now) == now - 50
+    assert S.change_time(St(st_mtime=now + 3600, st_ctime=now - 600), now) == now - 600
+    assert S.change_time(St(st_mtime=now + 3600, st_ctime=now + 3500), now) == now
+    assert S.change_time(St(st_mtime=now + 3 * 86400, st_ctime=now + 3 * 86400), now) == 0.0
+
+
+def test_the_suites_own_sweep_uses_the_same_rule():
+    import conftest
+    from types import SimpleNamespace as St
+    now = 1_000_000_000.0
+    for st in (St(st_mtime=now - 50, st_ctime=now - 10),
+               St(st_mtime=now + 3600, st_ctime=now - 600),
+               St(st_mtime=now + 3600, st_ctime=now + 3500),
+               St(st_mtime=now + 3 * 86400, st_ctime=now + 3 * 86400)):
+        assert conftest._change_time(st, now) == S.change_time(st, now)
