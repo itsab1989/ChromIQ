@@ -404,6 +404,14 @@ def _grab_window_id(wid: int, path: Path) -> bool:
 
 
 def _grab_region(rect: str, path: Path) -> bool:
+    # AN OFFSCREEN APP HAS NO WINDOW ON ANY SCREEN (4.3.11): the rectangle
+    # would be a picture of whatever really is on Basti's screen there.
+    try:
+        from PyQt6.QtWidgets import QApplication
+        if QApplication.platformName() == "offscreen":
+            return False
+    except Exception:                                      # noqa: BLE001
+        pass
     try:
         subprocess.run(["screencapture", "-x", "-R", rect, str(path)],
                        check=True, timeout=30,
@@ -534,11 +542,6 @@ def capture_window(win, path: Path, settle: float = 0.6,
         # pop-up (PopupWatchdog) says no.
         return False, ("the window could not be captured by its id, and the "
                        "rectangle fallback would have to hide it")
-    # AN OFFSCREEN APP HAS NO WINDOW ON ANY SCREEN. The rectangle fallback
-    # below would photograph whatever really is on Basti's screen there.
-    if QApplication.platformName() == "offscreen":
-        return False, ("the app runs on the offscreen platform, so there is "
-                       "no window on screen to photograph")
     win.raise_()                    # the rectangle needs the window on top
     win.activateWindow()
     QApplication.processEvents()

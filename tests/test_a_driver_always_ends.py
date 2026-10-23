@@ -453,3 +453,16 @@ def test_build_app_really_keeps_a_driver_alive_and_records_the_exception(
                        env=env)
     assert r.returncode == 0 and "STILL ALIVE" in r.stdout, \
         (r.stdout[-800:], r.stderr[-1500:])
+
+
+def test_an_offscreen_app_never_photographs_a_rectangle_of_the_real_screen(
+        qapp, tmp_path, monkeypatch):
+    """Offscreen, the rectangle fallback would copy whatever is really on
+    Basti's screen at that place. MUTATION: drop the platform check in
+    `_grab_region`: screencapture is called."""
+    called = []
+    monkeypatch.setattr(onscreen_capture.subprocess, "run",
+                        lambda *a, **k: called.append(a))
+    assert QApplication.platformName() == "offscreen"
+    assert onscreen_capture._grab_region("0,0,10,10", tmp_path / "x.png") is False
+    assert called == []
