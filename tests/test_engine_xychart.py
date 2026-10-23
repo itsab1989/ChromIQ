@@ -96,13 +96,19 @@ def test_xy_mode_on_reads_sheets_and_saves(chart, monkeypatch):
     s = ReplaySession(base, replay, extra_args=["--xychart", "-c", "1"])
     try:
         # Each sheet asks to be placed; answer, then it reads + autosaves.
+        # The index is taken BEFORE the answer that makes the next sheet's
+        # question come, never after it: read after, a question that arrived
+        # in between was missed, the loop ended without answering it, and the
+        # wait below ran out at 90 s (seen in two loaded everyday runs).
+        idx = 0
         for _ in range(6):
             if s.proc.poll() is not None:
                 break
             try:
-                s.wait_event("xy_place_sheet", timeout=4, after=s.event_index())
+                s.wait_event("xy_place_sheet", timeout=4, after=idx)
             except TimeoutError:
                 break
+            idx = s.event_index()
             s.send(cmd="accept")
         # BUDGETED FOR A LOADED MACHINE, NOT AN IDLE ONE. These were 6 s and
         # 5 s. Measured idle, the whole test costs 4.04 s - most of it the
