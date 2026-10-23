@@ -447,6 +447,30 @@ def upsample(coarse: np.ndarray, g_coarse: int, g_fine: int) -> np.ndarray:
     return up.reshape(-1, n)
 
 
+A75_LIGHTKEEP = "a75-lightkeep"
+
+
+def light_weight(node_lab: np.ndarray) -> np.ndarray:
+    """a75-lightkeep: weight of the engine's own table per node: pale
+    out-of-gamut nodes only. 0 up to L* l0, smoothstep to 1 over the next
+    w L*; times a low-chroma gate (0 below C* c0, smoothstep to 1 over cw:
+    the near-neutral white above the paper keeps the port) and a
+    high-chroma gate (1 below C* chi - chw, smoothstep to 0 at chi: bright
+    saturated yellows and greens keep the port's chroma; with the engine's
+    clip there they print visibly duller, renders 2026-10-23).
+    Env CHROMIQ_A75_LIGHT=l0:w[:c0:cw[:chi:chw]], default 85:8:8:6:45:15."""
+    pv = [float(v) for v in os.environ.get("CHROMIQ_A75_LIGHT",
+                                           "85:8").split(":")]
+    l0, w = pv[0], pv[1]
+    c0, cw = (pv[2], pv[3]) if len(pv) >= 4 else (8.0, 6.0)
+    chi, chw = (pv[4], pv[5]) if len(pv) >= 6 else (45.0, 15.0)
+    nl = np.asarray(node_lab, float)
+    ch = np.hypot(nl[:, 1], nl[:, 2])
+    ss = lambda x: (lambda u: u * u * (3.0 - 2.0 * u))(np.clip(x, 0.0, 1.0))  # noqa: E731
+    return (ss((nl[:, 0] - l0) / max(w, 1e-6)) * ss((ch - c0) / max(cw, 1e-6))
+            * ss((chi - ch) / max(chw, 1e-6)))
+
+
 def dark_weight(node_lab: np.ndarray, l_black: float) -> np.ndarray:
     """a69-cmykport-dark: weight of colprof's table per node, 1 up to
     black + A69_DARK_L L*, smoothstep to 0 over the next A69_DARK_W L*
