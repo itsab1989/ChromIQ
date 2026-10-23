@@ -1424,7 +1424,8 @@ def give_custom_paper_driver_margins(print_info, page_box: tuple[float, float],
         left, bottom, right, top = margins
         rect = _PMRect(top=top, left=left, bottom=bottom, right=right)
         w_pt, h_pt = page_box
-        name = f"{w_pt * 25.4 / 72.0:.0f} x {h_pt * 25.4 / 72.0:.0f} mm"
+        # the name the print dialog shows for this paper: a real "×"
+        name = f"{w_pt * 25.4 / 72.0:.0f} × {h_pt * 25.4 / 72.0:.0f} mm"
         pid, pname = _cfstr(f"ChromIQ-chart-{w_pt:.2f}x{h_pt:.2f}"), _cfstr(name)
         paper, new_pf = ctypes.c_void_p(), ctypes.c_void_p()
         try:

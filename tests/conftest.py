@@ -271,6 +271,11 @@ def _one_qapplication_per_worker():
     except Exception:                                    # pragma: no cover
         pass          # a Qt build without Fusion: better the platform default
                       # than no QApplication at all
+    # LETTERS AS THEY ARE TYPED, as main() sets them right after its style
+    # (ui/font_features.py): every width and pixel the suite measures comes
+    # out of the font the app really draws with.
+    from ui.font_features import show_text_as_typed
+    show_text_as_typed(_PINNED_QAPP)
     # THE COLLECTOR RUNS WHERE THE APP'S DOES (B8-1392): on this thread, from
     # the event loop, never inside Qt's delivery of an event and never on
     # another thread. `main()` installs the same thing right after its

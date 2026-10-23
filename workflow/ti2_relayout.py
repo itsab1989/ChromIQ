@@ -142,8 +142,8 @@ def check_printtarg_can_lay_out(instrument_flag: str, paper_flag: str) -> None:
                 and PRINTTARG_PAPER_MIN_MM <= h <= PRINTTARG_PAPER_MAX_MM):
             raise PrinttargCannotLayOutChart(
                 f"printtarg cannot lay out a chart on paper this size "
-                f"({w:g} x {h:g} mm). Its largest custom page is "
-                f"{PRINTTARG_PAPER_MAX_MM:g} x {PRINTTARG_PAPER_MAX_MM:g} mm."
+                f"({w:g} × {h:g} mm). Its largest custom page is "
+                f"{PRINTTARG_PAPER_MAX_MM:g} × {PRINTTARG_PAPER_MAX_MM:g} mm."
             )
 
 

@@ -211,6 +211,9 @@ def build_app():
     for fp in resource_path("assets/fonts").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(fp))
     app.setStyle(WinButtonLayoutStyle("Fusion"))
+    # as main() does: letters as they are typed, "4x6" never "4×6"
+    from ui.font_features import show_text_as_typed
+    show_text_as_typed(app)
     # THE SAME FILTERS AS main(), not two of them. Without DialogFocusFilter
     # a driver's pop-ups never had their safe default marked (K44) nor their
     # default frozen, so a driver photographed a Cancel filled in the tab's

@@ -3115,7 +3115,7 @@ class _NewChartDialog(QDialog):
             "because the printer driver (the software that splits each "
             "colour into the inks that print it) mixes these three most "
             "often. Inks on opposite sides of the colour circle (such as "
-            "cyan and orange) get a coarser grid of at most 2 x 2 (35 and "
+            "cyan and orange) get a coarser grid of at most 2 × 2 (35 and "
             "100 %), because the driver rarely prints them together. A "
             "light ink with its own dark ink gets a grid of the hand-over "
             "from light to dark (the light ink at 25 to 100 % with the dark "

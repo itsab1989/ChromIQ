@@ -179,6 +179,10 @@ def main() -> int:
         pass  # fonts dir missing — app falls back to system fonts
 
     app.setStyle(WinButtonLayoutStyle("Fusion"))
+    # LETTERS AS THEY ARE TYPED: no contextual alternates, so "4x6" stays
+    # "4x6" on screen and never becomes "4×6" (ui/font_features.py).
+    from ui.font_features import show_text_as_typed
+    show_text_as_typed(app)
 
     # FOUR APP-WIDE FILTERS, ONE INSTALLED OBJECT.
     #
