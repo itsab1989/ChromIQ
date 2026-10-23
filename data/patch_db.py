@@ -38,6 +38,8 @@ _PER_SHEET_CAPACITY: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   460,
     ("i1", False, "127x178"):   169,
     ("i1", False, "4x6"):       100,
+    ("i1", False, "10x15cm"):   100,
+    ("i1", False, "postcard"):  100,
     # ---- i1Pro 3 Plus (measured with -i3p; ~5× fewer per sheet than i1) --------
     ("p3", False, "A2"):        225,
     ("p3", False, "594x420"):      324,
@@ -54,6 +56,8 @@ _PER_SHEET_CAPACITY: dict[tuple[str, bool, str], int] = {
     ("p3", False, "203x254"):    99,
     ("p3", False, "127x178"):    30,
     ("p3", False, "4x6"):        20,
+    ("p3", False, "10x15cm"):    20,
+    ("p3", False, "postcard"):   20,
     # ---- ColorMunki / i1Studio / ColorChecker Studio — standard ----
     ("CM", False, "A2"):        490,
     ("CM", False, "594x420"):      480,
@@ -70,6 +74,8 @@ _PER_SHEET_CAPACITY: dict[tuple[str, bool, str], int] = {
     ("CM", False, "203x254"):    78,
     ("CM", False, "127x178"):    21,
     ("CM", False, "4x6"):        18,
+    ("CM", False, "10x15cm"):    12,
+    ("CM", False, "postcard"):   10,
     # ---- ColorMunki + rig / double density (-h) --------------------
     ("CM", True,  "A2"):       1015,
     ("CM", True,  "594x420"):      966,
@@ -86,6 +92,8 @@ _PER_SHEET_CAPACITY: dict[tuple[str, bool, str], int] = {
     ("CM", True,  "203x254"):   156,
     ("CM", True,  "127x178"):    56,
     ("CM", True,  "4x6"):        30,
+    ("CM", True,  "10x15cm"):    30,
+    ("CM", True,  "postcard"):   30,
     # ---- SpectroScan (flatbed XY scanner) --------------------------
     # Re-measured via scripts/measure_ss_capacity.py against Argyll 3.5.0.
     # SS layout is independent of -L (flatbed reads individual patches,
@@ -105,6 +113,8 @@ _PER_SHEET_CAPACITY: dict[tuple[str, bool, str], int] = {
     ("SS", False, "203x254"):   825,
     ("SS", False, "127x178"):   308,
     ("SS", False, "4x6"):       209,
+    ("SS", False, "10x15cm"):   180,
+    ("SS", False, "postcard"):  180,
     # ---- SpectroScan + hexagon (-h): ~14% denser packing ------------
     # Measured via scripts/measure_ss_hex_capacity.py.
     ("SS", True,  "A2"):       5264,
@@ -122,6 +132,8 @@ _PER_SHEET_CAPACITY: dict[tuple[str, bool, str], int] = {
     ("SS", True,  "203x254"):   950,
     ("SS", True,  "127x178"):   350,
     ("SS", True,  "4x6"):       210,
+    ("SS", True,  "10x15cm"):   210,
+    ("SS", True,  "postcard"):  200,
 }
 
 # Baseline printtarg layout parameters these values were measured with
@@ -232,6 +244,10 @@ PAPER_SIZES: list[str] = [
     "A4", "A4R",
     "Letter", "LetterR",
     "203x254", "127x178", "4x6",
+    # 4.3.10 (jctay 149803, Basti 2026-10-23): what many printers sold for
+    # 4 x 6 in photos really print. Codes of their own, so "4x6" and every
+    # custom "100x150" chart keep exactly what they were.
+    "10x15cm", "postcard",
 ]
 
 # Paper sizes hidden in guided mode for specific instruments.
@@ -243,7 +259,7 @@ PAPER_SIZES: list[str] = [
 # CM is absent from this map: it shows every paper, including both A2 orientations.
 EXCLUDED_PAPERS: dict[str, set[str]] = {
     "i1": {"A2", "A3", "329x483"},
-    "p3": {"A2", "A3", "329x483", "127x178", "4x6"},
+    "p3": {"A2", "A3", "329x483", "127x178", "4x6", "10x15cm", "postcard"},
     "SS": {"594x420"},
 }
 
@@ -255,6 +271,8 @@ PAPER_FALLBACK: dict[str, str] = {
     "329x483": "483x329",
     "127x178": "A4",
     "4x6":     "A4",
+    "10x15cm": "A4",
+    "postcard": "A4",
 }
 
 PAPER_LABELS: dict[str, str] = {
@@ -273,6 +291,21 @@ PAPER_LABELS: dict[str, str] = {
     "203x254": "8×10\" (203 × 254 mm)",
     "127x178": "5×7\" (127 × 178 mm)",
     "4x6":     "4×6\" (102 × 152 mm)",
+    "10x15cm": "10 × 15 cm (100 × 150 mm) Portrait",
+    "postcard": "Postcard (100 × 148 mm) Portrait",
+}
+
+#: The two photo papers' names are words, so they are translated too (the
+#: rest of a dropdown row is a size or an English paper name).
+_PAPER_NAME_WORDS: dict[str, str] = {
+    "10x15cm": "10 × 15 cm (100 × 150 mm)",
+    "postcard": "Postcard (100 × 148 mm)",
+}
+#: ...and a generated chart's name spells them as their millimetres, as Knut's
+#: own 10 x 15 cm presets always have ("100x150mm-600p-4pages-Portrait").
+_PAPER_NAME_TOKENS: dict[str, str] = {
+    "10x15cm": "100x150mm",
+    "postcard": "100x148mm",
 }
 
 #: A custom paper size as the Custom size boxes spell it: two numbers in
@@ -291,6 +324,10 @@ def paper_display_label(code: str) -> str:
     """
     from core.i18n import tr
     label = PAPER_LABELS.get(code, code)
+    if code == "10x15cm":
+        return tr("10 × 15 cm (100 × 150 mm)") + " " + tr("Portrait")
+    if code == "postcard":
+        return tr("Postcard (100 × 148 mm)") + " " + tr("Portrait")
     # Two literals, not a variable: the catalogue extractor cannot see what a
     # tr(variable) will be asked for.
     if label.endswith(" Portrait"):
@@ -318,6 +355,8 @@ def paper_name_token(code: str) -> str:
     and ``11x17`` are INCH designations and resolve through their labels above,
     never through the millimetre branch.
     """
+    if code in _PAPER_NAME_TOKENS:
+        return _PAPER_NAME_TOKENS[code]
     label = PAPER_LABELS.get(code)
     if not label:
         token = str(code).strip()
@@ -373,6 +412,8 @@ PAPER_PRINTTARG_ARG: dict[str, str] = {
     "203x254": "203x254",
     "127x178": "127x178",
     "4x6":     "4x6",
+    "10x15cm": "100x150",
+    "postcard": "100x148",
 }
 
 
@@ -397,6 +438,8 @@ _PER_SHEET_CAPACITY_NO_LB: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   400,
     ("i1", False, "127x178"):   143,
     ("i1", False, "4x6"):        80,
+    ("i1", False, "10x15cm"):    70,
+    ("i1", False, "postcard"):   70,
     # ---- i1Pro 3 Plus (measured with -i3p; ~5× fewer per sheet than i1) --------
     ("p3", False, "A2"):        207,
     ("p3", False, "594x420"):      306,
@@ -413,6 +456,8 @@ _PER_SHEET_CAPACITY_NO_LB: dict[tuple[str, bool, str], int] = {
     ("p3", False, "203x254"):    90,
     ("p3", False, "127x178"):    25,
     ("p3", False, "4x6"):        16,
+    ("p3", False, "10x15cm"):    12,
+    ("p3", False, "postcard"):   12,
     # ---- ColorMunki / i1Studio / ColorChecker Studio — standard ----
     # -L has no effect on CM layout; values identical to with-L baseline
     ("CM", False, "A2"):        490,
@@ -430,6 +475,8 @@ _PER_SHEET_CAPACITY_NO_LB: dict[tuple[str, bool, str], int] = {
     ("CM", False, "203x254"):    78,
     ("CM", False, "127x178"):    21,
     ("CM", False, "4x6"):        18,
+    ("CM", False, "10x15cm"):    12,
+    ("CM", False, "postcard"):   10,
     # ---- ColorMunki + rig / double density (-h) --------------------
     ("CM", True,  "A2"):       1015,
     ("CM", True,  "594x420"):      966,
@@ -446,6 +493,8 @@ _PER_SHEET_CAPACITY_NO_LB: dict[tuple[str, bool, str], int] = {
     ("CM", True,  "203x254"):   156,
     ("CM", True,  "127x178"):    56,
     ("CM", True,  "4x6"):        30,
+    ("CM", True,  "10x15cm"):    30,
+    ("CM", True,  "postcard"):   30,
     # ---- SpectroScan (flatbed XY scanner) --------------------------
     # Re-measured via scripts/measure_ss_capacity.py against Argyll 3.5.0.
     # -L has no effect on SS layout — values identical to the with-L table.
@@ -464,6 +513,8 @@ _PER_SHEET_CAPACITY_NO_LB: dict[tuple[str, bool, str], int] = {
     ("SS", False, "203x254"):   825,
     ("SS", False, "127x178"):   308,
     ("SS", False, "4x6"):       209,
+    ("SS", False, "10x15cm"):   180,
+    ("SS", False, "postcard"):  180,
     # ---- SpectroScan + hexagon (-h): -L is still a no-op on SS ------
     ("SS", True,  "A2"):       5264,
     ("SS", True,  "594x420"):     5200,
@@ -480,6 +531,8 @@ _PER_SHEET_CAPACITY_NO_LB: dict[tuple[str, bool, str], int] = {
     ("SS", True,  "203x254"):   950,
     ("SS", True,  "127x178"):   350,
     ("SS", True,  "4x6"):       210,
+    ("SS", True,  "10x15cm"):   210,
+    ("SS", True,  "postcard"):  200,
 }
 
 
@@ -512,6 +565,8 @@ _PER_SHEET_CAPACITY_M10: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   418,
     ("i1", False, "127x178"):   144,
     ("i1", False, "4x6"):        90,
+    ("i1", False, "10x15cm"):    90,
+    ("i1", False, "postcard"):   90,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        216,
     ("p3", False, "594x420"):      315,
@@ -545,6 +600,8 @@ _PER_SHEET_CAPACITY_M10_NO_LB: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   380,
     ("i1", False, "127x178"):   120,
     ("i1", False, "4x6"):        70,
+    ("i1", False, "10x15cm"):    70,
+    ("i1", False, "postcard"):   70,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        207,
     ("p3", False, "594x420"):      306,
@@ -586,6 +643,8 @@ _PER_SHEET_CAPACITY_A095: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   504,
     ("i1", False, "127x178"):   182,
     ("i1", False, "4x6"):       121,
+    ("i1", False, "10x15cm"):   110,
+    ("i1", False, "postcard"):  100,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        260,
     ("p3", False, "594x420"):      370,
@@ -602,6 +661,8 @@ _PER_SHEET_CAPACITY_A095: dict[tuple[str, bool, str], int] = {
     ("p3", False, "203x254"):   108,
     ("p3", False, "127x178"):    35,
     ("p3", False, "4x6"):        20,
+    ("p3", False, "10x15cm"):    20,
+    ("p3", False, "postcard"):   20,
     # ---- ColorMunki / i1Studio / ColorChecker Studio — standard ----
     # -L has no effect on CM layout; values identical to no-LB table.
     ("CM", False, "A2"):        555,
@@ -635,6 +696,8 @@ _PER_SHEET_CAPACITY_A095: dict[tuple[str, bool, str], int] = {
     ("CM", True,  "203x254"):   182,
     ("CM", True,  "127x178"):    56,
     ("CM", True,  "4x6"):        36,
+    ("CM", True,  "10x15cm"):    30,
+    ("CM", True,  "postcard"):   30,
 }
 
 _PER_SHEET_CAPACITY_A095_NO_LB: dict[tuple[str, bool, str], int] = {
@@ -654,6 +717,8 @@ _PER_SHEET_CAPACITY_A095_NO_LB: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   441,
     ("i1", False, "127x178"):   143,
     ("i1", False, "4x6"):        88,
+    ("i1", False, "10x15cm"):    88,
+    ("i1", False, "postcard"):   80,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        250,
     ("p3", False, "594x420"):      360,
@@ -703,6 +768,8 @@ _PER_SHEET_CAPACITY_A095_NO_LB: dict[tuple[str, bool, str], int] = {
     ("CM", True,  "203x254"):   182,
     ("CM", True,  "127x178"):    56,
     ("CM", True,  "4x6"):        36,
+    ("CM", True,  "10x15cm"):    30,
+    ("CM", True,  "postcard"):   30,
 }
 
 _PER_SHEET_CAPACITY_A095_M10: dict[tuple[str, bool, str], int] = {
@@ -722,6 +789,8 @@ _PER_SHEET_CAPACITY_A095_M10: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   460,
     ("i1", False, "127x178"):   169,
     ("i1", False, "4x6"):       100,
+    ("i1", False, "10x15cm"):    90,
+    ("i1", False, "postcard"):   90,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        250,
     ("p3", False, "594x420"):      370,
@@ -756,6 +825,8 @@ _PER_SHEET_CAPACITY_A095_M10_NO_LB: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   420,
     ("i1", False, "127x178"):   143,
     ("i1", False, "4x6"):        70,
+    ("i1", False, "10x15cm"):    70,
+    ("i1", False, "postcard"):   70,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        240,
     ("p3", False, "594x420"):      360,
@@ -799,6 +870,8 @@ _PER_SHEET_CAPACITY_TRIPLE: dict[str, int] = {
     "203x254":  270,
     "127x178":  100,
     "4x6":       64,
+    "10x15cm":   64,
+    "postcard":  64,
 }
 
 _PER_SHEET_CAPACITY_TRIPLE_NO_LB: dict[str, int] = {
@@ -818,6 +891,8 @@ _PER_SHEET_CAPACITY_TRIPLE_NO_LB: dict[str, int] = {
     "203x254":  240,
     "127x178":   80,
     "4x6":       48,
+    "10x15cm":   48,
+    "postcard":  48,
 }
 
 
@@ -847,6 +922,8 @@ _PER_SHEET_CAPACITY_P: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   460,
     ("i1", False, "127x178"):   169,
     ("i1", False, "4x6"):       100,
+    ("i1", False, "10x15cm"):   100,
+    ("i1", False, "postcard"):  100,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        600,
     ("p3", False, "594x420"):      576,
@@ -863,6 +940,8 @@ _PER_SHEET_CAPACITY_P: dict[tuple[str, bool, str], int] = {
     ("p3", False, "203x254"):    99,
     ("p3", False, "127x178"):    30,
     ("p3", False, "4x6"):        20,
+    ("p3", False, "10x15cm"):    20,
+    ("p3", False, "postcard"):   20,
 }
 
 _PER_SHEET_CAPACITY_NO_LB_P: dict[tuple[str, bool, str], int] = {
@@ -882,6 +961,8 @@ _PER_SHEET_CAPACITY_NO_LB_P: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   400,
     ("i1", False, "127x178"):   143,
     ("i1", False, "4x6"):        80,
+    ("i1", False, "10x15cm"):    70,
+    ("i1", False, "postcard"):   70,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        552,
     ("p3", False, "594x420"):      544,
@@ -919,6 +1000,8 @@ _PER_SHEET_CAPACITY_M10_P: dict[tuple[str, bool, str], int] = {
     # infeasible only in the non-P M10 tables.
     ("i1", False, "127x178"):   144,
     ("i1", False, "4x6"):        90,
+    ("i1", False, "10x15cm"):    90,
+    ("i1", False, "postcard"):   90,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        576,
     ("p3", False, "594x420"):      560,
@@ -955,6 +1038,8 @@ _PER_SHEET_CAPACITY_M10_NO_LB_P: dict[tuple[str, bool, str], int] = {
     # infeasible only in the non-P M10 tables.
     ("i1", False, "127x178"):   120,
     ("i1", False, "4x6"):        70,
+    ("i1", False, "10x15cm"):    70,
+    ("i1", False, "postcard"):   70,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        552,
     ("p3", False, "594x420"):      544,
@@ -989,6 +1074,8 @@ _PER_SHEET_CAPACITY_A095_P: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   504,
     ("i1", False, "127x178"):   182,
     ("i1", False, "4x6"):       121,
+    ("i1", False, "10x15cm"):   110,
+    ("i1", False, "postcard"):  100,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        650,
     ("p3", False, "594x420"):      629,
@@ -1005,6 +1092,8 @@ _PER_SHEET_CAPACITY_A095_P: dict[tuple[str, bool, str], int] = {
     ("p3", False, "203x254"):   108,
     ("p3", False, "127x178"):    35,
     ("p3", False, "4x6"):        20,
+    ("p3", False, "10x15cm"):    20,
+    ("p3", False, "postcard"):   20,
 }
 
 _PER_SHEET_CAPACITY_A095_NO_LB_P: dict[tuple[str, bool, str], int] = {
@@ -1024,6 +1113,8 @@ _PER_SHEET_CAPACITY_A095_NO_LB_P: dict[tuple[str, bool, str], int] = {
     ("i1", False, "203x254"):   441,
     ("i1", False, "127x178"):   143,
     ("i1", False, "4x6"):        88,
+    ("i1", False, "10x15cm"):    88,
+    ("i1", False, "postcard"):   80,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        625,
     ("p3", False, "594x420"):      612,
@@ -1061,6 +1152,8 @@ _PER_SHEET_CAPACITY_A095_M10_P: dict[tuple[str, bool, str], int] = {
     # infeasible only in the non-P M10 tables.
     ("i1", False, "127x178"):   169,
     ("i1", False, "4x6"):       100,
+    ("i1", False, "10x15cm"):    90,
+    ("i1", False, "postcard"):   90,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        625,
     ("p3", False, "594x420"):      629,
@@ -1097,6 +1190,8 @@ _PER_SHEET_CAPACITY_A095_M10_NO_LB_P: dict[tuple[str, bool, str], int] = {
     # infeasible only in the non-P M10 tables.
     ("i1", False, "127x178"):   143,
     ("i1", False, "4x6"):        70,
+    ("i1", False, "10x15cm"):    70,
+    ("i1", False, "postcard"):   70,
     # ---- i1Pro 3 Plus ---------------------------------------------
     ("p3", False, "A2"):        600,
     ("p3", False, "594x420"):      612,

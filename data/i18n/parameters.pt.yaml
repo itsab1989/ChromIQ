@@ -544,7 +544,7 @@ parameters:
       tooltip_title: "Formato do papel (-p)"
       tooltip_body: |-
         Define as dimensões de cada folha da carta impressa. A carta
-        preenche sempre a página de borda a borda — papel maior significa
+        preenche sempre a página de borda a borda: papel maior significa
         mais amostras e, portanto, um perfil mais detalhado com menos
         folhas.
 
@@ -552,10 +552,10 @@ parameters:
         orientação. Os leitores de tiras (família i1Pro) leem de cima
         para baixo, por isso:
 
-          •  Vertical — tiras mais longas, em menor número. A escolha
+          •  Vertical: tiras mais longas, em menor número. A escolha
              padrão.
 
-          •  Horizontal (A4R, LetterR, 420×297…) — tiras mais curtas, em
+          •  Horizontal (A4R, LetterR, 420×297…): tiras mais curtas, em
              maior número. Use quando a impressora alimenta o papel
              horizontal de forma mais fiável, ou quando uma folha
              vertical deixaria a última tira demasiado perto da borda do
@@ -567,6 +567,18 @@ parameters:
 
         Se mudar de formato, o número de amostras e de páginas na
         pré-visualização de comandos atualiza-se automaticamente.
+
+        IMPRESSORAS PARA FOTOS DE 4 × 6 POLEGADAS
+        Muitas não imprimem exatamente 4 × 6 polegadas (101,6 × 152,4 mm).
+        Algumas imprimem 10 × 15 cm (100 × 150 mm), e as impressoras de
+        postais como a Canon SELPHY imprimem 100 × 148 mm. Escolha o
+        tamanho que a definição de papel da sua impressora indica: 4 × 6
+        polegadas, 10 × 15 cm ou Postal. Se não tiver a certeza, veja que
+        tamanhos de papel a janela de impressão oferece. Uma carta
+        disposta para um papel um pouco maior do que o que a impressora
+        aceita só pode ser impressa quando o que não cabe é margem vazia;
+        caso contrário, o ChromIQ pede-lhe que a volte a dispor para o
+        papel mais pequeno.
       labels:
         - "A2 vertical (420 × 594 mm)"
         - "A2 horizontal (594 × 420 mm)"
@@ -583,6 +595,8 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Postal (100 × 148 mm)"
         - "Personalizado (introduzir medidas)"
     "-t":
       name: "DPI de saída do TIFF"

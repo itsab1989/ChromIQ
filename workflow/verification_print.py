@@ -307,7 +307,8 @@ def write_print_record(ti2_path: Path, *, colour: str, intent: str,
                        source_profile: str = "",
                        calibration: "dict | None" = None,
                        path: str = "", printer: str = "",
-                       postscript: str = "") -> "Path | None":
+                       postscript: str = "",
+                       outside_paper_mm: "dict | None" = None) -> "Path | None":
     """Record how the sheet was produced (A15–A18). Returns the path, or None
     when the record could not be written (never raises — a failed record must
     not stop a print job that is already correct).
@@ -332,6 +333,10 @@ def write_print_record(ti2_path: Path, *, colour: str, intent: str,
         rec["printer"] = str(printer)
     if postscript:
         rec["postscript"] = str(postscript)
+    if outside_paper_mm:
+        # a chart a little larger than its paper, printed at 100 %: how much
+        # empty margin was outside the paper, per side (workflow.overhang)
+        rec["outside_paper_mm"] = dict(outside_paper_mm)
     try:
         from core.version import APP_VERSION
         rec["app_version"] = str(APP_VERSION)

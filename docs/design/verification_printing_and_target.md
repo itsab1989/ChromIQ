@@ -1225,6 +1225,51 @@ ended in `/rangecheck` (5 to 7 inks). Since 4.3.8 such a chart is drawn with
 the dictionary form of `image` (`postscript_generator._build_ps`), measured
 ink by ink with Ghostscript's `tiffsep`.
 
+### 3.10 A chart a little larger than its paper (jctay 149803, 4.3.10)
+
+#### ⏳ Awaiting confirmation: printed at 100 % when only empty margin is lost
+
+**Confirmed by:** *nobody yet.*
+
+jctay (forum 149803): a 4 x 6 in chart (101.6 x 152.4 mm) was refused by
+Print Direct on a photo printer whose card is about 100 x 148 mm. Basti,
+2026-10-23: *"ideally i don't want an additional dialog for this but a way
+that this gets printed without a warning on a printer like jctay has"*.
+Built in `workflow/overhang.py`; every route asks it the same question.
+
+**The rule.** A chart larger than the paper by at most 5 mm and at most 3 %
+on each axis is printed at exactly 100 %, never scaled, when everything that
+would fall off the paper is empty: no ink at all (patches, strip letters,
+notes, the ruler marks and printtarg's caption line count as ink), and the
+white the instrument needs around the PATCHES kept (i1Pro family 10 mm,
+i1Pro 3 Plus 20 mm, ColorMunki 25 mm, any other 5 mm; a chart whose
+instrument is not known keeps 25 mm), with 1 mm to spare for the paper
+feed. The chart is centred when that keeps all of it; otherwise it is moved
+just far enough that the cut falls in the side that has the room. More than
+that, or a chart that cannot be read as RGB or grey: the old answers stand.
+
+| Condition | Action | Code |
+|---|---|---|
+| Direct route (macOS, Linux; Windows with the switch off and a PostScript printer), safe | Printed at 100 %, placed as above, no extra window; the usual confirmation shows no size warning. A line in the log and the status bar, M-PRINT-CHART-CUT-PARTS `_OVER_PAPER_LOG`, and the print record keeps `outside_paper_mm` | `TabPrint._print_pages`, `_overhang_plan`, `_note_overhang`; `overhang.placed` read by `postscript_generator` (PS and the exact-size PDF) |
+| Direct route, not safe (overhang within the limits) | The confirmation window shows M-PRINT-CHART-CUT with "If you print anyway ..." even when the confirmation is switched off; Print prints at 100 %, centred, cut | `TabPrint._print_pages`, `_overhang_text` |
+| Windows dialog route, safe | Printed at 100 %, placed as above (replaces the 2 % slack, which printed any chart up to 2 % larger centred, whatever was cut) | `TabPrint._print_native_qt` |
+| Windows dialog route, not safe | Refused, no record: M-PRINT-CHART-CUT with "Nothing was printed." | same |
+| macOS dialog route, safe | Printed at 100 %, placed as above | `native_print_macos._ChartPrintView`, `last_overhang` |
+| macOS dialog route, not safe | Refused after the dialog (`ChartOverPaper`), M-PRINT-CHART-CUT | `native_print_macos`, `TabPrint` |
+| More than 5 mm or 3 % over | Unchanged: the mismatch warning (direct) or M-PRINT-WIN-DIALOG-TOO-BIG (Windows dialog) | as before |
+
+Measured on screen, 2026-10-23, with a capture queue (no printer; agent20
+`part2/`): ChromIQ's default printtarg 4 x 6 in i1Pro chart is NOT safe on
+100 x 148 or 100 x 150 mm, because printtarg's caption line ("ArgyllCMS -
+Chart ...") runs from edge to edge on a card that small; the same chart
+with the caption whitened printed at 100 %, the job's patches 1.0 mm right
+and 2.2 mm up (100 x 148) or 1.2 mm up (100 x 150), exactly as planned
+(rendered with Ghostscript); Knut's 600-patch 10 x 15 cm card (ruler marks
+2 mm from the edge) is not safe on 100 x 148 mm. The named papers
+"10 x 15 cm (100 x 150 mm)" and "Postcard (100 x 148 mm)" in Create Chart
+are what makes a chart for such a printer fit. Whether printtarg's caption
+line may be cut is a question for Basti.
+
 ---
 
 ## 5. Implementation plan, ordered to be de-risked

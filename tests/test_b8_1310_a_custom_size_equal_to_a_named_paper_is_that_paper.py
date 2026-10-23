@@ -53,6 +53,10 @@ SIZES_MM = {
     "203x254": (203, 254), "127x178": (127, 178),
     "4x6": (101.6, 152.4),
 }
+#: 4.3.10's photo papers (jctay 149803): named, but a custom size is never
+#: taken for them, so Knut's own custom 100 x 150 presets keep their lists
+#: (core.curated_presets.PHOTO_PAPERS_NOT_MATCHED_BY_SIZE).
+NOT_BY_SIZE = {"10x15cm", "postcard"}
 
 #: (Custom W x H as typed in whole millimetres, the class a person expects)
 CASES = [
@@ -98,7 +102,8 @@ def _class(paper) -> str:
 
 
 def test_every_named_paper_has_a_size_here():
-    assert NAMED <= set(SIZES_MM), NAMED - set(SIZES_MM)
+    assert NAMED - NOT_BY_SIZE <= set(SIZES_MM), NAMED - NOT_BY_SIZE - set(SIZES_MM)
+    assert cp.PHOTO_PAPERS_NOT_MATCHED_BY_SIZE == NOT_BY_SIZE
 
 
 @pytest.mark.parametrize("dims,want", CASES,

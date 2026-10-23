@@ -17,7 +17,7 @@ from data.patch_db import EXCLUDED_PAPERS, PAPER_LABELS, PAPER_SIZES
 # and p3's smallest photo formats still hold too few patches for a usable
 # profile. (#93)
 ENGINE_EXCLUDED_PAPERS: dict[str, set[str]] = {
-    "p3": {"127x178", "4x6"},
+    "p3": {"127x178", "4x6", "10x15cm", "postcard"},
     "SS": {"594x420"},
     # CR30: no entry, DELIBERATELY (#159). The exclusions above exist for
     # physical reasons - the i1Pro 3+'s 20 mm patch cannot make a usable chart
@@ -38,6 +38,8 @@ _NAMED_MM: dict[str, tuple[float, float]] = {
     "11x17":   (279.4, 431.8),
     "Legal":   (215.9, 355.6),
     "4x6":     (101.6, 152.4),
+    "10x15cm": (100.0, 150.0),
+    "postcard": (100.0, 148.0),
 }
 
 

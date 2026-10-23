@@ -533,7 +533,7 @@ parameters:
       tooltip_title: "Format papieru (-p)"
       tooltip_body: |-
         Ustala wymiary każdego arkusza drukowanego wzorca. Wzorzec zawsze
-        wypełnia stronę od krawędzi do krawędzi — większy papier mieści
+        wypełnia stronę od krawędzi do krawędzi: większy papier mieści
         więcej pól, czyli bardziej szczegółowy profil z mniejszej liczby
         arkuszy.
 
@@ -541,9 +541,9 @@ parameters:
         z orientacją. Czytniki pasków (rodzina i1Pro) czytają z góry na
         dół, więc:
 
-          •  Pionowo — dłuższe paski, mniej ich. Standardowy wybór.
+          •  Pionowo: dłuższe paski, mniej ich. Standardowy wybór.
 
-          •  Poziomo (A4R, LetterR, 420×297…) — krótsze paski, więcej
+          •  Poziomo (A4R, LetterR, 420×297…): krótsze paski, więcej
              ich. Użyj, gdy drukarka pewniej podaje papier poziomo albo
              gdy arkusz pionowy zostawiłby ostatni pasek zbyt blisko
              krawędzi papieru.
@@ -554,6 +554,18 @@ parameters:
 
         Po zmianie formatu liczba pól i stron w podglądzie poleceń
         aktualizuje się automatycznie.
+
+        DRUKARKI DO ZDJĘĆ 4 × 6 CALI
+        Wiele z nich nie drukuje dokładnie 4 × 6 cali (101,6 × 152,4 mm).
+        Niektóre drukują 10 × 15 cm (100 × 150 mm), a drukarki do
+        pocztówek, takie jak Canon SELPHY, drukują 100 × 148 mm. Wybierz
+        rozmiar, który podaje ustawienie papieru twojej drukarki: 4 × 6
+        cali, 10 × 15 cm albo Pocztówka. Jeśli nie masz pewności, sprawdź,
+        jakie rozmiary papieru oferuje jej okno drukowania. Wzorzec
+        rozłożony na trochę większy papier, niż przyjmuje drukarka, da się
+        wydrukować tylko wtedy, gdy to, co się nie mieści, jest pustym
+        marginesem; w przeciwnym razie ChromIQ poprosi o rozłożenie go na
+        nowo na mniejszy papier.
       labels:
         - "A2 pionowo (420 × 594 mm)"
         - "A2 poziomo (594 × 420 mm)"
@@ -570,6 +582,8 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Pocztówka (100 × 148 mm)"
         - "Niestandardowy (wpisz wymiary)"
     "-t":
       name: "DPI wyjściowego TIFF-a"

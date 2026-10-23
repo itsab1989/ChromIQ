@@ -551,7 +551,7 @@ parameters:
       tooltip_title: "Format de papier (-p)"
       tooltip_body: |-
         Définit les dimensions de chaque feuille de la mire imprimée. La
-        mire remplit toujours la page bord à bord — un papier plus grand
+        mire remplit toujours la page bord à bord: un papier plus grand
         signifie plus de plages, donc un profil plus détaillé avec moins
         de feuilles.
 
@@ -559,10 +559,10 @@ parameters:
         comprise. Les lecteurs de bandes (famille i1Pro) lisent de haut en
         bas, donc :
 
-          •  Portrait — bandes plus longues, moins nombreuses. Le choix
+          •  Portrait: bandes plus longues, moins nombreuses. Le choix
              standard.
 
-          •  Paysage (A4R, LetterR, 420×297…) — bandes plus courtes, plus
+          •  Paysage (A4R, LetterR, 420×297…): bandes plus courtes, plus
              nombreuses. À utiliser quand l'imprimante charge le paysage
              plus fiablement, ou quand une feuille portrait laisserait la
              dernière bande trop près du bord du papier.
@@ -573,6 +573,18 @@ parameters:
 
         Si tu changes de format, le nombre de plages et de pages dans
         l'aperçu des commandes se met à jour automatiquement.
+
+        IMPRIMANTES POUR PHOTOS 4 × 6 POUCES
+        Beaucoup n'impriment pas exactement 4 × 6 pouces (101,6 × 152,4
+        mm). Certaines impriment 10 × 15 cm (100 × 150 mm), et les
+        imprimantes de cartes postales comme la Canon SELPHY impriment 100
+        × 148 mm. Choisis la taille que nomme le réglage de papier de ton
+        imprimante : 4 × 6 pouces, 10 × 15 cm ou Carte postale. En cas de
+        doute, regarde les tailles de papier que propose sa fenêtre
+        d'impression. Une mire mise en page pour un papier un peu plus
+        grand que celui de l'imprimante ne peut être imprimée que si ce
+        qui ne tient pas est de la marge vide ; sinon ChromIQ te demande
+        de la remettre en page pour le papier plus petit.
       labels:
         - "A2 portrait (420 × 594 mm)"
         - "A2 paysage (594 × 420 mm)"
@@ -589,6 +601,8 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Carte postale (100 × 148 mm)"
         - "Personnalisé (saisir les mesures)"
     "-t":
       name: "DPI de sortie du TIFF"

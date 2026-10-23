@@ -478,6 +478,10 @@ def paper_filter_on(settings: Any) -> bool:
     return bool(v)
 
 
+#: Named papers a custom size is never taken for (see named_paper_of_size).
+PHOTO_PAPERS_NOT_MATCHED_BY_SIZE = frozenset({"10x15cm", "postcard"})
+
+
 def named_paper_of_size(code: Any) -> str:
     """The named paper a custom ``WxH`` size (millimetres) IS, or "".
 
@@ -499,6 +503,11 @@ def named_paper_of_size(code: Any) -> str:
         return ""
     w, h = dims
     for named in PAPER_LABELS:
+        # The two photo papers of 4.3.10 (jctay 149803) are for laying NEW
+        # charts out. A custom 100 x 150 is what Knut's own 10 x 15 cm presets
+        # have always carried, and it keeps every list it was in.
+        if named in PHOTO_PAPERS_NOT_MATCHED_BY_SIZE:
+            continue
         try:
             nw, nh = dimensions_mm(named)
         except ValueError:

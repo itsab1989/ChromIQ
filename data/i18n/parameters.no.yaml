@@ -512,15 +512,15 @@ parameters:
       tooltip_title: "Papirstørrelse (-p)"
       tooltip_body: |-
         Angir målene til hvert ark i det utskrevne kartet. Kartet fyller
-        alltid siden fra kant til kant — større papir gir plass til flere
+        alltid siden fra kant til kant: større papir gir plass til flere
         felt, som betyr en mer detaljert profil fra færre ark.
 
         Velg størrelsen du faktisk skal skrive ut på, inkludert retningen.
         Stripelesere (i1Pro-familien) leser ovenfra og ned, så:
 
-          •  Stående — lengre striper, færre av dem. Standardvalget.
+          •  Stående: lengre striper, færre av dem. Standardvalget.
 
-          •  Liggende (A4R, LetterR, 420×297…) — kortere striper, flere av
+          •  Liggende (A4R, LetterR, 420×297…): kortere striper, flere av
              dem. Bruk dette når skriveren mater liggende mer pålitelig,
              eller når et stående ark ville plassert siste stripe for nær
              papirkanten.
@@ -531,6 +531,17 @@ parameters:
 
         Endrer du papirstørrelse, oppdateres feltantallet og sideantallet
         i kommandoforhåndsvisningen automatisk.
+
+        SKRIVERE FOR BILDER I 4 × 6 TOMMER
+        Mange av dem skriver ikke ut nøyaktig 4 × 6 tommer (101,6 × 152,4
+        mm). Noen skriver ut 10 × 15 cm (100 × 150 mm), og
+        postkortskrivere som Canon SELPHY skriver ut 100 × 148 mm. Velg
+        størrelsen som skriverens egen papirinnstilling nevner: 4 × 6
+        tommer, 10 × 15 cm eller Postkort. Er du usikker, se hvilke
+        papirstørrelser utskriftsvinduet tilbyr. Et kart som er satt opp
+        for litt større papir enn skriveren tar, kan bare skrives ut når
+        det som ikke får plass, er tom marg; ellers ber ChromIQ deg sette
+        det opp på nytt for det mindre papiret.
       labels:
         - "A2 stående (420 × 594 mm)"
         - "A2 liggende (594 × 420 mm)"
@@ -547,6 +558,8 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Postkort (100 × 148 mm)"
         - "Egendefinert (angi mål)"
     "-t":
       name: "TIFF-utdata-DPI"

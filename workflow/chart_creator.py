@@ -2570,7 +2570,9 @@ class ChartCreator:
             # printtarg uses "3p" for i1Pro 3 Plus; help text lists "p3" but that's a typo
             pt_instr = "3p" if p.instrument == "p3" else p.instrument
         args.append(f"-i{pt_instr}")
-        args.append(f"-p{p.paper}")
+        # a named photo paper's code is not printtarg's (10x15cm -> 100x150)
+        from data.patch_db import PAPER_PRINTTARG_ARG
+        args.append(f"-p{PAPER_PRINTTARG_ARG.get(p.paper, p.paper)}")
         dpi_flag = "-T" if p.tiff_16bit else "-t"
         args.append(f"{dpi_flag}{p.tiff_dpi}")
         # -h is only meaningful for CM (double density) and SS (hexagon

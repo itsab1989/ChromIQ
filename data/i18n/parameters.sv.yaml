@@ -514,16 +514,16 @@ parameters:
       tooltip_title: "Pappersstorlek (-p)"
       tooltip_body: |-
         Anger måtten på varje ark i det utskrivna diagrammet. Diagrammet
-        fyller alltid sidan kant till kant — större papper rymmer fler
+        fyller alltid sidan kant till kant: större papper rymmer fler
         fält, vilket ger en mer detaljerad profil från färre ark.
 
         Välj samma storlek du faktiskt ska skriva ut på, inklusive
         orienteringen. Remsläsare (i1Pro-familjen) läser uppifrån och ner,
         så:
 
-          •  Stående — längre remsor, färre till antalet. Standardvalet.
+          •  Stående: längre remsor, färre till antalet. Standardvalet.
 
-          •  Liggande (A4R, LetterR, 420×297…) — kortare remsor, fler till
+          •  Liggande (A4R, LetterR, 420×297…): kortare remsor, fler till
              antalet. Använd detta när skrivaren matar liggande mer
              tillförlitligt, eller när ett stående ark skulle placera
              sista remsan för nära papperskanten.
@@ -533,6 +533,17 @@ parameters:
 
         Ändrar du pappersstorlek uppdateras fältantal och sidantal i
         kommandoförhandsvisningen automatiskt.
+
+        SKRIVARE FÖR FOTON I 4 × 6 TUM
+        Många av dem skriver inte ut exakt 4 × 6 tum (101,6 × 152,4 mm).
+        Vissa skriver ut 10 × 15 cm (100 × 150 mm), och vykortsskrivare
+        som Canon SELPHY skriver ut 100 × 148 mm. Välj den storlek som
+        skrivarens egen pappersinställning anger: 4 × 6 tum, 10 × 15 cm
+        eller Vykort. Om du är osäker, titta på vilka pappersstorlekar
+        dess utskriftsfönster erbjuder. Ett diagram som lagts ut för något
+        större papper än skrivaren tar kan bara skrivas ut när det som
+        inte får plats är tom marginal; annars ber ChromIQ dig lägga ut
+        det igen för det mindre papperet.
       labels:
         - "A2 stående (420 × 594 mm)"
         - "A2 liggande (594 × 420 mm)"
@@ -549,6 +560,8 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Vykort (100 × 148 mm)"
         - "Anpassad (ange mått)"
     "-t":
       name: "TIFF-utdata-DPI"

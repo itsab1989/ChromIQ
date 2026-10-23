@@ -712,7 +712,7 @@ parameters:
     - flag: "-p"
       name: "Paper Size"
       type: choice
-      choices: ["A2", "594x420", "329x483", "483x329", "A3", "420x297", "11x17", "Legal", "A4", "A4R", "Letter", "LetterR", "203x254", "127x178", "4x6", "custom"]
+      choices: ["A2", "594x420", "329x483", "483x329", "A3", "420x297", "11x17", "Legal", "A4", "A4R", "Letter", "LetterR", "203x254", "127x178", "4x6", "10x15cm", "postcard", "custom"]
       labels:
         - "A2 Portrait (420 × 594 mm)"
         - "A2 Landscape (594 × 420 mm)"
@@ -729,6 +729,8 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Postcard (100 × 148 mm)"
         - "Custom (enter dimensions)"
       default: "A4"
       no_space: false
@@ -739,15 +741,15 @@ parameters:
       tooltip_min_width: 600
       tooltip_body: |
         Sets the dimensions of each sheet in the printed chart. The chart
-        always fills the page edge to edge — bigger paper fits more
+        always fills the page edge to edge: bigger paper fits more
         patches, which means a more detailed profile from fewer sheets.
 
         Pick the same size you will actually print on, including its
         orientation. Strip readers (i1Pro family) read top-to-bottom, so:
 
-          •  Portrait — longer strips, fewer of them. Standard choice.
+          •  Portrait: longer strips, fewer of them. Standard choice.
 
-          •  Landscape (A4R, LetterR, 420×297…) — shorter strips, more
+          •  Landscape (A4R, LetterR, 420×297…): shorter strips, more
              of them. Use this when your printer feeds landscape more
              reliably, or when a portrait sheet would leave the last
              strip too close to the paper edge.
@@ -757,6 +759,17 @@ parameters:
 
         If you change paper size, the patch count and page count in the
         command preview update automatically.
+
+        PRINTERS FOR 4 × 6 IN PHOTOS
+        Many of them do not print exactly 4 × 6 in (101.6 × 152.4 mm).
+        Some print 10 × 15 cm (100 × 150 mm), and postcard printers such
+        as the Canon SELPHY print 100 × 148 mm. Choose the size your
+        printer's own paper setting names: 4 × 6 in, 10 × 15 cm or
+        Postcard. If you are not sure, look at the paper sizes its print
+        dialog offers. A chart laid out for a slightly larger paper than
+        the printer takes can only be printed when what does not fit is
+        empty margin; otherwise ChromIQ asks you to lay it out again for
+        the smaller paper.
 
     - flag: "-t"
       name: "TIFF Output DPI"

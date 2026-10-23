@@ -319,6 +319,13 @@ class PostScriptGenerator:
         # L2-only target, CupsRawPrinter retries with the TIFF raster path.
         x_off = (page_w_pt - tiff_w_pt) / 2.0
         y_off = (page_h_pt - tiff_h_pt) / 2.0
+        # A chart a little larger than its paper may be moved off centre so
+        # that what is cut off is its empty margin (workflow.overhang; y runs
+        # up here and down in the plan). Never scaled.
+        from workflow.overhang import current_shift_pt
+        _dx, _dy = current_shift_pt()
+        x_off += _dx
+        y_off -= _dy
         # /Duplex false /Tumble false are baked into setpagedevice rather than
         # relying on `lp -o Duplex=None`, because some older interpreters (HP
         # CLJ 5550, firmware ~2005) honour the panel/PPD default and ignore
@@ -431,6 +438,17 @@ class PdfGenerator:
         draw_w, draw_h = (pts_h, pts_w) if turned else (pts_w, pts_h)
         x_off = (page_w - draw_w) / 2.0
         y_off = (page_h - draw_h) / 2.0
+        # Off centre only as workflow.overhang plans it, in the chart's own
+        # orientation: turned a quarter counter-clockwise, the chart's right
+        # runs up the page and its "down" to the right.
+        from workflow.overhang import current_shift_pt
+        _dx, _dy = current_shift_pt()
+        if turned:
+            x_off += _dy
+            y_off += _dx
+        else:
+            x_off += _dx
+            y_off -= _dy
 
         log.debug(
             "PDF: %s  %dx%d px  %.1f×%.1f pt on %.1f×%.1f pt page  %d dpi  %d-bit  %d-ch",

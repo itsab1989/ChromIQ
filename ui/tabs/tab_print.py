@@ -3148,6 +3148,27 @@ class TabPrint(QWidget):
         # so, then shows even when it was switched off.
         too_big = bool(mismatch) and self._chart_larger_than_page(
             first_tiff, getattr(self, "_checked_page_pt", None) or page_size_pt)
+        # A CHART A LITTLE LARGER THAN ITS PAPER (jctay 149803, Basti
+        # 2026-10-23): printed at exactly 100 %, with no question, when only
+        # empty margin is outside the paper (workflow.overhang), moved so the
+        # cut falls in that margin; never shrunk. When more would be lost the
+        # confirmation window says so, whether or not it was switched off.
+        self._print_shift_pt = None
+        ps_page_pt = page_size_pt
+        paper_pt = getattr(self, "_checked_page_pt", None) or page_size_pt
+        over = self._overhang_plan(pages, paper_pt)
+        if over is not None and over.safe:
+            too_big = False
+            mismatch = None
+            self._print_shift_pt = over.shift_pt()
+            # "Printer Default": the page is the default paper, so nothing
+            # downstream fits a page of the chart's own size to it
+            ps_page_pt = page_size_pt or paper_pt
+            self._note_overhang(over)
+        elif over is not None and over.reason != "too_much":
+            too_big = True
+            mismatch = self._overhang_text(
+                over, first_tiff, paper_pt, anyway=True)[1]
         if self._settings.get("confirm_before_printing", True) or too_big:
             if not self._show_preflight(
                 printer, selected_opts, orientation, page_size_pt,
@@ -3163,10 +3184,74 @@ class TabPrint(QWidget):
             _vp.PATH_DIRECT, printer,
             _forms.POSTSCRIPT_DEVICE_RGB if self._is_postscript_queue(printer) else "")
         submitted = False
-        for path, frame in pages:
-            if self._send_page(path, frame, orientation, page_size_pt):
-                submitted = True
+        from workflow import overhang as _overhang
+        with _overhang.placed(self._print_shift_pt):
+            for path, frame in pages:
+                if self._send_page(path, frame, orientation, ps_page_pt):
+                    submitted = True
+        self._print_shift_pt = None
         self._commit_print_record(submitted)
+
+    # ---- a chart a little larger than its paper (workflow.overhang) -------
+    def _overhang_plan(self, pages, paper_pt):
+        """The plan for a chart larger than *paper_pt*; None when it fits as
+        it is, or when the sizes cannot be compared."""
+        if not pages or not paper_pt:
+            return None
+        from workflow import overhang as O
+        try:
+            chart_pt = read_tiff_dimensions_points(pages[0][0])
+        except Exception:  # noqa: BLE001 - nothing to compare
+            return None
+        pw, ph = O.paper_like_chart(chart_pt, paper_pt)
+        tol = O.NO_OVERHANG_MM / O.MM_PER_PT
+        if chart_pt[0] <= pw + tol and chart_pt[1] <= ph + tol:
+            return None
+        plan = O.plan_for_chart(pages, chart_pt, paper_pt)
+        log.info("Print: the chart (%.1f x %.1f mm) is larger than the paper "
+                 "(%.1f x %.1f mm): %s%s", chart_pt[0] * O.MM_PER_PT,
+                 chart_pt[1] * O.MM_PER_PT, pw * O.MM_PER_PT, ph * O.MM_PER_PT,
+                 "safe at 100 %, " if plan.safe else f"not safe ({plan.reason})",
+                 plan.describe() if plan.safe else "")
+        return plan
+
+    @staticmethod
+    def _overhang_text(plan, first_tiff, paper_pt, *, anyway: bool):
+        """M-PRINT-CHART-CUT for *plan* (title, body)."""
+        from workflow import measurement_messages as MM
+        from workflow import overhang as O
+
+        def mm(w, h):
+            return f"{w * O.MM_PER_PT:.0f} × {h * O.MM_PER_PT:.0f} mm"
+        try:
+            cw, ch = read_tiff_dimensions_points(first_tiff)
+        except Exception:  # noqa: BLE001
+            cw = ch = 0.0
+        pw, ph = O.paper_like_chart((cw, ch), paper_pt)
+        why = {"content": MM._CUT_WHY_CONTENT, "lead": MM._CUT_WHY_LEAD}.get(
+            plan.reason, MM._CUT_WHY_UNKNOWN)
+        return MM.M_PRINT_CHART_CUT.render(
+            chart=mm(cw, ch), paper=mm(pw, ph), why=tr(why),
+            outcome=tr(MM._CUT_OUTCOME_ANYWAY if anyway
+                       else MM._CUT_OUTCOME_NOTHING))
+
+    def _note_overhang(self, plan) -> None:
+        """The quiet line, and the print record's note, for a chart printed at
+        100 % with only empty margin outside the paper."""
+        from workflow import measurement_messages as MM
+        c = plan.cut_mm
+        line = tr(MM._OVER_PAPER_LOG).format(
+            left=f"{c.get('left', 0):.1f}", right=f"{c.get('right', 0):.1f}",
+            top=f"{c.get('top', 0):.1f}", bottom=f"{c.get('bottom', 0):.1f}")
+        log.info("Print: %s", line)
+        try:
+            self._set_status(line)
+        except Exception:  # noqa: BLE001 - a status line is never worth a crash
+            pass
+        pending = getattr(self, "_pending_print_record", None)
+        if pending is not None:
+            pending[1]["outside_paper_mm"] = {k: round(float(v), 1)
+                                              for k, v in c.items()}
 
     @staticmethod
     def _windows_queue_takes_postscript(printer: str) -> bool:
@@ -4358,6 +4443,7 @@ class TabPrint(QWidget):
             cmyk_printer = None
             try:
                 from workflow.native_print_macos import (ChartIsNotRGB,
+                                                          ChartOverPaper,
                                                           PaperNotOnPrinter,
                                                           print_frames)
                 from workflow import measurement_messages as _MM
@@ -4376,6 +4462,8 @@ class TabPrint(QWidget):
                     if submitted:
                         from workflow import native_print_macos as _npm
                         from workflow import verification_print as _vp
+                        if _npm.last_overhang is not None:
+                            self._note_overhang(_npm.last_overhang)
                         sub = _npm.last_submission
                         # P16: the record names the QUEUE; the dialog knows
                         # only the name macOS shows (review of fix/4.3.8, D5)
@@ -4398,6 +4486,10 @@ class TabPrint(QWidget):
                                 self._start_read_back(_DialogReadBack(sub))
                             if sub.cmyk_raster:
                                 cmyk_printer = sub.printer_display or ""
+                except ChartOverPaper as exc:
+                    log.error("Native macOS print refused: %s", exc)
+                    self._show_print_refusal(*self._overhang_text(
+                        exc.plan, pages[0][0], exc.paper_pt, anyway=False))
                 except PaperNotOnPrinter as exc:
                     log.error("Native macOS print refused: %s", exc)
                     self._show_paper_not_listed(*_MM.M_PRINT_PS_PAPER_NOT_LISTED.render(
@@ -4501,10 +4593,33 @@ class TabPrint(QWidget):
 
         paper = qprinter.pageLayout().fullRectPoints()
         pw, ph = float(paper.width()), float(paper.height())
+        # A CHART A LITTLE LARGER THAN THE PAPER (jctay 149803: 102 x 152 mm
+        # on the 100 x 148 mm a 4 x 6 in printer takes): printed at exactly
+        # 100 %, no question, when only empty margin is off the paper
+        # (workflow.overhang), moved so that margin takes the cut. When more
+        # would be lost, nothing is printed (M-PRINT-CHART-CUT). Much larger
+        # than the paper keeps M-PRINT-WIN-DIALOG-TOO-BIG.
+        over = self._overhang_plan(pages, (pw, ph))
+        shift_pt = (0.0, 0.0)
+        if over is not None and over.safe:
+            shift_pt = over.shift_pt()
+            self._note_overhang(over)
+        elif over is not None and over.reason != "too_much":
+            log.error("Windows print dialog: %s would be cut on %.0f x %.0f pt "
+                      "paper (%s); nothing printed", pages[0][0].name, pw, ph,
+                      over.reason)
+            self._show_print_refusal(*self._overhang_text(
+                over, pages[0][0], (pw, ph), anyway=False))
+            self._commit_print_record(False)
+            return
         turns: list[bool] = []
         for (w, h), (tiff_path, _frame) in zip(sizes, pages):
             fits = w <= pw * 1.02 and h <= ph * 1.02
             fits_turned = h <= pw * 1.02 and w <= ph * 1.02
+            if over is not None and over.safe:
+                # placed as planned: the paper lies the chart's way round
+                fits = (w > h) == (pw > ph) or abs(pw - ph) < 0.5
+                fits_turned = not fits
             if w and h and not fits and not fits_turned:
                 def _mm(a: float, b: float) -> str:
                     return f"{a * 25.4 / 72:.0f} × {b * 25.4 / 72:.0f} mm"
@@ -4549,6 +4664,16 @@ class TabPrint(QWidget):
                 dw, dh = (ch, cw) if turn else (cw, ch)       # as it lies on the paper
                 x0 = (page_px.width() - dw) / 2.0
                 y0 = (page_px.height() - dh) / 2.0
+                # off centre only as the plan says, in the chart's own
+                # orientation; turned a quarter clockwise, its right runs
+                # down the page and its "down" to the left
+                sx, sy = shift_pt[0] / 72.0 * res, shift_pt[1] / 72.0 * res
+                if turn:
+                    x0 -= sy
+                    y0 += sx
+                else:
+                    x0 += sx
+                    y0 += sy
                 painter.save()
                 painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
                 if turn:

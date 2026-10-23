@@ -2184,7 +2184,24 @@ _PAPER_MM = {
     # is 279.4 × 431.8 mm. Listed here so _paper_area_mm2 resolves it by name
     # before the "WxH" fallback would misread "11x17" as 187 mm².
     "11x17": (279.4, 431.8),
+    # 4.3.10: the two photo papers, whose codes are names, not millimetres
+    "10x15cm": (100.0, 150.0),
+    "postcard": (100.0, 148.0),
 }
+
+
+#: Create Chart ▸ Paper size ⓘ, added in 4.3.10 (jctay 149803, Basti
+#: 2026-10-23): what many "4 x 6 in" printers really print.
+_PHOTO_PAPER_TIP = (
+    "PRINTERS FOR 4 × 6 IN PHOTOS\nMany of them do not print exactly 4 × 6 i"
+    "n (101.6 × 152.4 mm). Some print 10 × 15 cm (100 × 150 mm), and postca"
+    "rd printers such as the Canon SELPHY print 100 × 148 mm. Choose the si"
+    "ze your printer's own paper setting names: 4 × 6 in, 10 × 15 cm or Pos"
+    "tcard. If you are not sure, look at the paper sizes its print dialog o"
+    "ffers. A chart laid out for a slightly larger paper than the printer t"
+    "akes can only be printed when what does not fit is empty margin; other"
+    "wise ChromIQ asks you to lay it out again for the smaller paper."
+)
 
 
 def _paper_area_mm2(paper: str) -> float:
@@ -7232,7 +7249,7 @@ class TabChart(QWidget):
             "  •  Small photo formats (5×7\", 4×6\") are hidden for i1Pro 3 "
             "Plus — its large patches don't leave a usable profile on those.\n\n"
             "If you change paper size mid-workflow, the recommended patch count "
-            "and page count update automatically."),
+            "and page count update automatically.") + "\n\n" + tr(_PHOTO_PAPER_TIP),
             inner,
             min_width=600,
         ))
@@ -9085,7 +9102,8 @@ class TabChart(QWidget):
         else:
             pt_instr = "3p" if p.instrument == "p3" else p.instrument
         pt_args.append(f"-i{pt_instr}")
-        pt_args.append(f"-p{p.paper}")
+        from data.patch_db import PAPER_PRINTTARG_ARG
+        pt_args.append(f"-p{PAPER_PRINTTARG_ARG.get(p.paper, p.paper)}")
         dpi_flag = "-T" if p.tiff_16bit else "-t"
         pt_args.append(f"{dpi_flag}{p.tiff_dpi}")
         if not triple and p.double_density and p.instrument in {"CM", "SS"}:

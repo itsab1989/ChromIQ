@@ -577,11 +577,13 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Postkarte (100 × 148 mm)"
         - "Eigene Größe (Maße eingeben)"
       tooltip_title: "Papiergröße (-p)"
       tooltip_body: |
         Legt die Maße jedes Blatts im gedruckten Chart fest. Das Chart
-        füllt die Seite immer von Kante zu Kante — größeres Papier fasst
+        füllt die Seite immer von Kante zu Kante: größeres Papier fasst
         mehr Messfelder, also ein detaillierteres Profil aus weniger
         Blättern.
 
@@ -589,9 +591,9 @@ parameters:
         einschließlich Ausrichtung. Streifenleser (i1Pro-Familie) lesen
         von oben nach unten, daher:
 
-          •  Hochformat — längere Streifen, dafür weniger. Die Standardwahl.
+          •  Hochformat: längere Streifen, dafür weniger. Die Standardwahl.
 
-          •  Querformat (A4R, LetterR, 420×297…) — kürzere Streifen, dafür
+          •  Querformat (A4R, LetterR, 420×297…): kürzere Streifen, dafür
              mehr. Verwenden, wenn dein Drucker quer zuverlässiger einzieht
              oder ein Hochformatblatt den letzten Streifen zu nah an die
              Papierkante legen würde.
@@ -601,6 +603,17 @@ parameters:
 
         Ändere die Papiergröße, aktualisieren sich Messfeld- und
         Seitenzahl in der Befehlsvorschau automatisch.
+
+        DRUCKER FÜR FOTOS IM FORMAT 4 × 6 ZOLL
+        Viele von ihnen drucken nicht genau 4 × 6 Zoll (101,6 × 152,4 mm).
+        Manche drucken 10 × 15 cm (100 × 150 mm), und Postkartendrucker
+        wie der Canon SELPHY drucken 100 × 148 mm. Wähle die Größe, die
+        die Papiereinstellung deines Druckers nennt: 4 × 6 Zoll, 10 × 15
+        cm oder Postkarte. Wenn du unsicher bist, sieh nach, welche
+        Papiergrößen sein Druckdialog anbietet. Ein Chart, das für etwas
+        größeres Papier angelegt ist, als der Drucker nimmt, lässt sich
+        nur drucken, wenn das, was nicht passt, leerer Rand ist; sonst
+        bittet ChromIQ dich, es für das kleinere Papier neu anzulegen.
 
     "-t":
       name: "TIFF-Ausgabe-DPI"
