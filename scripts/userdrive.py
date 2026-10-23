@@ -43,7 +43,7 @@ screen, each fixed only in its own script. The harness now does it for all:
   photographed and the run ends cleanly with 3. A last-resort thread ends the
   process 90 s later if the GUI thread is wedged and could not do that;
 * a :class:`onscreen_capture.PopupWatchdog` runs from the start (``d.dog``):
-  an unscripted question is dismissed safely after 1.5 s, an unclaimed working
+  an unscripted question is dismissed safely after 15 s, an unclaimed working
   window after 20 s. :meth:`top_dialog` claims the window it returns;
 * an exception in one of the APP's slots is logged (as in main()) and makes
   the run 4 instead of 0: the app did something wrong while being driven;
@@ -158,8 +158,14 @@ class Drive:
         #: The drive's own pop-up watchdog, running before the first window.
         self.dog = None
         if watchdog:
+            # 15 s FOR A QUESTION, NOT THE WATCHDOG'S 1.5: the drive's own
+            # steps answer questions (answer() waits up to 6 s, a step may
+            # photograph first), and the dog is the net under them, not a
+            # competitor. Measured on the first cut: it pressed Escape on
+            # "Re-measurement Complete" before the step could photograph it.
             self.dog = onscreen_capture.PopupWatchdog(
                 self.out, policy=popup_policy, photograph=True,
+                grace_s=15.0, window_grace_s=20.0,
                 log=self._dog_line).start()
         from core.settings import AppSettings
         self.settings = AppSettings()
@@ -254,7 +260,13 @@ class Drive:
                       f"in this step (yield first)")
             return False
         self.pump(700)
-        ok, why = capture_window(win, path)
+        # NEVER THE RECTANGLE ROUTE FOR A DIALOG: it raises the window (takes
+        # Basti's keyboard) and proves itself by HIDING it, and hiding a
+        # dialog inside exec() ends it as Rejected: the photograph would
+        # answer the question.
+        from PyQt6.QtWidgets import QDialog
+        ok, why = capture_window(win, path,
+                                 allow_hide=not isinstance(win, QDialog))
         self.record["photos"].append({"file": path.name, "ok": ok, "why": why,
                                       "window": type(win).__name__})
         self.note(f"   [photo] {path.name}: {'ok' if ok else 'FAILED ' + why}")

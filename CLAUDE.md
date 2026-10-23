@@ -454,7 +454,7 @@ it again. It applies to this file's reader and to every agent briefed from it.
   * the run ends with `app.exit()`, never `app.quit()`: Qt 6's quit asks every
     window to close and gives up if one refuses, which is how windows stayed;
   * `Drive` starts a `PopupWatchdog` (`d.dog`) before the main window. A
-    question is dismissed after 1.5 s; a WORKING window (Preferences, the
+    question is dismissed after 15 s (1.5 s for a bare `PopupWatchdog`); a WORKING window (Preferences, the
     report window) the driver has not claimed after **20 s**.
     `d.top_dialog()` claims what it returns; `dog.claim(w)` and
     `dog.expect_window(regex)` do it by hand. Closing is Escape / the box's
