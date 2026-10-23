@@ -141,7 +141,9 @@ def test_both_completion_dialogs_offer_close_and_the_renamed_button():
     # button naming the wrong one sends the user hunting for a tab that is not
     # there (Knut, beta.150). All three take it from `_profile_tab_name_btn`,
     # which is also what escapes the "&" Qt would otherwise eat.
-    assert src.count('tr("Go to {tab} Tab →").format(') == 3, \
+    # 4.3.11: a fourth use, the re-read window's TEXT naming that button as
+    # it reads (M-REFINE-DONE-NEXT), with the prose form of the tab's name.
+    assert src.count('tr("Go to {tab} Tab →").format(') == 4, \
         "every dialog offering the step must use the renamed button"
     assert 'tr("Go to Build Profile Tab →")' not in src, \
         "a hard-coded tab name is back; it is wrong whenever calibration " \

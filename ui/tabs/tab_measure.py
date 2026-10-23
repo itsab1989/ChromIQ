@@ -12873,8 +12873,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             from workflow import measurement_messages as _MMn
             _nt, _nb = (_MMn.M_REFINE_DONE_NEXT_PATCHES if _pl
                         else _MMn.M_REFINE_DONE_NEXT).render(
-                build=tr("Go to {tab} Tab →").format(
-                    tab=self._profile_tab_name()),
+                build=tr("Go to {tab} Tab →").format(tab=self._profile_tab_name()),
                 close=tr("Close"), cont=tr("Continue Measuring Manually"),
                 tab=self._profile_tab_name(),
                 build_profile=tr("Build Profile"))
