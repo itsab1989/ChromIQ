@@ -45,14 +45,16 @@ DEFAULT = CS.effective_limits("chromiq_default", None)
 # a chart and a sheet this file controls
 # ---------------------------------------------------------------------------
 def _write_chart(folder: Path, pages=(12,), rows=12, seed=3,
-                 stem="chart", coverage=0.85) -> "tuple[Path, list]":
+                 stem="chart", coverage=0.85,
+                 spans=None) -> "tuple[Path, list]":
     """A laid-out `.ti2`: *pages* strips per page, *rows* rows, every slot
     filled, patches shuffled over the slots so that id order says nothing
     about position. Returns the path and ``[(sid, page, strip, row, rgb)]``.
 
     *coverage* is the share of each page the patch block covers, written
     beside the chart as a derived geometry (#182 E2), or None for a chart
-    whose files do not say where its patches sit."""
+    whose files do not say where its patches sit. *spans* gives each page's
+    (width share, height share) instead (4.3.10, the spread rule)."""
     rng = np.random.default_rng(seed)
     n = int(sum(pages)) * rows
     slots = rng.permutation(n)
@@ -83,9 +85,9 @@ def _write_chart(folder: Path, pages=(12,), rows=12, seed=3,
     folder.mkdir(parents=True, exist_ok=True)
     p = folder / f"{stem}.ti2"
     p.write_text("\n".join(lines), encoding="utf-8")
-    if coverage is not None:
+    if coverage is not None or spans is not None:
         from tests.page_geometry import write_page_geometry
-        write_page_geometry(p, pages, rows, coverage)
+        write_page_geometry(p, pages, rows, coverage, spans=spans)
     return p, where
 
 

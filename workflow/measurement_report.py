@@ -5292,6 +5292,29 @@ EVENNESS_MIN_GRID = 9
 #: :mod:`workflow.page_coverage`. ONE CONSTANT, read by every sentence that
 #: quotes it.
 EVENNESS_MIN_PAGE_COVERAGE = 0.60
+#: ...UNTIL 4.3.10. **THE SECOND FLOOR SINCE 4.3.10 (Basti, 2026-10-23,
+#: replacing the area floor above, which Knut had confirmed on 2026-09-23):
+#: THE PATCH BLOCK REACHES ACROSS AT LEAST THIS SHARE OF THE PAGE'S WIDTH AND
+#: AT LEAST THIS SHARE OF ITS HEIGHT**, both from the same four "Measured from
+#: Preview" margins (`page_coverage.spans_of`). An area share punished a small
+#: card for the instrument's fixed margins: jctay's 4 x 6 in i1Pro card (forum
+#: 149811) reaches across 71 % of its width and 78 % of its height, a block
+#: spread over the whole card, and covered 55 % of its area, so evenness was
+#: never judged on it. What the floor is FOR, a block on one part of the page,
+#: is a short spread in one direction: the four half-page charts it was built
+#: to refuse reach across 42 to 46 % of the width.
+#:
+#: 0.65, MEASURED over every built-in preset (both clip styles, 191, laid out
+#: as the presets window lays them out): the smallest spread of a page the
+#: area floor counted is 74.5 % (the 130 x 180 mm cards), the largest of a page
+#: it refused 52.7 % (the partly filled last page of the two ColorMunki
+#: 2052-patch charts; the half pages reach 46.2 %), and at 0.65 every one of
+#: the 591 pages of 9 by 9 is counted or refused exactly as before. 0.70 would do the same for the
+#: presets, but would pass jctay's card by one point (70.9 % measured on the
+#: page image of a rebuild, 71.6 % from his report's area figure), so a
+#: millimetre more margin would refuse it again. The old constant stays only to
+#: read a report saved under the old rule (`min_coverage` in its block).
+EVENNESS_MIN_PAGE_SPAN = 0.65
 
 #: How many times the patches are shuffled across the nine areas to measure
 #: the sheet's own noise. Knut, 2026-09-22, ruling 6, on the F1 proposal:
@@ -5514,8 +5537,9 @@ REASON_EVENNESS_GRID_TOO_SMALL = "evenness_grid_too_small"
 REASON_EVENNESS_EMPTY_AREA = "evenness_empty_area"
 REASON_EVENNESS_NOISY_PAIRWISE = "evenness_noisy_pairwise"
 REASON_EVENNESS_NOISY_FROM_MEAN = "evenness_noisy_from_mean"
-#: #182 E2 (Knut, 2026-09-23): every page of at least 9 by 9 covers less than
-#: :data:`EVENNESS_MIN_PAGE_COVERAGE` of its paper with patches…
+#: #182 E2 (Knut, 2026-09-23; since 4.3.10 Basti's spread rule): on every
+#: page of at least 9 by 9 the patches reach across less than
+#: :data:`EVENNESS_MIN_PAGE_SPAN` of the paper's width or of its height…
 REASON_EVENNESS_PAGE_COVERAGE = "evenness_page_coverage_too_small"
 #: …or the chart's files do not record where its patch block sits on the page
 #: (no engine geometry, no page image, no derived rectangles): a chart ChromIQ
@@ -6663,13 +6687,20 @@ def _filtered_nine(means: np.ndarray, within: np.ndarray, counts: np.ndarray
     return pair.max(axis=1), area.max(axis=1), pair, area
 
 
-def _cov_of(block: dict, page: int) -> "float | None":
-    """The coverage the evenness block recorded for 1-based *page*."""
-    cov = list(block.get("coverage") or [])
+def _cov_of(block: dict, page: int):
+    """What the evenness block recorded for 1-based *page*: since 4.3.10 the
+    spread ``[width share, height share]`` (a block with ``min_span``), in a
+    block saved before it the area share (a float). None when not known."""
+    key = "spans" if "min_span" in block else "coverage"
+    cov = list(block.get(key) or [])
     try:
         c = cov[int(page) - 1] if 0 < int(page) <= len(cov) else None
-        return None if c is None else float(c)
-    except (TypeError, ValueError):
+        if c is None:
+            return None
+        if key == "spans":
+            return [float(c[0]), float(c[1])]
+        return float(c)
+    except (TypeError, ValueError, IndexError):
         return None
 
 
@@ -6701,25 +6732,32 @@ def evenness_from_residuals(grid: dict, residuals, *,
     pages, rows = list(grid["pages"]), int(grid["rows"])
     big = [p for p, s in enumerate(pages)
            if s >= EVENNESS_MIN_GRID and rows >= EVENNESS_MIN_GRID]
-    # #182 E2: THE SECOND FLOOR, PAGE BY PAGE. A page of 9 by 9 whose patch
-    # block covers less than EVENNESS_MIN_PAGE_COVERAGE of the paper is left
-    # out exactly as a smaller page is; a page whose coverage nobody can say
-    # is left out too, because the rule cannot be shown to hold on it.
+    # #182 E2: THE SECOND FLOOR, PAGE BY PAGE. Since 4.3.10 (Basti,
+    # 2026-10-23) a page of 9 by 9 whose patch block reaches across less than
+    # EVENNESS_MIN_PAGE_SPAN of the paper's width or of its height is left out
+    # exactly as a smaller page is; a page whose spread nobody can say is
+    # left out too, because the rule cannot be shown to hold on it. The area
+    # share is kept beside it for the record.
+    spans = _page_spans(grid.get("coverage"), len(pages))
     cov = _page_coverages(grid.get("coverage"), len(pages))
-    used = [p for p in big
-            if cov[p] is not None and cov[p] >= EVENNESS_MIN_PAGE_COVERAGE]
+
+    def _spread(p):
+        return spans[p] is not None and min(spans[p]) >= EVENNESS_MIN_PAGE_SPAN
+    used = [p for p in big if _spread(p)]
     block["pages"] = [[int(s), rows] for s in pages]
     block["pages_used"] = [p + 1 for p in used]
     block["largest_page"] = [int(max(pages)), rows]
-    block["min_coverage"] = EVENNESS_MIN_PAGE_COVERAGE
+    block["min_span"] = EVENNESS_MIN_PAGE_SPAN
+    block["spans"] = [None if c is None else [round(float(c[0]), 4),
+                                              round(float(c[1]), 4)]
+                      for c in spans]
     block["coverage"] = [None if c is None else round(float(c), 4)
                          for c in cov]
     block["coverage_source"] = grid.get("coverage_source") or ""
     block["pages_small"] = [p + 1 for p in range(len(pages)) if p not in big]
     block["pages_uncovered"] = [p + 1 for p in big
-                                if cov[p] is not None
-                                and cov[p] < EVENNESS_MIN_PAGE_COVERAGE]
-    block["pages_unmeasured"] = [p + 1 for p in big if cov[p] is None]
+                                if spans[p] is not None and not _spread(p)]
+    block["pages_unmeasured"] = [p + 1 for p in big if spans[p] is None]
     if not big:
         block["reason"] = REASON_EVENNESS_GRID_TOO_SMALL
         return block
@@ -6814,13 +6852,37 @@ def evenness_from_residuals(grid: dict, residuals, *,
 
 
 def _page_coverages(coverage, n_pages: int) -> "list[float | None]":
-    """One share per page, 0..1, or None where it is not known."""
+    """One AREA share per page, 0..1, or None where it is not known."""
     out: "list[float | None]" = [None] * int(n_pages)
     for i, c in enumerate(list(coverage or [])[:int(n_pages)]):
         if isinstance(c, dict):
             c = c.get("coverage")
         if isinstance(c, (int, float)):
             out[i] = float(c)
+    return out
+
+
+def _page_spans(coverage, n_pages: int
+                ) -> "list[tuple[float, float] | None]":
+    """One (width share, height share) per page, 0..1, or None where it is
+    not known.
+
+    A page's numbers from `workflow.page_coverage` carry ``spans``; a caller
+    that hands an area share alone (a bare number, or a dict with only
+    ``coverage``) describes a block of the paper's own proportions, as
+    ``tests/page_geometry.py`` writes one, so each side is its square root."""
+    out: "list[tuple[float, float] | None]" = [None] * int(n_pages)
+    for i, c in enumerate(list(coverage or [])[:int(n_pages)]):
+        sp = c.get("spans") if isinstance(c, dict) else None
+        if isinstance(sp, (list, tuple)) and len(sp) == 2 \
+                and all(isinstance(v, (int, float)) for v in sp):
+            out[i] = (float(sp[0]), float(sp[1]))
+            continue
+        if isinstance(c, dict):
+            c = c.get("coverage")
+        if isinstance(c, (int, float)):
+            side = math.sqrt(max(0.0, float(c)))
+            out[i] = (side, side)
     return out
 
 

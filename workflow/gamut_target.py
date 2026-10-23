@@ -21,9 +21,10 @@ numbers fall out, answering two different questions (§5.1):
 
 * **coverage** — how many of the candidates this profile can print at all;
 * the **chart** (k82, Knut #182 6102031563, agreed by Sebastian 2026-10-11):
-  the eight corners, **grey steps** along the neutral axis between the black
-  and the white corner as printed, as many as fit at the chart's own spacing
-  (never more than about one patch in eight, Sebastian 2026-08-12), and the
+  the eight corners, **grey steps** along the neutral axis: every step of the
+  grey wedge the profile can reach, never more than about one patch in eight
+  (Sebastian 2026-08-12), spaced evenly from the darkest to the lightest grey
+  the profile reaches when there are more (Basti 2026-10-23), and the
   rest spread **evenly over the profile's whole gamut volume**: the spacing
   follows the patch count, no two patches closer than they need to be, no
   region left empty (:func:`_even_spread`). Until 4.3.4 the body was a
@@ -545,64 +546,67 @@ def _gamut_density_unlocked(profile: Path, bin_dir: "str | Path", letter: str,
     return out
 
 
-def _spacing(volume: "float | None", patches: int) -> "float | None":
-    """The distance between neighbours when *patches* fill *volume* (dE76
-    cubed) evenly: the edge of the cube each patch owns."""
-    if not volume or patches <= 0:
-        return None
-    return (float(volume) / patches) ** (1.0 / 3.0)
+#: A reachable neutral candidate this close (dE76) to the black or the white
+#: corner as the profile prints them would only repeat that corner, which is
+#: on every chart anyway, so it is never a grey step.
+GREY_CORNER_REPEAT_DE76 = 1.0
 
 
 def _grey_steps(neutral: "list[int]", back, corners_as_printed,
-                count: int, volume: "float | None") -> "list[int]":
+                count: int) -> "list[int]":
     """The grey steps along the neutral axis (k82: "plus the grey steps
-    following the neutral line"): evenly spaced in L* between the black and
-    the white corner as the profile prints them (the corners are the axis'
-    two ends and are on every chart anyway), as many as fit at the chart's
-    own spacing but at least the report's grey ramp needs, and never more
-    than :func:`_neutral_budget`. Each step is
-    the reachable neutral candidate nearest its place on the axis."""
+    following the neutral line").
+
+    **EVERY GREY STEP OF THE CANDIDATE LIST'S GREY WEDGE THE PROFILE CAN
+    REACH, up to :func:`_neutral_budget`** (about one patch in eight, as
+    4.3.4 placed them; Basti, 2026-10-23). When the wedge holds more reachable
+    steps than the budget, the steps are chosen evenly spaced in L* from the
+    darkest to the lightest neutral the profile REACHES, both ends included,
+    each the reachable neutral nearest its place.
+
+    Why not the black and the white corner as the ends, as 4.3.5 to 4.3.9
+    did: on a printer whose black is not neutral (jctay's Canon Selphy
+    CP1500, forum 149811) no neutral can be printed anywhere near the black
+    corner, so steps spaced between the corners bunched in the light half
+    and the chart had eight steps the report's grey rows could not use
+    (`measurement_report.pick_even_grey_steps`). And why every reachable
+    step rather than as many as fit at the chart's spacing: those eight were
+    too few to be roughly evenly spaced on such a profile; 4.3.4 placed the
+    whole reachable wedge and its grey rows answered.
+
+    A neutral within :data:`GREY_CORNER_REPEAT_DE76` of a corner as printed
+    would only repeat that corner and is never a step; neither is a second
+    candidate within `measurement_report.GREY_LEVEL_TOL` (0.5) L* of a step
+    already taken, which the report's grey rows count as the same step (the
+    list holds the sRGB wedge and the ProPhoto cube's own greys, a few of them
+    0.1 to 0.4 L* apart)."""
     if not neutral or count < 1:
         return []
     import numpy as np
-    l_black = float(corners_as_printed[1][0])
-    l_white = float(corners_as_printed[0][0])
-    span = l_white - l_black
-    g = min(_neutral_budget(count), len(neutral))
-    step = _spacing(volume, count + len(CORNER_DEVICES))
-    if step and span > 0:
-        # At the chart's own spacing, but never fewer than the Measurement
-        # Report's grey ramp needs (K31: GREY_MIN_LEVELS evenly spaced
-        # neutral aims, corners not counted), so a chart big enough to have
-        # had that row before still has it (checked over every built-in
-        # preset's certificate).
-        from workflow.measurement_report import GREY_MIN_LEVELS
-        g = min(g, max(GREY_MIN_LEVELS, int(round(span / step)) - 1))
-    if g <= 0 or span <= 0:
-        return []
-    # Not at the ends: the black and the white corner ARE the axis' ends, so
-    # a neutral within half a step of either would only repeat a corner.
-    # The steps sit in the middle of g equal slices of the axis, so the
-    # lightest and the darkest are half a step from the white and the black
-    # corner: the report's grey ramp asks its lightest and darkest step to be
-    # within 10 L* of the chart's lightest and darkest colour (K31,
-    # NEUTRAL_AIM_END_REACH), which steps a whole step in from the ends missed
-    # on 22 built-in presets. A neutral within a quarter step of either end
-    # would only repeat a corner, so it is never a step.
-    quarter = 0.25 * span / g
-    neutral = [i for i in neutral
-               if l_black + quarter <= float(back[i][0]) <= l_white - quarter]
-    g = min(g, len(neutral))
+    from workflow.measurement_report import GREY_LEVEL_TOL
+    ends = [tuple(map(float, corners_as_printed[0])),
+            tuple(map(float, corners_as_printed[1]))]
+    cand: "list[int]" = []
+    for i in sorted(neutral, key=lambda k: (float(back[k][0]), k)):
+        lab = tuple(map(float, back[i]))
+        if any(math.dist(lab, c) < GREY_CORNER_REPEAT_DE76 for c in ends):
+            continue
+        if cand and lab[0] - float(back[cand[-1]][0]) < GREY_LEVEL_TOL:
+            continue
+        cand.append(i)
+    g = min(_neutral_budget(count), len(cand))
     if g <= 0:
         return []
-    ls = np.asarray([back[i][0] for i in neutral], dtype=float)
+    if g >= len(cand):
+        return cand
+    ls = np.asarray([back[i][0] for i in cand], dtype=float)
     out: "list[int]" = []
     taken: "set[int]" = set()
-    for t in l_black + (np.arange(g) + 0.5) * span / g:
+    for t in np.linspace(ls[0], ls[-1], g):
         for j in np.argsort(np.abs(ls - t), kind="stable"):
             if int(j) not in taken:
                 taken.add(int(j))
-                out.append(neutral[int(j)])
+                out.append(cand[int(j)])
                 break
     return out
 
@@ -1186,8 +1190,7 @@ def select_gamut_targets(
     neutral = [i for i in passing if _is_neutral(i)]
     body = [i for i in passing if not _is_neutral(i)]
     corners_as_printed = _corner_seed_labs(profile, bin_dir, letter, runner)
-    volume = float(density[1].sum()) if density is not None else None
-    greys = _grey_steps(neutral, back, corners_as_printed, count, volume)
+    greys = _grey_steps(neutral, back, corners_as_printed, count)
     chosen: "list[int]" = list(greys)
 
     import numpy as np

@@ -491,21 +491,29 @@ def chart_clumped_ramp(tone_values=(40.0, 59.4, 60.0)):
 #: **HOW printtarg LAYS THESE PRESETS OUT, MEASURED (2026-09-25).** i1Pro, A4,
 #: 300 dpi, -L, as `payload` stores. At the default patch size: 21 patches to
 #: a strip, at most 24 strips to a page, the block covering 2.98 % of the page
-#: per strip (20 strips 59.6 %, 21 strips 62.6 %). At ``-a 0.80`` (R16): 27
+#: per strip (20 strips 59.6 %, 21 strips 62.6 %). At ``-a 0.80``: 27
 #: patches to a strip, 24 strips cover 58.8 % and 25 cover 61.2 %. The two
 #: evenness rows want a page of at least `EVENNESS_MIN_GRID` (9) strips by 9
-#: rows and a block covering at least `EVENNESS_MIN_PAGE_COVERAGE` (60 %).
+#: rows and, since 4.3.10 (Basti, 2026-10-23), a block reaching across at
+#: least `EVENNESS_MIN_PAGE_SPAN` (65 %) of the page's width and of its height
+#: (until then: covering `EVENNESS_MIN_PAGE_COVERAGE`, 60 %, of its area).
 #:
-#: **WHY R16 IS NOT AT THE DEFAULT PATCH SIZE, where the line falls between
-#: 420 and 421 patches.** The window also withholds an evenness verdict when
-#: the sheet's own noise is not below the limit (Knut, ruling 6), and with 47
-#: patches to each of the nine areas a 421-patch sheet's noise is 1.14, over
-#: Custom ISO 12647-7's pairwise limit of 1.0: its PASS side would have been
-#: withheld for a second reason. At ``-a 0.80`` the line falls between 648 and
-#: 649 patches, 72 to an area, noise 0.94, and nothing but the coverage moves.
-#: (No one-page A4 i1Pro chart at the default size is below 1.0: 504 patches,
-#: 1.03.)
-R16_SCALE = 0.80
+#: **AT ``-a 0.70`` (R16 since 4.3.10), MEASURED 2026-10-23** off printtarg's
+#: own page image (agent 28): 31 patches to a strip, at most 34 strips to a
+#: page, the block 239.44 mm tall (80.6 % of the height) and 5.60 mm wider
+#: for every strip: 24 strips reach across 134.45 mm (64.0 % of the width),
+#: 25 strips 140.04 mm (66.7 %). So the line falls between 744 and 745
+#: patches.
+#:
+#: **WHY R16 IS NOT AT THE DEFAULT PATCH SIZE.** The window also withholds an
+#: evenness verdict when the sheet's own noise is not below the limit (Knut,
+#: ruling 6): the PASS side needs about 72 patches to each of the nine areas
+#: for a noise under Custom ISO 12647-7's pairwise limit of 1.0, or it would be
+#: withheld for a second reason. At the default size the spread line falls
+#: at 17 strips (357 patches, 40 to an area); at ``-a 0.80`` at 22 strips (568
+#: patches, 63 to an area, noise just over 1.0); at ``-a 0.70`` at 25 strips,
+#: 745 patches, 83 to an area, and nothing but the spread moves.
+R16_SCALE = 0.70
 
 #: **K61 (Knut, #182 5851645723): THE THIRD EVENNESS FLOOR, THE SHEET'S OWN
 #: NOISE.** A page that meets both floors above is still not judged when the
@@ -800,17 +808,19 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
     Requirement(
         "R16", "Evenness across the sheet",
         "The page has to be at least 9 strips by 9 rows, and the patch block "
-        "has to cover at least 60 % of it, so that the nine areas the sheet "
-        "is split into are real areas of the page.",
+        "has to reach across at least 65 % of the page's width and at least "
+        "65 % of its height, so that the nine areas the sheet is split into "
+        "are real areas of the page.",
         "strips and rows >= EVENNESS_MIN_GRID (9), and the block's share of "
-        "the page >= EVENNESS_MIN_PAGE_COVERAGE (0.60)  ->  otherwise "
-        "evenness_page_coverage_too_small",
-        "measurement_report.EVENNESS_MIN_GRID, EVENNESS_MIN_PAGE_COVERAGE",
+        "the page's width and of its height >= EVENNESS_MIN_PAGE_SPAN (0.65)"
+        "  ->  otherwise evenness_page_coverage_too_small",
+        "measurement_report.EVENNESS_MIN_GRID, EVENNESS_MIN_PAGE_SPAN",
         ("uniformity_sd", "uniformity_de00_max_from_mean"),
         "evenness_page_coverage_too_small",
-        "648 patches, 24 i1Pro strips covering 58.8 % of an A4 page",
-        "649 patches, 25 strips covering 61.2 %",
-        lambda: chart_page(648), lambda: chart_page(649),
+        "744 patches, 24 i1Pro strips reaching across 64.0 % of an A4 page's "
+        "width",
+        "745 patches, 25 strips reaching across 66.7 %",
+        lambda: chart_page(744), lambda: chart_page(745),
         strip_ids(20), strip_ids(20), scale=R16_SCALE),
     # #182 K49, (b2) (Knut, 5841092535, "Yes"): the paper row is compared
     # with the profile's media white on any chart with a patch printed with

@@ -88,7 +88,8 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §16.5 | E5 / E6 Custom columns 1.5 / 1.0; rows stay in the ISO structure | 2026-09-23, 5789263863 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §16.5 | E7 1.0 on the from-the-mean row | 2026-09-23, 5789263863 | agreed (Knut: "confirmed", of the value); built, confirmed by Knut 2026-09-23 (5794311113) |
 | §16.6 | E2 page coverage at 75 % | 2026-09-23, 5789539407 | superseded by 60 % (5792912682) |
-| §16.6 | E2 page coverage at 60 %, from the "Measured from Preview" margins | 2026-09-23, 5792912682 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
+| §16.6 | E2 page coverage at 60 %, from the "Measured from Preview" margins | 2026-09-23, 5792912682 | agreed; built, confirmed by Knut 2026-09-23 (5794311113); **replaced in 4.3.10** by Basti's spread rule (next row) |
+| §16.6 | E2 replaced: the patch block's SPREAD, at least 65 % of the page's width and 65 % of its height | Basti, 2026-10-23 (forum 149811, jctay's 4 × 6 in card) | built in 4.3.10, awaiting confirmation |
 | §16.6 | E4 the i1Pro 3 Plus 11 by 14 presets as their own case | 2026-09-23, 5789263863, 5792928823 | agreed; checked, confirmed by Knut 2026-09-23 (5794311113) |
 | §16.6 | E8 judge evenness in absolute Lab? | 2026-09-23, 5789263863 | superseded by his answer "Yes" (5795087247, §21.1) |
 | §21.1 | E8 evenness always judged in absolute Lab, whatever the print's intent | 2026-09-23, 5795087247 | agreed; built in beta 39, awaiting confirmation. Supersedes the "same yardstick" clause of §16.1 item 1 |
@@ -3517,6 +3518,18 @@ for the three records below.
 
 ### 16.6 Beta 38: page coverage (E2), the i1Pro 3 Plus case (E4), the yardstick research (E8)
 
+#### ⏳ Awaiting confirmation: E2 replaced by the patch block's spread (4.3.10)
+
+**Confirmed by:** *nobody yet.* **Ruled by:** Basti, 2026-10-23 (forum post 149811; Knut has stepped back, and Basti decided to change the rule Knut confirmed on 2026-09-23, 5794311113). The 60 % area floor below is **superseded** and kept as history.
+
+* **Rule:** a page of at least 9 strips by 9 rows counts for evenness when its patch block reaches across at least `measurement_report.EVENNESS_MIN_PAGE_SPAN` (**0.65**, one constant) of the page's **width** AND at least as much of its **height**, both from the same four "Measured from Preview" margins: width share = (paper width − left − right) / paper width, height share = (paper height − top − bottom) / paper height (`page_coverage.spans_of`). Inclusive. A page short in either direction is left out exactly as before (`evenness_page_coverage_too_small`); a page whose margins nobody can say stays `evenness_no_page_geometry`. The area share is still worked out and kept in the block (`coverage`), for the record and so that a report saved under the old rule (its block has `min_coverage`, no `min_span`) reads exactly as it was saved, with its old note.
+* **Why:** an area share charges a small card for the instrument's fixed margins twice. jctay's 4 × 6 in i1Pro verification card (five pages of 9 strips by 13 rows, the 20 mm clip border on a 101.6 mm wide card) reaches across **70.9 % of the width and 77.8 % of the height** (measured on a rebuild by the app's own layout engine; his report's 55.7 % area gives 71.6 % across) and covers **55.2 % of the area**: a block spread over the whole card, refused by the 60 % floor on every page, so evenness was never judged on it. What the floor was built to refuse, a block on one part of the page, is a short spread in ONE direction: the four half-page i1Pro charts reach across 41.8 to 46.2 % of the width.
+* **Why 65 % and not 70 %, measured over every built-in preset** (191, both clip styles, laid out as the presets window lays them out; 591 pages of 9 by 9): the smallest spread of a page the area floor counted is **74.5 %** (the 130 × 180 mm cards), the largest of a page it refused **52.7 %** (the partly filled last page of the two ColorMunki 2052-patch charts; the half pages 46.2 %). At 60, 65 and 70 % every one of the 591 pages is counted or refused exactly as under the area floor, so no built-in preset that answered stops answering and none starts. 70 % would have passed jctay's card by one point (70.9 %), so a millimetre more margin would refuse it again; 65 % leaves six points on his side and twelve above the largest refused page.
+* **The demo pack's R16 pair** (one patch either side of the line) moved with it: printtarg, i1Pro, A4, `-a 0.70`: 744 patches, 24 strips reaching across 64.0 % of the width (refused), 745 patches, 25 strips, 66.7 % (counted), 239.44 mm (80.6 %) tall, measured off printtarg's own page image.
+* **Pharmacist's 576-patch + 64 greys chart** (the profiling chart jctay used, forum 16957 post 147989), 10 × 15 cm, 12 strips by 12 rows a sheet: about 77 % of the width and 94 % of the height (read off the page image; 72 % of the area), counted under both rules.
+* **Texts (§M-PROPOSED, M-REPORT-EVENNESS-SPREAD, all thirteen languages):** the report's reason names the page and its two figures (*"the patches on page 1 of the measured chart reach across 70.9 % of the page's width and 77.8 % of its height; to compare the nine areas of a page, the patches need to reach across at least 65 % of the width and at least 65 % of the height, so that the nine areas lie spread over the whole page"*), its plural, the two "not counted" notes, and the presets window's line. The help text of both rows says the same.
+* **Built:** `workflow/page_coverage.py` (`spans_of`, `spans` in every page's numbers), `workflow/measurement_report.py` (`EVENNESS_MIN_PAGE_SPAN`, `_page_spans`, `evenness_from_residuals`), the sentences in `ui/dialogs/measurement_report_dialog.py` and `ui/dialogs/preset_verification_dialog.py`. **Verified by:** `tests/test_4310_fpg_greys_and_evenness_spread.py`, `tests/test_beta38_evenness_page_coverage.py` (rewritten for the spread), `tests/test_the_demo_presets_pair_on_every_requirement.py` (R16).
+
 **✅ CONFIRMED (E2 and E4).** **Confirmed by:** Knut, 2026-09-23 (#182
 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 E8 was research only here; Knut answered it the same day (5795087247,
@@ -3530,7 +3543,7 @@ Registered as B8-828 (E2), B8-829 (E4) and B8-830 (E8).
 Proof: `~/Desktop/ChromIQ-beta38-proof/evenness-followups/` (built at 75 %)
 and `~/Desktop/ChromIQ-beta38-proof/evenness-60/` (at 60 %).
 
-**E2, built.** A page counts for evenness only when it has at least 9 strips
+**E2, built (SUPERSEDED in 4.3.10 by the spread rule above; the history follows).** A page counted for evenness only when it had at least 9 strips
 and 9 rows AND its patch block covers at least
 `measurement_report.EVENNESS_MIN_PAGE_COVERAGE` (**0.60**, one constant; it
 was 0.75 until Knut's 5792912682) of the paper:
@@ -3612,7 +3625,7 @@ rows use) waits for Knut. Findings:
   (5795087247), §21.1.**
 
 **Record (E2, page coverage).**
-* **Rule:** a page counts for evenness only when its patches cover at least
+* **Rule (SUPERSEDED in 4.3.10, see the block at the head of §16.6):** a page counted for evenness only when its patches covered at least
   **60 %** of it, computed from the four "Measured from Preview" margins
   (*"Could the Measured from Preview numbers be used to calculate, so that
   these things are not re-measured on-screen? 9 strips and 9 rows may still
@@ -3632,7 +3645,7 @@ rows use) waits for Knut. Findings:
   `evenness_page_coverage_too_small` and `evenness_no_page_geometry`
   (B8-828, commits bbeb82b7, c0a319b0).
 * **Verified by:** `tests/test_beta38_evenness_page_coverage.py::`
-  `test_knuts_formula_on_the_margins`, `test_the_floor_is_60_percent_and_inclusive`,
+  `test_knuts_formula_on_the_margins`, `test_the_floor_is_65_percent_of_each_direction_and_inclusive` (until 4.3.10 `test_the_floor_is_60_percent_and_inclusive`),
   `test_the_floor_is_one_constant`,
   `test_an_uncovered_page_is_left_out_and_the_others_judged`,
   `test_a_chart_with_no_page_geometry_is_na_and_stays_off_the_strip`,

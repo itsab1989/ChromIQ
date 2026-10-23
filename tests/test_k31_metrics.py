@@ -534,14 +534,17 @@ def test_the_german_report_texts_address_nobody():
 
     MUTATION, proven red: German "Wie du die Gleichmäßigkeit beurteilt hast"
     for "How evenness was judged"."""
+    from workflow import measurement_messages as MM
     de = json.loads((ROOT / "data" / "i18n" / "de.json").read_text("utf-8"))
     keys = [r.label for r in ROWS] + ["{metric} (within gamut)"] + [
         "How evenness was judged", APPROVED_LINE,
         "Within and beyond the gamut together", "Darkest black L*",
         "Standard deviation ΔE00, all patches",
-        "the neutral aims of the measured chart are bunched together: none "
-        "lies within {tol} of the lightness L* {level}, and {n} roughly evenly "
-        "spaced steps from its black to its white are needed"]
+        # 4.3.10 (Basti, 2026-10-23): the bunched sentence names the darkest
+        # and the lightest neutral aim, and the spread sentences are new
+        MM._NEUTRAL_AIMS_BUNCHED, MM._EVENNESS_SPREAD_ONE,
+        MM._EVENNESS_SPREAD_MANY, MM._EVENNESS_SPREAD_LEFT_ONE,
+        MM._EVENNESS_SPREAD_LEFT_MANY, MM._EVENNESS_SPREAD_PRESET]
     for k in keys:
         assert k in de, k
         assert not re.search(r"\b(du|dein\w*|dich|dir)\b", de[k], re.I), (k, de[k])

@@ -140,6 +140,10 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-STRIP-END-SLIPPED-EARLY", "M-STRIP-MID-SLIPPED-LATE",
     "M-STRIP-MID-SLIPPED-EARLY",
     "M-REPORT-PATCH-SHIFTED-LATE", "M-REPORT-PATCH-SHIFTED-EARLY",
+    # Basti's rulings of 2026-10-23 (4.3.10, forum 149811): the evenness rows
+    # ask for the patch block's spread in each direction, and the grey rows'
+    # sentence names the darkest and lightest neutral aim (wording waits here).
+    "M-REPORT-EVENNESS-SPREAD", "M-REPORT-NEUTRAL-AIMS-BUNCHED",
     # Knut's report, Basti's ruling of 2026-10-22: Check & Refine on a dated
     # verification (the wording waits here).
     "M-CR-VERIFICATION", "M-CR-VERIFICATION-BY-HAND", "M-REFINE-VERIFY-DONE",

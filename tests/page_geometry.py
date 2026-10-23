@@ -16,20 +16,27 @@ from pathlib import Path
 
 
 def write_page_geometry(ti2: Path, pages, rows: int, coverage=0.85,
-                        paper_mm=(210.0, 297.0), dpi: int = 100) -> Path:
+                        paper_mm=(210.0, 297.0), dpi: int = 100,
+                        spans=None) -> Path:
     """``<stem>.channels.json`` beside *ti2* with a derived layout.
 
     *coverage* is one share for every page or a list, one per page; the
     block keeps the paper's own proportions, so each side is ``sqrt(share)``
-    of the paper's."""
+    of the paper's. *spans* (4.3.10, the spread rule) instead gives each
+    page's (width share, height share) directly: one pair for every page or
+    a list of pairs."""
     w, h = float(paper_mm[0]), float(paper_mm[1])
     k = dpi / 25.4
-    shares = (list(coverage) if isinstance(coverage, (list, tuple))
-              else [float(coverage)] * len(pages))
+    if spans is not None:
+        sides = (list(spans) if isinstance(spans[0], (list, tuple))
+                 else [tuple(spans)] * len(pages))
+    else:
+        shares = (list(coverage) if isinstance(coverage, (list, tuple))
+                  else [float(coverage)] * len(pages))
+        sides = [(math.sqrt(float(x)), math.sqrt(float(x))) for x in shares]
     rects = []
-    for pg, (n_strips, share) in enumerate(zip(pages, shares)):
-        f = math.sqrt(float(share))
-        bw, bh = w * f, h * f
+    for pg, (n_strips, (fw, fh)) in enumerate(zip(pages, sides)):
+        bw, bh = w * float(fw), h * float(fh)
         x0, y0 = (w - bw) / 2.0, (h - bh) / 2.0
         pw, ph = bw / n_strips, bh / rows
         for s in range(int(n_strips)):

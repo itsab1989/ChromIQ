@@ -227,6 +227,12 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Evenness/run4: 68 % covered, judged",
         "Report-Limits-Evenness/run6: 37 % covered, N-A",
     ]),
+    # 4.3.10 (Basti, 2026-10-23): the area floor replaced by the block's
+    # spread; the same two runs, now read by their width and height.
+    ("§16.6", "E2 replaced: the patch block's SPREAD", [
+        "Report-Limits-Evenness/run4: 85 % of the width and 81 % of the height, judged",
+        "Report-Limits-Evenness/run6: the left half of the page, 46 % of the width, N-A",
+    ]),
     ("§16.6", "E4 the i1Pro 3 Plus 11 by 14 presets", [
         "Report-Limits-Evenness/run5: two pages, judged",
         "Report-Limits-Evenness/run7: one page, too noisy",
@@ -548,6 +554,17 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     # slipped, so one step outside ChromIQ first.
     "M-REPORT-STRIP-SHIFTED-LATE": [
         "any run of the pack: in its .ti3, give the first patch of one strip the XYZ of the paper patch and each of its next 7 patches the XYZ of the patch before it in that strip (patch 9 on stays), then New report…, detailed data, Generate report: the paragraph sits above Worst patches and under Report Results",
+    ],
+    # 4.3.10 (Basti, 2026-10-23): the evenness rows ask for the block's
+    # spread in each direction.
+    "M-REPORT-EVENNESS-SPREAD": [
+        "Report-Limits-Evenness/run6: the evenness rows read N-A with this note (the patches reach across 46 % of the page's width)",
+    ],
+    # No demo sheet is a FROM PROFILE GAMUT chart with bunched neutral aims
+    # since 4.3.10 places every reachable grey step, so one step outside
+    # ChromIQ first.
+    "M-REPORT-NEUTRAL-AIMS-BUNCHED": [
+        "Report-Limits-Profile-Gamut/run1: in its chart's colorimetric reference, give every neutral aim (a*, b* within 1 of 0) lighter than L* 30 a* 5, keep the rest, then New report…, Generate report: the grey rows read N-A with this note",
     ],
     "M-REPORT-STRIP-SHIFTED-EARLY": [
         "the same with each of the first 8 patches of a strip given the XYZ of the patch AFTER it in that strip",

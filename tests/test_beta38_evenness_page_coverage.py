@@ -12,6 +12,15 @@ page under the floor is left out as a page under 9 by 9 is; a chart whose
 files do not say where its patches sit reads N-A with that reason. The report,
 the presets window and the pre-flight all ask the same arithmetic.
 
+**4.3.10 (Basti, 2026-10-23): THE AREA FLOOR IS REPLACED BY THE BLOCK'S
+SPREAD IN EACH DIRECTION.** A page counts when its patches reach across at
+least `EVENNESS_MIN_PAGE_SPAN` (65 %) of the paper's width AND of its height
+(`page_coverage.spans_of`), from the same four margins. The tests below that
+are about the floor now ask the spread; the area formula and the old note are
+kept, because a report saved under the old rule still reads as it was saved
+(`tests/test_4310_fpg_greys_and_evenness_spread.py` holds the new rule's
+evidence).
+
 Every test names the mutation it was run against.
 """
 from __future__ import annotations
@@ -68,31 +77,32 @@ def test_knuts_formula_on_the_margins():
     assert PC.coverage_of(210, 297, 200, 200, 0, 0) == 0.0
 
 
-def test_the_floor_is_60_percent_and_inclusive(tmp_path):
-    """Knut, 5792912682: 60 %. Exactly 60 %: counted. A hair under: left out,
-    N-A with the reason. Through a real report, just over (60.3 %) is judged
-    and just under (59.7 %) is refused.
+def test_the_floor_is_65_percent_of_each_direction_and_inclusive(tmp_path):
+    """4.3.10 (Basti, 2026-10-23): 65 % of the width AND 65 % of the height.
+    Exactly 65 %: counted. A hair under in EITHER direction: left out, N-A
+    with the reason. Through a real report too, from the geometry beside the
+    chart.
 
-    MUTATION: `>` for `>=` against `EVENNESS_MIN_PAGE_COVERAGE` in
-    `evenness_from_residuals` and the page at exactly 60 % is refused; the
-    constant left at 0.75 and the 60.3 % page is refused."""
+    MUTATION: `>` for `>=` against `EVENNESS_MIN_PAGE_SPAN`, or ask only the
+    width (or only the height), in `evenness_from_residuals`."""
     import numpy as np
-    assert MR.EVENNESS_MIN_PAGE_COVERAGE == 0.60
-    grid = MR.evenness_grid_from_layout([12], 12, 144, coverage=[0.60])
-    ev = MR.evenness_from_residuals(grid, np.zeros((144, 3)), shuffles=20)
-    assert ev["eligible"], ev
-    grid = MR.evenness_grid_from_layout([12], 12, 144, coverage=[0.5999])
-    ev = MR.evenness_from_residuals(grid, np.zeros((144, 3)), shuffles=20)
-    assert ev["reason"] == MR.REASON_EVENNESS_PAGE_COVERAGE
-    # …and through a real report, from the geometry beside the chart
-    ti2, where = _write_chart(tmp_path / "a", coverage=0.603)
+    assert MR.EVENNESS_MIN_PAGE_SPAN == 0.65
+
+    def ev_of(spans):
+        grid = MR.evenness_grid_from_layout([12], 12, 144,
+                                            coverage=[{"spans": spans}])
+        return MR.evenness_from_residuals(grid, np.zeros((144, 3)),
+                                          shuffles=20)
+    assert ev_of([0.65, 0.65])["eligible"]
+    for short in ([0.6499, 0.95], [0.95, 0.6499]):
+        ev = ev_of(short)
+        assert ev["reason"] == MR.REASON_EVENNESS_PAGE_COVERAGE, (short, ev)
+    ti2, where = _write_chart(tmp_path / "a", spans=(0.66, 0.9))
     ev = _ev(ti2, where)
     assert ev["eligible"], ev
-    assert ev["coverage"][0] == pytest.approx(0.603, abs=2e-3)
-    assert ev["coverage"][0] >= 0.60
-    ti2, where = _write_chart(tmp_path / "b", coverage=0.597)
+    assert ev["spans"][0] == pytest.approx([0.66, 0.9], abs=2e-3)
+    ti2, where = _write_chart(tmp_path / "b", spans=(0.64, 0.95))
     ev = _ev(ti2, where)
-    assert ev["coverage"][0] < 0.60
     assert not ev["eligible"]
     assert ev["reason"] == MR.REASON_EVENNESS_PAGE_COVERAGE
     assert ev["pages_uncovered"] == [1]
@@ -102,37 +112,38 @@ def test_the_floor_is_one_constant(tmp_path, monkeypatch):
     """Move the constant and a page between the two floors changes side, and
     every sentence quoting the floor says the new figure.
 
-    MUTATION: write 0.60 into `evenness_from_residuals` or 60 into the note
-    instead of reading `EVENNESS_MIN_PAGE_COVERAGE`; one half goes red."""
+    MUTATION: write 0.65 into `evenness_from_residuals` or 65 into the note
+    instead of reading `EVENNESS_MIN_PAGE_SPAN`; one half goes red."""
     from ui.dialogs.measurement_report_dialog import _evenness_coverage_sentence
-    ti2, where = _write_chart(tmp_path / "a", coverage=0.55)
+    ti2, where = _write_chart(tmp_path / "a", spans=(0.6033, 0.9))
     rep = MR.build_report(_write_sheet(ti2, where, _even(0.2)))
-    assert "at least 60 % is needed" in _evenness_coverage_sentence(rep)
-    monkeypatch.setattr(MR, "EVENNESS_MIN_PAGE_COVERAGE", 0.5)
+    assert "at least 65 % of the width" in _evenness_coverage_sentence(rep)
+    monkeypatch.setattr(MR, "EVENNESS_MIN_PAGE_SPAN", 0.6)
     ev = _ev(ti2, where)
     assert ev["eligible"], ev
-    ti2, where = _write_chart(tmp_path / "b", coverage=0.45)
+    ti2, where = _write_chart(tmp_path / "b", spans=(0.5533, 0.9))
     rep = MR.build_report(_write_sheet(ti2, where, _even(0.2)))
-    assert "at least 50 % is needed" in _evenness_coverage_sentence(rep)
+    assert "at least 60 % of the width" in _evenness_coverage_sentence(rep)
 
 
 def test_an_uncovered_page_is_left_out_and_the_others_judged(tmp_path):
-    """Knut's E1 rule applied to the new floor: a page under it is left out,
-    the rest of the chart is judged, and the note names the page and its
-    figure.
+    """Knut's E1 rule applied to the floor: a page under it is left out, the
+    rest of the chart is judged, and the note names the page and its two
+    figures.
 
     MUTATION: refuse the whole chart when any page is under the floor."""
     from ui.dialogs.measurement_report_dialog import _evenness_where_sentence
     ti2, where = _write_chart(tmp_path / "c", pages=(12, 12), rows=12,
-                              coverage=[0.85, 0.5])
+                              spans=[(0.9, 0.9), (0.5033, 0.9033)])
     rep = MR.build_report(_write_sheet(ti2, where, _even(0.2)))
     ev = rep["evenness"]
     assert ev["eligible"] and ev["pages_used"] == [1]
     assert ev["pages_uncovered"] == [2] and ev["pages_small"] == []
     assert ev["n_patches"] == 12 * 12
     s = _evenness_where_sentence(rep)
-    assert "The patches on page 2 cover 50.0 % of the page, less than 60 %, " \
-           "so it is not counted." in s, s
+    assert ("The patches on page 2 reach across 50.3 % of the page's width "
+            "and 90.3 % of its height. At least 65 % is needed in both "
+            "directions, so this page is not counted.") in s, s
 
 
 def test_the_grid_floor_is_asked_first(tmp_path):
@@ -168,7 +179,8 @@ def test_a_chart_with_no_page_geometry_is_na_and_stays_off_the_strip(tmp_path):
 # the note (K22: what the measured chart lacks)
 # ---------------------------------------------------------------------------
 def test_the_note_names_the_page_and_its_share_rounded_down():
-    """Knut's K22 wording: "the patches on page N of the measured chart cover
+    """A REPORT SAVED BEFORE 4.3.10 (its block has no ``min_span``) keeps the
+    note it was saved with. Knut's K22 wording: "the patches on page N of the measured chart cover
     X % of the page; at least 60 % is needed". A page at 59.96 % must never
     read "60.0 %" beside a refusal, and the floor itself reads "60", not
     "60.0" or the float's "60.00000000000001".
@@ -197,7 +209,7 @@ def test_the_report_window_shows_the_note_on_both_rows(qapp, tmp_path):
     from tests.test_beta37_round_fixes import _settings, _visible
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.compliance_sets import N_A
-    ti2, where = _write_chart(tmp_path / "c", coverage=0.553)
+    ti2, where = _write_chart(tmp_path / "c", spans=(0.6033, 0.9033))
     t3 = _write_sheet(ti2, where, _even(0.2))
     dlg = MeasurementReportDialog(_settings(tmp_path), None, initial_ti3=t3)
     try:
@@ -205,8 +217,12 @@ def test_the_report_window_shows_the_note_on_both_rows(qapp, tmp_path):
         ev = [x for x in rows if x.get("row_id") in _TWO]
         assert ev and all(x["word"] == N_A for x in ev)
         text = _visible(dlg)
-        want = ("the patches on page 1 of the measured chart cover 55.3 % of "
-                "the page; at least 60 % is needed")
+        want = ("the patches on page 1 of the measured chart reach across "
+                "60.3 % of the page's width and 90.3 % of its height; to "
+                "compare the nine areas of a page, the patches need to reach "
+                "across at least 65 % of the width and at least 65 % of the "
+                "height, so that the nine areas lie spread over the whole "
+                "page")
         assert want in text, text[:2000]
         # the strip is about the chart, and a chart laid out to fill more of
         # the page answers this, so it names both rows with the same note
@@ -349,8 +365,9 @@ def test_the_presets_window_and_the_preflight_ask_the_same_floor():
         assert code in PE.classified_reasons()
         assert "cannot check this metric" not in reason_line(code), code
     line = reason_line(MR.REASON_EVENNESS_PAGE_COVERAGE)
-    assert "cover at least 60 % of the page" in line, line
-    assert "75" not in line, line
+    assert ("reach across at least 65 % of the page's width and at least "
+            "65 % of its height") in line, line
+    assert "75" not in line and "60" not in line, line
 
 
 def test_the_built_in_engine_presets_against_the_60_percent_floor():
@@ -397,9 +414,9 @@ def test_a_laid_out_chart_in_the_preflight_reads_its_own_files(tmp_path):
     MUTATION: have `chart_grid` skip `chart_page_coverage` and the laid-out
     chart reads "no page geometry"."""
     small, _ = _write_chart(tmp_path / "s", pages=(22,), rows=26,
-                            coverage=0.55)
+                            spans=(0.6, 0.9))
     big, _ = _write_chart(tmp_path / "l", pages=(22,), rows=26,
-                          coverage=0.65)
+                          spans=(0.7, 0.9))
     a = dict(PE.assess_any(small).missing)
     assert a.get(PAIR) == MR.REASON_EVENNESS_PAGE_COVERAGE, a
     b = PE.assess_any(big)
@@ -407,10 +424,14 @@ def test_a_laid_out_chart_in_the_preflight_reads_its_own_files(tmp_path):
 
 
 def test_the_help_text_quotes_the_floor():
-    """The metric help icon says 60 %, and the constant must agree.
+    """The metric help icon says 65 % of the width and of the height, and the
+    constant must agree (4.3.10).
 
-    MUTATION: change `EVENNESS_MIN_PAGE_COVERAGE` without the help text."""
+    MUTATION: change `EVENNESS_MIN_PAGE_SPAN` without the help text."""
     from workflow import compliance_sets as CS
-    pct = f"{MR.EVENNESS_MIN_PAGE_COVERAGE * 100:g} %"
-    assert f"cover at least {pct} of the page" in CS.ROW_BY_ID[PAIR].detect
-    assert f"covering at least {pct} of the page" in CS.ROW_BY_ID[PAIR].remedy
+    pct = f"{MR.EVENNESS_MIN_PAGE_SPAN * 100:g} %"
+    assert (f"reach across at least {pct} of the page's width and at least "
+            f"{pct} of its height") in CS.ROW_BY_ID[PAIR].detect
+    assert (f"reaching across at least {pct} of the page's width and at least "
+            f"{pct} of its height") in CS.ROW_BY_ID[PAIR].remedy
+    assert "60 %" not in CS.ROW_BY_ID[PAIR].detect

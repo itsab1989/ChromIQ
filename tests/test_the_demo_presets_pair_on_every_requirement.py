@@ -110,7 +110,7 @@ IND = {
     "outer_fraction": 0.25, "outer_min": 20,
     "worst5_min": 20,
     # K43 (the larger demos): the evenness page, Knut's two floors
-    "evenness_grid": 9, "evenness_coverage": 0.60,
+    "evenness_grid": 9, "evenness_span": 0.65,
 }
 
 #: K43: printtarg's page for these presets (i1Pro, A4, 300 dpi, -L), MEASURED
@@ -120,8 +120,12 @@ IND = {
 PAGE = {1.0: {"strip_patches": 21, "page_strips": 24, "strip_mm": 8.005,
               "block_mm": 232.07},
         0.8: {"strip_patches": 27, "page_strips": 30, "strip_mm": 6.405,
-              "block_mm": 238.50}}
-SHEET_MM2 = 209.97 * 297.01
+              "block_mm": 238.50},
+        # 4.3.10 (R16's patch size since the spread rule): off printtarg's own
+        # page image, 24 strips 134.45 mm, 25 strips 140.04 mm, 239.44 mm tall
+        0.7: {"strip_patches": 31, "page_strips": 34, "strip_mm": 5.6015,
+              "block_mm": 239.44}}
+SHEET_MM = (209.97, 297.01)
 #: A row `_independent` does not judge (K61: the noise pairs' evenness rows).
 SKIP = "__skip__"
 
@@ -261,10 +265,12 @@ def _independent(path: Path, scale: float = 1.0) -> "dict[str, str | None]":
         strips = min(page["page_strips"],
                      int(math.ceil(len(ids) / page["strip_patches"])))
         rows = min(len(ids), page["strip_patches"])
-        cover = strips * page["strip_mm"] * page["block_mm"] / SHEET_MM2
+        # 4.3.10 (Basti, 2026-10-23): the block's spread in each direction
+        spread = min(strips * page["strip_mm"] / SHEET_MM[0],
+                     page["block_mm"] / SHEET_MM[1])
         even = (CONSTANT_LAYOUT if min(strips, rows) < IND["evenness_grid"]
                 else MR.REASON_EVENNESS_PAGE_COVERAGE
-                if cover < IND["evenness_coverage"] else None)
+                if spread < IND["evenness_span"] else None)
         out.update({r: even for r in ("uniformity_sd",
                                       "uniformity_de00_max_from_mean")})
 
@@ -745,7 +751,7 @@ def test_the_thresholds_the_pack_claims_are_the_apps_own():
     assert IND["outer_fraction"] == MR.OUTER_GAMUT_FRACTION
     assert IND["outer_min"] == MR.OUTER_GAMUT_MIN
     assert IND["evenness_grid"] == MR.EVENNESS_MIN_GRID
-    assert IND["evenness_coverage"] == MR.EVENNESS_MIN_PAGE_COVERAGE
+    assert IND["evenness_span"] == MR.EVENNESS_MIN_PAGE_SPAN
     #: the worst-5 % line is not a constant, it is where `_stats` stops having
     #: a worst twentieth: ceil(0.95 n) == n for every n below it
     assert MR._stats([0.0] * (IND["worst5_min"] - 1))["small_sample"]

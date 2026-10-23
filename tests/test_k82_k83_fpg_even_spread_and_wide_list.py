@@ -167,21 +167,37 @@ def test_the_spacing_follows_the_patch_count(et8550):
         assert 0.8 <= m / (volume / (n + 8)) ** (1 / 3) <= 1.5, (n, m)
 
 
-def test_grey_steps_run_evenly_between_the_black_and_the_white_corner(et8550):
-    sel, printed = et8550["charts"][316]
-    n = len(sel.targets)
-    greys = sorted(printed[i][0] for i, (_k, lab, _d) in enumerate(sel.targets)
-                   if math.hypot(lab[1], lab[2]) < 1.0)
-    l_white, l_black = printed[n][0], printed[n + 1][0]
-    # At least the eight the report's grey ramp needs (K31).
-    assert len(greys) >= 8
-    inner = np.diff(greys)
-    assert inner.min() > 0.6 * inner.mean(), inner
-    assert inner.max() < 1.4 * inner.mean(), inner
-    # Half a step from each corner, so the ramp reaches within 10 L* of the
-    # chart's lightest and darkest colours.
-    for end in (greys[0] - l_black, l_white - greys[-1]):
-        assert 0.25 * inner.mean() <= end <= 0.9 * inner.mean(), (end, inner)
+def test_grey_steps_are_every_reachable_step_up_to_the_budget(et8550):
+    """4.3.10 (Basti, 2026-10-23, forum 149811): every grey step of the grey
+    wedge the profile reaches, up to about one patch in eight, spaced evenly
+    from the darkest to the lightest REACHABLE grey (not between the black
+    and the white corner, as 4.3.5 to 4.3.9 did), each a distinct step for
+    the report (at least GREY_LEVEL_TOL apart), and the report's own grey
+    rule passes on every one of the three charts.
+
+    MUTATION: put back 4.3.9's `_grey_steps` (as many as fit at the chart's
+    spacing, between the corners): 8 steps on the 316 chart, not 38."""
+    from workflow import measurement_report as MR
+    for n, (sel, _printed) in et8550["charts"].items():
+        levels = sorted(lab[0] for _k, lab, _d in sel.targets
+                        if math.hypot(lab[1], lab[2]) < 1.0)
+        budget = gt._neutral_budget(n)
+        assert 8 <= len(levels) <= budget, (n, len(levels))
+        assert min(np.diff(levels)) >= MR.GREY_LEVEL_TOL, (n, levels)
+        assert MR.pick_even_grey_steps(levels)[0] is not None, (n, levels)
+        if len(levels) == budget:
+            # more reachable steps than the budget: spaced evenly, both
+            # reachable ends included
+            gaps = np.diff(levels)
+            assert gaps.max() < 2.5 * gaps.mean(), (n, gaps)
+    # the 316 chart holds every distinct grey this printer reaches, 38 of a
+    # budget of 40, where 4.3.9 placed 8; the 100 chart its budget, 12
+    sel, _p = et8550["charts"][316]
+    assert sum(1 for _k, lab, _d in sel.targets
+               if math.hypot(lab[1], lab[2]) < 1.0) == 38
+    sel, _p = et8550["charts"][100]
+    assert sum(1 for _k, lab, _d in sel.targets
+               if math.hypot(lab[1], lab[2]) < 1.0) == gt._neutral_budget(100)
 
 
 def test_the_count_line_and_the_chart_agree_on_what_is_reachable(et8550):

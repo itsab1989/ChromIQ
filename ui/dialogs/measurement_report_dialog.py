@@ -1401,9 +1401,31 @@ def _coverage_pct(v) -> str:
     return f"{math.floor(float(v) * 1000.0) / 10.0:.1f}"
 
 
-def _min_coverage_pct() -> str:
+def _min_coverage_pct(block: "dict | None" = None) -> str:
+    """The AREA floor of a report saved before 4.3.10, as it was saved."""
     from workflow.measurement_report import EVENNESS_MIN_PAGE_COVERAGE
-    return f"{EVENNESS_MIN_PAGE_COVERAGE * 100:g}"
+    v = (block or {}).get("min_coverage")
+    if not isinstance(v, (int, float)):
+        v = EVENNESS_MIN_PAGE_COVERAGE
+    return f"{float(v) * 100:g}"
+
+
+def _min_span_pct(block: "dict | None" = None) -> str:
+    """The SPREAD floor (since 4.3.10, Basti 2026-10-23): the share of the
+    page's width and of its height the patches must reach across."""
+    from workflow.measurement_report import EVENNESS_MIN_PAGE_SPAN
+    v = (block or {}).get("min_span")
+    if not isinstance(v, (int, float)):
+        v = EVENNESS_MIN_PAGE_SPAN
+    return f"{float(v) * 100:g}"
+
+
+def _span_pair(v) -> "tuple[str, str]":
+    """A page's spread ``[width share, height share]`` as two percentages,
+    each rounded DOWN like :func:`_coverage_pct`."""
+    if isinstance(v, (list, tuple)) and len(v) == 2:
+        return _coverage_pct(v[0]), _coverage_pct(v[1])
+    return "?", "?"
 
 
 def _evenness_empty_area_sentence(r: "dict | None") -> str:
@@ -1427,6 +1449,22 @@ def _evenness_coverage_sentence(r: "dict | None") -> str:
     K22 rule: it names what the measured chart lacks, and the figure."""
     b = _evenness_block(r)
     short = list(b.get("pages_uncovered") or [])
+    if "min_span" in b:
+        # 4.3.10, Basti 2026-10-23: the spread in each direction
+        from workflow import measurement_messages as MM
+        spans = list(b.get("spans") or [])
+
+        def sp(p):
+            return spans[p - 1] if 0 < p <= len(spans) else None
+        if len(short) == 1:
+            w, h = _span_pair(sp(short[0]))
+            return tr(MM._EVENNESS_SPREAD_ONE).format(
+                p=short[0], w=w, h=h, k=_min_span_pct(b))
+        known = [sp(p) for p in short if sp(p) is not None]
+        best = max(known, key=min) if known else None
+        w, h = _span_pair(best)
+        return tr(MM._EVENNESS_SPREAD_MANY).format(
+            p=", ".join(str(p) for p in short), w=w, h=h, k=_min_span_pct(b))
     cov = list(b.get("coverage") or [])
 
     def of(p):
@@ -1435,12 +1473,12 @@ def _evenness_coverage_sentence(r: "dict | None") -> str:
         return tr("the patches on page {p} of the measured chart cover {x} % "
                   "of the page; at least {k} % is needed").format(
                       p=short[0], x=_coverage_pct(of(short[0])),
-                      k=_min_coverage_pct())
+                      k=_min_coverage_pct(b))
     best = max((of(p) for p in short if of(p) is not None), default=None)
     return tr("the patches on pages {p} of the measured chart cover at most "
               "{x} % of their page; at least {k} % is needed").format(
                   p=", ".join(str(p) for p in short), x=_coverage_pct(best),
-                  k=_min_coverage_pct())
+                  k=_min_coverage_pct(b))
 
 
 def _evenness_noise_sentence(r: "dict | None", key: str,
@@ -1568,7 +1606,19 @@ def _evenness_where_sentence(r: "dict | None") -> str:
                          "not counted.").format(
                              p=", ".join(str(x) for x in left),
                              k=EVENNESS_MIN_GRID))
-    if uncovered:
+    if uncovered and "min_span" in b:
+        # 4.3.10, Basti 2026-10-23: the spread in each direction
+        from workflow import measurement_messages as MM
+        spans = list(b.get("spans") or [])
+        if len(uncovered) == 1:
+            p = uncovered[0]
+            w, h = _span_pair(spans[p - 1] if p <= len(spans) else None)
+            out += " " + tr(MM._EVENNESS_SPREAD_LEFT_ONE).format(
+                p=p, w=w, h=h, k=_min_span_pct(b))
+        else:
+            out += " " + tr(MM._EVENNESS_SPREAD_LEFT_MANY).format(
+                p=", ".join(str(x) for x in uncovered), k=_min_span_pct(b))
+    elif uncovered:
         cov = list(b.get("coverage") or [])
         if len(uncovered) == 1:
             p = uncovered[0]
@@ -1576,12 +1626,12 @@ def _evenness_where_sentence(r: "dict | None") -> str:
                             "less than {k} %, so it is not counted.").format(
                                 p=p, x=_coverage_pct(cov[p - 1]
                                                      if p <= len(cov) else None),
-                                k=_min_coverage_pct())
+                                k=_min_coverage_pct(b))
         else:
             out += " " + tr("The patches on pages {p} cover less than {k} % "
                             "of their page, so they are not counted.").format(
                                 p=", ".join(str(x) for x in uncovered),
-                                k=_min_coverage_pct())
+                                k=_min_coverage_pct(b))
     if unmeasured:
         out += " " + (tr("Where the patches sit on page {p} is not recorded, "
                          "so it is not counted.").format(p=unmeasured[0])
@@ -12036,6 +12086,7 @@ class MeasurementReportDialog(QDialog):
         _limit = (row or {}).get("threshold")
         gb = r.get("grey_balance") or {}
         from workflow import measurement_report as _MR
+        from workflow import measurement_messages as _MM
         texts = {
             "no_greys": tr("the measured chart has no grey patches (R = G = B)"),
             "too_few_steps": tr("the measured chart has {k} grey steps; at "
@@ -12082,11 +12133,11 @@ class MeasurementReportDialog(QDialog):
                 "has {k} distinct neutral aims to serve as grey steps; at "
                 "least {n} are needed").format(
                     k=gb.get("levels", 0), n=_MR.GREY_MIN_LEVELS),
-            "neutral_aims_bunched": tr(
-                "the neutral aims of the measured chart are bunched together: "
-                "none lies within {tol} of the lightness L* {level}, and {n} "
-                "roughly evenly spaced steps from its black to its white are "
-                "needed").format(
+            # 4.3.10 (Basti, 2026-10-23): the steps are spaced from the
+            # chart's darkest to its lightest neutral aim, which is what
+            # `pick_even_grey_steps` asks; "from its black to its white" was
+            # not true on a printer whose black is not neutral.
+            "neutral_aims_bunched": tr(_MM._NEUTRAL_AIMS_BUNCHED).format(
                     tol=_level_text(_MR.GREY_SPACING_TOL),
                     n=_MR.GREY_MIN_LEVELS,
                     level=_level_text(gb.get('missing_level'))),

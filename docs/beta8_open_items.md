@@ -25735,9 +25735,10 @@ would reach.
 - proof: 19 mutations for this entry, each proved red against a green
   baseline; on screen `~/Desktop/ChromIQ-beta38-proof/evenness-60/` (60 %)
   and `~/Desktop/ChromIQ-beta38-proof/evenness-followups/` (75 %).
+- 4.3.10 (Basti, 2026-10-23): the area floor was replaced by the patch block's spread, at least 65 % of the page's width and of its height (spec §16.6); the floor test was rewritten for it.
 - evidence:
   test_knuts_formula_on_the_margins
-  test_the_floor_is_60_percent_and_inclusive
+  test_the_floor_is_65_percent_of_each_direction_and_inclusive
   test_the_floor_is_one_constant
   test_an_uncovered_page_is_left_out_and_the_others_judged
   test_a_chart_with_no_page_geometry_is_na_and_stays_off_the_strip

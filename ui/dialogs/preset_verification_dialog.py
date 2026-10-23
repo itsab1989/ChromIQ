@@ -255,7 +255,9 @@ def _left_out_sentences(left_out) -> str:
         return ""
     from workflow.measurement_report import EVENNESS_MIN_GRID
     from ui.dialogs.measurement_report_dialog import (_coverage_pct,
-                                                      _min_coverage_pct)
+                                                      _min_coverage_pct,
+                                                      _min_span_pct,
+                                                      _span_pair)
     small = [p for w, p, _c in left_out if w == "small"]
     uncovered = [(p, c) for w, p, c in left_out if w == "uncovered"]
     unmeasured = [p for w, p, _c in left_out if w == "unmeasured"]
@@ -268,7 +270,20 @@ def _left_out_sentences(left_out) -> str:
                       "not counted.").format(
                           p=", ".join(str(x) for x in small),
                           k=EVENNESS_MIN_GRID))
-    if uncovered:
+    if uncovered and all(isinstance(c, (list, tuple)) for _p, c in uncovered):
+        # 4.3.10 (Basti, 2026-10-23): each page carries its spread, the
+        # shares of the page's width and height the patches reach across
+        from workflow import measurement_messages as MM
+        if len(uncovered) == 1:
+            p, c = uncovered[0]
+            w, h = _span_pair(c)
+            out.append(tr(MM._EVENNESS_SPREAD_LEFT_ONE).format(
+                p=p, w=w, h=h, k=_min_span_pct()))
+        else:
+            out.append(tr(MM._EVENNESS_SPREAD_LEFT_MANY).format(
+                p=", ".join(str(x) for x, _c in uncovered),
+                k=_min_span_pct()))
+    elif uncovered:
         if len(uncovered) == 1:
             p, c = uncovered[0]
             out.append(tr("The patches on page {p} cover {x} % of the page, "
@@ -358,6 +373,7 @@ def reason_line(code: str,
     (`Assessment.noise_count`); the sentence then names the numbers."""
     if counts and code in MR.EVENNESS_NOISE_REASONS:
         return noise_count_line(*counts)
+    from workflow import measurement_messages as M
     return {
         # Challenge 8, C5 (B8-1373): in these two windows this reason is
         # only ever given to the two solid rows (`_condition_it_would_get`,
@@ -471,13 +487,13 @@ def reason_line(code: str,
             tr("On a typical print the chart's own noise would not be below "
                "this limit: each ninth of the page would need more patches. "
                "The report measures the real noise on the printed sheet."),
-        # #182 E2 (Knut, 2026-09-23): the patch block's share of the page,
-        # from the same margins "Measured from Preview" shows.
+        # #182 E2 (Knut, 2026-09-23), since 4.3.10 the patch block's spread
+        # in each direction (Basti, 2026-10-23), from the same margins
+        # "Measured from Preview" shows.
         MR.REASON_EVENNESS_PAGE_COVERAGE:
-            tr("On no page of this chart with at least {k} strips and {k} "
-               "rows do the patches cover at least {c} % of the page.").format(
-                   k=MR.EVENNESS_MIN_GRID,
-                   c=f"{MR.EVENNESS_MIN_PAGE_COVERAGE * 100:g}"),
+            tr(M._EVENNESS_SPREAD_PRESET).format(
+                k=MR.EVENNESS_MIN_GRID,
+                c=f"{MR.EVENNESS_MIN_PAGE_SPAN * 100:g}"),
         MR.REASON_EVENNESS_NO_PAGE_GEOMETRY:
             tr("This chart's files do not record where its patches sit on the "
                "page, so how much of the page they cover is not known."),

@@ -7360,6 +7360,60 @@ M_REPORT_PATCH_SHIFTED_LATE = _m(
     "measurement up. Read strip {strip} again and make the report again.",
     approved=False)
 
+# --- 4.3.10 (Basti, 2026-10-23): the evenness rows ask for the patch block's
+# SPREAD across the page in each direction instead of its area share. The
+# report's reason (one page, several pages), its two "not counted" notes, and
+# the presets window's line. {w} and {h} are the shares of the page's width
+# and height the patches reach across, {k} and {c} the floor, all in percent
+# (`measurement_report.EVENNESS_MIN_PAGE_SPAN`).
+_EVENNESS_SPREAD_ONE = (
+    "the patches on page {p} of the measured chart reach across {w} % of the "
+    "page's width and {h} % of its height; to compare the nine areas of a "
+    "page, the patches need to reach across at least {k} % of the width and "
+    "at least {k} % of the height, so that the nine areas lie spread over the "
+    "whole page")
+_EVENNESS_SPREAD_MANY = (
+    "the patches on pages {p} of the measured chart do not reach far enough "
+    "across their page: on the page where they reach furthest, they reach "
+    "across {w} % of its width and {h} % of its height; to compare the nine "
+    "areas of a page, the patches need to reach across at least {k} % of the "
+    "width and at least {k} % of the height, so that the nine areas lie "
+    "spread over the whole page")
+_EVENNESS_SPREAD_LEFT_ONE = (
+    "The patches on page {p} reach across {w} % of the page's width and {h} % "
+    "of its height. At least {k} % is needed in both directions, so this "
+    "page is not counted.")
+_EVENNESS_SPREAD_LEFT_MANY = (
+    "The patches on pages {p} do not reach across at least {k} % of their "
+    "page's width and at least {k} % of its height, so they are not counted.")
+_EVENNESS_SPREAD_PRESET = (
+    "On no page of this chart with at least {k} strips and {k} rows do the "
+    "patches reach across at least {c} % of the page's width and at least "
+    "{c} % of its height, so the nine areas of a page would not lie spread "
+    "over the whole page.")
+M_REPORT_EVENNESS_SPREAD = _m(
+    "M-REPORT-EVENNESS-SPREAD",
+    "Evenness: the patches do not reach far enough across the page",
+    "\n".join((_EVENNESS_SPREAD_ONE, _EVENNESS_SPREAD_MANY,
+               _EVENNESS_SPREAD_LEFT_ONE, _EVENNESS_SPREAD_LEFT_MANY,
+               _EVENNESS_SPREAD_PRESET)),
+    approved=False)
+
+# --- 4.3.10 (Basti, 2026-10-23): the grey rows of a FROM PROFILE GAMUT chart
+# space their steps from the chart's darkest to its lightest NEUTRAL AIM
+# (`measurement_report.pick_even_grey_steps`), not from its black to its white
+# as the old sentence said.
+_NEUTRAL_AIMS_BUNCHED = (
+    "the neutral aims of the measured chart are bunched together: none lies "
+    "within {tol} of the lightness L* {level}, and {n} steps are needed, "
+    "spaced roughly evenly from the darkest to the lightest neutral aim on "
+    "the chart")
+M_REPORT_NEUTRAL_AIMS_BUNCHED = _m(
+    "M-REPORT-NEUTRAL-AIMS-BUNCHED",
+    "Grey balance: the neutral aims are bunched together",
+    _NEUTRAL_AIMS_BUNCHED,
+    approved=False)
+
 M_REPORT_PATCH_SHIFTED_EARLY = _m(
     "M-REPORT-PATCH-SHIFTED-EARLY",
     "Strip {strip} looks shifted by one patch",
@@ -7529,6 +7583,7 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_END_SLIPPED_EARLY, M_STRIP_MID_SLIPPED_LATE,
     M_STRIP_MID_SLIPPED_EARLY,
     M_REPORT_PATCH_SHIFTED_LATE, M_REPORT_PATCH_SHIFTED_EARLY,
+    M_REPORT_EVENNESS_SPREAD, M_REPORT_NEUTRAL_AIMS_BUNCHED,
     M_LIMIT_RECOMMENDED,
     M_CAL_FOUND_ENGINE,
     M_REPORT_CHART_MISMATCH, M_REPORT_CHART_MISMATCH_LAYOUT,

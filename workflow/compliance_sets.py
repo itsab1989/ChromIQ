@@ -620,8 +620,9 @@ _R_REPEAT_ACROSS = (
 #: carries the likely causes, which he asked for in the help text AND in the
 #: report: *"information on what type of faults may result in uniformity issues
 #: need to be mentioned in the help text, but also as notes on the results in
-#: the report text"*. The 9, the 60 %, the 500 and the fourfold are
-#: `measurement_report.EVENNESS_MIN_GRID`, `EVENNESS_MIN_PAGE_COVERAGE`,
+#: the report text"*. The 9, the 65 %, the 500 and the fourfold are
+#: `measurement_report.EVENNESS_MIN_GRID`, `EVENNESS_MIN_PAGE_SPAN` (since
+#: 4.3.10, Basti 2026-10-23; the 60 % area floor before it),
 #: `EVENNESS_SHUFFLES` and the F1 measurement; `tests/test_evenness_across_the_sheet.py` holds the sentence to
 #: the constants.
 _EVEN_CAUSES = (
@@ -667,10 +668,11 @@ _D_EVENNESS = (
     "strips and three bands of rows, whole strips and rows only, with any "
     "remainder in the middle band. The same ninth of every page is counted "
     "together. Only pages with at least 9 strips and 9 rows whose patches "
-    "cover at least 60 % of the page are used, so the chart needs at least "
-    "one such page. The share is worked out from the distance between each "
-    "paper edge and the first patch, the four margins Create Chart shows as "
-    "Measured from Preview.\n\n"
+    "reach across at least 65 % of the page's width and at least 65 % of its "
+    "height are used, so the chart needs at least one such page. Both shares "
+    "are worked out from the distance between each paper edge and the first "
+    "patch, the four margins Create Chart shows as Measured from "
+    "Preview.\n\n"
     "**What is compared.** Every patch is compared with its own aim value, the "
     "same one the colour accuracy rows use, and the differences are averaged "
     "in each of the nine areas. Nothing is matched by brightness or by grey. "
@@ -703,7 +705,8 @@ _D_EVENNESS = (
 #: what the count depends on, and the window names the numbers.
 _R_EVENNESS = (
     "Use a chart whose pages hold at least 9 strips and 9 rows, with patches "
-    "covering at least 60 % of the page, and enough patches in each ninth of "
+    "reaching across at least 65 % of the page's width and at least 65 % of "
+    "its height, and enough patches in each ninth of "
     "the page for the sheet's own noise to stay below the metric's limit: the "
     "lower the limit, the more patches that takes. If a metric reads a "
     "difference, measure the same sheet again before looking for a cause, "

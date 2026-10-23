@@ -1,4 +1,19 @@
-"""How much of each page a chart's patch block covers (#182 E2, Knut 2026-09-23).
+"""How far each page's patch block reaches across the paper (#182 E2).
+
+**THE RULE SINCE 4.3.10 (Basti, 2026-10-23, replacing Knut's confirmed area
+floor): the patch block's SPREAD IN EACH DIRECTION.** A page counts for
+evenness when its patches reach across at least
+`measurement_report.EVENNESS_MIN_PAGE_SPAN` of the paper's width AND of its
+height (:func:`spans_of`). The area share below stays in every page's numbers
+for the record, and to read a report saved under the old rule, but no longer
+decides anything: jctay's 4 x 6 in i1Pro card (forum 149811) reached across
+71 % of the width and 78 % of the height, a block spread over the whole card
+with only the instrument's own margins left, and its area share of 55 % was
+under the 60 % floor, so evenness was never judged on it; the half-page charts
+the floor was built to refuse reach across 42 to 46 % of the width and are
+refused by the spread too.
+
+The history, Knut 2026-09-23:
 
 Knut, asked whether the 75 % page-coverage requirement of the evenness rows
 was still wanted (5789263863, E2): *"Could the Measured from Preview numbers be
@@ -54,9 +69,10 @@ _CACHE: "dict[tuple, dict]" = {}
 
 def coverage_of(page_w_mm: float, page_h_mm: float, left_mm: float,
                 right_mm: float, top_mm: float, bottom_mm: float) -> float:
-    """The share of the paper the patch block covers, 0..1.
+    """The share of the paper's AREA the patch block covers, 0..1.
 
-    Knut's formula, and the only place it is written. A margin larger than
+    Knut's formula, and the only place it is written. Since 4.3.10 it is the
+    record, not the rule (:func:`spans_of`). A margin larger than
     the paper (which no real chart has) gives 0, never a negative share."""
     w, h = float(page_w_mm), float(page_h_mm)
     if w <= 0 or h <= 0:
@@ -66,17 +82,37 @@ def coverage_of(page_w_mm: float, page_h_mm: float, left_mm: float,
     return (bw * bh) / (w * h)
 
 
+def spans_of(page_w_mm: float, page_h_mm: float, left_mm: float,
+             right_mm: float, top_mm: float, bottom_mm: float
+             ) -> "tuple[float, float]":
+    """(share of the paper's WIDTH, share of its HEIGHT) the patch block
+    reaches across, each 0..1: the rule since 4.3.10 (Basti, 2026-10-23).
+    The only place it is written. A margin larger than the paper gives 0."""
+    w, h = float(page_w_mm), float(page_h_mm)
+    if w <= 0 or h <= 0:
+        return (0.0, 0.0)
+    bw = max(0.0, w - float(left_mm) - float(right_mm))
+    bh = max(0.0, h - float(top_mm) - float(bottom_mm))
+    return (bw / w, bh / h)
+
+
+def _page_numbers(w: float, h: float, left: float, right: float, top: float,
+                  bottom: float) -> dict:
+    """One page's numbers: the spread in each direction (the rule), the area
+    share (the record), the margins and the paper."""
+    sw, sh = spans_of(w, h, left, right, top, bottom)
+    return {"coverage": coverage_of(w, h, left, right, top, bottom),
+            "spans": [sw, sh],
+            "margins_mm": [round(float(left), 2), round(float(right), 2),
+                           round(float(top), 2), round(float(bottom), 2)],
+            "paper_mm": [round(float(w), 2), round(float(h), 2)]}
+
+
 def _report_coverage(rep) -> "Optional[dict]":
     if rep is None:
         return None
-    return {"coverage": coverage_of(rep.page_w_mm, rep.page_h_mm, rep.left_mm,
-                                    rep.right_mm, rep.top_mm, rep.bottom_mm),
-            "margins_mm": [round(float(rep.left_mm), 2),
-                           round(float(rep.right_mm), 2),
-                           round(float(rep.top_mm), 2),
-                           round(float(rep.bottom_mm), 2)],
-            "paper_mm": [round(float(rep.page_w_mm), 2),
-                         round(float(rep.page_h_mm), 2)]}
+    return _page_numbers(rep.page_w_mm, rep.page_h_mm, rep.left_mm,
+                         rep.right_mm, rep.top_mm, rep.bottom_mm)
 
 
 def _stamp(p: Path) -> tuple:
@@ -136,10 +172,7 @@ def _derived_page(layout: dict, page: int) -> "Optional[dict]":
     y0 = min(r["y"] for r in rects) * k
     y1 = max(r["y"] + r["h"] for r in rects) * k
     w, h = float(pm[0]), float(pm[1])
-    return {"coverage": coverage_of(w, h, x0, w - x1, y0, h - y1),
-            "margins_mm": [round(x0, 2), round(w - x1, 2), round(y0, 2),
-                           round(h - y1, 2)],
-            "paper_mm": [round(w, 2), round(h, 2)]}
+    return _page_numbers(w, h, x0, w - x1, y0, h - y1)
 
 
 def _engine_page(ch: Path, layout: dict, page: int) -> "Optional[dict]":
@@ -158,8 +191,10 @@ def _engine_page(ch: Path, layout: dict, page: int) -> "Optional[dict]":
 def chart_page_coverage(ti2_path: "str | Path", n_pages: int) -> dict:
     """``{"pages": [per-page dict or None], "source": ...}`` for a stored chart.
 
-    Each page's dict carries ``coverage`` (0..1), ``margins_mm`` (left, right,
-    top, bottom) and ``paper_mm``. A page none of the sources can measure is
+    Each page's dict carries ``spans`` (the shares of the paper's width and
+    height the block reaches across, 0..1, the rule), ``coverage`` (the area
+    share, 0..1, the record), ``margins_mm`` (left, right, top, bottom) and
+    ``paper_mm``. A page none of the sources can measure is
     None. ``source`` is where the numbers came from (the first one that
     answered for page 1)."""
     ti2 = Path(ti2_path)
@@ -258,11 +293,7 @@ def predicted_page_coverage(recipe, n_patches: int) -> dict:
         k = _MM_PER_INCH / dpi
         left, right = x0 * k, w_mm - x1 * k
         top, bottom = y0 * k, h_mm - y1 * k
-        pages.append({"coverage": coverage_of(w_mm, h_mm, left, right, top,
-                                              bottom),
-                      "margins_mm": [round(left, 2), round(right, 2),
-                                     round(top, 2), round(bottom, 2)],
-                      "paper_mm": [round(w_mm, 2), round(h_mm, 2)]})
+        pages.append(_page_numbers(w_mm, h_mm, left, right, top, bottom))
     return {"pages": pages, "source": SOURCE_PREDICTED}
 
 

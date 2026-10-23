@@ -32,10 +32,12 @@ can, beside the pack, so the rows can be driven on screen:
   pages, 11 strips by 14 rows each, 65.3 % of each page covered: Knut's
   multi-page case, judged at 60 %, evenly printed, with the change and with
   the blotch;
-* **run6** (#182 E2 at 60 %), the 312-patch i1Pro A4 preset that fills the
-  left half of the page: 12 strips by 26 rows, its patches cover 37.3 % of
-  the page, so both rows N-A with the coverage note ("at least 60 % is
-  needed");
+* **run6** (#182 E2), the 312-patch i1Pro A4 preset that fills the left
+  half of the page: 12 strips by 26 rows, its patches cover 37.3 % of the
+  page and, since 4.3.10 (Basti, 2026-10-23, the spread rule), reach across
+  46.2 % of its width and 80.7 % of its height, so both rows N-A with the
+  spread note ("at least 65 % of the width and at least 65 % of the
+  height");
 * **run7** (#182 E4 at 60 %), the 154-patch i1Pro 3 Plus A4 preset, the
   same 11 by 14 page as run5 on ONE page, measured as a TYPICAL print (the
   residual the presets window's estimate assumes, 1.1 per component, where
@@ -435,9 +437,9 @@ def build(dest: Path) -> Path:
          "each, whose patches cover 65 % of each page.", DATES_P3, 500)
     run6 = proj.new_run()
     _run(proj, run6, UNCOVERED, "X-Rite i1Pro 2",
-         "A 312-patch i1Pro sheet, 12 strips by 26 rows on half the page, "
-         "whose patches cover 37 % of it, less than the 60 % evenness across "
-         "the sheet needs.", DATES_UNCOVERED, 600)
+         "A 312-patch i1Pro sheet, 12 strips by 26 rows on half the page: "
+         "its patches reach across 46 % of the page's width, less than the "
+         "65 % evenness across the sheet needs.", DATES_UNCOVERED, 600)
     run7 = proj.new_run()
     _run(proj, run7, P3_ONE_PAGE, "X-Rite i1Pro 3 Plus",
          "A 154-patch i1Pro 3 Plus chart on one page, 11 strips by 14 rows: "
