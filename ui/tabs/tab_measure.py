@@ -1095,7 +1095,7 @@ def _detect_uniform_stripe_rects(tiff_path: Path, n_strips: int) -> list[QRect]:
         ]
         thr = (y1 - y0) * 0.10
         gap = max(2, aw // 250)   # bridge anti-alias dropouts between strips
-        best: tuple[int, int] | None = None
+        runs: list[tuple[int, int]] = []
         run_start: int | None = None
         last = 0
         for x in range(aw):
@@ -1104,13 +1104,46 @@ def _detect_uniform_stripe_rects(tiff_path: Path, n_strips: int) -> list[QRect]:
                     run_start = x
                 last = x
             elif run_start is not None and x - last > gap:
-                if best is None or (last - run_start) > (best[1] - best[0]):
-                    best = (run_start, last)
+                runs.append((run_start, last))
                 run_start = None
-        if run_start is not None and (
-            best is None or (last - run_start) > (best[1] - best[0])
-        ):
-            best = (run_start, last)
+        if run_start is not None:
+            runs.append((run_start, last))
+
+        # ── 2a. THE BLOCK LIES UNDER THE STRIP LABELS ────────────────────────
+        # The widest run alone is not enough. A chart of very light patches
+        # (agent 25's paper-white ColorMunki chart, Basti's screenshot of
+        # 2026-10-23) has no column dark enough to count, except the rotated
+        # caption printtarg prints down the right margin: the "block" became
+        # the caption, both strips were laid side by side on it, and the
+        # measure arrow pointed at the caption text, right of strip B, where a
+        # strip C would be. So only a run that lies under the label band
+        # (the letters A, B, ... printed above the strips) may be the block,
+        # and when none does, the strips are found from the labels themselves.
+        lab_cols = [x for x in range(aw)
+                    if any(pix[x, y] < DARK
+                           for y in range(y_lab_start, y_lab_end + 1))]
+        if not lab_cols:
+            return []
+        lab_l, lab_r = lab_cols[0], lab_cols[-1]
+        under = [r for r in runs if r[1] >= lab_l and r[0] <= lab_r]
+        best: tuple[int, int] | None = None
+        if under:
+            best = max(under, key=lambda r: r[1] - r[0])
+        elif n_strips >= 2:
+            # One cluster of label ink per strip; the strips are centred
+            # under them, one pitch apart.
+            clusters: list[list[int]] = []
+            for x in lab_cols:
+                if clusters and x - clusters[-1][-1] <= max(2, aw // 100):
+                    clusters[-1].append(x)
+                else:
+                    clusters.append([x])
+            if len(clusters) == n_strips:
+                centres = [(c[0] + c[-1]) / 2 for c in clusters]
+                pitch = (centres[-1] - centres[0]) / (n_strips - 1)
+                if pitch > 0:
+                    best = (max(0, int(round(centres[0] - pitch / 2))),
+                            min(aw - 1, int(round(centres[-1] + pitch / 2)) - 1))
         if best is None:
             return []
         block_l, block_r = best
@@ -1150,6 +1183,33 @@ def _detect_uniform_stripe_rects(tiff_path: Path, n_strips: int) -> list[QRect]:
                         break
             if ye_blk is not None:
                 y_lab_end = ye_blk
+
+        # ── 2c. …BUT NEVER ABOVE THE BOTTOM OF THE LABEL'S OWN LETTERS ───────
+        # Step 1 counts a row as label band only when it holds at least
+        # MIN_LABEL_DARK dark pixels across the page. On a page with ONE strip
+        # there is one letter, and most of its rows have fewer than that, so
+        # the band ended a few rows into the letter: the arrow, which hangs
+        # from the band's bottom, was drawn over the strip's own label (Basti,
+        # 2026-10-23, the last page of a chart: "the arrow covered the strip
+        # indicator of the last strip"). Follow the ink inside the patch block
+        # down from the band's top, through gaps of up to two rows (an "i"'s
+        # dot), to where the letters end. It only ever moves the bottom DOWN,
+        # and never further than a tenth of the page.
+        y_ink = y_lab_start
+        blank = 0
+        y = y_lab_start
+        y_limit = min(ah - 1, y_lab_start + max(4, ah // 10))
+        while y <= y_limit:
+            if any(pix[x, y] < DARK for x in range(block_l, block_r + 1)):
+                y_ink = y
+                blank = 0
+            else:
+                blank += 1
+                if blank > 2:
+                    break
+            y += 1
+        if blank > 2 and y_ink > y_lab_end:
+            y_lab_end = y_ink
 
         # ── 3. Vertical extent for the rect height ───────────────────────────
         y_top_a    = next((y for y in range(ah)
@@ -11351,6 +11411,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._page_pause = {"plan": plan, "button": bool(button),
                             "shown": _time.monotonic(),
                             "reread": t["reread_strip"]}
+        # Nothing is armed while the reader holds: no "read this next" arrow
+        # on the page under review (Basti's screenshot, 2026-10-23).
+        self._preview.set_scan_arrows_held(True)
         # The note, unless Preferences says to wait without one (Basti,
         # 2026-10-23: "overlay off = the pause shows nothing extra").
         if bool(self._settings.get("measure_page_pause_note", True)):
@@ -11422,10 +11485,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if panel is not None and not panel.isHidden():
             self._page_pause_fade.run(self._page_pause_effect.opacity(), 0.0)
 
-    def _hide_page_pause(self) -> None:
-        """The pause is over: no note, nothing waiting."""
+    def _hide_page_pause(self, *, arrows_wait_for_the_reader: bool = False
+                         ) -> None:
+        """The pause is over: no note, nothing waiting.
+
+        *arrows_wait_for_the_reader*: Continue has asked the engine to move,
+        and until it arms the strip it moved to, the only strip the preview
+        knows is the one just read. The scan arrows stay away until the
+        engine's next strip arrives (`_on_engine_released`), so they never
+        flash back on the old page's strip on their way to the new one."""
         self._hide_page_pause_note()
         self._page_pause = None
+        if not arrows_wait_for_the_reader:
+            self._preview.set_scan_arrows_held(False)
 
     def _end_page_pause(self) -> None:
         """The session is over (or starting): no pause, no memory of one."""
@@ -11460,7 +11532,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._manager.goto_strip(str(plan["target"]))
         else:
             self._manager.resume_after_hold()
-        self._hide_page_pause()
+        self._hide_page_pause(arrows_wait_for_the_reader=True)
 
     def _page_pause_reread(self) -> None:
         pause = getattr(self, "_page_pause", None)

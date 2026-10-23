@@ -2078,6 +2078,9 @@ class TiffPreview(QWidget):
         #: 6079656873): the arrows belong to the READER's strip, so paging
         #: away and back must find them again instead of losing them
         self._active_stripe_page: int = -1
+        #: The pause between pages holds the reader with NO strip armed, so
+        #: the scan arrows are put away until it ends (set_scan_arrows_held).
+        self._scan_arrows_held: bool = False
         self._bidirectional: bool = False
         self._stripe_rects: list[QRect] = []
         # #126 chart-reading engine overlays
@@ -2883,6 +2886,29 @@ class TiffPreview(QWidget):
             return self._active_stripe
         return -1
 
+    def set_scan_arrows_held(self, held: bool) -> None:
+        """Put the scan arrows away while the reader holds between pages.
+
+        In the pause between pages the engine has read the last strip of the
+        page and arms nothing until Continue (or a re-read). An arrow left on
+        the page under review says "read this strip next", and the strip it
+        names is either the one just read or, worse, one on another page
+        (Basti's screenshot, 2026-10-23). The strip highlight itself is kept,
+        so the arrows come back on the same strip if the pause is left
+        without a move; a move brings them back on the new strip."""
+        held = bool(held)
+        if self._scan_arrows_held == held:
+            return
+        self._scan_arrows_held = held
+        self._schedule_refresh()
+
+    def scan_arrows_shown(self) -> bool:
+        """True when the page on screen carries the scan arrow."""
+        return bool(self.active_stripe_on_screen() >= 0 and self._stripe_rects
+                    and self._active_stripe < len(self._stripe_rects)
+                    and not self._hex_zigzag and not self._no_swipe
+                    and not self._scan_arrows_held)
+
     def set_bidirectional(self, enabled: bool) -> None:
         """Toggle the second (bottom, upward-pointing) strip arrow."""
         if self._bidirectional == enabled:
@@ -3637,6 +3663,7 @@ class TiffPreview(QWidget):
         self._pages = []
         self._current = 0
         self._active_stripe = -1
+        self._scan_arrows_held = False
         self._bidirectional = False
         self._stripe_rects = []
         self._stripe_arrow_mode = "base"
@@ -4715,8 +4742,7 @@ class TiffPreview(QWidget):
         # enough for the arrow to show clearly, and only its TEXT stays on
         # top, outlined so it reads on paper, on a dark patch and over the
         # arrow alike (`_paint_legend_chip`).
-        if (self.active_stripe_on_screen() >= 0 and self._stripe_rects
-                and not self._hex_zigzag and not self._no_swipe):
+        if self.scan_arrows_shown():
             # sx/sy: device pixels per original image pixel
             sx = scaled.width()  / self._pixmap.width()
             sy = scaled.height() / self._pixmap.height()

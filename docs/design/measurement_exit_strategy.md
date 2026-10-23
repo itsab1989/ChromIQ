@@ -458,6 +458,13 @@ and goes, and with nothing extra when that note is switched off.)
   fades out once there has been time to read it (8 to 30 s, scaled to its
   words), at the first click elsewhere or key, or at the instrument's button. Switched off, the pause shows nothing on screen but a
   line in the measurement log; Return, space and the button still continue.
+* **No scan arrow in the pause.** The engine arms no strip while it holds,
+  so the preview keeps the page just read on screen (to look it over) with
+  no "read this strip" arrow on it, and none on any page turned to by hand.
+  After Continue the arrow stays away until the engine has armed the next
+  strip, and then appears on that strip, on its page (the preview turns to
+  it). A re-read brings it back on the strip being read again. (Basti's
+  screenshot, 2026-10-23: the arrow stood on page 1 at the pause.)
 * **Where it never holds.** Patch by patch, guided re-measurement, whole-sheet
   readers, the CR30's external values, stock ArgyllCMS chartread, and an engine
   that does not announce `hold_after` in its session start.
