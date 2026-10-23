@@ -206,6 +206,9 @@ def main() -> int:
         app.installEventFilter(_tooltip_wrap_filter)
         _dialog_focus_filter = DialogFocusFilter(app)
         app.installEventFilter(_dialog_focus_filter)
+        from ui.font_features import TypedTextFilter
+        _typed_text_filter = TypedTextFilter(app)
+        app.installEventFilter(_typed_text_filter)
         log.info("Event filters installed separately (CHROMIQ_SEPARATE_FILTERS=1)")
     else:
         _app_filter = CompositeAppFilter(app)

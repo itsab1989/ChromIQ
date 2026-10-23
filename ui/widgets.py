@@ -3686,8 +3686,16 @@ class CompositeAppFilter(QObject):
         self._filters = (DialogFocusFilter(self), TooltipWrapFilter(self),
                          GroupBoxSurfaceFilter(self), ButtonFontFilter(self))
 
+    #: Letters as they are typed (`ui.font_features.keep_widget_typed`):
+    #: whenever a widget's font is decided, and only then.
+    _FONT_DECIDED = (QEvent.Type.Polish, QEvent.Type.FontChange)
+
     def eventFilter(self, obj, event):  # noqa: N802 — Qt's name
-        if event.type() not in self._INTERESTING:
+        t = event.type()
+        if t in self._FONT_DECIDED:
+            from ui.font_features import keep_widget_typed
+            keep_widget_typed(obj)
+        if t not in self._INTERESTING:
             return False
         for f in self._filters:
             f.eventFilter(obj, event)

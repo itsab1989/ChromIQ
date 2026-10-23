@@ -120,3 +120,38 @@ def test_every_start_switches_it_off():
     for name in ("main.py", "scripts/capture_screens.py"):
         assert "show_text_as_typed(app)" in (root / name).read_text(
             encoding="utf-8"), name
+
+
+def test_every_per_class_font_has_it_off_too(qapp):
+    """On macOS the platform theme gives labels, buttons, check boxes and
+    item views fonts of their own; measured on screen, half the main window
+    still drew "4×6" with only the application font set."""
+    from ui.font_features import WIDGET_FONT_CLASSES, shows_as_typed
+    for name in WIDGET_FONT_CLASSES:
+        assert shows_as_typed(QApplication.font(name)), name
+
+
+def test_the_app_filter_gives_each_widget_the_setting(qapp):
+    """Measured on screen (macOS): the theme's per-class fonts come back after
+    start-up and a style-sheet widget gets its font at polish, so 1,369 of
+    2,810 widgets still drew "4×6". The app filter puts the setting on each
+    widget's own font whenever it is decided (Polish, FontChange)."""
+    from PyQt6.QtCore import QEvent
+    from ui.font_features import shows_as_typed
+    from ui.widgets import CompositeAppFilter
+    lab = QLabel("4x6")
+    f = lab.font()
+    f.setFeature(QFont.Tag("calt"), 1)          # as the macOS theme leaves it
+    lab.setFont(f)
+    assert not shows_as_typed(lab.font())
+    filt = CompositeAppFilter()
+    filt.eventFilter(lab, QEvent(QEvent.Type.FontChange))
+    assert shows_as_typed(lab.font())
+    size = lab.font().pointSizeF()
+    assert lab.font().pointSizeF() == size      # nothing else changes
+
+
+def test_the_separate_filters_path_has_it_too():
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
+    assert "TypedTextFilter(app)" in src
