@@ -139,8 +139,10 @@ def test_the_help_says_the_things_a_reader_came_for():
     * "The report names every row it could not compute and why" — the note is
       EMPTY in the ChromIQ-set case, because there is no row there to name;
     * "half those numbers" / "twice them" said of the sets as a whole — true
-      of the five colour difference rows, not of the grey rows (1.5 goes to
-      1.0 and 3.0 to 2.0, and Quick check puts the grey maximum at 7.0);
+      of the five colour difference rows, not of the grey rows (until 4.3.10
+      1.5 went to 1.0 and 3.0 to 2.0, and Quick check put the grey maximum at
+      7.0; since then the grey average is 2.0 / 1.0 / 4.0 and the maximum
+      3.0 / 1.5 / 6.0, and Knut, #182 5850330710, wants no numbers there);
     * "the choice of set matters less there" said of Grey and tone check — it
       matters more: no ChromIQ set limits the mid-tone ramp at all, so that
       row is shown for information whichever set is beside it. (Until
@@ -155,6 +157,9 @@ def test_the_help_says_the_things_a_reader_came_for():
         # between sets in the help; stricter and wider is all it says.
         "pair": ("ChromIQ tight has stricter limits", "Quick check wider ones",
                  "judges the two grey rows like any other row",
+                 "and the mid-tone ramp too",
+                 # only the read-only ISO 12647-7 set leaves it out (4.3.10)
+                 "Only the read-only ISO 12647-7 set",
                  "no limit on the mid-tone ramp",
                  "every row it can compute reads INFO", "still names the set",
                  "Custom ISO", "not rules"),
@@ -188,6 +193,9 @@ def test_the_help_says_the_things_a_reader_came_for():
                  "every row of it reads INFO whichever",
                  "half those numbers", "twice them",
                  "matters less there",
+                 # ChromIQ's own sets limit the ramp since 4.3.10 (Knut's
+                 # proposal, approved by Basti 2026-10-23)
+                 "any other row and puts no limit on the mid-tone ramp",
                  # …and the qualifier that shipped in its place. Quick check
                  # takes the grey MAXIMUM from 3.0 to 7.0 while the colour
                  # maximum goes 3.0 to 6.0, so that row moves by MORE, both as
@@ -242,8 +250,10 @@ def test_the_numbers_in_the_help_are_the_numbers_in_the_sets():
         assert not lim[sid]["grey_balance_neutral_ramp_max"].is_should
         assert lim[sid]["grey_balance_neutral_ramp_avg"].is_numeric, (
             "…and that means judged, so the row must still carry a number")
-        assert lim[sid]["ramps_30_70_dl_max"].kind == "none", (
-            "the help says no ChromIQ set limits the mid-tone ramp")
+        # SINCE 4.3.10 THE OTHER WAY ROUND (Knut's proposal, approved by
+        # Basti 2026-10-23): every ChromIQ set limits the mid-tone ramp.
+        assert lim[sid]["ramps_30_70_dl_max"].is_numeric, (
+            "the help says a ChromIQ set judges the mid-tone ramp too")
     # …AND THE ONE CLAIM ABOUT THE GREY ROWS THAT WAS NOT CHECKED.
     #
     # The paragraph used to end that sentence "; the grey rows move with them,
@@ -254,14 +264,19 @@ def test_the_numbers_in_the_help_are_the_numbers_in_the_sets():
     # of 2.33 against 2.0 -- more on both readings, not less. The qualifier is
     # gone and this is what keeps it gone.
     #
+    # SINCE 4.3.10 (Knut's proposal, approved by Basti 2026-10-23) Quick
+    # check's grey maximum is 6.0, not 7.0: it moves 3.0 -> 6.0 exactly as
+    # the colour maximum does, so "by less" is still false, now because the
+    # two move by the same factor.
+    #
     # MUTATION: put ", by less" back and the forbidden list above goes red;
-    # change 7.0 to 6.0 here and this assertion does.
+    # change 6.0 to 5.0 in the set and this assertion does.
     cq = lim["chromiq_quick"]["grey_balance_neutral_ramp_max"].number
     cd = lim["chromiq_default"]["grey_balance_neutral_ramp_max"].number
-    assert (cd, cq) == (3.0, 7.0), (
-        "the grey maximum no longer moves further than the colour maximum "
+    assert (cd, cq) == (3.0, 6.0), (
+        "the grey maximum no longer moves as far as the colour maximum "
         "does; re-measure before letting the help say 'by less' again")
-    assert cq / cd > mx["chromiq_quick"] / mx["chromiq_default"], (
+    assert cq / cd >= mx["chromiq_quick"] / mx["chromiq_default"], (
         "Quick check's grey maximum moves by a SMALLER factor than its colour "
         "maximum after all, so 'by less' would be true; re-measure")
     # …AND THAT THERE REALLY ARE THREE OF THEM, WHICH NOTHING ASKED.

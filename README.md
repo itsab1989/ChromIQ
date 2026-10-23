@@ -637,8 +637,8 @@ the ones this chart cannot answer.
 
   One report uses one limit set for every measurement in it.
 - **Grey balance, tone ramps and evenness**: the grey ramp is judged for
-  colour cast (the mid-tone ramps with it under ISO 12647-8 and the two Custom
-  ISO sets), and the sheet is split into nine areas and compared, so a band or
+  colour cast (the mid-tone ramps with it under every limit set except the
+  read-only ISO 12647-7 one), and the sheet is split into nine areas and compared, so a band or
   an uneven dry-down shows up as a number. The measurement's own noise is
   taken out first, so the number is the unevenness itself, and the ISO sets
   judge it with the standards' figures converted to ChromIQ's method.

@@ -298,7 +298,9 @@ def test_a_printing_record_plots_the_rows_its_set_limits_and_no_dash_row(
         g = _group(dlg, "grey")
         assert [m[0] for m in g._metrics] == [
             "Average ΔCh, grey balance of the grey ramp"]
-        assert [v for v, _w, _c in g._limit_lines] == [1.5]
+        assert [v for v, _w, _c in g._limit_lines] == [
+            CS.effective_limits("chromiq_default", {})[
+                "grey_balance_neutral_ramp_avg"].number]
         assert any(k == "note" and "information only" in t
                    for k, _c, t in g.descriptions())
     finally:

@@ -1250,8 +1250,14 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "all_de00_avg": Limit.value(2.0), "best95_de00_avg": Limit.value(2.0),
         "worst5_de00_avg": Limit.value(2.0), "all_de00_max": Limit.value(3.0),
         "all_de00_p95": Limit.value(3.0),
-        "grey_balance_neutral_ramp_avg": Limit.value(1.5),
+        # THE GREY PAIR AND THE TONE RAMP, Knut's proposal of 2026-10-22,
+        # approved by Basti 2026-10-23 (`FORMER_GREY_TONE_FACTORY`): the grey
+        # average 2.0 (was 1.5), the grey maximum 3.0 (unchanged), and the
+        # mid-tone ramp judged at 3.0 ΔL* (it had no limit in any ChromIQ
+        # set). Checked against real sheets by agent 31 before it was built.
+        "grey_balance_neutral_ramp_avg": Limit.value(2.0),
         "grey_balance_neutral_ramp_max": Limit.value(3.0),
+        "ramps_30_70_dl_max": Limit.value(3.0),
         # ChromIQ's own two repeatability rows. Row A takes the number default
         # already puts on an AVERAGE and Row B the one it puts on a MAXIMUM,
         # and the order between them is the point: Row B's population contains
@@ -1279,8 +1285,11 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "all_de00_avg": Limit.value(1.0), "best95_de00_avg": Limit.value(1.0),
         "worst5_de00_avg": Limit.value(1.0), "all_de00_max": Limit.value(1.5),
         "all_de00_p95": Limit.value(1.5),
+        # Knut 2026-10-22, Basti 2026-10-23: the grey maximum 1.5 (was 2.0),
+        # and the mid-tone ramp judged at 1.5 ΔL* (it had no limit).
         "grey_balance_neutral_ramp_avg": Limit.value(1.0),
-        "grey_balance_neutral_ramp_max": Limit.value(2.0),
+        "grey_balance_neutral_ramp_max": Limit.value(1.5),
+        "ramps_30_70_dl_max": Limit.value(1.5),
         "repeat_patches_de00_max": Limit.value(1.0),
         "repeat_measurement_de00_max": Limit.value(1.5),
         # NOT half of default, unlike every other row here. Knut, #182
@@ -1294,8 +1303,12 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "all_de00_avg": Limit.value(4.0), "best95_de00_avg": Limit.value(4.0),
         "worst5_de00_avg": Limit.value(4.0), "all_de00_max": Limit.value(6.0),
         "all_de00_p95": Limit.value(6.0),
-        "grey_balance_neutral_ramp_avg": Limit.value(3.0),
-        "grey_balance_neutral_ramp_max": Limit.value(7.0),
+        # Knut 2026-10-22, Basti 2026-10-23: the grey average 4.0 (was 3.0),
+        # the grey maximum 6.0 (was 7.0), and the mid-tone ramp judged at
+        # 6.0 ΔL* (it had no limit): double default, like the colour rows.
+        "grey_balance_neutral_ramp_avg": Limit.value(4.0),
+        "grey_balance_neutral_ramp_max": Limit.value(6.0),
+        "ramps_30_70_dl_max": Limit.value(6.0),
         "repeat_patches_de00_max": Limit.value(4.0),
         "repeat_measurement_de00_max": Limit.value(6.0),
         # Knut, #182 5855780690: "Use 2.5 / 1.7 (recommended): it tolerates
@@ -1473,7 +1486,10 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
 #: both columns, because these are not a standard's structure but ChromIQ's own
 #: statistics and the rows the other column's block covers.
 #:
-#: > **Only ChromIQ default's own three numbers are used: 1.5, 2.0 and 3.0.**
+#: > **Only ChromIQ default's own numbers are used: 1.5, 2.0 and 3.0.**
+#: > (Since 4.3.10 ChromIQ default no longer has 1.5 anywhere, and the grey
+#: > average here followed it to 2.0; the evenness pair takes default's
+#: > 1.8 / 1.2. The rule is the same: every number is one of default's.)
 #: > The five all-patch rows and the two grey rows take exactly what ChromIQ
 #: > default puts on them. Every other row here takes 2.0 or 3.0, reused
 #: > because it is the right order of magnitude for a ΔE00, a ΔCh, a ΔH*ab or a
@@ -1488,8 +1504,11 @@ _CUSTOM_CHROMIQ_FILL: "dict[str, Limit]" = {
     "worst5_de00_avg": Limit.value(2.0),
     "all_de00_max": Limit.value(3.0),
     "all_de00_p95": Limit.value(3.0),
-    # the grey pair, ChromIQ default's own numbers
-    "grey_balance_neutral_ramp_avg": Limit.value(1.5),
+    # the grey pair, ChromIQ default's own numbers. The average follows
+    # ChromIQ default to 2.0 (Knut 2026-10-22, Basti 2026-10-23), and that
+    # changes no Custom column: `_CUSTOM_INDUSTRY` puts Knut's researched
+    # 1.5 on this row in both, and it takes precedence (`custom_defaults`).
+    "grey_balance_neutral_ramp_avg": Limit.value(2.0),
     "grey_balance_neutral_ramp_max": Limit.value(3.0),
     # the rows ChromIQ default puts no limit on
     "substrate_de00_max": Limit.value(3.0),          # ΔE00
@@ -2262,6 +2281,85 @@ def refresh_bound_evenness(values: "dict[str, Limit]", set_id: str,
         if read_only or was_factory:
             out[rid] = now[rid]
     return out
+
+
+#: **EVERY NUMBER CHROMIQ SHIPPED ON THE GREY PAIR AND THE TONE RAMP BEFORE
+#: 4.3.10, PER SET.** Knut proposed new numbers for ChromIQ's own three sets on
+#: 2026-10-22 and Basti approved them on 2026-10-23: the grey average 2.0 /
+#: 1.0 / 4.0 (was 1.5 / 1.0 / 3.0), the grey maximum 3.0 / 1.5 / 6.0 (was
+#: 3.0 / 2.0 / 7.0), and "Maximum ΔL*, single-colour ramps 30 % to 70 %"
+#: judged at 3.0 / 1.5 / 6.0 where no ChromIQ set had a limit on it before.
+#: The same rule as `FORMER_EVENNESS_FACTORY`: a run an earlier ChromIQ bound
+#: (before K31, beta 40) carries a COPY of its set's numbers, and a copied
+#: number that is one ChromIQ shipped for that row of that set is not the
+#: user's, so a new report takes what the set holds now. A number the user
+#: changed stays. ``None`` stands for the factory "–": the tone ramp had no
+#: limit in any of the three sets, so a copy that holds none there (or the
+#: ``?``/``✕`` an older build wrote) was never the user's choice either.
+#: These numbers never changed before (`git log -G'grey_balance_neutral_ramp'
+#: -- workflow/compliance_sets.py`, from 2f0ca8613 of 2026-09-08 on; a copy
+#: from before 2026-09-21 holds them as recommendations, which
+#: `limits_from_json` already reads as plain limits). The ISO and Custom ISO
+#: sets did not change, so they are not listed and their copies are untouched.
+FORMER_GREY_TONE_FACTORY: "dict[str, dict[str, frozenset]]" = {
+    "chromiq_default": {"grey_balance_neutral_ramp_avg": frozenset({1.5}),
+                        "grey_balance_neutral_ramp_max": frozenset({3.0}),
+                        "ramps_30_70_dl_max": frozenset({None})},
+    "chromiq_tight": {"grey_balance_neutral_ramp_avg": frozenset({1.0}),
+                      "grey_balance_neutral_ramp_max": frozenset({2.0}),
+                      "ramps_30_70_dl_max": frozenset({None})},
+    "chromiq_quick": {"grey_balance_neutral_ramp_avg": frozenset({3.0}),
+                      "grey_balance_neutral_ramp_max": frozenset({7.0}),
+                      "ramps_30_70_dl_max": frozenset({None})},
+}
+
+GREY_TONE_ROW_IDS: "tuple[str, ...]" = (
+    "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+    "ramps_30_70_dl_max")
+
+
+def refresh_bound_grey_tone(values: "dict[str, Limit]", set_id: str,
+                            overrides: "dict | None") -> "dict[str, Limit]":
+    """*values*, a run's bound copy of *set_id*, with the two grey balance rows
+    and the tone-ramp row brought to what the set holds now where the copy
+    holds what ChromIQ shipped for them before 4.3.10
+    (`FORMER_GREY_TONE_FACTORY`). A number the user chose is left as it is,
+    and so is every other row and every set that is not listed.
+
+    A row the copy does not carry at all is filled too: the build that bound
+    the run did not define it, so nobody chose anything for it, and leaving
+    it out would leave the row unjudged in a report made today."""
+    former = FORMER_GREY_TONE_FACTORY.get(set_id)
+    if not former or not is_known_set(set_id):
+        return values
+    now = effective_limits(set_id, overrides)
+    out = dict(values)
+    for rid in GREY_TONE_ROW_IDS:
+        if rid not in now:
+            continue
+        olds = former.get(rid, frozenset())
+        cell = out.get(rid)
+        if cell is None:
+            out[rid] = now[rid]
+            continue
+        if getattr(cell, "is_numeric", False):
+            was_factory = any(f is not None and abs(float(cell.number) - f) < 1e-9
+                              for f in olds)
+        else:
+            was_factory = (None in olds
+                           and getattr(cell, "kind", "") in
+                           ("none", "unknown", "unmeasurable"))
+        if was_factory:
+            out[rid] = now[rid]
+    return out
+
+
+def refresh_bound_copy(values: "dict[str, Limit]", set_id: str,
+                       overrides: "dict | None") -> "dict[str, Limit]":
+    """Every refresh a run's bound copy takes before a new report is made of
+    it: the evenness rows (B8-1501) and the grey and tone rows (4.3.10)."""
+    return refresh_bound_grey_tone(
+        refresh_bound_evenness(values, set_id, overrides), set_id, overrides)
 
 
 def is_edited(values: "dict[str, Limit]", set_id: str,

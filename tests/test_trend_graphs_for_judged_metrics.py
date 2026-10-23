@@ -189,10 +189,22 @@ def test_a_withheld_evenness_value_is_not_plotted_against_its_limit():
 # ---------------------------------------------------------------------------
 # which tabs show, and their lines
 # ---------------------------------------------------------------------------
+def _default_without_tone() -> dict:
+    """ChromIQ default with the tone-ramp row at "–".
+
+    Until 4.3.10 that WAS ChromIQ default: no ChromIQ set limited the mid-tone
+    ramp. Knut's proposal, approved by Basti 2026-10-23, put 3.0 ΔL* on it,
+    so the tests below that are about a "–" row now say so themselves
+    instead of borrowing the shipped set for it."""
+    lim = dict(effective_limits("chromiq_default", {}))
+    lim["ramps_30_70_dl_max"] = Limit.none()
+    return lim
+
+
 def test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values(
         qapp, tmp_path):
-    """ChromIQ default limits the grey rows and not the tone ramp, so Grey
-    balance shows with its lines. Tone has values and no limit ("–"): K49
+    """A column that limits the grey rows and not the tone ramp (ChromIQ
+    default until 4.3.10), so Grey balance shows with its lines. Tone has values and no limit ("–"): K49
     showed it without a line; since K51 (Knut, #182 5846167083, K50-2
     option (A), *"Yes"*) a "–" row is not in the report, graphs included,
     so its tab is hidden again, as §17 item 3 first had it. A tab with no
@@ -203,7 +215,7 @@ def test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values(
     MUTATION, proven red: ``bool(metrics)`` -> ``True`` in `_trend_plan`
     (the empty Paper white difference tab shows); or accept a row with no
     numeric limit in `_document_row_limits`'s ``info`` (Tone shows again)."""
-    dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
+    dlg = _open(tmp_path, qapp, _default_without_tone())
     try:
         judged = dlg._judged_trend_limits()
         assert "grey_balance_neutral_ramp_avg" in judged, (
@@ -243,17 +255,17 @@ def test_a_limit_on_the_tone_row_brings_its_tab(qapp, tmp_path):
 
 def test_each_line_sits_at_the_limit_the_report_was_judged_against(
         qapp, tmp_path):
-    """Judged against ChromIQ tight, the grey lines are tight's 1.0 and 2.0,
-    not the 1.5 and 3.0 of the default the unbound run would fall back to.
+    """Judged against ChromIQ tight, the grey lines are tight's 1.0 and 1.5,
+    not the 2.0 and 3.0 of the default the unbound run would fall back to.
 
     MUTATION, proven red: build the judged rows in `_judged_trend_limits`
     from ``self._window_limits().limits`` instead of `_verdict_rows` (the
-    unbound run falls back to ChromIQ default, so the lines read 1.5 / 3.0)."""
+    unbound run falls back to ChromIQ default, so the lines read 2.0 / 3.0)."""
     dlg = _open(tmp_path, qapp, effective_limits("chromiq_tight", {}),
                 set_id="chromiq_tight")
     try:
         lines = _group(dlg, "grey")._limit_lines
-        assert [(v, w) for v, w, _c in lines] == [(1.0, "Avg"), (2.0, "Max")]
+        assert [(v, w) for v, w, _c in lines] == [(1.0, "Avg"), (1.5, "Max")]
         # each line in its own metric's colour, one line per plotted metric
         cols = [c.name() for _v, _w, c in lines]
         assert cols == [QColor(c).name() for _r, _w, c in
@@ -277,7 +289,7 @@ def test_only_the_judged_rows_of_a_group_are_plotted(qapp, tmp_path):
         assert [m[0] for m in g._metrics] == [
             # the row's label, with its unit since K25
             "Average ΔCh, grey balance of the grey ramp"]
-        assert [v for v, _w, _c in g._limit_lines] == [1.5]
+        assert [v for v, _w, _c in g._limit_lines] == [2.0]
     finally:
         dlg.deleteLater()
 
@@ -289,13 +301,13 @@ def test_a_report_that_judges_nothing_draws_no_limit_line(
     exists. The limit is then just for information"*, so a tab whose rows
     the set LIMITS shows them with their lines, and the key under it says
     what each line is and that it is shown for information only. A row the
-    set leaves at "–" (the tone ramp under ChromIQ default) is not in the
-    report and its tab stays hidden.
+    set leaves at "–" (here the tone ramp, as ChromIQ default left it until
+    4.3.10) is not in the report and its tab stays hidden.
 
     MUTATION, proven red: accept ``INFO`` as judged in
     `_document_row_limits` (nothing is "for information"); or drop the
     ``info_note`` from `_trend_extras` (the key says nothing of it)."""
-    dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
+    dlg = _open(tmp_path, qapp, _default_without_tone())
     try:
         # The Printing record is what `_ungraded_by_type` answers True for;
         # a verification window does not offer it (K24), so the type's
@@ -306,13 +318,13 @@ def test_a_report_that_judges_nothing_draws_no_limit_line(
         qapp.processEvents()
         assert dlg._judged_trend_limits() == {}
         info = dlg._info_trend_limits()
-        assert info.get("grey_balance_neutral_ramp_avg") == 1.5
+        assert info.get("grey_balance_neutral_ramp_avg") == 2.0
         assert "ramps_30_70_dl_max" not in info
         vis = _visible(dlg)
         assert vis["Grey balance (ΔCh)"] is True
         assert vis["Tone ramps 30 to 70 % (ΔL*)"] is False
         grey = _group(dlg, "grey")
-        assert [v for v, _w, _c in grey._limit_lines] == [1.5, 3.0]
+        assert [v for v, _w, _c in grey._limit_lines] == [2.0, 3.0]
         d = grey.descriptions()
         assert [k for k, _c, _t in d if k == "line"] == ["line", "line"]
         assert ("note", d[-1][1], mrd.info_limit_note(2)) in d
@@ -415,7 +427,7 @@ def test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out(
     MUTATION, proven red: drop ``if not shown: continue`` in `_export_pdf`
     (Paper white difference and Tone are printed); or go back to a bare
     ``<div>`` + ``<img>``."""
-    dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
+    dlg = _open(tmp_path, qapp, _default_without_tone())
     try:
         if not dlg._trend_de.has_trend():
             pytest.skip("no trend on this fixture, so nothing is printed")

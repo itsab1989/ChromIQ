@@ -389,6 +389,48 @@ Factory values (Knut K4/Q1): ChromIQ default 2.0 / 2.0 / 2.0 / 3.0 / 3.0 on
 the five ΔE00 rows; tight 1.0 / 1.0 / 1.0 / 1.5 / 1.5; quick 4.0 / 4.0 / 4.0 /
 6.0 / 6.0. The grey-balance pair carries 1.5/3.0, 1.0/2.0 and 3.0/7.0 in the
 three ChromIQ sets and is an **ordinary limit** in each of them.
+*(The grey numbers in that sentence are superseded in 4.3.10 by the block
+below; the five ΔE00 rows are unchanged.)*
+
+#### ⏳ Awaiting confirmation: the grey pair and the tone ramp of ChromIQ's own sets (4.3.10)
+
+**Confirmed by:** *nobody yet.* Built on Basti's approval of 2026-10-23 of
+the parts of Knut's proposal of 2026-10-22 that differ from what shipped.
+Knut has stepped back; Basti will discuss the ΔE00 rows of the same proposal
+with him, and nothing on those rows changes until then.
+
+| Row | ChromIQ default | ChromIQ tight | Quick check | before 4.3.10 |
+|---|---|---|---|---|
+| Average ΔCh, grey balance of the grey ramp | **2.0** | 1.0 | **4.0** | 1.5 / 1.0 / 3.0 |
+| Maximum ΔCh, grey balance of the grey ramp | 3.0 | **1.5** | **6.0** | 3.0 / 2.0 / 7.0 |
+| Maximum ΔL\*, single-colour ramps 30 % to 70 % | **3.0** | **1.5** | **6.0** | – / – / – (not judged) |
+
+Checked against the real sheets on this machine before it was built (agent
+31, `ChromIQ-work/2026-10-22_forum_worst_patches/knut_limits/agent31/`
+`table.tsv`). Every row is an ordinary limit. The read-only ISO 12647-7 and
+ISO 12647-8 columns (ISO 12647-8's 2.0 ΔL\* on the ramp included) and both
+Custom ISO columns are unchanged. So since 4.3.10 a ChromIQ set judges all
+three rows of the Grey and tone check, and only the read-only ISO 12647-7
+set leaves the ramp row out; the "Report type" help says so in all 13
+languages.
+
+**What existing data does.**
+
+* A **saved report** keeps the limits and verdicts it was saved with (§25.3).
+* A **Preferences row the user edited** keeps the user's number: an override
+  is stored only where it differs from the factory number, so it stays, and
+  a row nobody touched shows the new factory number. "Restore defaults"
+  restores the new numbers.
+* A **run an earlier ChromIQ bound** (before K31, beta 40) carries a copy of
+  the old numbers. A new report of it takes the new factory number on each of
+  the three rows where the copy still holds what ChromIQ shipped for that set
+  (`compliance_sets.py::FORMER_GREY_TONE_FACTORY`; on the ramp the factory
+  "–", and a row the copy does not have at all), and keeps any number the
+  user chose. The same rule as the evenness rows (B8-1501,
+  `FORMER_EVENNESS_FACTORY`); the run then does not read "(edited)" for it.
+  Custom ISO and ISO copies are not touched.
+
+Tests: `tests/test_4310_grey_and_tone_limits.py`.
 
 > **THIS CHANGED ON 2026-09-21 AND THE NUMBERS DID NOT.** The pair was a
 > **recommendation** (shown in brackets) in every ChromIQ set until that day,

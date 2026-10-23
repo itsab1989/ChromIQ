@@ -73,8 +73,10 @@ def test_chromiq_default_is_knuts_2_2_2_3_3_and_the_grey_rows_are_ordinary():
     # THE GREY PAIR KEEPS ITS NUMBERS AND LOSES ITS BRACKET. Knut, 2026-09-21:
     # *"Remove them, so a bracket only ever appears where a standard is
     # involved, and ChromIQ's own sets have requirements and nothing else."*
+    # The numbers are Knut's proposal of 2026-10-22, approved by Basti on
+    # 2026-10-23: the grey average 2.0 (it was 1.5), the grey maximum 3.0.
     g = f["grey_balance_neutral_ramp_avg"], f["grey_balance_neutral_ramp_max"]
-    assert (g[0].kind, g[0].number, g[1].kind, g[1].number) == ("value", 1.5, "value", 3.0)
+    assert (g[0].kind, g[0].number, g[1].kind, g[1].number) == ("value", 2.0, "value", 3.0)
 
 
 def test_no_shipped_set_marks_any_row_a_recommendation():
@@ -329,6 +331,8 @@ def test_limit_bearing_rows_are_numeric_and_computable():
     lb = limit_bearing(factory_limits("chromiq_default"))
     assert set(lb) == set(cs.OLD_AVG_ROWS) | set(cs.OLD_MAX_ROWS) | {
         "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+        # the mid-tone ramp, Knut's proposal approved by Basti 2026-10-23
+        "ramps_30_70_dl_max",
         # ChromIQ's own two repeatability rows. They are named here rather
         # than the set being loosened, because this assertion is the record of
         # exactly what ChromIQ default judges, and a row joining that list is

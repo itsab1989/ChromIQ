@@ -130,9 +130,18 @@ def test_info_is_the_word_of_an_ungraded_sheet_and_a_dash_row_leaves():
 
 
 def test_the_pairing_help_leaves_the_ramp_out_and_names_the_iso_sets():
+    """Since 4.3.10 (Knut's proposal, approved by Basti 2026-10-23) every
+    ChromIQ set judges the mid-tone ramp too, so the ramp row is left out
+    only under the read-only ISO 12647-7 set, and the help says so."""
     from ui.dialogs.measurement_report_dialog import _PAIRING_HELP
-    assert "so that row is left out of the report" in _PAIRING_HELP
-    assert "The read-only ISO 12647-8 set and both Custom ISO sets judge all three" in _PAIRING_HELP
+    assert "and the mid-tone ramp too" in _PAIRING_HELP
+    assert ("Only the read-only ISO 12647-7 set judges the two grey rows and "
+            "puts no limit on the mid-tone ramp, so under that set the ramp "
+            "row is left out of the report") in _PAIRING_HELP
+    assert ("The read-only ISO 12647-8 set and both Custom ISO sets judge all "
+            "three") in _PAIRING_HELP
+    assert "A ChromIQ set judges the two grey rows like any other row and puts" \
+        not in _PAIRING_HELP
 
 
 def test_the_pairing_help_matches_the_shipped_ramp_limits():
@@ -146,8 +155,8 @@ def test_the_pairing_help_matches_the_shipped_ramp_limits():
            for sid in ("chromiq_default", "chromiq_tight", "chromiq_quick",
                        "iso_12647_7", "iso_12647_8",
                        "custom_iso_12647_7", "custom_iso_12647_8")}
-    assert has == {"chromiq_default": False, "chromiq_tight": False,
-                   "chromiq_quick": False, "iso_12647_7": False,
+    assert has == {"chromiq_default": True, "chromiq_tight": True,
+                   "chromiq_quick": True, "iso_12647_7": False,
                    "iso_12647_8": True, "custom_iso_12647_7": True,
                    "custom_iso_12647_8": True}
 

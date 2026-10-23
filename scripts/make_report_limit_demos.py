@@ -38,7 +38,8 @@ Read `PROJECTS` for the current shape. In outline, what each project is for:
     Report-Limits-Isolated-Rows      rows that cannot cross alone under any
                                      shipped limit set, isolated by giving the
                                      run its own edited column. One of them is
-                                     judged by no shipped set at all. run3 has
+                                     the tone ramp under a tighter limit than
+                                     ChromIQ default's own. run3 has
                                      TWO dated verifications.
     Report-Limits-Set-Compare        the same measurement, three times, judged
                                      by ChromIQ default / tight / Quick check.
@@ -1830,14 +1831,17 @@ SERIES_DEFAULT: "list[Date]" = [
        []),
     _d("2026-04-13_100000", "2026-04-13T10:00:00",
        "The greys pick up a cast",
-       "Every grey on the ramp is 1.8 off in chroma, over the 1.5 this set "
+       "Every grey on the ramp is 2.03 off in chroma, over the 2.0 this set "
        "puts on the grey average. 'Average ΔE00, highest 5 %' goes with it "
-       "and cannot be held back: 1.8 of chroma error on a neutral IS a colour "
-       "difference of 2.55, the grey ramp is most of the highest 5 % of this "
+       "and cannot be held back: 2.03 of chroma error on a neutral IS a colour "
+       "difference of about 2.85, the grey ramp is most of the highest 5 % of this "
        "chart, and their limit is 2.0. TWO rows cross. Isolated-Rows run 4 "
        "shows the grey average crossing on its own, with a column that allows "
        "for this.",
-       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.80),
+       # 2.03 since 4.3.10, when the grey average's limit went from 1.5 to
+       # 2.0 (Knut's proposal, approved by Basti 2026-10-23): over 2.0, and
+       # still under the 3.0 on 'Maximum ΔE00, all patches'.
+       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=2.03),
        ["grey_balance_neutral_ramp_avg", "worst5_de00_avg"]),
     _d("2026-04-27_100000", "2026-04-27T10:00:00",
        "The cast is corrected, nearly",
@@ -1931,15 +1935,13 @@ SERIES_TWO_DATES_UNLOCKED: "list[Date]" = [
        []),
 ]
 
-#: The tone-ramp row, which NO shipped set judges at all.
+#: The tone-ramp row under a limit of the run's own.
 #:
-#: Every ChromIQ set leaves `ramps_30_70_dl_max` without a limit, so the report
-#: prints its number and nothing can cross it. That makes it invisible to a
-#: package built only from the shipped sets, and it was: measured over the whole
-#: of this package, the seven rows a shipped set puts a number on were all
-#: crossed by some date, and this one could not be. It becomes judgeable only
-#: when a user types a limit into it, which is what this run's own edited column
-#: does, and which is this project's whole purpose.
+#: Until 4.3.10 every ChromIQ set left `ramps_30_70_dl_max` without a limit, so
+#: this run's own edited column was the only way to make it cross under a
+#: ChromIQ set. Since then ChromIQ default judges it at 3.0 (Knut's proposal,
+#: approved by Basti 2026-10-23); the run keeps its tighter 2.0, so the same
+#: 3.0 step still crosses here and only here.
 SERIES_RAMP: "list[Date]" = [
     _d("2026-10-05_110000", "2026-10-05T11:00:00",
        "One step of the grey ramp is too dark",
@@ -1998,7 +2000,7 @@ SERIES_P95: "list[Date]" = [
 ]
 
 #: run4 of the second project: the grey-balance AVERAGE on its own. A grey
-#: cast big enough to cross the grey average's 1.5 also lifts the worst-5 %
+#: cast big enough to cross the grey average's 2.0 also lifts the worst-5 %
 #: average past 2.0 under a stock column, because ΔE00 near a neutral is about
 #: 1.41 times the plain chroma difference (measured: ΔCh 1.8 gives ΔE00 2.55,
 #: ΔCh 3.6 gives 4.82) and the grey ramp is most of this chart's worst 5 %.
@@ -2006,11 +2008,11 @@ SERIES_P95: "list[Date]" = [
 SERIES_GREY_AVG: "list[Date]" = [
     _d("2026-08-31_150000", "2026-08-31T15:00:00",
        "A grey cast, and only the grey row says so",
-       "The grey ramp is 1.9 off in chroma, over the 1.5 ChromIQ default "
+       "The grey ramp is 2.3 off in chroma, over the 2.0 ChromIQ default "
        "puts on the grey average. This run's own column relaxes the "
        "colour-difference rows to 6 and 9 so the cast is not counted twice. "
        "ONE row crosses.",
-       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.90),
+       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=2.30),
        ["grey_balance_neutral_ramp_avg"]),
     _d("2026-09-14_150000", "2026-09-14T15:00:00",
        "The cast is corrected",
@@ -2046,8 +2048,11 @@ SERIES_COMPARE_TIGHT: "list[Date]" = [
     _d(*_C2, COMPARE_DRIFTED,
        ["all_de00_avg", "best95_de00_avg", "worst5_de00_avg",
         "all_de00_max", "all_de00_p95",
-        # tight puts 1.0 on the grey average, not the default's 1.5
-        "grey_balance_neutral_ramp_avg"]),
+        # tight puts 1.0 on the grey average, not the default's 2.0
+        "grey_balance_neutral_ramp_avg",
+        # …and, since 4.3.10, 1.5 on the tone ramp, which this sheet's 1.8
+        # is over (default's 3.0 and Quick check's 6.0 are not crossed)
+        "ramps_30_70_dl_max"]),
 ]
 SERIES_COMPARE_QUICK: "list[Date]" = [
     _d(*_C1, COMPARE_MILD, []),
@@ -2170,20 +2175,19 @@ TYPES_DE_QUICK: "list[Date]" = [
        []),
 ]
 
-#: T3 keeps three rows and drops the rest. Two of the three, the grey pair, are
-#: limits in every ChromIQ set and read FAIL over them; the third, the
-#: 30 to 70 % tone ramp, is judged by NO shipped set, so it can only be made to
-#: say something by a run's own edited column. One run here does that, and the
-#: other two leave it alone so a reader sees both states.
+#: T3 keeps three rows and drops the rest. All three are limits in every
+#: ChromIQ set since 4.3.10 (the tone ramp had none before: Knut's proposal,
+#: approved by Basti 2026-10-23). One run here gives the tone ramp a tighter
+#: limit of its own column, and the other two leave the set as it ships.
 TYPES_GREY_DEFAULT: "list[Date]" = [
     _d("2026-11-05_100000", "2026-11-05T10:00:00",
        "A grey cast and a dark ramp step, together",
-       "The grey ramp is 1.9 off in chroma, over the 1.5 ChromIQ default puts "
+       "The grey ramp is 2.3 off in chroma, over the 2.0 ChromIQ default puts "
        "on it, and the middle step of the tone ramp is 3.0 too dark, over the "
-       "2.0 this run's own column asks for. TWO rows cross, which is the most "
+       "2.0 this run's own column asks for (ChromIQ default allows 3.0). TWO rows cross, which is the most "
        "this design allows, and they are the two rows a Grey and tone check "
        "exists to show.",
-       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.90, ramp_dl=3.0),
+       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=2.30, ramp_dl=3.0),
        ["grey_balance_neutral_ramp_avg", "ramps_30_70_dl_max"]),
     _d("2026-11-19_100000", "2026-11-19T10:00:00",
        "Both come back",
@@ -2198,8 +2202,8 @@ TYPES_GREY_TIGHT: "list[Date]" = [
        "Both grey rows cross at once",
        "The ramp carries 1.4 of chroma error and one step carries 2.4, which "
        "puts 'Grey balance of the grey ramp, average' over ChromIQ tight's "
-       "1.0 and 'Grey balance of the grey ramp, largest' over its 2.0. TWO rows cross. The tone-ramp row shows its number and "
-       "no word, because no shipped limit set puts a limit on it.",
+       "1.0 and 'Grey balance of the grey ramp, largest' over its 1.5. TWO rows cross. The tone-ramp row "
+       "stays inside ChromIQ tight's 1.5.",
        Design(bulk=0.40, shoulder=0.60, tail=0.70, grey_dch=1.40,
               grey_spike=2.40),
        ["grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max"]),
@@ -2213,9 +2217,9 @@ TYPES_GREY_TIGHT: "list[Date]" = [
 TYPES_GREY_QUICK: "list[Date]" = [
     _d("2026-11-07_100000", "2026-11-07T10:00:00",
        "A cast big enough for even Quick check to mention",
-       "The grey ramp is 3.5 off in chroma, over the 3.0 Quick check puts on "
+       "The grey ramp is 4.4 off in chroma, over the 4.0 Quick check puts on "
        "the grey average. ONE row crosses.",
-       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=3.50),
+       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=4.40),
        ["grey_balance_neutral_ramp_avg"]),
     _d("2026-11-21_100000", "2026-11-21T10:00:00",
        "The cast is corrected",
@@ -2277,13 +2281,20 @@ BORDER_SMALL_SAMPLE: "list[Date]" = [
        "Too few patches to have a highest 5 per cent, and a grey cast as well",
        "Twenty patches, so the highest 5 % of the sheet is the empty set and "
        "'Average ΔE00, highest 5 %' cannot be computed at all; the lowest 95 % "
-       "becomes every patch, for its average and its 95th percentile. The grey ramp is 1.55 off in chroma at "
-       "the same time, over the 1.5 this set puts on the grey average. The "
-       "column therefore has both a row nobody could compute and a row over "
-       "its limit, which is the only way to reach the sentence that counts "
+       "becomes every patch, for its average and its 95th percentile. The grey ramp is 2.03 off in chroma at "
+       "the same time, over the 2.0 this set puts on the grey average. On a "
+       "chart this small the greys are most of the patches, so the two "
+       "averages over all patches, 'Average ΔE00, all patches' and 'Average "
+       "ΔE00, lowest 95 %', go over their 2.0 with it: THREE rows cross. The "
+       "column therefore has both a row nobody could compute and rows over "
+       "their limits, which is the only way to reach the sentence that counts "
        "them both.",
-       Design(bulk=0.40, shoulder=0.60, tail=0.60, grey_dch=1.55),
-       ["grey_balance_neutral_ramp_avg"]),
+       # Since 4.3.10 the grey average's limit is 2.0 (Knut's proposal,
+       # approved by Basti 2026-10-23), the same as the two averages, and a
+       # cast over it on 20 patches carries both of them over too (measured:
+       # a grey cast of 2.03 gives both averages 2.53; 1.55 gave 1.95).
+       Design(bulk=0.40, shoulder=0.60, tail=0.60, grey_dch=2.03),
+       ["grey_balance_neutral_ramp_avg", "all_de00_avg", "best95_de00_avg"]),
     _d("2026-12-15_100000", "2026-12-15T10:00:00",
        "The cast is corrected, and the chart is still too small",
        "The grey ramp is back to 0.5 and nothing is over a limit. "
@@ -4212,9 +4223,9 @@ PAPER_BARYTA = _outlier_pair(
     "the three averages (ChromIQ tight 1.0)",
     ["all_de00_avg", "best95_de00_avg", "worst5_de00_avg"])
 PAPER_RAG = _outlier_pair(
-    "03", Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=3.60),
+    "03", Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=4.40),
     Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.00),
-    "the grey average (Quick check 3.0)", ["grey_balance_neutral_ramp_avg"])
+    "the grey average (Quick check 4.0)", ["grey_balance_neutral_ramp_avg"])
 #: The Custom column numbers every row ChromIQ can measure, so a single far
 #: patch also crosses the control-strip rows when it is a strip patch
 #: (measured: it was). The tone-ramp row is what this run moves instead.
@@ -4403,8 +4414,8 @@ PROJECTS = [
                                "best95_de00_avg": 6.0, "all_de00_max": 9.0,
                                "all_de00_p95": 9.0}),
         RunPlan("'Single-colour ramps 30 % to 70 %, largest lightness "
-                "difference', which no shipped limit set judges, given a "
-                "limit edited for its reports.",
+                "difference', given a tighter limit (2.0) edited for its "
+                "reports than ChromIQ default's 3.0.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", SERIES_RAMP,
                 edited_limits={"all_de00_avg": 9.0, "worst5_de00_avg": 9.0,
                                "best95_de00_avg": 9.0, "all_de00_max": 9.0,
@@ -4442,7 +4453,7 @@ PROJECTS = [
                 TYPES_GREY_DEFAULT, report_type=REPORT_TYPE_GREY,
                 edited_limits={"ramps_30_70_dl_max": 2.0}),
         RunPlan("Grey and tone check, ChromIQ tight, left as the set ships: "
-                "the tone-ramp row shows a number and no word.",
+                "all three rows are judged, the tone ramp against tight's 1.5.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_tight", TYPES_GREY_TIGHT,
                 report_type=REPORT_TYPE_GREY),
         RunPlan("Grey and tone check, Quick check.",
@@ -6974,7 +6985,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("  a run with its own edited limit column ..... Isolated-Rows, runs 1, 2, 4, 5")
     a("  one measurement judged three ways .......... Set-Compare, all runs")
     a("  the grey AVERAGE crossing on its own ...... Isolated-Rows, run4")
-    a("  a row no shipped set judges at all ......... Isolated-Rows, run5")
+    a("  the tone ramp under a tighter edited limit . Isolated-Rows, run5")
     for _what, _where in _type_index(_cov.get("type_set_rows", []),
                                      _cov.get("multi_type_runs", [])):
         a(f"  {(_what + ' '):.<44} {_where}")

@@ -265,9 +265,11 @@ def run_limits(run: "Run | None", overrides: "dict | None",
         # B8-1501 (Knut, #182 5857473253): a new report is made by the
         # current version, so an earlier ChromIQ's copy of the evenness rows
         # takes what the set holds now, unless the user chose the number.
-        from workflow.compliance_sets import refresh_bound_evenness
-        limits = refresh_bound_evenness(limits, meta.compliance_set_id,
-                                        overrides)
+        # 4.3.10 (Knut's proposal, Basti 2026-10-23): the same for the grey
+        # pair and the tone-ramp row of ChromIQ's own three sets.
+        from workflow.compliance_sets import refresh_bound_copy
+        limits = refresh_bound_copy(limits, meta.compliance_set_id,
+                                    overrides)
     return RunLimits(
         meta.compliance_set_id,
         set_label(meta.compliance_set_id, meta.compliance_set_label),

@@ -74,7 +74,8 @@ def test_binding_copies_the_effective_limits_including_the_users_overrides(tmp_p
     # FORM is unchanged and still round-trips; see
     # tests/test_thresholds_dialog.py, which binds a run to a column whose
     # limit a licence holder has marked that way.
-    assert meta.compliance_thresholds["grey_balance_neutral_ramp_avg"] == 1.5
+    # (2.0 since Knut's proposal, approved by Basti 2026-10-23; it was 1.5.)
+    assert meta.compliance_thresholds["grey_balance_neutral_ramp_avg"] == 2.0
     assert meta.compliance_bound_at
 
 

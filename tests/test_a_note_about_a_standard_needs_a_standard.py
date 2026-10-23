@@ -116,11 +116,14 @@ def test_the_runs_own_copy_is_read_without_the_relic(tmp_path):
     bind_run(run, "chromiq_quick", None)
     meta = run.load_meta()
     thr = dict(meta.compliance_thresholds)
-    thr["grey_balance_neutral_ramp_avg"] = [3.0, "should"]
+    # A number of the user's own (3.3), not one ChromIQ shipped: a copied
+    # 3.0, Quick check's grey average before 4.3.10, would be brought to
+    # today's 4.0 by `refresh_bound_grey_tone`, which is a different rule.
+    thr["grey_balance_neutral_ramp_avg"] = [3.3, "should"]
     meta.compliance_thresholds = thr
     run.save_meta(meta)
     lim = run_limits(run, None).limits["grey_balance_neutral_ramp_avg"]
-    assert not lim.is_should and lim.number == 3.0
+    assert not lim.is_should and lim.number == 3.3
 
 
 def test_the_loaded_documents_limits_and_its_column_summary_carry_no_relic(

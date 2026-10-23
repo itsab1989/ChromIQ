@@ -131,9 +131,10 @@ def test_editable_and_read_only_columns_follow_the_rulings(qapp, tmp_path):
         # NO BRACKET ANYWHERE, IN ANY COLUMN, AS CHROMIQ SHIPS. Knut,
         # 2026-09-21. The grey pair carried one in all three ChromIQ sets and
         # `ramps_30_70_dl_max` in Custom ISO 12647-7; all four are ordinary
-        # limits now, keeping their numbers.
+        # limits now. (The grey average is 2.0 since Knut's proposal,
+        # approved by Basti 2026-10-23; it was 1.5.)
         sb = _cell(dlg, "chromiq_default", "grey_balance_neutral_ramp_avg")
-        assert sb.prefix() == "" and sb.suffix() == "" and sb.value() == 1.5
+        assert sb.prefix() == "" and sb.suffix() == "" and sb.value() == 2.0
         bracketed = sorted(
             f"{c}/{r}" for (c, r), w in dlg._cells.items()
             if (isinstance(w, QLabel) and w.text().startswith("("))
