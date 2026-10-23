@@ -165,6 +165,10 @@ def sweep(qapp):
     challenge drove."""
     from core.settings import AppSettings
     from ui.tabs.tab_chart import verification_preset_rows
+    from tests.conftest import _forget_preset_answers
+    # judged afresh here: nothing an earlier file's stub left in the
+    # session cache is read as a preset's answer (see `stubbed_judge`)
+    _forget_preset_answers()
     rows = [r for r in verification_preset_rows(AppSettings())
             if r.chart is not None]
     grids = {}

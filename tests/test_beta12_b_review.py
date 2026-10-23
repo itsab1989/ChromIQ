@@ -192,7 +192,7 @@ def clean_user_store(preset_certificates):
 
 @pytest.mark.parametrize("reason", sorted(PE._NOT_CERTIFIABLE))
 def test_an_answer_about_the_tools_is_never_certified(
-        qapp, clean_user_store, monkeypatch, reason):
+        qapp, clean_user_store, stubbed_judge, monkeypatch, reason):
     chart = _user_preset()
     PE.clear_cache()
     monkeypatch.setattr(MR, "row_values", lambda rep: {
@@ -205,7 +205,8 @@ def test_an_answer_about_the_tools_is_never_certified(
         clean_user_store.read_text(encoding="utf-8"))["certificates"]
 
 
-def test_a_full_answer_is_still_certified(qapp, clean_user_store, monkeypatch):
+def test_a_full_answer_is_still_certified(qapp, clean_user_store,
+                                          stubbed_judge, monkeypatch):
     """MUTATION guard for the test above: the same path with a real reason
     does write a certificate."""
     chart = _user_preset()

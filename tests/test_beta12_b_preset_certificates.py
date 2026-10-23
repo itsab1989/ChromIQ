@@ -78,7 +78,7 @@ def test_a_certificate_says_what_working_it_out_says(rows, preset_certificates):
 
 
 def test_the_window_reads_the_certificate_and_works_nothing_out(
-        rows, preset_certificates, monkeypatch):
+        rows, preset_certificates, stubbed_judge, monkeypatch):
     r = next(r for r in rows if r.builtin and r.chart is not None)
     PE.clear_cache()
     _no_judging(monkeypatch)
@@ -89,6 +89,7 @@ def test_the_window_reads_the_certificate_and_works_nothing_out(
 
 # ------------------------------------------------- a stale one is never used
 def test_another_chromiq_s_certificate_is_never_used(rows, preset_certificates,
+                                                     stubbed_judge,
                                                      monkeypatch):
     r = next(r for r in rows if r.builtin and r.chart is not None)
     assert PC.lookup(r.chart, r.recipe) is not None
@@ -138,7 +139,7 @@ def clean_user_store(preset_certificates):
 
 
 def test_a_user_preset_is_certified_once_and_read_after(
-        qapp, clean_user_store, monkeypatch):
+        qapp, clean_user_store, stubbed_judge, monkeypatch):
     chart = _user_preset()
     PE.clear_cache()
     first = PE.chart_row_values(chart, None)

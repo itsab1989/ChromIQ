@@ -925,6 +925,38 @@ def _preset_certificates_off(request):
     _pc.reset()
 
 
+def _forget_preset_answers() -> None:
+    """Let the presets' background thread finish, then forget every answer
+    `preset_eligibility.chart_row_values` filed. The page layouts are kept:
+    nothing a stubbed judge does reaches them."""
+    from workflow import preset_eligibility as _pe
+    from workflow import preset_layout as _pl
+    _pl.settle(120)
+    _pe._CACHE.clear()
+    _pe._UNREADABLE.clear()
+
+
+@pytest.fixture()
+def stubbed_judge():
+    """For a test that monkeypatches how a chart is judged
+    (`measurement_report.row_values`, `preset_eligibility._perfect_print`).
+
+    **THE PRESETS' BACKGROUND THREAD OUTLIVES THE TEST THAT QUEUED IT.** A
+    presets window or a Create Chart tab earlier on the same worker can leave
+    built-in presets queued (`preset_eligibility.request_values`), and that
+    thread goes on judging them while the next tests run. Judged with a
+    stub, they land in the session cache under the BUILT-IN presets' keys,
+    and a later file reads the stub's answer as the real one: the agent 22
+    everyday run's `KeyError: 'uniformity_de00_max_from_mean'` in
+    `test_b8_1451_..._estimated_noise_of_a_typical_print` (a stub answering
+    only ``uniformity_sd``; reproduced with a probe, 64 of 191 built-in
+    answers poisoned in two seconds). So the thread is drained before the
+    stub goes in, and what it filed is forgotten before the stub comes out."""
+    _forget_preset_answers()
+    yield
+    _forget_preset_answers()
+
+
 @pytest.fixture()
 def preset_certificates():
     """Certificates read and written as the app does them (see above)."""
