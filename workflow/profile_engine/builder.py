@@ -182,6 +182,14 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # table on a printer with a strong ink fold and a light C+M+Y black;
      # research, opt-in
      "a73-kfirst",
+     # Agent 74: the a71 k-shell (strong ink fold, i1Pro) holds colour
+     # closer to the black (a74-shellhold) and keeps the clip hue while it
+     # fades (a74-shellhue); research, opt-in
+     "a74-shellhold", "a74-shellhue",
+     # Agent 74: with a73-kfirst, near the black the K prior is at least
+     # the K that alone prints the target L* (no heavy rich-black greys on
+     # a folding printer); research, opt-in
+     "a74-kfloor",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -1439,6 +1447,27 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 _ls, params=b2a_mod.K_RULE_PARAMS["r"],
                 l_min=max(float(black_l), 2.0) if black_l is not None
                 else 5.0)}
+            if "a74-kfloor" in candidates:
+                # Agent 74 (a74-kfloor): near the black the K prior never
+                # asks for LESS K than K alone needs to print the target L*.
+                # On a folding printer colour ink first LIGHTENS heavy K, so
+                # a grey darker than its K-only value can only be reached by
+                # heavy C+M+Y on top (real i1Pro target L* 25-26: K .98 +
+                # C+M+Y 1.6-1.7), exactly where the model is least sure (the
+                # measured C .53 M .53 Y 1 K 1 patch: L* 23.7, model 28.2) and
+                # the references print a 4 L* dip (Findings agent74-01). The
+                # floor is full up to K-only black + 5 L* and gone at + 15.
+                _ks = np.linspace(0.0, 1.0, 401)
+                _dk = np.zeros((len(_ks), 4))
+                _dk[:, 3] = _ks
+                _lk = np.minimum.accumulate(model.predict(_dk)[:, 0])
+                _kal = np.interp(_ls, _lk[::-1], _ks[::-1])
+                _kal = np.where(_ls > _lk[-1], _kal, 1.0)
+                _x = np.clip((_lk[-1] + 15.0 - _ls) / 10.0, 0.0, 1.0)
+                _wf = _x * _x * (3.0 - 2.0 * _x)
+                _kc = k_prior_col["k_curve"]
+                k_prior_col["k_curve"] = _kc + _wf * np.maximum(_kal - _kc,
+                                                                0.0)
     if (accurate and not meas.is_additive and n >= 4
             and ("a9-nramp" in candidates or "a9-nramps" in candidates)
             and "K" in meas.channel_letters):
@@ -2068,7 +2097,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _bd = np.minimum(_bd, channel_max)
         dev_clut_shaped, _dr = _a69.dark_end(
             dev_clut_shaped, residual, node_lab, b2a_grid, model, _bd,
-            _l_min, ink_limit=ink_limit, fixed_nodes=fixed_nodes)
+            _l_min, ink_limit=ink_limit, fixed_nodes=fixed_nodes,
+            hold=_a69.A74_SHELLHOLD in candidates,
+            hue=_a69.A74_SHELLHUE in candidates)
         _emit(settings, f"Colorimetric table: dark end ({_dr['mode']}, "
                         f"{_dr.get('moved', _dr['nodes'])} nodes; research "
                         f"a71-darkray).")

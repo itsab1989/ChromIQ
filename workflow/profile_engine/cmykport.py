@@ -898,17 +898,70 @@ def k_shell(shaped: np.ndarray, residual: np.ndarray, node_lab: np.ndarray,
     return out, {"nodes": int(len(sel))}
 
 
+# --- Agent 74 (a74-shellhold, a74-shellhue) ------------------------------------
+A74_SHELLHOLD = "a74-shellhold"
+A74_SHELLHUE = "a74-shellhue"
+A74_SHELL = "3:0.5:50:3"   # k_shell off:p:cmax:q with a74-shellhold (a71 default 3:0.5:80:3)
+
+
+def shell_hue(pre: np.ndarray, out: np.ndarray, model, *, ink_limit=None,
+              cmin: float = 4.0) -> tuple[np.ndarray, dict]:
+    """Agent 74 (a74-shellhue): the k-shell moves dark clipped nodes along
+    a K-first path toward the black; on a strongly folding printer (i1Pro)
+    that path also turns the hue (sRGB blue printed h 293 -> 299, toward
+    violet, while the chroma fades). For every moved node with printed C*
+    above ``cmin``, C, M and Y are solved again with K held so the print
+    keeps the hue the node had before the shell (its clip hue) at the
+    shell's own L* and C*; kept only where that lands closer to the
+    hue-held target than the shell's answer."""
+    moved = np.flatnonzero(np.abs(np.asarray(out) - np.asarray(pre)).max(1)
+                           > 1e-6)
+    info = {"hue_nodes": 0}
+    if not len(moved):
+        return out, info
+    lim = None if ink_limit is None else float(ink_limit) / 100.0
+    d0 = np.clip(model.unshape_device(np.asarray(pre)[moved]), 0.0, 1.0)
+    d1 = np.clip(model.unshape_device(np.asarray(out)[moved]), 0.0, 1.0)
+    l0, l1 = model.predict(d0), model.predict(d1)
+    h0 = np.arctan2(l0[:, 2], l0[:, 1])
+    c1 = np.hypot(l1[:, 1], l1[:, 2])
+    sel = np.flatnonzero(c1 > cmin)
+    if not len(sel):
+        return out, info
+    tgt = np.stack([l1[sel, 0], c1[sel] * np.cos(h0[sel]),
+                    c1[sel] * np.sin(h0[sel])], 1)
+    d2, res = solve_cmy(model, tgt, d1[sel], limit=lim,
+                        cmax=np.ones(d1.shape[1]))
+    ok = res < np.linalg.norm(l1[sel] - tgt, axis=1)
+    dd = d1.copy()
+    dd[sel[ok]] = d2[ok]
+    o = np.asarray(out, float).copy()
+    o[moved] = np.clip(model.shape_device(dd), 0.0, 1.0)
+    info["hue_nodes"] = int(ok.sum())
+    return o, info
+
+
 def dark_end(shaped, residual, node_lab, grid, model, black_dev, l_min, *,
-             ink_limit=None, fixed_nodes=None):
+             ink_limit=None, fixed_nodes=None, hold: bool = False,
+             hue: bool = False):
     """Agent 71 (a71-darkray): the dark end of the colorimetric table
     (replaces a70-blackshell). On a printer whose C/M/Y lighten the black
     strongly (by FOLD_STRONG L* or more at K 1, i1Pro), ``k_shell``; else
-    ``dark_ray``."""
+    ``dark_ray``. Agent 74: ``hold`` (a74-shellhold) runs the k-shell with
+    CHROMIQ_A74_SHELL (default A74_SHELL: chromatic nodes lean less, so
+    colour holds closer to the black), ``hue`` (a74-shellhue) re-solves the
+    moved nodes' C, M, Y to keep their clip hue (``shell_hue``). Neither
+    acts on the ray branch."""
     f1 = fold_at_black(model)
     if k_fold(model) is not None and f1 >= FOLD_STRONG:
         out, info = k_shell(shaped, residual, node_lab, model, black_dev,
                             l_min, ink_limit=ink_limit,
-                            fixed_nodes=fixed_nodes)
+                            fixed_nodes=fixed_nodes,
+                            params=(os.environ.get("CHROMIQ_A74_SHELL")
+                                    or A74_SHELL) if hold else None)
+        if hue:
+            out, hi = shell_hue(shaped, out, model, ink_limit=ink_limit)
+            info.update(hi)
         info["mode"] = "k-shell"
     else:
         out, info = dark_ray(shaped, residual, node_lab, grid, model,
