@@ -1061,6 +1061,29 @@ class PopupWatchdog:
         return None
 
     @staticmethod
+    def _escape_target(box):
+        """The button the Escape key presses in the QMessageBox *box*, as Qt
+        decides it (QMessageBoxPrivate::detectEscapeButton): the one set with
+        setEscapeButton, else Cancel, else the ONLY button, else the one
+        RejectRole button, else the one NoRole button. None when Escape
+        presses nothing."""
+        from PyQt6.QtWidgets import QMessageBox
+        if box.escapeButton() is not None:
+            return box.escapeButton()
+        cancel = box.button(QMessageBox.StandardButton.Cancel)
+        if cancel is not None:
+            return cancel
+        buttons = list(box.buttons())
+        if len(buttons) == 1:
+            return buttons[0]
+        for role in (QMessageBox.ButtonRole.RejectRole,
+                     QMessageBox.ButtonRole.NoRole):
+            hits = [b for b in buttons if box.buttonRole(b) == role]
+            if len(hits) == 1:
+                return hits[0]
+        return None
+
+    @staticmethod
     def _dismiss(w) -> str:
         """Dismiss *w* from a ZERO-DELAY timer, never inside this tick: a
         dismissal that opens another question would otherwise run that
@@ -1069,6 +1092,27 @@ class PopupWatchdog:
         from PyQt6.QtCore import QEvent, Qt, QTimer
         from PyQt6.QtGui import QKeyEvent
         from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
+        if isinstance(w, QMessageBox):
+            # NEVER A YES, ACCEPT, APPLY OR DESTRUCTIVE ANSWER (review 36).
+            # Escape presses the box's Escape answer, and Qt makes a box's
+            # ONLY button its Escape answer whatever it says: a lone "Delete
+            # everything" was pressed by the Escape below. Such a box is
+            # closed with reject() instead: no answer at all.
+            target = PopupWatchdog._escape_target(w)
+            if target is not None and w.buttonRole(target) in (
+                    QMessageBox.ButtonRole.AcceptRole,
+                    QMessageBox.ButtonRole.YesRole,
+                    QMessageBox.ButtonRole.ApplyRole,
+                    QMessageBox.ButtonRole.DestructiveRole):
+                label = target.text().replace("&", "")
+
+                def _no_answer(w=w):
+                    from PyQt6 import sip
+                    if not sip.isdeleted(w) and w.isVisible():
+                        w.reject()
+                QTimer.singleShot(0, _no_answer)
+                return (f"closed it with no answer (its Escape answer "
+                        f"'{label}' is not a safe one)")
         if isinstance(w, QMessageBox) and w.escapeButton() is not None:
             label = w.escapeButton().text().replace("&", "")
             QTimer.singleShot(0, w.escapeButton().click)

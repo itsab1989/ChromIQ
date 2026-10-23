@@ -293,6 +293,46 @@ def test_report_policy_is_the_opt_in_that_leaves_a_window_open(qapp, tmp_path):
     assert dlg.result() == QDialog.DialogCode.Accepted
 
 
+@pytest.mark.parametrize("label,role,explicit", [
+    ("Delete everything", QMessageBox.ButtonRole.DestructiveRole, False),
+    ("Yes, replace it", QMessageBox.ButtonRole.YesRole, False),
+    ("Save", QMessageBox.ButtonRole.AcceptRole, False),
+    ("Apply", QMessageBox.ButtonRole.ApplyRole, False),
+    # an Escape answer set by the app itself is checked the same way
+    ("Discard", QMessageBox.ButtonRole.DestructiveRole, True),
+])
+def test_a_lone_unsafe_button_is_never_pressed(qapp, tmp_path, label, role,
+                                               explicit):
+    """Review 36: Qt makes a box's ONLY button its Escape answer, whatever it
+    says, so the watchdog's Escape pressed a lone "Delete everything".
+    MUTATION: drop the role check in `PopupWatchdog._dismiss`: the button is
+    clicked."""
+    box = QMessageBox(QMessageBox.Icon.Question, "Lone", "A question")
+    b = box.addButton(label, role)
+    if explicit:
+        box.addButton("Keep", QMessageBox.ButtonRole.ActionRole)
+        box.setEscapeButton(b)
+    dog = PopupWatchdog(tmp_path, grace_s=0.1, interval_ms=50,
+                        log=lambda s: None).start()
+    hung = _exec_with_safety(box, 8_000)
+    dog.stop()
+    assert not hung
+    assert box.clickedButton() is not b
+    assert "no answer" in dog.events[0]["action"]
+
+
+def test_a_lone_cancel_is_still_pressed(qapp, tmp_path):
+    """The safe answers still work: the Escape answer of a lone Cancel."""
+    box = QMessageBox(QMessageBox.Icon.Question, "Lone", "A question")
+    b = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+    dog = PopupWatchdog(tmp_path, grace_s=0.1, interval_ms=50,
+                        log=lambda s: None).start()
+    hung = _exec_with_safety(box, 8_000)
+    dog.stop()
+    assert not hung
+    assert box.clickedButton() is b
+
+
 class _AsksFirst(QDialog):
     """A window whose reject() asks first and stays open on Cancel, as the
     spot-read window does with unsaved readings."""
