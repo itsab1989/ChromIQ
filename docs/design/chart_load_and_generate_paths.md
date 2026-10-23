@@ -170,6 +170,24 @@ dropped branch rather than dead code, and that is not a sweep's decision.
 * **Unchanged, and a question to Knut:** a new target still starts with the
   stamp ON (`chart_stamp_commands`, per_target_settings.md §1.2).
 
+## Two photo papers for 4 x 6 in printers (jctay 149803, 4.3.10)
+
+#### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+Create Chart offers "10 × 15 cm (100 × 150 mm)" (code `10x15cm`) and
+"Postcard (100 × 148 mm)" (code `postcard`, Canon SELPHY and similar) beside
+"4×6\" (102 × 152 mm)", with a paragraph in the paper size's ⓘ. printtarg is
+given the millimetres (`PAPER_PRINTTARG_ARG`: `-p100x150`, `-p100x148`), and a
+generated name spells them `100x150mm` / `100x148mm`, as Knut's own 10 x 15 cm
+presets do. The codes are new, so an existing "4x6" chart, a custom
+"100x150" chart, a preset or a project loads and lays out exactly as saved.
+Capacities per sheet are measured like every other entry
+(`scripts/measure_photo_paper_capacity.py`, printtarg -t300 with each
+table's own flags; each table's 4x6 value measured again first as a check of
+the method, all equal). The i1Pro 3 Plus is not offered either (as for 4x6).
+
 ## Answered, and so not built
 
 Whether importing a chart file should also offer "replace only the chart",

@@ -32,6 +32,8 @@ NOT_A_SETTING = {
     "cal_auto_retries": "a Preferences value, global by §1.1",
     "engine_safenet":   "a Preferences value, global by §1.1",
     "engine_xy_chart":  "a Preferences (Beta) value, global by §1.1",
+    "page_pause":       ("a Preferences value, global by §1.1 (the pause "
+                         "between pages, 4.3.10)"),
     "high_res":      ("the UI drives -H through the chartread option 'highres', "
                       "so it is stored as chartread.highres; this dataclass "
                       "field is a second route that nothing on screen sets"),

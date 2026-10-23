@@ -384,6 +384,17 @@ DEFAULTS: dict[str, Any] = {
     # Off means neither is shown and no patches are counted.
     "measure_progress_bar":      True,
     "pace_hint_enabled":         True,
+    # The pause between pages (jctay, forum 149802; Basti 2026-10-23): after
+    # the last strip of a page, and after the last strip of the chart, the
+    # reading engine waits so the page can be checked. Off by default, so a
+    # measurement goes on exactly as before unless this is switched on.
+    "measure_page_pause":        False,
+    # ...and the note shown at each such pause (on by default; greyed in
+    # Preferences while the pause is off, keeping its value).
+    "measure_page_pause_note":   True,
+    # The expected · measured label (the "legend chip") on the Measure tab's
+    # chart preview (Basti, 2026-10-23): on by default, so everybody keeps it.
+    "measure_preview_legend":    True,
     "pace_min_samples":          8,
     "pace_min_patch_ms":         100,
     # How close to the limit a strip has to be before it is called "close to

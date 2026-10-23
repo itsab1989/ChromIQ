@@ -601,7 +601,7 @@ def _mod_keys() -> dict[str, str]:
     return {"ext": ctrl, "add": f"{ctrl}/{shift}", "remove": tr("Alt")}
 _PAPER_ORDER = ("A2", "594x420", "329x483", "483x329", "A3", "420x297",
                 "11x17", "Legal", "A4", "A4R", "Letter", "LetterR",
-                "203x254", "127x178", "4x6", "custom")
+                "203x254", "127x178", "4x6", "10x15cm", "postcard", "custom")
 _PAPER_LABELS_WITH_CUSTOM = {**PAPER_LABELS,
                               "custom": "Custom (enter dimensions)"}
 

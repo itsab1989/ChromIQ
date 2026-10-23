@@ -1723,6 +1723,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._manager.strip_error.connect(self._report_failed_strip_pace)
         self._manager.strip_error.connect(self._on_strip_error)
         self._manager.instrument_button.connect(self._on_instrument_button)
+        self._manager.engine_held.connect(self._on_engine_held)
+        self._manager.engine_released.connect(self._on_engine_released)
         # #126 chart-reading engine
         self._manager.session_map.connect(self._on_session_map)
         self._manager.strip_measured.connect(self._on_strip_measured)
@@ -2514,6 +2516,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._apply_stop_btn_style()
         if hasattr(self, "_import_box"):
             self._apply_import_box_style()
+        if hasattr(self, "_page_pause_panel"):
+            self._apply_page_pause_style()
 
     def _apply_stop_btn_style(self) -> None:
         # The button keeps its light-grey "always-stand-out" base in both
@@ -2694,6 +2698,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._stack.addWidget(self._import_panel)
         lc_layout.addWidget(self._stack, stretch=1)
 
+
         # Keep-calm block — guided mode only, sits directly above buttons
         calm_outer = QWidget(left_container)
         co_layout = QVBoxLayout(calm_outer)
@@ -2746,6 +2751,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # Buttons — shared
         btn_outer = QWidget(left_container)
+        self._left_buttons = btn_outer
         bo_layout = QVBoxLayout(btn_outer)
         # 13 at the bottom, so the gap above the log matches every other tab.
         # On this tab the buttons are NOT the last thing before the log — a
@@ -2936,6 +2942,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         rl.setContentsMargins(0, 0, 0, 15)
         rl.setSpacing(0)
         self._preview = TiffPreview(right)
+        # Preferences ▸ Measurement: the expected · measured label (Basti,
+        # 2026-10-23; on by default). Applied again when Preferences closes.
+        self._preview.set_legend_enabled(
+            bool(self._settings.get("measure_preview_legend", True)))
+        # The pause between pages (jctay 149802, Basti 2026-10-23): a note
+        # laid over the chart preview, in the legend chip's see-through look
+        # and with its fast fade, low on the preview where the eye already is.
+        # Not a window and not in any layout, so nothing moves under it.
+        self._make_page_pause_panel(self._preview)
+        self._preview.installEventFilter(self)
         # beta 12: a run's chart page is shown as it will print
         self._preview.set_print_preview(True)
         # the indicator's icon carries this tab's own accent (Basti)
@@ -7885,6 +7901,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         #: True while a reader is waiting for keys — what makes the app-wide
         #: event filter below legitimate. Cleared in _on_measure_done.
         self._session_live = True
+        self._slip_kept_strips = set()
+        self._end_page_pause()
         self._sync_calibrate_btn_visible()
         QApplication.instance().installEventFilter(self)
 
@@ -9197,6 +9215,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._manager.goto_strip(strip)     # re-read this strip next
         elif choice == "stop":
             self._on_stop()
+        else:
+            # The pause between pages lists it: a slip question kept.
+            kept = vars(self).setdefault("_slip_kept_strips", set())
+            kept.add(str(strip))
 
     def _flash_status(self, text: str, duration_ms: int = 8000) -> None:
         self._status_bar_lbl.setText(text)
@@ -11056,6 +11078,418 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # On the save path chartread will exit on its own once 'y' is sent,
         # and _on_measure_done will then re-enable the UI and auto-arm resume.
 
+    # ------------------------------------------------------------------
+    # The pause between pages (jctay, forum 149802; Basti 2026-10-23)
+    # ------------------------------------------------------------------
+    #
+    # Preferences ▸ Measurement ▸ "Pause after each page so I can check it".
+    # The manager asks the engine to hold after every strip; the engine holds
+    # once the strip is read and accepted (`engine_held`). Here it is decided
+    # whether that is a pause: the next strip to read is on another page, or
+    # this was the last strip of the chart (`MeasureManager.page_pause_plan`).
+    # If not, the engine is let go at once. A question about the strip just
+    # read is answered first; while the panel is up the engine reads nothing,
+    # so a press of the instrument's button can only continue.
+
+    #: A press within this long of the pause appearing is ignored: the press
+    #: or release that ended the last scan, not an answer (as B1's Retry).
+    PAGE_PAUSE_DEBOUNCE_S = 0.3
+
+    #: How long the note stays when nobody touches anything: long enough to
+    #: read it (Basti, 2026-10-23: "consider scaling the time to the text
+    #: length, at least ~6-8 s"), at four words a second, between 8 and 30
+    #: seconds. Any click elsewhere, any key, the instrument's button and its
+    #: own buttons take it away at once (with the same fast fade it came with).
+    PAGE_PAUSE_NOTE_MIN_MS = 8000
+    PAGE_PAUSE_NOTE_MAX_MS = 30000
+    PAGE_PAUSE_WORDS_PER_S = 4.0
+
+    def _page_pause_note_ms(self, texts: dict) -> int:
+        """The note's time on screen for *texts* (see above)."""
+        words = len(" ".join([texts.get("title", ""), texts.get("body", "")]
+                             + list(texts.get("found", []))).split())
+        ms = int(words / self.PAGE_PAUSE_WORDS_PER_S * 1000)
+        return max(self.PAGE_PAUSE_NOTE_MIN_MS,
+                   min(self.PAGE_PAUSE_NOTE_MAX_MS, ms))
+
+    def _make_page_pause_panel(self, parent) -> QWidget:
+        from PyQt6.QtWidgets import QGraphicsOpacityEffect
+        from ui.fade import Fade
+        from ui.pause_note import PauseNote
+        from workflow import measurement_messages as _MMp
+        box = PauseNote(parent)
+        effect = QGraphicsOpacityEffect(box)
+        effect.setOpacity(0.0)
+        box.setGraphicsEffect(effect)
+        self._page_pause_effect = effect
+        self._page_pause_fade = Fade(self, self._on_page_pause_fade_step,
+                                     finished=self._on_page_pause_fade_done)
+        # NO FIXED HEIGHT, NO PADDING OF ITS OWN: both buttons take the
+        # app's button rule (padding 6 px 18 px, min-height 28 px), and the
+        # note gives them one height, the taller of the two (Basti,
+        # 2026-10-23: "the left button does not have the same height as the
+        # one on the right").
+        reread = QPushButton(box)
+        reread.setObjectName("pagePauseNoteButton")
+        reread.clicked.connect(self._page_pause_reread)
+        cont = QPushButton(box)
+        cont.setObjectName("primary")
+        cont.clicked.connect(self._page_pause_continue)
+        help_btn = TooltipButton(*_MMp.M_PAGE_PAUSE_HELP.render(), box)
+        self._page_pause_help_btn = help_btn
+        box.set_buttons(reread, cont, help_btn)
+        box.setVisible(False)
+        self._page_pause_panel = box
+        self._page_pause_box = box
+        self._page_pause_title = box.title
+        self._page_pause_body = box.body
+        self._page_pause_found = box.found
+        self._page_pause_reread_btn = reread
+        self._page_pause_continue_btn = cont
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.timeout.connect(self._hide_page_pause_note)
+        self._page_pause_timer = timer
+        #: The pause in force: {"plan", "button", "shown", "reread"}. It
+        #: lasts until the engine moves on, whether the note is up or not.
+        self._page_pause = None
+        #: The engine's hold not decided yet: (strip, button).
+        self._page_pause_pending = None
+        #: A strip was re-read from the pause: come back to it.
+        self._page_pause_review = None
+        self._apply_page_pause_style()
+        return box
+
+    def _on_page_pause_fade_step(self, value: float) -> None:
+        eff = getattr(self, "_page_pause_effect", None)
+        if eff is not None:
+            eff.setOpacity(max(0.0, min(1.0, float(value))))
+
+    def _on_page_pause_fade_done(self) -> None:
+        """A fade out ends with the note hidden (it takes no clicks then)."""
+        fade = getattr(self, "_page_pause_fade", None)
+        box = getattr(self, "_page_pause_panel", None)
+        if fade is not None and box is not None and fade.target <= 0.0:
+            box.setVisible(False)
+            # the legend chip comes back once the note is gone
+            self._preview_legend_makes_way(False)
+
+    def _preview_legend_makes_way(self, on: bool) -> None:
+        """The preview's "expected ◤ · measured ◢" chip fades out while the
+        pause note is shown and back once it has gone (Basti, 2026-10-23)."""
+        prev = getattr(self, "_preview", None)
+        fn = getattr(prev, "set_legend_suppressed", None)
+        if callable(fn):
+            fn(on)
+
+    def _apply_page_pause_style(self) -> None:
+        """The note paints itself in the legend chip's look
+        (`ui.see_through`), the same in every appearance (Basti, 2026-10-23).
+        Only its secondary button needs a style for the see-through panel;
+        Continue is the tab's primary."""
+        box = getattr(self, "_page_pause_box", None)
+        if box is None:
+            return
+        self._page_pause_reread_btn.setStyleSheet(
+            "QPushButton#pagePauseNoteButton {"
+            " background: rgba(20, 20, 20, 150); color: #f4f2ef;"
+            " border: 1px solid rgba(244, 242, 239, 160); }"
+            "QPushButton#pagePauseNoteButton:hover {"
+            " background: rgba(20, 20, 20, 200); }")
+        tint_dialog_primary(box, _TAB_COLOR)
+
+    def _page_pause_active(self) -> bool:
+        """A pause is in force: the engine holds and waits for Continue."""
+        return bool(getattr(self, "_page_pause", None))
+
+    def _page_pause_visible(self) -> bool:
+        """The note about the pause is on screen."""
+        panel = getattr(self, "_page_pause_panel", None)
+        # isHidden, not isVisible: the note is shown even while another tab
+        # is in front (the measurement goes on there too).
+        return bool(panel is not None and self._page_pause_active()
+                    and not panel.isHidden())
+
+    def _on_engine_held(self, strip: str, button: bool) -> None:
+        """The engine read *strip* and holds. Decided after any question
+        about the strip (they open from the same events) has been answered."""
+        if not getattr(self, "_session_live", False):
+            return
+        self._page_pause_pending = (str(strip), bool(button))
+        QTimer.singleShot(0, self._decide_page_pause)
+
+    def _page_pause_question_open(self) -> bool:
+        if self._a_question_is_open():
+            return True
+        pending = getattr(self._manager, "read_twice_pending", None)
+        if callable(pending) and pending():
+            return True
+        return bool(getattr(self, "_pace_prompt_open", False))
+
+    def _decide_page_pause(self) -> None:
+        """The timer's slot (a bound method, never a lambda: CLAUDE.md)."""
+        pend = getattr(self, "_page_pause_pending", None)
+        if pend is None or getattr(self._manager, "held_strip", None) is None:
+            self._page_pause_pending = None
+            return
+        if not getattr(self, "_session_live", False):
+            return
+        if self._page_pause_question_open():
+            QTimer.singleShot(_QUESTION_WAIT_MS, self._decide_page_pause)
+            return
+        strip, button = pend
+        self._page_pause_pending = None
+        plan = self._page_pause_plan_for(strip)
+        if plan is None:
+            self._manager.resume_after_hold()
+            return
+        self._show_page_pause(plan, button)
+
+    def _page_pause_plan_for(self, strip: str) -> "dict | None":
+        """The manager's plan, or the pause a re-read from it comes back to."""
+        review = getattr(self, "_page_pause_review", None)
+        mgr = self._manager
+        if review is not None:
+            if review["kind"] == "end":
+                plan = mgr.page_pause_plan(strip)
+                if plan is None or plan.get("kind") != "end":
+                    plan = dict(review, strip=strip,
+                                page=mgr.page_of_strip(strip) or review["page"])
+                return plan
+            if mgr.page_of_strip(strip) == review["page"]:
+                return dict(review, strip=strip)
+            self._page_pause_review = None
+        return mgr.page_pause_plan(strip)
+
+    def _page_pause_suspects(self, page: int) -> "list[tuple[str, tuple]]":
+        """What ChromIQ knows about *page*: (message line, its values)."""
+        from workflow import measurement_messages as M
+        from workflow.patch_flags import FLAG_RED, sorted_locs
+        strips = list(self._manager.strips_on_page(page))
+        reds: "dict[str, list]" = {}
+        judge = getattr(self, "_patch_flag_judge", None)
+        verdicts = getattr(judge, "_verdicts", {}) if judge is not None else {}
+        loc_strip = getattr(self._manager, "_loc_strip", {}) or {}
+        for loc, v in dict(verdicts).items():
+            if getattr(v, "flag", None) is FLAG_RED:
+                st = loc_strip.get(loc)
+                if st in strips:
+                    reds.setdefault(st, []).append(loc)
+        kept_slip = set(vars(self).get("_slip_kept_strips") or ())
+        kept_twice = {st for st, _like, ch in
+                      (vars(self).get("_read_twice_log") or [])
+                      if ch not in ("reread", "was_like")}
+        lines = []
+        for st in strips:
+            locs = sorted_locs(reds.get(st, []))
+            if len(locs) == 1:
+                lines.append((M._PAUSE_RED_ONE, {"strip": st, "locs": locs[0]}))
+            elif locs:
+                shown = ", ".join(locs[:8]) + ("…" if len(locs) > 8 else "")
+                lines.append((M._PAUSE_RED, {"strip": st, "n": len(locs),
+                                             "locs": shown}))
+            if st in kept_slip:
+                lines.append((M._PAUSE_KEPT_SLIP, {"strip": st}))
+            if st in kept_twice:
+                lines.append((M._PAUSE_KEPT_TWICE, {"strip": st}))
+        return lines
+
+    def _page_pause_texts(self, plan: dict, button: bool) -> dict:
+        """Every word of the pause, from the catalogue (§M-PROPOSED)."""
+        from workflow import measurement_messages as M
+        page = int(plan.get("page") or 1)
+        reread_strip = self._page_pause_reread_target(plan)
+        reread = tr(M._PAUSE_REREAD).format(strip=reread_strip)
+        if plan.get("kind") == "end":
+            cont = tr(M._PAUSE_CONTINUE)
+            title, body = M.M_PAGE_PAUSE_END.render(
+                page=page, reread=reread, **{"continue": cont})
+            if int(plan.get("pages") or 1) > 1:
+                body += "\n\n" + M.M_PAGE_PAUSE_OTHER_PAGES.render(
+                    pages=int(plan["pages"]))[1]
+            log_line = tr(M._PAUSE_LOG_END).format(strip=plan.get("strip"))
+        else:
+            nxt = int(plan.get("next_page") or page + 1)
+            cont = tr(M._PAUSE_CONTINUE_PAGE).format(page=nxt)
+            title, body = M.M_PAGE_PAUSE.render(
+                page=page, pages=int(plan.get("pages") or nxt),
+                next_page=nxt, target=plan.get("target") or "?",
+                reread=reread, **{"continue": cont})
+            log_line = tr(M._PAUSE_LOG_PAGE).format(
+                strip=plan.get("strip"), page=page, next_page=nxt)
+        if button:
+            body += "\n\n" + M.M_PAGE_PAUSE_BUTTON.render(**{"continue": cont})[1]
+        lines = self._page_pause_suspects(page)
+        if lines:
+            found = [tr(M._PAUSE_LOOK).format(page=page)] + [
+                tr(key).format(**vals) for key, vals in lines]
+        else:
+            found = [tr(M._PAUSE_NOTHING).format(page=page)]
+        return {"title": title, "body": body, "found": found,
+                "continue": cont, "reread": reread, "log": log_line,
+                "reread_tip": tr(M._PAUSE_REREAD_TIP).format(
+                    strip=reread_strip), "reread_strip": reread_strip}
+
+    def _page_pause_reread_target(self, plan: dict) -> str:
+        """The strip "Re-read" offers: the first one worth a second look on
+        the page, else the strip just read."""
+        page = int(plan.get("page") or 1)
+        for _key, vals in self._page_pause_suspects(page):
+            if vals.get("strip"):
+                return str(vals["strip"])
+        return str(plan.get("strip") or "")
+
+    def _show_page_pause(self, plan: dict, button: bool) -> None:
+        import time as _time
+        t = self._page_pause_texts(plan, button)
+        found = t["found"]
+        self._page_pause_box.set_content(
+            t["title"], t["body"].split("\n\n"), found[0], found[1:])
+        self._page_pause_continue_btn.setText(t["continue"].replace("&", "&&"))
+        self._page_pause_reread_btn.setText(t["reread"].replace("&", "&&"))
+        self._page_pause_reread_btn.setToolTip(t["reread_tip"])
+        self._page_pause = {"plan": plan, "button": bool(button),
+                            "shown": _time.monotonic(),
+                            "reread": t["reread_strip"]}
+        # The note, unless Preferences says to wait without one (Basti,
+        # 2026-10-23: "overlay off = the pause shows nothing extra").
+        if bool(self._settings.get("measure_page_pause_note", True)):
+            self._place_page_pause_note()
+            self._page_pause_panel.setVisible(True)
+            self._page_pause_panel.raise_()
+            # its picture drawn now, so the fade's first step does not wait
+            # for it (ui/pause_note.py: drawing it costs 140 ms or more), and
+            # its two buttons styled and painted once: the first pause of a
+            # session otherwise spent 100 ms of its fade doing that, measured
+            # on screen (agent20/fade_timing_*), and showed three frames.
+            self._page_pause_box.prepare()
+            for btn in (self._page_pause_reread_btn,
+                        self._page_pause_continue_btn):
+                btn.ensurePolished()
+                btn.grab()
+            self._preview_legend_makes_way(True)
+            self._page_pause_fade.run(self._page_pause_effect.opacity(), 1.0)
+            self._page_pause_timer.start(self._page_pause_note_ms(t))
+            log.info("page pause: note shown for up to %.1f s",
+                     self._page_pause_timer.interval() / 1000)
+        self._log.appendPlainText(t["log"])
+        self._log.ensureCursorVisible()
+        log.info("page pause: %s after strip %s", plan.get("kind"),
+                 plan.get("strip"))
+
+    def _place_page_pause_note(self) -> None:
+        """Lay the note over the lower part of the chart preview, centred,
+        where the eye is while measuring, clear of the page buttons at the
+        bottom. The page shows through it, and it goes once it has been read
+        or at the first click, so nothing of the page stays hidden."""
+        box = self._page_pause_panel
+        pane = box.parentWidget()
+        if pane is None:
+            return
+        width = max(300, min(640, pane.width() - 48))
+        full = box.height_for_width(width)
+        bottom = pane.height() - 96          # above the page buttons
+        top_limit = 60                       # below the caption
+        height = max(170, min(full, bottom - top_limit))
+        x = (pane.width() - width) // 2
+        box.setGeometry(x, max(top_limit, bottom - height), width, height)
+
+    def _page_pause_note_event(self, obj, event) -> bool:
+        """True when *event* was about the note (never consumed)."""
+        box = getattr(self, "_page_pause_panel", None)
+        if box is None:
+            return False
+        et = event.type()
+        if obj is box.parentWidget() and et == QEvent.Type.Resize:
+            if self._page_pause_visible():
+                self._place_page_pause_note()
+            return True
+        if not self._page_pause_visible():
+            return False
+        if et == QEvent.Type.MouseButtonPress and isinstance(obj, QWidget):
+            if obj is not box and not box.isAncestorOf(obj):
+                self._hide_page_pause_note()
+        return False
+
+    def _hide_page_pause_note(self) -> None:
+        """The note goes, with a fast fade (its time is up, or the user did
+        something); the pause itself stays until Continue or a move of the
+        reader."""
+        timer = getattr(self, "_page_pause_timer", None)
+        if timer is not None:
+            timer.stop()
+        panel = getattr(self, "_page_pause_panel", None)
+        if panel is not None and not panel.isHidden():
+            self._page_pause_fade.run(self._page_pause_effect.opacity(), 0.0)
+
+    def _hide_page_pause(self) -> None:
+        """The pause is over: no note, nothing waiting."""
+        self._hide_page_pause_note()
+        self._page_pause = None
+
+    def _end_page_pause(self) -> None:
+        """The session is over (or starting): no pause, no memory of one."""
+        self._page_pause_pending = None
+        self._page_pause_review = None
+        self._hide_page_pause()
+        panel = getattr(self, "_page_pause_panel", None)
+        if panel is None or panel.isHidden():
+            self._preview_legend_makes_way(False)
+
+    def _on_engine_released(self) -> None:
+        """The engine offered a strip again: the pause is over. If it went to
+        a strip of the page being checked, a read of it comes back here."""
+        pause = getattr(self, "_page_pause", None)
+        self._page_pause_pending = None
+        self._hide_page_pause()
+        if pause is None:
+            return
+        if not pause.get("continued"):
+            self._page_pause_review = dict(pause["plan"])
+
+    def _page_pause_continue(self) -> None:
+        """Continue (the button, Return or Space, or the instrument's button):
+        to the first strip of the next page, or on after the last strip."""
+        pause = getattr(self, "_page_pause", None)
+        if pause is None:
+            return
+        pause["continued"] = True
+        plan = pause["plan"]
+        self._page_pause_review = None
+        if plan.get("kind") == "page" and plan.get("target"):
+            self._manager.goto_strip(str(plan["target"]))
+        else:
+            self._manager.resume_after_hold()
+        self._hide_page_pause()
+
+    def _page_pause_reread(self) -> None:
+        pause = getattr(self, "_page_pause", None)
+        if pause is None or not pause.get("reread"):
+            return
+        self._manager.goto_strip(str(pause["reread"]))
+
+    def _page_pause_takes_button(self) -> bool:
+        """The instrument's button while the pause is up: Continue, after the
+        debounce. True when the press was the pause's (taken or ignored)."""
+        import time as _time
+        pause = getattr(self, "_page_pause", None)
+        if pause is None:
+            if getattr(self._manager, "held_strip", None) is not None:
+                log.info("instrument button: pressed while the reader holds "
+                         "and no pause is shown, ignored")
+                return True
+            return False
+        if not pause.get("button"):
+            return True
+        age = _time.monotonic() - pause["shown"]
+        if age < self.PAGE_PAUSE_DEBOUNCE_S:
+            log.info("instrument button: pressed %.0f ms after the pause "
+                     "appeared, ignored", age * 1000)
+            return True
+        log.info("instrument button: Continue from the pause")
+        self._page_pause_continue()
+        return True
+
     #: B1: a press within this long of the Strip Read Failed window opening
     #: is ignored. It is the press (or release) that ended the failed scan,
     #: arriving just after the engine reported the failure, not an answer.
@@ -11070,6 +11504,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         window is the single decider, so a click and a press can never both
         be applied."""
         import time as _time
+        if self._page_pause_takes_button():
+            return
         w = getattr(self, "_strip_error_window", None)
         if not w or not w["dlg"].isVisible():
             log.info("instrument button: pressed with no Strip Read Failed "
@@ -12007,6 +12443,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         QApplication.instance().installEventFilter(self)
 
     def _on_all_stripes_done(self) -> None:
+        # THE PAUSE AFTER THE LAST STRIP COMES BACK FIRST (the pause between
+        # pages, Basti 2026-10-23). A strip re-read from it leaves the
+        # engine's hold, and its strip menu says "all done" again; the window
+        # that finishes the measurement waits for the pause's own Continue,
+        # which announces it once more.
+        review = getattr(self, "_page_pause_review", None)
+        if review is not None and review.get("kind") == "end":
+            log.info("all strips read: held back for the pause after the "
+                     "last strip")
+            return
         # The pace prompt for the final strip owns the screen until it is
         # answered (#131, Knut): "Strip Read Quickly" always comes alone and
         # first, and this window follows only if the reading was kept.
@@ -14378,6 +14824,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # that has already gone.
         self._close_cr30_bridge()
         self._close_measurement_windows()
+        self._end_page_pause()
         # #131: leave measurement mode. Any completion sound (played via
         # measure_finished, below) is exempt from the at-rest gate, so it still
         # fires; per-patch/strip sounds can no longer sound outside a read.
@@ -15304,6 +15751,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         dlg.exec()
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        # THE PAUSE'S NOTE (jctay 149802, Basti 2026-10-23): it follows the
+        # column's size, holds while the pointer is on it, and goes at the
+        # first click anywhere else.
+        note_event = getattr(self, "_page_pause_note_event", None)
+        if note_event is not None and note_event(obj, event):
+            return False
         # The pace area shows exactly when one of its two children does —
         # reacting to their own show/hide events means no caller has to
         # remember a sync call (and Knut's layout tests drive them directly).
@@ -15405,6 +15858,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     or app.activePopupWidget() is not None:
                 return False
             key = event.key()
+            # THE PAUSE BETWEEN PAGES TAKES RETURN AND SPACE. At the strip menu
+            # either one is "any key", which on an instrument read from the
+            # keyboard starts the next strip; in the pause it is Continue, and
+            # nothing is read (jctay 149802).
+            # (getattr: the CR30 tests drive this filter on a stand-in tab)
+            pause_on = getattr(self, "_page_pause_active", None)
+            if pause_on is not None and pause_on() and key in (
+                    Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space) \
+                    and not (event.modifiers()
+                             & (Qt.KeyboardModifier.ControlModifier
+                                | Qt.KeyboardModifier.MetaModifier
+                                | Qt.KeyboardModifier.AltModifier)):
+                self._page_pause_continue()
+                return True
+            # any other key takes the note away (and goes where it goes)
+            if pause_on is not None and self._page_pause_visible():
+                self._hide_page_pause_note()
             # A SHORTCUT IS NOT AN INSTRUMENT KEY.
             #
             # This filter is installed on the whole application while a
@@ -16453,6 +16923,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 refresh()
             except Exception:      # noqa: BLE001 — never break a measurement
                 log.debug("keep-alive refresh failed", exc_info=True)
+
+    def refresh_preview_legend(self) -> None:
+        """Preferences closed with OK: the expected · measured label on the
+        chart preview follows its option at once, mid-measurement too."""
+        self._preview.set_legend_enabled(
+            bool(self._settings.get("measure_preview_legend", True)))
 
     def refresh_progress_setting(self) -> None:
         """Apply a changed "Show measurement progress bar" straight away (#153).
@@ -19876,6 +20352,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                    "Everything works as before."))
             return p
         p.engine_safenet = bool(self._settings.get("misalign_safenet"))
+        p.page_pause = bool(self._settings.get("measure_page_pause", False))
         p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os

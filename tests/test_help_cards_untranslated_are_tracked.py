@@ -1097,18 +1097,21 @@ _BUDGET = {
     # Dictionary entry, the presets button's tooltip). German by hand; each of
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
-    "de": 7,
-    "es": 7,
-    "fr": 8,
-    "it": 7,
-    "ja": 5,
-    "nl": 8,
-    "no": 7,
-    "pl": 7,
-    "pt": 7,
+    # +1 on 2026-10-23 (4.3.10, jctay 149803) for every language that writes
+    # centimetres with Latin letters: the new paper "10 × 15 cm (100 × 150 mm)"
+    # is a size, the same in each of them (ru and uk write "см").
+    "de": 8,
+    "es": 8,
+    "fr": 9,
+    "it": 8,
+    "ja": 6,
+    "nl": 9,
+    "no": 8,
+    "pl": 8,
+    "pt": 8,
     "ru": 6,
-    "sv": 7,
-    "zh_CN": 6,
+    "sv": 8,
+    "zh_CN": 7,
     # +2 on 2026-10-02 (b740e16e): "reports/Quality_Check_N_{name}.txt,
     # reports/Refine_Strips_N_{name}.txt" and "reports/Verify_Reference_N_
     # {name}.txt" are file paths, wrongly translated as "звіти/" (a folder that

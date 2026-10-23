@@ -665,6 +665,9 @@ try:  # pragma: no cover - macOS only
                 return None
             self._reps = reps
             self._sizes = sizes
+            #: off centre, in points, x right and y down, as
+            #: workflow.overhang plans a chart a little larger than its paper
+            self._shift = (0.0, 0.0)
             return self
 
         def knowsPageRange_(self, _range):  # noqa: N802
@@ -681,8 +684,8 @@ try:  # pragma: no cover - macOS only
             rep = self._reps[idx]
             w_pt, h_pt = self._sizes[idx]
             b = self.bounds()
-            x = (b.size.width - w_pt) / 2.0
-            y = (b.size.height - h_pt) / 2.0
+            x = (b.size.width - w_pt) / 2.0 + self._shift[0]
+            y = (b.size.height - h_pt) / 2.0 - self._shift[1]    # y runs up
             rep.drawInRect_(_Foundation.NSMakeRect(x, y, w_pt, h_pt))
 
 except Exception:  # pragma: no cover - non-macOS / no PyObjC
@@ -693,6 +696,25 @@ except Exception:  # pragma: no cover - non-macOS / no PyObjC
 # (defined in ``ppd_color``, which the Print Chart tab reads on every platform)
 from workflow.ppd_color import (DEFAULT_POSTSCRIPT_FORM, POSTSCRIPT_AS_MACOS,  # noqa: E402
                                 POSTSCRIPT_DEVICE_RGB, POSTSCRIPT_FORMS)
+
+
+class ChartOverPaper(RuntimeError):
+    """The chart is a little larger than the paper the dialog ended on, and
+    what would not be on the paper is not empty margin (workflow.overhang,
+    jctay 149803): printed at 100 % it would lose printed parts or the white
+    the instrument needs. Nothing was sent. *plan* says why."""
+
+    def __init__(self, plan, chart_pt, paper_pt):
+        super().__init__(f"chart {chart_pt} over paper {paper_pt}: {plan.reason}")
+        self.plan = plan
+        self.chart_pt = chart_pt
+        self.paper_pt = paper_pt
+
+
+#: The plan of the last print that went out with a chart a little larger
+#: than its paper (only empty margin off it), for the tab's log line and the
+#: print record; None otherwise.
+last_overhang = None
 
 
 class PaperNotOnPrinter(RuntimeError):
@@ -919,6 +941,31 @@ def print_frames(pages: list[tuple[Path, int]], printer: str | None = None,
 
     if _same_page(print_info, page_box):
         give_custom_paper_driver_margins(print_info, page_box, content_pt, sizes_pt)
+    # A CHART A LITTLE LARGER THAN THE PAPER CHOSEN IN THE DIALOG (jctay
+    # 149803): at exactly 100 %, moved so only empty margin is off the paper,
+    # with no question; refused when more would be lost (workflow.overhang).
+    # Until 4.3.10 this route clipped any overhang, centred, without a word.
+    global last_overhang
+    last_overhang = None
+    try:
+        _ps = print_info.paperSize()
+        _paper = (float(_ps.width), float(_ps.height))
+    except Exception:  # noqa: BLE001 - nothing to compare
+        _paper = None
+    if _paper and _paper[0] > 0 and _paper[1] > 0:
+        from workflow import overhang as _O
+        _pp = _O.paper_like_chart(page_box, _paper)
+        _tol = _O.NO_OVERHANG_MM / _O.MM_PER_PT
+        if page_box[0] > _pp[0] + _tol or page_box[1] > _pp[1] + _tol:
+            _plan = _O.plan_for_chart(pages, page_box, _paper)
+            if _plan.safe:
+                view._shift = _plan.shift_pt()
+                last_overhang = _plan
+                log.info("native print: the chart is larger than the paper; "
+                         "at 100 %%, only empty margin off it (%s)",
+                         _plan.describe())
+            elif _plan.reason != "too_much":
+                raise ChartOverPaper(_plan, page_box, _paper)
     locked = _lock_no_color_management(print_info, after_dialog=True)
     _ppd_after = _ppd_text_of(print_info)
     _is_ps = is_postscript_queue(_ppd_after)
@@ -1048,7 +1095,11 @@ def _postscript_for_pages(pages: list, page_pt: "tuple[float, float] | None") ->
                     dpi = im.info.get("dpi") or (300, 300)
                     src = Path(tmp) / f"page{k}.tif"
                     im.save(src, dpi=dpi)
-            docs.append(gen.generate(src, page_size_pt=page_pt))
+            # placed as the dialog's check planned it (workflow.overhang)
+            from workflow import overhang as _O
+            _plan = last_overhang
+            with _O.placed(_plan.shift_pt() if _plan is not None else None):
+                docs.append(gen.generate(src, page_size_pt=page_pt))
     if len(docs) == 1:
         return docs[0].encode("ascii")
     head = ("%!PS-Adobe-3.0\n%%LanguageLevel: 3\n%cupsJobTicket: cups-disable-cmm\n"

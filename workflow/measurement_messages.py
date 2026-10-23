@@ -6074,6 +6074,57 @@ M_PRINT_WIN_DIALOG_TOO_BIG = _m(
     "The chart does not fit on this paper",
     "The chart measures {chart}, but the paper chosen in the print dialog is only {paper}.\n\nA profiling chart must be printed at exactly 100% size, so that every patch is where your measuring instrument expects it. ChromIQ therefore does not shrink the chart to fit.\n\nNothing was printed. Print again and choose a paper size in the dialog that the chart fits on. It may lie either way round: ChromIQ turns it automatically.",
     approved=False)
+# --- PROPOSED: a chart a little larger than its paper (jctay 149803) -------
+#: Basti, 2026-10-23: a chart slightly larger than the paper, where all that
+#: hangs over is empty margin, prints at exactly 100 % with no question on
+#: every route (workflow.overhang). Only when more would be lost is the user
+#: told, here: the Windows and macOS print dialogs refuse (nothing printed,
+#: {outcome} = _CUT_OUTCOME_NOTHING), the direct route's confirmation window
+#: shows it ({outcome} = _CUT_OUTCOME_ANYWAY: its Print still prints at
+#: 100 %, cut). {why}: one of the _CUT_WHY_* sentences. {chart} and {paper}
+#: are "W × H mm". A chart much larger than its paper (more than 5 mm or 3 %
+#: on a side) keeps M-PRINT-WIN-DIALOG-TOO-BIG or the size mismatch warning.
+M_PRINT_CHART_CUT = _m(
+    "M-PRINT-CHART-CUT",
+    "Part of the chart would not be on this paper",
+    "The chart measures {chart}, and the paper is {paper}. ChromIQ never makes "
+    "a chart smaller to fit, because every patch has to be exactly where your "
+    "measuring instrument expects it. A chart only a little larger than the "
+    "paper is printed at exactly 100 % when the part that does not fit is "
+    "empty margin.\n\n"
+    "Here it is not: {why} {outcome}\n\n"
+    "What you can do:\n"
+    "• Print on paper of the size the chart was made for, if your printer "
+    "can print it.\n"
+    "• Or lay the chart out again for this paper: in Create Chart, choose "
+    "this paper size (or Custom, with its width and height) and generate the "
+    "chart again. The patches are then placed for this paper, and the number "
+    "of patches on a page, or their size, may change. A chart laid out again "
+    "is a new chart, so print and measure the new one.",
+    approved=False)
+_CUT_WHY_CONTENT = ("printed parts of the chart, such as patches, strip "
+                    "letters, notes or the small ruler marks at the edge, "
+                    "would be cut off.")
+_CUT_WHY_LEAD = ("the blank paper before the first or after the last patch of "
+                 "a strip, which your instrument needs to start and end each "
+                 "strip, would become too short.")
+_CUT_WHY_UNKNOWN = ("ChromIQ cannot tell which parts of this chart are empty, "
+                    "so it does not risk cutting anything off.")
+_CUT_OUTCOME_NOTHING = "Nothing was printed."
+_CUT_OUTCOME_ANYWAY = ("If you print anyway, the chart is printed at 100 % and "
+                       "that part is cut off.")
+#: The quiet line in the Print Chart log when the chart was printed at 100 %
+#: with only empty margin off the paper, and how much went off where.
+_OVER_PAPER_LOG = ("Printed at exactly 100 %: the chart is a little larger "
+                   "than the paper, and only empty margin is outside it "
+                   "({left} mm left, {right} mm right, {top} mm at the top, "
+                   "{bottom} mm at the bottom).")
+M_PRINT_CHART_CUT_PARTS = _m(
+    "M-PRINT-CHART-CUT-PARTS",
+    "A chart a little larger than its paper: the reasons and the log line",
+    "\n".join((_CUT_WHY_CONTENT, _CUT_WHY_LEAD, _CUT_WHY_UNKNOWN,
+               _CUT_OUTCOME_NOTHING, _CUT_OUTCOME_ANYWAY, _OVER_PAPER_LOG)),
+    approved=False)
 #: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
 #: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
 #: job (exit code ...)", which names a system Windows does not have.
@@ -7314,7 +7365,135 @@ M_REPORT_STRIP_REVERSED = _m(
     "report again.",
     approved=False)
 
+
+# --- PROPOSED: the pause between pages (jctay 149802, Basti 2026-10-23) -----
+#: Preferences ▸ Measurement ▸ "Pause after each page so I can check it" (off
+#: by default). After a strip is read and the next strip to read is on another
+#: page, the reading engine holds and the Measure tab shows this, in a panel
+#: beside the chart preview (not a window: the preview must stay readable, the
+#: page just finished is what the user is checking). {continue} is the
+#: Continue button's own label. The paragraph about the button is added only
+#: when the engine says the instrument's button can answer (i1Pro, i1Pro 2,
+#: i1Pro 3 and 3 Plus, ColorMunki).
+M_PAGE_PAUSE = _m(
+    "M-PAGE-PAUSE",
+    "Page {page} of {pages} is done: next comes page {next_page}",
+    "Before you go on, look over page {page} in the preview: a patch with a "
+    "red outline has a reading that looks wrong. To read a strip again, click "
+    "it in the preview or click “{reread}”. Then put page {next_page} under "
+    "the instrument and click “{continue}”. The next strip to read is strip "
+    "{target}.",
+    approved=False)
+
+#: The same moment after the last strip of the chart, or after the read that
+#: completed it. "Continue" then lets the measurement go on exactly as without
+#: the pause: once every patch has a reading the window that finishes the
+#: measurement ("All Strips Read") opens, which is where the choice how to
+#: finish is made. This panel asks nothing, so there is no second question.
+M_PAGE_PAUSE_END = _m(
+    "M-PAGE-PAUSE-END",
+    "That was the last strip of the chart",
+    "Before the measurement is finished, look over the chart in the preview: "
+    "a patch with a red outline has a reading that looks wrong. To read a "
+    "strip again, click it in the preview or click “{reread}”. When "
+    "everything looks right, click “{continue}”, and ChromIQ finishes the "
+    "measurement as it always does.",
+    approved=False)
+
+#: Added to M-PAGE-PAUSE-END on a chart of more than one page.
+M_PAGE_PAUSE_OTHER_PAGES = _m(
+    "M-PAGE-PAUSE-OTHER-PAGES",
+    "The other pages",
+    "This chart has {pages} pages: the buttons under the preview turn them.",
+    approved=False)
+
+#: Added when the connected instrument's button can continue (the engine's
+#: "held" event says so). The press is reported by the engine only while it
+#: holds, outside any scan, so it can never start the next strip; a press
+#: within 0.3 s of the panel appearing is ignored (the end of the last scan).
+#: The panel shows the body only; the headline names it in §M.
+M_PAGE_PAUSE_BUTTON = _m(
+    "M-PAGE-PAUSE-BUTTON",
+    "You can also use the button on your instrument",
+    "Instead of clicking “{continue}”, you can press the button on your "
+    "instrument once. That press only continues: it never starts reading a "
+    "strip.",
+    approved=False)
+
+#: The ⓘ beside the pause's headline: the whole of it, in plain words. The
+#: note itself stays short: it lies over the chart preview for a few seconds,
+#: and the page under it is what the user checks.
+M_PAGE_PAUSE_HELP = _m(
+    "M-PAGE-PAUSE-HELP",
+    "Why ChromIQ stops here",
+    "You switched on “Pause after each page so I can check it” in "
+    "Preferences ▸ Measurement, so ChromIQ stops after the last strip of each "
+    "page and after the last strip of the chart. While it waits, nothing is "
+    "read: the instrument is not ready for the next strip.\n\n"
+    "Look over the page: the preview still shows it. A patch "
+    "with a red outline has a reading that looks wrong. With “Each patch "
+    "shows: Expected & measured (split)” you can compare every patch with the "
+    "colour it should have. The list in this note names the strips of the "
+    "page that are worth a second look.\n\n"
+    "To read a strip again, click it in the preview, or click the Re-read "
+    "button, which offers the first strip worth a look. Read it as always. "
+    "Once it has been read, ChromIQ stops here again, so you can check "
+    "it.\n\n"
+    "When the page looks right, put the next page under the instrument and "
+    "click Continue. With an i1Pro, i1Pro 2, i1Pro 3 or ColorMunki you can "
+    "instead press the button on the instrument once. That press only "
+    "continues: it never starts reading a strip, so the next strip is read "
+    "with the next press, as always. Return and the space bar continue "
+    "too.\n\n"
+    "This note fades away once there has been time to read it (between 8 "
+    "and 30 seconds, depending on how much it says), or as soon as you click "
+    "somewhere or press a key. The measurement goes on waiting until you "
+    "continue.\n\n"
+    "Stop works as it always does: it asks whether to keep what you have "
+    "measured. To measure without these pauses, or without this note, "
+    "change the two options in Preferences ▸ Measurement.",
+    approved=False)
+
+#: What ChromIQ knows about the page just finished, under the pause's text.
+#: One line per strip worth a second look; the first line when there is none.
+_PAUSE_NOTHING = ("Nothing on page {page} is marked: no patch has a red "
+                  "outline, and you kept no strip of this page that ChromIQ "
+                  "asked you about.")
+_PAUSE_LOOK = "Worth a second look on page {page}:"
+_PAUSE_RED_ONE = "Strip {strip}: 1 patch with a red outline ({locs})"
+_PAUSE_RED = "Strip {strip}: {n} patches with a red outline ({locs})"
+_PAUSE_KEPT_SLIP = ("Strip {strip}: ChromIQ asked whether it was read out of "
+                    "step, and you kept it")
+_PAUSE_KEPT_TWICE = ("Strip {strip}: ChromIQ asked whether it was read twice, "
+                     "and you kept it")
+M_PAGE_PAUSE_FOUND = _m(
+    "M-PAGE-PAUSE-FOUND",
+    "On this page",
+    "\n".join((_PAUSE_NOTHING, _PAUSE_LOOK, _PAUSE_RED_ONE, _PAUSE_RED,
+               _PAUSE_KEPT_SLIP, _PAUSE_KEPT_TWICE)),
+    approved=False)
+
+#: The panel's buttons, its log lines and the Re-read button's tooltip.
+_PAUSE_CONTINUE_PAGE = "Continue with page {page}"
+_PAUSE_CONTINUE = "Continue"
+_PAUSE_REREAD = "Re-read strip {strip}"
+_PAUSE_REREAD_TIP = ("Gets strip {strip} ready to be read again. To read a "
+                     "different strip, click it in the preview instead.")
+_PAUSE_LOG_PAGE = ("Paused after strip {strip}: page {page} is done, next "
+                   "comes page {next_page}.")
+_PAUSE_LOG_END = "Paused after strip {strip}, the last strip of the chart."
+M_PAGE_PAUSE_CONTROLS = _m(
+    "M-PAGE-PAUSE-CONTROLS",
+    "The pause between pages: buttons and log",
+    "\n".join((_PAUSE_CONTINUE_PAGE, _PAUSE_CONTINUE, _PAUSE_REREAD,
+               _PAUSE_REREAD_TIP, _PAUSE_LOG_PAGE, _PAUSE_LOG_END)),
+    approved=False)
+
 CATALOGUE = {m.id: m for m in (
+    M_PAGE_PAUSE, M_PAGE_PAUSE_END, M_PAGE_PAUSE_OTHER_PAGES,
+    M_PAGE_PAUSE_BUTTON, M_PAGE_PAUSE_FOUND, M_PAGE_PAUSE_CONTROLS,
+    M_PAGE_PAUSE_HELP,
+    M_PRINT_CHART_CUT, M_PRINT_CHART_CUT_PARTS,
     M_STRIP_PART_SLIPPED_LATE, M_STRIP_PART_SLIPPED_EARLY,
     M_STRIP_WHOLE_SLIPPED_LATE, M_STRIP_WHOLE_SLIPPED_EARLY, M_STRIP_REVERSED,
     M_REPORT_STRIP_SHIFTED_LATE, M_REPORT_STRIP_SHIFTED_EARLY,

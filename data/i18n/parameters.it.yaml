@@ -539,7 +539,7 @@ parameters:
       tooltip_title: "Formato carta (-p)"
       tooltip_body: |-
         Imposta le dimensioni di ogni foglio del grafico stampato. Il
-        grafico riempie sempre la pagina da bordo a bordo — carta più
+        grafico riempie sempre la pagina da bordo a bordo: carta più
         grande significa più tasselli e quindi un profilo più dettagliato
         da meno fogli.
 
@@ -547,10 +547,10 @@ parameters:
         incluso. I lettori a strisce (famiglia i1Pro) leggono dall'alto
         verso il basso, quindi:
 
-          •  Verticale — strisce più lunghe, in numero minore. La scelta
+          •  Verticale: strisce più lunghe, in numero minore. La scelta
              standard.
 
-          •  Orizzontale (A4R, LetterR, 420×297…) — strisce più corte, in
+          •  Orizzontale (A4R, LetterR, 420×297…): strisce più corte, in
              numero maggiore. Usalo quando la stampante alimenta
              l'orizzontale più affidabilmente, o quando un foglio
              verticale lascerebbe l'ultima striscia troppo vicina al bordo
@@ -562,6 +562,18 @@ parameters:
 
         Se cambi formato carta, il numero di tasselli e di pagine
         nell'anteprima comandi si aggiorna automaticamente.
+
+        STAMPANTI PER FOTO 4 × 6 POLLICI
+        Molte non stampano esattamente 4 × 6 pollici (101,6 × 152,4 mm).
+        Alcune stampano 10 × 15 cm (100 × 150 mm), e le stampanti per
+        cartoline come la Canon SELPHY stampano 100 × 148 mm. Scegli il
+        formato indicato dall'impostazione della carta della tua
+        stampante: 4 × 6 pollici, 10 × 15 cm o Cartolina. Se non sei
+        sicuro, guarda quali formati di carta offre la sua finestra di
+        stampa. Un grafico impaginato per una carta un po' più grande di
+        quella che la stampante accetta si può stampare solo se ciò che
+        non entra è margine vuoto; altrimenti ChromIQ ti chiede di
+        impaginarlo di nuovo per la carta più piccola.
       labels:
         - "A2 verticale (420 × 594 mm)"
         - "A2 orizzontale (594 × 420 mm)"
@@ -578,6 +590,8 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Cartolina (100 × 148 mm)"
         - "Personalizzato (inserisci misure)"
     "-t":
       name: "DPI di uscita TIFF"

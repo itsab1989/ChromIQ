@@ -65,6 +65,11 @@ WINDOW_ROWS = [
     (tr("Instrument Mode Rejected"), tr("Both"), tr("Instrument error")),
     (tr("Instrument Error (anything else the instrument reports)"), tr("Both"),
      tr("Instrument error")),
+    # The pause between pages (jctay 149802, Basti 2026-10-23; awaiting
+    # confirmation): the strip just read has played Strip read OK, and the
+    # pause is what the user asked for in Preferences, so it adds nothing.
+    (tr("Pause after a page (Preferences option)"), tr("Strip reading"),
+     tr("No sound")),
     (tr("All strips read / All patches read"), tr("Both"), tr("Measurement finished")),
 ]
 

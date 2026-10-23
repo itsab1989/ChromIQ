@@ -49,6 +49,7 @@ identifiers.
 | Correction File Failed to Load | Both | Instrument error |
 | Instrument Mode Rejected | Both | Instrument error |
 | Instrument Error (anything else the instrument reports) | Both | Instrument error |
+| Pause after a page (Preferences option) | Strip reading | No sound |
 | All strips read / All patches read | Both | Measurement finished |
 
 ### 1a. The calibration the user asks for (#182, 2026-10-03)
@@ -224,6 +225,22 @@ management M-STRIP-FAILED-BUTTON, `measurement_exit_strategy.md` note 10) is tha
 window's Retry, so it plays what Retry plays: nothing. The window's own sound
 (§1 row 1, §3) is unchanged, and the strip that is then read beeps as every
 strip does (§4a).
+
+## 4e. The pause between pages plays nothing of its own (4.3.10)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* (Basti asked for
+the option on 2026-10-23; that no sound goes with it is ours.)
+
+With Preferences ▸ Measurement ▸ *"Pause after each page so I can check it"*
+on, the Measure tab pauses after the last strip of a page and after the last
+strip of the chart (`measurement_exit_strategy.md` note 11, unified
+measurement management M-PAGE-PAUSE). The strip just read has already played
+**Strip read OK** (or **Slow down**), and a pause the user asked for is not
+news, so the pause adds **no sound**: a second sound would land on top of the
+strip's own cue. Pressing the instrument's button to continue plays nothing
+either, like Retry (§4d). At the end of the chart **Measurement finished**
+still plays, as the window that finishes the measurement opens, which with the
+option on is after the pause, when Continue is clicked.
 
 ## 5. Related documents
 

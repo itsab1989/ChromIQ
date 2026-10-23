@@ -71,20 +71,42 @@ def test_the_windows_route_never_gets_a_paper_profile_row(qapp, tmp_path, monkey
     assert MM._PRINT_ROW_PAPER_PROFILE in [r[0] for r in rows]
 
 
-# ---- the dialog route's 2 % slack ---------------------------------------------
-@pytest.mark.parametrize("over, prints", [(1.015, True), (1.03, False)])
-def test_a_chart_a_little_larger_than_the_paper_still_prints(dialog_route, tmp_path, over, prints):
-    """2 % slack, as `_chart_larger_than_page`: a chart that overhangs the
-    paper by 1.5 % prints (its white margin is clipped), one 3 % larger is
-    refused."""
+# ---- a chart a little larger than the paper (jctay 149803, 4.3.10) ----------
+@pytest.mark.parametrize("over, margin, prints", [
+    (1.015, True, True),     # 1.5 % over, wide white margins: 100 %, no question
+    (1.015, False, False),   # 1.5 % over, ink to the edge: M-PRINT-CHART-CUT
+    (1.03, True, False)])    # more than 5 mm over: M-PRINT-WIN-DIALOG-TOO-BIG
+def test_a_chart_a_little_larger_than_the_paper(dialog_route, tmp_path, over,
+                                                 margin, prints):
+    """Until 4.3.10 a 2 % slack printed any chart up to 2 % larger, centred,
+    whatever was cut. Now only empty margin may be left off (workflow.overhang),
+    and the chart is never shrunk."""
+    import tifffile
     tab, events = dialog_route
-    # larger than A4 in BOTH directions, so turning it cannot help
     w_px = int(round(595 * over / 72 * 300))
     h_px = int(round(842 * over / 72 * 300))
-    tiff = _rgb_tiff(tmp_path / "c.tif", w=w_px, h=h_px)
+    arr = np.full((h_px, w_px, 3), 255, np.uint8)
+    inset = int(25 / 25.4 * 300) if margin else 0          # 25 mm of white
+    arr[inset:h_px - inset, inset:w_px - inset] = (10, 200, 30)
+    tiff = tmp_path / "c.tif"
+    tifffile.imwrite(str(tiff), arr, photometric="rgb", resolution=(300, 300),
+                     resolutionunit=2)
+    # an i1Pro chart (10 mm of white kept around its patches); a chart whose
+    # instrument is unknown keeps the most any instrument needs
+    (tmp_path / "c.ti2").write_text('CTI2\nTARGET_INSTRUMENT "X-Rite i1 Pro"\n',
+                                    encoding="utf-8")
     tab._print_native_qt([(tiff, 0)])
     assert bool(_FakePainter.draws) is prints
     assert events[-1] == ("record", prints)
+    if prints:
+        (_t, _r, _x, _y, w, h, _iw), = _FakePainter.draws
+        assert w == pytest.approx(w_px * 2) and h == pytest.approx(h_px * 2)
+    else:
+        from workflow import measurement_messages as MM
+        refused = [e for e in events if e[0] == "refused"]
+        want = (MM.M_PRINT_CHART_CUT.title if over < 1.02
+                else MM.M_PRINT_WIN_DIALOG_TOO_BIG.title)
+        assert refused and refused[0][1] == want
 
 
 # ---- the spooler ----------------------------------------------------------------

@@ -203,6 +203,11 @@ class MeasureParams:
     # (i1iSis/DTP70) reading too. Off by default → those modes fall back to
     # stock chartread. Passed as --xychart.
     engine_xy_chart: bool = False
+    #: Preferences ▸ Measurement ▸ "Pause after each page so I can check it"
+    #: (jctay, forum 149802; Basti 2026-10-23). Off by default. Engine strip
+    #: reading only: the manager asks the engine to hold after a strip
+    #: (``hold_after``) and the Measure tab decides whether that is a pause.
+    page_pause: bool = False
     # How many times to retry a failed calibration automatically before giving
     # up (mavtop's i1Pro1 lamp can need several strikes to burn in). Falls back
     # to CAL_AUTO_RETRIES when the caller doesn't set it.
@@ -351,9 +356,20 @@ class MeasureManager(QObject):
     #: reports it only there; the Strip Read Failed window decides whether it
     #: is its Retry. See also :attr:`misread_button_retry`.
     instrument_button      = pyqtSignal()
+    #: The pause between pages (jctay 149802, Basti 2026-10-23): the engine
+    #: read and accepted *strip* and is holding before the next one, as it was
+    #: asked to (``hold_after``). (strip, the instrument's button can answer).
+    #: The tab decides whether this is a pause; if not it resumes at once.
+    engine_held            = pyqtSignal(str, bool)
+    #: ...and the engine has left the hold: it offered a strip again.
+    engine_released        = pyqtSignal()
     #: True only while strip_error is being delivered for an engine misread
     #: whose instrument can answer it with its button ("button_retry").
     misread_button_retry: bool = False
+    #: The pause between pages, per session (see :meth:`start`).
+    _page_pause_on: bool = False
+    _engine_holds: bool = False
+    _engine_held: "dict | None" = None
     instrument_disconnected = pyqtSignal()   # emitted on USB communication failure
     device_busy             = pyqtSignal()   # emitted when instrument is held by another process
     no_instrument           = pyqtSignal()     # emitted when no instrument is detected at startup
@@ -705,6 +721,11 @@ class MeasureManager(QObject):
         #: the part-of-a-strip check in `_check_part_of_strip_slipped` asks
         #: the same switch (forum post 149786).
         self._safenet_on     = bool(getattr(params, "engine_safenet", False))
+        #: The pause between pages: asked for, and the engine can hold
+        #: (learnt from session_start), and where it holds now.
+        self._page_pause_on  = bool(getattr(params, "page_pause", False))
+        self._engine_holds   = False
+        self._engine_held: "dict | None" = None
         self._read_something = False
         self._readings_count = 0
         #: patch-by-patch (spot) reading, which answers keys differently — see
@@ -786,6 +807,7 @@ class MeasureManager(QObject):
 
         def _on_finish(code: int) -> None:
             self._pending_post_retry_key = None
+            self._engine_held = None
             self._at_retry_prompt = False
             self._at_unread_prompt = False
             self._save_partial_state = None
@@ -2210,6 +2232,107 @@ class MeasureManager(QObject):
         self._suspect_strips = {}
         return locs
 
+    # ------------------------------------------------------------------
+    # The pause between pages (jctay, forum 149802; Basti 2026-10-23)
+    # ------------------------------------------------------------------
+
+    def _page_pause_applies(self) -> bool:
+        """Engine strip reading of a chart, outside guided re-reading."""
+        return bool(self._page_pause_on and self._engine_holds
+                    and self._engine_active and not self._spot_mode
+                    and not self._whole_sheet and not self._external_values
+                    and self._guided_state in ("idle_done", "disabled"))
+
+    def _ask_hold_after(self, strip: str) -> None:
+        """At *strip*'s menu: hold after it once it is read. Written straight
+        to the engine, not through send_command, because it decides nothing
+        about where the reader goes (the move after a read must stand)."""
+        strip = str(strip or "").strip()
+        if not strip or not self._page_pause_applies():
+            return
+        if self._an_ending_is_under_way():
+            return
+        import json as _json
+        self._runner.write_stdin(_json.dumps(
+            {"cmd": "hold_after", "strip": strip}) + "\n")
+
+    @property
+    def held_strip(self) -> "dict | None":
+        """``{"strip", "button"}`` while the engine holds, else None."""
+        return self._engine_held
+
+    def resume_after_hold(self) -> None:
+        """Let the engine go on from the hold as it would have without it
+        (the next unread strip). Written straight to the engine for the same
+        reason as the hold itself: the move after the read still applies."""
+        if self._engine_held is None or not self._engine_active:
+            return
+        import json as _json
+        self._runner.write_stdin(_json.dumps({"cmd": "resume"}) + "\n")
+
+    def page_of_strip(self, strip: str) -> "int | None":
+        """The page (1-based) *strip* is printed on, from session_start."""
+        for s in self._session_strips or []:
+            if str(s.get("strip", "")).strip() == str(strip or "").strip():
+                try:
+                    return int(s.get("sheet") or 1)
+                except (TypeError, ValueError):
+                    return 1
+        return None
+
+    def page_count(self) -> int:
+        pages = [self.page_of_strip(str(s.get("strip", "")))
+                 for s in self._session_strips or []]
+        return max([p for p in pages if p] or [1])
+
+    def strips_on_page(self, page: int) -> "list[str]":
+        return [str(s.get("strip", "")).strip()
+                for s in self._session_strips or []
+                if self.page_of_strip(str(s.get("strip", ""))) == page]
+
+    def page_pause_plan(self, read: str) -> "dict | None":
+        """After *read* was read: is the next step a page turn, or the end of
+        the chart? Mirrors where the reader goes next (`_decide_after_read`).
+
+        * ``{"kind": "page", "page", "next_page", "pages", "strip", "target"}``
+          when the strip the reader goes to next is on another page;
+        * ``{"kind": "end", "page", "pages", "strip"}`` after the last strip of
+          the chart, or the read that completed it;
+        * None otherwise, and when the reader's next step is a question
+          ("Continue to next / Jump to unread", asked once per measurement):
+          the answer decides, and no pause stands in front of it.
+        """
+        read = str(read or "").strip()
+        page = self.page_of_strip(read)
+        if page is None:
+            return None
+        labels = [str(s.get("strip", "")).strip()
+                  for s in (self._session_strips or [])]
+        labels = [x for x in labels if x]
+        pages = self.page_count()
+        nxt = self._next_strip_after(read)
+        unread = self._first_unread_strip_after(read)
+        base = {"page": page, "pages": pages, "strip": read}
+        if unread is None:
+            news = (self._all_done_is_news()
+                    and not getattr(self, "_completion_shown", False))
+            if news or (labels and read == labels[-1]):
+                return dict(base, kind="end")
+            target = nxt
+        elif nxt == unread:
+            target = nxt
+        else:
+            policy = self._unread_policy
+            if policy is None:
+                return None
+            target = (nxt or read) if policy == "next" else unread
+        if not target or target == read:
+            return None
+        to_page = self.page_of_strip(target)
+        if to_page is None or to_page == page:
+            return None
+        return dict(base, kind="page", next_page=to_page, target=target)
+
     def goto_strip(self, strip: str) -> None:
         """Jump the engine directly to `strip` (engine mode only)."""
         if self._engine_active:
@@ -2853,6 +2976,7 @@ class MeasureManager(QObject):
             # #182 6102031563); an engine without the command says nothing.
             self._engine_files_as = bool(ev.get("file_as"))
             self._engine_keeps_earlier = bool(ev.get("file_as_keeps_earlier"))
+            self._engine_holds = bool(ev.get("hold_after"))
             self._build_read_map(ev.get("chart"), self._session_strips)
             self._learn_measured_strips(ev.get("chart"))
             self.session_map.emit(strips)
@@ -2860,6 +2984,10 @@ class MeasureManager(QObject):
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
             _sent_before = self._commands_sent
+            if self._engine_held is not None:
+                # The engine has left the pause between pages.
+                self._engine_held = None
+                self.engine_released.emit()
             self._scan_in_progress = False
             self._saw_reader_prompt = True
             self._at_retry_prompt = False        # back at the menu
@@ -2905,6 +3033,10 @@ class MeasureManager(QObject):
             # (the engine keeps one; the next strip_ready sends it).
             if self._commands_sent == _sent_before:
                 self._flush_held_file_as()
+            # The pause between pages: ask the engine to hold after THIS
+            # strip, unless something sent above is about to move it.
+            if self._commands_sent == _sent_before:
+                self._ask_hold_after(strip)
 
         elif kind == "scan_started":
             # The instrument has fired: the swipe starts NOW (#131). In strip
@@ -2923,8 +3055,16 @@ class MeasureManager(QObject):
             # that is up decides what it means (TabMeasure._on_instrument_button).
             log.debug("engine: the instrument's button was pressed at the "
                       "retry prompt")
-            if self._at_retry_prompt:
+            if self._at_retry_prompt or self._engine_held is not None:
                 self.instrument_button.emit()
+
+        elif kind == "held":
+            # The pause between pages: the engine read the strip it was asked
+            # to hold after, and waits before arming the next one.
+            _s = str(ev.get("strip", "")).strip()
+            self._engine_held = {"strip": _s, "button": bool(ev.get("button"))}
+            log.debug("engine: holding after strip %s (pause between pages)", _s)
+            self.engine_held.emit(_s, bool(ev.get("button")))
 
         elif kind == "scan_ready":
             # The driver's ready-to-scan moment, the beep (#202). Emitted by

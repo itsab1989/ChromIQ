@@ -528,16 +528,16 @@ parameters:
       tooltip_title: "Papierformaat (-p)"
       tooltip_body: |-
         Bepaalt de afmetingen van elk vel van de afgedrukte kaart. De kaart
-        vult de pagina altijd van rand tot rand — groter papier biedt plaats
+        vult de pagina altijd van rand tot rand: groter papier biedt plaats
         aan meer meetvelden, dus een gedetailleerder profiel uit minder vellen.
 
         Kies het formaat waarop je werkelijk gaat afdrukken, inclusief de
         oriëntatie. Strooklezers (i1Pro-familie) lezen van boven naar
         beneden, dus:
 
-          •  Staand — langere stroken, minder in aantal. De standaardkeuze.
+          •  Staand: langere stroken, minder in aantal. De standaardkeuze.
 
-          •  Liggend (A4R, LetterR, 420×297…) — kortere stroken, meer in
+          •  Liggend (A4R, LetterR, 420×297…): kortere stroken, meer in
              aantal. Gebruik dit wanneer je printer liggend betrouwbaarder
              invoert, of wanneer een staand vel de laatste strook te dicht
              bij de papierrand zou brengen.
@@ -547,6 +547,18 @@ parameters:
 
         Wijzig je het papierformaat, dan worden het meetveldaantal en het
         aantal pagina's in het commandovoorbeeld automatisch bijgewerkt.
+
+        PRINTERS VOOR FOTO'S VAN 4 × 6 INCH
+        Veel daarvan printen niet precies 4 × 6 inch (101,6 × 152,4 mm).
+        Sommige printen 10 × 15 cm (100 × 150 mm), en briefkaartprinters
+        zoals de Canon SELPHY printen 100 × 148 mm. Kies het formaat dat
+        de papierinstelling van je printer noemt: 4 × 6 inch, 10 × 15 cm
+        of Briefkaart. Weet je het niet zeker, kijk dan welke
+        papierformaten het afdrukvenster aanbiedt. Een kaart die is
+        opgemaakt voor iets groter papier dan de printer gebruikt, kan
+        alleen worden geprint als wat niet past lege marge is; anders
+        vraagt ChromIQ je om hem opnieuw op te maken voor het kleinere
+        papier.
       labels:
         - "A2 staand (420 × 594 mm)"
         - "A2 liggend (594 × 420 mm)"
@@ -563,6 +575,8 @@ parameters:
         - "8×10\" (203 × 254 mm)"
         - "5×7\" (127 × 178 mm)"
         - "4×6\" (102 × 152 mm)"
+        - "10 × 15 cm (100 × 150 mm)"
+        - "Briefkaart (100 × 148 mm)"
         - "Aangepast (afmetingen invullen)"
     "-t":
       name: "TIFF-uitvoer-DPI"

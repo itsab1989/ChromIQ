@@ -101,6 +101,13 @@ def test_the_windows_listed_are_the_windows_that_exist():
     # "instrument error (other)" — and THAT is how two wrong names survived
     # this test, because an exemption is also a blind spot (Knut, 2026-07-28).
     by_signal = {"instrument disconnected", "no instrument found"}
+    # NOT A WINDOW: the pause between pages (4.3.10) is a note laid over the
+    # chart preview, titled from the catalogue (M-PAGE-PAUSE), so no window
+    # of that name exists. It is listed because Basti's table names every
+    # place the measurement waits, and it plays no sound.
+    from workflow import measurement_messages as _MM
+    assert _MM.M_PAGE_PAUSE.id == "M-PAGE-PAUSE"
+    by_signal = by_signal | {"pause after a page"}
     for window, _mode, _sound in WINDOW_ROWS:
         stem = window.split("/")[0].split("(")[0].strip()
         if stem.lower() in by_signal:

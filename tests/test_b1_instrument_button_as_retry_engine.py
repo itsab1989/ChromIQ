@@ -184,15 +184,21 @@ def test_a_press_during_a_requested_calibration_is_not_reported(tmp_path,
 
 
 # ---------------------------------------------------------------------------
-# the source: one gate, opened in one place
+# the source: one gate, opened in two places and nowhere else
 # ---------------------------------------------------------------------------
-def test_the_gate_is_opened_only_at_the_strip_misread_prompt():
+def test_the_gate_is_opened_only_at_the_misread_prompt_and_the_page_hold():
+    """At the misread prompt (B1) and, since 4.3.10, in the pause between
+    pages (``held``, tests/test_page_pause_engine.py). Both are waits outside
+    any scan; nowhere else may a press be reported."""
     text = (SRC / "chromiq_chartread.c").read_text(encoding="utf-8")
     opens = [m.start() for m in re.finditer(r"cq_switch_gate_set\(1\)", text)]
-    assert len(opens) == 1, f"the switch gate is opened {len(opens)} times"
+    assert len(opens) == 2, f"the switch gate is opened {len(opens)} times"
     before = text[max(0, opens[0] - 1500):opens[0]]
     assert "Strip read failed due to misread" in before
     assert '\\"kind\\":\\"misread\\"' in before
+    before = text[max(0, opens[1] - 1500):opens[1]]
+    assert "cq_hold_matches(hn)" in before
+    assert '\\"event\\":\\"held\\"' in before
 
 
 def test_the_callback_reports_a_press_only_through_the_gate():
