@@ -1063,7 +1063,7 @@ WORKFLOWS: list[dict] = [
         "key": "verify",
         "title": tr("Check a finished profile (verification run)"),
         "subtitle": tr("Measure a check chart and see, in real numbers, how "
-            "accurate your finished profile is — and whether it stays that "
+            "accurate your finished profile is, and whether it stays that "
             "way over time."),
         "steps": [
             (1, tr("In the Profile-run bar at the top of the window, set "
@@ -1151,9 +1151,38 @@ WORKFLOWS: list[dict] = [
                             _printer_kinds_note(), _postscript_note(),
                             _cmyk_driver_note())),
             (3, tr("On the Measure tab, pick “New verification” in the "
-                "Verification box, then measure the chart as normal."),
+                "“Verification:” box of the Profile-run bar at the top of the "
+                "window, then measure the chart as normal."),
              False,
-             ((tr("What a dated check is, and what it never touches"),
+             ((tr("Start every strip on the white paper, not on its number"),
+               # Forum posts 149795/149800 (agent 18): jctay often started
+               # the swipe on the strip's number, so patch A read the paper
+               # and the next patches came out one place late.
+               tr("Put the instrument down on the bare white paper in front "
+                  "of the strip's first patch, beside the strip's number "
+                  "rather than on it. If your instrument gives a short beep "
+                  "when it is ready, wait for it. Then move in one smooth "
+                  "movement at an even speed, and keep going until it is on "
+                  "the white paper after the last patch. If it starts on the "
+                  "number, it can count one patch too many: the first patch "
+                  "then comes out with the colour of the paper, and the next "
+                  "ones with the colour of the patch before them.\n\n"
+                  "ChromIQ helps you catch this while you measure. In the "
+                  "preview it outlines a patch in red when its reading is far "
+                  "from the colour it should have (on a verification, the "
+                  "colour the profile predicts). And with “{warn}” ticked in "
+                  "Preferences ▸ Measurement (it is, unless you switched it "
+                  "off), it asks you to read a strip again when a longer run "
+                  "of its patches looks one place out. Choose “{remeasure}” "
+                  "and read the strip again before you go on: it takes a few "
+                  "seconds now and spares you a wrong report later. A slip "
+                  "that spoils only the first two, three or four patches of a "
+                  "strip is not asked about, so when the first patches of a "
+                  "strip are outlined in red, simply read that strip "
+                  "again.").format(
+                      warn=tr("Warn me if a strip looks misaligned"),
+                      remeasure=tr("Re-measure this strip"))),
+              (tr("What a dated check is, and what it never touches"),
                tr("The result is saved in its own dated folder under the "
                   "run's “verifications” folder, so every check is kept as "
                   "history. It never overwrites your profiling measurement "
@@ -1164,11 +1193,112 @@ WORKFLOWS: list[dict] = [
                   "table, the IMPORT module on this tab files that "
                   "measurement in exactly the same way, so it joins the same "
                   "history.")))),
+            (5, tr("Optional: on the Check & Refine tab, make sure “{ti3}” "
+                "shows this verification and “{icc}” the run's profile, then "
+                "click “{analyse}”.").format(
+                    ti3=tr(".ti3 test data file:"),
+                    icc=tr("ICC / ICM profile:"),
+                    analyse=tr("Analyse Profile Quality")),
+             True,
+             ((tr("What this check tells you"),
+               # The verification-aware Check & Refine of 4.3.10-beta.1
+               # (Basti's ruling, 2026-10-22, §6c of
+               # unified_measurement_management.md).
+               tr("You do not have to pick any files. With Run type "
+                  "“Verification” and a date chosen in the Profile-run bar, "
+                  "the two fields fill in by themselves: that date's "
+                  "measurement and the run's profile. (With “New "
+                  "verification” there is nothing to check yet, so they "
+                  "stay empty.)\n\n"
+                  "For every patch, the check takes the chart's RGB "
+                  "numbers, works out through the profile "
+                  "the colour they should give, and compares that with the "
+                  "colour you measured. The profile has never seen these "
+                  "readings, so the figures show how well it describes your "
+                  "printer and paper on the day of this print, not how "
+                  "closely it fits the data it was built from. That is why "
+                  "they are usually somewhat higher than a check of the "
+                  "profiling measurement.\n\n"
+                  "The figures come from ArgyllCMS's profcheck, judged with "
+                  "this tab's own settings (“{limit}”, and in MANUAL also "
+                  "“{formula}”). The Measurement Report works its figures "
+                  "out separately, against its own reference and its limit "
+                  "set, so the two do not show exactly the same "
+                  "numbers.").format(
+                      limit=tr("Flag strips for re-measurement above ΔE:"),
+                      formula=tr("Delta E formula:"))),
+              (tr("Which verification sheets this check can judge"),
+               tr("The check sends the RGB numbers stored in the chart "
+                  "through the profile, so it is only right when those are "
+                  "the numbers the printer was sent: a verification chart "
+                  "printed with “Colour” set to “{raw}”, or a chart made "
+                  "with “FROM PROFILE GAMUT”, which already has the profile "
+                  "applied and is printed raw. A sheet printed “{through}” "
+                  "was converted while it was printed, so its chart still "
+                  "holds the numbers from before the conversion. ChromIQ "
+                  "then warns you before the check runs, and the Measurement "
+                  "Report in the next step is the right way to judge that "
+                  "sheet.").format(raw=tr("Raw — no profile"),
+                                   through=tr("Through the profile"))),
+              (tr("Re-reading the patches with the largest errors"),
+               tr("When patches are above the limit, the window “{window}” "
+                  "lists the strips they are in. A large error on one patch "
+                  "is either a misread or a real difference between the "
+                  "profile and the print, and reading it again tells the two "
+                  "apart.\n\n"
+                  "Click “← {guide}”. ChromIQ takes you to the Measure tab "
+                  "with this verification selected and guides you through "
+                  "just those strips, into the same date. When they are "
+                  "done, the “{done}” window opens: “{finish}” saves the new "
+                  "readings in this date's own folder and ends the session, "
+                  "and “{cont}” lets you read more yourself first. A copy of "
+                  "the readings the date had before was put in its “old” "
+                  "folder when you started, so nothing is lost.\n\n"
+                  "Then click “{analyse}” again. A patch that comes back with "
+                  "the same error was read correctly the first time: the "
+                  "difference is real. The profile itself is never changed, "
+                  "and nothing is added to the profiling run.").format(
+                      window=tr("Profile Check Against a Verification Print"),
+                      guide=tr("Guide Me Through Re-reading These Strips"),
+                      done=tr("Re-measurement Complete"),
+                      finish=tr("Finish"),
+                      cont=tr("Continue Measuring Manually"),
+                      analyse=tr("Analyse Profile Quality"))),
+              (tr("When there is no guide button"),
+               tr("If no patch is above the limit, there is nothing to read "
+                  "again, and “{confirm}” closes the window. If the "
+                  "verification does not belong to the project that is open "
+                  "(you browsed to it), the window explains how to re-read "
+                  "the strips by hand instead. Installing the profile and "
+                  "using it for pre-conditioning are not offered here: a "
+                  "verification only checks a profile, so those belong to "
+                  "the profiling run.").format(confirm=tr("Confirm"))))),
             (3, tr("Open Tools → “Measurement report (accuracy & trends)” and "
                 "set “Report type:” and “Judged against:”, then click "
                 "“Generate report”."),
              False,
-             ((tr("What those two pulldowns decide"),
+             ((tr("Make the report after you have read strips again"),
+               # Forum post 149786: the report names a strip read one place
+               # out right above its Worst patches table
+               # (M-REPORT-STRIP-SHIFTED-LATE / -EARLY / -REVERSED).
+               tr("A report is made from the measurement as it is at the "
+                  "moment you generate it. So read any strips you want to "
+                  "read again first, and make the report after that.\n\n"
+                  "In its “{worst}” table, look out for several patches of "
+                  "one strip near the top, each showing in “{measured}” the "
+                  "colour that the patch before it (or after it) shows in "
+                  "“{expected}”. That strip was read one place out. When "
+                  "ChromIQ finds this for a run of patches, the report says "
+                  "so in a paragraph right above the table, headed “{shifted}” "
+                  "(or “{reversed}”). Read that strip again on the Measure "
+                  "tab, then make the report again.").format(
+                      worst=tr("Worst patches"), measured=tr("Measured"),
+                      expected=tr("Expected"),
+                      shifted=tr("Strip {strip} looks shifted by one "
+                                 "patch").format(strip="…"),
+                      reversed=tr("Strip {strip} looks filed back to "
+                                  "front").format(strip="…"))),
+              (tr("What those two pulldowns decide"),
                tr("“Report type:” is which document you get: a one-page "
                   "Colour summary, a Full colour check or a Grey and tone "
                   "check. The Printing record, which sets down what was "

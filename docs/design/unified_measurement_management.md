@@ -7637,6 +7637,52 @@ alone.
 >
 > Instead of clicking Retry, you can press the button on your instrument once. That closes this window and gets the same strip ready to be read again, exactly as Retry does. Then put the instrument on the white paper before the strip and read it the way you always do, with the button. The first press reads nothing, so an accidental press only brings you back to reading this strip.
 
+### Help card “Check a finished profile”: the Check & Refine step, starting a strip on the paper, and the report after re-reading · PROPOSED · Help ▸ the help cards, 4.3.10
+
+*New 2026-10-23 (4.3.10). Approved in substance by Basti, 2026-10-23 (Knut's suggestion): the card gains a Check & Refine step (verification-aware since 4.3.10-beta.1, §6c), a note on starting every strip on the white paper rather than on its number (jctay, forum posts 149795/149800: patch A read the paper and the next patches came out one place late; agent 18's analysis), and a note to make the Measurement Report after re-reading. The subtitle loses its em dash and the Measure step names the box as it is labelled. Every button, label and claim was checked against the code: the check runs profcheck on the chart's device values, so it is right for a sheet printed raw or a FROM PROFILE GAMUT chart and warns before a sheet printed “Through the profile” (M-CM-PROFCHECK-CONVERTED, §2b of verification_printing_and_target.md); the live misalignment question needs a run of four or more patches one place out (`slipped_strip.MIN_RUN`), so the note says that a slip spoiling only the first two, three or four patches is not asked about. Same precedent as the help texts above: shown from the beta that proposes them, translated into all thirteen languages, approved afterwards (Knut 6166519230). `ui/dialogs/welcome_dialog.py`, card key `verify`.*
+
+> **Subtitle:** Measure a check chart and see, in real numbers, how accurate your finished profile is, and whether it stays that way over time.
+>
+> **Step 3 (Measure):** On the Measure tab, pick “New verification” in the “Verification:” box of the Profile-run bar at the top of the window, then measure the chart as normal.
+>
+> **Start every strip on the white paper, not on its number**
+>
+> Put the instrument down on the bare white paper in front of the strip's first patch, beside the strip's number rather than on it. If your instrument gives a short beep when it is ready, wait for it. Then move in one smooth movement at an even speed, and keep going until it is on the white paper after the last patch. If it starts on the number, it can count one patch too many: the first patch then comes out with the colour of the paper, and the next ones with the colour of the patch before them.
+>
+> ChromIQ helps you catch this while you measure. In the preview it outlines a patch in red when its reading is far from the colour it should have (on a verification, the colour the profile predicts). And with “Warn me if a strip looks misaligned” ticked in Preferences ▸ Measurement (it is, unless you switched it off), it asks you to read a strip again when a longer run of its patches looks one place out. Choose “Re-measure this strip” and read the strip again before you go on: it takes a few seconds now and spares you a wrong report later. A slip that spoils only the first two, three or four patches of a strip is not asked about, so when the first patches of a strip are outlined in red, simply read that strip again.
+>
+> **Step (Check & Refine, optional):** Optional: on the Check & Refine tab, make sure “.ti3 test data file:” shows this verification and “ICC / ICM profile:” the run's profile, then click “Analyse Profile Quality”.
+>
+> **What this check tells you**
+>
+> You do not have to pick any files. With Run type “Verification” and a date chosen in the Profile-run bar, the two fields fill in by themselves: that date's measurement and the run's profile. (With “New verification” there is nothing to check yet, so they stay empty.)
+>
+> For every patch, the check takes the chart's RGB numbers, works out through the profile the colour they should give, and compares that with the colour you measured. The profile has never seen these readings, so the figures show how well it describes your printer and paper on the day of this print, not how closely it fits the data it was built from. That is why they are usually somewhat higher than a check of the profiling measurement.
+>
+> The figures come from ArgyllCMS's profcheck, judged with this tab's own settings (“Flag strips for re-measurement above ΔE:”, and in MANUAL also “Delta E formula:”). The Measurement Report works its figures out separately, against its own reference and its limit set, so the two do not show exactly the same numbers.
+>
+> **Which verification sheets this check can judge**
+>
+> The check sends the RGB numbers stored in the chart through the profile, so it is only right when those are the numbers the printer was sent: a verification chart printed with “Colour” set to “Raw — no profile”, or a chart made with “FROM PROFILE GAMUT”, which already has the profile applied and is printed raw. A sheet printed “Through the profile” was converted while it was printed, so its chart still holds the numbers from before the conversion. ChromIQ then warns you before the check runs, and the Measurement Report in the next step is the right way to judge that sheet.
+>
+> **Re-reading the patches with the largest errors**
+>
+> When patches are above the limit, the window “Profile Check Against a Verification Print” lists the strips they are in. A large error on one patch is either a misread or a real difference between the profile and the print, and reading it again tells the two apart.
+>
+> Click “← Guide Me Through Re-reading These Strips”. ChromIQ takes you to the Measure tab with this verification selected and guides you through just those strips, into the same date. When they are done, the “Re-measurement Complete” window opens: “Finish” saves the new readings in this date's own folder and ends the session, and “Continue Measuring Manually” lets you read more yourself first. A copy of the readings the date had before was put in its “old” folder when you started, so nothing is lost.
+>
+> Then click “Analyse Profile Quality” again. A patch that comes back with the same error was read correctly the first time: the difference is real. The profile itself is never changed, and nothing is added to the profiling run.
+>
+> **When there is no guide button**
+>
+> If no patch is above the limit, there is nothing to read again, and “Confirm” closes the window. If the verification does not belong to the project that is open (you browsed to it), the window explains how to re-read the strips by hand instead. Installing the profile and using it for pre-conditioning are not offered here: a verification only checks a profile, so those belong to the profiling run.
+>
+> **Make the report after you have read strips again**
+>
+> A report is made from the measurement as it is at the moment you generate it. So read any strips you want to read again first, and make the report after that.
+>
+> In its “Worst patches” table, look out for several patches of one strip near the top, each showing in “Measured” the colour that the patch before it (or after it) shows in “Expected”. That strip was read one place out. When ChromIQ finds this for a run of patches, the report says so in a paragraph right above the table, headed “Strip … looks shifted by one patch” (or “Strip … looks filed back to front”). Read that strip again on the Measure tab, then make the report again.
+
 ### M-x. Which table uses which message
 
 **Calibration replacement** (`docs/design/calibration_run_type_plan.md` Table C,
