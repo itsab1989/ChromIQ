@@ -59,8 +59,6 @@
  ".ti3 test data file:": ".ti3-Messdatendatei:",
  "1 PAGE": "1 SEITE",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "1 Zielfarbe aus dieser Referenz wurde auf dem Bogen gefunden, von {total}. Die Zeilen unten, die nicht gefüllt werden konnten, sagen es.",
- "1 box has": "1 Feld hat",
- "1 chart patch has": "1 Chart-Feld hat",
  "1 colour loaded": "1 Farbe geladen",
  "1 file": "1 Datei",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 Auswahlliste ist unvollständig — übersetze jede Option oder lass alle leer:",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} Messfelder, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} SEITEN",
- "{n} boxes have": "{n} Felder haben",
- "{n} chart patches have": "{n} Chart-Felder haben",
  "{n} colours are ready to add.": "{n} Farben können hinzugefügt werden.",
  "{n} colours loaded": "{n} Farben geladen",
  "{n} dated verification checks": "{n} datierte Verifizierungen",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Die Messwerte sind unterwegs außerdem um zwei Messfelder verrutscht, deshalb rückt jeder dieser Vergleiche um zwei Messfelder weiter den Streifen entlang. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Nur ein Messfeld in der Mitte des Streifens kann noch seinen eigenen Messwert haben.",
  "Loaded {name}, with the layout settings it was saved with": "{name} geladen, mit den Layout-Einstellungen, mit denen es gespeichert wurde",
- "Loaded {name}": "{name} geladen"
+ "Loaded {name}": "{name} geladen",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Die .cht-Dateien decken nicht das ganze Chart ab: 1 Messfeld der Referenzdatei hat in keiner von ihnen ein Kästchen (zum Beispiel {examples}). Hast du die .cht-Datei jeder Seite ausgewählt?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Die .cht-Dateien decken nicht das ganze Chart ab: {n} Messfelder der Referenzdatei haben in keiner von ihnen ein Kästchen (zum Beispiel {examples}). Hast du die .cht-Datei jeder Seite ausgewählt?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Diese .cht-Dateien gehören nicht zu diesem Chart: 1 Kästchen darin hat kein Messfeld in der Referenzdatei (zum Beispiel {examples}). Wähle die .cht-Dateien, die printtarg genau für dieses Chart geschrieben hat.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Diese .cht-Dateien gehören nicht zu diesem Chart: {n} Kästchen darin haben kein Messfeld in der Referenzdatei (zum Beispiel {examples}). Wähle die .cht-Dateien, die printtarg genau für dieses Chart geschrieben hat.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 Messfeld dieses Charts hat keine Messung in der .ti3-Datei, die Datei passt also nicht zu diesem Chart (zum Beispiel {examples}). Miss das ganze Chart neu, bevor du die Scanner-Dateien erstellst.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} Messfelder dieses Charts haben keine Messung in der .ti3-Datei, die Datei passt also nicht zu diesem Chart (zum Beispiel {examples}). Miss das ganze Chart neu, bevor du die Scanner-Dateien erstellst."
 }

@@ -59,8 +59,6 @@
  ".ti3 test data file:": "Ficheiro de dados de teste .ti3:",
  "1 PAGE": "1 PÁGINA",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "1 cor-alvo desta referência foi encontrada na sua folha, de {total}. As linhas abaixo que não puderam ser preenchidas dizem-no.",
- "1 box has": "1 caixa não tem",
- "1 chart patch has": "1 amostra da carta não tem",
  "1 colour loaded": "1 cor carregada",
  "1 file": "1 ficheiro",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 lista de opções está incompleta — traduz todas as opções ou deixa-as todas em branco:",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} amostras, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} PÁGINAS",
- "{n} boxes have": "{n} caixas não têm",
- "{n} chart patches have": "{n} amostras da carta não têm",
  "{n} colours are ready to add.": "{n} cores prontas a adicionar.",
  "{n} colours loaded": "{n} cores carregadas",
  "{n} dated verification checks": "{n} verificações datadas",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "As leituras também deslizaram duas amostras pelo caminho, por isso cada uma destas comparações avança duas amostras ao longo da tira. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Só uma amostra no meio da tira pode ainda ter a sua própria leitura.",
  "Loaded {name}, with the layout settings it was saved with": "{name} carregado, com as definições de disposição com que foi guardado",
- "Loaded {name}": "{name} carregado"
+ "Loaded {name}": "{name} carregado",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Os ficheiros .cht não cobrem a carta inteira: 1 amostra do ficheiro de referência não tem caixa em nenhum deles (por exemplo {examples}). Escolheu o ficheiro .cht de cada página?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Os ficheiros .cht não cobrem a carta inteira: {n} amostras do ficheiro de referência não têm caixa em nenhum deles (por exemplo {examples}). Escolheu o ficheiro .cht de cada página?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Estes ficheiros .cht não pertencem a esta carta: 1 caixa neles não tem amostra no ficheiro de referência (por exemplo {examples}). Escolha os ficheiros .cht que o printtarg escreveu exatamente para esta carta.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Estes ficheiros .cht não pertencem a esta carta: {n} caixas neles não têm amostra no ficheiro de referência (por exemplo {examples}). Escolha os ficheiros .cht que o printtarg escreveu exatamente para esta carta.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 amostra desta carta não tem medição no ficheiro .ti3, por isso o ficheiro não corresponde a esta carta (por exemplo {examples}). Meça de novo a carta inteira antes de criar os ficheiros do scanner.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} amostras desta carta não têm medição no ficheiro .ti3, por isso o ficheiro não corresponde a esta carta (por exemplo {examples}). Meça de novo a carta inteira antes de criar os ficheiros do scanner."
 }

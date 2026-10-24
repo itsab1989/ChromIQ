@@ -59,8 +59,6 @@
  ".ti3 test data file:": "File dati di test .ti3:",
  "1 PAGE": "1 PAGINA",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "Sul tuo foglio è stato trovato 1 colore obiettivo di questo riferimento, su {total}. Le righe qui sotto che non è stato possibile compilare lo indicano.",
- "1 box has": "1 casella non ha",
- "1 chart patch has": "1 tassello del grafico non ha",
  "1 colour loaded": "1 colore caricato",
  "1 file": "1 file",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 elenco di scelte è incompleto — traduci ogni opzione o lasciale tutte vuote:",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} tasselli, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} PAGINE",
- "{n} boxes have": "{n} caselle non hanno",
- "{n} chart patches have": "{n} tasselli del grafico non hanno",
  "{n} colours are ready to add.": "{n} colori pronti da aggiungere.",
  "{n} colours loaded": "{n} colori caricati",
  "{n} dated verification checks": "{n} verifiche datate",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Lungo il percorso le letture sono anche scivolate di due tasselli, quindi ciascuno di questi confronti si sposta di due tasselli più avanti lungo la striscia. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Solo un tassello al centro della striscia può avere ancora la propria lettura.",
  "Loaded {name}, with the layout settings it was saved with": "{name} caricato, con le impostazioni di layout con cui era stato salvato",
- "Loaded {name}": "{name} caricato"
+ "Loaded {name}": "{name} caricato",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "I file .cht non coprono tutto il grafico: 1 tassello del file di riferimento non ha una casella in nessuno di essi (per esempio {examples}). Hai scelto il file .cht di ogni pagina?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "I file .cht non coprono tutto il grafico: {n} tasselli del file di riferimento non hanno una casella in nessuno di essi (per esempio {examples}). Hai scelto il file .cht di ogni pagina?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Questi file .cht non appartengono a questo grafico: 1 casella al loro interno non ha un tassello nel file di riferimento (per esempio {examples}). Scegli i file .cht che printtarg ha scritto proprio per questo grafico.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Questi file .cht non appartengono a questo grafico: {n} caselle al loro interno non hanno un tassello nel file di riferimento (per esempio {examples}). Scegli i file .cht che printtarg ha scritto proprio per questo grafico.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 tassello di questo grafico non ha una misura nel file .ti3, quindi il file non corrisponde a questo grafico (per esempio {examples}). Misura di nuovo l'intero grafico prima di creare i file per lo scanner.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} tasselli di questo grafico non hanno una misura nel file .ti3, quindi il file non corrisponde a questo grafico (per esempio {examples}). Misura di nuovo l'intero grafico prima di creare i file per lo scanner."
 }

@@ -59,8 +59,6 @@
  ".ti3 test data file:": "Файл тестовых данных .ti3:",
  "1 PAGE": "1 СТРАНИЦА",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "На вашем листе найден 1 целевой цвет из этого эталона, из {total}. Строки ниже, которые не удалось заполнить, говорят об этом.",
- "1 box has": "у 1 клетки нет",
- "1 chart patch has": "у 1 поля мишени нет",
  "1 colour loaded": "Загружен 1 цвет",
  "1 file": "1 файл",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 список вариантов неполон — переведите каждый вариант или оставьте все пустыми:",
@@ -971,18 +969,6 @@
    "few": "{n} СТРАНИЦЫ",
    "many": "{n} СТРАНИЦ"
   },
-  "{n} boxes have": {
-   "count": "n",
-   "one": "у {n} клетки нет",
-   "few": "у {n} клеток нет",
-   "many": "у {n} клеток нет"
-  },
-  "{n} chart patches have": {
-   "count": "n",
-   "one": "у {n} поля мишени нет",
-   "few": "у {n} полей мишени нет",
-   "many": "у {n} полей мишени нет"
-  },
   "{n} colours are ready to add.": {
    "count": "n",
    "one": "{n} цвет готов к добавлению.",
@@ -1204,6 +1190,24 @@
    "one": "✓ {n} патч. Эта мишень не измерялась — отметьте ниже «Профилировать мой принтер по этому скану», чтобы построить из неё профиль принтера (без спектрофотометра).",
    "few": "✓ {n} патча. Эта мишень не измерялась — отметьте ниже «Профилировать мой принтер по этому скану», чтобы построить из неё профиль принтера (без спектрофотометра).",
    "many": "✓ {n} патчей. Эта мишень не измерялась — отметьте ниже «Профилировать мой принтер по этому скану», чтобы построить из неё профиль принтера (без спектрофотометра)."
+  },
+  "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": {
+   "count": "n",
+   "one": "Файлы .cht покрывают не всю мишень: у {n} патча из файла эталона нет клетки ни в одном из них (например, {examples}). Вы выбрали файл .cht для каждой страницы?",
+   "few": "Файлы .cht покрывают не всю мишень: у {n} патчей из файла эталона нет клетки ни в одном из них (например, {examples}). Вы выбрали файл .cht для каждой страницы?",
+   "many": "Файлы .cht покрывают не всю мишень: у {n} патчей из файла эталона нет клетки ни в одном из них (например, {examples}). Вы выбрали файл .cht для каждой страницы?"
+  },
+  "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": {
+   "count": "n",
+   "one": "Эти файлы .cht не относятся к этой мишени: у {n} клетки в них нет патча в файле эталона (например, {examples}). Выберите файлы .cht, которые printtarg записал именно для этой мишени.",
+   "few": "Эти файлы .cht не относятся к этой мишени: у {n} клеток в них нет патча в файле эталона (например, {examples}). Выберите файлы .cht, которые printtarg записал именно для этой мишени.",
+   "many": "Эти файлы .cht не относятся к этой мишени: у {n} клеток в них нет патча в файле эталона (например, {examples}). Выберите файлы .cht, которые printtarg записал именно для этой мишени."
+  },
+  "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": {
+   "count": "n",
+   "one": "У {n} патча этой мишени нет измерения в файле .ti3, поэтому файл не соответствует этой мишени (например, {examples}). Измерьте всю мишень заново, прежде чем создавать файлы для сканера.",
+   "few": "У {n} патчей этой мишени нет измерения в файле .ti3, поэтому файл не соответствует этой мишени (например, {examples}). Измерьте всю мишень заново, прежде чем создавать файлы для сканера.",
+   "many": "У {n} патчей этой мишени нет измерения в файле .ti3, поэтому файл не соответствует этой мишени (например, {examples}). Измерьте всю мишень заново, прежде чем создавать файлы для сканера."
   }
  },
  "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Мишень для CR30 всегда раскладывается движком раскладки ChromIQ, поэтому эта опция остаётся включённой, пока выбран прибор CR30.",
@@ -7009,8 +7013,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} патчей, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} СТРАНИЦ",
- "{n} boxes have": "у {n} клеток нет",
- "{n} chart patches have": "у {n} полей мишени нет",
  "{n} colours are ready to add.": "{n} цветов готовы к добавлению.",
  "{n} colours loaded": "Загружено цветов: {n}",
  "{n} dated verification checks": "датированных проверок: {n}",
@@ -8217,5 +8219,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "По пути показания ещё и сдвинулись на два патча, поэтому каждое из этих сравнений смещается на два патча дальше вдоль полосы. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Только патч в середине полосы может всё ещё содержать своё показание.",
  "Loaded {name}, with the layout settings it was saved with": "{name} загружен вместе с настройками раскладки, с которыми его сохранили",
- "Loaded {name}": "{name} загружен"
+ "Loaded {name}": "{name} загружен",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Файлы .cht покрывают не всю мишень: у 1 патча из файла эталона нет клетки ни в одном из них (например, {examples}). Вы выбрали файл .cht для каждой страницы?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Файлы .cht покрывают не всю мишень: у {n} патчей из файла эталона нет клетки ни в одном из них (например, {examples}). Вы выбрали файл .cht для каждой страницы?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Эти файлы .cht не относятся к этой мишени: у 1 клетки в них нет патча в файле эталона (например, {examples}). Выберите файлы .cht, которые printtarg записал именно для этой мишени.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Эти файлы .cht не относятся к этой мишени: у {n} клеток в них нет патча в файле эталона (например, {examples}). Выберите файлы .cht, которые printtarg записал именно для этой мишени.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "У 1 патча этой мишени нет измерения в файле .ti3, поэтому файл не соответствует этой мишени (например, {examples}). Измерьте всю мишень заново, прежде чем создавать файлы для сканера.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "У {n} патчей этой мишени нет измерения в файле .ti3, поэтому файл не соответствует этой мишени (например, {examples}). Измерьте всю мишень заново, прежде чем создавать файлы для сканера."
 }

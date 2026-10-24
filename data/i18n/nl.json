@@ -59,8 +59,6 @@
  ".ti3 test data file:": ".ti3-meetgegevensbestand:",
  "1 PAGE": "1 PAGINA",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "1 streefkleur van deze referentie is op je vel gevonden, van de {total}. De regels hieronder die niet konden worden ingevuld, zeggen dat zelf.",
- "1 box has": "1 vakje heeft",
- "1 chart patch has": "1 kaartvlak heeft",
  "1 colour loaded": "1 kleur geladen",
  "1 file": "1 bestand",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 keuzelijst is onvolledig — vertaal elke optie of laat ze allemaal leeg:",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} meetvelden, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} PAGINA'S",
- "{n} boxes have": "{n} vakjes hebben",
- "{n} chart patches have": "{n} kaartvlakken hebben",
  "{n} colours are ready to add.": "{n} kleuren klaar om toe te voegen.",
  "{n} colours loaded": "{n} kleuren geladen",
  "{n} dated verification checks": "{n} gedateerde verificaties",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "De metingen zijn onderweg ook twee meetvelden verschoven, dus elk van deze vergelijkingen schuift twee meetvelden verder langs de strook. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Alleen een meetveld in het midden van de strook kan nog zijn eigen meting hebben.",
  "Loaded {name}, with the layout settings it was saved with": "{name} geladen, met de indelingsinstellingen waarmee het is opgeslagen",
- "Loaded {name}": "{name} geladen"
+ "Loaded {name}": "{name} geladen",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "De .cht-bestanden dekken niet de hele kaart: 1 meetveld uit het referentiebestand heeft in geen ervan een vakje (bijvoorbeeld {examples}). Heb je van elke pagina het .cht-bestand gekozen?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "De .cht-bestanden dekken niet de hele kaart: {n} meetvelden uit het referentiebestand hebben in geen ervan een vakje (bijvoorbeeld {examples}). Heb je van elke pagina het .cht-bestand gekozen?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Deze .cht-bestanden horen niet bij deze kaart: 1 vakje daarin heeft geen meetveld in het referentiebestand (bijvoorbeeld {examples}). Kies de .cht-bestanden die printtarg precies voor deze kaart heeft geschreven.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Deze .cht-bestanden horen niet bij deze kaart: {n} vakjes daarin hebben geen meetveld in het referentiebestand (bijvoorbeeld {examples}). Kies de .cht-bestanden die printtarg precies voor deze kaart heeft geschreven.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 meetveld van deze kaart heeft geen meting in het .ti3-bestand, dus het bestand past niet bij deze kaart (bijvoorbeeld {examples}). Meet de hele kaart opnieuw voordat je de scannerbestanden maakt.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} meetvelden van deze kaart hebben geen meting in het .ti3-bestand, dus het bestand past niet bij deze kaart (bijvoorbeeld {examples}). Meet de hele kaart opnieuw voordat je de scannerbestanden maakt."
 }

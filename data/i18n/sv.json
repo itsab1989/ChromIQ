@@ -59,8 +59,6 @@
  ".ti3 test data file:": ".ti3-testdatafil:",
  "1 PAGE": "1 SIDA",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "1 målfärg av {total} från den här referensen hittades på ditt ark. Raderna nedan som inte kunde fyllas säger det.",
- "1 box has": "1 ruta har",
- "1 chart patch has": "1 tavelruta har",
  "1 colour loaded": "1 färg inläst",
  "1 file": "1 fil",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 vallista är ofullständig — översätt varje alternativ eller lämna dem alla tomma:",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} fält, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} SIDOR",
- "{n} boxes have": "{n} rutor har",
- "{n} chart patches have": "{n} tavelrutor har",
  "{n} colours are ready to add.": "{n} färger redo att läggas till.",
  "{n} colours loaded": "{n} färger inlästa",
  "{n} dated verification checks": "{n} daterade verifieringar",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Mätvärdena gled också två fält på vägen, så var och en av dessa jämförelser flyttas två fält längre längs remsan. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Bara ett fält i mitten av remsan kan fortfarande ha sitt eget mätvärde.",
  "Loaded {name}, with the layout settings it was saved with": "{name} inläst, med de layoutinställningar som det sparades med",
- "Loaded {name}": "{name} inläst"
+ "Loaded {name}": "{name} inläst",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": ".cht-filerna täcker inte hela diagrammet: 1 fält i referensfilen har ingen ruta i någon av dem (till exempel {examples}). Valde du .cht-filen för varje sida?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": ".cht-filerna täcker inte hela diagrammet: {n} fält i referensfilen har ingen ruta i någon av dem (till exempel {examples}). Valde du .cht-filen för varje sida?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "De här .cht-filerna hör inte till det här diagrammet: 1 ruta i dem har inget fält i referensfilen (till exempel {examples}). Välj de .cht-filer som printtarg skrev för just det här diagrammet.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "De här .cht-filerna hör inte till det här diagrammet: {n} rutor i dem har inget fält i referensfilen (till exempel {examples}). Välj de .cht-filer som printtarg skrev för just det här diagrammet.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 fält i det här diagrammet saknar mätning i .ti3-filen, så filen passar inte det här diagrammet (till exempel {examples}). Mät hela diagrammet igen innan du skapar skannerfilerna.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} fält i det här diagrammet saknar mätning i .ti3-filen, så filen passar inte det här diagrammet (till exempel {examples}). Mät hela diagrammet igen innan du skapar skannerfilerna."
 }

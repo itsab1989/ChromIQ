@@ -59,8 +59,6 @@
  ".ti3 test data file:": "Fichier de données de test .ti3 :",
  "1 PAGE": "1 PAGE",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "1 couleur visée de cette référence a été trouvée sur ta feuille, sur {total}. Les lignes ci-dessous qui n'ont pas pu être remplies l'indiquent.",
- "1 box has": "1 case n’a",
- "1 chart patch has": "1 plage de la mire n’a",
  "1 colour loaded": "1 couleur chargée",
  "1 file": "1 fichier",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 liste de choix est incomplète — traduis chaque option ou laisse-les toutes vides :",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} plages, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} PAGES",
- "{n} boxes have": "{n} cases n’ont",
- "{n} chart patches have": "{n} plages de la mire n’ont",
  "{n} colours are ready to add.": "{n} couleurs sont prêtes à être ajoutées.",
  "{n} colours loaded": "{n} couleurs chargées",
  "{n} dated verification checks": "{n} vérifications datées",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "En chemin, les mesures ont aussi glissé de deux plages : chacune de ces comparaisons se décale donc de deux plages plus loin le long de la bande. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Seule une plage au milieu de la bande peut encore porter sa propre mesure.",
  "Loaded {name}, with the layout settings it was saved with": "{name} chargé, avec les réglages de mise en page avec lesquels il a été enregistré",
- "Loaded {name}": "{name} chargé"
+ "Loaded {name}": "{name} chargé",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Les fichiers .cht ne couvrent pas toute la mire : 1 plage du fichier de référence n'a de case dans aucun d'eux (par exemple {examples}). As-tu choisi le fichier .cht de chaque page ?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Les fichiers .cht ne couvrent pas toute la mire : {n} plages du fichier de référence n'ont de case dans aucun d'eux (par exemple {examples}). As-tu choisi le fichier .cht de chaque page ?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Ces fichiers .cht n'appartiennent pas à cette mire : 1 case qu'ils contiennent n'a pas de plage dans le fichier de référence (par exemple {examples}). Choisis les fichiers .cht que printtarg a écrits précisément pour cette mire.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Ces fichiers .cht n'appartiennent pas à cette mire : {n} cases qu'ils contiennent n'ont pas de plage dans le fichier de référence (par exemple {examples}). Choisis les fichiers .cht que printtarg a écrits précisément pour cette mire.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 plage de cette mire n'a pas de mesure dans le fichier .ti3, donc le fichier ne correspond pas à cette mire (par exemple {examples}). Mesure à nouveau toute la mire avant de créer les fichiers du scanner.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} plages de cette mire n'ont pas de mesure dans le fichier .ti3, donc le fichier ne correspond pas à cette mire (par exemple {examples}). Mesure à nouveau toute la mire avant de créer les fichiers du scanner."
 }

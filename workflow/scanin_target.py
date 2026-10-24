@@ -31,7 +31,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.i18n import count_phrase, tr
+from core.i18n import tr
 from core.logger import get_logger
 from core.stem_paths import artefact
 from core.text_io import read_text
@@ -149,17 +149,30 @@ def layout_from_cht_files(cht_paths: list, ref_path: str | Path) -> dict:
             "than one page. Pick each page's .cht exactly once.")
     missing = ref_set - geom_set
     if missing:
-        raise ScaninTargetError(
-            f"The .cht files don't cover the whole chart: {len(missing)} "
-            f"patches of the reference have no box (e.g. "
-            f"{sorted(missing)[:3]}). Did you pick every page's .cht?")
+        n = len(missing)
+        raise ScaninTargetError((
+            tr("The .cht files don't cover the whole chart: 1 patch in the "
+               "reference file has no box in any of them (for example "
+               "{examples}). Did you pick the .cht file of every page?")
+            if n == 1 else
+            tr("The .cht files don't cover the whole chart: {n} patches in "
+               "the reference file have no box in any of them (for example "
+               "{examples}). Did you pick the .cht file of every page?")
+        ).format(n=n, examples=", ".join(sorted(missing)[:3])))
     extra = geom_set - ref_set
     if extra:
-        raise ScaninTargetError(
-            f"The .cht files don't belong to this chart: "
-            f"{count_phrase(len(extra), tr('1 box has'), tr('{n} boxes have'))} "
-            f"no patch in the reference (e.g. {sorted(extra)[:3]}). Pick "
-            "the .cht files printtarg wrote for exactly this chart.")
+        n = len(extra)
+        raise ScaninTargetError((
+            tr("These .cht files don't belong to this chart: 1 box in them "
+               "has no patch in the reference file (for example {examples}). "
+               "Pick the .cht files that printtarg wrote for exactly this "
+               "chart.")
+            if n == 1 else
+            tr("These .cht files don't belong to this chart: {n} boxes in "
+               "them have no patch in the reference file (for example "
+               "{examples}). Pick the .cht files that printtarg wrote for "
+               "exactly this chart.")
+        ).format(n=n, examples=", ".join(sorted(extra)[:3])))
     return {"engine": "printtarg", "cht_pages": texts, "locs": geom_locs}
 
 
@@ -199,10 +212,18 @@ def _check_measured(geom_locs: list[str], data: Ti3Data) -> None:
             "additionally needs to know where each patch sits on the sheet. "
             "Measure this chart with ChromIQ (Measure tab) and build the "
             "target from that .ti3.")
-    raise GeometryMismatch(
-        f"{count_phrase(len(missing), tr('1 chart patch has'), tr('{n} chart patches have'))} no measurement — the .ti3 "
-        f"doesn't match this chart (e.g. {sorted(missing)[:3]}). Re-measure "
-        "the whole chart before building scanner files.")
+    n = len(missing)
+    raise GeometryMismatch((
+        tr("1 patch of this chart has no measurement in the .ti3 file, so "
+           "the file does not match this chart (for example {examples}). "
+           "Measure the whole chart again before you build the scanner "
+           "files.")
+        if n == 1 else
+        tr("{n} patches of this chart have no measurement in the .ti3 file, "
+           "so the file does not match this chart (for example {examples}). "
+           "Measure the whole chart again before you build the scanner "
+           "files.")
+    ).format(n=n, examples=", ".join(sorted(missing)[:3])))
 
 
 def build_scanin_target_from_paths(channels_json: str | Path, ti3_path: str | Path,

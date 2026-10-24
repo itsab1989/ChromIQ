@@ -59,8 +59,6 @@
  ".ti3 test data file:": "Archivo de datos de prueba .ti3:",
  "1 PAGE": "1 PÁGINA",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "Se encontró en tu hoja 1 color objetivo de esta referencia, de {total}. Las filas de abajo que no se pudieron rellenar lo indican.",
- "1 box has": "1 casilla tiene",
- "1 chart patch has": "1 parche de la carta tiene",
  "1 colour loaded": "1 color cargado",
  "1 file": "1 archivo",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 lista de opciones está incompleta: traduce todas las opciones o déjalas todas en blanco:",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} parches, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} PÁGINAS",
- "{n} boxes have": "{n} casillas tienen",
- "{n} chart patches have": "{n} parches de la carta tienen",
  "{n} colours are ready to add.": "{n} colores listos para añadir.",
  "{n} colours loaded": "{n} colores cargados",
  "{n} dated verification checks": "{n} verificaciones fechadas",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Además, las lecturas se desplazaron dos parches por el camino, así que cada una de estas comparaciones avanza dos parches más a lo largo de la tira. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Solo un parche en el centro de la tira puede conservar todavía su propia lectura.",
  "Loaded {name}, with the layout settings it was saved with": "{name} cargado, con los ajustes de diseño con los que se guardó",
- "Loaded {name}": "{name} cargado"
+ "Loaded {name}": "{name} cargado",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Los archivos .cht no cubren toda la carta: 1 parche del archivo de referencia no tiene casilla en ninguno de ellos (por ejemplo {examples}). ¿Has elegido el archivo .cht de cada página?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Los archivos .cht no cubren toda la carta: {n} parches del archivo de referencia no tienen casilla en ninguno de ellos (por ejemplo {examples}). ¿Has elegido el archivo .cht de cada página?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Estos archivos .cht no pertenecen a esta carta: 1 casilla de ellos no tiene parche en el archivo de referencia (por ejemplo {examples}). Elige los archivos .cht que printtarg escribió exactamente para esta carta.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Estos archivos .cht no pertenecen a esta carta: {n} casillas de ellos no tienen parche en el archivo de referencia (por ejemplo {examples}). Elige los archivos .cht que printtarg escribió exactamente para esta carta.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 parche de esta carta no tiene medición en el archivo .ti3, así que el archivo no corresponde a esta carta (por ejemplo {examples}). Vuelve a medir toda la carta antes de crear los archivos del escáner.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} parches de esta carta no tienen medición en el archivo .ti3, así que el archivo no corresponde a esta carta (por ejemplo {examples}). Vuelve a medir toda la carta antes de crear los archivos del escáner."
 }

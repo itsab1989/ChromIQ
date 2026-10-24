@@ -59,8 +59,6 @@
  ".ti3 test data file:": ".ti3 测试数据文件:",
  "1 PAGE": "1 页",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "在 {total} 个目标色中，你的纸上找到了此参考中的 1 个。下面无法填入的行会注明这一点。",
- "1 box has": "1 个方框没有",
- "1 chart patch has": "1 个色卡色块没有",
  "1 colour loaded": "已载入 1 种颜色",
  "1 file": "1 个文件",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 个选项列表不完整 — 请翻译每个选项，或全部留空：",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n}色块，-i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} 页",
- "{n} boxes have": "{n} 个方框没有",
- "{n} chart patches have": "{n} 个色卡色块没有",
  "{n} colours are ready to add.": "{n} 个颜色可添加。",
  "{n} colours loaded": "已载入 {n} 种颜色",
  "{n} dated verification checks": "{n} 次带日期的验证",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "读数在途中还错位了两个色块，所以上面的每一次比较都要沿色条再往后移两个色块。",
  " Only a patch in the middle of the strip can still hold its own reading.": "只有色条正中间的色块还可能保留自己的读数。",
  "Loaded {name}, with the layout settings it was saved with": "已加载 {name}，并恢复了保存时的布局设置",
- "Loaded {name}": "已加载 {name}"
+ "Loaded {name}": "已加载 {name}",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "这些 .cht 文件没有覆盖整张色卡：参考文件中有 1 个色块在任何一个 .cht 文件中都没有方框（例如 {examples}）。你选择了每一页的 .cht 文件吗？",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "这些 .cht 文件没有覆盖整张色卡：参考文件中有 {n} 个色块在任何一个 .cht 文件中都没有方框（例如 {examples}）。你选择了每一页的 .cht 文件吗？",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "这些 .cht 文件不属于这张色卡：其中有 1 个方框在参考文件中没有对应的色块（例如 {examples}）。请选择 printtarg 专门为这张色卡写出的 .cht 文件。",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "这些 .cht 文件不属于这张色卡：其中有 {n} 个方框在参考文件中没有对应的色块（例如 {examples}）。请选择 printtarg 专门为这张色卡写出的 .cht 文件。",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "这张色卡有 1 个色块在 .ti3 文件中没有测量值，所以该文件与这张色卡不匹配（例如 {examples}）。请先重新测量整张色卡，再创建扫描仪文件。",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "这张色卡有 {n} 个色块在 .ti3 文件中没有测量值，所以该文件与这张色卡不匹配（例如 {examples}）。请先重新测量整张色卡，再创建扫描仪文件。"
 }

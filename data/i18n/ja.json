@@ -59,8 +59,6 @@
  ".ti3 test data file:": "テストデータ .ti3 ファイル:",
  "1 PAGE": "1 ページ",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "この基準の目標色のうち、シート上に見つかったのは {total} 色中 1 色です。埋められなかった下の行には、その旨が書かれています。",
- "1 box has": "1 個のボックスに",
- "1 chart patch has": "1 個のチャートパッチに",
  "1 colour loaded": "1色を読み込みました",
  "1 file": "1ファイル",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "選択肢のリストが1つ未完成です — すべての項目を翻訳するか、すべて空欄にしてください:",
@@ -6053,8 +6051,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n}パッチ、-i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} ページ",
- "{n} boxes have": "{n} 個のボックスに",
- "{n} chart patches have": "{n} 個のチャートパッチに",
  "{n} colours are ready to add.": "{n} 色を追加できます。",
  "{n} colours loaded": "{n}色を読み込みました",
  "{n} dated verification checks": "日付付きの検証 {n} 件",
@@ -7261,5 +7257,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "読み取りは途中でさらにパッチ 2 つ分ずれているため、これらの比較はそれぞれストリップに沿ってパッチ 2 つ分先へずらして行います。",
  " Only a patch in the middle of the strip can still hold its own reading.": "自分の読み取り値が残っている可能性があるのは、ストリップの中央のパッチだけです。",
  "Loaded {name}, with the layout settings it was saved with": "{name} を読み込みました（保存したときのレイアウト設定も戻しました）",
- "Loaded {name}": "{name} を読み込みました"
+ "Loaded {name}": "{name} を読み込みました",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "これらの .cht ファイルではチャート全体をカバーできていません。参照ファイルのパッチ 1 個に、どの .cht ファイルにもボックスがありません（例: {examples}）。各ページの .cht ファイルをすべて選びましたか？",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "これらの .cht ファイルではチャート全体をカバーできていません。参照ファイルのパッチ {n} 個に、どの .cht ファイルにもボックスがありません（例: {examples}）。各ページの .cht ファイルをすべて選びましたか？",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "これらの .cht ファイルはこのチャートのものではありません。その中のボックス 1 個に、参照ファイル内のパッチがありません（例: {examples}）。printtarg がまさにこのチャート用に書き出した .cht ファイルを選んでください。",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "これらの .cht ファイルはこのチャートのものではありません。その中のボックス {n} 個に、参照ファイル内のパッチがありません（例: {examples}）。printtarg がまさにこのチャート用に書き出した .cht ファイルを選んでください。",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "このチャートのパッチ 1 個に .ti3 ファイル内の測定値がないため、このファイルはチャートと一致しません（例: {examples}）。スキャナー用ファイルを作成する前に、チャート全体をもう一度測定してください。",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "このチャートのパッチ {n} 個に .ti3 ファイル内の測定値がないため、このファイルはチャートと一致しません（例: {examples}）。スキャナー用ファイルを作成する前に、チャート全体をもう一度測定してください。"
 }

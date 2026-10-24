@@ -59,8 +59,6 @@
  ".ti3 test data file:": "Файл тестових даних .ti3:",
  "1 PAGE": "1 СТОРІНКА",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "На вашому аркуші знайдено 1 цільовий колір із цього еталонного набору, із {total}. Рядки нижче, які не вдалося заповнити, про це повідомляють.",
- "1 box has": "1 клітинка має",
- "1 chart patch has": "1 патч діаграми має",
  "1 colour loaded": "Завантажено 1 колір",
  "1 file": "1 файл",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 список варіантів перекладено не повністю — перекладіть усі варіанти або залиште всі їхні поля перекладу порожніми:",
@@ -983,18 +981,6 @@
    "few": "{n} СТОРІНКИ",
    "many": "{n} СТОРІНОК"
   },
-  "{n} boxes have": {
-   "count": "n",
-   "one": "у {n} рамки немає",
-   "few": "у {n} рамок немає",
-   "many": "у {n} рамок немає"
-  },
-  "{n} chart patches have": {
-   "count": "n",
-   "one": "у {n} патча діаграми немає",
-   "few": "у {n} патчів діаграми немає",
-   "many": "у {n} патчів діаграми немає"
-  },
   "{n} colours are ready to add.": {
    "count": "n",
    "one": "{n} колір готовий до додавання.",
@@ -1240,6 +1226,24 @@
    "one": "✓ {n} патч. Ця діаграма не була виміряна — поставте прапорець біля пункту «Профілювати мій принтер із цього сканування» нижче, щоб створити профіль принтера з неї (спектрофотометр не потрібен).",
    "few": "✓ {n} патчі. Ця діаграма не була виміряна — поставте прапорець біля пункту «Профілювати мій принтер із цього сканування» нижче, щоб створити профіль принтера з неї (спектрофотометр не потрібен).",
    "many": "✓ {n} патчів. Ця діаграма не була виміряна — поставте прапорець біля пункту «Профілювати мій принтер із цього сканування» нижче, щоб створити профіль принтера з неї (спектрофотометр не потрібен)."
+  },
+  "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": {
+   "count": "n",
+   "one": "Файли .cht покривають не всю діаграму: у {n} патча з файлу еталонних даних немає рамки в жодному з них (наприклад, {examples}). Ви вибрали файл .cht для кожної сторінки?",
+   "few": "Файли .cht покривають не всю діаграму: у {n} патчів з файлу еталонних даних немає рамки в жодному з них (наприклад, {examples}). Ви вибрали файл .cht для кожної сторінки?",
+   "many": "Файли .cht покривають не всю діаграму: у {n} патчів з файлу еталонних даних немає рамки в жодному з них (наприклад, {examples}). Ви вибрали файл .cht для кожної сторінки?"
+  },
+  "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": {
+   "count": "n",
+   "one": "Ці файли .cht не належать до цієї діаграми: у {n} рамки у них немає патча у файлі еталонних даних (наприклад, {examples}). Виберіть файли .cht, які printtarg записав саме для цієї діаграми.",
+   "few": "Ці файли .cht не належать до цієї діаграми: у {n} рамок у них немає патча у файлі еталонних даних (наприклад, {examples}). Виберіть файли .cht, які printtarg записав саме для цієї діаграми.",
+   "many": "Ці файли .cht не належать до цієї діаграми: у {n} рамок у них немає патча у файлі еталонних даних (наприклад, {examples}). Виберіть файли .cht, які printtarg записав саме для цієї діаграми."
+  },
+  "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": {
+   "count": "n",
+   "one": "У {n} патча цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера.",
+   "few": "У {n} патчів цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера.",
+   "many": "У {n} патчів цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера."
   }
  },
  "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Діаграму для CR30 завжди розкладає рушій макета ChromIQ, тому цей параметр залишається ввімкненим, доки вибрано прилад CR30.",
@@ -7045,8 +7049,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} патчів, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} СТОРІНОК",
- "{n} boxes have": "у {n} рамок немає",
- "{n} chart patches have": "у {n} патчів діаграми немає",
  "{n} colours are ready to add.": "{n} кольорів готові до додавання.",
  "{n} colours loaded": "Завантажено {n} кольорів",
  "{n} dated verification checks": "{n} датованих перевірок",
@@ -8253,5 +8255,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Дорогою показання ще й зсунулися на два патчі, тож кожне з цих порівнянь зміщується на два патчі далі вздовж смуги. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Лише патч у середині смуги може все ще містити своє показання.",
  "Loaded {name}, with the layout settings it was saved with": "Завантажено {name} разом із налаштуваннями макета, з якими його збережено",
- "Loaded {name}": "Завантажено {name}"
+ "Loaded {name}": "Завантажено {name}",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Файли .cht покривають не всю діаграму: у 1 патча з файлу еталонних даних немає рамки в жодному з них (наприклад, {examples}). Ви вибрали файл .cht для кожної сторінки?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Файли .cht покривають не всю діаграму: у {n} патчів з файлу еталонних даних немає рамки в жодному з них (наприклад, {examples}). Ви вибрали файл .cht для кожної сторінки?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Ці файли .cht не належать до цієї діаграми: у 1 рамки в них немає патча у файлі еталонних даних (наприклад, {examples}). Виберіть файли .cht, які printtarg записав саме для цієї діаграми.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Ці файли .cht не належать до цієї діаграми: у {n} рамок у них немає патча у файлі еталонних даних (наприклад, {examples}). Виберіть файли .cht, які printtarg записав саме для цієї діаграми.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "У 1 патча цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "У {n} патчів цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера."
 }

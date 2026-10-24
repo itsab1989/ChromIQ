@@ -59,8 +59,6 @@
  ".ti3 test data file:": "Plik danych testowych .ti3:",
  "1 PAGE": "1 STRONA",
  "1 aim colour from this reference was found on your sheet, of {total}. The rows below that could not be filled say so.": "1 kolor docelowy z tego zestawu referencyjnego znaleziono na Twoim arkuszu, spośród {total}. Wiersze poniżej, których nie dało się wypełnić, mówią o tym.",
- "1 box has": "1 pole nie ma",
- "1 chart patch has": "1 pole wzorca nie ma",
  "1 colour loaded": "Wczytano 1 kolor",
  "1 file": "1 plik",
  "1 list of choices is incomplete — translate every option or leave them all blank:": "1 lista wyborów jest niekompletna — przetłumacz każdą opcję albo zostaw wszystkie puste:",
@@ -965,18 +963,6 @@
    "few": "{n} STRONY",
    "many": "{n} STRON"
   },
-  "{n} boxes have": {
-   "count": "n",
-   "one": "{n} pole nie ma",
-   "few": "{n} pola nie mają",
-   "many": "{n} pól nie ma"
-  },
-  "{n} chart patches have": {
-   "count": "n",
-   "one": "{n} pole wzorca nie ma",
-   "few": "{n} pola wzorca nie mają",
-   "many": "{n} pól wzorca nie ma"
-  },
   "{n} colours are ready to add.": {
    "count": "n",
    "one": "{n} kolor jest gotowy do dodania.",
@@ -1210,6 +1196,24 @@
    "one": "✓ {n} pole. Ten wzorzec nie został zmierzony — zaznacz poniżej „Profiluj moją drukarkę z tego skanu”, aby utworzyć z niego profil drukarki (bez spektrofotometru).",
    "few": "✓ {n} pola. Ten wzorzec nie został zmierzony — zaznacz poniżej „Profiluj moją drukarkę z tego skanu”, aby utworzyć z niego profil drukarki (bez spektrofotometru).",
    "many": "✓ {n} pól. Ten wzorzec nie został zmierzony — zaznacz poniżej „Profiluj moją drukarkę z tego skanu”, aby utworzyć z niego profil drukarki (bez spektrofotometru)."
+  },
+  "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": {
+   "count": "n",
+   "one": "Pliki .cht nie obejmują całego wzorca: {n} pole z pliku referencyjnego nie ma ramki w żadnym z nich (na przykład {examples}). Czy wybrano plik .cht każdej strony?",
+   "few": "Pliki .cht nie obejmują całego wzorca: {n} pola z pliku referencyjnego nie mają ramki w żadnym z nich (na przykład {examples}). Czy wybrano plik .cht każdej strony?",
+   "many": "Pliki .cht nie obejmują całego wzorca: {n} pól z pliku referencyjnego nie ma ramki w żadnym z nich (na przykład {examples}). Czy wybrano plik .cht każdej strony?"
+  },
+  "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": {
+   "count": "n",
+   "one": "Te pliki .cht nie należą do tego wzorca: {n} ramka w nich nie ma pola w pliku referencyjnym (na przykład {examples}). Wybierz pliki .cht, które printtarg zapisał właśnie dla tego wzorca.",
+   "few": "Te pliki .cht nie należą do tego wzorca: {n} ramki w nich nie mają pola w pliku referencyjnym (na przykład {examples}). Wybierz pliki .cht, które printtarg zapisał właśnie dla tego wzorca.",
+   "many": "Te pliki .cht nie należą do tego wzorca: {n} ramek w nich nie ma pola w pliku referencyjnym (na przykład {examples}). Wybierz pliki .cht, które printtarg zapisał właśnie dla tego wzorca."
+  },
+  "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": {
+   "count": "n",
+   "one": "{n} pole tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera.",
+   "few": "{n} pola tego wzorca nie mają pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera.",
+   "many": "{n} pól tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera."
   }
  },
  "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Wzorzec dla CR30 zawsze układa silnik układu ChromIQ, więc ta opcja pozostaje włączona, dopóki przyrządem jest CR30.",
@@ -7015,8 +7019,6 @@
  "{note} — {n} patches, -i{instr} -p{paper}": "{note} — {n} pól, -i{instr} -p{paper}",
  "{n}": "{n}",
  "{n} PAGES": "{n} STRON",
- "{n} boxes have": "{n} pól nie ma",
- "{n} chart patches have": "{n} pól wzorca nie ma",
  "{n} colours are ready to add.": "{n} kolorów jest gotowych do dodania.",
  "{n} colours loaded": "Wczytano kolory: {n}",
  "{n} dated verification checks": "datowane weryfikacje: {n}",
@@ -8223,5 +8225,11 @@
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Odczyty przesunęły się też po drodze o dwa pola, więc każde z tych porównań przesuwa się o dwa pola dalej wzdłuż paska. ",
  " Only a patch in the middle of the strip can still hold its own reading.": " Tylko pole na środku paska może nadal mieć własny odczyt.",
  "Loaded {name}, with the layout settings it was saved with": "Wczytano {name} razem z ustawieniami układu, z którymi został zapisany",
- "Loaded {name}": "Wczytano {name}"
+ "Loaded {name}": "Wczytano {name}",
+ "The .cht files don't cover the whole chart: 1 patch in the reference file has no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Pliki .cht nie obejmują całego wzorca: 1 pole z pliku referencyjnego nie ma ramki w żadnym z nich (na przykład {examples}). Czy wybrano plik .cht każdej strony?",
+ "The .cht files don't cover the whole chart: {n} patches in the reference file have no box in any of them (for example {examples}). Did you pick the .cht file of every page?": "Pliki .cht nie obejmują całego wzorca: {n} pól z pliku referencyjnego nie ma ramki w żadnym z nich (na przykład {examples}). Czy wybrano plik .cht każdej strony?",
+ "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Te pliki .cht nie należą do tego wzorca: 1 ramka w nich nie ma pola w pliku referencyjnym (na przykład {examples}). Wybierz pliki .cht, które printtarg zapisał właśnie dla tego wzorca.",
+ "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Te pliki .cht nie należą do tego wzorca: {n} ramek w nich nie ma pola w pliku referencyjnym (na przykład {examples}). Wybierz pliki .cht, które printtarg zapisał właśnie dla tego wzorca.",
+ "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 pole tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera.",
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} pól tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera."
 }
