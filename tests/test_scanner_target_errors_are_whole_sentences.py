@@ -93,3 +93,57 @@ def test_english_names_its_examples_plainly(monkeypatch):
     assert text.startswith("1 patch of this chart has no measurement")
     assert "(for example A1)" in text
     assert "['A1']" not in text
+
+
+# ----------------------------------------------------------------------
+# Every message of this kind goes through tr(), so none can be English again
+# ----------------------------------------------------------------------
+
+import ast  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+_ERRORS = {"ScaninTargetError", "NotAnEngineChart", "GeometryMismatch"}
+
+
+def _calls_tr(node) -> bool:
+    return any(isinstance(n, ast.Call) and getattr(n.func, "id", "") == "tr"
+               for n in ast.walk(node))
+
+
+def test_every_scanner_target_error_is_translated():
+    tree = ast.parse((ROOT / "workflow" / "scanin_target.py").read_text(encoding="utf-8"))
+    bare = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)
+                and getattr(node.exc.func, "id", "") in _ERRORS):
+            arg = node.exc.args[0] if node.exc.args else None
+            # str(exc) passes on a message another module already wrote.
+            passthrough = (isinstance(arg, ast.Call)
+                           and getattr(arg.func, "id", "") == "str")
+            if arg is not None and not passthrough and not _calls_tr(arg):
+                bare.append(node.lineno)
+    assert not bare, f"untranslated error message at lines {bare}"
+
+
+def test_every_guided_refinement_line_is_translated():
+    tree = ast.parse((ROOT / "workflow" / "measure_manager.py").read_text(encoding="utf-8"))
+    bare = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Constant, ast.JoinedStr)):
+            text = (node.value if isinstance(node, ast.Constant)
+                    else "".join(v.value for v in node.values
+                                 if isinstance(v, ast.Constant)))
+            if not (isinstance(text, str) and text.startswith("[Guided Refinement]")):
+                continue
+            if isinstance(node, ast.JoinedStr):
+                bare.append(node.lineno)
+    assert not bare, f"f-string log lines at {bare}: use tr(...).format()"
+
+
+def test_a_missing_layout_file_is_explained_in_russian(tmp_path):
+    i18n.set_language("ru")
+    with pytest.raises(S.NotAnEngineChart) as e:
+        S._load_scanner_layout(tmp_path / "nothing.channels.json")
+    assert "файла раскладки" in str(e.value)
+    assert "layout" not in str(e.value)
