@@ -422,7 +422,7 @@ WORKFLOWS: list[dict] = [
                   "apart on the desk.")))),
             (2, tr("Move to the Print Chart tab, choose your printer and "
                 "media, check that the driver's colour management is OFF, "
-                "and click “Print”."),
+                "and click “Print All Pages”."),
              False,
              ((tr("Why colour management has to be off"),
                tr("The whole point of the chart is to find out what your "
@@ -681,7 +681,7 @@ WORKFLOWS: list[dict] = [
              + _print_notes(_print_how_note(), _route_note(),
                             _printer_kinds_note(), _postscript_note(),
                             _cmyk_driver_note())),
-            (2, tr("Click “Print”."),
+            (2, tr("Click “Print All Pages”."),
              False,
              ((tr("How the sheet reaches the printer"),
                tr("ChromIQ prints it the same way as a chart it made itself, "
@@ -938,8 +938,8 @@ WORKFLOWS: list[dict] = [
                   "following an ArgyllCMS guide that calls for it, or when "
                   "you want the printer to behave the same way over months "
                   "rather than days.")))),
-            (4, tr("Switch the feature on: Preferences → “Enable calibration "
-                "options”."),
+            (4, tr("Switch the feature on: Preferences → General → "
+                "“Enable calibration options”."),
              False,
              ((tr("What appears when you do"),
                tr("Until you switch it on, none of this is visible, which is "
@@ -1088,9 +1088,10 @@ WORKFLOWS: list[dict] = [
                   "chart is chosen on quite different grounds. It lists every "
                   "preset ChromIQ ships and every preset of your own against "
                   "the metrics a report of the type you pick, judged against "
-                  "the limit set you pick, asks of a chart. The “Metrics "
-                  "answered” column says how many of them each preset can "
-                  "answer; click one to see exactly which, and which it "
+                  "the limit set you pick, asks of a chart. The two columns, “Own "
+                  "colours” and “From Profile Gamut”, say how many of them "
+                  "each preset can answer, with its own colours and filled "
+                  "From Profile Gamut; click one to see exactly which, and which it "
                   "cannot and why. Double-click loads it straight into Create "
                   "Chart. Nothing is hidden and nothing is filtered out: the "
                   "window marks presets, it does not withhold them.")),

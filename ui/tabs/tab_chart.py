@@ -6473,7 +6473,7 @@ class TabChart(QWidget):
                 "instrument to read reliably.\n\n"
                 "If you are unsure, use \"Prioritise chart area\". The \"Create "
                 "layout\" help icon beside the box goes into more detail.\n\n"
-                "Whichever route you take, click \"Generate\" (or pick a built-in "
+                "Whichever route you take, click \"Generate Chart\" (or pick a built-in "
                 "preset) to create the test chart. You'll get a TIFF image (the "
                 "printable chart) and a .ti2 file (the recipe ChromIQ uses later to "
                 "read it back).\n\n"

@@ -1215,7 +1215,7 @@ class MeasurementTargetBar(QWidget):
                 return
             item.setEnabled(selectable)
             item.setToolTip("" if selectable else tr(
-                "Not while standing on Build Profile / Calibration and "
+                "Not while standing on Build Profile / Calibration & "
                 "Profiling tab. Change tab to select verification run."))
 
     def set_locked(self, locked: bool) -> None:

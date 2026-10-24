@@ -325,7 +325,7 @@ class TranslationDialog(QDialog):
             self, tr("Import translation"),
             tr(
                 "Translation saved. Restart ChromIQ and choose “{code}” under "
-                "Preferences → Language to see your changes."
+                "Preferences → General → Language to see your changes."
             ).format(code=code),
         )
 

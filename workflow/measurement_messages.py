@@ -1662,7 +1662,7 @@ M_IMPORT_DONE_PROFILING = _m(
     "It is filed as the measurement of {run}, in:\n{folder}\n\n"
     "A copy of the chart it was measured against is stored with the run, so "
     "the result stays interpretable even if the chart is replaced later.\n\n"
-    "You can build a profile from it now on the Build ICC profile tab, or "
+    "You can build a profile from it now on the Build Profile tab, or "
     "open Tools \u25b8 \u201cMeasurement report\u201d first to see the "
     "colour-accuracy figures.",
     approved=False)

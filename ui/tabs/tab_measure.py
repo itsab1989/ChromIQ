@@ -4052,16 +4052,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Jumping between strips"),
             tr("With the ChromIQ chart-reading engine on, you don't have to "
             "step through the strips one by one.\n\n"
-            "Simply click a strip directly in the chart preview on the "
-            "right — while a measurement is running, every strip under your "
+            "Simply click a strip directly in the chart preview on the right. While a measurement is running, every strip under your "
             "mouse shows a hand cursor. Clicking takes you straight there.\n\n"
             "Strips you have already read are marked with a check mark; "
-            "clicking one lets you measure it again — handy after a smudge, "
+            "clicking one lets you measure it again, which is handy after a smudge, "
             "a misread, or when Check & Refine has flagged strips worth a "
             "second pass. Guided refinement uses the very same jump "
             "automatically.\n\n"
             "This tip appears because the ChromIQ chart-reading engine is "
-            "enabled in Preferences → Beta features."),
+            "enabled in Preferences → Beta."),
             self._m_engine_tip))
         self._m_engine_tip.setVisible(False)
         ll.addWidget(self._m_engine_tip)
@@ -13645,7 +13644,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "holds a measurement is never written over: ChromIQ offers a new "
             "run beside it instead.\n\n"
             "Your original file is never moved or changed. Afterwards you can "
-            "build a profile from it on the Build ICC profile tab, exactly as "
+            "build a profile from it on the Build Profile tab, exactly as "
             "if the chart had been read here.")
 
     def _apply_import_box_style(self) -> None:
@@ -15222,7 +15221,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             layout.setSpacing(16)
             layout.setContentsMargins(24, 20, 24, 20)
             msg = QLabel(
-                tr("<b>The colorimeter correction file could not be applied.</b><br><br>Argyll reported: <i>{err}</i><br><br>Check the path in <b>Preferences → Argyll Options</b>, or remove the CCMX / CCSS reference from the extra-args field and try again.").format(err=err),
+                tr("<b>The colorimeter correction file could not be applied.</b><br><br>Argyll reported: <i>{err}</i><br><br>ChromIQ never passes a correction file to chartread itself, so this one does not come from any setting in ChromIQ. Check that the instrument you have connected is the one you meant to measure with, unplug it and plug it back in, then try again. The message above, from ArgyllCMS, names the file it tried to read.").format(err=err),
                 dlg,
             )
             msg.setWordWrap(True)

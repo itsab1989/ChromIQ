@@ -153,25 +153,24 @@ class ScaninTargetDialog(_ToolDialogBase):
     # Beginner-first walkthrough of the i1Profiler route, shown under that mode.
     I1PROFILER_HELP = tr(
         "Using a chart you laid out in i1Profiler\n\n"
-        "Some instruments — an i1iSis, or a robot-arm like the i1iO — are driven "
+        "Some instruments, such as an i1iSis or a robot arm like the i1iO, are driven "
         "by X-Rite's i1Profiler, not by ChromIQ. You can still turn such a chart "
         "into a scanner or camera target. Here's the idea, step by step:\n\n"
-        "1. In ChromIQ, export your patches for i1Profiler (Tools → Export for "
-        "i1Profiler) and load them into i1Profiler.\n"
+        "1. In ChromIQ, export your patches for i1Profiler (Tools → “Convert TI1 → "
+        "i1Profiler”) and load them into i1Profiler.\n"
         "2. Let i1Profiler lay the chart out, and save it as a TIFF (its 'Save "
         "as…' button under the chart). A chart that runs onto several pages "
-        "saves as several TIFF files — keep them all.\n"
+        "saves as several TIFF files; keep them all.\n"
         "3. Print that chart and measure it with your instrument in i1Profiler, "
-        "and keep the measurement file it exports — you can hand that straight to "
+        "and keep the measurement file it exports. You can hand that straight to "
         "ChromIQ below (it converts it for you), or convert it yourself first "
         "with Tools → Convert i1Profiler → TI3.\n"
         "4. Come back here, pick those three things below, and ChromIQ works out "
-        "where every patch sits by reading the saved chart — then writes the "
+        "where every patch sits by reading the saved chart, then writes the "
         "same .cht + .cie recognition files.\n\n"
         "Why the saved chart is needed: i1Profiler always arranges the patches "
         "its own way, so ChromIQ can't know the layout in advance. Reading it "
-        "back from the chart i1Profiler saved is what makes this exact and "
-        "reliable — ChromIQ checks every patch's colour and refuses rather than "
+        "back from the chart i1Profiler saved is what makes this exact and reliable: ChromIQ checks every patch's colour and refuses rather than "
         "guess if anything doesn't line up.")
 
     def __init__(self, settings, parent: QWidget | None = None) -> None:
@@ -307,8 +306,8 @@ class ScaninTargetDialog(_ToolDialogBase):
         ph.addStretch(1)
         ph.addWidget(self._tip(
             tr("Your patch set"),
-            tr("The very file you loaded into i1Profiler — the patch set you "
-            "exported from ChromIQ (Tools → Export for i1Profiler). It tells "
+            tr("The very file you loaded into i1Profiler: the patch set you "
+            "exported from ChromIQ (Tools → “Convert TI1 → i1Profiler”). It tells "
             "ChromIQ each patch's colour and the order i1Profiler placed them "
             "in, so it can find them on the saved chart. A .ti1, .txt or .pxf "
             "all work.")), 0, Qt.AlignmentFlag.AlignVCenter)
