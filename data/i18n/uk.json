@@ -1244,6 +1244,12 @@
    "one": "У {n} патча цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера.",
    "few": "У {n} патчів цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера.",
    "many": "У {n} патчів цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера."
+  },
+  "{n} colours recognised": {
+   "count": "n",
+   "one": "Розпізнано {n} колір",
+   "few": "Розпізнано {n} кольори",
+   "many": "Розпізнано {n} кольорів"
   }
  },
  "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Діаграму для CR30 завжди розкладає рушій макета ChromIQ, тому цей параметр залишається ввімкненим, доки вибрано прилад CR30.",
@@ -8261,5 +8267,9 @@
  "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Ці файли .cht не належать до цієї діаграми: у 1 рамки в них немає патча у файлі еталонних даних (наприклад, {examples}). Виберіть файли .cht, які printtarg записав саме для цієї діаграми.",
  "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Ці файли .cht не належать до цієї діаграми: у {n} рамок у них немає патча у файлі еталонних даних (наприклад, {examples}). Виберіть файли .cht, які printtarg записав саме для цієї діаграми.",
  "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "У 1 патча цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера.",
- "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "У {n} патчів цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера."
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "У {n} патчів цієї діаграми немає вимірювання у файлі .ti3, тож файл не відповідає цій діаграмі (наприклад, {examples}). Виміряйте всю діаграму ще раз, перш ніж створювати файли для сканера.",
+ "1 colour recognised": "Розпізнано 1 колір",
+ "{n} colours recognised": "Розпізнано {n} кольорів",
+ "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ не зміг надіслати клавішу «{key}» до chartread. Натисніть «Стоп» і почніть вимірювання знову.",
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ не зміг скласти звіт. Що пішло не так: {kind}: {detail}"
 }

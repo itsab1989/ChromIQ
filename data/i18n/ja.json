@@ -7263,5 +7263,9 @@
  "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "これらの .cht ファイルはこのチャートのものではありません。その中のボックス 1 個に、参照ファイル内のパッチがありません（例: {examples}）。printtarg がまさにこのチャート用に書き出した .cht ファイルを選んでください。",
  "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "これらの .cht ファイルはこのチャートのものではありません。その中のボックス {n} 個に、参照ファイル内のパッチがありません（例: {examples}）。printtarg がまさにこのチャート用に書き出した .cht ファイルを選んでください。",
  "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "このチャートのパッチ 1 個に .ti3 ファイル内の測定値がないため、このファイルはチャートと一致しません（例: {examples}）。スキャナー用ファイルを作成する前に、チャート全体をもう一度測定してください。",
- "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "このチャートのパッチ {n} 個に .ti3 ファイル内の測定値がないため、このファイルはチャートと一致しません（例: {examples}）。スキャナー用ファイルを作成する前に、チャート全体をもう一度測定してください。"
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "このチャートのパッチ {n} 個に .ti3 ファイル内の測定値がないため、このファイルはチャートと一致しません（例: {examples}）。スキャナー用ファイルを作成する前に、チャート全体をもう一度測定してください。",
+ "1 colour recognised": "1 色を認識しました",
+ "{n} colours recognised": "{n} 色を認識しました",
+ "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ はキー「{key}」を chartread に送れませんでした。「停止」をクリックして、測定をもう一度開始してください。",
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ はレポートを作成できませんでした。原因: {kind}: {detail}"
 }

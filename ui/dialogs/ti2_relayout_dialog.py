@@ -4733,8 +4733,11 @@ class _NewChartDialog(QDialog):
 
     def _update_paste_count(self) -> None:
         parsed = R.parse_color_values(self._paste_edit.toPlainText())
-        self._paste_status.setText(f"{len(parsed)} colour(s) parsed"
-                                    if parsed else "")
+        n = len(parsed)
+        self._paste_status.setText(
+            "" if not parsed else
+            tr("1 colour recognised") if n == 1 else
+            tr("{n} colours recognised").format(n=n))
 
     def _load_paste_file(self) -> None:
         path = open_file_dialog(

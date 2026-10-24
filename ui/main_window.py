@@ -2111,8 +2111,10 @@ class MainWindow(QMainWindow):
                 result["text"] = rep.text
                 result["confirmed"] = rep.confirmed
             except Exception as exc:                # noqa: BLE001 — report it
-                result["text"] = (f"The report could not be produced: "
-                                  f"{type(exc).__name__}: {exc}")
+                result["text"] = tr(
+                    "ChromIQ could not put the report together. What went "
+                    "wrong: {kind}: {detail}").format(
+                        kind=type(exc).__name__, detail=exc)
                 log.warning("CR30 Bluetooth report failed", exc_info=True)
 
         worker = threading.Thread(target=_work, daemon=True,

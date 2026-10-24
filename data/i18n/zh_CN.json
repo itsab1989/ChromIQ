@@ -7263,5 +7263,9 @@
  "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "这些 .cht 文件不属于这张色卡：其中有 1 个方框在参考文件中没有对应的色块（例如 {examples}）。请选择 printtarg 专门为这张色卡写出的 .cht 文件。",
  "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "这些 .cht 文件不属于这张色卡：其中有 {n} 个方框在参考文件中没有对应的色块（例如 {examples}）。请选择 printtarg 专门为这张色卡写出的 .cht 文件。",
  "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "这张色卡有 1 个色块在 .ti3 文件中没有测量值，所以该文件与这张色卡不匹配（例如 {examples}）。请先重新测量整张色卡，再创建扫描仪文件。",
- "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "这张色卡有 {n} 个色块在 .ti3 文件中没有测量值，所以该文件与这张色卡不匹配（例如 {examples}）。请先重新测量整张色卡，再创建扫描仪文件。"
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "这张色卡有 {n} 个色块在 .ti3 文件中没有测量值，所以该文件与这张色卡不匹配（例如 {examples}）。请先重新测量整张色卡，再创建扫描仪文件。",
+ "1 colour recognised": "已识别 1 种颜色",
+ "{n} colours recognised": "已识别 {n} 种颜色",
+ "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ 无法把按键“{key}”发送给 chartread。请点击“停止”，然后重新开始测量。",
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ 无法生成报告。出错原因：{kind}: {detail}"
 }

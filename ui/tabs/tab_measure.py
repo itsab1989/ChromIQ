@@ -9164,7 +9164,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         )
         self._log.ensureCursorVisible()
         self._flash_status(
-            f"Keypress '{key_label}' could not be delivered to chartread.",
+            tr("ChromIQ could not send the key “{key}” to chartread. "
+               "Click Stop and start the measurement again.").format(
+                   key=key_label),
             duration_ms=8000,
         )
 

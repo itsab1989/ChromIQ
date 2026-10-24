@@ -1214,6 +1214,12 @@
    "one": "{n} pole tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera.",
    "few": "{n} pola tego wzorca nie mają pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera.",
    "many": "{n} pól tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera."
+  },
+  "{n} colours recognised": {
+   "count": "n",
+   "one": "Rozpoznano {n} kolor",
+   "few": "Rozpoznano {n} kolory",
+   "many": "Rozpoznano {n} kolorów"
   }
  },
  "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Wzorzec dla CR30 zawsze układa silnik układu ChromIQ, więc ta opcja pozostaje włączona, dopóki przyrządem jest CR30.",
@@ -8231,5 +8237,9 @@
  "These .cht files don't belong to this chart: 1 box in them has no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Te pliki .cht nie należą do tego wzorca: 1 ramka w nich nie ma pola w pliku referencyjnym (na przykład {examples}). Wybierz pliki .cht, które printtarg zapisał właśnie dla tego wzorca.",
  "These .cht files don't belong to this chart: {n} boxes in them have no patch in the reference file (for example {examples}). Pick the .cht files that printtarg wrote for exactly this chart.": "Te pliki .cht nie należą do tego wzorca: {n} ramek w nich nie ma pola w pliku referencyjnym (na przykład {examples}). Wybierz pliki .cht, które printtarg zapisał właśnie dla tego wzorca.",
  "1 patch of this chart has no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "1 pole tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera.",
- "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} pól tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera."
+ "{n} patches of this chart have no measurement in the .ti3 file, so the file does not match this chart (for example {examples}). Measure the whole chart again before you build the scanner files.": "{n} pól tego wzorca nie ma pomiaru w pliku .ti3, więc plik nie pasuje do tego wzorca (na przykład {examples}). Zmierz ponownie cały wzorzec, zanim utworzysz pliki skanera.",
+ "1 colour recognised": "Rozpoznano 1 kolor",
+ "{n} colours recognised": "Rozpoznano {n} kolorów",
+ "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ nie mógł wysłać klawisza „{key}” do chartread. Kliknij „Zatrzymaj” i rozpocznij pomiar od nowa.",
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ nie mógł przygotować raportu. Co poszło nie tak: {kind}: {detail}"
 }
