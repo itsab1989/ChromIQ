@@ -469,7 +469,7 @@
   },
   "No control strip could be declared for this chart: it supplies {n} of the {total} patches one is made of, and at least 8 are needed. The three control-strip rows of the Measurement Report will read as not computed.": {
    "count": "total",
-   "one": "Dla tego wzorca nie dało się zadeklarować paska kontrolnego: dostarcza {n} z {total} pola, z których się go składa, a potrzeba co najmniej 8. Trzy wiersze paska kontrolnego w Raporcie pomiaru pokażą „nie obliczono”.",
+   "one": "Dla tego wzorca nie dało się zadeklarować paska kontrolnego: dostarcza {n} z {total} pola, z którego się go składa, a potrzeba co najmniej 8. Trzy wiersze paska kontrolnego w Raporcie pomiaru pokażą „nie obliczono”.",
    "few": "Dla tego wzorca nie dało się zadeklarować paska kontrolnego: dostarcza {n} z {total} pól, z których się go składa, a potrzeba co najmniej 8. Trzy wiersze paska kontrolnego w Raporcie pomiaru pokażą „nie obliczono”.",
    "many": "Dla tego wzorca nie dało się zadeklarować paska kontrolnego: dostarcza {n} z {total} pól, z których się go składa, a potrzeba co najmniej 8. Trzy wiersze paska kontrolnego w Raporcie pomiaru pokażą „nie obliczono”."
   },
@@ -673,7 +673,7 @@
   },
   "This chart can answer 1 of the {total} metrics that the available report types and limit sets can use.": {
    "count": "total",
-   "one": "Ten wzorzec potrafi odpowiedzieć na 1 z {total} metryki, których mogą używać dostępne typy raportów i zestawy limitów.",
+   "one": "Ten wzorzec potrafi odpowiedzieć na 1 z {total} metryki, której mogą używać dostępne typy raportów i zestawy limitów.",
    "few": "Ten wzorzec potrafi odpowiedzieć na 1 z {total} metryk, których mogą używać dostępne typy raportów i zestawy limitów.",
    "many": "Ten wzorzec potrafi odpowiedzieć na 1 z {total} metryk, których mogą używać dostępne typy raportów i zestawy limitów."
   },
@@ -685,7 +685,7 @@
   },
   "This chart can answer {n} of the {total} metrics that the available report types and limit sets can use.": {
    "count": "total",
-   "one": "Ten wzorzec potrafi odpowiedzieć na {n} z {total} metryki, których mogą używać dostępne typy raportów i zestawy limitów.",
+   "one": "Ten wzorzec potrafi odpowiedzieć na {n} z {total} metryki, której mogą używać dostępne typy raportów i zestawy limitów.",
    "few": "Ten wzorzec potrafi odpowiedzieć na {n} z {total} metryk, których mogą używać dostępne typy raportów i zestawy limitów.",
    "many": "Ten wzorzec potrafi odpowiedzieć na {n} z {total} metryk, których mogą używać dostępne typy raportów i zestawy limitów."
   },
@@ -715,37 +715,37 @@
   },
   "This report covers {n} of the {total} measurements recorded for the profile runs of the projects it is drawn from.": {
    "count": "total",
-   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanych dla przebiegów profilu projektów, z których pochodzi.",
+   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanego dla przebiegów profilu projektów, z których pochodzi.",
    "few": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla przebiegów profilu projektów, z których pochodzi.",
    "many": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla przebiegów profilu projektów, z których pochodzi."
   },
   "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.": {
    "count": "total",
-   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanych dla projektów, z których pochodzi.",
+   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanego dla projektów, z których pochodzi.",
    "few": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla projektów, z których pochodzi.",
    "many": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla projektów, z których pochodzi."
   },
   "This report covers {n} of the {total} measurements recorded for the {runs} profile runs it is drawn from.": {
    "count": "total",
-   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanych dla przebiegów profilu, z których pochodzi ({runs}).",
+   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanego dla przebiegów profilu, z których pochodzi ({runs}).",
    "few": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla przebiegów profilu, z których pochodzi ({runs}).",
    "many": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla przebiegów profilu, z których pochodzi ({runs})."
   },
   "This report covers {n} of the {total} measurements recorded for this profile run.": {
    "count": "total",
-   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanych dla tego przebiegu profilu.",
+   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanego dla tego przebiegu profilu.",
    "few": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla tego przebiegu profilu.",
    "many": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla tego przebiegu profilu."
   },
   "This report covers {n} of the {total} measurements recorded for this project's profile runs.": {
    "count": "total",
-   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanych dla przebiegów profilu tego projektu.",
+   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanego dla przebiegów profilu tego projektu.",
    "few": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla przebiegów profilu tego projektu.",
    "many": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla przebiegów profilu tego projektu."
   },
   "This report covers {n} of the {total} measurements recorded for this project.": {
    "count": "total",
-   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanych dla tego projektu.",
+   "one": "Ten raport obejmuje {n} z {total} pomiaru zapisanego dla tego projektu.",
    "few": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla tego projektu.",
    "many": "Ten raport obejmuje {n} z {total} pomiarów zapisanych dla tego projektu."
   },
