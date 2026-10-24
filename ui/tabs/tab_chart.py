@@ -5984,6 +5984,24 @@ def strip_label_crowding_notice(crowd) -> "str | None":
     return body
 
 
+def strip_label_x_held_notice(shift) -> "str | None":
+    """The red line under "Measured from Preview" when "Label offset" X asks
+    for more than the strip letters may move on this chart
+    (``raster.StripLabelShift``), or None when they are printed where the box
+    says (M-CHART-STRIP-LABELS-X-HELD-STRIP / -EDGE)."""
+    from workflow import measurement_messages as _mm
+    if shift is None or not shift.held:
+        return None
+    M = (_mm.M_CHART_STRIP_LABELS_X_HELD_STRIP if shift.held_by == "strip"
+         else _mm.M_CHART_STRIP_LABELS_X_HELD_EDGE)
+    _title, body = M.render(
+        asked=decimal_text(shift.asked_mm, 1),
+        used=decimal_text(shift.used_mm, 1),
+        left=decimal_text(shift.left_mm, 1),
+        right=decimal_text(shift.right_mm, 1))
+    return body
+
+
 def _gamut_size_help_body() -> str:
     """The "How many colours to test" help, translated paragraph by
     paragraph, with the two 4.3.5 paragraphs of M-HELP-GAMUT-SIZE-SPREAD."""
@@ -26624,6 +26642,18 @@ class TabChart(QWidget):
             _crowd_line = strip_label_crowding_notice(_crowd)
             if _crowd_line:
                 over.append(_crowd_line)
+            # …AND LETTERS MOVED SIDEWAYS LESS THAN "Label offset" X ASKS
+            # (Basti, 2026-10-24). Worked out by the renderer's own limits on
+            # this chart's strips, so the sentence describes the sheet that
+            # is printed.
+            try:
+                from workflow.layout_engine import raster as _raster
+                _xs = _raster.strip_label_x_shift(geom, _kw_notes)
+            except Exception:      # noqa: BLE001 — a notice, never a blocker
+                _xs = None
+            _xs_line = strip_label_x_held_notice(_xs)
+            if _xs_line:
+                over.append(_xs_line)
             # ---- THE FOUR EDGES, MEASURED OFF THE SHEET IN THE PREVIEW -----
             #
             # KNUT'S RULING OF 2026-09-15 (#182, comment 5679470670) IS THAT

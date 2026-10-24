@@ -120,6 +120,8 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # "Label offset" X held by the letters' limits (Basti 2026-10-24), 4.3.13.
+    "M-CHART-STRIP-LABELS-X-HELD-STRIP", "M-CHART-STRIP-LABELS-X-HELD-EDGE",
     # The pause between pages (jctay 149802, Basti 2026-10-23), 4.3.10.
     "M-PAGE-PAUSE", "M-PAGE-PAUSE-END", "M-PAGE-PAUSE-OTHER-PAGES",
     "M-PAGE-PAUSE-BUTTON", "M-PAGE-PAUSE-FOUND", "M-PAGE-PAUSE-CONTROLS",

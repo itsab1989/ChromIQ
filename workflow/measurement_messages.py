@@ -6547,6 +6547,29 @@ M_CHART_STRIP_LABELS_CROWDED = _m(
     "\u26a0 The strip letters run into each other. At {size} pt each label is wider than the room above its strip ({pitch} mm from one strip to the next), so neighbours such as \u201c{first}\u201d and \u201c{second}\u201d touch or overlap and are hard to tell apart when you read the chart. In the \u201cStrip & row labels\u201d frame, choose a smaller size next to \u201cFont:\u201d ({fits} pt or smaller fits), or choose \u201cauto\u201d, which picks the largest size that fits by itself.",
     approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
+# --- PROPOSED (4.3.13, Basti 2026-10-24): the strip letters moved sideways
+# less than "Label offset" X asks ---------------------------------------------
+#: "Label offset" gained an X box (Basti: "another spinbox next to it that
+#: allows offset in x direction as well"). The renderer holds the letters
+#: above their own strip and inside the side text distance
+#: (`raster.StripLabelShift`); when it does, one of these says so in red under
+#: "Measured from Preview" beside the other strip-letter notices
+#: (`tab_chart.strip_label_x_held_notice`). -STRIP when the own-strip limit
+#: binds, -EDGE when the paper edge or the clip border does. {asked}: the box,
+#: signed; {used}: what is printed, signed; {left}/{right}: how far they can
+#: go each way on this chart. The headline is not shown.
+M_CHART_STRIP_LABELS_X_HELD_STRIP = _m(
+    "M-CHART-STRIP-LABELS-X-HELD-STRIP",
+    "The strip letters stop above their own strip",
+    "\u26a0 \u201cX\u201d next to \u201cLabel offset\u201d asks for {asked} mm, and the strip letters are printed at {used} mm instead. Each letter always stays above its own strip, so that it is never taken for the name of the strip next to it, and on this chart that lets the letters move at most {left} mm to the left and {right} mm to the right. The patches do not move. To keep this message away, type a value within those limits.",
+    approved=False)
+
+M_CHART_STRIP_LABELS_X_HELD_EDGE = _m(
+    "M-CHART-STRIP-LABELS-X-HELD-EDGE",
+    "The strip letters stop before the side of the paper",
+    "\u26a0 \u201cX\u201d next to \u201cLabel offset\u201d asks for {asked} mm, and the strip letters are printed at {used} mm instead. Any further, and the first or last letter would come closer to the side of the paper than the side text distance (\u201cClip\u201d under \u201cText distance from edge\u201d, or the ruler helper markers when they are printed down the sides), or run into what is printed in the clip border. On this chart the letters can move at most {left} mm to the left and {right} mm to the right. The patches do not move. To keep this message away, type a value within those limits.",
+    approved=False)
+
 # --- PROPOSED (4.3.5 beta 3, Knut #182 6144104040): why the macOS print
 # dialog shows a colour profile ----------------------------------------------
 #: Knut: the dialog shows his default profile under Colour Matching (ColorSync
@@ -7885,6 +7908,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_SLOW_NO_PROFILE,
     M_HELP_COLOUR_VIEW_SEAMS, M_HELP_COLOUR_VIEW_LEGEND,
     M_CHART_STRIP_LABELS_CROWDED,
+    M_CHART_STRIP_LABELS_X_HELD_STRIP, M_CHART_STRIP_LABELS_X_HELD_EDGE,
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
     M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
     *CONVERT_MESSAGES,

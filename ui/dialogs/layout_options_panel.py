@@ -38,14 +38,48 @@ from workflow.layout_engine.presets import LayoutRecipe
 
 log = get_logger(__name__)
 
-#: The ten label-text properties a chart can own (Knut, 4.1.5-beta.6). Same set
-#: as ``core.settings.INDICATOR_STYLE_KEYS``, named here in recipe-field terms;
+#: The label-text properties a chart can own (Knut, 4.1.5-beta.6; the
+#: sideways "Label offset" joined them on 2026-10-24). Same set as
+#: ``core.settings.INDICATOR_STYLE_KEYS``, named here in recipe-field terms;
 #: `tests/test_label_style_per_chart.py` proves the two never drift apart.
 _LABEL_STYLE_FIELDS = (
     "indicator_font", "indicator_size_mm", "indicator_bold", "indicator_italic",
     "indicator_rotation", "indicator_align", "strip_label_offset_mm",
+    "strip_label_offset_x_mm",
     "underline_mode", "underline_thickness_mm", "underline_gap_mm",
 )
+
+#: The ⓘ of "Label offset" (Basti, 2026-10-24: friendly, extensive, easy to
+#: understand and correct). Every limit it names is the renderer's own:
+#: `raster.StripLabelShift` for X, and the notices under "Measured from
+#: Preview" for Y. A module constant so a test can hold it to those facts.
+LABEL_OFFSET_HELP = (
+    "Moves the strip letters (A, B, C and so on, printed above the strips) "
+    "without moving the patches. Both boxes are in millimetres on the printed "
+    "sheet and change in steps of 0.5 mm. At 0 the letters sit where ChromIQ "
+    "puts them: centred over their strips, in the space above the "
+    "patches.\n\n"
+    "X moves the letters sideways. A positive value moves them to the right, "
+    "a negative value to the left, and every letter moves by the same amount, "
+    "whichever way the letters are turned. An underline, if you use one, "
+    "stays under its strip, because it marks the strip and not the letter.\n\n"
+    "Y moves the letters up or down. A positive value lowers them toward the "
+    "patches, a negative value raises them toward the top edge of the paper. "
+    "An underline moves with them.\n\n"
+    "Neither box changes the patch area, so the same number of patches fits "
+    "on the sheet.\n\n"
+    "X has two limits that keep the letters readable. A letter always stays "
+    "above its own strip, so it moves at most half a strip's width either "
+    "way and can never be taken for the name of the strip next to it. And "
+    "the first and last letters stay on the paper: no closer to the left or "
+    "right edge than the side text distance (“Clip” under “Text distance "
+    "from edge”, or the ruler helper markers when they are printed down the "
+    "sides), and clear of a clip border that has something printed in it. If "
+    "you type more than that, the letters stop at the limit, and a message "
+    "under “Measured from Preview” says where they were printed instead.\n\n"
+    "Y is not held back like that. If the letters come too close to the patches or to "
+    "the ruler helper markers, a message under “Measured from Preview” says "
+    "so and tells you how much to change.")
 
 # Sheet-text placeholders, filled in at build time by chart.build_chart with
 # human-readable values (e.g. {instrument} → "i1Pro3+", {paper} → "A4 landscape",
@@ -1593,22 +1627,31 @@ class LayoutOptionsPanel(QWidget):
                        "letter on a fixed line nearest the patches so the label "
                        "grows away from them, Right anchors the last letter, and "
                        "Centered splits the difference."), self))
+        # TWO BOXES ON ONE ROW, X FIRST (Basti, 2026-10-24: *"another spinbox
+        # next to it that allows offset in x direction as well … The spinboxes
+        # should be labeled so the user knows which does what"*). The Y box is
+        # the one this row always had, under its old name, so every recipe,
+        # preset and driver that reaches `strip_label_offset` still finds the
+        # vertical nudge. Labelled "X" / "Y" with an arrow, as the clip image's
+        # own move boxes are ("Content fit"), so the two read alike and the
+        # row fits the panel in every language; the ⓘ says which way is which.
+        self.strip_label_offset_x = NoScrollDoubleSpinBox(self)
         self.strip_label_offset = NoScrollDoubleSpinBox(self)
-        self.strip_label_offset.setRange(-50.0, 50.0)
-        self.strip_label_offset.setDecimals(1)
-        self.strip_label_offset.setSingleStep(0.5)
-        self.strip_label_offset.setSuffix(" mm")
-        self.strip_label_offset.setMinimumWidth(96)
-        self.strip_label_offset.valueChanged.connect(self._emit)
-        add_row(sig3, 4, tr("Label offset:"), self.strip_label_offset,
+        for _sb in (self.strip_label_offset_x, self.strip_label_offset):
+            _sb.setRange(-50.0, 50.0)
+            _sb.setDecimals(1)
+            _sb.setSingleStep(0.5)
+            _sb.setSuffix(" mm")
+            _sb.setMinimumWidth(88)
+            _sb.valueChanged.connect(self._emit)
+        self._label_offset_x_lbl = QLabel("\u2194 " + tr("X"), self)
+        self._label_offset_y_lbl = QLabel("\u2195 " + tr("Y"), self)
+        add_row(sig3, 4, tr("Label offset:"),
+                cell(self._label_offset_x_lbl, self.strip_label_offset_x,
+                     self._label_offset_y_lbl, self.strip_label_offset),
                 tip=TooltipButton(
                     tr("Label offset"),
-                    tr("Moves the strip letters up or down without moving the "
-                       "patches. By default the labels sit flush just under the "
-                       "top margin; a positive value lowers them toward the "
-                       "patches, a negative value raises them into the margin. The "
-                       "patch area doesn't change, so this doesn't affect how many "
-                       "patches fit."), self))
+                    tr(LABEL_OFFSET_HELP), self))
         # A person touching ANY of these ten answers "this chart owns its label
         # style" — the same shape as `_row_indicators_touched` above. Wired
         # after construction so the widget wiring above stays readable, and
@@ -1658,7 +1701,8 @@ class LayoutOptionsPanel(QWidget):
                          (self.ind_align_left, "toggled"),
                          (self.ind_align_center, "toggled"),
                          (self.ind_align_right, "toggled"),
-                         (self.strip_label_offset, "valueChanged")):
+                         (self.strip_label_offset, "valueChanged"),
+                         (self.strip_label_offset_x, "valueChanged")):
             getattr(_w, _sig).connect(self._on_label_style_touched)
         self._on_rotation_changed()
 
@@ -3528,6 +3572,8 @@ class LayoutOptionsPanel(QWidget):
          "right": self.ind_align_right}.get(
             r.indicator_align, self.ind_align_left).setChecked(True)
         self.strip_label_offset.setValue(r.strip_label_offset_mm)
+        self.strip_label_offset_x.setValue(
+            float(getattr(r, "strip_label_offset_x_mm", 0.0) or 0.0))
         self._on_rotation_changed()      # grey out align unless 90°/270°
         _umkey = "segments" if r.underline_mode == "colored" else r.underline_mode
         _um = self.underline_mode.findData(_umkey)
@@ -5792,6 +5838,7 @@ class LayoutOptionsPanel(QWidget):
                              else "right" if self.ind_align_right.isChecked()
                              else "left")
         r.strip_label_offset_mm = self.strip_label_offset.value()
+        r.strip_label_offset_x_mm = self.strip_label_offset_x.value()
         r.underline_mode = self.underline_mode.currentData() or "off"
         r.underline_thickness_mm = self.underline_thickness.value()
         r.underline_gap_mm = self.underline_gap.value()

@@ -6380,28 +6380,46 @@ class SettingsDialog(QDialog):
         g.setHorizontalSpacing(8)
         g.setVerticalSpacing(6)
 
+        # NOT "every new chart, including charts loaded from a saved preset",
+        # which is what this said until 2026-10-24 and has been untrue since
+        # 4.1.5-beta.6: a chart or preset that carries its own label style
+        # keeps it (`LayoutRecipe.label_style_explicit`), and these values are
+        # only the starting point for one that does not.
         intro = QLabel(tr(
-            "How the per-strip letter labels (A, B, C…) look on every new chart "
-            "— including charts loaded from a saved preset."), self)
+            "How the per-strip letter labels (A, B, C…) look on a new chart. A "
+            "chart or preset that has a label style of its own keeps it."),
+            self)
         intro.setWordWrap(True)
         _ink(intro, "#909090", " font-size: 11px;", level="faint")
         g.addWidget(intro, 0, 0, 1, 3)
         g.addWidget(TooltipButton(
             tr("Strip indicator style"),
+            # Rewritten 2026-10-24 when "Label offset" gained its X box. Two
+            # sentences were not true and are corrected while the string is
+            # open anyway: these values do NOT reach a chart or preset that
+            # owns its label style (see the intro above), and "Alignment"
+            # only lines up a TURNED label (90° / 270°) along its reading
+            # direction; it never moves a label across its strip.
             tr("These settings control the little letters printed above each "
             "strip of patches (A, B, C…) so you always know which strip you're "
-            "measuring. They apply to every new chart, including charts loaded "
-            "from a saved preset.\n\n"
-            "  • Font & Size — the typeface and its size in points (12 pt is "
+            "measuring. They are the starting point for every new chart. A "
+            "chart, or a preset, that has a label style of its own keeps it, "
+            "and you change that one in Create Chart under “Strip indicators "
+            "only”.\n\n"
+            "  • Font & Size: the typeface and its size in points (12 pt is "
             "about the size of body text; “auto” lets ChromIQ pick a size that "
             "fits). Bold / Italic switch off automatically for fonts that don't "
             "offer them.\n"
-            "  • Rotation — turn the label (0°, 90°, 180°, 270°); useful when a "
+            "  • Rotation: turn the label (0°, 90°, 180°, 270°); useful when a "
             "strip is very narrow.\n"
-            "  • Alignment — left, centred or right over its strip.\n"
-            "  • Label offset — nudge the label up or down (mm) relative to its "
-            "strip.\n"
-            "  • Underline — draws a line under each label, so misreads are "
+            "  • Alignment: for a label turned to 90° or 270°, which end of a "
+            "two-letter label stays in place: left, centred or right.\n"
+            "  • Label offset: moves the letters without moving the patches, in "
+            "millimetres. X moves them sideways (positive to the right, "
+            "negative to the left), at most half a strip's width and never off "
+            "the paper; Y moves them up or down (positive lowers them toward "
+            "the patches, negative raises them).\n"
+            "  • Underline: draws a line under each label, so misreads are "
             "easier to spot; the coloured options tint it, and Line thickness / "
             "Line distance set how thick it is and how far below the text it "
             "sits.\n\n"
@@ -6460,12 +6478,25 @@ class SettingsDialog(QDialog):
 
         # Label offset.
         g.addWidget(QLabel(tr("Label offset:"), self), 4, 0, Qt.AlignmentFlag.AlignRight)
+        # X (across, + right) beside Y (the box this row always had), labelled
+        # as Create Chart's "Label offset" row labels them.
+        self._isty_offset_x = NoScrollDoubleSpinBox(self)
         self._isty_offset = NoScrollDoubleSpinBox(self)
-        self._isty_offset.setRange(-50.0, 50.0)
-        self._isty_offset.setDecimals(1)
-        self._isty_offset.setSingleStep(0.5)
-        self._isty_offset.setSuffix(" mm")
-        g.addWidget(self._isty_offset, 4, 1)
+        for _sb in (self._isty_offset_x, self._isty_offset):
+            _sb.setRange(-50.0, 50.0)
+            _sb.setDecimals(1)
+            _sb.setSingleStep(0.5)
+            _sb.setSuffix(" mm")
+        _offx = QHBoxLayout()
+        _offx.setContentsMargins(0, 0, 0, 0)
+        _offx.addWidget(QLabel("\u2194 " + tr("X"), self))
+        _offx.addWidget(self._isty_offset_x, 1)
+        _offx_w = QWidget(self)
+        _offx_w.setLayout(_offx)
+        g.addWidget(_offx_w, 4, 1)
+        g.addWidget(QLabel("\u2195 " + tr("Y"), self), 4, 2,
+                    Qt.AlignmentFlag.AlignRight)
+        g.addWidget(self._isty_offset, 4, 3)
 
         # Underline mode + thickness + distance.
         g.addWidget(QLabel(tr("Underline:"), self), 5, 0, Qt.AlignmentFlag.AlignRight)
@@ -6491,7 +6522,8 @@ class SettingsDialog(QDialog):
         g.setColumnStretch(1, 1)
         g.setColumnStretch(3, 1)
         for _w in (self._isty_font, self._isty_size, self._isty_rotation,
-                   self._isty_align, self._isty_offset, self._isty_underline,
+                   self._isty_align, self._isty_offset, self._isty_offset_x,
+                   self._isty_underline,
                    self._isty_ul_thick, self._isty_ul_gap):
             _w.setSizePolicy(QSizePolicy.Policy.Expanding,
                              _w.sizePolicy().verticalPolicy())
@@ -6508,6 +6540,7 @@ class SettingsDialog(QDialog):
         _ai = self._isty_align.findData(s.get("strip_indicator_align"))
         self._isty_align.setCurrentIndex(_ai if _ai >= 0 else 0)
         self._isty_offset.setValue(float(s.get("strip_label_offset_mm")))
+        self._isty_offset_x.setValue(float(s.get("strip_label_offset_x_mm")))
         _ui = self._isty_underline.findData(s.get("strip_underline_mode"))
         self._isty_underline.setCurrentIndex(_ui if _ui >= 0 else 0)
         self._isty_ul_thick.setValue(float(s.get("strip_underline_thickness_mm")))
@@ -6527,6 +6560,7 @@ class SettingsDialog(QDialog):
         s.set("strip_indicator_rotation", int(self._isty_rotation.currentData() or 0))
         s.set("strip_indicator_align", self._isty_align.currentData() or "left")
         s.set("strip_label_offset_mm", float(self._isty_offset.value()))
+        s.set("strip_label_offset_x_mm", float(self._isty_offset_x.value()))
         s.set("strip_underline_mode", self._isty_underline.currentData() or "off")
         s.set("strip_underline_thickness_mm", float(self._isty_ul_thick.value()))
         s.set("strip_underline_gap_mm", float(self._isty_ul_gap.value()))
@@ -6981,6 +7015,7 @@ class SettingsDialog(QDialog):
         _ai = self._isty_align.findData(DEFAULTS["strip_indicator_align"])
         self._isty_align.setCurrentIndex(_ai if _ai >= 0 else 0)
         self._isty_offset.setValue(float(DEFAULTS["strip_label_offset_mm"]))
+        self._isty_offset_x.setValue(float(DEFAULTS["strip_label_offset_x_mm"]))
         _ui = self._isty_underline.findData(DEFAULTS["strip_underline_mode"])
         self._isty_underline.setCurrentIndex(_ui if _ui >= 0 else 0)
         self._isty_ul_thick.setValue(float(DEFAULTS["strip_underline_thickness_mm"]))
