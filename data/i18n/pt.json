@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "As amostras {lead} e {lead2} também foram mal lidas, com cores que não são as suas nem as das vizinhas. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "As leituras também deslizaram uma amostra pelo caminho, por isso cada uma destas comparações avança uma amostra ao longo da tira. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "As leituras também deslizaram duas amostras pelo caminho, por isso cada uma destas comparações avança duas amostras ao longo da tira. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Só uma amostra no meio da tira pode ainda ter a sua própria leitura."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Só uma amostra no meio da tira pode ainda ter a sua própria leitura.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} carregado, com as definições de disposição com que foi guardado",
+ "Loaded {name}": "{name} carregado"
 }

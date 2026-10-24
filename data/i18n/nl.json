@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Ook de meetvelden {lead} en {lead2} zijn verkeerd gelezen, met kleuren die niet hun eigen zijn en ook niet die van hun buren. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "De metingen zijn onderweg ook één meetveld verschoven, dus elk van deze vergelijkingen schuift één meetveld verder langs de strook. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "De metingen zijn onderweg ook twee meetvelden verschoven, dus elk van deze vergelijkingen schuift twee meetvelden verder langs de strook. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Alleen een meetveld in het midden van de strook kan nog zijn eigen meting hebben."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Alleen een meetveld in het midden van de strook kan nog zijn eigen meting hebben.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} geladen, met de indelingsinstellingen waarmee het is opgeslagen",
+ "Loaded {name}": "{name} geladen"
 }

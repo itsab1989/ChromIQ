@@ -8215,5 +8215,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Патчи {lead} и {lead2} тоже считаны неверно: их цвета не совпадают ни с их собственными, ни с цветами соседей. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "По пути показания ещё и сдвинулись на один патч, поэтому каждое из этих сравнений смещается на один патч дальше вдоль полосы. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "По пути показания ещё и сдвинулись на два патча, поэтому каждое из этих сравнений смещается на два патча дальше вдоль полосы. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Только патч в середине полосы может всё ещё содержать своё показание."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Только патч в середине полосы может всё ещё содержать своё показание.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} загружен вместе с настройками раскладки, с которыми его сохранили",
+ "Loaded {name}": "{name} загружен"
 }

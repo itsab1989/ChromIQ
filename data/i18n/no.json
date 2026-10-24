@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Feltene {lead} og {lead2} ble også lest feil, med farger som verken er deres egne eller naboenes. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "Målingene gled også ett felt underveis, så hver av disse sammenligningene flyttes ett felt lenger langs stripen. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Målingene gled også to felt underveis, så hver av disse sammenligningene flyttes to felt lenger langs stripen. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Bare et felt midt i stripen kan fortsatt ha sin egen måling."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Bare et felt midt i stripen kan fortsatt ha sin egen måling.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} lastet inn, med oppsettinnstillingene det ble lagret med",
+ "Loaded {name}": "{name} lastet inn"
 }

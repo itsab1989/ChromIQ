@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Fälten {lead} och {lead2} lästes också fel, med färger som varken är deras egna eller grannarnas. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "Mätvärdena gled också ett fält på vägen, så var och en av dessa jämförelser flyttas ett fält längre längs remsan. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Mätvärdena gled också två fält på vägen, så var och en av dessa jämförelser flyttas två fält längre längs remsan. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Bara ett fält i mitten av remsan kan fortfarande ha sitt eget mätvärde."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Bara ett fält i mitten av remsan kan fortfarande ha sitt eget mätvärde.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} inläst, med de layoutinställningar som det sparades med",
+ "Loaded {name}": "{name} inläst"
 }

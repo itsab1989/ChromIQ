@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Los parches {lead} y {lead2} también se leyeron mal, con colores que no son ni los suyos ni los de sus vecinos. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "Además, las lecturas se desplazaron un parche por el camino, así que cada una de estas comparaciones avanza un parche más a lo largo de la tira. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Además, las lecturas se desplazaron dos parches por el camino, así que cada una de estas comparaciones avanza dos parches más a lo largo de la tira. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Solo un parche en el centro de la tira puede conservar todavía su propia lectura."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Solo un parche en el centro de la tira puede conservar todavía su propia lectura.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} cargado, con los ajustes de diseño con los que se guardó",
+ "Loaded {name}": "{name} cargado"
 }

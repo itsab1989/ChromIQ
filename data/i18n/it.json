@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Anche i tasselli {lead} e {lead2} sono stati letti male, con colori che non sono né i loro né quelli dei vicini. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "Lungo il percorso le letture sono anche scivolate di un tassello, quindi ciascuno di questi confronti si sposta di un tassello più avanti lungo la striscia. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Lungo il percorso le letture sono anche scivolate di due tasselli, quindi ciascuno di questi confronti si sposta di due tasselli più avanti lungo la striscia. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Solo un tassello al centro della striscia può avere ancora la propria lettura."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Solo un tassello al centro della striscia può avere ancora la propria lettura.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} caricato, con le impostazioni di layout con cui era stato salvato",
+ "Loaded {name}": "{name} caricato"
 }

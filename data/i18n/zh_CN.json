@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "色块 {lead} 和 {lead2} 也读错了，它们的颜色既不是自己的，也不是相邻色块的。",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "读数在途中还错位了一个色块，所以上面的每一次比较都要沿色条再往后移一个色块。",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "读数在途中还错位了两个色块，所以上面的每一次比较都要沿色条再往后移两个色块。",
- " Only a patch in the middle of the strip can still hold its own reading.": "只有色条正中间的色块还可能保留自己的读数。"
+ " Only a patch in the middle of the strip can still hold its own reading.": "只有色条正中间的色块还可能保留自己的读数。",
+ "Loaded {name}, with the layout settings it was saved with": "已加载 {name}，并恢复了保存时的布局设置",
+ "Loaded {name}": "已加载 {name}"
 }

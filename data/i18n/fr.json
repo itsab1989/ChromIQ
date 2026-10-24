@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Les plages {lead} et {lead2} ont elles aussi été mal lues : leurs couleurs ne sont ni les leurs ni celles de leurs voisines. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "En chemin, les mesures ont aussi glissé d'une plage : chacune de ces comparaisons se décale donc d'une plage plus loin le long de la bande. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "En chemin, les mesures ont aussi glissé de deux plages : chacune de ces comparaisons se décale donc de deux plages plus loin le long de la bande. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Seule une plage au milieu de la bande peut encore porter sa propre mesure."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Seule une plage au milieu de la bande peut encore porter sa propre mesure.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} chargé, avec les réglages de mise en page avec lesquels il a été enregistré",
+ "Loaded {name}": "{name} chargé"
 }

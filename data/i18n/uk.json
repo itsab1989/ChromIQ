@@ -8251,5 +8251,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Патчі {lead} і {lead2} теж зчитано неправильно: їхні кольори не збігаються ні з власними, ні з кольорами сусідів. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "Дорогою показання ще й зсунулися на один патч, тож кожне з цих порівнянь зміщується на один патч далі вздовж смуги. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Дорогою показання ще й зсунулися на два патчі, тож кожне з цих порівнянь зміщується на два патчі далі вздовж смуги. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Лише патч у середині смуги може все ще містити своє показання."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Лише патч у середині смуги може все ще містити своє показання.",
+ "Loaded {name}, with the layout settings it was saved with": "Завантажено {name} разом із налаштуваннями макета, з якими його збережено",
+ "Loaded {name}": "Завантажено {name}"
 }

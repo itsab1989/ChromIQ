@@ -6311,11 +6311,12 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         saved = R.load_editor_meta(path)
         if saved is not None:
             self._options, self._basename = saved
-            note = f"Loaded {path.name} (restored saved settings)"
+            note = tr("Loaded {name}, with the layout settings it was "
+                      "saved with").format(name=path.name)
         else:
             self._options = R.LayoutOptions()
             self._basename = path.stem or "chart"
-            note = f"Loaded {path.name}"
+            note = tr("Loaded {name}").format(name=path.name)
         # The chart's creation recipe (if it carries one) — so New chart / Add
         # reopen with this design rather than the app-wide last-used state.
         self._chart_recipe = R.load_editor_recipe(path)

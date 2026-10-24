@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "パッチ {lead} と {lead2} も正しく読み取れておらず、自分の色でも隣のパッチの色でもない色が入っています。",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "読み取りは途中でさらにパッチ 1 つ分ずれているため、これらの比較はそれぞれストリップに沿ってパッチ 1 つ分先へずらして行います。",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "読み取りは途中でさらにパッチ 2 つ分ずれているため、これらの比較はそれぞれストリップに沿ってパッチ 2 つ分先へずらして行います。",
- " Only a patch in the middle of the strip can still hold its own reading.": "自分の読み取り値が残っている可能性があるのは、ストリップの中央のパッチだけです。"
+ " Only a patch in the middle of the strip can still hold its own reading.": "自分の読み取り値が残っている可能性があるのは、ストリップの中央のパッチだけです。",
+ "Loaded {name}, with the layout settings it was saved with": "{name} を読み込みました（保存したときのレイアウト設定も戻しました）",
+ "Loaded {name}": "{name} を読み込みました"
 }

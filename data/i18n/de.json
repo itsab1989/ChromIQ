@@ -7259,5 +7259,7 @@
  "Patches {lead} and {lead2} came out wrong as well, with colours that are neither their own nor their neighbours'. ": "Auch die Messfelder {lead} und {lead2} wurden falsch gelesen: Sie haben Farben, die weder ihre eigenen noch die ihrer Nachbarn sind. ",
  "The readings also slipped by one patch on the way, so each of these comparisons moves one patch further along the strip. ": "Die Messwerte sind unterwegs außerdem um ein Messfeld verrutscht, deshalb rückt jeder dieser Vergleiche um ein Messfeld weiter den Streifen entlang. ",
  "The readings also slipped by two patches on the way, so each of these comparisons moves two patches further along the strip. ": "Die Messwerte sind unterwegs außerdem um zwei Messfelder verrutscht, deshalb rückt jeder dieser Vergleiche um zwei Messfelder weiter den Streifen entlang. ",
- " Only a patch in the middle of the strip can still hold its own reading.": " Nur ein Messfeld in der Mitte des Streifens kann noch seinen eigenen Messwert haben."
+ " Only a patch in the middle of the strip can still hold its own reading.": " Nur ein Messfeld in der Mitte des Streifens kann noch seinen eigenen Messwert haben.",
+ "Loaded {name}, with the layout settings it was saved with": "{name} geladen, mit den Layout-Einstellungen, mit denen es gespeichert wurde",
+ "Loaded {name}": "{name} geladen"
 }
