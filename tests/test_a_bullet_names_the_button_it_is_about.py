@@ -29,9 +29,12 @@ WHAT IT CANNOT SEE, stated plainly so nobody trusts it further than it goes:
   in plain prose is still invisible; the emphasis/quote check in
   ``scripts/i18n_extract.py`` covers the emphasised and quoted forms of that,
   and nothing covers the rest.
-* Qt's OWN standard buttons — Cancel, OK, Close — come from ``qtbase_<code>.qm``
-  and are not in our catalogue at all, so a bullet naming one of them is
-  skipped rather than checked.
+* Qt's OWN standard buttons (Cancel, OK, Close) are not harvested from a
+  constructor. Since 4.3.12 they read exactly tr("OK"), tr("Cancel") and so on
+  in every language (``core.i18n.install_qt_translator``), so a bullet naming
+  one is checked against that word wherever another window also carries it as
+  ``addButton(tr("OK"))``; ``tests/test_standard_buttons_read_as_the_texts_
+  say.py`` pins the buttons themselves.
 * it harvests the constructors listed in ``_LABEL_CALLS``. A label built any
   other way (assembled from fragments, set later through ``setText`` on a
   variable) is not harvested, and a bullet naming it is skipped.

@@ -184,9 +184,7 @@ def test_qt_fallback_translates_norwegian_buttons(qapp):
         assert QCoreApplication.translate("QPlatformTheme", "Cancel") == "Avbryt"
         assert QCoreApplication.translate("QPlatformTheme", "Close") == "Lukk"
     finally:
-        if i18n._qt_translator is not None:
-            qapp.removeTranslator(i18n._qt_translator)
-            i18n._qt_translator = None
+        i18n.remove_qt_translators(qapp)
 
 
 # ---- the message catalogue is translatable at all ------------------------

@@ -342,6 +342,7 @@ def install_qt_translator(app) -> None:
                 app.installTranslator(t)
                 _qt_translator = t
                 log.info("Qt base translations loaded: qtbase_%s", cand)
+                _install_button_names(app)
                 return
         # PyQt6 ships no qtbase .qm for this language (e.g. Norwegian).
         # Fall back to our own minimal catalog of Qt's standard-button
@@ -352,10 +353,57 @@ def install_qt_translator(app) -> None:
             app.installTranslator(t)
             _qt_translator = t
             log.info("Qt fallback button translations loaded for %r", _language)
+            _install_button_names(app)
             return
         log.warning("No qtbase translations for %r in %s", _language, tr_dir)
     except Exception:
         log.warning("Could not install Qt base translations", exc_info=True)
+
+
+#: Qt's standard-button labels that ChromIQ's own texts name. 4.3.12: the
+#: Measure tab's instrument-choice window said "•  Гаразд: applies the choice
+#: above" while its OK button, translated by qtbase_uk.qm, read "OK". Qt's own
+#: catalogues and ours disagree on a handful of these words (uk and ru "OK",
+#: sv "Ok", fr/ja/ru/uk "Discard", pl/pt "Save", nl "Retry"), and a text that
+#: tells someone to press a button has to name the button they can see. So a
+#: standard button reads exactly what tr() gives for the same word, in every
+#: language and every window; a word our catalogue does not have still comes
+#: from Qt. Labels with a mnemonic ("&Yes") are left to Qt, which already
+#: agrees with us on them and knows where each language puts its "&".
+STANDARD_BUTTON_LABELS = (
+    "OK", "Cancel", "Close", "Save", "Save All", "Open", "Discard", "Apply",
+    "Reset", "Restore Defaults", "Help", "Abort", "Retry", "Ignore",
+    "Don't Save", "Close without Saving",
+)
+
+_button_translator = None   # kept alive for as long as the app runs
+
+
+def _install_button_names(app) -> None:
+    """Install, after Qt's own catalogue, a translator that makes every
+    standard button read the same word as ChromIQ's catalogue. Qt asks the
+    most recently installed translator first, so this one wins wherever it
+    has an answer and falls through to qtbase where it has none."""
+    global _button_translator
+    names = {w: _catalog[w] for w in STANDARD_BUTTON_LABELS
+             if isinstance(_catalog.get(w), str) and _catalog[w]}
+    if not names or _JsonQtTranslator is None:
+        return
+    t = _JsonQtTranslator(names, app)
+    app.installTranslator(t)
+    _button_translator = t
+    log.info("Standard buttons follow the catalogue for %r: %s",
+             _language, ", ".join(sorted(names)))
+
+
+def remove_qt_translators(app) -> None:
+    """Take out what `install_qt_translator` put in (a test, or a language
+    switch inside one process, starts again from Qt's English)."""
+    global _qt_translator, _button_translator
+    for t in (_button_translator, _qt_translator):
+        if t is not None:
+            app.removeTranslator(t)
+    _qt_translator = _button_translator = None
 
 
 # Qt-internal contexts whose user-visible strings the fallback covers.
@@ -383,8 +431,8 @@ def _make_json_qt_translator():
     from PyQt6.QtCore import QTranslator
 
     class _JsonQtTranslator(QTranslator):
-        """Answers Qt-internal lookups from a plain dict; returning an
-        empty string lets Qt fall through to the untranslated source."""
+        """Answers Qt-internal lookups from a plain dict; returning a
+        null string (None) lets Qt fall through to the untranslated source."""
 
         def __init__(self, catalog: dict, parent=None):
             super().__init__(parent)
@@ -394,9 +442,16 @@ def _make_json_qt_translator():
             return False
 
         def translate(self, context, source, disambiguation=None, n=-1):
+            # None, not "": PyQt hands "" to Qt as an EMPTY string, which
+            # Qt takes as the answer, so every Qt string the catalogue does
+            # not hold came out blank (Norwegian's line-edit menu read
+            # "", "", "" for Undo, Cut, Copy). None is Qt's null string,
+            # and a null answer is what lets the next translator, or the
+            # English source, speak instead.
             if context in _QT_FALLBACK_CONTEXTS:
-                return self._catalog.get(source, "")
-            return ""
+                found = self._catalog.get(source)
+                return found if found else None
+            return None
 
     return _JsonQtTranslator
 
