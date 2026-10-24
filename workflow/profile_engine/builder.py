@@ -1692,8 +1692,6 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 # near black); the column is put back exactly after the
                 # refit, as a17-colpin does.
                 _a80_pin = True
-                _emit(settings, "Grey walk check (a80-colpin): neutral "
-                                "column pinned after the refit.")
             _emit(settings, f"Grey walk check (a80-greywalk): ink jump "
                             f"{_j80:.2f}/L* near the black, measured fold "
                             + (f"{_m80:+.1f}" if _m80 is not None else "n/a")
@@ -2049,6 +2047,31 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         dev_clut_shaped = dev_clut_shaped.copy()
         dev_clut_shaped[fixed_nodes] = model.shape_device(
             dev_clut[fixed_nodes])
+    if (_a80_pin and fixed_nodes is not None and len(fixed_nodes)
+            and "a17-colpin" not in candidates
+            and "a34-blackseam-pin" not in candidates):
+        # Agent 80 (a80-colpin): pin only where the refit really moved the
+        # column (model dE76 between the refit's and the walk's device at a
+        # column node above the neutral black; i1iSis full chart 4.5, the
+        # fold-free XKB sets 0.5-0.8, where pinning only added a seam)
+        _cn = np.asarray(fixed_nodes)
+        _cn = _cn[(np.hypot(node_lab[_cn, 1], node_lab[_cn, 2]) < 1.0)
+                  & (node_lab[_cn, 0] >= (float(axis["l_black"])
+                                          if axis is not None and
+                                          axis.get("l_black") is not None
+                                          else 0.0))]
+        _drift = 0.0
+        if len(_cn):
+            _drift = float(np.max(np.linalg.norm(
+                model.predict(np.clip(model.unshape_device(
+                    dev_clut_shaped[_cn]), 0.0, 1.0))
+                - model.predict(np.clip(dev_clut[_cn], 0.0, 1.0)), axis=1)))
+        _tol80 = float(os.environ.get("CHROMIQ_A80_PINTOL")
+                       or b2a_mod.A80_PINTOL)
+        _a80_pin = _drift >= _tol80
+        _emit(settings, f"Grey walk check (a80-colpin): refit column drift "
+                        f"{_drift:.2f} dE: "
+                        + ("pinned." if _a80_pin else "left as it is."))
     if (("a17-colpin" in candidates or "a34-blackseam-pin" in candidates
          or _a80_pin)
             and fixed_nodes is not None
