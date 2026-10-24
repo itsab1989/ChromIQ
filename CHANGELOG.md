@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.3.11
+
+**For everyone updating from 4.3.10: a fix release. Russian, Ukrainian and Polish now count correctly for every number, the warning for a whole strip read one or two patches out says which way it slipped and names the patches, the windows at the end of a measurement explain every button by its real name, and greyed-out ticked boxes show their tick. Your measurements are read and saved exactly as before.**
+
+### Changed
+- **Russian, Ukrainian and Polish count correctly for every number.** These languages use three forms after a number (in Russian "21 патч", "22 патча", "25 патчей"), and ChromIQ knew only two, so counts like 21, 22 or 101 read wrongly in about 170 to 200 texts per language. They now use the right form everywhere. Other languages are unchanged.
+- **The warning for a strip read one or two patches out of place, as a whole,** now says whether the reading started too early or too late, names the patches that hold the wrong readings and the patch that read the white paper, and gives the colour differences in ΔE00 like the rest of ChromIQ. Before, it showed the same text for both directions. The same goes for a strip filed back to front that also slipped: it says by how many patches. The buttons and what they do are unchanged. (New texts, shown and waiting for approval.)
+- **The windows at the end of a measurement explain every button by the name it really has.** After re-reading strips or patches, "Re-measurement Complete" spoke of a "Build Profile" button the window does not have; it now explains "Go to Build Profile Tab →" (it saves and opens the tab; the profile is built there when you press Build Profile), "Close" and "Continue Measuring Manually". "All Strips Read", "All Patches Read" and "Calibration Measurement Complete" now explain "Close" too. (New texts, shown and waiting for approval.)
+- **Two is "both", and one is "one".** Texts like "All 2 chart strips have been re-measured" now read "Both chart strips have been re-measured", in the re-read windows, the delete texts for verifications, Check & Refine, the noise texts and the import messages.
+- **Create Chart: the paper "10 × 15 cm (100 × 150 mm)" lists the presets made for a custom 100 × 150 mm paper**, among them Knut's photo cards, when the list is filtered by paper size. They stay as they were saved and load exactly as before.
+- **More texts are translated:** the chart editor's save summary and "Loaded …" note, the ArgyllCMS check in Preferences, the guided refinement lines in the log, every error when a scanner target cannot be made, and a few status messages showed in English in every language.
+
+### Fixed
+- **A greyed-out box that is ticked shows its tick**, everywhere in the app and in light, dark and neutral. Some showed no tick at all, so an option that was on looked off, and in dark mode and on the coloured tabs the greyed tick was very faint.
+- **The Dutch slip texts** read "maar maar" and now read correctly.
+
 ## v4.3.10
 
 **For everyone updating from 4.3.9: ChromIQ now notices when a strip was read one patch out of place, even only a few patches of it, and names that strip in the Measurement Report. Measuring can pause after each page so you can look it over. A chart a little too large for small photo paper prints at full size when only empty margin goes over the edge. And Check & Refine checks a profile against a verification print. One fix matters for everyone: a press of the instrument's button while the window at the end of a measurement is open no longer reads a strip or patch again behind that window.** The beta entry below has the first part of these changes.
