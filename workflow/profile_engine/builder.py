@@ -244,7 +244,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 82: RGB colorimetric greens, clipped nodes near the black (fine
      # table) and at the green cusp (coarse table) smoothed
      # (purecolprof.a82_dark / a82_coarse); research, opt-in
-     "a82-green", "a82-greencusp"})
+     "a82-green", "a82-greencusp", "a82-greenin"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -2358,6 +2358,27 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     pale=_a58m.a63_pale(
                         candidates, node_lab,
                         float(model.predict(np.ones((1, n)))[0, 0])))
+                if _a58m.a82_in(candidates) is not None:
+                    # Research Agent 82 (a82-greenin): the inward hand-over
+                    # on green target hues only
+                    _tin = _a58m.coarse_outside(
+                        _a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
+                                       candidates),
+                        _sub, residual, b2a_grid, _g0,
+                        band=_a58m.a59_band(candidates),
+                        inside=_a58m.a82_in(candidates),
+                        dark=_a58m.a60_dark(
+                            candidates, node_lab,
+                            float(model.predict(np.zeros((1, n)))[0, 0])),
+                        pale=_a58m.a63_pale(
+                            candidates, node_lab,
+                            float(model.predict(np.ones((1, n)))[0, 0])))
+                    _tab = np.where(_a58m._a82_hue_mask(
+                        np.asarray(node_lab, float), _a58m.A82["hue"])[:, None],
+                        _tin, _tab)
+                    _emit(settings, "Colorimetric table: printable greens "
+                                    "next to the gamut edge lean toward the "
+                                    "colprof grid (research a82-greenin).")
                 if _a82p is not None:
                     # Research Agent 82 (a82-green): the written table's
                     # clipped green nodes near the black smoothed

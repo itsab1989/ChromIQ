@@ -682,6 +682,21 @@ def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
 # proposed (Findings/agent82-01 s3).
 A82_TOKEN = "a82-green"
 A82_CUSP_TOKEN = "a82-greencusp"
+# a82-greenin (separate, research): printable green nodes within A82_IN dE of
+# a clipped node lean toward the coarse table (Agent 59's inward hand-over,
+# a59-inband, on green target hues only): the turn where a green ramp leaves
+# the gamut is rounded the way colprof's grid rounds it, at the cost of
+# exactness of printable greens next to the gamut edge (Okt26 green h120's
+# two faint bands, ET-8550 h105).
+A82_IN_TOKEN = "a82-greenin"
+A82_IN = (10.0, 1.0)
+
+
+def a82_in(candidates):
+    """(depth, strength) with a82-greenin on, else None."""
+    if A82_IN_TOKEN not in frozenset(candidates or ()):
+        return None
+    return A82_IN
 A82 = {"hue": (90.0, 170.0), "dark_l": 20.0, "dark_f": 5.0, "dark_r0": 1.0,
        "dark_iters": 2, "co_rmin": 4.0, "co_iters": 2, "co_lmin": 30.0,
        "co_top": 10.0}

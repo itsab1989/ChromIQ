@@ -59,3 +59,10 @@ def test_coarse_cusp_is_rounded_only_on_clipped_green_nodes():
     assert np.array_equal(out[~sel], sub[~sel])
     k = int(np.flatnonzero(sel & (np.abs(nlc[:, 0] - 56.25) < 1e-6))[0])
     assert out[k, 0] < sub[k, 0]                    # the peak node is lowered (rounded)
+
+
+def test_greenin_is_registered_off_and_hue_scoped():
+    assert P.A82_IN_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
+    assert P.A82_IN_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
+    assert P.a82_in(builder.ACCURATE_DEFAULT_TOKENS) is None
+    assert P.a82_in({P.A82_IN_TOKEN}) == P.A82_IN
