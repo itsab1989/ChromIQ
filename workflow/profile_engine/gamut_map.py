@@ -1184,6 +1184,43 @@ def a79_dark_path(dev: np.ndarray, node_lab: np.ndarray) -> np.ndarray:
     return out
 
 
+def a79_neutralise(model, dev: np.ndarray, node_lab: np.ndarray, *,
+                   ink_limit: float | None = None,
+                   channel_max: np.ndarray | None = None,
+                   iters: int = 6) -> np.ndarray:
+    """Research a79-perccol: the source-neutral column at and above
+    a79_la() keeps the oracle's K (its separation, the one its neighbours
+    share) while C, M, Y move so the model prints it neutral at the same
+    L* (Gauss-Newton, K held, box and ink limit kept). colprof's K-led
+    perceptual greys are tinted (i1iSis saturation neutral C* 0.63 vs the
+    colorimetric axis 0.25); the correction is small (i1iSis: <= 0.04)."""
+    col = np.flatnonzero(np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+    col = col[(node_lab[col, 0] >= a79_la()) & (node_lab[col, 0] < 99.0)]
+    if not len(col):
+        return dev
+    out = np.asarray(dev, float).copy()
+    d = out[col].copy()
+    tgt = model.predict(d)
+    tgt[:, 1:] = 0.0
+    hi = np.ones(d.shape[1]) if channel_max is None else np.asarray(
+        channel_max, float)
+    h = 2e-3
+    for _ in range(iters):
+        r = model.predict(d) - tgt
+        jac = np.stack([(model.predict(d + h * np.eye(d.shape[1])[k])
+                         - model.predict(d - h * np.eye(d.shape[1])[k]))
+                        / (2 * h) for k in range(3)], 2)
+        try:
+            step = np.linalg.solve(jac + 1e-6 * np.eye(3), -r[:, :, None])[:, :, 0]
+        except np.linalg.LinAlgError:
+            break
+        d[:, :3] = np.clip(d[:, :3] + 0.8 * step, 0.0, hi[None, :3])
+        if ink_limit is not None:
+            d = b2a_mod.project_tac(d, ink_limit / 100.0)
+    out[col] = d
+    return out
+
+
 def a79_identity_output(blob: bytes) -> bytes:
     """Research a79-lincurve: the same mft2 (Lut16) table with identity
     output curves: every CLUT entry decoded through its output curve to the
@@ -1587,6 +1624,10 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             if _a79:
                 # Research a79-perccol: the oracle's own column, and below
                 # a79_la() one straight path into the oracle's black
+                dev = a79_neutralise(model, dev, node_lab,
+                                     ink_limit=None if is_additive
+                                     else ink_limit,
+                                     channel_max=channel_max)
                 dev = a79_dark_path(dev, node_lab)
             _ax = neutral_axis() if callable(neutral_axis) else neutral_axis
             if (_neutral_col is not None and len(_neutral_col)
