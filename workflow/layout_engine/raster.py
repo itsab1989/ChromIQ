@@ -476,25 +476,30 @@ def strip_label_crowding(geom, kw: dict) -> "StripLabelCrowding | None":
 # a coloured rule that slid onto the neighbouring strip would name the wrong
 # one.
 #
-# TWO LIMITS, AND THE SAME TWO ON SCREEN AND ON PAPER. The renderer and the
-# panel both ask `_strip_label_x_limits_px`, so the notice under "Measured
-# from Preview" describes the sheet that is printed:
+# WHY PEOPLE ASK FOR IT, AND SO WHY THERE IS NO "OWN STRIP" LIMIT (Basti,
+# 2026-10-24, on review): users move the letters OUT OF THE INSTRUMENT'S WAY,
+# usually together with a smaller label, so the opening that reads the strip
+# does not start on a letter. On an i1Pro (5 mm opening, 8 mm strips) a small
+# letter clears both its own strip's path and the next one's only near the
+# line between the two strips, and a half-strip cap would have stopped it at
+# exactly the place it is wanted. So the letters may go anywhere on the paper,
+# and when one ends up nearer to the next strip than to its own, the panel
+# says so gently (`StripLabelShift.near_neighbour`, M-CHART-STRIP-LABELS-X-
+# NEAR-NEIGHBOUR) instead of refusing it.
 #
-# 1. A letter never leaves its own strip: its middle stays above its own
-#    column of patches, so at most half the strip's width either way. Further
-#    than that and the letter stands over the NEIGHBOURING strip, which is
-#    where a reader would look for it, and a strip read under the wrong name
-#    is a wrong profile.
-# 2. The outermost letters stay on the paper, as far in from the left and
-#    right paper edges as the side text is held ("Clip" under "Text distance
-#    from edge", or the ruler helper markers when they are printed down the
-#    sides: `text_edge_fit.geom_side_text_edge_mm`), and off a clip border
-#    that has something printed in it.
+# ONE LIMIT, AND THE SAME ON SCREEN AND ON PAPER. The renderer and the panel
+# both ask `_strip_label_x_limits_px`, so the notice under "Measured from
+# Preview" describes the sheet that is printed: the outermost letters stay on
+# the paper, as far in from the left and right paper edges as the side text
+# is held ("Clip" under "Text distance from edge", or the ruler helper markers
+# when they are printed down the sides: `text_edge_fit.geom_side_text_edge_mm`),
+# and off a clip border that has something printed in it. A letter is never
+# cut off the sheet and never printed into the clip border's content.
 #
-# Neither limit can move a letter that was not asked to move: each one is
-# capped at 0 in the direction it does not apply, so a sheet whose letters
-# already sit closer to an edge than the rule (some built-ins do) prints at 0
-# exactly as before.
+# The limit cannot move a letter that was not asked to move: it is capped at 0
+# in the direction it does not apply, so a sheet whose letters already sit
+# closer to an edge than the rule (some built-ins do) prints at 0 exactly as
+# before.
 
 
 @dataclass(frozen=True)
@@ -503,40 +508,93 @@ class StripLabelShift:
 
     ``asked_mm`` is the box, ``used_mm`` what is printed; ``left_mm`` and
     ``right_mm`` are how far they can go each way here (both >= 0);
-    ``held_by`` is "strip" when the own-strip limit binds, "edge" when the
-    paper edge or the clip border does, and "" when nothing is held."""
+    ``held_by`` is "edge" when the paper edge or the clip border stops them
+    and "" when nothing does. ``pitch_mm`` is the distance from one strip to
+    the next (0 with a single strip), and ``near_neighbour`` says that, at
+    ``used_mm``, a letter stands nearer to the next strip than to its own."""
     asked_mm: float
     used_mm: float
     left_mm: float
     right_mm: float
     held_by: str
+    pitch_mm: float = 0.0
+    near_neighbour: bool = False
 
     @property
     def held(self) -> bool:
         return bool(self.held_by)
 
 
-def _strip_label_width_px(labels, font, spc: int, rot: int) -> int:
-    """The widest of *labels* across the page, as the renderer draws them."""
+def _strip_label_ink_reach_px(labels, font, spc: int, rot: int
+                              ) -> "tuple[int, int]":
+    """``(left, right)``: how far the INK of the widest of *labels* reaches
+    left and right of the point the renderer centres it on, in pixels.
+
+    Measured off the glyphs exactly as `render_pages` draws them (upright
+    through `_draw_indicator`, turned through `_indicator_tile` placed at
+    ``cx - tile.width // 2``), not from the advance width or the tile box: a
+    turned tile is as wide as the font's whole ascent plus descent, about
+    2 mm more than a turned capital inks at the default size, and a limit
+    worked out from the box stopped the letters that much short of the
+    paper edge (review, 2026-10-24)."""
     rot = int(rot or 0) % 360
-    if rot in (90, 270):
-        # A turned tile is as wide as an upright one is tall (`_indicator_tile`).
-        try:
-            asc, desc = font.getmetrics()
-        except Exception:      # noqa: BLE001 - default bitmap font
-            asc, desc = 12, 3
-        return int(asc + desc + 4)
-    probe = ImageDraw.Draw(Image.new("L", (4, 4)))
-    best = 0.0
-    seen: dict = {}
+    left = right = 0
+    seen: set = set()
     for t in labels:
-        if t in seen:
+        if t in seen or not t:
             continue
-        w = sum(probe.textlength(ch, font=font) for ch in t) \
-            + (spc * (len(t) - 1) if len(t) > 1 else 0)
-        seen[t] = w
-        best = max(best, w)
-    return int(round(best)) + (4 if rot == 180 else 0)
+        seen.add(t)
+        if rot == 0:
+            pad = 4 * max(1, int(getattr(font, "size", 12) or 12))
+            w = pad * (len(t) + 2)
+            im = Image.new("L", (w, pad * 2), 0)
+            _draw_indicator(_GreyInk(ImageDraw.Draw(im)), w // 2, pad // 2, t,
+                            font, spc)
+            box = im.getbbox()
+            if box is None:
+                continue
+            left = max(left, w // 2 - box[0])
+            right = max(right, box[2] - w // 2)
+        else:
+            tile = _indicator_tile(t, font, spc, rot)
+            box = tile.getchannel("A").getbbox()
+            if box is None:
+                continue
+            left = max(left, tile.width // 2 - box[0])
+            right = max(right, box[2] - tile.width // 2)
+    return int(left), int(right)
+
+
+def _strip_label_edge_reach_px(label, n_total: int, n_first: int, font,
+                               spc: int, rot: int) -> "tuple[int, int]":
+    """``(left, right)`` ink reach that matters at the two sides: the LEFT
+    reach of the letters printed in the first column of a page, and the RIGHT
+    reach of those in the last column (and of the last page's last strip,
+    which may sit further in). Taking every label for both sides held turned
+    letters on a multi-page chart up to 1.4 mm short of the edge, for a wider
+    letter that is never printed there (review sweep, 2026-10-24)."""
+    n_total, n_first = max(1, int(n_total)), max(1, int(n_first))
+    first = [label(i + 1) for i in range(0, n_total, n_first)]
+    last = [label(i + 1) for i in range(n_first - 1, n_total, n_first)]
+    last.append(label(n_total))
+    return (_strip_label_ink_reach_px(first, font, spc, rot)[0],
+            _strip_label_ink_reach_px(last, font, spc, rot)[1])
+
+
+class _GreyInk:
+    """`ImageDraw` on an "L" probe that inks 255 whatever fill it is handed,
+    so `_draw_indicator`'s black RGB fill shows up on the probe."""
+
+    def __init__(self, draw):
+        self._d = draw
+
+    def text(self, xy, text, font=None, fill=None, anchor=None):
+        if anchor is None:
+            return self._d.text(xy, text, font=font, fill=255)
+        return self._d.text(xy, text, font=font, fill=255, anchor=anchor)
+
+    def textlength(self, text, font=None):
+        return self._d.textlength(text, font=font)
 
 
 def _strip_label_side_bounds_mm(geom, clip_content_mode: str,
@@ -557,27 +615,35 @@ def _strip_label_side_bounds_mm(geom, clip_content_mode: str,
 
 
 def _strip_label_x_limits_px(*, page_w_px: int, first_x0: int, first_xr: int,
-                             last_x0: int, last_xr: int, label_w_px: int,
-                             left_bound_px: int, right_bound_px: int
-                             ) -> "tuple[int, int, int, int]":
-    """``(lo, hi, lo_strip, hi_strip)``: the shift range in pixels (lo <= 0 <=
-    hi) and the own-strip half of it, for the comment block above."""
-    half = max(0, (first_xr - first_x0) // 2)
+                             last_x0: int, last_xr: int, reach_left_px: int,
+                             reach_right_px: int, left_bound_px: int,
+                             right_bound_px: int) -> "tuple[int, int]":
+    """``(lo, hi)``: the shift range in pixels, lo <= 0 <= hi, that keeps the
+    first strip's letter ink right of *left_bound_px* and the last one's left
+    of the right bound (see the comment block above). The letters are centred
+    on ``x0 + (xr - x0) // 2``, as `render_pages` centres them, and reach
+    *reach_left_px* / *reach_right_px* either side of that
+    (`_strip_label_ink_reach_px`)."""
     cx0 = first_x0 + (first_xr - first_x0) // 2
     cxn = last_x0 + (last_xr - last_x0) // 2
-    lo_edge = min(0, left_bound_px - (cx0 - label_w_px // 2))
-    hi_edge = max(0, (page_w_px - right_bound_px)
-                  - (cxn + (label_w_px - label_w_px // 2)))
-    return max(lo_edge, -half), min(hi_edge, half), -half, half
+    lo = min(0, left_bound_px - (cx0 - reach_left_px))
+    hi = max(0, (page_w_px - right_bound_px) - (cxn + reach_right_px))
+    return lo, hi
 
 
-def _clamp_shift(asked_px: int, lo: int, hi: int, lo_strip: int,
-                 hi_strip: int) -> "tuple[int, str]":
+def _clamp_shift(asked_px: int, lo: int, hi: int) -> "tuple[int, str]":
     used = min(max(asked_px, lo), hi)
-    if used == asked_px:
-        return used, ""
-    bound = lo if asked_px < lo else hi
-    return used, ("strip" if bound in (lo_strip, hi_strip) else "edge")
+    return used, ("" if used == asked_px else "edge")
+
+
+def _nearer_the_next_strip(used_px: int, pitch_px: int) -> bool:
+    """True when a letter moved by *used_px* stands nearer to the strip beside
+    it than to its own: past half the strip-to-strip distance. Never with a
+    single strip, which has no neighbour to be mistaken for. One pixel of
+    grace, so a letter put exactly on the line between two strips (the place
+    the instrument's path leaves free, see the comment block above) is not
+    called nearer to either."""
+    return pitch_px > 0 and 2 * abs(int(used_px)) > int(pitch_px) + 1
 
 
 def strip_label_x_shift(geom, kw: dict) -> "StripLabelShift | None":
@@ -612,9 +678,9 @@ def strip_label_x_shift(geom, kw: dict) -> "StripLabelShift | None":
         label = permutation.make_labeller(
             str(kw.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN),
             str(kw.get("label_rule") or permutation.ARGYLL))
-        lw = _strip_label_width_px([label(n) for n in range(1, n_total + 1)],
-                                   font, spc, int(kw.get("indicator_rotation")
-                                                  or 0))
+        reach_l, reach_r = _strip_label_edge_reach_px(
+            label, n_total, n_first, font, spc,
+            int(kw.get("indicator_rotation") or 0))
     except Exception:            # noqa: BLE001 - a notice never blocks a build
         return None
 
@@ -623,16 +689,19 @@ def strip_label_x_shift(geom, kw: dict) -> "StripLabelShift | None":
 
     lb, rb = _strip_label_side_bounds_mm(
         geom, str(kw.get("clip_content_mode") or "off"), float(w_mm))
-    lo, hi, lo_s, hi_s = _strip_label_x_limits_px(
+    lo, hi = _strip_label_x_limits_px(
         page_w_px=max(1, px(float(w_mm))),
         first_x0=px(place.x_of(0)), first_xr=px(place.x_of(0) + place.pwid),
         last_x0=px(place.x_of(n_first - 1)),
         last_xr=px(place.x_of(n_first - 1) + place.pwid),
-        label_w_px=lw, left_bound_px=px(lb), right_bound_px=px(rb))
-    used, why = _clamp_shift(px(asked), lo, hi, lo_s, hi_s)
+        reach_left_px=reach_l, reach_right_px=reach_r,
+        left_bound_px=px(lb), right_bound_px=px(rb))
+    used, why = _clamp_shift(px(asked), lo, hi)
+    pitch_px = (px(place.x_of(1)) - px(place.x_of(0))) if n_total > 1 else 0
     return StripLabelShift(asked_mm=asked, used_mm=used / mm2px,
                            left_mm=-lo / mm2px, right_mm=hi / mm2px,
-                           held_by=why)
+                           held_by=why, pitch_mm=pitch_px / mm2px,
+                           near_neighbour=_nearer_the_next_strip(used, pitch_px))
 
 
 #: How many labels the ink probe below walks. The alphabetic labeller reaches
@@ -2559,27 +2628,28 @@ def render_pages(
     # offset (mm) nudges the labels up (negative, toward the top margin) or down,
     # together with their underline (#93).
     _lbl_top = px(place.leader_top + strip_label_offset_mm)
-    # …AND SIDEWAYS, by "Label offset" X, within the two limits described at
-    # `StripLabelShift`. One shift for every strip on every page, so the
-    # letters keep their spacing; 0 unless the box asks for something, so a
-    # chart that does not use it draws exactly the pixels it always did.
+    # …AND SIDEWAYS, by "Label offset" X, held only by the paper edge and a
+    # clip border with content (see `StripLabelShift`). One shift for every
+    # strip on every page, so the letters keep their spacing; 0 unless the box
+    # asks for something, so a chart that does not use it draws exactly the
+    # pixels it always did.
     _lbl_dx = 0
     if draw_indicators and strip_label_offset_x_mm:
         _n_first = max(1, -(-min(total, pppage) // steps))
         _lb_mm, _rb_mm = _strip_label_side_bounds_mm(
             geom, clip_content_mode, paper_w_mm)
-        _xlo, _xhi, _xlo_s, _xhi_s = _strip_label_x_limits_px(
+        _reach = _strip_label_edge_reach_px(
+            label_strip, _n_total_strips, _n_first, font, _spc,
+            indicator_rotation)
+        _xlo, _xhi = _strip_label_x_limits_px(
             page_w_px=W,
             first_x0=px(place.x_of(0)),
             first_xr=px(place.x_of(0) + place.pwid),
             last_x0=px(place.x_of(_n_first - 1)),
             last_xr=px(place.x_of(_n_first - 1) + place.pwid),
-            label_w_px=_strip_label_width_px(
-                [label_strip(_i + 1) for _i in range(_n_total_strips)],
-                font, _spc, _rot),
+            reach_left_px=_reach[0], reach_right_px=_reach[1],
             left_bound_px=px(_lb_mm), right_bound_px=px(_rb_mm))
-        _lbl_dx, _ = _clamp_shift(px(strip_label_offset_x_mm),
-                                  _xlo, _xhi, _xlo_s, _xhi_s)
+        _lbl_dx, _ = _clamp_shift(px(strip_label_offset_x_mm), _xlo, _xhi)
     _band_bottom = None
     if draw_indicators:
         # THE BAND MUST BOUND THE INK, NOT ONLY THE RESERVE. See
