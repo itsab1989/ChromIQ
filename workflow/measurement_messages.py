@@ -6569,6 +6569,28 @@ M_CHART_STRIP_LABELS_X_NEAR_NEIGHBOUR = _m(
     "\u26a0 With \u201cX\u201d next to \u201cLabel offset\u201d at {used} mm, each strip letter now stands nearer to the strip beside it than to its own strip (the strips are {pitch} mm apart). Someone reading the chart could take a letter for the name of the strip it now stands over. If you moved the letters on purpose, for example to keep them out of your instrument\u2019s path, you can leave it like this: just find each strip by its own letter when you measure. To put every letter back over its own strip, choose a value from -{half} to {half} mm.",
     approved=False)
 
+#: -IN-PATH / -IN-PATH-NO-ROOM (Basti's ruling, 2026-10-24): with the box not
+#: at 0, a strip letter whose ink lies in the path the instrument reads along
+#: the middle of a strip (its opening, `instruments.STRIP_READ_APERTURE_MM`)
+#: is pointed out, with a value of the box that clears every strip on every
+#: page, or, when none does, the advice to make the letters smaller. Never
+#: blocks anything. Shown under "Measured from Preview" beside the other
+#: strip-letter notices (`tab_chart.strip_label_x_path_notice`). {used}: what
+#: is printed, signed; {instrument}: the product name; {aperture}: its
+#: opening; {clear}: the suggested value, signed; {room}: the space between
+#: two neighbouring paths.
+M_CHART_STRIP_LABELS_X_IN_PATH = _m(
+    "M-CHART-STRIP-LABELS-X-IN-PATH",
+    "A strip letter sits in the instrument\u2019s path",
+    "\u26a0 With \u201cX\u201d next to \u201cLabel offset\u201d at {used} mm, some strip letters sit where your {instrument} reads. It measures through an opening about {aperture} mm wide that runs along the middle of each strip, and a letter in that path can spoil the reading of that strip. Nothing is stopped, and you can print the chart like this. To keep every letter beside the paths on this chart, choose {clear} mm for \u201cX\u201d.",
+    approved=False)
+
+M_CHART_STRIP_LABELS_X_IN_PATH_NO_ROOM = _m(
+    "M-CHART-STRIP-LABELS-X-IN-PATH-NO-ROOM",
+    "No value of \u201cX\u201d keeps the strip letters out of the instrument\u2019s path",
+    "\u26a0 With \u201cX\u201d next to \u201cLabel offset\u201d at {used} mm, some strip letters sit where your {instrument} reads. It measures through an opening about {aperture} mm wide that runs along the middle of each strip, and a letter in that path can spoil the reading of that strip. On this chart no value of \u201cX\u201d keeps every letter beside the paths: about {room} mm is left between two paths, and the letters are wider than that, or the side of the paper is too close. Make the letters smaller with the size next to \u201cFont:\u201d in the \u201cStrip and row indicators\u201d frame, and then this message suggests a value for \u201cX\u201d that works. Nothing is stopped, and you can print the chart like this.",
+    approved=False)
+
 # --- PROPOSED (4.3.5 beta 3, Knut #182 6144104040): the 3D tool's "Show:" help
 #: The approved-free tooltip of the colour view said "The lines and the faint
 #: skin are the edges and sides of everything the profile can print". The
@@ -7977,6 +7999,7 @@ CATALOGUE = {m.id: m for m in (
     M_HELP_COLOUR_VIEW_SEAMS, M_HELP_COLOUR_VIEW_LEGEND,
     M_CHART_STRIP_LABELS_CROWDED,
     M_CHART_STRIP_LABELS_X_HELD_EDGE, M_CHART_STRIP_LABELS_X_NEAR_NEIGHBOUR,
+    M_CHART_STRIP_LABELS_X_IN_PATH, M_CHART_STRIP_LABELS_X_IN_PATH_NO_ROOM,
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
     M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
     *CONVERT_MESSAGES,

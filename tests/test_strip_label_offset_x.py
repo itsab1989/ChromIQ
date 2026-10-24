@@ -467,9 +467,9 @@ def test_at_zero_the_limits_never_move_a_letter():
     """A chart whose letters already sit closer to an edge than the rule
     allows prints them where they always were."""
     lo, hi = raster._strip_label_x_limits_px(
-        page_w_px=1000, first_x0=10, first_xr=50, last_x0=950, last_xr=990,
-        reach_left_px=15, reach_right_px=15, left_bound_px=100,
-        right_bound_px=100)
+        page_w_px=1000, centres_px=[30, 970], pages=[(0, 1)],
+        reach={"A": (15, 15), "B": (15, 15)}, labels=["A", "B"],
+        left_bound_px=100, right_bound_px=100)
     assert lo == 0 == hi
     assert raster._clamp_shift(0, lo, hi) == (0, "")
 
@@ -539,3 +539,146 @@ def test_label_offset_is_greyed_with_the_strip_letters_off(qapp):
         assert p.strip_label_offset_x.isEnabled()
     finally:
         p.deleteLater()
+
+
+
+# ---------------------------------------------------------------------------
+# 5. the notice predicts exactly what prints (review, 2026-10-24)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("inst,paper,rot", [("p3", "Letter", 0),
+                                            ("p3", "Letter", 90),
+                                            ("CM", "A4", 0)])
+def test_the_notice_predicts_the_printed_shift_to_the_pixel(tmp_path, inst,
+                                                            paper, rot):
+    """A Letter i1Pro 3 Plus chart printed 0.3 mm further than its notice
+    said: the panel and the renderer each kept their arithmetic. Both now ask
+    `raster.strip_label_x_plan`; this holds them to the same pixel, measured
+    on the sheet, at an X the paper edge stops."""
+    from workflow.layout_engine import instruments
+
+    def rec(x):
+        r = default_recipe(inst, paper)
+        r.dpi, r.seed, r.layout_mode = DPI, 7, "patch_first"
+        r.indicator_rotation = rot
+        r.strip_label_offset_x_mm = x
+        return r
+    _b, m0 = _letters_of(tmp_path, rec(0.0))
+    _p, m = _letters_of(tmp_path, rec(50.0))
+    kw = dict(rec(50.0).build_kwargs(), area_target_count=_patch_count())
+    shift = raster.strip_label_x_shift(instruments.geom_from_build_kwargs(kw),
+                                       kw)
+    assert shift.held
+    assert _cols(m)[1] - _cols(m0)[1] == shift.used_px
+    assert shift.used_mm == pytest.approx(shift.used_px / (DPI / 25.4))
+
+
+def _letters_of(tmp_path, r):
+    from dataclasses import replace
+    on = _page(tmp_path, r)
+    off = _page(tmp_path, replace(r, show_strip_indicators=False))
+    return on, on != off
+
+
+# ---------------------------------------------------------------------------
+# 6. a letter in the instrument's reading path (Basti's ruling, 2026-10-24)
+# ---------------------------------------------------------------------------
+def test_the_openings_are_kept_in_one_place_and_the_help_uses_them():
+    from core.i18n import decimal_text
+    from ui.dialogs.layout_options_panel import LABEL_OFFSET_HELP as H
+    from workflow.layout_engine.instruments import STRIP_READ_APERTURE_MM as A
+    assert A == {"i1": 4.5, "p3": 8.0, "CM": 6.0}
+    assert f"opening about {A['i1']:g} mm wide" in H
+    assert f"its {A['p3']:g} mm opening" in H
+    assert f"opening of about {A['CM']:g} mm" in H
+    assert "suggests a value for X" in H and "never stops you" in H
+
+
+def _path_shift(x, **kw):
+    r = _recipe(x, **kw)
+    s, _kw = _shift(r)
+    return s
+
+
+SMALL = dict(indicator_size_mm=2.0)
+
+
+def test_half_the_strip_spacing_is_not_in_the_path():
+    """Small letters on the line between two strips: beside every path."""
+    s = _path_shift(4.0, **SMALL)
+    assert s is not None and s.instrument == "i1" and s.aperture_mm == 4.5
+    assert not s.in_path
+
+
+def test_a_letter_in_the_path_is_named_with_a_value_that_clears(tmp_path):
+    """At 1.5 mm the letters still stand in their own strip's path; the hint
+    offers a value, and that value, printed, really clears every path."""
+    from workflow.layout_engine import geometry, instruments, papers
+    s = _path_shift(1.5, **SMALL)
+    assert s.in_path and s.clear_mm is not None
+    again = _path_shift(s.clear_mm, **SMALL)
+    assert not again.in_path and not again.held
+    # measured on the sheet, against the i1Pro's 4.5 mm path
+    r = _recipe(s.clear_mm, **SMALL)
+    kw = dict(r.build_kwargs(), area_target_count=_patch_count())
+    g = instruments.geom_from_build_kwargs(kw)
+    w, h = papers.dimensions_mm(r.paper)
+    lay = geometry.compute(g, w, h, _patch_count())
+    place = geometry.placement(g, w, h, lay)
+    n = -(-min(lay.total_patches, lay.patches_per_page) // lay.steps_in_pass)
+    mm = DPI / 25.4
+    path = np.zeros(int(w * mm) + 2, bool)
+    for i in range(n):
+        x0, xr = round(place.x_of(i) * mm), round((place.x_of(i) + place.pwid) * mm)
+        c = x0 + (xr - x0) // 2
+        path[int(np.floor(c - 2.25 * mm)):int(np.ceil(c + 2.25 * mm)) + 1] = True
+    _p, m = _letters(tmp_path, x=s.clear_mm, **SMALL)
+    cols = m.any(axis=0)
+    assert not (cols & path[:cols.size]).any()
+
+
+def test_letters_too_wide_for_the_room_get_the_no_room_hint():
+    s = _path_shift(4.0, indicator_size_mm=6.0)
+    assert s.in_path and s.clear_mm is None
+    assert s.room_mm == pytest.approx(s.pitch_mm - 4.5)
+
+
+def test_no_path_hint_at_zero_or_without_a_known_opening():
+    assert _path_shift(0.0) is None
+    from workflow.layout_engine import instruments
+    r = default_recipe("CR30", "A4")
+    r.dpi = DPI
+    r.strip_label_offset_x_mm = 1.0
+    kw = dict(r.build_kwargs(), area_target_count=_patch_count())
+    s = raster.strip_label_x_shift(instruments.geom_from_build_kwargs(kw), kw)
+    assert s is not None and s.instrument == "" and not s.in_path
+
+
+def test_the_path_hint_words(qapp):
+    from ui.tabs.tab_chart import strip_label_x_path_notice as hint
+    S = raster.StripLabelShift
+    assert hint(None) is None
+    assert hint(S(4.0, 4.0, 9.0, 9.0, "", 8.0, False, False)) is None
+    t = hint(S(1.5, 1.5, 9.0, 9.0, "", 8.0, False, True, 4.0, 4.5, 3.5, "i1"))
+    assert "your i1Pro reads" in t and "about 4.5 mm wide" in t
+    assert "choose 4.0 mm" in t and "Nothing is stopped" in t
+    t = hint(S(1.5, 1.5, 9.0, 9.0, "", 8.0, False, True, None, 4.5, 3.5, "i1"))
+    assert "no value of" in t and "about 3.5 mm is left" in t
+    assert "Font:" in t and "Strip and row indicators" in t
+
+
+def test_the_preferences_group_no_longer_claims_all_new_charts():
+    src = (ROOT / "ui" / "dialogs" / "settings_dialog.py").read_text()
+    assert "Strip indicator style (all new charts)" not in src
+    assert "starting point for new " in src
+
+
+def test_the_suggested_value_sits_in_the_range_the_neighbour_hint_offers():
+    """Both hints on screen at once must not disagree: a value that clears
+    the paths is first looked for within -half..half, as the near-neighbour
+    hint words it (half the spacing, rounded down to the tenth)."""
+    import math
+    s = _path_shift(15.0, indicator_size_mm=2.0, margin_right=25.0,
+                    margins_explicit=True)
+    assert s.in_path and s.clear_mm is not None
+    half = math.floor(s.pitch_mm / 2.0 * 10.0) / 10.0
+    assert abs(s.clear_mm) <= half + 1e-9

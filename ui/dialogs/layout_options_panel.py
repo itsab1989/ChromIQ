@@ -54,6 +54,8 @@ _LABEL_STYLE_FIELDS = (
 #: `raster.StripLabelShift` for X, and the notices under "Measured from
 #: Preview" for Y. The worked example is measured, not assumed: on rendered
 #: i1Pro (8 mm strips, 4.5 mm opening) and i1Pro 3 Plus (16 mm, 8 mm) sheets
+#: (openings: `instruments.STRIP_READ_APERTURE_MM`, held to this text by
+#: `tests/test_strip_label_offset_x.py`)
 #: the letters' ink clears every strip's path at X = 4 and 8 mm
 #: (`~/Desktop/ChromIQ-work/2026-10-24_label_offset_x_review/aperture_check.txt`).
 #: A module constant so a test can hold it to those facts.
@@ -83,8 +85,12 @@ LABEL_OFFSET_HELP = (
     "i1Pro chart with 8 mm strips, X is 4 mm: the i1Pro 2 and i1Pro 3 read "
     "through an opening about 4.5 mm wide, so about 3.5 mm stays free between "
     "two paths. On an i1Pro 3 Plus chart with 16 mm strips, X is 8 mm, and "
-    "its 8 mm opening leaves about 8 mm free. The preview shows where the "
-    "letters land.\n\n"
+    "its 8 mm opening leaves about 8 mm free. A ColorMunki reads through an "
+    "opening of about 6 mm and is moved by hand, so give it a little more "
+    "room. If a letter still sits in a path, a message under “Measured from "
+    "Preview” says so and suggests a value for X that keeps every letter "
+    "beside the paths. It never stops you from printing. The preview shows "
+    "where the letters land.\n\n"
     "X is held back only at the sides of the paper: the first and last "
     "letters never come closer to the left or right edge than the side text "
     "distance (“Clip” under “Text distance from edge”, or the ruler helper "

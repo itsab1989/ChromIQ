@@ -6286,7 +6286,7 @@ class SettingsDialog(QDialog):
         btns.addStretch()
         v.addLayout(btns)
 
-        # ---- Strip indicator style (global; applies to all new charts) ----
+        # ---- Strip indicator style (the starting point for new charts) ----
         # The per-chart styling controls moved here from Create Chart (Knut #93):
         # font / size / style / rotation / alignment / offset / underline. These
         # are app-wide defaults for new charts; a saved preset still carries (and
@@ -6375,7 +6375,10 @@ class SettingsDialog(QDialog):
         ``_save``. The styling for every engine chart (presets don't override
         it — TabChart._current_layout_recipe overlays these values)."""
         s = self._settings
-        grp = QGroupBox(tr("Strip indicator style (all new charts)"), self)
+        # "(all new charts)" until 2026-10-24, which was untrue since
+        # 4.1.5-beta.6: a chart or preset with its own label style keeps it.
+        grp = QGroupBox(tr("Strip indicator style (starting point for new "
+                           "charts)"), self)
         g = QGridLayout(grp)
         g.setHorizontalSpacing(8)
         g.setVerticalSpacing(6)
