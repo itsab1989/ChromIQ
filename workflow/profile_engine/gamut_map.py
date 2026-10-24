@@ -799,6 +799,13 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
                 # colprof's own device values at the nodes, so the target
                 # can be re-expressed through the ENGINE's model.
                 out[tag].node_dev = _dev_at
+                # Research Agent 80 (a80-oraclecurve): colprof's own output
+                # curves of this table (read while the file exists)
+                try:
+                    out[tag].oracle_out = a80_lut_out_curves(
+                        Path(icc).read_bytes(), tag)
+                except Exception:       # noqa: BLE001 - research only
+                    out[tag].oracle_out = None
         if cache_key is not None:
             while len(_ORACLE_CACHE) >= _ORACLE_CACHE_MAX:
                 _ORACLE_CACHE.pop(next(iter(_ORACLE_CACHE)))
@@ -1243,6 +1250,67 @@ def a79_identity_output(blob: bytes) -> bytes:
     new = np.round(np.clip(dev, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
     ident = np.tile(icw._identity_table(noe), (nout, 1)).astype(">u2").tobytes()
     return b[:c0] + new + ident + b[c0 + 2 * cn + 2 * nout * noe:]
+
+
+A80_ORACLECURVE = "a80-oraclecurve"
+
+
+def a80_lut_out_curves(icc_bytes: bytes, tag: str):
+    """The output curves (nout x entries, 0..1) of an mft2 tag in a profile,
+    or None."""
+    import struct
+    b = bytes(icc_bytes)
+    n = struct.unpack(">I", b[128:132])[0]
+    for i in range(n):
+        sig, off, sz = struct.unpack(">4sII", b[132 + 12 * i:144 + 12 * i])
+        if sig == tag.encode():
+            d = b[off:off + sz]
+            if d[:4] != b"mft2":
+                return None
+            nin, nout, g = d[8], d[9], d[10]
+            nie, noe = struct.unpack(">HH", d[48:52])
+            c0 = 52 + nin * nie * 2 + 2 * nout * g ** nin
+            return (np.frombuffer(d[c0:c0 + 2 * nout * noe], dtype=">u2")
+                    .astype(float).reshape(nout, noe) / 65535.0)
+    return None
+
+
+def a80_oracle_output(blob: bytes, curves: np.ndarray) -> bytes:
+    """Research a80-oraclecurve: the same mft2 table re-encoded so its
+    output curves are ``curves`` (colprof's own for this table): every CLUT
+    entry is decoded to its device value and stored as the curve's inverse
+    of it. Node device values are unchanged (to the curve's resolution);
+    between nodes the CMM then interpolates in colprof's space, as colprof's
+    own table does (XFI targen2240 perceptual blue near black: ours blue,
+    darker, blue, black with linear or shaper-space curves; colprof smooth).
+    """
+    import struct
+    b = bytes(blob)
+    if b[:4] != b"mft2" or curves is None:
+        return blob
+    nin, nout, grid = b[8], b[9], b[10]
+    nie, noe = struct.unpack(">HH", b[48:52])
+    if np.asarray(curves).shape[0] != nout:
+        return blob
+    c0 = 52 + nin * nie * 2
+    cn = grid ** nin * nout
+    clut = np.frombuffer(b[c0:c0 + 2 * cn], dtype=">u2").astype(float).reshape(-1, nout) / 65535.0
+    outs = np.frombuffer(b[c0 + 2 * cn:c0 + 2 * cn + 2 * nout * noe],
+                         dtype=">u2").astype(float).reshape(nout, noe) / 65535.0
+    xs = np.linspace(0.0, 1.0, noe)
+    dev = np.stack([np.interp(clut[:, c], xs, outs[c]) for c in range(nout)], 1)
+    cv = np.asarray(curves, float)
+    xc = np.linspace(0.0, 1.0, cv.shape[1])
+    newc = np.empty_like(dev)
+    newo = np.empty((nout, noe))
+    for c in range(nout):
+        y = np.maximum.accumulate(cv[c])
+        y = y + np.linspace(0.0, 1e-9, len(y))   # strictly increasing
+        newc[:, c] = np.interp(dev[:, c], y, xc)
+        newo[c] = np.interp(xs, xc, cv[c])
+    new = np.round(np.clip(newc, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    ot = np.round(np.clip(newo, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    return b[:c0] + new + ot + b[c0 + 2 * cn + 2 * nout * noe:]
 
 
 def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
@@ -1795,6 +1863,16 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             out_tables=(np.tile(icw._identity_table(entries),
                                 (model.n_channels, 1)) if no_out_shaper
                         else icw.curves_to_tables(inv_curves, entries)))
+        if (accurate and tag == "B2A0" and A80_ORACLECURVE in getattr(
+                settings, "engine_candidates", frozenset())
+                and getattr(mapper, "oracle_out", None) is not None):
+            _axv = (neutral_axis() if callable(neutral_axis)
+                    else neutral_axis)
+            if _axv is not None and (_axv.get("a80") or {}).get("fired"):
+                out[tag] = a80_oracle_output(out[tag], mapper.oracle_out)
+                if progress:
+                    progress("Perceptual table: colprof's output curves "
+                             "(research a80-oraclecurve).")
         return tag
 
     from workflow.profile_engine import parallel

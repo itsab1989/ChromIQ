@@ -988,6 +988,143 @@ def _deepen_neutral_black(model: ForwardModel, axis: dict, *, step: float,
             "axis_tv": tv}
 
 
+# Research token "a80-greywalk" (Agent 80, Findings/agent80-01). The walk
+# above follows the late-GCR locus from paper white. On a CMYK printer whose
+# C+M+Y black is LIGHTER than K (an ink fold, even a mild one: XFI, the
+# i1iSis-like synthetic printer) the locus loads C/M/Y onto the ink-limit
+# face a few L* above the black (XFI targen2240: L* 27 C .77 M .76 Y .76 K
+# .71 at 300 %) and then the walk JUMPS to the K-led black within 1-2 L*
+# (L* 23: C .24 M .15 Y .13 K .91). The B2A column nodes sit 3.1 L* apart, so
+# the CMM blends the two separations, and on a folding printer that blend
+# prints LIGHTER than both ends: the grey ramp goes dark, light, dark (truth
+# +2.0 L* rel. col.; through a25-oracle-neutral the perceptual column too,
+# +4.6 L* on the demo layout). Here the dark end is re-walked from a join
+# point with the neutral K prior blended linearly from the walk's K at the
+# join to the black's K (the same continuation as _deepen_neutral_black, but
+# to the walk's OWN black): K rises steadily, C/M/Y come off the face
+# without a jump. Of the joins that reach the black the one with the least
+# ink total variation wins. Fires only when the walk jumps.
+A80_TOKEN = "a80-greywalk"
+A80_LINCURVE = "a80-lincurve"
+A80_COLPIN = "a80-colpin"
+A80_JUMP = 0.8        # ink change (sum of |d| over channels) per L* that is a jump
+A80_SPAN = 20.0       # L* above the neutral black searched for a jump
+A80_JOIN_TOP = 30.0   # L* above the black: lightest join tried
+A80_END = 1.5        # L*: a re-walk that stops this close to the black hands over to it
+
+
+def a80_walk_jump(axis: dict, *, span: float = A80_SPAN) -> float:
+    """Largest ink change per L* (sum over channels) along the walk within
+    ``span`` L* above its neutral black (0 when there is no black)."""
+    if axis.get("l_black") is None:
+        return 0.0
+    ls = np.asarray(axis["l"], float)
+    dv = np.asarray(axis["dev"], float)
+    ok = np.asarray(axis["ok"], bool)
+    last = int(np.flatnonzero(ok)[-1])
+    sel = np.flatnonzero((ls <= axis["l_black"] + span)
+                         & (np.arange(len(ls)) <= last))
+    if len(sel) < 2:
+        return 0.0
+    dl = np.abs(np.diff(ls[sel]))
+    return float(np.max(np.abs(np.diff(dv[sel], axis=0)).sum(1)
+                        / np.maximum(dl, 1e-9)))
+
+
+A80_FLOOR = (5.0, 15.0)   # K floor full up to K-only black + 5 L*, gone at + 15
+
+
+def a80_k_alone(model: ForwardModel, l_axis: np.ndarray, ki: int):
+    """K alone that prints each target L* (1 below the K-only black) and the
+    K-only black's L*."""
+    n = model.n_channels
+    ks = np.linspace(0.0, 1.0, 401)
+    dk = np.zeros((len(ks), n))
+    dk[:, ki] = ks
+    lk = np.minimum.accumulate(model.predict(dk)[:, 0])
+    kal = np.interp(l_axis, lk[::-1], ks[::-1])
+    return np.where(l_axis > lk[-1], kal, 1.0), float(lk[-1])
+
+
+def a80_rewalk(model: ForwardModel, axis: dict, *, step: float = 0.5,
+               kw: dict, join_top: float = A80_JOIN_TOP,
+               join_step: float = 1.0, floor=A80_FLOOR) -> dict:
+    """The a80-greywalk re-walk (see above). Returns the axis unchanged when
+    no join reaches the black or none lowers the total variation. With
+    ``floor`` (l_full, l_gone) the K prior near the black is at least the K
+    that prints the target alone (a74-kfloor's rule): on a folding printer a
+    little colour ink on heavy K LIGHTENS it, so a K-led path with C/M/Y
+    only neutralising is the one that darkens steadily."""
+    letters = kw.get("channel_letters") or []
+    if "K" not in letters or axis.get("black") is None:
+        return axis
+    ki = letters.index("K")
+    kw = {k: v for k, v in kw.items()
+          if k not in ("node_lab", "progress", "seed", "k_prior")}
+    ls = np.asarray(axis["l"], float)
+    dev_f = np.asarray(axis["dev"], float)
+    ok_f = np.asarray(axis["ok"], bool)
+    lb = float(axis["l_black"])
+    last0 = int(np.flatnonzero(ok_f)[-1])
+    black = np.asarray(axis["black"], float)
+    tv0 = float(np.abs(np.diff(dev_f[:last0 + 1], axis=0)).sum())
+    joins = [int(j) for j in np.flatnonzero(
+        ok_f & (ls >= lb + 2.0) & (ls <= lb + join_top)
+        & (np.abs(np.round(ls / join_step) * join_step - ls) < step / 2))]
+    best = None
+    if floor is not None:
+        kal, lkb = a80_k_alone(model, ls, ki)
+        x = np.clip((lkb + floor[1] - ls) / max(floor[1] - floor[0], 1e-6),
+                    0.0, 1.0)
+        wf = x * x * (3.0 - 2.0 * x)
+    for j in sorted(joins, reverse=True):
+        kc = np.interp(ls, [lb, ls[j]], [black[ki], dev_f[j, ki]])
+        if floor is not None:
+            kc = kc + wf * np.maximum(kal - kc, 0.0)
+        o = np.argsort(ls)
+        k_curve = {"l_axis": ls[o], "k_curve": kc[o], "neutral_only": True}
+        dev_s = dev_f.copy()
+        ok_s = ok_f.copy()
+        cur = dev_f[j][None, :].copy()
+        good = True
+        i = j + 1
+        while i <= last0:
+            d, r = invert_to_device(model, np.array([[ls[i], 0.0, 0.0]]),
+                                    seed=cur.copy(), k_prior=k_curve, **kw)
+            okv, _ = _neutral_ok(model, d, r)
+            if not okv[0]:
+                if ls[i] < lb + A80_END:
+                    # the last L* above the black: hand over to the walk's
+                    # own black in a straight device line
+                    i0 = i - 1
+                    for q in range(i, last0 + 1):
+                        t = (ls[i0] - ls[q]) / max(ls[i0] - ls[last0], 1e-9)
+                        dev_s[q] = (1.0 - t) * dev_s[i0] + t * black
+                        ok_s[q] = True
+                    break
+                good = False
+                break
+            dev_s[i], ok_s[i] = d[0], True
+            cur = d
+            i += 1
+        if not good:
+            continue
+        tv = float(np.abs(np.diff(dev_s[:last0 + 1], axis=0)).sum())
+        if best is None or tv < best[0] - 1e-9:
+            best = (tv, j, dev_s, ok_s)
+    if best is None or best[0] >= tv0 - 1e-6:
+        out = dict(axis)
+        out["a80"] = {"fired": False, "tv0": tv0,
+                      "tv": None if best is None else best[0]}
+        return out
+    tv, j, dev_s, ok_s = best
+    out = dict(axis)
+    out.update(dev=dev_s, ok=ok_s, black=dev_s[last0].copy(),
+               l_black=float(model.predict(dev_s[last0][None, :])[0, 0]))
+    out["a80"] = {"fired": True, "join_l": float(ls[j]), "tv0": tv0, "tv": tv}
+    return out
+
+
 # Research token "a29-blackhandover" (Agent 29a, Findings/agent29a-01).
 # The neutral axis ends at the darkest point the model prints NEUTRAL (C* <
 # 1). Where the printer's deepest black is slightly tinted, colprof's black

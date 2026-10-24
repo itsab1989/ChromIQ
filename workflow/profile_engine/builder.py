@@ -217,6 +217,21 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # smooths the rel. col. ramps by the numbers but the eyecheck is mixed,
      # proxy -4 / rbf +4 defects near black); research, opt-in
      "a79-lincurve-col",
+     # Agent 80 (grey ramps near black): on a CMYK printer with a MEASURED
+     # ink fold whose neutral walk jumps from the C/M/Y-heavy ink-limit
+     # face to the K-led black, the dark end of the walk is re-walked K
+     # first (b2a.a80_rewalk); research, opt-in
+     "a80-greywalk",
+     # Agent 80: where a80-greywalk fired, identity B2A0/B2A1 output curves
+     # (a79-lincurve's re-encoding); research, opt-in
+     "a80-lincurve",
+     # Agent 80: on a measured-fold CMYK printer the B2A1 neutral column is
+     # put back exactly after the smoothing refit (a17-colpin there);
+     # research, opt-in
+     "a80-colpin",
+     # Agent 80: where a80-greywalk fired, the perceptual B2A0 is stored in
+     # colprof's own output-curve space; research, opt-in
+     "a80-oraclecurve",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -1479,6 +1494,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # on chromatic clipped nodes is off too: on such a printer it forces the
     # dark clipped colours onto the light C/M/Y branch, Findings agent73-01)
     _a73_kfirst = False
+    _a80_fired = False      # Agent 80: a80-greywalk re-walked the grey
+    _a80_pin = False        # Agent 80: a80-colpin pins the neutral column
     if (accurate and not meas.is_additive and n == 4
             and "a73-kfirst" in candidates and "K" in meas.channel_letters
             and meas.channel_letters.index("K") == 3):
@@ -1620,6 +1637,76 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_max=channel_max)
         if "a9-monoblack" in candidates:
             axis = b2a_mod.monotone_black(model, axis)
+        if os.environ.get("CHROMIQ_A80_AXISDUMP"):
+            # Agent 80 (research only): the model, the walk and its keywords
+            # for offline work on the neutral axis; CHROMIQ_A80_AXISSTOP=1
+            # ends the build here.
+            import pickle
+            with open(os.environ["CHROMIQ_A80_AXISDUMP"], "wb") as _fh:
+                pickle.dump({"model": model, "axis": axis, "kw": dict(
+                    channel_letters=meas.channel_letters,
+                    is_additive=meas.is_additive, ink_limit=ink_limit,
+                    k_prior=k_prior_col, accurate=accurate,
+                    extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
+                    ucs=use_ucs, channel_max=channel_max),
+                    "meas_dev": np.asarray(meas.device, float),
+                    "meas_lab": np.asarray(meas.lab_relative, float)}, _fh)
+            if os.environ.get("CHROMIQ_A80_AXISSTOP") == "1":
+                raise SystemExit(0)
+        if (b2a_mod.A80_TOKEN in candidates and accurate and n == 4
+                and not meas.is_additive and not _a73_kfirst
+                and "K" in meas.channel_letters
+                and meas.channel_letters.index("K") == 3
+                and axis.get("black") is not None):
+            # Research Agent 80 (a80-greywalk, b2a.py): on a printer whose
+            # colour inks measurably lighten heavy black, a neutral walk
+            # that JUMPS from the C/M/Y-heavy ink-limit face to the K-led
+            # black is re-walked K first near the black, so the column's
+            # CMM blends do not print lighter than its nodes (XFI targen2240
+            # rel. col. grey +2.0 L*, demo layout perceptual +4.6 L*).
+            _j80 = b2a_mod.a80_walk_jump(axis)
+            _m80 = _a74_measured_fold(meas, model, n)
+            _go80 = (_j80 >= b2a_mod.A80_JUMP and _m80 is not None
+                     and _m80 >= A74_FOLDMEAS_MIN)
+            if _go80:
+                axis = b2a_mod.a80_rewalk(model, axis, kw=dict(
+                    channel_letters=meas.channel_letters,
+                    is_additive=meas.is_additive, ink_limit=ink_limit,
+                    accurate=accurate, extra_hues=extra_hues,
+                    black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+                    channel_max=channel_max))
+            _i80 = axis.get("a80") or {}
+            _a80_fired = bool(_i80.get("fired"))
+            if (b2a_mod.A80_COLPIN in candidates and _m80 is not None
+                    and _m80 >= A74_FOLDMEAS_MIN):
+                # Research Agent 80 (a80-colpin): on a measured-fold printer
+                # the smoothing refit's weight-4 anchor lets the neutral
+                # column give way where its ring is on another separation
+                # (i1iSis full chart: node L* 25 moved M .31 -> .19, prints
+                # a* -3.4, then +2.9 at L* 28: the greys flicker green-pink
+                # near black); the column is put back exactly after the
+                # refit, as a17-colpin does.
+                _a80_pin = True
+                _emit(settings, "Grey walk check (a80-colpin): neutral "
+                                "column pinned after the refit.")
+            _emit(settings, f"Grey walk check (a80-greywalk): ink jump "
+                            f"{_j80:.2f}/L* near the black, measured fold "
+                            + (f"{_m80:+.1f}" if _m80 is not None else "n/a")
+                            + (f": re-walked K first from L* "
+                               f"{_i80['join_l']:.1f}." if _i80.get("fired")
+                               else ": no change."))
+            if (_i80.get("fired")
+                    and os.environ.get("CHROMIQ_A80_NB", "1") == "1"):
+                # the near-neutral nodes follow the re-walked separation
+                # (as for the deep-black re-route below), so the cells next
+                # to the column do not mix two separations (Agent 79)
+                okx = np.asarray(axis["ok"], bool)
+                _l = np.asarray(axis["l"])[okx][::-1]
+                _d = np.asarray(axis["dev"])[okx][::-1]
+                _l = np.concatenate([[0.0], _l])
+                _d = np.vstack([np.asarray(axis["black"])[None, :], _d])
+                k_prior_col = {"l_axis": _l, "k_curve": _d[:, 3].copy(),
+                               "dev_curve": _d, "neutral_only": True}
         if axis.get("deep_black") and "K" in meas.channel_letters:
             ki = meas.channel_letters.index("K")
             okx = np.asarray(axis["ok"], bool)
@@ -1957,7 +2044,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         dev_clut_shaped = dev_clut_shaped.copy()
         dev_clut_shaped[fixed_nodes] = model.shape_device(
             dev_clut[fixed_nodes])
-    if (("a17-colpin" in candidates or "a34-blackseam-pin" in candidates)
+    if (("a17-colpin" in candidates or "a34-blackseam-pin" in candidates
+         or _a80_pin)
             and fixed_nodes is not None
             and len(fixed_nodes)):
         # Research agent17-01 section 3 (token, not default): the smoothing
@@ -2464,6 +2552,20 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                             "(mild ink fold printer) for "
                             + ("B2A0/B2A1." if "a79-lincurve-col"
                                in candidates else "B2A0."))
+    if (accurate and _a80_fired and b2a_mod.A80_LINCURVE in candidates):
+        # Research Agent 80 (a80-lincurve): where a80-greywalk re-walked the
+        # grey, the perceptual and colorimetric B2A get identity output
+        # curves (a79-lincurve's re-encoding, same node values): on the
+        # i1iSis-like XFI the shaper-space curves bend the blue ramp between
+        # nodes near black (blue, darker, blue, black).
+        from workflow.profile_engine import gamut_map as _a80g
+        for _t in (("B2A1",) if _a80g.A80_ORACLECURVE in candidates
+                   else ("B2A0", "B2A1")):
+            if isinstance(luts.get(_t), (bytes, bytearray)):
+                luts[_t] = _a80g.a79_identity_output(luts[_t])
+        _emit(settings, "B2A output curves (a80-lincurve): identity for "
+                        + ("B2A1." if _a80g.A80_ORACLECURVE in candidates
+                           else "B2A0/B2A1."))
     out = Path(out_path)
     attributes = 0
     for letter in settings.z_attributes:
