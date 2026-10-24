@@ -670,8 +670,12 @@ def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
 #     on the gamut's corner, so chroma rises to it and falls from it within
 #     one coarse cell.
 # The fix: (1) a 1-2-1 filter along L*, a* and b* on the FINE table's clipped
-# nodes (strength = clip distance - 1 dE, capped at 1) within DARK_L L* of
-# the printer's black (faded out over DARK_F L* above it), 2 passes; (2) a
+# nodes (strength = clip distance - 1 dE, capped at 1, and faded out again
+# from 4 to 8 dE of clip distance: the snap happens just outside the gamut;
+# nodes far outside belong to the a29/a56 floor below the black, and
+# filtering them cost the RGB default i1Pro dark green ramp's evenness
+# 0.09 -> 0.15) within dark_l L* of the printer's black (faded out over
+# dark_f L* above it), 2 passes; (2) a
 # 1-2-1 filter along L* on the coarse table's clipped nodes (clip distance >
 # 4 dE) from 30 L* above the black to 10 L* below the white, 2 passes. Both
 # only on nodes whose TARGET hue is green (A82["hue"]); printable nodes are
@@ -698,7 +702,7 @@ def a82_in(candidates):
         return None
     return A82_IN
 A82 = {"hue": (90.0, 170.0), "dark_l": 20.0, "dark_f": 5.0, "dark_r0": 1.0,
-       "dark_iters": 2, "co_rmin": 4.0, "co_iters": 2, "co_lmin": 30.0,
+       "dark_rmax": 8.0, "dark_rw": 4.0, "dark_iters": 2, "co_rmin": 4.0, "co_iters": 2, "co_lmin": 30.0,
        "co_top": 10.0}
 
 
@@ -782,7 +786,12 @@ def a82_dark(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
     top = float(black_l) + float(params["dark_l"])
     fd = max(float(params["dark_f"]), 1e-9)
     u = np.clip((top + fd - nl[:, 0]) / fd, 0.0, 1.0)
-    s = (u * u * (3.0 - 2.0 * u) * np.clip(r - float(params["dark_r0"]), 0, 1)
+    rmax = params.get("dark_rmax")
+    v = (np.ones(len(r)) if rmax is None else
+         np.clip((float(rmax) - r) / max(float(params.get("dark_rw", 4.0)),
+                                         1e-9), 0.0, 1.0))
+    s = (u * u * (3.0 - 2.0 * u) * v * v * (3.0 - 2.0 * v)
+         * np.clip(r - float(params["dark_r0"]), 0, 1)
          * _a82_hue_mask(nl, params["hue"])
          * (np.linalg.norm(nl, axis=1) > 1.0))
     if not (s > 0).any():
