@@ -22,7 +22,7 @@ class _Toy:
 
 
 def test_token_registered_and_off_by_default():
-    assert gamut_map.A79_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
+    assert {gamut_map.A79_TOKEN, "a79-lincurve", "a79-lincurve-col"} <= builder.ENGINE_CANDIDATE_TOKENS
     assert gamut_map.A79_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
 
 

@@ -213,6 +213,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # interpolates in device values, not in the model's sparse-data shaper
      # space); research, opt-in
      "a79-lincurve",
+     # Agent 79: the same for the colorimetric B2A1 (separate: on i1iSis it
+     # smooths the rel. col. ramps by the numbers but the eyecheck is mixed,
+     # proxy -4 / rbf +4 defects near black); research, opt-in
+     "a79-lincurve-col",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -2411,7 +2415,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         luts["B2A0"] = pinned
         luts["B2A2"] = "B2A0"
 
-    if (accurate and "a79-lincurve" in candidates and not meas.is_additive):
+    if (accurate and not meas.is_additive
+            and {"a79-lincurve", "a79-lincurve-col"} & set(candidates)):
         from workflow.profile_engine import gamut_map as _a79g
         _a79f = _a79g.a79_mild_fold(model, meas.channel_letters, meas)
         if _a79f is not None:
@@ -2420,11 +2425,15 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # slope 0.7 -> 1.9 within a tenth of K), and the CMM interpolates
             # between B2A nodes in that space: dark colour-to-black ramps
             # bend between nodes. Same node values, identity output curves.
-            for _t in ("B2A0", "B2A1", "B2A2"):
+            for _t in (("B2A0", "B2A1", "B2A2")
+                       if "a79-lincurve-col" in candidates
+                       else ("B2A0", "B2A2")):
                 if isinstance(luts.get(_t), (bytes, bytearray)):
                     luts[_t] = _a79g.a79_identity_output(luts[_t])
             _emit(settings, "B2A output curves (a79-lincurve): identity "
-                            "(mild ink fold printer).")
+                            "(mild ink fold printer) for "
+                            + ("B2A0/B2A1/B2A2." if "a79-lincurve-col"
+                               in candidates else "B2A0/B2A2."))
     out = Path(out_path)
     attributes = 0
     for letter in settings.z_attributes:
