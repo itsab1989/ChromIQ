@@ -236,7 +236,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a65-cmykhue-bluejab", "a65-cmykhue-bluejabdark",
      # Agent 68: the RGB colorimetric refit may not throw a clipped node far
      # off its own clip (Knut's spring-green spot); research, opt-in
-     "a68-clipkeep"})
+     "a68-clipkeep",
+     # Agent 78: the RGB colorimetric table's clipped coarse nodes smoothed
+     # along L* (purecolprof.a78_smooth; colour-to-black ramps turn into
+     # black without a knee); research, opt-in
+     "a78-rgbsmooth"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -2298,6 +2302,28 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                     else _a59_pn).reshape(
                 b2a_grid, b2a_grid, b2a_grid, n)[
                 ::_st, ::_st, ::_st].reshape(-1, n)
+            _a78p = _a58m.a78_params(candidates)
+            if _a58k("grid33in") and _a78p is not None:
+                # Research Agent 78 (a78-rgbsmooth): the coarse table's
+                # clipped nodes smoothed along L* (purecolprof.a78_smooth)
+                _sub = _a58m.a78_smooth(_sub, node_lab, residual, b2a_grid,
+                                        _g0, _a78p)
+                _emit(settings, "Colorimetric table: clipped coarse nodes "
+                                "smoothed along L* (research a78-rgbsmooth).")
+            if _a58k("grid33in") and os.environ.get("CHROMIQ_A78_DUMP"):
+                # Research Agent 78: dump the colorimetric table's parts
+                # (fine table, coarse sub-sample, clip distance, pre-refit
+                # per-node inversion) for offline study; writes nothing
+                # into the profile
+                _bl78 = float(model.predict(np.zeros((1, n)))[0, 0])
+                _wl78 = float(model.predict(np.ones((1, n)))[0, 0])
+                np.savez_compressed(
+                    os.environ["CHROMIQ_A78_DUMP"],
+                    fine=_a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
+                                        candidates),
+                    sub=_sub, residual=residual, node_lab=node_lab,
+                    pernode=np.clip(model.shape_device(dev_clut), 0, 1),
+                    g=b2a_grid, g0=_g0, black_l=_bl78, white_l=_wl78)
             if _a58k("grid33in"):
                 # Agent 58 addition: the engine's fine grid where the node
                 # is printable (exact inversion, the accuracy win), colprof's

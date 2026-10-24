@@ -555,3 +555,68 @@ def depth_inside(residual: np.ndarray, g: int, depth: float,
                    max(-k, 0):g + min(-k, 0)] = src
                 best = np.where(sh & (dist < best), dist, best)
     return best.reshape(-1)
+
+
+# Agent 78 (a78-rgbsmooth, research, off by default): the coarse (colprof
+# grid) half of keep-grid33in is smoothed along L* on its clipped nodes.
+# Cause (Findings/agent78-01): colprof's per-node CAM clip, run on OUR model
+# with the engine's dark floor below the printer black, bends sharply in L*
+# from one coarse node to the next (Knut: magenta node L* 25 printed 44.4,
+# L* 18.75 printed ~36: the slope between the nodes doubles), so a ramp that
+# leaves the gamut holds its colour to a node and then turns into black
+# within one coarse cell. A 1-2-1 filter along L* on the clipped coarse nodes
+# (clip distance > rmin dE), repeated ``iters`` times, spreads that turn over
+# the neighbouring cells. Printable nodes, the black corner and the white
+# node are not touched; the fine (printable) table is unchanged.
+A78_TOKEN = "a78-rgbsmooth"
+A78_SMOOTH = {"s": 1.0, "rmin": 8.0, "iters": 2, "tau": 0.0}
+
+
+def a78_params(candidates):
+    """(s, rmin, iters, tau) with a78-rgbsmooth on, else None (env
+    CHROMIQ_A78_SMOOTH "s:rmin:iters[:tau]" for research sweeps)."""
+    if A78_TOKEN not in frozenset(candidates or ()):
+        return None
+    import os
+    p = dict(A78_SMOOTH)
+    v = os.environ.get("CHROMIQ_A78_SMOOTH", "")
+    if v:
+        k = v.split(":")
+        p["s"], p["rmin"], p["iters"] = float(k[0]), float(k[1]), int(k[2])
+        if len(k) > 3:
+            p["tau"] = float(k[3])
+    return p
+
+
+def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
+               g_fine: int, g_coarse: int, params: dict) -> np.ndarray:
+    """a78-rgbsmooth: ``sub`` (the coarse table, g_coarse^3 x n) with its
+    clipped nodes filtered along the L* axis (weights 1/4, 1/2, 1/4; the end
+    planes reflect), ``iters`` passes of strength ``s``. With ``tau`` > 0 only
+    nodes whose |second difference along L*| (largest channel) reaches tau
+    are filtered (smoothstep from tau/2 to tau)."""
+    st = (g_fine - 1) // (g_coarse - 1)
+    n = sub.shape[1]
+    nl = np.asarray(node_lab, float).reshape(g_fine, g_fine, g_fine, 3)[
+        ::st, ::st, ::st].reshape(-1, 3)
+    rr = np.asarray(residual, float).reshape(g_fine, g_fine, g_fine)[
+        ::st, ::st, ::st].reshape(-1)
+    sel = ((rr > float(params["rmin"])) & (np.linalg.norm(nl, axis=1) > 1.0)
+           & (nl[:, 0] < 99.9))
+    s = float(params["s"])
+    tau = float(params.get("tau") or 0.0)
+    x = np.asarray(sub, float).reshape(g_coarse, g_coarse, g_coarse, n).copy()
+    for _ in range(int(params["iters"])):
+        lo = np.concatenate([x[:1], x[:-1]], 0)
+        hi = np.concatenate([x[1:], x[-1:]], 0)
+        f = (0.25 * lo + 0.5 * x + 0.25 * hi).reshape(-1, n)
+        w = np.full(len(f), s)
+        if tau > 0.0:
+            c2 = np.zeros((g_coarse, g_coarse, g_coarse))
+            c2[1:-1] = np.abs(x[2:] - 2.0 * x[1:-1] + x[:-2]).max(-1)
+            u = np.clip((c2.reshape(-1) - 0.5 * tau) / (0.5 * tau), 0.0, 1.0)
+            w = s * u * u * (3.0 - 2.0 * u)
+        y = x.reshape(-1, n).copy()
+        y[sel] = (1.0 - w[sel, None]) * y[sel] + w[sel, None] * f[sel]
+        x = y.reshape(g_coarse, g_coarse, g_coarse, n)
+    return x.reshape(-1, n)
