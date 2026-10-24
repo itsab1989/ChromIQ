@@ -465,6 +465,176 @@ def strip_label_crowding(geom, kw: dict) -> "StripLabelCrowding | None":
         explicit=raw > 0)
 
 
+# ---- the strip letters moved sideways (Basti, 2026-10-24) -----------------
+#
+# "Label offset" has moved the strip letters up and down since #93. Basti
+# asked for the same across the page: *"another spinbox next to it that allows
+# offset in x direction as well … positive and negative values … so movement
+# to left and right is possible"*. Positive is to the RIGHT, negative to the
+# LEFT, in mm on the printed sheet, whatever way the letters are turned. The
+# patches never move, and neither does the underline: it marks the strip, and
+# a coloured rule that slid onto the neighbouring strip would name the wrong
+# one.
+#
+# TWO LIMITS, AND THE SAME TWO ON SCREEN AND ON PAPER. The renderer and the
+# panel both ask `_strip_label_x_limits_px`, so the notice under "Measured
+# from Preview" describes the sheet that is printed:
+#
+# 1. A letter never leaves its own strip: its middle stays above its own
+#    column of patches, so at most half the strip's width either way. Further
+#    than that and the letter stands over the NEIGHBOURING strip, which is
+#    where a reader would look for it, and a strip read under the wrong name
+#    is a wrong profile.
+# 2. The outermost letters stay on the paper, as far in from the left and
+#    right paper edges as the side text is held ("Clip" under "Text distance
+#    from edge", or the ruler helper markers when they are printed down the
+#    sides: `text_edge_fit.geom_side_text_edge_mm`), and off a clip border
+#    that has something printed in it.
+#
+# Neither limit can move a letter that was not asked to move: each one is
+# capped at 0 in the direction it does not apply, so a sheet whose letters
+# already sit closer to an edge than the rule (some built-ins do) prints at 0
+# exactly as before.
+
+
+@dataclass(frozen=True)
+class StripLabelShift:
+    """How far the strip letters move sideways on this chart, in mm.
+
+    ``asked_mm`` is the box, ``used_mm`` what is printed; ``left_mm`` and
+    ``right_mm`` are how far they can go each way here (both >= 0);
+    ``held_by`` is "strip" when the own-strip limit binds, "edge" when the
+    paper edge or the clip border does, and "" when nothing is held."""
+    asked_mm: float
+    used_mm: float
+    left_mm: float
+    right_mm: float
+    held_by: str
+
+    @property
+    def held(self) -> bool:
+        return bool(self.held_by)
+
+
+def _strip_label_width_px(labels, font, spc: int, rot: int) -> int:
+    """The widest of *labels* across the page, as the renderer draws them."""
+    rot = int(rot or 0) % 360
+    if rot in (90, 270):
+        # A turned tile is as wide as an upright one is tall (`_indicator_tile`).
+        try:
+            asc, desc = font.getmetrics()
+        except Exception:      # noqa: BLE001 - default bitmap font
+            asc, desc = 12, 3
+        return int(asc + desc + 4)
+    probe = ImageDraw.Draw(Image.new("L", (4, 4)))
+    best = 0.0
+    seen: dict = {}
+    for t in labels:
+        if t in seen:
+            continue
+        w = sum(probe.textlength(ch, font=font) for ch in t) \
+            + (spc * (len(t) - 1) if len(t) > 1 else 0)
+        seen[t] = w
+        best = max(best, w)
+    return int(round(best)) + (4 if rot == 180 else 0)
+
+
+def _strip_label_side_bounds_mm(geom, clip_content_mode: str,
+                                paper_w_mm: float) -> "tuple[float, float]":
+    """How far in from the left and from the right paper edge the strip
+    letters may reach."""
+    from workflow import text_edge_fit as _tef
+    edge = float(_tef.geom_side_text_edge_mm(geom))
+    left = right = edge
+    lbord = float(getattr(geom, "lbord", 0.0) or 0.0)
+    if lbord > 0 and (clip_content_mode or "off") != "off":
+        band = lbord + float(getattr(geom, "border", 0.0) or 0.0)
+        if (getattr(geom, "clip_side", "left") or "left") == "right":
+            right = max(right, band)
+        else:
+            left = max(left, band)
+    return left, right
+
+
+def _strip_label_x_limits_px(*, page_w_px: int, first_x0: int, first_xr: int,
+                             last_x0: int, last_xr: int, label_w_px: int,
+                             left_bound_px: int, right_bound_px: int
+                             ) -> "tuple[int, int, int, int]":
+    """``(lo, hi, lo_strip, hi_strip)``: the shift range in pixels (lo <= 0 <=
+    hi) and the own-strip half of it, for the comment block above."""
+    half = max(0, (first_xr - first_x0) // 2)
+    cx0 = first_x0 + (first_xr - first_x0) // 2
+    cxn = last_x0 + (last_xr - last_x0) // 2
+    lo_edge = min(0, left_bound_px - (cx0 - label_w_px // 2))
+    hi_edge = max(0, (page_w_px - right_bound_px)
+                  - (cxn + (label_w_px - label_w_px // 2)))
+    return max(lo_edge, -half), min(hi_edge, half), -half, half
+
+
+def _clamp_shift(asked_px: int, lo: int, hi: int, lo_strip: int,
+                 hi_strip: int) -> "tuple[int, str]":
+    used = min(max(asked_px, lo), hi)
+    if used == asked_px:
+        return used, ""
+    bound = lo if asked_px < lo else hi
+    return used, ("strip" if bound in (lo_strip, hi_strip) else "edge")
+
+
+def strip_label_x_shift(geom, kw: dict) -> "StripLabelShift | None":
+    """What :func:`render_pages` will do with "Label offset" X on this chart,
+    worked out the way it does it, for the panel. None when the box is at 0,
+    the letters are off, or the layout cannot be worked out yet."""
+    asked = float(kw.get("strip_label_offset_x_mm") or 0.0)
+    if not asked or not kw.get("draw_indicators", True):
+        return None
+    try:
+        from . import papers
+        total = int(kw.get("area_target_count") or 0)
+        if total <= 0:
+            return None
+        dpi = int(kw.get("dpi") or 150)
+        mm2px = dpi / 25.4
+        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        layout = geometry.compute(geom, float(w_mm), float(h_mm), total)
+        steps = int(layout.steps_in_pass or 0)
+        if steps <= 0:
+            return None
+        place = geometry.placement(geom, float(w_mm), float(h_mm), layout)
+        on_first = min(layout.total_patches, layout.patches_per_page)
+        n_first = max(1, -(-on_first // steps))
+        n_total = max(1, -(-layout.total_patches // steps))
+        fam = kw.get("indicator_font", DEFAULT_INDICATOR_FONT)
+        ind_px = round(effective_indicator_size_mm(
+            geom, dpi, fam, float(kw.get("indicator_size_mm") or 0.0)) * mm2px)
+        font = _font(ind_px, fam, bool(kw.get("indicator_bold")),
+                     bool(kw.get("indicator_italic")))
+        spc = max(1, round(ind_px * INDICATOR_LETTER_SPACING))
+        label = permutation.make_labeller(
+            str(kw.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN),
+            str(kw.get("label_rule") or permutation.ARGYLL))
+        lw = _strip_label_width_px([label(n) for n in range(1, n_total + 1)],
+                                   font, spc, int(kw.get("indicator_rotation")
+                                                  or 0))
+    except Exception:            # noqa: BLE001 - a notice never blocks a build
+        return None
+
+    def px(mm: float) -> int:
+        return round(mm * mm2px)
+
+    lb, rb = _strip_label_side_bounds_mm(
+        geom, str(kw.get("clip_content_mode") or "off"), float(w_mm))
+    lo, hi, lo_s, hi_s = _strip_label_x_limits_px(
+        page_w_px=max(1, px(float(w_mm))),
+        first_x0=px(place.x_of(0)), first_xr=px(place.x_of(0) + place.pwid),
+        last_x0=px(place.x_of(n_first - 1)),
+        last_xr=px(place.x_of(n_first - 1) + place.pwid),
+        label_w_px=lw, left_bound_px=px(lb), right_bound_px=px(rb))
+    used, why = _clamp_shift(px(asked), lo, hi, lo_s, hi_s)
+    return StripLabelShift(asked_mm=asked, used_mm=used / mm2px,
+                           left_mm=-lo / mm2px, right_mm=hi / mm2px,
+                           held_by=why)
+
+
 #: How many labels the ink probe below walks. The alphabetic labeller reaches
 #: "Z" at 26, which is the whole single-letter repertoire, and "Q" -- the only
 #: descender in it -- at 17. A numeric one reaches "26", whose glyphs are all
@@ -2061,6 +2231,9 @@ class RenderResult:
     # ``("hex", [points], device_tuple)`` — the exact ink coverage of every
     # measured patch, independent of the display-RGB preview.
     patch_geom: list[list[tuple]] | None = None
+    #: How far the strip letters were really moved sideways, in mm (positive
+    #: is to the right): "Label offset" X after `_strip_label_x_limits_px`.
+    strip_label_x_used_mm: float = 0.0
 
 
 def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int,
@@ -2175,6 +2348,7 @@ def render_pages(
     clip_image_offset_y_mm: float = 0.0,
     clip_flip_180: bool = False,
     strip_label_offset_mm: float = 0.0,
+    strip_label_offset_x_mm: float = 0.0,
     text_ctx: "dict | None" = None,
     helper_markers: bool = False,
     helper_marker_edge_mm: float = 2.0,
@@ -2385,6 +2559,27 @@ def render_pages(
     # offset (mm) nudges the labels up (negative, toward the top margin) or down,
     # together with their underline (#93).
     _lbl_top = px(place.leader_top + strip_label_offset_mm)
+    # …AND SIDEWAYS, by "Label offset" X, within the two limits described at
+    # `StripLabelShift`. One shift for every strip on every page, so the
+    # letters keep their spacing; 0 unless the box asks for something, so a
+    # chart that does not use it draws exactly the pixels it always did.
+    _lbl_dx = 0
+    if draw_indicators and strip_label_offset_x_mm:
+        _n_first = max(1, -(-min(total, pppage) // steps))
+        _lb_mm, _rb_mm = _strip_label_side_bounds_mm(
+            geom, clip_content_mode, paper_w_mm)
+        _xlo, _xhi, _xlo_s, _xhi_s = _strip_label_x_limits_px(
+            page_w_px=W,
+            first_x0=px(place.x_of(0)),
+            first_xr=px(place.x_of(0) + place.pwid),
+            last_x0=px(place.x_of(_n_first - 1)),
+            last_xr=px(place.x_of(_n_first - 1) + place.pwid),
+            label_w_px=_strip_label_width_px(
+                [label_strip(_i + 1) for _i in range(_n_total_strips)],
+                font, _spc, _rot),
+            left_bound_px=px(_lb_mm), right_bound_px=px(_rb_mm))
+        _lbl_dx, _ = _clamp_shift(px(strip_label_offset_x_mm),
+                                  _xlo, _xhi, _xlo_s, _xhi_s)
     _band_bottom = None
     if draw_indicators:
         # THE BAND MUST BOUND THE INK, NOT ONLY THE RESERVE. See
@@ -2503,7 +2698,8 @@ def render_pages(
                                    min(last, first + (p + 1) * steps)))
             if draw_indicators:
                 _lbl = label_strip(global_strip + 1)
-                _cx = x0 + strip_w // 2          # centre over the strip
+                # centre over the strip, then "Label offset" X
+                _cx = x0 + strip_w // 2 + _lbl_dx
                 _y = _lbl_top
                 if _rot == 0:
                     _draw_indicator(_lbl_surface()[1], _cx, _y, _lbl, font, _spc)
@@ -3253,7 +3449,8 @@ def render_pages(
     return RenderResult(images=images, low_contrast_passes=flagged,
                         label_band_bottom_px=_band_bottom,
                         patch_ink_top_px=_ink_tops,
-                        patch_geom=page_geoms if collect_device_geom else None)
+                        patch_geom=page_geoms if collect_device_geom else None,
+                        strip_label_x_used_mm=_lbl_dx / mm2px)
 
 
 def export_clip_template(out_base: str | Path, *, width_px: int, height_px: int,

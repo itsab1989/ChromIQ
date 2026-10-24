@@ -276,6 +276,20 @@ class LayoutRecipe:
     # reserve, in mm. Default 0 keeps the label where printtarg places it; a small
     # negative value tucks the labels closer to the top margin (#93).
     strip_label_offset_mm: float = 0.0
+    # The same nudge ACROSS the page (Basti, 2026-10-24): positive moves every
+    # strip letter to the right, negative to the left, in mm. The patches and
+    # the underline stay where they are. The renderer holds the letters above
+    # their own strip and inside the side text distance
+    # (`raster.strip_label_x_shift`), so the value asked for and the value
+    # printed can differ; the panel says so when they do.
+    #
+    # ABSENT FROM EVERY DICT WRITTEN BEFORE IT, AND FROM EVERY DICT WRITTEN
+    # WITH IT AT 0. `to_dict` and `build_kwargs` leave the key out at 0, so a
+    # recipe that does not use it serialises byte for byte as it did before
+    # the field existed: the built-in presets' certificates
+    # (`workflow.preset_certificates.preset_hash`) and every stored recipe
+    # comparison are unchanged. A missing key reads as 0.
+    strip_label_offset_x_mm: float = 0.0
     underline_mode: str = "off"          # "off" | "colored" | "black" rule
     underline_thickness_mm: float = 0.5  # under-indicator rule thickness
     underline_gap_mm: float = 0.5        # gap between the label and the rule
@@ -367,6 +381,11 @@ class LayoutRecipe:
     def to_dict(self) -> dict:
         d = asdict(self)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
+        # Left out at 0, so a recipe that does not move its labels sideways
+        # writes exactly the dict it wrote before the field existed (see the
+        # field's comment).
+        if not d.get("strip_label_offset_x_mm"):
+            d.pop("strip_label_offset_x_mm", None)
         return d
 
     @classmethod
@@ -441,6 +460,8 @@ class LayoutRecipe:
             indicator_rotation=int(d.get("indicator_rotation", 0)),
             indicator_align=d.get("indicator_align", "left"),
             strip_label_offset_mm=float(d.get("strip_label_offset_mm") or 0.0),
+            strip_label_offset_x_mm=float(
+                d.get("strip_label_offset_x_mm") or 0.0),
             underline_mode=d.get("underline_mode", "off"),
             underline_thickness_mm=float(d.get("underline_thickness_mm") or 0.5),
             underline_gap_mm=float(d.get("underline_gap_mm") or 0.5),
@@ -566,7 +587,7 @@ class LayoutRecipe:
         The patch-area alignment is NOT neutralised: the built-in area-first
         presets set it on purpose."""
         area = self.layout_mode == "area_first"
-        return {
+        kw = {
             "instrument": self.instrument,
             "paper": self.paper,
             "seed": self.seed,
@@ -688,6 +709,11 @@ class LayoutRecipe:
             "strip_pattern": self.strip_pattern,
             "patch_pattern": self.patch_pattern,
         }
+        # Only when it moves anything, so the kwargs of every chart that does
+        # not use it are the ones it had before the field existed.
+        if self.strip_label_offset_x_mm:
+            kw["strip_label_offset_x_mm"] = float(self.strip_label_offset_x_mm)
+        return kw
 
 
 def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | None = None

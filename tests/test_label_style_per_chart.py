@@ -99,7 +99,8 @@ def test_every_one_of_the_ten_fields_obeys_the_flag(field):
     pref = {"strip_indicator_font": "Inter", "strip_indicator_size_mm": 9.0,
             "strip_indicator_bold": True, "strip_indicator_italic": True,
             "strip_indicator_rotation": 90, "strip_indicator_align": "right",
-            "strip_label_offset_mm": 3.0, "strip_underline_mode": "black",
+            "strip_label_offset_mm": 3.0, "strip_label_offset_x_mm": -2.5,
+            "strip_underline_mode": "black",
             "strip_underline_thickness_mm": 1.9,
             "strip_underline_gap_mm": 2.1}[key]
     assert pref != DEFAULTS[key], "the probe value must differ from the default"
