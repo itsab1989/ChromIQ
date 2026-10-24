@@ -7267,5 +7267,17 @@
  "1 colour recognised": "1 colore riconosciuto",
  "{n} colours recognised": "{n} colori riconosciuti",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ non è riuscito a inviare il tasto «{key}» a chartread. Fai clic su «Ferma» e avvia di nuovo la misurazione.",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ non è riuscito a preparare il rapporto. Ecco cosa è andato storto: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ non è riuscito a preparare il rapporto. Ecco cosa è andato storto: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "Salvati {file} e la sua 1 pagina in {folder}",
+ "Saved {file} and its {n} pages into {folder}": "Salvati {file} e le sue {n} pagine in {folder}",
+ "Saved the engine chart {file} and its 1 page into {folder}": "Salvati il grafico del motore {file} e la sua 1 pagina in {folder}",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "Salvati il grafico del motore {file} e le sue {n} pagine in {folder}",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "Motore di layout ChromIQ · {instrument} · {paper} · seme {seed}",
+ "Also written: {files}": "Scritti anche: {files}",
+ "Colour list, to paste into a new chart later: {file}": "Elenco dei colori, da incollare più tardi in un nuovo grafico: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "File di i1Profiler: {name}.txt e {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "Contrassegnato come randomizzato: questo grafico può essere misurato in entrambe le direzioni.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Non contrassegnato: il layout sembra ordinato, quindi verrà misurato in una sola direzione. Per contrassegnarlo comunque, spunta Forza etichetta «randomizzato».",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Non contrassegnato: il layout sembra ordinato, quindi verrà misurato in una sola direzione.",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Contrassegnato come randomizzato, perché l'hai chiesto tu. Attenzione: questo layout potrebbe essere letto in modo poco affidabile, come diceva l'avviso."
 }

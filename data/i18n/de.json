@@ -7267,5 +7267,17 @@
  "1 colour recognised": "1 Farbe erkannt",
  "{n} colours recognised": "{n} Farben erkannt",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ konnte die Taste „{key}“ nicht an chartread senden. Klicke auf „Stopp“ und starte die Messung neu.",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ konnte den Bericht nicht erstellen. Das ist schiefgegangen: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ konnte den Bericht nicht erstellen. Das ist schiefgegangen: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "{file} und seine 1 Seite in {folder} gespeichert",
+ "Saved {file} and its {n} pages into {folder}": "{file} und seine {n} Seiten in {folder} gespeichert",
+ "Saved the engine chart {file} and its 1 page into {folder}": "Engine-Chart {file} und seine 1 Seite in {folder} gespeichert",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "Engine-Chart {file} und seine {n} Seiten in {folder} gespeichert",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "ChromIQ-Layout-Engine · {instrument} · {paper} · Startwert {seed}",
+ "Also written: {files}": "Außerdem geschrieben: {files}",
+ "Colour list, to paste into a new chart later: {file}": "Farbliste, um sie später in ein neues Chart einzufügen: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "i1Profiler-Dateien: {name}.txt und {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "Als randomisiert markiert: Dieses Chart kann in beide Richtungen gemessen werden.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Nicht markiert: Das Layout wirkt geordnet, deshalb wird es nur in eine Richtung gemessen. Um es trotzdem zu markieren, setze das Häkchen bei „Randomisiert“-Markierung erzwingen.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Nicht markiert: Das Layout wirkt geordnet, deshalb wird es nur in eine Richtung gemessen.",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Als randomisiert markiert, weil du es so wolltest. Vorsicht: Dieses Layout wird vielleicht unzuverlässig gelesen, wie die Warnung gesagt hat."
 }

@@ -7267,5 +7267,17 @@
  "1 colour recognised": "1 farge gjenkjent",
  "{n} colours recognised": "{n} farger gjenkjent",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ fikk ikke sendt tasten «{key}» til chartread. Klikk på «Stopp» og start målingen på nytt.",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ klarte ikke å lage rapporten. Dette gikk galt: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ klarte ikke å lage rapporten. Dette gikk galt: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "Lagret {file} og den 1 siden i {folder}",
+ "Saved {file} and its {n} pages into {folder}": "Lagret {file} og de {n} sidene i {folder}",
+ "Saved the engine chart {file} and its 1 page into {folder}": "Lagret motorkartet {file} og den 1 siden i {folder}",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "Lagret motorkartet {file} og de {n} sidene i {folder}",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "ChromIQ-oppsettmotor · {instrument} · {paper} · frø {seed}",
+ "Also written: {files}": "Skrev også: {files}",
+ "Colour list, to paste into a new chart later: {file}": "Fargeliste som kan limes inn i et nytt kart senere: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "i1Profiler-filer: {name}.txt og {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "Merket som randomisert: dette kartet kan måles i begge retninger.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Ikke merket: oppsettet ser ordnet ut, så det blir målt i bare én retning. Vil du merke det likevel, kryss av for Tving «randomisert»-merking.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Ikke merket: oppsettet ser ordnet ut, så det blir målt i bare én retning.",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Merket som randomisert fordi du ba om det. Vær forsiktig: dette oppsettet kan bli lest upålitelig, slik advarselen sa."
 }

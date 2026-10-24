@@ -7267,5 +7267,17 @@
  "1 colour recognised": "1 cor reconhecida",
  "{n} colours recognised": "{n} cores reconhecidas",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "O ChromIQ não conseguiu enviar a tecla «{key}» ao chartread. Clique em «Parar» e inicie a medição de novo.",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "O ChromIQ não conseguiu preparar o relatório. O que correu mal: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "O ChromIQ não conseguiu preparar o relatório. O que correu mal: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "{file} e a respetiva 1 página guardados em {folder}",
+ "Saved {file} and its {n} pages into {folder}": "{file} e as respetivas {n} páginas guardados em {folder}",
+ "Saved the engine chart {file} and its 1 page into {folder}": "Carta do motor {file} e a respetiva 1 página guardadas em {folder}",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "Carta do motor {file} e as respetivas {n} páginas guardadas em {folder}",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "Motor de disposição do ChromIQ · {instrument} · {paper} · semente {seed}",
+ "Also written: {files}": "Também escritos: {files}",
+ "Colour list, to paste into a new chart later: {file}": "Lista de cores, para colar mais tarde numa carta nova: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "Ficheiros do i1Profiler: {name}.txt e {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "Marcada como aleatorizada: esta carta pode ser medida nos dois sentidos.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Sem marca: a disposição parece ordenada, por isso será medida só num sentido. Para a marcar mesmo assim, assinale Forçar etiqueta «aleatorizado».",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Sem marca: a disposição parece ordenada, por isso será medida só num sentido.",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Marcada como aleatorizada, porque o pediu. Cuidado: esta disposição pode ser lida de forma pouco fiável, como dizia o aviso."
 }

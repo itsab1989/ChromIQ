@@ -7267,5 +7267,17 @@
  "1 colour recognised": "1 color reconocido",
  "{n} colours recognised": "{n} colores reconocidos",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ no pudo enviar la tecla «{key}» a chartread. Haz clic en «Detener» y vuelve a iniciar la medición.",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ no pudo preparar el informe. Esto es lo que falló: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ no pudo preparar el informe. Esto es lo que falló: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "Se ha guardado {file} y su 1 página en {folder}",
+ "Saved {file} and its {n} pages into {folder}": "Se ha guardado {file} y sus {n} páginas en {folder}",
+ "Saved the engine chart {file} and its 1 page into {folder}": "Se ha guardado la carta del motor {file} y su 1 página en {folder}",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "Se ha guardado la carta del motor {file} y sus {n} páginas en {folder}",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "Motor de diseño de ChromIQ · {instrument} · {paper} · semilla {seed}",
+ "Also written: {files}": "También se ha escrito: {files}",
+ "Colour list, to paste into a new chart later: {file}": "Lista de colores, para pegarla más tarde en una carta nueva: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "Archivos de i1Profiler: {name}.txt y {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "Marcada como aleatorizada: esta carta se puede medir en ambas direcciones.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Sin marcar: el diseño parece ordenado, así que se medirá solo en una dirección. Para marcarla de todos modos, activa Forzar etiqueta «aleatorizado».",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Sin marcar: el diseño parece ordenado, así que se medirá solo en una dirección.",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Marcada como aleatorizada porque lo has pedido. Cuidado: este diseño puede leerse de forma poco fiable, como decía el aviso."
 }

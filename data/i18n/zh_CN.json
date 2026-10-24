@@ -7267,5 +7267,17 @@
  "1 colour recognised": "已识别 1 种颜色",
  "{n} colours recognised": "已识别 {n} 种颜色",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ 无法把按键“{key}”发送给 chartread。请点击“停止”，然后重新开始测量。",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ 无法生成报告。出错原因：{kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ 无法生成报告。出错原因：{kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "已将 {file} 及其 1 页保存到 {folder}",
+ "Saved {file} and its {n} pages into {folder}": "已将 {file} 及其 {n} 页保存到 {folder}",
+ "Saved the engine chart {file} and its 1 page into {folder}": "已将引擎色卡 {file} 及其 1 页保存到 {folder}",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "已将引擎色卡 {file} 及其 {n} 页保存到 {folder}",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "ChromIQ 布局引擎 · {instrument} · {paper} · 种子 {seed}",
+ "Also written: {files}": "另外写入了：{files}",
+ "Colour list, to paste into a new chart later: {file}": "颜色列表（以后可粘贴到新色卡中）：{file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "i1Profiler 文件：{name}.txt 和 {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "已标记为随机化：这张色卡可以双向测量。",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "未标记：布局看起来是有规律的，所以只会单向测量。如果仍要标记，请勾选“强制「已随机化」标记”。",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "未标记：布局看起来是有规律的，所以只会单向测量。",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "已按你的要求标记为随机化。请注意：正如警告所说，这个布局可能读取得不可靠。"
 }

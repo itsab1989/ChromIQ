@@ -1220,6 +1220,18 @@
    "one": "Rozpoznano {n} kolor",
    "few": "Rozpoznano {n} kolory",
    "many": "Rozpoznano {n} kolorów"
+  },
+  "Saved {file} and its {n} pages into {folder}": {
+   "count": "n",
+   "one": "Zapisano {file} i jego {n} stronę w {folder}",
+   "few": "Zapisano {file} i jego {n} strony w {folder}",
+   "many": "Zapisano {file} i jego {n} stron w {folder}"
+  },
+  "Saved the engine chart {file} and its {n} pages into {folder}": {
+   "count": "n",
+   "one": "Zapisano wzorzec silnika {file} i jego {n} stronę w {folder}",
+   "few": "Zapisano wzorzec silnika {file} i jego {n} strony w {folder}",
+   "many": "Zapisano wzorzec silnika {file} i jego {n} stron w {folder}"
   }
  },
  "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Wzorzec dla CR30 zawsze układa silnik układu ChromIQ, więc ta opcja pozostaje włączona, dopóki przyrządem jest CR30.",
@@ -8241,5 +8253,17 @@
  "1 colour recognised": "Rozpoznano 1 kolor",
  "{n} colours recognised": "Rozpoznano {n} kolorów",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ nie mógł wysłać klawisza „{key}” do chartread. Kliknij „Zatrzymaj” i rozpocznij pomiar od nowa.",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ nie mógł przygotować raportu. Co poszło nie tak: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ nie mógł przygotować raportu. Co poszło nie tak: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "Zapisano {file} i jego 1 stronę w {folder}",
+ "Saved {file} and its {n} pages into {folder}": "Zapisano {file} i jego {n} stron w {folder}",
+ "Saved the engine chart {file} and its 1 page into {folder}": "Zapisano wzorzec silnika {file} i jego 1 stronę w {folder}",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "Zapisano wzorzec silnika {file} i jego {n} stron w {folder}",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "Silnik układu ChromIQ · {instrument} · {paper} · ziarno {seed}",
+ "Also written: {files}": "Zapisano też: {files}",
+ "Colour list, to paste into a new chart later: {file}": "Lista kolorów do wklejenia później w nowy wzorzec: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "Pliki i1Profiler: {name}.txt i {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "Oznaczono jako losowy: ten wzorzec można mierzyć w obu kierunkach.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Bez znacznika: układ wygląda na uporządkowany, więc będzie mierzony tylko w jednym kierunku. Aby mimo to go oznaczyć, zaznacz Wymuś znacznik „losowy”.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Bez znacznika: układ wygląda na uporządkowany, więc będzie mierzony tylko w jednym kierunku.",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Oznaczono jako losowy, bo o to prosisz. Uwaga: ten układ może być odczytywany zawodnie, tak jak mówiło ostrzeżenie."
 }

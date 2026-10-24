@@ -1250,6 +1250,18 @@
    "one": "Розпізнано {n} колір",
    "few": "Розпізнано {n} кольори",
    "many": "Розпізнано {n} кольорів"
+  },
+  "Saved {file} and its {n} pages into {folder}": {
+   "count": "n",
+   "one": "{file} і його {n} сторінку збережено в {folder}",
+   "few": "{file} і його {n} сторінки збережено в {folder}",
+   "many": "{file} і його {n} сторінок збережено в {folder}"
+  },
+  "Saved the engine chart {file} and its {n} pages into {folder}": {
+   "count": "n",
+   "one": "Діаграму рушія {file} і її {n} сторінку збережено в {folder}",
+   "few": "Діаграму рушія {file} і її {n} сторінки збережено в {folder}",
+   "many": "Діаграму рушія {file} і її {n} сторінок збережено в {folder}"
   }
  },
  "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Діаграму для CR30 завжди розкладає рушій макета ChromIQ, тому цей параметр залишається ввімкненим, доки вибрано прилад CR30.",
@@ -8271,5 +8283,17 @@
  "1 colour recognised": "Розпізнано 1 колір",
  "{n} colours recognised": "Розпізнано {n} кольорів",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ не зміг надіслати клавішу «{key}» до chartread. Натисніть «Стоп» і почніть вимірювання знову.",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ не зміг скласти звіт. Що пішло не так: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ не зміг скласти звіт. Що пішло не так: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "{file} і його 1 сторінку збережено в {folder}",
+ "Saved {file} and its {n} pages into {folder}": "{file} і його {n} сторінок збережено в {folder}",
+ "Saved the engine chart {file} and its 1 page into {folder}": "Діаграму рушія {file} і її 1 сторінку збережено в {folder}",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "Діаграму рушія {file} і її {n} сторінок збережено в {folder}",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "Рушій макета ChromIQ · {instrument} · {paper} · зерно {seed}",
+ "Also written: {files}": "Також записано: {files}",
+ "Colour list, to paste into a new chart later: {file}": "Список кольорів, щоб пізніше вставити його в нову діаграму: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "Файли i1Profiler: {name}.txt і {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "Позначено як рандомізовану: цю діаграму можна вимірювати в обох напрямках.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Без позначки: макет виглядає впорядкованим, тому його вимірюватимуть лише в одному напрямку. Щоб усе ж позначити, увімкніть прапорець «Примусовий тег „рандомізовано“».",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Без позначки: макет виглядає впорядкованим, тому його вимірюватимуть лише в одному напрямку.",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Позначено як рандомізовану, бо ви так вирішили. Обережно: цей макет може зчитуватися ненадійно, як і казало попередження."
 }

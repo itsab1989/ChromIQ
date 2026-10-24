@@ -584,7 +584,7 @@ _STRIP_INSTRUMENTS = frozenset({"i1", "3p"})
 from data.patch_db import (PAPER_LABELS, PAPER_PRINTTARG_ARG, orientation_word,
                            paper_display_label,
                            paper_name_token)
-from core.i18n import count_phrase, tr
+from core.i18n import tr
 from core.text_io import read_text
 from core.platform_paths import default_output_root
 from ui.keyboard_help import with_shortcut
@@ -8644,7 +8644,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         try:
             cpath = target / f"{name}-colours.txt"
             self._write_colour_values_file(cpath)
-            colour_note = f"Colour list: {cpath.name}"
+            colour_note = tr("Colour list, to paste into a new chart "
+                             "later: {file}").format(file=cpath.name)
         except OSError as exc:
             log.warning("colour-list export during save failed: %s", exc)
         # i1Profiler-ready pair (<name>-i1profiler.txt/.pxf) so the saved chart
@@ -8658,13 +8659,16 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                     ti1, target, base_name=f"{name}-i1profiler", descriptor=name,
                     also_shuffled=bool(self._settings and self._settings.get(
                         "export_shuffled_pxf", False)))
-                i1_note = f"i1Profiler files: {pxf.stem}.txt/.pxf"
+                i1_note = tr("i1Profiler files: {name}.txt and "
+                             "{name}.pxf").format(name=pxf.stem)
         except Exception as exc:  # noqa: BLE001
             log.warning("i1Profiler export during save failed: %s", exc)
         tag_note = self._maybe_tag_randomised(res.ti2)
-        msg = (f"Saved {res.ti2.name} + "
-               f"{count_phrase(len(res.tiffs), tr('1 page'), tr('{n} pages'))} "
-               f"to {target}")
+        n_pages = len(res.tiffs)
+        msg = (tr("Saved {file} and its 1 page into {folder}")
+               if n_pages == 1 else
+               tr("Saved {file} and its {n} pages into {folder}")).format(
+                   file=res.ti2.name, n=n_pages, folder=target)
         if colour_note:
             msg += f"\n{colour_note}"
         if i1_note:
@@ -8733,12 +8737,17 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                            self._options or R.LayoutOptions(), name,
                            recipe=self._chart_recipe, sync_layout=False)
         pages = len(result.tiff_paths or [])
-        msg = (f"Saved engine chart {name}.ti2 + "
-               f"{count_phrase(pages, tr('1 page'), tr('{n} pages'))} to {target}\n"
-               f"ChromIQ layout engine · {recipe.instrument} · {recipe.paper} · "
-               f"seed {result.seed}")
+        msg = (tr("Saved the engine chart {file} and its 1 page into {folder}")
+               if pages == 1 else
+               tr("Saved the engine chart {file} and its {n} pages into "
+                  "{folder}")).format(file=f"{name}.ti2", n=pages, folder=target)
+        msg += "\n" + tr("ChromIQ layout engine · {instrument} · {paper} · "
+                         "seed {seed}").format(instrument=recipe.instrument,
+                                               paper=recipe.paper,
+                                               seed=result.seed)
         if extras:
-            msg += "\nAlso wrote: " + ", ".join(sorted(e.name for e in extras))
+            msg += "\n" + tr("Also written: {files}").format(
+                files=", ".join(sorted(e.name for e in extras)))
         # The engine tops up a partial last strip with paper-white patches,
         # exactly like printtarg — say so, or the patch count silently grows
         # from the designed total (#124 report 6: 896 → 910).
@@ -9027,17 +9036,18 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         report = R.analyze_randomisation(ti2)
         if report.safe:
             R.tag_ti2_randomised(ti2)
-            return "Tagged as randomised — bidirectional measuring is available."
+            return tr("Tagged as randomised: this chart can be measured in "
+                      "both directions.")
         if not self._pt_force_tag.isChecked():
-            return ("Left untagged — the layout looks structured, so it will be "
-                    "measured one direction only. Tick “Force randomised tag” to "
-                    "override.")
+            return tr("Left untagged: the layout looks structured, so it will "
+                      "be measured in one direction only. To tag it anyway, "
+                      "tick Force “randomised” tag.")
         if not self._confirm_force_tag(report):
-            return ("Left untagged — the layout looks structured, so it will be "
-                    "measured one direction only.")
+            return tr("Left untagged: the layout looks structured, so it will "
+                      "be measured in one direction only.")
         R.tag_ti2_randomised(ti2)
-        return ("Tagged as randomised (forced) — take care: this layout may be "
-                "read unreliably (see the warning).")
+        return tr("Tagged as randomised, because you asked for it. Take care: "
+                  "this layout may be read unreliably, as the warning said.")
 
     def _confirm_force_tag(self, report: "R.RandomisationReport") -> bool:
         """Risk warning shown when the user forces the tag on an unsafe layout.

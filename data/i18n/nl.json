@@ -7267,5 +7267,17 @@
  "1 colour recognised": "1 kleur herkend",
  "{n} colours recognised": "{n} kleuren herkend",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ kon de toets “{key}” niet naar chartread sturen. Klik op “Stoppen” en start de meting opnieuw.",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ kon het rapport niet samenstellen. Dit ging er mis: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ kon het rapport niet samenstellen. Dit ging er mis: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "{file} en de 1 pagina ervan opgeslagen in {folder}",
+ "Saved {file} and its {n} pages into {folder}": "{file} en de {n} pagina's ervan opgeslagen in {folder}",
+ "Saved the engine chart {file} and its 1 page into {folder}": "Enginekaart {file} en de 1 pagina ervan opgeslagen in {folder}",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "Enginekaart {file} en de {n} pagina's ervan opgeslagen in {folder}",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "ChromIQ-lay-outengine · {instrument} · {paper} · startwaarde {seed}",
+ "Also written: {files}": "Ook geschreven: {files}",
+ "Colour list, to paste into a new chart later: {file}": "Kleurenlijst, om later in een nieuwe kaart te plakken: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "i1Profiler-bestanden: {name}.txt en {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "Gemarkeerd als gerandomiseerd: deze kaart kan in beide richtingen worden gemeten.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Niet gemarkeerd: de indeling ziet er geordend uit, dus wordt ze maar in één richting gemeten. Wil je haar toch markeren, vink dan “Gerandomiseerd”-markering forceren aan.",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Niet gemarkeerd: de indeling ziet er geordend uit, dus wordt ze maar in één richting gemeten.",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Gemarkeerd als gerandomiseerd, omdat je daarom vroeg. Let op: deze indeling wordt misschien onbetrouwbaar gelezen, zoals de waarschuwing zei."
 }

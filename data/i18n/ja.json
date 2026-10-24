@@ -7267,5 +7267,17 @@
  "1 colour recognised": "1 色を認識しました",
  "{n} colours recognised": "{n} 色を認識しました",
  "ChromIQ could not send the key “{key}” to chartread. Click Stop and start the measurement again.": "ChromIQ はキー「{key}」を chartread に送れませんでした。「停止」をクリックして、測定をもう一度開始してください。",
- "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ はレポートを作成できませんでした。原因: {kind}: {detail}"
+ "ChromIQ could not put the report together. What went wrong: {kind}: {detail}": "ChromIQ はレポートを作成できませんでした。原因: {kind}: {detail}",
+ "Saved {file} and its 1 page into {folder}": "{file} と 1 ページを {folder} に保存しました",
+ "Saved {file} and its {n} pages into {folder}": "{file} と {n} ページを {folder} に保存しました",
+ "Saved the engine chart {file} and its 1 page into {folder}": "エンジンチャート {file} と 1 ページを {folder} に保存しました",
+ "Saved the engine chart {file} and its {n} pages into {folder}": "エンジンチャート {file} と {n} ページを {folder} に保存しました",
+ "ChromIQ layout engine · {instrument} · {paper} · seed {seed}": "ChromIQ レイアウトエンジン · {instrument} · {paper} · シード {seed}",
+ "Also written: {files}": "ほかに書き出したファイル: {files}",
+ "Colour list, to paste into a new chart later: {file}": "あとで新しいチャートに貼り付けるための色リスト: {file}",
+ "i1Profiler files: {name}.txt and {name}.pxf": "i1Profiler ファイル: {name}.txt と {name}.pxf",
+ "Tagged as randomised: this chart can be measured in both directions.": "ランダム化としてタグ付けしました。このチャートは両方向で測定できます。",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "タグ付けしませんでした。レイアウトが規則的に見えるため、一方向だけで測定します。それでもタグ付けする場合は、「ランダム化」タグを強制 にチェックを入れてください。",
+ "Left untagged: the layout looks structured, so it will be measured in one direction only.": "タグ付けしませんでした。レイアウトが規則的に見えるため、一方向だけで測定します。",
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "ご指定どおりランダム化としてタグ付けしました。ご注意ください。警告のとおり、このレイアウトは正しく読み取れない場合があります。"
 }
