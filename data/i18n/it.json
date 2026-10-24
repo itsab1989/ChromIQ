@@ -7317,5 +7317,6 @@
  "Projector in dark environment (jd)": "Proiettore in ambiente buio (jd)",
  "Photo CD viewing booth (pcd)": "Cabina di visione Photo CD (pcd)",
  "Original scene, bright outdoors (ob)": "Scena originale, esterno luminoso (ob)",
- "Cut sheet transparencies on a viewing box (cx)": "Diapositive piane su visore luminoso (cx)"
+ "Cut sheet transparencies on a viewing box (cx)": "Diapositive piane su visore luminoso (cx)",
+ "{name} {secs} s": "{name} {secs} s"
 }

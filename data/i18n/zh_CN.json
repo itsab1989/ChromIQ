@@ -7317,5 +7317,6 @@
  "Projector in dark environment (jd)": "黑暗环境中的投影仪 (jd)",
  "Photo CD viewing booth (pcd)": "Photo CD观察台 (pcd)",
  "Original scene, bright outdoors (ob)": "原始场景，明亮户外 (ob)",
- "Cut sheet transparencies on a viewing box (cx)": "灯箱上的散页透射稿 (cx)"
+ "Cut sheet transparencies on a viewing box (cx)": "灯箱上的散页透射稿 (cx)",
+ "{name} {secs} s": "{name} {secs} 秒"
 }

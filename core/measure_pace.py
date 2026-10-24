@@ -921,7 +921,9 @@ def session_summary(times, total_seconds: float, worst: int = 10) -> str:
 
     if len(values) > 1:
         ranked = sorted(read.items(), key=lambda kv: kv[1])[:worst]
-        listed = ", ".join(f"{name} {secs:.1f} s" for name, secs in ranked)
+        # the unit is a word of the reader's language (с, 秒), not a symbol
+        listed = ", ".join(tr("{name} {secs} s").format(
+            name=name, secs=f"{secs:.1f}") for name, secs in ranked)
         lines.append(tr("Strips with worst reading time: {list}").format(
             list=listed))
     return "\n".join(lines)

@@ -7317,5 +7317,6 @@
  "Projector in dark environment (jd)": "Projektor in dunkler Umgebung (jd)",
  "Photo CD viewing booth (pcd)": "Photo-CD-Betrachtungskabine (pcd)",
  "Original scene, bright outdoors (ob)": "Originalszene, helles Tageslicht im Freien (ob)",
- "Cut sheet transparencies on a viewing box (cx)": "Planfilm-Dias auf einem Leuchtkasten (cx)"
+ "Cut sheet transparencies on a viewing box (cx)": "Planfilm-Dias auf einem Leuchtkasten (cx)",
+ "{name} {secs} s": "{name} {secs} s"
 }

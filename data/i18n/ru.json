@@ -8297,5 +8297,6 @@
  "Projector in dark environment (jd)": "Проектор в тёмной среде (jd)",
  "Photo CD viewing booth (pcd)": "Кабина просмотра Photo CD (pcd)",
  "Original scene, bright outdoors (ob)": "Исходная сцена, яркая улица (ob)",
- "Cut sheet transparencies on a viewing box (cx)": "Листовые слайды на световом столе (cx)"
+ "Cut sheet transparencies on a viewing box (cx)": "Листовые слайды на световом столе (cx)",
+ "{name} {secs} s": "{name} {secs} с"
 }

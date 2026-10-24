@@ -7317,5 +7317,6 @@
  "Projector in dark environment (jd)": "暗い環境のプロジェクター (jd)",
  "Photo CD viewing booth (pcd)": "Photo CD観察ブース (pcd)",
  "Original scene, bright outdoors (ob)": "元のシーン、明るい屋外 (ob)",
- "Cut sheet transparencies on a viewing box (cx)": "ライトボックス上のシート透過原稿 (cx)"
+ "Cut sheet transparencies on a viewing box (cx)": "ライトボックス上のシート透過原稿 (cx)",
+ "{name} {secs} s": "{name} {secs} 秒"
 }
