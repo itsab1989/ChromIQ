@@ -2306,8 +2306,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             if _a58k("grid33in") and _a78p is not None:
                 # Research Agent 78 (a78-rgbsmooth): the coarse table's
                 # clipped nodes smoothed along L* (purecolprof.a78_smooth)
-                _sub = _a58m.a78_smooth(_sub, node_lab, residual, b2a_grid,
-                                        _g0, _a78p)
+                _sub = _a58m.a78_smooth(
+                    _sub, node_lab, residual, b2a_grid, _g0, _a78p,
+                    white_l=float(model.predict(np.ones((1, n)))[0, 0]))
                 _emit(settings, "Colorimetric table: clipped coarse nodes "
                                 "smoothed along L* (research a78-rgbsmooth).")
             if _a58k("grid33in") and os.environ.get("CHROMIQ_A78_DUMP"):

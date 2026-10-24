@@ -566,15 +566,18 @@ def depth_inside(residual: np.ndarray, g: int, depth: float,
 # leaves the gamut holds its colour to a node and then turns into black
 # within one coarse cell. A 1-2-1 filter along L* on the clipped coarse nodes
 # (clip distance > rmin dE), repeated ``iters`` times, spreads that turn over
-# the neighbouring cells. Printable nodes, the black corner and the white
-# node are not touched; the fine (printable) table is unchanged.
+# the neighbouring cells. Printable nodes, the black corner and the nodes
+# within ``top`` L* of the model's white (the a63-palefine region: smoothing
+# there pulled pale out-of-gamut nodes toward the white plane and cost Knut
+# pale_oog_dL_max_r 3.18 -> 3.35) are not touched; the fine (printable) table
+# is unchanged.
 A78_TOKEN = "a78-rgbsmooth"
-A78_SMOOTH = {"s": 1.0, "rmin": 8.0, "iters": 2, "tau": 0.0}
+A78_SMOOTH = {"s": 1.0, "rmin": 8.0, "iters": 2, "tau": 0.0, "top": 10.0}
 
 
 def a78_params(candidates):
     """(s, rmin, iters, tau) with a78-rgbsmooth on, else None (env
-    CHROMIQ_A78_SMOOTH "s:rmin:iters[:tau]" for research sweeps)."""
+    CHROMIQ_A78_SMOOTH "s:rmin:iters[:tau[:top]]" for research sweeps)."""
     if A78_TOKEN not in frozenset(candidates or ()):
         return None
     import os
@@ -585,11 +588,14 @@ def a78_params(candidates):
         p["s"], p["rmin"], p["iters"] = float(k[0]), float(k[1]), int(k[2])
         if len(k) > 3:
             p["tau"] = float(k[3])
+        if len(k) > 4:
+            p["top"] = float(k[4])
     return p
 
 
 def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
-               g_fine: int, g_coarse: int, params: dict) -> np.ndarray:
+               g_fine: int, g_coarse: int, params: dict,
+               white_l: float = 100.0) -> np.ndarray:
     """a78-rgbsmooth: ``sub`` (the coarse table, g_coarse^3 x n) with its
     clipped nodes filtered along the L* axis (weights 1/4, 1/2, 1/4; the end
     planes reflect), ``iters`` passes of strength ``s``. With ``tau`` > 0 only
@@ -602,7 +608,8 @@ def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
     rr = np.asarray(residual, float).reshape(g_fine, g_fine, g_fine)[
         ::st, ::st, ::st].reshape(-1)
     sel = ((rr > float(params["rmin"])) & (np.linalg.norm(nl, axis=1) > 1.0)
-           & (nl[:, 0] < 99.9))
+           & (nl[:, 0] < 99.9)
+           & (nl[:, 0] <= float(white_l) - float(params.get("top", 0.0))))
     s = float(params["s"])
     tau = float(params.get("tau") or 0.0)
     x = np.asarray(sub, float).reshape(g_coarse, g_coarse, g_coarse, n).copy()
