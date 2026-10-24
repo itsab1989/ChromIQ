@@ -19,7 +19,10 @@ def test_token_is_registered_and_off_by_default():
     assert P.A82_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
     assert P.A82_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
     assert P.a82_params(builder.ACCURATE_DEFAULT_TOKENS) is None
-    assert P.a82_params({P.A82_TOKEN}) == P.A82
+    assert P.A82_CUSP_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
+    p = P.a82_params({P.A82_TOKEN})
+    assert p["dark"] and not p["cusp"]
+    assert P.a82_params({P.A82_CUSP_TOKEN})["cusp"]
 
 
 def test_dark_spike_on_a_clipped_green_node_is_smoothed_and_nothing_else_moves():
@@ -31,7 +34,7 @@ def test_dark_spike_on_a_clipped_green_node_is_smoothed_and_nothing_else_moves()
     green = (_hue(nl) >= 90) & (_hue(nl) <= 170)
     i = int(np.flatnonzero((np.abs(nl[:, 0] - 9.375) < 1e-6) & green & (res > 1))[0])
     tab[i] = [0.0, 0.9, 0.0]                         # the edge snap
-    out = P.a82_dark(tab, nl, res, g, P.A82, black_l=3.0)
+    out = P.a82_dark(tab, nl, res, g, P.a82_params({P.A82_TOKEN}), black_l=3.0)
     assert np.abs(out[i] - tab[i]).max() > 0.2      # the spike is pulled toward its neighbours
     moved = np.abs(out - tab).max(1) > 0
     assert not moved[res <= 1.0].any()               # printable nodes never change
@@ -47,7 +50,9 @@ def test_coarse_cusp_is_rounded_only_on_clipped_green_nodes():
     nlc = nl.reshape(gf, gf, gf, 3)[::st, ::st, ::st].reshape(-1, 3)
     v = 1.0 - np.abs(nlc[:, 0] - 56.25) / 50.0      # a cusp (peak) at L 56.25
     sub = np.stack([v, v, v], 1)
-    out = P.a82_coarse(sub, nl, res, gf, gc, P.A82, black_l=3.0, white_l=100.0)
+    p = P.a82_params({P.A82_TOKEN})
+    assert P.a82_coarse(sub, nl, res, gf, gc, p, black_l=3.0, white_l=100.0) is sub   # not part of a82-green
+    out = P.a82_coarse(sub, nl, res, gf, gc, P.a82_params({P.A82_CUSP_TOKEN}), black_l=3.0, white_l=100.0)
     h = _hue(nlc)
     sel = ((np.hypot(nlc[:, 1], nlc[:, 2]) > 60) & (h >= 90) & (h <= 170)
            & (nlc[:, 0] >= 33.0) & (nlc[:, 0] <= 90.0))

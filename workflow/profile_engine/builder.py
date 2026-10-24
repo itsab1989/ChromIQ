@@ -244,7 +244,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 82: RGB colorimetric greens, clipped nodes near the black (fine
      # table) and at the green cusp (coarse table) smoothed
      # (purecolprof.a82_dark / a82_coarse); research, opt-in
-     "a82-green"})
+     "a82-green", "a82-greencusp"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -2365,8 +2365,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                         _tab, node_lab, residual, b2a_grid, _a82p,
                         float(model.predict(np.zeros((1, n)))[0, 0]))
                     _emit(settings, "Colorimetric table: clipped green "
-                                    "nodes smoothed near the black and at "
-                                    "the cusp (research a82-green).")
+                                    "nodes smoothed (research a82-green"
+                                    f"{'' if _a82p['dark'] else ' off'}, "
+                                    "a82-greencusp"
+                                    f"{'' if _a82p['cusp'] else ' off'}).")
                 b2a_col = icw.make_mft2(
                     3, n, b2a_grid, icw.device_to_u16(_tab),
                     in_tables=b2a_in,

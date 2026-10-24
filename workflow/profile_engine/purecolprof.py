@@ -674,9 +674,14 @@ def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
 # the printer's black (faded out over DARK_F L* above it), 2 passes; (2) a
 # 1-2-1 filter along L* on the coarse table's clipped nodes (clip distance >
 # 4 dE) from 30 L* above the black to 10 L* below the white, 2 passes. Both
-# only on nodes whose TARGET hue is green (A82_HUE); printable nodes are never
-# changed, so in-gamut accuracy is untouched.
+# only on nodes whose TARGET hue is green (A82["hue"]); printable nodes are
+# never changed, so in-gamut accuracy is untouched.
+# a82-green is part (1) only. Part (2) is the separate a82-greencusp: it
+# lowers the ET-8550 knee only from 1.15 to 1.07 JND (colprof 0.90) and makes
+# Knut's green h150 ramp cross the 1 JND line (0.93 -> 1.02), so it is not
+# proposed (Findings/agent82-01 s3).
 A82_TOKEN = "a82-green"
+A82_CUSP_TOKEN = "a82-greencusp"
 A82 = {"hue": (90.0, 170.0), "dark_l": 20.0, "dark_f": 5.0, "dark_r0": 1.0,
        "dark_iters": 2, "co_rmin": 4.0, "co_iters": 2, "co_lmin": 30.0,
        "co_top": 10.0}
@@ -685,10 +690,13 @@ A82 = {"hue": (90.0, 170.0), "dark_l": 20.0, "dark_f": 5.0, "dark_r0": 1.0,
 def a82_params(candidates):
     """a82-green's parameters, or None with the token off (env
     CHROMIQ_A82 "h0:h1:dark_l:dark_iters:co_iters" for research sweeps)."""
-    if A82_TOKEN not in frozenset(candidates or ()):
+    cand = frozenset(candidates or ())
+    if A82_TOKEN not in cand and A82_CUSP_TOKEN not in cand:
         return None
     import os
     p = dict(A82)
+    p["dark"] = A82_TOKEN in cand
+    p["cusp"] = A82_CUSP_TOKEN in cand
     v = os.environ.get("CHROMIQ_A82", "")
     if v:
         k = v.split(":")
@@ -724,6 +732,8 @@ def a82_coarse(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
                white_l: float) -> np.ndarray:
     """a82-green part 2: the coarse table's clipped green nodes between
     black + co_lmin and white - co_top filtered along L*."""
+    if not params.get("cusp", True):
+        return np.asarray(sub)
     st = (g_fine - 1) // (g_coarse - 1)
     n = sub.shape[1]
     nl = np.asarray(node_lab, float).reshape(g_fine, g_fine, g_fine, 3)[
@@ -749,6 +759,8 @@ def a82_dark(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
              g: int, params: dict, black_l: float) -> np.ndarray:
     """a82-green part 1: the written (fine) table's clipped green nodes near
     the black filtered along L*, a* and b*."""
+    if not params.get("dark", True):
+        return np.asarray(table)
     nl = np.asarray(node_lab, float)
     r = np.asarray(residual, float)
     n = table.shape[1]
