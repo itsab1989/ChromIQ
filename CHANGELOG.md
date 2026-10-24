@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.3.13
+
+**For everyone updating from 4.3.12: the strip letters can now be moved sideways as well as up and down, so you can move them out of the way of your instrument, for example together with a smaller letter size. Charts, defaults and presets you made before look and print exactly as they did.**
+
+### Added
+- **Create Chart > Manual > "Strip indicators only": "Label offset" has a second box, ↔ X, next to ↕ Y.** A positive value moves the strip letters to the right on the printed sheet, a negative value to the left, from −50 to +50 mm. The patches never move, and each strip's underline stays under its strip. The value is saved with Save as Defaults, in your presets and with the chart, and Preferences > Chart Layout has the same pair. Defaults, presets and charts from earlier versions start at 0, which is the old behaviour.
+- **Hints while you move the letters sideways.** ChromIQ only stops the letters at the edge of what can be printed, and says so. When a letter stands nearer to the next strip than to its own, or sits where your instrument passes over a strip (i1Pro, i1Pro 3 Plus, ColorMunki / i1Studio / ColorChecker Studio), a hint under the preview says so and suggests a value that clears every strip. Nothing is ever blocked. (New texts, shown and waiting for approval.)
+
+### Changed
+- **Preferences > Chart Layout explains the strip label style correctly:** it is the starting point for new charts, and a chart or preset that has its own style keeps it. The group title now reads "Strip indicator style (starting point for new charts)".
+
+### Fixed
+- **"Label offset" is greyed out when "Strip indicators" is off**, like the underline next to it.
+
 ## v4.3.12
 
 **For everyone updating from 4.3.11: a translation release. The whole Ukrainian translation was gone through, and texts in every language that named a menu, page or button that does not exist now name the real one. Standard buttons such as OK and Cancel are translated in every window, and numbers on screen use a decimal comma in the languages that write one. Your measurements, settings and presets are read and saved exactly as before.**
