@@ -139,7 +139,9 @@ def plural_category(n, lang: str | None = None) -> str:
     lang = _language if lang is None else lang
     if isinstance(n, str):
         # A number that was already written out: "21", "1 234", "1,5".
-        n = n.replace("\u00a0", "").replace(" ", "").replace(",", ".")
+        # U+202F is the narrow no-break space some locales group with.
+        n = (n.replace("\u00a0", "").replace("\u202f", "").replace(" ", "")
+              .replace(",", "."))
     try:
         value = float(n)
     except (TypeError, ValueError):

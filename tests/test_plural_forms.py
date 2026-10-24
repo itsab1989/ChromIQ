@@ -69,6 +69,7 @@ def test_every_other_language_counts_like_english(lang):
 def test_a_number_already_written_out_is_read_as_a_number():
     assert i18n.plural_category("21", "ru") == "one"
     assert i18n.plural_category("1\u00a0021", "ru") == "one"
+    assert i18n.plural_category("1\u202f022", "uk") == "few"
     assert i18n.plural_category("1,5", "ru") == "other"
     assert i18n.plural_category("n/a", "ru") == "other"
 
