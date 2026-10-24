@@ -571,17 +571,29 @@ def depth_inside(residual: np.ndarray, g: int, depth: float,
 # there pulled pale out-of-gamut nodes toward the white plane and cost Knut
 # pale_oog_dL_max_r 3.18 -> 3.35) are not touched; the fine (printable) table
 # is unchanged.
+# The gate: smoothing runs only on a table whose clip field bends that much
+# overall: the median |second difference along L*| (largest channel, device
+# units) over the clipped coarse nodes it would filter is at least ``gate``.
+# Measured on the int-10 dumps (Findings/agent78-01 s3): Knut 0.053; every
+# other RGB set 0.015-0.027 (ET-8550 0.015, PRO-300 Canon 0.016, RGB default
+# 0.019, PRO-300 Epson 0.027, S1/S2/X1 0.020-0.024). Without the gate
+# (a78-rgbsmooth-all) the ET-8550 eyecheck rel. col. count went 24 -> 29.
 A78_TOKEN = "a78-rgbsmooth"
-A78_SMOOTH = {"s": 1.0, "rmin": 8.0, "iters": 2, "tau": 0.0, "top": 10.0}
+A78_ALL_TOKEN = "a78-rgbsmooth-all"
+A78_SMOOTH = {"s": 1.0, "rmin": 8.0, "iters": 2, "tau": 0.0, "top": 10.0,
+              "gate": 0.04}
 
 
 def a78_params(candidates):
     """(s, rmin, iters, tau) with a78-rgbsmooth on, else None (env
     CHROMIQ_A78_SMOOTH "s:rmin:iters[:tau[:top]]" for research sweeps)."""
-    if A78_TOKEN not in frozenset(candidates or ()):
+    cand = frozenset(candidates or ())
+    if A78_TOKEN not in cand and A78_ALL_TOKEN not in cand:
         return None
     import os
     p = dict(A78_SMOOTH)
+    if A78_ALL_TOKEN in cand:
+        p["gate"] = 0.0
     v = os.environ.get("CHROMIQ_A78_SMOOTH", "")
     if v:
         k = v.split(":")
@@ -590,7 +602,19 @@ def a78_params(candidates):
             p["tau"] = float(k[3])
         if len(k) > 4:
             p["top"] = float(k[4])
+        if len(k) > 5:
+            p["gate"] = float(k[5])
     return p
+
+
+def a78_bend(sub: np.ndarray, sel: np.ndarray, g_coarse: int) -> float:
+    """The gate statistic: median |second difference along L*| (largest
+    channel) over the selected coarse nodes that have both L* neighbours."""
+    n = sub.shape[1]
+    x = np.asarray(sub, float).reshape(g_coarse, g_coarse, g_coarse, n)
+    c2 = np.abs(x[2:] - 2.0 * x[1:-1] + x[:-2]).max(-1)
+    m = np.asarray(sel).reshape(g_coarse, g_coarse, g_coarse)[1:-1]
+    return float(np.median(c2[m])) if m.any() else 0.0
 
 
 def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
@@ -612,6 +636,9 @@ def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
            & (nl[:, 0] <= float(white_l) - float(params.get("top", 0.0))))
     s = float(params["s"])
     tau = float(params.get("tau") or 0.0)
+    gate = float(params.get("gate") or 0.0)
+    if gate > 0.0 and a78_bend(sub, sel, g_coarse) < gate:
+        return np.asarray(sub)
     x = np.asarray(sub, float).reshape(g_coarse, g_coarse, g_coarse, n).copy()
     for _ in range(int(params["iters"])):
         lo = np.concatenate([x[:1], x[:-1]], 0)

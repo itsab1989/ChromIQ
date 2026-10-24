@@ -240,7 +240,7 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 78: the RGB colorimetric table's clipped coarse nodes smoothed
      # along L* (purecolprof.a78_smooth; colour-to-black ramps turn into
      # black without a knee); research, opt-in
-     "a78-rgbsmooth"})
+     "a78-rgbsmooth", "a78-rgbsmooth-all"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -2305,12 +2305,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _a78p = _a58m.a78_params(candidates)
             if _a58k("grid33in") and _a78p is not None:
                 # Research Agent 78 (a78-rgbsmooth): the coarse table's
-                # clipped nodes smoothed along L* (purecolprof.a78_smooth)
-                _sub = _a58m.a78_smooth(
+                # clipped nodes smoothed along L* (purecolprof.a78_smooth),
+                # on a table whose clip field bends (the gate)
+                _sub78 = _a58m.a78_smooth(
                     _sub, node_lab, residual, b2a_grid, _g0, _a78p,
                     white_l=float(model.predict(np.ones((1, n)))[0, 0]))
-                _emit(settings, "Colorimetric table: clipped coarse nodes "
-                                "smoothed along L* (research a78-rgbsmooth).")
+                if _sub78 is not _sub:
+                    _emit(settings, "Colorimetric table: clipped coarse "
+                                    "nodes smoothed along L* (research "
+                                    "a78-rgbsmooth).")
+                _sub = _sub78
             if _a58k("grid33in") and os.environ.get("CHROMIQ_A78_DUMP"):
                 # Research Agent 78: dump the colorimetric table's parts
                 # (fine table, coarse sub-sample, clip distance, pre-refit

@@ -15,6 +15,20 @@ def test_token_is_registered_and_off_by_default():
     assert P.A78_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
     assert P.a78_params(builder.ACCURATE_DEFAULT_TOKENS) is None
     assert P.a78_params({P.A78_TOKEN}) == P.A78_SMOOTH
+    assert P.A78_ALL_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
+    assert P.a78_params({P.A78_ALL_TOKEN})["gate"] == 0.0
+
+
+def test_the_gate_leaves_a_gently_bending_table_alone():
+    gf, gc = 33, 17
+    nl = _grid(gf)
+    res = np.full(len(nl), 30.0)
+    st = (gf - 1) // (gc - 1)
+    nlc = nl.reshape(gf, gf, gf, 3)[::st, ::st, ::st].reshape(-1, 3)
+    v = np.clip((nlc[:, 0] - 50.0) / 50.0, 0, 1) * 0.2       # one knee, median bend 0
+    sub = np.stack([v, v, v], 1)
+    assert P.a78_smooth(sub, nl, res, gf, gc, P.A78_SMOOTH) is sub
+    assert not np.array_equal(P.a78_smooth(sub, nl, res, gf, gc, P.a78_params({P.A78_ALL_TOKEN})), sub)
 
 
 def test_a_knee_along_L_is_spread_and_printable_nodes_stay():
@@ -26,7 +40,7 @@ def test_a_knee_along_L_is_spread_and_printable_nodes_stay():
     # device value with a knee in L* at L 50 (slope 0 below, 1 above)
     v = np.clip((nlc[:, 0] - 50.0) / 50.0, 0, 1)
     sub = np.stack([v, v, v], 1)
-    out = P.a78_smooth(sub, nl, res, gf, gc, P.A78_SMOOTH)
+    out = P.a78_smooth(sub, nl, res, gf, gc, P.a78_params({P.A78_ALL_TOKEN}))
     clip = ((np.hypot(nlc[:, 1], nlc[:, 2]) > 60) & (np.linalg.norm(nlc, axis=1) > 1)
             & (nlc[:, 0] <= 100.0 - P.A78_SMOOTH["top"]))
     # printable nodes untouched
@@ -46,7 +60,7 @@ def test_the_pale_region_is_left_alone():
     nlc = nl.reshape(gf, gf, gf, 3)[::st, ::st, ::st].reshape(-1, 3)
     rng = np.random.default_rng(78)
     sub = rng.random((len(nlc), 3))
-    out = P.a78_smooth(sub, nl, res, gf, gc, P.A78_SMOOTH, white_l=96.0)
+    out = P.a78_smooth(sub, nl, res, gf, gc, P.A78_SMOOTH, white_l=96.0)   # random: bends, the gate opens
     pale = nlc[:, 0] > 96.0 - P.A78_SMOOTH["top"]
     assert np.array_equal(out[pale], sub[pale])
     assert not np.array_equal(out[~pale], sub[~pale])
