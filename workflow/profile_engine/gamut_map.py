@@ -1138,8 +1138,10 @@ A79_LINCURVE = "a79-lincurve"
 # the oracle's black (env CHROMIQ_A79_LA). Without it the column took
 # colprof's own dark end, whose black (Y-rich on i1iSis) prints lighter
 # than the K-led column just above it: every grey ramp rose 1.2 L* into
-# the black (offline, Findings agent79-01 s3). 12 / 19 / 25 measured alike.
-A79_LA = 20.0
+# the black (offline, Findings agent79-01 s3). Swept 5 / 8 / 12 / 20 / 25:
+# below 12 the rise returns, above it the straight path tints the dark
+# greys (rbf C* 6.4 at 12, 7.3 at 20; colprof 4.9).
+A79_LA = 12.0
 
 
 def a79_la() -> float:

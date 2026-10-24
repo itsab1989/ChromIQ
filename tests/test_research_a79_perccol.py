@@ -53,12 +53,14 @@ def test_lincurve_keeps_every_node_device_value():
     assert (outs == np.round(np.linspace(0, 65535, 1024))).all()
 
 
-def test_dark_path_is_straight_below_the_handover():
+def test_dark_path_is_straight_below_the_handover(monkeypatch):
     g = 9
     v = np.linspace(0, 1, g)
     nl = np.stack(np.meshgrid(v * 100, v * 256 - 128, v * 256 - 128, indexing="ij"), -1).reshape(-1, 3)
     dev = np.random.default_rng(2).random((len(nl), 4))
-    out = gamut_map.a79_dark_path(dev, nl)
     col = np.flatnonzero(np.hypot(nl[:, 1], nl[:, 2]) < 1)
-    assert np.array_equal(np.delete(out, col[1:2], 0), np.delete(dev, col[1:2], 0))   # node L 12.5 only moves
+    assert np.array_equal(gamut_map.a79_dark_path(dev, nl), dev)      # default 12: node L 12.5 is the hand-over
+    monkeypatch.setenv("CHROMIQ_A79_LA", "20")
+    out = gamut_map.a79_dark_path(dev, nl)
+    assert np.array_equal(np.delete(out, col[1:2], 0), np.delete(dev, col[1:2], 0))   # only node L 12.5 moves
     assert np.allclose(out[col[1]], 0.5 * dev[col[0]] + 0.5 * dev[col[2]])
