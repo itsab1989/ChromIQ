@@ -8264,5 +8264,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool} (найден, но не запускается)",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 для x64 (Intel или AMD) или arm64 для устройств на ARM (Snapdragon)",
  "arm64 for Apple Silicon, osx64 for Intel": "arm64 для Apple Silicon, osx64 для Intel",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "двоичный архив tar.bz2 под архитектуру вашего дистрибутива (x86_64 или aarch64) или установите его менеджером пакетов (например, sudo apt install argyll)"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "двоичный архив tar.bz2 под архитектуру вашего дистрибутива (x86_64 или aarch64) или установите его менеджером пакетов (например, sudo apt install argyll)",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[Доводка с подсказками] Полоса {done} готова. Переход к полосе {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[Доводка с подсказками] Переход к полосе {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[Доводка с подсказками] Мы на полосе {strip}. Прочитайте её сейчас.",
+ "[Guided Refinement] All the strips to refine have been measured.": "[Доводка с подсказками] Все полосы для доводки измерены.",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[Доводка с подсказками] Все полосы для доводки измерены. Чтобы закончить, можно нажать 'n' или 'd'.",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[Доводка с подсказками] ChromIQ сам нажимает 'f' и 'b', поэтому, пожалуйста, не трогайте клавиатуру.",
+ "the chart was made for {instrument}, which this reader does not accept": "мишень сделана для {instrument}, а этот считыватель её не принимает",
+ "this reader does not accept the chart": "этот считыватель не принимает мишень"
 }

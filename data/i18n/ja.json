@@ -7284,5 +7284,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool}（見つかりましたが起動しません）",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "x64（Intel または AMD）には win64、ARM 搭載機（Snapdragon）には arm64",
  "arm64 for Apple Silicon, osx64 for Intel": "Apple シリコンには arm64、Intel には osx64",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "お使いのディストリビューションのアーキテクチャ（x86_64 または aarch64）に合うバイナリ tar.bz2。またはパッケージマネージャーでインストールしてください（例: sudo apt install argyll）"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "お使いのディストリビューションのアーキテクチャ（x86_64 または aarch64）に合うバイナリ tar.bz2。またはパッケージマネージャーでインストールしてください（例: sudo apt install argyll）",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[ガイド付き改良] ストリップ {done} が終わりました。ストリップ {next} へ移動します…",
+ "[Guided Refinement] Moving to strip {strip}…": "[ガイド付き改良] ストリップ {strip} へ移動します…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[ガイド付き改良] ストリップ {strip} に着きました。今読み取ってください。",
+ "[Guided Refinement] All the strips to refine have been measured.": "[ガイド付き改良] 改良するストリップをすべて測定しました。",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[ガイド付き改良] 改良するストリップをすべて測定しました。'n' または 'd' を押すと終了できます。",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[ガイド付き改良] ChromIQ が 'f' と 'b' を代わりに押します。キーボードには触れないでください。",
+ "the chart was made for {instrument}, which this reader does not accept": "チャートは {instrument} 用に作られており、この読み取り機では受け付けられません",
+ "this reader does not accept the chart": "この読み取り機ではチャートを受け付けられません"
 }

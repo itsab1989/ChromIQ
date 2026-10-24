@@ -8270,5 +8270,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool} (znaleziono, ale się nie uruchamia)",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 dla x64 (Intel lub AMD) albo arm64 dla urządzeń ARM (Snapdragon)",
  "arm64 for Apple Silicon, osx64 for Intel": "arm64 dla Apple Silicon, osx64 dla Intela",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "binarny tar.bz2 zgodny z architekturą Twojej dystrybucji (x86_64 lub aarch64) albo zainstaluj go menedżerem pakietów (na przykład sudo apt install argyll)"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "binarny tar.bz2 zgodny z architekturą Twojej dystrybucji (x86_64 lub aarch64) albo zainstaluj go menedżerem pakietów (na przykład sudo apt install argyll)",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[Prowadzone dopracowanie] Pasek {done} gotowy. Przechodzę do paska {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[Prowadzone dopracowanie] Przechodzę do paska {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[Prowadzone dopracowanie] Jesteśmy przy pasku {strip}. Odczytaj go teraz.",
+ "[Guided Refinement] All the strips to refine have been measured.": "[Prowadzone dopracowanie] Zmierzono wszystkie paski do dopracowania.",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[Prowadzone dopracowanie] Zmierzono wszystkie paski do dopracowania. Możesz nacisnąć 'n' lub 'd', aby zakończyć.",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[Prowadzone dopracowanie] ChromIQ naciska 'f' i 'b' za Ciebie, więc nie dotykaj klawiatury.",
+ "the chart was made for {instrument}, which this reader does not accept": "wzorzec przygotowano dla {instrument}, a ten czytnik go nie przyjmuje",
+ "this reader does not accept the chart": "ten czytnik nie przyjmuje wzorca"
 }

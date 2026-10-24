@@ -7284,5 +7284,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool} (funnet, men starter ikke)",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 for x64 (Intel eller AMD), eller arm64 for ARM-baserte enheter (Snapdragon)",
  "arm64 for Apple Silicon, osx64 for Intel": "arm64 for Apple Silicon, osx64 for Intel",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "binærfilen tar.bz2 som passer til arkitekturen i distribusjonen din (x86_64 eller aarch64), eller installer den med pakkebehandleren (for eksempel sudo apt install argyll)"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "binærfilen tar.bz2 som passer til arkitekturen i distribusjonen din (x86_64 eller aarch64), eller installer den med pakkebehandleren (for eksempel sudo apt install argyll)",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[Veiledet forbedring] Stripe {done} er ferdig. Går videre til stripe {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[Veiledet forbedring] Går til stripe {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[Veiledet forbedring] Kommet til stripe {strip}. Les den nå.",
+ "[Guided Refinement] All the strips to refine have been measured.": "[Veiledet forbedring] Alle stripene som skulle forbedres, er målt.",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[Veiledet forbedring] Alle stripene som skulle forbedres, er målt. Du kan trykke 'n' eller 'd' for å avslutte.",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[Veiledet forbedring] ChromIQ trykker 'f' og 'b' for deg, så ikke rør tastaturet.",
+ "the chart was made for {instrument}, which this reader does not accept": "kartet ble laget for {instrument}, og denne leseren godtar det ikke",
+ "this reader does not accept the chart": "denne leseren godtar ikke kartet"
 }

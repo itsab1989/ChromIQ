@@ -8300,5 +8300,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool} (знайдено, але не запускається)",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 для x64 (Intel або AMD) або arm64 для пристроїв на ARM (Snapdragon)",
  "arm64 for Apple Silicon, osx64 for Intel": "arm64 для Apple Silicon, osx64 для Intel",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "двійковий архів tar.bz2 під архітектуру вашого дистрибутива (x86_64 або aarch64) або встановіть його менеджером пакетів (наприклад, sudo apt install argyll)"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "двійковий архів tar.bz2 під архітектуру вашого дистрибутива (x86_64 або aarch64) або встановіть його менеджером пакетів (наприклад, sudo apt install argyll)",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[Кероване уточнення] Смугу {done} готово. Переходимо до смуги {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[Кероване уточнення] Переходимо до смуги {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[Кероване уточнення] Ми на смузі {strip}. Зчитайте її зараз.",
+ "[Guided Refinement] All the strips to refine have been measured.": "[Кероване уточнення] Усі смуги для уточнення виміряно.",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[Кероване уточнення] Усі смуги для уточнення виміряно. Щоб завершити, можна натиснути 'n' або 'd'.",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[Кероване уточнення] ChromIQ сам натискає 'f' і 'b', тож, будь ласка, не торкайтеся клавіатури.",
+ "the chart was made for {instrument}, which this reader does not accept": "діаграму зроблено для {instrument}, а цей зчитувач її не приймає",
+ "this reader does not accept the chart": "цей зчитувач не приймає діаграму"
 }

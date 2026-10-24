@@ -7284,5 +7284,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool}（已找到，但无法启动）",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "x64（Intel 或 AMD）选 win64，ARM 设备（骁龙）选 arm64",
  "arm64 for Apple Silicon, osx64 for Intel": "Apple 芯片选 arm64，Intel 选 osx64",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "与你的发行版架构（x86_64 或 aarch64）匹配的二进制 tar.bz2，或者用包管理器安装（例如 sudo apt install argyll）"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "与你的发行版架构（x86_64 或 aarch64）匹配的二进制 tar.bz2，或者用包管理器安装（例如 sudo apt install argyll）",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[引导优化] 色条 {done} 已完成。正在前往色条 {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[引导优化] 正在前往色条 {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[引导优化] 已到达色条 {strip}。请现在读取它。",
+ "[Guided Refinement] All the strips to refine have been measured.": "[引导优化] 所有需要优化的色条都已测量。",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[引导优化] 所有需要优化的色条都已测量。可以按 'n' 或 'd' 结束。",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[引导优化] ChromIQ 会替你按 'f' 和 'b'，所以请不要碰键盘。",
+ "the chart was made for {instrument}, which this reader does not accept": "这张色卡是为 {instrument} 制作的，这个读取器不接受它",
+ "this reader does not accept the chart": "这个读取器不接受这张色卡"
 }

@@ -7284,5 +7284,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool} (hittades, men startar inte)",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 för x64 (Intel eller AMD), eller arm64 för ARM-baserade enheter (Snapdragon)",
  "arm64 for Apple Silicon, osx64 for Intel": "arm64 för Apple Silicon, osx64 för Intel",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "den binära tar.bz2 som passar din distributions arkitektur (x86_64 eller aarch64), eller installera den med pakethanteraren (till exempel sudo apt install argyll)"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "den binära tar.bz2 som passar din distributions arkitektur (x86_64 eller aarch64), eller installera den med pakethanteraren (till exempel sudo apt install argyll)",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[Guidad förbättring] Remsa {done} är klar. Går vidare till remsa {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[Guidad förbättring] Går till remsa {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[Guidad förbättring] Framme vid remsa {strip}. Läs den nu.",
+ "[Guided Refinement] All the strips to refine have been measured.": "[Guidad förbättring] Alla remsor som skulle förbättras är mätta.",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[Guidad förbättring] Alla remsor som skulle förbättras är mätta. Du kan trycka på 'n' eller 'd' för att avsluta.",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[Guidad förbättring] ChromIQ trycker 'f' och 'b' åt dig, så rör inte tangentbordet.",
+ "the chart was made for {instrument}, which this reader does not accept": "diagrammet gjordes för {instrument}, och den här läsaren godtar det inte",
+ "this reader does not accept the chart": "den här läsaren godtar inte diagrammet"
 }

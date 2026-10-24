@@ -7284,5 +7284,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool} (trovato, ma non si avvia)",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 per x64 (Intel o AMD), oppure arm64 per i dispositivi ARM (Snapdragon)",
  "arm64 for Apple Silicon, osx64 for Intel": "arm64 per Apple Silicon, osx64 per Intel",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "il binario tar.bz2 adatto all'architettura della tua distribuzione (x86_64 o aarch64), oppure installalo con il gestore di pacchetti (per esempio sudo apt install argyll)"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "il binario tar.bz2 adatto all'architettura della tua distribuzione (x86_64 o aarch64), oppure installalo con il gestore di pacchetti (per esempio sudo apt install argyll)",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[Affinamento guidato] La striscia {done} è fatta. Si passa alla striscia {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[Affinamento guidato] Si passa alla striscia {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[Affinamento guidato] Arrivati alla striscia {strip}. Leggila adesso, per favore.",
+ "[Guided Refinement] All the strips to refine have been measured.": "[Affinamento guidato] Tutte le strisce da affinare sono state misurate.",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[Affinamento guidato] Tutte le strisce da affinare sono state misurate. Puoi premere 'n' o 'd' per finire.",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[Affinamento guidato] ChromIQ preme 'f' e 'b' per te, quindi per favore non toccare la tastiera.",
+ "the chart was made for {instrument}, which this reader does not accept": "il grafico è stato fatto per {instrument}, e questo lettore non lo accetta",
+ "this reader does not accept the chart": "questo lettore non accetta il grafico"
 }

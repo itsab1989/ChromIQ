@@ -7284,5 +7284,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool} (trouvé, mais ne démarre pas)",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 pour x64 (Intel ou AMD), ou arm64 pour les appareils ARM (Snapdragon)",
  "arm64 for Apple Silicon, osx64 for Intel": "arm64 pour Apple Silicon, osx64 pour Intel",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "le binaire tar.bz2 qui correspond à l'architecture de ta distribution (x86_64 ou aarch64), ou installe-le avec ton gestionnaire de paquets (par exemple sudo apt install argyll)"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "le binaire tar.bz2 qui correspond à l'architecture de ta distribution (x86_64 ou aarch64), ou installe-le avec ton gestionnaire de paquets (par exemple sudo apt install argyll)",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[Affinage guidé] La bande {done} est terminée. Passage à la bande {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[Affinage guidé] Passage à la bande {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[Affinage guidé] Arrivé à la bande {strip}. Lis-la maintenant, s'il te plaît.",
+ "[Guided Refinement] All the strips to refine have been measured.": "[Affinage guidé] Toutes les bandes à affiner ont été mesurées.",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[Affinage guidé] Toutes les bandes à affiner ont été mesurées. Tu peux appuyer sur 'n' ou 'd' pour terminer.",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[Affinage guidé] ChromIQ appuie sur 'f' et 'b' pour toi, alors ne touche pas au clavier, s'il te plaît.",
+ "the chart was made for {instrument}, which this reader does not accept": "la mire a été faite pour {instrument}, et ce lecteur ne l'accepte pas",
+ "this reader does not accept the chart": "ce lecteur n'accepte pas la mire"
 }

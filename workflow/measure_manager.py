@@ -3708,8 +3708,9 @@ class MeasureManager(QObject):
                 detail = str(ev.get("detail") or "")
                 instr = str(ev.get("instrument") or "")
                 self._engine_fatal = detail or (
-                    f"the chart names {instr}, which this reader refuses"
-                    if instr else "chart refused")
+                    tr("the chart was made for {instrument}, which this "
+                       "reader does not accept").format(instrument=instr)
+                    if instr else tr("this reader does not accept the chart"))
             elif ekind == "chart_unreadable":
                 # Forum report, 2026-10-03: the chart's SAMPLE_LOCs do not fit
                 # its own STRIP/PATCH_INDEX_PATTERN. Deliberately NOT
@@ -4141,15 +4142,15 @@ class MeasureManager(QObject):
         self._guided_idx += 1
         if self._guided_idx >= len(self._guided_strips):
             self._guided_state = "idle_done"
-            on_line("[Guided Refinement] All target strips measured.")
+            on_line(tr("[Guided Refinement] All the strips to refine have "
+                       "been measured."))
             self.all_stripes_done.emit()
         else:
             next_target = self._guided_strips[self._guided_idx]
             self._guided_state = "navigating"
-            on_line(
-                f"[Guided Refinement] Strip {target} done. "
-                f"Moving to strip {next_target}\u2026"
-            )
+            on_line(tr(
+                "[Guided Refinement] Strip {done} is done. Moving on to strip "
+                "{next}\u2026").format(done=target, next=next_target))
             # Navigation is normally triggered by the next stripe_changed event —
             # chartread re-announces the current strip after Strip read OK in
             # resume mode, which fires stripe_changed and drives navigation.
@@ -4181,8 +4182,10 @@ class MeasureManager(QObject):
                 "[Guided Refinement] Starting auto-navigation to {strips}: "
                 "{names}, in chart order."
             ).format(strips=_n, names=strips_str))
-            on_line("[Guided Refinement] The app will press 'f'/'b' for you. Do not touch the keyboard.")
-            on_line(f"[Guided Refinement] Moving to strip {target}\u2026")
+            on_line(tr("[Guided Refinement] ChromIQ presses 'f' and 'b' for "
+                       "you, so please leave the keyboard alone."))
+            on_line(tr("[Guided Refinement] Moving to strip {strip}\u2026"
+                       ).format(strip=target))
             self._navigate_toward(letter, target)
             return
 
@@ -4190,7 +4193,8 @@ class MeasureManager(QObject):
             target = self._guided_strips[self._guided_idx]
             if letter == target:
                 self._guided_state = "waiting"
-                on_line(f"[Guided Refinement] Arrived at strip {target} \u2014 please scan now.")
+                on_line(tr("[Guided Refinement] Arrived at strip {strip}. "
+                           "Please read it now.").format(strip=target))
             else:
                 self._navigate_toward(letter, target)
 
@@ -4218,17 +4222,16 @@ class MeasureManager(QObject):
                 self._guided_idx += 1
                 if self._guided_idx >= len(self._guided_strips):
                     self._guided_state = "idle_done"
-                    on_line(
-                        "[Guided Refinement] All target strips measured. "
-                        "You may press 'n' or 'd' to finish."
-                    )
+                    on_line(tr(
+                        "[Guided Refinement] All the strips to refine have "
+                        "been measured. You can press 'n' or 'd' to finish."))
                 else:
                     next_target = self._guided_strips[self._guided_idx]
                     self._guided_state = "navigating"
-                    on_line(
-                        f"[Guided Refinement] Strip {target} done. "
-                        f"Moving to strip {next_target}\u2026"
-                    )
+                    on_line(tr(
+                        "[Guided Refinement] Strip {done} is done. Moving on "
+                        "to strip {next}\u2026").format(done=target,
+                                                        next=next_target))
                     self._navigate_toward(letter, next_target)
 
     def _navigate_toward(self, current: str, target: str) -> None:

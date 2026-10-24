@@ -7284,5 +7284,13 @@
  "✗ {tool} (found, but it would not start)": "✗ {tool} (gevonden, maar start niet)",
  "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 voor x64 (Intel of AMD), of arm64 voor ARM-apparaten (Snapdragon)",
  "arm64 for Apple Silicon, osx64 for Intel": "arm64 voor Apple Silicon, osx64 voor Intel",
- "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "het binaire tar.bz2-pakket dat past bij de architectuur van je distributie (x86_64 of aarch64), of installeer het met je pakketbeheerder (bijvoorbeeld sudo apt install argyll)"
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "het binaire tar.bz2-pakket dat past bij de architectuur van je distributie (x86_64 of aarch64), of installeer het met je pakketbeheerder (bijvoorbeeld sudo apt install argyll)",
+ "[Guided Refinement] Strip {done} is done. Moving on to strip {next}…": "[Begeleide verfijning] Strook {done} is klaar. Door naar strook {next}…",
+ "[Guided Refinement] Moving to strip {strip}…": "[Begeleide verfijning] Door naar strook {strip}…",
+ "[Guided Refinement] Arrived at strip {strip}. Please read it now.": "[Begeleide verfijning] Bij strook {strip} aangekomen. Lees hem nu, alsjeblieft.",
+ "[Guided Refinement] All the strips to refine have been measured.": "[Begeleide verfijning] Alle te verfijnen stroken zijn gemeten.",
+ "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[Begeleide verfijning] Alle te verfijnen stroken zijn gemeten. Je kunt op 'n' of 'd' drukken om af te ronden.",
+ "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[Begeleide verfijning] ChromIQ drukt 'f' en 'b' voor je in, dus laat het toetsenbord alsjeblieft met rust.",
+ "the chart was made for {instrument}, which this reader does not accept": "de kaart is gemaakt voor {instrument}, en deze lezer accepteert haar niet",
+ "this reader does not accept the chart": "deze lezer accepteert de kaart niet"
 }
