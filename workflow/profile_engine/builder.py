@@ -232,6 +232,9 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 80: where a80-greywalk fired, the perceptual B2A0 is stored in
      # colprof's own output-curve space; research, opt-in
      "a80-oraclecurve",
+     # Agent 80: where a80-greywalk fired, the perceptual neutral column is
+     # a79-perccol's (colprof's separation made neutral); research, opt-in
+     "a80-perccol",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in

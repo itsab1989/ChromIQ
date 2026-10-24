@@ -1253,6 +1253,7 @@ def a79_identity_output(blob: bytes) -> bytes:
 
 
 A80_ORACLECURVE = "a80-oraclecurve"
+A80_PERCCOL = "a80-perccol"
 
 
 def a80_lut_out_curves(icc_bytes: bytes, tag: str):
@@ -1535,6 +1536,19 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      + (f"mild ink fold (from K {_a79[0]:.2f}, {_a79[1]:.1f}"
                         " L* at the black): colprof's separation kept."
                         if _a79 else "no change."))
+    if (_a79 is None and accurate and A80_PERCCOL in getattr(
+            settings, "engine_candidates", frozenset())
+            and model is not None and not is_additive
+            and model.n_channels == 4):
+        # Research Agent 80 (a80-perccol): where a80-greywalk re-walked the
+        # grey (a measured fold that a79_mild_fold misses because the model
+        # shows no k_fold: XFI), the perceptual column is a79-perccol's too
+        _axv80 = neutral_axis() if callable(neutral_axis) else neutral_axis
+        if _axv80 is not None and (_axv80.get("a80") or {}).get("fired"):
+            _a79 = (float("nan"), float("nan"))
+            if progress:
+                progress("Perceptual neutral column (a80-perccol): "
+                         "colprof's separation kept.")
 
     def _map_and_invert(tag: str):
         """One intent's table: map the node targets, invert them. Each
