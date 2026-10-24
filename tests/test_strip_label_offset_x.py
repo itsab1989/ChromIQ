@@ -667,7 +667,8 @@ def test_the_path_hint_words(qapp):
 
 
 def test_the_preferences_group_no_longer_claims_all_new_charts():
-    src = (ROOT / "ui" / "dialogs" / "settings_dialog.py").read_text()
+    src = (ROOT / "ui" / "dialogs" / "settings_dialog.py").read_text(
+        encoding="utf-8")
     assert "Strip indicator style (all new charts)" not in src
     assert "starting point for new " in src
 
