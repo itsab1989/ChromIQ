@@ -44,7 +44,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 from ui.cr30_calibration import Cr30CalibrationMixin
 from ui.dialogs.tools_dialogs import _indicator_color, _popup_pair, neutral_controls_qss
 from ui.styles import SPEC_GREEN
@@ -1558,7 +1558,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
 
         vals = (*r.lab, *r.xyz)
         for col, v in enumerate(vals, start=1):
-            item = QTableWidgetItem(f"{v:.2f}")
+            item = QTableWidgetItem(decimal_text(v, 2))
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self._table.setItem(row, col, item)

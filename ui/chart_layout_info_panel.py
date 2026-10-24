@@ -15,7 +15,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                             QVBoxLayout, QWidget)
 
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 from ui.widgets import set_ink
 from ui.tooltip_button import TooltipButton
 from workflow.hex_support import (HEX_HEIGHT_FACTOR,
@@ -338,9 +338,9 @@ class ChartLayoutInfoPanel(QGroupBox):
             if v is None:
                 return _DASH
             if key == "patch":
-                return f"{v[0]:g}×{v[1]:g}"
+                return f"{decimal_text(v[0])}×{decimal_text(v[1])}"
             if key == "pitch":
-                return f"{v:g}"
+                return decimal_text(v)
             return str(v)
 
         # The row pitch row is a honeycomb's business only, and it is hidden

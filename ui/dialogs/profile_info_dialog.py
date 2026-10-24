@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 from core.logger import get_logger
 from core.platform_paths import icc_system_dirs
 from ui import neutral_styles
@@ -354,14 +354,14 @@ class ProfileInfoDialog(QDialog):
         three contrast figures (ratio, dynamic range, ΔL*). Falls back to the
         header illuminant if the profile has no media white-point tag."""
         if info.media_white is not None:
-            wp = "  ".join(f"{c:.4f}" for c in info.media_white)
+            wp = "  ".join(decimal_text(c, 4) for c in info.media_white)
             wp_label = tr("Paper white (XYZ)")
             wp_tip = tr(
                 "The colour of the blank paper as the profile records it — the "
                 "lightest the print can be. Read from the profile's media "
                 "white-point tag (not the fixed D50 reference).")
         else:
-            wp = "  ".join(f"{c:.4f}" for c in info.white_point)
+            wp = "  ".join(decimal_text(c, 4) for c in info.white_point)
             wp_label = tr("White point (XYZ)")
             wp_tip = tr(
                 "The profile's reference white. This profile has no media "

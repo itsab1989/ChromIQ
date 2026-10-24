@@ -27,7 +27,7 @@ from core.i18n import tr
 from core.logger import get_logger
 from ui import neutral_styles, styles
 from ui.styles import SPEC_GREEN, SPEC_MAGENTA
-from core.i18n import tr
+from core.i18n import decimal_text
 from core.text_io import read_text
 
 log = get_logger(__name__)
@@ -1041,7 +1041,8 @@ class _PatchInfoTile(QWidget):
     @staticmethod
     def _fmt_lab(lab) -> str:
         L, a, b = (float(v) for v in lab[:3])
-        return f"Lab  {L:>5.1f} {a:>5.1f} {b:>5.1f}"
+        return "Lab  " + " ".join(
+            decimal_text(f"{v:>5.1f}") for v in (L, a, b))
 
     def set_content(self, info: dict, view_mode: str,
                     max_size: "tuple[int, int] | None" = None) -> None:
@@ -1928,7 +1929,7 @@ class _ProgressHeader(QWidget):
             p.drawText(QRect(8, 0, self.width() - 16, self.height()),
                        int(Qt.AlignmentFlag.AlignLeft
                            | Qt.AlignmentFlag.AlignVCenter),
-                       tr("Progress: {pct}%").format(pct=f"{pct:.1f}"))
+                       tr("Progress: {pct}%").format(pct=decimal_text(pct, 1)))
         p.end()
 
     # The label shows whenever progress is being tracked at all, including at

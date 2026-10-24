@@ -30,7 +30,7 @@ from PyQt6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QGridLayout,
     QHBoxLayout, QLabel, QLineEdit, QPushButton, QRadioButton, QVBoxLayout, QWidget)
 
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 from core.logger import get_logger
 from core.text_io import read_text
 from ui.dialogs.tools_dialogs import (
@@ -5907,7 +5907,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             if got.disagrees(float(self._settings.get(
                     "scanner_min_agreement", 0.25))):
                 out.append("⚠ " + M.M_SCAN_REF_DISAGREES.render(
-                    rho=f"{got.agreement:.2f}",
+                    rho=decimal_text(got.agreement, 2),
                     ref_row=self._align_reference_row())[0])
             if got.over_clipped(float(self._settings.get(
                     "scanner_max_clipped", 0.15))):
@@ -6001,7 +6001,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             floor = float(self._settings.get("scanner_min_agreement", 0.25))
             if got.disagrees(floor):
                 t, b = M.M_SCAN_REF_DISAGREES.render(
-                    rho=f"{got.agreement:.2f}",
+                    rho=decimal_text(got.agreement, 2),
                     ref_row=self._align_reference_row())
                 if (page, t) not in seen:
                     self._read_findings.append((page, t, b))
@@ -6457,7 +6457,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # those words, the way `scan_align_refusal` is for the endings with
         # nothing to place.
         if _trusted:
-            self._say_align(M.M_SCAN_ALIGN_DONE, rho=f"{result.rho:.2f}")
+            self._say_align(M.M_SCAN_ALIGN_DONE, rho=decimal_text(result.rho, 2))
         else:
             self._say_align(M.scan_align_unchecked(
                 getattr(result, "ending", "") or ""))
@@ -6634,7 +6634,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                     "boxes within their chart patches (placement agreement: "
                     "{r}).").format(w=where, r=self._agreement_txt(report)))
             else:
-                r_txt = f"{rho:.2f}" if rho is not None else "—"
+                r_txt = decimal_text(rho, 2) if rho is not None else "—"
                 out.append(tr(
                     "✓ {w} looks well aligned — what was read agrees with "
                     "the chart (agreement {r}).").format(w=where, r=r_txt))
@@ -6646,7 +6646,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         number (it alone decides), with the page average alongside so a few
         bad patches read differently from a wholesale misplacement (Knut)."""
         return tr("worst {w} %, average {a} %").format(
-            w=f"{report.agreement_pct:.2f}", a=f"{report.average_pct:.2f}")
+            w=decimal_text(report.agreement_pct, 2),
+            a=decimal_text(report.average_pct, 2))
 
     def _flank_offenders(self, report) -> list[str]:
         """Patches whose sample box sits ON a patch border flank (Knut):
@@ -6952,7 +6953,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             "patch) produces exactly this. Check the diagnostic images, "
             "realign and rebuild before trusting this profile. (Thresholds: "
             "Preferences → Scanner Limits.)").format(
-                p=round(peak, 1), a=round(avg, 1), al=round(avg_lim)))
+                p=decimal_text(peak, 1), a=decimal_text(avg, 1),
+                al=round(avg_lim)))
         return True
 
     def _offer_install(self, failed_selfcheck: bool) -> None:

@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy, QSpacerItem, QToolButton, QVBoxLayout, QWidget,
 )
 
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 from core.logger import get_logger
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
@@ -620,7 +620,7 @@ class LayoutOptionsPanel(QWidget):
                 else:
                     # 3 decimals so a 0.1 mm change is visible in the inch readout
                     # (Knut beta.38).
-                    inch.setText(f"{v / 25.4:.3f}″")
+                    inch.setText(decimal_text(v / 25.4, 3) + "″")
             spin.valueChanged.connect(_upd)
             _upd()
             # Expose the updater so callers that fill the value with signals

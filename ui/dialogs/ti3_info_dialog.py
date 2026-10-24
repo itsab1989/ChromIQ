@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 from core.logger import get_logger
 from core.platform_paths import default_output_root
 from ui import neutral_styles
@@ -698,7 +698,7 @@ class Ti3InfoDialog(QDialog):
                "profile fault."))
         # Per-hue/neutral breakdown, worst-first.
         order = sorted(acc.buckets.items(), key=lambda kv: kv[1][0], reverse=True)
-        bd = "  ".join(f"{_bucket_text(name)} {mean:.1f}"
+        bd = "  ".join(f"{_bucket_text(name)} {decimal_text(mean, 1)}"
                        for name, (mean, _pk, _n) in order)
         self._row_kv(
             tr("By colour"), bd,

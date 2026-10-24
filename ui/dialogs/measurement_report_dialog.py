@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from core.i18n import tr
+from core.i18n import DECIMAL_COMMA, decimal_text, tr
 from core.logger import get_logger
 from core.text_io import read_text
 from ui import neutral_styles
@@ -1232,8 +1232,7 @@ def _fmt(v, dec: int = 2) -> str:
 
 #: Languages whose decimal separator is a comma (B8-950). A level printed
 #: inside a sentence follows the sentence's language: "59,4" in German.
-_DECIMAL_COMMA = frozenset({"de", "es", "fr", "it", "nl", "no", "pl", "pt",
-                            "ru", "sv", "uk"})
+_DECIMAL_COMMA = DECIMAL_COMMA
 
 
 def _level_text(v) -> str:
@@ -12166,11 +12165,11 @@ class MeasurementReportDialog(QDialog):
             "neutral_aims_no_white": tr(
                 "the neutral aims of the measured chart do not reach within "
                 "{reach} L* of its lightest aim").format(
-                    reach=f"{_MR.NEUTRAL_AIM_END_REACH:g}"),
+                    reach=decimal_text(_MR.NEUTRAL_AIM_END_REACH)),
             "neutral_aims_no_black": tr(
                 "the neutral aims of the measured chart do not reach within "
                 "{reach} L* of its darkest aim").format(
-                    reach=f"{_MR.NEUTRAL_AIM_END_REACH:g}"),
+                    reach=decimal_text(_MR.NEUTRAL_AIM_END_REACH)),
             # **THE POPULATION THAT WAS GRADED, NOT THE CHART'S OWN COUNT.**
             # Measured on a 20-patch chart: the row was withheld and the
             # sentence read *"the chart has 20 patches; at least 20 are
@@ -13078,14 +13077,14 @@ class MeasurementReportDialog(QDialog):
             if comp.get("set_id") == "pair":
                 thr = recorded_thresholds(r)
                 label = (tr("two thresholds ({avg} / {max})").format(
-                    avg=f"{thr[0]:.1f}", max=f"{thr[1]:.1f}") if thr else label)
+                    avg=decimal_text(thr[0], 1), max=decimal_text(thr[1], 1)) if thr else label)
             if comp.get("edited"):
                 label += " " + tr("(edited)")
             return label
         thr = recorded_thresholds(r)
         if thr is not None:
             return tr("two thresholds ({avg} / {max})").format(
-                avg=f"{thr[0]:.1f}", max=f"{thr[1]:.1f}")
+                avg=decimal_text(thr[0], 1), max=decimal_text(thr[1], 1))
         lim = self._limits_for(r)
         label = lim.set_label + (" " + tr("(edited)") if lim.edited else "")
         # "(not saved)" IS A CELL MARKER, NOT PART OF THE SET'S NAME. In the

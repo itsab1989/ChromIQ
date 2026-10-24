@@ -82,7 +82,7 @@ from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, ElidingComboBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, WrappingCheckBox, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_folder_twin_icon, set_ink, set_preset_icon
 from ui.warning_sign import inform, set_information_icon, set_question_icon
-from core.i18n import count_phrase, tr
+from core.i18n import count_phrase, decimal_text, tr
 from core.text_io import read_text
 from core.platform_paths import default_output_root
 from workflow.i1profiler_export import EXTRA_INK, export_from_ti1, parse_ti1
@@ -5978,7 +5978,7 @@ def strip_label_crowding_notice(crowd) -> "str | None":
     if crowd is None or not crowd.explicit or crowd.fits_pt is None:
         return None
     _title, body = M.render(
-        size=f"{crowd.size_pt:.0f}", pitch=f"{crowd.pitch_mm:.1f}",
+        size=f"{crowd.size_pt:.0f}", pitch=decimal_text(crowd.pitch_mm, 1),
         first=crowd.labels[0], second=crowd.labels[1],
         fits=f"{math.floor(crowd.fits_pt):.0f}")
     return body
@@ -23366,7 +23366,7 @@ class TabChart(QWidget):
                 "{n} of the {total} reference colours ({pct} %) are "
                 "printable with this profile.").format(
                     n=cover, total=master,
-                    pct=f"{100 * cover / master:.1f}"))
+                    pct=decimal_text(100 * cover / master, 1)))
             if cover < count:
                 parts.append(tr(
                     "Only {n} can be tested, so the chart will hold {n} "

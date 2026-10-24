@@ -355,7 +355,7 @@ def outline_traces(outline: "GamutOutline", *, fg: str = "#cccccc") -> list:
 def lab_spacing_summary(labs: list[tuple[float, float, float]]) -> str:
     """The footer for the colour view: how many patches and how far apart, as
     colour differences (ΔE*ab), the way the cube's footer reports RGB."""
-    from core.i18n import tr
+    from core.i18n import decimal_text, tr
     arr = np.asarray(labs, dtype=float).reshape(-1, 3)
     if len(arr) < 2:
         return tr("No patches to analyse.")
@@ -364,8 +364,8 @@ def lab_spacing_summary(labs: list[tuple[float, float, float]]) -> str:
     nn = d.min(axis=1)
     return tr("{n} patches as colours, through the profile · spacing median "
               "{median}, closest {closest} (ΔE*ab)").format(
-                  n=len(arr), median=f"{float(np.median(nn)):.2f}",
-                  closest=f"{float(nn.min()):.2f}")
+                  n=len(arr), median=decimal_text(float(np.median(nn)), 2),
+                  closest=decimal_text(float(nn.min()), 2))
 
 
 def lab_payload(

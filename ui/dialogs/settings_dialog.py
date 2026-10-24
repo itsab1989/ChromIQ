@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 import sys as _sys
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 
 
 # ---------------------------------------------------------------------------
@@ -4660,10 +4660,10 @@ class SettingsDialog(QDialog):
             seconds = patches * mn / hz
             if patches == 1:
                 lbl.setText(tr("{secs} sec. @ 1 patch/strip").format(
-                    secs=f"{seconds:.1f}"))
+                    secs=decimal_text(seconds, 1)))
             else:
                 lbl.setText(tr("{secs} sec. @ {n} patches/strip").format(
-                    secs=f"{seconds:.1f}", n=patches))
+                    secs=decimal_text(seconds, 1), n=patches))
 
     def _build_sounds_tab(self) -> QWidget:
         """Measurement sound feedback (#131): which sound plays for each event.

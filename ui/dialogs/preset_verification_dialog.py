@@ -72,7 +72,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.i18n import count_phrase, tr
+from core.i18n import count_phrase, decimal_text, tr
 from ui.fade_scroll import FadeScrollArea
 from ui.theme import active_mode
 from ui.widgets import NoScrollComboBox, WorkAreaClamped
@@ -511,7 +511,7 @@ def reason_line(code: str,
         MR.REASON_EVENNESS_PAGE_COVERAGE:
             tr(M._EVENNESS_SPREAD_PRESET).format(
                 k=MR.EVENNESS_MIN_GRID,
-                c=f"{MR.EVENNESS_MIN_PAGE_SPAN * 100:g}"),
+                c=decimal_text(MR.EVENNESS_MIN_PAGE_SPAN * 100)),
         MR.REASON_EVENNESS_NO_PAGE_GEOMETRY:
             tr("This chart's files do not record where its patches sit on the "
                "page, so how much of the page they cover is not known."),

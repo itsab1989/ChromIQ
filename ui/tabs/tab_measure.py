@@ -170,7 +170,7 @@ from workflow.measure_manager import MeasureManager, MeasureParams
 from workflow.ti3_analysis import mark_verification_ti3
 from workflow.scanin_target import has_scanner_geometry
 from ui.tiff_preview import TiffPreview
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 from core.text_io import read_text
 from core.platform_paths import default_output_root
 from ui.warning_sign import inform, set_warning_icon, warn
@@ -6752,7 +6752,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             note = failure_advice(reason, tracker.config)
             if pace is not None and pace.mean_seconds > 0:
                 note = tr("That strip took {secs} s — about {ms} ms per patch. "
-                          ).format(secs=f"{elapsed:.1f}",
+                          ).format(secs=decimal_text(elapsed, 1),
                                    ms=int(pace.mean_seconds * 1000)) + note
             self._log.appendPlainText("\n" + note)
             self._log.ensureCursorVisible()
@@ -6805,7 +6805,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "patch, where this instrument is set to want at least "
             "<b>{target} ms</b>. Reading the whole strip in about "
             "<b>{good} s</b> would sit comfortably above that."
-        ).format(name=strip, secs=f"{pace.elapsed:.1f}", n=pace.patches, ms=ms,
+        ).format(name=strip, secs=decimal_text(pace.elapsed, 1), n=pace.patches, ms=ms,
                  target=target_ms, good=_tenths(good_secs, up=True))
         if pace.est_samples is not None:
             detail += "<br><br>" + tr(
@@ -16670,8 +16670,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             for letter, (secs, ok) in self._pace_times.items():
                 page, local_idx, _rect = self._locate_strip(letter)
                 if page == page_now and 0 <= local_idx < len(centres):
-                    text = (tr("{secs} s").format(secs=f"{secs:.1f}") if ok
-                            else tr("{secs} s ✕").format(secs=f"{secs:.1f}"))
+                    text = (tr("{secs} s").format(secs=decimal_text(secs, 1)) if ok
+                            else tr("{secs} s ✕").format(
+                                secs=decimal_text(secs, 1)))
                     # not-ok times are "important": never thinned away when a
                     # small preview leaves too little room for every label.
                     columns.append((local_idx, text, not ok))

@@ -287,7 +287,8 @@ def _tenths(seconds: float, *, up: bool) -> str:
     import math
     v = seconds * 10.0
     n = math.ceil(v - 1e-6) if up else math.floor(v + 1e-6)
-    return f"{n / 10:.1f}"
+    from core.i18n import decimal_text
+    return decimal_text(n / 10, 1)   # display only: a sentence prints it
 
 
 def strip_limit_phrase(config: PaceConfig, patches: int) -> str:
@@ -658,7 +659,7 @@ def _calculation_note(key) -> str:
     used"* — so the explanation now travels with the row it describes, worked
     through with that instrument's own figures.
     """
-    from core.i18n import tr
+    from core.i18n import decimal_text, tr
     hz, min_samples = defaults_for(key)
     patches = estimate_patches_for(key)
     if key == "cr30":
@@ -718,7 +719,7 @@ def _calculation_note(key) -> str:
         "be chosen by the reading speed it implies rather than worked out on "
         "paper."
     ).format(patches=patches, n=min_samples, hz=int(hz), readings=readings,
-             secs=f"{readings / hz:.1f}")
+             secs=decimal_text(readings / hz, 1))
 
 
 def explanation_for(key) -> "tuple[str, str]":
@@ -902,7 +903,7 @@ def session_summary(times, total_seconds: float, worst: int = 10) -> str:
     "Worst" means **fastest** — the shortest times are the ones that risk a thin
     reading, which is the whole point of watching the pace.
     """
-    from core.i18n import tr
+    from core.i18n import decimal_text, tr
     read = {k: v[0] for k, v in (times or {}).items() if v[1] and v[0] > 0}
     lines = [tr("Total measuring time: {hms}").format(hms=_hhmmss(total_seconds))]
     if not read:
@@ -913,17 +914,17 @@ def session_summary(times, total_seconds: float, worst: int = 10) -> str:
     lines.append(tr(
         "Strip reading times — average {avg} s, fastest {fast} s, slowest "
         "{slow} s, over {n} strips."
-    ).format(avg=f"{mean:.1f}", fast=f"{values[0]:.1f}",
-             slow=f"{values[-1]:.1f}", n=len(values))
+    ).format(avg=decimal_text(mean, 1), fast=decimal_text(values[0], 1),
+             slow=decimal_text(values[-1], 1), n=len(values))
         if len(values) > 1 else
         tr("Strip reading time: {avg} s, over one strip.").format(
-            avg=f"{mean:.1f}"))
+            avg=decimal_text(mean, 1)))
 
     if len(values) > 1:
         ranked = sorted(read.items(), key=lambda kv: kv[1])[:worst]
         # the unit is a word of the reader's language (с, 秒), not a symbol
         listed = ", ".join(tr("{name} {secs} s").format(
-            name=name, secs=f"{secs:.1f}") for name, secs in ranked)
+            name=name, secs=decimal_text(secs, 1)) for name, secs in ranked)
         lines.append(tr("Strips with worst reading time: {list}").format(
             list=listed))
     return "\n".join(lines)

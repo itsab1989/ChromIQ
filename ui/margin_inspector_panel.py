@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.i18n import tr
+from core.i18n import decimal_text, tr
 from ui import neutral_styles
 from ui.theme import by_mode
 from ui.tooltip_button import TooltipButton
@@ -515,8 +515,8 @@ class MarginInspectorPanel(QGroupBox):
         edge_name = {"L": "Left", "R": "Right", "T": "Top", "B": "Bottom"}
         for key, (mm_lbl, in_lbl) in self._value_labels.items():
             mm = vals[key]
-            mm_lbl.setText(f"{mm:.1f}")
-            in_lbl.setText(f"{mm / _MM_PER_INCH:.3f}")
+            mm_lbl.setText(decimal_text(mm, 1))
+            in_lbl.setText(decimal_text(mm / _MM_PER_INCH, 3))
             bad = edge_name[key] in violated_edges
             # THE MEASURED VALUES WERE INVISIBLE IN NEUTRAL, and not because of
             # a hue. The fold had room for two answers, so a light-grey
@@ -549,20 +549,22 @@ class MarginInspectorPanel(QGroupBox):
                 (thresholds or {}).get("source") == "chart")
             raw = (thresholds or {}).get(key)
             try:
-                self._thr_labels[key].setText("—" if raw in (None, "") else f"{float(raw):.1f}")
+                self._thr_labels[key].setText("—" if raw in (None, "") else decimal_text(float(raw), 1))
             except (TypeError, ValueError):
                 self._thr_labels[key].setText("—")
 
         if report.strip_width_mm is not None:
-            self._strip_mm.setText(f"{report.strip_width_mm:.1f}")
-            self._strip_in.setText(f"{report.strip_width_mm / _MM_PER_INCH:.3f}")
+            self._strip_mm.setText(decimal_text(report.strip_width_mm, 1))
+            self._strip_in.setText(
+            decimal_text(report.strip_width_mm / _MM_PER_INCH, 3))
         else:
             self._strip_mm.setText("—")
             self._strip_in.setText("—")
 
         if report.strip_length_mm is not None:
-            self._striplen_mm.setText(f"{report.strip_length_mm:.1f}")
-            self._striplen_in.setText(f"{report.strip_length_mm / _MM_PER_INCH:.3f}")
+            self._striplen_mm.setText(decimal_text(report.strip_length_mm, 1))
+            self._striplen_in.setText(
+                decimal_text(report.strip_length_mm / _MM_PER_INCH, 3))
         else:
             self._striplen_mm.setText("—")
             self._striplen_in.setText("—")

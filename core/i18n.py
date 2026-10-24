@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import re
 import string
+from numbers import Number
 from pathlib import Path
 from typing import Any
 
@@ -175,6 +176,83 @@ def _pick_form(forms: dict[str, str], n, fallback: str) -> str:
     return fallback
 
 
+#: Languages that write a decimal comma (B8-950): "4,8 с", "59,4". Japanese
+#: and Chinese write a point, as English does. The one list; the Measurement
+#: Report and the measurement messages read it from here.
+DECIMAL_COMMA = frozenset({"de", "es", "fr", "it", "nl", "no", "pl", "pt",
+                           "ru", "sv", "uk"})
+
+#: What a comma language groups thousands with when a text asks for grouping
+#: ("{n:,}"): a narrow no-break space, which no reader takes for a decimal
+#: mark ("12 345,6"), and which `plural_category` already reads.
+_GROUP = "\u202f"
+
+
+def uses_decimal_comma(lang: "str | None" = None) -> bool:
+    return (lang or _language) in DECIMAL_COMMA
+
+
+def decimal_text(value, places: "int | None" = None) -> str:
+    """A number as the reader's language writes it, FOR DISPLAY ONLY.
+
+    ``decimal_text(4.8, 1)`` is "4.8" in English and "4,8" in German or
+    Ukrainian; with no *places* it is as short as the number is ("59.4",
+    "50"). A string is taken as an already formatted number ("4.80").
+    Never use it for anything that is written to a file, handed to
+    ArgyllCMS or parsed back: those keep the point in every language.
+    """
+    if isinstance(value, str):
+        text = value
+    elif places is None:
+        text = f"{float(value):g}"
+    else:
+        text = f"{float(value):.{places}f}"
+    return _comma_number(text) if uses_decimal_comma() else text
+
+
+def _comma_number(text: str) -> str:
+    return text.replace(",", _GROUP).replace(".", ",")
+
+
+class _DisplayFormatter(string.Formatter):
+    """str.format, except that a number the TEXT formats itself
+    ("{secs:.1f}", "{pct:.1f}%", "{n:,}") is written with the language's
+    decimal comma. Only fields with a numeric format spec are touched: a
+    plain "{x}" (a name, a path, a number the caller already formatted)
+    comes out exactly as str.format gives it."""
+
+    def format_field(self, value, format_spec):
+        out = super().format_field(value, format_spec)
+        if (format_spec and isinstance(value, Number)
+                and not isinstance(value, bool)
+                and (format_spec[-1] in "eEfFgGn%" or "," in format_spec)):
+            return _comma_number(out)
+        return out
+
+
+_DISPLAY_FORMAT = _DisplayFormatter()
+
+
+class LocalText(str):
+    """A translation in a decimal-comma language: an ordinary string whose
+    `format()` writes the numbers the text formats itself as that language
+    does. `tr()` returns one only when the text has a field to fill."""
+
+    __slots__ = ()
+
+    def __reduce__(self):
+        return (str, (str(self),))
+
+    def format(self, *args, **kwargs) -> str:  # noqa: A003 — str API
+        return _DISPLAY_FORMAT.format(str(self), *args, **kwargs)
+
+
+def _format_for_display(text: str, *args, **kwargs) -> str:
+    if uses_decimal_comma():
+        return _DISPLAY_FORMAT.format(text, *args, **kwargs)
+    return str.format(text, *args, **kwargs)
+
+
 class PluralText(str):
     """A translation that has per-number forms.
 
@@ -200,8 +278,9 @@ class PluralText(str):
 
     def format(self, *args, **kwargs) -> str:  # noqa: A003 — str API
         if self.count_field in kwargs:
-            return self.for_count(kwargs[self.count_field]).format(*args, **kwargs)
-        return str.format(self, *args, **kwargs)
+            return _format_for_display(
+                self.for_count(kwargs[self.count_field]), *args, **kwargs)
+        return _format_for_display(str(self), *args, **kwargs)
 
 
 def tr(text: str, count=None) -> str:
@@ -220,6 +299,8 @@ def tr(text: str, count=None) -> str:
     found = _catalog.get(text, text)
     forms = _plurals.get(text)
     if forms is None:
+        if "{" in found and _language in DECIMAL_COMMA:
+            return LocalText(found)
         return found
     result = PluralText(found, forms, forms.get("count", "n"))
     return result.for_count(count) if count is not None else result

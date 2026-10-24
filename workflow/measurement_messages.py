@@ -7229,8 +7229,7 @@ def slip_shift_line(shift) -> str:
 
 #: Languages that write a decimal comma inside a sentence, as the
 #: Measurement Report does (B8-950).
-_DECIMAL_COMMA = frozenset({"de", "es", "fr", "it", "nl", "no", "pl", "pt",
-                            "ru", "sv", "uk"})
+from core.i18n import DECIMAL_COMMA as _DECIMAL_COMMA   # noqa: E402 — the one list
 
 
 def locale_decimal(text: str) -> str:
