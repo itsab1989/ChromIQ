@@ -1112,6 +1112,26 @@ def _a35_apply_band(model, dev, mapped, col, band, mode, inv_kw,
     return dev
 
 
+A79_TOKEN = "a79-perccol"
+
+
+def a79_mild_fold(model, channel_letters) -> tuple | None:
+    """Research a79-perccol: ``(k_fold, fold_at_black)`` when ``model`` is a
+    4-ink CMYK printer (K fourth) with a MILD ink fold at the black
+    (cmykport.k_fold finds one, fold_at_black below the a73-kfirst
+    threshold A73_FOLD_MIN), else None."""
+    if (getattr(model, "n_channels", 0) != 4 or channel_letters is None
+            or list(channel_letters)[3:4] != ["K"]):
+        return None
+    from workflow.profile_engine import cmykport
+    from workflow.profile_engine.builder import A73_FOLD_MIN
+    kf = cmykport.k_fold(model)
+    if kf is None:
+        return None
+    fb = float(cmykport.fold_at_black(model))
+    return (float(kf), fb) if fb < A73_FOLD_MIN else None
+
+
 def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      source_gamut: Path, *, channel_letters: list[str],
                      is_additive: bool, ink_limit: float | None,
@@ -1308,6 +1328,33 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         mappers[tag] = mapper
         jobs.append(tag)
 
+    # Research Agent 79 (a79-perccol, Findings/agent79-01-isissmooth.md):
+    # the source-neutral column of the mapped tables is the colorimetric
+    # table's axis (late GCR, C/M/Y-led) while every other node is the
+    # colprof oracle's own device value (K-led, -kr). The CMM interpolates
+    # the cells next to the axis between the two separations. On a printer
+    # whose colour inks lighten heavy black (an ink fold) those mixes print
+    # off their targets and change fast with L*: R-CMYK-default-i1iSis
+    # (mild fold) shows a band and a hue patch on every grey ramp and a step
+    # at the dark end of the blue / violet ramps that colprof's table does
+    # not have; its target tone also carries a 3.4 L* error of the model on
+    # the K axis (K 0.60, a gap of the training chart). With the token, on a
+    # 4-ink CMYK printer with a MILD fold (cmykport.k_fold finds one and
+    # fold_at_black < A73_FOLD_MIN, the a73-kfirst test, which on a strong
+    # fold already puts colprof's -kr K prior under the axis), the column
+    # keeps the oracle's devices like its neighbours. No fold, or a strong
+    # one: bytes unchanged.
+    _a79 = None
+    if (accurate and A79_TOKEN in getattr(settings, "engine_candidates",
+                                          frozenset())
+            and model is not None and not is_additive):
+        _a79 = a79_mild_fold(model, channel_letters)
+        if progress:
+            progress("Perceptual neutral column (a79-perccol): "
+                     + (f"mild ink fold (from K {_a79[0]:.2f}, {_a79[1]:.1f}"
+                        " L* at the black): colprof's separation kept."
+                        if _a79 else "no change."))
+
     def _map_and_invert(tag: str):
         """One intent's table: map the node targets, invert them. Each
         intent reads only its own mapper and the (unchanged) model, so the
@@ -1338,7 +1385,7 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         _a35_band = None
         _a45_path = None
         if accurate and "a25-oracle-neutral" in _cands and getattr(
-                mapper, "node_dev", None) is not None:
+                mapper, "node_dev", None) is not None and not _a79:
             # Research (Agent 25): perceptual maps the neutral axis onto the
             # neutral axis. The source-neutral column's target keeps the L*
             # colprof's table prints (engine model) but is made neutral, and

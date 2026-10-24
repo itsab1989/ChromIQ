@@ -201,6 +201,13 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # patches with colour print lighter than K alone); default since
      # integration 10
      "a74-foldmeas",
+     # Agent 79 (i1iSis smoothness): on a CMYK printer with a MILD ink fold
+     # at the black (cmykport.k_fold finds one, fold_at_black below
+     # A73_FOLD_MIN, so a73-kfirst never fires) the perceptual and
+     # saturation neutral column keeps the colprof oracle's own device
+     # values instead of the colorimetric axis (a25-oracle-neutral and the
+     # a29/a35/a43/a45 hand-over); research, opt-in
+     "a79-perccol",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
