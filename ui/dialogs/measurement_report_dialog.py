@@ -225,8 +225,7 @@ def _report_across_projects_help() -> str:
         "A report of measurements from more than one project is saved in the "
         "reports/ folder beside the projects when they are side by side in "
         "one folder. Otherwise it is always saved in the reports/ folder of "
-        "your ChromIQ folder (~/ChromIQ, or your custom output folder from "
-        "Settings), whichever folders the projects are in.")
+        "your ChromIQ folder (~/ChromIQ, or your custom output folder from Preferences → Paths), whichever folders the projects are in.")
 
 
 def _a_calibration_with_saved_reports(ti3: "Path") -> bool:

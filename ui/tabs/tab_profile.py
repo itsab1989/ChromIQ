@@ -5890,9 +5890,7 @@ class TabProfile(QWidget):
                 tr("Multi-ink measurement"),
                 tr("This measurement comes from a multi-ink chart (extra inks "
                    "beyond CMYK). Argyll colprof cannot build a profile from "
-                   "it.\n\nEnable \"ChromIQ profile engine (beta)\" in "
-                   "Settings and build again — the engine handles multi-ink "
-                   "measurements."))
+                   "it.\n\nEnable \"ChromIQ profile engine (beta)\" in Preferences → Beta and build again: the engine handles multi-ink measurements."))
             return
         # A BUILD THAT CANNOT START MUST NOT ARCHIVE ANYTHING FIRST.
         # `_confirm_rebuild_over_verifications` below MOVES this run's profile

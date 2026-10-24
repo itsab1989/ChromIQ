@@ -29,13 +29,12 @@ def file_guide_card_subtitle() -> str:
 def _intro() -> str:
     return tr(
         "Every ChromIQ project lives in its own folder (inside ~/ChromIQ, or "
-        "your custom output folder from Settings), named after the profile. "
+        "your custom output folder from Preferences → Paths), named after the profile. "
         "Everything you would print, install or keep sits right at the top of "
         "each run folder; the paperwork is grouped into a few folders whose "
         "names already tell you whether you care about them. Each build is a "
         "“run” (runs/run1, run2 …); a run's profiling work sits in the run "
-        "folder, and any later checks of the finished profile — “verification” "
-        "runs — accrue as dated folders inside verifications/, kept apart so the "
+        "folder, and any later checks of the finished profile (“verification” runs) accrue as dated folders inside verifications/, kept apart so the "
         "two never mix. Below: first the three files that matter, then what each "
         "folder means, then every file in detail. “{name}” stands for your "
         "profile's name.")
@@ -206,7 +205,7 @@ def _structure():
         # files?'"*. The folder the projects live in holds two of its own.
         (0, "Your ChromIQ folder/", tr(
             "The folder your project folders live in: ~/ChromIQ, or your "
-            "custom output folder from Settings. Beside the projects it can "
+            "custom output folder from Preferences → Paths. Beside the projects it can "
             "hold two folders of its own, made only when they are needed.")),
         # #182 K30 (Knut, 5798461562): projects kept in different folders
         # share this folder's reports/, *"no matter if one of the projects,
