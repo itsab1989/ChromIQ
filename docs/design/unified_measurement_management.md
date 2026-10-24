@@ -5627,7 +5627,7 @@ held a measurement is duplicated rather than written over (§I.9).*
 >
 > A copy of the chart it was measured against is stored with the run, so the result stays interpretable even if the chart is replaced later.
 >
-> You can build a profile from it now on the Build Profile tab, or open Tools ▸ “Measurement report” first to see the colour-accuracy figures.
+> You can build a profile from it now on the Build Profile tab, or open Tools ▸ “Measurement report (accuracy & trends)” first to see the colour-accuracy figures.
 
 ### M-CHART-VERIFY · PROPOSED · replacing the verification chart — §4 (W5), revised wording
 

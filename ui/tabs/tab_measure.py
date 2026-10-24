@@ -13604,13 +13604,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if verifying:
             return tr(
                 "Use this when this run's verification chart was printed and "
-                "measured outside ChromIQ — typically on an i1iO table in "
+                "measured outside ChromIQ, typically on an i1iO table in "
                 "i1Profiler, using the chart's exported patch list from the "
                 "run's exports folder.\n\n"
                 "What to pick: i1Profiler's own measurement file (.mxf or "
                 ".cxf), its CGATS text export (.txt), or a measurement that is "
-                "already a .ti3. Measure with the chart's NORMAL export — not "
-                "the file with “shuffled” in its name — so the patches come "
+                "already a .ti3. Measure with the chart's NORMAL export (not "
+                "the file with “shuffled” in its name), so the patches come "
                 "back in the order ChromIQ sent them.\n\n"
                 "What happens when you press Import Measurement:\n"
                 "1. ChromIQ converts the file to Argyll's .ti3 format for you "
@@ -13618,12 +13618,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "2. It checks, patch for patch, that the measurement really "
                 "belongs to this run's verification chart. A file that does "
                 "not match is refused before anything is written.\n"
-                "3. It files a copy in its own dated verification folder — the "
-                "same place a measurement made here would go — together with a "
+                "3. It files a copy in its own dated verification folder (the "
+                "same place a measurement made here would go), together with a "
                 "copy of the chart it was measured against.\n\n"
                 "Your original file is never moved or changed. Afterwards, "
-                "open Tools ▸ “Measurement report” to see the colour-accuracy "
-                "figures — the imported measurement is already in place there.")
+                "open Tools ▸ “Measurement report (accuracy & trends)” to see the "
+                "colour-accuracy figures: the imported measurement is already in "
+                "place there.")
         return tr(
             "Use this when this run's chart was printed and measured outside "
             "ChromIQ, typically on an i1iO table in i1Profiler, using the "
@@ -14272,9 +14273,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._replaced_chart = None
         self._log.appendPlainText(
             "\n" + tr("[OK] Measurement imported.") + f"\nSaved: {dst}\n\n"
-            + tr("→ This file is for verification only — do not build a "
-                 "profile from it. Open Tools ▸ Measurement report to see "
-                 "the colour-accuracy figures."))
+            + tr("→ This file is for verification only: do not build a "
+                 "profile from it. Open Tools ▸ “Measurement report (accuracy "
+                 "& trends)” to see the colour-accuracy figures."))
         self._update_import_panel()
         # An imported sheet was by definition printed outside ChromIQ — ask
         # how, unless a record already travelled with the chart snapshot.
