@@ -72,16 +72,18 @@ def _load_scanner_layout(channels_json: str | Path) -> dict:
     :class:`NotAnEngineChart` otherwise."""
     p = Path(channels_json)
     if not p.is_file():
-        raise NotAnEngineChart(
-            "This chart has no layout sidecar, so ChromIQ doesn't know where "
-            "its patches sit. ChromIQ looks for <chart>.channels.json next to "
-            "the file you pick — the names must match, as saved when the chart "
-            "was created. Measure a chart created with ChromIQ and its scanner "
-            "files can be built from it.")
+        raise NotAnEngineChart(tr(
+            "This chart has no layout file, so ChromIQ doesn't know where its "
+            "patches sit. ChromIQ looks for <chart>.channels.json next to the "
+            "file you pick, with the same name the chart was saved under when "
+            "it was created. Measure a chart that was created in ChromIQ, and "
+            "its scanner files can be built from it."))
     try:
         layout = json.loads(read_text(p)).get("layout") or {}
     except (OSError, ValueError) as exc:
-        raise NotAnEngineChart(f"Couldn't read the chart layout: {exc}") from exc
+        raise NotAnEngineChart(tr(
+            "ChromIQ couldn't read the chart's layout file: {error}").format(
+                error=exc)) from exc
     engine = layout.get("engine")
     # "chromiq" = the engine's own exact geometry; "derived" = the same schema
     # recovered from the rendered TIFF + .ti2 (workflow.layout_from_render) for
@@ -92,10 +94,10 @@ def _load_scanner_layout(channels_json: str | Path) -> dict:
         return layout
     if engine == "printtarg" and layout.get("cht_pages"):
         return layout
-    raise NotAnEngineChart(
+    raise NotAnEngineChart(tr(
         "ChromIQ doesn't have this chart's exact patch positions, so it can't "
-        "build scanner files from it. Recreate the chart in a current ChromIQ "
-        "version and this will work automatically.")
+        "build scanner files from it. Create the chart again in a current "
+        "version of ChromIQ, and this will then work by itself."))
 
 
 # Back-compat alias (older callers / tests).
@@ -133,20 +135,23 @@ def layout_from_cht_files(cht_paths: list, ref_path: str | Path) -> dict:
         try:
             text = read_text(p, lenient=True)
         except OSError as exc:
-            raise ScaninTargetError(f"Couldn't read “{p.name}”: {exc}") from exc
+            raise ScaninTargetError(tr(
+                "ChromIQ couldn't read “{name}”: {error}").format(
+                    name=p.name, error=exc)) from exc
         locs = _cht_x_box_locs(text)
         if not locs:
-            raise ScaninTargetError(
-                f"“{p.name}” has no patch (X) boxes — it doesn't look like a "
-                "printtarg/scanin .cht file.")
+            raise ScaninTargetError(tr(
+                "“{name}” has no patch boxes (marked X), so it doesn't look "
+                "like a .cht file from printtarg or scanin.").format(
+                    name=p.name))
         texts.append(text)
         geom_locs += locs
     data: Ti3Data = parse_ti3(ref_path)
     geom_set, ref_set = set(geom_locs), set(data.sample_locs)
     if len(geom_set) != len(geom_locs):
-        raise ScaninTargetError(
-            "The .cht files overlap — the same patch location appears on more "
-            "than one page. Pick each page's .cht exactly once.")
+        raise ScaninTargetError(tr(
+            "The .cht files overlap: the same patch position appears on more "
+            "than one page. Pick the .cht file of each page exactly once."))
     missing = ref_set - geom_set
     if missing:
         n = len(missing)
@@ -192,7 +197,9 @@ def _check_measured(geom_locs: list[str], data: Ti3Data) -> None:
     raising :class:`GeometryMismatch` on a duplicate or an unmeasured patch."""
     geom_set = set(geom_locs)
     if len(geom_set) != len(geom_locs):
-        raise GeometryMismatch("The chart geometry has duplicate patch locations.")
+        raise GeometryMismatch(tr(
+            "The chart's layout names the same patch position more than once, "
+            "so ChromIQ cannot build scanner files from it."))
     missing = geom_set - set(data.sample_locs)
     if not missing:
         return
@@ -202,16 +209,16 @@ def _check_measured(geom_locs: list[str], data: Ti3Data) -> None:
     # rather than let it look like a corrupt measurement (#120).
     if data.sample_locs and all(loc.strip().isdigit()
                                 for loc in data.sample_locs):
-        raise GeometryMismatch(
+        raise GeometryMismatch(tr(
             "This .ti3 numbers its patches (1, 2, 3, …) instead of naming "
             "their positions on the chart (A1, B2, …), so ChromIQ cannot tell "
             "which patch each measurement belongs to. That is what you get "
-            "from converting an i1Profiler measurement (Tools → Convert "
-            "i1Profiler → TI3). Such a measurement still builds a PRINTER "
-            "profile — load it in Build Profile — but a scanner/camera target "
-            "additionally needs to know where each patch sits on the sheet. "
-            "Measure this chart with ChromIQ (Measure tab) and build the "
-            "target from that .ti3.")
+            "when you convert an i1Profiler measurement (Tools ▸ Convert "
+            "i1Profiler → TI3). Such a measurement still builds a printer "
+            "profile (load it in Build Profile), but a scanner or camera "
+            "target also needs to know where each patch sits on the sheet. "
+            "Measure this chart with ChromIQ on the Measure tab and build the "
+            "target from that .ti3."))
     n = len(missing)
     raise GeometryMismatch((
         tr("1 patch of this chart has no measurement in the .ti3 file, so "
@@ -346,9 +353,9 @@ def _ordered_rgb100(patch_set_path: str | Path):
             from workflow.i1profiler_export import parse_ti1
             target = parse_ti1(p)
             if target.kind != "RGB":
-                raise ScaninTargetError(
-                    "Only RGB charts can be built into a scanner target; this "
-                    f"patch set is {target.kind}.")
+                raise ScaninTargetError(tr(
+                    "Only RGB charts can be built into a scanner target, and "
+                    "this patch set is {kind}.").format(kind=target.kind))
             rgb = [[vals["R"], vals["G"], vals["B"]] for _sid, vals in target.rows]
         else:
             from workflow.i1profiler_import import parse_cgats, parse_pxf
@@ -358,10 +365,12 @@ def _ordered_rgb100(patch_set_path: str | Path):
     except ScaninTargetError:
         raise
     except (OSError, ValueError) as exc:
-        raise ScaninTargetError(
-            f"Couldn't read the patch set “{p.name}”: {exc}") from exc
+        raise ScaninTargetError(tr(
+            "ChromIQ couldn't read the patch set “{name}”: {error}").format(
+                name=p.name, error=exc)) from exc
     if not rgb:
-        raise ScaninTargetError(f"The patch set “{p.name}” has no patches.")
+        raise ScaninTargetError(tr(
+            "The patch set “{name}” has no patches.").format(name=p.name))
     return np.asarray(rgb, dtype=float)
 
 
@@ -396,7 +405,9 @@ def build_scanin_target_from_render(patch_set_path: str | Path, tiff_paths: list
     )
 
     if not tiff_paths:
-        raise ScaninTargetError("No chart TIFF was given to read the layout from.")
+        raise ScaninTargetError(tr(
+            "No chart TIFF was given, so there is nothing to read the layout "
+            "from."))
     rgb100 = _ordered_rgb100(patch_set_path)
     locs = [str(i + 1) for i in range(len(rgb100))]
     try:
@@ -448,9 +459,9 @@ def build_scanin_target(run) -> ScaninTargetResult:
     and writes the pair next to the chart (``<stem>.cht`` / ``<stem>.cie``)."""
     ti3 = run.measurement_ti3
     if not Path(ti3).is_file():
-        raise ScaninTargetError(
-            "This chart hasn't been measured yet — measure it first, then ChromIQ "
-            "can build scanner files from the measurement.")
+        raise ScaninTargetError(tr(
+            "This chart hasn't been measured yet. Measure it first, and ChromIQ "
+            "can then build scanner files from the measurement."))
     return build_scanin_target_from_paths(run.chart_channels_json, ti3,
                                           Path(run.dir) / run.stem)
 

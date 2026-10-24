@@ -7292,5 +7292,18 @@
  "[Guided Refinement] All the strips to refine have been measured. You can press 'n' or 'd' to finish.": "[引导优化] 所有需要优化的色条都已测量。可以按 'n' 或 'd' 结束。",
  "[Guided Refinement] ChromIQ presses 'f' and 'b' for you, so please leave the keyboard alone.": "[引导优化] ChromIQ 会替你按 'f' 和 'b'，所以请不要碰键盘。",
  "the chart was made for {instrument}, which this reader does not accept": "这张色卡是为 {instrument} 制作的，这个读取器不接受它",
- "this reader does not accept the chart": "这个读取器不接受这张色卡"
+ "this reader does not accept the chart": "这个读取器不接受这张色卡",
+ "This chart has no layout file, so ChromIQ doesn't know where its patches sit. ChromIQ looks for <chart>.channels.json next to the file you pick, with the same name the chart was saved under when it was created. Measure a chart that was created in ChromIQ, and its scanner files can be built from it.": "这张色卡没有布局文件，所以 ChromIQ 不知道色块在哪里。ChromIQ 会在你选择的文件旁边，按色卡创建时保存的名称查找 <chart>.channels.json。测量一张在 ChromIQ 中创建的色卡，就可以从它生成扫描仪文件。",
+ "ChromIQ couldn't read the chart's layout file: {error}": "ChromIQ 无法读取色卡的布局文件：{error}",
+ "ChromIQ doesn't have this chart's exact patch positions, so it can't build scanner files from it. Create the chart again in a current version of ChromIQ, and this will then work by itself.": "ChromIQ 没有这张色卡色块的精确位置，所以无法从它生成扫描仪文件。请在当前版本的 ChromIQ 中重新创建色卡，之后就会自动可用。",
+ "ChromIQ couldn't read “{name}”: {error}": "ChromIQ 无法读取“{name}”：{error}",
+ "“{name}” has no patch boxes (marked X), so it doesn't look like a .cht file from printtarg or scanin.": "“{name}”中没有色块方框（标记为 X），所以看起来不是 printtarg 或 scanin 生成的 .cht 文件。",
+ "The .cht files overlap: the same patch position appears on more than one page. Pick the .cht file of each page exactly once.": "这些 .cht 文件有重叠：同一个色块位置出现在不止一页上。请为每一页只选择一次它的 .cht 文件。",
+ "The chart's layout names the same patch position more than once, so ChromIQ cannot build scanner files from it.": "色卡布局中同一个色块位置出现了不止一次，所以 ChromIQ 无法从它生成扫描仪文件。",
+ "This .ti3 numbers its patches (1, 2, 3, …) instead of naming their positions on the chart (A1, B2, …), so ChromIQ cannot tell which patch each measurement belongs to. That is what you get when you convert an i1Profiler measurement (Tools ▸ Convert i1Profiler → TI3). Such a measurement still builds a printer profile (load it in Build Profile), but a scanner or camera target also needs to know where each patch sits on the sheet. Measure this chart with ChromIQ on the Measure tab and build the target from that .ti3.": "这个 .ti3 用编号（1, 2, 3, …）表示色块，而不是写出它们在色卡上的位置（A1, B2, …），所以 ChromIQ 无法判断每个测量值属于哪个色块。转换 i1Profiler 测量（工具 ▸ 转换 i1Profiler → TI3）就会得到这样的文件。这样的测量仍然可以生成打印机配置文件（在 生成配置文件 中载入它），但扫描仪或相机的标板还需要知道每个色块在纸上的位置。请用 ChromIQ 在 测量 标签页测量这张色卡，再从那个 .ti3 创建标板。",
+ "Only RGB charts can be built into a scanner target, and this patch set is {kind}.": "只有 RGB 色卡才能做成扫描仪标板，而这个色块集是 {kind}。",
+ "ChromIQ couldn't read the patch set “{name}”: {error}": "ChromIQ 无法读取色块集“{name}”：{error}",
+ "The patch set “{name}” has no patches.": "色块集“{name}”中没有色块。",
+ "No chart TIFF was given, so there is nothing to read the layout from.": "没有提供色卡的 TIFF，所以无从读取布局。",
+ "This chart hasn't been measured yet. Measure it first, and ChromIQ can then build scanner files from the measurement.": "这张色卡还没有测量。请先测量，之后 ChromIQ 就能从测量结果生成扫描仪文件。"
 }
