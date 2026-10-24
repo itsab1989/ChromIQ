@@ -511,7 +511,16 @@ class StripLabelShift:
     ``held_by`` is "edge" when the paper edge or the clip border stops them
     and "" when nothing does. ``pitch_mm`` is the distance from one strip to
     the next (0 with a single strip), and ``near_neighbour`` says that, at
-    ``used_mm``, a letter stands nearer to the next strip than to its own."""
+    ``used_mm``, a letter stands nearer to the next strip than to its own.
+
+    ``in_path`` says that, at ``used_mm``, a letter's ink lies inside the
+    path the instrument reads along the middle of a strip (its own or
+    another's): the middle of the strip, ``aperture_mm`` wide
+    (`instruments.STRIP_READ_APERTURE_MM`). ``clear_mm`` is a value of the
+    box that keeps every letter on every page out of every path, or None when
+    no value on this chart does; ``room_mm`` is the space left between two
+    neighbouring paths. ``instrument`` is the instrument code, "" when ChromIQ
+    does not know its opening (then ``in_path`` is always False)."""
     asked_mm: float
     used_mm: float
     left_mm: float
@@ -519,10 +528,22 @@ class StripLabelShift:
     held_by: str
     pitch_mm: float = 0.0
     near_neighbour: bool = False
+    in_path: bool = False
+    clear_mm: "float | None" = None
+    aperture_mm: float = 0.0
+    room_mm: float = 0.0
+    instrument: str = ""
+    #: What the renderer moves the letters by, in whole pixels.
+    used_px: int = 0
 
     @property
     def held(self) -> bool:
         return bool(self.held_by)
+
+
+@lru_cache(maxsize=4096)
+def _label_reach_cached(text: str, font, spc: int, rot: int) -> "tuple[int, int]":
+    return _strip_label_ink_reach_px([text], font, spc, rot)
 
 
 def _strip_label_ink_reach_px(labels, font, spc: int, rot: int
@@ -565,22 +586,6 @@ def _strip_label_ink_reach_px(labels, font, spc: int, rot: int
     return int(left), int(right)
 
 
-def _strip_label_edge_reach_px(label, n_total: int, n_first: int, font,
-                               spc: int, rot: int) -> "tuple[int, int]":
-    """``(left, right)`` ink reach that matters at the two sides: the LEFT
-    reach of the letters printed in the first column of a page, and the RIGHT
-    reach of those in the last column (and of the last page's last strip,
-    which may sit further in). Taking every label for both sides held turned
-    letters on a multi-page chart up to 1.4 mm short of the edge, for a wider
-    letter that is never printed there (review sweep, 2026-10-24)."""
-    n_total, n_first = max(1, int(n_total)), max(1, int(n_first))
-    first = [label(i + 1) for i in range(0, n_total, n_first)]
-    last = [label(i + 1) for i in range(n_first - 1, n_total, n_first)]
-    last.append(label(n_total))
-    return (_strip_label_ink_reach_px(first, font, spc, rot)[0],
-            _strip_label_ink_reach_px(last, font, spc, rot)[1])
-
-
 class _GreyInk:
     """`ImageDraw` on an "L" probe that inks 255 whatever fill it is handed,
     so `_draw_indicator`'s black RGB fill shows up on the probe."""
@@ -614,21 +619,33 @@ def _strip_label_side_bounds_mm(geom, clip_content_mode: str,
     return left, right
 
 
-def _strip_label_x_limits_px(*, page_w_px: int, first_x0: int, first_xr: int,
-                             last_x0: int, last_xr: int, reach_left_px: int,
-                             reach_right_px: int, left_bound_px: int,
-                             right_bound_px: int) -> "tuple[int, int]":
-    """``(lo, hi)``: the shift range in pixels, lo <= 0 <= hi, that keeps the
-    first strip's letter ink right of *left_bound_px* and the last one's left
-    of the right bound (see the comment block above). The letters are centred
-    on ``x0 + (xr - x0) // 2``, as `render_pages` centres them, and reach
-    *reach_left_px* / *reach_right_px* either side of that
-    (`_strip_label_ink_reach_px`)."""
-    cx0 = first_x0 + (first_xr - first_x0) // 2
-    cxn = last_x0 + (last_xr - last_x0) // 2
-    lo = min(0, left_bound_px - (cx0 - reach_left_px))
-    hi = max(0, (page_w_px - right_bound_px) - (cxn + reach_right_px))
-    return lo, hi
+def _strip_label_pages(n_total: int, n_first: int) -> "list[tuple[int, int]]":
+    """``[(first, last), ...]``: the strip indices (0-based, inclusive) on
+    each page, as `render_pages` lays them out: ``n_first`` per page, the
+    last page holding what is left."""
+    n_total, n_first = max(1, int(n_total)), max(1, int(n_first))
+    return [(i, min(n_total, i + n_first) - 1)
+            for i in range(0, n_total, n_first)]
+
+
+def _strip_label_x_limits_px(*, page_w_px: int, centres_px, pages, reach,
+                             labels, left_bound_px: int, right_bound_px: int
+                             ) -> "tuple[int, int]":
+    """``(lo, hi)``: the shift range in pixels, lo <= 0 <= hi, that keeps
+    every page's first letter's ink right of *left_bound_px* and its last
+    letter's ink left of the right bound. ``centres_px[j]`` is where column
+    *j*'s letter is centred, ``reach[label]`` its ink ``(left, right)`` of that
+    centre (`_strip_label_ink_reach_px`). Per page, so a short last page is
+    judged where its last letter really stands."""
+    lo_need = None
+    hi_room = None
+    for i0, i1 in pages:
+        left = left_bound_px - (centres_px[0] - reach[labels[i0]][0])
+        right = (page_w_px - right_bound_px) - (
+            centres_px[i1 - i0] + reach[labels[i1]][1])
+        lo_need = left if lo_need is None else max(lo_need, left)
+        hi_room = right if hi_room is None else min(hi_room, right)
+    return min(0, int(lo_need or 0)), max(0, int(hi_room or 0))
 
 
 def _clamp_shift(asked_px: int, lo: int, hi: int) -> "tuple[int, str]":
@@ -646,29 +663,130 @@ def _nearer_the_next_strip(used_px: int, pitch_px: int) -> bool:
     return pitch_px > 0 and 2 * abs(int(used_px)) > int(pitch_px) + 1
 
 
+def _path_clearance(dx: int, centres_px, pages, reach, labels,
+                    aperture_px: float) -> float:
+    """The smallest gap, in pixels, between any letter's ink (moved by *dx*)
+    and the path of any strip on its page (``centre ± aperture / 2``).
+    Zero or less means a letter touches or lies in a path."""
+    half = aperture_px / 2.0
+    gap = float("inf")
+    for i0, i1 in pages:
+        cols = centres_px[: i1 - i0 + 1]
+        for j, idx in enumerate(range(i0, i1 + 1)):
+            lft = cols[j] + dx - reach[labels[idx]][0]
+            rgt = cols[j] + dx + reach[labels[idx]][1]
+            for c in cols:
+                gap = min(gap, max(lft - (c + half), (c - half) - rgt))
+    return gap
+
+
+def _letters_in_a_path(dx: int, centres_px, pages, reach, labels,
+                       aperture_px: float) -> bool:
+    """True when, moved by *dx*, any letter's ink on any page touches the
+    path of any strip on that page."""
+    return _path_clearance(dx, centres_px, pages, reach, labels,
+                           aperture_px) <= 0
+
+
+def strip_label_x_plan(*, geom, place, page_w_px: int, mm2px: float,
+                       total: int, per_page: int, steps: int, label, font,
+                       spc: int, rot: int, clip_content_mode: str,
+                       paper_w_mm: float, asked_mm: float,
+                       advise: bool = True) -> StripLabelShift:
+    """THE ONE ANSWER to "where do the strip letters go sideways on this
+    chart?", asked by `render_pages` when it draws them and by
+    :func:`strip_label_x_shift` for the panel's notices, so the two cannot
+    disagree (review, 2026-10-24: they did by 0.3 mm on a Letter i1Pro 3 Plus
+    chart, because each side kept its own copy of the arithmetic).
+
+    *advise* False skips the path check and its search for a clearing value,
+    which only the panel needs; the shift itself is the same either way."""
+    def px(mm: float) -> int:
+        return round(mm * mm2px)
+
+    steps = max(1, int(steps))
+    n_total = max(1, -(-int(total) // steps))
+    n_first = max(1, -(-min(int(total), int(per_page)) // steps))
+    labels = [label(i + 1) for i in range(n_total)]
+    reach = {t: _label_reach_cached(t, font, int(spc), int(rot) % 360)
+             for t in set(labels)}
+    centres = []
+    for j in range(n_first):
+        x0 = px(place.x_of(j))
+        xr = px(place.x_of(j) + place.pwid)
+        centres.append(x0 + (xr - x0) // 2)
+    pages = _strip_label_pages(n_total, n_first)
+    lb, rb = _strip_label_side_bounds_mm(geom, clip_content_mode, paper_w_mm)
+    lo, hi = _strip_label_x_limits_px(
+        page_w_px=page_w_px, centres_px=centres, pages=pages, reach=reach,
+        labels=labels, left_bound_px=px(lb), right_bound_px=px(rb))
+    used, why = _clamp_shift(px(asked_mm), lo, hi)
+    pitch_px = (px(place.x_of(1)) - px(place.x_of(0))) if n_first > 1 else 0
+    from .instruments import STRIP_READ_APERTURE_MM
+    key = str(getattr(geom, "key", "") or "")
+    ap_mm = float(STRIP_READ_APERTURE_MM.get(key, 0.0))
+    in_path, clear = False, None
+    if advise and ap_mm > 0 and used != 0:
+        ap_px = ap_mm * mm2px
+        in_path = _letters_in_a_path(used, centres, pages, reach, labels, ap_px)
+        if in_path:
+            # A value of the box, in the box's own tenths, that clears every
+            # path: one inside the range the near-neighbour hint offers
+            # (half the strip spacing, rounded down to the tenth) first, so
+            # the two hints never contradict each other; then the one that
+            # leaves the MOST room between the letters and the paths, because
+            # an instrument does not run along a perfect line (a ColorMunki
+            # is moved by hand); then the one nearest to what was asked.
+            half_t = (int(pitch_px / mm2px / 2.0 * 10.0 + 1e-9)
+                      if pitch_px else 10**6)
+            best = None
+            for t in range(-500, 501):
+                v = t / 10.0
+                d = px(v)
+                if d == 0 or d < lo or d > hi:
+                    continue
+                gap = _path_clearance(d, centres, pages, reach, labels, ap_px)
+                if gap <= 0:
+                    continue
+                # more room counts up to half the opening again; past that
+                # the value nearest to what was asked wins, so a sheet with
+                # room to spare is not sent to the far side of the paper
+                score = (abs(t) > half_t, -min(round(gap), round(ap_px / 2)),
+                         abs(v - asked_mm), abs(v))
+                if best is None or score < best[0]:
+                    best = (score, v)
+            clear = None if best is None else best[1]
+    room = max(0.0, pitch_px / mm2px - ap_mm) if ap_mm > 0 and pitch_px else 0.0
+    return StripLabelShift(asked_mm=asked_mm, used_mm=used / mm2px,
+                           left_mm=-lo / mm2px, right_mm=hi / mm2px,
+                           held_by=why, pitch_mm=pitch_px / mm2px,
+                           near_neighbour=_nearer_the_next_strip(used, pitch_px),
+                           in_path=in_path, clear_mm=clear, aperture_mm=ap_mm,
+                           room_mm=room, instrument=key if ap_mm > 0 else "",
+                           used_px=used)
+
+
 def strip_label_x_shift(geom, kw: dict) -> "StripLabelShift | None":
     """What :func:`render_pages` will do with "Label offset" X on this chart,
-    worked out the way it does it, for the panel. None when the box is at 0,
-    the letters are off, or the layout cannot be worked out yet."""
+    for the panel: :func:`strip_label_x_plan` fed the way `render_pages`
+    feeds it. None when the box is at 0, the letters are off, or the layout
+    cannot be worked out yet."""
     asked = float(kw.get("strip_label_offset_x_mm") or 0.0)
     if not asked or not kw.get("draw_indicators", True):
         return None
     try:
         from . import papers
-        total = int(kw.get("area_target_count") or 0)
-        if total <= 0:
+        count = int(kw.get("area_target_count") or 0)
+        if count <= 0:
             return None
         dpi = int(kw.get("dpi") or 150)
         mm2px = dpi / 25.4
         w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
-        layout = geometry.compute(geom, float(w_mm), float(h_mm), total)
+        layout = geometry.compute(geom, float(w_mm), float(h_mm), count)
         steps = int(layout.steps_in_pass or 0)
         if steps <= 0:
             return None
         place = geometry.placement(geom, float(w_mm), float(h_mm), layout)
-        on_first = min(layout.total_patches, layout.patches_per_page)
-        n_first = max(1, -(-on_first // steps))
-        n_total = max(1, -(-layout.total_patches // steps))
         fam = kw.get("indicator_font", DEFAULT_INDICATOR_FONT)
         ind_px = round(effective_indicator_size_mm(
             geom, dpi, fam, float(kw.get("indicator_size_mm") or 0.0)) * mm2px)
@@ -678,30 +796,18 @@ def strip_label_x_shift(geom, kw: dict) -> "StripLabelShift | None":
         label = permutation.make_labeller(
             str(kw.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN),
             str(kw.get("label_rule") or permutation.ARGYLL))
-        reach_l, reach_r = _strip_label_edge_reach_px(
-            label, n_total, n_first, font, spc,
-            int(kw.get("indicator_rotation") or 0))
+        # the renderer's own count: the patches plus the fill-up the layout
+        # pads the last strip with (`render_pages`: `len(patches)`)
+        total = int(layout.total_patches)
+        return strip_label_x_plan(
+            geom=geom, place=place, page_w_px=max(1, round(float(w_mm) * mm2px)),
+            mm2px=mm2px, total=total, per_page=int(layout.patches_per_page),
+            steps=steps, label=label, font=font, spc=spc,
+            rot=int(kw.get("indicator_rotation") or 0),
+            clip_content_mode=str(kw.get("clip_content_mode") or "off"),
+            paper_w_mm=float(w_mm), asked_mm=asked)
     except Exception:            # noqa: BLE001 - a notice never blocks a build
         return None
-
-    def px(mm: float) -> int:
-        return round(mm * mm2px)
-
-    lb, rb = _strip_label_side_bounds_mm(
-        geom, str(kw.get("clip_content_mode") or "off"), float(w_mm))
-    lo, hi = _strip_label_x_limits_px(
-        page_w_px=max(1, px(float(w_mm))),
-        first_x0=px(place.x_of(0)), first_xr=px(place.x_of(0) + place.pwid),
-        last_x0=px(place.x_of(n_first - 1)),
-        last_xr=px(place.x_of(n_first - 1) + place.pwid),
-        reach_left_px=reach_l, reach_right_px=reach_r,
-        left_bound_px=px(lb), right_bound_px=px(rb))
-    used, why = _clamp_shift(px(asked), lo, hi)
-    pitch_px = (px(place.x_of(1)) - px(place.x_of(0))) if n_total > 1 else 0
-    return StripLabelShift(asked_mm=asked, used_mm=used / mm2px,
-                           left_mm=-lo / mm2px, right_mm=hi / mm2px,
-                           held_by=why, pitch_mm=pitch_px / mm2px,
-                           near_neighbour=_nearer_the_next_strip(used, pitch_px))
 
 
 #: How many labels the ink probe below walks. The alphabetic labeller reaches
@@ -2635,21 +2741,12 @@ def render_pages(
     # pixels it always did.
     _lbl_dx = 0
     if draw_indicators and strip_label_offset_x_mm:
-        _n_first = max(1, -(-min(total, pppage) // steps))
-        _lb_mm, _rb_mm = _strip_label_side_bounds_mm(
-            geom, clip_content_mode, paper_w_mm)
-        _reach = _strip_label_edge_reach_px(
-            label_strip, _n_total_strips, _n_first, font, _spc,
-            indicator_rotation)
-        _xlo, _xhi = _strip_label_x_limits_px(
-            page_w_px=W,
-            first_x0=px(place.x_of(0)),
-            first_xr=px(place.x_of(0) + place.pwid),
-            last_x0=px(place.x_of(_n_first - 1)),
-            last_xr=px(place.x_of(_n_first - 1) + place.pwid),
-            reach_left_px=_reach[0], reach_right_px=_reach[1],
-            left_bound_px=px(_lb_mm), right_bound_px=px(_rb_mm))
-        _lbl_dx, _ = _clamp_shift(px(strip_label_offset_x_mm), _xlo, _xhi)
+        _lbl_dx = strip_label_x_plan(
+            geom=geom, place=place, page_w_px=W, mm2px=mm2px, total=total,
+            per_page=pppage, steps=steps, label=label_strip, font=font,
+            spc=_spc, rot=indicator_rotation,
+            clip_content_mode=clip_content_mode, paper_w_mm=paper_w_mm,
+            asked_mm=float(strip_label_offset_x_mm), advise=False).used_px
     _band_bottom = None
     if draw_indicators:
         # THE BAND MUST BOUND THE INK, NOT ONLY THE RESERVE. See

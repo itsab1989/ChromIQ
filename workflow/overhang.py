@@ -68,7 +68,7 @@ NO_OVERHANG_MM = 0.3
 #: be read in either direction. Keys are ChromIQ's instrument codes ("p3" is
 #: printtarg's ``-i 3p``).
 #:
-#: * i1 (i1Pro, i1Pro 2, i1Pro 3; 5 mm aperture): lcar 10.0, tspa 10.0
+#: * i1 (i1Pro, i1Pro 2, i1Pro 3; 4.5 mm aperture, `instruments.STRIP_READ_APERTURE_MM`): lcar 10.0, tspa 10.0
 #:   (printtarg.c:2158, 2164);
 #: * p3 (i1Pro 3 Plus, 8 mm aperture): lcar 20.0, tspa 20.0 (:2171, 2177);
 #: * CM (ColorMunki): lcar 20.0, tspa 25.0 (:2217, 2223);

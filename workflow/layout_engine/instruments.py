@@ -57,6 +57,31 @@ ROW_LABEL_BAND_MM = 7.5
 CR30_BODY_DIAMETER_MM = 33.0
 CR30_APERTURE_DIAMETER_MM = 4.0
 
+#: THE MEASURING OPENING OF EACH STRIP-READING INSTRUMENT, in mm: the width
+#: of the path it reads along the middle of a strip. ONE PLACE for these
+#: figures (review of "Label offset" X, 2026-10-24): the strip-letter path hint
+#: (`raster.StripLabelShift.in_path`), the "Label offset" help and the code
+#: comments all take them from here, and a test holds the help to them.
+#:
+#: * "i1" (i1Pro, i1Pro 2, i1Pro 3): 4.5 mm, X-Rite's published "measurement
+#:   aperture" for the i1Pro 2 and i1Pro 3. Comments here used to say 5 mm,
+#:   rounded; nothing computed with it.
+#: * "p3" (i1Pro 3 Plus): 8 mm, X-Rite's comparison of the i1Pro 3 Plus,
+#:   i1Pro 3 and i1Pro 2 (8 / 4.5 / 4.5 mm), and the reason its strips are
+#:   twice as wide.
+#: * "CM" (ColorMunki Photo / Design): 6 mm, X-Rite's published aperture of
+#:   the i1Studio, the ColorMunki Photo's successor built on the same
+#:   instrument. A ColorMunki is swept by hand without a ruler, so its real
+#:   path wanders a little more than an i1Pro's on its ruler.
+#:
+#: Instruments not listed (CR30 and SpectroScan, read patch by patch; the DTP
+#: strip readers, whose opening is not recorded) get no path hint.
+STRIP_READ_APERTURE_MM: dict[str, float] = {"i1": 4.5, "p3": 8.0, "CM": 6.0}
+
+#: How the path hint names each instrument. Product names, not translated.
+STRIP_READ_INSTRUMENT_NAME: dict[str, str] = {
+    "i1": "i1Pro", "p3": "i1Pro 3 Plus", "CM": "ColorMunki"}
+
 # Instrument flag (printtarg -i value) -> CGATS TARGET_INSTRUMENT string.
 TARGET_INSTRUMENT_NAME: dict[str, str] = {
     "i1": "GretagMacbeth i1 Pro",
@@ -703,14 +728,14 @@ def _build_base(
     def spacer(base: float) -> float:
         return pscale * sscale * base if spacer_on else 0.0
 
-    # ---- i1Pro family (5 mm and 8 mm apertures) -------------------------
+    # ---- i1Pro family (apertures: STRIP_READ_APERTURE_MM) ----------------
     if key in ("i1", "p3"):
         clip_w = clip_border_width if clip_border_width else 26.0
         lbord = max(0.0, clip_w - border) if not nolpcbord else 0.0
-        if key == "i1":                       # 5 mm aperture
+        if key == "i1":                       # 4.5 mm aperture
             lcar, plen_b, pspa_b, tspa = 10.0, 10.0, 1.0, 10.0
             pwid_b = rrsp_b = 8.0
-        else:                                 # p3 = i1Pro 3+ / 8 mm aperture
+        else:                                 # p3 = i1Pro 3+, 8 mm aperture
             lcar, plen_b, pspa_b, tspa = 20.0, 20.0, 2.0, 20.0
             pwid_b = rrsp_b = 16.0
         txhisl = 7.0
