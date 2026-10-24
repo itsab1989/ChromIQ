@@ -7211,7 +7211,7 @@ class SettingsDialog(QDialog):
                 if executable:
                     results.append(f"✓ {tool}")
                 else:
-                    results.append(f"✗ {tool} (not found)")
+                    results.append(tr("✗ {tool} (not found)").format(tool=tool))
                 continue
             if p.exists():
                 try:
@@ -7222,9 +7222,10 @@ class SettingsDialog(QDialog):
                     )
                     results.append(f"✓ {tool}")
                 except Exception:
-                    results.append(f"✗ {tool} (error)")
+                    results.append(tr("✗ {tool} (found, but it would not "
+                                      "start)").format(tool=tool))
             else:
-                results.append(f"✗ {tool} (not found)")
+                results.append(tr("✗ {tool} (not found)").format(tool=tool))
         msg = "  ".join(results)
         all_ok = all(r.startswith("✓") for r in results)
         _ink(self._argyll_status, "#4caf50" if all_ok else "#ff9800")
@@ -7234,12 +7235,14 @@ class SettingsDialog(QDialog):
     def _open_argyll_download(self) -> None:
         self._argyll_status.setStyleSheet("")
         if _sys.platform == "win32":
-            hint = "win64 for x64 (Intel/AMD) or arm64 for ARM-based devices (Snapdragon)"
+            hint = tr("win64 for x64 (Intel or AMD), or arm64 for ARM-based "
+                      "devices (Snapdragon)")
         elif _sys.platform == "darwin":
-            hint = "arm64 for Apple Silicon, osx64 for Intel"
+            hint = tr("arm64 for Apple Silicon, osx64 for Intel")
         else:
-            hint = "the binary tar.bz2 matching your distro's architecture (x86_64 or aarch64) — " \
-                   "or install via your package manager (e.g. sudo apt install argyll)"
+            hint = tr("the binary tar.bz2 that matches your distribution's "
+                      "architecture (x86_64 or aarch64), or install it with your "
+                      "package manager (for example sudo apt install argyll)")
         self._argyll_status.setText(
             tr("Opening argyllcms.com — download the latest version ({hint}), then unpack and set the bin path above.").format(hint=hint)
         )

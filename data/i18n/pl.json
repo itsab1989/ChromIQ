@@ -8265,5 +8265,10 @@
  "Tagged as randomised: this chart can be measured in both directions.": "Oznaczono jako losowy: ten wzorzec można mierzyć w obu kierunkach.",
  "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Bez znacznika: układ wygląda na uporządkowany, więc będzie mierzony tylko w jednym kierunku. Aby mimo to go oznaczyć, zaznacz Wymuś znacznik „losowy”.",
  "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Bez znacznika: układ wygląda na uporządkowany, więc będzie mierzony tylko w jednym kierunku.",
- "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Oznaczono jako losowy, bo o to prosisz. Uwaga: ten układ może być odczytywany zawodnie, tak jak mówiło ostrzeżenie."
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Oznaczono jako losowy, bo o to prosisz. Uwaga: ten układ może być odczytywany zawodnie, tak jak mówiło ostrzeżenie.",
+ "✗ {tool} (not found)": "✗ {tool} (nie znaleziono)",
+ "✗ {tool} (found, but it would not start)": "✗ {tool} (znaleziono, ale się nie uruchamia)",
+ "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 dla x64 (Intel lub AMD) albo arm64 dla urządzeń ARM (Snapdragon)",
+ "arm64 for Apple Silicon, osx64 for Intel": "arm64 dla Apple Silicon, osx64 dla Intela",
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "binarny tar.bz2 zgodny z architekturą Twojej dystrybucji (x86_64 lub aarch64) albo zainstaluj go menedżerem pakietów (na przykład sudo apt install argyll)"
 }

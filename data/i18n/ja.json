@@ -7279,5 +7279,10 @@
  "Tagged as randomised: this chart can be measured in both directions.": "ランダム化としてタグ付けしました。このチャートは両方向で測定できます。",
  "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "タグ付けしませんでした。レイアウトが規則的に見えるため、一方向だけで測定します。それでもタグ付けする場合は、「ランダム化」タグを強制 にチェックを入れてください。",
  "Left untagged: the layout looks structured, so it will be measured in one direction only.": "タグ付けしませんでした。レイアウトが規則的に見えるため、一方向だけで測定します。",
- "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "ご指定どおりランダム化としてタグ付けしました。ご注意ください。警告のとおり、このレイアウトは正しく読み取れない場合があります。"
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "ご指定どおりランダム化としてタグ付けしました。ご注意ください。警告のとおり、このレイアウトは正しく読み取れない場合があります。",
+ "✗ {tool} (not found)": "✗ {tool}（見つかりません）",
+ "✗ {tool} (found, but it would not start)": "✗ {tool}（見つかりましたが起動しません）",
+ "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "x64（Intel または AMD）には win64、ARM 搭載機（Snapdragon）には arm64",
+ "arm64 for Apple Silicon, osx64 for Intel": "Apple シリコンには arm64、Intel には osx64",
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "お使いのディストリビューションのアーキテクチャ（x86_64 または aarch64）に合うバイナリ tar.bz2。またはパッケージマネージャーでインストールしてください（例: sudo apt install argyll）"
 }

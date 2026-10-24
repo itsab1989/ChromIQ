@@ -8259,5 +8259,10 @@
  "Tagged as randomised: this chart can be measured in both directions.": "Отмечено как случайный порядок: эту мишень можно измерять в обоих направлениях.",
  "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Без метки: раскладка выглядит упорядоченной, поэтому её будут измерять только в одном направлении. Чтобы всё же поставить метку, включите флажок «Принудительная метка „случайный порядок“».",
  "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Без метки: раскладка выглядит упорядоченной, поэтому её будут измерять только в одном направлении.",
- "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Отмечено как случайный порядок, потому что вы так решили. Осторожно: эта раскладка может читаться ненадёжно, как и говорилось в предупреждении."
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Отмечено как случайный порядок, потому что вы так решили. Осторожно: эта раскладка может читаться ненадёжно, как и говорилось в предупреждении.",
+ "✗ {tool} (not found)": "✗ {tool} (не найден)",
+ "✗ {tool} (found, but it would not start)": "✗ {tool} (найден, но не запускается)",
+ "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 для x64 (Intel или AMD) или arm64 для устройств на ARM (Snapdragon)",
+ "arm64 for Apple Silicon, osx64 for Intel": "arm64 для Apple Silicon, osx64 для Intel",
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "двоичный архив tar.bz2 под архитектуру вашего дистрибутива (x86_64 или aarch64) или установите его менеджером пакетов (например, sudo apt install argyll)"
 }

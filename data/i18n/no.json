@@ -7279,5 +7279,10 @@
  "Tagged as randomised: this chart can be measured in both directions.": "Merket som randomisert: dette kartet kan måles i begge retninger.",
  "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Ikke merket: oppsettet ser ordnet ut, så det blir målt i bare én retning. Vil du merke det likevel, kryss av for Tving «randomisert»-merking.",
  "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Ikke merket: oppsettet ser ordnet ut, så det blir målt i bare én retning.",
- "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Merket som randomisert fordi du ba om det. Vær forsiktig: dette oppsettet kan bli lest upålitelig, slik advarselen sa."
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Merket som randomisert fordi du ba om det. Vær forsiktig: dette oppsettet kan bli lest upålitelig, slik advarselen sa.",
+ "✗ {tool} (not found)": "✗ {tool} (ikke funnet)",
+ "✗ {tool} (found, but it would not start)": "✗ {tool} (funnet, men starter ikke)",
+ "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 for x64 (Intel eller AMD), eller arm64 for ARM-baserte enheter (Snapdragon)",
+ "arm64 for Apple Silicon, osx64 for Intel": "arm64 for Apple Silicon, osx64 for Intel",
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "binærfilen tar.bz2 som passer til arkitekturen i distribusjonen din (x86_64 eller aarch64), eller installer den med pakkebehandleren (for eksempel sudo apt install argyll)"
 }

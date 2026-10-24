@@ -7279,5 +7279,10 @@
  "Tagged as randomised: this chart can be measured in both directions.": "已标记为随机化：这张色卡可以双向测量。",
  "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "未标记：布局看起来是有规律的，所以只会单向测量。如果仍要标记，请勾选“强制「已随机化」标记”。",
  "Left untagged: the layout looks structured, so it will be measured in one direction only.": "未标记：布局看起来是有规律的，所以只会单向测量。",
- "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "已按你的要求标记为随机化。请注意：正如警告所说，这个布局可能读取得不可靠。"
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "已按你的要求标记为随机化。请注意：正如警告所说，这个布局可能读取得不可靠。",
+ "✗ {tool} (not found)": "✗ {tool}（未找到）",
+ "✗ {tool} (found, but it would not start)": "✗ {tool}（已找到，但无法启动）",
+ "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "x64（Intel 或 AMD）选 win64，ARM 设备（骁龙）选 arm64",
+ "arm64 for Apple Silicon, osx64 for Intel": "Apple 芯片选 arm64，Intel 选 osx64",
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "与你的发行版架构（x86_64 或 aarch64）匹配的二进制 tar.bz2，或者用包管理器安装（例如 sudo apt install argyll）"
 }

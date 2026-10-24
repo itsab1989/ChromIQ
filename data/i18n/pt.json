@@ -7279,5 +7279,10 @@
  "Tagged as randomised: this chart can be measured in both directions.": "Marcada como aleatorizada: esta carta pode ser medida nos dois sentidos.",
  "Left untagged: the layout looks structured, so it will be measured in one direction only. To tag it anyway, tick Force “randomised” tag.": "Sem marca: a disposição parece ordenada, por isso será medida só num sentido. Para a marcar mesmo assim, assinale Forçar etiqueta «aleatorizado».",
  "Left untagged: the layout looks structured, so it will be measured in one direction only.": "Sem marca: a disposição parece ordenada, por isso será medida só num sentido.",
- "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Marcada como aleatorizada, porque o pediu. Cuidado: esta disposição pode ser lida de forma pouco fiável, como dizia o aviso."
+ "Tagged as randomised, because you asked for it. Take care: this layout may be read unreliably, as the warning said.": "Marcada como aleatorizada, porque o pediu. Cuidado: esta disposição pode ser lida de forma pouco fiável, como dizia o aviso.",
+ "✗ {tool} (not found)": "✗ {tool} (não encontrado)",
+ "✗ {tool} (found, but it would not start)": "✗ {tool} (encontrado, mas não arranca)",
+ "win64 for x64 (Intel or AMD), or arm64 for ARM-based devices (Snapdragon)": "win64 para x64 (Intel ou AMD), ou arm64 para dispositivos ARM (Snapdragon)",
+ "arm64 for Apple Silicon, osx64 for Intel": "arm64 para Apple Silicon, osx64 para Intel",
+ "the binary tar.bz2 that matches your distribution's architecture (x86_64 or aarch64), or install it with your package manager (for example sudo apt install argyll)": "o binário tar.bz2 que corresponde à arquitetura da sua distribuição (x86_64 ou aarch64), ou instale-o com o gestor de pacotes (por exemplo sudo apt install argyll)"
 }
