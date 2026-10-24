@@ -45,6 +45,9 @@ def xrite_root() -> Path:
 
 
 OWNER = Path.home() / "ChromIQ"
+# research-workspace copies of owner measurements (read only)
+RESEARCH_DATASETS = Path(os.environ.get("CHROMIQ_RESEARCH_DATASETS")
+                         or Path.home() / "develop" / "ProfileEngineResearch" / "Datasets")
 
 
 # ---------------------------------------------------------------------------
@@ -472,6 +475,16 @@ REAL_SOURCES = {
                              "robustness data only"),
     "R-Knut-printer": ("owner", "Knut-Scanner/runs/run1/Knut-Scanner.ti3", "ti3",
                        "owner/Knut: 315-patch RGB printer chart, ColorMunki-class"),
+    # Agent 81 (2026-10-24): Basti's own Canon PRO-300 measurement, REPRESENTATIVE
+    # (confirmatory by role_of, like R-ET8550). Read from the research workspace's
+    # read-only copy (Datasets/R-Pro300-Okt26, SHA256SUMS there), never from ~/ChromIQ;
+    # an absolute path, so OWNER / path == path. Distinct from the robustness-only
+    # R-Pro300-CanonSG / R-Pro300-EpsonPremSG.
+    "R-Pro300-Okt26": ("owner", str(RESEARCH_DATASETS / "R-Pro300-Okt26"
+                                    / "CanonPro300_EpsPrSG_AdobeRGB_i1Studio_Okt26.ti3"), "ti3",
+                       "owner/Basti, 2026-10-09: Canon PRO-300 on Epson Premium Semigloss, i1Studio "
+                       "(ColorMunki-class), 1232 patches RGB, printed raw 2026-10-08 (15 strips re-read); "
+                       "representative, confirmatory (Agent 49 provenance check)"),
     # Agent 14 (2026-10-04): the first real N-colour set. Public, free of
     # charge, no login (fogra.org, Ref_FOGRA55.zip v4.0, sha256 of FOGRA55.txt
     # 3c1546db...); read in place, never copied into the repository.
