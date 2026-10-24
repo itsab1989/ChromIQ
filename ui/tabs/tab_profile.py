@@ -156,38 +156,50 @@ class _DarkEmphasisSpin(NoScrollDoubleSpinBox):
         super().setValue(v)
 
 
-_INTENTS = [
-    ("Default", ""),
-    ("Perceptual Preferred (p)", "p"),
-    ("Perceptual Appearance (pa)", "pa"),
-    ("Luminance Preserving Perceptual (lp)", "lp"),
-    ("Relative Colorimetric / ICC (r)", "r"),
-    ("Lab White-point Matched (rl)", "rl"),
-    ("Saturation (ms)", "ms"),
-    ("Enhanced Saturation / ICC (s)", "s"),
-    ("Absolute Colorimetric (a)", "a"),
-    ("Absolute + white scaling (aw)", "aw"),
-    ("Absolute Appearance (aa)", "aa"),
-    ("Lab Colorimetric (al)", "al"),
-]
+# The labels the user sees are translated; the second item is the code that
+# goes to colprof (-t / -T, -c / -d) and into the saved settings, and it never
+# changes. The combos are filled with addItem(label, code) and read back with
+# currentData() / findData(), so a translated label cannot change what is
+# passed to ArgyllCMS or what a per-target preset stores. Each label keeps the
+# Argyll code in brackets, because that is what people look up in the
+# ArgyllCMS documentation. These are functions, not module constants, so tr()
+# runs when the combo is built (after the UI language is loaded) and the i18n
+# extractor sees every literal.
+def _intents() -> "list[tuple[str, str]]":
+    return [
+        (tr("Default"), ""),
+        (tr("Perceptual Preferred (p)"), "p"),
+        (tr("Perceptual Appearance (pa)"), "pa"),
+        (tr("Luminance Preserving Perceptual (lp)"), "lp"),
+        (tr("Relative Colorimetric / ICC (r)"), "r"),
+        (tr("Lab White-point Matched (rl)"), "rl"),
+        (tr("Saturation (ms)"), "ms"),
+        (tr("Enhanced Saturation / ICC (s)"), "s"),
+        (tr("Absolute Colorimetric (a)"), "a"),
+        (tr("Absolute + white scaling (aw)"), "aw"),
+        (tr("Absolute Appearance (aa)"), "aa"),
+        (tr("Lab Colorimetric (al)"), "al"),
+    ]
+
 
 # CIECAM02 viewing-condition presets used by colprof's -c (source) and -d
 # (destination) flags. Only affect output when a gamut source profile is
 # supplied via -s or -S.
-_VIEWING_CONDITIONS = [
-    ("Default (none)", ""),
-    ("Practical reflection print viewing (pe)", "pe"),
-    ("Critical reflection print viewing (pc)", "pc"),
-    ("Practical reflection print, typical office (pp)", "pp"),
-    ("Monitor in typical work environment (mt)", "mt"),
-    ("Monitor in bright work environment (mb)", "mb"),
-    ("Monitor in darkened work environment (md)", "md"),
-    ("Projector in dim environment (jm)", "jm"),
-    ("Projector in dark environment (jd)", "jd"),
-    ("Photo CD viewing booth (pcd)", "pcd"),
-    ("Original scene, bright outdoors (ob)", "ob"),
-    ("Cut sheet transparencies on a viewing box (cx)", "cx"),
-]
+def _viewing_conditions() -> "list[tuple[str, str]]":
+    return [
+        (tr("Default (none)"), ""),
+        (tr("Practical reflection print viewing (pe)"), "pe"),
+        (tr("Critical reflection print viewing (pc)"), "pc"),
+        (tr("Practical reflection print, typical office (pp)"), "pp"),
+        (tr("Monitor in typical work environment (mt)"), "mt"),
+        (tr("Monitor in bright work environment (mb)"), "mb"),
+        (tr("Monitor in darkened work environment (md)"), "md"),
+        (tr("Projector in dim environment (jm)"), "jm"),
+        (tr("Projector in dark environment (jd)"), "jd"),
+        (tr("Photo CD viewing booth (pcd)"), "pcd"),
+        (tr("Original scene, bright outdoors (ob)"), "ob"),
+        (tr("Cut sheet transparencies on a viewing box (cx)"), "cx"),
+    ]
 
 
 _TOOLTIP_TITLE_NORMAL = "Step 4 — Build the profile"
@@ -3528,7 +3540,7 @@ class TabProfile(QWidget):
         src_vc_row = QHBoxLayout()
         src_vc_row.addWidget(QLabel(tr("Source viewing (-c):"), grp))
         self._m_src_viewing_combo = NoScrollComboBox(grp)
-        for label, val in _VIEWING_CONDITIONS:
+        for label, val in _viewing_conditions():
             self._m_src_viewing_combo.addItem(label, val)
         self._m_src_viewing_combo.setObjectName("compact_input")
         self._m_src_viewing_combo.style().unpolish(self._m_src_viewing_combo)
@@ -3573,7 +3585,7 @@ class TabProfile(QWidget):
         dst_vc_row = QHBoxLayout()
         dst_vc_row.addWidget(QLabel(tr("Destination viewing (-d):"), grp))
         self._m_dst_viewing_combo = NoScrollComboBox(grp)
-        for label, val in _VIEWING_CONDITIONS:
+        for label, val in _viewing_conditions():
             self._m_dst_viewing_combo.addItem(label, val)
         self._m_dst_viewing_combo.setObjectName("compact_input")
         self._m_dst_viewing_combo.style().unpolish(self._m_dst_viewing_combo)
@@ -3812,7 +3824,7 @@ class TabProfile(QWidget):
         perc_intent_row = QHBoxLayout()
         self._m_perc_intent_check = QCheckBox(tr("Perceptual Intent Override (-t):"), grp)
         self._m_perc_intent_combo = NoScrollComboBox(grp)
-        for label, val in _INTENTS:
+        for label, val in _intents():
             self._m_perc_intent_combo.addItem(label, val)
         self._m_perc_intent_combo.setEnabled(False)
         self._m_perc_intent_combo.setObjectName("compact_input")
@@ -3839,7 +3851,7 @@ class TabProfile(QWidget):
         sat_intent_row = QHBoxLayout()
         self._m_sat_intent_check = QCheckBox(tr("Saturation Intent Override (-T):"), grp)
         self._m_sat_intent_combo = NoScrollComboBox(grp)
-        for label, val in _INTENTS:
+        for label, val in _intents():
             self._m_sat_intent_combo.addItem(label, val)
         self._m_sat_intent_combo.setEnabled(False)
         self._m_sat_intent_combo.setObjectName("compact_input")
@@ -4415,7 +4427,7 @@ class TabProfile(QWidget):
         perc_intent_row.setContentsMargins(0, 0, 0, 0)
         self._perc_intent_check = QCheckBox(tr("Perceptual Intent Override (-t):"), _perc_w)
         self._perc_intent_combo = NoScrollComboBox(_perc_w)
-        for label, val in _INTENTS:
+        for label, val in _intents():
             self._perc_intent_combo.addItem(label, val)
         self._perc_intent_combo.setEnabled(False)
         self._perc_intent_check.toggled.connect(self._perc_intent_combo.setEnabled)
@@ -4443,7 +4455,7 @@ class TabProfile(QWidget):
         sat_intent_row.setContentsMargins(0, 0, 0, 0)
         self._sat_intent_check = QCheckBox(tr("Saturation Intent Override (-T):"), _sat_w)
         self._sat_intent_combo = NoScrollComboBox(_sat_w)
-        for label, val in _INTENTS:
+        for label, val in _intents():
             self._sat_intent_combo.addItem(label, val)
         self._sat_intent_combo.setEnabled(False)
         self._sat_intent_check.toggled.connect(self._sat_intent_combo.setEnabled)

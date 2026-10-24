@@ -874,7 +874,7 @@ _TIP_WP = (
     "and you want the scan finished the moment it opens: “Map chart white to "
     "white”. Using the scanner to MEASURE rather than to photograph: “Force "
     "Absolute Colorimetric”.\n\n"
-    "A note on “Restrict white, black and primaries”, the switch under Expert "
+    "A note on “Restrict white, black & primaries (-R)”, the switch under Expert "
     "Options. It is the “-R” half of the first entry above, so while that "
     "entry is chosen the switch is shown ticked and locked, with a line beside "
     "it saying where the tick came from. Everywhere else it is yours to set, "
@@ -902,8 +902,7 @@ _TIP_WP_SCALE = (
     "1.00, and every tone in the scan about 44 % darker than “Scale white to a "
     "perfect white surface”. Numbers above 1.00 scale further still.\n\n"
     "Reach for this only when you already know the factor you want. The one "
-    "everyday thing it used to be needed for, a scale of 1.00 with “Restrict "
-    "white, black and primaries” ticked alongside it to bring the white point "
+    "everyday thing it used to be needed for, a scale of 1.00 with “Restrict white, black & primaries (-R)” ticked alongside it to bring the white point "
     "back to a perfect white surface, is now the first entry in the list "
     "above, so you no longer have to build it out of two controls.\n\n"
     "This box only has an effect when the handling above is set to “Manual "
@@ -1525,7 +1524,7 @@ class ScannerAdvancedDialog(QDialog):
         # how wide that pane has to be in every one of thirteen languages.
         if not printer:
             self._r_note = QLabel(tr(
-                "“Restrict white, black and primaries” is ticked and locked "
+                "“Restrict white, black & primaries (-R)” is ticked and locked "
                 "because White point handling above is set to “Scale white to "
                 "a perfect white surface (-u -R)”, and the “-R” in that entry "
                 "is this switch. Choose any other white point handling to get "
