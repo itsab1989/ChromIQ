@@ -140,7 +140,7 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
     (tr("Check a profile"), [
         tr("Check & Refine ▸ “Analyse Profile Quality”."),
         tr("A verification run, with its measurement report."),
-        tr("Tools ▸ “Verify a profile”, “Verify against reference” or “Inspect a "
+        tr("Tools ▸ “Verify a profile (independent check)”, “Verify against reference” or “Inspect a "
         "profile”."),
     ]),
     (tr("Delete a run"), [

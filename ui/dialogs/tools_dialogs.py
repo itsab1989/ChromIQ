@@ -1112,7 +1112,7 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
         "3. Pick where to save it and what to call it.\n"
         "4. Click Convert.\n\n"
         "Then open the result in i1Profiler, print and measure as usual. When "
-        "you're done, come back and use the \"i1Profiler → TI3\" tool to bring "
+        "you're done, come back and use the “Convert i1Profiler → TI3” tool to bring "
         "those measurements into ChromIQ.\n\n"
         "Good to know: this works with RGB charts."))
     DESCRIPTION = (
