@@ -496,3 +496,16 @@ def check_placeholders(catalog: dict[str, str]) -> list[str]:
         except ValueError:
             bad.append(src)  # unbalanced braces in translation
     return bad
+
+
+def catalog_texts(raw: dict) -> "list[tuple[str, str]]":
+    """Every (English key, shown text) pair of a loaded catalogue file: the
+    plain values and each per-number form under "@plurals", so a check of
+    what users read covers the forms too. Metadata ("@…") is left out."""
+    out = [(k, v) for k, v in raw.items()
+           if not k.startswith(_META_PREFIX) and isinstance(v, str)]
+    for k, forms in (raw.get(PLURALS_KEY) or {}).items():
+        if isinstance(forms, dict):
+            out.extend((k, v) for c, v in forms.items()
+                       if c != "count" and isinstance(v, str))
+    return out

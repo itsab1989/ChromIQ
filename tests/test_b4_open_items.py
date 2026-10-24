@@ -36,7 +36,8 @@ _INTO = ("File it in {run}", "not into {run}", "To build into {run}")
 @pytest.mark.parametrize("code", ["ru", "uk"])
 def test_run_never_follows_a_locative_preposition(code):
     bad = []
-    for en, text in _cat(code).items():
+    from core.i18n import catalog_texts
+    for en, text in catalog_texts(_cat(code)):
         for m in re.finditer(r"(?<!\w)(в|во|у|из|із|з|для|о|об|про|при|от|від|до|после|після)\s+\{run\}", text):
             # "в {run}" in the sense of "into" (accusative = nominative)
             if m.group(1) in ("в", "у") and any(k in en for k in _INTO):

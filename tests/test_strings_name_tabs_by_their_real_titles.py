@@ -81,7 +81,8 @@ def test_no_string_sends_the_user_to_a_tab_by_an_old_name(lang):
 
 
 def test_polish_never_says_drukuj_wzorzec():
-    for key, value in _cat("pl").items():
+    from core.i18n import catalog_texts
+    for key, value in catalog_texts(_cat("pl")):
         assert not re.search(r"(?<!Wy)Drukuj wzorzec", value), key[:60]
 
 
