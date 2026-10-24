@@ -1498,7 +1498,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         _a35_band = None
         _a45_path = None
         if accurate and "a25-oracle-neutral" in _cands and getattr(
-                mapper, "node_dev", None) is not None and not _a79:
+                mapper, "node_dev", None) is not None and not (
+                    _a79 and tag == "B2A0"):
             # Research (Agent 25): perceptual maps the neutral axis onto the
             # neutral axis. The source-neutral column's target keeps the L*
             # colprof's table prints (engine model) but is made neutral, and
@@ -1621,8 +1622,10 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             dev = _odev.copy()
             if channel_max is not None:
                 dev = np.minimum(dev, channel_max[None, :])
-            if _a79:
-                # Research a79-perccol: the oracle's own column, and below
+            if _a79 and tag == "B2A0":
+                # Research a79-perccol (perceptual table only: the
+                # saturation table stays as it was, its neutral column
+                # scored 0.25 -> 0.38 C* with it): the oracle's own column, and below
                 # a79_la() one straight path into the oracle's black
                 dev = a79_neutralise(model, dev, node_lab,
                                      ink_limit=None if is_additive
