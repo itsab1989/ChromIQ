@@ -555,3 +555,102 @@ def depth_inside(residual: np.ndarray, g: int, depth: float,
                    max(-k, 0):g + min(-k, 0)] = src
                 best = np.where(sh & (dist < best), dist, best)
     return best.reshape(-1)
+
+
+# Agent 78 (a78-rgbsmooth, research, off by default): the coarse (colprof
+# grid) half of keep-grid33in is smoothed along L* on its clipped nodes.
+# Cause (Findings/agent78-01): colprof's per-node CAM clip, run on OUR model
+# with the engine's dark floor below the printer black, bends sharply in L*
+# from one coarse node to the next (Knut: magenta node L* 25 printed 44.4,
+# L* 18.75 printed ~36: the slope between the nodes doubles), so a ramp that
+# leaves the gamut holds its colour to a node and then turns into black
+# within one coarse cell. A 1-2-1 filter along L* on the clipped coarse nodes
+# (clip distance > rmin dE), repeated ``iters`` times, spreads that turn over
+# the neighbouring cells. Printable nodes, the black corner and the nodes
+# within ``top`` L* of the model's white (the a63-palefine region: smoothing
+# there pulled pale out-of-gamut nodes toward the white plane and cost Knut
+# pale_oog_dL_max_r 3.18 -> 3.35) are not touched; the fine (printable) table
+# is unchanged.
+# The gate: smoothing runs only on a table whose clip field bends that much
+# overall: the median |second difference along L*| (largest channel, device
+# units) over the clipped coarse nodes it would filter is at least ``gate``.
+# Measured on the int-10 dumps (Findings/agent78-01 s3): Knut 0.053; every
+# other RGB set 0.015-0.027 (ET-8550 0.015, PRO-300 Canon 0.016, RGB default
+# 0.019, PRO-300 Epson 0.027, S1/S2/X1 0.020-0.024). Without the gate
+# (a78-rgbsmooth-all) the ET-8550 eyecheck rel. col. count went 24 -> 29.
+A78_TOKEN = "a78-rgbsmooth"
+A78_ALL_TOKEN = "a78-rgbsmooth-all"
+A78_SMOOTH = {"s": 1.0, "rmin": 8.0, "iters": 2, "tau": 0.0, "top": 10.0,
+              "gate": 0.04}
+
+
+def a78_params(candidates):
+    """(s, rmin, iters, tau) with a78-rgbsmooth on, else None (env
+    CHROMIQ_A78_SMOOTH "s:rmin:iters[:tau[:top]]" for research sweeps)."""
+    cand = frozenset(candidates or ())
+    if A78_TOKEN not in cand and A78_ALL_TOKEN not in cand:
+        return None
+    import os
+    p = dict(A78_SMOOTH)
+    if A78_ALL_TOKEN in cand:
+        p["gate"] = 0.0
+    v = os.environ.get("CHROMIQ_A78_SMOOTH", "")
+    if v:
+        k = v.split(":")
+        p["s"], p["rmin"], p["iters"] = float(k[0]), float(k[1]), int(k[2])
+        if len(k) > 3:
+            p["tau"] = float(k[3])
+        if len(k) > 4:
+            p["top"] = float(k[4])
+        if len(k) > 5:
+            p["gate"] = float(k[5])
+    return p
+
+
+def a78_bend(sub: np.ndarray, sel: np.ndarray, g_coarse: int) -> float:
+    """The gate statistic: median |second difference along L*| (largest
+    channel) over the selected coarse nodes that have both L* neighbours."""
+    n = sub.shape[1]
+    x = np.asarray(sub, float).reshape(g_coarse, g_coarse, g_coarse, n)
+    c2 = np.abs(x[2:] - 2.0 * x[1:-1] + x[:-2]).max(-1)
+    m = np.asarray(sel).reshape(g_coarse, g_coarse, g_coarse)[1:-1]
+    return float(np.median(c2[m])) if m.any() else 0.0
+
+
+def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
+               g_fine: int, g_coarse: int, params: dict,
+               white_l: float = 100.0) -> np.ndarray:
+    """a78-rgbsmooth: ``sub`` (the coarse table, g_coarse^3 x n) with its
+    clipped nodes filtered along the L* axis (weights 1/4, 1/2, 1/4; the end
+    planes reflect), ``iters`` passes of strength ``s``. With ``tau`` > 0 only
+    nodes whose |second difference along L*| (largest channel) reaches tau
+    are filtered (smoothstep from tau/2 to tau)."""
+    st = (g_fine - 1) // (g_coarse - 1)
+    n = sub.shape[1]
+    nl = np.asarray(node_lab, float).reshape(g_fine, g_fine, g_fine, 3)[
+        ::st, ::st, ::st].reshape(-1, 3)
+    rr = np.asarray(residual, float).reshape(g_fine, g_fine, g_fine)[
+        ::st, ::st, ::st].reshape(-1)
+    sel = ((rr > float(params["rmin"])) & (np.linalg.norm(nl, axis=1) > 1.0)
+           & (nl[:, 0] < 99.9)
+           & (nl[:, 0] <= float(white_l) - float(params.get("top", 0.0))))
+    s = float(params["s"])
+    tau = float(params.get("tau") or 0.0)
+    gate = float(params.get("gate") or 0.0)
+    if gate > 0.0 and a78_bend(sub, sel, g_coarse) < gate:
+        return np.asarray(sub)
+    x = np.asarray(sub, float).reshape(g_coarse, g_coarse, g_coarse, n).copy()
+    for _ in range(int(params["iters"])):
+        lo = np.concatenate([x[:1], x[:-1]], 0)
+        hi = np.concatenate([x[1:], x[-1:]], 0)
+        f = (0.25 * lo + 0.5 * x + 0.25 * hi).reshape(-1, n)
+        w = np.full(len(f), s)
+        if tau > 0.0:
+            c2 = np.zeros((g_coarse, g_coarse, g_coarse))
+            c2[1:-1] = np.abs(x[2:] - 2.0 * x[1:-1] + x[:-2]).max(-1)
+            u = np.clip((c2.reshape(-1) - 0.5 * tau) / (0.5 * tau), 0.0, 1.0)
+            w = s * u * u * (3.0 - 2.0 * u)
+        y = x.reshape(-1, n).copy()
+        y[sel] = (1.0 - w[sel, None]) * y[sel] + w[sel, None] * f[sel]
+        x = y.reshape(g_coarse, g_coarse, g_coarse, n)
+    return x.reshape(-1, n)
