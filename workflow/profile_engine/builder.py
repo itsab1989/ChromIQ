@@ -208,6 +208,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # values instead of the colorimetric axis (a25-oracle-neutral and the
      # a29/a35/a43/a45 hand-over); research, opt-in
      "a79-perccol",
+     # Agent 79: on the same mild-fold printers the B2A tables are written
+     # with identity output curves (same device value at every node; the CMM
+     # interpolates in device values, not in the model's sparse-data shaper
+     # space); research, opt-in
+     "a79-lincurve",
      # Agent 56 (D-30 part 1): RGB with a51 on: the chroma of a clip target
      # lifted to the dark floor fades C1 with its depth below the black, at
      # colprof's own per-hue rate; research, opt-in
@@ -2406,6 +2411,20 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         luts["B2A0"] = pinned
         luts["B2A2"] = "B2A0"
 
+    if (accurate and "a79-lincurve" in candidates and not meas.is_additive):
+        from workflow.profile_engine import gamut_map as _a79g
+        _a79f = _a79g.a79_mild_fold(model, meas.channel_letters)
+        if _a79f is not None:
+            # Research Agent 79 (a79-lincurve, Findings agent79-01): the
+            # model's shaper curves on a sparse chart wiggle (i1iSis demo:
+            # slope 0.7 -> 1.9 within a tenth of K), and the CMM interpolates
+            # between B2A nodes in that space: dark colour-to-black ramps
+            # bend between nodes. Same node values, identity output curves.
+            for _t in ("B2A0", "B2A1", "B2A2"):
+                if isinstance(luts.get(_t), (bytes, bytearray)):
+                    luts[_t] = _a79g.a79_identity_output(luts[_t])
+            _emit(settings, "B2A output curves (a79-lincurve): identity "
+                            "(mild ink fold printer).")
     out = Path(out_path)
     attributes = 0
     for letter in settings.z_attributes:

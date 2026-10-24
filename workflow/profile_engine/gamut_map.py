@@ -1132,6 +1132,69 @@ def a79_mild_fold(model, channel_letters) -> tuple | None:
     return (float(kf), fb) if fb < A73_FOLD_MIN else None
 
 
+A79_LINCURVE = "a79-lincurve"
+# Source L* below which the a79 neutral column runs on one straight device
+# path from the oracle's column device at the first node at or above it to
+# the oracle's black (env CHROMIQ_A79_LA). Without it the column took
+# colprof's own dark end, whose black (Y-rich on i1iSis) prints lighter
+# than the K-led column just above it: every grey ramp rose 1.2 L* into
+# the black (offline, Findings agent79-01 s3). 12 / 19 / 25 measured alike.
+A79_LA = 20.0
+
+
+def a79_la() -> float:
+    import os
+    v = os.environ.get("CHROMIQ_A79_LA")
+    return float(v) if v else A79_LA
+
+
+def a79_dark_path(dev: np.ndarray, node_lab: np.ndarray) -> np.ndarray:
+    """Research a79-perccol: the source-neutral column below a79_la() on a
+    straight device path (linear in node L*) from the column's device at
+    the first node at or above it to the column's black node; the column
+    above, and every other node, unchanged."""
+    col = np.flatnonzero(np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+    if len(col) < 3:
+        return dev
+    col = col[np.argsort(node_lab[col, 0])]
+    lc = node_lab[col, 0]
+    up = np.flatnonzero(lc >= a79_la())
+    if not len(up) or up[0] < 2:
+        return dev
+    ia = int(up[0])
+    out = np.asarray(dev, float).copy()
+    d0, da = out[col[0]].copy(), out[col[ia]].copy()
+    span = max(lc[ia] - lc[0], 1e-9)
+    for i in range(1, ia):
+        w = (lc[i] - lc[0]) / span
+        out[col[i]] = (1.0 - w) * d0 + w * da
+    return out
+
+
+def a79_identity_output(blob: bytes) -> bytes:
+    """Research a79-lincurve: the same mft2 (Lut16) table with identity
+    output curves: every CLUT entry decoded through its output curve to the
+    device value it stands for. The device value at every node is unchanged
+    (to 1/65535); only the space the CMM interpolates in between the nodes
+    becomes plain device values instead of the model's shaper space."""
+    import struct
+    b = bytes(blob)
+    if b[:4] != b"mft2":
+        return blob
+    nin, nout, grid = b[8], b[9], b[10]
+    nie, noe = struct.unpack(">HH", b[48:52])
+    c0 = 52 + nin * nie * 2
+    cn = grid ** nin * nout
+    clut = np.frombuffer(b[c0:c0 + 2 * cn], dtype=">u2").astype(float).reshape(-1, nout) / 65535.0
+    outs = np.frombuffer(b[c0 + 2 * cn:c0 + 2 * cn + 2 * nout * noe],
+                         dtype=">u2").astype(float).reshape(nout, noe) / 65535.0
+    xs = np.linspace(0.0, 1.0, noe)
+    dev = np.stack([np.interp(clut[:, c], xs, outs[c]) for c in range(nout)], 1)
+    new = np.round(np.clip(dev, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    ident = np.tile(icw._identity_table(noe), (nout, 1)).astype(">u2").tobytes()
+    return b[:c0] + new + ident + b[c0 + 2 * cn + 2 * nout * noe:]
+
+
 def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      source_gamut: Path, *, channel_letters: list[str],
                      is_additive: bool, ink_limit: float | None,
@@ -1508,6 +1571,10 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             dev = _odev.copy()
             if channel_max is not None:
                 dev = np.minimum(dev, channel_max[None, :])
+            if _a79:
+                # Research a79-perccol: the oracle's own column, and below
+                # a79_la() one straight path into the oracle's black
+                dev = a79_dark_path(dev, node_lab)
             _ax = neutral_axis() if callable(neutral_axis) else neutral_axis
             if (_neutral_col is not None and len(_neutral_col)
                     and _ax is not None and _ax.get("black") is not None):
