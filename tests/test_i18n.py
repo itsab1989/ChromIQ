@@ -1554,7 +1554,7 @@ _IDENTICAL_TO_KEY = {
     # file paths and were wrongly translated as "звіти/", a folder that does
     # not exist on disk (review W_review_beta3); they now equal their key, as
     # they already did in every other language.
-    "uk": 83,  # +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
+    "uk": 88,  # +5 4.3.12 (the Ukrainian review): "Alt", "Finder", "Display P3", "Y" and "Z" are names and axis letters that read the same in Ukrainian; they had been transliterated ("Альт", "Шукач", "Дисплей P3", "Ю", "З"), which named a key, an app, a colour space and two axes that do not exist; +1 4.3.5 B2: "{inks}, {count}" (the inks of a chart in words) reads the same; +1 4.3.5 beta 2 (2026-10-13): "{label} {choice}" (the PostScript question's buttons) reads the same
 }
 
 
