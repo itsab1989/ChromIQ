@@ -240,7 +240,11 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Agent 78: the RGB colorimetric table's clipped coarse nodes smoothed
      # along L* (purecolprof.a78_smooth; colour-to-black ramps turn into
      # black without a knee); research, opt-in
-     "a78-rgbsmooth", "a78-rgbsmooth-all"})
+     "a78-rgbsmooth", "a78-rgbsmooth-all",
+     # Agent 82: RGB colorimetric greens, clipped nodes near the black (fine
+     # table) and at the green cusp (coarse table) smoothed
+     # (purecolprof.a82_dark / a82_coarse); research, opt-in
+     "a82-green"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
 # challenge, Validation/agent13-01): Maximum accuracy builds with these two
@@ -2315,6 +2319,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                                     "nodes smoothed along L* (research "
                                     "a78-rgbsmooth).")
                 _sub = _sub78
+            _a82p = _a58m.a82_params(candidates)
+            if _a58k("grid33in") and _a82p is not None:
+                # Research Agent 82 (a82-green): the coarse table's clipped
+                # green nodes at the cusp smoothed along L*
+                _sub = _a58m.a82_coarse(
+                    _sub, node_lab, residual, b2a_grid, _g0, _a82p,
+                    float(model.predict(np.zeros((1, n)))[0, 0]),
+                    float(model.predict(np.ones((1, n)))[0, 0]))
             if _a58k("grid33in") and os.environ.get("CHROMIQ_A78_DUMP"):
                 # Research Agent 78: dump the colorimetric table's parts
                 # (fine table, coarse sub-sample, clip distance, pre-refit
@@ -2334,19 +2346,29 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 # is printable (exact inversion, the accuracy win), colprof's
                 # coarse table interpolated where it is clipped, handed over
                 # over A58_IN_BAND dE of clip distance
+                _tab = _a58m.coarse_outside(
+                    _a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
+                                   candidates),
+                    _sub, residual, b2a_grid, _g0,
+                    band=_a58m.a59_band(candidates),
+                    inside=_a58m.a59_inside(candidates),
+                    dark=_a58m.a60_dark(
+                        candidates, node_lab,
+                        float(model.predict(np.zeros((1, n)))[0, 0])),
+                    pale=_a58m.a63_pale(
+                        candidates, node_lab,
+                        float(model.predict(np.ones((1, n)))[0, 0])))
+                if _a82p is not None:
+                    # Research Agent 82 (a82-green): the written table's
+                    # clipped green nodes near the black smoothed
+                    _tab = _a58m.a82_dark(
+                        _tab, node_lab, residual, b2a_grid, _a82p,
+                        float(model.predict(np.zeros((1, n)))[0, 0]))
+                    _emit(settings, "Colorimetric table: clipped green "
+                                    "nodes smoothed near the black and at "
+                                    "the cusp (research a82-green).")
                 b2a_col = icw.make_mft2(
-                    3, n, b2a_grid, icw.device_to_u16(_a58m.coarse_outside(
-                        _a58m.a59_fine(dev_clut_shaped, _a59_pn, residual,
-                                       candidates),
-                        _sub, residual, b2a_grid, _g0,
-                        band=_a58m.a59_band(candidates),
-                        inside=_a58m.a59_inside(candidates),
-                        dark=_a58m.a60_dark(
-                            candidates, node_lab,
-                            float(model.predict(np.zeros((1, n)))[0, 0])),
-                        pale=_a58m.a63_pale(
-                            candidates, node_lab,
-                            float(model.predict(np.ones((1, n)))[0, 0])))),
+                    3, n, b2a_grid, icw.device_to_u16(_tab),
                     in_tables=b2a_in,
                     out_tables=icw.curves_to_tables(inv, entries_b2a))
             else:
