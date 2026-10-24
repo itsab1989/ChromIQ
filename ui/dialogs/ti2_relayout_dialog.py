@@ -9036,8 +9036,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         report = R.analyze_randomisation(ti2)
         if report.safe:
             R.tag_ti2_randomised(ti2)
-            return tr("Tagged as randomised: this chart can be measured in "
-                      "both directions.")
+            return tr("Tagged as randomised automatically: this chart can be "
+                      "measured in both directions.")
         if not self._pt_force_tag.isChecked():
             return tr("Left untagged: the layout looks structured, so it will "
                       "be measured in one direction only. To tag it anyway, "
@@ -9046,7 +9046,7 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             return tr("Left untagged: the layout looks structured, so it will "
                       "be measured in one direction only.")
         R.tag_ti2_randomised(ti2)
-        return tr("Tagged as randomised, because you asked for it. Take care: "
+        return tr("Tagged as randomised because you forced it. Take care: "
                   "this layout may be read unreliably, as the warning said.")
 
     def _confirm_force_tag(self, report: "R.RandomisationReport") -> bool:

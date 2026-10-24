@@ -214,7 +214,7 @@ def test_numeric_locs_name_the_i1profiler_cause(tmp_path):
     assert "Measure tab" in msg
     # and it must not imply such a measurement is useless — a printer profile
     # builds from it perfectly well (Build Profile imports it via txt2ti3).
-    assert "PRINTER" in msg and "Build Profile" in msg
+    assert "printer profile" in msg and "Build Profile" in msg
 
 
 def test_cht_x_box_locs_skips_f_and_d_boxes():
