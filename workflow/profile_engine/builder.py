@@ -2052,8 +2052,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             and "a34-blackseam-pin" not in candidates):
         # Agent 80 (a80-colpin): pin only where the refit really moved the
         # column (model dE76 between the refit's and the walk's device at a
-        # column node above the neutral black; i1iSis full chart 4.5, the
-        # fold-free XKB sets 0.5-0.8, where pinning only added a seam)
+        # column node above the neutral black; real i1iSis 3.5-4.7, the XKB
+        # targen sets 0.8-1.1, where pinning added a seam: XKB pessimistic
+        # targen900 neutral banding d2 0.29 -> 0.36) or where a80-greywalk
+        # fired
         _cn = np.asarray(fixed_nodes)
         _cn = _cn[(np.hypot(node_lab[_cn, 1], node_lab[_cn, 2]) < 1.0)
                   & (node_lab[_cn, 0] >= (float(axis["l_black"])
@@ -2068,7 +2070,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 - model.predict(np.clip(dev_clut[_cn], 0.0, 1.0)), axis=1)))
         _tol80 = float(os.environ.get("CHROMIQ_A80_PINTOL")
                        or b2a_mod.A80_PINTOL)
-        _a80_pin = _drift >= _tol80
+        # where a80-greywalk re-walked the grey, always (XFI: drift 0.6,
+        # rel. col. grey rise 0.5-0.6 L* unpinned, 0.0-0.06 pinned)
+        _a80_pin = _a80_fired or _drift >= _tol80
         _emit(settings, f"Grey walk check (a80-colpin): refit column drift "
                         f"{_drift:.2f} dE: "
                         + ("pinned." if _a80_pin else "left as it is."))
