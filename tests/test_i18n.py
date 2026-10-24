@@ -1683,3 +1683,62 @@ def test_a_german_string_is_not_english_with_a_sentence_spliced_in():
           "legitimate run in the catalogue is 215. Translate the whole string "
           "rather than splicing a sentence into the English."
     )
+
+
+# ----------------------------------------------------------------------
+# Plural forms ("@plurals", core/i18n.py)
+# ----------------------------------------------------------------------
+# Russian, Ukrainian and Polish have three forms after a number (1 патч,
+# 2 патча, 5 патчей; and 21 патч, 22 патча), so a catalogue may give a
+# count-bearing string one form per CLDR category. These are the rules a
+# catalogue entry must keep, so that a bad one fails here and not on screen.
+
+def _raw_catalog(code: str) -> dict:
+    with open(ROOT / "data" / "i18n" / f"{code}.json", encoding="utf-8") as f:
+        return json.load(f)
+
+
+@pytest.mark.parametrize("code", _catalog_codes())
+def test_plural_forms_are_well_formed(code):
+    raw = _raw_catalog(code)
+    plurals = raw.get(i18n.PLURALS_KEY, {})
+    assert isinstance(plurals, dict)
+    required = i18n.PLURAL_CATEGORIES.get(code, ("one", "other"))
+    allowed = set(required) | {"other", "count"}
+    keys = extract_keys()
+    bad = []
+    for key, forms in plurals.items():
+        where = f"[{code}] {key[:70]!r}"
+        if not isinstance(forms, dict):
+            bad.append(f"{where}: not an object")
+            continue
+        if key not in keys or key not in raw:
+            bad.append(f"{where}: forms for a key the app does not use")
+            continue
+        field = forms.get("count")
+        if field not in i18n.placeholders(key):
+            bad.append(f"{where}: \"count\" is {field!r}, which is not a "
+                       f"placeholder of the English key")
+        missing = [c for c in required if not isinstance(forms.get(c), str)]
+        if missing:
+            bad.append(f"{where}: missing {missing}")
+        extra = set(forms) - allowed
+        if extra:
+            bad.append(f"{where}: unknown categories {sorted(extra)}")
+        for cat, text in forms.items():
+            if cat == "count" or not isinstance(text, str):
+                continue
+            try:
+                same = i18n.placeholders(text) == i18n.placeholders(key)
+            except ValueError:
+                same = False
+            if not same:
+                bad.append(f"{where}: the {cat!r} form's placeholders differ "
+                           f"from the English key's")
+        # The flat value is what a lookup that never learns the number shows,
+        # so it must be one of the forms: the "many" form where there is one.
+        flat_form = "many" if "many" in required else "other"
+        if forms.get(flat_form) is not None and raw[key] != forms[flat_form]:
+            bad.append(f"{where}: the plain value is not the {flat_form!r} form")
+    assert not bad, "\n".join(bad[:20])
+

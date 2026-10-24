@@ -48,6 +48,12 @@ _META_PREFIX = "@"
 
 _language: str = SOURCE_LANGUAGE
 _catalog: dict[str, str] = {}
+# Per-category forms for count-bearing strings, from the catalogue's
+# "@plurals" entry: {English key: {"count": placeholder, "one": …, …}}.
+_plurals: dict[str, dict[str, str]] = {}
+
+# The catalogue key that holds the plural forms (see `plural_category`).
+PLURALS_KEY = "@plurals"
 
 
 def user_i18n_dir() -> Path:
@@ -83,15 +89,138 @@ def _catalog_file(code: str) -> Path:
     return override if override.exists() else resource_path(f"data/i18n/{code}.json")
 
 
-def tr(text: str) -> str:
+# ----------------------------------------------------------------------
+# Plural forms (CLDR categories)
+# ----------------------------------------------------------------------
+#
+# English has two forms, and the code already writes both out (a "1 patch"
+# key and a "{n} patches" key, see `count_phrase`). Russian, Ukrainian and
+# Polish have three: 1 патч, 2 патча, 5 патчей, but also 21 патч and 22
+# патча, so "singular or plural" cannot say which one a number needs.
+#
+# A catalogue gives those forms under its "@plurals" entry, keyed by the
+# English source string like everything else:
+#
+#     "@plurals": {
+#       "{n} patches": {"count": "n",
+#                       "one": "{n} патч", "few": "{n} патча",
+#                       "many": "{n} патчей"}
+#     }
+#
+# "count" names the placeholder whose number picks the form. The flat entry
+# ("{n} patches": "{n} патчей") stays, and is the "many" form: it is what a
+# lookup that never learns the number shows. `tr()` then hands back a
+# `PluralText`, which picks the right form as soon as it is formatted with
+# that placeholder (or given the number with ``tr(text, count=n)``).
+
+#: The categories each language's forms must cover. Every other language
+#: has English's two (one / other), and needs no "@plurals" entry at all.
+PLURAL_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "ru": ("one", "few", "many"),
+    "uk": ("one", "few", "many"),
+    "pl": ("one", "few", "many"),
+}
+
+#: Where a missing form is looked for. "other" is the CLDR category for a
+#: fraction (1,5 патча, 1,5 strony): those three languages put a fraction's
+#: noun in the genitive singular, which is spelled like the "few" form.
+_FALLBACK = ("other", "few", "many", "one")
+
+
+def plural_category(n, lang: str | None = None) -> str:
+    """The CLDR plural category of the number `n` in `lang` (default: the
+    active language): "one", "few", "many" or "other".
+
+    ru / uk: one = n%10 == 1 and n%100 != 11; few = n%10 in 2..4 and
+    n%100 not in 12..14; many = every other whole number.
+    pl: one = n == 1; few as above; many = every other whole number.
+    A fraction is "other" in all three. Everywhere else: one = 1, other.
+    """
+    lang = _language if lang is None else lang
+    if isinstance(n, str):
+        # A number that was already written out: "21", "1 234", "1,5".
+        n = n.replace("\u00a0", "").replace(" ", "").replace(",", ".")
+    try:
+        value = float(n)
+    except (TypeError, ValueError):
+        return "other"
+    whole = value.is_integer()
+    i = abs(int(value)) if whole else None
+    if lang in ("ru", "uk"):
+        if not whole:
+            return "other"
+        if i % 10 == 1 and i % 100 != 11:
+            return "one"
+        if 2 <= i % 10 <= 4 and not 12 <= i % 100 <= 14:
+            return "few"
+        return "many"
+    if lang == "pl":
+        if not whole:
+            return "other"
+        if i == 1:
+            return "one"
+        if 2 <= i % 10 <= 4 and not 12 <= i % 100 <= 14:
+            return "few"
+        return "many"
+    return "one" if whole and i == 1 else "other"
+
+
+def _pick_form(forms: dict[str, str], n, fallback: str) -> str:
+    cat = plural_category(n)
+    for c in (cat,) + _FALLBACK:
+        if isinstance(forms.get(c), str):
+            return forms[c]
+    return fallback
+
+
+class PluralText(str):
+    """A translation that has per-number forms.
+
+    It is an ordinary string (the "many" form), so every caller that just
+    shows it keeps working; `format()` with the counting placeholder, or
+    `for_count()`, picks the form that number needs.
+    """
+
+    __slots__ = ("forms", "count_field")
+
+    def __new__(cls, text: str, forms: dict[str, str], count_field: str):
+        obj = super().__new__(cls, text)
+        obj.forms = forms
+        obj.count_field = count_field
+        return obj
+
+    def __reduce__(self):
+        # A copy or a pickle is the plain text: the forms belong to the lookup.
+        return (str, (str(self),))
+
+    def for_count(self, n) -> str:
+        return _pick_form(self.forms, n, str(self))
+
+    def format(self, *args, **kwargs) -> str:  # noqa: A003 — str API
+        if self.count_field in kwargs:
+            return self.for_count(kwargs[self.count_field]).format(*args, **kwargs)
+        return str.format(self, *args, **kwargs)
+
+
+def tr(text: str, count=None) -> str:
     """Translate an English source string into the active language.
 
     Returns `text` unchanged when the active language is English or the
     catalog has no entry — callers never need to handle a miss.
+
+    A string that counts something may have one form per number category
+    in the active language (see `PluralText`). Pass the number as `count`
+    to get that form directly; without it the result picks its form when it
+    is formatted with the counting placeholder.
     """
     if not _catalog:
         return text
-    return _catalog.get(text, text)
+    found = _catalog.get(text, text)
+    forms = _plurals.get(text)
+    if forms is None:
+        return found
+    result = PluralText(found, forms, forms.get("count", "n"))
+    return result.for_count(count) if count is not None else result
 
 
 def count_phrase(n: int, singular: str, plural: str) -> str:
@@ -111,6 +240,9 @@ def count_phrase(n: int, singular: str, plural: str) -> str:
     does have one, it is filled in too.
     """
     text = singular if n == 1 else plural
+    if isinstance(text, PluralText):
+        # Russian, Ukrainian, Polish: 21 takes the "one" form, 22 the "few".
+        text = text.for_count(n)
     return text.format(n=n) if "{n}" in text else text
 
 
@@ -153,8 +285,9 @@ def set_language(code: str) -> None:
     Unknown/missing catalogs fall back to English silently (logged) — a
     settings value pointing at a removed language must not block startup.
     """
-    global _language, _catalog
+    global _language, _catalog, _plurals
     code = (code or SOURCE_LANGUAGE).strip()
+    _plurals = {}
     if code == SOURCE_LANGUAGE:
         _language, _catalog = SOURCE_LANGUAGE, {}
         return
@@ -166,6 +299,12 @@ def set_language(code: str) -> None:
             k: v for k, v in raw.items()
             if not k.startswith(_META_PREFIX) and isinstance(v, str)
         }
+        plurals = raw.get(PLURALS_KEY)
+        if isinstance(plurals, dict):
+            _plurals = {
+                k: v for k, v in plurals.items()
+                if isinstance(v, dict) and k in _catalog
+            }
         _language = code
         log.info("Language: %s (%d strings)", code, len(_catalog))
     except FileNotFoundError:

@@ -64,6 +64,9 @@ def main() -> int:
             continue
         for k in stale:
             del data[k]
+            # …and its per-number forms (core/i18n.py, "@plurals"), which
+            # belong to the key and go with it.
+            data.get("@plurals", {}).pop(k, None)
         for k in missing:
             data[k] = german.get(k, k) if code == "de" else k
         data = collections.OrderedDict(sorted(data.items(), key=lambda kv: kv[0]))

@@ -140,6 +140,15 @@ def translations_adding_an_em_dash() -> "list[tuple[str, str]]":
                 continue
             if EM in value and EM not in key:
                 found.append((lang, key))
+        # The per-number forms (core/i18n.py, "@plurals") are shown just as
+        # often as the plain value, so they answer to the same rule.
+        for key, forms in (data.get("@plurals") or {}).items():
+            if not isinstance(forms, dict) or EM in key:
+                continue
+            if any(EM in f for c, f in forms.items()
+                   if c != "count" and isinstance(f, str)):
+                if (lang, key) not in found:
+                    found.append((lang, key))
     return found
 
 
