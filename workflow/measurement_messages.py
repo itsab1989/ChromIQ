@@ -6548,6 +6548,74 @@ M_CHART_STRIP_LABELS_CROWDED = _m(
     approved=True)  # Knut, 2026-10-13 (#182 6152691121)
 
 # --- PROPOSED (4.3.13, Basti 2026-10-24): the strip letters moved sideways
+# by "Label offset" X ---------------------------------------------------------
+#: "Label offset" gained an X box (Basti: "another spinbox next to it that
+#: allows offset in x direction as well"). The renderer holds the letters only
+#: on the paper: inside the side text distance and off a clip border with
+#: content (`raster.StripLabelShift`). -EDGE says so in red under "Measured
+#: from Preview" when it does (`tab_chart.strip_label_x_held_notice`). {asked}:
+#: the box, signed; {used}: what is printed, signed; {left}/{right}: how far
+#: they can go each way on this chart. The headline is not shown.
+#:
+#: -NEAR-NEIGHBOUR is the gentle hint Basti asked for on review (2026-10-24)
+#: in place of a limit: users move the letters out of the instrument's path on
+#: purpose, so a letter nearer to the next strip than to its own is allowed and
+#: only pointed out (`tab_chart.strip_label_x_neighbour_notice`). {used}: what
+#: is printed, signed; {pitch}: strip to strip; {half}: half of that, the
+#: largest value that keeps every letter over its own strip.
+M_CHART_STRIP_LABELS_X_NEAR_NEIGHBOUR = _m(
+    "M-CHART-STRIP-LABELS-X-NEAR-NEIGHBOUR",
+    "A strip letter now stands nearer to the next strip",
+    "\u26a0 With \u201cX\u201d next to \u201cLabel offset\u201d at {used} mm, each strip letter now stands nearer to the strip beside it than to its own strip (the strips are {pitch} mm apart). Someone reading the chart could take a letter for the name of the strip it now stands over. If you moved the letters on purpose, for example to keep them out of your instrument\u2019s path, you can leave it like this: just find each strip by its own letter when you measure. To put every letter back over its own strip, choose a value from -{half} to {half} mm.",
+    approved=False)
+
+# --- PROPOSED (4.3.5 beta 3, Knut #182 6144104040): the 3D tool's "Show:" help
+#: The approved-free tooltip of the colour view said "The lines and the faint
+#: skin are the edges and sides of everything the profile can print". The
+#: lines are the RGB cube's twelve edges carried through the profile: seams
+#: ON the skin, not its outline. On Knut's CLJ5550 the skin bulges up to
+#: 39 dE*ab past them (its most colourful green is at G=53). Proposed in its
+#: place; hidden until approved (`patch_cube_dialog._view_help`).
+M_HELP_COLOUR_VIEW_SEAMS = _m(
+    "M-HELP-COLOUR-VIEW-SEAMS",
+    "Ink amounts or colours",
+    "Ink amounts: each patch sits at the red, green and blue values the printer is asked for, from 0 to 100.\n\n"
+    "Colours through the profile: each patch sits where the profile says it lands as a colour (L* up, a* and b* across). The grey skin is everything the profile can print. The darker lines are seams on that skin, not its outline: they are the colours where two of the three ink amounts are at 0 or 100, for example from pure red to pure yellow. On many printers the most colourful colours lie on these seams. On others, often laser printers, the most colourful colours come from other mixes, and the skin bulges out between the seams. The outline you see is simply where the skin turns away from you, so it changes as you turn the view.\n\n"
+    "The patches stay about half a spacing inside the skin. That is how evenly spaced patches fill a shape: each one stands for the colours around it, so the outermost ones sit a little in from the edge.\n\n"
+    "A chart made From Profile Gamut spaces its colours evenly as colours. A printer does not respond evenly to ink amounts, so the same chart can look crowded in one part of the RGB cube and sparse in another.",
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
+
+# --- PROPOSED (4.3.5 beta 3, Knut #182 6148467471): a key to the colour view
+#: Knut asked for a small legend in Show patch distribution (3D), "Colours
+#: through the profile": what the grey skin, the lines and the dots are. One
+#: line per item, each beside a drawn sample of it (`patch_cube_dialog.
+#: ColourViewLegend`), shown only in the colour view, above the plot, never
+#: over it. The words name no shade: the skin is light grey with darker lines
+#: in the light theme and dark grey with lighter lines in the dark one, and the
+#: drawn samples show which. Hidden until approved. The headline is not shown.
+M_HELP_COLOUR_VIEW_LEGEND = _m(
+    "M-HELP-COLOUR-VIEW-LEGEND",
+    "What the colour view shows",
+    "Grey skin: every colour this profile can print (its gamut).\n"
+    "Lines: seams on the skin, where two of the three inks are at 0 or 100 (for example from pure red to pure yellow). They are not the skin's outline.\n"
+    "Dots: the chart's patches, each in its own colour.",
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
+
+# --- PROPOSED (4.3.5 beta 3, Knut #182 6144104040): strip letters that run
+# into each other ----------------------------------------------------------
+#: Shown in red under "Measured from Preview", like the other text-overlap
+#: notices, when a typed strip-label size makes neighbouring labels touch or
+#: run closer together than the letters of one label
+#: (`raster.strip_label_crowding`). {size}: the size in pt; {pitch}: mm from
+#: one strip to the next; {first}/{second}: the tightest pair; {fits}: the
+#: largest whole pt size that clears every pair. The headline is not shown.
+M_CHART_STRIP_LABELS_CROWDED = _m(
+    "M-CHART-STRIP-LABELS-CROWDED",
+    "The strip letters run into each other",
+    "\u26a0 The strip letters run into each other. At {size} pt each label is wider than the room above its strip ({pitch} mm from one strip to the next), so neighbours such as \u201c{first}\u201d and \u201c{second}\u201d touch or overlap and are hard to tell apart when you read the chart. In the \u201cStrip & row labels\u201d frame, choose a smaller size next to \u201cFont:\u201d ({fits} pt or smaller fits), or choose \u201cauto\u201d, which picks the largest size that fits by itself.",
+    approved=True)  # Knut, 2026-10-13 (#182 6152691121)
+
+# --- PROPOSED (4.3.13, Basti 2026-10-24): the strip letters moved sideways
 # less than "Label offset" X asks ---------------------------------------------
 #: "Label offset" gained an X box (Basti: "another spinbox next to it that
 #: allows offset in x direction as well"). The renderer holds the letters
@@ -7908,7 +7976,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_SLOW_NO_PROFILE,
     M_HELP_COLOUR_VIEW_SEAMS, M_HELP_COLOUR_VIEW_LEGEND,
     M_CHART_STRIP_LABELS_CROWDED,
-    M_CHART_STRIP_LABELS_X_HELD_STRIP, M_CHART_STRIP_LABELS_X_HELD_EDGE,
+    M_CHART_STRIP_LABELS_X_HELD_EDGE, M_CHART_STRIP_LABELS_X_NEAR_NEIGHBOUR,
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
     M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
     *CONVERT_MESSAGES,

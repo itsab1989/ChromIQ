@@ -5986,19 +5986,37 @@ def strip_label_crowding_notice(crowd) -> "str | None":
 
 def strip_label_x_held_notice(shift) -> "str | None":
     """The red line under "Measured from Preview" when "Label offset" X asks
-    for more than the strip letters may move on this chart
-    (``raster.StripLabelShift``), or None when they are printed where the box
-    says (M-CHART-STRIP-LABELS-X-HELD-STRIP / -EDGE)."""
+    for more than the strip letters may move on this chart: they stop before
+    the side of the paper or a clip border with content
+    (``raster.StripLabelShift``), M-CHART-STRIP-LABELS-X-HELD-EDGE. None when
+    they are printed where the box says."""
     from workflow import measurement_messages as _mm
     if shift is None or not shift.held:
         return None
-    M = (_mm.M_CHART_STRIP_LABELS_X_HELD_STRIP if shift.held_by == "strip"
-         else _mm.M_CHART_STRIP_LABELS_X_HELD_EDGE)
-    _title, body = M.render(
+    _title, body = _mm.M_CHART_STRIP_LABELS_X_HELD_EDGE.render(
         asked=decimal_text(shift.asked_mm, 1),
         used=decimal_text(shift.used_mm, 1),
         left=decimal_text(shift.left_mm, 1),
         right=decimal_text(shift.right_mm, 1))
+    return body
+
+
+def strip_label_x_neighbour_notice(shift) -> "str | None":
+    """The gentle line under "Measured from Preview" when "Label offset" X
+    has put every strip letter nearer to the next strip than to its own
+    (``raster.StripLabelShift.near_neighbour``), M-CHART-STRIP-LABELS-X-NEAR-
+    NEIGHBOUR. Allowed on purpose (Basti, 2026-10-24: people move the letters
+    out of the instrument's path), so it is pointed out, never refused."""
+    from workflow import measurement_messages as _mm
+    if shift is None or not getattr(shift, "near_neighbour", False):
+        return None
+    # Rounded DOWN to the tenth, so the value it offers really keeps every
+    # letter over its own strip.
+    half = math.floor(float(shift.pitch_mm) / 2.0 * 10.0) / 10.0
+    _title, body = _mm.M_CHART_STRIP_LABELS_X_NEAR_NEIGHBOUR.render(
+        used=decimal_text(shift.used_mm, 1),
+        pitch=decimal_text(shift.pitch_mm, 1),
+        half=decimal_text(half, 1))
     return body
 
 
@@ -26654,6 +26672,11 @@ class TabChart(QWidget):
             _xs_line = strip_label_x_held_notice(_xs)
             if _xs_line:
                 over.append(_xs_line)
+            # …AND A LETTER NOW NEARER TO THE NEXT STRIP THAN TO ITS OWN, said
+            # gently and never refused (Basti, 2026-10-24).
+            _xn_line = strip_label_x_neighbour_notice(_xs)
+            if _xn_line:
+                over.append(_xn_line)
             # ---- THE FOUR EDGES, MEASURED OFF THE SHEET IN THE PREVIEW -----
             #
             # KNUT'S RULING OF 2026-09-15 (#182, comment 5679470670) IS THAT

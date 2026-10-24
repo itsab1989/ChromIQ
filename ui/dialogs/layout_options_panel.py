@@ -52,7 +52,11 @@ _LABEL_STYLE_FIELDS = (
 #: The ⓘ of "Label offset" (Basti, 2026-10-24: friendly, extensive, easy to
 #: understand and correct). Every limit it names is the renderer's own:
 #: `raster.StripLabelShift` for X, and the notices under "Measured from
-#: Preview" for Y. A module constant so a test can hold it to those facts.
+#: Preview" for Y. The worked example is measured, not assumed: on rendered
+#: i1Pro (8 mm strips, 4.5 mm opening) and i1Pro 3 Plus (16 mm, 8 mm) sheets
+#: the letters' ink clears every strip's path at X = 4 and 8 mm
+#: (`~/Desktop/ChromIQ-work/2026-10-24_label_offset_x_review/aperture_check.txt`).
+#: A module constant so a test can hold it to those facts.
 LABEL_OFFSET_HELP = (
     "Moves the strip letters (A, B, C and so on, printed above the strips) "
     "without moving the patches. Both boxes are in millimetres on the printed "
@@ -62,21 +66,35 @@ LABEL_OFFSET_HELP = (
     "X moves the letters sideways. A positive value moves them to the right, "
     "a negative value to the left, and every letter moves by the same amount, "
     "whichever way the letters are turned. An underline, if you use one, "
-    "stays under its strip, because it marks the strip and not the letter.\n\n"
+    "stays under its strip, because it marks the strip and not the letter. X "
+    "never moves the patches and never changes how many fit on the "
+    "sheet.\n\n"
     "Y moves the letters up or down. A positive value lowers them toward the "
     "patches, a negative value raises them toward the top edge of the paper. "
     "An underline moves with them.\n\n"
-    "Neither box changes the patch area, so the same number of patches fits "
-    "on the sheet.\n\n"
-    "X has two limits that keep the letters readable. A letter always stays "
-    "above its own strip, so it moves at most half a strip's width either "
-    "way and can never be taken for the name of the strip next to it. And "
-    "the first and last letters stay on the paper: no closer to the left or "
-    "right edge than the side text distance (“Clip” under “Text distance "
-    "from edge”, or the ruler helper markers when they are printed down the "
-    "sides), and clear of a clip border that has something printed in it. If "
-    "you type more than that, the letters stop at the limit, and a message "
-    "under “Measured from Preview” says where they were printed instead.\n\n"
+    "Why move the letters sideways? When you read a strip, the instrument's "
+    "measuring opening travels along the middle of that strip. If it starts "
+    "on a letter, or passes over the letter of the strip next to it, the "
+    "reading can go wrong. You can move the letters out of that path: set X "
+    "to half the distance from one strip to the next, which puts each letter "
+    "on the line between two strips, where the paths leave the most room. If "
+    "a letter is wider than that room, make it smaller with the size next to "
+    "“Font:” in the “Strip and row indicators” frame. For example, on an "
+    "i1Pro chart with 8 mm strips, X is 4 mm: the i1Pro 2 and i1Pro 3 read "
+    "through an opening about 4.5 mm wide, so about 3.5 mm stays free between "
+    "two paths. On an i1Pro 3 Plus chart with 16 mm strips, X is 8 mm, and "
+    "its 8 mm opening leaves about 8 mm free. The preview shows where the "
+    "letters land.\n\n"
+    "X is held back only at the sides of the paper: the first and last "
+    "letters never come closer to the left or right edge than the side text "
+    "distance (“Clip” under “Text distance from edge”, or the ruler helper "
+    "markers when they are printed down the sides), and never run into a "
+    "clip border that has something printed in it. If you type more than "
+    "that, the letters stop there, and a message under “Measured from "
+    "Preview” says where they were printed instead. If the letters end up "
+    "nearer to the next strip than to their own, a message there points it "
+    "out, because a letter could then be read as the name of the strip it "
+    "stands over. That is fine when you did it on purpose.\n\n"
     "Y is not held back like that. If the letters come too close to the patches or to "
     "the ruler helper markers, a message under “Measured from Preview” says "
     "so and tells you how much to change.")

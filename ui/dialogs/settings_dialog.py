@@ -6416,15 +6416,17 @@ class SettingsDialog(QDialog):
             "two-letter label stays in place: left, centred or right.\n"
             "  • Label offset: moves the letters without moving the patches, in "
             "millimetres. X moves them sideways (positive to the right, "
-            "negative to the left), at most half a strip's width and never off "
-            "the paper; Y moves them up or down (positive lowers them toward "
-            "the patches, negative raises them).\n"
+            "negative to the left) as far as the sides of the paper allow, for "
+            "example to keep them out of the instrument's path; Y moves them up "
+            "or down (positive lowers them toward the patches, negative raises "
+            "them).\n"
             "  • Underline: draws a line under each label, so misreads are "
             "easier to spot; the coloured options tint it, and Line thickness / "
             "Line distance set how thick it is and how far below the text it "
             "sits.\n\n"
-            "Changing these here updates all future charts; charts you've "
-            "already generated keep the style they were made with."),
+            "Changing these here changes every new chart that has no label "
+            "style of its own; charts you've already generated keep the style "
+            "they were made with."),
             self), 0, 3, Qt.AlignmentFlag.AlignRight)
 
         # Font + size + bold/italic.

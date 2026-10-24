@@ -18,9 +18,14 @@ What is held here:
   (so the built-in presets' certificates cannot move);
 * on the printed sheet: positive moves every strip letter right, negative
   left, by the amount asked, and nothing but the letters changes;
-* the two limits (`raster.StripLabelShift`): a letter stays above its own
-  strip, and the outermost letters stay inside the side text distance and off
-  a clip border with something printed in it, with the notice that says so.
+* the one limit (`raster.StripLabelShift`): the outermost letters' INK stays
+  inside the side text distance and off a clip border with something printed
+  in it, with the notice that says so. There is deliberately NO "own strip"
+  limit (Basti, on review, 2026-10-24: people move the letters out of the
+  instrument's path); a letter nearer to the next strip than to its own is
+  only pointed out, and a large X with a small label prints as asked;
+* the use case: on an i1Pro chart a letter at X = half the strip spacing
+  clears every strip's measuring path, where at 0 it sits in its own.
 """
 from __future__ import annotations
 
@@ -344,20 +349,69 @@ def test_an_old_recipe_without_the_key_prints_the_same_pixels(tmp_path):
     assert np.array_equal(a, b)
 
 
-def test_a_letter_stops_above_its_own_strip(tmp_path):
-    """Asked for far more than half a strip: held at half the patch width."""
-    _base, m0 = _letters(tmp_path)
-    _page_, m = _letters(tmp_path, x=40.0)
-    r = _recipe(40.0)
-    kw = dict(r.build_kwargs(), area_target_count=_patch_count())
+def _shift(r):
     from workflow.layout_engine import instruments
-    shift = raster.strip_label_x_shift(instruments.geom_from_build_kwargs(kw),
-                                       kw)
-    assert shift is not None and shift.held and shift.held_by == "strip"
-    moved = _cols(m)[0] - _cols(m0)[0]
-    assert moved == round(shift.used_mm * DPI / 25.4)
-    assert 0 < shift.used_mm < 40.0
-    assert shift.used_mm == pytest.approx(shift.right_mm)
+    kw = dict(r.build_kwargs(), area_target_count=_patch_count())
+    return raster.strip_label_x_shift(instruments.geom_from_build_kwargs(kw),
+                                      kw), kw
+
+
+def test_a_large_x_with_a_small_label_prints_as_asked(tmp_path):
+    """Basti, on review: the X limits must not be too strict. 15 mm is nearly
+    two strips on this chart, and it is printed, with only the gentle hint.
+    (A right margin with room for it: on the default sheet the patches run
+    to within 7 mm of the side text distance.)"""
+    small = dict(indicator_size_mm=2.0, margin_right=25.0,
+                 margins_explicit=True)
+    _base, m0 = _letters(tmp_path, **small)
+    page, m = _letters(tmp_path, x=15.0, **small)
+    shift, _kw = _shift(_recipe(15.0, **small))
+    assert shift is not None and not shift.held
+    assert shift.used_mm == pytest.approx(15.0, abs=0.1)
+    assert shift.near_neighbour
+    px = round(15.0 * DPI / 25.4)
+    assert (_cols(m)[0] - _cols(m0)[0], _cols(m)[1] - _cols(m0)[1]) == (px, px)
+    base = _page(tmp_path, _recipe(**small))
+    assert not ((page != base) & ~m & ~m0).any()
+
+
+def test_the_hint_comes_only_past_half_the_strip_spacing():
+    near = raster._nearer_the_next_strip
+    assert not near(0, 48)
+    assert not near(24, 48)          # on the line between two strips
+    assert not near(-24, 48)
+    assert near(26, 48) and near(-26, 48)
+    assert not near(400, 0)          # a single strip has no neighbour
+    shift, _kw = _shift(_recipe(2.0))
+    assert shift is not None and not shift.near_neighbour
+    assert shift.pitch_mm > 4.0
+
+
+def test_half_the_strip_spacing_clears_the_i1pro_path(tmp_path):
+    """The use case the help describes, measured on the sheet: an i1Pro reads
+    through an opening about 4.5 mm wide down the middle of each strip. At 0
+    the letters sit in that path; at half the strip spacing their ink touches
+    no strip's path at all."""
+    from workflow.layout_engine import geometry, instruments, papers
+    r = _recipe()
+    kw = dict(r.build_kwargs(), area_target_count=_patch_count())
+    g = instruments.geom_from_build_kwargs(kw)
+    w, h = papers.dimensions_mm(r.paper)
+    lay = geometry.compute(g, w, h, _patch_count())
+    place = geometry.placement(g, w, h, lay)
+    pitch = place.x_of(1) - place.x_of(0)
+    n = -(-min(lay.total_patches, lay.patches_per_page) // lay.steps_in_pass)
+    mm = DPI / 25.4
+    path = np.zeros(int(w * mm) + 2, bool)
+    for i in range(n):
+        c = (place.x_of(i) + place.pwid / 2) * mm
+        path[int(np.floor(c - 2.25 * mm)):int(np.ceil(c + 2.25 * mm)) + 1] = True
+    _b, m0 = _letters(tmp_path)
+    _p, m = _letters(tmp_path, x=pitch / 2)
+    cols0 = m0.any(axis=0)
+    cols = m.any(axis=0)
+    assert (cols0 & path[:cols0.size]).any()
+    assert not (cols & path[:cols.size]).any()
 
 
 def test_a_letter_stops_before_the_clip_border_with_notes_in_it(tmp_path):
@@ -369,10 +423,25 @@ def test_a_letter_stops_before_the_clip_border_with_notes_in_it(tmp_path):
     shift = raster.strip_label_x_shift(g, kw)
     assert shift.held and shift.held_by == "edge"
     assert shift.used_mm == pytest.approx(-shift.left_mm)
-    # where the letters really are: their left ink is not inside the band
+    # where the letters really are: their left ink is not inside the band.
+    # Page 1's "A" may stop a little short of it: one shift serves every
+    # page, and a later page's first letter can be wider.
     _page_, m = _letters(tmp_path, x=-40.0)
     band_px = (g.lbord + g.border) * DPI / 25.4
-    assert _cols(m)[0] >= band_px - 2
+    assert band_px - 2 <= _cols(m)[0] <= band_px + 2.0 * DPI / 25.4
+
+
+@pytest.mark.parametrize("rot", [90, 270])
+def test_a_turned_letter_is_held_at_its_ink_not_its_tile(tmp_path, rot):
+    """A turned tile is as wide as the font's ascent plus descent, about 2 mm
+    more than the letter inks; the limit is the ink."""
+    from workflow.layout_engine import instruments
+    r = _recipe(-40.0, indicator_rotation=rot)
+    kw = dict(r.build_kwargs(), area_target_count=_patch_count())
+    g = instruments.geom_from_build_kwargs(kw)
+    _page_, m = _letters(tmp_path, x=-40.0, indicator_rotation=rot)
+    band_px = (g.lbord + g.border) * DPI / 25.4
+    assert band_px - 2 <= _cols(m)[0] <= band_px + 2
 
 
 def test_without_clip_content_the_paper_edge_is_the_limit():
@@ -397,11 +466,12 @@ def test_without_clip_content_the_paper_edge_is_the_limit():
 def test_at_zero_the_limits_never_move_a_letter():
     """A chart whose letters already sit closer to an edge than the rule
     allows prints them where they always were."""
-    lo, hi, _ls, _hs = raster._strip_label_x_limits_px(
+    lo, hi = raster._strip_label_x_limits_px(
         page_w_px=1000, first_x0=10, first_xr=50, last_x0=950, last_xr=990,
-        label_w_px=30, left_bound_px=100, right_bound_px=100)
-    assert lo <= 0 <= hi
-    assert raster._clamp_shift(0, lo, hi, _ls, _hs) == (0, "")
+        reach_left_px=15, reach_right_px=15, left_bound_px=100,
+        right_bound_px=100)
+    assert lo == 0 == hi
+    assert raster._clamp_shift(0, lo, hi) == (0, "")
 
 
 def _patch_count() -> int:
@@ -417,10 +487,22 @@ def test_the_notice_says_what_was_printed_and_why(qapp):
     S = raster.StripLabelShift
     assert strip_label_x_held_notice(None) is None
     assert strip_label_x_held_notice(S(3.0, 3.0, 4.0, 4.0, "")) is None
-    a = strip_label_x_held_notice(S(9.0, 3.9, 0.8, 3.9, "strip"))
-    assert "9.0 mm" in a and "3.9 mm" in a and "own strip" in a
     b = strip_label_x_held_notice(S(-9.0, -0.8, 0.8, 3.9, "edge"))
     assert "-9.0 mm" in b and "-0.8 mm" in b and "side of the paper" in b
+    assert "0.8 mm to the left" in b and "3.9 mm to the right" in b
+
+
+def test_the_neighbour_hint_names_the_spacing_and_a_value_that_clears(qapp):
+    from ui.tabs.tab_chart import strip_label_x_neighbour_notice as hint
+    S = raster.StripLabelShift
+    assert hint(None) is None
+    assert hint(S(3.0, 3.0, 9.0, 9.0, "", 8.03, False)) is None
+    t = hint(S(15.0, 15.0, 20.0, 20.0, "", 8.03, True))
+    assert "15.0 mm" in t and "8.0 mm apart" in t
+    # half of 8.03 rounded DOWN, so the value it offers really clears
+    assert "from -4.0 to 4.0 mm" in t
+    from workflow import measurement_messages as MM
+    assert "M-CHART-STRIP-LABELS-X-HELD-STRIP" not in MM.CATALOGUE
 
 
 def test_the_help_states_the_sign_convention_and_the_limits():
@@ -429,5 +511,11 @@ def test_the_help_states_the_sign_convention_and_the_limits():
     assert "a negative value to the left" in H
     assert "lowers them toward the patches" in H
     assert "without moving the patches" in H
-    assert "half a strip's width" in H
+    # the use case, and its worked figures (measured above)
+    assert "out of that path" in H
+    assert "half the distance from one strip to the next" in H
+    assert "X is 4 mm" in H and "about 4.5 mm wide" in H
+    # no "own strip" limit any more, and the hint that replaced it is named
+    assert "half a strip's width" not in H
+    assert "nearer to the next strip than to their own" in H
     assert "—" not in H
