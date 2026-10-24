@@ -287,7 +287,7 @@ def test_p3_uses_real_plural_for_several_children(tmp_path):
 def test_p5_offers_both_ways_out(tmp_path):
     p = _project(tmp_path, runs=1)
     body = rd.message_for(rd.plan_for(p, _Target("run1")))
-    assert "Empty the run" in body
+    assert "Empty run 1" in body
     assert "Delete the whole project" in body
     assert "start it fresh, with no project open" in body
 

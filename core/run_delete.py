@@ -467,13 +467,13 @@ def _last_run_message(plan: DeletePlan) -> str:
            "would leave a project with nowhere to work.").format(
                n=run_number(plan.run_id), name=plan.project_name),
         tr("You have two ways forward:"),
-        tr("•  Empty the run — keep run {n} but delete its chart, measurement, "
+        tr("•  Empty run {n}: keep run {n} but delete its chart, measurement, "
            "profile, reports and verifications, so you start again from a "
            "clean run {n}. That means everything inside the run folder, "
            "including anything kept in its “old” folder from earlier "
            "measurements and the copy of the chart in its “chart” folder.")
            .format(n=run_number(plan.run_id)),
-        tr("•  Delete the whole project — remove the project folder and "
+        tr("•  Delete the whole project: remove the project folder and "
            "everything in it: the shared calibration and every earlier one "
            "kept beside it, the project-wide exports, and every run with "
            "everything in its folders. ChromIQ then returns to the state it "
