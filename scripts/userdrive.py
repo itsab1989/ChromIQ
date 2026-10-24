@@ -120,6 +120,11 @@ class Drive:
     win = None
     _external_at_start = 0
     _uncaught_at_start = 0
+    #: True only while :meth:`run` is inside ``app.exec()``.
+    _in_loop = False
+    #: Milliseconds between the turns of the ending (see :meth:`end`).
+    END_CLOSE_MAIN_AFTER_MS = 1500
+    END_LEAVE_AFTER_MS = 3000
 
     def __init__(self, out, projects=(), language: str = "en",
                  appearance: str = "light", size=(1500, 1000), *,
@@ -576,7 +581,7 @@ class Drive:
         self.record["time_limit_s"] = self.time_limit_s
 
         def step():
-            if self._ending:
+            if self._ending or not self._in_loop:
                 return
             self._closed_a_modal = False
             try:
@@ -590,7 +595,7 @@ class Drive:
                          "above)")
                 return
             if not self._ending:
-                QTimer.singleShot(int(wait or 0), step)
+                self._later(int(wait or 0), step)
 
         def out_of_time():
             self.end(RC_TIME_LIMIT, f"the time limit of "
@@ -615,14 +620,50 @@ class Drive:
                                  hard_stop)
         killer.daemon = True
         killer.start()
-        QTimer.singleShot(0, step)
+        self._later(0, step)
+        self._in_loop = True
         try:
             self.app.exec()
         finally:
+            # NOTHING OF THIS DRIVE MAY RUN AFTER IT RETURNED (gate 3 of
+            # 4.3.11). Qt leaves app.exec() by itself when the LAST visible
+            # window closes, so closing the main window in `_end_close_main`
+            # ended the loop 3 s before `_end_leave`, every time. That timer
+            # was still pending: it fired inside whatever event loop ran next
+            # (the next test's dialog), hid that dialog and called app.exit()
+            # OUTSIDE app.exec(), and Qt then returns every later exec() at
+            # once, with no answer, until something runs app.exec() again.
+            self._in_loop = False
             killer.cancel()
             self._limit_timer.stop()
+            self._stop_timers()
         self.finish()
         return self._rc
+
+    def _later(self, ms: int, fn) -> None:
+        """Run *fn* after *ms* from this drive's loop, on a timer the drive
+        owns, so `run` can stop it when the loop is left."""
+        from PyQt6.QtCore import QTimer
+        timers = self.__dict__.setdefault("_timers", [])
+        timers[:] = [t for t in timers if t.isActive()]
+        t = QTimer()
+        t.setSingleShot(True)
+        t.timeout.connect(fn)
+        t.start(int(ms))
+        timers.append(t)
+
+    def _stop_timers(self) -> None:
+        for t in self.__dict__.pop("_timers", []):
+            t.stop()
+
+    def stop(self) -> None:
+        """Stop everything this drive started that could outlive it: its
+        pending steps and ending, and its pop-up watchdog. `run` does this
+        itself; a caller that built a Drive and never ran it calls this."""
+        self._in_loop = False
+        self._stop_timers()
+        if getattr(self, "dog", None) is not None:
+            self.dog.stop()
 
     # -- ending --------------------------------------------------------------
     def end(self, rc: int, why: str) -> None:
@@ -639,7 +680,7 @@ class Drive:
         self.record["ended"] = {"rc": rc, "why": why}
         self.note(f"DRIVE ENDING ({rc}): {why}")
         self._end_photo = rc != RC_OK
-        QTimer.singleShot(0, self._end_close_dialogs)
+        self._later(0, self._end_close_dialogs)
 
     def _main_window(self) -> list:
         """The main window as a list, empty when there is no real one."""
@@ -652,9 +693,10 @@ class Drive:
                 if w.isVisible() and w is not self.win]
 
     def _end_close_dialogs(self) -> None:
-        from PyQt6.QtCore import QTimer
         from PyQt6.QtWidgets import QApplication, QDialog
         from onscreen_capture import capture_window
+        if not self._in_loop:
+            return
         if self._end_photo:
             for i, w in enumerate(self._main_window() + self._open_windows()):
                 path = self.shots / f"zz-at-end-{i:02d}.png"
@@ -680,11 +722,12 @@ class Drive:
                 w.reject()
             else:
                 w.close()
-        QTimer.singleShot(1500, self._end_close_main)
+        self._later(self.END_CLOSE_MAIN_AFTER_MS, self._end_close_main)
 
     def _end_close_main(self) -> None:
-        from PyQt6.QtCore import QTimer
         from PyQt6.QtWidgets import QDialog
+        if not self._in_loop:
+            return
         for w in self._open_windows():
             # reject() was refused (a window that asks first, and the
             # watchdog answered Cancel): done() hides it without asking
@@ -701,9 +744,11 @@ class Drive:
         except Exception:                                  # noqa: BLE001
             self.note("   [end] closing the main window raised:\n"
                       + traceback.format_exc())
-        QTimer.singleShot(3000, self._end_leave)
+        self._later(self.END_LEAVE_AFTER_MS, self._end_leave)
 
     def _end_leave(self) -> None:
+        if not self._in_loop:
+            return            # the loop is gone; exit() now would poison the next
         for w in self._main_window() + self._open_windows():
             try:
                 if w.isVisible():
@@ -747,7 +792,7 @@ class Drive:
             if self._rc == RC_OK:
                 self._rc = RC_APP_RAISED
         if getattr(self, "dog", None) is not None:
-            self.dog.stop()
+            self.stop()
             self.record["popups"] = self.dog.events
         self.record["rc"] = self._rc
         self.record["log_lines"] = len(text.splitlines())

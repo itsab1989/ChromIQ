@@ -754,6 +754,35 @@ def _record_external(what: str) -> None:
             pass
 
 
+#: What `block_external_apps` replaced, for `unblock_external_apps`.
+_REAL_OPENERS: dict = {}
+
+
+def unblock_external_apps() -> bool:
+    """Put back every opener `block_external_apps` replaced. A driver
+    process never needs it (the block lasts until it exits); the suite does,
+    so one test's block cannot reach the rest of the worker. Returns True
+    when something was restored."""
+    if not _REAL_OPENERS:
+        return False
+    import os as _os
+    import webbrowser
+    from PyQt6.QtGui import QDesktopServices
+    real = dict(_REAL_OPENERS)
+    _REAL_OPENERS.clear()
+    if real["openUrl"] is not None:
+        QDesktopServices.openUrl = real["openUrl"]
+    else:
+        del QDesktopServices.openUrl
+    webbrowser.open = real["open"]
+    webbrowser.open_new = real["open_new"]
+    webbrowser.open_new_tab = real["open_new_tab"]
+    _os.system = real["system"]
+    if real["startfile"] is not None:
+        _os.startfile = real["startfile"]
+    return True
+
+
 def block_external_apps(log_file: "Path | None" = None) -> bool:
     """Stop the app under a driver from opening anything in ANOTHER app.
 
@@ -802,6 +831,14 @@ def block_external_apps(log_file: "Path | None" = None) -> bool:
 
     for fn in (_open_url, _web, _system, _startfile):
         fn._chromiq_blocked = True
+    _REAL_OPENERS.update(
+        # the raw class attribute, not `QDesktopServices.openUrl`: that is
+        # a new bound object on every access, and the class's own entry is
+        # what the block below overwrites
+        openUrl=QDesktopServices.__dict__.get("openUrl"),
+        open=webbrowser.open,
+        open_new=webbrowser.open_new, open_new_tab=webbrowser.open_new_tab,
+        system=_os.system, startfile=getattr(_os, "startfile", None))
     QDesktopServices.openUrl = _open_url
     webbrowser.open = webbrowser.open_new = webbrowser.open_new_tab = _web
     _os.system = _system
@@ -924,6 +961,8 @@ class PopupWatchdog:
         #: pressed Cancel over and over, each press asking again.
         self._dismissed: set[int] = set()
         self._timer = None
+        #: Deferred answers and dismissals not yet run; `stop` cancels them.
+        self._pending: list = []
 
     # -- the driver's side ----------------------------------------------------
     def expect(self, pattern: str, button: str) -> "PopupWatchdog":
@@ -963,12 +1002,38 @@ class PopupWatchdog:
         return self
 
     def stop(self) -> None:
+        """Stop looking and cancel every answer still queued. Safe to call
+        twice; a stopped watchdog does nothing more, ever."""
         while self in PopupWatchdog._live:
             PopupWatchdog._live.remove(self)
         if self._timer is not None:
             self._timer.stop()
             self._timer.deleteLater()
             self._timer = None
+        for t in self._pending:
+            t.stop()
+        self._pending = []
+
+    @classmethod
+    def stop_all(cls) -> list:
+        """Stop every watchdog still running; returns them. For a harness
+        that must leave nothing behind (the suite's guard after each test):
+        a watchdog nobody stopped keeps acting on the windows that come
+        after it, in whatever runs next in the same process."""
+        stopped = list(cls._live)
+        for dog in stopped:
+            dog.stop()
+        return stopped
+
+    def _defer(self, ms: int, fn) -> None:
+        """Run *fn* after *ms* on a timer `stop` can cancel."""
+        from PyQt6.QtCore import QTimer
+        self._pending = [t for t in self._pending if t.isActive()]
+        t = QTimer()
+        t.setSingleShot(True)
+        t.timeout.connect(fn)
+        t.start(int(ms))
+        self._pending.append(t)
 
     def __enter__(self):
         return self.start()
@@ -1089,8 +1154,7 @@ class PopupWatchdog:
                 return hits[0]
         return None
 
-    @staticmethod
-    def _dismiss(w) -> str:
+    def _dismiss(self, w) -> str:
         """Dismiss *w* from a ZERO-DELAY timer, never inside this tick: a
         dismissal that opens another question would otherwise run that
         question's exec() inside the watchdog's own timer slot, and nothing
@@ -1116,12 +1180,12 @@ class PopupWatchdog:
                     from PyQt6 import sip
                     if not sip.isdeleted(w) and w.isVisible():
                         w.reject()
-                QTimer.singleShot(0, _no_answer)
+                self._defer(0, _no_answer)
                 return (f"closed it with no answer (its Escape answer "
                         f"'{label}' is not a safe one)")
         if isinstance(w, QMessageBox) and w.escapeButton() is not None:
             label = w.escapeButton().text().replace("&", "")
-            QTimer.singleShot(0, w.escapeButton().click)
+            self._defer(0, w.escapeButton().click)
             return f"pressed its Escape answer '{label}'"
         if isinstance(w, QDialog):
             # A REAL Escape key, never reject(): a QMessageBox finds its own
@@ -1146,10 +1210,10 @@ class PopupWatchdog:
                     QApplication.sendEvent(w, QKeyEvent(
                         kind, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
                 if isinstance(w, QMessageBox):
-                    QTimer.singleShot(1000, _fallback)
-            QTimer.singleShot(0, _press)
+                    self._defer(1000, _fallback)
+            self._defer(0, _press)
             return "pressed Escape"
-        QTimer.singleShot(0, w.close)
+        self._defer(0, w.close)
         return "closed it"
 
     def _note(self, line: str) -> None:
@@ -1199,7 +1263,7 @@ class PopupWatchdog:
                 # inside this timer slot, and the watchdog could not look at
                 # it until it closed (challenge G, 2026-10-02).
                 self._answered.add(key)
-                QTimer.singleShot(0, button.click)
+                self._defer(0, button.click)
                 event["action"] = f"answered '{rule[1]}'"
                 self._note(f"  {event['action']}")
                 return
@@ -1258,10 +1322,10 @@ class PopupWatchdog:
                 from PyQt6 import sip
                 if not sip.isdeleted(w) and w.isVisible():
                     w.done(QDialog.DialogCode.Rejected.value)
-            QTimer.singleShot(0, _end)
+            self._defer(0, _end)
             action = "still open, ended with done(Rejected)"
         else:
-            QTimer.singleShot(0, w.hide)
+            self._defer(0, w.hide)
             action = "still open, hidden"
         event["action"] = "; ".join(a for a in (event["action"], action) if a)
         self._note(f"  '{w.windowTitle()}' {action}")

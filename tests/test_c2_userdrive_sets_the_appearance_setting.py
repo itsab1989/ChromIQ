@@ -62,6 +62,12 @@ def test_the_drive_writes_the_appearance_it_paints(userdrive, qapp, tmp_path,
     monkeypatch.setattr(core.logger, "_log_path",
                         lambda *a, **k: tmp_path / "log.txt")
     monkeypatch.setattr(userdrive.Drive, "pump", lambda self, ms=300: None)
+    # ...and nothing that outlives the test (4.3.11 gate 3): the drive's
+    # opener block would replace os.system for the rest of the worker, and
+    # its watchdog is stopped in the finally below.
+    import onscreen_capture
+    monkeypatch.setattr(onscreen_capture, "block_external_apps",
+                        lambda *a, **k: False)
     import types
     from PyQt6.QtWidgets import QApplication
     monkeypatch.setitem(sys.modules, "scripts.capture_screens",
@@ -78,6 +84,8 @@ def test_the_drive_writes_the_appearance_it_paints(userdrive, qapp, tmp_path,
             "the window was built before the setting was written")
         assert applied == [(False, look), (True, look)], applied
     finally:
+        d.stop()
+        assert d.dog is not None and d.dog not in d.dog._live
         d.win.close()
         for k, v in held.items():         # the worker's sandbox, as it was
             store.set(k, v)

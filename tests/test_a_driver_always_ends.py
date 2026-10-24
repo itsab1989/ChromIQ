@@ -185,6 +185,7 @@ def test_an_exception_in_an_app_slot_is_not_a_pass(
     safety = _Safety(qapp, 15_000)
     rc = d.run(script)
     safety.timer.stop()
+    assert not safety.fired, "the drive did not end by itself"
     assert rc == userdrive.RC_APP_RAISED == 4
     assert d.record["app_exceptions"]
 
@@ -375,17 +376,116 @@ def test_only_the_newest_watchdog_acts(qapp, tmp_path):
     new = PopupWatchdog(tmp_path, log=lambda s: None).start()
     try:
         assert PopupWatchdog._live[-1] is new
-        box = QMessageBox(QMessageBox.Icon.Question, "x", "y")
+        box = QMessageBox(QMessageBox.Icon.Question, "x", "the newest's own")
         box.show()
         old._tick()
         assert old.events == []           # the older one waits
         new._tick()
-        assert len(new.events) == 1
+        # ITS OWN BOX, not "one event": a window another test left visible
+        # on this worker is a pop-up too (gate 3 of 4.3.11 saw three)
+        mine = [e for e in new.events if e["text"] == "the newest's own"]
+        assert len(mine) == 1, new.events
         box.hide()
     finally:
         new.stop()
         old.stop()
     assert new not in PopupWatchdog._live and old not in PopupWatchdog._live
+
+
+# -- nothing outlives its test ---------------------------------------------------
+def test_a_drive_leaves_nothing_queued_when_qt_ends_its_loop_first(
+        userdrive, qapp, tmp_path, monkeypatch):
+    """4.3.11 gate 3 of 3. Qt leaves app.exec() by itself when the last
+    visible window closes, which `_end_close_main` does, 3 s before
+    `_end_leave`. That step stayed queued, fired inside the NEXT test's
+    dialog, hid it and called app.exit() outside app.exec(), and every
+    exec() on the worker returned at once from then on (13 bystanders red).
+    Here the loop is left early on purpose, as Qt does, and the drive is held
+    alive, as an uncollected cycle held it in the gate.
+    MUTATION: drop the `if not self._in_loop: return` guards and the
+    `_stop_timers()` in `Drive.run`: the dialog below is hidden by the old
+    drive's ending and comes back Rejected at once."""
+    d = _bare_drive(userdrive, qapp, tmp_path, monkeypatch)
+    # the ending's turns, short enough for the suite's 4 s modal sweep
+    d.END_CLOSE_MAIN_AFTER_MS, d.END_LEAVE_AFTER_MS = 600, 300
+    left = []
+    monkeypatch.setattr(d, "_end_leave",
+                        lambda real=d._end_leave: (left.append(1), real()))
+
+    def script(dd):
+        yield 50
+
+    def leave_as_qt_does():
+        # the ending has started (the script finished at 50 ms) and its
+        # first turn ran; now the loop goes, as on "last window closed"
+        assert d._ending
+        qapp.exit(0)
+
+    _quiet_loop(qapp)
+    safety = _Safety(qapp, 15_000)
+    QTimer.singleShot(300, leave_as_qt_does)
+    rc = d.run(script)
+    safety.timer.stop()
+    assert not safety.fired
+    assert rc == 0
+    # the next window, after the old drive's ending was due
+    dlg = _working_window("The next test's window")
+    waited = d.END_CLOSE_MAIN_AFTER_MS + d.END_LEAVE_AFTER_MS + 1000
+    closer = QTimer()
+    closer.setSingleShot(True)
+    closer.timeout.connect(dlg.accept)
+    closer.start(waited)
+    hung = _exec_with_safety(dlg, waited + 10_000)
+    closer.stop()
+    assert not hung
+    assert left == [], "the old drive's ending ran after its run() returned"
+    assert dlg.result() == QDialog.DialogCode.Accepted, (
+        "the next window was ended by a drive that had already returned")
+
+
+def test_a_watchdog_that_outlives_its_test_is_caught_and_stopped(qapp):
+    """The suite's guard (`conftest._no_driver_tool_outlives_its_test`)
+    stops a watchdog left running, puts back the opener block, and names
+    both. MUTATION: make `_driver_tools_left_running` return [] without
+    stopping anything: the dog is still live and this goes red."""
+    from PyQt6.QtGui import QDesktopServices
+    conftest = next(m for m in list(sys.modules.values())
+                    if hasattr(m, "_driver_tools_left_running"))
+    real_system = os.system
+    dog = PopupWatchdog(log=lambda s: None).start()
+    installed = onscreen_capture.block_external_apps()
+    try:
+        assert dog in PopupWatchdog._live
+        left = conftest._driver_tools_left_running()
+        assert dog not in PopupWatchdog._live and dog._timer is None
+        assert any("PopupWatchdog" in x for x in left), left
+        if installed:
+            assert any("block_external_apps" in x for x in left), left
+            assert not getattr(QDesktopServices.openUrl, "_chromiq_blocked",
+                               False)
+            assert os.system is real_system
+    finally:
+        dog.stop()
+        onscreen_capture.unblock_external_apps()
+
+
+def test_a_stopped_watchdog_cancels_the_answer_it_queued(qapp, tmp_path):
+    """A dismissal is queued on a zero-delay timer; a watchdog stopped
+    before it runs must not answer anything afterwards."""
+    box = QMessageBox(QMessageBox.Icon.Question, "Queued", "A question")
+    cancel = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+    box.show()
+    dog = PopupWatchdog(tmp_path, grace_s=0.0, log=lambda s: None).start()
+    try:
+        dog._tick()                       # first sight
+        dog._tick()                       # past the grace: queues Escape
+        assert dog._pending, "nothing was queued"
+    finally:
+        dog.stop()
+    for _ in range(5):
+        qapp.processEvents()
+    assert box.isVisible() and box.clickedButton() is not cancel
+    box.hide()
 
 
 # -- any language ---------------------------------------------------------------

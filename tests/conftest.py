@@ -1708,6 +1708,70 @@ def _no_leaked_replay_helpers():
               f"helper(s) — a session was not finished")
 
 
+def _driver_tools_left_running(hook_before=None, exit_before=None) -> list:
+    """Stop and undo whatever the on-screen driver tools left running, and
+    say what it was (empty when nothing was).
+
+    4.3.11 GATE 3 OF 3 WENT RED ON THIS. A ``userdrive.Drive`` whose loop Qt
+    had already left (the last window closed) still had its last ending step
+    queued; on that worker it fired 3 s later inside the NEXT test's dialog,
+    hid it and called ``app.exit()`` outside ``app.exec()``, and from then on
+    every ``exec()`` on the worker returned at once with no answer: ten
+    watchdog tests and three k39 tests, all bystanders. And
+    ``test_c2_userdrive_sets_the_appearance_setting`` built three Drives that
+    never ran, so three pop-up watchdogs (photographing, 15 s grace) kept
+    acting on every window the worker showed afterwards, and the drives'
+    opener block replaced ``os.system`` and ``QDesktopServices.openUrl`` for
+    the rest of the worker.
+
+    Looked up in ``sys.modules`` under both names (``onscreen_capture`` and
+    ``scripts.onscreen_capture`` are two module objects, each with its own
+    registry), so a test that never imports the tools pays nothing.
+    """
+    left = []
+    for name, module in list(sys.modules.items()):
+        if name.rsplit(".", 1)[-1] != "onscreen_capture":
+            continue
+        dog_cls = getattr(module, "PopupWatchdog", None)
+        if dog_cls is not None and hasattr(dog_cls, "stop_all"):
+            for dog in dog_cls.stop_all():
+                left.append(f"a PopupWatchdog ({name}, policy {dog.policy!r}, "
+                            f"{len(dog.events)} pop-up(s) seen) was still "
+                            "running")
+        unblock = getattr(module, "unblock_external_apps", None)
+        if callable(unblock) and unblock():
+            left.append(f"block_external_apps ({name}) still replaced "
+                        "QDesktopServices.openUrl, webbrowser and os.system")
+    if (getattr(sys.excepthook, "_chromiq_driver_hook", False)
+            and hook_before is not None and sys.excepthook is not hook_before):
+        sys.excepthook = hook_before
+        left.append("the drivers' sys.excepthook was still installed")
+    if (getattr(os._exit, "_chromiq_stops_children", False)
+            and exit_before is not None and os._exit is not exit_before):
+        os._exit = exit_before
+        left.append("os._exit was still the drivers' stop_children_at_exit")
+    return left
+
+
+@pytest.fixture(autouse=True)
+def _no_driver_tool_outlives_its_test():
+    """Fail the test that leaves a driver tool running, and stop it there.
+
+    A watchdog, a drive's queued ending or an opener block that outlives its
+    test acts on whatever the worker runs next, and the failure lands on a
+    bystander chosen by load and file order (see `_driver_tools_left_running`).
+    Stopped here, it cannot; failed here, the test that leaked it is named.
+    """
+    hook_before, exit_before = sys.excepthook, os._exit
+    yield
+    left = _driver_tools_left_running(hook_before, exit_before)
+    if left:
+        pytest.fail("this test left on-screen driver tools running (now "
+                    "stopped): " + "; ".join(left) + ". Stop them in the "
+                    "test: `dog.stop()`, `Drive.stop()`, or monkeypatch "
+                    "`onscreen_capture.block_external_apps`.", pytrace=False)
+
+
 def _real_chromiq_names() -> set:
     """Just the top-level names — cheap enough to run around every test."""
     try:
