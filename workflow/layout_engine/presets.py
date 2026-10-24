@@ -278,10 +278,10 @@ class LayoutRecipe:
     strip_label_offset_mm: float = 0.0
     # The same nudge ACROSS the page (Basti, 2026-10-24): positive moves every
     # strip letter to the right, negative to the left, in mm. The patches and
-    # the underline stay where they are. The renderer holds the letters above
-    # their own strip and inside the side text distance
-    # (`raster.strip_label_x_shift`), so the value asked for and the value
-    # printed can differ; the panel says so when they do.
+    # the underline stay where they are. The renderer holds the letters only
+    # on the paper, inside the side text distance and off a clip border with
+    # content (`raster.strip_label_x_shift`), so the value asked for and the
+    # value printed can differ; the panel says so when they do.
     #
     # ABSENT FROM EVERY DICT WRITTEN BEFORE IT, AND FROM EVERY DICT WRITTEN
     # WITH IT AT 0. `to_dict` and `build_kwargs` leave the key out at 0, so a

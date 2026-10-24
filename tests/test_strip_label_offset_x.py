@@ -519,3 +519,23 @@ def test_the_help_states_the_sign_convention_and_the_limits():
     assert "half a strip's width" not in H
     assert "nearer to the next strip than to their own" in H
     assert "—" not in H
+
+
+def test_label_offset_is_greyed_with_the_strip_letters_off(qapp):
+    """Both boxes move only the strip letters: with the letters off they are
+    greyed, as the underline is, and keep their values."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    p = LayoutOptionsPanel()
+    try:
+        p.set_recipe(LayoutRecipe(strip_label_offset_x_mm=3.0,
+                                  label_style_explicit=True))
+        assert p.strip_label_offset_x.isEnabled()
+        assert p.strip_label_offset.isEnabled()
+        p.show_indicators.setChecked(False)
+        assert not p.strip_label_offset_x.isEnabled()
+        assert not p.strip_label_offset.isEnabled()
+        assert p.get_recipe().strip_label_offset_x_mm == pytest.approx(3.0)
+        p.show_indicators.setChecked(True)
+        assert p.strip_label_offset_x.isEnabled()
+    finally:
+        p.deleteLater()

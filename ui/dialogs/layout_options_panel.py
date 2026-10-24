@@ -5196,6 +5196,15 @@ class LayoutOptionsPanel(QWidget):
             self.ind_bold.setEnabled(False)
             self.ind_italic.setEnabled(False)
         self._sync_underline_enabled()
+        # "Label offset" moves the strip letters and nothing else, so with the
+        # letters off both its boxes are greyed, as the underline is (review
+        # of the X box, 2026-10-24). The values are kept.
+        for _w in (getattr(self, "strip_label_offset_x", None),
+                   getattr(self, "strip_label_offset", None),
+                   getattr(self, "_label_offset_x_lbl", None),
+                   getattr(self, "_label_offset_y_lbl", None)):
+            if _w is not None:
+                _w.setEnabled(on)
         self._emit()
 
     def _sync_underline_enabled(self) -> None:
