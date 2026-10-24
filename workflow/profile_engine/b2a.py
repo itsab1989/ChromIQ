@@ -1007,7 +1007,12 @@ def _deepen_neutral_black(model: ForwardModel, axis: dict, *, step: float,
 A80_TOKEN = "a80-greywalk"
 A80_LINCURVE = "a80-lincurve"
 A80_COLPIN = "a80-colpin"
-A80_JUMP = 0.8        # ink change (sum of |d| over channels) per L* that is a jump
+# ink change (sum of |d| over channels) per L* that is a jump; env CHROMIQ_A80_JUMP.
+# 1.0: the battery's real i1iSis walk (0.85, smooth greys) stays as it is; XFI
+# 1.30-3.40 and XKB typical targen400 2.19 fire; presses and the other
+# synthetic printers read 0.08-0.31 (X3 pessimistic targen400 1.25 has no
+# measured fold)
+A80_JUMP = 1.0
 A80_SPAN = 20.0       # L* above the neutral black searched for a jump
 A80_JOIN_TOP = 30.0   # L* above the black: lightest join tried
 A80_END = 1.5        # L*: a re-walk that stops this close to the black hands over to it

@@ -1669,7 +1669,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             # rel. col. grey +2.0 L*, demo layout perceptual +4.6 L*).
             _j80 = b2a_mod.a80_walk_jump(axis)
             _m80 = _a74_measured_fold(meas, model, n)
-            _go80 = (_j80 >= b2a_mod.A80_JUMP and _m80 is not None
+            _go80 = (_j80 >= float(os.environ.get("CHROMIQ_A80_JUMP")
+                                   or b2a_mod.A80_JUMP)
+                     and _m80 is not None
                      and _m80 >= A74_FOLDMEAS_MIN)
             if _go80:
                 axis = b2a_mod.a80_rewalk(model, axis, kw=dict(
