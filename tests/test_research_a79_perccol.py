@@ -64,3 +64,16 @@ def test_dark_path_is_straight_below_the_handover(monkeypatch):
     out = gamut_map.a79_dark_path(dev, nl)
     assert np.array_equal(np.delete(out, col[1:2], 0), np.delete(dev, col[1:2], 0))   # only node L 12.5 moves
     assert np.allclose(out[col[1]], 0.5 * dev[col[0]] + 0.5 * dev[col[2]])
+
+
+def test_gate_needs_a_measured_fold_when_data_is_given():
+    class _M:
+        def __init__(self, lift):
+            k = np.linspace(0.9, 1.0, 12)
+            self.device = np.stack([0.2 + 0 * k, 0 * k, 0 * k, k], 1)
+            toy = _Toy(1.8)
+            base = toy.predict(np.stack([0 * k, 0 * k, 0 * k, k], 1))
+            self.lab_relative = base + np.array([lift, 0, 0])
+    letters = list("CMYK")
+    assert gamut_map.a79_mild_fold(_Toy(1.8), letters, _M(2.0)) is not None   # measured +2 L* (real i1iSis)
+    assert gamut_map.a79_mild_fold(_Toy(1.8), letters, _M(-4.8)) is None      # model-only fold (X3 / XKH sept)

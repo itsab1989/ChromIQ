@@ -1115,21 +1115,32 @@ def _a35_apply_band(model, dev, mapped, col, band, mode, inv_kw,
 A79_TOKEN = "a79-perccol"
 
 
-def a79_mild_fold(model, channel_letters) -> tuple | None:
+def a79_mild_fold(model, channel_letters, meas=None) -> tuple | None:
     """Research a79-perccol: ``(k_fold, fold_at_black)`` when ``model`` is a
     4-ink CMYK printer (K fourth) with a MILD ink fold at the black
     (cmykport.k_fold finds one, fold_at_black below the a73-kfirst
-    threshold A73_FOLD_MIN), else None."""
+    threshold A73_FOLD_MIN), else None. With ``meas`` the fold must also be
+    MEASURED (Agent 74's test, builder._a74_measured_fold >=
+    A74_FOLDMEAS_MIN): the fitted models of the synthetic X3 pessimistic and
+    XKH typical September 900 sets read a fold their data does not show
+    (measured -4.8 L*; real i1iSis +2.0)."""
     if (getattr(model, "n_channels", 0) != 4 or channel_letters is None
             or list(channel_letters)[3:4] != ["K"]):
         return None
     from workflow.profile_engine import cmykport
-    from workflow.profile_engine.builder import A73_FOLD_MIN
+    from workflow.profile_engine.builder import (
+        A73_FOLD_MIN, A74_FOLDMEAS_MIN, _a74_measured_fold)
     kf = cmykport.k_fold(model)
     if kf is None:
         return None
     fb = float(cmykport.fold_at_black(model))
-    return (float(kf), fb) if fb < A73_FOLD_MIN else None
+    if fb >= A73_FOLD_MIN:
+        return None
+    if meas is not None and hasattr(meas, "device"):
+        ex = _a74_measured_fold(meas, model, 4)
+        if ex is None or ex < A74_FOLDMEAS_MIN:
+            return None
+    return (float(kf), fb)
 
 
 A79_LINCURVE = "a79-lincurve"
@@ -1413,7 +1424,7 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
     if (accurate and A79_TOKEN in getattr(settings, "engine_candidates",
                                           frozenset())
             and model is not None and not is_additive):
-        _a79 = a79_mild_fold(model, channel_letters)
+        _a79 = a79_mild_fold(model, channel_letters, meas)
         if progress:
             progress("Perceptual neutral column (a79-perccol): "
                      + (f"mild ink fold (from K {_a79[0]:.2f}, {_a79[1]:.1f}"

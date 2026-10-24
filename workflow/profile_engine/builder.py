@@ -2413,7 +2413,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
 
     if (accurate and "a79-lincurve" in candidates and not meas.is_additive):
         from workflow.profile_engine import gamut_map as _a79g
-        _a79f = _a79g.a79_mild_fold(model, meas.channel_letters)
+        _a79f = _a79g.a79_mild_fold(model, meas.channel_letters, meas)
         if _a79f is not None:
             # Research Agent 79 (a79-lincurve, Findings agent79-01): the
             # model's shaper curves on a sparse chart wiggle (i1iSis demo:
