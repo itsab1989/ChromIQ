@@ -1,5 +1,20 @@
 # Changelog
 
+## v4.3.12
+
+**For everyone updating from 4.3.11: a translation release. The whole Ukrainian translation was gone through, and texts in every language that named a menu, page or button that does not exist now name the real one. Standard buttons such as OK and Cancel are translated in every window, and numbers on screen use a decimal comma in the languages that write one. Your measurements, settings and presets are read and saved exactly as before.**
+
+### Changed
+- **Ukrainian: the whole translation was reviewed.** About half of the texts read better now: one word for each term throughout, natural Ukrainian instead of word-for-word English, and buttons and settings quoted exactly as they are labelled. The tooltips of the chart and profile settings were rewritten completely.
+- **Every language: texts name the real menus, pages and buttons.** For example "Preferences → Instrument Margins" is now "Preferences → Instrument Limits", "Tools → Export for i1Profiler" is now "Tools → Convert TI1 → i1Profiler", "click Generate" is now "click Generate Chart", "click Print" names "Print All Pages" and "Print Current Page", and texts that sent you to "Settings" name the Preferences page.
+- **Build Profile: the viewing-condition and rendering-intent lists are translated.** What ChromIQ passes to ArgyllCMS, and what your targets and presets save, is unchanged.
+- **Numbers on screen use a decimal comma** in the languages that write one (for example "4,6 s"). Files ChromIQ writes and values passed to ArgyllCMS keep the point. The Measurement Report keeps its numbers as before.
+
+### Fixed
+- **Standard buttons are translated in every window**, among them OK, Cancel, Close, Save and Discard. Some showed in English, and in Norwegian the menu of a text field could be empty.
+- **The "Empty run" button** reads as an action in Spanish, Dutch and Swedish.
+- **Several help texts in Chinese, Dutch, Japanese and Polish** name a button or menu under its real label.
+
 ## v4.3.11
 
 **For everyone updating from 4.3.10: a fix release. Russian, Ukrainian and Polish now count correctly for every number, the warning for a whole strip read one or two patches out says which way it slipped and names the patches, the windows at the end of a measurement explain every button by its real name, and greyed-out ticked boxes show their tick. Your measurements are read and saved exactly as before.**
