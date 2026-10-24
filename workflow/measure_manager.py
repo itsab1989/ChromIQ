@@ -4170,7 +4170,7 @@ class MeasureManager(QObject):
             target = self._guided_strips[0]
             self._guided_state = "navigating"
             strips_str = ", ".join(self._guided_strips)
-            from core.i18n import count_phrase, tr
+            from core.i18n import count_phrase
             _n = count_phrase(len(self._guided_strips),
                               tr("1 strip"), tr("{n} strips"))
             # IN CHART ORDER, NOT "WORST ΔE FIRST". `_guided_strips` comes
