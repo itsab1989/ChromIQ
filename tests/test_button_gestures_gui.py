@@ -796,3 +796,24 @@ def test_the_pause_note_sentences_are_in_german(tab):
     finally:
         set_language("en")
     assert "Ein Doppeldruck der Taste geht einen Streifen zurück." in body
+
+
+@pytest.mark.parametrize("lang, want", [("en", "0.45 s, 0.31 s"),
+                                        ("de", "0,45 s, 0,31 s")])
+def test_numbers_in_the_text_lines_use_the_languages_decimal_mark(lang, want):
+    """Final review 4.3.14, Basti's 4.3.12 display rule: the Try it lines,
+    the Measure my speed result and every message with a number in it write
+    it with the LANGUAGE's decimal mark (decimal_text), not the system
+    locale's. Only the spin box follows the system locale, like every spin
+    box in the app."""
+    from core import i18n
+    from workflow import button_gestures as BG
+    from ui.button_shortcuts_section import group_line
+    before = i18n.current_language()
+    try:
+        i18n.set_language(lang)
+        assert BG.gaps_text([450, 310]) == want
+        line = group_line(2, [450], BG.GestureConfig(enabled=True))
+        assert ("0.45 s" if lang == "en" else "0,45 s") in line, line
+    finally:
+        i18n.set_language(before)
