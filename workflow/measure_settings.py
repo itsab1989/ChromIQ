@@ -34,6 +34,8 @@ NOT_A_SETTING = {
     "engine_xy_chart":  "a Preferences (Beta) value, global by §1.1",
     "page_pause":       ("a Preferences value, global by §1.1 (the pause "
                          "between pages, 4.3.10)"),
+    "gesture_args":     ("the instrument button shortcuts, a Preferences "
+                         "value, global by §1.1 (4.3.14)"),
     "high_res":      ("the UI drives -H through the chartread option 'highres', "
                       "so it is stored as chartread.highres; this dataclass "
                       "field is a second route that nothing on screen sets"),

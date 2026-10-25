@@ -204,7 +204,10 @@ def test_eight_files_skip_wholesale_without_it():
     # the engine's hold after a strip, on its replay instrument.
     # 19 in part with the hold behind "All Strips Read" (4.3.10, Basti's
     # ColorMunki hand test): {"cmd":"hold"} on the replay instrument.
-    assert len(whole) == 10 and len(partial) == 19, (
+    # 21 in part with the instrument button shortcuts (4.3.14, Basti
+    # 2026-10-25): the engine's press groups and the app's mapping, on the
+    # replay instrument.
+    assert len(whole) == 10 and len(partial) == 21, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

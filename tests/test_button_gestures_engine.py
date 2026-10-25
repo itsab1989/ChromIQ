@@ -493,7 +493,7 @@ def _button_test(tmp_path, env_extra=None):
         [str(HELPER), "--json", "--replay", str(replay), "--button-test",
          "--gestures", f"{WAIT}:23"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1, env=env)
+        text=True, encoding="utf-8", bufsize=1, env=env)
 
 
 def _read_events_until(proc, name, timeout=8.0) -> list:
