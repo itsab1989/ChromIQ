@@ -64,10 +64,11 @@ def test_a_large_file_is_moved_aside_and_a_fresh_one_started(tmp_path, armed):
 
 def test_only_one_old_copy_is_kept(tmp_path):
     log = tmp_path / crash_log.FILE_NAME
-    (tmp_path / (crash_log.FILE_NAME + ".1")).write_text("oldest\n")
-    log.write_text("x" * 50)
+    (tmp_path / (crash_log.FILE_NAME + ".1")).write_text("oldest\n", encoding="utf-8")
+    log.write_text("x" * 50, encoding="utf-8")
     assert crash_log.rotate_if_large(log, max_bytes=10) is True
-    assert (tmp_path / (crash_log.FILE_NAME + ".1")).read_text() == "x" * 50
+    assert (tmp_path / (crash_log.FILE_NAME + ".1")).read_text(
+        encoding="utf-8") == "x" * 50
     assert not log.exists()
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         crash_log.FILE_NAME + ".1"]
