@@ -19580,7 +19580,7 @@ class TabChart(QWidget):
         if checked and self._td_check.isChecked():
             self._td_check.setChecked(False)
         self._td_check.setEnabled(not checked)
-        self._td_tooltip.setEnabled(not checked)
+        # Its ⓘ stays readable: it explains why the box is greyed.
 
     def _on_guided_td_toggled(self, checked: bool) -> None:
         if not getattr(self, "_td_writing", False):
@@ -19588,7 +19588,7 @@ class TabChart(QWidget):
         if checked and self._dd_check.isChecked():
             self._dd_check.setChecked(False)
         self._dd_check.setEnabled(not checked)
-        self._dd_tooltip.setEnabled(not checked)
+        # Its ⓘ stays readable: it explains why the box is greyed.
         if not getattr(self, "_td_writing", False):
             # AND FILE WHAT THAT MEANS FOR THE DENSITY BOX, UNCONDITIONALLY.
             #

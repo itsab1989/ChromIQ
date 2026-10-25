@@ -390,10 +390,13 @@ class ButtonShortcutsSection(QGroupBox):
     def _sync_enabled(self) -> None:
         on = self._enable_cb.isChecked() and self._supported
         self._enable_cb.setEnabled(self._supported)
+        # Not the ⓘ buttons: an explanation stays readable while the section
+        # is off, like every other ⓘ (Basti, 2026-10-25: the one beside
+        # "Measure my speed" did nothing).
         for w in (self._double_lbl, self._double_combo, self._triple_lbl,
                   self._triple_combo, self._wait_lbl, self._wait_spin,
                   self._try_title, self._try_btn, self._speed_btn,
-                  self._speed_tip, self._try_box):
+                  self._try_box):
             w.setEnabled(on)
         if not on and (self._proc is not None or self._speed is not None):
             self.cancel_speed()
