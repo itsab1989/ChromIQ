@@ -7923,7 +7923,61 @@ M_PAGE_PAUSE_CONTROLS = _m(
                _PAUSE_REREAD_TIP, _PAUSE_LOG_PAGE, _PAUSE_LOG_END)),
     approved=False)
 
+# --- PROPOSED: the instrument's button shortcuts (Basti 2026-10-25) --------
+#: The Measure tab's status line after a double or triple press of the
+#: instrument's button (Preferences ▸ Measurement ▸ "Instrument button
+#: shortcuts", jctay forum 149841). {press} is "Double press" or "Triple
+#: press"; {label} is the strip or patch the reader is on NOW, named once the
+#: engine has moved there, so the line says what really happened.
+_GESTURE_BACK_STRIP = "{press}: back to strip {label}"
+_GESTURE_FORWARD_STRIP = "{press}: on to strip {label}"
+_GESTURE_NEXT_STRIP = "{press}: on to strip {label}, the next one not yet read"
+_GESTURE_BACK_PATCH = "{press}: back to patch {label}"
+_GESTURE_FORWARD_PATCH = "{press}: on to patch {label}"
+_GESTURE_NEXT_PATCH = "{press}: on to patch {label}, the next one not yet read"
+_GESTURE_PAUSED_STRIP = ("{press}: paused at strip {label}. Nothing is read "
+                         "while ChromIQ waits. To go on, press the button on "
+                         "your instrument once, or press Return.")
+_GESTURE_PAUSED_PATCH = ("{press}: paused at patch {label}. Nothing is read "
+                         "while ChromIQ waits. To go on, press the button on "
+                         "your instrument once, or press Return.")
+_GESTURE_GOING_ON = "Measuring goes on."
+_GESTURE_AT_WINDOW = ("{press}: ChromIQ is already waiting for your answer in "
+                      "the open window, so there is nothing to pause.")
+#: ...and the page-pause note's sentence on them, with the user's own choices
+#: (only while the shortcuts are on; off, the note is as before).
+_GESTURE_PAUSE_DOUBLE_BACK = 'A double press of the button goes back one strip.'
+_GESTURE_PAUSE_DOUBLE_FORWARD = 'A double press of the button moves on one strip.'
+_GESTURE_PAUSE_DOUBLE_NEXT = 'A double press of the button goes to the next strip not yet read.'
+_GESTURE_PAUSE_DOUBLE_PAUSE = 'A double press of the button continues, just like one press.'
+_GESTURE_PAUSE_TRIPLE_BACK = 'A triple press of the button goes back one strip.'
+_GESTURE_PAUSE_TRIPLE_FORWARD = 'A triple press of the button moves on one strip.'
+_GESTURE_PAUSE_TRIPLE_NEXT = 'A triple press of the button goes to the next strip not yet read.'
+_GESTURE_PAUSE_TRIPLE_PAUSE = 'A triple press of the button continues, just like one press.'
+_GESTURE_PAUSE_LINES = {
+    (2, 'back'): _GESTURE_PAUSE_DOUBLE_BACK,
+    (2, 'forward'): _GESTURE_PAUSE_DOUBLE_FORWARD,
+    (2, 'next_unread'): _GESTURE_PAUSE_DOUBLE_NEXT,
+    (2, 'pause'): _GESTURE_PAUSE_DOUBLE_PAUSE,
+    (3, 'back'): _GESTURE_PAUSE_TRIPLE_BACK,
+    (3, 'forward'): _GESTURE_PAUSE_TRIPLE_FORWARD,
+    (3, 'next_unread'): _GESTURE_PAUSE_TRIPLE_NEXT,
+    (3, 'pause'): _GESTURE_PAUSE_TRIPLE_PAUSE,
+}
+M_GESTURE_STATUS = _m(
+    "M-GESTURE-STATUS",
+    "The instrument's button shortcuts: the status line",
+    "\n".join((_GESTURE_BACK_STRIP, _GESTURE_FORWARD_STRIP,
+               _GESTURE_NEXT_STRIP, _GESTURE_BACK_PATCH,
+               _GESTURE_FORWARD_PATCH, _GESTURE_NEXT_PATCH,
+               _GESTURE_PAUSED_STRIP, _GESTURE_PAUSED_PATCH,
+               _GESTURE_GOING_ON, _GESTURE_AT_WINDOW)
+              + tuple(_GESTURE_PAUSE_LINES.values())),
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
+    M_GESTURE_STATUS,
     M_PAGE_PAUSE, M_PAGE_PAUSE_END, M_PAGE_PAUSE_OTHER_PAGES,
     M_PAGE_PAUSE_BUTTON, M_PAGE_PAUSE_FOUND, M_PAGE_PAUSE_CONTROLS,
     M_PAGE_PAUSE_HELP,

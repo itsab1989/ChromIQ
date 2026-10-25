@@ -191,23 +191,34 @@ def test_the_gate_is_opened_only_at_the_misread_prompt_and_the_page_hold():
     (``held``, tests/test_page_pause_engine.py), and in the hold while a window
     that finishes the measurement is open (``{"cmd":"hold"}``,
     tests/test_a_finishing_window_holds_the_reader.py), at a strip and, since
-    agent 33's review, at a patch. All are waits outside any scan; nowhere
-    else may a press be reported."""
+    agent 33's review, at a patch. Since 4.3.14 also in the hold after a
+    button gesture (`cq_gesture_hold`, tests/test_button_gestures_engine.py)
+    and in Preferences' "Try it" (`cq_run_button_test`), which reads nothing
+    at all. All are waits outside any scan; nowhere else may a press be
+    reported."""
     text = (SRC / "chromiq_chartread.c").read_text(encoding="utf-8")
     opens = [m.start() for m in re.finditer(r"cq_switch_gate_set\(1\)", text)]
-    assert len(opens) == 4, f"the switch gate is opened {len(opens)} times"
-    before = text[max(0, opens[0] - 1500):opens[0]]
-    assert "cq_json && ch == 'h'" in before
-    assert '\\"event\\":\\"held\\"' in before
-    before = text[max(0, opens[1] - 1500):opens[1]]
-    assert "Strip read failed due to misread" in before
-    assert '\\"kind\\":\\"misread\\"' in before
-    before = text[max(0, opens[2] - 1500):opens[2]]
-    assert "cq_hold_matches(hn)" in before
-    assert '\\"event\\":\\"held\\"' in before
-    before = text[max(0, opens[3] - 1500):opens[3]]
-    assert "cq_json && xtern == 0 && ch == 'h'" in before
-    assert '\\"event\\":\\"held\\",\\"patch\\"' in before
+    assert len(opens) == 6, f"the switch gate is opened {len(opens)} times"
+    wanted = {
+        "strip hold here": ("cq_json && ch == 'h'", '\\"event\\":\\"held\\"'),
+        "misread prompt": ("Strip read failed due to misread",
+                           '\\"kind\\":\\"misread\\"'),
+        "page pause": ("cq_hold_matches(hn)", '\\"event\\":\\"held\\"'),
+        "patch hold here": ("cq_json && xtern == 0 && ch == 'h'",
+                            '\\"event\\":\\"held\\",\\"patch\\"'),
+        "gesture hold": ("static int cq_gesture_hold(",
+                         '\\"event\\":\\"gesture\\"'),
+        "try it": ('\\"event\\":\\"instrument\\",\\"model\\"',
+                   '\\"button\\":%s,'),
+    }
+    found = set()
+    for at in opens:
+        before = text[max(0, at - 1500):at]
+        hits = [name for name, marks in wanted.items()
+                if all(mk in before for mk in marks)]
+        assert hits, f"a gate opening at {at} matches no known wait"
+        found.update(hits)
+    assert found == set(wanted), sorted(set(wanted) - found)
 
 
 def test_the_callback_reports_a_press_only_through_the_gate():

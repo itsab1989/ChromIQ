@@ -1746,7 +1746,10 @@ def _read_right_now_sentence(holder: "str | None") -> str:
     *holder* is a `core.instrument_lease` IDENTIFIER, not a label — and the
     sentence is picked, never assembled, which is the entire point of it.
     """
-    from core.instrument_lease import MEASURE_TAB, SPOT_TOOL
+    from core.instrument_lease import BUTTON_TRY, MEASURE_TAB, SPOT_TOOL
+    if holder == BUTTON_TRY:
+        return tr("Your instrument is being used right now by “Try it” in "
+                  "Preferences ▸ Measurement, to watch its button.")
     if holder == MEASURE_TAB:
         return tr("Your instrument is being read right now, from the Measure "
                   "tab.")
@@ -4371,6 +4374,14 @@ class SettingsDialog(QDialog):
                 _r.setSpacing(_g)
                 _r.addStrut(28)
 
+        # Instrument button shortcuts (Basti, 2026-10-25; jctay, forum
+        # 149841): a titled section of its own, after the single options,
+        # off by default and greyed for an instrument that cannot do it.
+        from ui.button_shortcuts_section import ButtonShortcutsSection
+        self._button_shortcuts = ButtonShortcutsSection(
+            self._settings, self._button_shortcut_context, self)
+        v.addWidget(self._button_shortcuts)
+
         # THE PATCH CHECKS, IN THEIR OWN TITLED SECTION, after the single
         # options (Basti, 2026-10-25): the table and its line on units.
         self._misread_group = QGroupBox(tr("Checks for misread patches"), self)
@@ -4659,6 +4670,20 @@ class SettingsDialog(QDialog):
         self._refresh_pace_estimates()
         v.addStretch(1)
         return page
+
+    def _button_shortcut_context(self) -> dict:
+        """What the app knows about the instrument, for the button shortcuts
+        section: asked of the Measure tab when there is one (the instrument
+        it last talked to, else the loaded chart's), else of the Create Chart
+        instrument preference."""
+        tab = getattr(self.parent(), "_tab_measure", None)
+        fn = getattr(tab, "button_shortcut_context", None)
+        if callable(fn):
+            return fn()
+        from workflow import button_gestures as BG
+        code = str(self._settings.get("chart_instrument", "") or "")
+        return {"family": BG.family_of(code), "name": code, "port": 1,
+                "busy": bool(measurement_in_progress(self))}
 
     def _refresh_pace_marginal_tip(self) -> None:
         """Rebuild the "close to the limit" tooltip from the numbers on screen.
@@ -6173,6 +6198,14 @@ class SettingsDialog(QDialog):
                 apply_appearance(app, self.parent(), original)
         super().reject()
 
+    def done(self, r: int) -> None:  # type: ignore[override]
+        # Preferences ▸ Measurement ▸ "Try it" lets the instrument go however
+        # the dialog ends: OK, Cancel, Esc or the close box all come here.
+        section = getattr(self, "_button_shortcuts", None)
+        if section is not None:
+            section.stop_try()
+        super().done(r)
+
     # ------------------------------------------------------------------
     # Chart Layout tab (ChromIQ layout engine, issue #93)
     # ------------------------------------------------------------------
@@ -7415,6 +7448,9 @@ class SettingsDialog(QDialog):
             s.set("measure_page_pause", self._page_pause_cb.isChecked())
         if hasattr(self, "_preview_legend_cb"):
             s.set("measure_preview_legend", self._preview_legend_cb.isChecked())
+        if hasattr(self, "_button_shortcuts"):
+            # stored whether greyed or not: greyed keeps the values
+            self._button_shortcuts.save(s)
         if hasattr(self, "_page_pause_note_cb"):
             # stored whether greyed or not: greyed keeps the value
             s.set("measure_page_pause_note", self._page_pause_note_cb.isChecked())

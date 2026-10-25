@@ -44,6 +44,10 @@ log = get_logger(__name__)
 #: while looking perfectly translated in the source.
 MEASURE_TAB = "the Measure tab"
 SPOT_TOOL = "Tools ▸ Read single patches"
+#: Preferences ▸ Measurement ▸ Instrument button shortcuts ▸ "Try it"
+#: (2026-10-25): it opens an i1Pro or ColorMunki to watch its button, and
+#: holds the instrument while it does.
+BUTTON_TRY = "Preferences ▸ Measurement ▸ Try it"
 
 
 def where_label(label: str) -> str:
@@ -53,6 +57,8 @@ def where_label(label: str) -> str:
         return tr("the Measure tab")
     if label == SPOT_TOOL:
         return tr("Tools ▸ Read single patches")
+    if label == BUTTON_TRY:
+        return tr("Preferences ▸ Measurement ▸ Try it")
     return label
 
 

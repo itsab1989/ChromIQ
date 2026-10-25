@@ -242,6 +242,12 @@ either, like Retry (§4d). At the end of the chart **Measurement finished**
 still plays, as the window that finishes the measurement opens, which with the
 option on is after the pause, when Continue is clicked.
 
+## 4f. The instrument's button shortcuts play nothing of their own (4.3.14)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* (Basti approved the feature on 2026-10-25; that no sound goes with it is ours.)
+
+With Preferences ▸ Measurement ▸ *Instrument button shortcuts* on, a double or triple press of the instrument's button moves the reader or pauses it (`measurement_exit_strategy.md` note 13, M-GESTURE-STATUS). It plays **no sound**: the quick taps already sound the instrument's own ready beep, which ChromIQ plays exactly as the driver would (§4a), the strip arrow moving and the status line are the feedback, and a second sound would land on top of that beep. No *Strip read failed* sound plays for the taps either, because no failure is reported for them.
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

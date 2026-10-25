@@ -74,7 +74,12 @@ def test_the_flashes_use_a_bound_method(qapp, module, cls, method, slot):
     mod = importlib.import_module(module)
     src = inspect.getsource(getattr(getattr(mod, cls), method))
     calls = _timer_calls(src)
-    assert calls, f"{cls}.{method} no longer arms a timer at all"
+    # Or ONE QTimer owned by the object, restarted by every flash (the
+    # Measure tab since 4.3.14: a fresh singleShot per flash let an earlier
+    # line's timer take a newer line down). Owned, so it dies with it.
+    owned = ("QTimer(self)" in src
+             and f"timeout.connect(self.{slot})" in src)
+    assert calls or owned, f"{cls}.{method} no longer arms a timer at all"
     for call in calls:
         assert "lambda" not in call, (
             f"{cls}.{method} is back on a lambda: {call}")

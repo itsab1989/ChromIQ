@@ -208,6 +208,11 @@ class MeasureParams:
     #: reading only: the manager asks the engine to hold after a strip
     #: (``hold_after``) and the Measure tab decides whether that is a pause.
     page_pause: bool = False
+    #: Instrument button shortcuts (Basti, 2026-10-25): the engine's
+    #: ``--gestures <ms>:<counts>``, from `workflow.button_gestures.
+    #: engine_args`. Empty when the option is off, which starts the engine
+    #: with exactly the command line it had before.
+    gesture_args: list = field(default_factory=list)
     # How many times to retry a failed calibration automatically before giving
     # up (mavtop's i1Pro1 lamp can need several strikes to burn in). Falls back
     # to CAL_AUTO_RETRIES when the caller doesn't set it.
@@ -363,6 +368,19 @@ class MeasureManager(QObject):
     engine_held            = pyqtSignal(str, bool)
     #: ...and the engine has left the hold: it offered a strip again.
     engine_released        = pyqtSignal()
+    #: Instrument button shortcuts (Basti, 2026-10-25): the engine recognised
+    #: a double or triple press of the instrument's button. Carries the
+    #: engine's event: presses, gaps_ms, where ("strip"/"patch": it holds at
+    #: that strip or patch and waits for a command; "prompt": at the Strip
+    #: Read Failed prompt; "held": in a hold). Never during a scan, a
+    #: calibration, or while a window that finishes the measurement is open.
+    instrument_gesture     = pyqtSignal(dict)
+    #: ...and the reader has moved because of one: (presses, action, unit,
+    #: the strip or patch it is on now), for the status line.
+    gesture_moved          = pyqtSignal(int, str, str, str)
+    #: The engine left the hold it made after a shortcut (it offered a strip
+    #: or patch again, for whatever reason).
+    gesture_released       = pyqtSignal()
     #: True only while strip_error is being delivered for an engine misread
     #: whose instrument can answer it with its button ("button_retry").
     misread_button_retry: bool = False
@@ -378,6 +396,13 @@ class MeasureManager(QObject):
     _engine_holds_here_patch: bool = False
     _window_hold: "str | None" = None
     _window_hold_mark: int = 0
+    #: Button shortcuts: the engine announced them for this session
+    #: ({"event":"gestures","active":true}), and the strip or patch it holds
+    #: at after one ({"where", "label"}), until it offers one again.
+    gestures_active: bool = False
+    gesture_unit: str = "strip"
+    _gesture_held: "dict | None" = None
+    _gesture_moving: "dict | None" = None
     _in_strip_ready: bool = False
     instrument_disconnected = pyqtSignal()   # emitted on USB communication failure
     device_busy             = pyqtSignal()   # emitted when instrument is held by another process
@@ -950,6 +975,7 @@ class MeasureManager(QObject):
                 eargs += ["--xychart"]
             if params.engine_replay is not None:
                 eargs += ["--replay", str(params.engine_replay)]
+            eargs += list(params.gesture_args or [])
             eargs += args
             log.info("chromiq-chartread: %s  [cwd=%s]", " ".join(eargs), cwd)
             self._runner.run(
@@ -2424,6 +2450,49 @@ class MeasureManager(QObject):
         """``{"strip", "button"}`` while the engine holds, else None."""
         return self._engine_held
 
+    @property
+    def gesture_held(self) -> "dict | None":
+        """``{"where", "label"}`` while the engine holds after a button
+        shortcut, else None."""
+        return self._gesture_held
+
+    def _gesture_arrived(self, label: str) -> None:
+        """A strip or patch is offered: a shortcut's hold is over, and if a
+        shortcut moved the reader, this is where it went."""
+        if self._gesture_held is not None:
+            self._gesture_held = None
+            self.gesture_released.emit()
+        gm = self._gesture_moving
+        if gm is not None and self._commands_sent > gm["mark"]:
+            self._gesture_moving = None
+            self.gesture_moved.emit(int(gm["presses"]), str(gm["action"]),
+                                    str(gm["unit"]), str(label or "").strip())
+
+    def note_gesture_move(self, presses: int, action: str, unit: str, *,
+                          after_ack: bool = False) -> None:
+        """Remember that a shortcut is about to move the reader, so the strip
+        or patch it lands on can be named. Called BEFORE the command goes
+        out; *after_ack* when an acknowledgement goes first (the move is the
+        post-retry key of a Strip Read Failed window)."""
+        self._gesture_moving = {
+            "presses": presses, "action": action, "unit": unit,
+            "mark": self._commands_sent + (1 if after_ack else 0)}
+
+    def send_gesture_move(self, action: str) -> None:
+        """Answer the engine's hold after a button shortcut with *action*
+        ("back", "forward", "next_unread", or "resume" to offer the same
+        strip or patch again). The keys are the ones the keyboard sends, so a
+        shortcut moves exactly as ←, → or N would."""
+        if self._gesture_held is None or not self._engine_active:
+            return
+        if action == "resume":
+            import json as _json
+            self._runner.write_stdin(_json.dumps({"cmd": "resume"}) + "\n")
+            return
+        key = {"back": "b", "forward": "f", "next_unread": "n"}.get(action)
+        if key is not None:
+            self.send_key(key)
+
     def resume_after_hold(self) -> None:
         """Let the engine go on from the hold as it would have without it
         (the next unread strip). Written straight to the engine for the same
@@ -3189,6 +3258,8 @@ class MeasureManager(QObject):
         kind = ev["event"]
 
         if kind == "session_start":
+            self.gestures_active = False
+            self._gesture_held = None
             self._saw_spot_ready = False
             self._ending_already_answered = False
             self._stop_requested = False
@@ -3231,6 +3302,7 @@ class MeasureManager(QObject):
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
             _sent_before = self._commands_sent
+            self._gesture_arrived(strip)
             if self._window_hold == "asked":
                 # The engine has left the hold a window asked for (a command
                 # sent from the window, or its release): it is over.
@@ -3331,8 +3403,37 @@ class MeasureManager(QObject):
                          "finishes the measurement is open; the reader holds, "
                          "so nothing is read")
                 return
-            if self._at_retry_prompt or self._engine_held is not None:
+            if (self._at_retry_prompt or self._engine_held is not None
+                    or self._gesture_held is not None):
                 self.instrument_button.emit()
+
+        elif kind == "gestures":
+            # Button shortcuts: whether this session's instrument can do them.
+            self.gestures_active = bool(ev.get("active"))
+            self.gesture_unit = str(ev.get("unit") or "strip")
+            log.info("engine: instrument button shortcuts %s (%s mode, wait "
+                     "%s ms)", "on" if self.gestures_active else
+                     "not available for this instrument", self.gesture_unit,
+                     ev.get("wait_ms"))
+
+        elif kind == "gesture":
+            # Button shortcuts: a double or triple press. At a waiting strip
+            # or patch the engine scanned nothing worth keeping and now holds
+            # there for a command; elsewhere it is still where it was.
+            where = str(ev.get("where") or "")
+            if where in ("strip", "patch"):
+                self._scan_in_progress = False
+                self._gesture_held = {
+                    "where": where,
+                    "label": str(ev.get(where) or "").strip()}
+            log.info("engine: %s presses of the instrument's button (%s, gaps "
+                     "%s ms)", ev.get("presses"), where, ev.get("gaps_ms"))
+            if (self._engine_held is not None
+                    and self._engine_held.get("window")):
+                log.info("instrument button: a shortcut while a window that "
+                         "finishes the measurement is open; nothing happens")
+                return
+            self.instrument_gesture.emit(dict(ev))
 
         elif kind == "held" and ev.get("here"):
             # The hold a window asked for (hold_for_window): no pause, nothing
@@ -3507,6 +3608,7 @@ class MeasureManager(QObject):
             # patch. Drives the current-patch highlight + page flip.
             # Reaching the patch menu also means any failure prompt is closed.
             _sent_before = self._commands_sent
+            self._gesture_arrived(str(ev.get("loc") or ""))
             self._at_retry_prompt = False
             self._sensor_warning_open = False
             self._scan_in_progress = False

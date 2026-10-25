@@ -1131,6 +1131,10 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		 * done, quit): nothing was triggered and nothing will be read. */
 		if (cq_json && !cq_wait_left_by_command)
 			cq_emit_raw("{\"event\":\"scan_started\"}");
+		/* Button gestures: the first press of a possible group. Not when
+		 * the wait was left by a command: nobody pressed anything. */
+		if (cq_json && !cq_wait_left_by_command)
+			cq_press_note_trigger();
 		cq_wait_left_by_command = 0;
 		return inst_ok;
 	}
@@ -1229,6 +1233,12 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 void cq_event_callback(void *cntx, inst_event_type event) {
 	(void)cntx;
 	if (event == inst_event_switch) {
+		/* Button gestures (2026-10-25): with them on, every press is timed
+		 * and grouped instead (cq_press_from_driver); a group that is one
+		 * press is reported as {"event":"switch"} exactly as below, after
+		 * the wait for a further press. Off, nothing here changes. */
+		if (cq_press_from_driver())
+			return;
 		if (cq_switch_gate_open())
 			cq_emit_simple("switch");
 		return;
@@ -1241,6 +1251,16 @@ void cq_event_callback(void *cntx, inst_event_type event) {
 	 * limit could read "Too fast" (review P_review2_beta1, P-202-1). macOS and
 	 * Linux beep asynchronously, so the order changes nothing there. */
 	cq_emit_raw("{\"event\":\"scan_ready\"}");
+	/* CHROMIQ_EXT: CHROMIQ_ENGINE_MUTE silences this beep for scripted runs
+	 * (drivers and hand-test scripts, which must play no sound). Unset, as
+	 * the app always runs it, nothing changes. */
+	{
+		static int mute = -1;
+		if (mute < 0)
+			mute = getenv("CHROMIQ_ENGINE_MUTE") != NULL;
+		if (mute)
+			return;
+	}
 	msec_beep(0, 1000, 200);
 }
 
@@ -1267,6 +1287,72 @@ static int cq_button_retry_ok(inst *it, int uswitch) {
 	t = it->dtype;
 	return t == instI1Pro || t == instI1Pro2 || t == instI1Pro3
 	    || t == instColorMunki;
+}
+
+/* CHROMIQ_EXT: button gestures (Basti, 2026-10-25; jctay, forum 149841).
+ *
+ * Switched on for a session only when the GUI asked for them (--gestures)
+ * AND the instrument can report presses (cq_button_retry_ok). Announced once
+ * as {"event":"gestures","active":b} so the GUI knows; without --gestures
+ * nothing is emitted and nothing here runs. */
+static void cq_gestures_for_session(inst *it, int uswitch, const char *unit) {
+	int ok;
+	if (!cq_json || cq_gesture_ms <= 0)
+		return;
+	ok = cq_button_retry_ok(it, uswitch);
+	cq_gesture_activate(ok);
+	cq_emit_raw("{\"event\":\"gestures\",\"active\":%s,\"unit\":\"%s\","
+	            "\"wait_ms\":%d}", ok ? "true" : "false", unit, cq_gesture_ms);
+}
+
+/* CHROMIQ_EXT: the instrument is always let go (hand test, 2026-10-25; see
+ * chromiq_ext.h). Every path that ends a session closes the instrument with
+ * it->del(it), and that close is where a real ColorMunki could block for
+ * ever. So it->del is wrapped once, in JSON mode: the wrapper arms the exit
+ * deadline and then closes as before. A close that returns in time changes
+ * nothing; one that blocks ends with the process, which frees the device. */
+static void (*cq_real_del)(inst *p) = NULL;
+
+static void cq_guarded_del(inst *p) {
+	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
+	if (cq_real_del != NULL)
+		cq_real_del(p);
+}
+
+static void cq_guard_inst(inst *it) {
+	if (!cq_json || it == NULL || it->del == cq_guarded_del)
+		return;
+	cq_real_del = it->del;
+	it->del = cq_guarded_del;
+}
+
+/* A scan that took longer than this from its trigger to its end was a real
+ * attempt at a strip, however it failed, and is never part of a gesture. A
+ * quick tap ends in about 0.2-0.3 s on a ColorMunki (Basti's hand test,
+ * 2026-10-25). The press-to-press wait (at most 1.5 s) is the other guard: a
+ * second press always comes after the first one was let go, so a group can
+ * only begin with a press that was held for less than the wait. */
+#define CQ_GESTURE_MAX_SCAN_MS 2000.0
+
+/* A gesture was made at the strip or patch *label*: say so, and wait for the
+ * GUI to act on it, in the same hold as {"cmd":"hold"} (switch gate open, so
+ * a press is only reported, never a trigger). Returns what cq_hold_wait
+ * returns; a goto's label is copied into *glab*. Nothing was read and
+ * nothing is written: the reading the gesture's own taps made is dropped by
+ * the caller before this. */
+static int cq_gesture_hold(const char *unit, const char *label, int n,
+                           const int *gaps, char *glab, size_t glablen) {
+	char js[160];
+	char esc[64];
+	int hk;
+	cq_press_group_json(js, sizeof(js), n, gaps);
+	cq_json_escape(esc, sizeof(esc), label != NULL ? label : "");
+	cq_emit_raw("{\"event\":\"gesture\"%s,\"where\":\"%s\",\"%s\":\"%s\"}",
+	            js, unit, unit, esc);
+	cq_switch_gate_set(1);
+	hk = cq_hold_wait(glab, glablen);
+	cq_switch_gate_set(0);
+	return hk;
 }
 
 /* Deal with an instrument error. */
@@ -1463,6 +1549,8 @@ a1log *log			/* verb, debug & error log */
 			return -1;
 		}
 
+		cq_guard_inst(it);	/* CHROMIQ_EXT: always let the instrument go */
+
 #ifdef TEST_EVENT_CALLBACK
 		it->set_event_callback(it, test_event_callback, (void *)it);
 #else
@@ -1494,6 +1582,10 @@ a1log *log			/* verb, debug & error log */
 				free(pfname);
 			return -1;
 		}
+		/* CHROMIQ_EXT: Argyll's USB signal handlers are in place now; ours
+		 * go in front of them, so Ctrl+C or SIGTERM always ends us. */
+		if (cq_json)
+			cq_exit_guard_signals();
 
 		/* For reflective */
 		if (emis == 0 && trans == 0) {
@@ -2417,6 +2509,7 @@ a1log *log			/* verb, debug & error log */
 		int stix;				/* Strip index */
 		int pai;				/* Current pass/row in current strip */
 		int oroi;				/* Overall row index */
+		double cq_scan_ms = -1.0;	/* CHROMIQ_EXT: trigger to end of scan */
 
 		if (
 		    itype != instDTP20 &&
@@ -2508,6 +2601,7 @@ a1log *log			/* verb, debug & error log */
 			 * Only ever produced by cq_uicallback from that command. */
 			inst_set_uih('h', 'h', DUIH_CMND);
 		}
+		cq_gestures_for_session(it, uswitch, "strip");	/* CHROMIQ_EXT */
 
 		/* Allocate space for values from a pass/strip */
 		if ((vals = (ipatch *)calloc(sizeof(ipatch), (stipa+nextrap))) == NULL)
@@ -2615,9 +2709,15 @@ a1log *log			/* verb, debug & error log */
 				 * the instrument waits here for the next strip. */
 				if (cq_json)
 					cq_cal_gate_set(1);
+				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
 				if (cq_json)
 					cq_cal_gate_set(0);
+				/* CHROMIQ_EXT: button gestures. How long the scan took from
+				 * its trigger; only a misread is ever looked at again. */
+				cq_scan_ms = cq_press_trigger_age_ms();
+				if ((rv & inst_mask) != inst_misread)
+					cq_press_listen(0);
 				if (rv != inst_ok
 				 && (rv & inst_mask) != inst_user_trig) {
 
@@ -2876,6 +2976,53 @@ a1log *log			/* verb, debug & error log */
 
 					/* Deal with a misread */
 					} else if ((rv & inst_mask) == inst_misread) {
+						/* CHROMIQ_EXT: button gestures. A quick tap at a
+						 * waiting strip starts a scan that ends too short.
+						 * If more presses follow it, each within the wait,
+						 * the taps were a double or triple press: nothing
+						 * was read, so nothing is reported as a failure,
+						 * the .ti3 and the strip are untouched, and the GUI
+						 * is told instead. One press alone (or a group with
+						 * no action) goes on below exactly as before, only
+						 * after the wait. A scan longer than
+						 * CQ_GESTURE_MAX_SCAN_MS is a real attempt and is
+						 * never waited on. */
+						if (cq_gesture_active()) {
+							int gk = 0, gaps[16];
+							if (cq_scan_ms >= 0.0
+							 && cq_scan_ms <= CQ_GESTURE_MAX_SCAN_MS)
+								gk = cq_press_wait_group(gaps, 16);
+							cq_press_listen(0);
+							if (cq_gesture_counts_for(gk)) {
+								char glab[16] = "";
+								int hk = cq_gesture_hold("strip", nn, gk, gaps,
+								                         glab, sizeof(glab));
+								if (hk == 'f') {
+									incflag = 1;
+									break;
+								} else if (hk == 'b') {
+									incflag = -1;
+									break;
+								} else if (hk == 'n') {
+									incflag = 2;
+									break;
+								} else if (hk == CQ_KEY_GOTO) {
+									int found = cq_strip_row(paix, totpa, glab);
+									cq_jumped = 1;
+									if (found >= 0) {
+										int acc = 0;
+										oroi = found;
+										for (stix = 0; pis[stix] != 0
+										     && acc + pis[stix] <= oroi; stix++)
+											acc += pis[stix];
+										pai = oroi - acc;
+										incflag = 0;
+									}
+									break;
+								}
+								continue;	/* resume (this strip again), or a command for the menu */
+							}
+						}
 						if (cap2 & inst2_no_feedback)
 							bad_beep();
 						if (!cq_json)
@@ -3419,6 +3566,7 @@ a1log *log			/* verb, debug & error log */
 			 * cq_uicallback from that command. */
 			if (cq_json)
 				inst_set_uih('h', 'h', DUIH_CMND);
+			cq_gestures_for_session(it, uswitch, "patch");	/* CHROMIQ_EXT */
 		}
 
 		/* Skip to next unread if first has been read */
@@ -3628,9 +3776,44 @@ a1log *log			/* verb, debug & error log */
 				 * the instrument waits here for the next patch. */
 				if (cq_json)
 					cq_cal_gate_set(1);
+				cq_press_listen(0);		/* CHROMIQ_EXT: a fresh group */
 				rv = it->read_sample(it, "SPOT", &val, 1);
 				if (cq_json)
 					cq_cal_gate_set(0);
+
+				/* CHROMIQ_EXT: button gestures, patch by patch. A press
+				 * reads the patch at once, so a double press would read it
+				 * and then the next one. With gestures on, a reading the
+				 * button made is held until the wait has passed with no
+				 * further press: then it is kept, exactly as before. If
+				 * presses followed it within the wait, it was a double or
+				 * triple press: the reading is DROPPED (never stored,
+				 * never written), the patch stays as it was, and the GUI
+				 * is told instead. A reading made with Return or the Read
+				 * button is never held. */
+				if (rv == inst_ok && cq_press_trigger_age_ms() >= 0.0) {
+					int gk, gaps[16];
+					gk = cq_press_wait_group(gaps, 16);
+					cq_press_listen(0);
+					if (cq_gesture_counts_for(gk)) {
+						char glab[16] = "";
+						int hk = cq_gesture_hold("patch", scols[pix]->loc, gk,
+						                         gaps, glab, sizeof(glab));
+						if (hk == 'f')
+							incflag = 1;
+						else if (hk == 'b')
+							incflag = -1;
+						else if (hk == 'n')
+							incflag = 3;
+						else if (hk == CQ_KEY_GOTO) {
+							strncpy(cq_goto_target, glab, sizeof(cq_goto_target) - 1);
+							cq_goto_target[sizeof(cq_goto_target) - 1] = '\0';
+							incflag = 4;
+						}
+						continue;	/* resume (this patch again), a move, or a command */
+					}
+				} else
+					cq_press_listen(0);
 
 				/* Deal with reading */
 				if (rv == inst_ok) {
@@ -4291,6 +4474,82 @@ static int cq_locs_fit_legacy_grid(cgats *icg, int li, alphix *paix, alphix *sai
 	return ok;
 }
 
+/* CHROMIQ_EXT: Preferences ▸ Measurement's "Try it" (button gestures,
+ * 2026-10-25). Opens the instrument at -c <port> exactly as a measurement
+ * does, takes nothing from it but its button, and reports every group of
+ * presses as {"event":"press_group","presses":n,"gaps_ms":[..]}, until
+ * {"cmd":"quit"} or stdin closes. Then the instrument is closed (it->del)
+ * and {"event":"button_test_end"} says so. Reads nothing, writes nothing. */
+static int cq_run_button_test(int comport, flow_control fc) {
+	icompaths *icmps = NULL;
+	icompath *ipath = NULL;
+	inst *it = NULL;
+	inst_code rv;
+	int ok;
+
+	if (!cq_json || cq_gesture_ms <= 0) {
+		fprintf(stderr, "--button-test needs --json and --gestures\n");
+		return 1;
+	}
+	/* Tests only: prove the command line was parsed (the port it names)
+	 * without opening anything, not even the list of ports. */
+	if (getenv("CHROMIQ_BUTTON_TEST_PARSE_ONLY") != NULL) {
+		cq_emit_raw("{\"event\":\"button_test_args\",\"port\":%d,"
+		            "\"wait_ms\":%d}", comport, cq_gesture_ms);
+		return 0;
+	}
+	if (cq_replay_active()) {
+		inst_reset_uih();
+		it = cq_new_replay_inst(g_log, cq_uicallback, inst_get_uicontext());
+	} else {
+		if ((icmps = new_icompaths(g_log)) != NULL)
+			ipath = icmps->get_path(icmps, comport);
+		if (ipath != NULL) {
+			inst_reset_uih();
+			it = new_inst(ipath, 0, g_log, cq_uicallback, inst_get_uicontext());
+		}
+	}
+	if (it == NULL) {
+		cq_emit_error("no_instrument", "");
+		if (icmps != NULL)
+			icmps->del(icmps);
+		return 1;
+	}
+	cq_guard_inst(it);
+	it->set_event_callback(it, cq_event_callback, (void *)it);
+	if ((rv = it->init_coms(it, baud_38400, fc, 15.0)) != inst_ok
+	 || (rv = it->init_inst(it)) != inst_ok) {
+		cq_emit_error("no_instrument", it->interp_error(it, rv));
+		it->del(it);
+		if (icmps != NULL)
+			icmps->del(icmps);
+		return 1;
+	}
+	cq_exit_guard_signals();
+	ok = cq_button_retry_ok(it, 1);
+	cq_emit_raw("{\"event\":\"instrument\",\"model\":\"%s\",\"button\":%s,"
+	            "\"wait_ms\":%d}", inst_name(it->get_itype(it)),
+	            ok ? "true" : "false", cq_gesture_ms);
+	cq_gesture_activate(ok);
+	cq_switch_gate_set(1);
+	for (;;) {
+		int k = cq_poll_char();
+		if (k == 0x1b || k == 'q' || k == 'Q' || k == 0x03 || cq_stdin_eof)
+			break;
+		cq_press_group_poll("test");
+		cq_sleep_poll();
+	}
+	cq_switch_gate_set(0);
+	cq_gesture_activate(0);
+	/* Said before the close: a close that blocks is ended by the exit
+	 * guard (it->del arms it), and the app has already heard the end. */
+	cq_emit_simple("button_test_end");
+	it->del(it);
+	if (icmps != NULL)
+		icmps->del(icmps);
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 	int i, j;
 	int fa, nfa, mfa;				/* current argument we're looking at */
@@ -4387,13 +4646,34 @@ int main(int argc, char *argv[]) {
 				 * before it relies on it. One JSON line, then exit 0.
 				 * "legacy_labels": reads sheets ChromIQ's layout engine
 				 * printed with its pre-4.3.3-beta.7 labels as printed. */
-				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\"],\"build\":\"%s\"}\n",
+				printf("{\"caps\":[\"legacy_labels\",\"file_as\",\"file_as_keeps_earlier\",\"gestures\",\"button_test\"],\"build\":\"%s\"}\n",
 				       cq_helper_build_string());
 				fflush(stdout);
 				return 0;
 			} else if (strcmp(argv[ai], "--replay") == 0 && ai + 1 < argc) {
 				cq_replay_path = argv[ai + 1];
 				eat = 2;
+			} else if (strcmp(argv[ai], "--gestures") == 0 && ai + 1 < argc) {
+				/* CHROMIQ_EXT: button gestures, "<wait ms>:<counts>",
+				 * e.g. "600:23" (double and triple press have actions).
+				 * The wait is clamped to 200..2000 ms. */
+				const char *ga = argv[ai + 1], *gc;
+				int ms = atoi(ga);
+				if (ms < 200) ms = 200;
+				if (ms > 2000) ms = 2000;
+				cq_gesture_ms = ms;
+				cq_gesture_counts = 0;
+				if ((gc = strchr(ga, ':')) != NULL) {
+					for (gc++; *gc >= '0' && *gc <= '9'; gc++)
+						if (*gc == '2' || *gc == '3')
+							cq_gesture_counts |= 1 << (*gc - '0');
+				}
+				eat = 2;
+			} else if (strcmp(argv[ai], "--button-test") == 0) {
+				/* CHROMIQ_EXT: Preferences' "Try it": open the instrument,
+				 * report every group of presses, read nothing. */
+				cq_button_test = 1;
+				eat = 1;
 			}
 			if (eat > 0) {
 				for (aj = ai; aj + eat <= argc; aj++)
@@ -4408,11 +4688,16 @@ int main(int argc, char *argv[]) {
 			error("Failed to load replay script '%s'", cq_replay_path);
 	}
 
-	if (argc <= 1)
+	if (argc <= 1 && !cq_button_test)	/* CHROMIQ_EXT: "Try it" needs no chart */
 		usage();
 
 	/* Process the arguments */
 	mfa = 1;        /* Minimum final arguments */
+	/* CHROMIQ_EXT: "Try it" has no outfile, so a flag's separate value (the
+	 * "1" of "-c 1") is taken only if no final argument is reserved for it
+	 * (Basti's ColorMunki, 2026-10-25: usage instead of the instrument). */
+	if (cq_button_test)
+		mfa = 0;
 	for (fa = 1;fa < argc;fa++) {
 		nfa = fa;					/* skip to nfa if next argument is used */
 		if (argv[fa][0] == '-') {		/* Look for any flags */
@@ -4649,6 +4934,10 @@ int main(int argc, char *argv[]) {
 		} else
 			break;
 	}
+
+	/* CHROMIQ_EXT: Preferences' "Try it" needs no chart. */
+	if (cq_button_test)
+		return cq_run_button_test(comport, fc);
 
 	/* Get the file name argument */
 	if (fa >= argc || argv[fa][0] == '-') usage();

@@ -101,6 +101,7 @@ whether the handler works.**
 | **Place the sheet** (XY mode) | Continue / Give Up | `\r`, `GIVE_UP_PENDING` | | ✅ |
 | **Strip Read Failed** | Retry | `\r` → `{"cmd":"ok"}` | read the same strip again | ✅ not an exit |
 | | *the instrument's button* (i1Pro, i1Pro 2, i1Pro 3 / 3 Plus, ColorMunki; **note 10**, approved by Basti 2026-10-21) | the window's own Retry is clicked → `\r` → `{"cmd":"ok"}` | exactly Retry; the next press is the normal scan press | ✅ not an exit |
+| | *a double or triple press of the button* (Instrument button shortcuts on; **note 13**, ⏳ awaiting confirmation) | the window closes as Skip Strip does: `{"cmd":"ok"}`, then `back` / `forward` / `next_unread` | the reader moves; nothing is read or written | ✅ not an exit |
 | | Skip Strip | `skip_current_strip()` | | ✅ not an exit |
 | | Save Partial & Quit | `send_save_partial_and_quit()` | the two-`q` chain | ⚠️ as note 1 |
 | **Patch Read Failed** | Retry | `retry` | | ✅ not an exit |
@@ -517,3 +518,18 @@ reproduced on the replay engine on 4.3.9 and 4.3.10, on screen.)
   values, stock ArgyllCMS chartread, and an engine that does not announce
   `hold_here` (strips) or `hold_here_patch` (patch by patch) in its session
   start: there the reader stays armed behind the window, as before.
+
+## Note 13 — double and triple presses of the instrument's button (4.3.14)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* (Basti approved the feature on 2026-10-25, after jctay's forum post 149841; the details below are ours.)
+
+Preferences ▸ Measurement ▸ *Instrument button shortcuts*, **off by default**. Off, the engine is started exactly as before (no `--gestures`) and nothing in this note applies: note 10 and note 11 stand as written.
+
+* **Which instruments.** The i1Pro, i1Pro 2, i1Pro 3 and 3 Plus and the ColorMunki / i1Studio / ColorChecker Studio: the drivers whose switch thread reports every press (`cq_button_retry_ok`). The engine checks the connected model itself and announces `{"event":"gestures","active":…}`; for every other instrument (CR30, DTP, SpectroScan, i1iSis) nothing changes, and Preferences greys the section out for the instrument it knows about.
+* **What the engine counts.** Every press from the trigger of a waiting strip or patch until its reading is decided, and every press while the switch gate is open (the misread prompt and the holds). Presses each within the wait (0.30 to 1.50 s, default 0.60 s) form one group. 2 or 3 presses with an action are a gesture; one press, or a group with no action, is exactly what one press does today, after the wait.
+* **A gesture is never a reading.** At a waiting strip, a quick tap starts a scan that ends too short; if presses follow within the wait, no failure is reported, nothing is written, and the engine holds (as `{"cmd":"hold"}` does) for the app's command. A scan longer than 2 s from its trigger was a real attempt and is never waited on; a strip that reads is a strip, whatever was pressed during it. Patch by patch the reading the first press made is held for the wait and dropped if presses follow.
+* **What a gesture sends.** One strip / patch back, forward, next unread: the keys ←, →, N send (`back`, `forward`, `next_unread`), from the hold. At *Strip Read Failed*: the window closes as Skip Strip does (`ok`, then the move). Pause / continue: the engine stays in the hold; one press, Return or space, or the same gesture goes on (`resume`, the same strip or patch again). In a pause (the pause between pages, or one a shortcut made) Pause / continue goes on, as Continue does, and the moves act from the strip the pause is at, as the arrow keys and N do there (Basti, 2026-10-25).
+* **Where it never acts.** During a real scan, a calibration, behind a window that finishes the measurement (the hold that window asked for drops it), and on stock ArgyllCMS chartread.
+* **What the user sees.** The Measure tab's status line and the log (M-GESTURE-STATUS): "Double press: back to strip B", "... back to patch C4". No sound (`measurement_window_sounds.md` §4f).
+* **Try it.** Preferences' own area opens the instrument through the engine (`--button-test`), takes the instrument lease (`BUTTON_TRY`), refuses while anything reads, reads and writes nothing, and lets the instrument go on Stop and however the dialog closes.
+

@@ -124,6 +124,9 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-10-24), 4.3.13.
     "M-CHART-STRIP-LABELS-X-HELD-EDGE", "M-CHART-STRIP-LABELS-X-NEAR-NEIGHBOUR",
     "M-CHART-STRIP-LABELS-X-IN-PATH", "M-CHART-STRIP-LABELS-X-IN-PATH-NO-ROOM",
+    # The instrument's button shortcuts (jctay 149841, Basti 2026-10-25),
+    # 4.3.14: the status line; the wording waits here.
+    "M-GESTURE-STATUS",
     # The pause between pages (jctay 149802, Basti 2026-10-23), 4.3.10.
     "M-PAGE-PAUSE", "M-PAGE-PAUSE-END", "M-PAGE-PAUSE-OTHER-PAGES",
     "M-PAGE-PAUSE-BUTTON", "M-PAGE-PAUSE-FOUND", "M-PAGE-PAUSE-CONTROLS",
