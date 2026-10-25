@@ -160,7 +160,7 @@ def test_the_patch_first_sentence_does_not_offer_the_size_box():
     """MUTATION: put ", or use a smaller label size" back into that one
     sentence and this goes red."""
     said = _wording("Prioritise patch size")
-    assert "Lower “Label offset”" in said, (
+    assert "Lower “Y” next to “Label offset”" in said, (
         "the one remedy that was measured to clear this is gone")
     assert "or use a smaller label size" not in said, (
         "the “Prioritise patch size” notice offers the label size as a remedy "

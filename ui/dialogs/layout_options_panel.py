@@ -2548,7 +2548,8 @@ class LayoutOptionsPanel(QWidget):
                "“Prioritise patch size”. That layout places them "
                "automatically, the way printtarg does, hanging from the top "
                "margin; the two controls that move them there are “Top” under "
-               "“Margins (mm)” and “Label offset” under “Strip indicators only”."),
+               "“Margins (mm)” and “Y” next to “Label offset” under “Strip "
+               "indicators only”."),
             self)
         stg.addWidget(self._text_edge_tip, 6, 2)
         # WHEN THE NUMBER IN THE BOX IS NOT THE NUMBER THAT APPLIES.

@@ -206,7 +206,7 @@ def test_the_label_offset_keeps_its_number_in_patch_first():
     """
     from ui.tabs import tab_chart as tc
     src = inspect.getsource(tc.TabChart._engine_text_notes)
-    i = src.index("hang from the top margin. Raise “Label offset” ")
+    i = src.index("hang from the top margin. Raise “Y” next to “Label ")
     block = src[i:i + 900]
     assert "by about " in block and "{over:.1f} mm" in block, (
         "the Label offset remedy lost the number it is entitled to")
