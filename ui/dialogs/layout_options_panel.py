@@ -1684,8 +1684,10 @@ class LayoutOptionsPanel(QWidget):
             self.indicator_rotation.addItem(f"{_deg}°", _deg)
         # Compact, but wide enough for "270°" + the dropdown arrow; the freed
         # space goes to the alignment checkboxes alongside it.
+        # Its natural width, which holds "270°" whole (Basti, 2026-10-25: the
+        # 88 px cap elided it to "27…"); the Row indicators only box takes
+        # the same, so the two line up.
         self.indicator_rotation.setMinimumContentsLength(3)
-        self.indicator_rotation.setMaximumWidth(88)
         self.indicator_rotation.currentIndexChanged.connect(self._on_rotation_changed)
         # Reading-axis alignment for side-rotated (90°/270°) multi-letter labels.
         # A mutually-exclusive checkbox set (Left / Centered / Right); only active
@@ -1761,11 +1763,17 @@ class LayoutOptionsPanel(QWidget):
         for _deg in (0, 90, 180, 270):
             self.row_indicator_rotation.addItem(f"{_deg}°", _deg)
         self.row_indicator_rotation.setMinimumContentsLength(3)
-        self.row_indicator_rotation.setMaximumWidth(88)
         self.row_indicator_rotation.currentIndexChanged.connect(self._emit)
-        add_row(sig4, 0, tr("Rotation:"), self.row_indicator_rotation,
+        add_row(sig4, 0, tr("Rotation:"), cell(self.row_indicator_rotation),
                 tip=TooltipButton(tr("Row indicator rotation"),
                                   tr(ROW_ROTATION_HELP), self))
+        # THE SAME COLUMNS AS "STRIP INDICATORS ONLY" (Basti, 2026-10-25, on
+        # the screenshot of a right-aligned, truncated row): the label column
+        # here is held exactly as wide as the one above, whose longest label
+        # sets it, so "Rotation:", the box and the ⓘ line up with the strip
+        # section's own Rotation row in every language.
+        self._row_only_grid, self._strip_only_grid = sig4, sig3
+        si_only.installEventFilter(self)
         self._label_style_grp = si
         _si_v.addWidget(si_both)
         _si_v.addWidget(si_only)
@@ -5382,6 +5390,24 @@ class LayoutOptionsPanel(QWidget):
     def _on_underline_changed(self, *_a) -> None:
         self._sync_underline_enabled()
         self._emit()
+
+    def eventFilter(self, obj, event):  # noqa: N802 - Qt API
+        """Keep "Row indicators only"'s label column as wide as "Strip
+        indicators only"'s, whenever the strip section is laid out."""
+        try:
+            from PyQt6.QtCore import QEvent
+            if (obj is getattr(self, "_label_sub_strip_only", None)
+                    and event.type() in (QEvent.Type.Resize,
+                                         QEvent.Type.LayoutRequest,
+                                         QEvent.Type.Show)):
+                g3 = self._strip_only_grid
+                w = max((g3.cellRect(r, 0).width() for r in range(g3.rowCount())),
+                        default=0)
+                if w > 0 and self._row_only_grid.columnMinimumWidth(0) != w:
+                    self._row_only_grid.setColumnMinimumWidth(0, w)
+        except Exception:      # noqa: BLE001 - a look, never a blocker
+            pass
+        return super().eventFilter(obj, event)
 
     def _on_rotation_changed(self, *_a) -> None:
         """Reading-axis alignment only matters for the side rotations (90°/270°);
