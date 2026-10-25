@@ -2770,6 +2770,10 @@ class SettingsDialog(QDialog):
 
         self._argyll_status = QLabel("", self)
         self._argyll_status.setWordWrap(True)
+        # SHOWN ONLY WITH SOMETHING TO SAY (Basti, 2026-10-25: the evenness
+        # rule): empty, it left a blank line under the buttons, so this box
+        # had more space at its foot than any other on the tab.
+        self._argyll_status.setVisible(False)
         ag.addWidget(self._argyll_status)
 
         layout.addWidget(argyll_grp)
@@ -4340,6 +4344,24 @@ class SettingsDialog(QDialog):
             row.addStretch()
             row.addWidget(tip)
             opts.addLayout(row)
+
+        # ONE PITCH FOR EVERY SINGLE OPTION (Basti, 2026-10-25: the evenness
+        # rule). A tick-box row is 22 px with 6 px between rows, a pitch of
+        # 28; the calibration-retries row holds a spin box, which the app's
+        # style sheet keeps at 28 px, so that row stood 3 px further from each
+        # neighbour than every other option (measured on screen). Every row is
+        # now at least 28 px tall with nothing between rows: the tick-box rows
+        # keep their pitch exactly, and the retries row takes the same one.
+        from PyQt6.QtWidgets import QBoxLayout as _QBL
+        for _lay in (self._measure_engine_block.layout(), opts):
+            _rows = [_lay.itemAt(_i).layout() for _i in range(_lay.count())]
+            _rows = [_r for _r in _rows if isinstance(_r, _QBL)]
+            # a row's own spacing is inherited from this layout: pin it first
+            _gaps = [_r.spacing() for _r in _rows]
+            _lay.setSpacing(0)
+            for _r, _g in zip(_rows, _gaps):
+                _r.setSpacing(_g)
+                _r.addStrut(28)
 
         # THE PATCH CHECKS, IN THEIR OWN TITLED SECTION, after the single
         # options (Basti, 2026-10-25): the table and its line on units.
@@ -7430,12 +7452,14 @@ class SettingsDialog(QDialog):
             self._argyll_edit.setText(str(detected))
             _ink(self._argyll_status, "#4caf50")
             self._argyll_status.setText(tr("Auto-detected at {detected}").format(detected=detected))
+            self._argyll_status.setVisible(True)
         else:
             _ink(self._argyll_status, "#ff5252")
             self._argyll_status.setText(
                 tr("ArgyllCMS not found in any known location. "
                 "Install it or set the path manually.")
             )
+            self._argyll_status.setVisible(True)
         log.info("ArgyllCMS auto-detect: %s", detected)
 
     def _test_argyll(self) -> None:
@@ -7471,6 +7495,7 @@ class SettingsDialog(QDialog):
         all_ok = all(r.startswith("✓") for r in results)
         _ink(self._argyll_status, "#4caf50" if all_ok else "#ff9800")
         self._argyll_status.setText(msg)
+        self._argyll_status.setVisible(bool(msg))
         log.info("ArgyllCMS test: %s", msg)
 
     def _open_argyll_download(self) -> None:
@@ -7487,6 +7512,7 @@ class SettingsDialog(QDialog):
         self._argyll_status.setText(
             tr("Opening argyllcms.com — download the latest version ({hint}), then unpack and set the bin path above.").format(hint=hint)
         )
+        self._argyll_status.setVisible(True)
         QDesktopServices.openUrl(QUrl(argyll_download_page()))
 
     def _scrollable(self, inner, parent):
