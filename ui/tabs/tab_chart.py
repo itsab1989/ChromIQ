@@ -10871,6 +10871,14 @@ class TabChart(QWidget):
         # And bring the option panels back to the settings this chart was
         # actually made with, so screen and chart tell one story.
         restored_full = self._restore_chart_settings(ti2)
+        # THE RUN'S OWN CHART SETTINGS NOW STAND, NOT A PRESET'S (review of
+        # 4.3.14): the dropdown may still show the preset picked on another
+        # run, and `_on_preset_activated` ignores a re-pick of the entry it
+        # believes is applied, so picking that preset here did nothing (run2,
+        # Verification, From Profile's Gamut: label style and X offset stayed
+        # the chart's). No entry is applied any more, so the next pick of any
+        # entry applies it.
+        self._last_preset_index = -1
         # …and the page count comes from the chart in front of you, always.
         #
         # Knut, #130 2026-07-28: every run showed "pages = 20", including one
