@@ -7415,5 +7415,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: adelante a la tira {label}, la siguiente aún sin leer",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: en pausa en el parche {label}. No se lee nada mientras ChromIQ espera. Para seguir, pulsa una vez el botón de tu instrumento o pulsa Intro.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: en pausa en la tira {label}. No se lee nada mientras ChromIQ espera. Para seguir, pulsa una vez el botón de tu instrumento o pulsa Intro.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: este atajo no hace nada durante una pausa. Pulsa el botón una vez, o haz clic en «Continuar», para seguir."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: este atajo no hace nada durante una pausa. Pulsa el botón una vez, o haz clic en «Continuar», para seguir.",
+ "The dial can stay in any position: only the button is used here.": "La rueda puede quedarse en cualquier posición: aquí solo se usa el botón."
 }

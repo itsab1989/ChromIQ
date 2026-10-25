@@ -7415,5 +7415,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: weiter zu Streifen {label}, dem nächsten, der noch nicht gelesen ist",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: Pause bei Feld {label}. Während ChromIQ wartet, wird nichts gelesen. Um weiterzumachen, drücke die Taste an deinem Messgerät einmal oder drücke die Eingabetaste.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: Pause bei Streifen {label}. Während ChromIQ wartet, wird nichts gelesen. Um weiterzumachen, drücke die Taste an deinem Messgerät einmal oder drücke die Eingabetaste.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: Dieses Tastenkürzel tut während einer Pause nichts. Drücke die Taste einmal oder klicke auf „Weiter“, um weiterzumachen."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: Dieses Tastenkürzel tut während einer Pause nichts. Drücke die Taste einmal oder klicke auf „Weiter“, um weiterzumachen.",
+ "The dial can stay in any position: only the button is used here.": "Das Drehrad kann in jeder Stellung bleiben: Hier wird nur die Taste benutzt."
 }

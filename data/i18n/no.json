@@ -7415,5 +7415,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: videre til stripe {label}, den neste som ikke er lest ennå",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: pause ved felt {label}. Ingenting leses mens ChromIQ venter. For å fortsette trykker du én gang på knappen på instrumentet, eller trykker Enter.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: pause ved stripe {label}. Ingenting leses mens ChromIQ venter. For å fortsette trykker du én gang på knappen på instrumentet, eller trykker Enter.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: denne snarveien gjør ingenting under en pause. Trykk én gang på knappen, eller klikk på «Fortsett», for å fortsette."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: denne snarveien gjør ingenting under en pause. Trykk én gang på knappen, eller klikk på «Fortsett», for å fortsette.",
+ "The dial can stay in any position: only the button is used here.": "Hjulet kan stå i hvilken som helst stilling: her brukes bare knappen."
 }

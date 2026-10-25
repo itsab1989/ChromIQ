@@ -7415,5 +7415,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: まだ読んでいない次のストリップ {label} へ進みました",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: パッチ {label} で一時停止しました。ChromIQ が待っている間は何も読みません。続けるには、測定器のボタンを 1 回押すか Return キーを押してください。",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: ストリップ {label} で一時停止しました。ChromIQ が待っている間は何も読みません。続けるには、測定器のボタンを 1 回押すか Return キーを押してください。",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: このショートカットは一時停止中は何もしません。続けるには、ボタンを 1 回押すか「続行」をクリックしてください。"
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: このショートカットは一時停止中は何もしません。続けるには、ボタンを 1 回押すか「続行」をクリックしてください。",
+ "The dial can stay in any position: only the button is used here.": "ダイヤルはどの位置のままでもかまいません。ここではボタンだけを使います。"
 }

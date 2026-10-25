@@ -7415,5 +7415,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: verder naar strook {label}, de volgende die nog niet gelezen is",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: gepauzeerd bij meetveld {label}. Er wordt niets gelezen terwijl ChromIQ wacht. Druk om verder te gaan één keer op de knop van je meetinstrument, of druk op Enter.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: gepauzeerd bij strook {label}. Er wordt niets gelezen terwijl ChromIQ wacht. Druk om verder te gaan één keer op de knop van je meetinstrument, of druk op Enter.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: deze sneltoets doet niets tijdens een pauze. Druk één keer op de knop, of klik op “Doorgaan”, om verder te gaan."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: deze sneltoets doet niets tijdens een pauze. Druk één keer op de knop, of klik op “Doorgaan”, om verder te gaan.",
+ "The dial can stay in any position: only the button is used here.": "De draaiknop mag in elke stand blijven staan: hier wordt alleen de knop gebruikt."
 }

@@ -229,6 +229,22 @@ class ButtonShortcutsSection(QGroupBox):
         grid.addWidget(self._wait_spin, 2, 1, Qt.AlignmentFlag.AlignLeft)
         grid.addWidget(TooltipButton(tr("Wait for Further Presses"),
                                      wait_help(), self), 2, 2)
+        # "Try it" and its Start button sit in the same columns as the boxes
+        # above, so the button lines up with them (Basti, 2026-10-25).
+        self._try_title = QLabel("<b>" + tr("Try it") + "</b>", self)
+        self._try_btn = QPushButton(tr("Start"), self)
+        self._try_btn.clicked.connect(self._on_try_clicked)
+        # NO TALLER THAN THE BOXES ABOVE IT (Basti, 2026-10-25: the app's
+        # button rule made it much taller than it needs to be).
+        self._try_btn.setObjectName("buttonTryStart")
+        self._try_btn.setStyleSheet(
+            "QPushButton#buttonTryStart { padding: 2px 16px; min-height: 0px; }")
+        self._try_btn.setFixedHeight(self._wait_spin.sizeHint().height())
+        self._try_btn.setMinimumWidth(110)
+        self._try_tip = TooltipButton(tr("Try It"), try_help(), self)
+        grid.addWidget(self._try_title, 3, 0)
+        grid.addWidget(self._try_btn, 3, 1, Qt.AlignmentFlag.AlignLeft)
+        grid.addWidget(self._try_tip, 3, 2)
         grid.setColumnStretch(3, 1)
         v.addLayout(grid)
 
@@ -237,16 +253,6 @@ class ButtonShortcutsSection(QGroupBox):
         tl = QVBoxLayout(self._try_box)
         tl.setContentsMargins(28, 4, 0, 0)
         tl.setSpacing(6)
-        trow = QHBoxLayout()
-        trow.setContentsMargins(0, 0, 0, 0)
-        self._try_title = QLabel("<b>" + tr("Try it") + "</b>", self._try_box)
-        trow.addWidget(self._try_title)
-        self._try_btn = QPushButton(tr("Start"), self._try_box)
-        self._try_btn.clicked.connect(self._on_try_clicked)
-        trow.addWidget(self._try_btn)
-        trow.addStretch()
-        trow.addWidget(TooltipButton(tr("Try It"), try_help(), self._try_box))
-        tl.addLayout(trow)
         self._try_intro = QLabel(tr(
             "Connect your instrument, click Start and press its button once, "
             "twice or three times. Each group of presses is listed here. "
@@ -259,8 +265,8 @@ class ButtonShortcutsSection(QGroupBox):
         tl.addWidget(self._try_status)
         self._try_list = QListWidget(self._try_box)
         self._try_list.setObjectName("buttonTryList")
-        self._try_list.setMinimumHeight(110)
-        self._try_list.setMaximumHeight(150)
+        self._try_list.setMinimumHeight(80)
+        self._try_list.setMaximumHeight(110)
         self._try_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         tl.addWidget(self._try_list)
         v.addWidget(self._try_box)
@@ -311,7 +317,7 @@ class ButtonShortcutsSection(QGroupBox):
         self._enable_cb.setEnabled(self._supported)
         for w in (self._double_lbl, self._double_combo, self._triple_lbl,
                   self._triple_combo, self._wait_lbl, self._wait_spin,
-                  self._try_box):
+                  self._try_title, self._try_btn, self._try_box):
             w.setEnabled(on)
         if not on and self._proc is not None:
             self.stop_try()
@@ -448,8 +454,15 @@ class ButtonShortcutsSection(QGroupBox):
         if kind == "instrument":
             self._model = str(ev.get("model") or "")
             if ev.get("button"):
-                self._say(tr("Ready. Press the button on your {model}.").format(
-                    model=self._model))
+                text = tr("Ready. Press the button on your {model}.").format(
+                    model=self._model)
+                if "colormunki" in self._model.lower():
+                    # The driver reads the button apart from the dial
+                    # (munki_imp.c: switch presses and dial changes are
+                    # separate events), so the dial need not be moved.
+                    text += " " + tr("The dial can stay in any position: "
+                                     "only the button is used here.")
+                self._say(text)
             else:
                 self._say(tr(
                     "Your {model} does not tell the computer when its button "

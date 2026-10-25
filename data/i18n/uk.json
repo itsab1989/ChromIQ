@@ -8437,5 +8437,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: уперед до смуги {label}, наступної ще не зчитаної",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: пауза на патчі {label}. Поки ChromIQ чекає, нічого не зчитується. Щоб продовжити, натисніть кнопку приладу один раз або натисніть Enter.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: пауза на смузі {label}. Поки ChromIQ чекає, нічого не зчитується. Щоб продовжити, натисніть кнопку приладу один раз або натисніть Enter.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: під час паузи ця швидка команда нічого не робить. Щоб продовжити, натисніть кнопку один раз або натисніть «Продовжити»."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: під час паузи ця швидка команда нічого не робить. Щоб продовжити, натисніть кнопку один раз або натисніть «Продовжити».",
+ "The dial can stay in any position: only the button is used here.": "Диск може залишатися в будь-якому положенні: тут використовується лише кнопка."
 }

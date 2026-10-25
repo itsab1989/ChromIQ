@@ -7415,5 +7415,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: vidare till remsa {label}, nästa som inte är läst ännu",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: paus vid fält {label}. Ingenting läses medan ChromIQ väntar. För att fortsätta trycker du en gång på knappen på instrumentet, eller trycker på Retur.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: paus vid remsa {label}. Ingenting läses medan ChromIQ väntar. För att fortsätta trycker du en gång på knappen på instrumentet, eller trycker på Retur.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: den här genvägen gör ingenting under en paus. Tryck en gång på knappen, eller klicka på ”Fortsätt”, för att fortsätta."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: den här genvägen gör ingenting under en paus. Tryck en gång på knappen, eller klicka på ”Fortsätt”, för att fortsätta.",
+ "The dial can stay in any position: only the button is used here.": "Ratten kan stå i vilket läge som helst: här används bara knappen."
 }

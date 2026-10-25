@@ -7415,5 +7415,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}：前进到色条 {label}，即下一条尚未读取的色条",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}：已在色块 {label} 处暂停。ChromIQ 等待期间不会读取任何内容。要继续，请按一次仪器上的按钮，或按回车键。",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}：已在色条 {label} 处暂停。ChromIQ 等待期间不会读取任何内容。要继续，请按一次仪器上的按钮，或按回车键。",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}：暂停期间，这个快捷操作不起作用。要继续，请按一次按钮，或点击「继续」。"
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}：暂停期间，这个快捷操作不起作用。要继续，请按一次按钮，或点击「继续」。",
+ "The dial can stay in any position: only the button is used here.": "转盘可以保持在任何位置：这里只用到按钮。"
 }

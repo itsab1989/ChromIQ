@@ -7415,5 +7415,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press} : vers la bande {label}, la suivante pas encore lue",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press} : pause sur la plage {label}. Rien n'est lu pendant que ChromIQ attend. Pour reprendre, appuie une fois sur le bouton de ton instrument ou appuie sur Entrée.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press} : pause sur la bande {label}. Rien n'est lu pendant que ChromIQ attend. Pour reprendre, appuie une fois sur le bouton de ton instrument ou appuie sur Entrée.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press} : ce raccourci ne fait rien pendant une pause. Appuie une fois sur le bouton, ou clique sur « Continuer », pour reprendre."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press} : ce raccourci ne fait rien pendant une pause. Appuie une fois sur le bouton, ou clique sur « Continuer », pour reprendre.",
+ "The dial can stay in any position: only the button is used here.": "La molette peut rester dans n'importe quelle position : ici, seul le bouton est utilisé."
 }

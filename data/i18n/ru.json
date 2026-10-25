@@ -8401,5 +8401,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: вперёд к полосе {label}, следующей ещё не прочитанной",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: пауза на патче {label}. Пока ChromIQ ждёт, ничего не читается. Чтобы продолжить, нажмите кнопку прибора один раз или нажмите Enter.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: пауза на полосе {label}. Пока ChromIQ ждёт, ничего не читается. Чтобы продолжить, нажмите кнопку прибора один раз или нажмите Enter.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: во время паузы эта быстрая команда ничего не делает. Чтобы продолжить, нажмите кнопку один раз или нажмите «Продолжить»."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: во время паузы эта быстрая команда ничего не делает. Чтобы продолжить, нажмите кнопку один раз или нажмите «Продолжить».",
+ "The dial can stay in any position: only the button is used here.": "Диск может оставаться в любом положении: здесь используется только кнопка."
 }

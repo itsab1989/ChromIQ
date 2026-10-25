@@ -8407,5 +8407,6 @@
  "{press}: on to strip {label}, the next one not yet read": "{press}: dalej do paska {label}, następnego jeszcze nieodczytanego",
  "{press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: pauza na polu {label}. Nic nie jest odczytywane, gdy ChromIQ czeka. Aby kontynuować, naciśnij raz przycisk przyrządu albo naciśnij Enter.",
  "{press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.": "{press}: pauza na pasku {label}. Nic nie jest odczytywane, gdy ChromIQ czeka. Aby kontynuować, naciśnij raz przycisk przyrządu albo naciśnij Enter.",
- "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: ten skrót nie działa w czasie pauzy. Naciśnij przycisk raz albo kliknij „Kontynuuj”, aby kontynuować."
+ "{press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.": "{press}: ten skrót nie działa w czasie pauzy. Naciśnij przycisk raz albo kliknij „Kontynuuj”, aby kontynuować.",
+ "The dial can stay in any position: only the button is used here.": "Pokrętło może zostać w dowolnym położeniu: tutaj używany jest tylko przycisk."
 }
