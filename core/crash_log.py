@@ -23,6 +23,15 @@ jctay's Windows log, forum post 149800):
   pauses ``faulthandler`` for the length of such a dialog, and only there,
   and only on Windows, and puts back exactly what was armed, also when the
   dialog raises. Everything outside that one call keeps its crash coverage.
+* **IT DOES NOT GROW FOR EVER.** The file was opened for appending and never
+  trimmed, so every start of ChromIQ added to it for as long as ChromIQ was
+  installed: jctay's held 3,700 lines going back to July (forum post 149834,
+  2026-10-25), most of them start-up lines and the print-dialog dumps above.
+  `arm` now starts a fresh file once the old one passes `MAX_BYTES`, and keeps
+  the previous one beside it as ``chromiq-crash.log.1`` (one copy, replaced
+  the next time), the way ``chromiq.log`` rotates. A crash is never lost to
+  this: the file is only ever moved aside at start-up, before anything is
+  written, and the copy it replaces is the one before that.
 """
 from __future__ import annotations
 
@@ -44,6 +53,27 @@ _depth = 0
 _paused = False
 
 FILE_NAME = "chromiq-crash.log"
+#: Past this size the file is moved aside to ``chromiq-crash.log.1`` at the
+#: next start-up. A session without a crash adds two short lines (about 120
+#: bytes), so this is a couple of thousand sessions; one crash dump of every
+#: thread is a few kilobytes.
+MAX_BYTES = 256 * 1024
+#: The one older copy that is kept.
+OLD_SUFFIX = ".1"
+
+
+def rotate_if_large(path: Path, max_bytes: int = MAX_BYTES) -> bool:
+    """Move *path* aside to ``<name>.1`` (replacing an older ``.1``) when it
+    is larger than *max_bytes*. True when it was moved. Never raises: a log
+    that cannot be rotated is simply appended to, as before."""
+    try:
+        if path.stat().st_size <= max_bytes:
+            return False
+        import os
+        os.replace(path, path.with_name(path.name + OLD_SUFFIX))
+        return True
+    except OSError:
+        return False
 
 
 def armed_line(version: str, when: "datetime | None" = None) -> str:
@@ -66,6 +96,7 @@ def arm(directory: Path, version: str) -> "IO[str]":
     global _file, _all_threads
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    rotate_if_large(directory / FILE_NAME)
     f = open(directory / FILE_NAME, "a", encoding="utf-8")
     f.write(armed_line(version))
     f.flush()
