@@ -171,22 +171,46 @@ def test_switching_the_clip_band_off_takes_two_switches(tmp_path):
     band off with `clip_border=False` alone and then recorded the band it had
     failed to switch off as "the ColorMunki's own claim" -- the false sentence
     the help text then repeated to the user (B8-346 F8).
+
+    **TWO PINS FOR THE SPECTROSCAN, ONE PER CLIP-BORDER RULE** (4.3.14 final
+    review). A recipe made from 4.3.14 on (`clip_border_free_space=True`, what
+    `LayoutRecipe()` gives) lets the row labels use the free part of the band
+    (§R1.3a of row_label_geometry.md, confirmed by Basti): the SpectroScan's
+    labels move into the band and its patches start at 27.35 instead of
+    30.48, the same 120 patches. A recipe saved before 4.3.14 keeps 4.3.13's
+    rule and its 30.48. Either way `clip_border=False` alone leaves the band
+    exactly as if it were on (measured: 27.35 on and off with the new rule,
+    30.40 on and off with the old), which is what this test is here for, and
+    the help text's "at least the band's own width" holds for both. The
+    i1Pro and the ColorMunki print no row labels against the band here, so
+    the rule changes nothing for them.
     """
-    for inst, only_border, only_content in (("i1", 5.0, 25.99),
-                                            ("CM", 25.99, 5.0),
-                                            ("SS", 30.48, 8.47)):
-        a = _sheet(tmp_path, f"ob-{inst}", instrument=inst, paper="A4",
-                   margin_left=5.0, margin_right=5.0, margin_top=5.0,
-                   margin_bottom=5.0, clip_border=False)
-        b = _sheet(tmp_path, f"oc-{inst}", instrument=inst, paper="A4",
-                   margin_left=5.0, margin_right=5.0, margin_top=5.0,
-                   margin_bottom=5.0, clip_content_mode="off")
-        assert abs(a["left"] - only_border) < 0.5, (
-            f"{inst}: clip_border=False alone gives {a['left']:.2f}, "
-            f"measured {only_border}")
-        assert abs(b["left"] - only_content) < 0.5, (
-            f"{inst}: clip_content_mode='off' alone gives {b['left']:.2f}, "
-            f"measured {only_content}")
+    for free, ss_border in ((True, 27.35), (False, 30.48)):
+        for inst, only_border, only_content in (("i1", 5.0, 25.99),
+                                                ("CM", 25.99, 5.0),
+                                                ("SS", ss_border, 8.47)):
+            a = _sheet(tmp_path, f"ob-{inst}-{free}", instrument=inst,
+                       paper="A4", margin_left=5.0, margin_right=5.0,
+                       margin_top=5.0, margin_bottom=5.0, clip_border=False,
+                       clip_border_free_space=free)
+            b = _sheet(tmp_path, f"oc-{inst}-{free}", instrument=inst,
+                       paper="A4", margin_left=5.0, margin_right=5.0,
+                       margin_top=5.0, margin_bottom=5.0,
+                       clip_content_mode="off", clip_border_free_space=free)
+            on = _sheet(tmp_path, f"on-{inst}-{free}", instrument=inst,
+                        paper="A4", margin_left=5.0, margin_right=5.0,
+                        margin_top=5.0, margin_bottom=5.0,
+                        clip_border_free_space=free)
+            rule = "4.3.14 rule" if free else "pre-4.3.14 rule"
+            assert abs(a["left"] - only_border) < 0.5, (
+                f"{inst} ({rule}): clip_border=False alone gives "
+                f"{a['left']:.2f}, measured {only_border}")
+            assert abs(b["left"] - only_content) < 0.5, (
+                f"{inst} ({rule}): clip_content_mode='off' alone gives "
+                f"{b['left']:.2f}, measured {only_content}")
+            if inst != "i1":
+                # the claim itself: one switch alone changes nothing
+                assert abs(a["left"] - on["left"]) < 0.01, (inst, rule, a, on)
 
 
 def _band_off(tmp_path, tag, **kw):
