@@ -164,8 +164,8 @@ def speed_help() -> str:
         "0.30 s apart, that is 0.50 s.\n\n"
         "NOTHING CHANGES UNTIL YOU SAY SO\n"
         "Click “Use this value” to take the suggestion, or “Keep my old "
-        "value”. Cancel, or closing Preferences, stops at once and keeps "
-        "your old value. You can always change the wait by hand afterwards. "
+        "value”. Clicking “Cancel”, or closing Preferences, stops at once "
+        "and keeps your old value. You can always change the wait by hand afterwards. "
         "The instrument is used just as for “Try it”: nothing is measured or "
         "saved, and it is let go as soon as you finish.")
 
