@@ -16,6 +16,12 @@
  * {"cmd":"switch"} presses the instrument's button (B1): a trigger while a
  * strip waits for one, otherwise an inst_event_switch, as the i1Pro's switch
  * thread reports it.
+ * {"cmd":"presses","at_ms":"0,300,650"} is a person pressing it at those
+ * times (button gestures, 2026-10-25): each press is a {"cmd":"switch"},
+ * and a press that triggers a waiting STRIP is a quick tap, whose scan ends
+ * "Reading is too short" 220 ms later (Basti's ColorMunki: 0.19-0.27 s).
+ * CHROMIQ_REPLAY_INSTRUMENT=colormunki|dtp20 makes the fake instrument report
+ * that model instead of an i1Pro (for the instrument gating tests).
  *
  * AGPL-3.0 — see ../instlib/License.txt. Part of ChromIQ issue #126. */
 
@@ -36,6 +42,12 @@
 #include "inst.h"
 
 #include "chromiq_ext.h"
+#ifdef NT
+# include <windows.h>
+# include <process.h>
+#else
+# include <pthread.h>
+#endif
 
 const char *cq_replay_path = NULL;
 
@@ -139,8 +151,9 @@ static inst_code cq_init_inst(inst *p) {
 }
 
 static instType cq_get_itype(inst *p) {
-	(void)p;
-	return instI1Pro;		/* reads like an i1Pro strip reader */
+	/* reads like an i1Pro strip reader, unless a test asked for another
+	 * model (CHROMIQ_REPLAY_INSTRUMENT, see cq_new_replay_inst) */
+	return p->dtype != instUnknown ? p->dtype : instI1Pro;
 }
 
 static char *cq_get_serial_no(inst *p) {
@@ -378,6 +391,71 @@ void cq_replay_switch_press(void) {
 		p->eventcallback(p->event_cntx, inst_event_switch);
 }
 
+/* Button gestures: the trigger now pending is a quick tap (a press from
+ * {"cmd":"presses"}), so the scan it starts ends too short. */
+static volatile int cq_replay_tap = 0;
+#define CQ_TAP_MS 220
+
+static void cq_replay_press_one(void) {
+	if (cq_replay_waiting)
+		cq_replay_tap = 1;
+	cq_replay_switch_press();
+}
+
+typedef struct { int n; int at[16]; } cq_press_plan;
+
+static void cq_press_plan_run(cq_press_plan *pl) {
+	double t0 = cq_now_ms();
+	int i;
+	for (i = 0; i < pl->n; i++) {
+		double due = t0 + pl->at[i];
+		while (cq_now_ms() < due)
+			msec_sleep(2);
+		cq_replay_press_one();
+	}
+	free(pl);
+}
+
+#ifdef NT
+static unsigned __stdcall cq_press_thread(void *a) {
+	cq_press_plan_run((cq_press_plan *)a);
+	return 0;
+}
+#else
+static void *cq_press_thread(void *a) {
+	cq_press_plan_run((cq_press_plan *)a);
+	return NULL;
+}
+#endif
+
+void cq_replay_presses(const char *at_ms) {
+	cq_press_plan *pl;
+	const char *q = at_ms;
+	if (!cq_replay_active() || at_ms == NULL)
+		return;
+	if ((pl = (cq_press_plan *)calloc(1, sizeof(*pl))) == NULL)
+		return;
+	while (*q != '\0' && pl->n < 16) {
+		char *e;
+		long v = strtol(q, &e, 10);
+		if (e == q)
+			break;
+		pl->at[pl->n++] = v < 0 ? 0 : (int)v;
+		q = (*e == ',') ? e + 1 : e;
+	}
+#ifdef NT
+	_beginthreadex(NULL, 0, cq_press_thread, pl, 0, NULL);
+#else
+	{
+		pthread_t t;
+		if (pthread_create(&t, NULL, cq_press_thread, pl) == 0)
+			pthread_detach(t);
+		else
+			free(pl);
+	}
+#endif
+}
+
 static int cq_last_scomerr(inst *p) {
 	(void)p;
 	return 0;
@@ -439,7 +517,9 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 		 * strip is then read by the next {"cmd":"swipe"}, as before. */
 		if (cq_trigger_pending) {
 			int delay = cq_trigger_ready_ms;
+			int tap = cq_replay_tap;
 			cq_trigger_pending = 0;
+			cq_replay_tap = 0;
 			cq_replay_waiting = 0;	/* B1: from here a press is an event */
 			if (cq->uicallback != NULL)
 				cq->uicallback(cq->uic_cntx, inst_triggered);
@@ -447,6 +527,14 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 				issue_scan_ready(p, delay);
 			else
 				msec_beep(delay, 1000, 200);
+			if (tap) {
+				/* A quick tap: the button is let go before the
+				 * instrument has gathered its first readings. */
+				msec_sleep(CQ_TAP_MS);
+				strncpy(cq_last_reason, "Reading is too short",
+				        sizeof(cq_last_reason) - 1);
+				return inst_misread;
+			}
 		}
 
 		if (cq_swipe_pending) {
@@ -521,6 +609,7 @@ static inst_code cq_read_sample(inst *p, char *name, ipatch *val,
 		int pressed = 0;
 		if (cq_trigger_pending) {
 			cq_trigger_pending = 0;
+			cq_replay_tap = 0;	/* a spot reading takes no slide */
 			pressed = 1;
 		}
 		/* Same poll as cq_read_strip: nav/goto commands surface as
@@ -642,6 +731,15 @@ inst *cq_new_replay_inst(a1log *log,
 	p->last_scomerr       = cq_last_scomerr;
 	p->del                = cq_del;
 	p->dtype              = instI1Pro;
+	{
+		/* Button gestures: which model the fake instrument is (tests only).
+		 * The gate (cq_button_retry_ok) asks the model, as with real ones. */
+		const char *ri = getenv("CHROMIQ_REPLAY_INSTRUMENT");
+		if (ri != NULL && strcmp(ri, "colormunki") == 0)
+			p->dtype = instColorMunki;
+		else if (ri != NULL && strcmp(ri, "dtp20") == 0)
+			p->dtype = instDTP20;
+	}
 	cq_fake_icom.port_type = cq_icom_port_type;
 	cq_fake_icom.port_attr = cq_icom_port_attr;
 	p->icom               = &cq_fake_icom;

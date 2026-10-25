@@ -237,6 +237,15 @@ static void cq_handle_line(const char *line) {
 		return;
 	}
 
+	if (strcmp(cmd, "presses") == 0) {
+		/* Replay only: a group of presses at the given times (ms after
+		 * now). Ignored with a real instrument (cq_replay_presses checks). */
+		char at[96] = "";
+		if (cq_json_get(line, "at_ms", at, sizeof(at)))
+			cq_replay_presses(at);
+		return;
+	}
+
 	if (strcmp(cmd, "hold_after") == 0) {
 		/* The pause between pages: hold after this strip is accepted.
 		 * Not a key, so no prompt can ever read it as an answer. */
@@ -429,6 +438,7 @@ static void *cq_reader(void *arg) {
 		line[n] = '\0';
 		cq_handle_line(line);
 	}
+	cq_stdin_eof = 1;
 	return NULL;
 }
 #else
@@ -441,6 +451,7 @@ static void *cq_reader(void *arg) {
 	(void)arg;
 	while (fgets(line, sizeof(line), stdin) != NULL)
 		cq_handle_line(line);
+	cq_stdin_eof = 1;
 #ifdef NT
 	return 0;
 #else
@@ -502,6 +513,7 @@ int cq_wait_char(void) {
 		if (k != CQ_KEY_NONE && k != CQ_KEY_GOTO && k != CQ_KEY_FILE_AS
 		 && k != CQ_KEY_RESUME && k != CQ_KEY_HOLD)
 			return k;
+		cq_press_group_poll("prompt");	/* inert unless gestures + gate */
 		cq_sleep_ms(20);
 	}
 }
@@ -562,6 +574,9 @@ void cq_cal_gate_set(int on) {
 
 /* B1: the misread prompt's gate for the instrument's button. */
 void cq_switch_gate_set(int on) {
+	/* Gestures: a group never runs across a gate opening or closing, so
+	 * presses from before the wait can never join a group made in it. */
+	cq_press_reset();
 	cq_lock_take();
 	cq_switch_gate = on ? 1 : 0;
 	cq_lock_give();
@@ -679,6 +694,184 @@ int cq_hold_wait(char *label, size_t labellen) {
 		cq_lock_give();
 		if (r != CQ_KEY_NONE)
 			return r;
+		cq_press_group_poll("held");	/* inert unless gestures + gate */
 		cq_sleep_ms(20);
 	}
+}
+
+/* ------------------------------------------------------------------ */
+/* CHROMIQ_EXT: groups of presses of the instrument's button (Basti,   */
+/* 2026-10-25; jctay, forum 149841). See chromiq_ext.h. Everything     */
+/* here is inert unless --gestures was given AND the strip or patch    */
+/* loop found an instrument that reports presses (cq_gesture_activate) */
+
+int cq_gesture_ms = 0;
+int cq_gesture_counts = 0;
+int cq_button_test = 0;
+volatile int cq_stdin_eof = 0;
+
+static volatile int cq_gest_on = 0;       /* activated for this session */
+static volatile int cq_press_listening = 0;
+#define CQ_PRESS_MAX 16
+static double cq_press_t[CQ_PRESS_MAX];
+static int    cq_press_n = 0;
+
+/* A press group is never longer than this from its first press, however
+ * fast someone keeps pressing: the reader must not wait for ever. */
+#define CQ_GROUP_MAX_MS 6000.0
+
+double cq_now_ms(void) {
+#ifdef NT
+	return (double)GetTickCount64();
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1.0e6;
+#endif
+}
+
+void cq_gesture_activate(int on) {
+	cq_lock_take();
+	cq_gest_on = (on && cq_gesture_ms > 0) ? 1 : 0;
+	cq_press_n = 0;
+	cq_press_listening = 0;
+	cq_lock_give();
+}
+
+int cq_gesture_active(void) {
+	return cq_gest_on;
+}
+
+void cq_press_reset(void) {
+	cq_lock_take();
+	cq_press_n = 0;
+	cq_lock_give();
+}
+
+void cq_press_listen(int on) {
+	cq_lock_take();
+	cq_press_listening = on ? 1 : 0;
+	if (!on)
+		cq_press_n = 0;
+	cq_lock_give();
+}
+
+/* The press that triggered a waiting strip or patch. The driver counts it as
+ * the trigger and never reports it (hide_switch, munki_imp.c:2073,
+ * i1pro_imp.c:2990), so its time is the moment the reader learns of it. */
+void cq_press_note_trigger(void) {
+	if (!cq_gest_on)
+		return;
+	cq_lock_take();
+	cq_press_t[0] = cq_now_ms();
+	cq_press_n = 1;
+	cq_press_listening = 1;
+	cq_lock_give();
+}
+
+int cq_press_from_driver(void) {
+	int taken = 0;
+	if (!cq_gest_on)
+		return 0;
+	cq_lock_take();
+	if (cq_press_listening || cq_switch_gate) {
+		if (cq_press_n < CQ_PRESS_MAX)
+			cq_press_t[cq_press_n++] = cq_now_ms();
+	}
+	taken = 1;	/* with gestures on, the gate's own reporting is ours */
+	cq_lock_give();
+	return taken;
+}
+
+/* The chain that starts at the first press noted: its size, its gaps, and
+ * whether it is complete (quiet for longer than the wait, or too long). */
+static int cq_press_chain_locked(int *gaps_ms, int maxgaps, int *complete) {
+	int k, i;
+	double now = cq_now_ms();
+	if (cq_press_n == 0) {
+		*complete = 0;
+		return 0;
+	}
+	for (k = 1; k < cq_press_n; k++) {
+		double g = cq_press_t[k] - cq_press_t[k - 1];
+		if (g > (double)cq_gesture_ms)
+			break;
+	}
+	for (i = 1; i < k && i - 1 < maxgaps; i++)
+		gaps_ms[i - 1] = (int)(cq_press_t[i] - cq_press_t[i - 1] + 0.5);
+	*complete = (now - cq_press_t[k - 1] > (double)cq_gesture_ms)
+	         || (now - cq_press_t[0] > CQ_GROUP_MAX_MS)
+	         || (k >= CQ_PRESS_MAX);
+	return k;
+}
+
+int cq_press_wait_group(int *gaps_ms, int maxgaps) {
+	for (;;) {
+		int k, done;
+		cq_lock_take();
+		k = cq_press_chain_locked(gaps_ms, maxgaps, &done);
+		if (k == 0 || done) {
+			cq_press_n = 0;
+			cq_press_listening = 0;
+			cq_lock_give();
+			return k;
+		}
+		cq_lock_give();
+		cq_sleep_ms(20);
+	}
+}
+
+int cq_gesture_counts_for(int n) {
+	return (n == 2 || n == 3) && (cq_gesture_counts & (1 << n)) != 0;
+}
+
+void cq_press_group_json(char *buf, size_t len, int n, const int *gaps_ms) {
+	size_t o;
+	int i;
+	o = (size_t)snprintf(buf, len, ",\"presses\":%d,\"gaps_ms\":[", n);
+	for (i = 0; i + 1 < n && o + 16 < len; i++)
+		o += (size_t)snprintf(buf + o, len - o, "%s%d", i ? "," : "",
+		                      gaps_ms[i]);
+	if (o + 2 < len)
+		snprintf(buf + o, len - o, "]");
+}
+
+void cq_press_group_poll(const char *where) {
+	int gaps[CQ_PRESS_MAX], k = 0, done = 0;
+	char js[160];
+	if (!cq_gest_on)
+		return;
+	cq_lock_take();
+	if (cq_switch_gate) {
+		k = cq_press_chain_locked(gaps, CQ_PRESS_MAX, &done);
+		if (k > 0 && done)
+			cq_press_n = 0;
+	}
+	cq_lock_give();
+	if (k == 0 || !done)
+		return;
+	if (cq_button_test) {
+		/* Preferences' "Try it": every group, as it was recognised. */
+		cq_press_group_json(js, sizeof(js), k, gaps);
+		cq_emit_raw("{\"event\":\"press_group\"%s}", js);
+	} else if (cq_gesture_counts_for(k)) {
+		cq_press_group_json(js, sizeof(js), k, gaps);
+		cq_emit_raw("{\"event\":\"gesture\"%s,\"where\":\"%s\"}", js, where);
+	} else {
+		/* One press, or a group with no action: what one press is today. */
+		cq_emit_simple("switch");
+	}
+}
+
+/* How long ago the trigger of the reading now being decided was noted, in
+ * ms, or -1 when none was (a command, a key, or gestures off). */
+double cq_press_trigger_age_ms(void) {
+	double r = -1.0;
+	if (!cq_gest_on)
+		return -1.0;
+	cq_lock_take();
+	if (cq_press_listening && cq_press_n > 0)
+		r = cq_now_ms() - cq_press_t[0];
+	cq_lock_give();
+	return r;
 }

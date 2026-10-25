@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-23 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-25 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures"
 const char *cq_helper_build_string(void);
 
 
@@ -116,6 +116,52 @@ void cq_switch_gate_set(int on);
 int  cq_switch_gate_open(void);
 /* Replay only: {"cmd":"switch"} -- a press of the fake instrument's button. */
 void cq_replay_switch_press(void);
+
+/* ---- groups of presses of the instrument's button ----------------------
+ * (Basti 2026-10-25, after jctay's forum post 149841.) OFF unless the GUI
+ * starts the engine with --gestures <ms>:<counts>; without it every line in
+ * this block is inert and the engine behaves byte for byte as before.
+ *
+ * With it, and only for an instrument whose driver reports presses outside a
+ * scan (cq_button_retry_ok: the i1Pro line and the ColorMunki), every press
+ * the driver reports while the engine LISTENS is timed: from the moment a
+ * waiting strip or patch is triggered until its reading is decided, and while
+ * the switch gate is open (the misread prompt and the holds). Presses whose
+ * gaps are each at most <ms> form one group. A group of 2 or 3 presses whose
+ * count is in <counts> ("23" = both) is a gesture; anything else counts as a
+ * single press, i.e. exactly what one press does today, only after <ms> of
+ * quiet. See the strip and patch loops for where a gesture can be made and
+ * why a reading can never become one. */
+extern int cq_gesture_ms;       /* 0 = off: the wait for a further press */
+extern int cq_gesture_counts;   /* bit n set: an n-press group has an action */
+extern int cq_button_test;      /* --button-test: Preferences' "Try it" */
+void   cq_gesture_activate(int on);  /* this session's instrument can do it */
+int    cq_gesture_active(void);
+double cq_now_ms(void);              /* a monotonic clock, in ms */
+void   cq_press_reset(void);         /* forget every press noted so far */
+void   cq_press_listen(int on);      /* note presses outside the gate too */
+void   cq_press_note_trigger(void);  /* a waiting strip or patch was triggered */
+double cq_press_trigger_age_ms(void); /* ms since that trigger, -1 if none */
+/* From the event callback: 1 when the press was taken here (gestures on). */
+int    cq_press_from_driver(void);
+/* Block until the group that began with the trigger is complete; returns its
+ * size (0: no trigger was noted) and fills gaps_ms[0..size-2]. Presses after
+ * a gap longer than the wait belong to no group and are dropped. */
+int    cq_press_wait_group(int *gaps_ms, int maxgaps);
+/* 1 when a group of *n* presses is a gesture (2 or 3, and in --gestures). */
+int    cq_gesture_counts_for(int n);
+/* Format ,"presses":n,"gaps_ms":[..] into buf (for the events). */
+void   cq_press_group_json(char *buf, size_t len, int n, const int *gaps_ms);
+/* The gate's own grouping, called from every wait that has the gate open: a
+ * complete group is reported as {"event":"switch"} (a single press, as
+ * today) or {"event":"gesture",...,"where":"<where>"}. */
+void   cq_press_group_poll(const char *where);
+/* Replay only: {"cmd":"presses","at_ms":"0,300,650"}, a person pressing the
+ * button at those times: a press at a waiting strip starts a scan that ends
+ * "Reading is too short" 220 ms later, as a quick tap does on a ColorMunki. */
+void   cq_replay_presses(const char *at_ms);
+/* stdin has closed: nothing more will ever be asked (--button-test). */
+extern volatile int cq_stdin_eof;
 
 /* ---- the pause between pages (jctay 149802, Basti 2026-10-23) ----------
  * {"cmd":"hold_after","strip":"F"}: once strip F has been read and accepted
