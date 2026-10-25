@@ -25,7 +25,7 @@ def test_the_variable_is_in_the_environment_children_inherit():
 
 def test_a_child_appsettings_opens_the_sandbox_not_the_real_store():
     out = subprocess.run([sys.executable, "-c", PROBE], capture_output=True,
-                         text=True, timeout=120,
+                         text=True, encoding="utf-8", timeout=120,
                          env=dict(os.environ, QT_QPA_PLATFORM="offscreen"))
     path = out.stdout.strip().splitlines()[-1] if out.stdout.strip() else ""
     assert path, out.stderr[-2000:]
