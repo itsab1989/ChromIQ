@@ -285,7 +285,12 @@ point 4), for every preset, old and new, built-ins included.
   markers' reserve, whichever reaches further in) and the band's inner edge.
 * The ChromIQ wordmark is centred on its ink, not on its font's em box, so
   the lines and the wordmark share one centre line. Before, the wordmark's
-  ink sat 0.2 to 0.5 mm off the band's centre.
+  ink sat 0.2 to 0.5 mm off the band's centre. The lines are centred on
+  their ink as well (review of 4.3.15, on the coordinator's request): centred
+  on their line boxes, four lines at 9 pt in a 20 mm band sat 0.3 mm off the
+  wordmark's line. The move is across the band only, inside it and inside
+  the reach the labels keep 1 mm from; all 382 built-in rows render
+  pixel-identical with it.
 * Lines too thick for the band keep the 2026-09-12 rule: the first line stays
   at "Clip" and the block runs inward, with its warning.
 * **Only the content moves.** The row labels, the strip letters, the left

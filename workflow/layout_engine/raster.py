@@ -2737,7 +2737,8 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
     # other?"*). This replaces the 2026-09-12 placement above, which hugged
     # the outer edge. A block too thick for the band keeps it: its first line
     # stays at "Clip" and the rest runs inward, as that ruling says.
-    if centre_across and valign != "top" and block_h <= width_px:
+    _centred = centre_across and valign != "top" and block_h <= width_px
+    if _centred:
         _c = (width_px - block_h) / 2.0
         start = start + _clamp_inward(_c - start, start, start + block_h,
                                       width_px, inner_limit_px, anchor_far)
@@ -2749,6 +2750,21 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
             d.text((cx, y), ln, font=f, fill=(0, 0, 0, 255), anchor=anchor)
         except Exception:  # pragma: no cover
             d.text((cx, y), ln, font=f, fill=(0, 0, 0, 255))
+    if _centred:
+        # ON THE INK, LIKE THE WORDMARK (review of 4.3.15): the line boxes
+        # carry the font's descender room, so a box-centred block sat up to
+        # 0.3 mm off the wordmark's ink-centred line at 9 pt. Moved only
+        # across the band, held inside it and inside *inner_limit_px*.
+        _bb = canvas.getbbox()
+        if _bb:
+            _dy = round(width_px / 2.0 - (_bb[1] + _bb[3]) / 2.0)
+            _dy = _clamp_inward(_dy, _bb[1], _bb[3], width_px,
+                                inner_limit_px, anchor_far)
+            _dy = max(-_bb[1], min(int(_dy), width_px - _bb[3]))
+            if _dy:
+                _moved = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+                _moved.paste(canvas, (0, _dy), canvas)
+                canvas = _moved
     return canvas.rotate(90, expand=True)
 
 

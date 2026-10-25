@@ -122,3 +122,27 @@ def test_plain_text_is_centred_too():
     strip = _strip(g, area, T2, 100.0, mode="text")
     a, b = _cols(strip)
     assert abs((a + b) / 2.0 - area[2] / 2.0) <= 0.25 * MM
+
+
+def test_large_lines_share_the_wordmarks_ink_centre_line(tmp_path):
+    # Review of 4.3.15, measured on the sheet: four lines at 9 pt in a 20 mm
+    # band were centred on their line boxes, which carry descender room, and
+    # their ink sat 0.3 mm off the wordmark's ink-centred line (11.30 mm
+    # against 10.99). Both are now centred on their ink.
+    from tests.test_row_labels_use_the_free_part_of_the_clip_border import \
+        _render
+    kw = dict(clip_border_free_space=False, clip_border_width_mm=20.0,
+              clip_text=T4, clip_image_scale=150.0, clip_image_offset_x_mm=0.0,
+              clip_image_offset_y_mm=0.0, clip_text_size_mm=9 * 25.4 / 72)
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    full = _render(tmp_path / "a", **kw)[40:1100, :round(20 * MM)].astype(int)
+    mark = _render(tmp_path / "b", **dict(kw, clip_text=""))[
+        40:1100, :round(20 * MM)].astype(int)
+    lines = (full != mark) & (full < 200)
+    wm = mark < 200
+
+    def centre(m):
+        c = np.nonzero(m.any(axis=0))[0]
+        return (c[0] + c[-1] + 1) / 2.0
+    assert abs(centre(lines) - centre(wm)) <= 1.0   # px, 0.13 mm
