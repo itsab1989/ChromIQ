@@ -382,6 +382,26 @@ def test_the_hint_comes_only_past_half_the_strip_spacing():
     assert not near(-24, 48)
     assert near(26, 48) and near(-26, 48)
     assert not near(400, 0)          # a single strip has no neighbour
+
+
+def test_a_letter_close_to_the_line_between_two_strips_gets_no_hint():
+    """Knut, forum 149832 (2026-10-25): a letter put on the border between
+    two strips should get no hint, and with 0.5 mm steps the border can hardly
+    be typed. A 7.6 mm strip (8 mm at a patch scale of 0.95) has its border at
+    3.8 mm; the 4.0 mm the help recommends drew the hint, now it does not. The
+    tolerance is the larger of 0.5 mm and a tenth of the strip spacing."""
+    mm2px = 300 / 25.4
+    pitch = round(7.6 * mm2px)
+    tol = raster._near_neighbour_tolerance_px(pitch, mm2px)
+    near = raster._nearer_the_next_strip
+    for x in (3.5, 4.0, 4.5):
+        assert not near(round(x * mm2px), pitch, tol), x
+        assert not near(round(-x * mm2px), pitch, tol), -x
+    assert near(round(5.0 * mm2px), pitch, tol)
+    assert near(round(-5.0 * mm2px), pitch, tol)
+    # never less than half a millimetre, on narrow strips too
+    small = round(3.0 * mm2px)
+    assert raster._near_neighbour_tolerance_px(small, mm2px) == round(0.5 * mm2px)
     shift, _kw = _shift(_recipe(2.0))
     assert shift is not None and not shift.near_neighbour
     assert shift.pitch_mm > 4.0

@@ -653,14 +653,35 @@ def _clamp_shift(asked_px: int, lo: int, hi: int) -> "tuple[int, str]":
     return used, ("" if used == asked_px else "edge")
 
 
-def _nearer_the_next_strip(used_px: int, pitch_px: int) -> bool:
+#: HOW FAR PAST THE LINE BETWEEN TWO STRIPS A LETTER MAY STAND before the
+#: near-neighbour hint speaks (Knut, forum 149832, 2026-10-25): the larger of
+#: one step of the X box and a tenth of the strip-to-strip distance. The hint
+#: used to speak one pixel past the line, and the line is rarely a value the
+#: box can hold: his i1Pro card has 7.6 mm strips (8 mm at a patch scale of
+#: 0.95), so the line is at 3.8 mm, the box steps 3.5, 4.0, and the 4.0 mm
+#: the ⓘ of "Label offset" itself recommends ("X is 4 mm") drew the hint.
+#: A letter that close to the line is where it was put on purpose; a letter
+#: clearly over the next strip still gets it.
+NEAR_NEIGHBOUR_TOLERANCE_MM = 0.5
+NEAR_NEIGHBOUR_TOLERANCE_FRACTION = 0.1
+
+
+def _near_neighbour_tolerance_px(pitch_px: int, mm2px: float) -> int:
+    """The tolerance above, in whole pixels, never less than one."""
+    return max(1, round(max(NEAR_NEIGHBOUR_TOLERANCE_MM * mm2px,
+                            NEAR_NEIGHBOUR_TOLERANCE_FRACTION * pitch_px)))
+
+
+def _nearer_the_next_strip(used_px: int, pitch_px: int,
+                           tol_px: int = 1) -> bool:
     """True when a letter moved by *used_px* stands nearer to the strip beside
-    it than to its own: past half the strip-to-strip distance. Never with a
-    single strip, which has no neighbour to be mistaken for. One pixel of
-    grace, so a letter put exactly on the line between two strips (the place
-    the instrument's path leaves free, see the comment block above) is not
-    called nearer to either."""
-    return pitch_px > 0 and 2 * abs(int(used_px)) > int(pitch_px) + 1
+    it than to its own: more than *tol_px* past half the strip-to-strip
+    distance. Never with a single strip, which has no neighbour to be
+    mistaken for. A letter put on the line between two strips (the place the
+    instrument's path leaves free, see the comment block above), or within
+    the tolerance of it, is not called nearer to either; the chart's own
+    caller passes `_near_neighbour_tolerance_px`."""
+    return pitch_px > 0 and 2 * abs(int(used_px)) > int(pitch_px) + 2 * int(tol_px)
 
 
 def _path_clearance(dx: int, centres_px, pages, reach, labels,
@@ -760,7 +781,9 @@ def strip_label_x_plan(*, geom, place, page_w_px: int, mm2px: float,
     return StripLabelShift(asked_mm=asked_mm, used_mm=used / mm2px,
                            left_mm=-lo / mm2px, right_mm=hi / mm2px,
                            held_by=why, pitch_mm=pitch_px / mm2px,
-                           near_neighbour=_nearer_the_next_strip(used, pitch_px),
+                           near_neighbour=_nearer_the_next_strip(
+                               used, pitch_px,
+                               _near_neighbour_tolerance_px(pitch_px, mm2px)),
                            in_path=in_path, clear_mm=clear, aperture_mm=ap_mm,
                            room_mm=room, instrument=key if ap_mm > 0 else "",
                            used_px=used)
