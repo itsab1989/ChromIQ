@@ -95,6 +95,27 @@ def test_a_letter_on_a_dash_is_on_the_markers_at_every_turn(rot):
     assert hit.overlap_mm > 2.0
 
 
+@pytest.mark.parametrize("per,x,y", [(3, -1.2, -3.0), (2, -2.5, -3.5)])
+def test_a_letter_touching_the_side_of_a_dash_is_on_the_markers(per, x, y):
+    # Review of 4.3.15, measured on the rendered pages: at 6 pt upright the
+    # "W" of the first case and the "A" of "AE".."AJ" in the second stand on
+    # a dash by a pixel or two. The tolerance was taken off both sides of a
+    # rule two pixels wide, so the panel passed them as clear.
+    g, kw, _r = _his(indicator_rotation=0, indicator_size_mm=6 * PT,
+                     helper_marker_per_patch=per, strip_label_offset_x_mm=x,
+                     strip_label_offset_mm=y)
+    tol = text_edge_fit.edge_tolerance_mm(int(kw.get("dpi") or 200))
+    assert raster.strip_letters_against_markers(g, kw, tol_mm=tol) is not None
+
+
+def test_a_letter_a_pixel_beside_a_dash_is_not_on_the_markers():
+    # the same chart at X -2.0: every letter's ink keeps clear of the dashes
+    g, kw, _r = _his(indicator_rotation=0, indicator_size_mm=6 * PT,
+                     helper_marker_per_patch=2, strip_label_offset_x_mm=-2.0,
+                     strip_label_offset_mm=-3.0)
+    assert raster.strip_letters_against_markers(g, kw, tol_mm=0.2) is None
+
+
 def test_the_clear_paper_below_a_dash_still_counts():
     # Y -1.0: the letter is below the dash itself but in its 1.0 mm
     g, kw, _r = _his(helper_marker_per_patch=3, strip_label_offset_x_mm=0.0,

@@ -865,7 +865,10 @@ def strip_letters_against_markers(geom, kw: dict, tol_mm: float = 0.0
         band_h = max((t.height for t in tiles.values()), default=0)
 
         def ink_box(text: str, cx: int):
-            """(x0, y0, x1, y1) of one label's ink, half-open, in px."""
+            """``(x0, y0, x1, y1, ink)`` of one label, half-open, in px:
+            its bounding box on the page and the ink inside it (a boolean
+            array, rows by columns), so a dash is tested against the letter's
+            pixels and not against the empty corners of its box."""
             if rot == 0:
                 pad = ind_px * 3
                 # RGBA ON CLEAR, like `_indicator_ink_px`: `_draw_indicator`
@@ -881,7 +884,8 @@ def strip_letters_against_markers(geom, kw: dict, tol_mm: float = 0.0
                 if not bb:
                     return None
                 return (cx + bb[0] - pad, top + bb[1] - pad,
-                        cx + bb[2] - pad, top + bb[3] - pad)
+                        cx + bb[2] - pad, top + bb[3] - pad,
+                        np.asarray(probe.getchannel("A").crop(bb)) > 0)
             tile = tiles[text]
             extra = max(0, band_h - tile.height)
             if not side:
@@ -896,7 +900,8 @@ def strip_letters_against_markers(geom, kw: dict, tol_mm: float = 0.0
             if not bb:
                 return None
             bx, by = cx - tile.width // 2, top + off
-            return (bx + bb[0], by + bb[1], bx + bb[2], by + bb[3])
+            return (bx + bb[0], by + bb[1], bx + bb[2], by + bb[3],
+                    np.asarray(tile.getchannel("A").crop(bb)) > 0)
 
         boxes = []
         for first, last in _strip_label_pages(n_total, n_first):
@@ -923,11 +928,24 @@ def strip_letters_against_markers(geom, kw: dict, tol_mm: float = 0.0
             zx0, zx1 = px(min(mx0, mx1)) - lo, px(max(mx0, mx1)) + hi
             zy0 = px(min(my0, my1)) - lo
             zy1 = px(max(my0, my1)) + hi + clear
-            for (bx0, by0, bx1, by1) in boxes:
-                if (bx0 < zx1 - tol and bx1 > zx0 + tol
-                        and by0 < zy1 - tol and by1 > zy0 + tol):
-                    if hit is None or by0 < hit[1]:
-                        hit = (zy1, by0)
+            # THE TOLERANCE IS VERTICAL ONLY (review of 4.3.15). A dash is
+            # two or three pixels wide, so taking *tol* off both of its sides
+            # left nothing to touch: a "W" whose ink stood on a dash was
+            # passed as clear unless the letter straddled the whole rule. The
+            # forgiveness belongs at the bottom of the 1.0 mm of clear paper,
+            # where a rounded pixel decides; across the dash a touch is one.
+            zy1t = zy1 - tol
+            for (bx0, by0, bx1, by1, ink) in boxes:
+                ix0, ix1 = max(bx0, zx0), min(bx1, zx1)
+                iy0, iy1 = max(by0, zy0), min(by1, zy1t)
+                if ix0 >= ix1 or iy0 >= iy1:
+                    continue
+                part = ink[iy0 - by0:iy1 - by0, ix0 - bx0:ix1 - bx0]
+                if not part.any():
+                    continue
+                ink_top = by0 + int(np.nonzero(ink.any(axis=1))[0][0])
+                if hit is None or ink_top < hit[1]:
+                    hit = (zy1, ink_top)
         if hit is None:
             return None
         return StripLetterMarkerClash(hit[0] / mm2px, hit[1] / mm2px)
