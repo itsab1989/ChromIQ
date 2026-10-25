@@ -26527,6 +26527,46 @@ class TabChart(QWidget):
                       exc_info=True)
             return live
 
+    def _printer_edge_notice(self) -> "str | None":
+        """M-EDGE-NOT-PRINTED for the chart in the preview on the printer the
+        Print Chart tab is on (`workflow.printer_edges`), or None."""
+        tiffs = list(getattr(self, "_margin_tiffs", None) or [])
+        if not tiffs:
+            return None
+        try:
+            printer = ""
+            win = self.window()
+            tp = getattr(win, "_tab_print", None)
+            combo = getattr(tp, "_printer_combo", None)
+            if combo is not None:
+                printer = str(combo.currentData() or "")
+            if not printer:
+                printer = str(self._settings.get("last_printer", "") or "")
+            if not printer:
+                return None
+            from workflow import printer_edges as PE
+            from workflow import measurement_messages as _mm
+            from workflow.page_geometry import read_tiff_dimensions_points
+            w_pt, h_pt = read_tiff_dimensions_points(Path(tiffs[0]))
+            chart_mm = (w_pt * PE.MM_PER_PT, h_pt * PE.MM_PER_PT)
+            edges, paper = PE.edges_for(printer, chart_mm, self._settings)
+            if not edges.any():
+                return None
+            pages = [(Path(t), 0) for t in tiffs]
+            shift = (0.0, 0.0)
+            if chart_mm[0] > paper[0] + 0.3 or chart_mm[1] > paper[1] + 0.3:
+                from workflow import overhang as _O
+                plan = _O.plan_for_chart(pages, (w_pt, h_pt),
+                                         (paper[0] / PE.MM_PER_PT,
+                                          paper[1] / PE.MM_PER_PT))
+                if plan is not None and plan.safe:
+                    shift = plan.shift_mm
+            loss = PE.losses_for_chart(pages, edges, paper, shift)
+            return _mm.edge_note(printer, edges, loss)
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("printer edge note not worked out", exc_info=True)
+            return None
+
     def _engine_text_notes(self, report=None) -> "tuple[list[str], list[str]]":
         """``(every notice, the overlap notices)`` for the chart on screen.
 
@@ -26705,6 +26745,15 @@ class TabChart(QWidget):
             _xp_line = strip_label_x_path_notice(_xs)
             if _xp_line:
                 over.append(_xp_line)
+            # …AND WHAT FALLS WHERE THE PRINTER DOES NOT PRINT (Basti,
+            # 2026-10-25, jctay's forum post 149836): when a printer is known
+            # (the one the Print Chart tab is on), the chart in the preview is
+            # placed on that printer's paper as every print route places it,
+            # and the ruler helper markers or text inside its unprinted edge
+            # are named, with what moves them in. A note, never a block.
+            _edge_line = self._printer_edge_notice()
+            if _edge_line:
+                over.append(_edge_line)
             # ---- THE FOUR EDGES, MEASURED OFF THE SHEET IN THE PREVIEW -----
             #
             # KNUT'S RULING OF 2026-09-15 (#182, comment 5679470670) IS THAT

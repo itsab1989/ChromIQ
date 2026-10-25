@@ -6201,6 +6201,55 @@ M_PRINT_CHART_CUT_PARTS = _m(
                _CUT_OUTCOME_NOTHING, _CUT_OUTCOME_ANYWAY, _OVER_PAPER_LOG,
                _OVER_PAPER_LOG_CAPTION, _OVER_PAPER_LOG_MARKERS)),
     approved=False)
+# --- PROPOSED (4.3.14, Basti 2026-10-25, jctay's forum post 149836): the
+#: edge of the paper a printer does not print (`workflow.printer_edges`). A
+#: gentle note, never a block: under "Measured from Preview" in Create Chart
+#: when a printer is known (the Print Chart tab's), and on the Print Chart tab
+#: for the printer chosen there. {printer} is the queue's name, {edges} the
+#: edge ("3.0 mm" when it is the same all round, else per side), {source} one
+#: of the three _EDGE_SRC_ sentences, {lost} the parts joined by "; ", {fix}
+#: the _EDGE_FIX_ sentences joined by spaces.
+M_EDGE_NOT_PRINTED = _m(
+    "M-EDGE-NOT-PRINTED",
+    "Part of the chart falls where your printer does not print",
+    "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} ({source}). "
+    "On this chart, {lost} fall into that edge, so they will be missing or "
+    "cut off on paper. Nothing your instrument measures is in it, and you can "
+    "print the chart like this. To keep them on the paper: {fix} If your "
+    "printer leaves a different edge than this, set it under Preferences, "
+    "General, \u201cEdge this printer does not print\u201d.",
+    approved=False)
+_EDGE_SRC_DRIVER = "as its Windows printer driver reports it"
+_EDGE_SRC_PPD = "as the printer's description file gives it for this paper size"
+_EDGE_SRC_OVERRIDE = "as you set it in Preferences"
+_EDGE_ALL_ROUND = "{mm} mm all round"
+_EDGE_PER_SIDE = ("{left} mm on the left, {right} mm on the right, {top} mm at "
+                  "the top and {bottom} mm at the bottom")
+_EDGE_LOST_MARKERS = "{n} of the ruler helper markers {where}"
+_EDGE_LOST_CAPTION = "part of ArgyllCMS\u2019s line of small print {where}"
+_EDGE_LOST_TEXT = "up to {mm} mm of printed text {where}"
+_EDGE_AT_TOP = "at the top"
+_EDGE_AT_BOTTOM = "at the bottom"
+_EDGE_ON_LEFT = "on the left"
+_EDGE_ON_RIGHT = "on the right"
+_EDGE_FIX_MARKERS = ("Move the ruler helper markers further in by raising "
+                     "\u201cDistance from page edge (mm)\u201d under \u201cRuler "
+                     "helper markers\u201d by at least {mm} mm.")
+_EDGE_FIX_TEXT = ("Move the text further in by raising \u201cText distance from "
+                  "edge (mm)\u201d, or the margin on that side, by at least "
+                  "{mm} mm.")
+_EDGE_FIX_CAPTION = ("ArgyllCMS writes its line of small print along the edge "
+                     "itself, so it cannot be moved; it is only a record, and no "
+                     "instrument reads it.")
+M_EDGE_NOT_PRINTED_PARTS = _m(
+    "M-EDGE-NOT-PRINTED-PARTS",
+    "The edge a printer does not print: the parts of the note",
+    "\n".join((_EDGE_SRC_DRIVER, _EDGE_SRC_PPD, _EDGE_SRC_OVERRIDE,
+               _EDGE_ALL_ROUND, _EDGE_PER_SIDE, _EDGE_LOST_MARKERS,
+               _EDGE_LOST_CAPTION, _EDGE_LOST_TEXT, _EDGE_AT_TOP,
+               _EDGE_AT_BOTTOM, _EDGE_ON_LEFT, _EDGE_ON_RIGHT,
+               _EDGE_FIX_MARKERS, _EDGE_FIX_TEXT, _EDGE_FIX_CAPTION)),
+    approved=False)
 #: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
 #: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
 #: job (exit code ...)", which names a system Windows does not have.
@@ -7869,6 +7918,7 @@ CATALOGUE = {m.id: m for m in (
     M_PAGE_PAUSE_BUTTON, M_PAGE_PAUSE_FOUND, M_PAGE_PAUSE_CONTROLS,
     M_PAGE_PAUSE_HELP,
     M_PRINT_CHART_CUT, M_PRINT_CHART_CUT_PARTS,
+    M_EDGE_NOT_PRINTED, M_EDGE_NOT_PRINTED_PARTS,
     M_STRIP_PART_SLIPPED_LATE, M_STRIP_PART_SLIPPED_EARLY,
     M_STRIP_WHOLE_SLIPPED_LATE, M_STRIP_WHOLE_SLIPPED_EARLY, M_STRIP_REVERSED,
     M_STRIP_WHOLE_SLIPPED_TWO_LATE, M_STRIP_WHOLE_SLIPPED_TWO_EARLY,
@@ -8019,3 +8069,50 @@ ALL_IDS = tuple(sorted(set(CATALOGUE) | set(FRAGMENTS)))
 
 #: The IDs the reviewed model has not approved yet — listed on the issue.
 PROPOSED = tuple(sorted(m.id for m in CATALOGUE.values() if not m.approved))
+
+
+def edge_note(printer: str, edges, loss) -> "str | None":
+    """M-EDGE-NOT-PRINTED for *loss* (`workflow.printer_edges.Loss`) on
+    *printer* with *edges*, or None when nothing falls into the edge."""
+    if loss is None or not loss.any():
+        return None
+    where = {"top": tr(_EDGE_AT_TOP), "bottom": tr(_EDGE_AT_BOTTOM),
+             "left": tr(_EDGE_ON_LEFT), "right": tr(_EDGE_ON_RIGHT)}
+    order = ("top", "bottom", "left", "right")
+
+    def f(v):
+        return f"{float(v):.1f}"
+    vals = [edges.left, edges.right, edges.top, edges.bottom]
+    if max(vals) - min(vals) < 0.05:
+        edge_txt = tr(_EDGE_ALL_ROUND).format(mm=f(edges.left))
+    else:
+        edge_txt = tr(_EDGE_PER_SIDE).format(
+            left=f(edges.left), right=f(edges.right), top=f(edges.top),
+            bottom=f(edges.bottom))
+    source = tr({"driver": _EDGE_SRC_DRIVER, "ppd": _EDGE_SRC_PPD}.get(
+        edges.source, _EDGE_SRC_OVERRIDE))
+    lost: list = []
+    for side in order:
+        n = loss.markers.get(side)
+        if n:
+            lost.append(tr(_EDGE_LOST_MARKERS).format(n=n, where=where[side]))
+    for side in order:
+        if side in loss.caption:
+            lost.append(tr(_EDGE_LOST_CAPTION).format(where=where[side]))
+    for side in order:
+        v = loss.text.get(side)
+        if v:
+            lost.append(tr(_EDGE_LOST_TEXT).format(mm=f(v), where=where[side]))
+    need = max([float(v) for v in loss.needed_mm.values()] or [0.0])
+    need = max(0.5, round(need + 0.5, 0) / 1.0)
+    fixes = []
+    if loss.markers:
+        fixes.append(tr(_EDGE_FIX_MARKERS).format(mm=f(need)))
+    if loss.text:
+        fixes.append(tr(_EDGE_FIX_TEXT).format(mm=f(need)))
+    if loss.caption:
+        fixes.append(tr(_EDGE_FIX_CAPTION))
+    _t, body = M_EDGE_NOT_PRINTED.render(
+        printer=printer, edges=edge_txt, source=source, lost="; ".join(lost),
+        fix=" ".join(fixes))
+    return body

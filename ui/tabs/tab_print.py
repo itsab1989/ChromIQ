@@ -1034,6 +1034,15 @@ class TabPrint(QWidget):
         self._status_lbl.setVisible(False)
         ll.addWidget(self._status_lbl)
 
+        # THE EDGE THIS PRINTER DOES NOT PRINT (Basti, 2026-10-25, jctay's
+        # forum post 149836): a gentle note, never a block
+        # (`_update_edge_note`, `workflow.printer_edges`).
+        self._edge_note_lbl = QLabel("", left)
+        self._edge_note_lbl.setWordWrap(True)
+        self._edge_note_lbl.setObjectName("warn")
+        self._edge_note_lbl.setVisible(False)
+        ll.addWidget(self._edge_note_lbl)
+
         # Status bar (replaces main-window status bar)
         self._status_bar_lbl = QLabel("", left)
         self._status_bar_lbl.setWordWrap(True)
@@ -1116,6 +1125,7 @@ class TabPrint(QWidget):
         self._set_print_buttons_enabled(bool(paths))
         self._update_colour_row_visible()
         self._preselect_paper_for_chart()
+        self._update_edge_note()
 
     def has_pages(self) -> bool:
         """Whether this tab currently holds printable page images.
@@ -2431,9 +2441,46 @@ class TabPrint(QWidget):
         self._printer_dirty = True
         self._on_printer_changed()
 
+    def _update_edge_note(self) -> None:
+        """Say which ruler helper markers or text of the chart fall into the
+        edge the chosen printer does not print (M-EDGE-NOT-PRINTED), placed
+        as the print will place it; hidden when nothing does."""
+        lbl = getattr(self, "_edge_note_lbl", None)
+        if lbl is None:
+            return
+        note = None
+        try:
+            pages = list(getattr(self._preview, "_pages", None) or [])
+            printer = self._printer_combo.currentData() or ""
+            if pages and printer:
+                from workflow import measurement_messages as MM
+                from workflow import overhang as O
+                from workflow import printer_edges as PE
+                chart_pt = read_tiff_dimensions_points(pages[0][0])
+                chart_mm = (chart_pt[0] * PE.MM_PER_PT,
+                            chart_pt[1] * PE.MM_PER_PT)
+                edges, paper = PE.edges_for(printer, chart_mm, self._settings)
+                if edges.any():
+                    shift = (0.0, 0.0)
+                    paper_pt = (paper[0] / PE.MM_PER_PT, paper[1] / PE.MM_PER_PT)
+                    plan = self._overhang_plan(pages, paper_pt)
+                    if plan is not None and plan.safe:
+                        shift = plan.shift_mm
+                    loss = PE.losses_for_chart(pages, edges, paper, shift)
+                    note = MM.edge_note(printer, edges, loss)
+                    if note:
+                        log.info("Print: %s: unprinted edge %s (%s); %s",
+                                 printer, edges.as_dict(), edges.source, loss)
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("edge note not worked out", exc_info=True)
+            note = None
+        lbl.setText(note or "")
+        lbl.setVisible(bool(note))
+
     def _on_printer_changed(self) -> None:
         printer = self._printer_combo.currentData() or ""
         self._rebuild_option_rows(printer)
+        self._update_edge_note()
         # combined review of 4.3.5, item b: the Through notice depends on
         # whether this printer's driver converts the chart into CMYK
         if getattr(self, "_cm_notice", None) is not None and getattr(self, "_tiff_pages", None):

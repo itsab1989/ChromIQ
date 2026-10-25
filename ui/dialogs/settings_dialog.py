@@ -3923,6 +3923,9 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(behaviour_grp)
 
+        # ---- The edge each printer does not print (Basti, 2026-10-25) ----
+        layout.addWidget(self._build_printer_edge_group())
+
         # ---- Appearance & Language ----
         # "&&" — QGroupBox treats a single "&" as a mnemonic marker.
         # Same two-column grid geometry as the Behaviour section above so the
@@ -7070,8 +7073,91 @@ class SettingsDialog(QDialog):
                     self._layout_store.set(LayoutRecipe.from_dict(vdict))
             self._load_layout_combo()
 
+    # ---- the edge each printer does not print (workflow.printer_edges) -----
+    #: The spin box value that means "as the printer reports it".
+    _EDGE_FROM_PRINTER = -0.5
+
+    def _build_printer_edge_group(self) -> QWidget:
+        """One row: a printer, and the edge of the paper it does not print, in
+        mm on every side, or "As the printer reports it". Saved per printer
+        (`printer_edges.OVERRIDE_KEY`) when OK is pressed."""
+        from PyQt6.QtWidgets import QGroupBox, QHBoxLayout
+        from workflow import printer_edges as PE
+        grp = QGroupBox(tr("Edge this printer does not print"), self)
+        row = QHBoxLayout(grp)
+        self._edge_printer_combo = NoScrollComboBox(grp)
+        try:
+            from workflow.print_manager import PrintModule
+            names = PrintModule().detect_printers()
+        except Exception:      # noqa: BLE001 - no printing system: no list
+            names = []
+        self._edge_values = dict(PE.overrides(self._settings))
+        for n in sorted(set(names) | set(self._edge_values)):
+            self._edge_printer_combo.addItem(n, n)
+        if self._edge_printer_combo.count() == 0:
+            self._edge_printer_combo.addItem(tr("No printers found"), "")
+        self._edge_spin = NoScrollDoubleSpinBox(grp)
+        self._edge_spin.setRange(self._EDGE_FROM_PRINTER, 20.0)
+        self._edge_spin.setDecimals(1)
+        self._edge_spin.setSingleStep(0.5)
+        self._edge_spin.setSuffix(" mm")
+        self._edge_spin.setSpecialValueText(tr("As the printer reports it"))
+        self._edge_spin.setMinimumWidth(200)
+
+        def show_for(_i=0):
+            name = self._edge_printer_combo.currentData() or ""
+            v = self._edge_values.get(name)
+            self._edge_spin.blockSignals(True)
+            self._edge_spin.setValue(self._EDGE_FROM_PRINTER if v is None
+                                     else float(v))
+            self._edge_spin.blockSignals(False)
+            self._edge_spin.setEnabled(bool(name))
+
+        def keep(v):
+            name = self._edge_printer_combo.currentData() or ""
+            if not name:
+                return
+            if v <= self._EDGE_FROM_PRINTER + 1e-9:
+                self._edge_values.pop(name, None)
+            else:
+                self._edge_values[name] = float(v)
+        self._edge_printer_combo.currentIndexChanged.connect(show_for)
+        self._edge_spin.valueChanged.connect(keep)
+        show_for()
+        row.addWidget(QLabel(tr("Printer:"), grp))
+        row.addWidget(self._edge_printer_combo, stretch=1)
+        row.addWidget(self._edge_spin)
+        row.addWidget(TooltipButton(
+            tr("Edge this printer does not print"),
+            tr("Many printers leave a narrow band along the edges of the paper "
+               "unprinted, and some, printing without borders, enlarge the "
+               "picture a little so that its edges fall off the paper. "
+               "Whatever of a chart lands in that band is missing on paper. "
+               "ChromIQ asks the printer for it: on Windows the driver's "
+               "smallest margins, on macOS and Linux the printable area its "
+               "printer description (PPD) gives for the paper size. Create "
+               "Chart and Print Chart then tell you when the ruler helper "
+               "markers or the text along the edge of a chart fall into it, "
+               "and how to move them in. Nothing is ever stopped.\n\n"
+               "A printer that prints without borders usually reports no edge "
+               "at all, although it cuts some of the picture off. If you know "
+               "your printer loses more, for example because the ruler helper "
+               "markers came out missing, choose the printer here and set the "
+               "edge in millimetres. It is used for all four sides of the "
+               "paper and saved for that printer only. \u201cAs the printer "
+               "reports it\u201d uses the printer's own value again."), grp))
+        return grp
+
     def _save_and_close(self) -> None:
         s = self._settings
+        try:
+            import json as _json
+            from workflow import printer_edges as _PE
+            s.set(_PE.OVERRIDE_KEY, _json.dumps(
+                {k: round(float(v), 2) for k, v in
+                 getattr(self, "_edge_values", {}).items()}, sort_keys=True))
+        except Exception:      # noqa: BLE001 - never block OK
+            log.debug("printer edge values not saved", exc_info=True)
         s.set("argyll_bin_path",       self._argyll_edit.text().strip())
         s.set("custom_output_path",    self._folder_edit.text().strip())
         s.set("restore_last_tab",          self._restore_tab_check.isChecked())

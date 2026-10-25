@@ -130,6 +130,7 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-PAGE-PAUSE-HELP",
     # A chart a little larger than its paper (jctay 149803, Basti 2026-10-23).
     "M-PRINT-CHART-CUT", "M-PRINT-CHART-CUT-PARTS",
+    "M-EDGE-NOT-PRINTED", "M-EDGE-NOT-PRINTED-PARTS",
     # Forum post 149786 (4.3.10): part of a strip read one patch out, warned
     # about while measuring and named in the report. Proposed 2026-10-22.
     "M-STRIP-PART-SLIPPED-LATE", "M-STRIP-PART-SLIPPED-EARLY",
