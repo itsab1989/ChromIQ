@@ -225,6 +225,46 @@ margin (10.0 mm on the photo-card recipes, the box's minimum) used to leave a
 band 0 mm wide, with its content not printed and the labels not held clear of
 it; it is now a band of that width (`instruments.CLIP_BAND_MIN_MM`).
 
+**§R1.3a applies to recipes saved from 4.3.14 on (Basti, 2026-10-25).**
+
+**Confirmed by:** Basti, 2026-10-25.
+
+> *Leave the current presets as they are. He can give new ones if he wants
+> to.*
+
+Everything saved before 4.3.14 lays out exactly as in 4.3.13: patch size,
+position and count, the row labels and the strip letters. That covers user
+presets, Save as Defaults, a project's stored chart settings, the layout
+recipes the relayout window reads and the `.channels.json` sidecars. Built
+as `LayoutRecipe.clip_border_free_space`: a stored recipe without it is an
+old one (`from_dict` reads a missing key as False), and for an old recipe the
+build kwargs carry `clip_border_free_space: False`, which
+`instruments.old_clip_border_rule` turns into 4.3.13's rules (the labels and
+letters clear the whole clip border, and a width at or below the base margin
+is a 0 mm band, with its note under the width box as before). A recipe made
+in code, or from the factory defaults, is a new one. Built-in presets carry
+no flag and keep their geometry (they were unchanged anyway).
+
+Measured (review of 4.3.14, 2026-10-25): Knut's "i1Pro-100x150mm-600p-5pages-
+Portrait-TEST" preset, loaded from his file, renders byte-identical to
+v4.3.13 on every page and in the `.ti2` (left margin 15.5 mm, labels at
+13.3 mm), and so do all 20 stored charts of the demo projects and his
+preset's recipe read from an old `.channels.json`; the same settings as a new
+recipe give 12.0 mm. All 191 built-ins stay byte-identical. Read as
+pre-4.3.14 recipes, all 1,596 default recipe rows count exactly as in
+v4.3.13; as new recipes, none counts fewer and 75 count more.
+
+### ⏳ Awaiting confirmation: which saved recipe counts as new
+
+**Confirmed by:** *nobody yet.*
+
+As built: a recipe keeps the rule it was loaded with through every edit, a
+re-save under its own name and Save as Defaults, so an old preset saved again
+unchanged lays out as before. Saving it as a preset under a NEW name makes a
+new recipe, which takes the 4.3.14 rule; that is the way an older layout is
+given the new one, and the tooltips of "Row indicators", "Label offset" and
+"Clip border width" say so (`layout_options_panel.CLIP_RULE_SINCE_4314`).
+
 ---
 
 ## §R3 · What each rule replaces

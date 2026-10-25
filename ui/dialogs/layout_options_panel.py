@@ -59,6 +59,20 @@ _LABEL_STYLE_FIELDS = (
 #: the letters' ink clears every strip's path at X = 4 and 8 mm
 #: (`~/Desktop/ChromIQ-work/2026-10-24_label_offset_x_review/aperture_check.txt`).
 #: A module constant so a test can hold it to those facts.
+#: The paragraph every tooltip that describes the free part of the clip
+#: border ends with (Basti, 2026-10-25: "leave the current presets as they
+#: are. he can give new ones if he wants to"; row_label_geometry.md §R1.3a).
+CLIP_RULE_SINCE_4314 = (
+    "Charts, presets and default settings saved with ChromIQ 4.3.13 or "
+    "earlier keep exactly the layout they had, so a chart you have already "
+    "printed comes out the same again: their row labels and strip letters "
+    "stay clear of the whole clip border, and a clip border no wider than "
+    "the chart's base margin has no room of its own. This stays so when you "
+    "change such settings and save them again. Settings made new in "
+    "ChromIQ 4.3.14 or later use the free part of the clip border as "
+    "described here. To give older settings the new layout, save them as a "
+    "preset under a new name.")
+
 LABEL_OFFSET_HELP = (
     "Moves the strip letters (A, B, C and so on, printed above the strips) "
     "without moving the patches. Both boxes are in millimetres on the printed "
@@ -828,7 +842,8 @@ class LayoutOptionsPanel(QWidget):
                "labels start plus the label width plus 2 mm.\n"
                "\n"
                "The labels restart at the first one on every page. Set their"
-               " font and size in Preferences → Chart Layout."), self)
+               " font and size in Preferences → Chart Layout.")
+            + "\n\n" + tr(CLIP_RULE_SINCE_4314), self)
 
         from PyQt6.QtWidgets import QLineEdit, QPushButton
 
@@ -1690,7 +1705,8 @@ class LayoutOptionsPanel(QWidget):
                      self._label_offset_y_lbl, self.strip_label_offset),
                 tip=TooltipButton(
                     tr("Label offset"),
-                    tr(LABEL_OFFSET_HELP), self))
+                    tr(LABEL_OFFSET_HELP) + "\n\n" + tr(CLIP_RULE_SINCE_4314),
+                    self))
         # A person touching ANY of these ten answers "this chart owns its label
         # style" — the same shape as `_row_indicators_touched` above. Wired
         # after construction so the widget wiring above stays readable, and
@@ -1845,7 +1861,7 @@ class LayoutOptionsPanel(QWidget):
                "printed inside it, and the row labels keep 1 mm clear of what "
                "it prints. The box is outlined in red to point this out. "
                "Raise this above the margin to make the clip border reach "
-               "further in."),
+               "further in.") + "\n\n" + tr(CLIP_RULE_SINCE_4314),
             self)
         add_row(gg, 1, tr("Margins (mm):"), _margins_w,
                 tip=TooltipButton(
@@ -3894,6 +3910,22 @@ class LayoutOptionsPanel(QWidget):
         base = float(getattr(self, "_border", 0.0) or 0.0)
         inst = (self.instr.currentData() if getattr(self, "instr", None)
                 is not None else getattr(self, "_inst", "i1")) or "i1"
+        # A RECIPE SAVED BEFORE 4.3.14 keeps 4.3.13's band: at or below the
+        # base margin there is none (Basti, 2026-10-25), and the note says so
+        # in the words it had for that (Knut, forum 149832).
+        if (inst in ("i1", "p3") and base > 0 and cw <= base + 1e-9
+                and not getattr(self, "_clip_border_free_space", True)):
+            self._set_field_conflict(self.clip_width, tr(
+                "At {cw:.1f} mm the clip border has no room of its own: on "
+                "this chart it only begins past a base margin of {base:.1f} "
+                "mm, which is built into the chart and has no box of its own. "
+                "So nothing is printed "
+                "in the clip border (no text, branding or image), and the row "
+                "labels are no longer kept clear of it. Choose more than "
+                "{base:.1f} mm, for example {next:.1f} mm, to get the clip "
+                "border and its content back.").format(
+                    cw=cw, base=base, next=base + 0.5))
+            return
         if inst in ("i1", "p3") and base > 0 and cw < base - 1e-9:
             self._set_field_conflict(self.clip_width, tr(
                 "At {cw:.1f} mm the clip border would be narrower than this "
@@ -5603,6 +5635,12 @@ class LayoutOptionsPanel(QWidget):
                       r.strip_gap_mm, caller)
         except Exception:      # noqa: BLE001 — diagnostics never break the UI
             pass
+        # WHICH CLIP-BORDER RULE THE LOADED RECIPE LAYS OUT BY has no control:
+        # it is carried as state, so a recipe saved before 4.3.14 keeps
+        # 4.3.13's layout through every edit and re-save (Basti, 2026-10-25;
+        # `LayoutRecipe.clip_border_free_space`).
+        self._clip_border_free_space = bool(
+            getattr(r, "clip_border_free_space", True))
         # The ruler helper markers are ordinary controls in this panel since
         # #158 — they used to be carried as plain state because their widgets
         # lived under the preview, and that split is exactly what let a loaded
@@ -5993,4 +6031,8 @@ class LayoutOptionsPanel(QWidget):
         # tick MEANS with randomisation off is a question for him -- there is no
         # order to fix -- and recording it commits to nothing either way.
         r.seed_fixed = bool(self.fixed_seed_cb.isChecked())
+        # The loaded recipe's clip-border rule; a panel nothing was loaded
+        # into makes new recipes, which get the 4.3.14 rule.
+        r.clip_border_free_space = bool(
+            getattr(self, "_clip_border_free_space", True))
         return r
