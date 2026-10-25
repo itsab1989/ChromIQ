@@ -907,6 +907,23 @@ double cq_press_trigger_age_ms(void) {
  * too, so a plain volatile double set in one store is all it does there. */
 static volatile double cq_exit_deadline = 0.0;
 
+/* The instrument's close has a deadline of its own (review 4.3.14 final):
+ * while it->del runs, CQ_EXIT_GRACE_MS; once it has returned, the rest of
+ * the process gets CQ_EXIT_AFTER_CLOSE_MS. The strip loop closes the
+ * instrument BEFORE main() writes the final .ti3 with save_ti3(), which
+ * writes the real file in place; a 1.5 s deadline still running from the
+ * close could end the process in the middle of that write and leave a cut
+ * .ti3 over the complete autosave. */
+static volatile double cq_exit_del_deadline = 0.0;
+
+void cq_exit_close_begin(void) {
+	cq_exit_del_deadline = cq_now_ms() + (double)CQ_EXIT_GRACE_MS;
+}
+
+void cq_exit_close_end(void) {
+	cq_exit_del_deadline = cq_now_ms() + (double)CQ_EXIT_AFTER_CLOSE_MS;
+}
+
 void cq_exit_deadline_arm(int ms) {
 	double when = cq_now_ms() + (double)ms;
 	if (cq_exit_deadline == 0.0 || when < cq_exit_deadline)
@@ -920,8 +937,9 @@ static void *cq_exit_guard(void *a) {
 #endif
 	(void)a;
 	for (;;) {
-		double d = cq_exit_deadline;
-		if (d != 0.0 && cq_now_ms() > d) {
+		double d = cq_exit_deadline, dd = cq_exit_del_deadline;
+		double now = cq_now_ms();
+		if ((d != 0.0 && now > d) || (dd != 0.0 && now > dd)) {
 			/* The clean ending did not come: end the process, which is what
 			 * releases the instrument. Nothing is lost by it: every accepted
 			 * strip and patch is already on disk (autosave). */

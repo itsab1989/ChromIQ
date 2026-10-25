@@ -699,3 +699,29 @@ def test_a_measuring_session_always_lets_the_instrument_go(tmp_path,
         assert took < 4.0, took
     finally:
         s.finish(timeout=5) if s.proc.poll() is None else s.finish()
+
+
+def test_the_close_deadline_never_cuts_the_final_ti3_short():
+    """Final review, 4.3.14: the strip loop closes the instrument (it->del)
+    BEFORE main() writes the final .ti3 with save_ti3(), which writes the real
+    file in place, not through the atomic autosave. The close's 1.5 s
+    deadline used to keep running after the close had returned, so a close
+    of 1.3 s left the final write 0.2 s before _exit(4) could cut it, over a
+    complete autosave. Once the close has returned, the deadline is the long
+    one."""
+    native = ROOT / "native" / "chartread_helper"
+    src = (native / "chromiq_chartread.c").read_text(encoding="utf-8")
+    body = src[src.index("static void cq_guarded_del(inst *p) {"):]
+    body = body[:body.index("\n}\n")]
+    assert body.index("cq_exit_close_begin()") < body.index("cq_real_del(p)") \
+        < body.index("cq_exit_close_end()")
+    assert "cq_exit_deadline_arm" not in body
+    # the final save comes after the strip loop, which closed the instrument
+    main = src[src.index("int main(int argc"):]
+    assert main.index("read_strips(") < main.index("save_ti3(atype")
+    js = (native / "chromiq_json.c").read_text(encoding="utf-8")
+    assert "cq_exit_del_deadline = cq_now_ms() + (double)CQ_EXIT_AFTER_CLOSE_MS" in js
+    hdr = (native / "chromiq_ext.h").read_text(encoding="utf-8")
+    import re
+    after = int(re.search(r"#define CQ_EXIT_AFTER_CLOSE_MS (\d+)", hdr).group(1))
+    assert after >= 10000

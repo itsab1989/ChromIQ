@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-25 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-25 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard+save-after-close"
 const char *cq_helper_build_string(void);
 
 
@@ -175,6 +175,12 @@ extern volatile int cq_stdin_eof;
  * and on SIGINT / SIGTERM / SIGHUP. A clean ending is always quicker than
  * the deadline, so it changes nothing there. */
 #define CQ_EXIT_GRACE_MS 1500
+/* Once the instrument's close has RETURNED, the process has this long to
+ * finish (the final .ti3 is written after the close): the close's own 1.5 s
+ * must never cut that write short. */
+#define CQ_EXIT_AFTER_CLOSE_MS 30000
+void cq_exit_close_begin(void);           /* it->del starts: 1.5 s */
+void cq_exit_close_end(void);             /* it->del returned: 30 s */
 void cq_exit_deadline_arm(int ms);        /* never moves an earlier deadline */
 void cq_exit_guard_start(void);           /* the watchdog thread */
 void cq_exit_guard_signals(void);         /* our handlers, chained to the old */

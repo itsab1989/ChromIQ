@@ -1314,9 +1314,11 @@ static void cq_gestures_for_session(inst *it, int uswitch, const char *unit) {
 static void (*cq_real_del)(inst *p) = NULL;
 
 static void cq_guarded_del(inst *p) {
-	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
+	cq_exit_close_begin();
 	if (cq_real_del != NULL)
 		cq_real_del(p);
+	/* Closed in time: what follows (the final .ti3) is not cut short. */
+	cq_exit_close_end();
 }
 
 static void cq_guard_inst(inst *it) {
