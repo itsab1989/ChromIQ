@@ -11765,17 +11765,28 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 self._flash_status(tr(M._GESTURE_AT_WINDOW).format(press=who))
             return
         if where == "held":
+            # In a pause the moves act too, from the strip the pause is at,
+            # exactly as the arrow keys and N do there (Basti, 2026-10-25).
+            unit = str(getattr(self._manager, "gesture_unit", "strip")
+                       or "strip")
             if getattr(self, "_gesture_paused", None):
                 if action == "pause":
                     self._gesture_continue()
-                else:
-                    self._flash_status(tr(M._GESTURE_IN_PAUSE).format(press=who))
+                elif action in BG.ACTION_COMMAND:
+                    self._gesture_paused = None
+                    self._manager.note_gesture_move(n, action, unit)
+                    self._manager.send_gesture_move(action)
                 return
             if self._page_pause_active():
                 if action == "pause":
                     self._page_pause_continue()
-                else:
-                    self._flash_status(tr(M._GESTURE_IN_PAUSE).format(press=who))
+                elif action in BG.ACTION_COMMAND:
+                    if self._page_pause_visible():
+                        self._hide_page_pause_note()
+                    key = {"back": "b", "forward": "f",
+                           "next_unread": "n"}[action]
+                    self._manager.note_gesture_move(n, action, unit)
+                    self._manager.send_key(key)
 
     def button_shortcut_context(self) -> dict:
         """For Preferences ▸ Measurement ▸ Instrument button shortcuts: the

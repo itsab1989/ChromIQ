@@ -7932,8 +7932,6 @@ _GESTURE_PAUSED_PATCH = ("{press}: paused at patch {label}. Nothing is read "
                          "while ChromIQ waits. To go on, press the button on "
                          "your instrument once, or press Return.")
 _GESTURE_GOING_ON = "Measuring goes on."
-_GESTURE_IN_PAUSE = ("{press}: this shortcut does nothing during a pause. "
-                     "Press the button once, or click Continue, to go on.")
 _GESTURE_AT_WINDOW = ("{press}: ChromIQ is already waiting for your answer in "
                       "the open window, so there is nothing to pause.")
 M_GESTURE_STATUS = _m(
@@ -7943,7 +7941,7 @@ M_GESTURE_STATUS = _m(
                _GESTURE_NEXT_STRIP, _GESTURE_BACK_PATCH,
                _GESTURE_FORWARD_PATCH, _GESTURE_NEXT_PATCH,
                _GESTURE_PAUSED_STRIP, _GESTURE_PAUSED_PATCH,
-               _GESTURE_GOING_ON, _GESTURE_IN_PAUSE, _GESTURE_AT_WINDOW)),
+               _GESTURE_GOING_ON, _GESTURE_AT_WINDOW)),
     approved=False)
 
 

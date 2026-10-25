@@ -267,20 +267,46 @@ def test_nothing_happens_behind_a_finishing_window(tab):
     assert got == [] and tab._written == []
 
 
-def test_in_the_page_pause_only_pause_continues(tab, monkeypatch):
+def test_in_the_page_pause_the_moves_act_from_the_pause(tab, monkeypatch):
+    """Basti, 2026-10-25: back, forward and next unread act from the pause,
+    like the arrow keys there; Pause / continue continues."""
     mgr = tab._manager
     calls = []
     monkeypatch.setattr(tab, "_page_pause_active", lambda: True)
     monkeypatch.setattr(tab, "_page_pause_continue", lambda: calls.append(1))
     mgr._engine_held = {"strip": "C", "button": True}
     _feed(mgr, {"event": "gesture", "presses": 2, "gaps_ms": [300],
-                "where": "held"})                 # double = back: not here
-    assert calls == [] and tab._written == []
-    assert "does nothing during a pause" in _status(tab)
+                "where": "held"})                 # double = back
+    assert tab._written == [{"cmd": "back"}] and calls == []
+    _feed(mgr, {"event": "strip_ready", "strip": "B", "read": True,
+                "all_done": False})
+    assert _status(tab) == "Double press: back to strip B"
+    tab._written.clear()
+    mgr._engine_held = {"strip": "C", "button": True}
+    _feed(mgr, {"event": "gesture", "presses": 3, "gaps_ms": [300, 300],
+                "where": "held"})                 # triple = next unread
+    assert tab._written == [{"cmd": "next_unread"}]
     tab._settings.set("button_gesture_double", "pause")
+    tab._written.clear()
     _feed(mgr, {"event": "gesture", "presses": 2, "gaps_ms": [300],
                 "where": "held"})
-    assert calls == [1]
+    assert calls == [1] and tab._written == []
+
+
+def test_a_move_from_a_shortcut_pause(tab):
+    mgr = tab._manager
+    tab._settings.set("button_gesture_triple", "pause")
+    _at_strip(tab, "C")
+    _feed(mgr, {"event": "gesture", "presses": 3, "gaps_ms": [300, 300],
+                "where": "strip", "strip": "C"})
+    assert tab._gesture_paused
+    _feed(mgr, {"event": "gesture", "presses": 2, "gaps_ms": [300],
+                "where": "held"})
+    assert tab._written == [{"cmd": "back"}]
+    assert tab._gesture_paused is None
+    _feed(mgr, {"event": "strip_ready", "strip": "B", "read": True,
+                "all_done": False})
+    assert _status(tab) == "Double press: back to strip B"
 
 
 def test_at_the_strip_read_failed_window_a_double_press_moves(tab, monkeypatch):

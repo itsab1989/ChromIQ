@@ -7975,7 +7975,6 @@ alone.
 > {press}: paused at strip {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.
 > {press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.
 > Measuring goes on.
-> {press}: this shortcut does nothing during a pause. Press the button once, or click Continue, to go on.
 > {press}: ChromIQ is already waiting for your answer in the open window, so there is nothing to pause.
 
 ### M-PRINT-CHART-CUT · PROPOSED · a chart a little larger than its paper, where more than empty margin would be cut — Print Chart, every route
