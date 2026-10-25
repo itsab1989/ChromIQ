@@ -1,5 +1,27 @@
 # Changelog
 
+## v4.3.14
+
+**For everyone updating from 4.3.13: you can now use your instrument's button for more than reading. A double or triple press can take you back one strip or patch, forward one, or to the next unread one (i1Pro family and ColorMunki / i1Studio / ColorChecker Studio, off until you switch it on). The row labels can be turned like the strip letters, Preferences has a Printing tab, and ChromIQ tells you when a printer would leave part of your chart unprinted. Charts, presets and defaults you made before lay out exactly as they did.**
+
+### Added
+- **Instrument button shortcuts** (jctay, forum post 149841): in Preferences > Measurement, off by default. Choose what a double press and a triple press do: one strip / patch back, one forward, the next unread one, or pause / continue. They also work in the pause between pages. "Wait for further presses" sets how long ChromIQ waits for the next press (0.30 to 1.50 s), "Try it" shows how your presses are recognised, and "Measure my speed" works out a wait that suits you. A single press reads as before, and a real reading is never taken as a shortcut. (New texts, shown and waiting for approval.)
+- **Create Chart > Manual: "Row indicators only" with its own Rotation** (0°, 90°, 180°, 270°), saved with your defaults, presets and charts. A turned label needs less width beside the patches.
+- **Preferences > Printing**, a new tab between Measurement and Sounds, with every printing option that was on General.
+- **A note when the printer would not print part of the chart** (jctay, forum post 149836): Create Chart and Print Chart say when helper markers or text fall into the edge your printer leaves unprinted, and how far to move them in. Nothing is blocked. You can set that edge per printer in Preferences > Printing, which helps with borderless printers that report none. (New texts, shown and waiting for approval.)
+
+### Changed
+- **New presets can use the free part of a clip border** for the row labels and strip letters (Knut, forum post 149832), and a clip border of 10 mm now means 10 mm. Charts, presets and defaults made before 4.3.14 keep their layout exactly; save a preset under a new name to give it the new layout. No layout ever ends up with fewer patches.
+- **Label offset X:** a letter on or near the line between two strips no longer gets a hint (Knut).
+- **Preferences > Measurement:** the small options come first, refinement and averaging have moved here from General, the misread checks sit in their own titled box with rounded corners, and the spacing is even.
+- **A refinement-strips list is only ticked for the chart it was made for.**
+- **The crash log keeps itself small**, and on Windows the log names the printer's own margins.
+
+### Fixed
+- **Guided refinement no longer jumps away or loops** when its list names a strip the chart does not have, and a click on the preview always takes over (jctay, forum post 149834).
+- **A user preset picked after switching runs applies all of its label settings**, also in a verification run with "From Profile's Gamut".
+- **The Create Chart rotation boxes show "270°" in full.**
+
 ## v4.3.13
 
 **For everyone updating from 4.3.12: the strip letters can now be moved sideways as well as up and down, so you can move them out of the way of your instrument, for example together with a smaller letter size. Charts, defaults and presets you made before look and print exactly as they did.**
