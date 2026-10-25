@@ -746,6 +746,10 @@ class TabPrint(QWidget):
         box = self.findChild(QFrame, "airprintInfoBox")
         if box is not None:
             self._apply_airprint_box_styles(box)
+        # …and the printer-edge note, which takes its colours from the mode
+        if getattr(self, "_edge_note_lbl", None) is not None \
+                and self._edge_note_lbl.isVisible():
+            self._update_edge_note()
 
     # ------------------------------------------------------------------
 
@@ -2474,6 +2478,21 @@ class TabPrint(QWidget):
         except Exception:      # noqa: BLE001 - a note, never a blocker
             log.debug("edge note not worked out", exc_info=True)
             note = None
+        if note:
+            # A WARNING, AND IT LOOKS LIKE ONE (review of 4.3.14): the label
+            # was named "warn", which no style sheet styles, so it read as
+            # plain text under the buttons beside the tab's amber notices.
+            try:
+                from ui.widgets import banner_qss
+                if getattr(self, "_mode", "dark") == "light":
+                    from ui.light_styles import LM_WARN_BG, LM_WARN_TEXT
+                    lbl.setStyleSheet(banner_qss(LM_WARN_TEXT, LM_WARN_BG,
+                                                 kind="warn"))
+                else:
+                    lbl.setStyleSheet(banner_qss("#fdd835", "#2a2000",
+                                                 kind="warn"))
+            except Exception:      # noqa: BLE001 - a look, never a blocker
+                log.debug("edge note not styled", exc_info=True)
         lbl.setText(note or "")
         lbl.setVisible(bool(note))
 
