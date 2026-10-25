@@ -2382,7 +2382,7 @@ class SettingsDialog(QDialog):
             "QFrame#misread_group_bottom { border-bottom-left-radius: 3px;"
             " border-bottom-right-radius: 3px; }"
             f"QFrame#misread_merged {{ border: 1px dashed {line};"
-            " border-radius: 4px; background: transparent; }}"
+            " border-radius: 4px; background: transparent; }"
             # Dark's app sheet gives EVERY QWidget its panel colour, so the
             # cells and the tick boxes on a band painted over it in squares
             # (the stray block at the header's right end). They are see-
