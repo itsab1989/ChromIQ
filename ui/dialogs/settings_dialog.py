@@ -2357,13 +2357,38 @@ class SettingsDialog(QDialog):
                  MS.CALIBRATION: tr(KIND_CALIBRATION_NAME)}
         frame = QFrame(self)
         frame.setObjectName("misread_table")
+        # ROUNDED LIKE EVERY OTHER OUTLINED BOX, AND THE BANDS TOO (Basti,
+        # 2026-10-25). The frame had 6 px corners while a group box has 4,
+        # and the header band and the shaded bottom row were square, so their
+        # colour poked past the frame's rounded corners. The frame now uses
+        # the group boxes' radius and the two bands that touch a corner round
+        # those corners by the same amount less the 1 px outline.
+        # The colours are the appearance's own, not palette(mid) and
+        # palette(alternate-base): on Dark both of those equal the dialog's
+        # ground, so the outline and the bands could not be seen at all.
+        from ui import theme as _theme, styles as _ds
+        from ui import light_styles as _ls, neutral_styles as _ns
+        line = _theme.by_mode(_ls.LM_BORDER, _ds.BORDER_HI, _ns.NM_BORDER)
+        band = _theme.by_mode(_ls.LM_BG_SURFACE, _ds.BG_WIDGET,
+                              _ns.NM_BG_VIEWER)
         frame.setStyleSheet(
-            "QFrame#misread_table { border: 1px solid palette(mid);"
-            " border-radius: 6px; }"
-            "QFrame#misread_head, QFrame#misread_group {"
-            " background: palette(alternate-base); border: none; }"
-            "QFrame#misread_merged { border: 1px dashed palette(mid);"
-            " border-radius: 4px; }")
+            f"QFrame#misread_table {{ border: 1px solid {line};"
+            " border-radius: 4px; }"
+            "QFrame#misread_head, QFrame#misread_group,"
+            " QFrame#misread_group_bottom {"
+            f" background: {band}; border: none; }}"
+            "QFrame#misread_head { border-top-left-radius: 3px;"
+            " border-top-right-radius: 3px; }"
+            "QFrame#misread_group_bottom { border-bottom-left-radius: 3px;"
+            " border-bottom-right-radius: 3px; }"
+            f"QFrame#misread_merged {{ border: 1px dashed {line};"
+            " border-radius: 4px; background: transparent; }}"
+            # Dark's app sheet gives EVERY QWidget its panel colour, so the
+            # cells and the tick boxes on a band painted over it in squares
+            # (the stray block at the header's right end). They are see-
+            # through here; the number boxes keep their own fill.
+            "QWidget#misread_cell, QFrame#misread_table QCheckBox,"
+            " QFrame#misread_table QLabel { background: transparent; }")
         g = QGridLayout(frame)
         g.setContentsMargins(0, 0, 0, 0)
         g.setHorizontalSpacing(0)
@@ -2380,6 +2405,7 @@ class SettingsDialog(QDialog):
 
         def cell(w, r, c, span=1, pad=(10, 4, 6, 4), centre=False):
             box = QWidget(frame)
+            box.setObjectName("misread_cell")
             h = QHBoxLayout(box)
             h.setContentsMargins(*pad)
             if centre:
@@ -2513,6 +2539,7 @@ class SettingsDialog(QDialog):
         self._patch_neighbour_check.setToolTip(tr(NEIGHBOUR_CHECK_TIP))
         self._patch_neighbour_check.setAccessibleName(tr(NEIGHBOUR_CHECK_NAME))
         nb_box = QWidget(frame)
+        nb_box.setObjectName("misread_cell")
         nb_h = QHBoxLayout(nb_box)
         nb_h.setContentsMargins(10, 6, 6, 6)
         nb_h.setSpacing(6)
@@ -2548,7 +2575,7 @@ class SettingsDialog(QDialog):
 
         # Same-reading tolerance: one box for every chart type
         sep = QFrame(frame)
-        sep.setObjectName("misread_group")
+        sep.setObjectName("misread_group_bottom")
         g.addWidget(sep, row, 0, 1, 6)
         cell(bold(tr(SAME_READING_NAME), tr(SAME_READING_TIP)), row, 0,
              pad=(36, 4, 6, 4))
@@ -2569,6 +2596,7 @@ class SettingsDialog(QDialog):
         mh.addWidget(note)
         mh.addStretch()
         mbox = QWidget(frame)
+        mbox.setObjectName("misread_cell")
         ml = QHBoxLayout(mbox)
         ml.setContentsMargins(10, 4, 10, 4)
         ml.addWidget(merged)
@@ -3549,8 +3577,11 @@ class SettingsDialog(QDialog):
 
 
         # THE MISREAD TESTS, ONE TABLE (beta 17, #182: Knut 6082015002, the
-        # layout approved in 6084176226). Built by _build_misread_table.
-        _meas.addWidget(self._build_misread_table())
+        # layout approved in 6084176226). Built by _build_misread_table, here
+        # so its boxes exist as early as before; placed in its own titled
+        # section below the single options by _build_measurement_tab (Basti,
+        # 2026-10-25).
+        self._misread_section = self._build_misread_table()
 
         # Automatic calibration retries (#126, mavtop): how many times a failed
         # instrument calibration is retried before giving up.
@@ -3710,7 +3741,6 @@ class SettingsDialog(QDialog):
             "**Default:** on"),
             self))
         _meas.addLayout(_pb_row)
-        _meas.addSpacing(10)
 
         # (The measurement-report options moved to their own Reports tab, Knut.)
         _beta.addStretch()
@@ -4251,7 +4281,19 @@ class SettingsDialog(QDialog):
 
         # The reading-engine block, moved here from Beta (2026-08-13) --
         # first on the tab, in its original order, before the pace text.
-        v.addWidget(self._measure_engine_block)
+        #
+        # ONE COLUMN, ONE SPACING (Basti, 2026-10-25). The single options
+        # used to sit in two layouts: the engine block at 6 px, which then
+        # added 10 px after "Show measurement progress bar", and this page at
+        # 12 px for the page-pause and legend rows below it. Measured on
+        # screen: 10 px between the engine options, 26 px after the progress
+        # bar, 16 px between the rest. They are one column now, at the engine
+        # block's own spacing, and the sections below keep the page's.
+        opts = QVBoxLayout()
+        opts.setContentsMargins(0, 0, 0, 0)
+        opts.setSpacing(6)
+        opts.addWidget(self._measure_engine_block)
+        v.addLayout(opts)
 
         # The pause between pages (jctay, forum 149802; Basti 2026-10-23).
         self._page_pause_cb = QCheckBox(
@@ -4265,7 +4307,7 @@ class SettingsDialog(QDialog):
         pp_row.addWidget(self._page_pause_cb)
         pp_row.addStretch()
         pp_row.addWidget(page_pause_tip)
-        v.addLayout(pp_row)
+        opts.addLayout(pp_row)
         # ...and its note, a dependent option: indented under it, ON by
         # default, greyed (keeping its value) while the pause is off (Basti,
         # 2026-10-23).
@@ -4280,7 +4322,7 @@ class SettingsDialog(QDialog):
         ppn_row.addWidget(self._page_pause_note_cb)
         ppn_row.addStretch()
         ppn_row.addWidget(page_pause_note_tip)
-        v.addLayout(ppn_row)
+        opts.addLayout(ppn_row)
         self._page_pause_note_cb.setEnabled(self._page_pause_cb.isChecked())
         self._page_pause_cb.toggled.connect(self._page_pause_note_cb.setEnabled)
 
@@ -4299,11 +4341,18 @@ class SettingsDialog(QDialog):
         pl_row.addWidget(self._preview_legend_cb)
         pl_row.addStretch()
         pl_row.addWidget(preview_legend_tip)
-        v.addLayout(pl_row)
+        opts.addLayout(pl_row)
+
+        # THE PATCH CHECKS, IN THEIR OWN TITLED SECTION, after the single
+        # options (Basti, 2026-10-25): the table and its line on units.
+        self._misread_group = QGroupBox(tr("Checks for misread patches"), self)
+        _mg = QVBoxLayout(self._misread_group)
+        _mg.addWidget(self._misread_section)
+        v.addWidget(self._misread_group)
 
         intro = QLabel(tr(
             "Reading a strip too quickly is the most common reason a scan is "
-            "rejected — the instrument simply does not gather enough light per "
+            "rejected: the instrument simply does not gather enough light per "
             "patch. ChromIQ times each patch as you read it and, after a strip "
             "that was accepted but read close to the limit, tells you so. A "
             "strip read at a comfortable pace says nothing at all."), self)

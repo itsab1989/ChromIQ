@@ -4084,7 +4084,7 @@ def _attach_image_preview(dlg: "QFileDialog") -> None:
     holder.setText(tr("No preview"))
     holder.setStyleSheet(
         "QLabel#imagePreview { border: 1px solid palette(mid); color: palette(mid);"
-        " background: palette(base); }")
+        " background: palette(base); border-radius: 4px; }")   # like a group box
     # Span the file-list rows on the far right.
     layout.addWidget(holder, 1, layout.columnCount(), layout.rowCount() - 1, 1)
     # Only widen — the file list is roomy alongside the fixed-width preview;

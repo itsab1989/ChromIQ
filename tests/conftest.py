@@ -2101,10 +2101,21 @@ def pytest_configure(config):
     # (~/Library/Preferences/com.chromiq.ChromIQ.plist), unless the variable
     # the app honours is in its environment. Set here, at configure time and
     # per process (a worker always takes its own, like the presets folder
-    # above), it is inherited by every child; in this process it changes
+    # above), it is inherited by every child; in this process it changes almost
     # nothing, because `AppSettings` still calls the sandboxed name. Never at
     # import (`tests/test_no_test_file_sets_the_settings_file_at_import.py`).
     _set("CHROMIQ_SETTINGS_FILE", str(sandbox / "child-settings.ini"))
+    # One thing it DOES change here: `AppSettings()` now logs its "Settings
+    # SANDBOXED" line at WARNING, and tests that assert "no warning was
+    # logged" (test_b17_cr30_device_info_and_connection.py) then fail on it.
+    # That line is for a person driving the app; in the suite it is noise, so
+    # this process drops exactly that record and nothing else.
+    import logging as _logging
+
+    class _NoSandboxNotice(_logging.Filter):
+        def filter(self, record):
+            return not str(record.msg).startswith("Settings SANDBOXED to")
+    _logging.getLogger("core.settings").addFilter(_NoSandboxNotice())
 
     # …AND THE TRASH. Deleting moves files to the system recycle folder now, so
     # a gate run dropped about fifty items into the developer's own Trash and
