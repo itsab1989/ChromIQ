@@ -5906,6 +5906,42 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             ).format(strips=", ".join(self._strip_list)))
         return out
 
+    def _guided_strips_on_chart(self) -> "list[str]":
+        """The strips of the refinement list that THIS chart has, in the
+        list's order.
+
+        jctay, forum 149834 (4.3.11): the newest Refine_Strips file in the
+        run's reports/ came from a check of an earlier layout of the chart
+        (50 strips) and named strip 46, while the chart he was measuring had
+        been rebuilt with 43. The engine cannot jump to a strip the chart
+        does not have, and the guide asked again for ever. The patch guide
+        has filtered its list this way since the review of 4.3.5 beta 8
+        (`_guided_patches`); the strip guide never did."""
+        listed = list(self._strip_list or [])
+        if not listed:
+            return []
+        try:
+            from workflow.measurement_pairing import chart_locations
+            locs = chart_locations(self._chart_file_for(self._ti1_path))
+            on_chart = {self._strip_of(l).upper() for l in locs}
+        except Exception:      # noqa: BLE001 - unknown chart: keep the list
+            log.debug("could not list the chart's strips", exc_info=True)
+            return listed
+        if not on_chart:
+            return listed
+        kept = [s for s in listed if str(s).upper() in on_chart]
+        gone = [s for s in listed if str(s).upper() not in on_chart]
+        if gone:
+            log.warning("guided refinement: strips %s are not on this chart, "
+                        "left out", ", ".join(gone))
+            self._log.appendPlainText(tr(
+                "[Guided Refinement] Left out of the list of strips to read "
+                "again, because this chart has no strip of that name: "
+                "{names}. The list was probably made for an earlier version "
+                "of this chart; running Check & Refine again makes a list "
+                "for the chart you have now.").format(names=", ".join(gone)))
+        return kept
+
     def start_guided_refinement(self, ti3: Path, strips_file: Path) -> None:
         """Called by main window when user launches guided refinement from Check & Refine tab."""
         ti2 = ti3.with_suffix(".ti2")
@@ -8019,7 +8055,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if self._guided_patch_list:
             self._manager.set_guided_patches(self._guided_patch_list)
         else:
-            self._manager.set_guided_strips(self._strip_list if guided else [])
+            self._manager.set_guided_strips(
+                self._guided_strips_on_chart() if guided else [])
 
         self._manager.start(
             params,
@@ -16446,7 +16483,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         letter = self._letter_for_page_idx(page, local_idx)
         if letter:
-            self._manager.goto_strip(letter)
+            # The PERSON's choice: a guide that was heading elsewhere hands
+            # the reader over (jctay, forum 149834; `user_goto_strip`).
+            self._manager.user_goto_strip(letter)
             self._log.appendPlainText(
                 tr("[Engine] Jumping to strip {strip}…").format(strip=letter))
 

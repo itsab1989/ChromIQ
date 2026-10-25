@@ -757,6 +757,10 @@ class MeasureManager(QObject):
         #: chartread has re-announced the strip we are waiting on, so its
         #: menu is already up and no further event is coming.
         self._guided_menu_pending = False
+        #: How many jumps the guide has asked the engine for to reach the
+        #: strip it is heading to now (engine strip mode only), reset on
+        #: arrival. See `_guided_strip_unreachable`.
+        self._guided_jumps_for: "tuple[str, int]" = ("", 0)
         self._just_read_strip = None
         self._just_read_patch = None
         self._held_after_read = None
@@ -2491,6 +2495,87 @@ class MeasureManager(QObject):
         if self._engine_active:
             self.send_command({"cmd": "goto", "strip": strip})
 
+    def user_goto_strip(self, strip: str) -> None:
+        """The PERSON chose *strip* (a click on the preview): jump there, and
+        if guided refinement was taking them somewhere else, it stops.
+
+        jctay, forum 149834 (4.3.11, Windows): with a refinement list in use
+        he clicked strip 10 three times, and each click was taken as "the
+        strip the guide was waiting on has been read": the guide said "Strip
+        7 is done. Moving on to strip 12…" and jumped away from the strip he
+        had chosen, without anything having been read. What he saw was the
+        pointer jumping to another strip. A click is the person taking the
+        reader, so the guide hands it over instead of fighting it."""
+        strip = str(strip or "").strip()
+        if not strip:
+            return
+        if (not self._guided_by_patch and self._guided_strips
+                and self._guided_state in ("navigating", "waiting")
+                and self._guided_idx < len(self._guided_strips)
+                and strip != self._guided_strips[self._guided_idx]):
+            from core.i18n import tr
+            rest = self._guided_strips[self._guided_idx:]
+            self._guided_state = "idle_done"
+            log.info("guided refinement: the person chose strip %s, so the "
+                     "guide stops (still listed: %s)", strip, ", ".join(rest))
+            on_line = getattr(self, "_guided_on_line", None)
+            if callable(on_line):
+                on_line(tr(
+                    "[Guided Refinement] You chose strip {strip} yourself, "
+                    "so ChromIQ stops moving the reader for you and leaves "
+                    "the choice to you. These strips were still on the "
+                    "list to read again: {rest}.").format(
+                        strip=strip, rest=", ".join(rest)))
+        self.goto_strip(strip)
+
+    def _guided_strip_unreachable(self, current: str, target: str) -> bool:
+        """True when the engine has been asked twice for *target* and is still
+        on another strip: the chart has no such strip, so asking again would
+        never end.
+
+        jctay, forum 149834: a refinement list from a check of an earlier
+        layout of the chart named strip 46 on a chart of 43 strips. The
+        engine answers a jump to a strip it does not have by staying where
+        it is and announcing that strip again (it sends no error for a
+        strip, as it does for a patch), and the guide asked again at every
+        announcement: 828 jumps to strip 46 in one second, with the reader
+        sitting on strip 37. Stock chartread steps one strip per key, so this
+        applies to the engine only."""
+        if not self._engine_active:
+            return False
+        name, n = getattr(self, "_guided_jumps_for", ("", 0))
+        if name != target:
+            self._guided_jumps_for = (target, 1)
+            return False
+        if current == target:
+            return False
+        if n >= 2:
+            return True
+        self._guided_jumps_for = (target, n + 1)
+        return False
+
+    def _skip_unreachable_guided_strip(self, current: str,
+                                       on_line: Callable[[str], None]) -> None:
+        """Leave the strip the guide cannot reach out of the list, and go on
+        to the next one, or finish."""
+        from core.i18n import tr
+        target = self._guided_strips[self._guided_idx]
+        log.warning("guided refinement: strip %s is not on this chart, so "
+                    "the guide leaves it out", target)
+        on_line(tr(
+            "[Guided Refinement] Strip {strip} is on the list to read again, "
+            "but this chart has no strip of that name, so it is left out. "
+            "The list was probably made for an earlier version of this "
+            "chart.").format(strip=target))
+        del self._guided_strips[self._guided_idx]
+        self._guided_jumps_for = ("", 0)
+        if self._guided_idx >= len(self._guided_strips):
+            self._guided_state = "idle_done"
+            on_line(tr("[Guided Refinement] All the strips to refine have "
+                       "been measured."))
+            return
+        self._navigate_toward(current, self._guided_strips[self._guided_idx])
+
     def goto_patch(self, loc: str) -> None:
         """Jump the engine directly to patch `loc` in spot mode (engine only)."""
         if self._engine_active:
@@ -4193,8 +4278,14 @@ class MeasureManager(QObject):
             target = self._guided_strips[self._guided_idx]
             if letter == target:
                 self._guided_state = "waiting"
+                self._guided_jumps_for = ("", 0)
                 on_line(tr("[Guided Refinement] Arrived at strip {strip}. "
                            "Please read it now.").format(strip=target))
+            # Called through the class, so the state machine stays testable
+            # on its own (the suite's stand-ins carry only its fields).
+            elif MeasureManager._guided_strip_unreachable(self, letter, target):
+                MeasureManager._skip_unreachable_guided_strip(
+                    self, letter, on_line)
             else:
                 self._navigate_toward(letter, target)
 
