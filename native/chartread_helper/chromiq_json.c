@@ -237,6 +237,22 @@ static void cq_handle_line(const char *line) {
 		return;
 	}
 
+	if (strcmp(cmd, "gesture_wait") == 0) {
+		/* Button gestures: a new wait for further presses, e.g. while
+		 * Preferences' "Try it" runs and the box is changed. Only once
+		 * gestures were switched on with --gestures; clamped as there. */
+		char ms[16] = "";
+		if (cq_gesture_ms > 0 && cq_json_get(line, "ms", ms, sizeof(ms))) {
+			int v = atoi(ms);
+			if (v < 200) v = 200;
+			if (v > 2000) v = 2000;
+			cq_lock_take();
+			cq_gesture_ms = v;
+			cq_lock_give();
+		}
+		return;
+	}
+
 	if (strcmp(cmd, "presses") == 0) {
 		/* Replay only: a group of presses at the given times (ms after
 		 * now). Ignored with a real instrument (cq_replay_presses checks). */
