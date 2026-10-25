@@ -931,6 +931,28 @@ def _indicator_probe_text(kw: dict, geom=None) -> str:
     return text or "W8"
 
 
+def _indicator_probe_labels(kw: dict, geom=None) -> "tuple[str, ...]":
+    """The strip labels this chart prints, one string each, for a TURNED probe.
+
+    Same repertoire as :func:`_indicator_probe_text`, but kept apart and not
+    capped at 26: on its side a label's length is its height, so "AX" on a
+    50-strip chart is what decides how far the letters reach, and run together
+    the labels would be measured as one 26-letter word.
+    """
+    pattern = str(kw.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN)
+    upto = INDICATOR_PROBE_LABELS_NO_DESCENDER
+    if geom is not None:
+        strips = _provisional_strip_count(geom, kw)
+        if strips > 0:
+            upto = strips
+    try:
+        label = permutation.make_labeller(pattern)
+        labels = tuple(label(n) for n in range(1, upto + 1))
+    except Exception:            # noqa: BLE001 - a probe never blocks a build
+        labels = ()
+    return tuple(t for t in labels if t) or ("W8",)
+
+
 
 # THESE TWO ARE MEASURED ONCE PER DISTINCT QUESTION, NOT PER CANDIDATE LAYOUT.
 #
@@ -981,6 +1003,38 @@ def _indicator_ink_px(probe_text: str, ind_px: int, fam: str, bold: bool,
     if not bb:
         return (0, int(ind_px))
     return (int(bb[1] - ind_px * 2), int(bb[3] - ind_px * 2))
+
+
+@functools.lru_cache(maxsize=512)
+def _rotated_indicator_ink_px(labels: "tuple[str, ...]", ind_px: int,
+                              fam: str, bold: bool, italic: bool, rot: int,
+                              spc: int, align: str) -> "tuple[int, int]":
+    """``(top, bottom)`` of TURNED labels' ink, in pixels from the anchor.
+
+    Mirrors the draw loop in :func:`render_pages`: each label is its own tile,
+    the band is as tall as the longest one, and a shorter tile is justified in
+    it by "Left" / "Centered" / "Right" (``_extra``). The answer is the
+    highest ink top and the lowest ink bottom over every label printed.
+    """
+    f = _font(ind_px, fam, bold, italic)
+    tiles = {t: _indicator_tile(t, f, spc, rot) for t in set(labels)}
+    if not tiles:
+        return (0, int(ind_px))
+    band_h = max(t.height for t in tiles.values())
+    top, bottom = None, None
+    for tile in tiles.values():
+        extra = max(0, band_h - tile.height)
+        if align == "center":
+            off = extra // 2
+        elif align == "left":
+            off = extra if rot == 90 else 0
+        else:
+            off = 0 if rot == 90 else extra
+        bb = tile.getbbox()
+        t, b = (bb[1], bb[3]) if bb else (0, tile.height)
+        top = off + t if top is None else min(top, off + t)
+        bottom = off + b if bottom is None else max(bottom, off + b)
+    return (int(top), int(bottom))
 
 
 def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, float]:
@@ -1089,8 +1143,24 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, 
         # to 0.64 mm (at 11 pt) pessimistically. That is the safe direction for
         # an overlap notice, and it is the only direction available without a
         # second layout pass.
-        _t_px, _b_px = _indicator_ink_px(
-            _indicator_probe_text(kw, geom), ind_px, fam, _bold, _ital, rot, spc)
+        # **A TURNED LABEL IS MEASURED ONE LABEL AT A TIME (Knut, forum
+        # 149832, 2026-10-25).** The probe text is every label run together
+        # ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), which is right for upright letters,
+        # where only the height of the line counts. Turned by 90 or 270
+        # degrees the line's LENGTH becomes its height, so the panel was told
+        # the letters reach 26 letters down the page: on his 100x150 mm i1Pro
+        # chart, "They reach 47.9 mm" at 7 pt (38.0 at 5 pt, 28.0 at 4 pt)
+        # under letters that really end about 7 mm down. The renderer pastes
+        # each label as its own tile, justified inside a band as tall as the
+        # longest label, and this now measures exactly that.
+        if rot in (90, 270):
+            _t_px, _b_px = _rotated_indicator_ink_px(
+                _indicator_probe_labels(kw, geom), ind_px, fam, _bold, _ital,
+                rot, spc, str(kw.get("indicator_align") or "left"))
+        else:
+            _t_px, _b_px = _indicator_ink_px(
+                _indicator_probe_text(kw, geom), ind_px, fam, _bold, _ital,
+                rot, spc)
         ink_top = _off + _t_px / mm2px
         ink_reach = _off + _b_px / mm2px + _rule
     # Bottom-of-sheet block: one line each for custom sheet text and the stamp,
