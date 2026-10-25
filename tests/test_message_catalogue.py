@@ -123,7 +123,7 @@ AWAITING_APPROVAL: "set[str]" = {
     # "Label offset" X: held on the paper, or nearer the next strip (Basti
     # 2026-10-24), 4.3.13.
     "M-CHART-STRIP-LABELS-X-HELD-EDGE", "M-CHART-STRIP-LABELS-X-NEAR-NEIGHBOUR",
-    "M-CHART-STRIP-LABELS-X-IN-PATH", "M-CHART-STRIP-LABELS-X-IN-PATH-NO-ROOM",
+    # (-X-IN-PATH and -X-IN-PATH-NO-ROOM were withdrawn, Basti 2026-10-25.)
     # The strip letters against "T", and clip-border lines cut off across
     # the band (Knut, forum 149832, 2026-10-25), 4.3.15.
     "M-CHART-STRIP-LABELS-PAST-T", "M-CHART-CLIP-LINES-CUT",

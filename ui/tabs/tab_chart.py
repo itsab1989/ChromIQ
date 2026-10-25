@@ -6055,28 +6055,6 @@ def strip_label_x_neighbour_notice(shift) -> "str | None":
     return body
 
 
-def strip_label_x_path_notice(shift) -> "str | None":
-    """The line under "Measured from Preview" when "Label offset" X has put
-    a strip letter in the path the instrument reads along the middle of a
-    strip (``raster.StripLabelShift.in_path``, Basti's ruling 2026-10-24):
-    M-CHART-STRIP-LABELS-X-IN-PATH with a value that clears every strip, or
-    -IN-PATH-NO-ROOM when no value does. A hint, never a block."""
-    from workflow import measurement_messages as _mm
-    from workflow.layout_engine.instruments import STRIP_READ_INSTRUMENT_NAME
-    if shift is None or not getattr(shift, "in_path", False):
-        return None
-    name = STRIP_READ_INSTRUMENT_NAME.get(shift.instrument, shift.instrument)
-    common = dict(used=decimal_text(shift.used_mm, 1), instrument=name,
-                  aperture=decimal_text(shift.aperture_mm))
-    if shift.clear_mm is not None:
-        _t, body = _mm.M_CHART_STRIP_LABELS_X_IN_PATH.render(
-            clear=decimal_text(shift.clear_mm, 1), **common)
-    else:
-        _t, body = _mm.M_CHART_STRIP_LABELS_X_IN_PATH_NO_ROOM.render(
-            room=decimal_text(shift.room_mm, 1), **common)
-    return body
-
-
 def _gamut_size_help_body() -> str:
     """The "How many colours to test" help, translated paragraph by
     paragraph, with the two 4.3.5 paragraphs of M-HELP-GAMUT-SIZE-SPREAD."""
@@ -26799,12 +26777,11 @@ class TabChart(QWidget):
             _xn_line = strip_label_x_neighbour_notice(_xs)
             if _xn_line:
                 over.append(_xn_line)
-            # …AND A LETTER IN THE INSTRUMENT'S READING PATH, with a value
-            # that clears every strip (Basti's ruling, 2026-10-24). Same
-            # `raster.strip_label_x_plan` answer as the sheet itself.
-            _xp_line = strip_label_x_path_notice(_xs)
-            if _xp_line:
-                over.append(_xp_line)
+            # (A letter in the instrument's reading path is no longer pointed
+            # out. Basti, 2026-10-25, on Knut's forum post 149832: the
+            # centred default sits in that path with no notice, so a letter
+            # moved partly out of it cannot deserve one. The "Label offset"
+            # help explains the openings instead.)
             # …AND WHAT FALLS WHERE THE PRINTER DOES NOT PRINT (Basti,
             # 2026-10-25, jctay's forum post 149836): when a printer is known
             # (the one the Print Chart tab is on), the chart in the preview is

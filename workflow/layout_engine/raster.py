@@ -512,16 +512,7 @@ class StripLabelShift:
     ``held_by`` is "edge" when the paper edge or the clip border stops them
     and "" when nothing does. ``pitch_mm`` is the distance from one strip to
     the next (0 with a single strip), and ``near_neighbour`` says that, at
-    ``used_mm``, a letter stands nearer to the next strip than to its own.
-
-    ``in_path`` says that, at ``used_mm``, a letter's ink lies inside the
-    path the instrument reads along the middle of a strip (its own or
-    another's): the middle of the strip, ``aperture_mm`` wide
-    (`instruments.STRIP_READ_APERTURE_MM`). ``clear_mm`` is a value of the
-    box that keeps every letter on every page out of every path, or None when
-    no value on this chart does; ``room_mm`` is the space left between two
-    neighbouring paths. ``instrument`` is the instrument code, "" when ChromIQ
-    does not know its opening (then ``in_path`` is always False)."""
+    ``used_mm``, a letter stands nearer to the next strip than to its own."""
     asked_mm: float
     used_mm: float
     left_mm: float
@@ -529,11 +520,6 @@ class StripLabelShift:
     held_by: str
     pitch_mm: float = 0.0
     near_neighbour: bool = False
-    in_path: bool = False
-    clear_mm: "float | None" = None
-    aperture_mm: float = 0.0
-    room_mm: float = 0.0
-    instrument: str = ""
     #: What the renderer moves the letters by, in whole pixels.
     used_px: int = 0
 
@@ -695,31 +681,6 @@ def _nearer_the_next_strip(used_px: int, pitch_px: int,
     return pitch_px > 0 and 2 * abs(int(used_px)) > int(pitch_px) + 2 * int(tol_px)
 
 
-def _path_clearance(dx: int, centres_px, pages, reach, labels,
-                    aperture_px: float) -> float:
-    """The smallest gap, in pixels, between any letter's ink (moved by *dx*)
-    and the path of any strip on its page (``centre ± aperture / 2``).
-    Zero or less means a letter touches or lies in a path."""
-    half = aperture_px / 2.0
-    gap = float("inf")
-    for i0, i1 in pages:
-        cols = centres_px[: i1 - i0 + 1]
-        for j, idx in enumerate(range(i0, i1 + 1)):
-            lft = cols[j] + dx - reach[labels[idx]][0]
-            rgt = cols[j] + dx + reach[labels[idx]][1]
-            for c in cols:
-                gap = min(gap, max(lft - (c + half), (c - half) - rgt))
-    return gap
-
-
-def _letters_in_a_path(dx: int, centres_px, pages, reach, labels,
-                       aperture_px: float) -> bool:
-    """True when, moved by *dx*, any letter's ink on any page touches the
-    path of any strip on that page."""
-    return _path_clearance(dx, centres_px, pages, reach, labels,
-                           aperture_px) <= 0
-
-
 def strip_label_x_plan(*, geom, place, page_w_px: int, mm2px: float,
                        total: int, per_page: int, steps: int, label, font,
                        spc: int, rot: int, clip_content_mode: str,
@@ -731,8 +692,8 @@ def strip_label_x_plan(*, geom, place, page_w_px: int, mm2px: float,
     disagree (review, 2026-10-24: they did by 0.3 mm on a Letter i1Pro 3 Plus
     chart, because each side kept its own copy of the arithmetic).
 
-    *advise* False skips the path check and its search for a clearing value,
-    which only the panel needs; the shift itself is the same either way."""
+    *advise* is kept for its callers and changes nothing: the path check it
+    used to switch went with the path hint (Basti, 2026-10-25)."""
     def px(mm: float) -> int:
         return round(mm * mm2px)
 
@@ -754,49 +715,12 @@ def strip_label_x_plan(*, geom, place, page_w_px: int, mm2px: float,
         labels=labels, left_bound_px=px(lb), right_bound_px=px(rb))
     used, why = _clamp_shift(px(asked_mm), lo, hi)
     pitch_px = (px(place.x_of(1)) - px(place.x_of(0))) if n_first > 1 else 0
-    from .instruments import STRIP_READ_APERTURE_MM
-    key = str(getattr(geom, "key", "") or "")
-    ap_mm = float(STRIP_READ_APERTURE_MM.get(key, 0.0))
-    in_path, clear = False, None
-    if advise and ap_mm > 0 and used != 0:
-        ap_px = ap_mm * mm2px
-        in_path = _letters_in_a_path(used, centres, pages, reach, labels, ap_px)
-        if in_path:
-            # A value of the box, in the box's own tenths, that clears every
-            # path: one inside the range the near-neighbour hint offers
-            # (half the strip spacing, rounded down to the tenth) first, so
-            # the two hints never contradict each other; then the one that
-            # leaves the MOST room between the letters and the paths, because
-            # an instrument does not run along a perfect line (a ColorMunki
-            # is moved by hand); then the one nearest to what was asked.
-            half_t = (int(pitch_px / mm2px / 2.0 * 10.0 + 1e-9)
-                      if pitch_px else 10**6)
-            best = None
-            for t in range(-500, 501):
-                v = t / 10.0
-                d = px(v)
-                if d == 0 or d < lo or d > hi:
-                    continue
-                gap = _path_clearance(d, centres, pages, reach, labels, ap_px)
-                if gap <= 0:
-                    continue
-                # more room counts up to half the opening again; past that
-                # the value nearest to what was asked wins, so a sheet with
-                # room to spare is not sent to the far side of the paper
-                score = (abs(t) > half_t, -min(round(gap), round(ap_px / 2)),
-                         abs(v - asked_mm), abs(v))
-                if best is None or score < best[0]:
-                    best = (score, v)
-            clear = None if best is None else best[1]
-    room = max(0.0, pitch_px / mm2px - ap_mm) if ap_mm > 0 and pitch_px else 0.0
     return StripLabelShift(asked_mm=asked_mm, used_mm=used / mm2px,
                            left_mm=-lo / mm2px, right_mm=hi / mm2px,
                            held_by=why, pitch_mm=pitch_px / mm2px,
                            near_neighbour=_nearer_the_next_strip(
                                used, pitch_px,
                                _near_neighbour_tolerance_px(pitch_px, mm2px)),
-                           in_path=in_path, clear_mm=clear, aperture_mm=ap_mm,
-                           room_mm=room, instrument=key if ap_mm > 0 else "",
                            used_px=used)
 
 

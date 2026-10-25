@@ -138,10 +138,7 @@ LABEL_OFFSET_HELP = (
     "its 8 mm opening leaves about 8 mm free. A ColorMunki (the i1Studio and "
     "the ColorChecker Studio are the same instrument) reads through an "
     "opening of about 6 mm and is moved by hand, so give it a little more "
-    "room. If a letter still sits in a path, a message under “Measured from "
-    "Preview” says so and suggests a value for X that keeps every letter "
-    "beside the paths. It never stops you from printing. The preview shows "
-    "where the letters land.\n\n"
+    "room. The preview shows where the letters land.\n\n"
     "X is held back only at the sides of the paper: the first and last "
     "letters never come closer to the left or right edge than the side text "
     "distance (“Clip” under “Text distance from edge”, or the ruler helper "
@@ -157,9 +154,10 @@ LABEL_OFFSET_HELP = (
     "over. That is fine when you did it on purpose. A letter on that line, "
     "or close to it, gets no message, because that is the place recommended "
     "above.\n\n"
-    "Y is not held back like that. If the letters come too close to the patches or to "
-    "the ruler helper markers, a message under “Measured from Preview” says "
-    "so and tells you how much to change.")
+    "Y is not held back like that. If the letters come closer to the top edge "
+    "of the paper than “T” under “Text distance from edge (mm)”, too close to "
+    "the patches, or onto the ruler helper markers, a message under “Measured "
+    "from Preview” says so and tells you how much to change.")
 
 # Sheet-text placeholders, filled in at build time by chart.build_chart with
 # human-readable values (e.g. {instrument} → "i1Pro3+", {paper} → "A4 landscape",

@@ -59,9 +59,10 @@ CR30_APERTURE_DIAMETER_MM = 4.0
 
 #: THE MEASURING OPENING OF EACH STRIP-READING INSTRUMENT, in mm: the width
 #: of the path it reads along the middle of a strip. ONE PLACE for these
-#: figures (review of "Label offset" X, 2026-10-24): the strip-letter path hint
-#: (`raster.StripLabelShift.in_path`), the "Label offset" help and the code
-#: comments all take them from here, and a test holds the help to them.
+#: figures (review of "Label offset" X, 2026-10-24): the "Label offset" help
+#: and the code comments take them from here, and a test holds the help to
+#: them. (The panel's path hint that used them was withdrawn by Basti on
+#: 2026-10-25.)
 #:
 #: * "i1" (i1Pro, i1Pro 2, i1Pro 3): 4.5 mm, X-Rite's published "measurement
 #:   aperture" for the i1Pro 2 and i1Pro 3. Comments here used to say 5 mm,
@@ -75,12 +76,8 @@ CR30_APERTURE_DIAMETER_MM = 4.0
 #:   path wanders a little more than an i1Pro's on its ruler.
 #:
 #: Instruments not listed (CR30 and SpectroScan, read patch by patch; the DTP
-#: strip readers, whose opening is not recorded) get no path hint.
+#: strip readers, whose opening is not recorded) are not listed.
 STRIP_READ_APERTURE_MM: dict[str, float] = {"i1": 4.5, "p3": 8.0, "CM": 6.0}
-
-#: How the path hint names each instrument. Product names, not translated.
-STRIP_READ_INSTRUMENT_NAME: dict[str, str] = {
-    "i1": "i1Pro", "p3": "i1Pro 3 Plus", "CM": "ColorMunki"}
 
 # Instrument flag (printtarg -i value) -> CGATS TARGET_INSTRUMENT string.
 TARGET_INSTRUMENT_NAME: dict[str, str] = {
