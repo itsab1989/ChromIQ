@@ -15,7 +15,8 @@ import pytest                                                  # noqa: E402
 from workflow.layout_engine import geometry, instruments       # noqa: E402
 from workflow.layout_engine.presets import LayoutRecipe        # noqa: E402
 
-KNUT = dict(instrument="i1", paper="100x150", border=10.0, clip_border=True,
+KNUT = dict(clip_border_free_space=True,  # a 4.3.14 recipe: the new rule
+            instrument="i1", paper="100x150", border=10.0, clip_border=True,
             clip_border_width_mm=11.0, clip_side="left",
             clip_content_mode="branding", margin_left=11.0, margin_top=17.0,
             margin_right=5.0, margin_bottom=13.0, layout_mode="area_first",

@@ -16019,6 +16019,18 @@ class TabChart(QWidget):
             if not self._confirm_overwrite_preset(match):
                 return
             name = match
+        elif isinstance(capture.get("layout_recipe"), dict):
+            # A PRESET UNDER A NEW NAME IS A NEW RECIPE, and a new recipe lays
+            # out by the 4.3.14 clip-border rule (Basti, 2026-10-25: "leave
+            # the current presets as they are. he can give new ones if he
+            # wants to"). Saving over an existing preset keeps the rule it
+            # was loaded with, so an old preset re-saved unchanged lays out
+            # exactly as before. The panel follows, so the next Generate
+            # builds what the new preset says.
+            capture["layout_recipe"]["clip_border_free_space"] = True
+            _panel = getattr(self, "_manual_layout_panel", None)
+            if _panel is not None:
+                _panel._clip_border_free_space = True
         capture["auto_run"] = bool(run_chk.isChecked())
         attach = bool(attach_chk.isChecked() and have_ti1)
         capture["attached_ti1"] = attach

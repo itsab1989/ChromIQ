@@ -80,6 +80,7 @@ def test_all_fields_persist_through_named_dict():
         clip_image_rotation=90, clip_image_scale=140.0,
         clip_image_offset_x_mm=2.5, clip_image_offset_y_mm=-3.5,
         clip_flip_180=True, clip_side="right", clip_text_size_mm=4.5,
+        clip_border_free_space=False,
         text_edge_mm=5.0, text_edge_top_mm=6.0, text_edge_clip_mm=7.0,
         strip_label_offset_mm=-1.5, strip_label_offset_x_mm=2.5,
         indicator_rotation=90,

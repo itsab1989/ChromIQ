@@ -436,6 +436,7 @@ def build(
     helper_markers_sides: bool = True,
     margins_are_law: bool = False,
     fill_beyond_ruler: bool = False,
+    clip_band_at_base_margin: bool = True,
 ) -> Geom:
     """Resolve :class:`Geom`, applying ChromIQ extensions over the base geometry.
 
@@ -450,7 +451,8 @@ def build(
         key, pscale=pscale, sscale=sscale, hflag=hflag,
         hex_flat_top=hex_flat_top, density=density,
         spacer_on=spacer_on, border=border, nolpcbord=nolpcbord, nolimit=nolimit,
-        clip_border_width=clip_border_width, clip_band=clip_band)
+        clip_border_width=clip_border_width, clip_band=clip_band,
+        clip_band_at_base_margin=clip_band_at_base_margin)
     mt, mr, mb, ml = margins if margins else (geom.border,) * 4
     plen, pwid, rrsp = geom.plen, geom.pwid, geom.rrsp
     if patch_h:
@@ -637,10 +639,25 @@ GEOM_BUILD_KEYS = (
 #: before §R1.3a (see `geom_from_build_kwargs`, `raster.apply_row_label_geometry`).
 LABELS_CLEAR_WHOLE_CLIP_BORDER = "_row_labels_clear_whole_clip_border"
 
+#: The recipe flag (`LayoutRecipe.clip_border_free_space`) as the build kwargs
+#: carry it: present, and False, only for a recipe saved before 4.3.14.
+CLIP_BORDER_FREE_SPACE = "clip_border_free_space"
+
+
+def old_clip_border_rule(kw: dict) -> bool:
+    """True when *kw* lays out by 4.3.13's clip-border rules: the row labels
+    and strip letters clear the WHOLE clip border, and a width at the base
+    margin is a 0 mm band (Basti, 2026-10-25: "leave the current presets as
+    they are"). Either because the recipe was saved before 4.3.14
+    (``clip_border_free_space`` False), or because `area_fit` kept the old
+    rule for patch count (`LABELS_CLEAR_WHOLE_CLIP_BORDER`)."""
+    return bool(kw.get(LABELS_CLEAR_WHOLE_CLIP_BORDER)) or (
+        kw.get(CLIP_BORDER_FREE_SPACE) is False)
+
 
 def _labels_may_use_the_clip_border(kw: dict) -> bool:
     """Row labels on, beside a left clip border that prints something."""
-    if kw.get(LABELS_CLEAR_WHOLE_CLIP_BORDER):
+    if old_clip_border_rule(kw):
         return False
     if kw.get("row_indicators") is False:
         return False
@@ -697,7 +714,7 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     # whether the patch size comes from here or from a caller that asked
     # `area_fit` itself and passes it in.
     if (kw.get("layout_mode") == "area_first" and not kw.pop(_NO_LOOKUP, False)
-            and not kw.get(LABELS_CLEAR_WHOLE_CLIP_BORDER)):
+            and not old_clip_border_rule(kw)):
         from . import area_fit
         _base = {k: v for k, v in kw.items() if k not in ("patch_w", "patch_h")}
         if area_fit.old_label_rule_kept(_base):
@@ -730,6 +747,8 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     area_first = (kw.get("layout_mode") == "area_first")
     law = area_first or bool(kw.get("use_instrument_margins"))
     geom = build(kw["instrument"], margins_are_law=law, fill_beyond_ruler=area_first,
+                 clip_band_at_base_margin=(kw.get(CLIP_BORDER_FREE_SPACE)
+                                           is not False),
                  **{k: v for k, v in kw.items() if k in GEOM_BUILD_KEYS})
     # THE HELPER MARKERS RIDE ALONG, so that anything holding a geometry can
     # ask how far in from a page edge its text must start (#182 — see the
@@ -749,6 +768,7 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     from . import raster   # lazy: raster imports this module
     geom = raster.apply_furniture_reserves(geom, kw)
     if (float(getattr(geom, "lbord", 0.0) or 0.0) > 0
+            and not old_clip_border_rule(kw)
             and (kw.get("clip_side") or "left") == "left"
             and str(kw.get("clip_content_mode") or "off") != "off"):
         _reach = raster.clip_content_reach_mm(geom, kw)
@@ -771,6 +791,7 @@ def _build_base(
     nolimit: bool = False,
     clip_border_width: float = 26.0,
     clip_band: float = 0.0,
+    clip_band_at_base_margin: bool = True,
 ) -> Geom:
     """Resolve :class:`Geom` for *key* with the given options.
 
@@ -809,7 +830,11 @@ def _build_base(
         # it. A hair of `lbord` keeps the band, so the zone is the base margin
         # itself (10.01 mm at 10.0, 0.1 px at 300 dpi). Only a width at or
         # below the base margin reaches this; every other chart is unchanged.
-        lbord = (max(CLIP_BAND_MIN_MM, clip_w - border)
+        # A RECIPE SAVED BEFORE 4.3.14 keeps 4.3.13's 0 mm band here
+        # (Basti, 2026-10-25: old recipes lay out exactly as they did;
+        # `old_clip_border_rule`).
+        lbord = (max(CLIP_BAND_MIN_MM if clip_band_at_base_margin else 0.0,
+                     clip_w - border)
                  if not nolpcbord else 0.0)
         if key == "i1":                       # 4.5 mm aperture
             lcar, plen_b, pspa_b, tspa = 10.0, 10.0, 1.0, 10.0

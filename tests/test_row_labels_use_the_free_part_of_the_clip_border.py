@@ -23,7 +23,8 @@ REPO = Path(__file__).resolve().parents[1]
 #: Knut's "i1Pro-100x150mm-600p-5pages-Portrait-TEST" (forum 149832), the
 #: values that decide this: an 11 mm clip border with two lines of branding,
 #: row labels at 6 pt, Clip 2 mm, left margin 11 mm.
-KNUT = dict(instrument="i1", paper="100x150", dpi=200, border=10.0,
+KNUT = dict(clip_border_free_space=True,  # a 4.3.14 recipe: the new rule
+            instrument="i1", paper="100x150", dpi=200, border=10.0,
             clip_border=True, clip_border_width_mm=11.0, clip_side="left",
             clip_content_mode="branding",
             clip_text="{project} - {rundescription} - {paper}\n"

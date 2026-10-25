@@ -353,6 +353,16 @@ class LayoutRecipe:
     # this lets the user turn any clip the other way so its text reads the same
     # direction as the bottom stamp (Knut).
     clip_flip_180: bool = False
+    # WHICH CLIP-BORDER RULE THIS RECIPE LAYS OUT BY (Basti, 2026-10-25:
+    # "leave the current presets as they are. he can give new ones if he
+    # wants to"). True: the 4.3.14 rule, §R1.3a of row_label_geometry.md, the
+    # row labels and strip letters may use the free part of the clip border
+    # and a width at the base margin is a band of that width. False: 4.3.13's
+    # rule, kept by every recipe SAVED BEFORE 4.3.14 (`from_dict` reads a
+    # missing key as False), so presets, Save as Defaults, a project's stored
+    # chart settings and a chart's sidecar lay out exactly as they did. A
+    # recipe made from 4.3.14 on gets True; a loaded recipe keeps what it has.
+    clip_border_free_space: bool = True
     nolimit: bool = False
     strip_pattern: str = permutation.DEFAULT_STRIP_PATTERN
     patch_pattern: str = permutation.DEFAULT_PATCH_PATTERN
@@ -394,11 +404,18 @@ class LayoutRecipe:
         # if those are present this is a build-kwargs dict, not a recipe dict —
         # map it back so e.g. clip_border isn't silently lost (#93).
         if isinstance(d, dict) and ("nolpcbord" in d or "draw_indicators" in d):
-            return cls.from_build_kwargs(d)
+            r = cls.from_build_kwargs(d)
+            # stored build kwargs are from before 4.3.14 unless they say so
+            r.clip_border_free_space = bool(d.get("clip_border_free_space",
+                                                  False))
+            return r
         known = {f.name for f in fields(cls)}
         kw = {k: v for k, v in d.items() if k in known}
         if "layout_mode" not in kw:
             kw["layout_mode"] = stored_layout_mode(d)
+        # SAVED BEFORE 4.3.14: the old clip-border rule (see the field).
+        kw["clip_border_free_space"] = bool(d.get("clip_border_free_space",
+                                                  False))
         return cls(**kw)
 
     @classmethod
@@ -508,6 +525,11 @@ class LayoutRecipe:
             nolimit=bool(d.get("nolimit", False)),
             strip_pattern=d.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN,
             patch_pattern=d.get("patch_pattern") or permutation.DEFAULT_PATCH_PATTERN,
+            # LIVE build kwargs (a built-in's, Guided's) carry the key only
+            # when it is False, so a missing key is the current rule here;
+            # `from_dict` reads stored kwargs the other way.
+            clip_border_free_space=(d.get("clip_border_free_space", True)
+                                    is not False),
         )
         return r
 
@@ -713,6 +735,10 @@ class LayoutRecipe:
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
             kw["strip_label_offset_x_mm"] = float(self.strip_label_offset_x_mm)
+        # Likewise only for a recipe saved before 4.3.14, so every other
+        # chart's kwargs stay as they were (`instruments.old_clip_border_rule`).
+        if not self.clip_border_free_space:
+            kw["clip_border_free_space"] = False
         return kw
 
 

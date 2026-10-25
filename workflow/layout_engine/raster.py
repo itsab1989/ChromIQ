@@ -1664,8 +1664,8 @@ def apply_row_label_geometry(geom, kw: dict):
     _border_floor = 0.0
     if has_border:
         _bw = float(kw.get("clip_border_width") or 0.0)
-        from .instruments import LABELS_CLEAR_WHOLE_CLIP_BORDER
-        _reach = (None if kw.get(LABELS_CLEAR_WHOLE_CLIP_BORDER)
+        from .instruments import old_clip_border_rule
+        _reach = (None if old_clip_border_rule(kw)
                   else clip_content_reach_mm(geom, kw))
         # The band already begins with 1 mm of air before the widest label
         # (`row_label_band_mm`'s gap, §R1.1), so a floor AT the content's

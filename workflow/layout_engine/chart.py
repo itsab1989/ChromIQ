@@ -280,6 +280,9 @@ def build_chart(
     clip_image_offset_x: float = 0.0,
     clip_image_offset_y: float = 0.0,
     clip_flip_180: bool = False,
+    # False only for a recipe saved before 4.3.14: the clip border keeps
+    # 4.3.13's rules (`instruments.old_clip_border_rule`).
+    clip_border_free_space: bool = True,
     strip_pattern: str = permutation.DEFAULT_STRIP_PATTERN,
     patch_pattern: str = permutation.DEFAULT_PATCH_PATTERN,
     cal_path: str | Path | None = None,
@@ -428,7 +431,11 @@ def build_chart(
         "clip_image_offset_y": clip_image_offset_y,
         "clip_flip_180": clip_flip_180,
         "project": project, "rundescription": rundescription,
-        "chart_date": chart_date})
+        "chart_date": chart_date,
+        # …AND WHICH CLIP-BORDER RULE THE RECIPE WAS SAVED UNDER (Basti,
+        # 2026-10-25): a recipe saved before 4.3.14 lays out as it did.
+        **({} if clip_border_free_space else
+           {"clip_border_free_space": False})})
     w_mm, h_mm = papers.dimensions_mm(paper)
     geom = _geom_for(len(target.patches))
     layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
