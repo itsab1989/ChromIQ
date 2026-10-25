@@ -6217,7 +6217,7 @@ M_EDGE_NOT_PRINTED = _m(
     "cut off on paper. Nothing your instrument measures is in it, and you can "
     "print the chart like this. To keep them on the paper: {fix} If your "
     "printer leaves a different edge than this, set it under Preferences, "
-    "General, \u201cEdge this printer does not print\u201d.",
+    "Printing, \u201cEdge this printer does not print\u201d.",
     approved=False)
 _EDGE_SRC_DRIVER = "as its Windows printer driver reports it"
 _EDGE_SRC_PPD = "as the printer's description file gives it for this paper size"

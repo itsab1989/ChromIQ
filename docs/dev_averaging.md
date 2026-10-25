@@ -14,8 +14,8 @@ Phases 1–4 below are **done** and unit-tested (`tests/test_average_runner.py`)
   (reads/readN.ti3 inside the run folder; see `docs/dev_folder_layout.md`).
 - `core/settings.py` — `averaging_enabled` (master switch, default **False**)
   and `average_method` ("mean" | "median", default mean).
-- `ui/dialogs/settings_dialog.py` — "Enable measurement averaging" checkbox in
-  the Behaviour group, with an extensive tooltip.
+- `ui/dialogs/settings_dialog.py` — "Enable measurement averaging" checkbox on
+  the Measurement tab (on General until 4.3.14), with an extensive tooltip.
 - `ui/tabs/tab_measure.py` — when `averaging_enabled`, the averaging choice is
   presented **in the "All Stripes Read" dialog itself** for a normal full read
   (`_show_all_stripes_averaging_dialog`): first read → *Re-read Stripes* /

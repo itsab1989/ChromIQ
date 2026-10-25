@@ -421,7 +421,7 @@ QCheckBox#locked_on::indicator:checked:disabled {{
    keeps the state it had, and a ticked one must still read as ticked,
    greyed: a setting in force while it is locked (the Measure tab's options
    during a run, Basti 2026-10-23), a ticked option in a group that is off
-   (Preferences ▸ "Confirm print settings before printing" under the macOS
+   (Preferences ▸ Printing ▸ "Confirm print settings before printing" under the macOS
    printer dialog), anywhere. 4.3.10 fixed only the Measure tab (keepsTick);
    this is the same look for all of them. */
 QCheckBox::indicator:checked:disabled {{

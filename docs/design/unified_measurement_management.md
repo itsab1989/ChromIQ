@@ -7995,7 +7995,7 @@ alone.
 
 > **Part of the chart falls where your printer does not print**
 >
-> ⚠ {printer} leaves an edge of the paper unprinted: {edges} ({source}). On this chart, {lost} fall into that edge, so they will be missing or cut off on paper. Nothing your instrument measures is in it, and you can print the chart like this. To keep them on the paper: {fix} If your printer leaves a different edge than this, set it under Preferences, General, “Edge this printer does not print”.
+> ⚠ {printer} leaves an edge of the paper unprinted: {edges} ({source}). On this chart, {lost} fall into that edge, so they will be missing or cut off on paper. Nothing your instrument measures is in it, and you can print the chart like this. To keep them on the paper: {fix} If your printer leaves a different edge than this, set it under Preferences, Printing, “Edge this printer does not print”.
 
 ### M-EDGE-NOT-PRINTED-PARTS · PROPOSED · the parts of M-EDGE-NOT-PRINTED, Create Chart and Print Chart
 

@@ -1307,13 +1307,14 @@ _PRECOND_TIP_BODY = (
     "selected when creating this chart (the run's preconditioning.ti3).\n\n"
     "Tick this to fold those earlier measurements into your profile. When you\n"
     "build the profile, ChromIQ combines the patches you just measured with the\n"
-    "saved earlier ones and builds from the larger set — generally a more\n"
-    "accurate profile.\n\n"
+    "saved earlier ones and builds from the larger set, which generally gives\n"
+    "a more accurate profile.\n\n"
     "Your freshly measured file is not changed: the combining happens on a\n"
     "separate copy only at build time. You can still re-measure individual\n"
     "strips in Check & Refine exactly as usual.\n\n"
-    "This option only appears when ChromIQ-style refinement is enabled in\n"
-    "Settings and saved pre-conditioning data is present."
+    "This option only appears when “ChromIQ-style refinement process” is\n"
+    "switched on in Preferences ▸ Measurement and saved pre-conditioning\n"
+    "data is present."
 )
 
 # #134: tooltip for the "Show overlay from existing measurement" toggle.

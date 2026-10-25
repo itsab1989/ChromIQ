@@ -9,7 +9,7 @@ itself leaves a band along its edges unprinted, and nothing said so.
 
 THREE SOURCES, the person's own first:
 
-* **Preferences** -> General -> "Edge this printer does not print": one value
+* **Preferences** -> Printing -> "Edge this printer does not print": one value
   in mm per printer, all four edges, saved per printer
   (``printer_edge_override_mm``, a JSON object ``{printer: mm}``). It wins,
   because a borderless driver that enlarges the picture (the SELPHY does)

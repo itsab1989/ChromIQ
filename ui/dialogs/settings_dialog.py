@@ -3918,43 +3918,27 @@ class SettingsDialog(QDialog):
             _bh_cell(self._hide_log_check, hide_log_tip),
             _bh_cell(self._native_files_check, native_files_tip),
             _bh_cell(self._cal_mode_check, cal_tip),
-            _bh_cell(self._chromiq_refine_check, refine_tip),
-            _bh_cell(self._averaging_check, averaging_tip),
             _bh_cell(self._declutter_check, declutter_tip),
             _bh_cell(self._splash_check, splash_tip),
         ]
-        if print_route_switch_supported():
-            bh_cells.append(_bh_cell(self._native_print_check, native_tip))
-        # The exact-size PDF fallback addresses a macOS-specific CUPS filter
-        # behaviour (cgimagetopdf); skip it elsewhere.
-        if is_macos():
-            bh_cells.append(_bh_cell(self._pdf_fallback_check, pdf_fallback_tip))
-        # The confirmation window belongs to ChromIQ's own route, which Windows
-        # has too since #205 (4.3.8): every platform shows it.
-        bh_cells.append(_bh_cell(self._confirm_print_check, confirm_tip))
+        # THE PRINT OPTIONS HAVE THEIR OWN TAB, AND REFINEMENT AND AVERAGING
+        # LIVE ON MEASUREMENT (Basti, 2026-10-25). They are built here, where
+        # they always were, and placed by _build_printing_tab and
+        # _build_measurement_tab; the loop below still hides whichever of them
+        # a platform does not place.
+        self._native_print_tip = native_tip
+        self._pdf_fallback_tip = pdf_fallback_tip
+        self._confirm_print_tip = confirm_tip
+        self._refine_tip = refine_tip
+        self._averaging_tip = averaging_tip
 
         for i, cell in enumerate(bh_cells):
             bh.addWidget(cell, i // 2, i % 2)
 
-        # The platform-gated print options above are constructed unconditionally
-        # (their attributes are referenced by _load_settings / _save_and_close /
-        # _sync_print_path_options), but only wrapped in a _bh_cell — which
-        # reparents them into the grid — on the platforms that use them. On the
-        # others they keep parent=self with no layout, so Qt floats them at the
-        # dialog's top-left corner, where they pile up over the first group box.
-        # Hide whatever wasn't placed.
-        for widget in (
-            self._native_print_check, native_tip,
-            self._pdf_fallback_check, pdf_fallback_tip,
-            self._confirm_print_check, confirm_tip,
-        ):
-            if widget.parent() is self:
-                widget.hide()
+        # (Whichever print option a platform does not place is hidden by
+        # _build_printing_tab, once the tab has placed the others.)
 
         layout.addWidget(behaviour_grp)
-
-        # ---- The edge each printer does not print (Basti, 2026-10-25) ----
-        layout.addWidget(self._build_printer_edge_group())
 
         # ---- Appearance & Language ----
         # "&&" — QGroupBox treats a single "&" as a mnemonic marker.
@@ -4048,6 +4032,8 @@ class SettingsDialog(QDialog):
                           tr("Reports"))
         self._tabs.addTab(self._scroll_wrap(self._build_measurement_tab()),
                           tr("Measurement"))
+        self._tabs.addTab(self._scroll_wrap(self._build_printing_tab()),
+                          tr("Printing"))
         self._tabs.addTab(self._scroll_wrap(self._build_sounds_tab()),
                           tr("Sounds"))
         self._tabs.addTab(self._scroll_wrap(self._build_licences_tab()),
@@ -4342,6 +4328,18 @@ class SettingsDialog(QDialog):
         pl_row.addStretch()
         pl_row.addWidget(preview_legend_tip)
         opts.addLayout(pl_row)
+
+        # Refinement and averaging, moved here from General (Basti,
+        # 2026-10-25): both are about what happens to a measurement, so they
+        # sit with the other measuring options, before the patch checks.
+        for check, tip in ((self._chromiq_refine_check, self._refine_tip),
+                           (self._averaging_check, self._averaging_tip)):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(check)
+            row.addStretch()
+            row.addWidget(tip)
+            opts.addLayout(row)
 
         # THE PATCH CHECKS, IN THEIR OWN TITLED SECTION, after the single
         # options (Basti, 2026-10-25): the table and its line on units.
@@ -7121,6 +7119,74 @@ class SettingsDialog(QDialog):
                 if isinstance(vdict, dict) and (set(vdict) & known):
                     self._layout_store.set(LayoutRecipe.from_dict(vdict))
             self._load_layout_combo()
+
+    # ---- the Printing tab (Basti, 2026-10-25) -------------------------------
+    def _build_printing_tab(self) -> QWidget:
+        """Every option that changes how a chart is printed, moved here from
+        General: which way the chart goes to the printer, what ChromIQ checks
+        when it prints the chart itself, and the edge each printer does not
+        print. A platform shows the options it had on General, and only those:
+        the dialog switch where there is a choice of route (macOS, Windows),
+        the exact-size PDF fallback on macOS, the confirmation everywhere.
+        Nothing about any setting changes, only where it is shown."""
+        page = QWidget()
+        v = QVBoxLayout(page)
+        v.setSpacing(12)
+        v.setContentsMargins(12, 12, 12, 12)
+
+        intro = QLabel(tr(
+            "How ChromIQ sends a chart to your printer, and what it checks "
+            "before paper and ink are used. These settings apply to every "
+            "chart you print."), page)
+        intro.setWordWrap(True)
+        v.addWidget(intro)
+
+        def option_row(check, tip):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(check)
+            row.addStretch()
+            row.addWidget(tip)
+            return row
+
+        if print_route_switch_supported():
+            route_grp = QGroupBox(tr("How the chart is printed"), self)
+            rl = QVBoxLayout(route_grp)
+            rl.setSpacing(6)
+            rl.addLayout(option_row(self._native_print_check,
+                                    self._native_print_tip))
+            v.addWidget(route_grp)
+
+        own_grp = QGroupBox(tr("When ChromIQ prints the chart itself"), self)
+        ol = QVBoxLayout(own_grp)
+        ol.setSpacing(6)
+        # The exact-size PDF fallback answers a macOS CUPS filter
+        # (cgimagetopdf); it is not offered elsewhere.
+        if is_macos():
+            ol.addLayout(option_row(self._pdf_fallback_check,
+                                    self._pdf_fallback_tip))
+        # The confirmation belongs to ChromIQ's own route, which every
+        # platform has (Windows since #205, 4.3.8).
+        ol.addLayout(option_row(self._confirm_print_check,
+                                self._confirm_print_tip))
+        v.addWidget(own_grp)
+
+        v.addWidget(self._build_printer_edge_group())
+        v.addStretch()
+
+        # The platform-gated options are built on every platform (the
+        # settings code reads them all), but only placed where they apply.
+        # One left with no layout keeps parent=self and Qt floats it at the
+        # dialog's top-left corner, over the first group box, so whatever
+        # this tab did not place is hidden.
+        for widget in (
+            self._native_print_check, self._native_print_tip,
+            self._pdf_fallback_check, self._pdf_fallback_tip,
+            self._confirm_print_check, self._confirm_print_tip,
+        ):
+            if widget.parent() is self:
+                widget.hide()
+        return page
 
     # ---- the edge each printer does not print (workflow.printer_edges) -----
     #: The spin box value that means "as the printer reports it".
