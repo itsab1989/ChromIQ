@@ -267,6 +267,42 @@ given the new one, and the tooltips of "Row indicators", "Label offset" and
 
 ---
 
+## §R1.3b · The clip-border content is centred across the band — CONFIRMED
+
+**Confirmed by:** Basti, 2026-10-25.
+
+Knut (forum post 149832, 2026-10-25), at a 13 mm clip border on his
+"i1Pro-100x150mm-600p-5pages-Portrait-TEST" preset: *"Should the text not
+also be aligned to the centre, like the logo, so they follow each other?"*
+It replaces his ruling of 2026-09-12 that the clip-border text starts at
+"Clip" and grows inward (`issue_182_answers.md`, the clip text section,
+point 4), for every preset, old and new, built-ins included.
+
+**The rule, as built (`raster.render_clip_strip`, `_vtext`, `_vwordmark`):**
+
+* The lines (branding, plain clip text, an imported image's caption) are
+  centred across the band, half way between "Clip" (or the ruler helper
+  markers' reserve, whichever reaches further in) and the band's inner edge.
+* The ChromIQ wordmark is centred on its ink, not on its font's em box, so
+  the lines and the wordmark share one centre line. Before, the wordmark's
+  ink sat 0.2 to 0.5 mm off the band's centre.
+* Lines too thick for the band keep the 2026-09-12 rule: the first line stays
+  at "Clip" and the block runs inward, with its warning.
+* **Only the content moves.** The row labels, the strip letters, the left
+  margin and the patch count are laid out against where the content reached
+  before it was centred (`raster.clip_content_reach_mm` measures the
+  uncentred placement), so they stay exactly where they were under both
+  clip-border rules. On a recipe that uses the free part of the border
+  (§R1.3a), the centred ink is never taken past that reach, so the labels
+  keep their 1 mm from it; where the content already reaches the reach
+  (for example four lines in a 13 mm band), it cannot be centred further.
+* Measured: Knut's 13 mm band, two and four lines, 100 % and 150 %: lines
+  and wordmark centred within 0.1 mm of the band's centre
+  (`tests/test_clip_border_content_is_centred_across_the_band.py`). All 382
+  built-in preset rows were rendered before and after: no page changed and
+  no layout value changed (none of them prints branding lines, and their
+  clip text is sized in "auto", which already fills the band).
+
 ## §R3 · What each rule replaces
 
 | Rule | Before | After |

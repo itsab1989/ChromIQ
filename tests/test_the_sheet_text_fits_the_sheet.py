@@ -350,7 +350,11 @@ def test_the_block_is_anchored_at_the_page_edge_end_whichever_way_it_reads():
         strip = raster.render_clip_strip(
             "text", width_px=W, height_px=H, dpi=200, text=text,
             font_family="Inter", text_size_mm=size_mm,
-            anchor_far=(flip and compensate))
+            anchor_far=(flip and compensate),
+            # The anchoring this guards is what a block too thick for its
+            # band still uses; a block that fits is centred across the band
+            # since 2026-10-25 (Basti), checked at the end.
+            centre_across=False)
         if flip:
             strip = strip.rotate(180, expand=True)
         cols = np.flatnonzero(
@@ -377,3 +381,14 @@ def test_the_block_is_anchored_at_the_page_edge_end_whichever_way_it_reads():
     assert naive[0] - plain[0] > 4 * half_line, (
         f"turning the strip over no longer moves the block ({plain} vs "
         f"{naive}), so anchor_far is guarding nothing")
+    # AND A BLOCK THAT FITS IS CENTRED ACROSS THE BAND, whichever way it reads
+    # (Basti, 2026-10-25, on Knut's forum post 149832).
+    for flip in (False, True):
+        strip = raster.render_clip_strip(
+            "text", width_px=W, height_px=H, dpi=200, text=text,
+            font_family="Inter", text_size_mm=size_mm, anchor_far=flip)
+        if flip:
+            strip = strip.rotate(180, expand=True)
+        cols = np.flatnonzero(
+            (np.asarray(strip.convert("L")) < 200).any(axis=0))
+        assert abs((cols[0] + cols[-1]) / 2.0 - W / 2.0) <= 2 * half_line

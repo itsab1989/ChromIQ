@@ -727,9 +727,14 @@ that was genuinely open.
    move.
 3. **The overflow is ACROSS the band only.** The top and bottom of the sheet
    are a different edge with a different complaint and are untouched.
-4. **The block is anchored at the page-edge end whichever way the content
-   reads.** See the finding below: "Flip 180°" used to move the anchor as well
-   as the glyphs, so on a flipped band the text grew toward the paper edge.
+4. ~~**The block is anchored at the page-edge end whichever way the content
+   reads.**~~ **Replaced on 2026-10-25 (Basti, on Knut's forum post 149832;
+   `row_label_geometry.md` §R1.3b): a block that fits is centred across the
+   band, between "Clip" and the band's inner edge, and the wordmark shares
+   its centre line.** A block too thick for the band still starts at the
+   page-edge end and grows inward, whichever way the content reads. See the
+   finding below: "Flip 180°" used to move the anchor as well as the glyphs,
+   so on a flipped band the text grew toward the paper edge.
 5. **Nothing is cut any more.** See the second finding.
 6. **The ink is composited, not pasted.** See the third finding, which is the
    one that would have done real damage.

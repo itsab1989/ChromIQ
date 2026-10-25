@@ -228,17 +228,15 @@ def test_flipping_the_content_does_not_move_which_end_overflows_on_a_real_page()
         assert len(cols), f"nothing printed in the band (flip={flip})"
         seen[flip] = (int(cols[0]), int(cols[-1]), hi - lo)
     width = seen[False][2]
-    # THE PAGE-EDGE END of a right-hand band is the HIGH column of the rect, and
-    # the block must END there, within a line's worth of rounding. "In the
-    # right-hand three quarters" is NOT enough: with six lines at 5 pt the
-    # block is two thirds of this band, so a block anchored at the WRONG end
-    # still reaches past three quarters and the mutation goes uncaught.
+    # A BLOCK THAT FITS IS CENTRED ACROSS THE BAND (Basti, 2026-10-25, on
+    # Knut's forum post 149832), which replaces the page-edge anchoring of
+    # 2026-09-12 for it: the flip must leave it centred, not move it to either
+    # end. (A block too thick for its band keeps the page-edge anchor:
+    # `test_the_sheet_text_fits_the_sheet.py`.)
     line_px = tef.CLIP_LINE_SPACING * tef.pt_to_px(size_pt, 200)
     for flip, (first, last, _w) in seen.items():
-        assert width - last <= line_px, (
+        assert abs((first + last) / 2.0 - width / 2.0) <= line_px, (
             f"flip={flip}: the block sits at columns {first}..{last} of "
-            f"{width} and stops {width - last} px short of the page-edge end, "
-            f"so it is anchored at the patch end and grows toward the paper "
-            f"edge")
+            f"{width}, not centred across the band")
     assert abs(seen[False][0] - seen[True][0]) <= line_px, (
         f"the flip moved the block: {seen[False]} vs {seen[True]}")

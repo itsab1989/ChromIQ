@@ -1755,7 +1755,13 @@ def _clip_reach_cached(key: tuple) -> "float | None":
             mode, width_px=aw, height_px=ah, dpi=dpi, text=text,
             font_family=font, text_size_mm=size_mm, image_path=img,
             ctx=dict(ctx_items), image_rotation=rot, image_scale=scale,
-            image_offset_x_mm=ox, image_offset_y_mm=oy, anchor_far=flip)
+            image_offset_x_mm=ox, image_offset_y_mm=oy, anchor_far=flip,
+            # THE PLACEMENT THE LABELS WERE LAID OUT AGAINST (Basti,
+            # 2026-10-25): the content is now centred across the band, and
+            # the row labels, the strip letters, the margin and the patch
+            # count are held to where it reached before, so nothing but the
+            # content moves. `render_pages` keeps the centred ink inside it.
+            centre_across=False)
     except Exception:      # noqa: BLE001 - unknown content holds the whole border
         log.debug("clip content could not be measured", exc_info=True)
         return None
@@ -1766,6 +1772,20 @@ def _clip_reach_cached(key: tuple) -> "float | None":
     if cols.size == 0:
         return 0.0
     return (ax + int(cols[-1]) + 1) * 25.4 / dpi
+
+
+def _clip_inner_limit_px(geom, ax_px: int, aw_px: int, dpi: int) -> float:
+    """How far across the strip, from its page-edge side, the centred clip
+    content may reach, in pixels; 0 when nothing is held clear of it.
+
+    Only a LEFT band under the 4.3.14 rule has labels laid out against the
+    content's reach (`Geom.clip_content_reach_mm`, which `clip_content_
+    reach_mm` measures on the uncentred placement); an older recipe's labels
+    clear the whole border, and a right band has none beside it."""
+    reach = float(getattr(geom, "clip_content_reach_mm", -1.0) or -1.0)
+    if reach <= 0 or getattr(geom, "clip_side", "left") == "right":
+        return 0.0
+    return max(1.0, min(float(aw_px), reach * dpi / 25.4 - float(ax_px)))
 
 
 def clip_content_reach_mm(geom, kw: dict) -> "float | None":
@@ -2249,8 +2269,21 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
                       image_offset_y_mm: float = 0.0,
                       image_obj: "Image.Image | None" = None,
                       text_size_mm: float = 0.0,
-                      anchor_far: bool = False) -> Image.Image:
+                      anchor_far: bool = False,
+                      centre_across: bool = True,
+                      inner_limit_px: float = 0.0) -> Image.Image:
     """Render the left clip-strip content as a ``width_px × height_px`` image.
+
+    **CENTRED ACROSS THE BAND (Basti, 2026-10-25, on Knut's forum post
+    149832).** The text lines and the wordmark share one centre line, half
+    way between "Clip" and the band's inner edge; the wordmark is centred on
+    its ink, not its em box. Lines that do not fit across keep hugging the
+    page-edge side, as before. *centre_across* False draws the placement of
+    4.3.14 and earlier, which is what `clip_content_reach_mm` measures, so
+    the row labels and strip letters that are held clear of the content stay
+    exactly where they were. *inner_limit_px* (> 0) is that reach, measured
+    from the page-edge side of the strip: centring never takes ink past it,
+    so the 1 mm the labels keep from the content stays 1 mm.
 
     The strip is tall and narrow, so text/branding are drawn on a landscape
     canvas and rotated 90° to read up the strip. Shared by the page renderer and
@@ -2290,7 +2323,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
         if lines:
             overlay = _vtext("\n".join(lines), font_family, width_px, height_px,
                              size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
-                             dpi=dpi)
+                             dpi=dpi, centre_across=centre_across,
+                             inner_limit_px=inner_limit_px)
             strip.paste(overlay, (0, 0), overlay)
         return strip
 
@@ -2308,7 +2342,9 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
                                  scale=image_scale,
                                  offset_x_px=image_offset_x_mm * mm2px,
                                  offset_y_px=image_offset_y_mm * mm2px,
-                                 dpi=dpi, anchor_far=anchor_far)
+                                 dpi=dpi, anchor_far=anchor_far,
+                                 centre_across=centre_across,
+                                 inner_limit_px=inner_limit_px)
         except Exception:  # noqa: BLE001 — a blank band, never a crashed slot
             # The imported-image branch above has always swallowed its failures;
             # the branding one could not fail until it gained a scale, and then
@@ -2327,7 +2363,9 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
         return strip
     overlay = _vtext("\n".join(lines), font_family, width_px, height_px,
                      size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
-                     dpi=dpi, anchor_far=anchor_far)
+                     dpi=dpi, anchor_far=anchor_far,
+                     centre_across=centre_across,
+                     inner_limit_px=inner_limit_px)
     strip.paste(overlay, (0, 0), overlay)
     return strip
 
@@ -2458,7 +2496,8 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
                font_family: str = "Inter", extra_size_px: float = 0.0,
                scale: float = 100.0, offset_x_px: float = 0.0,
                offset_y_px: float = 0.0, dpi: float = 200.0,
-               anchor_far: bool = False) -> Image.Image:
+               anchor_far: bool = False, centre_across: bool = False,
+               inner_limit_px: float = 0.0) -> Image.Image:
     """The masthead "ChromIQ" wordmark — Instrument Serif, "Chrom" near-black,
     "IQ" italic in magenta — AT THE END OF THE BAND, and the user's lines in
     the box that is left, read up the strip (K58).
@@ -2507,6 +2546,19 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
                              int(baseline - iq_base)), iq_tile)
     except Exception:  # pragma: no cover - default font without anchor
         md.text((x, 0), "ChromIQ", font=f, fill=WORDMARK_RGB + (255,))
+    if centre_across:
+        # ON ITS INK, NOT ITS EM BOX (Basti, 2026-10-25): the baseline above
+        # centres the font's box, which put the ink 0.2 to 0.5 mm off the
+        # band's centre line on Knut's 100x150 mm card.
+        _bb = mark.getbbox()
+        if _bb:
+            _dy = round(T / 2.0 - (_bb[1] + _bb[3]) / 2.0)
+            _dy = _clamp_inward(_dy, _bb[1], _bb[3], T, inner_limit_px,
+                                anchor_far)
+            if _dy:
+                _moved = Image.new("RGBA", mark.size, (0, 0, 0, 0))
+                _moved.paste(mark, (0, _dy), mark)
+                mark = _moved
     mark = mark.rotate(90, expand=True)              # T x L, the start at the bottom
     out = Image.new("RGBA", (T, L), (0, 0, 0, 0))
     out.paste(mark, (round(offset_x_px), round(offset_y_px)), mark)
@@ -2536,16 +2588,32 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
                     fixed = max(1.0, across)
             txt = _vtext("\n".join(extra_lines), font_family, T, box_len,
                          size_px=fixed, dpi=dpi,
-                         anchor_far=anchor_far, max_size_px=float(size))
+                         anchor_far=anchor_far, max_size_px=float(size),
+                         centre_across=centre_across,
+                         inner_limit_px=inner_limit_px)
             out.paste(txt, (0, 0), txt)
     return out
+
+
+def _clamp_inward(dy: float, lo: float, hi: float, width: float,
+                  inner_limit_px: float, inner_is_low: bool) -> float:
+    """A move *dy* across the band of content spanning *lo*..*hi*, held so the
+    content never passes *inner_limit_px* (measured from the page-edge side;
+    0 = no limit). The page-edge side is high y when *inner_is_low*."""
+    if not inner_limit_px or inner_limit_px <= 0:
+        return dy
+    if inner_is_low:            # inward is toward y = 0
+        floor = width - inner_limit_px
+        return max(dy, min(0, floor - lo)) if dy < 0 else dy
+    return min(dy, max(0, inner_limit_px - hi)) if dy > 0 else dy
 
 
 def _vtext(text: str, font_family: str, width_px: int, height_px: int,
            *, valign: str = "center", bold: bool = False,
            size_px: float = 0.0, dpi: float = 200.0,
            anchor_far: bool = False,
-           max_size_px: float = 0.0) -> Image.Image:
+           max_size_px: float = 0.0, centre_across: bool = False,
+           inner_limit_px: float = 0.0) -> Image.Image:
     """A transparent ``width_px × height_px`` overlay with *text* read up the strip.
 
     *max_size_px* (> 0) caps the AUTOMATIC size only: the branding's lines are
@@ -2639,6 +2707,16 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
     start = (width_px - block_h) / 2 if valign == "top" else 0.0
     if anchor_far and valign != "top":
         start = max(0.0, width_px - block_h)
+    # **AND CENTRED BETWEEN "Clip" AND THE BAND'S INNER EDGE WHEN IT FITS**
+    # (Basti, 2026-10-25, on Knut's forum post 149832: *"Should the text not
+    # also be aligned to the centre, like the logo, so they follow each
+    # other?"*). This replaces the 2026-09-12 placement above, which hugged
+    # the outer edge. A block too thick for the band keeps it: its first line
+    # stays at "Clip" and the rest runs inward, as that ruling says.
+    if centre_across and valign != "top" and block_h <= width_px:
+        _c = (width_px - block_h) / 2.0
+        start = start + _clamp_inward(_c - start, start, start + block_h,
+                                      width_px, inner_limit_px, anchor_far)
     ys = [start + line_h * (i + 0.5) for i in range(n)]
     cx = (height_px * 0.04 if valign == "top" else height_px / 2)
     anchor = "lm" if valign == "top" else "mm"
@@ -3707,7 +3785,11 @@ def render_pages(
                     # his run 1 (a right-hand band with "Flip 180" on) line 1
                     # sat against the PATCHES and the block grew toward the
                     # paper edge, which is the direction his ruling forbids.
-                    anchor_far=bool(clip_flip_180))
+                    anchor_far=bool(clip_flip_180),
+                    # Centred across the band, but never past where the
+                    # uncentred content reached, which is what the labels
+                    # beside it were placed against (Basti, 2026-10-25).
+                    inner_limit_px=_clip_inner_limit_px(geom, _ax, _aw, dpi))
                 # On the right edge the band sits on the far side of the sheet, so
                 # turn the content 180° to keep it the right way up for the reader
                 # (Knut, #93). The user can override with clip_flip_180 (XOR), e.g.
