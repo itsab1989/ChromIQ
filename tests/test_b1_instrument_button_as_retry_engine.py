@@ -208,7 +208,8 @@ def test_the_gate_is_opened_only_at_the_misread_prompt_and_the_page_hold():
                             '\\"event\\":\\"held\\",\\"patch\\"'),
         "gesture hold": ("static int cq_gesture_hold(",
                          '\\"event\\":\\"gesture\\"'),
-        "try it": ("static int cq_run_button_test(", "press_group"),
+        "try it": ('\\"event\\":\\"instrument\\",\\"model\\"',
+                   '\\"button\\":%s,'),
     }
     found = set()
     for at in opens:

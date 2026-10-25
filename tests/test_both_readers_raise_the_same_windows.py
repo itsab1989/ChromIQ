@@ -34,7 +34,7 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 #:
 #: ⚠ THE SOURCE LINE NUMBERS DRIFT whenever chromiq_chartread.c gains or loses
 #: lines above them, and a drift failure looks exactly like a behavioural
-#: regression. #159 shifted all four by +21, the button shortcuts (4.3.14) by +65, and the failures were reported as
+#: regression. #159 shifted all four by +21, the button shortcuts (4.3.14) by +65 and their exit guard by +27, and the failures were reported as
 #: "pre-existing" for a while, which is precisely how a real regression would
 #: hide. If these fail, FIRST check whether the literal simply moved:
 #:
@@ -45,13 +45,13 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 #: worktree before touching anything else.
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 1635),
+                    "Need reflection spot, strip, xy or chart reading capability", 1662),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 1694),
+                    "Setting Colorimeter Correction Matrix failed with error", 1721),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 1716),
+                    "Reading CCMX/CCSS File", 1743),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 2040),
+                    "Setting instrument mode failed with error", 2067),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",
