@@ -1356,6 +1356,11 @@ class MeasureManager(QObject):
         self._guided_by_patch = False
         self._guided_idx    = 0
         self._guided_state  = "idle" if strips else "disabled"
+        # A NEW LIST STARTS WITH NO JUMPS COUNTED (review of 4.3.14): a count
+        # left from a guide the person stopped (`user_goto_strip`) would
+        # otherwise make the first stray announcement of the next session
+        # skip a strip the chart does have.
+        self._guided_jumps_for = ("", 0)
 
     def set_guided_patches(self, locs: list[str]) -> None:
         """Guided refinement PATCH BY PATCH (#211, Basti 2026-10-15).
@@ -1370,6 +1375,7 @@ class MeasureManager(QObject):
         self._guided_by_patch = bool(self._guided_strips)
         self._guided_idx    = 0
         self._guided_state  = "idle" if self._guided_strips else "disabled"
+        self._guided_jumps_for = ("", 0)
 
     @property
     def guided_by_patch(self) -> bool:
@@ -2516,6 +2522,7 @@ class MeasureManager(QObject):
             from core.i18n import tr
             rest = self._guided_strips[self._guided_idx:]
             self._guided_state = "idle_done"
+            self._guided_jumps_for = ("", 0)
             log.info("guided refinement: the person chose strip %s, so the "
                      "guide stops (still listed: %s)", strip, ", ".join(rest))
             on_line = getattr(self, "_guided_on_line", None)

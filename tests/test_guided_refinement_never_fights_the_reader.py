@@ -150,3 +150,21 @@ def test_the_preview_click_is_the_persons_choice_and_the_list_is_filtered():
     assert "user_goto_strip(" in src
     src = inspect.getsource(tab_measure)
     assert "set_guided_strips(\n                self._guided_strips_on_chart()" in src
+
+
+def test_a_new_list_starts_with_no_jumps_counted():
+    """Review of 4.3.14: the jump count is per guided session. A count left
+    from a guide the person stopped mid-way must not make the next session
+    skip a strip the chart has at its first stray announcement."""
+    import types
+    m = types.SimpleNamespace(_guided_jumps_for=("C", 2))
+    MeasureManager.set_guided_strips(m, ["C", "E"])
+    assert m._guided_jumps_for == ("", 0)
+    m._guided_jumps_for = ("C", 2)
+    MeasureManager.set_guided_patches(m, ["C3"])
+    assert m._guided_jumps_for == ("", 0)
+    e = _Engine(["C", "E"], list("ABCDEF"), at="A")
+    e._guided_jumps_for = ("C", 1)
+    e._guided_state = "navigating"
+    e.user_goto_strip("B")
+    assert e._guided_jumps_for == ("", 0)
