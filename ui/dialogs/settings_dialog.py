@@ -3844,15 +3844,23 @@ class SettingsDialog(QDialog):
                 "settings.\n\nHighly recommended: a profiling chart printed with the "
                 "wrong settings wastes expensive paper and ink.")
         else:
+            # SAID THE WAY THE WINDOWS ONE SAYS IT (Basti, 2026-10-25: the
+            # evenness rule): when the summary appears, that the box is greyed
+            # out while the macOS dialog is on and keeps its tick, no em dash.
             confirm_body = tr(
-                "When enabled, ChromIQ shows a summary dialog of every option that "
-                "will be sent to CUPS before each print job:\n\n"
-                "  • Printer, paper size, media type, quality, tray, borderless\n"
-                "  • Auto-detected orientation (portrait or landscape)\n"
-                "  • The forced-off state of duplex and colour management\n"
-                "  • Any detected mismatches (e.g. paper size ≠ chart size)\n\n"
-                "Highly recommended — profiling targets waste expensive paper and "
-                "ink when printed with the wrong settings.")
+                "When this is ticked, ChromIQ shows a summary before every print, so "
+                "you can check everything once more before paper and ink are used:\n\n  "
+                "• Printer, paper size, media type, quality, paper tray and borderless "
+                "printing\n  • Whether the chart is printed upright or turned (chosen "
+                "automatically)\n  • That double-sided printing and colour management "
+                "are switched off\n  • Any problem ChromIQ noticed, for example a paper "
+                "size that does not match the chart\n\nThe summary appears when ChromIQ "
+                "prints the chart itself (\"Use default macOS printer dialog\" "
+                "unticked). While that option is ticked, this one is greyed out, "
+                "because the macOS print dialog is then where you check your "
+                "settings. It keeps its tick, so the summary comes back as soon as you "
+                "untick the macOS dialog.\n\nHighly recommended: a profiling chart "
+                "printed with the wrong settings wastes expensive paper and ink.")
         confirm_tip = TooltipButton(
             tr("Confirm Print Settings"), confirm_body, self, min_width=560)
 
