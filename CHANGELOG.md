@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.3.15
+
+**For everyone updating from 4.3.14: the warnings about the strip letters at the top of the page now check exactly what is printed there, so letters placed between the ruler helper markers no longer get a warning they do not deserve, and the clip-border text is centred across its band like the logo. Your charts, presets and patches stay where they were.**
+
+### Changed
+- **The strip letters are checked against the real helper markers** (Knut). A letter now gets a warning only when its ink touches a dash, or the 1 mm of clear paper below it, or reaches the patches. Letters standing between the dashes are fine. New: a warning when the letters come closer to the paper edge than "T" under "Text distance from edge" allows. (New texts, shown and waiting for approval.)
+- **The clip-border text and the ChromIQ wordmark are centred across the clip border**, between "Clip" and the border's inner edge, on one shared centre line (Knut, Basti's ruling). Only the clip-border content moves; strip letters, row labels and patches stay exactly where they were, on every chart and preset.
+- **The hint that letters sit where your instrument reads is gone.** Letters in their normal centred place sit in that path too and never got it, so the hint was not consistent (Knut, Basti's ruling). The ⓘ beside "Label offset" still explains how far to move the letters to keep them out of the instrument's way.
+- **Warnings that mean only the vertical offset now name it exactly:** "Y" next to "Label offset".
+
+### Added
+- **A warning when a line of the clip-border text does not fit across the clip border** at the size you typed: it says which line is cut, by how much, and how to fix it. (New texts, shown and waiting for approval.)
+
+### Fixed
+- **No more false "the strip letters reach 47.9 mm down the page" warning** with letters turned on their side (Knut). ChromIQ measured all the letters together as one long word.
+
 ## v4.3.14
 
 **For everyone updating from 4.3.13: you can now use your instrument's button for more than reading. A double or triple press can take you back one strip or patch, forward one, or to the next unread one (i1Pro family and ColorMunki / i1Studio / ColorChecker Studio, off until you switch it on). The row labels can be turned like the strip letters, Preferences has a Printing tab, and ChromIQ tells you when a printer would leave part of your chart unprinted. Charts, presets and defaults you made before lay out exactly as they did.**
