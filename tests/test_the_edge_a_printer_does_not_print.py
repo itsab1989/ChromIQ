@@ -119,3 +119,27 @@ def test_choosing_a_printer_refreshes_create_chart_at_once():
     from ui.tabs.tab_print import TabPrint
     src = inspect.getsource(TabPrint._on_printer_changed)
     assert "_update_margin_inspector()" in src
+
+
+def test_patches_in_the_edge_are_named_and_never_called_safe(tmp_path,
+                                                             monkeypatch):
+    """Review of 4.3.14: with a margin narrower than the printer's edge the
+    note called the patches "printed text" and said "Nothing your instrument
+    measures is in it"."""
+    monkeypatch.setattr(PE, "_query_driver",
+                        lambda p, c: PE.ppd_edges_mm(PPD, c))
+    w, h = round(100 / PX), round(150 / PX)
+    a = np.full((h, w, 3), 255, np.uint8)
+    # patches from 1 mm to 140 mm down, 15 to 90 mm across: the top 2 mm of
+    # them are in the 3 mm edge (plus the 1 mm the 148 mm paper takes)
+    a[round(1 / PX):round(140 / PX), round(15 / PX):round(90 / PX)] = 80
+    page = tmp_path / "p_01.tif"
+    Image.fromarray(a).save(page, dpi=(DPI, DPI))
+    edges, paper = PE.edges_for("Capture_A44", (100, 150), _Settings())
+    loss = PE.losses_for_chart([(page, 0)], edges, paper)
+    assert loss.patches == ["top"], loss
+    assert not loss.text, loss
+    note = MM.edge_note("Capture_A44", edges, loss)
+    assert "patches at the top" in note
+    assert "Nothing your instrument measures" not in note
+    assert "cannot read patches" in note and "Margins (mm)" in note

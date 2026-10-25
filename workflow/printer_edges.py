@@ -23,9 +23,11 @@ THREE SOURCES, the person's own first:
 What falls into the edge is read off the chart's own page image
 (`workflow.overhang`'s ink, helper-marker and caption readers), placed on the
 paper the way every print route places it: centred, at 100 %, moved by the
-overhang plan when there is one. Only the ruler helper markers and the text
-the chart prints along its edges can be there; patches never are. Never a
-block: it is a note under the preview and on the Print Chart tab.
+overhang plan when there is one. Usually only the ruler helper markers and the
+text the chart prints along its edges are there; patches only when a margin
+is narrower than the printer's edge, and the note then says so rather than
+calling them text. Never a block: it is a note under the preview and on the
+Print Chart tab.
 """
 from __future__ import annotations
 
@@ -205,11 +207,14 @@ class Loss:
     markers: "dict[str, int]" = field(default_factory=dict)   # side: count
     caption: "list[str]" = field(default_factory=list)        # sides
     text: "dict[str, float]" = field(default_factory=dict)    # side: depth mm
+    #: sides on which PATCHES fall into the edge (review of 4.3.14: the note
+    #: said "nothing your instrument measures is in it" whatever was there)
+    patches: "list[str]" = field(default_factory=list)
     #: how much further in, per side, everything would have to start
     needed_mm: "dict[str, float]" = field(default_factory=dict)
 
     def any(self) -> bool:
-        return bool(self.markers or self.caption or self.text)
+        return bool(self.markers or self.caption or self.text or self.patches)
 
 
 def _limits_on_chart(edges: Edges, chart_mm, paper_mm, shift_mm=(0.0, 0.0)):
@@ -277,6 +282,28 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
         if lost[max(0, y0):y1, max(0, x0):x1].any():
             out.caption.append(_side_of(cap, chart_mm))
         known[max(0, y0):y1, max(0, x0):x1] = True
+    # …AND THE PATCHES, which the note must never pass off as text (review
+    # of 4.3.14): a chart whose margin is narrower than the printer's edge
+    # loses patch area there, and that is the one loss that spoils a
+    # measurement.
+    try:
+        pb = O.patch_box(tiff_path, frame)
+    except Exception:      # noqa: BLE001
+        pb = None
+    if pb is not None:
+        x0, y0 = int(pb.left / mm), int(pb.top / mm)
+        x1, y1 = int(np.ceil(pb.right / mm)), int(np.ceil(pb.bottom / mm))
+        sub = lost[max(0, y0):y1, max(0, x0):x1]
+        if sub.any():
+            pcols = np.where(sub.any(axis=0))[0] + max(0, x0)
+            prows = np.where(sub.any(axis=1))[0] + max(0, y0)
+            for side, hit in (("top", prows[0] * mm < lo_y),
+                              ("bottom", (prows[-1] + 1) * mm > hi_y),
+                              ("left", pcols[0] * mm < lo_x),
+                              ("right", (pcols[-1] + 1) * mm > hi_x)):
+                if hit:
+                    out.patches.append(side)
+        known[max(0, y0):y1, max(0, x0):x1] = True
     rest = lost & ~known
     if rest.any():
         rows = np.where(rest.any(axis=1))[0]
@@ -321,6 +348,9 @@ def losses_for_chart(pages, edges: Edges, paper_mm, shift_mm=(0.0, 0.0)
         for s in one.caption:
             if s not in out.caption:
                 out.caption.append(s)
+        for s in one.patches:
+            if s not in out.patches:
+                out.patches.append(s)
         for k, v in one.text.items():
             out.text[k] = max(out.text.get(k, 0.0), v)
         for k, v in one.needed_mm.items():

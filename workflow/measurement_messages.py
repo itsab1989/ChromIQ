@@ -6213,11 +6213,11 @@ M_EDGE_NOT_PRINTED = _m(
     "M-EDGE-NOT-PRINTED",
     "Part of the chart falls where your printer does not print",
     "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} ({source}). "
-    "On this chart, {lost} fall into that edge, so they will be missing or "
-    "cut off on paper. Nothing your instrument measures is in it, and you can "
-    "print the chart like this. To keep them on the paper: {fix} If your "
-    "printer leaves a different edge than this, set it under Preferences, "
-    "Printing, \u201cEdge this printer does not print\u201d.",
+    "These parts of this chart fall into that edge, so they will be missing "
+    "or cut off on paper: {lost}. {safe} To keep them on the paper: {fix} If "
+    "your printer leaves a different edge than this, set it under "
+    "Preferences \u25b8 Printing \u25b8 \u201cEdge this printer does not "
+    "print\u201d.",
     approved=False)
 _EDGE_SRC_DRIVER = "as its Windows printer driver reports it"
 _EDGE_SRC_PPD = "as the printer's description file gives it for this paper size"
@@ -6228,6 +6228,11 @@ _EDGE_PER_SIDE = ("{left} mm on the left, {right} mm on the right, {top} mm at "
 _EDGE_LOST_MARKERS = "{n} of the ruler helper markers {where}"
 _EDGE_LOST_CAPTION = "part of ArgyllCMS\u2019s line of small print {where}"
 _EDGE_LOST_TEXT = "up to {mm} mm of printed text {where}"
+_EDGE_LOST_PATCHES = "patches {where}"
+_EDGE_SAFE = ("Nothing your instrument measures is in it, and you can print "
+              "the chart like this.")
+_EDGE_SAFE_NOT = ("Your instrument cannot read patches that are not printed, "
+                  "so please move them in before you print this chart.")
 _EDGE_AT_TOP = "at the top"
 _EDGE_AT_BOTTOM = "at the bottom"
 _EDGE_ON_LEFT = "on the left"
@@ -6238,6 +6243,9 @@ _EDGE_FIX_MARKERS = ("Move the ruler helper markers further in by raising "
 _EDGE_FIX_TEXT = ("Move the text further in by raising \u201cText distance from "
                   "edge (mm)\u201d, or the margin on that side, by at least "
                   "{mm} mm.")
+_EDGE_FIX_PATCHES = ("Move the patches further in by raising the margin on "
+                     "that side under \u201cMargins (mm)\u201d by at least "
+                     "{mm} mm.")
 _EDGE_FIX_CAPTION = ("ArgyllCMS writes its line of small print along the edge "
                      "itself, so it cannot be moved; it is only a record, and no "
                      "instrument reads it.")
@@ -6246,9 +6254,11 @@ M_EDGE_NOT_PRINTED_PARTS = _m(
     "The edge a printer does not print: the parts of the note",
     "\n".join((_EDGE_SRC_DRIVER, _EDGE_SRC_PPD, _EDGE_SRC_OVERRIDE,
                _EDGE_ALL_ROUND, _EDGE_PER_SIDE, _EDGE_LOST_MARKERS,
-               _EDGE_LOST_CAPTION, _EDGE_LOST_TEXT, _EDGE_AT_TOP,
+               _EDGE_LOST_CAPTION, _EDGE_LOST_TEXT, _EDGE_LOST_PATCHES,
+               _EDGE_SAFE, _EDGE_SAFE_NOT, _EDGE_AT_TOP,
                _EDGE_AT_BOTTOM, _EDGE_ON_LEFT, _EDGE_ON_RIGHT,
-               _EDGE_FIX_MARKERS, _EDGE_FIX_TEXT, _EDGE_FIX_CAPTION)),
+               _EDGE_FIX_MARKERS, _EDGE_FIX_TEXT, _EDGE_FIX_PATCHES,
+               _EDGE_FIX_CAPTION)),
     approved=False)
 #: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
 #: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
@@ -8092,6 +8102,10 @@ def edge_note(printer: str, edges, loss) -> "str | None":
     source = tr({"driver": _EDGE_SRC_DRIVER, "ppd": _EDGE_SRC_PPD}.get(
         edges.source, _EDGE_SRC_OVERRIDE))
     lost: list = []
+    patches = list(getattr(loss, "patches", []) or [])
+    for side in order:
+        if side in patches:
+            lost.append(tr(_EDGE_LOST_PATCHES).format(where=where[side]))
     for side in order:
         n = loss.markers.get(side)
         if n:
@@ -8106,6 +8120,8 @@ def edge_note(printer: str, edges, loss) -> "str | None":
     need = max([float(v) for v in loss.needed_mm.values()] or [0.0])
     need = max(0.5, round(need + 0.5, 0) / 1.0)
     fixes = []
+    if patches:
+        fixes.append(tr(_EDGE_FIX_PATCHES).format(mm=f(need)))
     if loss.markers:
         fixes.append(tr(_EDGE_FIX_MARKERS).format(mm=f(need)))
     if loss.text:
@@ -8114,5 +8130,6 @@ def edge_note(printer: str, edges, loss) -> "str | None":
         fixes.append(tr(_EDGE_FIX_CAPTION))
     _t, body = M_EDGE_NOT_PRINTED.render(
         printer=printer, edges=edge_txt, source=source, lost="; ".join(lost),
+        safe=tr(_EDGE_SAFE_NOT if patches else _EDGE_SAFE),
         fix=" ".join(fixes))
     return body

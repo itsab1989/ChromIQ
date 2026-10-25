@@ -7991,15 +7991,15 @@ alone.
 
 ### M-EDGE-NOT-PRINTED · PROPOSED · part of a chart falls into the edge the chosen printer does not print, Create Chart and Print Chart, 4.3.14
 
-*New 2026-10-25, 4.3.14 (Basti approved the recommendation of agent44's report on jctay's forum post 149836: his SELPHY CP1500 printed a 100 x 150 mm chart at 100 % on 100 x 148 mm paper with only empty margin off the paper, and the ruler helper markers and part of the text at the bottom were still missing). `workflow.printer_edges`: the unprinted edge is the per-printer value set in Preferences, General, “Edge this printer does not print”, else the Windows driver's minimum margins, else the PPD's *ImageableArea for the page size matching the chart. The chart's page image is placed on that paper as every print route places it (centred, 100 %, moved by the overhang plan) and the helper markers, ArgyllCMS's caption line and other ink inside the edge are named. A note, never a block: in red under “Measured from Preview” when the Print Chart tab is on a printer, and under the buttons on the Print Chart tab. {printer} the queue name; {edges} and {source} one of the parts below; {lost} the parts joined by “; ”; {fix} the fix sentences. Shown in the beta while awaiting approval (Knut, #182 6166519230).*
+*New 2026-10-25, 4.3.14 (Basti approved the recommendation of agent44's report on jctay's forum post 149836: his SELPHY CP1500 printed a 100 x 150 mm chart at 100 % on 100 x 148 mm paper with only empty margin off the paper, and the ruler helper markers and part of the text at the bottom were still missing). `workflow.printer_edges`: the unprinted edge is the per-printer value set in Preferences ▸ Printing ▸ “Edge this printer does not print”, else the Windows driver's minimum margins, else the PPD's *ImageableArea for the page size matching the chart. The chart's page image is placed on that paper as every print route places it (centred, 100 %, moved by the overhang plan) and the helper markers, ArgyllCMS's caption line, patches and other ink inside the edge are named. *Revised in the review of 4.3.14:* the note said “Nothing your instrument measures is in it” whatever fell into the edge, and called patches “printed text”; patches are now recognised (`overhang.patch_box`), {safe} is the reassurance only when none are there, and the sentence was turned round so it agrees with a single part (“part of ArgyllCMS’s line of small print … fall” before). A note, never a block: in red under “Measured from Preview” when the Print Chart tab is on a printer, and under the buttons on the Print Chart tab. {printer} the queue name; {edges} and {source} one of the parts below; {lost} the parts joined by “; ”; {fix} the fix sentences. Shown in the beta while awaiting approval (Knut, #182 6166519230).*
 
 > **Part of the chart falls where your printer does not print**
 >
-> ⚠ {printer} leaves an edge of the paper unprinted: {edges} ({source}). On this chart, {lost} fall into that edge, so they will be missing or cut off on paper. Nothing your instrument measures is in it, and you can print the chart like this. To keep them on the paper: {fix} If your printer leaves a different edge than this, set it under Preferences, Printing, “Edge this printer does not print”.
+> ⚠ {printer} leaves an edge of the paper unprinted: {edges} ({source}). These parts of this chart fall into that edge, so they will be missing or cut off on paper: {lost}. {safe} To keep them on the paper: {fix} If your printer leaves a different edge than this, set it under Preferences ▸ Printing ▸ “Edge this printer does not print”.
 
 ### M-EDGE-NOT-PRINTED-PARTS · PROPOSED · the parts of M-EDGE-NOT-PRINTED, Create Chart and Print Chart
 
-*New 2026-10-25, see M-EDGE-NOT-PRINTED. One line each: the three sources, the two ways of naming the edge, the three kinds of lost part, the four sides, the three fixes. {n} a count, {mm} and the four sides in mm, {where} one of the four side phrases.*
+*New 2026-10-25, see M-EDGE-NOT-PRINTED. One line each: the three sources, the two ways of naming the edge, the four kinds of lost part, the two {safe} sentences, the four sides, the four fixes. {n} a count, {mm} and the four sides in mm, {where} one of the four side phrases.*
 
 > **The edge a printer does not print: the parts of the note**
 >
@@ -8011,12 +8011,16 @@ alone.
 > {n} of the ruler helper markers {where}
 > part of ArgyllCMS’s line of small print {where}
 > up to {mm} mm of printed text {where}
+> patches {where}
+> Nothing your instrument measures is in it, and you can print the chart like this.
+> Your instrument cannot read patches that are not printed, so please move them in before you print this chart.
 > at the top
 > at the bottom
 > on the left
 > on the right
 > Move the ruler helper markers further in by raising “Distance from page edge (mm)” under “Ruler helper markers” by at least {mm} mm.
 > Move the text further in by raising “Text distance from edge (mm)”, or the margin on that side, by at least {mm} mm.
+> Move the patches further in by raising the margin on that side under “Margins (mm)” by at least {mm} mm.
 > ArgyllCMS writes its line of small print along the edge itself, so it cannot be moved; it is only a record, and no instrument reads it.
 
 ### M-REPORT-EVENNESS-SPREAD · PROPOSED · why the two evenness rows read N-A because the patches do not reach far enough across the page, and the notes on a page left out for it · Measurement Report (window and PDF), the presets window and the Measure tab's pre-flight
