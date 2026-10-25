@@ -8091,7 +8091,10 @@ def edge_note(printer: str, edges, loss) -> "str | None":
     order = ("top", "bottom", "left", "right")
 
     def f(v):
-        return f"{float(v):.1f}"
+        # the reader's decimal mark, as every other note beside it writes
+        # it (review of 4.3.14: "3.0 mm" in German beside "11,0 mm")
+        from core.i18n import decimal_text
+        return decimal_text(float(v), 1)
     vals = [edges.left, edges.right, edges.top, edges.bottom]
     if max(vals) - min(vals) < 0.05:
         edge_txt = tr(_EDGE_ALL_ROUND).format(mm=f(edges.left))

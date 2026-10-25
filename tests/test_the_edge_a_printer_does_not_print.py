@@ -161,3 +161,19 @@ def test_each_fix_names_what_that_part_needs(tmp_path, monkeypatch):
     want_t = math.ceil(loss.need_text * 2 - 1e-9) / 2
     assert f"by at least {want_m:.1f} mm" in note.split("Move the text")[0]
     assert f"by at least {want_t:.1f} mm" in note.split("Move the text")[1]
+
+
+def test_the_note_writes_the_readers_decimal_mark():
+    """Review of 4.3.14: in German the note wrote "3.0 mm" beside notes that
+    write "11,0 mm"."""
+    from core import i18n
+    old = i18n._language
+    try:
+        i18n.set_language("de")
+        e = PE.Edges(3.0, 3.0, 3.0, 3.0, "ppd")
+        loss = PE.Loss(text={"left": 0.7}, needed_mm={"left": 0.7},
+                       need_text=0.7)
+        note = MM.edge_note("Q", e, loss)
+        assert "3,0 mm" in note and "0,7 mm" in note and "3.0 mm" not in note
+    finally:
+        i18n.set_language(old)
