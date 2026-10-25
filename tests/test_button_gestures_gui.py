@@ -603,23 +603,25 @@ def test_measure_my_speed_all_the_way_with_a_wrong_count(qapp, tmp_path,
         sec._on_speed_clicked()
         assert sec.is_measuring_speed() and sec.is_trying()
         assert instrument_lease.holder() == instrument_lease.BUTTON_TRY
-        assert _until(lambda: "twice" in sec._speed_prompt.text())
-        assert "(1 of 3)" in sec._speed_prompt.text()
+        assert _until(lambda: "twice" in sec.speed_message())
+        assert "(1 of 3)" in sec.speed_message()
         # a slow double press, 1.2 s apart, is still ONE group (wait 1.5 s)
         _press(sec, "0,1200")
-        assert _until(lambda: "(2 of 3)" in sec._speed_prompt.text(), 8)
-        assert sec._speed_steps.text().startswith("✓  Double press 1 of 3")
+        assert _until(lambda: "(2 of 3)" in sec.speed_message(), 8)
+        assert sec.speed_progress().startswith("Double presses: ✓ ○ ○")
+        # one compact area: the prompt on top, the ticks under it
+        assert sec._try_list.count() == 2
         # a wrong count: a triple where a double is asked for
         _press(sec, "0,250,500")
         assert _until(lambda: "came through as 3 presses" in
-                      sec._speed_prompt.text(), 8)
-        assert "(2 of 3)" in sec._speed_prompt.text()
+                      sec.speed_message(), 8)
+        assert "(2 of 3)" in sec.speed_message()
         for at in ("0,200", "0,200", "0,250,500", "0,250,500", "0,250,500"):
-            n = sec._speed_steps.text().count("✓")
+            n = sec.speed_progress().count("✓")
             _press(sec, at)
-            assert _until(lambda: sec._speed_steps.text().count("✓") == n + 1,
-                          8), sec._speed_prompt.text()
-        text = sec._speed_prompt.text()
+            assert _until(lambda: sec.speed_progress().count("✓") == n + 1,
+                          8), sec.speed_message()
+        text = sec.speed_message()
         assert text.startswith("Done, thank you.")
         assert "your slowest 1.20 s" in text and "1.50 s suits you" in text
         assert "on the slow side" in text            # the gentle note
@@ -641,15 +643,15 @@ def test_measure_my_speed_use_takes_the_value(qapp, tmp_path, monkeypatch):
     sec = _speed_section(qapp, tmp_path, monkeypatch)
     try:
         sec._on_speed_clicked()
-        assert _until(lambda: "twice" in sec._speed_prompt.text())
+        assert _until(lambda: "twice" in sec.speed_message())
         for at in ("0,300", "0,200", "0,130", "0,250,500", "0,200,400",
                    "0,300,600"):
-            n = sec._speed_steps.text().count("✓")
+            n = sec.speed_progress().count("✓")
             _press(sec, at)
-            assert _until(lambda: sec._speed_steps.text().count("✓") == n + 1,
-                          8), sec._speed_prompt.text()
-        assert "on the slow side" not in sec._speed_prompt.text()
-        assert "0.50 s suits you" in sec._speed_prompt.text()
+            assert _until(lambda: sec.speed_progress().count("✓") == n + 1,
+                          8), sec.speed_message()
+        assert "on the slow side" not in sec.speed_message()
+        assert "0.50 s suits you" in sec.speed_message()
         sec._on_speed_use()
         assert sec._wait_spin.value() == pytest.approx(0.50)
         assert sec.config().wait_ms == 500
@@ -667,15 +669,15 @@ def test_measure_my_speed_gives_up_kindly_after_three_wrong_tries(
     try:
         sec._wait_spin.setValue(0.70)
         sec._on_speed_clicked()
-        assert _until(lambda: "twice" in sec._speed_prompt.text())
+        assert _until(lambda: "twice" in sec.speed_message())
         for k in range(3):
             _press(sec, "0")                        # a single, three times
             assert _until(lambda: sec._speed is None
                           or sec._speed["tries"] == k + 1, 8)
             if k < 2:
                 assert ("came through as 1 press, but this step needs 2 "
-                        "presses" in sec._speed_prompt.text())
-        assert "did not work out after three tries" in sec._speed_prompt.text()
+                        "presses" in sec.speed_message())
+        assert "did not work out after three tries" in sec.speed_message()
         assert not sec.is_measuring_speed() and not sec.is_trying()
         assert instrument_lease.holder() is None
         assert sec._wait_spin.value() == pytest.approx(0.70)
@@ -703,9 +705,9 @@ def test_cancelling_the_speed_changes_nothing_and_frees_it(qapp, tmp_path,
     sec.refresh_instrument()
     sec._wait_spin.setValue(0.65)
     sec._on_speed_clicked()
-    assert _until(lambda: "twice" in sec._speed_prompt.text())
+    assert _until(lambda: "twice" in sec.speed_message())
     _press(sec, "0,300")
-    assert _until(lambda: "(2 of 3)" in sec._speed_prompt.text(), 8)
+    assert _until(lambda: "(2 of 3)" in sec.speed_message(), 8)
     t0 = time.monotonic()
     if how == "cancel":
         sec.cancel_speed()
@@ -727,7 +729,7 @@ def test_measuring_inside_a_running_try_it_keeps_it_running(qapp, tmp_path,
         sec.start_try()
         assert _until(lambda: sec._try_status.text().startswith("Ready."))
         sec._on_speed_clicked()
-        assert "twice" in sec._speed_prompt.text()
+        assert "twice" in sec.speed_message()
         sec.cancel_speed()
         assert sec.is_trying()                 # Try it goes on
         n = sec._try_list.count()

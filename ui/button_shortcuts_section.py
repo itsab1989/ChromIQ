@@ -311,44 +311,39 @@ class ButtonShortcutsSection(QGroupBox):
         self._try_status = QLabel("", self._try_box)
         self._try_status.setWordWrap(True)
         tl.addWidget(self._try_status)
-        # "Measure my speed": the steps with their ticks, its result and its
-        # buttons. Shown only while it runs.
-        self._speed_panel = QWidget(self._try_box)
-        sp = QVBoxLayout(self._speed_panel)
-        sp.setContentsMargins(0, 0, 0, 0)
-        sp.setSpacing(4)
-        self._speed_prompt = QLabel("", self._speed_panel)
-        self._speed_prompt.setWordWrap(True)
-        self._speed_prompt.setObjectName("buttonSpeedPrompt")
-        sp.addWidget(self._speed_prompt)
-        self._speed_steps = QLabel("", self._speed_panel)
-        self._speed_steps.setTextFormat(Qt.TextFormat.PlainText)
-        sp.addWidget(self._speed_steps)
-        srow = QHBoxLayout()
-        srow.setContentsMargins(0, 0, 0, 0)
-        self._speed_use = QPushButton(tr("Use this value"), self._speed_panel)
+        #: "Measure my speed" while it runs: {"step", "tries", "gaps",
+        #: "own_proc", "done", "result"}; None otherwise. Its prompts, ticks
+        #: and result go into the SAME compact result area as Try it's groups
+        #: (Basti, 2026-10-25: one area, as small as possible).
+        self._speed: "dict | None" = None
+        self._speed_msg = ""
+        self._speed_progress = ""
+        self._try_list = QListWidget(self._try_box)
+        self._try_list.setObjectName("buttonTryList")
+        # ONE COMPACT RESULT AREA for both: a few lines, the newest on top,
+        # cleared at every start (Basti, 2026-10-25).
+        self._try_list.setWordWrap(True)
+        self._try_list.setMinimumHeight(70)
+        self._try_list.setMaximumHeight(92)
+        self._try_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        tl.addWidget(self._try_list)
+        # ...and the two answers to "Measure my speed", only at its result.
+        self._speed_answer = QWidget(self._try_box)
+        sa = QHBoxLayout(self._speed_answer)
+        sa.setContentsMargins(0, 0, 0, 0)
+        self._speed_use = QPushButton(tr("Use this value"), self._speed_answer)
         self._speed_use.setObjectName("primary")
         self._speed_use.clicked.connect(self._on_speed_use)
         self._speed_keep = QPushButton(tr("Keep my old value"),
-                                       self._speed_panel)
+                                       self._speed_answer)
         self._speed_keep.clicked.connect(self._on_speed_keep)
-        self._speed_cancel = QPushButton(tr("Cancel"), self._speed_panel)
-        self._speed_cancel.clicked.connect(self.cancel_speed)
-        for b in (self._speed_use, self._speed_keep, self._speed_cancel):
-            srow.addWidget(b)
-        srow.addStretch()
-        sp.addLayout(srow)
-        self._speed_panel.setVisible(False)
-        tl.addWidget(self._speed_panel)
-        #: The speed measurement while it runs: {"step", "tries", "gaps",
-        #: "own_proc", "done", "result"}; None otherwise.
-        self._speed: "dict | None" = None
-        self._try_list = QListWidget(self._try_box)
-        self._try_list.setObjectName("buttonTryList")
-        self._try_list.setMinimumHeight(80)
-        self._try_list.setMaximumHeight(110)
-        self._try_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        tl.addWidget(self._try_list)
+        for b in (self._speed_use, self._speed_keep):
+            b.setObjectName(b.objectName() or "buttonTryStart")
+            b.setFixedHeight(self._wait_spin.sizeHint().height())
+            sa.addWidget(b)
+        sa.addStretch()
+        self._speed_answer.setVisible(False)
+        tl.addWidget(self._speed_answer)
         v.addWidget(self._try_box)
 
         self._note = QLabel("", self)
@@ -577,7 +572,7 @@ class ButtonShortcutsSection(QGroupBox):
         if self._speed is not None and not self._speed.get("done"):
             # the instrument went away in the middle: nothing changes
             self._speed = None
-            self._speed_panel.setVisible(False)
+            self._speed_btn.setText(tr("Measure my speed"))
             self._speed_btn.setEnabled(self._try_btn.isEnabled())
         if proc is not None:
             proc.deleteLater()
@@ -593,7 +588,7 @@ class ButtonShortcutsSection(QGroupBox):
         it properly, and only then make sure the process is gone."""
         if self._speed is not None and not self._speed.get("own_proc"):
             self._speed = None          # Try it's own Stop: the measurement too
-            self._speed_panel.setVisible(False)
+            self._speed_btn.setText(tr("Measure my speed"))
         proc = self._proc
         if proc is None:
             from core import instrument_lease
@@ -628,13 +623,11 @@ class ButtonShortcutsSection(QGroupBox):
         own = self._proc is None
         self._speed = {"step": None, "tries": 0, "gaps": [], "own_proc": own,
                        "done": False, "result": None}
-        self._speed_use.setVisible(False)
-        self._speed_keep.setVisible(False)
-        self._speed_cancel.setVisible(True)
-        self._speed_steps.setText("")
-        self._speed_prompt.setText("")
-        self._speed_panel.setVisible(True)
-        self._speed_btn.setEnabled(False)
+        self._speed_answer.setVisible(False)
+        self._speed_msg = self._speed_progress = ""
+        self._try_list.clear()
+        # The button becomes its Cancel while it runs.
+        self._speed_btn.setText(tr("Cancel"))
         self._try_btn.setEnabled(False)
         if own:
             self.start_try()
@@ -658,22 +651,16 @@ class ButtonShortcutsSection(QGroupBox):
         if sp is None or sp.get("step") is None:
             return
         steps = BG.SPEED_STEPS
-        lines = []
         doubles = [i for i, n in enumerate(steps) if n == 2]
         triples = [i for i, n in enumerate(steps) if n == 3]
-        for i, n in enumerate(steps):
-            group = doubles if n == 2 else triples
-            k = group.index(i) + 1
-            name = (tr("Double press {i} of {n}") if n == 2
-                    else tr("Triple press {i} of {n}")).format(
-                        i=k, n=len(group))
-            if i < sp["step"]:
-                gaps = BG.gaps_text(sp["gaps"][i])
-                lines.append("✓  " + name + "   (" + gaps + ")")
-            else:
-                lines.append("○  " + name)
-        self._speed_steps.setText("\n".join(lines))
+
+        def marks(group):
+            return " ".join("✓" if i < sp["step"] else "○" for i in group)
+        self._speed_progress = tr(
+            "Double presses: {doubles}     Triple presses: {triples}").format(
+                doubles=marks(doubles), triples=marks(triples))
         if sp["step"] >= len(steps):
+            self._speed_render()
             return
         n = steps[sp["step"]]
         group = doubles if n == 2 else triples
@@ -682,7 +669,8 @@ class ButtonShortcutsSection(QGroupBox):
                   "({i} of {n}).") if n == 2 else
                tr("Now press the button three times, as quickly as feels "
                   "natural ({i} of {n}).")).format(i=k, n=len(group))
-        self._speed_prompt.setText((extra + "\n\n" if extra else "") + ask)
+        self._speed_msg = (extra + "\n" if extra else "") + ask
+        self._speed_render()
 
     def _speed_group(self, n: int, gaps: list) -> None:
         sp = self._speed
@@ -731,10 +719,10 @@ class ButtonShortcutsSection(QGroupBox):
                 "too short to read a strip, the “Strip Read Failed” window "
                 "appears only once the wait is over. If that feels slow, press "
                 "a little faster and measure again.")
-        self._speed_prompt.setText(text)
-        self._speed_use.setVisible(True)
-        self._speed_keep.setVisible(True)
-        self._speed_cancel.setVisible(False)
+        self._speed_msg = text
+        self._speed_render()
+        self._speed_answer.setVisible(True)
+        self._speed_btn.setEnabled(False)
         if sp.get("own_proc"):
             # Measured: the instrument is let go now, not after the choice.
             self.stop_try()
@@ -743,14 +731,15 @@ class ButtonShortcutsSection(QGroupBox):
             self._restore_wait()
 
     def _speed_give_up(self) -> None:
-        self._speed_prompt.setText(tr(
+        self._speed_msg = (tr(
             "This step did not work out after three tries, so the measurement "
             "has stopped and your wait is unchanged. If your presses are "
             "often split in two, try to press a little more evenly. If they "
             "run together, leave a clear pause after each group. You can "
             "start “Measure my speed” again whenever you like."))
-        self._speed_steps.setText("")
-        self._speed_end(keep_panel=True)
+        self._speed_progress = ""
+        self._speed_render()
+        self._speed_end()
 
     def _on_speed_use(self) -> None:
         sp = self._speed
@@ -772,7 +761,21 @@ class ButtonShortcutsSection(QGroupBox):
         self.send_to_try({"cmd": "gesture_wait",
                           "ms": str(self.config().wait_ms)})
 
-    def _speed_end(self, keep_panel: bool = False) -> None:
+    def speed_message(self) -> str:
+        """What the result area says about "Measure my speed" (for tests)."""
+        return self._speed_msg
+
+    def speed_progress(self) -> str:
+        return self._speed_progress
+
+    def _speed_render(self) -> None:
+        """The prompt (or the result) on top, the ticks under it."""
+        self._try_list.clear()
+        for line in (self._speed_msg, self._speed_progress):
+            if line:
+                self._try_list.addItem(line)
+
+    def _speed_end(self) -> None:
         sp = self._speed
         self._speed = None
         if sp is not None:
@@ -780,10 +783,8 @@ class ButtonShortcutsSection(QGroupBox):
                 self.stop_try()
             else:
                 self._restore_wait()
-        self._speed_use.setVisible(False)
-        self._speed_keep.setVisible(False)
-        self._speed_cancel.setVisible(False)
-        self._speed_panel.setVisible(keep_panel)
+        self._speed_answer.setVisible(False)
+        self._speed_btn.setText(tr("Measure my speed"))
         on = self._enable_cb.isChecked() and self._supported
         self._speed_btn.setEnabled(on)
         self._try_btn.setEnabled(on)
