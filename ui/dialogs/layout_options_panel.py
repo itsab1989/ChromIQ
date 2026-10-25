@@ -3868,6 +3868,30 @@ class LayoutOptionsPanel(QWidget):
         side_name = tr("right") if side == "right" else tr("left")
         cw = self.clip_width.value()
         mv = side_margin.value()
+        # A CLIP BORDER NO WIDER THAN THE CHART'S BASE MARGIN IS NO CLIP BORDER
+        # AT ALL (Knut, forum 149832, 2026-10-25: "At 10.0mm the whole clip
+        # border text disappears"). `instruments.build` keeps
+        # `lbord = width - border` for the band, and the 100 x 150 mm and
+        # 4 x 6 in cards carry a base margin (`LayoutRecipe.border`, no box of
+        # its own) of 10.0 mm, which is also this box's minimum. At 10.0 the
+        # band is 0 wide: nothing is printed in it, and the row labels are no
+        # longer held clear of it. That happened in silence; it is said here,
+        # on the box that does it, and the layout itself is left alone.
+        base = float(getattr(self, "_border", 0.0) or 0.0)
+        inst = (self.instr.currentData() if getattr(self, "instr", None)
+                is not None else getattr(self, "_inst", "i1")) or "i1"
+        if inst in ("i1", "p3") and base > 0 and cw <= base + 1e-9:
+            self._set_field_conflict(self.clip_width, tr(
+                "At {cw:.1f} mm the clip border has no room of its own: on "
+                "this chart it only begins past a base margin of {base:.1f} "
+                "mm, which is built into the chart and has no box of its own. "
+                "So nothing is printed "
+                "in the clip border (no text, branding or image), and the row "
+                "labels are no longer kept clear of it. Choose more than "
+                "{base:.1f} mm, for example {next:.1f} mm, to get the clip "
+                "border and its content back.").format(
+                    cw=cw, base=base, next=base + 0.5))
+            return
         if abs(cw - mv) <= 1e-9:
             return                         # equal → nothing to flag
         clip_wins = cw > mv
