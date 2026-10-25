@@ -182,6 +182,25 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+#: The ⓘ of "Use refinement strips file" (Basti, 2026-10-25). It said the
+#: list is "sorted worst-first", and it is in chart order; and it now says
+#: when the box is ticked for you (`workflow.profcheck_runner.
+#: refine_list_fits_chart`).
+_REFINE_FILE_HELP = (
+    "Available when a Refine_Strips_N_<name>.txt file exists in the reports "
+    "folder next to your chart.\n\n"
+    "That file is created automatically by the Check & Refine tab after a "
+    "quality check. It lists the strips with the highest colour errors, in "
+    "chart order.\n\n"
+    "When active, ChromIQ takes the reader to each of those strips for you, "
+    "so you only need to scan them.\n\n"
+    "The box is ticked for you only when the list was made for the chart you "
+    "are measuring now. A list from a check of an earlier version of the "
+    "chart, for example from before the chart was built again, is offered "
+    "but not ticked, and the box's own tooltip says why. You can still tick "
+    "it yourself.")
+
+
 def remeasured_opening(strips: int, patches: int = 0) -> str:
     """The first line of the "Re-measurement Complete" window.
 
@@ -3307,13 +3326,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         refine_rl.addWidget(self._refine_cb, stretch=1)
         refine_rl.addWidget(TooltipButton(
             tr("Refinement Strips File"),
-            tr("Available when a Refine_Strips_N_<name>.txt file exists in\n"
-            "the reports folder next to your chart.\n\n"
-            "That file is created automatically by the Check & Refine\n"
-            "tab after a quality check. It lists the strips with the\n"
-            "highest colour errors, sorted worst-first.\n\n"
-            "When active, the app navigates chartread to each of those\n"
-            "strips automatically — you only need to scan them."),
+            tr(_REFINE_FILE_HELP),
             self._refine_row,
         ))
         self._refine_row.setVisible(False)
@@ -3925,13 +3938,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         m_refine_rl.addWidget(self._m_refine_cb, stretch=1)
         m_refine_rl.addWidget(TooltipButton(
             tr("Refinement Strips File"),
-            tr("Available when a Refine_Strips_N_<name>.txt file exists in\n"
-            "the reports folder next to your chart.\n\n"
-            "That file is created automatically by the Check & Refine\n"
-            "tab after a quality check. It lists the strips with the\n"
-            "highest colour errors, sorted worst-first.\n\n"
-            "When active, the app navigates chartread to each of those\n"
-            "strips automatically — you only need to scan them."),
+            tr(_REFINE_FILE_HELP),
             self._m_refine_row,
         ))
         self._m_refine_row.setVisible(False)
@@ -5745,15 +5752,57 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if refine_file is not None and refine_file.exists():
             self._refine_strips_path = refine_file
             self._load_refine_strips(refine_file)
+            # ONLY A LIST MADE FOR THIS CHART IS TICKED FOR YOU (Basti,
+            # 2026-10-25, from jctay's forum post 149834: the newest list in
+            # reports/ came from a check of an earlier layout and steered
+            # him to strips that had moved). The list records its chart's
+            # fingerprint since 4.3.14; an older list without one counts as
+            # not matching when the chart was written after it. Either way
+            # the box stays available and says why it is not ticked.
+            from workflow.profcheck_runner import refine_list_fits_chart
+            try:
+                why = refine_list_fits_chart(
+                    refine_file, self._chart_file_for(self._ti1_path))
+            except Exception:      # noqa: BLE001 - never block measuring
+                why = ""
+            tip = {
+                "other_chart": tr(
+                    "This list of strips to read again was made for a "
+                    "different version of this chart: the chart was changed "
+                    "or built again after the check that wrote the list. So "
+                    "it is not ticked for you, because it may name strips "
+                    "that are now somewhere else on the sheet, or that this "
+                    "chart does not have at all. Run Check & Refine again to "
+                    "get a list for the chart you have now. If you are sure "
+                    "the list still fits, you can tick the box yourself."),
+                "older_than_chart": tr(
+                    "This list of strips to read again was saved before the "
+                    "chart was last built, and it was written by an older "
+                    "ChromIQ that did not record which chart it belongs to. "
+                    "It may therefore be for an earlier version of the chart, "
+                    "so it is not ticked for you. Run Check & Refine again "
+                    "to get a list for the chart you have now. If you are "
+                    "sure the list still fits, you can tick the box "
+                    "yourself."),
+            }.get(why, "")
             for rcb in (self._refine_cb, self._m_refine_cb):
                 rcb.setEnabled(True)
-                rcb.setChecked(True)
+                rcb.setChecked(not why)
+                rcb.setToolTip(tip)
+            if why:
+                log.info("refinement list %s not ticked: %s", refine_file.name,
+                         why)
+                if getattr(self, "_refine_mismatch_said", None) != (
+                        str(refine_file), why):
+                    self._refine_mismatch_said = (str(refine_file), why)
+                    self._log.appendPlainText("[Guided Refinement] " + tip)
         else:
             self._refine_strips_path = None
             self._strip_list = []
             for rcb in (self._refine_cb, self._m_refine_cb):
                 rcb.setEnabled(False)
                 rcb.setChecked(False)
+                rcb.setToolTip("")
         if not has_ti3:
             for rcb in (self._refine_cb, self._m_refine_cb):
                 rcb.setChecked(False)

@@ -125,12 +125,19 @@ def test_the_row_labels_being_held_at_the_border_is_reported(app):
     assert "clip border" in txt, txt
 
 
-def test_the_number_it_gives_follows_the_border_width(app):
+def test_the_number_it_gives_follows_the_border_width(app, monkeypatch):
     """Change the thing that overrides "Clip" and the message changes with it.
 
     A message carrying a hard-coded 26 would pass the test above and be wrong
     on every other chart.
     """
+    # THE BORDER'S CONTENT FILLS IT (or cannot be measured), the case in
+    # which the labels still clear the whole clip border. Since Basti's
+    # ruling of 2026-10-25 (§R1.3 as amended) they may use the free part of
+    # a border whose content leaves room; that rule has its own tests in
+    # `tests/test_row_labels_use_the_free_part_of_the_clip_border.py`.
+    from workflow.layout_engine import raster as _raster
+    monkeypatch.setattr(_raster, "clip_content_reach_mm", lambda *a, **k: None)
     for width in (10.0, 20.0, 26.0):
         p = _panel(app, clip=4.0, border=width)
         g = _geom(p)

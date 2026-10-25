@@ -481,12 +481,92 @@ def write_quality_report(
 PATCH_LINE_PREFIX = "#P "
 
 
+#: The line a Refine_Strips file names its chart with (4.3.14, Basti,
+#: 2026-10-25). A comment line, so every ChromIQ reads the strips unchanged.
+CHART_LINE_PREFIX = "# Chart fingerprint: "
+
+
+def chart_fingerprint(chart: "str | Path | None") -> "str | None":
+    """A SHA-256 of what a chart IS: its data format and its patch rows, the
+    location and device values of every patch. Header lines such as the
+    creation date are left out, so rebuilding the very same chart keeps its
+    fingerprint and a chart whose patches moved gets another. None when the
+    file cannot be read."""
+    import hashlib
+    try:
+        text = Path(chart).read_text(encoding="latin-1")
+    except (OSError, TypeError, ValueError):
+        return None
+    keep: list[str] = []
+    inside = False
+    for raw in text.splitlines():
+        line = " ".join(raw.split())
+        if line in ("BEGIN_DATA_FORMAT", "BEGIN_DATA"):
+            inside = True
+            keep.append(line)
+            continue
+        if line in ("END_DATA_FORMAT", "END_DATA"):
+            inside = False
+            keep.append(line)
+            continue
+        if inside and line:
+            keep.append(line)
+    if not keep:
+        return None
+    return hashlib.sha256("\n".join(keep).encode("utf-8")).hexdigest()
+
+
+def chart_for_measurement(ti3: "str | Path") -> "Path | None":
+    """The chart a measurement was read from: the ``.ti2`` beside it, or for a
+    dated verification the run's verification chart one folder up."""
+    ti3 = Path(ti3)
+    for cand in (ti3.with_suffix(".ti2"),
+                 ti3.parent.parent / (ti3.stem + ".ti2")):
+        if cand.is_file():
+            return cand
+    return None
+
+
+def refine_list_fingerprint(path: "str | Path") -> "str | None":
+    """The chart fingerprint a Refine_Strips file records, or None (a file
+    written before 4.3.14 records none)."""
+    try:
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
+            if line.startswith(CHART_LINE_PREFIX):
+                return line[len(CHART_LINE_PREFIX):].strip() or None
+    except (OSError, UnicodeDecodeError):
+        return None
+    return None
+
+
+def refine_list_fits_chart(path: "str | Path", chart: "str | Path | None"
+                           ) -> str:
+    """Whether a Refine_Strips file belongs to *chart*: ``""`` when it does
+    (or when there is no chart to compare with), ``"other_chart"`` when its
+    fingerprint names a different chart, ``"older_than_chart"`` when it
+    records none and the chart was written after it (Basti, 2026-10-25: an
+    old list counts as not matching then)."""
+    if chart is None or not Path(chart).is_file():
+        return ""
+    recorded = refine_list_fingerprint(path)
+    if recorded:
+        current = chart_fingerprint(chart)
+        return "" if current is None or current == recorded else "other_chart"
+    try:
+        if Path(chart).stat().st_mtime > Path(path).stat().st_mtime + 1.0:
+            return "older_than_chart"
+    except OSError:
+        return ""
+    return ""
+
+
 def write_refine_strips(
     folder: Path,
     stem: str,
     strips: list[tuple[str, float]],
     target: "Path | None" = None,
     patches: "list[tuple[str, float]] | None" = None,
+    chart: "Path | None" = None,
 ) -> Path:
     """Write Refine_Strips_<n>_<stem>.txt, incrementing n until the name is free.
 
@@ -510,10 +590,14 @@ def write_refine_strips(
         while (folder / f"Refine_Strips_{n}_{stem}.txt").exists():
             n += 1
         target = folder / f"Refine_Strips_{n}_{stem}.txt"
-    lines = [
-        "# CHROMIQ_REFINE_STRIPS_V1",
-        "# Strip\tMaxDE",
-    ]
+    lines = ["# CHROMIQ_REFINE_STRIPS_V1"]
+    # WHICH CHART THIS LIST IS FOR (jctay, forum 149834): a list from a check
+    # of an earlier layout was ticked by itself on a rebuilt chart, and the
+    # guide sent him to strips that had moved or no longer existed.
+    _fp = chart_fingerprint(chart) if chart is not None else None
+    if _fp:
+        lines.append(f"{CHART_LINE_PREFIX}{_fp}")
+    lines.append("# Strip\tMaxDE")
     for letter, avg_de in strips:
         lines.append(f"{letter}\t{avg_de:.2f}")
     # #211: the patches above the limit in those strips, which guided

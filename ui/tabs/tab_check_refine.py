@@ -1962,9 +1962,11 @@ class TabCheckRefine(QWidget):
                 # file holds the default choice, the strips listed first; the
                 # window rewrites it if "all strips" is picked instead.
                 if plan.offered:
+                    from workflow.profcheck_runner import chart_for_measurement
                     strips_file = write_refine_strips(
                         folder, stem, plan.chosen(),
-                        patches=plan.chosen_patches())
+                        patches=plan.chosen_patches(),
+                        chart=chart_for_measurement(self._ti3_path))
                     self._log.appendPlainText(
                         f"[OK] Refinement strips file saved: {folder.name}/{strips_file.name}")
             except Exception as exc:
@@ -2363,10 +2365,13 @@ class TabCheckRefine(QWidget):
                     # "All strips above your limit": this check's own file,
                     # rewritten with every offered strip, in chart order.
                     try:
+                        from workflow.profcheck_runner import (
+                            chart_for_measurement)
                         chosen = write_refine_strips(
                             strips_file.parent, ti3.stem,
                             plan.chosen(first_only=False), target=strips_file,
-                            patches=plan.chosen_patches(first_only=False))
+                            patches=plan.chosen_patches(first_only=False),
+                            chart=chart_for_measurement(ti3))
                     except OSError as exc:
                         log.warning("could not rewrite %s: %s", strips_file, exc)
                 dlg.accept()

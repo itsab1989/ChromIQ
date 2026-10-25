@@ -1464,6 +1464,87 @@ def effective_row_label_size_mm(geom, dpi: int, font: str,
                min(size, pitch * ROW_LABEL_PITCH_FRAC))
 
 
+#: How far the row labels stay from what the clip border prints (Basti,
+#: 2026-10-25: "at least 1 mm clear of the clip content's inner edge").
+ROW_LABEL_CLIP_CLEARANCE_MM = 1.0
+#: The air `row_label_band_mm` puts before the widest row label.
+ROW_LABEL_BAND_GAP_MM = 1.0
+
+
+@lru_cache(maxsize=256)
+def _clip_reach_cached(key: tuple) -> "float | None":
+    (mode, aw, ah, ax, dpi, text, font, size_mm, img, rot, scale, ox, oy,
+     flip, ctx_items) = key
+    try:
+        strip = render_clip_strip(
+            mode, width_px=aw, height_px=ah, dpi=dpi, text=text,
+            font_family=font, text_size_mm=size_mm, image_path=img,
+            ctx=dict(ctx_items), image_rotation=rot, image_scale=scale,
+            image_offset_x_mm=ox, image_offset_y_mm=oy, anchor_far=flip)
+    except Exception:      # noqa: BLE001 - unknown content holds the whole border
+        log.debug("clip content could not be measured", exc_info=True)
+        return None
+    if flip:
+        strip = strip.rotate(180, expand=True)
+    ink = np.asarray(strip.convert("L")) < 250
+    cols = np.nonzero(ink.any(axis=0))[0]
+    if cols.size == 0:
+        return 0.0
+    return (ax + int(cols[-1]) + 1) * 25.4 / dpi
+
+
+def clip_content_reach_mm(geom, kw: dict) -> "float | None":
+    """How far in from the LEFT page edge the clip border's own content (text,
+    branding or image) reaches, in mm: 0.0 when the border prints nothing,
+    None when it cannot be measured (then the labels clear the whole border,
+    as they always did).
+
+    Measured off the strip exactly as `render_pages` draws it
+    (`render_clip_strip` into `geometry.clip_area_px`), at the chart's own
+    resolution up to 300 dpi, because every content mode sizes itself to the
+    band and only the drawn ink says where it ends."""
+    mode = str(kw.get("clip_content_mode") or "off")
+    if mode == "off":
+        return 0.0
+    try:
+        from . import papers
+        pw, ph = papers.dimensions_mm(kw.get("paper") or "A4")
+        dpi = int(min(300, int(kw.get("dpi") or 300)))
+        lines = (len(clip_text_lines(kw.get("clip_text") or ""))
+                 if mode == "text" else 0)
+        size_mm = float(kw.get("clip_text_size_mm") or 0.0)
+        area = geometry.clip_area_px(geom, ph, dpi, pw, lines,
+                                     size_mm * 72.0 / 25.4)
+    except Exception:      # noqa: BLE001
+        log.debug("clip area could not be measured", exc_info=True)
+        return None
+    if area is None or area[2] <= 0 or area[3] <= 0:
+        return 0.0
+    ax, _ay, aw, ah = area
+    try:
+        from .chart import text_placeholder_context
+        ctx = text_placeholder_context(
+            project=str(kw.get("project") or ""),
+            rundescription=str(kw.get("rundescription") or ""),
+            instrument=str(kw.get("instrument") or ""),
+            paper=str(kw.get("paper") or ""), dpi=int(kw.get("dpi") or 300),
+            chart_date=str(kw.get("chart_date") or "2026-01-01"))
+        ctx["page"] = "page 1/9"
+    except Exception:      # noqa: BLE001
+        ctx = {}
+    key = (mode, int(aw), int(ah), int(ax), dpi,
+           str(kw.get("clip_text") or ""),
+           str(kw.get("clip_text_font") or "Inter"), size_mm,
+           str(kw.get("clip_image_path") or ""),
+           int(kw.get("clip_image_rotation") or 0),
+           float(kw.get("clip_image_scale") or 100.0),
+           float(kw.get("clip_image_offset_x") or 0.0),
+           float(kw.get("clip_image_offset_y") or 0.0),
+           bool(kw.get("clip_flip_180")),
+           tuple(sorted((str(k), str(v)) for k, v in ctx.items())))
+    return _clip_reach_cached(key)
+
+
 def apply_row_label_geometry(geom, kw: dict):
     """Size the row-label band to its labels, and raise the left margin to hold
     it — `docs/design/row_label_geometry.md` §R2.
@@ -1556,10 +1637,32 @@ def apply_row_label_geometry(geom, kw: dict):
                                       kw.get("helper_marker_len") or 0.0)
         if (bool(kw.get("helper_markers"))
             and bool(kw.get("helper_markers_sides", True))) else 0.0)
-    floor = max(_left_furniture,
-                float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None else (_edge or 0.0)),
-                float(kw.get("clip_border_width") or 0.0) if has_border else 0.0,
-                _marker_floor)
+    _clip_floor = float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None
+                        else (_edge or 0.0))
+    # THE LABELS MAY USE THE FREE PART OF THE CLIP BORDER (Basti, 2026-10-25,
+    # on Knut's forum post 149832; `docs/design/row_label_geometry.md` §R1.3
+    # as amended). They used to clear the whole border, so on his 100 x 150 mm
+    # card a 11 mm border with two lines of branding that end 7.9 mm in left
+    # 4.3 mm of white between the text and the labels and widened the margin
+    # from 11.0 to 15.5 mm. Now they are held 1 mm clear of what the border
+    # actually prints (measured off the rendered strip,
+    # `clip_content_reach_mm`), never closer to the edge than "Clip", and
+    # never further in than the whole border, which is where they were. The
+    # border's own furniture term (`lbord`) is the same border and goes with
+    # it. No built-in preset has row labels beside a left clip border, so no
+    # built-in moves (checked by rendering all of them before and after).
+    _border_floor = 0.0
+    if has_border:
+        _bw = float(kw.get("clip_border_width") or 0.0)
+        _reach = clip_content_reach_mm(geom, kw)
+        # The band already begins with 1 mm of air before the widest label
+        # (`row_label_band_mm`'s gap, §R1.1), so a floor AT the content's
+        # inner edge leaves the labels' text the 1 mm Basti asked for.
+        _border_floor = (_bw if _reach is None
+                         else min(_bw, _reach + ROW_LABEL_CLIP_CLEARANCE_MM
+                                  - ROW_LABEL_BAND_GAP_MM))
+        _left_furniture = 0.0
+    floor = max(_left_furniture, _clip_floor, _border_floor, _marker_floor)
     # **"Size = auto" LOWERS THE SIZE RATHER THAN RAISING THE MARGIN** -- B8-265,
     # and §R8 of `docs/design/row_label_geometry.md`. It is the design
     # authority's ruling of 2026-09-16: *"It is more important that the feature
@@ -3318,6 +3421,24 @@ def render_pages(
                     _bw = min(_over_px, _clip.width)
                     _box = (_bx, 0, min(_clip.width, _bx + _bw), _clip.height)
                     _mask.paste(_ink.crop(_box), (_box[0], _box[1]))
+                # …AND WHERE THE ROW LABELS SIT INSIDE THE BAND, ONLY THE INK
+                # IS PASTED TOO (Basti, 2026-10-25: the labels may use the free
+                # part of the clip border). The strip is drawn after them with
+                # an opaque white background, which used to be harmless
+                # because the labels always started past the whole border; now
+                # it would wipe them. From the labels' floor inward the strip
+                # gives only its ink, which by construction ends 1 mm short of
+                # them. A chart whose labels clear the whole border (every
+                # built-in preset) is pasted exactly as before.
+                _lab_floor_px = px(getattr(geom, "row_label_floor", 0.0) or 0.0)
+                if (not _right_band and float(getattr(geom, "rlwi", 0.0) or 0.0) > 0
+                        and _lab_floor_px < _ax + _clip.width):
+                    _ink2 = ImageOps.invert(_clip.convert("L"))
+                    if _mask is None:
+                        _mask = Image.new("L", _clip.size, 255)
+                    _cx = max(0, _lab_floor_px - _ax)
+                    _box2 = (_cx, 0, _clip.width, _clip.height)
+                    _mask.paste(_ink2.crop(_box2), (_box2[0], _box2[1]))
                 img.paste(_clip, (_ax, _ay), _mask)
                 if collect_device_geom:      # colour the notes strip in device ink
                     # READ BACK WHAT WAS ACTUALLY PAINTED, so the vector PDF

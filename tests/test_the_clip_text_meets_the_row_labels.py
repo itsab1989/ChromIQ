@@ -219,7 +219,14 @@ def test_a_typed_size_is_never_walked_down():
 
 
 @pytest.mark.parametrize("band", [12.0, 16.0, 20.0, 26.0])
-def test_the_band_width_moves_the_label_ink_one_for_one(band):
+def test_the_band_width_moves_the_label_ink_one_for_one(band, monkeypatch):
+    # THE BORDER'S CONTENT FILLS IT (or cannot be measured), the case in
+    # which the labels still clear the whole clip border. Since Basti's
+    # ruling of 2026-10-25 (§R1.3 as amended) they may use the free part of
+    # a border whose content leaves room; that rule has its own tests in
+    # `tests/test_row_labels_use_the_free_part_of_the_clip_border.py`.
+    from workflow.layout_engine import raster as _raster
+    monkeypatch.setattr(_raster, "clip_content_reach_mm", lambda *a, **k: None)
     area = _area(_recipe(band))
     base = _area(_recipe(12.0))
     assert area is not None and base is not None

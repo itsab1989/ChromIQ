@@ -386,6 +386,12 @@ _MARGIN_LABEL_TO_KEY = {
 }
 
 
+
+#: The smallest band past the base margin a clip border that is switched On
+#: keeps (see `build`, i1 family): enough for every "is there a band" test
+#: (`lbord > 0`) to say yes, too little to move anything on the paper.
+CLIP_BAND_MIN_MM = 0.01
+
 def build(
     key: str,
     *,
@@ -731,7 +737,19 @@ def _build_base(
     # ---- i1Pro family (apertures: STRIP_READ_APERTURE_MM) ----------------
     if key in ("i1", "p3"):
         clip_w = clip_border_width if clip_border_width else 26.0
-        lbord = max(0.0, clip_w - border) if not nolpcbord else 0.0
+        # THE WIDTH IS MEASURED FROM THE PAGE EDGE, SO 10 mm MEANS 10 mm
+        # (Basti, 2026-10-25, on Knut's forum post 149832). `lbord` is the
+        # part of the clip zone past the base margin, and every reader asks
+        # `lbord > 0` for "is there a band". At a width no wider than the base
+        # margin that was 0, so a clip border switched On, at a width its own
+        # box allows (the 100 x 150 mm and 4 x 6 in cards carry a base margin
+        # of 10.0 mm, which is the box's minimum), had no band at all: its
+        # content was not printed and the row labels were not held clear of
+        # it. A hair of `lbord` keeps the band, so the zone is the base margin
+        # itself (10.01 mm at 10.0, 0.1 px at 300 dpi). Only a width at or
+        # below the base margin reaches this; every other chart is unchanged.
+        lbord = (max(CLIP_BAND_MIN_MM, clip_w - border)
+                 if not nolpcbord else 0.0)
         if key == "i1":                       # 4.5 mm aperture
             lcar, plen_b, pspa_b, tspa = 10.0, 10.0, 1.0, 10.0
             pwid_b = rrsp_b = 8.0

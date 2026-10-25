@@ -77,9 +77,12 @@ Restated as rules:
    because the label text size varies, and it is **not** the patch block's
    left edge, because that is not a setting anybody can move.
 3. **R1.3** Row labels may never come closer to the page edge than the **Clip**
-   limit, mirroring the rule that strip labels may not pass **T**. Where a clip
+   limit, mirroring the rule that strip labels may not pass **T**. ~~Where a clip
    border is drawn on the same edge they must clear the border as well, or the
-   border is simply printed on top of them.
+   border is simply printed on top of them.~~ **Amended 2026-10-25 (§R1.3a,
+   confirmed by Basti):** where a clip border is drawn on the same edge they
+   may use the part of it that the border's own content leaves free, keeping
+   at least 1 mm clear of that content.
 4. **R1.4** The whole patch area shall **always follow the margins as law**,
    especially under "Prioritise chart area".
 5. **R1.5** With clip border ON *and* row indicators ON, the labels land to the
@@ -100,8 +103,12 @@ sits. So there is one derivation, in this order:
 ```
   band       = width of the widest row label at the chosen text size  +  1 mm gap
   floor      = max( Clip, i.e. "Text distance from edge" → Clip
-                  , the clip border's width, when a border is drawn on this edge
-                  , the instrument's own left furniture )
+                  , where the clip border's CONTENT ends, when a border is
+                    drawn on this edge (§R1.3a; its whole width when the
+                    content cannot be measured)
+                  , the ruler helper markers down this side
+                  , the instrument's own left furniture, when no border is
+                    drawn on this edge )
   needed     = floor + band + 1 mm
   margin_l   = max(margin_l asked for, needed)        ← R1.5, raised, never lowered
   patches    start at margin_l                        ← R1.4, in BOTH layout modes
@@ -151,6 +158,50 @@ Consequences, stated so they are not discovered later:
   way.** If the three settings are not lined up, the labels can be printed
   underneath the clip border's content, or pushed up against the patch block.
   The help text for "Show row indicators" says so, with worked examples.
+
+---
+
+## §R1.3a · The labels may use the free part of the clip border — CONFIRMED
+
+**Confirmed by:** Basti, 2026-10-25.
+
+Knut reported it on the forum (post 149832, 2026-10-24) with his
+"i1Pro-100x150mm-600p-5pages-Portrait-TEST" preset: an 11 mm clip border
+carrying two lines of branding at 6 pt, row labels at 6 pt and "Clip" at
+2 mm. The branding ended 7.9 mm in from the page edge, the labels were held
+past the whole border at 11 mm, 4.3 mm of white stood between the two, and
+the left margin was widened from 11.0 to 15.5 mm. Basti approved the change
+on 2026-10-25:
+
+> *Row labels may sit in the free part of the clip border: at least 1 mm
+> clear of the clip content's inner edge, and never closer to the edge than
+> "Clip".*
+
+**The rule, as built (`raster.apply_row_label_geometry`):**
+
+* With a clip border on the labels' edge, the floor's border term is where
+  the border's content ends (`raster.clip_content_reach_mm`, measured off the
+  strip exactly as the renderer draws it, at up to 300 dpi), never more than
+  the border's whole width. The row-label band already begins with 1 mm of air
+  before the widest label (§R1.1), which is the 1 mm clearance.
+* The floor is never below "Clip" or the ruler helper markers' reserve.
+* A border that prints nothing leaves the labels at "Clip".
+* Content that cannot be measured keeps the old rule: the labels clear the
+  whole border.
+* Where the labels sit inside the band, the clip strip is pasted ink-only from
+  the labels' floor inward, so its white background cannot erase them.
+* Measured on Knut's preset (`tests/test_row_labels_use_the_free_part_of_the_
+  clip_border.py`): branding ink ends at 7.49 mm, label ink begins at 8.76 mm,
+  the margin is raised to 12.0 mm instead of 15.5 mm.
+* No built-in preset has row labels beside a left clip border, so no built-in
+  layout moves: all 191 were rendered before and after and are pixel-identical
+  (agent44, 2026-10-25).
+
+**Also confirmed the same day (Basti, 2026-10-25):** the clip-border width is
+measured from the page edge, so 10 mm means 10 mm. A width at the chart's base
+margin (10.0 mm on the photo-card recipes, the box's minimum) used to leave a
+band 0 mm wide, with its content not printed and the labels not held clear of
+it; it is now a band of that width (`instruments.CLIP_BAND_MIN_MM`).
 
 ---
 

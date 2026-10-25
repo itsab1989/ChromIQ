@@ -281,26 +281,33 @@ def test_the_guard_would_catch_a_lock_that_fired_on_everything(panel, monkeypatc
 # of the apex of every patch in the row above and opened 6.64 % of the sheet
 # into white slivers along the diagonals.
 FROZEN = {
+    # 4.3.14 (Basti, 2026-10-25, §R1.3a of row_label_geometry.md): the CR30 and
+    # SpectroScan defaults carry row labels beside a left notes band, and the
+    # labels now use the band's free part instead of clearing all of it, so
+    # the patch area is wider and area-first sizes the patches to it. Every
+    # CR30 / SS row below moved for that reason and was re-frozen; the i1 rows
+    # have no row labels and did not move. No BUILT-IN preset moved (all 191
+    # rendered before and after, agent44).
     # was (10.85, 9.39, 15, 26, 390) with the bar
-    ("CR30", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (10.85, 9.39, 15, 30, 450),
+    ("CR30", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.03, 9.55, 15, 29, 435),
     # was (16.42, 14.22, 15, 26, 390)
-    ("CR30", True, "by_grid", 15, 20, 1.0, 0.0, "A3"): (16.42, 14.22, 15, 28, 420),
+    ("CR30", True, "by_grid", 15, 20, 1.0, 0.0, "A3"): (16.61, 14.39, 15, 28, 420),
     # was (15.95, 13.82, 10, 18, 180). THE ONE THAT LOSES PATCHES, and it is
     # not a regression: with the pitch no longer eaten by the spacer, area-first
     # solves to a BIGGER patch (15.95 -> 17.63 mm) and fits one strip fewer.
     # The user asked for area-first; it gave them more area.
-    ("CR30", True, "by_grid", 0, 20, 1.0, 0.0, "A4"): (17.63, 15.27, 9, 18, 162),
+    ("CR30", True, "by_grid", 0, 20, 1.0, 0.0, "A4"): (17.95, 15.55, 9, 17, 153),
     # was (8.29, 7.18, 20, 33, 660)
-    ("CR30", True, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.29, 7.18, 20, 39, 780),
-    ("CR30", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.19, 13.01, 15, 20, 300),
+    ("CR30", True, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.06, 6.98, 21, 40, 840),
+    ("CR30", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.38, 13.01, 15, 20, 300),
     # These two depend on the measured row labels. Since beta 11 Pillow lays
     # text out with BASIC on every machine (core/pil_font.py, RB-6); they were
     # (8.1, 12.33, 21, 21, 441) and (10.96, 9.49, 15, 29, 435) when frozen on
     # a Mac whose Homebrew FriBiDi gave Pillow RAQM.
-    ("CR30", False, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.09, 12.33, 21, 21, 441),
-    ("SS", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (10.97, 9.5, 15, 29, 435),
-    ("SS", True, "by_width", 0, 0, 2.0, 8.0, "A4"): (8.29, 7.18, 20, 39, 780),
-    ("SS", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.33, 14.25, 15, 20, 300),
+    ("CR30", False, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.24, 13.01, 21, 20, 420),
+    ("SS", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.16, 9.67, 15, 29, 435),
+    ("SS", True, "by_width", 0, 0, 2.0, 8.0, "A4"): (8.05, 6.97, 21, 40, 840),
+    ("SS", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.54, 14.25, 15, 20, 300),
     ("i1", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.86, 13.2, 15, 20, 300),
     ("i1", False, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.09, 12.52, 22, 21, 462),
 }

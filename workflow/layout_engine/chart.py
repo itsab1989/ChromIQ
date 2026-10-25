@@ -414,7 +414,21 @@ def build_chart(
         "chart_text": chart_text, "stamp_command": stamp_command,
         "side_stamp": side_stamp,
         "chart_text_size_mm": chart_text_size_mm,
-        "text_edge": text_edge})
+        "text_edge": text_edge,
+        # WHAT THE CLIP BORDER PRINTS, so the row labels can be held 1 mm
+        # clear of it rather than clear of the whole border (Basti,
+        # 2026-10-25, `raster.clip_content_reach_mm`). Left out, the build
+        # would measure an empty border while the panel measured the real one.
+        "clip_text": clip_text, "clip_text_font": clip_text_font,
+        "clip_text_size_mm": clip_text_size_mm,
+        "clip_image_path": clip_image_path,
+        "clip_image_rotation": clip_image_rotation,
+        "clip_image_scale": clip_image_scale,
+        "clip_image_offset_x": clip_image_offset_x,
+        "clip_image_offset_y": clip_image_offset_y,
+        "clip_flip_180": clip_flip_180,
+        "project": project, "rundescription": rundescription,
+        "chart_date": chart_date})
     w_mm, h_mm = papers.dimensions_mm(paper)
     geom = _geom_for(len(target.patches))
     layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))

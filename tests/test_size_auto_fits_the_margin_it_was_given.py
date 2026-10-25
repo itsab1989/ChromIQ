@@ -131,7 +131,7 @@ def test_a_typed_size_is_left_exactly_where_it_was_typed():
         "quietly shrunk instead")
 
 
-def test_nothing_is_committed_when_no_size_down_to_the_floor_fits():
+def test_nothing_is_committed_when_no_size_down_to_the_floor_fits(monkeypatch):
     """§R8's second property, and the first implementation got it wrong.
 
     A clip border wider than the margin puts the FLOOR alone past it, so the
@@ -139,6 +139,13 @@ def test_nothing_is_committed_when_no_size_down_to_the_floor_fits():
     costs the reader legibility and clears nothing. Measured on that draft: it
     went from 19.8 pt to 7.0 pt while `margin_l` reached 16.95 mm either way.
     """
+    # THE BORDER'S CONTENT FILLS IT (or cannot be measured), the case in
+    # which the labels still clear the whole clip border. Since Basti's
+    # ruling of 2026-10-25 (§R1.3 as amended) they may use the free part of
+    # a border whose content leaves room; that rule has its own tests in
+    # `tests/test_row_labels_use_the_free_part_of_the_clip_border.py`.
+    from workflow.layout_engine import raster as _raster
+    monkeypatch.setattr(_raster, "clip_content_reach_mm", lambda *a, **k: None)
     r = _his_recipe(clip_border=True, clip_border_width_mm=12.0,
                     clip_side="left", margin_left=12.0)
     g = _geom(r)

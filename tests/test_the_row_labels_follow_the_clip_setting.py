@@ -132,9 +132,16 @@ def test_a_wide_margin_no_longer_drags_the_labels_to_the_patches():
 
 
 # ------------------------------------------------------------ the limit ------
-def test_the_clip_border_still_holds_them_off_it():
+def test_the_clip_border_still_holds_them_off_it(monkeypatch):
     """§R1.3, the half beta 6 did build, must survive the new anchor: with a
     26 mm border on the left, a 4 mm Clip may not put the labels under it."""
+    # THE BORDER'S CONTENT FILLS IT (or cannot be measured), the case in
+    # which the labels still clear the whole clip border. Since Basti's
+    # ruling of 2026-10-25 (§R1.3 as amended) they may use the free part of
+    # a border whose content leaves room; that rule has its own tests in
+    # `tests/test_row_labels_use_the_free_part_of_the_clip_border.py`.
+    from workflow.layout_engine import raster as _raster
+    monkeypatch.setattr(_raster, "clip_content_reach_mm", lambda *a, **k: None)
     left, _right = _label_ink_mm(_recipe(clip=4.0, border=True))
     assert left >= 26.0, (
         f"the labels start at {left:.2f} mm on a 26 mm clip border, so the "

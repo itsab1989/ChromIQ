@@ -115,7 +115,18 @@ def _wiped_to_paper(r) -> int:
     """
     import dataclasses
     g, img = _render(r)
-    gc, ctrl = _render(dataclasses.replace(r, clip_text=" "))
+    # THE CONTROL KEEPS THE ROW LABELS WHERE THEY ARE. Since Basti's ruling of
+    # 2026-10-25 the labels sit 1 mm clear of what the clip border prints, so
+    # a control without text would move them out and be counted as a wipe.
+    # The real sheet's reach is handed to the control's geometry.
+    _reach = raster.clip_content_reach_mm(
+        g, dict(r.build_kwargs()))
+    _orig = raster.clip_content_reach_mm
+    raster.clip_content_reach_mm = lambda *a, **k: _reach
+    try:
+        gc, ctrl = _render(dataclasses.replace(r, clip_text=" "))
+    finally:
+        raster.clip_content_reach_mm = _orig
     assert abs(g.lbord - gc.lbord) < 1e-6, "the control moved the band"
     return int((_is_paper(img) & ~_is_paper(ctrl)).sum())
 

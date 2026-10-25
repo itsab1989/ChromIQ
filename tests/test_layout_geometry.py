@@ -156,8 +156,11 @@ def test_clip_border_width_drives_lbord():
     # Widening the zone widens the extra clip strip.
     assert instruments.build("i1", border=6.0, clip_border_width=40.0).lbord \
         == pytest.approx(34.0)
-    # Margin already past the zone ⇒ no extra strip (never negative).
-    assert instruments.build("i1", border=30.0, clip_border_width=26.0).lbord == 0.0
+    # Margin already past the zone: the band is the base margin itself, kept
+    # with a hair of `lbord` so a clip border that is On is a band (Basti,
+    # 2026-10-25: the width is measured from the page edge).
+    assert instruments.build("i1", border=30.0, clip_border_width=26.0).lbord \
+        == pytest.approx(instruments.CLIP_BAND_MIN_MM)
     # No clip border (-L) ⇒ no reserved zone regardless of width.
     assert instruments.build("i1", nolpcbord=True, clip_border_width=40.0).lbord == 0.0
     # p3 honours it too; non-clip instruments are unaffected (lbord stays 0).

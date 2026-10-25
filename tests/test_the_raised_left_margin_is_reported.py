@@ -118,7 +118,7 @@ def test_the_stale_warning_no_longer_fires_on_a_chart_that_prints_perfectly():
         f"{got:.2f} mm: {bad}")
 
 
-def test_the_fill_the_page_warning_no_longer_denies_labels_that_print():
+def test_the_fill_the_page_warning_no_longer_denies_labels_that_print(monkeypatch):
     """The third stale message, found on Knut's own flagship preset.
 
     `i1Pro-A4-162p-1page-Portrait-w7.5mm` fills the page, carries a 26 mm clip
@@ -127,6 +127,13 @@ def test_the_fill_the_page_warning_no_longer_denies_labels_that_print():
     them."* Driven on screen, the labels print at 27.3 to 32.8 mm, clear of the
     26 mm border, because the band's floor is now the border's own width.
     """
+    # THE BORDER'S CONTENT FILLS IT (or cannot be measured), the case in
+    # which the labels still clear the whole clip border. Since Basti's
+    # ruling of 2026-10-25 (§R1.3 as amended) they may use the free part of
+    # a border whose content leaves room; that rule has its own tests in
+    # `tests/test_row_labels_use_the_free_part_of_the_clip_border.py`.
+    from workflow.layout_engine import raster as _raster
+    monkeypatch.setattr(_raster, "clip_content_reach_mm", lambda *a, **k: None)
     r = _recipe(margin_l=6.0, instrument="i1")
     r.clip_border = True
     r.clip_border_width_mm = 26.0

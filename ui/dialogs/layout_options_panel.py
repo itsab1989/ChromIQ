@@ -761,64 +761,73 @@ class LayoutOptionsPanel(QWidget):
         self.show_row_indicators.toggled.connect(self._emit)
         self._show_row_indicators_tip = TooltipButton(
             tr("Row indicators"),
-            tr("Prints a label down the left-hand side of the chart for every "
-               "row of patches. They are usually numbers (1, 2, 3…), and they "
-               "follow whatever the chart's own patch pattern says, so a chart "
-               "set to letters is labelled A, B, C instead. Together with the "
-               "strip letters "
-               "along the top it gives the sheet a two-way coordinate, so a "
-               "patch can be found the way a square is found on a map: strip A, "
-               "row 12.\n\n"
-               "This is most useful when you place the instrument on one patch "
-               "at a time, such as a SpectroScan or a CR30, which is why those "
-               "two have always printed it. You can also switch the strip letters "
-               "off and keep only these, which is what you want when every "
-               "patch is read on its own. Turn it on for any chart you want to "
-               "read by hand, or off to get the space back.\n\n"
-               "**Where the labels sit.** They start at a fixed distance from the "
-               "left edge of the paper, and you choose that distance yourself "
-               "with “Clip” under “Text distance from edge”. If the chart has "
-               "a clip border down the same edge, the labels start at the "
-               "border's width instead whenever that is the larger of the "
-               "two, so the border cannot be printed on top of them. The band "
-               "itself is as wide as the widest label at the size you chose, "
-               "plus 1 mm of air to the left of the text.\n\n"
-               "**How much paper it takes.** The left margin has to hold the "
-               "whole band, so ChromIQ widens it when the one you asked for "
-               "is too narrow. The width it needs is the starting distance, "
-               "plus the width of the label text, plus 1 mm before it and "
-               "1 mm after it. Two worked examples, both A4 portrait:\n"
+            tr("Prints a label down the left-hand side of the chart for "
+               "every row of patches. They are usually numbers (1, 2, 3…), "
+               "and they follow whatever the chart's own patch pattern says,"
+               " so a chart set to letters is labelled A, B, C instead. "
+               "Together with the strip letters along the top it gives the "
+               "sheet a two-way coordinate, so a patch can be found the way "
+               "a square is found on a map: strip A, row 12.\n"
+               "\n"
+               "This is most useful when you place the instrument on one "
+               "patch at a time, such as a SpectroScan or a CR30, which is "
+               "why those two have always printed it. You can also switch "
+               "the strip letters off and keep only these, which is what you"
+               " want when every patch is read on its own. Turn it on for "
+               "any chart you want to read by hand, or off to get the space "
+               "back.\n"
+               "\n"
+               "**Where the labels sit.** They start at a fixed distance "
+               "from the left edge of the paper, and you choose that "
+               "distance yourself with “Clip” under “Text distance from "
+               "edge”. If the chart has a clip border down the same edge, "
+               "the labels may use the part of it that the border's own "
+               "text, branding or image leaves free. They start where that "
+               "content ends whenever that is further in than “Clip”, and "
+               "the 1 mm of air before their text keeps them clear of it, so"
+               " the clip border never prints on top of them. The band "
+               "itself is as wide as the widest label at the size you chose,"
+               " plus 1 mm of air to the left of the text.\n"
+               "\n"
+               "**How much paper it takes.** The left margin has to hold the"
+               " whole band, so ChromIQ widens it when the one you asked for"
+               " is too narrow. The width it needs is the starting distance,"
+               " plus the width of the label text, plus 1 mm before it and 1"
+               " mm after it. Two worked examples, both A4 portrait:\n"
                "  •  No clip border, “Clip” set to 4 mm, two-digit numbers "
                "about 5 mm wide. The labels start 4 mm in from the paper "
-               "edge, the band is 6 mm wide, and the patches start at 11 mm. "
-               "Ask for a 6 mm left margin and you get 11 mm.\n"
-               "  •  A 26 mm clip border on the left, the same labels. The "
-               "labels start at 26 mm, because the border is wider than "
-               "“Clip”, and the patches start at 33 mm. Ask for a 26 mm left "
-               "margin and you get 33 mm.\n"
+               "edge, the band is 6 mm wide, and the patches start at 11 mm."
+               " Ask for a 6 mm left margin and you get 11 mm.\n"
+               "  •  A 26 mm clip border on the left whose text fills it, "
+               "and the same labels. The labels start at 26 mm, because that"
+               " is where the border's text ends, and the patches start at "
+               "33 mm. Ask for a 26 mm left margin and you get 33 mm. With "
+               "less in the clip border, the labels start further out and "
+               "less paper is needed.\n"
                "Whenever the margin is widened like that, it is reported "
-               "under the preview with both numbers in it.\n\n"
-               "**Moving the labels.** Raise “Clip” to push them to the right, "
-               "towards the patches, and lower it to bring them back towards "
-               "the paper edge. They never come closer to the paper edge than "
-               "“Clip” says, and when the left margin is wider than they "
-               "need, the space that is left over stays between the labels "
-               "and the patches instead of dragging the labels along. On a chart "
-               "with a clip border, a “Clip” value smaller than the border's "
-               "width changes nothing, because the labels are already being "
-               "held clear of the border.\n\n"
-               "**When they can be covered.** Nothing moves the patches or the "
-               "clip-border content to make room for these labels. So if they "
-               "are printed where the clip border's text, notes box or "
-               "picture is, they are printed underneath it and you may see "
-               "only slivers of them. And if the left margin is not wide "
-               "enough for both, the patches keep their place and the labels "
-               "are pushed up against them. Line the three settings up: give "
-               "the left margin at least “Clip” plus the label width plus "
-               "2 mm, and set “Clip” to at least the clip border width plus "
-               "1 mm.\n\n"
-               "The labels restart at the first one on every page. Set their "
-               "font and size in Preferences → Chart Layout."), self)
+               "under the preview with both numbers in it.\n"
+               "\n"
+               "**Moving the labels.** Raise “Clip” to push them to the "
+               "right, towards the patches, and lower it to bring them back "
+               "towards the paper edge. They never come closer to the paper "
+               "edge than “Clip” says, and when the left margin is wider "
+               "than they need, the space that is left over stays between "
+               "the labels and the patches instead of dragging the labels "
+               "along. On a chart with a clip border, a “Clip” value smaller"
+               " than where the border's content ends changes nothing, "
+               "because the labels are already being held clear of that "
+               "content.\n"
+               "\n"
+               "**When they could be crowded.** The clip border's content "
+               "never covers the labels, because they always keep clear of "
+               "it. Nothing moves the patches to make room for them, though,"
+               " so ChromIQ widens the left margin when it is too narrow for"
+               " the labels and says so under the preview. To keep the "
+               "margin you asked for, give it at least the place where the "
+               "labels start plus the label width plus 2 mm.\n"
+               "\n"
+               "The labels restart at the first one on every page. Set their"
+               " font and size in Preferences → Chart Layout."), self)
 
         from PyQt6.QtWidgets import QLineEdit, QPushButton
 
@@ -1819,18 +1828,23 @@ class LayoutOptionsPanel(QWidget):
         self.clip_width_label = QLabel(tr("Clip border width:"), self)
         self.clip_width_tip = TooltipButton(
             tr("Clip border width"),
-            tr("Width of the clip border — the blank band reserved down one edge "
-               "of the page for the "
-               "clip that holds the sheet against the scanner bed. Make it wider "
-               "if your clip covers more of the page; the patches start just "
-               "past it. Only applies to the i1Pro / i1Pro 3 in clip-border "
-               "mode (printtarg fixes this at 26 mm).\n\n"
+            tr("Width of the clip border: the band down one edge of the page "
+               "that is kept for the clip holding the sheet against the "
+               "scanner bed, and for the text, branding or image you choose "
+               "under Clip-border content. Make it wider if your clip covers "
+               "more of the page; the patches start just past it. Only "
+               "applies to the i1Pro / i1Pro 3 in clip-border mode (printtarg "
+               "fixes this at 26 mm).\n\n"
                "Works together with the page margin on the same edge (Left or "
-               "Right, set by “Side” under Clip-border content): the reserved "
-               "clip zone is whichever of the two is larger. If that margin is "
-               "wider than this width, the margin wins and this value is "
-               "ignored — the box is outlined in red to show it. Raise this "
-               "above the margin to make the clip zone wider than the margin."),
+               "Right, set by “Side” under Clip-border content). The width is "
+               "measured from the page edge, so 10 mm means 10 mm. The "
+               "patches start at whichever of the two is larger. If the "
+               "margin is wider, the patches start at the margin, and the "
+               "clip border keeps this width: its text, branding or image is "
+               "printed inside it, and the row labels keep 1 mm clear of what "
+               "it prints. The box is outlined in red to point this out. "
+               "Raise this above the margin to make the clip border reach "
+               "further in."),
             self)
         add_row(gg, 1, tr("Margins (mm):"), _margins_w,
                 tip=TooltipButton(
@@ -3868,29 +3882,28 @@ class LayoutOptionsPanel(QWidget):
         side_name = tr("right") if side == "right" else tr("left")
         cw = self.clip_width.value()
         mv = side_margin.value()
-        # A CLIP BORDER NO WIDER THAN THE CHART'S BASE MARGIN IS NO CLIP BORDER
-        # AT ALL (Knut, forum 149832, 2026-10-25: "At 10.0mm the whole clip
-        # border text disappears"). `instruments.build` keeps
-        # `lbord = width - border` for the band, and the 100 x 150 mm and
-        # 4 x 6 in cards carry a base margin (`LayoutRecipe.border`, no box of
-        # its own) of 10.0 mm, which is also this box's minimum. At 10.0 the
-        # band is 0 wide: nothing is printed in it, and the row labels are no
-        # longer held clear of it. That happened in silence; it is said here,
-        # on the box that does it, and the layout itself is left alone.
+        # A CLIP BORDER NARROWER THAN THE CHART'S BASE MARGIN (Knut, forum
+        # 149832; Basti, 2026-10-25: "10 mm means 10 mm"). The width is
+        # measured from the page edge and a width AT the base margin is now a
+        # real band (`instruments.CLIP_BAND_MIN_MM`). Only below it is the
+        # zone wider than the box says: it cannot be narrower than the base
+        # margin (`LayoutRecipe.border`, no box of its own). The 100 x 150 mm
+        # and 4 x 6 in cards carry 10.0 mm, the box's own minimum, so on them
+        # this never shows; it is here for a recipe with a wider base margin.
         base = float(getattr(self, "_border", 0.0) or 0.0)
         inst = (self.instr.currentData() if getattr(self, "instr", None)
                 is not None else getattr(self, "_inst", "i1")) or "i1"
-        if inst in ("i1", "p3") and base > 0 and cw <= base + 1e-9:
+        if inst in ("i1", "p3") and base > 0 and cw < base - 1e-9:
             self._set_field_conflict(self.clip_width, tr(
-                "At {cw:.1f} mm the clip border has no room of its own: on "
-                "this chart it only begins past a base margin of {base:.1f} "
-                "mm, which is built into the chart and has no box of its own. "
-                "So nothing is printed "
-                "in the clip border (no text, branding or image), and the row "
-                "labels are no longer kept clear of it. Choose more than "
-                "{base:.1f} mm, for example {next:.1f} mm, to get the clip "
-                "border and its content back.").format(
-                    cw=cw, base=base, next=base + 0.5))
+                "At {cw:.1f} mm the clip border would be narrower than this "
+                "chart's base margin of {base:.1f} mm, which is built into "
+                "the chart and has no box of its own. A clip border cannot be "
+                "narrower than that, so it is printed {base:.1f} mm wide: its "
+                "text, branding or image goes into those {base:.1f} mm, and "
+                "the row labels are kept clear of what it prints. Choose "
+                "{base:.1f} mm or more to set the width exactly as you want "
+                "it."
+            ).format(cw=cw, base=base))
             return
         if abs(cw - mv) <= 1e-9:
             return                         # equal → nothing to flag
@@ -3931,12 +3944,20 @@ class LayoutOptionsPanel(QWidget):
                 "you want to push the patches further in.").format(
                     cw=cw, side=side_name))
         else:
+            # SAID EXACTLY (Basti, 2026-10-25). It used to say this width "is
+            # ignored", and it is not: the margin decides where the patches
+            # start, and this width still decides where the clip border's
+            # content is printed and what the row labels keep clear of.
             self._set_field_conflict(self.clip_width, tr(
                 "The {side} margin ({mv:.1f} mm) is wider than the clip-border "
-                "width, so the {side} margin is what gets reserved and this "
-                "clip-border width is ignored. Raise it above the {side} margin "
-                "to widen the reserved clip zone.").format(
-                    mv=mv, side=side_name))
+                "width ({cw:.1f} mm). The patches start at the {side} margin, "
+                "{mv:.1f} mm in from the page edge. The clip border itself "
+                "stays {cw:.1f} mm wide: its text, branding or image is "
+                "printed inside those {cw:.1f} mm, and the row labels are "
+                "kept clear of what it prints. Nothing is wrong with this. "
+                "Raise the clip-border width above {mv:.1f} mm only if you "
+                "want the clip border to reach further in.").format(
+                    mv=mv, cw=cw, side=side_name))
 
     def _sync_layout_mode(self, *_a) -> None:
         """Show only the fields each layout choice needs (#93 / Knut). Area-first
@@ -4425,17 +4446,35 @@ class LayoutOptionsPanel(QWidget):
             # — `tests/test_clip_says_when_it_is_overridden.py` pins that, so
             # if it ever can, the message goes quiet rather than naming the
             # wrong setting.
+            # THE LABELS MAY USE THE FREE PART OF THE BORDER (Basti,
+            # 2026-10-25, §R1.3 as amended): the floor is now where the
+            # border's own content ends, and only when that content fills
+            # the border (or cannot be measured) is it the whole width.
             if (band > 0 and on_left and floor > typed + 0.05
                     and border_w >= floor - 0.05):
-                lines.append(tr(
-                    "The row indicator labels down the left are held at least "
-                    "{floor:.1f} mm in from the paper edge, not the "
-                    "{typed:.1f} mm you asked for. The clip border on that "
-                    "edge is {border:.1f} mm wide and nothing is printed "
-                    "underneath it, so the labels start on the far side of "
-                    "it. “Clip” starts moving them again once you set it "
-                    "above {border:.1f} mm.").format(
-                        floor=floor, typed=typed, border=border_w))
+                if floor < border_w - 0.05:
+                    lines.append(tr(
+                        "The row indicator labels down the left are held at "
+                        "least {floor:.1f} mm in from the paper edge, not the "
+                        "{typed:.1f} mm you asked for. The labels may use the "
+                        "free part of the {border:.1f} mm clip border, but "
+                        "they keep 1 mm clear of what the clip border prints "
+                        "there, and its text, branding or image reaches "
+                        "{floor:.1f} mm in. “Clip” starts moving them again "
+                        "once you set it above {floor:.1f} mm, and less "
+                        "clip-border text, or a smaller size for it, lets "
+                        "them move further out.").format(
+                            floor=floor, typed=typed, border=border_w))
+                else:
+                    lines.append(tr(
+                        "The row indicator labels down the left are held at "
+                        "least {floor:.1f} mm in from the paper edge, not the "
+                        "{typed:.1f} mm you asked for. The clip border on that "
+                        "edge is {border:.1f} mm wide and what it prints fills "
+                        "it, so the labels start on the far side of it. “Clip” "
+                        "starts moving them again once you set it above "
+                        "{border:.1f} mm.").format(
+                            floor=floor, typed=typed, border=border_w))
 
         # 2. The ruler helper markers hold the clip content FURTHER IN than
         #    "Clip" asks. Knut, #182, 2026-09-12: the text-box sits at

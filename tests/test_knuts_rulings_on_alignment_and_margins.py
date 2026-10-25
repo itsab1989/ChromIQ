@@ -482,12 +482,19 @@ def test_the_red_line_names_all_three_levers():
     assert "Text distance from edge" in red2
 
 
-def test_the_clip_lever_is_not_offered_when_it_cannot_move_anything():
+def test_the_clip_lever_is_not_offered_when_it_cannot_move_anything(monkeypatch):
     """B8-14's rule, kept. Clip is one of the three levers only while Clip is
     what is holding the labels out. On Knut's own 26 mm-border preset the floor
     is the border's width, lowering Clip moves nothing, and the sentence must
     not claim it does: a remedy the user can measure and find wrong is worse
     than no remedy at all."""
+    # THE BORDER'S CONTENT FILLS IT (or cannot be measured), the case in
+    # which the labels still clear the whole clip border. Since Basti's
+    # ruling of 2026-10-25 (§R1.3 as amended) they may use the free part of
+    # a border whose content leaves room; that rule has its own tests in
+    # `tests/test_row_labels_use_the_free_part_of_the_clip_border.py`.
+    from workflow.layout_engine import raster as _raster
+    monkeypatch.setattr(_raster, "clip_content_reach_mm", lambda *a, **k: None)
     from workflow.layout_engine import instruments
     r = _recipe(margin_l=6.0, instrument="i1")
     r.clip_border = True
