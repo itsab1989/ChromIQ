@@ -210,6 +210,12 @@ class Loss:
     #: sides on which PATCHES fall into the edge (review of 4.3.14: the note
     #: said "nothing your instrument measures is in it" whatever was there)
     patches: "list[str]" = field(default_factory=list)
+    #: how much further in the markers, the text and the patches each have
+    #: to start, in mm (review of 4.3.14: one amount for all of them told
+    #: the text to move 5 mm when it was 1 mm into the edge)
+    need_markers: float = 0.0
+    need_text: float = 0.0
+    need_patches: float = 0.0
     #: how much further in, per side, everything would have to start
     needed_mm: "dict[str, float]" = field(default_factory=dict)
 
@@ -255,8 +261,18 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
     lost = ink & cut
     if not lost.any():
         return out
+    def depth(mask) -> float:
+        """How far the ink of *mask* reaches into the edge, deepest side."""
+        if not mask.any():
+            return 0.0
+        cols = np.where(mask.any(axis=0))[0]
+        rows = np.where(mask.any(axis=1))[0]
+        return max(0.0, lo_x - cols[0] * mm, (cols[-1] + 1) * mm - hi_x,
+                   lo_y - rows[0] * mm, (rows[-1] + 1) * mm - hi_y)
+
     # the helper markers and the caption, recognised as overhang does
     known = np.zeros_like(ink, dtype=bool)
+    marker_lost = np.zeros_like(ink, dtype=bool)
     try:
         marks = O.helper_markers(tiff_path, frame) or {}
     except Exception:      # noqa: BLE001
@@ -268,6 +284,7 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
             x1, y1 = int(np.ceil(b.right / mm)), int(np.ceil(b.bottom / mm))
             region = lost[max(0, y0):y1, max(0, x0):x1]
             known[max(0, y0):y1, max(0, x0):x1] = True
+            marker_lost[max(0, y0):y1, max(0, x0):x1] |= region
             if region.any():
                 n += 1
         if n:
@@ -303,8 +320,13 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
                               ("right", (pcols[-1] + 1) * mm > hi_x)):
                 if hit:
                     out.patches.append(side)
+            pmask = np.zeros_like(ink, dtype=bool)
+            pmask[max(0, y0):y1, max(0, x0):x1] = sub
+            out.need_patches = depth(pmask)
         known[max(0, y0):y1, max(0, x0):x1] = True
+    out.need_markers = depth(marker_lost)
     rest = lost & ~known
+    out.need_text = depth(rest)
     if rest.any():
         rows = np.where(rest.any(axis=1))[0]
         cols = np.where(rest.any(axis=0))[0]
@@ -355,4 +377,7 @@ def losses_for_chart(pages, edges: Edges, paper_mm, shift_mm=(0.0, 0.0)
             out.text[k] = max(out.text.get(k, 0.0), v)
         for k, v in one.needed_mm.items():
             out.needed_mm[k] = max(out.needed_mm.get(k, 0.0), v)
+        out.need_markers = max(out.need_markers, one.need_markers)
+        out.need_text = max(out.need_text, one.need_text)
+        out.need_patches = max(out.need_patches, one.need_patches)
     return out

@@ -143,3 +143,21 @@ def test_patches_in_the_edge_are_named_and_never_called_safe(tmp_path,
     assert "patches at the top" in note
     assert "Nothing your instrument measures" not in note
     assert "cannot read patches" in note and "Margins (mm)" in note
+
+
+def test_each_fix_names_what_that_part_needs(tmp_path, monkeypatch):
+    """Review of 4.3.14: the text fix said "by at least 5.0 mm" on a chart
+    whose text was 1 mm into the edge, because every fix took the deepest
+    amount of all."""
+    monkeypatch.setattr(PE, "_query_driver",
+                        lambda p, c: PE.ppd_edges_mm(PPD, c))
+    page = _page(tmp_path, markers=(0.5, 2.0), text_bottom=2.5)
+    edges, paper = PE.edges_for("Capture_A44", (100, 150), _Settings())
+    loss = PE.losses_for_chart([(page, 0)], edges, paper)
+    assert loss.need_markers > loss.need_text > 0, loss
+    note = MM.edge_note("Capture_A44", edges, loss)
+    import math
+    want_m = math.ceil(loss.need_markers * 2 - 1e-9) / 2
+    want_t = math.ceil(loss.need_text * 2 - 1e-9) / 2
+    assert f"by at least {want_m:.1f} mm" in note.split("Move the text")[0]
+    assert f"by at least {want_t:.1f} mm" in note.split("Move the text")[1]

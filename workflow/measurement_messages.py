@@ -8117,15 +8117,25 @@ def edge_note(printer: str, edges, loss) -> "str | None":
         v = loss.text.get(side)
         if v:
             lost.append(tr(_EDGE_LOST_TEXT).format(mm=f(v), where=where[side]))
-    need = max([float(v) for v in loss.needed_mm.values()] or [0.0])
-    need = max(0.5, round(need + 0.5, 0) / 1.0)
+    # EACH FIX SAYS WHAT IT NEEDS (review of 4.3.14): one amount, the
+    # deepest of all, told the text to move 5 mm when it was 1 mm into the
+    # edge. Rounded UP to half a millimetre, so "at least" stays true.
+    import math
+    worst = max([float(v) for v in loss.needed_mm.values()] or [0.0])
+
+    def need(v) -> float:
+        v = float(v or 0.0) or worst
+        return max(0.5, math.ceil(v * 2.0 - 1e-9) / 2.0)
     fixes = []
     if patches:
-        fixes.append(tr(_EDGE_FIX_PATCHES).format(mm=f(need)))
+        fixes.append(tr(_EDGE_FIX_PATCHES).format(
+            mm=f(need(getattr(loss, "need_patches", 0.0)))))
     if loss.markers:
-        fixes.append(tr(_EDGE_FIX_MARKERS).format(mm=f(need)))
+        fixes.append(tr(_EDGE_FIX_MARKERS).format(
+            mm=f(need(getattr(loss, "need_markers", 0.0)))))
     if loss.text:
-        fixes.append(tr(_EDGE_FIX_TEXT).format(mm=f(need)))
+        fixes.append(tr(_EDGE_FIX_TEXT).format(
+            mm=f(need(getattr(loss, "need_text", 0.0)))))
     if loss.caption:
         fixes.append(tr(_EDGE_FIX_CAPTION))
     _t, body = M_EDGE_NOT_PRINTED.render(
