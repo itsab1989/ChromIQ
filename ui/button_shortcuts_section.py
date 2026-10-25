@@ -112,7 +112,8 @@ def wait_help() -> str:
         "longer. If the wait after a single press feels too long, make it "
         "shorter. “Try it” below shows how your presses are recognised, with "
         "the time between them, so you can find the setting that suits your "
-        "hand.\n\n"
+        "hand, and “Measure my speed” works a value out for you from a few "
+        "presses.\n\n"
         "A single press waits this long too before ChromIQ acts on it: for "
         "example before “Strip Read Failed” appears after a press that was "
         "too short to read a strip, or before a pause continues. Reading "
@@ -137,6 +138,36 @@ def try_help() -> str:
         "it. It lets it go when you click Stop or close Preferences. A change "
         "to “Wait for further presses” applies to the next group straight "
         "away.")
+
+
+def speed_help() -> str:
+    return tr(
+        "Not sure what to set for “Wait for further presses”? Let ChromIQ "
+        "measure how quickly you press.\n\n"
+        "HOW IT GOES\n"
+        "Connect your instrument and click “Measure my speed”. ChromIQ asks "
+        "you for three double presses and then three triple presses, one at "
+        "a time, and ticks each one off as it recognises it. Press as quickly "
+        "as feels natural, the way you would while measuring, and take as "
+        "long as you like between the steps: only the time between the "
+        "presses of one group counts. While it measures, ChromIQ waits up to "
+        "1.50 s for each further press, so even slow presses are counted "
+        "together. If a group comes out with the wrong number of presses, it "
+        "simply asks for that step again; after three misses on the same "
+        "step it stops, and nothing is changed.\n\n"
+        "THE RESULT\n"
+        "ChromIQ takes the longest time it measured between two of your "
+        "presses and suggests a wait of one and a half times that, but at "
+        "least 0.20 s more than it, rounded to 0.05 s and kept between 0.30 "
+        "and 1.50 s. So the wait is always a little longer than your slowest "
+        "presses, but no longer than it needs to be. For presses up to "
+        "0.30 s apart, that is 0.50 s.\n\n"
+        "NOTHING CHANGES UNTIL YOU SAY SO\n"
+        "Click “Use this value” to take the suggestion, or “Keep my old "
+        "value”. Cancel, or closing Preferences, stops at once and keeps "
+        "your old value. You can always change the wait by hand afterwards. "
+        "The instrument is used just as for “Try it”: nothing is measured or "
+        "saved, and it is let go as soon as you finish.")
 
 
 def unsupported_note(name: str) -> str:
@@ -243,9 +274,25 @@ class ButtonShortcutsSection(QGroupBox):
         self._try_btn.setFixedHeight(self._wait_spin.sizeHint().height())
         self._try_btn.setMinimumWidth(110)
         self._try_tip = TooltipButton(tr("Try It"), try_help(), self)
+        # "Measure my speed" beside it (Basti, 2026-10-25), the same size,
+        # with its own ⓘ right after it.
+        self._speed_btn = QPushButton(tr("Measure my speed"), self)
+        self._speed_btn.setObjectName("buttonTryStart")
+        self._speed_btn.setStyleSheet(self._try_btn.styleSheet())
+        self._speed_btn.setFixedHeight(self._wait_spin.sizeHint().height())
+        self._speed_btn.clicked.connect(self._on_speed_clicked)
+        self._speed_tip = TooltipButton(tr("Measure My Speed"), speed_help(),
+                                        self)
+        speed = QHBoxLayout()
+        speed.setContentsMargins(12, 0, 0, 0)
+        speed.setSpacing(8)
+        speed.addWidget(self._speed_btn)
+        speed.addWidget(self._speed_tip)
+        speed.addStretch()
         grid.addWidget(self._try_title, 3, 0)
         grid.addWidget(self._try_btn, 3, 1, Qt.AlignmentFlag.AlignLeft)
         grid.addWidget(self._try_tip, 3, 2)
+        grid.addLayout(speed, 3, 3)
         grid.setColumnStretch(3, 1)
         v.addLayout(grid)
 
@@ -264,6 +311,38 @@ class ButtonShortcutsSection(QGroupBox):
         self._try_status = QLabel("", self._try_box)
         self._try_status.setWordWrap(True)
         tl.addWidget(self._try_status)
+        # "Measure my speed": the steps with their ticks, its result and its
+        # buttons. Shown only while it runs.
+        self._speed_panel = QWidget(self._try_box)
+        sp = QVBoxLayout(self._speed_panel)
+        sp.setContentsMargins(0, 0, 0, 0)
+        sp.setSpacing(4)
+        self._speed_prompt = QLabel("", self._speed_panel)
+        self._speed_prompt.setWordWrap(True)
+        self._speed_prompt.setObjectName("buttonSpeedPrompt")
+        sp.addWidget(self._speed_prompt)
+        self._speed_steps = QLabel("", self._speed_panel)
+        self._speed_steps.setTextFormat(Qt.TextFormat.PlainText)
+        sp.addWidget(self._speed_steps)
+        srow = QHBoxLayout()
+        srow.setContentsMargins(0, 0, 0, 0)
+        self._speed_use = QPushButton(tr("Use this value"), self._speed_panel)
+        self._speed_use.setObjectName("primary")
+        self._speed_use.clicked.connect(self._on_speed_use)
+        self._speed_keep = QPushButton(tr("Keep my old value"),
+                                       self._speed_panel)
+        self._speed_keep.clicked.connect(self._on_speed_keep)
+        self._speed_cancel = QPushButton(tr("Cancel"), self._speed_panel)
+        self._speed_cancel.clicked.connect(self.cancel_speed)
+        for b in (self._speed_use, self._speed_keep, self._speed_cancel):
+            srow.addWidget(b)
+        srow.addStretch()
+        sp.addLayout(srow)
+        self._speed_panel.setVisible(False)
+        tl.addWidget(self._speed_panel)
+        #: The speed measurement while it runs: {"step", "tries", "gaps",
+        #: "own_proc", "done", "result"}; None otherwise.
+        self._speed: "dict | None" = None
         self._try_list = QListWidget(self._try_box)
         self._try_list.setObjectName("buttonTryList")
         self._try_list.setMinimumHeight(80)
@@ -318,9 +397,11 @@ class ButtonShortcutsSection(QGroupBox):
         self._enable_cb.setEnabled(self._supported)
         for w in (self._double_lbl, self._double_combo, self._triple_lbl,
                   self._triple_combo, self._wait_lbl, self._wait_spin,
-                  self._try_title, self._try_btn, self._try_box):
+                  self._try_title, self._try_btn, self._speed_btn,
+                  self._speed_tip, self._try_box):
             w.setEnabled(on)
-        if not on and self._proc is not None:
+        if not on and (self._proc is not None or self._speed is not None):
+            self.cancel_speed()
             self.stop_try()
 
     # -- values ------------------------------------------------------------
@@ -467,6 +548,8 @@ class ButtonShortcutsSection(QGroupBox):
                     text += " " + tr("The dial can stay in any position: "
                                      "only the button is used here.")
                 self._say(text)
+                if self._speed is not None and self._speed.get("step") is None:
+                    self._speed_begin()
             else:
                 self._say(tr(
                     "Your {model} does not tell the computer when its button "
@@ -476,6 +559,9 @@ class ButtonShortcutsSection(QGroupBox):
         elif kind == "press_group":
             n = int(ev.get("presses") or 0)
             if n <= 0:
+                return
+            if self._speed is not None:
+                self._speed_group(n, list(ev.get("gaps_ms") or []))
                 return
             self._try_list.insertItem(0, group_line(n, ev.get("gaps_ms"),
                                                     self.config()))
@@ -488,6 +574,11 @@ class ButtonShortcutsSection(QGroupBox):
     def _on_try_finished(self, *_a) -> None:
         proc = self._proc
         self._proc = None
+        if self._speed is not None and not self._speed.get("done"):
+            # the instrument went away in the middle: nothing changes
+            self._speed = None
+            self._speed_panel.setVisible(False)
+            self._speed_btn.setEnabled(self._try_btn.isEnabled())
         if proc is not None:
             proc.deleteLater()
         from core import instrument_lease
@@ -500,6 +591,9 @@ class ButtonShortcutsSection(QGroupBox):
     def stop_try(self) -> None:
         """Let the instrument go: quit, wait a moment for the engine to close
         it properly, and only then make sure the process is gone."""
+        if self._speed is not None and not self._speed.get("own_proc"):
+            self._speed = None          # Try it's own Stop: the measurement too
+            self._speed_panel.setVisible(False)
         proc = self._proc
         if proc is None:
             from core import instrument_lease
@@ -522,3 +616,174 @@ class ButtonShortcutsSection(QGroupBox):
 
     def is_trying(self) -> bool:
         return self._proc is not None
+
+    # -- Measure my speed (Basti, 2026-10-25) ----------------------------
+    def is_measuring_speed(self) -> bool:
+        return self._speed is not None
+
+    def _on_speed_clicked(self) -> None:
+        if self._speed is not None:
+            self.cancel_speed()
+            return
+        own = self._proc is None
+        self._speed = {"step": None, "tries": 0, "gaps": [], "own_proc": own,
+                       "done": False, "result": None}
+        self._speed_use.setVisible(False)
+        self._speed_keep.setVisible(False)
+        self._speed_cancel.setVisible(True)
+        self._speed_steps.setText("")
+        self._speed_prompt.setText("")
+        self._speed_panel.setVisible(True)
+        self._speed_btn.setEnabled(False)
+        self._try_btn.setEnabled(False)
+        if own:
+            self.start_try()
+            if self._proc is None:          # refused: say why, change nothing
+                self._speed_end()
+            return
+        self._speed_begin()
+
+    def _speed_begin(self) -> None:
+        sp = self._speed
+        if sp is None:
+            return
+        # While measuring, slow presses must not be split: the longest wait.
+        self.send_to_try({"cmd": "gesture_wait", "ms": str(BG.SPEED_WAIT_MS)})
+        sp["step"] = 0
+        sp["tries"] = 0
+        self._speed_show()
+
+    def _speed_show(self, extra: str = "") -> None:
+        sp = self._speed
+        if sp is None or sp.get("step") is None:
+            return
+        steps = BG.SPEED_STEPS
+        lines = []
+        doubles = [i for i, n in enumerate(steps) if n == 2]
+        triples = [i for i, n in enumerate(steps) if n == 3]
+        for i, n in enumerate(steps):
+            group = doubles if n == 2 else triples
+            k = group.index(i) + 1
+            name = (tr("Double press {i} of {n}") if n == 2
+                    else tr("Triple press {i} of {n}")).format(
+                        i=k, n=len(group))
+            if i < sp["step"]:
+                gaps = BG.gaps_text(sp["gaps"][i])
+                lines.append("✓  " + name + "   (" + gaps + ")")
+            else:
+                lines.append("○  " + name)
+        self._speed_steps.setText("\n".join(lines))
+        if sp["step"] >= len(steps):
+            return
+        n = steps[sp["step"]]
+        group = doubles if n == 2 else triples
+        k = group.index(sp["step"]) + 1
+        ask = (tr("Press the button twice, as quickly as feels natural "
+                  "({i} of {n}).") if n == 2 else
+               tr("Now press the button three times, as quickly as feels "
+                  "natural ({i} of {n}).")).format(i=k, n=len(group))
+        self._speed_prompt.setText((extra + "\n\n" if extra else "") + ask)
+
+    def _speed_group(self, n: int, gaps: list) -> None:
+        sp = self._speed
+        if sp is None or sp.get("step") is None or sp.get("done"):
+            return
+        want = BG.SPEED_STEPS[sp["step"]]
+        if n == want:
+            sp["gaps"].append([int(g) for g in gaps])
+            sp["step"] += 1
+            sp["tries"] = 0
+            if sp["step"] >= len(BG.SPEED_STEPS):
+                self._speed_result()
+            else:
+                self._speed_show()
+            return
+        sp["tries"] += 1
+        if sp["tries"] >= BG.SPEED_TRIES:
+            self._speed_give_up()
+            return
+        self._speed_show(tr(
+            "That came through as {got}, but this step needs {want}. That "
+            "happens easily, so please just try this step again.").format(
+                got=BG.count_phrase(n), want=BG.count_phrase(want)))
+
+    def _speed_result(self) -> None:
+        sp = self._speed
+        allgaps = [g for step in sp["gaps"] for g in step]
+        wait = BG.suggested_wait_ms(allgaps)
+        sp["done"] = True
+        sp["result"] = wait
+        self._speed_show()
+        old = self.config().wait_ms
+        text = tr(
+            "Done, thank you. Your quickest presses were {fast} apart and "
+            "your slowest {slow}. A wait of {wait} suits you: a little longer "
+            "than your slowest presses, but no longer than it needs to be. "
+            "Your current setting is {old}.").format(
+                fast=BG.gaps_text([min(allgaps)]),
+                slow=BG.gaps_text([max(allgaps)]),
+                wait=BG.gaps_text([wait]), old=BG.gaps_text([old]))
+        if max(allgaps) > BG.SPEED_SLOW_MS:
+            text += "\n\n" + tr(
+                "Your presses are on the slow side. That is perfectly fine, "
+                "but keep in mind that a single press also waits this long "
+                "before ChromIQ acts on it: for example, after a press that was "
+                "too short to read a strip, the “Strip Read Failed” window "
+                "appears only once the wait is over. If that feels slow, press "
+                "a little faster and measure again.")
+        self._speed_prompt.setText(text)
+        self._speed_use.setVisible(True)
+        self._speed_keep.setVisible(True)
+        self._speed_cancel.setVisible(False)
+        if sp.get("own_proc"):
+            # Measured: the instrument is let go now, not after the choice.
+            self.stop_try()
+            sp["own_proc"] = False
+        else:
+            self._restore_wait()
+
+    def _speed_give_up(self) -> None:
+        self._speed_prompt.setText(tr(
+            "This step did not work out after three tries, so the measurement "
+            "has stopped and your wait is unchanged. If your presses are "
+            "often split in two, try to press a little more evenly. If they "
+            "run together, leave a clear pause after each group. You can "
+            "start “Measure my speed” again whenever you like."))
+        self._speed_steps.setText("")
+        self._speed_end(keep_panel=True)
+
+    def _on_speed_use(self) -> None:
+        sp = self._speed
+        if sp is not None and sp.get("result"):
+            self._wait_spin.setValue(sp["result"] / 1000.0)
+        self._speed_end()
+
+    def _on_speed_keep(self) -> None:
+        self._speed_end()
+
+    def cancel_speed(self) -> None:
+        """Stop the speed measurement: nothing changes, and the instrument is
+        let go if it was opened for it."""
+        if self._speed is None:
+            return
+        self._speed_end()
+
+    def _restore_wait(self) -> None:
+        self.send_to_try({"cmd": "gesture_wait",
+                          "ms": str(self.config().wait_ms)})
+
+    def _speed_end(self, keep_panel: bool = False) -> None:
+        sp = self._speed
+        self._speed = None
+        if sp is not None:
+            if sp.get("own_proc"):
+                self.stop_try()
+            else:
+                self._restore_wait()
+        self._speed_use.setVisible(False)
+        self._speed_keep.setVisible(False)
+        self._speed_cancel.setVisible(False)
+        self._speed_panel.setVisible(keep_panel)
+        on = self._enable_cb.isChecked() and self._supported
+        self._speed_btn.setEnabled(on)
+        self._try_btn.setEnabled(on)

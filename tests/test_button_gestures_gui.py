@@ -548,3 +548,197 @@ def test_try_it_frees_a_stuck_instrument_in_two_seconds(qapp, tmp_path,
     assert gone, "the engine process is still alive"
     if ending == "stop":
         d.done(0)
+
+
+# ---------------------------------------------------------------------------
+# Measure my speed (Basti, 2026-10-25)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("gaps, want", [
+    ([300, 130, 250], 500),     # Basti's ColorMunki: 0.30 s at most -> 0.50 s
+    ([100], 300),               # quick: 1.5 x 0.10 = 0.15, +0.20 = 0.30
+    ([50], 300),                # below the floor -> 0.30
+    ([400], 600),               # 1.5 x 0.40 = 0.60 > 0.60? equal: 0.60
+    ([410], 600),               # 0.615 -> 0.60 (nearest 0.05)
+    ([417], 650),               # 0.6255 -> 0.65 (a half rounds up)
+    ([1000], 1500),             # 1.5 x 1.00 = 1.50
+    ([1200], 1500),             # above the ceiling -> 1.50
+    ([], 600),                  # nothing measured -> the default
+])
+def test_the_speed_formula(gaps, want):
+    assert BG.suggested_wait_ms(gaps) == want
+
+
+def test_the_speed_formula_is_round_to_005_of_the_larger_rule():
+    for g in range(20, 1600, 7):
+        raw = max(1.5 * g, g + 200)
+        expect = max(300, min(1500, int((raw + 25) // 50) * 50))
+        assert BG.suggested_wait_ms([g]) == expect
+
+
+def _speed_section(qapp, tmp_path, monkeypatch, stuck=""):
+    from ui.button_shortcuts_section import ButtonShortcutsSection
+    replay = tmp_path / "replay.txt"
+    replay.write_text("PATCHES 1\nSTRIP A\n50 50 50\n", encoding="utf-8")
+    monkeypatch.setenv("CHROMIQ_REPLAY", str(replay))
+    monkeypatch.setenv("CHROMIQ_ENGINE_MUTE", "1")
+    if stuck:
+        monkeypatch.setenv("CHROMIQ_REPLAY_STUCK", stuck)
+    sec = ButtonShortcutsSection(
+        _settings(tmp_path, button_gestures_enabled=True),
+        lambda: {"family": "colormunki", "name": "CM"})
+    return sec
+
+
+def _press(sec, at):
+    sec.send_to_try({"cmd": "presses", "at_ms": at})
+
+
+@pytest.mark.skipif(not HELPER.exists(), reason="engine not built")
+def test_measure_my_speed_all_the_way_with_a_wrong_count(qapp, tmp_path,
+                                                         monkeypatch):
+    from core import instrument_lease
+    sec = _speed_section(qapp, tmp_path, monkeypatch)
+    try:
+        sec._wait_spin.setValue(0.80)
+        sec._on_speed_clicked()
+        assert sec.is_measuring_speed() and sec.is_trying()
+        assert instrument_lease.holder() == instrument_lease.BUTTON_TRY
+        assert _until(lambda: "twice" in sec._speed_prompt.text())
+        assert "(1 of 3)" in sec._speed_prompt.text()
+        # a slow double press, 1.2 s apart, is still ONE group (wait 1.5 s)
+        _press(sec, "0,1200")
+        assert _until(lambda: "(2 of 3)" in sec._speed_prompt.text(), 8)
+        assert sec._speed_steps.text().startswith("✓  Double press 1 of 3")
+        # a wrong count: a triple where a double is asked for
+        _press(sec, "0,250,500")
+        assert _until(lambda: "came through as 3 presses" in
+                      sec._speed_prompt.text(), 8)
+        assert "(2 of 3)" in sec._speed_prompt.text()
+        for at in ("0,200", "0,200", "0,250,500", "0,250,500", "0,250,500"):
+            n = sec._speed_steps.text().count("✓")
+            _press(sec, at)
+            assert _until(lambda: sec._speed_steps.text().count("✓") == n + 1,
+                          8), sec._speed_prompt.text()
+        text = sec._speed_prompt.text()
+        assert text.startswith("Done, thank you.")
+        assert "your slowest 1.20 s" in text and "1.50 s suits you" in text
+        assert "on the slow side" in text            # the gentle note
+        assert "Your current setting is 0.80 s." in text
+        # measured: the instrument is let go before the choice
+        assert not sec.is_trying()
+        assert instrument_lease.holder() is None
+        sec._on_speed_keep()
+        assert sec._wait_spin.value() == pytest.approx(0.80)
+        assert not sec.is_measuring_speed()
+    finally:
+        sec.cancel_speed()
+        sec.stop_try()
+        sec.deleteLater()
+
+
+@pytest.mark.skipif(not HELPER.exists(), reason="engine not built")
+def test_measure_my_speed_use_takes_the_value(qapp, tmp_path, monkeypatch):
+    sec = _speed_section(qapp, tmp_path, monkeypatch)
+    try:
+        sec._on_speed_clicked()
+        assert _until(lambda: "twice" in sec._speed_prompt.text())
+        for at in ("0,300", "0,200", "0,130", "0,250,500", "0,200,400",
+                   "0,300,600"):
+            n = sec._speed_steps.text().count("✓")
+            _press(sec, at)
+            assert _until(lambda: sec._speed_steps.text().count("✓") == n + 1,
+                          8), sec._speed_prompt.text()
+        assert "on the slow side" not in sec._speed_prompt.text()
+        assert "0.50 s suits you" in sec._speed_prompt.text()
+        sec._on_speed_use()
+        assert sec._wait_spin.value() == pytest.approx(0.50)
+        assert sec.config().wait_ms == 500
+    finally:
+        sec.cancel_speed()
+        sec.stop_try()
+        sec.deleteLater()
+
+
+@pytest.mark.skipif(not HELPER.exists(), reason="engine not built")
+def test_measure_my_speed_gives_up_kindly_after_three_wrong_tries(
+        qapp, tmp_path, monkeypatch):
+    from core import instrument_lease
+    sec = _speed_section(qapp, tmp_path, monkeypatch)
+    try:
+        sec._wait_spin.setValue(0.70)
+        sec._on_speed_clicked()
+        assert _until(lambda: "twice" in sec._speed_prompt.text())
+        for k in range(3):
+            _press(sec, "0")                        # a single, three times
+            assert _until(lambda: sec._speed is None
+                          or sec._speed["tries"] == k + 1, 8)
+            if k < 2:
+                assert ("came through as 1 press, but this step needs 2 "
+                        "presses" in sec._speed_prompt.text())
+        assert "did not work out after three tries" in sec._speed_prompt.text()
+        assert not sec.is_measuring_speed() and not sec.is_trying()
+        assert instrument_lease.holder() is None
+        assert sec._wait_spin.value() == pytest.approx(0.70)
+    finally:
+        sec.cancel_speed()
+        sec.stop_try()
+        sec.deleteLater()
+
+
+@pytest.mark.skipif(not HELPER.exists(), reason="engine not built")
+@pytest.mark.parametrize("how", ["cancel", "close_preferences"])
+def test_cancelling_the_speed_changes_nothing_and_frees_it(qapp, tmp_path,
+                                                           monkeypatch, how):
+    """Even with an instrument whose close blocks."""
+    from core import instrument_lease
+    from ui.dialogs.settings_dialog import SettingsDialog
+    replay = tmp_path / "replay.txt"
+    replay.write_text("PATCHES 1\nSTRIP A\n50 50 50\n", encoding="utf-8")
+    monkeypatch.setenv("CHROMIQ_REPLAY", str(replay))
+    monkeypatch.setenv("CHROMIQ_ENGINE_MUTE", "1")
+    monkeypatch.setenv("CHROMIQ_REPLAY_STUCK", "close")
+    d = SettingsDialog(_settings(tmp_path, button_gestures_enabled=True))
+    sec = d._button_shortcuts
+    sec._context_fn = lambda: {"family": "colormunki", "name": "CM"}
+    sec.refresh_instrument()
+    sec._wait_spin.setValue(0.65)
+    sec._on_speed_clicked()
+    assert _until(lambda: "twice" in sec._speed_prompt.text())
+    _press(sec, "0,300")
+    assert _until(lambda: "(2 of 3)" in sec._speed_prompt.text(), 8)
+    t0 = time.monotonic()
+    if how == "cancel":
+        sec.cancel_speed()
+    else:
+        d.reject()
+    assert time.monotonic() - t0 < 3.2
+    assert not sec.is_measuring_speed() and not sec.is_trying()
+    assert instrument_lease.holder() is None
+    assert sec._wait_spin.value() == pytest.approx(0.65)
+    if how == "cancel":
+        d.done(0)
+
+
+@pytest.mark.skipif(not HELPER.exists(), reason="engine not built")
+def test_measuring_inside_a_running_try_it_keeps_it_running(qapp, tmp_path,
+                                                            monkeypatch):
+    sec = _speed_section(qapp, tmp_path, monkeypatch)
+    try:
+        sec.start_try()
+        assert _until(lambda: sec._try_status.text().startswith("Ready."))
+        sec._on_speed_clicked()
+        assert "twice" in sec._speed_prompt.text()
+        sec.cancel_speed()
+        assert sec.is_trying()                 # Try it goes on
+        n = sec._try_list.count()
+        _press(sec, "0,300")                   # at its own wait again
+        assert _until(lambda: sec._try_list.count() == n + 1, 8)
+    finally:
+        sec.stop_try()
+        sec.deleteLater()
+
+
+def test_the_spin_box_still_takes_a_value_by_hand(section):
+    section._enable_cb.setChecked(True)
+    section._wait_spin.setValue(1.10)
+    assert section.config().wait_ms == 1100

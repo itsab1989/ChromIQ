@@ -188,3 +188,38 @@ def moved_text(presses: int, action: str, unit: str, label: str,
                "forward": M._GESTURE_FORWARD_STRIP,
                "next_unread": M._GESTURE_NEXT_STRIP}[action]
     return tr(key).format(press=who, label=label)
+
+
+# ---------------------------------------------------------------------------
+# "Measure my speed" (Basti, 2026-10-25)
+# ---------------------------------------------------------------------------
+
+#: The steps: three double presses, then three triple presses.
+SPEED_STEPS: "tuple[int, ...]" = (2, 2, 2, 3, 3, 3)
+#: While measuring, presses up to this far apart still count as one group,
+#: so slow presses are never split.
+SPEED_WAIT_MS = WAIT_MAX_MS
+#: Wrong groups allowed on one step before the measurement gives up.
+SPEED_TRIES = 3
+#: A gentle note when the slowest gap is above this.
+SPEED_SLOW_MS = 1000
+
+
+def suggested_wait_ms(gaps_ms) -> int:
+    """The wait that fits these gaps: 1.5 x the largest gap, but at least
+    0.20 s more than it, rounded to the nearest 0.05 s (a half rounds up)
+    and kept within 0.30 to 1.50 s. Gaps of up to 0.30 s give 0.50 s."""
+    gaps = [int(g) for g in (gaps_ms or []) if int(g) > 0]
+    if not gaps:
+        return WAIT_DEFAULT_MS
+    g = max(gaps)
+    want = max(1.5 * g, g + 200.0)
+    rounded = int((want + WAIT_STEP_MS / 2.0) // WAIT_STEP_MS) * WAIT_STEP_MS
+    return max(WAIT_MIN_MS, min(WAIT_MAX_MS, rounded))
+
+
+def count_phrase(n: int) -> str:
+    """ "1 press", "2 presses", ... for the speed measurement's messages."""
+    if n == 1:
+        return tr("1 press")
+    return tr("{n} presses").format(n=n)
