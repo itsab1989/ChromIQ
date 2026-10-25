@@ -4541,6 +4541,39 @@ class TabPrint(QWidget):
             return
         self._print_native_qt(pages, printer=printer)
 
+    @staticmethod
+    def _log_printer_margins(qprinter, pw_pt: float, ph_pt: float) -> None:
+        """Write the printer's OWN unprintable margins for the paper chosen in
+        the dialog into the log, beside the paper size.
+
+        jctay, forum 149836 (Canon SELPHY CP1500, Windows): the ruler helper
+        markers were in the TIFF and missing on the print, and the text at the
+        bottom was cut, while the log said only "100.2 x 147.8 mm paper" and
+        "only empty margin is outside it". The chart is placed on the whole
+        sheet (`setFullPage`), so whatever the driver cannot print near the
+        edges is clipped without a word, and nothing on record said how much
+        that was. Only a log line: nothing about the print changes."""
+        try:
+            from PyQt6.QtGui import QPageLayout
+            lay = qprinter.pageLayout()
+            m = lay.minimumMargins()
+            per = {QPageLayout.Unit.Millimeter: 1.0,
+                   QPageLayout.Unit.Point: 25.4 / 72.0,
+                   QPageLayout.Unit.Inch: 25.4,
+                   QPageLayout.Unit.Pica: 25.4 / 6.0,
+                   QPageLayout.Unit.Didot: 0.376,
+                   QPageLayout.Unit.Cicero: 4.512}.get(lay.units(), 25.4 / 72.0)
+            log.info("Native print: %s, paper %.1f x %.1f mm; the printer "
+                     "cannot print within L %.1f / T %.1f / R %.1f / B %.1f mm "
+                     "of the paper's edges (driver's minimum margins); the "
+                     "chart is placed on the whole sheet",
+                     qprinter.printerName() or "?",
+                     pw_pt * 25.4 / 72.0, ph_pt * 25.4 / 72.0,
+                     m.left() * per, m.top() * per, m.right() * per,
+                     m.bottom() * per)
+        except Exception:      # noqa: BLE001 - a log line, never a blocker
+            log.debug("could not read the printer's margins", exc_info=True)
+
     def _print_native_qt(self, pages: list[tuple[Path, int]],
                          printer: "str | None" = None) -> None:
         """The Windows print dialog route (Qt's QPrintDialog, GDI).
@@ -4614,6 +4647,7 @@ class TabPrint(QWidget):
 
         paper = qprinter.pageLayout().fullRectPoints()
         pw, ph = float(paper.width()), float(paper.height())
+        self._log_printer_margins(qprinter, pw, ph)
         # A CHART A LITTLE LARGER THAN THE PAPER (jctay 149803: 102 x 152 mm
         # on the 100 x 148 mm a 4 x 6 in printer takes): printed at exactly
         # 100 %, no question, when only empty margin is off the paper
