@@ -455,6 +455,7 @@ static void *cq_reader(void *arg) {
 		cq_handle_line(line);
 	}
 	cq_stdin_eof = 1;
+	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
 	return NULL;
 }
 #else
@@ -468,6 +469,7 @@ static void *cq_reader(void *arg) {
 	while (fgets(line, sizeof(line), stdin) != NULL)
 		cq_handle_line(line);
 	cq_stdin_eof = 1;
+	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
 #ifdef NT
 	return 0;
 #else
@@ -477,6 +479,7 @@ static void *cq_reader(void *arg) {
 #endif
 
 void cq_cmd_start(void) {
+	cq_exit_guard_start();
 #ifdef NT
 	InitializeCriticalSection(&cq_lock);
 	_beginthreadex(NULL, 0, cq_reader, NULL, 0, NULL);
@@ -890,4 +893,97 @@ double cq_press_trigger_age_ms(void) {
 		r = cq_now_ms() - cq_press_t[0];
 	cq_lock_give();
 	return r;
+}
+
+/* ------------------------------------------------------------------ */
+/* CHROMIQ_EXT: the instrument is always let go (see chromiq_ext.h).   */
+
+#ifndef NT
+# include <signal.h>
+# include <unistd.h>
+#endif
+
+/* ms on cq_now_ms()'s clock; 0 = not armed. Written from a signal handler
+ * too, so a plain volatile double set in one store is all it does there. */
+static volatile double cq_exit_deadline = 0.0;
+
+void cq_exit_deadline_arm(int ms) {
+	double when = cq_now_ms() + (double)ms;
+	if (cq_exit_deadline == 0.0 || when < cq_exit_deadline)
+		cq_exit_deadline = when;
+}
+
+#ifdef NT
+static unsigned __stdcall cq_exit_guard(void *a) {
+#else
+static void *cq_exit_guard(void *a) {
+#endif
+	(void)a;
+	for (;;) {
+		double d = cq_exit_deadline;
+		if (d != 0.0 && cq_now_ms() > d) {
+			/* The clean ending did not come: end the process, which is what
+			 * releases the instrument. Nothing is lost by it: every accepted
+			 * strip and patch is already on disk (autosave). */
+#ifdef NT
+			ExitProcess(4);
+#else
+			_exit(4);
+#endif
+		}
+		cq_sleep_ms(50);
+	}
+#ifdef NT
+	return 0;
+#else
+	return NULL;
+#endif
+}
+
+void cq_exit_guard_start(void) {
+	static int started = 0;
+	if (started)
+		return;
+	started = 1;
+#ifdef NT
+	_beginthreadex(NULL, 0, cq_exit_guard, NULL, 0, NULL);
+#else
+	{
+		pthread_t t;
+		if (pthread_create(&t, NULL, cq_exit_guard, NULL) == 0)
+			pthread_detach(t);
+	}
+#endif
+}
+
+#ifndef NT
+static void (*cq_old_int)(int) = SIG_DFL;
+static void (*cq_old_term)(int) = SIG_DFL;
+static void (*cq_old_hup)(int) = SIG_DFL;
+
+/* Arm the deadline, then let whatever was there (Argyll's USB clean-up,
+ * which closes the ports and calls exit) do its job. If that blocks, the
+ * watchdog ends the process anyway. */
+static void cq_exit_signal(int sig) {
+	void (*old)(int) = sig == SIGINT ? cq_old_int
+	                 : sig == SIGTERM ? cq_old_term : cq_old_hup;
+	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
+	if (old != SIG_DFL && old != SIG_IGN && old != cq_exit_signal) {
+		old(sig);
+		return;
+	}
+	_exit(128 + sig);
+}
+#endif
+
+void cq_exit_guard_signals(void) {
+#ifndef NT
+	void (*o)(int);
+	if ((o = signal(SIGINT, cq_exit_signal)) != cq_exit_signal)
+		cq_old_int = o;
+	if ((o = signal(SIGTERM, cq_exit_signal)) != cq_exit_signal)
+		cq_old_term = o;
+	if ((o = signal(SIGHUP, cq_exit_signal)) != cq_exit_signal)
+		cq_old_hup = o;
+#endif
 }

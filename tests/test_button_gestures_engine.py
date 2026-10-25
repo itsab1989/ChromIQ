@@ -594,3 +594,108 @@ def test_caps_name_gestures():
     text = (ROOT / "native" / "chartread_helper" / "chromiq_chartread.c"
             ).read_text(encoding="utf-8")
     assert '\\"gestures\\",\\"button_test\\"' in text
+
+
+# ---------------------------------------------------------------------------
+# Basti's ColorMunki, 2026-10-25: two faults only the real instrument showed
+# ---------------------------------------------------------------------------
+@needs_helper
+@pytest.mark.parametrize("port_args, port", [(["-c", "1"], 1), (["-c1"], 1),
+                                             (["-c", "3"], 3), (["-c2"], 2)])
+def test_try_it_takes_its_port_with_no_outfile(port_args, port):
+    """The REAL argument parsing, with no replay: Argyll takes a flag's
+    separate value only when a final argument is left for it, and Try it has
+    none, so "-c 1" printed usage instead of opening the instrument. Nothing
+    is opened here, not even the list of ports (parse-only)."""
+    env = helper_env()
+    env["CHROMIQ_BUTTON_TEST_PARSE_ONLY"] = "1"
+    res = subprocess.run(
+        [str(HELPER), "--json", "--button-test", "--gestures", f"{WAIT}:23",
+         *port_args], capture_output=True, text=True, encoding="utf-8",
+        stdin=subprocess.DEVNULL, env=env, timeout=30)
+    assert "usage" not in res.stdout.lower(), res.stdout[:400]
+    evs = [json.loads(ln) for ln in res.stdout.splitlines()
+           if ln.startswith("{")]
+    assert evs == [{"event": "button_test_args", "port": port,
+                    "wait_ms": WAIT}], res.stdout[:400]
+
+
+def test_the_app_passes_the_port_attached():
+    src = (ROOT / "ui" / "button_shortcuts_section.py").read_text(
+        encoding="utf-8")
+    assert 'args += [f"-c{port}"]' in src
+
+
+def _ends_within(proc, seconds):
+    t0 = time.monotonic()
+    try:
+        rc = proc.wait(timeout=seconds)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
+        return None, time.monotonic() - t0
+    return rc, time.monotonic() - t0
+
+
+@needs_helper
+@pytest.mark.parametrize("stuck", ["", "close", "signal", "close,signal"])
+@pytest.mark.parametrize("how", ["quit", "eof", "sigint", "sigterm"])
+def test_try_it_always_lets_the_instrument_go(tmp_path, stuck, how):
+    """An instrument-shaped hang (CHROMIQ_REPLAY_STUCK): closing it never
+    returns, and/or Argyll's USB signal handler never returns. However Try it
+    is ended, the process is gone within the grace (1.5 s) plus a margin for
+    a loaded machine, and a process that has ended has let the USB device
+    go. Before the fix the ColorMunki stayed held until SIGTERM."""
+    import signal as _signal
+    proc = _button_test(tmp_path, {"CHROMIQ_REPLAY_STUCK": stuck,
+                                   "CHROMIQ_ENGINE_MUTE": "1"})
+    try:
+        _read_events_until(proc, "instrument")
+        if how == "quit":
+            proc.stdin.write('{"cmd":"quit"}\n')
+            proc.stdin.flush()
+        elif how == "eof":
+            proc.stdin.close()
+        else:
+            proc.send_signal(_signal.SIGINT if how == "sigint"
+                             else _signal.SIGTERM)
+        rc, took = _ends_within(proc, 6)
+        assert rc is not None, f"still running {took:.1f} s after {how}"
+        assert took < 4.0, took
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
+        for p in (proc.stdin, proc.stdout):
+            try:
+                p.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+@needs_helper
+@pytest.mark.parametrize("how", ["quit", "eof", "sigint"])
+def test_a_measuring_session_always_lets_the_instrument_go(tmp_path,
+                                                           monkeypatch, how):
+    """The same, measuring: the hand test's strips run did not end either."""
+    import signal as _signal
+    monkeypatch.setenv("CHROMIQ_REPLAY_STUCK", "close,signal")
+    monkeypatch.setenv("CHROMIQ_ENGINE_MUTE", "1")
+    base, replay = _chart(tmp_path)
+    s = ReplaySession(base, replay, extra_args=ON)
+    try:
+        s.wait_event("strip_ready")
+        if how == "quit":
+            i = s.event_index()
+            s.send(cmd="quit")
+            s.wait_event("strip_interrupted", after=i, timeout=5)
+            s.send(cmd="quit")
+        elif how == "eof":
+            s.proc.stdin.close()
+        else:
+            s.proc.send_signal(_signal.SIGINT)
+        rc, took = _ends_within(s.proc, 6)
+        assert rc is not None, f"still running {took:.1f} s after {how}"
+        assert took < 4.0, took
+    finally:
+        s.finish(timeout=5) if s.proc.poll() is None else s.finish()

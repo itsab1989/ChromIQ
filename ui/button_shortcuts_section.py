@@ -377,7 +377,10 @@ class ButtonShortcutsSection(QGroupBox):
             args += ["--replay", replay]
         else:
             port = int(self._context().get("port") or 1)
-            args += ["-c", str(port)]
+            # ATTACHED, "-c1": Argyll's parser takes a separate value only
+            # when a final argument is left for it, and Try it has none (the
+            # engine now copes either way; Basti's ColorMunki, 2026-10-25).
+            args += [f"-c{port}"]
             from core.instrument_port import refused_port
             if refused_port(str(helper), args) is not None:
                 self._say(tr(
@@ -502,12 +505,16 @@ class ButtonShortcutsSection(QGroupBox):
             instrument_lease.release(self)
             return
         try:
+            # The engine ends by itself within 1.5 s of quit or of its stdin
+            # closing, even when the instrument's close blocks (its exit
+            # guard). Past 2 s it is killed: a process that has ended is the
+            # one thing that certainly frees a USB instrument.
             self.send_to_try({"cmd": "quit"})
             proc.closeWriteChannel()
-            if not proc.waitForFinished(4000):
+            if not proc.waitForFinished(2000):
                 log.warning("button shortcuts: Try it did not end; stopping it")
                 proc.kill()
-                proc.waitForFinished(2000)
+                proc.waitForFinished(1000)
         finally:
             if self._proc is not None:
                 self._on_try_finished()

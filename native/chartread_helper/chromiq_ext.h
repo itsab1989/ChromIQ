@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-25 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-25 legacy-labels+calibrate-on-request+file-as+atomic-autosave+button-retry+file-as-keeps-earlier+hold-after+hold-here+hold-here-patch+button-gestures+exit-guard"
 const char *cq_helper_build_string(void);
 
 
@@ -162,6 +162,22 @@ void   cq_press_group_poll(const char *where);
 void   cq_replay_presses(const char *at_ms);
 /* stdin has closed: nothing more will ever be asked (--button-test). */
 extern volatile int cq_stdin_eof;
+
+/* ---- the instrument is always let go (hand test, 2026-10-25) ------------
+ * Basti's ColorMunki: after quit, Ctrl+C or its stdin closing, the engine
+ * stayed alive and kept the instrument ("Device being used?") until SIGTERM.
+ * Closing an instrument can block for ever in the driver (a switch thread
+ * that never ends, a USB close inside the signal handler), and the ONLY
+ * thing that frees a USB device for certain is the process ending. So, in
+ * JSON mode, a watchdog thread ends the process with _exit() once a deadline
+ * has passed: armed when stdin closes (nobody can ever ask again), when the
+ * instrument is being closed (it->del, whatever path the engine ends by),
+ * and on SIGINT / SIGTERM / SIGHUP. A clean ending is always quicker than
+ * the deadline, so it changes nothing there. */
+#define CQ_EXIT_GRACE_MS 1500
+void cq_exit_deadline_arm(int ms);        /* never moves an earlier deadline */
+void cq_exit_guard_start(void);           /* the watchdog thread */
+void cq_exit_guard_signals(void);         /* our handlers, chained to the old */
 
 /* ---- the pause between pages (jctay 149802, Basti 2026-10-23) ----------
  * {"cmd":"hold_after","strip":"F"}: once strip F has been read and accepted

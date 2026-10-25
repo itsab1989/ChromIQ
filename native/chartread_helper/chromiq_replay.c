@@ -139,9 +139,36 @@ static icom_type cq_icom_port_attr(struct _icoms *p) {
 
 static icoms cq_fake_icom;	/* zero-init; only the two members below are set */
 
+/* The instrument-shaped hang (tests only, 2026-10-25): what Basti's
+ * ColorMunki did after quit, Ctrl+C or stdin closing. CHROMIQ_REPLAY_STUCK=
+ * close: closing the instrument never returns (a switch thread that never
+ * ends); =signal: Argyll's USB signal handler, installed when communications
+ * open, never returns either (its port close blocks). The engine must end
+ * anyway, within its exit grace. */
+#ifndef NT
+# include <signal.h>
+# include <unistd.h>
+static void cq_stuck_handler(int sig) {
+	(void)sig;
+	for (;;)
+		pause();
+}
+#endif
+
+static int cq_stuck(const char *what) {
+	const char *e = getenv("CHROMIQ_REPLAY_STUCK");
+	return e != NULL && strstr(e, what) != NULL;
+}
+
 static inst_code cq_init_coms(inst *p, baud_rate br, flow_control fc, double tout) {
 	(void)br; (void)fc; (void)tout;
 	p->gotcoms = 1;
+#ifndef NT
+	if (cq_stuck("signal")) {
+		signal(SIGINT, cq_stuck_handler);
+		signal(SIGTERM, cq_stuck_handler);
+	}
+#endif
 	return inst_ok;
 }
 
@@ -462,6 +489,9 @@ static int cq_last_scomerr(inst *p) {
 }
 
 static void cq_del(inst *p) {
+	if (cq_stuck("close"))
+		for (;;)
+			msec_sleep(1000);
 	if (p != NULL) {
 		if (cq_replay_inst == p)
 			cq_replay_inst = NULL;

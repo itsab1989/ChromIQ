@@ -1305,6 +1305,27 @@ static void cq_gestures_for_session(inst *it, int uswitch, const char *unit) {
 	            "\"wait_ms\":%d}", ok ? "true" : "false", unit, cq_gesture_ms);
 }
 
+/* CHROMIQ_EXT: the instrument is always let go (hand test, 2026-10-25; see
+ * chromiq_ext.h). Every path that ends a session closes the instrument with
+ * it->del(it), and that close is where a real ColorMunki could block for
+ * ever. So it->del is wrapped once, in JSON mode: the wrapper arms the exit
+ * deadline and then closes as before. A close that returns in time changes
+ * nothing; one that blocks ends with the process, which frees the device. */
+static void (*cq_real_del)(inst *p) = NULL;
+
+static void cq_guarded_del(inst *p) {
+	cq_exit_deadline_arm(CQ_EXIT_GRACE_MS);
+	if (cq_real_del != NULL)
+		cq_real_del(p);
+}
+
+static void cq_guard_inst(inst *it) {
+	if (!cq_json || it == NULL || it->del == cq_guarded_del)
+		return;
+	cq_real_del = it->del;
+	it->del = cq_guarded_del;
+}
+
 /* A scan that took longer than this from its trigger to its end was a real
  * attempt at a strip, however it failed, and is never part of a gesture. A
  * quick tap ends in about 0.2-0.3 s on a ColorMunki (Basti's hand test,
@@ -1528,6 +1549,8 @@ a1log *log			/* verb, debug & error log */
 			return -1;
 		}
 
+		cq_guard_inst(it);	/* CHROMIQ_EXT: always let the instrument go */
+
 #ifdef TEST_EVENT_CALLBACK
 		it->set_event_callback(it, test_event_callback, (void *)it);
 #else
@@ -1559,6 +1582,10 @@ a1log *log			/* verb, debug & error log */
 				free(pfname);
 			return -1;
 		}
+		/* CHROMIQ_EXT: Argyll's USB signal handlers are in place now; ours
+		 * go in front of them, so Ctrl+C or SIGTERM always ends us. */
+		if (cq_json)
+			cq_exit_guard_signals();
 
 		/* For reflective */
 		if (emis == 0 && trans == 0) {
@@ -4464,6 +4491,13 @@ static int cq_run_button_test(int comport, flow_control fc) {
 		fprintf(stderr, "--button-test needs --json and --gestures\n");
 		return 1;
 	}
+	/* Tests only: prove the command line was parsed (the port it names)
+	 * without opening anything, not even the list of ports. */
+	if (getenv("CHROMIQ_BUTTON_TEST_PARSE_ONLY") != NULL) {
+		cq_emit_raw("{\"event\":\"button_test_args\",\"port\":%d,"
+		            "\"wait_ms\":%d}", comport, cq_gesture_ms);
+		return 0;
+	}
 	if (cq_replay_active()) {
 		inst_reset_uih();
 		it = cq_new_replay_inst(g_log, cq_uicallback, inst_get_uicontext());
@@ -4481,6 +4515,7 @@ static int cq_run_button_test(int comport, flow_control fc) {
 			icmps->del(icmps);
 		return 1;
 	}
+	cq_guard_inst(it);
 	it->set_event_callback(it, cq_event_callback, (void *)it);
 	if ((rv = it->init_coms(it, baud_38400, fc, 15.0)) != inst_ok
 	 || (rv = it->init_inst(it)) != inst_ok) {
@@ -4490,6 +4525,7 @@ static int cq_run_button_test(int comport, flow_control fc) {
 			icmps->del(icmps);
 		return 1;
 	}
+	cq_exit_guard_signals();
 	ok = cq_button_retry_ok(it, 1);
 	cq_emit_raw("{\"event\":\"instrument\",\"model\":\"%s\",\"button\":%s,"
 	            "\"wait_ms\":%d}", inst_name(it->get_itype(it)),
@@ -4505,10 +4541,12 @@ static int cq_run_button_test(int comport, flow_control fc) {
 	}
 	cq_switch_gate_set(0);
 	cq_gesture_activate(0);
+	/* Said before the close: a close that blocks is ended by the exit
+	 * guard (it->del arms it), and the app has already heard the end. */
+	cq_emit_simple("button_test_end");
 	it->del(it);
 	if (icmps != NULL)
 		icmps->del(icmps);
-	cq_emit_simple("button_test_end");
 	return 0;
 }
 
@@ -4655,6 +4693,11 @@ int main(int argc, char *argv[]) {
 
 	/* Process the arguments */
 	mfa = 1;        /* Minimum final arguments */
+	/* CHROMIQ_EXT: "Try it" has no outfile, so a flag's separate value (the
+	 * "1" of "-c 1") is taken only if no final argument is reserved for it
+	 * (Basti's ColorMunki, 2026-10-25: usage instead of the instrument). */
+	if (cq_button_test)
+		mfa = 0;
 	for (fa = 1;fa < argc;fa++) {
 		nfa = fa;					/* skip to nfa if next argument is used */
 		if (argv[fa][0] == '-') {		/* Look for any flags */

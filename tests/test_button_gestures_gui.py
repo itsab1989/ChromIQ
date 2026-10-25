@@ -476,3 +476,49 @@ def test_closing_preferences_lets_the_instrument_go(qapp, tmp_path,
     assert not sec.is_trying()
     assert proc is None or proc.state() == proc.ProcessState.NotRunning
     assert instrument_lease.holder() is None
+
+
+@pytest.mark.skipif(not HELPER.exists(), reason="engine not built")
+@pytest.mark.parametrize("ending", ["stop", "close_preferences"])
+def test_try_it_frees_a_stuck_instrument_in_two_seconds(qapp, tmp_path,
+                                                        monkeypatch, ending):
+    """Basti's ColorMunki (2026-10-25) stayed held after Try it ended. With
+    an instrument whose close never returns (CHROMIQ_REPLAY_STUCK), Stop and
+    closing Preferences still end the engine process within about two
+    seconds, and the lease is free."""
+    from core import instrument_lease
+    from ui.dialogs.settings_dialog import SettingsDialog
+    replay = tmp_path / "replay.txt"
+    replay.write_text("PATCHES 1\nSTRIP A\n50 50 50\n", encoding="utf-8")
+    monkeypatch.setenv("CHROMIQ_REPLAY", str(replay))
+    monkeypatch.setenv("CHROMIQ_REPLAY_STUCK", "close,signal")
+    monkeypatch.setenv("CHROMIQ_ENGINE_MUTE", "1")
+    d = SettingsDialog(_settings(tmp_path, button_gestures_enabled=True))
+    sec = d._button_shortcuts
+    sec._context_fn = lambda: {"family": "colormunki", "name": "CM"}
+    sec.refresh_instrument()
+    sec.start_try()
+    assert _until(lambda: sec._try_status.text().startswith("Ready."))
+    proc = sec._proc
+    pid = proc.processId()
+    t0 = time.monotonic()
+    if ending == "stop":
+        sec.stop_try()
+    else:
+        d.reject()
+    took = time.monotonic() - t0
+    assert not sec.is_trying()
+    assert instrument_lease.holder() is None
+    assert took < 3.2, took
+    import os as _os
+    gone = False
+    for _ in range(50):
+        try:
+            _os.kill(pid, 0)
+        except ProcessLookupError:
+            gone = True
+            break
+        time.sleep(0.05)
+    assert gone, "the engine process is still alive"
+    if ending == "stop":
+        d.done(0)
