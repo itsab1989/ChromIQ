@@ -50,14 +50,21 @@ def test_it_follows_the_margins(tab):
 
 
 def test_it_follows_the_row_indicators(tab):
+    """The quoted count follows the layout on both sides of the switch.
+
+    It used to insist that the count MOVES. Whether it does depends on the
+    rest of the label style the worker's settings hold (a turned row label,
+    or one that sits in a clip border's free part since 4.3.14, costs no
+    patch area), so a gate run in another order saw 448 both times and went
+    red while the quote was right. What matters is that the quote is the
+    layout's own count before and after.
+    """
     panel = tab._manual_layout_panel
-    before = tab._gamut_per_sheet()
+    assert tab._gamut_per_sheet() == _what_the_layout_holds(tab)
     panel.show_row_indicators.click()
-    after = tab._gamut_per_sheet()
-    assert after == _what_the_layout_holds(tab)
-    assert after != before, (
-        "switching the row indicators on cost patch area but the quoted count "
-        "did not move")
+    assert tab._gamut_per_sheet() == _what_the_layout_holds(tab), (
+        "switching the row indicators changed the layout but the quoted count "
+        "did not follow it")
 
 
 def test_it_follows_the_patch_size(tab):
