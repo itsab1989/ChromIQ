@@ -1251,6 +1251,16 @@ void cq_event_callback(void *cntx, inst_event_type event) {
 	 * limit could read "Too fast" (review P_review2_beta1, P-202-1). macOS and
 	 * Linux beep asynchronously, so the order changes nothing there. */
 	cq_emit_raw("{\"event\":\"scan_ready\"}");
+	/* CHROMIQ_EXT: CHROMIQ_ENGINE_MUTE silences this beep for scripted runs
+	 * (drivers and hand-test scripts, which must play no sound). Unset, as
+	 * the app always runs it, nothing changes. */
+	{
+		static int mute = -1;
+		if (mute < 0)
+			mute = getenv("CHROMIQ_ENGINE_MUTE") != NULL;
+		if (mute)
+			return;
+	}
 	msec_beep(0, 1000, 200);
 }
 

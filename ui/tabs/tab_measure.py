@@ -9381,12 +9381,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _flash_status(self, text: str, duration_ms: int = 8000) -> None:
         self._status_bar_lbl.setText(text)
         self._status_bar_lbl.setVisible(True)
-        # A BOUND METHOD, NOT A LAMBDA HOLDING THE LABEL — `singleShot` keeps no
-        # owner, so this stays armed for eight seconds after the tab is gone and
-        # then calls setVisible on a deleted C++ widget. The same shape in the
-        # scanner dialog was the intermittent failure in the test gate; eight
-        # seconds is a far wider window than its 1.4.
-        QTimer.singleShot(duration_ms, self._hide_status_flash)
+        # ONE TIMER, RESTARTED BY EVERY FLASH (button shortcuts, 2026-10-25):
+        # with a fresh singleShot per flash, the timer of an earlier line took
+        # a newer one down early (measured on screen: a shortcut's line two
+        # seconds after an earlier one vanished at once). A child QTimer of the
+        # tab dies with the tab, so it can never touch a deleted label.
+        timer = getattr(self, "_status_flash_timer", None)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(self._hide_status_flash)
+            self._status_flash_timer = timer
+        timer.start(int(duration_ms))
 
     def _hide_status_flash(self) -> None:
         """Take the flashed status line down again (see `_flash_status`)."""
