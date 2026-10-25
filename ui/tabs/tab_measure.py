@@ -1840,6 +1840,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._manager.strip_error.connect(self._report_failed_strip_pace)
         self._manager.strip_error.connect(self._on_strip_error)
         self._manager.instrument_button.connect(self._on_instrument_button)
+        # Instrument button shortcuts (Basti, 2026-10-25)
+        self._manager.instrument_gesture.connect(self._on_instrument_gesture)
+        self._manager.gesture_moved.connect(self._on_gesture_moved)
+        self._manager.gesture_released.connect(self._on_gesture_released)
         self._manager.engine_held.connect(self._on_engine_held)
         self._manager.engine_released.connect(self._on_engine_released)
         # #126 chart-reading engine
@@ -8075,6 +8079,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         #: True while a reader is waiting for keys — what makes the app-wide
         #: event filter below legitimate. Cleared in _on_measure_done.
         self._session_live = True
+        self._gesture_paused = None      # button shortcuts' pause
         self._slip_kept_strips = set()
         self._end_page_pause()
         self._sync_calibrate_btn_visible()
@@ -9385,6 +9390,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _hide_status_flash(self) -> None:
         """Take the flashed status line down again (see `_flash_status`)."""
+        if getattr(self, "_gesture_paused", None):
+            return      # the pause's line stays until the pause ends
         lbl = getattr(self, "_status_bar_lbl", None)
         if lbl is not None:
             lbl.setVisible(False)
@@ -11195,7 +11202,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # instrument reports presses; never for a patch or a lost connection.
         import time as _time
         self._strip_error_window = (
-            {"dlg": dlg, "retry": retry_btn, "shown": _time.monotonic()}
+            {"dlg": dlg, "retry": retry_btn, "shown": _time.monotonic(),
+             "chosen": chosen}
             if button and not _spot and not is_coms else None)
         try:
             self._exec_measurement_window(dlg)
@@ -11209,10 +11217,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # the last window).
             self._all_done_deferred = False
             self._on_all_stripes_done()
-        elif chosen[0] in ("retry", "skip"):
+        elif chosen[0] in ("retry", "skip") or chosen[0].startswith("gesture:"):
             self._all_done_deferred = False   # back to measuring
 
-        if chosen[0] == "retry":
+        if chosen[0].startswith("gesture:"):
+            # A button shortcut answered the window (Basti, 2026-10-25):
+            # acknowledge the prompt, then move, as Skip Strip does.
+            _n, _action = chosen[0].split(":")[1:3]
+            _key = {"back": "b", "forward": "f", "next_unread": "n"}[_action]
+            self._manager.note_gesture_move(int(_n), _action, "strip",
+                                            after_ack=True)
+            self._manager.send_post_retry_key(_key)
+        elif chosen[0] == "retry":
             self._manager.send_key("\r")
         elif chosen[0] == "skip":
             # The manager decides what "skip" can mean: the next unread strip
@@ -11669,6 +11685,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         window is the single decider, so a click and a press can never both
         be applied."""
         import time as _time
+        if getattr(self, "_gesture_paused", None):
+            # A pause a button shortcut made: one press goes on.
+            self._gesture_continue()
+            return
         if self._page_pause_takes_button():
             return
         w = getattr(self, "_strip_error_window", None)
@@ -11684,6 +11704,139 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         log.info("instrument button: Retry")
         w["retry"].click()
+
+    # ------------------------------------------------------------------
+    # Instrument button shortcuts (Basti, 2026-10-25; jctay, forum 149841)
+    # ------------------------------------------------------------------
+    #
+    # Preferences ▸ Measurement ▸ "Instrument button shortcuts". The engine
+    # counts the presses (only it sees the ones inside a quick tap's scan) and
+    # reports a double or triple press as `instrument_gesture`; here it is
+    # mapped to the chosen action through the commands the keyboard sends, and
+    # the status line says what happened. No sound (measurement_window_sounds
+    # §4f): the strip arrow moving is the feedback, and a sound would land on
+    # the instrument's own beep.
+
+    def _on_instrument_gesture(self, ev: dict) -> None:
+        from workflow import button_gestures as BG
+        from workflow import measurement_messages as M
+        if not getattr(self, "_session_live", False):
+            return
+        n = int(ev.get("presses") or 0)
+        action = BG.config_from(self._settings).action_for(n)
+        who = BG.press_name(n)
+        where = str(ev.get("where") or "")
+        # The press that started a quick tap's scan is not a strip: the
+        # reading clock and the late beep go with it.
+        self._scan_started_at = None
+        self._scan_awaiting_ready = False
+        if where in ("strip", "patch"):
+            label = str(ev.get(where) or "").strip()
+            if action in BG.ACTION_COMMAND:
+                self._manager.note_gesture_move(n, action, where)
+                self._manager.send_gesture_move(action)
+                return
+            if action == "pause":
+                self._gesture_paused = {"where": where, "label": label}
+                key = (M._GESTURE_PAUSED_PATCH if where == "patch"
+                       else M._GESTURE_PAUSED_STRIP)
+                text = tr(key).format(press=who, label=label)
+                self._flash_status(text)
+                self._log.appendPlainText(text)
+                return
+            # no action (the engine is told which counts have one, so this
+            # is only a setting changed mid-session): the same strip again
+            self._manager.send_gesture_move("resume")
+            return
+        if where == "prompt":
+            w = getattr(self, "_strip_error_window", None)
+            if not w or not w["dlg"].isVisible():
+                return
+            if action in BG.ACTION_COMMAND:
+                w["chosen"][0] = f"gesture:{n}:{action}"
+                w["dlg"].accept()
+            elif action == "pause":
+                self._flash_status(tr(M._GESTURE_AT_WINDOW).format(press=who))
+            return
+        if where == "held":
+            if getattr(self, "_gesture_paused", None):
+                if action == "pause":
+                    self._gesture_continue()
+                else:
+                    self._flash_status(tr(M._GESTURE_IN_PAUSE).format(press=who))
+                return
+            if self._page_pause_active():
+                if action == "pause":
+                    self._page_pause_continue()
+                else:
+                    self._flash_status(tr(M._GESTURE_IN_PAUSE).format(press=who))
+
+    def button_shortcut_context(self) -> dict:
+        """For Preferences ▸ Measurement ▸ Instrument button shortcuts: the
+        instrument this tab knows about (the one it last talked to, else the
+        loaded chart's, else the Create Chart preference), the port it reads
+        from, and whether anything is reading now."""
+        from workflow import button_gestures as BG
+        name = str(getattr(self, "_detected_instrument", "") or "")
+        if not name:
+            try:
+                name = str(self._chart_instrument_code() or "")
+            except Exception:  # noqa: BLE001 - a guess, never a failure
+                name = ""
+        if not name:
+            name = str(self._settings.get("chart_instrument", "") or "")
+        try:
+            spin = (self._instr_spin if self._current_mode() == "guided"
+                    else self._m_instr_spin)
+            port = int(spin.value())
+        except Exception:  # noqa: BLE001
+            port = 1
+        busy = bool(getattr(self, "_session_live", False)
+                    or getattr(self, "_measuring", False))
+        try:
+            busy = busy or bool(self._manager._runner.is_running)
+        except Exception:  # noqa: BLE001
+            pass
+        return {"family": BG.family_of(name), "name": name, "port": port,
+                "busy": busy}
+
+    def _gesture_continue(self) -> None:
+        """Go on from a pause a button shortcut made: the same strip or
+        patch is offered again."""
+        from workflow import measurement_messages as M
+        if not getattr(self, "_gesture_paused", None):
+            return
+        self._gesture_paused = None
+        self._manager.send_gesture_move("resume")
+        self._flash_status(tr(M._GESTURE_GOING_ON), 4000)
+
+    def _on_gesture_moved(self, presses: int, action: str, unit: str,
+                          label: str) -> None:
+        from workflow import button_gestures as BG
+        unread = None
+        try:
+            mgr = self._manager
+            todo = set(getattr(mgr, "_unread_locs", None) or ())
+            if not todo and not getattr(mgr, "_read_order", None):
+                raise LookupError("no read map")  # nothing known: say less
+            if unit == "patch":
+                unread = label in todo
+            else:
+                strips = getattr(mgr, "_loc_strip", None) or {}
+                unread = any(strips.get(loc) == label for loc in todo)
+        except Exception:  # noqa: BLE001 - only the wording depends on it
+            unread = None
+        text = BG.moved_text(presses, action, unit, label, unread)
+        self._flash_status(text)
+        self._log.appendPlainText(text)
+        self._log.ensureCursorVisible()
+
+    def _on_gesture_released(self) -> None:
+        """The engine offered a strip or patch again: a shortcut's pause is
+        over, whatever ended it (a click on the preview, Stop)."""
+        if getattr(self, "_gesture_paused", None):
+            self._gesture_paused = None
+            self._hide_status_flash()
 
     def _on_calibration_prompt(self, cond: str = "", message: str = "",
                                optional: bool = False) -> None:
@@ -15098,6 +15251,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # END of this method, by which point the resume checkbox had already
         # refreshed itself from the file that was about to be replaced.
         self._session_live = False
+        self._gesture_paused = None      # button shortcuts' pause
         self._sync_calibrate_btn_visible()
         # A reading "Was a strip read twice?" set aside, and never replaced,
         # leaves the file before anything judges or counts it.
@@ -16082,6 +16236,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # keyboard starts the next strip; in the pause it is Continue, and
             # nothing is read (jctay 149802).
             # (getattr: the CR30 tests drive this filter on a stand-in tab)
+            if getattr(self, "_gesture_paused", None) and key in (
+                    Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space) \
+                    and not (event.modifiers()
+                             & (Qt.KeyboardModifier.ControlModifier
+                                | Qt.KeyboardModifier.MetaModifier
+                                | Qt.KeyboardModifier.AltModifier)):
+                # A pause a button shortcut made: Return or space goes on,
+                # and nothing is read (the engine holds; see the shortcut).
+                self._gesture_continue()
+                return True
             pause_on = getattr(self, "_page_pause_active", None)
             if pause_on is not None and pause_on() and key in (
                     Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space) \
@@ -20575,6 +20739,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return p
         p.engine_safenet = bool(self._settings.get("misalign_safenet"))
         p.page_pause = bool(self._settings.get("measure_page_pause", False))
+        # Instrument button shortcuts: nothing at all when they are off.
+        from workflow import button_gestures as _bg
+        p.gesture_args = _bg.engine_args(_bg.config_from(self._settings))
         p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os

@@ -392,6 +392,17 @@ DEFAULTS: dict[str, Any] = {
     # ...and the note shown at each such pause (on by default; greyed in
     # Preferences while the pause is off, keeping its value).
     "measure_page_pause_note":   True,
+    # Instrument button shortcuts (Basti, 2026-10-25; jctay, forum 149841):
+    # a double or triple press of an i1Pro's or ColorMunki's button moves the
+    # reader. OFF by default, and off means the engine is started exactly as
+    # before (no --gestures), so nothing waits and nothing changes. The two
+    # actions are "none", "back", "forward", "next_unread" or "pause"; an
+    # unknown stored value reads as "none". The wait is in milliseconds,
+    # clamped to 300..1500 where it is used.
+    "button_gestures_enabled":   False,
+    "button_gesture_double":     "back",
+    "button_gesture_triple":     "next_unread",
+    "button_gesture_wait_ms":    600,
     # The expected · measured label (the "legend chip") on the Measure tab's
     # chart preview (Basti, 2026-10-23): on by default, so everybody keeps it.
     "measure_preview_legend":    True,

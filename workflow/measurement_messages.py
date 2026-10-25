@@ -7913,7 +7913,42 @@ M_PAGE_PAUSE_CONTROLS = _m(
                _PAUSE_REREAD_TIP, _PAUSE_LOG_PAGE, _PAUSE_LOG_END)),
     approved=False)
 
+# --- PROPOSED: the instrument's button shortcuts (Basti 2026-10-25) --------
+#: The Measure tab's status line after a double or triple press of the
+#: instrument's button (Preferences ▸ Measurement ▸ "Instrument button
+#: shortcuts", jctay forum 149841). {press} is "Double press" or "Triple
+#: press"; {label} is the strip or patch the reader is on NOW, named once the
+#: engine has moved there, so the line says what really happened.
+_GESTURE_BACK_STRIP = "{press}: back to strip {label}"
+_GESTURE_FORWARD_STRIP = "{press}: on to strip {label}"
+_GESTURE_NEXT_STRIP = "{press}: on to strip {label}, the next one not yet read"
+_GESTURE_BACK_PATCH = "{press}: back to patch {label}"
+_GESTURE_FORWARD_PATCH = "{press}: on to patch {label}"
+_GESTURE_NEXT_PATCH = "{press}: on to patch {label}, the next one not yet read"
+_GESTURE_PAUSED_STRIP = ("{press}: paused at strip {label}. Nothing is read "
+                         "while ChromIQ waits. To go on, press the button on "
+                         "your instrument once, or press Return.")
+_GESTURE_PAUSED_PATCH = ("{press}: paused at patch {label}. Nothing is read "
+                         "while ChromIQ waits. To go on, press the button on "
+                         "your instrument once, or press Return.")
+_GESTURE_GOING_ON = "Measuring goes on."
+_GESTURE_IN_PAUSE = ("{press}: this shortcut does nothing during a pause. "
+                     "Press the button once, or click Continue, to go on.")
+_GESTURE_AT_WINDOW = ("{press}: ChromIQ is already waiting for your answer in "
+                      "the open window, so there is nothing to pause.")
+M_GESTURE_STATUS = _m(
+    "M-GESTURE-STATUS",
+    "The instrument's button shortcuts: the status line",
+    "\n".join((_GESTURE_BACK_STRIP, _GESTURE_FORWARD_STRIP,
+               _GESTURE_NEXT_STRIP, _GESTURE_BACK_PATCH,
+               _GESTURE_FORWARD_PATCH, _GESTURE_NEXT_PATCH,
+               _GESTURE_PAUSED_STRIP, _GESTURE_PAUSED_PATCH,
+               _GESTURE_GOING_ON, _GESTURE_IN_PAUSE, _GESTURE_AT_WINDOW)),
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
+    M_GESTURE_STATUS,
     M_PAGE_PAUSE, M_PAGE_PAUSE_END, M_PAGE_PAUSE_OTHER_PAGES,
     M_PAGE_PAUSE_BUTTON, M_PAGE_PAUSE_FOUND, M_PAGE_PAUSE_CONTROLS,
     M_PAGE_PAUSE_HELP,
