@@ -26532,6 +26532,7 @@ class TabChart(QWidget):
         Print Chart tab is on (`workflow.printer_edges`), or None."""
         tiffs = list(getattr(self, "_margin_tiffs", None) or [])
         if not tiffs:
+            log.debug("printer edge note: no chart in the preview")
             return None
         try:
             printer = ""
@@ -26543,6 +26544,7 @@ class TabChart(QWidget):
             if not printer:
                 printer = str(self._settings.get("last_printer", "") or "")
             if not printer:
+                log.debug("printer edge note: no printer known")
                 return None
             from workflow import printer_edges as PE
             from workflow import measurement_messages as _mm
@@ -26562,6 +26564,8 @@ class TabChart(QWidget):
                 if plan is not None and plan.safe:
                     shift = plan.shift_mm
             loss = PE.losses_for_chart(pages, edges, paper, shift)
+            log.debug("printer edge note: %s, edges %s (%s), paper %s, %s",
+                      printer, edges.as_dict(), edges.source, paper, loss)
             return _mm.edge_note(printer, edges, loss)
         except Exception:      # noqa: BLE001 - a note, never a blocker
             log.debug("printer edge note not worked out", exc_info=True)
@@ -26751,7 +26755,13 @@ class TabChart(QWidget):
             # placed on that printer's paper as every print route places it,
             # and the ruler helper markers or text inside its unprinted edge
             # are named, with what moves them in. A note, never a block.
-            _edge_line = self._printer_edge_notice()
+            # UNBOUND and guarded, like every helper this method reaches: it
+            # is also run against stand-ins (see `_notice_layout_recipe`
+            # below), and one missing attribute must not empty the panel.
+            try:
+                _edge_line = TabChart._printer_edge_notice(self)
+            except Exception:      # noqa: BLE001 - a note, never a blocker
+                _edge_line = None
             if _edge_line:
                 over.append(_edge_line)
             # ---- THE FOUR EDGES, MEASURED OFF THE SHEET IN THE PREVIEW -----
