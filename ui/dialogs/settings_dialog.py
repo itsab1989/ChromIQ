@@ -6509,7 +6509,14 @@ class SettingsDialog(QDialog):
             "sits.\n\n"
             "Changing these here changes every new chart that has no label "
             "style of its own; charts you've already generated keep the style "
-            "they were made with."),
+            "they were made with.")
+            + "\n\n" + tr(
+            "  • Row label rotation: turns the row labels down the left-hand "
+            "side of a new chart (0°, 90°, 180°, 270°), separately from the "
+            "strip letters. On its side a label needs only as much width as "
+            "its text is tall, which can leave more room for patches; Create "
+            "Chart's ⓘ beside “Row indicators only” says exactly what each "
+            "rotation does."),
             self), 0, 3, Qt.AlignmentFlag.AlignRight)
 
         # Font + size + bold/italic.
@@ -6603,10 +6610,19 @@ class SettingsDialog(QDialog):
         self._isty_ul_gap.setSingleStep(0.5)
         self._isty_ul_gap.setSuffix(" mm")
         g.addWidget(self._isty_ul_gap, 6, 3)
+        # The row labels' own rotation (Basti, 2026-10-25), in the free
+        # half of the last row.
+        g.addWidget(QLabel(tr("Row label rotation:"), self), 6, 0,
+                    Qt.AlignmentFlag.AlignRight)
+        self._isty_row_rotation = NoScrollComboBox(self)
+        for _deg in (0, 90, 180, 270):
+            self._isty_row_rotation.addItem(f"{_deg}°", _deg)
+        g.addWidget(self._isty_row_rotation, 6, 1)
         # Both control columns equal width, filling the frame (Knut).
         g.setColumnStretch(1, 1)
         g.setColumnStretch(3, 1)
         for _w in (self._isty_font, self._isty_size, self._isty_rotation,
+                   self._isty_row_rotation,
                    self._isty_align, self._isty_offset, self._isty_offset_x,
                    self._isty_underline,
                    self._isty_ul_thick, self._isty_ul_gap):
@@ -6626,6 +6642,9 @@ class SettingsDialog(QDialog):
         self._isty_align.setCurrentIndex(_ai if _ai >= 0 else 0)
         self._isty_offset.setValue(float(s.get("strip_label_offset_mm")))
         self._isty_offset_x.setValue(float(s.get("strip_label_offset_x_mm")))
+        _rri = self._isty_row_rotation.findData(
+            int(s.get("row_indicator_rotation") or 0) % 360)
+        self._isty_row_rotation.setCurrentIndex(_rri if _rri >= 0 else 0)
         _ui = self._isty_underline.findData(s.get("strip_underline_mode"))
         self._isty_underline.setCurrentIndex(_ui if _ui >= 0 else 0)
         self._isty_ul_thick.setValue(float(s.get("strip_underline_thickness_mm")))
@@ -6646,6 +6665,8 @@ class SettingsDialog(QDialog):
         s.set("strip_indicator_align", self._isty_align.currentData() or "left")
         s.set("strip_label_offset_mm", float(self._isty_offset.value()))
         s.set("strip_label_offset_x_mm", float(self._isty_offset_x.value()))
+        s.set("row_indicator_rotation",
+              int(self._isty_row_rotation.currentData() or 0))
         s.set("strip_underline_mode", self._isty_underline.currentData() or "off")
         s.set("strip_underline_thickness_mm", float(self._isty_ul_thick.value()))
         s.set("strip_underline_gap_mm", float(self._isty_ul_gap.value()))
@@ -7101,6 +7122,9 @@ class SettingsDialog(QDialog):
         self._isty_align.setCurrentIndex(_ai if _ai >= 0 else 0)
         self._isty_offset.setValue(float(DEFAULTS["strip_label_offset_mm"]))
         self._isty_offset_x.setValue(float(DEFAULTS["strip_label_offset_x_mm"]))
+        _rri = self._isty_row_rotation.findData(
+            int(DEFAULTS["row_indicator_rotation"]))
+        self._isty_row_rotation.setCurrentIndex(_rri if _rri >= 0 else 0)
         _ui = self._isty_underline.findData(DEFAULTS["strip_underline_mode"])
         self._isty_underline.setCurrentIndex(_ui if _ui >= 0 else 0)
         self._isty_ul_thick.setValue(float(DEFAULTS["strip_underline_thickness_mm"]))

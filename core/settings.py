@@ -628,6 +628,8 @@ DEFAULTS: dict[str, Any] = {
     "strip_label_offset_mm":         0.0,
     # …and across the page: + right, - left (Basti, 2026-10-24).
     "strip_label_offset_x_mm":       0.0,
+    # …and the ROW labels' own rotation (Basti, 2026-10-25).
+    "row_indicator_rotation":        0,     # 0 | 90 | 180 | 270
     "strip_underline_mode":          "off",  # "off" | "colored" | "black"
     "strip_underline_thickness_mm":  0.5,
     "strip_underline_gap_mm":        0.5,
@@ -645,6 +647,7 @@ INDICATOR_STYLE_KEYS = {
     "indicator_align":         "strip_indicator_align",
     "strip_label_offset_mm":   "strip_label_offset_mm",
     "strip_label_offset_x_mm": "strip_label_offset_x_mm",
+    "row_indicator_rotation":  "row_indicator_rotation",
     "underline_mode":          "strip_underline_mode",
     "underline_thickness_mm":  "strip_underline_thickness_mm",
     "underline_gap_mm":        "strip_underline_gap_mm",

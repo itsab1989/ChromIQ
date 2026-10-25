@@ -216,6 +216,10 @@ def build_chart(
     indicator_italic: bool = False,
     indicator_rotation: int = 0,
     indicator_align: str = "left",
+    # The row labels' own rotation ("Row indicators only", Basti 2026-10-25).
+    # Carried on the geometry (`Geom.row_label_rotation`), which the renderer
+    # already receives.
+    row_indicator_rotation: int = 0,
     strip_label_offset_mm: float = 0.0,
     strip_label_offset_x_mm: float = 0.0,
     underline_mode: str = "off",
@@ -406,6 +410,8 @@ def build_chart(
         "indicator_font": indicator_font, "indicator_size_mm": indicator_size_mm,
         "indicator_bold": indicator_bold, "indicator_italic": indicator_italic,
         "indicator_rotation": indicator_rotation, "underline_mode": underline_mode,
+        **({"row_indicator_rotation": int(row_indicator_rotation)}
+           if int(row_indicator_rotation or 0) % 360 else {}),
         "underline_thickness_mm": underline_thickness_mm,
         "underline_gap_mm": underline_gap_mm,
         # The geometry needs the label OFFSET too, and only for one thing: a

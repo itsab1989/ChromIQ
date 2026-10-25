@@ -765,3 +765,66 @@ chart: at 0.25 mm of clearance the line no longer touches the apex points at
 all, and the stamp's ink on patch ink goes from 206 pixels to **none**. §R9.3
 still stands as a description of the mechanism, and a honeycomb the walk never
 touches still carries it.
+
+---
+
+## §R10 · The row labels' own rotation
+
+**The request is confirmed.**
+
+**Confirmed by:** Basti, 2026-10-25.
+
+Create Chart ▸ Manual ▸ Expert options gains a "Row indicators only" section
+directly below "Strip indicators only", with a Rotation box offering the same
+four choices as the strip letters' Rotation: 0°, 90°, 180° and 270°. It is
+saved with Save as Defaults, in presets, in each run's and run type's stored
+chart settings, in relayout recipes and in the chart sidecar
+(`LayoutRecipe.row_indicator_rotation`), and its starting value for a new
+chart is in Preferences ▸ Chart Layout ("Row label rotation", settings key
+`row_indicator_rotation`). A recipe, preset or default without the key is 0°
+and prints exactly what it printed before: the field is left out of
+`to_dict` and of the build kwargs at 0, and the upright drawing code is
+untouched.
+
+### ⏳ Awaiting confirmation: how a turned row label is laid out
+
+**Confirmed by:** *nobody yet.*
+
+As built (`raster.row_label_band_mm`, `raster.effective_row_label_size_mm`,
+`raster.render_pages`, `Geom.row_label_rotation`):
+
+* **The band.** 0° and 180°: the widest label's text width, as before. 90°
+  and 270°: the widest turned label's INK across the band (the text's
+  height), measured off the very tiles the renderer pastes; plus §R1.2's 1 mm
+  of air either way. On a CR30 A4 default the band is 9.47 mm upright and
+  6.08 mm turned; on Knut's 100 x 150 mm preset 3.54 and 2.65 mm.
+* **The floor, the margin and its warning** are §R1.3 / §R1.3a / §R1.5 /
+  §R6 / §R7 / §R8 unchanged, fed with that band: the labels never come
+  closer to the paper edge than the floor (Clip, the clip border's content
+  under the 4.3.14 rule or the whole border under the old one, the helper
+  markers), the margin is raised to hold the band, and the red warning
+  quotes the band at its size.
+* **The placement.** Every label is centred on its row; its ink ends at the
+  same patch-side line as an upright label (1 mm before the patches, past a
+  honeycomb's apex) and never starts before the floor.
+* **The automatic size.** A turned label runs along its row, so "auto" caps
+  its LENGTH (the widest two-character label) at 85 % of the row pitch,
+  where upright it caps the height. A typed size is never capped; when it
+  makes a turned label longer than its row, a red notice under "Measured
+  from Preview" says so and names the three remedies.
+* **No Left / Centered / Right.** For the strip letters the choice decides
+  which end of a turned two-letter label stays on a fixed line at the
+  patches. A row label's fixed line is the patch side ACROSS the band, and
+  every turned label is the same width across it, so a choice there would
+  change nothing. ALONG the row, top or bottom alignment would only move a
+  label towards the boundary it shares with the next row, which makes it
+  less clear which row it names; centred is the one position that belongs
+  to its row unambiguously. So the choice is not offered (reasoned for Basti,
+  who guessed it was not needed).
+* **The preview and the print** are the same page image; the vector PDF
+  carries the turned labels as rotated text runs at the same anchor.
+* **Never fewer patches.** Every default recipe is 0°, so every count is
+  unchanged (all 1,596 rows checked). A turned band is usually the narrower
+  one, since it measures a label's height and not the two characters of its
+  width, but with a tall, narrow face it need not be; turning is the user's
+  own choice, and the margin warning reports whatever it costs.

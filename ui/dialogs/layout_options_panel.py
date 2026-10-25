@@ -45,7 +45,7 @@ log = get_logger(__name__)
 _LABEL_STYLE_FIELDS = (
     "indicator_font", "indicator_size_mm", "indicator_bold", "indicator_italic",
     "indicator_rotation", "indicator_align", "strip_label_offset_mm",
-    "strip_label_offset_x_mm",
+    "strip_label_offset_x_mm", "row_indicator_rotation",
     "underline_mode", "underline_thickness_mm", "underline_gap_mm",
 )
 
@@ -59,6 +59,42 @@ _LABEL_STYLE_FIELDS = (
 #: the letters' ink clears every strip's path at X = 4 and 8 mm
 #: (`~/Desktop/ChromIQ-work/2026-10-24_label_offset_x_review/aperture_check.txt`).
 #: A module constant so a test can hold it to those facts.
+#: The ⓘ of "Row indicators only" -> Rotation (Basti, 2026-10-25: friendly,
+#: extensive, easy to understand and correct). Every rule it names is the
+#: renderer's own: `raster.row_label_band_mm` (the band of a turned label is
+#: its ink across), `raster.effective_row_label_size_mm` (85 % of the row
+#: along it), the ink ending 1 mm before the patches and never before the
+#: floor (`render_pages`), and the notice in `TabChart._engine_text_notes`.
+ROW_ROTATION_HELP = (
+    "Turns the labels printed down the left-hand side of the chart, one "
+    "beside each row of patches (usually the numbers 1, 2, 3…), so they read "
+    "in the direction you want. The strip letters across the top keep their "
+    "own Rotation under “Strip indicators only”.\n\n"
+    "  •  0° is normal, upright text, the way every chart made before this "
+    "option existed prints its row labels.\n"
+    "  •  90° gives each label a quarter turn anticlockwise, so it reads from "
+    "the bottom of the sheet to the top; 270° turns it the other way, so it "
+    "reads from the top down. Use one of these when you hold the sheet "
+    "sideways to read it, so the labels face you, or when the left margin is "
+    "tight: a label on its side needs only as much width as its text is "
+    "tall, so a two-digit number usually takes less of the margin, and "
+    "ChromIQ has to widen the left margin less, or not at all.\n"
+    "  •  180° prints the labels upside down, for a sheet you read from the "
+    "other end.\n\n"
+    "Each label stays beside its own row, whatever the rotation: it is "
+    "centred on the row, it ends 1 mm before the patches, and it never comes "
+    "closer to the paper edge than “Clip” under “Text distance from edge” "
+    "(or than what a clip border prints, as the clip border's own rules "
+    "say). A label on its side runs along its row, so with Size “auto” "
+    "ChromIQ keeps it to 85 % of the row's height; if you type a size that "
+    "makes the labels longer than a row, a message under “Measured from "
+    "Preview” tells you.\n\n"
+    "There is no Left / Centered / Right choice here, unlike for the strip "
+    "letters: every row label is centred on the row it names, which is the "
+    "one place that clearly belongs to that row. Turning the labels can "
+    "change how wide the left margin has to be, and with it where the "
+    "patches start, so check the preview before you print.")
+
 #: The paragraph every tooltip that describes the free part of the clip
 #: border ends with (Basti, 2026-10-25: "leave the current presets as they
 #: are. he can give new ones if he wants to"; row_label_geometry.md §R1.3a).
@@ -1713,9 +1749,27 @@ class LayoutOptionsPanel(QWidget):
         # guarded by `_loading` so `set_recipe` writing the widgets is not
         # mistaken for a person answering (the app must never answer its own
         # question).
+        # ROW INDICATORS ONLY, DIRECTLY BELOW "STRIP INDICATORS ONLY" (Basti,
+        # 2026-10-25): the row labels' own rotation. Built like its
+        # neighbour, with the same four choices.
+        si_row = QGroupBox(tr("Row indicators only"), si)
+        sig4 = QGridLayout(si_row)
+        sig4.setContentsMargins(4, 4, 4, 4)
+        sig4.setVerticalSpacing(4)
+        self._label_sub_row_only = si_row
+        self.row_indicator_rotation = ElidingComboBox(self)
+        for _deg in (0, 90, 180, 270):
+            self.row_indicator_rotation.addItem(f"{_deg}°", _deg)
+        self.row_indicator_rotation.setMinimumContentsLength(3)
+        self.row_indicator_rotation.setMaximumWidth(88)
+        self.row_indicator_rotation.currentIndexChanged.connect(self._emit)
+        add_row(sig4, 0, tr("Rotation:"), self.row_indicator_rotation,
+                tip=TooltipButton(tr("Row indicator rotation"),
+                                  tr(ROW_ROTATION_HELP), self))
         self._label_style_grp = si
         _si_v.addWidget(si_both)
         _si_v.addWidget(si_only)
+        _si_v.addWidget(si_row)
         # WHERE THE SETTING LIVES, ON EVERY ⓘ IN THE FRAME.
         #
         # This used to be a paragraph printed across the top of the frame. It
@@ -1757,7 +1811,8 @@ class LayoutOptionsPanel(QWidget):
                          (self.ind_align_center, "toggled"),
                          (self.ind_align_right, "toggled"),
                          (self.strip_label_offset, "valueChanged"),
-                         (self.strip_label_offset_x, "valueChanged")):
+                         (self.strip_label_offset_x, "valueChanged"),
+                         (self.row_indicator_rotation, "currentIndexChanged")):
             getattr(_w, _sig).connect(self._on_label_style_touched)
         self._on_rotation_changed()
 
@@ -3634,6 +3689,9 @@ class LayoutOptionsPanel(QWidget):
         self.strip_label_offset.setValue(r.strip_label_offset_mm)
         self.strip_label_offset_x.setValue(
             float(getattr(r, "strip_label_offset_x_mm", 0.0) or 0.0))
+        _rr = self.row_indicator_rotation.findData(
+            int(getattr(r, "row_indicator_rotation", 0) or 0) % 360)
+        self.row_indicator_rotation.setCurrentIndex(_rr if _rr >= 0 else 0)
         self._on_rotation_changed()      # grey out align unless 90°/270°
         _umkey = "segments" if r.underline_mode == "colored" else r.underline_mode
         _um = self.underline_mode.findData(_umkey)
@@ -5979,6 +6037,8 @@ class LayoutOptionsPanel(QWidget):
                              else "left")
         r.strip_label_offset_mm = self.strip_label_offset.value()
         r.strip_label_offset_x_mm = self.strip_label_offset_x.value()
+        r.row_indicator_rotation = int(
+            self.row_indicator_rotation.currentData() or 0)
         r.underline_mode = self.underline_mode.currentData() or "off"
         r.underline_thickness_mm = self.underline_thickness.value()
         r.underline_gap_mm = self.underline_gap.value()

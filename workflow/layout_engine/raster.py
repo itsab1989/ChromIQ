@@ -1470,6 +1470,17 @@ def effective_row_label_size_mm(geom, dpi: int, font: str,
              + float(getattr(geom, "pspa", 0.0) or 0.0))
     if pitch <= 0:
         return size
+    if int(getattr(geom, "row_label_rotation", 0) or 0) in (90, 270):
+        # TURNED ON ITS SIDE, A LABEL RUNS ALONG ITS ROW, so what has to fit
+        # in the row is its LENGTH, not its height (Basti, 2026-10-25,
+        # "Row indicators only" -> Rotation). Same 85 % rule, measured on the
+        # widest two-character label the band allows for (`row_label_band_mm`).
+        ref = 100
+        per_mm = _widest_row_label_px(ref, font, False, False, "", 0) / ref
+        if per_mm > 0:
+            return max(min(size, INDICATOR_MIN_LEGIBLE_MM),
+                       min(size, pitch * ROW_LABEL_PITCH_FRAC / per_mm))
+        return size
     return max(min(size, INDICATOR_MIN_LEGIBLE_MM),
                min(size, pitch * ROW_LABEL_PITCH_FRAC))
 
@@ -3135,6 +3146,7 @@ def render_pages(
                 _floor_px = px(getattr(geom, "row_label_floor", 0.0) or 0.0)
                 _band_right = (min(_floor_px + _row_band_px, _rx)
                                if _floor_px > 0 else _rx)
+                _row_rot = int(getattr(geom, "row_label_rotation", 0) or 0)
                 for _j in range(len(col_slots)):
                     # ...AND FOLLOW THE STRIP THIS LABEL BELONGS TO. `_ry` was
                     # the UNSTAGGERED slot centre, which is right for every
@@ -3167,6 +3179,37 @@ def render_pages(
                     # wider than its own band eats into its gap rather than
                     # walking toward the paper's edge (§R1.3).
                     _tx = max(_floor_px, _band_right - _tw)
+                    if _row_rot:
+                        # TURNED ("Row indicators only" -> Rotation, Basti,
+                        # 2026-10-25): the same right edge at the patch side
+                        # and the same floor at the paper side, the label
+                        # centred on its row. The tile's 2 px of padding is
+                        # outside the ink on every side, so it is allowed past
+                        # both lines.
+                        _tile, _tw0, _th0, _tasc, _bb = _row_label_tile(
+                            _txt, _row_font, _row_rot)
+                        _bb = _bb or (0, 0, _tile.width, _tile.height)
+                        # its INK ends at the patch-side line, never starts
+                        # before the floor, and is centred on its row
+                        _tx = max(_floor_px - _bb[0], _band_right - _bb[2])
+                        _ty = _ry - (_bb[1] + _bb[3]) // 2
+                        img.paste(_tile, (_tx, _ty), _tile)
+                        if collect_device_geom and _ind_font_file:
+                            # the baseline-left anchor of the unrotated tile,
+                            # where the turned tile puts it (as
+                            # `_collect_rotated_label` does for the letters)
+                            _ax, _ay = 2, 2 + _tasc
+                            if _row_rot == 90:
+                                _adx, _ady = _ay, _tw0 - 1 - _ax
+                            elif _row_rot == 270:
+                                _adx, _ady = _th0 - 1 - _ay, _ax
+                            else:
+                                _adx, _ady = _tw0 - 1 - _ax, _th0 - 1 - _ay
+                            _geom_rows.append(
+                                ("text", _tx + _adx, _ty + _ady, _txt,
+                                 _ind_font_file, _row_px, 0, _row_rot,
+                                 (0, 0, 0), _ind_var))
+                        continue
                     draw.text((_tx, _ry - _row_px // 2), _txt,
                               font=_row_font, fill=(0, 0, 0))
                     if collect_device_geom and _ind_font_file:
@@ -4086,9 +4129,55 @@ def row_label_band_mm(geom, *, dpi: int, rows: int = 0,
     mm2px = dpi / 25.4
     ind_px = max(6, round(effective_row_label_size_mm(
         geom, dpi, indicator_font, indicator_size_mm) * mm2px))
+    if int(getattr(geom, "row_label_rotation", 0) or 0) in (90, 270):
+        # TURNED ON ITS SIDE, a label is as wide across the band as its INK is
+        # tall, however many characters it has: the band is the widest turned
+        # label's ink, measured off the very tiles the renderer pastes, plus
+        # the same 1 mm of air (Basti, 2026-10-25).
+        return (_row_label_ink_across_px(
+            ind_px, indicator_font, indicator_bold, indicator_italic,
+            patch_pattern, rows, int(geom.row_label_rotation))
+                / mm2px + max(0.0, gap_mm))
     widest = _widest_row_label_px(ind_px, indicator_font, indicator_bold,
                                   indicator_italic, patch_pattern, rows)
     return widest / mm2px + max(0.0, gap_mm)
+
+
+@functools.lru_cache(maxsize=512)
+def _row_label_ink_across_px(ind_px: int, family: str, bold: bool,
+                             italic: bool, patch_pattern: str, rows: int,
+                             degrees: int) -> int:
+    """The widest ink, across the band, of the turned row labels this chart
+    prints (the same sample `_widest_row_label_px` takes)."""
+    font = _font(ind_px, family, bold, italic)
+    label = permutation.make_labeller(
+        patch_pattern or permutation.DEFAULT_PATCH_PATTERN)
+    widest = 0
+    for r in (1, 9, 99) if rows <= 0 else range(1, rows + 1):
+        bb = _row_label_tile(label(r), font, degrees)[4]
+        if bb is not None:
+            widest = max(widest, bb[2] - bb[0])
+    return widest
+
+
+def _row_label_tile(text: str, font, degrees: int):
+    """A transparent tile of one row label, the whole string drawn once (so
+    it reads as the upright label does) and turned *degrees* CCW. Returns
+    ``(tile, unrotated_w, unrotated_h, ascent, ink_box)``; the text sits 2 px
+    in from every edge of the unrotated tile, its baseline at ``2 + ascent``,
+    and ``ink_box`` is its ink inside the turned tile (None when blank)."""
+    probe = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
+    w = int(probe.textlength(text, font=font))
+    try:
+        asc, desc = font.getmetrics()
+    except Exception:      # pragma: no cover - the default bitmap font
+        asc, desc = 12, 3
+    W, H = max(1, w + 4), max(1, asc + desc + 4)
+    tile = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(tile).text((2, 2), text, font=font, fill=(0, 0, 0, 255))
+    if degrees % 360:
+        tile = tile.rotate(degrees, expand=True)
+    return tile, W, H, asc, tile.getchannel("A").getbbox()
 
 
 @functools.lru_cache(maxsize=1024)

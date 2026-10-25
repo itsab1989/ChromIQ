@@ -158,6 +158,10 @@ class Geom:
     # the one size the margin was reserved for; a size the user TYPED never
     # reaches this field, because §R8 does not touch a typed size.
     row_label_size_mm: float = 0.0
+    #: How far the row labels are TURNED, counter-clockwise: 0, 90, 180 or 270
+    #: ("Row indicators only" -> Rotation, Basti, 2026-10-25). The band, the
+    #: automatic size and the renderer all read it here, so they agree.
+    row_label_rotation: int = 0
     # §R9: the paper the row-label walk handed the RIGHT edge, in mm -- how far
     # left the patch block moved so the side stamp would fit beside it. 0 on
     # every chart the walk did not touch, which is all but twelve of the 120
@@ -682,6 +686,15 @@ def _per_page(kw: dict) -> int:
         return -1
 
 
+def _row_rotation(v) -> int:
+    """0, 90, 180 or 270; anything else (a hand-edited preset) is 0."""
+    try:
+        d = int(v or 0) % 360
+    except (TypeError, ValueError):
+        return 0
+    return d if d in (0, 90, 180, 270) else 0
+
+
 def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     """Build a :class:`Geom` from a recipe ``build_kwargs()`` dict using every
     geometry-affecting key, so capacity estimates can never silently drift from
@@ -764,6 +777,7 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
         helper_markers_sides=bool(kw.get("helper_markers_sides", True)),
         helper_markers_top_bottom=bool(kw.get("helper_markers_top_bottom", True)),
         text_edge_bottom_mm=float(kw.get("text_edge") or 0.0),
+        row_label_rotation=_row_rotation(kw.get("row_indicator_rotation")),
     )
     from . import raster   # lazy: raster imports this module
     geom = raster.apply_furniture_reserves(geom, kw)

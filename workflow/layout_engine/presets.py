@@ -290,6 +290,12 @@ class LayoutRecipe:
     # (`workflow.preset_certificates.preset_hash`) and every stored recipe
     # comparison are unchanged. A missing key reads as 0.
     strip_label_offset_x_mm: float = 0.0
+    #: How far the ROW labels down the left are turned, counter-clockwise:
+    #: 0 | 90 | 180 | 270 ("Row indicators only" -> Rotation, Basti,
+    #: 2026-10-25). Left out of `to_dict` and `build_kwargs` at 0, like the
+    #: sideways offset above, so every recipe that does not turn them writes
+    #: and builds exactly what it did before the field existed.
+    row_indicator_rotation: int = 0
     underline_mode: str = "off"          # "off" | "colored" | "black" rule
     underline_thickness_mm: float = 0.5  # under-indicator rule thickness
     underline_gap_mm: float = 0.5        # gap between the label and the rule
@@ -396,6 +402,8 @@ class LayoutRecipe:
         # field's comment).
         if not d.get("strip_label_offset_x_mm"):
             d.pop("strip_label_offset_x_mm", None)
+        if not int(d.get("row_indicator_rotation") or 0) % 360:
+            d.pop("row_indicator_rotation", None)
         return d
 
     @classmethod
@@ -479,6 +487,8 @@ class LayoutRecipe:
             strip_label_offset_mm=float(d.get("strip_label_offset_mm") or 0.0),
             strip_label_offset_x_mm=float(
                 d.get("strip_label_offset_x_mm") or 0.0),
+            row_indicator_rotation=int(d.get("row_indicator_rotation") or 0)
+            % 360,
             underline_mode=d.get("underline_mode", "off"),
             underline_thickness_mm=float(d.get("underline_thickness_mm") or 0.5),
             underline_gap_mm=float(d.get("underline_gap_mm") or 0.5),
@@ -735,6 +745,8 @@ class LayoutRecipe:
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
             kw["strip_label_offset_x_mm"] = float(self.strip_label_offset_x_mm)
+        if int(self.row_indicator_rotation or 0) % 360:
+            kw["row_indicator_rotation"] = int(self.row_indicator_rotation) % 360
         # Likewise only for a recipe saved before 4.3.14, so every other
         # chart's kwargs stay as they were (`instruments.old_clip_border_rule`).
         if not self.clip_border_free_space:

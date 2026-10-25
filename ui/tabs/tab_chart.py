@@ -26961,6 +26961,43 @@ class TabChart(QWidget):
             # jump, so the ruling is that the sentence names the controls and
             # not a value to type. In "Prioritise chart area" the margins are
             # law and the number is the most useful thing the message has.
+            # TURNED ROW LABELS THAT ARE LONGER THAN THEIR ROW (Basti,
+            # 2026-10-25, "Row indicators only" -> Rotation). On its side a
+            # label runs ALONG its row, so a label longer than the row pitch
+            # reaches into the next row's label. "auto" never gets there (it
+            # keeps a turned label to 85 % of the row,
+            # `raster.effective_row_label_size_mm`); a typed size can.
+            try:
+                _rrot = int(getattr(r, "row_indicator_rotation", 0) or 0) % 360
+                if _rrot in (90, 270) and _lbl_pt > 0 and getattr(
+                        geom, "rlwi", 0.0):
+                    from workflow.layout_engine.raster import (
+                        _widest_row_label_px)
+                    _dpi = int(getattr(r, "dpi", 300) or 300)
+                    _px = max(6, round(_lbl_pt * 25.4 / 72.0 * _dpi / 25.4))
+                    _len = _widest_row_label_px(
+                        _px, getattr(r, "indicator_font", "")
+                        or DEFAULT_INDICATOR_FONT,
+                        bool(getattr(r, "indicator_bold", False)),
+                        bool(getattr(r, "indicator_italic", False)),
+                        getattr(r, "patch_pattern", "") or "", 0) * 25.4 / _dpi
+                    _pitch = (float(getattr(geom, "plen", 0.0) or 0.0)
+                              + float(getattr(geom, "pspa", 0.0) or 0.0))
+                    if _pitch > 0 and _len > _pitch + 0.05:
+                        over.append(tr(
+                            "⚠ The row labels are turned on their side, so "
+                            "each one runs along its row, and at {size} pt the "
+                            "longest of them is {len:.1f} mm long while a row "
+                            "is only {pitch:.1f} mm tall. Neighbouring labels "
+                            "therefore run into each other and are hard to "
+                            "read. Choose a smaller Size under “Strip and row "
+                            "indicators”, set it to “auto” (which keeps a "
+                            "turned label inside its row), or set Rotation "
+                            "under “Row indicators only” back to 0° or 180°."
+                        ).format(size=f"{_lbl_pt:.1f}", len=_len,
+                                 pitch=_pitch))
+            except Exception:      # noqa: BLE001 - a note, never a blocker
+                log.debug("turned row label check failed", exc_info=True)
             _name_margin_value = margin_values_are_reliable(r)
             if _raised_l and _clip_is_the_anchor and _name_margin_value:
                 over.append(tr(
