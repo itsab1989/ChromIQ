@@ -83,6 +83,18 @@ def test_a_letter_on_a_dash_is_still_on_the_markers():
     assert hit.overlap_mm > 3.0
 
 
+@pytest.mark.parametrize("rot", [0, 90, 180, 270])
+def test_a_letter_on_a_dash_is_on_the_markers_at_every_turn(rot):
+    # Review of 4.3.15: at 0 degrees the probe drew (0, 0, 0) into an "L"
+    # image, raised, and the check said "not measured" for every upright
+    # letter, so no marker notice could appear at the default rotation.
+    g, kw, _r = _his(indicator_rotation=rot, helper_marker_per_patch=3,
+                     strip_label_offset_x_mm=0.0, strip_label_offset_mm=-3.5)
+    hit = raster.strip_letters_against_markers(g, kw)
+    assert hit is not None, rot
+    assert hit.overlap_mm > 2.0
+
+
 def test_the_clear_paper_below_a_dash_still_counts():
     # Y -1.0: the letter is below the dash itself but in its 1.0 mm
     g, kw, _r = _his(helper_marker_per_patch=3, strip_label_offset_x_mm=0.0,

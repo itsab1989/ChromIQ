@@ -868,7 +868,13 @@ def strip_letters_against_markers(geom, kw: dict, tol_mm: float = 0.0
             """(x0, y0, x1, y1) of one label's ink, half-open, in px."""
             if rot == 0:
                 pad = ind_px * 3
-                probe = Image.new("L", (ind_px * (len(text) + 6), ind_px * 6), 0)
+                # RGBA ON CLEAR, like `_indicator_ink_px`: `_draw_indicator`
+                # inks (0, 0, 0), which an "L" probe refuses (TypeError, so
+                # every upright letter came back "not measured" and no
+                # marker notice was ever shown at 0 degrees), and black on a
+                # black "L" ground would have had no bounding box anyway.
+                probe = Image.new("RGBA", (ind_px * (len(text) + 6),
+                                           ind_px * 6), (0, 0, 0, 0))
                 _draw_indicator(ImageDraw.Draw(probe), pad, pad, text, font,
                                 spc)
                 bb = probe.getbbox()
