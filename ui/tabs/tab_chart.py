@@ -10876,9 +10876,10 @@ class TabChart(QWidget):
         # run, and `_on_preset_activated` ignores a re-pick of the entry it
         # believes is applied, so picking that preset here did nothing (run2,
         # Verification, From Profile's Gamut: label style and X offset stayed
-        # the chart's). No entry is applied any more, so the next pick of any
-        # entry applies it.
-        self._last_preset_index = -1
+        # the chart's). What is applied now is "none" (index 0, also what a
+        # refused pick puts the dropdown back on), so the next pick of any
+        # preset applies it.
+        self._last_preset_index = 0
         # …and the page count comes from the chart in front of you, always.
         #
         # Knut, #130 2026-07-28: every run showed "pages = 20", including one

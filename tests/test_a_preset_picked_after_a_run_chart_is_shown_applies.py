@@ -32,11 +32,11 @@ class _Tab:
 def test_showing_a_run_chart_forgets_the_applied_preset():
     src = inspect.getsource(TabChart._display_run_chart)
     restore = src.index("self._restore_chart_settings(ti2)")
-    assert "self._last_preset_index = -1" in src[restore:]
+    assert "self._last_preset_index = 0" in src[restore:]
 
 
 def test_after_that_the_same_entry_is_applied_and_a_real_repick_is_not():
-    t = _Tab(last=-1)          # a run's chart was shown
+    t = _Tab(last=0)           # a run's chart was shown: "none" applied
     t._on_preset_activated(3)
     assert t.applied == [3]
     t = _Tab(last=3)           # the preset itself was the last thing applied
