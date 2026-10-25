@@ -2095,6 +2095,16 @@ def pytest_configure(config):
 
     _cs.QSettings = _sandboxed
     config._chromiq_settings_sandbox = str(sandbox)
+    # …AND EVERY CHILD PROCESS A TEST STARTS (2026-10-25). The name swap above
+    # lives in this process only; a test that runs `[sys.executable, ...]` gets
+    # a fresh interpreter in which `AppSettings()` is the REAL store
+    # (~/Library/Preferences/com.chromiq.ChromIQ.plist), unless the variable
+    # the app honours is in its environment. Set here, at configure time and
+    # per process (a worker always takes its own, like the presets folder
+    # above), it is inherited by every child; in this process it changes
+    # nothing, because `AppSettings` still calls the sandboxed name. Never at
+    # import (`tests/test_no_test_file_sets_the_settings_file_at_import.py`).
+    _set("CHROMIQ_SETTINGS_FILE", str(sandbox / "child-settings.ini"))
 
     # …AND THE TRASH. Deleting moves files to the system recycle folder now, so
     # a gate run dropped about fifty items into the developer's own Trash and

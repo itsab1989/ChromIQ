@@ -2481,6 +2481,15 @@ class TabPrint(QWidget):
         printer = self._printer_combo.currentData() or ""
         self._rebuild_option_rows(printer)
         self._update_edge_note()
+        # …AND CREATE CHART'S, which follows this printer (Basti,
+        # 2026-10-25): its "Measured from Preview" notes are worked out again
+        # now, not at its next refresh.
+        try:
+            tc = getattr(self.window(), "_tab_chart", None)
+            if tc is not None and getattr(tc, "_margin_tiffs", None):
+                tc._update_margin_inspector()
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("Create Chart edge note not refreshed", exc_info=True)
         # combined review of 4.3.5, item b: the Through notice depends on
         # whether this printer's driver converts the chart into CMYK
         if getattr(self, "_cm_notice", None) is not None and getattr(self, "_tiff_pages", None):

@@ -188,6 +188,27 @@ def _cache_key(kw: dict) -> "str | None":
         return None
 
 
+#: How deep inside a derivation this thread is. The geometries a derivation
+#: builds for its candidate patch sizes must use the rule of the kwargs they
+#: were given; asking `old_label_rule_kept` from inside would ask this very
+#: derivation for its own answer.
+_DERIVING = 0
+
+#: Cache keys of area-first recipes whose patch size is the OLD rule's
+#: (`old_label_rule_kept`).
+_OLD_RULE_KEPT: set = set()
+
+
+def old_label_rule_kept(kw: dict) -> bool:
+    """True when *kw*'s area-first patch size kept the row labels clear of the
+    whole clip border because the new rule would have fitted fewer patches
+    (`derive_area_patch_size`). The geometry must then use that rule too."""
+    if kw.get("layout_mode") != "area_first" or _DERIVING:
+        return False
+    derive_area_patch_size(kw)
+    return _cache_key(kw) in _OLD_RULE_KEPT
+
+
 def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     """``(patch_w_mm, patch_h_mm)`` for an area-first recipe, or None when it
     doesn't apply (patch-first, or no target given). The caller sets these into
@@ -198,7 +219,33 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     _key = _cache_key(kw)
     if _key is not None and _key in _CACHE:
         return _CACHE[_key]
-    _out = _derive_area_patch_size(kw)
+    global _DERIVING
+    _DERIVING += 1
+    try:
+        _out = _derive_area_patch_size(kw)
+    finally:
+        _DERIVING -= 1
+    # FREED SPACE MAY ONLY HELP (Basti, 2026-10-25). Row labels may use the
+    # free part of a clip border (`row_label_geometry.md` §R1.3a), which
+    # widens the patch area; area-first then sizes the patches to the wider
+    # area, and on a CR30 A4 default that came out 441 -> 420 patches. Where
+    # the new rule would fit FEWER patches on a page than the old one (the
+    # labels clear of the whole border), the old one's size is used, and the
+    # flag that says so goes into the build through the caller's kwargs
+    # (`instruments.LABELS_CLEAR_WHOLE_CLIP_BORDER`, read by
+    # `raster.apply_row_label_geometry`).
+    from . import instruments as _inst
+    if _out is not None and _inst._labels_may_use_the_clip_border(kw):
+        _old_kw = {**kw, _inst.LABELS_CLEAR_WHOLE_CLIP_BORDER: True}
+        _old = derive_area_patch_size(_old_kw)
+        if _old is not None:
+            _n_new = _inst._per_page({**kw, "patch_w": _out[0],
+                                      "patch_h": _out[1]})
+            _n_old = _inst._per_page({**_old_kw, "patch_w": _old[0],
+                                      "patch_h": _old[1]})
+            if _n_old > _n_new:
+                _out = _old
+                _OLD_RULE_KEPT.add(_key)
     if _key is not None:
         if len(_CACHE) >= _CACHE_MAX:
             _CACHE.clear()

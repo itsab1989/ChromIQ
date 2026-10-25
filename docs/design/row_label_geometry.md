@@ -197,6 +197,28 @@ on 2026-10-25:
   layout moves: all 191 were rendered before and after and are pixel-identical
   (agent44, 2026-10-25).
 
+**The strip letters take the same rule (confirmed the same day).**
+
+**Confirmed by:** Basti, 2026-10-25.
+
+> *The strip letters get the same rule as the row labels. They may use the
+> free part of the clip border, staying at least 1 mm clear of the clip
+> content and never closer to the edge than "Clip".*
+
+Built in `raster._strip_label_side_bounds_mm`: on the clip border's side the
+letters' ink is held at the larger of the side text distance and 1 mm past
+where the border's content ends (`Geom.clip_content_reach_mm`), never further
+in than the whole border; unknown content keeps the whole border. It only
+ever acts on letters moved by "Label offset" X (at 0 nothing moves), so no
+built-in preset changes. On Knut's preset X = -4.0 mm is printed as asked
+(-3.94 mm at 200 dpi) instead of being held at -3.7 mm.
+
+**Freed space may only help (Basti, 2026-10-25).** Where the free part of the
+border would make an area-first layout fit fewer patches on a page than the
+old rule, the old rule is kept (`area_fit.derive_area_patch_size`). Over every
+default recipe, instrument and paper (1,596 rows) no count is lower than in
+v4.3.13; 75 are higher.
+
 **Also confirmed the same day (Basti, 2026-10-25):** the clip-border width is
 measured from the page edge, so 10 mm means 10 mm. A width at the chart's base
 margin (10.0 mm on the photo-card recipes, the box's minimum) used to leave a

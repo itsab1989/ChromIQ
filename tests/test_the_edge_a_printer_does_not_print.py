@@ -112,3 +112,10 @@ def test_no_printer_and_no_edge_say_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(PE, "_query_driver", lambda p, c: None)
     e, _paper = PE.edges_for("", (100, 150), _Settings())
     assert not e.any()
+
+
+def test_choosing_a_printer_refreshes_create_chart_at_once():
+    import inspect
+    from ui.tabs.tab_print import TabPrint
+    src = inspect.getsource(TabPrint._on_printer_changed)
+    assert "_update_margin_inspector()" in src

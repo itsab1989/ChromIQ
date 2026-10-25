@@ -615,7 +615,17 @@ def _strip_label_side_bounds_mm(geom, clip_content_mode: str,
         if (getattr(geom, "clip_side", "left") or "left") == "right":
             right = max(right, band)
         else:
-            left = max(left, band)
+            # THE FREE PART OF THE BORDER IS THEIRS TOO (Basti, 2026-10-25,
+            # §R1.3a): the letters keep 1 mm clear of what the clip border
+            # prints, never closer to the edge than the side text distance,
+            # never further in than the whole border. The geometry carries
+            # where the content ends (`Geom.clip_content_reach_mm`); unknown,
+            # the whole border holds them as before.
+            reach = float(getattr(geom, "clip_content_reach_mm", -1.0))
+            if reach >= 0.0:
+                left = max(left, min(band, reach + ROW_LABEL_CLIP_CLEARANCE_MM))
+            else:
+                left = max(left, band)
     return left, right
 
 
@@ -1654,7 +1664,9 @@ def apply_row_label_geometry(geom, kw: dict):
     _border_floor = 0.0
     if has_border:
         _bw = float(kw.get("clip_border_width") or 0.0)
-        _reach = clip_content_reach_mm(geom, kw)
+        from .instruments import LABELS_CLEAR_WHOLE_CLIP_BORDER
+        _reach = (None if kw.get(LABELS_CLEAR_WHOLE_CLIP_BORDER)
+                  else clip_content_reach_mm(geom, kw))
         # The band already begins with 1 mm of air before the widest label
         # (`row_label_band_mm`'s gap, §R1.1), so a floor AT the content's
         # inner edge leaves the labels' text the 1 mm Basti asked for.

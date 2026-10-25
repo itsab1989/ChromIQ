@@ -174,6 +174,12 @@ class Geom:
     # minimum patch-side gap, so the freed paper is spent as WHITE and the line
     # keeps the size it had. Read by nothing else.
     side_stamp_freed_mm: float = 0.0
+    #: How far in from the LEFT page edge the left clip border's own content
+    #: (text, branding or image) reaches, in mm; -1 when unknown or there is
+    #: no such border. Row labels and strip letters keep clear of THIS rather
+    #: than of the whole border (Basti, 2026-10-25, §R1.3a). Set by
+    #: `geom_from_build_kwargs` (`raster.clip_content_reach_mm`).
+    clip_content_reach_mm: float = -1.0
     strip_indicator_gap: float = 0.0   # gap (mm) between strip label and strip
     offset_x: float = 0.0              # whole-chart offset (mm)
     offset_y: float = 0.0
@@ -627,6 +633,38 @@ GEOM_BUILD_KEYS = (
 )
 
 
+#: A build-kwargs key: the row labels clear the WHOLE clip border, the rule
+#: before §R1.3a (see `geom_from_build_kwargs`, `raster.apply_row_label_geometry`).
+LABELS_CLEAR_WHOLE_CLIP_BORDER = "_row_labels_clear_whole_clip_border"
+
+
+def _labels_may_use_the_clip_border(kw: dict) -> bool:
+    """Row labels on, beside a left clip border that prints something."""
+    if kw.get(LABELS_CLEAR_WHOLE_CLIP_BORDER):
+        return False
+    if kw.get("row_indicators") is False:
+        return False
+    if (kw.get("clip_side") or "left") != "left":
+        return False
+    return str(kw.get("clip_content_mode") or "off") != "off"
+
+
+#: Internal: `_per_page` measures one rule exactly as asked, without looking
+#: up which rule `area_fit` kept (that lookup is what it is deciding).
+_NO_LOOKUP = "_no_label_rule_lookup"
+
+
+def _per_page(kw: dict) -> int:
+    """Patches on one page for a build-kwargs dict with its patch size set."""
+    from . import geometry, papers
+    try:
+        g = geom_from_build_kwargs({**kw, _NO_LOOKUP: True})
+        w, h = papers.dimensions_mm(kw.get("paper") or "A4")
+        return int(geometry.compute(g, w, h, 100_000).patches_per_page)
+    except Exception:      # noqa: BLE001 - unknown: never prefer it
+        return -1
+
+
 def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     """Build a :class:`Geom` from a recipe ``build_kwargs()`` dict using every
     geometry-affecting key, so capacity estimates can never silently drift from
@@ -653,6 +691,22 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
         kw, _notes = margins_fit.clamp_margins_to_thresholds(kw, thresholds)
     # Area-first layout: derive patch_w/patch_h from the target grid, unless the
     # caller already set explicit sizes. Lazy import (it builds geoms via us).
+    # THE SAME LABEL RULE THE AREA-FIRST PATCH SIZE WAS CHOSEN WITH (Basti,
+    # 2026-10-25): where the free part of the clip border would have fitted
+    # fewer patches, `area_fit` kept the old rule, and the geometry must too,
+    # whether the patch size comes from here or from a caller that asked
+    # `area_fit` itself and passes it in.
+    if (kw.get("layout_mode") == "area_first" and not kw.pop(_NO_LOOKUP, False)
+            and not kw.get(LABELS_CLEAR_WHOLE_CLIP_BORDER)):
+        from . import area_fit
+        _base = {k: v for k, v in kw.items() if k not in ("patch_w", "patch_h")}
+        if area_fit.old_label_rule_kept(_base):
+            _own = area_fit.derive_area_patch_size(_base)
+            if not (kw.get("patch_w") or kw.get("patch_h")) or (
+                    _own is not None
+                    and abs(float(kw.get("patch_w") or 0) - _own[0]) < 1e-9
+                    and abs(float(kw.get("patch_h") or 0) - _own[1]) < 1e-9):
+                kw = {**kw, LABELS_CLEAR_WHOLE_CLIP_BORDER: True}
     if kw.get("layout_mode") == "area_first" and not (kw.get("patch_w")
                                                       or kw.get("patch_h")):
         from . import area_fit
@@ -693,7 +747,14 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
         text_edge_bottom_mm=float(kw.get("text_edge") or 0.0),
     )
     from . import raster   # lazy: raster imports this module
-    return raster.apply_furniture_reserves(geom, kw)
+    geom = raster.apply_furniture_reserves(geom, kw)
+    if (float(getattr(geom, "lbord", 0.0) or 0.0) > 0
+            and (kw.get("clip_side") or "left") == "left"
+            and str(kw.get("clip_content_mode") or "off") != "off"):
+        _reach = raster.clip_content_reach_mm(geom, kw)
+        if _reach is not None:
+            geom = replace(geom, clip_content_reach_mm=float(_reach))
+    return geom
 
 
 def _build_base(

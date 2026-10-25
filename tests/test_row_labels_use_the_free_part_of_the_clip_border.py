@@ -98,3 +98,25 @@ def test_on_the_page_the_label_ink_is_at_least_1_mm_clear_of_the_branding(
     label_start = runs[1][0] * mm
     assert label_start - text_end >= 1.0 - mm, (text_end, label_start)
     assert label_start < 11.0, "the labels did not move into the free part"
+
+
+def test_the_strip_letters_use_the_free_part_too():
+    """Basti, 2026-10-25: the same rule for the strip letters. On Knut's
+    preset X = -4.0 mm was held at -3.7 mm by the whole 11 mm border."""
+    r = LayoutRecipe.from_dict(dict(KNUT, strip_label_offset_x_mm=-4.0))
+    kw = dict(r.build_kwargs(), area_target_count=600)
+    g = instruments.geom_from_build_kwargs(kw)
+    shift = raster.strip_label_x_shift(g, kw)
+    assert shift is not None and not shift.held, shift
+    assert shift.used_mm == pytest.approx(-4.0, abs=0.1)
+
+
+def test_unknown_content_holds_the_letters_off_the_whole_border():
+    import dataclasses
+    r = LayoutRecipe.from_dict(dict(KNUT, strip_label_offset_x_mm=-8.0))
+    kw = dict(r.build_kwargs(), area_target_count=600)
+    g = instruments.geom_from_build_kwargs(kw)
+    free = raster.strip_label_x_shift(g, kw)
+    whole = raster.strip_label_x_shift(
+        dataclasses.replace(g, clip_content_reach_mm=-1.0), kw)
+    assert free.left_mm > whole.left_mm
