@@ -33,7 +33,7 @@ def _ti1(path: Path, n: int = 48) -> Path:
         'ORIGINATOR "test"\nAPPROX_WHITE_POINT "95.05 100 108.9"\n'
         'COLOR_REP "iRGB"\n\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n'
         "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n"
-        f"NUMBER_OF_SETS {n}\nBEGIN_DATA\n{rows}\nEND_DATA\n")
+        f"NUMBER_OF_SETS {n}\nBEGIN_DATA\n{rows}\nEND_DATA\n", encoding="utf-8")
     return path
 
 
