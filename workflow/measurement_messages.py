@@ -7934,6 +7934,26 @@ _GESTURE_PAUSED_PATCH = ("{press}: paused at patch {label}. Nothing is read "
 _GESTURE_GOING_ON = "Measuring goes on."
 _GESTURE_AT_WINDOW = ("{press}: ChromIQ is already waiting for your answer in "
                       "the open window, so there is nothing to pause.")
+#: ...and the page-pause note's sentence on them, with the user's own choices
+#: (only while the shortcuts are on; off, the note is as before).
+_GESTURE_PAUSE_DOUBLE_BACK = 'A double press of the button goes back one strip.'
+_GESTURE_PAUSE_DOUBLE_FORWARD = 'A double press of the button moves on one strip.'
+_GESTURE_PAUSE_DOUBLE_NEXT = 'A double press of the button goes to the next strip not yet read.'
+_GESTURE_PAUSE_DOUBLE_PAUSE = 'A double press of the button continues, just like one press.'
+_GESTURE_PAUSE_TRIPLE_BACK = 'A triple press of the button goes back one strip.'
+_GESTURE_PAUSE_TRIPLE_FORWARD = 'A triple press of the button moves on one strip.'
+_GESTURE_PAUSE_TRIPLE_NEXT = 'A triple press of the button goes to the next strip not yet read.'
+_GESTURE_PAUSE_TRIPLE_PAUSE = 'A triple press of the button continues, just like one press.'
+_GESTURE_PAUSE_LINES = {
+    (2, 'back'): _GESTURE_PAUSE_DOUBLE_BACK,
+    (2, 'forward'): _GESTURE_PAUSE_DOUBLE_FORWARD,
+    (2, 'next_unread'): _GESTURE_PAUSE_DOUBLE_NEXT,
+    (2, 'pause'): _GESTURE_PAUSE_DOUBLE_PAUSE,
+    (3, 'back'): _GESTURE_PAUSE_TRIPLE_BACK,
+    (3, 'forward'): _GESTURE_PAUSE_TRIPLE_FORWARD,
+    (3, 'next_unread'): _GESTURE_PAUSE_TRIPLE_NEXT,
+    (3, 'pause'): _GESTURE_PAUSE_TRIPLE_PAUSE,
+}
 M_GESTURE_STATUS = _m(
     "M-GESTURE-STATUS",
     "The instrument's button shortcuts: the status line",
@@ -7941,7 +7961,8 @@ M_GESTURE_STATUS = _m(
                _GESTURE_NEXT_STRIP, _GESTURE_BACK_PATCH,
                _GESTURE_FORWARD_PATCH, _GESTURE_NEXT_PATCH,
                _GESTURE_PAUSED_STRIP, _GESTURE_PAUSED_PATCH,
-               _GESTURE_GOING_ON, _GESTURE_AT_WINDOW)),
+               _GESTURE_GOING_ON, _GESTURE_AT_WINDOW)
+              + tuple(_GESTURE_PAUSE_LINES.values())),
     approved=False)
 
 

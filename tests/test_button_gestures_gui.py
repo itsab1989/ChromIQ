@@ -744,3 +744,55 @@ def test_the_spin_box_still_takes_a_value_by_hand(section):
     section._enable_cb.setChecked(True)
     section._wait_spin.setValue(1.10)
     assert section.config().wait_ms == 1100
+
+
+# ---------------------------------------------------------------------------
+# the page-pause note names the shortcuts (Basti, 2026-10-25)
+# ---------------------------------------------------------------------------
+_PLAN = {"kind": "page", "page": 1, "next_page": 2, "pages": 2,
+         "strip": "C", "target": "D"}
+
+
+def test_the_pause_note_names_the_users_shortcuts(tab):
+    mgr = tab._manager
+    mgr._session_strips = [dict(x, sheet=1 if x["strip"] in "ABC" else 2)
+                           for x in STRIPS]
+    mgr.gestures_active = True
+    body = tab._page_pause_texts(_PLAN, True)["body"]
+    assert ("A double press of the button goes back one strip. A triple press "
+            "of the button goes to the next strip not yet read.") in body
+    tab._settings.set("button_gesture_double", "pause")
+    tab._settings.set("button_gesture_triple", "none")
+    body = tab._page_pause_texts(_PLAN, True)["body"]
+    assert "A double press of the button continues, just like one press." in body
+    assert "triple press" not in body.lower()
+
+
+def test_the_pause_note_is_as_before_when_the_shortcuts_are_off(tab):
+    mgr = tab._manager
+    mgr._session_strips = [dict(x, sheet=1 if x["strip"] in "ABC" else 2)
+                           for x in STRIPS]
+    mgr.gestures_active = True
+    on = tab._page_pause_texts(_PLAN, True)["body"]
+    tab._settings.set("button_gestures_enabled", False)
+    off = tab._page_pause_texts(_PLAN, True)["body"]
+    assert "double press" not in off.lower()
+    assert on.startswith(off)
+    # an instrument the engine did not switch them on for: as before too
+    tab._settings.set("button_gestures_enabled", True)
+    mgr.gestures_active = False
+    assert tab._page_pause_texts(_PLAN, True)["body"] == off
+
+
+def test_the_pause_note_sentences_are_in_german(tab):
+    from core.i18n import set_language
+    mgr = tab._manager
+    mgr._session_strips = [dict(x, sheet=1 if x["strip"] in "ABC" else 2)
+                           for x in STRIPS]
+    mgr.gestures_active = True
+    set_language("de")
+    try:
+        body = tab._page_pause_texts(_PLAN, True)["body"]
+    finally:
+        set_language("en")
+    assert "Ein Doppeldruck der Taste geht einen Streifen zurück." in body

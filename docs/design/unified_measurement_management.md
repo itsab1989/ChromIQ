@@ -7962,7 +7962,7 @@ alone.
 
 ### M-GESTURE-STATUS · PROPOSED · the status line after a double or triple press of the instrument's button — Measure tab
 
-*New 2026-10-25, 4.3.14 (jctay, forum 149841; Basti approved the feature on 2026-10-25). Preferences ▸ Measurement ▸ "Instrument button shortcuts", off by default; only for the i1Pro, i1Pro 2, i1Pro 3 and 3 Plus and the ColorMunki / i1Studio / ColorChecker Studio. The engine counts the presses (`--gestures`) and reports a double or triple press only at a waiting strip or patch, at the Strip Read Failed prompt and in a hold, never during a real scan, a calibration or behind a window that finishes the measurement. {press} is "Double press" or "Triple press"; {label} is the strip or patch the reader is on once it has moved, so the line names what really happened. A move shows for 8 s and is also written to the measurement log; the pause line stays until the pause ends. No sound (`measurement_window_sounds.md` §4f). See `measurement_exit_strategy.md` note 12.*
+*New 2026-10-25, 4.3.14 (jctay, forum 149841; Basti approved the feature on 2026-10-25). Preferences ▸ Measurement ▸ "Instrument button shortcuts", off by default; only for the i1Pro, i1Pro 2, i1Pro 3 and 3 Plus and the ColorMunki / i1Studio / ColorChecker Studio. The engine counts the presses (`--gestures`) and reports a double or triple press only at a waiting strip or patch, at the Strip Read Failed prompt and in a hold, never during a real scan, a calibration or behind a window that finishes the measurement. {press} is "Double press" or "Triple press"; {label} is the strip or patch the reader is on once it has moved, so the line names what really happened. A move shows for 8 s and is also written to the measurement log; the pause line stays until the pause ends. No sound (`measurement_window_sounds.md` §4f). See `measurement_exit_strategy.md` note 13. The last eight lines are added after M-PAGE-PAUSE-BUTTON in the page-pause note while the shortcuts are on, one for the double and one for the triple press as the user chose them (Basti, 2026-10-25); off, the note is as before.*
 
 > **The instrument's button shortcuts: the status line**
 >
@@ -7976,6 +7976,14 @@ alone.
 > {press}: paused at patch {label}. Nothing is read while ChromIQ waits. To go on, press the button on your instrument once, or press Return.
 > Measuring goes on.
 > {press}: ChromIQ is already waiting for your answer in the open window, so there is nothing to pause.
+> A double press of the button goes back one strip.
+> A double press of the button moves on one strip.
+> A double press of the button goes to the next strip not yet read.
+> A double press of the button continues, just like one press.
+> A triple press of the button goes back one strip.
+> A triple press of the button moves on one strip.
+> A triple press of the button goes to the next strip not yet read.
+> A triple press of the button continues, just like one press.
 
 ### M-PRINT-CHART-CUT · PROPOSED · a chart a little larger than its paper, where more than empty margin would be cut — Print Chart, every route
 

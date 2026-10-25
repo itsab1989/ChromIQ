@@ -11494,6 +11494,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 strip=plan.get("strip"), page=page, next_page=nxt)
         if button:
             body += "\n\n" + M.M_PAGE_PAUSE_BUTTON.render(**{"continue": cont})[1]
+            # The button shortcuts, when they are on: what a double and a
+            # triple press do here, with the user's own choices (Basti,
+            # 2026-10-25). Off, the note is exactly as before.
+            from workflow import button_gestures as _bg
+            _cfg = _bg.config_from(self._settings)
+            if _cfg.active and getattr(self._manager, "gestures_active", False):
+                _said = [tr(M._GESTURE_PAUSE_LINES[(n, _cfg.action_for(n))])
+                         for n in (2, 3)
+                         if (n, _cfg.action_for(n)) in M._GESTURE_PAUSE_LINES]
+                if _said:
+                    body += " " + " ".join(_said)
         lines = self._page_pause_suspects(page)
         if lines:
             found = [tr(M._PAUSE_LOOK).format(page=page)] + [
