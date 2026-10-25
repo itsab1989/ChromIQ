@@ -103,13 +103,15 @@ def test_it_says_nothing_when_this_edge_carries_no_markers():
 def test_the_panel_asks_the_question_and_offers_the_right_lever():
     """The check is wired in, and each layout is offered a lever that moves ink.
 
-    MUTATION: delete the `strip_label_marker_overlap` call from
-    `_engine_text_notes` and the first assertion goes red.
+    MUTATION: delete the `strip_letters_against_markers` call from
+    `_engine_text_notes` and the first assertion goes red. (Since 4.3.15 the
+    panel asks the real dashes, not a band across the page: Knut, forum
+    149832; `test_strip_letters_meet_the_real_dashes_and_t.py`.)
     """
     import inspect
     from ui.tabs import tab_chart as tc
     src = inspect.getsource(tc.TabChart._engine_text_notes)
-    assert "strip_label_marker_overlap(" in src, (
+    assert "strip_letters_against_markers(" in src, (
         "nothing in the panel asks whether the letters clear the markers")
     body = "\n".join(l for l in src.splitlines()
                      if not l.strip().startswith("#"))

@@ -124,6 +124,10 @@ AWAITING_APPROVAL: "set[str]" = {
     # 2026-10-24), 4.3.13.
     "M-CHART-STRIP-LABELS-X-HELD-EDGE", "M-CHART-STRIP-LABELS-X-NEAR-NEIGHBOUR",
     "M-CHART-STRIP-LABELS-X-IN-PATH", "M-CHART-STRIP-LABELS-X-IN-PATH-NO-ROOM",
+    # The strip letters against "T", and clip-border lines cut off across
+    # the band (Knut, forum 149832, 2026-10-25), 4.3.15.
+    "M-CHART-STRIP-LABELS-PAST-T", "M-CHART-CLIP-LINES-CUT",
+    "M-CHART-CLIP-LINE-PART-CUT", "M-CHART-CLIP-LINES-NOT-PRINTED",
     # The instrument's button shortcuts (jctay 149841, Basti 2026-10-25),
     # 4.3.14: the status line; the wording waits here.
     "M-GESTURE-STATUS",

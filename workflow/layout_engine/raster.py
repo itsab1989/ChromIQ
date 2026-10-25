@@ -9,6 +9,7 @@ printtarg, so the existing `page_geometry` / print pipeline read the DPI right.
 from __future__ import annotations
 
 import functools
+import math
 
 from functools import lru_cache
 
@@ -841,6 +842,265 @@ def strip_label_x_shift(geom, kw: dict) -> "StripLabelShift | None":
             paper_w_mm=float(w_mm), asked_mm=asked)
     except Exception:            # noqa: BLE001 - a notice never blocks a build
         return None
+
+
+#: The clear paper the ruler helper markers ask for below their dashes (#182,
+#: Knut 5649810914: "Distance from page edge" + "Marker length" + 1.0 mm).
+HELPER_MARKER_CLEAR_MM = 1.0
+
+
+@dataclass(frozen=True)
+class StripLetterMarkerClash:
+    """A strip letter's ink touches a top helper dash or its clear paper.
+
+    ``reach_mm`` is where the dash and its 1.0 mm of clear paper end, measured
+    down from the paper's top edge; ``ink_top_mm`` is where the touching
+    letter's ink begins. Both are the sheet's own pixels in mm."""
+    reach_mm: float
+    ink_top_mm: float
+
+    @property
+    def overlap_mm(self) -> float:
+        return max(0.0, self.reach_mm - self.ink_top_mm)
+
+
+def strip_letters_against_markers(geom, kw: dict, tol_mm: float = 0.0
+                                  ) -> "StripLetterMarkerClash | None":
+    """The strip letters' REAL ink against the REAL top helper dashes.
+
+    **NOT A BAND ACROSS THE PAGE (Knut, forum 149832, 2026-10-25).** The check
+    this replaces treated "Distance from page edge" + "Marker length" + 1.0 mm
+    as a strip across the whole page, so a letter set beside the dashes with
+    a negative "Label offset" Y was reported as "on the markers". Measured on
+    his "i1Pro-100x150mm-600p-5pages-Portrait-TEST" at 4 pt, X -2.5, Y -3.5:
+    every letter sits between two dashes, 0.63 mm clear of the nearer one,
+    and the panel said 3.1 mm of them was on the markers.
+
+    So each letter is drawn exactly as `render_pages` draws it (upright with
+    `_draw_indicator`, turned as a tile justified in its band, moved by
+    "Label offset" X through `strip_label_x_plan`) and each dash is the
+    rectangle PIL inks for it, with the 1.0 mm of clear paper the markers ask
+    for below it. A letter clashes when its ink box overlaps one of those
+    rectangles. Beside a dash, however close, is not a clash. How close the
+    letters may come to the paper edge is "T", which
+    :func:`text_edge_fit.strip_letters_above_text_edge` asks separately.
+    """
+    if not kw.get("draw_indicators", True) or not kw.get("helper_markers"):
+        return None
+    if not kw.get("helper_markers_top_bottom", True):
+        return None
+    try:
+        from . import papers
+        count = int(kw.get("area_target_count") or 0)
+        if count <= 0:
+            return None
+        dpi = int(kw.get("dpi") or 150)
+        mm2px = dpi / 25.4
+
+        def px(mm: float) -> int:
+            return round(mm * mm2px)
+
+        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        layout = geometry.compute(geom, float(w_mm), float(h_mm), count)
+        steps = int(layout.steps_in_pass or 0)
+        if steps <= 0:
+            return None
+        place = geometry.placement(geom, float(w_mm), float(h_mm), layout)
+        fam = kw.get("indicator_font", DEFAULT_INDICATOR_FONT)
+        ind_px = round(effective_indicator_size_mm(
+            geom, dpi, fam, float(kw.get("indicator_size_mm") or 0.0)) * mm2px)
+        font = _font(ind_px, fam, bool(kw.get("indicator_bold")),
+                     bool(kw.get("indicator_italic")))
+        spc = max(1, round(ind_px * INDICATOR_LETTER_SPACING))
+        rot = int(kw.get("indicator_rotation") or 0) % 360
+        align = str(kw.get("indicator_align") or "left")
+        label = permutation.make_labeller(
+            str(kw.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN),
+            str(kw.get("label_rule") or permutation.ARGYLL))
+        total = int(layout.total_patches)
+        per_page = int(layout.patches_per_page)
+        n_total = max(1, -(-total // steps))
+        n_first = max(1, -(-min(total, per_page) // steps))
+        labels = [label(i + 1) for i in range(n_total)]
+        asked_x = float(kw.get("strip_label_offset_x_mm") or 0.0)
+        dx = 0
+        if asked_x:
+            dx = strip_label_x_plan(
+                geom=geom, place=place,
+                page_w_px=max(1, round(float(w_mm) * mm2px)), mm2px=mm2px,
+                total=total, per_page=per_page, steps=steps, label=label,
+                font=font, spc=spc, rot=rot,
+                clip_content_mode=str(kw.get("clip_content_mode") or "off"),
+                paper_w_mm=float(w_mm), asked_mm=asked_x,
+                advise=False).used_px
+        top = px(place.leader_top
+                 + float(kw.get("strip_label_offset_mm") or 0.0))
+        side = rot in (90, 270)
+        tiles = ({t: _indicator_tile(t, font, spc, rot) for t in set(labels)}
+                 if rot else {})
+        band_h = max((t.height for t in tiles.values()), default=0)
+
+        def ink_box(text: str, cx: int):
+            """(x0, y0, x1, y1) of one label's ink, half-open, in px."""
+            if rot == 0:
+                pad = ind_px * 3
+                probe = Image.new("L", (ind_px * (len(text) + 6), ind_px * 6), 0)
+                _draw_indicator(ImageDraw.Draw(probe), pad, pad, text, font,
+                                spc)
+                bb = probe.getbbox()
+                if not bb:
+                    return None
+                return (cx + bb[0] - pad, top + bb[1] - pad,
+                        cx + bb[2] - pad, top + bb[3] - pad)
+            tile = tiles[text]
+            extra = max(0, band_h - tile.height)
+            if not side:
+                off = 0
+            elif align == "center":
+                off = extra // 2
+            elif align == "left":
+                off = extra if rot == 90 else 0
+            else:
+                off = 0 if rot == 90 else extra
+            bb = tile.getbbox()
+            if not bb:
+                return None
+            bx, by = cx - tile.width // 2, top + off
+            return (bx + bb[0], by + bb[1], bx + bb[2], by + bb[3])
+
+        boxes = []
+        for first, last in _strip_label_pages(n_total, n_first):
+            for g_idx in range(first, last + 1):
+                j = g_idx - first
+                x0 = px(place.x_of(j))
+                xr = px(place.x_of(j) + place.pwid)
+                b = ink_box(labels[g_idx], x0 + (xr - x0) // 2 + dx)
+                if b is not None:
+                    boxes.append(b)
+        _w = max(1, px(_HELPER_MARKER_W_MM))
+        lo, hi = (_w - 1) // 2, _w // 2 + 1
+        clear = px(HELPER_MARKER_CLEAR_MM)
+        tol = max(0, round(float(tol_mm or 0.0) * mm2px))
+        hit = None
+        for (mx0, my0, mx1, my1) in geometry.helper_marker_lines_mm(
+                geom, float(w_mm), float(h_mm), layout,
+                edge_mm=float(kw.get("helper_marker_edge") or 0.0),
+                length_mm=float(kw.get("helper_marker_len") or 0.0),
+                per_patch=int(kw.get("helper_marker_per_patch") or 3),
+                top_bottom=True, sides=False):
+            if max(my0, my1) > float(h_mm) / 2.0:
+                continue                       # a bottom dash
+            zx0, zx1 = px(min(mx0, mx1)) - lo, px(max(mx0, mx1)) + hi
+            zy0 = px(min(my0, my1)) - lo
+            zy1 = px(max(my0, my1)) + hi + clear
+            for (bx0, by0, bx1, by1) in boxes:
+                if (bx0 < zx1 - tol and bx1 > zx0 + tol
+                        and by0 < zy1 - tol and by1 > zy0 + tol):
+                    if hit is None or by0 < hit[1]:
+                        hit = (zy1, by0)
+        if hit is None:
+            return None
+        return StripLetterMarkerClash(hit[0] / mm2px, hit[1] / mm2px)
+    except Exception:            # noqa: BLE001 - a notice never blocks a build
+        log.debug("strip letters against markers: not measured", exc_info=True)
+        return None
+
+
+@dataclass(frozen=True)
+class ClipLineCut:
+    """Clip-border lines with a typed size that do not fit ACROSS the band.
+
+    ``cuts`` holds ``(line number, mm cut, mm of ink the line has)`` for every
+    line that loses ink, 1-based. ``need_mm`` is how far across the band the
+    deepest line's ink reaches from where the content starts, ``avail_mm`` the
+    room there is, ``band_mm`` the border's width and ``want_mm`` the width
+    that prints every line whole."""
+    lines: int
+    cuts: "tuple[tuple[int, float, float], ...]"
+    need_mm: float
+    avail_mm: float
+    band_mm: float
+    want_mm: float
+
+
+def clip_lines_cut_across(geom, kw: dict, lines: "list[str]",
+                          ) -> "ClipLineCut | None":
+    """Which branding (or image caption) lines the band cuts off ACROSS it.
+
+    **NOTHING SAID IT (Knut, forum 149832, 2026-10-25):** *"With 4 lines, the
+    4th is cut in half at an 11 mm clip border."* Plain clip text that does
+    not fit runs on inward and is warned about (`clip_text_squeeze`); the
+    branding's lines and an image's caption are drawn inside the band's own
+    canvas, so what does not fit is simply not printed, and the panel only
+    counted lines for plain text. Four lines at a typed 6 pt need about
+    10.2 mm, the 11 mm band leaves 9.0 mm once "Clip" is kept, and the
+    bottom half of line 4 was lost in silence.
+
+    Measured, not computed: each line is drawn by `_vtext` exactly as
+    :func:`render_clip_strip` draws it, on a canvas wide enough to hold it
+    whole, and its ink is compared with the band's width. In "auto" the size
+    shrinks until the lines fit across, so only a typed size can be cut.
+    """
+    mode = str(kw.get("clip_content_mode") or "off")
+    size_mm = float(kw.get("clip_text_size_mm") or 0.0)
+    if mode not in ("branding", "image") or size_mm <= 0 or not lines:
+        return None
+    try:
+        from . import papers
+        pw, ph = papers.dimensions_mm(kw.get("paper") or "A4")
+        dpi = int(kw.get("dpi") or 300)
+        mm2px = dpi / 25.4
+        area = geometry.clip_area_px(geom, ph, dpi, pw, 0, 0.0)
+        if area is None or area[2] <= 0 or area[3] <= 0:
+            return None
+        _ax, _ay, aw, ah = area
+        length = ah
+        if mode == "branding":
+            g = _wordmark_geometry(aw, ah, dpi,
+                                   float(kw.get("clip_image_scale") or 100.0))
+            length = _branding_box_len(
+                g, max(1, ah), dpi,
+                float(kw.get("clip_image_offset_y") or 0.0) * mm2px)
+        if length <= 0:
+            return None
+        return _clip_lines_cut_cached(
+            tuple(lines), str(kw.get("clip_text_font") or "Inter"),
+            int(aw), int(length), int(dpi), size_mm,
+            float(kw.get("clip_border_width") or 0.0))
+    except Exception:            # noqa: BLE001 - a notice never blocks a build
+        log.debug("clip lines across: not measured", exc_info=True)
+        return None
+
+
+@functools.lru_cache(maxsize=128)
+def _clip_lines_cut_cached(lines: "tuple[str, ...]", font: str, aw: int,
+                           length: int, dpi: int, size_mm: float,
+                           band_mm: float) -> "ClipLineCut | None":
+    mm2px = dpi / 25.4
+    n = len(lines)
+    wide = aw * 4 + int(size_mm * mm2px * 1.2 * n) + 8
+    cuts, deepest = [], 0
+    for i in range(n):
+        only = ["" if k != i else lines[k] for k in range(n)]
+        if not lines[i].strip():
+            continue
+        canvas = _vtext("\n".join(only), font, wide, length,
+                        size_px=size_mm * mm2px, dpi=dpi)
+        a = np.asarray(canvas.getchannel("A"))
+        cols = np.nonzero((a > 0).any(axis=0))[0]
+        if cols.size == 0:
+            continue
+        c0, c1 = int(cols[0]), int(cols[-1]) + 1
+        deepest = max(deepest, c1)
+        if c1 > aw:
+            cut = (c1 - max(aw, c0)) / mm2px
+            cuts.append((i + 1, round(cut, 2), round((c1 - c0) / mm2px, 2)))
+    if not cuts:
+        return None
+    need = deepest / mm2px
+    avail = aw / mm2px
+    want = math.ceil((band_mm + (need - avail)) * 10.0 - 1e-6) / 10.0
+    return ClipLineCut(n, tuple(cuts), need, avail, band_mm, want)
 
 
 #: How many labels the ink probe below walks. The alphabetic labeller reaches

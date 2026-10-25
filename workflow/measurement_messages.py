@@ -6560,6 +6560,62 @@ M_PRINT_QUALITY = _m(
     approved=True)  # Sebastian, 2026-10-09 (DECISIONS_beta16_quality.md, rows 1-4)
 
 
+# --- PROPOSED (4.3.15, Knut forum 149832, 2026-10-25): the strip letters
+#: against "T", which nothing checked; the marker notice it sat behind took
+#: "Distance from page edge" + "Marker length" + 1.0 mm as a band across the
+#: page and called letters set beside the dashes "on the markers".
+M_CHART_STRIP_LABELS_PAST_T = _m(
+    "M-CHART-STRIP-LABELS-PAST-T",
+    "The strip letters come closer to the paper edge than \u201cT\u201d",
+    "\u26a0 The strip letters come closer to the top edge of the paper than "
+    "\u201cT\u201d under \u201cText distance from edge (mm)\u201d allows. "
+    "\u201cT\u201d keeps {t} mm of paper clear above them, and the letters "
+    "start {ink} mm from the edge, {over} mm closer than that. Many printers "
+    "cannot print right up to the edge, so letters this close can come out "
+    "cut off or missing. Raise \u201cY\u201d next to \u201cLabel "
+    "offset\u201d under \u201cStrip indicators only\u201d by about {over} mm "
+    "to give them their distance back.",
+    approved=False)
+
+# --- PROPOSED (4.3.15, Knut forum 149832): clip-border lines at a typed size
+#: that the band cuts off ACROSS it. The branding's lines and an image's
+#: caption are drawn inside the band, so what does not fit was lost in
+#: silence ("the 4th is cut in half at an 11 mm clip border").
+M_CHART_CLIP_LINES_CUT = _m(
+    "M-CHART-CLIP-LINES-CUT",
+    "Part of the clip border text is cut off",
+    "\u26a0 The clip border text does not fit across its band, so part of it "
+    "is cut off and not printed. Its {lines} lines at {size} pt need {need} mm "
+    "across the band, and the band leaves {avail} mm for them once {edge} mm "
+    "is kept clear at the paper edge. {detail} To print every line whole, set "
+    "a smaller Size under \u201cClip-border content\u201d "
+    "(\u201cauto\u201d always fits the lines across the band), widen "
+    "\u201cClip border width\u201d to about {want} mm, or use fewer lines.",
+    approved=False, count_key="lines",
+    body_one=(
+        "\u26a0 The clip border text does not fit across its band, so part of "
+        "it is cut off and not printed. Its line at {size} pt needs {need} mm "
+        "across the band, and the band leaves {avail} mm for it once {edge} mm "
+        "is kept clear at the paper edge. {detail} To print it whole, set a "
+        "smaller Size under \u201cClip-border content\u201d "
+        "(\u201cauto\u201d always fits the line across the band), or widen "
+        "\u201cClip border width\u201d to about {want} mm."))
+
+M_CHART_CLIP_LINE_PART_CUT = _m(
+    "M-CHART-CLIP-LINE-PART-CUT",
+    "One clip border line is partly cut off",
+    "Line {line} loses {cut} mm of its {height} mm, on the side that faces "
+    "the patches.",
+    approved=False)
+
+M_CHART_CLIP_LINES_NOT_PRINTED = _m(
+    "M-CHART-CLIP-LINES-NOT-PRINTED",
+    "Clip border lines that are not printed at all",
+    "Lines {first} to {last} are not printed at all.",
+    approved=False, count_key="n",
+    body_one="Line {first} is not printed at all.",
+    body_two="Lines {first} and {last} are not printed at all.")
+
 # --- PROPOSED (4.3.5 beta 3, Knut #182 6144104040): the 3D tool's "Show:" help
 #: The approved-free tooltip of the colour view said "The lines and the faint
 #: skin are the edges and sides of everything the profile can print". The
@@ -8114,6 +8170,8 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_STRIP_LABELS_CROWDED,
     M_CHART_STRIP_LABELS_X_HELD_EDGE, M_CHART_STRIP_LABELS_X_NEAR_NEIGHBOUR,
     M_CHART_STRIP_LABELS_X_IN_PATH, M_CHART_STRIP_LABELS_X_IN_PATH_NO_ROOM,
+    M_CHART_STRIP_LABELS_PAST_T, M_CHART_CLIP_LINES_CUT,
+    M_CHART_CLIP_LINE_PART_CUT, M_CHART_CLIP_LINES_NOT_PRINTED,
     M_PRINT_PS_ASK_EXPLAINED, M_PRINT_PS_FORM_CHOICE_EXPLAINED,
     M_PRINT_PS_FORM_HELP_PROJECT_EXPLAINED, M_PRINT_DIALOG_COLOUR_MATCHING,
     *CONVERT_MESSAGES,

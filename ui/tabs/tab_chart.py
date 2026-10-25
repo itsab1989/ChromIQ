@@ -3185,6 +3185,41 @@ BUILTIN_CHART_NOTES: frozenset[str] = frozenset(
 _MARKER_DEFAULT_MM = 2.0
 
 
+def _clip_lines_cut_text(cut, size_pt: float) -> str:
+    """M-CHART-CLIP-LINES-CUT for clip-border lines cut off ACROSS the band
+    (`raster.clip_lines_cut_across`; Knut, forum 149832, 2026-10-25): which
+    line is cut, by how much, and what prints it whole."""
+    from workflow import measurement_messages as _mm
+    from workflow import text_edge_fit
+    parts = []
+    partial = [c for c in cut.cuts if c[1] < c[2] - 0.05]
+    gone = [c[0] for c in cut.cuts if c[1] >= c[2] - 0.05]
+    for line, mm, height in partial:
+        parts.append(_mm.M_CHART_CLIP_LINE_PART_CUT.render(
+            line=line, cut=decimal_text(mm, 1),
+            height=decimal_text(height, 1))[1])
+    if gone:
+        parts.append(_mm.M_CHART_CLIP_LINES_NOT_PRINTED.render(
+            n=len(gone), first=gone[0], last=gone[-1])[1])
+    return _mm.M_CHART_CLIP_LINES_CUT.render(
+        lines=cut.lines, size=text_edge_fit.format_pt(size_pt),
+        need=decimal_text(cut.need_mm, 1),
+        avail=decimal_text(max(0.0, cut.avail_mm), 1),
+        edge=decimal_text(max(0.0, cut.band_mm - cut.avail_mm), 1),
+        want=decimal_text(cut.want_mm, 1), detail=" ".join(parts))[1]
+
+
+def strip_letters_past_t_notice(crossing) -> "str | None":
+    """M-CHART-STRIP-LABELS-PAST-T for a `text_edge_fit.TextEdgeCrossing`."""
+    if crossing is None:
+        return None
+    from workflow import measurement_messages as _mm
+    return _mm.M_CHART_STRIP_LABELS_PAST_T.render(
+        t=decimal_text(crossing.text_edge_mm, 1),
+        ink=decimal_text(crossing.ink_top_mm, 1),
+        over=decimal_text(crossing.over_mm, 1))[1]
+
+
 def _marker_reserve_args(r) -> "tuple[float, float]":
     """The helper markers' edge and length AS THE ENGINE WILL READ THEM.
 
@@ -28091,6 +28126,27 @@ class TabChart(QWidget):
                                         half=_lo3.overlap_mm / 2.0))
                     except Exception:      # noqa: BLE001 — never fatal
                         pass
+                # …AND ACROSS IT (Knut, forum 149832, 2026-10-25): *"With 4
+                # lines, the 4th is cut in half at an 11 mm clip border."* The
+                # branding's lines and an image's caption are drawn inside the
+                # band, so at a typed size what does not fit across it is not
+                # printed, and nothing said so. Warning only: nothing moves.
+                if (_clip_zone > 0 and _clip_band_exists
+                        and str(getattr(r, "clip_content_mode", "off"))
+                        in ("branding", "image")):
+                    try:
+                        from workflow.layout_engine import raster as _ras4
+                        _c_lines = _ras4.clip_text_lines(
+                            _ras4.resolve_placeholders(
+                                getattr(r, "clip_text", "") or "",
+                                self._text_placeholder_context(r)))
+                        _cut = _ras4.clip_lines_cut_across(
+                            geom, _kw_notes, _c_lines)
+                        if _cut is not None:
+                            over.append(_clip_lines_cut_text(
+                                _cut, _clip_size_pt))
+                    except Exception:      # noqa: BLE001 — never fatal
+                        pass
             # The STRIP AND ROW LABEL overflow warnings only apply in "margins
             # are law" mode, which is now AREA-FIRST (Knut #93): there the label
             # lives inside the margin, so a too-small margin overflows toward
@@ -28361,15 +28417,24 @@ class TabChart(QWidget):
                 # markers are not consulted at all, which is his first case.
                 # The test is on the INK rather than the anchor, because his
                 # second case moves the letters without moving the anchor.
-                _mk = text_edge_fit.strip_label_marker_overlap(
-                    _label_anchor_mm(geom) or 0.0,
-                    float(getattr(geom, "label_ink_top_mm", 0.0) or 0.0),
-                    bool(getattr(r, "helper_markers", False)),
-                    *_marker_reserve_args(r),
-                    bool(getattr(r, "helper_markers_top_bottom", True)),
-                    label_offset_mm=_off,
-                    margin_anchored=_label_is_margin_anchored(geom),
-                    tol_mm=_tol)
+                # **THE REAL LETTERS AGAINST THE REAL DASHES (Knut, forum
+                # 149832, 2026-10-25).** This used to be
+                # `strip_label_marker_overlap`, which took "Distance from
+                # page edge" + "Marker length" + 1.0 mm as a band across the
+                # whole page. On his preset at 4 pt, X -2.5, Y -3.5 every
+                # letter sits between two dashes, 0.63 mm clear of the nearer
+                # one, and this said "3.1 mm of them is on the markers". Now
+                # each letter's ink box is tested against each dash and the
+                # 1.0 mm of clear paper below it, as the sheet draws them;
+                # how close the letters come to the paper edge is "T", asked
+                # just below.
+                from workflow.layout_engine import raster as _rmk
+                _clash = _rmk.strip_letters_against_markers(
+                    geom, _kw_notes, tol_mm=_tol or 0.0)
+                _mk = (text_edge_fit.MarkerLabelOverlap(
+                    _clash.reach_mm, _clash.ink_top_mm, _off,
+                    _label_is_margin_anchored(geom))
+                    if _clash is not None else None)
                 if _mk is not None:
                     # THE LEVER THAT MOVES THE INK IN THIS LAYOUT. With the
                     # band anchored on the top margin, "Top" and "Label offset"
@@ -28415,6 +28480,20 @@ class TabChart(QWidget):
                             "under “Print helper markers”.").format(
                                 reach=_mk.reach_mm, ink=_mk.ink_top_mm,
                                 over=_mk.overlap_mm))
+                # **AND "T", WHICH NOTHING CHECKED (Knut, forum 149832).** His
+                # rule: the strip letters may not come closer to the page edge
+                # than "T". The layout anchors them at or below it, so only a
+                # negative "Label offset" Y, or a top margin below "T" with
+                # "Prioritise patch size", takes them past it. "Y" moves the
+                # letters one millimetre per millimetre in both layouts, so it
+                # is the lever named; lowering "T" can move the anchor with it
+                # and is not offered.
+                _te = text_edge_fit.strip_letters_above_text_edge(
+                    (_label_anchor_mm(geom) or 0.0)
+                    + float(getattr(geom, "label_ink_top_mm", 0.0) or 0.0),
+                    _top_edge, tol_mm=_tol)
+                if _te is not None:
+                    over.append(strip_letters_past_t_notice(_te))
             # …AND THE ROW NUMBERS DOWN THE LEFT, the same rule one edge over.
             # Area-first no longer reserves their 7.5 mm band outside the margin
             # (that was the fault Basti reported: a 1 mm margin put the first

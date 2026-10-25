@@ -1044,6 +1044,43 @@ class MarkerLabelOverlap:
         return max(0.0, self.reach_mm - self.ink_top_mm)
 
 
+@dataclass(frozen=True)
+class TextEdgeCrossing:
+    """The strip letters come closer to the paper's top edge than "T".
+
+    *ink_top_mm* is where the highest letter ink begins, *text_edge_mm* the
+    distance "T" asks for, both from the paper's top edge."""
+    ink_top_mm: float
+    text_edge_mm: float
+
+    @property
+    def over_mm(self) -> float:
+        return max(0.0, self.text_edge_mm - self.ink_top_mm)
+
+
+def strip_letters_above_text_edge(ink_top_mm: float, text_edge_top_mm: float,
+                                  *, tol_mm: "float | None" = None,
+                                  ) -> "TextEdgeCrossing | None":
+    """The strip letters against "T", or None if they keep their distance.
+
+    Knut's rule (#182, quoted in `docs/design/row_label_geometry.md` §R1):
+    *"the strip labels, which are not allowed to go closer to the page edge
+    than the T limit"*. The layout anchors the letters at or below "T", so
+    only a negative "Label offset" Y (or, with "Prioritise patch size", a top
+    margin smaller than "T") takes them past it, and nothing said so: on
+    Knut's preset at Y -3.5 the letters start 1.9 mm from the edge with "T" at
+    4.0 mm, and the only notice was a false one about the ruler markers
+    (forum 149832, 2026-10-25). *ink_top_mm* is the renderer's own probe
+    (`geometry.strip_label_leader_top_mm` + `Geom.label_ink_top_mm`).
+    """
+    t = float(text_edge_top_mm or 0.0)
+    if t <= 0.0:
+        return None
+    hit = TextEdgeCrossing(float(ink_top_mm or 0.0), t)
+    tol = EPS_MM if tol_mm is None else max(0.0, float(tol_mm))
+    return hit if hit.over_mm > tol else None
+
+
 def strip_label_marker_overlap(anchor_mm: float, ink_top_mm: float,
                                markers_on: bool, marker_edge_mm: float,
                                marker_len_mm: float,
