@@ -1414,8 +1414,10 @@ def _message_box_height_once_shown(box, label, work) -> int:
             # (QMessageBox::showEvent), so its button row is not in the
             # layout yet. Its height is a close enough allowance (measured:
             # 6 px over, against 19 px under without it).
+            # An empty button: it measures as one line of text, like "OK",
+            # and is never shown, so it has no text to translate.
             from PyQt6.QtWidgets import QPushButton
-            ok = QPushButton("OK")
+            ok = QPushButton()
             height += ok.sizeHint().height()
             ok.deleteLater()
         return max(hint, height)
