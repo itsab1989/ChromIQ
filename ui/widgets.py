@@ -1392,24 +1392,7 @@ def _message_box_height_once_shown(box, label, work) -> int:
         return hint
     was = label.wordWrap()
     try:
-        import sys as _sys
-        from PyQt6.QtGui import QFontMetrics
-        sw = work.width()
-        hard = sw if sw <= 1024 else min(sw - 480, 1000)
-        soft = min(sw // 2, 420 if _sys.platform == "darwin" else 500)
-        label.setWordWrap(False)
-        lay.activate()
-        width = lay.totalMinimumSize().width()
-        if width > soft:
-            label.setWordWrap(True)
-            lay.activate()
-            width = min(max(soft, lay.totalMinimumSize().width()), hard)
-        try:
-            fm = QFontMetrics(QApplication.font("QMdiSubWindowTitleBar"))
-            width = max(width, min(fm.horizontalAdvance(box.windowTitle()) + 50,
-                                   hard))
-        except Exception:      # noqa: BLE001
-            pass
+        width = _message_box_width_once_shown(box, label, lay, work)
         if lay.hasHeightForWidth():
             height = lay.totalHeightForWidth(width)
         else:
@@ -1428,6 +1411,77 @@ def _message_box_height_once_shown(box, label, work) -> int:
         return max(hint, height)
     except Exception:      # noqa: BLE001
         return hint
+    finally:
+        try:
+            label.setWordWrap(was)
+            lay.activate()
+        except Exception:      # noqa: BLE001
+            pass
+
+
+def _message_box_width_once_shown(box, label, lay, work) -> int:
+    """The width Qt gives *box* when it is shown (``QMessageBoxPrivate::
+    updateSize``), for :func:`_message_box_height_once_shown` and
+    :func:`_message_box_text_lines_once_shown`. Leaves the label's word wrap
+    as Qt will set it; the caller puts it back."""
+    import sys as _sys
+    from PyQt6.QtGui import QFontMetrics
+    sw = work.width()
+    hard = sw if sw <= 1024 else min(sw - 480, 1000)
+    soft = min(sw // 2, 420 if _sys.platform == "darwin" else 500)
+    label.setWordWrap(False)
+    lay.activate()
+    width = lay.totalMinimumSize().width()
+    if width > soft:
+        label.setWordWrap(True)
+        lay.activate()
+        width = min(max(soft, lay.totalMinimumSize().width()), hard)
+    try:
+        fm = QFontMetrics(QApplication.font("QMdiSubWindowTitleBar"))
+        width = max(width, min(fm.horizontalAdvance(box.windowTitle()) + 50,
+                               hard))
+    except Exception:      # noqa: BLE001
+        pass
+    return width
+
+
+#: The most LINES a message box's text may take, as it is shown, and still be
+#: set all in Qt's bold. See step 2b of `keep_message_box_inside_the_work_area`
+#: for why five, and what was measured.
+_MESSAGE_BOX_BOLD_MAX_LINES = 5
+
+
+def _message_box_text_lines_once_shown(box, label, work) -> int:
+    """How many lines *label*'s text takes once *box* is shown, wrapped at the
+    width Qt will give it, in the font it has now. 0 if it cannot be told."""
+    lay = box.layout()
+    if label is None or lay is None:
+        return 0
+    was = label.wordWrap()
+    try:
+        from PyQt6.QtCore import QRect
+        from PyQt6.QtGui import QFontMetrics
+        width = _message_box_width_once_shown(box, label, lay, work)
+        if lay.hasHeightForWidth():
+            height = lay.totalHeightForWidth(width)
+        else:
+            height = lay.totalMinimumSize().height()
+        # Lay the box out at that size, as showing it will, and read the
+        # label's share of it: the icon, margins and spacing are Qt's. Inside
+        # the box's OWN margins (24 px a side on macOS), which the layout's
+        # size already counts: without them the label was measured 48 px
+        # wider than it opens (936 against 888, on screen), and a text of six
+        # lines was counted as five.
+        lay.setGeometry(QRect(0, 0, width, height).marginsRemoved(
+            box.contentsMargins()))
+        text_h = (label.heightForWidth(label.width()) if label.wordWrap()
+                  else label.sizeHint().height())
+        if text_h <= 0:
+            text_h = label.sizeHint().height()
+        line = QFontMetrics(label.font()).lineSpacing()
+        return max(1, round(text_h / line)) if line > 0 else 0
+    except Exception:      # noqa: BLE001
+        return 0
     finally:
         try:
             label.setWordWrap(was)
@@ -1502,31 +1556,6 @@ def keep_message_box_inside_the_work_area(box) -> None:
         rich = label is not None and label.textFormat() == Qt.TextFormat.RichText
         wanted = 0
 
-        # --- 0. a long text is not set all in bold -------------------------
-        # Qt sets a message box's text in BOLD on macOS, all of it, so a
-        # warning of forty lines read as one shout (seen on screen, 4.3.15
-        # and since). Basti, 2026-10-26: *"some shorter texts might be ok
-        # completely bold if it is justified by the importance of the message.
-        # but very long text should not be completely bold"*. A text that fits
-        # on ONE line of the box keeps Qt's bold; anything longer is set in the
-        # regular weight. Rich text sets its own weights and is left alone.
-        if label is not None and text and not rich and label.font().bold():
-            one_line = ("\n" not in text and
-                        QFontMetrics(label.font()).horizontalAdvance(text) + 120
-                        <= int(work.width() * _MESSAGE_BOX_MAX_TEXT_WIDTH))
-            if not one_line:
-                regular = label.font()
-                regular.setBold(False)
-                label.setFont(regular)
-                # …AND A STYLE SHEET RULE, because the font alone does not
-                # last: on macOS QMessageBox::changeEvent sets the label bold
-                # again on every FontChange, and the app's style sheet gives
-                # the box one when it is polished (measured on screen: bold
-                # again once shown). A style sheet's weight wins over setFont.
-                label.setStyleSheet(
-                    (label.styleSheet() + " " if label.styleSheet() else "")
-                    + "QLabel { font-weight: 400; }")
-
         def _hold_width_open(layout) -> None:
             # setMinimumWidth does NOT work on a QMessageBox — it sizes from
             # its own grid layout and squeezes straight back. A full-width
@@ -1585,6 +1614,44 @@ def keep_message_box_inside_the_work_area(box) -> None:
                     _hold_width_open(lay)
                 else:
                     lay.activate()
+
+        # --- 2b. a long text is not set all in bold ------------------------
+        # Qt sets a message box's text in BOLD on macOS, all of it, so a
+        # warning of forty lines read as one shout (seen on screen, 4.3.15
+        # and since). Basti, 2026-10-26: *"some shorter texts might be ok
+        # completely bold if it is justified by the importance of the message.
+        # but very long text should not be completely bold"*.
+        #
+        # LONG IS COUNTED IN LINES AS SHOWN, NOT IN "\n" (review of 4.3.16):
+        # "Delete this run?\n\nThis cannot be undone." is a short question
+        # and must stay as bold as in 4.3.15. The text the box will SHOW,
+        # after step 2 (a shortened box's head is a short box like any other),
+        # wrapped at the width Qt will give it, in the bold font it has now:
+        # up to _MESSAGE_BOX_BOLD_MAX_LINES lines keep Qt's bold untouched,
+        # anything longer is set regular. Five because Basti's short boxes
+        # are "up to about 4 to 5 lines", and measured on screen, EN and DE,
+        # over every literal warn/inform/ask text with a line break: 11 of
+        # the 12 take 2 to 5 lines and keep 4.3.15's bold exactly, the one
+        # with three paragraphs takes 6 (7 in German). The estimate matched
+        # the shown line count on every box opened on screen, 2 to 53 lines.
+        #
+        # Rich text sets its own weights, and a box with informative text
+        # already has a bold title over a regular body: both are left alone.
+        if (label is not None and not rich and not box.informativeText()
+                and box.text() and label.font().bold()
+                and _message_box_text_lines_once_shown(box, label, work)
+                > _MESSAGE_BOX_BOLD_MAX_LINES):
+            regular = label.font()
+            regular.setBold(False)
+            label.setFont(regular)
+            # …AND A STYLE SHEET RULE, because the font alone does not last:
+            # on macOS QMessageBox::changeEvent sets the label bold again on
+            # every FontChange, and the app's style sheet gives the box one
+            # when it is polished (measured on screen: bold again once shown).
+            # A style sheet's weight wins over setFont.
+            label.setStyleSheet(
+                (label.styleSheet() + " " if label.styleSheet() else "")
+                + "QLabel { font-weight: 400; }")
 
         # --- 3. clamp the frame once it is real ---------------------------
         def _clamp() -> None:
