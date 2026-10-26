@@ -2062,6 +2062,8 @@ class TabPrint(QWidget):
         dlg.setText(title)
         dlg.setInformativeText(body)
         dlg.addButton(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
         dlg.exec()
 
     def _confirm_raw_uncalibrated(self) -> bool:
@@ -2081,6 +2083,8 @@ class TabPrint(QWidget):
                                    QMessageBox.ButtonRole.DestructiveRole)
         cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
         dlg.setDefaultButton(cancel_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
         dlg.exec()
         if dlg.clickedButton() is anyway_btn:
             log.warning("raw verification print of a -K run confirmed by user")
@@ -3379,6 +3383,8 @@ class TabPrint(QWidget):
         box.setText(title)
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
 
     def _confirm_other_printer(self, wanted: str, chosen: str) -> bool:
@@ -3400,6 +3406,8 @@ class TabPrint(QWidget):
         cancel = box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(cancel)
         box.setEscapeButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         if box.clickedButton() is go:
             log.warning("Print: printed on %s, which the Windows print dialog chose, "
@@ -3465,6 +3473,8 @@ class TabPrint(QWidget):
         )
         cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
         dlg.setDefaultButton(cancel_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
         dlg.exec()
         if dlg.clickedButton() is anyway_btn:
             log.warning("Borderless print confirmed by user despite scaling warning")
@@ -3503,6 +3513,8 @@ class TabPrint(QWidget):
         # the safest." Return presses Cancel; the destructive action stays
         # plain (B8-1156) and is reached by a click.
         dlg.setDefaultButton(cancel_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
         dlg.exec()
         clicked = dlg.clickedButton()
         # Only an answer that says "print" prints. A box closed without one
@@ -4189,6 +4201,8 @@ class TabPrint(QWidget):
                                    QMessageBox.ButtonRole.DestructiveRole)
         cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
         dlg.setDefaultButton(cancel_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
         dlg.exec()
         return dlg.clickedButton() is anyway_btn
 
@@ -4441,6 +4455,8 @@ class TabPrint(QWidget):
         box.setText(title)
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
 
     def _set_native_mode(self, enabled: bool) -> None:
