@@ -1590,8 +1590,18 @@ def keep_message_box_inside_the_work_area(box) -> None:
         # break to cut at: the box kept every word above the fold and gained a
         # "Show Details" button full of <p style=...> tags. Such a box shortens
         # itself (the pre-flight's one-line version) before it calls this.
+        #
+        # NOT FOR A BOX WITH INFORMATIVE TEXT EITHER (4.3.16, when every box
+        # in the app was routed here). Its `text` is the one-line headline and
+        # the body is the informative text, so the move had nothing to move:
+        # the headline went into "Show Details" and stayed above it as well,
+        # the box was no shorter, and the layout Qt builds again for the
+        # details dropped whatever a caller had put into the old one (the run
+        # picker of the "project already exists" window). Such a box keeps
+        # all of its text and is clamped in step 3, as 4.3.15 left it.
         room = work.height() - 60
         if (text and not rich and not box.detailedText()
+                and not box.informativeText()
                 and _message_box_height_once_shown(box, label, work) > room):
             head = text.split("\n\n", 1)[0]
             if head == text:
