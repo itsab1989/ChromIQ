@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.3.16
+
+**For everyone updating from 4.3.15: this is a bug-fix release. Every file dialog now speaks your language, and long messages fit on your screen and are easier to read. Nothing about your charts, presets, measurements or profiles changes.**
+
+### Fixed
+- **Every file dialog is translated:** the window title and the list of file types ("ICC profiles", "Measurement files", "PDF" and so on) now appear in the language you chose, in every tab and in the patch set editor. Each dialog still lists exactly the same files as before.
+- **A long message no longer runs off the bottom of the screen.** ChromIQ keeps the first part visible, puts the full text behind "Show Details", and keeps the window inside the screen. In 4.3.15 this went wrong in silence, so some long messages opened taller than the screen, and this now works for every message window in the app.
+- **The check before a verification measurement fits small screens:** on a screen too small for it, its text now scrolls inside the window, with OK and "Do not show this again" always in reach. Before, it could run off the screen and showed raw formatting code under "Show Details". On a normal screen it looks exactly as before.
+- **The window asking whether to use the new profile engine fits a 1280 x 775 screen.**
+
+### Changed
+- **Long messages are easier to read on macOS:** a message of six lines or more is shown in normal weight instead of entirely in bold. Short messages look exactly as before.
+
 ## v4.3.15
 
 **For everyone updating from 4.3.14: the warnings about the strip letters at the top of the page now check exactly what is printed there, so letters placed between the ruler helper markers no longer get a warning they do not deserve, and the clip-border text is centred across its band like the logo. Your charts, presets and patches stay where they were.**
