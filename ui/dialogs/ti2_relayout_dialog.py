@@ -8732,6 +8732,20 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             target / f"{name}.ti1", target, name,
             also_shuffled=bool(self._settings and self._settings.get(
                 "export_shuffled_pxf", False)))
+        # The beta "turned" i1Profiler export, beside the other sidecars
+        # (Preferences -> Beta). Off: only a stale one is removed.
+        try:
+            from workflow import i1profiler_turned as _turned
+            if self._settings and self._settings.get(
+                    "i1profiler_turned_export", False):
+                _tres = _turned.write_turned_export(
+                    target / f"{name}.ti2", target, name)
+                extras = list(extras) + list(_tres.written)
+            else:
+                _turned.remove_stale(target, name)
+                _tres = None
+        except Exception:  # noqa: BLE001 — never block on the sidecars
+            _tres = None
         # Write meta.json with the creation recipe (Set B), like the printtarg
         # save path does — without it an engine chart saved or applied from
         # here loses its New-patch-set design, so the Create Chart tab can't
@@ -8754,6 +8768,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         if extras:
             msg += "\n" + tr("Also written: {files}").format(
                 files=", ".join(sorted(e.name for e in extras)))
+        if _tres is not None and _tres.skipped:
+            msg += "\n" + _tres.skipped
         # The engine tops up a partial last strip with paper-white patches,
         # exactly like printtarg — say so, or the patch count silently grows
         # from the designed total (#124 report 6: 896 → 910).

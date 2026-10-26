@@ -8518,6 +8518,74 @@ patch-identity line, the automatic report and the measurement details window
 read RGB device values only, and each now shows **M-VIEW-RGB-ONLY** in place of
 a parse error (§M-PROPOSED).
 
+### ⏳ Awaiting confirmation — §I.14, a measurement of the turned i1Profiler chart (beta)
+
+**Confirmed by:** *nobody yet.*
+
+**Asked for by Basti, 2026-10-26:** *"measurements from i1profiler can already
+be imported into chromiq so this should be covered"*, for the beta option
+Preferences ▸ Beta ▸ "Also write an i1Profiler chart that matches the printed
+ChromIQ sheet" (`workflow.i1profiler_turned`). The behaviour below is built and
+tested with simulated i1Profiler files; **no real i1Profiler measurement of a
+turned sheet has been imported yet**, because none exists (no i1Pro 2 or 3).
+
+**Why §I.5 as shipped cannot pair it.** The turned export hands i1Profiler the
+patch list in the order that makes its rows ChromIQ's strips. i1Profiler numbers
+what it measures 1..N in THAT order and names each patch by its OWN grid, row
+letter and column number. Measured in i1Profiler 3.8.8 (Patch Set page, Save,
+i1Profiler CGATS, 2026-10-27): entry 1 was saved as `SAMPLE_ID 1`,
+`SAMPLE_NAME A1`, and it is ChromIQ's patch `V1`; ChromIQ's own `A1` is
+i1Profiler's `V1`. Its CxF measurement objects carry no trace of ChromIQ's ids
+either (§I.5, the 2026-08-08 round trip). So:
+
+* by `SAMPLE_ID` every reading lands on the wrong patch, and §I.5's identity
+  check refuses the file (safe, but it cannot be imported);
+* by name (§I.11) every reading would ALSO land on the wrong patch, and nothing
+  would notice: on a turned chart i1Profiler's names are the very set ChromIQ
+  printed (rows A.. = strips A.., columns 1.. = places 1..), each on another
+  patch.
+
+**I.14 · A measurement of the turned chart is paired by the turned order, and
+only when its device values then agree on every patch.**
+
+* The export writes `<stem>-i1profiler-turned.json` beside the `.txf` files: for
+  every i1Profiler patch-list entry, the chart patch (`SAMPLE_ID`, `SAMPLE_LOC`)
+  it is, and the SHA-256 of the `.ti2` it was made from. An order whose checksum
+  is not the run's chart's is ignored (a chart rebuilt under the same name does
+  not inherit it).
+* Only a file §I.5 has already REFUSED is considered: it must carry device
+  values, hold exactly the order's N readings, numbered exactly 1..N. Reading
+  `j` is paired with the chart patch the order names for entry `j`.
+* The device values are then compared with that patch's, every one, within
+  `PATCH_IDENTITY_TOL`. The order was fixed when the chart was made, so the
+  colours check a pairing they did not choose (§I.9's objection is about a
+  pairing chosen by minimising the very difference that then validates it).
+  One patch off and the file is refused with §I.5's own sentence, exactly as
+  before.
+* Filed, the copy takes the chart's `SAMPLE_ID` and `SAMPLE_LOC` on every row,
+  in the chart's order, and says so in its header
+  (`CHROMIQ_PAIRED_BY_TURNED_ORDER "<order file>"`). From then on it is an
+  ordinary measurement: §I.5 verifies it by `SAMPLE_ID`, and filing it a second
+  time changes nothing.
+* **A file with no device values is refused** when the chart has a turned order
+  (*"this file carries no device values, and this chart also has a turned
+  i1Profiler chart, whose patch names are the same as this chart's but sit on
+  other patches, so ChromIQ cannot tell which patch each reading belongs to.
+  Save the measurement in i1Profiler as an .mxf file, which keeps the colours,
+  and import that instead"*). This is the one change to an existing import: on
+  such a chart §I.11's name pairing could be silently wrong, and nothing in the
+  file could tell. A chart without a turned order (the option off, or a chart
+  that did not qualify) is judged exactly as before.
+
+Every door reaches it through `measurement_import.assess`
+(`ImportVerdict.turned_order`) and files it with `complete_from_turned_order`:
+the Measure tab's IMPORT module for profiling and verification runs, and
+`measurement_filing.say_what_was_filed`, where every filing door ends. Tests:
+`tests/test_i1profiler_turned_import.py` (a simulated turned `.mxf` imports
+with every reading on its own patch; a file with two rows swapped is refused; a
+chart whose names coincide is never paired by name; ordinary measurements are
+judged as before).
+
 ## S. Sequences — what happens, in what order, for every entry condition
 
 **The rule this chapter exists to state: one window at a time.** Where a condition raises two, the second is not built until the first has returned. No window is ever opened from inside another's handler, and none is opened from a `showEvent` — a window raised while its parent is still being painted comes up behind it or over the wrong tab, which is how #134 and #130 both started.

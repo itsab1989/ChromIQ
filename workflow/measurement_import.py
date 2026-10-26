@@ -79,6 +79,13 @@ class ImportVerdict:
     #: 398 readings, so part of the chart was not measured" contradicts itself
     #: (review of 4.3.5 beta 8). ``None`` when the row count is the answer.
     n_read: "int | None" = None
+    #: True when the file is an i1Profiler measurement of the TURNED export
+    #: (beta, `workflow.i1profiler_turned`, §I.14): its readings are numbered
+    #: in the turned order, and they agree with the chart's device values,
+    #: patch for patch, only in that order. The caller files it through
+    #: :func:`complete_from_turned_order`; filed as it is, every reading would
+    #: sit on the wrong patch.
+    turned_order: bool = False
 
     @property
     def patches_read(self) -> int:
@@ -258,6 +265,22 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
         # measurement of a different chart names patches this one does not
         # have. See `workflow.measurement_pairing` for why this is NOT the
         # device-value re-pairing §I forbids.
+        # …EXCEPT FOR A CHART WITH A TURNED i1PROFILER EXPORT (beta, §I.14).
+        # i1Profiler names the patches of a chart it laid out by ITS rows and
+        # columns, and on a turned chart those names are the very set ChromIQ
+        # printed (rows = strips, columns = places), each on a different patch.
+        # A name pairing would pass every check and put every reading on the
+        # wrong patch. Without device values nothing can tell the two apart.
+        from workflow.i1profiler_turned import turned_order_for
+        if turned_order_for(chart_ti2) is not None:
+            return ImportVerdict(False, tr(
+                "this file carries no device values, and this chart also has "
+                "a turned i1Profiler chart, whose patch names are the same as "
+                "this chart's but sit on other patches, so ChromIQ cannot tell "
+                "which patch each reading belongs to. Save the measurement in "
+                "i1Profiler as an .mxf file, which keeps the colours, and "
+                "import that instead"),
+                n_chart=n_chart or 0, n_measured=n_got)
         verdict = _name_verdict(ti3, chart_ti2, n_chart, n_got, partial)
         if verdict is not None:
             return verdict
@@ -268,6 +291,20 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
     from workflow.measurement_report import verify_patch_identity
     identity = verify_patch_identity(measured, chart_ti2)
     if identity.get("verdict") == "mismatch":
+        # A MEASUREMENT OF THE TURNED i1PROFILER EXPORT (beta, §I.14) arrives
+        # numbered in the turned order. It is paired by THAT order, which was
+        # fixed when the chart was made and is tied to this exact .ti2 by its
+        # checksum, and only when the device values then agree on every
+        # patch: the colours check a pairing they did not choose (§I.9).
+        from workflow.i1profiler_turned import turned_match
+        turned = turned_match(measured, chart_ti2)
+        if turned.applies and turned.verified:
+            return ImportVerdict(True, "", partial=False,
+                                 n_chart=n_chart or 0, n_measured=n_got,
+                                 turned_order=True)
+        if turned.applies:
+            log.info("import: not the turned order either (%d of %d patches "
+                     "differ)", turned.mismatched, turned.compared)
         return ImportVerdict(False, identity.get("reason") or tr(
             "the measured colours do not agree with the chart's patches"),
             n_chart=n_chart or 0, n_measured=n_got)
@@ -443,6 +480,24 @@ def complete_from_chart(ti3: Path, chart_ti2: "Path | None") -> int:
     if n:
         log.info("import: %d patches took their device values from %s",
                  n, Path(chart_ti2).name)
+    return n
+
+
+def complete_from_turned_order(ti3: Path, chart_ti2: "Path | None") -> int:
+    """Give a measurement of the turned i1Profiler export the chart's own
+    patch ids and names, in the chart's order (§I.14).
+
+    Call it on the COPY, after :func:`assess` has said ``turned_order``.
+    Returns how many rows were written; 0 means the file did not pair
+    through the turned order after all and was left untouched.
+    """
+    if chart_ti2 is None:
+        return 0
+    from workflow.i1profiler_turned import reorder_turned_measurement
+    n = reorder_turned_measurement(ti3, chart_ti2)
+    if n:
+        log.info("import: %d readings paired with %s through its turned "
+                 "i1Profiler order", n, Path(chart_ti2).name)
     return n
 
 

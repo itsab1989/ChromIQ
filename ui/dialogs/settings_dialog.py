@@ -3391,6 +3391,79 @@ class SettingsDialog(QDialog):
         _hexrow.addWidget(scanner_hex_tip)
         _beta.addLayout(_hexrow)
 
+        # The "turned" i1Profiler export (workflow.i1profiler_turned): one
+        # ChromIQ print that i1Profiler can read too, after a quarter turn.
+        self._i1p_turned_check = QCheckBox(
+            tr("Also write an i1Profiler chart that matches the printed "
+               "ChromIQ sheet (i1Pro 2 and i1Pro 3, beta)"), self)
+        i1p_turned_tip = TooltipButton(
+            tr("An i1Profiler chart for the printed ChromIQ sheet (beta)"),
+            tr("With this on, ChromIQ also writes files that let i1Profiler "
+               "measure the very sheet ChromIQ printed. You print once and "
+               "can measure the same paper in ChromIQ and in i1Profiler, so "
+               "a comparison between the two programs (for example an "
+               "ArgyllCMS profile against an i1Profiler one, or M1 against M2 "
+               "from an i1Pro 2's dual scan) carries no difference between two "
+               "prints.\n\n"
+               "How it works: i1Profiler always lays out a chart of its own "
+               "and reads it row by row. ChromIQ writes its patch list in the "
+               "order that makes every i1Profiler row one of ChromIQ's "
+               "strips. You turn the printed sheet a quarter turn "
+               "anticlockwise, so that the strip labels are on the left and "
+               "strip A is the bottom row, and load the matching file in "
+               "i1Profiler.\n\n"
+               "Instruments: only the i1Pro 2 and the i1Pro 3, read by hand "
+               "along the ruler. It does not work for the original i1Pro "
+               "(i1Profiler 3.8.8 no longer supports it at all), the i1Pro 3 "
+               "Plus "
+               "(its i1Profiler rows are about twice as long as a ChromIQ "
+               "strip), the ColorMunki, the i1iO or the i1iSis, or any other "
+               "instrument.\n\n"
+               "Which charts: an RGB chart made by ChromIQ's layout engine "
+               "for the i1Pro, with no spacers between the patches, every "
+               "strip full, and a patch length that gives i1Profiler exactly "
+               "as many patches on one row as the strip holds. i1Profiler "
+               "puts as many patches on a row as fit into about 241.5 mm. So "
+               "with 24 patches per strip the patches must be longer than "
+               "9.70 mm and at most 10.06 mm, and with 30 per strip longer "
+               "than 7.82 mm and at most 8.05 mm. 10 mm patches with 24 per "
+               "strip fit, for example. For the i1Pro 2 the "
+               "patches must also be at least 10 mm long, as X-Rite asks.\n\n"
+               "Where the files go: into the chart's exports folder, next to "
+               "the other i1Profiler files. There is one test-chart file "
+               "(.txf) for the i1Pro 2 and one for the i1Pro 3, a small order "
+               "file (.json) that ChromIQ needs to bring the measurement back, "
+               "and a note (the file ending in -how-to.txt). The note says "
+               "step by step how to turn the sheet, which file to load on "
+               "i1Profiler's Test Chart page, which grid i1Profiler must show "
+               "(columns, rows and 1 page), which row is which strip, and "
+               "that i1Profiler's Default display device must be the "
+               "instrument you measure with. For a chart that does not "
+               "qualify, ChromIQ writes only the note, saying why with the "
+               "real numbers, and one line in the Create Chart log.\n\n"
+               "Bringing the measurement back: save it in i1Profiler as an "
+               ".mxf file (not a CGATS text export, whose patch names are "
+               "i1Profiler's own) and import it on the Measure tab (IMPORT, "
+               "then Import Measurement). ChromIQ recognises the turned order and "
+               "puts every reading on its own patch, but only when the "
+               "colours in the file agree with the chart, patch for patch. "
+               "Anything else is refused and nothing is changed.\n\n"
+               "This is a beta. The layout was checked patch for patch in "
+               "i1Profiler 3.8.8, but nobody has yet read such a sheet with a "
+               "real instrument or imported a real i1Profiler measurement of "
+               "one. Check the result before you rely on it.\n\n"
+               "With this off (the default), nothing changes: Create Chart "
+               "writes exactly the files it always wrote.\n\n"
+               "**Default:** off"),
+            self,
+            min_width=680,
+        )
+        _i1prow = QHBoxLayout()
+        _i1prow.addWidget(self._i1p_turned_check)
+        _i1prow.addStretch()
+        _i1prow.addWidget(i1p_turned_tip)
+        _beta.addLayout(_i1prow)
+
         # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
         #
         # The setting existed and the changelog told users to reach for it, but
@@ -5987,6 +6060,8 @@ class SettingsDialog(QDialog):
             str(s.get("chartread_engine", "argyll")) == "chromiq")
         self._scanner_hex_check.setChecked(
             bool(s.get("scanner_hex_charts", False)))
+        self._i1p_turned_check.setChecked(
+            bool(s.get("i1profiler_turned_export", False)))
         self._splash_classic_check.setChecked(bool(s.get("splash_classic", False)))
         self._engine_all_modes_check.setChecked(
             bool(s.get("engine_all_modes", False)))
@@ -7385,6 +7460,7 @@ class SettingsDialog(QDialog):
         s.set("measure_calibrate_button",
               self._calibrate_button_check.isChecked())
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
+        s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("splash_classic", self._splash_classic_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
         from core.settings import store_compliance_overrides

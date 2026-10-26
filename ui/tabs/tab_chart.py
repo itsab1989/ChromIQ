@@ -24878,6 +24878,27 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — declare, as before
             return False
 
+    def _write_turned_i1profiler_export(self, ti2: Path, stem: str) -> None:
+        """The beta "turned" i1Profiler export (Preferences -> Beta), written
+        beside the other hand-off sidecars. Off: nothing is written or logged,
+        and only a turned export left by an earlier build of this chart is
+        removed, because it describes a chart that no longer exists. Never
+        blocks the build."""
+        try:
+            from core.file_manager import exports_subdir
+            from workflow import i1profiler_turned as turned
+            out_dir = exports_subdir(ti2.parent)
+            if not self._settings.get("i1profiler_turned_export", False):
+                turned.remove_stale(out_dir, stem)
+                return
+            res = turned.write_turned_export(ti2, out_dir, stem)
+            for e in res.written:
+                self._log.appendPlainText(f"wrote {e.name}")
+            if res.skipped:
+                self._log.appendPlainText(res.skipped)
+        except Exception:  # noqa: BLE001 — never block on the sidecars
+            log.warning("turned i1Profiler export failed", exc_info=True)
+
     def _release_rebuild_guard(self) -> None:
         """Put the chart back if redrawing its pages changed it, and say so.
 
@@ -25120,6 +25141,7 @@ class TabChart(QWidget):
                     self._log.appendPlainText(f"wrote {e.name}")
             except Exception:  # noqa: BLE001 — never block on the sidecars
                 log.warning("chart sidecar export failed", exc_info=True)
+            self._write_turned_i1profiler_export(ti2, stem)
             # If this chart was laid out in fixed order (-r "Preserve Patch
             # Order", e.g. a pre-shuffled generate-colour-sets / editor-recipe
             # layout) but its colours are actually well mixed, upgrade the tag so

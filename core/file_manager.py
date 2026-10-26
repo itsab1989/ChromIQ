@@ -205,6 +205,48 @@ def exports_subdir(folder: Path | str) -> Path:
     return Path(folder) / EXPORTS_DIRNAME
 
 
+#: i1Profiler's device families the beta "turned" export writes a ``.txf`` for
+#: (``workflow.i1profiler_turned``).
+I1P_TURNED_FAMILIES = ("i1Pro 2", "i1Pro 3")
+
+
+@dataclass(frozen=True)
+class I1ProfilerTurnedFiles:
+    """Where the beta "turned" i1Profiler export of one chart lives: beside
+    its other hand-off sidecars, named as an extension of the
+    ``<stem>-i1profiler.*`` family so a project rename carries it along."""
+    folder: Path
+    stem: str
+
+    @property
+    def order(self) -> Path:
+        """Which chart patch each i1Profiler patch-list entry is, and the
+        SHA-256 of the ``.ti2`` it was written for. Read back on import."""
+        return self.folder / f"{self.stem}-i1profiler-turned.json"
+
+    @property
+    def note(self) -> Path:
+        """The plain-language how-to (or why-not) note."""
+        return self.folder / f"{self.stem}-i1profiler-turned-how-to.txt"
+
+    def txf(self, family: str) -> Path:
+        """The i1Profiler test-chart file for *family* ("i1Pro 2" ...)."""
+        tag = family.replace(" ", "")
+        return self.folder / f"{self.stem}-i1profiler-turned-{tag}.txf"
+
+    def all(self) -> "list[Path]":
+        return [self.order, self.note,
+                *(self.txf(f) for f in I1P_TURNED_FAMILIES)]
+
+    @classmethod
+    def for_chart(cls, chart_ti2: "Path | str") -> "list[I1ProfilerTurnedFiles]":
+        """Every place a chart's turned export may be: ``exports/`` beside it
+        (Create Chart) and the chart's own folder (the TI2 layout editor
+        writes its sidecars there)."""
+        p = Path(chart_ti2)
+        return [cls(exports_subdir(p.parent), p.stem), cls(p.parent, p.stem)]
+
+
 # Declutter-on-load (#36, Knut): the exact families ChromIQ itself writes, keyed
 # to the v2 sub-folder they belong in. Deliberately narrow — only files matching
 # these patterns move; anything else (user files, the Argyll-coupled chart chain)
@@ -2307,6 +2349,11 @@ class Run:
     def ensure_exports_dir(self) -> Path:     return ensure_subdir(self.exports_dir)
     def ensure_cache_dir(self) -> Path:       return ensure_subdir(self.cache_dir)
 
+    @property
+    def i1profiler_turned(self) -> I1ProfilerTurnedFiles:
+        """The run chart's beta "turned" i1Profiler export, in ``exports/``."""
+        return I1ProfilerTurnedFiles(self.exports_dir, self.stem)
+
     # ---- verification runs (#130)
     # runs/runN/verifications/ holds ONE shared verify chart (a smaller chart
     # printed through this run's profile) at its root, plus one dated sub-folder
@@ -3644,8 +3691,11 @@ class Project:
         # folder chooser's, left each ``<stem>-verify.control-strip.json``
         # under the old name, and the renamed chart had no control-strip
         # declaration, so the control-strip rows could not be answered.
+        # The beta "turned" i1Profiler export extends the -i1profiler family
+        # (`I1ProfilerTurnedFiles`), so it is renamed with the rest.
         tail_re = re.compile(
-            r"(-cal|-verify)?(-i1profiler|-colours)?(_\d+)?"
+            r"(-cal|-verify)?(-i1profiler(-turned(-i1Pro[23]|-how-to)?)?"
+            r"|-colours)?(_\d+)?"
             r"(\.control-strip)?\.[\w.]+$")
 
         # NFC ON BOTH SIDES. `old_stem` comes from a name ChromIQ composed;
