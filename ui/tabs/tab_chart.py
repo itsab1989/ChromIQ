@@ -29148,6 +29148,7 @@ class TabChart(QWidget):
         prev = getattr(self, "_preview", None)
         if prev is None:
             return
+        self._helper_marker_ink_frac = None
         try:
             got = self._helper_marker_lines_frac()
             lines, pending = got if got is not None else (None, False)
@@ -29159,7 +29160,8 @@ class TabChart(QWidget):
             # screen has to leave a trace somebody will actually see.
             log.warning("helper-marker overlay skipped", exc_info=True)
             lines, pending = None, False
-        prev.set_helper_markers(lines, pending=pending)
+        prev.set_helper_markers(lines, pending=pending,
+                                ink=getattr(self, "_helper_marker_ink_frac", None))
 
     #: The marker settings that decide whether the overlay matches the sheet.
     _HM_KEYS = ("helper_markers", "helper_marker_edge_mm", "helper_marker_len_mm",
@@ -29328,8 +29330,36 @@ class TabChart(QWidget):
         # — but it compares floats, and a caption that tells the user to press a
         # button which cannot change anything must not be one rounding away from
         # coming back. Guided has no proposal to make, so it never has one.
-        return ([(x0 / w_mm, y0 / h_mm, x1 / w_mm, y1 / h_mm)
-                 for x0, y0, x1, y1 in lines], pending)
+        #
+        # ON THE INK, NOT ON THE MILLIMETRE (Knut, 2026-10-26: "Each line is
+        # no longer a single line"). The sheet's dash is a whole number of
+        # pixels at a whole-pixel position, half a pixel right of the
+        # millimetre for its even 2 px width (`raster.helper_marker_ink_rects_
+        # px`). An overlay drawn at the millimetre sat up to a pixel and a half
+        # of the sheet beside it, which a shrunken preview hides; on a 200 dpi
+        # photo card shown near full size the printed dash showed through next
+        # to the overlay's and every second dash read as two lines. So each
+        # segment is the centre line of the very pixels the renderer inks, as a
+        # fraction of the rendered page (`render_pages`: round(mm * dpi/25.4)),
+        # and the ink's thickness goes with it so the overlay can cover it.
+        from workflow.layout_engine import raster as _raster
+        dpi = float(getattr(rec, "dpi", 0) or 300)
+        W = max(1, round(w_mm * dpi / 25.4))
+        H = max(1, round(h_mm * dpi / 25.4))
+        out = []
+        ink_w = ink_h = 0.0
+        for (x0, y0, x1, y1), (rx0, ry0, rx1, ry1) in zip(
+                lines, _raster.helper_marker_ink_rects_px(lines, dpi)):
+            if y0 == y1:                   # horizontal dash
+                cy = (ry0 + ry1) / 2.0 / H
+                out.append((rx0 / W, cy, rx1 / W, cy))
+                ink_h = (ry1 - ry0) / H
+            else:                          # vertical dash
+                cx = (rx0 + rx1) / 2.0 / W
+                out.append((cx, ry0 / H, cx, ry1 / H))
+                ink_w = (rx1 - rx0) / W
+        self._helper_marker_ink_frac = (ink_w, ink_h)
+        return (out, pending)
 
     def _on_margin_coords_toggled(self, on: bool) -> None:
         self._settings.set("margin_coords_show", bool(on))

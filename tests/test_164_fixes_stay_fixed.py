@@ -98,6 +98,22 @@ def test_the_overlay_matches_what_the_renderer_actually_drew(qapp, tmp_path):
     w_mm, h_mm = papers.dimensions_mm("A4")
     overlay = sorted((x0 * w_mm, y0 * h_mm, x1 * w_mm, y1 * h_mm)
                      for x0, y0, x1, y1 in lines)
+    # THE INK, NOT THE MILLIMETRE (Knut, 2026-10-26). The overlay is the centre
+    # line of the pixels the renderer inks for each dash, so the comparison is
+    # with those pixels, as page fractions of the rendered page, read in mm.
+    from workflow.layout_engine import raster
+    W = round(w_mm * rec.dpi / 25.4)
+    H = round(h_mm * rec.dpi / 25.4)
+    ink = []
+    for (x0, y0, x1, y1), (rx0, ry0, rx1, ry1) in zip(
+            printed, raster.helper_marker_ink_rects_px(printed, rec.dpi)):
+        if y0 == y1:
+            cy = (ry0 + ry1) / 2 / H * h_mm
+            ink.append((rx0 / W * w_mm, cy, rx1 / W * w_mm, cy))
+        else:
+            cx = (rx0 + rx1) / 2 / W * w_mm
+            ink.append((cx, ry0 / H * h_mm, cx, ry1 / H * h_mm))
+    printed = sorted(ink)
 
     assert len(overlay) == len(printed), (
         f"the overlay draws {len(overlay)} dashes where the sheet has "

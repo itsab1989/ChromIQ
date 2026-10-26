@@ -153,7 +153,10 @@ def test_the_preview_draws_a_proposal_in_a_different_colour(qapp):
 
 
 def test_the_dashes_land_where_the_printed_ones_are(qapp):
-    """Rounded, not truncated.
+    """Not truncated, and (since Knut's report of 2026-10-26) not rounded
+    either: the segments are the centre lines of the printed dash's pixels and
+    are drawn where they are (`test_the_marker_overlay_sits_on_the_printed_
+    dash.py`). What this guards is unchanged, a SYSTEMATIC bias.
 
     `int()` biases EVERY endpoint the same way — down, by up to a whole pixel,
     half of one on average. The gaps survive that (both roundings vary by at
@@ -195,14 +198,17 @@ def test_the_dashes_land_where_the_printed_ones_are(qapp):
             runs[-1].append(int(y))
         else:
             runs.append([int(y)])
-    centres = [sum(r) / len(r) for r in runs]
+    # A pixel row r covers [r, r + 1), so its centre is r + 0.5: the same
+    # half-open convention the sheet's own ink rectangles use.
+    centres = [sum(r) / len(r) + 0.5 for r in runs]
     assert len(centres) == len(exact), f"drew {len(centres)} dashes, wanted {len(exact)}"
     errors = [c - e for c, e in zip(centres, exact)]
-    # Truncation puts every one of these 0.7 px low (plus the pen's own offset,
-    # which is the same for both); rounding puts them 0.3 px high. The test is
-    # on the SIGNED mean, because that is what a systematic bias looks like.
-    assert sum(errors) / len(errors) > -0.5, (
-        f"the dashes sit systematically low — truncated, not rounded: {errors}")
+    # Measured with pixel centres: truncation (the old `int()`) puts every one
+    # 0.7 px low, rounding 0.3 px high, drawing at the position itself 0.2 px
+    # low. The test is on the SIGNED mean, because that is what a systematic
+    # bias looks like.
+    assert abs(sum(errors) / len(errors)) < 0.5, (
+        f"the dashes sit systematically off their position: {errors}")
 
 
 # ---- adversary round 8 ----------------------------------------------------

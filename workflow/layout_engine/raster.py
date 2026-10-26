@@ -33,6 +33,44 @@ from .geometry import Layout
 #: How thick the ruler helper markers are drawn (#152). Knut: *"a line thin
 #: enough to be precise but visible — around 0.2 mm. Answer: sounds Good."*
 _HELPER_MARKER_W_MM = 0.2
+
+
+def helper_marker_ink_rects_px(lines_mm, dpi: float
+                               ) -> "list[tuple[int, int, int, int]]":
+    """The pixels :func:`render_pages` inks for each ruler dash, as half-open
+    ``(x0, y0, x1, y1)`` rectangles on a sheet rendered at *dpi*.
+
+    *lines_mm* are :func:`geometry.helper_marker_lines_mm` segments. The
+    renderer rounds each end to a whole pixel and draws a ``max(1, px(0.2))``
+    wide PIL line, which covers ``x - (w-1)//2`` through ``x + w//2``
+    INCLUSIVE: not centred on x for an even width, so a 2 px dash sits half a
+    pixel right of (or below) the millimetre it was asked for.
+
+    ONE ANSWER FOR EVERY COPY OF THE DASH. The vector PDF draws exactly these
+    rectangles, and the preview's overlay is centred on them
+    (`TabChart._helper_marker_lines_frac`). Before the overlay used them it
+    was drawn at the exact millimetre while the ink sat on the pixel grid, up
+    to a pixel and a half of the sheet apart. Invisible while the preview
+    shrinks the sheet; on a 200 dpi photo card shown at full size the printed
+    dash came out beside the overlay's, and every second dash read as two
+    lines (Knut, 2026-10-26).
+    """
+    mm2px = float(dpi) / 25.4
+
+    def px(mm: float) -> int:
+        return round(mm * mm2px)
+
+    w = max(1, px(_HELPER_MARKER_W_MM))
+    lo, hi = (w - 1) // 2, w // 2 + 1
+    out: list[tuple[int, int, int, int]] = []
+    for mx0, my0, mx1, my1 in lines_mm:
+        x0, x1 = sorted((px(mx0), px(mx1)))
+        y0, y1 = sorted((px(my0), px(my1)))
+        if my0 == my1:                     # horizontal dash
+            out.append((x0, y0 - lo, x1 + 1, y1 + hi))
+        else:                              # vertical dash
+            out.append((x0 - lo, y0, x1 + hi, y1 + 1))
+    return out
 from .instruments import Geom
 from .ti1_reader import ColorTarget
 
@@ -4172,14 +4210,10 @@ def render_pages(
                         # is not centred on y for an even width — and runs from
                         # x0 to x1 inclusive. Taking it as centred put the PDF
                         # rule half a pixel above the TIFF dash and made it one
-                        # pixel short.
-                        _lo, _hi = (_w - 1) // 2, _w // 2 + 1
-                        _x0, _x1 = sorted((px(mx0), px(mx1)))
-                        _y0, _y1 = sorted((px(my0), px(my1)))
-                        if my0 == my1:                     # horizontal dash
-                            _rect = (_x0, _y0 - _lo, _x1 + 1, _y1 + _hi)
-                        else:                              # vertical dash
-                            _rect = (_x0 - _lo, _y0, _x1 + _hi, _y1 + 1)
+                        # pixel short. `helper_marker_ink_rects_px` is that
+                        # rule, shared with the preview's overlay.
+                        _rect = helper_marker_ink_rects_px(
+                            [(mx0, my0, mx1, my1)], dpi)[0]
                         _geom_rows.append(("vrect", _rect, (0, 0, 0)))
             except Exception:      # noqa: BLE001 — never lose a chart to a marker
                 log.warning("could not draw the helper markers", exc_info=True)

@@ -2197,6 +2197,8 @@ class TiffPreview(QWidget):
         # then they are drawn in the accent colour with a caption, so they can
         # never be counted as ink that is already there (#164).
         self._helper_markers_pending: bool = False
+        # How thick the printed dash is, as page fractions (w, h).
+        self._helper_marker_ink: tuple[float, float] = (0.0, 0.0)
         # Coordinate readout on the pointer (#29, Knut): a cross-hair + the
         # cursor position in paper mm/inch, measured from the paper top-left.
         self._coord_readout: bool = False
@@ -2458,6 +2460,7 @@ class TiffPreview(QWidget):
     def set_helper_markers(
         self, lines: "list[tuple[float, float, float, float]] | None",
         *, pending: bool = False,
+        ink: "tuple[float, float] | None" = None,
     ) -> None:
         """Show where the printed ruler dashes will land (#152).
 
@@ -2484,9 +2487,17 @@ class TiffPreview(QWidget):
         (#164), and it is not a fault in the geometry, which draws exactly the
         number asked for.
 
+        *ink* is how thick the printed dash is, as ``(fraction of the page
+        width, fraction of the page height)`` for the top/bottom and the side
+        dashes. The overlay is drawn at least that thick, so that where it
+        claims to be the ink it covers all of it: at a zoom where one sheet
+        pixel is a screen pixel or more, a fixed 1.4 px stroke over a 2 px
+        dash left the dash's far edge showing beside it (Knut, 2026-10-26).
+
         Pass ``None`` or an empty list to clear.
         """
         self._helper_markers = list(lines or [])
+        self._helper_marker_ink = tuple(ink) if ink else (0.0, 0.0)
         # THE FLAG SURVIVES AN EMPTY PROPOSAL. Untick both edges and the
         # proposal IS "no dashes at all" — the case most worth saying out loud,
         # because the sheet's own printed comb is still on screen and nothing
@@ -6540,14 +6551,14 @@ class TiffPreview(QWidget):
         black overlay on top of black ink is what sent Knut looking for a bug in
         the geometry.
 
-        **Positions are ROUNDED, not truncated.** ``int()`` biases every endpoint
-        the same way — down, by up to a whole pixel. The gaps survive that (both
-        roundings vary by at most one pixel; measured), but the ALIGNMENT does
-        not: these dashes are drawn over a sheet that already has its own printed
-        at the same positions, and a systematically low overlay sits beside that
-        ink instead of on it, thickening every dash. Rounding centres the error
-        at zero, so the two coincide — which is what makes the overlay safe to
-        leave on at all.
+        **Positions are the ink's, unrounded.** ``int()`` once biased every
+        endpoint down by up to a pixel and sat the overlay beside the printed
+        dash, thickening it; rounding to a whole logical pixel replaced it and
+        was still a device pixel off on a Retina screen, and the segments
+        themselves were the millimetre the dash was asked for rather than the
+        pixels the renderer inked. They are now those pixels' centre lines and
+        are drawn as they come, at least as thick as the ink, so the overlay
+        covers the sheet's own dash at every zoom (Knut, 2026-10-26).
         """
         from PyQt6.QtCore import QLineF
         from PyQt6.QtGui import QPen
@@ -6561,18 +6572,33 @@ class TiffPreview(QWidget):
         # that can be counted. Narrow it, then give it up, rather than let it
         # blur the very spacing the overlay exists to show.
         gap = self._closest_helper_marker_gap(disp_w, disp_h)
-        halo_w = 3.0 if gap >= 6.0 else (2.0 if gap >= 4.0 else 0.0)
+        halo_extra = 1.6 if gap >= 6.0 else (0.6 if gap >= 4.0 else 0.0)
+        ink_w, ink_h = getattr(self, "_helper_marker_ink", (0.0, 0.0))
 
+        # AT THE INK'S OWN POSITION AND AT LEAST ITS OWN THICKNESS (Knut,
+        # 2026-10-26: "Each line is no longer a single line"). The segments
+        # are the centre lines of the pixels the sheet inks
+        # (`TabChart._helper_marker_lines_frac`), so they are placed as they
+        # come, not rounded to a whole logical pixel: on a Retina screen that
+        # rounding alone moved the overlay a whole device pixel off the ink.
+        # And the stroke is never thinner than the printed dash at this zoom,
+        # or the dash shows beside it: on a 200 dpi photo card near full size
+        # every second dash read as a thick line next to a thin one.
         for x0, y0, x1, y1 in self._helper_markers:
-            seg = QLineF(round(border + x0 * disp_w), round(border + y0 * disp_h),
-                         round(border + x1 * disp_w), round(border + y1 * disp_h))
-            if halo_w:
+            seg = QLineF(border + x0 * disp_w, border + y0 * disp_h,
+                         border + x1 * disp_w, border + y1 * disp_h)
+            thick = (ink_w * disp_w if abs(x0 - x1) < 1e-12
+                     else ink_h * disp_h)
+            width = max(1.4, thick)
+            if halo_extra:
                 halo = QPen(QColor(255, 255, 255, 210))
-                halo.setWidthF(halo_w)
+                halo.setWidthF(width + halo_extra)
                 painter.setPen(halo)
                 painter.drawLine(seg)
             line = QPen(ink)
-            line.setWidthF(1.4)
+            line.setWidthF(width)
+            # FLAT ENDS: the segment already spans the dash's full length.
+            line.setCapStyle(Qt.PenCapStyle.FlatCap)
             painter.setPen(line)
             painter.drawLine(seg)
 
