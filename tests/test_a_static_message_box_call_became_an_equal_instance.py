@@ -111,3 +111,33 @@ def test_no_static_message_box_call_is_left_in_the_app():
     assert not left, ("a static QMessageBox call bypasses "
                       "keep_message_box_inside_the_work_area; use "
                       "ui.widgets.message_box: " + ", ".join(left))
+
+
+def test_the_instance_is_deleted_after_it_answers_as_the_static_is(
+        _app, monkeypatch):
+    """Qt's static deletes its box on return; `message_box` hands its box to
+    `deleteLater`, so it does not stay behind as a hidden child of its parent.
+    The box is held here, so only `deleteLater` can delete it."""
+    from PyQt6 import sip
+    from PyQt6.QtCore import QEvent
+    from PyQt6.QtWidgets import QWidget
+    import ui.widgets as widgets
+    made = []
+    real = widgets.keep_message_box_inside_the_work_area
+
+    def keep(box, *a, **k):
+        made.append(box)
+        return real(box, *a, **k)
+    monkeypatch.setattr(widgets, "keep_message_box_inside_the_work_area", keep)
+    parent = QWidget()
+    try:
+        seen = []
+        _answer("escape", seen)
+        got = widgets.message_box(QMessageBox.Icon.Critical, parent,
+                                  "Printer Offline", "It cannot be reached.")
+        assert got == SB.Ok and seen and len(made) == 1
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+        assert sip.isdeleted(made[0])
+        assert parent.findChildren(QMessageBox) == []
+    finally:
+        parent.deleteLater()

@@ -2139,7 +2139,8 @@ def message_box(icon, parent, title: str, text: str,
     Qt's order; as the default, *default* if given, otherwise the first button
     with the accept role; Escape left to Qt, which detects it when the box is
     shown. Returns what the static returns: the standard button clicked, and
-    ``Cancel`` when ``exec`` returns -1.
+    ``Cancel`` when ``exec`` returns -1. The box is deleted afterwards
+    (``deleteLater``), as the static's is.
     """
     sb = QMessageBox.StandardButton
     if buttons is None:
@@ -2163,9 +2164,14 @@ def message_box(icon, parent, title: str, text: str,
                 or (default != sb.NoButton and button == default)):
             box.setDefaultButton(pushed)
     keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
-    if box.exec() == -1:
-        return sb.Cancel
-    return box.standardButton(box.clickedButton())
+    try:
+        if box.exec() == -1:
+            return sb.Cancel
+        return box.standardButton(box.clickedButton())
+    finally:
+        # Qt's static deletes its box on return; this one would stay a hidden
+        # child of *parent*. The answer is read above, before it goes.
+        box.deleteLater()
 
 
 class NoScrollComboBox(QComboBox):
