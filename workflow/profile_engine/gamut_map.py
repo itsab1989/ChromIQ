@@ -799,6 +799,13 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
                 # colprof's own device values at the nodes, so the target
                 # can be re-expressed through the ENGINE's model.
                 out[tag].node_dev = _dev_at
+                # Research Agent 80 (a80-oraclecurve): colprof's own output
+                # curves of this table (read while the file exists)
+                try:
+                    out[tag].oracle_out = a80_lut_out_curves(
+                        Path(icc).read_bytes(), tag)
+                except Exception:       # noqa: BLE001 - research only
+                    out[tag].oracle_out = None
         if cache_key is not None:
             while len(_ORACLE_CACHE) >= _ORACLE_CACHE_MAX:
                 _ORACLE_CACHE.pop(next(iter(_ORACLE_CACHE)))
@@ -1112,6 +1119,201 @@ def _a35_apply_band(model, dev, mapped, col, band, mode, inv_kw,
     return dev
 
 
+A79_TOKEN = "a79-perccol"
+
+
+def a79_mild_fold(model, channel_letters, meas=None) -> tuple | None:
+    """Research a79-perccol: ``(k_fold, fold_at_black)`` when ``model`` is a
+    4-ink CMYK printer (K fourth) with a MILD ink fold at the black
+    (cmykport.k_fold finds one, fold_at_black below the a73-kfirst
+    threshold A73_FOLD_MIN), else None. With ``meas`` the fold must also be
+    MEASURED (Agent 74's test, builder._a74_measured_fold >=
+    A74_FOLDMEAS_MIN): the fitted models of the synthetic X3 pessimistic and
+    XKH typical September 900 sets read a fold their data does not show
+    (measured -4.8 L*; real i1iSis +2.0)."""
+    if (getattr(model, "n_channels", 0) != 4 or channel_letters is None
+            or list(channel_letters)[3:4] != ["K"]):
+        return None
+    from workflow.profile_engine import cmykport
+    from workflow.profile_engine.builder import (
+        A73_FOLD_MIN, A74_FOLDMEAS_MIN, _a74_measured_fold)
+    kf = cmykport.k_fold(model)
+    if kf is None:
+        return None
+    fb = float(cmykport.fold_at_black(model))
+    if fb >= A73_FOLD_MIN:
+        return None
+    if meas is not None and hasattr(meas, "device"):
+        ex = _a74_measured_fold(meas, model, 4)
+        if ex is None or ex < A74_FOLDMEAS_MIN:
+            return None
+    return (float(kf), fb)
+
+
+A79_LINCURVE = "a79-lincurve"
+# Source L* below which the a79 neutral column runs on one straight device
+# path from the oracle's column device at the first node at or above it to
+# the oracle's black (env CHROMIQ_A79_LA). Without it the column took
+# colprof's own dark end, whose black (Y-rich on i1iSis) prints lighter
+# than the K-led column just above it: every grey ramp rose 1.2 L* into
+# the black (offline, Findings agent79-01 s3). Swept 5 / 8 / 12 / 20 / 25:
+# below 12 the rise returns, above it the straight path tints the dark
+# greys (rbf C* 6.4 at 12, 7.3 at 20; colprof 4.9).
+A79_LA = 12.0
+
+
+def a79_la() -> float:
+    import os
+    v = os.environ.get("CHROMIQ_A79_LA")
+    return float(v) if v else A79_LA
+
+
+def a79_dark_path(dev: np.ndarray, node_lab: np.ndarray) -> np.ndarray:
+    """Research a79-perccol: the source-neutral column below a79_la() on a
+    straight device path (linear in node L*) from the column's device at
+    the first node at or above it to the column's black node; the column
+    above, and every other node, unchanged."""
+    col = np.flatnonzero(np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+    if len(col) < 3:
+        return dev
+    col = col[np.argsort(node_lab[col, 0])]
+    lc = node_lab[col, 0]
+    up = np.flatnonzero(lc >= a79_la())
+    if not len(up) or up[0] < 2:
+        return dev
+    ia = int(up[0])
+    out = np.asarray(dev, float).copy()
+    d0, da = out[col[0]].copy(), out[col[ia]].copy()
+    span = max(lc[ia] - lc[0], 1e-9)
+    for i in range(1, ia):
+        w = (lc[i] - lc[0]) / span
+        out[col[i]] = (1.0 - w) * d0 + w * da
+    return out
+
+
+def a79_neutralise(model, dev: np.ndarray, node_lab: np.ndarray, *,
+                   ink_limit: float | None = None,
+                   channel_max: np.ndarray | None = None,
+                   iters: int = 6) -> np.ndarray:
+    """Research a79-perccol: the source-neutral column at and above
+    a79_la() keeps the oracle's K (its separation, the one its neighbours
+    share) while C, M, Y move so the model prints it neutral at the same
+    L* (Gauss-Newton, K held, box and ink limit kept). colprof's K-led
+    perceptual greys are tinted (i1iSis saturation neutral C* 0.63 vs the
+    colorimetric axis 0.25); the correction is small (i1iSis: <= 0.04)."""
+    col = np.flatnonzero(np.hypot(node_lab[:, 1], node_lab[:, 2]) < 1.0)
+    col = col[(node_lab[col, 0] >= a79_la()) & (node_lab[col, 0] < 99.0)]
+    if not len(col):
+        return dev
+    out = np.asarray(dev, float).copy()
+    d = out[col].copy()
+    tgt = model.predict(d)
+    tgt[:, 1:] = 0.0
+    hi = np.ones(d.shape[1]) if channel_max is None else np.asarray(
+        channel_max, float)
+    h = 2e-3
+    for _ in range(iters):
+        r = model.predict(d) - tgt
+        jac = np.stack([(model.predict(d + h * np.eye(d.shape[1])[k])
+                         - model.predict(d - h * np.eye(d.shape[1])[k]))
+                        / (2 * h) for k in range(3)], 2)
+        try:
+            step = np.linalg.solve(jac + 1e-6 * np.eye(3), -r[:, :, None])[:, :, 0]
+        except np.linalg.LinAlgError:
+            break
+        d[:, :3] = np.clip(d[:, :3] + 0.8 * step, 0.0, hi[None, :3])
+        if ink_limit is not None:
+            d = b2a_mod.project_tac(d, ink_limit / 100.0)
+    out[col] = d
+    return out
+
+
+def a79_identity_output(blob: bytes) -> bytes:
+    """Research a79-lincurve: the same mft2 (Lut16) table with identity
+    output curves: every CLUT entry decoded through its output curve to the
+    device value it stands for. The device value at every node is unchanged
+    (to 1/65535); only the space the CMM interpolates in between the nodes
+    becomes plain device values instead of the model's shaper space."""
+    import struct
+    b = bytes(blob)
+    if b[:4] != b"mft2":
+        return blob
+    nin, nout, grid = b[8], b[9], b[10]
+    nie, noe = struct.unpack(">HH", b[48:52])
+    c0 = 52 + nin * nie * 2
+    cn = grid ** nin * nout
+    clut = np.frombuffer(b[c0:c0 + 2 * cn], dtype=">u2").astype(float).reshape(-1, nout) / 65535.0
+    outs = np.frombuffer(b[c0 + 2 * cn:c0 + 2 * cn + 2 * nout * noe],
+                         dtype=">u2").astype(float).reshape(nout, noe) / 65535.0
+    xs = np.linspace(0.0, 1.0, noe)
+    dev = np.stack([np.interp(clut[:, c], xs, outs[c]) for c in range(nout)], 1)
+    new = np.round(np.clip(dev, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    ident = np.tile(icw._identity_table(noe), (nout, 1)).astype(">u2").tobytes()
+    return b[:c0] + new + ident + b[c0 + 2 * cn + 2 * nout * noe:]
+
+
+A80_ORACLECURVE = "a80-oraclecurve"
+A80_PERCCOL = "a80-perccol"
+
+
+def a80_lut_out_curves(icc_bytes: bytes, tag: str):
+    """The output curves (nout x entries, 0..1) of an mft2 tag in a profile,
+    or None."""
+    import struct
+    b = bytes(icc_bytes)
+    n = struct.unpack(">I", b[128:132])[0]
+    for i in range(n):
+        sig, off, sz = struct.unpack(">4sII", b[132 + 12 * i:144 + 12 * i])
+        if sig == tag.encode():
+            d = b[off:off + sz]
+            if d[:4] != b"mft2":
+                return None
+            nin, nout, g = d[8], d[9], d[10]
+            nie, noe = struct.unpack(">HH", d[48:52])
+            c0 = 52 + nin * nie * 2 + 2 * nout * g ** nin
+            return (np.frombuffer(d[c0:c0 + 2 * nout * noe], dtype=">u2")
+                    .astype(float).reshape(nout, noe) / 65535.0)
+    return None
+
+
+def a80_oracle_output(blob: bytes, curves: np.ndarray) -> bytes:
+    """Research a80-oraclecurve: the same mft2 table re-encoded so its
+    output curves are ``curves`` (colprof's own for this table): every CLUT
+    entry is decoded to its device value and stored as the curve's inverse
+    of it. Node device values are unchanged (to the curve's resolution);
+    between nodes the CMM then interpolates in colprof's space, as colprof's
+    own table does (XFI targen2240 perceptual blue near black: ours blue,
+    darker, blue, black with linear or shaper-space curves; colprof smooth).
+    """
+    import struct
+    b = bytes(blob)
+    if b[:4] != b"mft2" or curves is None:
+        return blob
+    nin, nout, grid = b[8], b[9], b[10]
+    nie, noe = struct.unpack(">HH", b[48:52])
+    if np.asarray(curves).shape[0] != nout:
+        return blob
+    c0 = 52 + nin * nie * 2
+    cn = grid ** nin * nout
+    clut = np.frombuffer(b[c0:c0 + 2 * cn], dtype=">u2").astype(float).reshape(-1, nout) / 65535.0
+    outs = np.frombuffer(b[c0 + 2 * cn:c0 + 2 * cn + 2 * nout * noe],
+                         dtype=">u2").astype(float).reshape(nout, noe) / 65535.0
+    xs = np.linspace(0.0, 1.0, noe)
+    dev = np.stack([np.interp(clut[:, c], xs, outs[c]) for c in range(nout)], 1)
+    cv = np.asarray(curves, float)
+    xc = np.linspace(0.0, 1.0, cv.shape[1])
+    newc = np.empty_like(dev)
+    newo = np.empty((nout, noe))
+    for c in range(nout):
+        y = np.maximum.accumulate(cv[c])
+        y = y + np.linspace(0.0, 1e-9, len(y))   # strictly increasing
+        newc[:, c] = np.interp(dev[:, c], y, xc)
+        newo[c] = np.interp(xs, xc, cv[c])
+    new = np.round(np.clip(newc, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    ot = np.round(np.clip(newo, 0.0, 1.0) * 65535.0).astype(">u2").tobytes()
+    return b[:c0] + new + ot + b[c0 + 2 * cn + 2 * nout * noe:]
+
+
 def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      source_gamut: Path, *, channel_letters: list[str],
                      is_additive: bool, ink_limit: float | None,
@@ -1308,6 +1510,46 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         mappers[tag] = mapper
         jobs.append(tag)
 
+    # Research Agent 79 (a79-perccol, Findings/agent79-01-isissmooth.md):
+    # the source-neutral column of the mapped tables is the colorimetric
+    # table's axis (late GCR, C/M/Y-led) while every other node is the
+    # colprof oracle's own device value (K-led, -kr). The CMM interpolates
+    # the cells next to the axis between the two separations. On a printer
+    # whose colour inks lighten heavy black (an ink fold) those mixes print
+    # off their targets and change fast with L*: R-CMYK-default-i1iSis
+    # (mild fold) shows a band and a hue patch on every grey ramp and a step
+    # at the dark end of the blue / violet ramps that colprof's table does
+    # not have; its target tone also carries a 3.4 L* error of the model on
+    # the K axis (K 0.60, a gap of the training chart). With the token, on a
+    # 4-ink CMYK printer with a MILD fold (cmykport.k_fold finds one and
+    # fold_at_black < A73_FOLD_MIN, the a73-kfirst test, which on a strong
+    # fold already puts colprof's -kr K prior under the axis), the column
+    # keeps the oracle's devices like its neighbours. No fold, or a strong
+    # one: bytes unchanged.
+    _a79 = None
+    if (accurate and A79_TOKEN in getattr(settings, "engine_candidates",
+                                          frozenset())
+            and model is not None and not is_additive):
+        _a79 = a79_mild_fold(model, channel_letters, meas)
+        if progress:
+            progress("Perceptual neutral column (a79-perccol): "
+                     + (f"mild ink fold (from K {_a79[0]:.2f}, {_a79[1]:.1f}"
+                        " L* at the black): colprof's separation kept."
+                        if _a79 else "no change."))
+    if (_a79 is None and accurate and A80_PERCCOL in getattr(
+            settings, "engine_candidates", frozenset())
+            and model is not None and not is_additive
+            and model.n_channels == 4):
+        # Research Agent 80 (a80-perccol): where a80-greywalk re-walked the
+        # grey (a measured fold that a79_mild_fold misses because the model
+        # shows no k_fold: XFI), the perceptual column is a79-perccol's too
+        _axv80 = neutral_axis() if callable(neutral_axis) else neutral_axis
+        if _axv80 is not None and (_axv80.get("a80") or {}).get("fired"):
+            _a79 = (float("nan"), float("nan"))
+            if progress:
+                progress("Perceptual neutral column (a80-perccol): "
+                         "colprof's separation kept.")
+
     def _map_and_invert(tag: str):
         """One intent's table: map the node targets, invert them. Each
         intent reads only its own mapper and the (unchanged) model, so the
@@ -1338,7 +1580,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         _a35_band = None
         _a45_path = None
         if accurate and "a25-oracle-neutral" in _cands and getattr(
-                mapper, "node_dev", None) is not None:
+                mapper, "node_dev", None) is not None and not (
+                    _a79 and tag == "B2A0"):
             # Research (Agent 25): perceptual maps the neutral axis onto the
             # neutral axis. The source-neutral column's target keeps the L*
             # colprof's table prints (engine model) but is made neutral, and
@@ -1461,6 +1704,16 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             dev = _odev.copy()
             if channel_max is not None:
                 dev = np.minimum(dev, channel_max[None, :])
+            if _a79 and tag == "B2A0":
+                # Research a79-perccol (perceptual table only: the
+                # saturation table stays as it was, its neutral column
+                # scored 0.25 -> 0.38 C* with it): the oracle's own column, and below
+                # a79_la() one straight path into the oracle's black
+                dev = a79_neutralise(model, dev, node_lab,
+                                     ink_limit=None if is_additive
+                                     else ink_limit,
+                                     channel_max=channel_max)
+                dev = a79_dark_path(dev, node_lab)
             _ax = neutral_axis() if callable(neutral_axis) else neutral_axis
             if (_neutral_col is not None and len(_neutral_col)
                     and _ax is not None and _ax.get("black") is not None):
@@ -1624,6 +1877,16 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             out_tables=(np.tile(icw._identity_table(entries),
                                 (model.n_channels, 1)) if no_out_shaper
                         else icw.curves_to_tables(inv_curves, entries)))
+        if (accurate and tag == "B2A0" and A80_ORACLECURVE in getattr(
+                settings, "engine_candidates", frozenset())
+                and getattr(mapper, "oracle_out", None) is not None):
+            _axv = (neutral_axis() if callable(neutral_axis)
+                    else neutral_axis)
+            if _axv is not None and (_axv.get("a80") or {}).get("fired"):
+                out[tag] = a80_oracle_output(out[tag], mapper.oracle_out)
+                if progress:
+                    progress("Perceptual table: colprof's output curves "
+                             "(research a80-oraclecurve).")
         return tag
 
     from workflow.profile_engine import parallel
