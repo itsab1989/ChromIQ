@@ -654,3 +654,152 @@ def a78_smooth(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
         y[sel] = (1.0 - w[sel, None]) * y[sel] + w[sel, None] * f[sel]
         x = y.reshape(g_coarse, g_coarse, g_coarse, n)
     return x.reshape(-1, n)
+
+
+# Agent 82 (a82-green, research, off by default): RGB rel. col. greens.
+# Cause (Findings/agent82-01): two places where the colorimetric table holds a
+# green to the printer's limit and then turns.
+#  1. Near the black (Okt26 mid h120, the dark teal spot): the a60-darkacc
+#     region keeps the FINE table for clipped nodes (hand-over band 16 dE), and
+#     there one clipped node's own clip snaps onto the device's G-only edge
+#     (Okt26 node L* 9.4 a* -8 b* 8: RGB 0 .079 0, printed h 158 against a
+#     target h 135, while the nodes above and below it print h 133 and h 147),
+#     so a dark green ramp turns teal for one fine cell and then back.
+#  2. At the green cusp (ET-8550 Adobe green into black, knee at L* 57): the
+#     coarse (colprof grid) table's clipped nodes put the cusp node exactly
+#     on the gamut's corner, so chroma rises to it and falls from it within
+#     one coarse cell.
+# The fix: (1) a 1-2-1 filter along L*, a* and b* on the FINE table's clipped
+# nodes (strength = clip distance - 1 dE, capped at 1, and faded out again
+# from 4 to 8 dE of clip distance: the snap happens just outside the gamut;
+# nodes far outside belong to the a29/a56 floor below the black, and
+# filtering them cost the RGB default i1Pro dark green ramp's evenness
+# 0.09 -> 0.15) within dark_l L* of the printer's black (faded out over
+# dark_f L* above it), 2 passes; (2) a
+# 1-2-1 filter along L* on the coarse table's clipped nodes (clip distance >
+# 4 dE) from 30 L* above the black to 10 L* below the white, 2 passes. Both
+# only on nodes whose TARGET hue is green (A82["hue"]); printable nodes are
+# never changed, so in-gamut accuracy is untouched.
+# a82-green is part (1) only. Part (2) is the separate a82-greencusp: it
+# lowers the ET-8550 knee only from 1.15 to 1.07 JND (colprof 0.90) and makes
+# Knut's green h150 ramp cross the 1 JND line (0.93 -> 1.02), so it is not
+# proposed (Findings/agent82-01 s3).
+A82_TOKEN = "a82-green"
+A82_CUSP_TOKEN = "a82-greencusp"
+# a82-greenin (separate, research): printable green nodes within A82_IN dE of
+# a clipped node lean toward the coarse table (Agent 59's inward hand-over,
+# a59-inband, on green target hues only): the turn where a green ramp leaves
+# the gamut is rounded the way colprof's grid rounds it, at the cost of
+# exactness of printable greens next to the gamut edge (Okt26 green h120's
+# two faint bands, ET-8550 h105).
+A82_IN_TOKEN = "a82-greenin"
+A82_IN = (10.0, 1.0)
+
+
+def a82_in(candidates):
+    """(depth, strength) with a82-greenin on, else None."""
+    if A82_IN_TOKEN not in frozenset(candidates or ()):
+        return None
+    return A82_IN
+A82 = {"hue": (90.0, 170.0), "dark_l": 20.0, "dark_f": 5.0, "dark_r0": 1.0,
+       "dark_rmax": 8.0, "dark_rw": 4.0, "dark_iters": 2, "co_rmin": 4.0, "co_iters": 2, "co_lmin": 30.0,
+       "co_top": 10.0}
+
+
+def a82_params(candidates):
+    """a82-green's parameters, or None with the token off (env
+    CHROMIQ_A82 "h0:h1:dark_l:dark_iters:co_iters" for research sweeps)."""
+    cand = frozenset(candidates or ())
+    if A82_TOKEN not in cand and A82_CUSP_TOKEN not in cand:
+        return None
+    import os
+    p = dict(A82)
+    p["dark"] = A82_TOKEN in cand
+    p["cusp"] = A82_CUSP_TOKEN in cand
+    v = os.environ.get("CHROMIQ_A82", "")
+    if v:
+        k = v.split(":")
+        p["hue"] = (float(k[0]), float(k[1]))
+        if len(k) > 2:
+            p["dark_l"] = float(k[2])
+        if len(k) > 3:
+            p["dark_iters"] = int(k[3])
+        if len(k) > 4:
+            p["co_iters"] = int(k[4])
+    return p
+
+
+def _a82_hue_mask(lab: np.ndarray, hue) -> np.ndarray:
+    h = np.degrees(np.arctan2(lab[:, 2], lab[:, 1])) % 360.0
+    h0, h1 = float(hue[0]), float(hue[1])
+    return ((h >= h0) & (h <= h1)) if h0 <= h1 else ((h >= h0) | (h <= h1))
+
+
+def _a82_filter(x: np.ndarray, axes) -> np.ndarray:
+    acc = np.zeros_like(x)
+    for k in axes:
+        lo = np.concatenate([x.take([0], k), x.take(range(x.shape[k] - 1), k)],
+                            k)
+        hi = np.concatenate([x.take(range(1, x.shape[k]), k),
+                             x.take([x.shape[k] - 1], k)], k)
+        acc += 0.25 * lo + 0.5 * x + 0.25 * hi
+    return acc / len(axes)
+
+
+def a82_coarse(sub: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
+               g_fine: int, g_coarse: int, params: dict, black_l: float,
+               white_l: float) -> np.ndarray:
+    """a82-green part 2: the coarse table's clipped green nodes between
+    black + co_lmin and white - co_top filtered along L*."""
+    if not params.get("cusp", True):
+        return np.asarray(sub)
+    st = (g_fine - 1) // (g_coarse - 1)
+    n = sub.shape[1]
+    nl = np.asarray(node_lab, float).reshape(g_fine, g_fine, g_fine, 3)[
+        ::st, ::st, ::st].reshape(-1, 3)
+    rr = np.asarray(residual, float).reshape(g_fine, g_fine, g_fine)[
+        ::st, ::st, ::st].reshape(-1)
+    sel = ((rr > float(params["co_rmin"])) & _a82_hue_mask(nl, params["hue"])
+           & (nl[:, 0] >= float(black_l) + float(params["co_lmin"]))
+           & (nl[:, 0] <= float(white_l) - float(params["co_top"]))
+           & (np.linalg.norm(nl, axis=1) > 1.0))
+    if not sel.any():
+        return np.asarray(sub)
+    x = np.asarray(sub, float).reshape(g_coarse, g_coarse, g_coarse, n).copy()
+    for _ in range(int(params["co_iters"])):
+        f = _a82_filter(x, (0,)).reshape(-1, n)
+        y = x.reshape(-1, n).copy()
+        y[sel] = f[sel]
+        x = y.reshape(g_coarse, g_coarse, g_coarse, n)
+    return x.reshape(-1, n)
+
+
+def a82_dark(table: np.ndarray, node_lab: np.ndarray, residual: np.ndarray,
+             g: int, params: dict, black_l: float) -> np.ndarray:
+    """a82-green part 1: the written (fine) table's clipped green nodes near
+    the black filtered along L*, a* and b*."""
+    if not params.get("dark", True):
+        return np.asarray(table)
+    nl = np.asarray(node_lab, float)
+    r = np.asarray(residual, float)
+    n = table.shape[1]
+    top = float(black_l) + float(params["dark_l"])
+    fd = max(float(params["dark_f"]), 1e-9)
+    u = np.clip((top + fd - nl[:, 0]) / fd, 0.0, 1.0)
+    rmax = params.get("dark_rmax")
+    v = (np.ones(len(r)) if rmax is None else
+         np.clip((float(rmax) - r) / max(float(params.get("dark_rw", 4.0)),
+                                         1e-9), 0.0, 1.0))
+    s = (u * u * (3.0 - 2.0 * u) * v * v * (3.0 - 2.0 * v)
+         * np.clip(r - float(params["dark_r0"]), 0, 1)
+         * _a82_hue_mask(nl, params["hue"])
+         * (np.linalg.norm(nl, axis=1) > 1.0))
+    if not (s > 0).any():
+        return np.asarray(table)
+    x = np.asarray(table, float).reshape(g, g, g, n).copy()
+    for _ in range(int(params["dark_iters"])):
+        f = _a82_filter(x, (0, 1, 2)).reshape(-1, n)
+        y = x.reshape(-1, n)
+        y = (1.0 - s[:, None]) * y + s[:, None] * f
+        x = y.reshape(g, g, g, n)
+    return x.reshape(-1, n)
