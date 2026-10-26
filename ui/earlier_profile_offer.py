@@ -199,6 +199,8 @@ class EarlierProfileOffer(QObject):
         keep = box.addButton(keep_label, QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(main)
         box.setEscapeButton(keep)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         self._exec(box)
         return ARCHIVE if box.clickedButton() is main else KEEP

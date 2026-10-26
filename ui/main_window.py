@@ -1630,6 +1630,8 @@ class MainWindow(QMainWindow):
             # the button too narrow for its own label. Measured offscreen in
             # German: fitted to 139 px, needed 160 px for "PROJEKT SCHLIESSEN".
             accent_message_box_button(close_btn)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             fit_message_box_buttons(box)
         except Exception:      # noqa: BLE001 — a narrow button is not fatal
             pass
@@ -2055,6 +2057,8 @@ class MainWindow(QMainWindow):
         go = box.addButton(tr("Look now"), QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is not go:
@@ -2177,6 +2181,8 @@ class MainWindow(QMainWindow):
             "already hidden the names of everything that was not a possible "
             "instrument.").format(path=path))
         done.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(done, widen_when_it_fits=False)
         fit_message_box_buttons(done)
         done.exec()
         self._offer_cr30_bluetooth_repair(result.get("confirmed") or [])
@@ -2233,6 +2239,8 @@ class MainWindow(QMainWindow):
         box.addButton(tr("Leave it as it is"),
                       QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(use)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
@@ -2422,6 +2430,8 @@ class MainWindow(QMainWindow):
         box.setText(title)
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
 
     def _show_patch_cube(self) -> None:
