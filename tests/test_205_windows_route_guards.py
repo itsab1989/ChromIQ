@@ -153,15 +153,18 @@ def test_a_chart_that_cannot_be_read_is_not_a_spooler_refusal(qapp, tmp_path, mo
     tab = _tab(tmp_path)
     tab._printer = pr
     monkeypatch.setattr(tp, "is_windows", lambda: True)
+    from PyQt6.QtWidgets import QMessageBox
     shown = []
     # 4.3.16: the static call became ui.widgets.message_box (routed through
     # keep_message_box_inside_the_work_area); the same window, answered here
     monkeypatch.setattr(tp, "message_box",
-                        lambda icon, parent, title, body: shown.append((title, body)))
+                        lambda icon, parent, title, body:
+                        shown.append((title, body, icon)))
     monkeypatch.setattr(tab, "_show_print_refusal",
                         lambda *a: pytest.fail("shown as a spooler refusal"))
     tab._on_print_done(-1)
     assert shown and "broken.tif" in shown[0][1]
+    assert shown[0][2] == QMessageBox.Icon.Critical       # as the static was
 
 
 # ---- finding 7: "&" in a printer name on a button --------------------------------
@@ -199,8 +202,11 @@ def test_the_failure_window_names_the_chart_not_a_temporary_page(qapp, tmp_path,
     tab._printer = pr
     tab._page_name_for_messages = "WinPrint-RGB_02.tif"
     monkeypatch.setattr(tp, "is_windows", lambda: True)
+    from PyQt6.QtWidgets import QMessageBox
     shown = []
     monkeypatch.setattr(tp, "message_box",
-                        lambda icon, parent, title, body: shown.append(body))
+                        lambda icon, parent, title, body:
+                        shown.append((body, icon)))
     tab._on_print_done(-1)
-    assert "WinPrint-RGB_02.tif" in shown[0] and "tmpab12cd" not in shown[0]
+    assert "WinPrint-RGB_02.tif" in shown[0][0] and "tmpab12cd" not in shown[0][0]
+    assert shown[0][1] == QMessageBox.Icon.Critical       # as the static was

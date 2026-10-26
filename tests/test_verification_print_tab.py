@@ -306,13 +306,17 @@ def test_an_offline_printer_leaves_no_print_record(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(
         "workflow.verification_print.convert_pages_through_profile",
         _fake_converter([]))
-    # 4.3.16: the static call became ui.widgets.message_box
-    monkeypatch.setattr("ui.tabs.tab_print.message_box", lambda *a, **k: None)
+    # 4.3.16: the static call became ui.widgets.message_box; the mock stood
+    # in for QMessageBox.critical only, so every box it takes is Critical
+    icons: list = []
+    monkeypatch.setattr("ui.tabs.tab_print.message_box",
+                        lambda icon, *a, **k: icons.append(icon))
     sent = _ready_to_print(tab, s, reachable=False)
 
     tab._on_print_current()
     assert sent == []
     assert not vp.print_record_path(ti2).exists()
+    assert all(i == QMessageBox.Icon.Critical for i in icons)
 
 
 def test_cancelling_the_preflight_leaves_no_print_record(
@@ -345,8 +349,11 @@ def test_a_job_the_queue_refuses_leaves_no_print_record(
     monkeypatch.setattr(
         "workflow.verification_print.convert_pages_through_profile",
         _fake_converter([]))
-    # 4.3.16: the static call became ui.widgets.message_box
-    monkeypatch.setattr("ui.tabs.tab_print.message_box", lambda *a, **k: None)
+    # 4.3.16: the static call became ui.widgets.message_box; the mock stood
+    # in for QMessageBox.critical only, so every box it takes is Critical
+    icons: list = []
+    monkeypatch.setattr("ui.tabs.tab_print.message_box",
+                        lambda icon, *a, **k: icons.append(icon))
     sent = _ready_to_print(tab, s, exit_code=1)
     # #205: on Windows the spooler's refusal has its own window
     monkeypatch.setattr(tab, "_show_print_refusal", lambda *a, **k: None)
@@ -354,6 +361,7 @@ def test_a_job_the_queue_refuses_leaves_no_print_record(
     tab._on_print_current()
     assert len(sent) == 1                    # it really was submitted
     assert not vp.print_record_path(ti2).exists()
+    assert all(i == QMessageBox.Icon.Critical for i in icons)
 
 
 def test_the_external_route_records_the_hand_over_it_really_makes(
@@ -436,12 +444,13 @@ def test_missing_cctiff_shows_s9_and_prints_nothing(qapp, tmp_path, monkeypatch)
     # 4.3.16: the static call became ui.widgets.message_box
     monkeypatch.setattr("ui.tabs.tab_print.message_box",
                         lambda icon, parent, title, body, *a, **k:
-                        shown.append((title, body)))
+                        shown.append((title, body, icon)))
     monkeypatch.setattr(tab, "_print_pages",
                         lambda pages: pytest.fail("a failed conversion must print nothing"))
 
     tab._on_print_current()
     assert shown and shown[0][0] == M.M_CM_NO_CCTIFF.title
+    assert shown[0][2] == QMessageBox.Icon.Critical       # as the static was
 
 
 def test_a_failed_page_shows_s10_names_the_page_and_prints_nothing(
@@ -458,12 +467,13 @@ def test_a_failed_page_shows_s10_names_the_page_and_prints_nothing(
     # 4.3.16: the static call became ui.widgets.message_box
     monkeypatch.setattr("ui.tabs.tab_print.message_box",
                         lambda icon, parent, title, body, *a, **k:
-                        shown.append((title, body)))
+                        shown.append((title, body, icon)))
     monkeypatch.setattr(tab, "_print_pages",
                         lambda pages: pytest.fail("a failed conversion must print nothing"))
 
     tab._on_print_all()
     assert shown and shown[0][0] == M.M_CM_CONVERT_FAILED.title
+    assert shown[0][2] == QMessageBox.Icon.Critical       # as the static was
     assert "page 2 of 3" in shown[0][1]
     assert "cctiff: broken" in shown[0][1]
 
