@@ -161,6 +161,8 @@ class Cr30CalibrationMixin:
         go = box.addButton(tr("Calibrate now"), QMessageBox.ButtonRole.AcceptRole)
         cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         # BASTI'S RULE, 2026-08-30: *"cancel should always be on the right
         # side"* — the action first, the way out last. It reverses the macOS
@@ -262,6 +264,8 @@ class Cr30CalibrationMixin:
                 "already had is untouched.\n\n"
                 "What went wrong: {error}").format(error=why))
             again.setStandardButtons(QMessageBox.StandardButton.Ok)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(again, widen_when_it_fits=False)
             fit_message_box_buttons(again)
             again.exec()
             return False
@@ -447,6 +451,8 @@ class Cr30CalibrationMixin:
                     "already had.\n\n"
                     "What went wrong: {error}").format(error=why))
             box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             fit_message_box_buttons(box)
             box.exec()
             # A refused calibration is survivable; a lost instrument is not.
@@ -530,6 +536,8 @@ class Cr30CalibrationMixin:
         box.addButton(tr("Carry on anyway"),
                       QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(again)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         order_message_box_buttons(box, box.buttons())
         box.exec()
@@ -593,6 +601,8 @@ class Cr30CalibrationMixin:
         # only `show()`n — Qt does not detect the escape button until exec().
         # Only an exec'd box with a real key event tells the truth.
         box.setEscapeButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         # "calibrate now, skip this step, cancel" — his order, verbatim.
         order_message_box_buttons(box, [go, skip, cancel])

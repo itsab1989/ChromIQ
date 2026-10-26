@@ -5066,6 +5066,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setDefaultButton(recover)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is not recover:
@@ -6523,6 +6525,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setText(title)
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -6551,6 +6555,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setDefaultButton(use)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is use
@@ -6612,6 +6618,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setDefaultButton(fix)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is not fix:
@@ -6790,6 +6798,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             box.setDefaultButton(cancel)
             from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             fit_message_box_buttons(box)
             # Nothing else may open over this until it is answered.
             self._pre_measure_window_open = True
@@ -7137,6 +7147,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "out. The copy will no longer describe this run's measurement."))
         cancel = box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         clicked = box.clickedButton()
         if clicked is replace:
@@ -7183,6 +7195,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Cancel is the default: the route the message recommends — switching
         # the Verification field to "New verification" — starts by stopping here.
         box.setDefaultButton(cancel_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         return "go" if box.clickedButton() is over_btn else "cancel"
 
@@ -7898,6 +7912,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             box.setStandardButtons(QMessageBox.StandardButton.Ok)
             from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             fit_message_box_buttons(box)
             box.exec()
             # The old code unticked the module's Verification box here. With
@@ -8451,6 +8467,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.addButton(QMessageBox.StandardButton.Ok)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -9126,6 +9144,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                 QMessageBox.ButtonRole.DestructiveRole)
         box.addButton(tr("Keep measuring"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(save)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
@@ -9545,6 +9565,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                   QMessageBox.ButtonRole.ResetRole)
                     if fast_on else None)
         box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         self._exec_measurement_window(box)
         if turn_off is not None and box.clickedButton() is turn_off:
@@ -10160,6 +10182,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setText(title)
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         self._exec_measurement_window(box)
 
     def _on_engine_fell_back_resumed(self, reason: str) -> None:
@@ -10216,6 +10240,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setText(tr(M.M_CR30_TRIGGER_NOT_ARMED.title))
         box.setInformativeText(tr(M.M_CR30_TRIGGER_NOT_ARMED.body))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -10509,6 +10535,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             stop = box.addButton(tr("Stop the measurement"),
                                  QMessageBox.ButtonRole.DestructiveRole)
             box.setDefaultButton(again)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             fit_message_box_buttons(box)
             order_message_box_buttons(box, [again, stop])
             box.exec()
@@ -10598,6 +10626,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         stop = box.addButton(tr("Stop the measurement"),
                              QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(again)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         order_message_box_buttons(box, [again, stop])
         box.exec()
@@ -12514,6 +12544,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         save = box.addButton(tr("Save and stop"),
                              QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(again)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         self._exec_measurement_window(box)
         clicked = box.clickedButton()
@@ -13013,6 +13045,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                QMessageBox.ButtonRole.RejectRole)
         close = box.addButton(tr("Close"), QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(reread)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         order_message_box_buttons(box, [reread, close])
         self._exec_measurement_window(box)
@@ -13767,6 +13801,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setDefaultButton(unsure_btn)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
@@ -14363,6 +14399,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -14387,6 +14425,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # owner asked to change, and this is not one of them.
         box.setDefaultButton(cancel)
         from ui.widgets import fit_message_box_buttons
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is go
@@ -15161,6 +15201,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         return True
@@ -15252,6 +15294,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -19012,6 +19056,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # does not happen offscreen — so fit them here (Knut, #130).
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         agreed = box.clickedButton() is go
@@ -20184,6 +20230,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             box.setText(title)
             box.setInformativeText(body)
             box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             box.exec()
             return
         elif reason == "empty":
@@ -20227,6 +20275,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
 
