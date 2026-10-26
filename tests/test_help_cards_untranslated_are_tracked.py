@@ -1102,7 +1102,10 @@ _BUDGET = {
     # is a size, the same in each of them (ru and uk write "см").
     "de": 8,
     "es": 8,
-    "fr": 9,
+    # +1 for French on 2026-10-26 (4.3.16): the patch set editor's image
+    # filter, "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)", now
+    # goes through tr(), and "Images" is the French word too.
+    "fr": 10,
     "it": 8,
     "ja": 6,
     "nl": 9,

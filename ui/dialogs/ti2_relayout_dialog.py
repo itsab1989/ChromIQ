@@ -4742,8 +4742,8 @@ class _NewChartDialog(QDialog):
     def _load_paste_file(self) -> None:
         path = open_file_dialog(
             self, tr("Load colour values"),
-            tr("Colour files (*.txt *.ti1 *.ti2 *.ti3 *.cgats *.csv *.tsv);;"
-               "All files (*)"), start_dir=str(Path.home()))
+            tr("Colour files (*.txt *.ti1 *.ti2 *.ti3 *.cgats *.csv *.tsv);;All files (*)"),
+            start_dir=str(Path.home()))
         if not path:
             return
         self.raise_(); self.activateWindow()   # keep above the editor (#96)
@@ -5037,8 +5037,8 @@ class _AddPatchesDialog(_NewChartDialog):
     def _load_add_file(self) -> None:
         path = open_file_dialog(
             self, tr("Load colours"),
-            tr("Colour files (*.txt *.ti1 *.ti2 *.ti3 *.cgats *.csv *.tsv);;"
-               "All files (*)"), start_dir=str(Path.home()))
+            tr("Colour files (*.txt *.ti1 *.ti2 *.ti3 *.cgats *.csv *.tsv);;All files (*)"),
+            start_dir=str(Path.home()))
         if not path:
             return
         self.raise_(); self.activateWindow()   # keep above the editor (#96)
@@ -6283,8 +6283,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                  or str(default_output_root()))
         path = open_file_dialog(
             self, tr("Load chart"),
-            tr("Charts & colour files (*.ti2 *.ti1 *.ti3 *.cgats *.txt);;"
-               "All files (*)"), start_dir=start)
+            tr("Charts & colour files (*.ti2 *.ti1 *.ti3 *.cgats *.txt);;All files (*)"),
+            start_dir=start)
         if not path:
             return
         # A chart the person loads here is no longer the preset's.
