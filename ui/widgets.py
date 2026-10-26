@@ -1380,10 +1380,15 @@ def _message_box_height_once_shown(box, label, work) -> int:
     time with the label's word wrap put back as it was.
 
     Never smaller than ``sizeHint``, and ``sizeHint`` if anything goes wrong.
+
+    **``sizeHint`` FOR A BOX WITH INFORMATIVE TEXT** (review of 4.3.16): Qt
+    sizes those in a branch of ``updateSize`` this does not copy, and the
+    estimate came out about twice the real height. ``sizeHint`` is what 4.3.15
+    measured them with, so they are measured exactly as there.
     """
     hint = box.sizeHint().height()
     lay = box.layout()
-    if label is None or lay is None:
+    if label is None or lay is None or box.informativeText():
         return hint
     was = label.wordWrap()
     try:
