@@ -1495,6 +1495,31 @@ def keep_message_box_inside_the_work_area(box) -> None:
         rich = label is not None and label.textFormat() == Qt.TextFormat.RichText
         wanted = 0
 
+        # --- 0. a long text is not set all in bold -------------------------
+        # Qt sets a message box's text in BOLD on macOS, all of it, so a
+        # warning of forty lines read as one shout (seen on screen, 4.3.15
+        # and since). Basti, 2026-10-26: *"some shorter texts might be ok
+        # completely bold if it is justified by the importance of the message.
+        # but very long text should not be completely bold"*. A text that fits
+        # on ONE line of the box keeps Qt's bold; anything longer is set in the
+        # regular weight. Rich text sets its own weights and is left alone.
+        if label is not None and text and not rich and label.font().bold():
+            one_line = ("\n" not in text and
+                        QFontMetrics(label.font()).horizontalAdvance(text) + 120
+                        <= int(work.width() * _MESSAGE_BOX_MAX_TEXT_WIDTH))
+            if not one_line:
+                regular = label.font()
+                regular.setBold(False)
+                label.setFont(regular)
+                # …AND A STYLE SHEET RULE, because the font alone does not
+                # last: on macOS QMessageBox::changeEvent sets the label bold
+                # again on every FontChange, and the app's style sheet gives
+                # the box one when it is polished (measured on screen: bold
+                # again once shown). A style sheet's weight wins over setFont.
+                label.setStyleSheet(
+                    (label.styleSheet() + " " if label.styleSheet() else "")
+                    + "QLabel { font-weight: 400; }")
+
         def _hold_width_open(layout) -> None:
             # setMinimumWidth does NOT work on a QMessageBox — it sizes from
             # its own grid layout and squeezes straight back. A full-width
