@@ -1364,6 +1364,71 @@ class WorkAreaClamped:
 _MESSAGE_BOX_MAX_TEXT_WIDTH = 0.55
 
 
+def _message_box_height_once_shown(box, label, work) -> int:
+    """The height *box* will have once it is shown, its text wrapped.
+
+    **``box.sizeHint()`` IS NOT THAT HEIGHT FOR A PLAIN-TEXT BOX** (4.3.16).
+    Until the box is shown its label does not wrap, so each paragraph counts
+    as one line: a German warning of long paragraphs measured 749 px here and
+    opened 1101 px tall on a 1083 px work area, and was never shortened. Qt
+    decides the real size in ``QMessageBoxPrivate::updateSize`` when the box
+    is shown: it turns word wrap on once the text is wider than a soft limit
+    (half the work area, at most 420 px on macOS and 500 elsewhere), takes the
+    layout's minimum width (which holds step 1's spacer) or the window
+    title's, never wider than a hard limit, and fixes the height at the
+    layout's height for that width. This is that arithmetic, run ahead of
+    time with the label's word wrap put back as it was.
+
+    Never smaller than ``sizeHint``, and ``sizeHint`` if anything goes wrong.
+    """
+    hint = box.sizeHint().height()
+    lay = box.layout()
+    if label is None or lay is None:
+        return hint
+    was = label.wordWrap()
+    try:
+        import sys as _sys
+        from PyQt6.QtGui import QFontMetrics
+        sw = work.width()
+        hard = sw if sw <= 1024 else min(sw - 480, 1000)
+        soft = min(sw // 2, 420 if _sys.platform == "darwin" else 500)
+        label.setWordWrap(False)
+        lay.activate()
+        width = lay.totalMinimumSize().width()
+        if width > soft:
+            label.setWordWrap(True)
+            lay.activate()
+            width = min(max(soft, lay.totalMinimumSize().width()), hard)
+        try:
+            fm = QFontMetrics(QApplication.font("QMdiSubWindowTitleBar"))
+            width = max(width, min(fm.horizontalAdvance(box.windowTitle()) + 50,
+                                   hard))
+        except Exception:      # noqa: BLE001
+            pass
+        if lay.hasHeightForWidth():
+            height = lay.totalHeightForWidth(width)
+        else:
+            height = lay.totalMinimumSize().height()
+        if not box.buttons():
+            # A box with no buttons is given "OK" when it is shown
+            # (QMessageBox::showEvent), so its button row is not in the
+            # layout yet. Its height is a close enough allowance (measured:
+            # 6 px over, against 19 px under without it).
+            from PyQt6.QtWidgets import QPushButton
+            ok = QPushButton("OK")
+            height += ok.sizeHint().height()
+            ok.deleteLater()
+        return max(hint, height)
+    except Exception:      # noqa: BLE001
+        return hint
+    finally:
+        try:
+            label.setWordWrap(was)
+            lay.activate()
+        except Exception:      # noqa: BLE001
+            pass
+
+
 def keep_message_box_inside_the_work_area(box) -> None:
     """A message box may not open taller than the screen it opens on.
 
@@ -1465,8 +1530,8 @@ def keep_message_box_inside_the_work_area(box) -> None:
         # "Show Details" button full of <p style=...> tags. Such a box shortens
         # itself (the pre-flight's one-line version) before it calls this.
         room = work.height() - 60
-        if (box.sizeHint().height() > room and text and not rich
-                and not box.detailedText()):
+        if (text and not rich and not box.detailedText()
+                and _message_box_height_once_shown(box, label, work) > room):
             head = text.split("\n\n", 1)[0]
             if head == text:
                 # No paragraph break to cut at (one long wrapped sentence, which
