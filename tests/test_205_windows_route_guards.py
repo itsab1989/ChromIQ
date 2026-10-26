@@ -140,7 +140,6 @@ def test_the_ppd_of_a_windows_queue_is_its_drivers(monkeypatch):
 
 # ---- finding 6: ChromIQ's own failure is said as ChromIQ's ----------------------
 def test_a_chart_that_cannot_be_read_is_not_a_spooler_refusal(qapp, tmp_path, monkeypatch):
-    from PyQt6.QtWidgets import QMessageBox
     from ui.tabs import tab_print as tp
     from workflow.cups_printer import PrintConfig
     from workflow.win_raw_printer import WindowsRawPrinter
@@ -155,8 +154,10 @@ def test_a_chart_that_cannot_be_read_is_not_a_spooler_refusal(qapp, tmp_path, mo
     tab._printer = pr
     monkeypatch.setattr(tp, "is_windows", lambda: True)
     shown = []
-    monkeypatch.setattr(QMessageBox, "critical",
-                        staticmethod(lambda parent, title, body: shown.append((title, body))))
+    # 4.3.16: the static call became ui.widgets.message_box (routed through
+    # keep_message_box_inside_the_work_area); the same window, answered here
+    monkeypatch.setattr(tp, "message_box",
+                        lambda icon, parent, title, body: shown.append((title, body)))
     monkeypatch.setattr(tab, "_show_print_refusal",
                         lambda *a: pytest.fail("shown as a spooler refusal"))
     tab._on_print_done(-1)
@@ -190,7 +191,6 @@ def test_a_ppd_that_includes_itself_is_read_once(tmp_path):
 
 
 def test_the_failure_window_names_the_chart_not_a_temporary_page(qapp, tmp_path, monkeypatch):
-    from PyQt6.QtWidgets import QMessageBox
     from ui.tabs import tab_print as tp
     from workflow.win_raw_printer import WindowsRawPrinter
     tab = _tab(tmp_path)
@@ -200,7 +200,7 @@ def test_the_failure_window_names_the_chart_not_a_temporary_page(qapp, tmp_path,
     tab._page_name_for_messages = "WinPrint-RGB_02.tif"
     monkeypatch.setattr(tp, "is_windows", lambda: True)
     shown = []
-    monkeypatch.setattr(QMessageBox, "critical",
-                        staticmethod(lambda parent, title, body: shown.append(body)))
+    monkeypatch.setattr(tp, "message_box",
+                        lambda icon, parent, title, body: shown.append(body))
     tab._on_print_done(-1)
     assert "WinPrint-RGB_02.tif" in shown[0] and "tmpab12cd" not in shown[0]

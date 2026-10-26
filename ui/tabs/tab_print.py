@@ -36,7 +36,7 @@ from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tiff_preview import TiffPreview, _find_sidecar_channels
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollComboBox, PatchGridButton, rewrap_button_label, info_box_qss, load_refresh_icon, open_file_dialog, set_accent_html, spectrum_cell
+from ui.widgets import NoScrollComboBox, PatchGridButton, rewrap_button_label, info_box_qss, load_refresh_icon, message_box, open_file_dialog, set_accent_html, spectrum_cell
 from workflow.cups_printer import CupsRawPrinter
 from workflow.page_geometry import (
     ORIENTATION_LANDSCAPE,
@@ -2096,7 +2096,7 @@ class TabPrint(QWidget):
             title, body = M.M_CM_CONVERT_FAILED.render(
                 n=err.page or 1, total=err.total or 1,
                 reason=err.reason or err.message_id)
-        QMessageBox.critical(self, title, body)
+        message_box(QMessageBox.Icon.Critical, self, title, body)
 
     # ---- per-target settings (#130 feature A, §11 Q5) --------------------
     def save_target_settings(self, store=None, key=None) -> bool:
@@ -3132,8 +3132,8 @@ class TabPrint(QWidget):
             return
 
         if not self._printer.is_printer_reachable(printer):
-            QMessageBox.critical(
-                self, tr("Printer Offline"),
+            message_box(
+                QMessageBox.Icon.Critical, self, tr("Printer Offline"),
                 tr("The printer \"{printer}\" appears to be offline or unreachable.\n"
                    "Please check that it is powered on and connected."
                    ).format(printer=printer),
@@ -4066,8 +4066,8 @@ class TabPrint(QWidget):
                 tmp_path = split_page(tiff_path, frame)
                 print_path = tmp_path or tiff_path
             except Exception as exc:
-                QMessageBox.critical(
-                    self, tr("TIFF Error"),
+                message_box(
+                    QMessageBox.Icon.Critical, self, tr("TIFF Error"),
                     tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
                 )
                 return False
@@ -4085,8 +4085,8 @@ class TabPrint(QWidget):
                 else:
                     print_path = tiff_path
             except Exception as exc:
-                QMessageBox.critical(
-                    self, tr("TIFF Error"),
+                message_box(
+                    QMessageBox.Icon.Critical, self, tr("TIFF Error"),
                     tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
                 )
                 return False
@@ -4199,8 +4199,8 @@ class TabPrint(QWidget):
             # the chart could not be read or turned into PostScript: ChromIQ's
             # own failure, said as everywhere else (review finding 6)
             self._set_status(tr("TIFF Error"))
-            QMessageBox.critical(
-                self, tr("TIFF Error"),
+            message_box(
+                QMessageBox.Icon.Critical, self, tr("TIFF Error"),
                 tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(
                     name=getattr(self, "_page_name_for_messages", "")
                     or getattr(self._printer, "last_chart_name", ""),
@@ -4215,8 +4215,8 @@ class TabPrint(QWidget):
             self._show_print_refusal(title, body)
         else:
             self._set_status(tr("Print failed (lp exit code {code}).").format(code=code))
-            QMessageBox.critical(
-                self, tr("Print Error"),
+            message_box(
+                QMessageBox.Icon.Critical, self, tr("Print Error"),
                 tr("CUPS rejected the print job (exit code {code}).\n"
                    "Check that the printer is online and the selected options are "
                    "valid.").format(code=code),
@@ -4590,8 +4590,8 @@ class TabPrint(QWidget):
                     # Nothing was sent, so the print record must not say one
                     # was.
                     log.error("Native macOS print refused a %s chart", exc)
-                    QMessageBox.critical(
-                        self, tr("This chart cannot go through the macOS print dialog"),
+                    message_box(
+                        QMessageBox.Icon.Critical, self, tr("This chart cannot go through the macOS print dialog"),
                         tr("This chart's pixels are {mode}, and the macOS print "
                            "dialog can only carry RGB. Sending it this way would "
                            "change every patch's value on the way to the printer, "
@@ -4606,8 +4606,8 @@ class TabPrint(QWidget):
                     )
             except Exception as exc:
                 log.error("Native macOS print failed: %s", exc)
-                QMessageBox.critical(
-                    self, tr("Print Failed"),
+                message_box(
+                    QMessageBox.Icon.Critical, self, tr("Print Failed"),
                     tr("Could not open the macOS print dialog:\n{exc}").format(exc=exc),
                 )
             self._commit_print_record(submitted)

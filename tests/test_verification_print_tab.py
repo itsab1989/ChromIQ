@@ -306,8 +306,8 @@ def test_an_offline_printer_leaves_no_print_record(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(
         "workflow.verification_print.convert_pages_through_profile",
         _fake_converter([]))
-    monkeypatch.setattr(QMessageBox, "critical", staticmethod(
-        lambda *a, **k: None))
+    # 4.3.16: the static call became ui.widgets.message_box
+    monkeypatch.setattr("ui.tabs.tab_print.message_box", lambda *a, **k: None)
     sent = _ready_to_print(tab, s, reachable=False)
 
     tab._on_print_current()
@@ -345,8 +345,8 @@ def test_a_job_the_queue_refuses_leaves_no_print_record(
     monkeypatch.setattr(
         "workflow.verification_print.convert_pages_through_profile",
         _fake_converter([]))
-    monkeypatch.setattr(QMessageBox, "critical", staticmethod(
-        lambda *a, **k: None))
+    # 4.3.16: the static call became ui.widgets.message_box
+    monkeypatch.setattr("ui.tabs.tab_print.message_box", lambda *a, **k: None)
     sent = _ready_to_print(tab, s, exit_code=1)
     # #205: on Windows the spooler's refusal has its own window
     monkeypatch.setattr(tab, "_show_print_refusal", lambda *a, **k: None)
@@ -433,8 +433,10 @@ def test_missing_cctiff_shows_s9_and_prints_nothing(qapp, tmp_path, monkeypatch)
     s.set("argyll_bin_path", str(tmp_path / "no-argyll-here"))
     tab = _tab(s, ctl, ti2, pages)
     shown: list = []
-    monkeypatch.setattr(QMessageBox, "critical", staticmethod(
-        lambda parent, title, body, *a, **k: shown.append((title, body))))
+    # 4.3.16: the static call became ui.widgets.message_box
+    monkeypatch.setattr("ui.tabs.tab_print.message_box",
+                        lambda icon, parent, title, body, *a, **k:
+                        shown.append((title, body)))
     monkeypatch.setattr(tab, "_print_pages",
                         lambda pages: pytest.fail("a failed conversion must print nothing"))
 
@@ -453,8 +455,10 @@ def test_a_failed_page_shows_s10_names_the_page_and_prints_nothing(
     monkeypatch.setattr(
         "workflow.verification_print.convert_pages_through_profile", boom)
     shown: list = []
-    monkeypatch.setattr(QMessageBox, "critical", staticmethod(
-        lambda parent, title, body, *a, **k: shown.append((title, body))))
+    # 4.3.16: the static call became ui.widgets.message_box
+    monkeypatch.setattr("ui.tabs.tab_print.message_box",
+                        lambda icon, parent, title, body, *a, **k:
+                        shown.append((title, body)))
     monkeypatch.setattr(tab, "_print_pages",
                         lambda pages: pytest.fail("a failed conversion must print nothing"))
 

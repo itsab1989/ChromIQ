@@ -2125,6 +2125,48 @@ def confirm(
     return box.standardButton(box.clickedButton())
 
 
+def message_box(icon, parent, title: str, text: str,
+                buttons: "QMessageBox.StandardButton | None" = None,
+                default: "QMessageBox.StandardButton | None" = None
+                ) -> QMessageBox.StandardButton:
+    """``QMessageBox.critical`` (``warning``, ``information``, ``question``)
+    as an instance, so it goes through
+    :func:`keep_message_box_inside_the_work_area` like every other box (4.3.16).
+
+    Built exactly as Qt's static builds it (``QMessageBox::showNewMessageBox``):
+    the same icon, title, text and parent; the standard buttons added in
+    Qt's order; as the default, *default* if given, otherwise the first button
+    with the accept role; Escape left to Qt, which detects it when the box is
+    shown. Returns what the static returns: the standard button clicked, and
+    ``Cancel`` when ``exec`` returns -1.
+    """
+    sb = QMessageBox.StandardButton
+    if buttons is None:
+        buttons = sb.Ok
+    if default is None:
+        default = sb.NoButton
+    box = QMessageBox(icon, title, text, sb.NoButton, parent)
+    from PyQt6.QtWidgets import QDialogButtonBox
+    bbox = box.findChild(QDialogButtonBox)
+    mask = sb.FirstButton.value
+    while mask <= sb.LastButton.value:
+        button = sb(mask)
+        mask <<= 1
+        if not (buttons & button):
+            continue
+        pushed = box.addButton(button)
+        if box.defaultButton() is not None:
+            continue
+        if ((default == sb.NoButton and bbox is not None
+             and bbox.buttonRole(pushed) == QDialogButtonBox.ButtonRole.AcceptRole)
+                or (default != sb.NoButton and button == default)):
+            box.setDefaultButton(pushed)
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+    if box.exec() == -1:
+        return sb.Cancel
+    return box.standardButton(box.clickedButton())
+
+
 class NoScrollComboBox(QComboBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

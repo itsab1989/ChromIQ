@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import TailFollowLog, add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import TailFollowLog, add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, message_box, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
@@ -4824,8 +4824,8 @@ class TabProfile(QWidget):
             return True
         from PyQt6.QtWidgets import QMessageBox
         flag = "-S (Perceptual + Saturation)" if params.gamut_sat_src else "-s (Perceptual only)"
-        QMessageBox.critical(
-            self,
+        message_box(
+            QMessageBox.Icon.Critical, self,
             tr("Gamut source profile not found"),
             tr("The gamut-mapping source profile required by {flag} could not "
                "be located:\n\n"
