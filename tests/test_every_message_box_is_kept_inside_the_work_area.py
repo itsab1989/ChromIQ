@@ -44,6 +44,25 @@ SHOW_METHODS = {"exec", "open", "show"}
 SHOW_WRAPPERS = {"_ask", "_exec", "_exec_box", "_exec_measurement_window"}
 
 
+#: The names a QMessageBox goes by in the app (`_QMB` is an alias).
+BOX_NAMES = ("QMessageBox", "_QMB")
+#: Statics that run a box of their own, which never meets the helper. The
+#: other four (critical, warning, information, question) are guarded by
+#: test_a_static_message_box_call_became_an_equal_instance.
+ABOUT_STATICS = ("about", "aboutQt")
+
+
+def _is_qmessagebox(expr) -> bool:
+    """`QMessageBox`, `_QMB`, or the class with a module prefix
+    (`QtWidgets.QMessageBox`, `PyQt6.QtWidgets.QMessageBox`)."""
+    return ((isinstance(expr, ast.Name) and expr.id in BOX_NAMES)
+            or (isinstance(expr, ast.Attribute) and expr.attr == "QMessageBox"))
+
+
+def _builds_a_box(node) -> bool:
+    return isinstance(node, ast.Call) and _is_qmessagebox(node.func)
+
+
 def _app_files():
     for sub in ("ui", "core", "workflow"):
         yield from sorted((ROOT / sub).rglob("*.py"))
@@ -67,44 +86,46 @@ def _scan() -> tuple:
 def _scan_boxes():
     """(file, function, line, var, keep lines, first show line) per box."""
     for path in _app_files():
-        rel = str(path.relative_to(ROOT))
-        tree = _tree(path)
-        parents = {c: n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
+        yield from _scan_tree(str(path.relative_to(ROOT)), _tree(path))
 
-        def enclosing(node):
-            p = parents.get(node)
-            while p is not None and not isinstance(
-                    p, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-                p = parents.get(p)
-            return p
 
-        for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                    and node.func.id in ("QMessageBox", "_QMB")):
+def _scan_tree(rel: str, tree: ast.Module):
+    """`_scan_boxes` for one parsed file (the self-tests feed it planted code)."""
+    parents = {c: n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
+
+    def enclosing(node):
+        p = parents.get(node)
+        while p is not None and not isinstance(
+                p, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            p = parents.get(p)
+        return p
+
+    for node in ast.walk(tree):
+        if not _builds_a_box(node):
+            continue
+        fn = enclosing(node)
+        stmt = parents.get(node)
+        var = (stmt.targets[0].id if isinstance(stmt, ast.Assign)
+               and isinstance(stmt.targets[0], ast.Name) else None)
+        keeps, shows = [], []
+        for n in ast.walk(fn) if fn is not None else ():
+            if not isinstance(n, ast.Call) or n.lineno <= node.lineno:
                 continue
-            fn = enclosing(node)
-            stmt = parents.get(node)
-            var = (stmt.targets[0].id if isinstance(stmt, ast.Assign)
-                   and isinstance(stmt.targets[0], ast.Name) else None)
-            keeps, shows = [], []
-            for n in ast.walk(fn) if fn is not None else ():
-                if not isinstance(n, ast.Call) or n.lineno <= node.lineno:
-                    continue
-                if enclosing(n) is not fn:
-                    continue          # a nested def runs later, not here
-                f = n.func
-                name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
-                on_var = (isinstance(f, ast.Attribute)
-                          and isinstance(f.value, ast.Name) and f.value.id == var)
-                takes_var = any(isinstance(a, ast.Name) and a.id == var
-                                for a in n.args)
-                if name == HELPER and takes_var:
-                    keeps.append(n.lineno)
-                elif (on_var and name in SHOW_METHODS) or (
-                        takes_var and name in SHOW_WRAPPERS):
-                    shows.append(n.lineno)
-            yield (rel, getattr(fn, "name", "<module>"), node.lineno, var,
-                   keeps, min(shows) if shows else None)
+            if enclosing(n) is not fn:
+                continue          # a nested def runs later, not here
+            f = n.func
+            name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+            on_var = (isinstance(f, ast.Attribute)
+                      and isinstance(f.value, ast.Name) and f.value.id == var)
+            takes_var = any(isinstance(a, ast.Name) and a.id == var
+                            for a in n.args)
+            if name == HELPER and takes_var:
+                keeps.append(n.lineno)
+            elif (on_var and name in SHOW_METHODS) or (
+                    takes_var and name in SHOW_WRAPPERS):
+                shows.append(n.lineno)
+        yield (rel, getattr(fn, "name", "<module>"), node.lineno, var,
+               keeps, min(shows) if shows else None)
 
 
 def test_the_scan_finds_the_boxes_it_is_meant_to_guard():
@@ -116,8 +137,13 @@ def test_the_scan_finds_the_boxes_it_is_meant_to_guard():
 
 
 def test_every_message_box_is_routed_once_before_it_is_shown():
+    bad = _unrouted(_boxes())
+    assert not bad, "\n".join(bad)
+
+
+def _unrouted(boxes) -> list:
     bad = []
-    for rel, fn, line, var, keeps, show in _boxes():
+    for rel, fn, line, var, keeps, show in boxes:
         if (rel, fn) in ALLOWED:
             continue
         where = f"{rel}:{line} ({fn})"
@@ -136,7 +162,7 @@ def test_every_message_box_is_routed_once_before_it_is_shown():
         elif len(before) > 1:
             bad.append(f"{where}: {HELPER} is applied {len(before)} times to "
                        f"`{var}` before it is shown (lines {before})")
-    assert not bad, "\n".join(bad)
+    return bad
 
 
 def test_the_helper_comes_before_the_button_fit():
@@ -166,9 +192,7 @@ def test_the_helper_comes_before_the_button_fit():
             built = [(n.lineno, n.targets[0].id) for n in ast.walk(fn)
                      if isinstance(n, ast.Assign)
                      and isinstance(n.targets[0], ast.Name)
-                     and isinstance(n.value, ast.Call)
-                     and getattr(n.value.func, "id", "") in ("QMessageBox",
-                                                             "_QMB")]
+                     and _builds_a_box(n.value)]
             for line, name, var in calls:
                 if name != HELPER or var is None:
                     continue
@@ -203,3 +227,66 @@ def test_no_class_inherits_qmessagebox_out_of_reach_of_the_scan():
     assert not found, ("a QMessageBox subclass is built without "
                        "`QMessageBox(...)`, so the guard above cannot see it: "
                        + ", ".join(found))
+
+
+def _about_calls(rel: str, tree: ast.Module) -> list:
+    return [f"{rel}:{n.lineno}" for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and n.func.attr in ABOUT_STATICS and _is_qmessagebox(n.func.value)]
+
+
+def test_no_about_box_bypasses_the_helper():
+    """`QMessageBox.about` and `aboutQt` run a box of their own, as the four
+    statics did, and none of them is in the app."""
+    found = [hit for path in _app_files()
+             for hit in _about_calls(str(path.relative_to(ROOT)), _tree(path))]
+    assert not found, ("QMessageBox.about / aboutQt shows a box the helper "
+                       "never meets; build an instance and route it: "
+                       + ", ".join(found))
+
+
+# ---- the guard's own planted faults: each must be caught, the control not
+def _planted(src: str) -> ast.Module:
+    import textwrap
+    return ast.parse(textwrap.dedent(src))
+
+
+def test_self_test_a_box_written_with_the_module_prefix_is_caught():
+    for prefix in ("QtWidgets.", "PyQt6.QtWidgets."):
+        tree = _planted(f"""
+            def planted(parent):
+                box = {prefix}QMessageBox(parent)
+                box.setText("x")
+                box.exec()
+            """)
+        found = list(_scan_tree("planted.py", tree))
+        assert len(found) == 1, prefix
+        bad = _unrouted(found)
+        assert bad and "without keep_message_box_inside_the_work_area" in bad[0], prefix
+
+
+def test_self_test_a_routed_box_with_the_module_prefix_passes():
+    tree = _planted("""
+        def planted(parent):
+            box = QtWidgets.QMessageBox(parent)
+            box.setText("x")
+            keep_message_box_inside_the_work_area(box)
+            box.exec()
+        """)
+    found = list(_scan_tree("planted.py", tree))
+    assert len(found) == 1 and _unrouted(found) == []
+
+
+def test_self_test_about_is_caught():
+    for call in ('QMessageBox.about(parent, "t", "x")',
+                 'QtWidgets.QMessageBox.about(parent, "t", "x")',
+                 '_QMB.about(parent, "t", "x")'):
+        assert _about_calls("planted.py", _planted(call)) == ["planted.py:1"], call
+
+
+def test_self_test_about_qt_is_caught():
+    for call in ('QMessageBox.aboutQt(parent)',
+                 'QtWidgets.QMessageBox.aboutQt(parent, "t")'):
+        assert _about_calls("planted.py", _planted(call)) == ["planted.py:1"], call
+    # the control: an app method of the same name is not a QMessageBox
+    assert _about_calls("planted.py", _planted("self.about(parent)")) == []
