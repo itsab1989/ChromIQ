@@ -15,10 +15,13 @@ def _hue(nl):
     return np.degrees(np.arctan2(nl[:, 2], nl[:, 1])) % 360
 
 
-def test_token_is_registered_and_off_by_default():
+def test_token_is_registered_and_on_by_default_since_integration11():
     assert P.A82_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
-    assert P.A82_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
-    assert P.a82_params(builder.ACCURATE_DEFAULT_TOKENS) is None
+    assert P.A82_TOKEN in builder.ACCURATE_DEFAULT_TOKENS
+    assert P.A82_CUSP_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
+    d = P.a82_params(builder.ACCURATE_DEFAULT_TOKENS)
+    assert d["dark"] and not d["cusp"]
+    assert P.a82_params(builder.accurate_candidates({"no-" + P.A82_TOKEN})) is None
     assert P.A82_CUSP_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
     p = P.a82_params({P.A82_TOKEN})
     assert p["dark"] and not p["cusp"]

@@ -21,9 +21,10 @@ class _Toy:
         return np.stack([L, 0 * L, 0 * L], 1)
 
 
-def test_token_registered_and_off_by_default():
-    assert {gamut_map.A79_TOKEN, "a79-lincurve", "a79-lincurve-col"} <= builder.ENGINE_CANDIDATE_TOKENS
-    assert gamut_map.A79_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
+def test_token_registered_and_on_by_default_since_integration11():
+    toks = {gamut_map.A79_TOKEN, "a79-lincurve", "a79-lincurve-col"}
+    assert toks <= builder.ENGINE_CANDIDATE_TOKENS
+    assert toks <= builder.ACCURATE_DEFAULT_TOKENS
 
 
 def test_gate_fires_only_on_a_mild_fold():

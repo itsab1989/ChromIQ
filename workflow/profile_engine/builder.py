@@ -185,6 +185,10 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # Integration 10: the off switches of its new defaults
      "no-a75-lightkeep", "no-a73-kfirst", "no-a74-foldmeas",
      "no-a74-kfloor", "no-a74-shellhold", "no-a74-shellhue",
+     # Integration 11: the off switches of its new defaults
+     "no-a78-rgbsmooth", "no-a79-perccol", "no-a79-lincurve",
+     "no-a79-lincurve-col", "no-a80-greywalk", "no-a80-colpin",
+     "no-a80-lincurve", "no-a82-green",
      # Agent 73 (ink test): colprof's -kr K prior for the colorimetric
      # table on a printer with a strong ink fold and a light C+M+Y black;
      # default since integration 10
@@ -206,28 +210,28 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      # A73_FOLD_MIN, so a73-kfirst never fires, and the fold is measured) the perceptual
      # (B2A0) neutral column keeps the colprof oracle's own device
      # values instead of the colorimetric axis (a25-oracle-neutral and the
-     # a29/a35/a43/a45 hand-over); research, opt-in
+     # a29/a35/a43/a45 hand-over); default since integration 11
      "a79-perccol",
      # Agent 79: on the same mild-fold printers the perceptual B2A0 is written
      # with identity output curves (same device value at every node; the CMM
      # interpolates in device values, not in the model's sparse-data shaper
-     # space); research, opt-in
+     # space); default since integration 11
      "a79-lincurve",
      # Agent 79: the same for the colorimetric B2A1 (separate: on i1iSis it
      # smooths the rel. col. ramps by the numbers but the eyecheck is mixed,
-     # proxy -4 / rbf +4 defects near black); research, opt-in
+     # proxy -4 / rbf +4 defects near black); default since integration 11
      "a79-lincurve-col",
      # Agent 80 (grey ramps near black): on a CMYK printer with a MEASURED
      # ink fold whose neutral walk jumps from the C/M/Y-heavy ink-limit
      # face to the K-led black, the dark end of the walk is re-walked K
-     # first (b2a.a80_rewalk); research, opt-in
+     # first (b2a.a80_rewalk); default since integration 11
      "a80-greywalk",
      # Agent 80: where a80-greywalk fired, identity B2A0/B2A1 output curves
-     # (a79-lincurve's re-encoding); research, opt-in
+     # (a79-lincurve's re-encoding); default since integration 11
      "a80-lincurve",
      # Agent 80: on a measured-fold CMYK printer the B2A1 neutral column is
      # put back exactly after the smoothing refit (a17-colpin there);
-     # research, opt-in
+     # default since integration 11
      "a80-colpin",
      # Agent 80: where a80-greywalk fired, the perceptual B2A0 is stored in
      # colprof's own output-curve space; research, opt-in
@@ -273,11 +277,13 @@ ENGINE_CANDIDATE_TOKENS = frozenset(
      "a68-clipkeep",
      # Agent 78: the RGB colorimetric table's clipped coarse nodes smoothed
      # along L* (purecolprof.a78_smooth; colour-to-black ramps turn into
-     # black without a knee); research, opt-in
+     # black without a knee); a78-rgbsmooth default since integration 11
+     # (gated: Knut's folded response only), a78-rgbsmooth-all opt-in
      "a78-rgbsmooth", "a78-rgbsmooth-all",
      # Agent 82: RGB colorimetric greens, clipped nodes near the black (fine
      # table) and at the green cusp (coarse table) smoothed
-     # (purecolprof.a82_dark / a82_coarse); research, opt-in
+     # (purecolprof.a82_dark / a82_coarse); a82-green default since
+     # integration 11, a82-greencusp and a82-greenin opt-in
      "a82-green", "a82-greencusp", "a82-greenin"})
 
 # Research integration 1 (2026-10-04, orchestrator after Agent 13's design
@@ -447,6 +453,25 @@ A72_MAX4_INK = "a72-max4ink"
 INT10_TOKENS = frozenset({
     "a75-lightkeep", "a73-kfirst", "a74-foldmeas", "a74-kfloor",
     "a74-shellhold", "a74-shellhue"})
+# Integration 11 (2026-10-26, Agent 83, Findings/agent83-01-integration11.md;
+# Basti's eye verdicts RESUME.md s80-s84): ON as well, Maximum accuracy only,
+# each gated where it was judged:
+#   a78-rgbsmooth (RGB rel. col.: clipped coarse nodes smoothed along L*,
+#     gate median L* bend >= 0.04: Knut's folded response only; the ungated
+#     a78-rgbsmooth-all stays off);
+#   a79-perccol + a79-lincurve + a79-lincurve-col (CMYK 4 inks with a mild,
+#     measured ink fold: perceptual neutral column from the colprof oracle
+#     made neutral, identity B2A output curves; real i1iSis);
+#   a80-greywalk + a80-colpin + a80-lincurve (CMYK 4 inks with a measured
+#     fold whose neutral walk jumps: dark end re-walked K first, column pinned
+#     after the refit, identity curves; the research a80-oraclecurve and
+#     a80-perccol stay off);
+#   a82-green (RGB rel. col.: slightly clipped green nodes near the black
+#     smoothed; a82-greencusp and a82-greenin stay off).
+# Each has a "no-<token>" switch.
+INT11_TOKENS = frozenset({
+    "a78-rgbsmooth", "a79-perccol", "a79-lincurve", "a79-lincurve-col",
+    "a80-greywalk", "a80-colpin", "a80-lincurve", "a82-green"})
 ACCURATE_DEFAULT_TOKENS = frozenset({
     "b2a33s", "rgbpos", "v4prm", "rgbcol",
     "a25-oog", "a25-rgbcol", "a25-oracle-dev", "a25-oracle-neutral",
@@ -457,7 +482,8 @@ ACCURATE_DEFAULT_TOKENS = frozenset({
     "a43-shadowdetail", "a40-knut-grey", "a44-exactkeep",
     "a44b-smoothexact", "a45-c1space", "a45-darkend",
     "a51-colprofedge"}) | INT8_TOKENS | INT8B_TOKENS | INT9_TOKENS \
-    | INT9_CMY_TOKENS | {A72_CMY_ONLY, A72_MAX4_INK} | INT10_TOKENS
+    | INT9_CMY_TOKENS | {A72_CMY_ONLY, A72_MAX4_INK} | INT10_TOKENS \
+    | INT11_TOKENS
 
 
 def scope_device_tokens(candidates, *, n: int, is_additive: bool) -> frozenset:

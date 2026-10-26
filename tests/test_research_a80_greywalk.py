@@ -4,10 +4,13 @@ import numpy as np
 from workflow.profile_engine import b2a, builder, gamut_map
 
 
-def test_tokens_registered_and_off_by_default():
+def test_tokens_registered_passed_ones_on_since_integration11():
     toks = {b2a.A80_TOKEN, b2a.A80_LINCURVE, b2a.A80_COLPIN, gamut_map.A80_ORACLECURVE}
     assert toks <= builder.ENGINE_CANDIDATE_TOKENS
-    assert not toks & builder.ACCURATE_DEFAULT_TOKENS
+    on = {b2a.A80_TOKEN, b2a.A80_LINCURVE, b2a.A80_COLPIN}
+    assert on <= builder.ACCURATE_DEFAULT_TOKENS
+    assert gamut_map.A80_ORACLECURVE not in builder.ACCURATE_DEFAULT_TOKENS
+    assert "a80-perccol" not in builder.ACCURATE_DEFAULT_TOKENS
 
 
 def _axis(jump: bool):

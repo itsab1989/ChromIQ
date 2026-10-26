@@ -10,10 +10,12 @@ def _grid(g):
     return np.stack(np.meshgrid(L, ab, ab, indexing="ij"), -1).reshape(-1, 3)
 
 
-def test_token_is_registered_and_off_by_default():
+def test_token_is_registered_and_on_by_default_since_integration11():
     assert P.A78_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
-    assert P.A78_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
-    assert P.a78_params(builder.ACCURATE_DEFAULT_TOKENS) is None
+    assert P.A78_TOKEN in builder.ACCURATE_DEFAULT_TOKENS
+    assert P.A78_ALL_TOKEN not in builder.ACCURATE_DEFAULT_TOKENS
+    assert P.a78_params(builder.ACCURATE_DEFAULT_TOKENS) == P.A78_SMOOTH
+    assert P.a78_params(builder.accurate_candidates({"no-" + P.A78_TOKEN})) is None
     assert P.a78_params({P.A78_TOKEN}) == P.A78_SMOOTH
     assert P.A78_ALL_TOKEN in builder.ENGINE_CANDIDATE_TOKENS
     assert P.a78_params({P.A78_ALL_TOKEN})["gate"] == 0.0
