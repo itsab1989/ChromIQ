@@ -1621,6 +1621,67 @@ def _preflight_fits(box) -> bool:
     return need + _PREFLIGHT_CAPTION <= work
 
 
+def _scroll_the_preflight_text(box) -> bool:
+    """Show the SHOWN pre-flight *box*'s text in a scroll area, short enough
+    for the box to fit its work area. True when it did.
+
+    **THE LAST RESORT, FOR A SCREEN THAT CANNOT HOLD EVEN THE ONE LINE**
+    (4.3.16). The one-line version measured 999 px in German, and a
+    QMessageBox cannot be made shorter than its text: Qt fixes its size to
+    the text's height whenever it lays it out. So the text's label is hidden
+    and the same text, in a label of the same format, font and margins, sits
+    in a scroll area in its place, as tall as the work area leaves room for.
+
+    It is the same box: the title, the icon, the OK button (default and
+    Escape), the "do not show again" tick and what ``exec()`` returns do not
+    change, and the scroll area takes no keyboard focus, so every key does
+    what it did. A box that fits is never touched.
+    """
+    from PyQt6.QtWidgets import QFrame, QLabel, QScrollArea
+    label = box.findChild(QLabel, "qt_msgbox_label")
+    lay = box.layout()
+    if label is None or lay is None or not box.isVisible():
+        return False
+    idx = lay.indexOf(label)
+    if idx < 0:
+        return False
+    over = (box.frameGeometry().height()
+            - _preflight_work_height(box))
+    if over <= 0:
+        return False
+    row, col, rows, cols = lay.getItemPosition(idx)
+    inner = QLabel(box.text())
+    inner.setObjectName("preflightText")
+    inner.setTextFormat(label.textFormat())
+    inner.setWordWrap(True)
+    inner.setAlignment(label.alignment())
+    inner.setTextInteractionFlags(label.textInteractionFlags())
+    inner.setOpenExternalLinks(label.openExternalLinks())
+    inner.setContentsMargins(label.contentsMargins())
+    inner.setFont(label.font())
+    scroll = QScrollArea(box)
+    scroll.setObjectName("preflightScroll")
+    scroll.setFrameShape(QFrame.Shape.NoFrame)
+    scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+    scroll.setWidgetResizable(True)
+    scroll.setWidget(inner)
+    bar = scroll.verticalScrollBar().sizeHint().width()
+    scroll.setFixedSize(label.width() + bar, max(80, label.height() - over))
+    label.hide()
+    lay.addWidget(scroll, row, col, rows, cols)
+    # Qt sizes a shown message box again whenever its text is set
+    # (QMessageBoxPrivate::updateSize); the text itself does not change.
+    box.setText(box.text())
+    from ui.widgets import keep_message_box_inside_the_work_area
+    keep_message_box_inside_the_work_area(box)
+    log.info("Verification pre-flight: even the one-line version does not "
+             "fit this screen's work area; its text scrolls (%d px)",
+             scroll.height())
+    return True
+
+
 class TabMeasure(Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
 
@@ -19486,8 +19547,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 log.info("Verification pre-flight: the full paragraph does "
                          "not fit this screen's work area; showing the "
                          "one-line version")
+                # …AND IF EVEN THE ONE LINE DOES NOT FIT (4.3.16: 999 px in
+                # German on a work area below 1000), its text goes into a
+                # scroll area. Asked once the shorter box has been laid out.
+                QTimer.singleShot(0, _scroll_if_still_too_tall)
             except Exception:      # noqa: BLE001 — never block the window
                 log.debug("pre-flight fit check failed", exc_info=True)
+
+        def _scroll_if_still_too_tall() -> None:
+            try:
+                if not _preflight_fits(box):
+                    _scroll_the_preflight_text(box)
+            except Exception:      # noqa: BLE001 — never block the window
+                log.debug("pre-flight scroll check failed", exc_info=True)
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, _fit_the_screen)
         self._preflight_open = True
