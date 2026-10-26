@@ -491,6 +491,8 @@ def only_you_can_confirm_the_chart(parent, verdict, chart: "Path | None") -> boo
     go = box.addButton(tr("Import it"), QMessageBox.ButtonRole.AcceptRole)
     cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
     box.setDefaultButton(cancel)
+    from ui.widgets import keep_message_box_inside_the_work_area
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
     fit_message_box_buttons(box)
     box.exec()
     return box.clickedButton() is go
@@ -671,6 +673,8 @@ def ask_to_make_a_new_run(parent, proj, run) -> bool:
     # reported on the Delete windows (#130) and had these helpers
     # written for. `spread_message_box_buttons` puts CANCEL ON THE FAR
     # RIGHT, never between the safe answer and the one that acts.
+    from ui.widgets import keep_message_box_inside_the_work_area
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
     fit_message_box_buttons(box)
     spread_message_box_buttons(box, order=[_go, _stop])
     box.exec()
@@ -1031,6 +1035,8 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
 
         picker.currentIndexChanged.connect(lambda _i: _name_the_run())
         _name_the_run()
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         spread_message_box_buttons(box, order=[_go, _stop])
         if hasattr(tab_chart, "_attach_run_picker"):

@@ -15339,6 +15339,8 @@ class TabChart(QWidget):
                     self._project_exists_message(peek, chosen[0])[1])
 
             picker.currentIndexChanged.connect(_on_pick)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         # FOUR choices, not one and three afterthoughts — and Cancel on the far
         # right, not wedged between the safe answers and the destructive one
@@ -15616,6 +15618,8 @@ class TabChart(QWidget):
                             QMessageBox.ButtonRole.DestructiveRole)
         back = box.addButton(tr("Go back"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(back)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is yes
@@ -16189,6 +16193,8 @@ class TabChart(QWidget):
         # the safest." Return presses Cancel; the destructive action stays
         # plain (B8-1156) and is reached by a click.
         box.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         return box.clickedButton() is overwrite
 
@@ -22906,6 +22912,8 @@ class TabChart(QWidget):
         box.setDefaultButton(cancel)
         # Long labels clip once the font swap widens them, and polish does not
         # happen offscreen — so fit them here (Knut, #130).
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is go
@@ -24116,6 +24124,8 @@ class TabChart(QWidget):
         # unmeasured branch DISCARDS a chart that is not kept anywhere, so a
         # stray Return was the cheapest possible way to lose it.
         box.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is ok
@@ -30229,6 +30239,8 @@ class TabChart(QWidget):
         box.setText(title)
         box.setInformativeText(self._preview_paused_body())
         box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -30289,6 +30301,8 @@ class TabChart(QWidget):
             edit_btn = box.addButton(tr("Edit patch set…"),
                                      QMessageBox.ButtonRole.ActionRole)
             box.addButton(QMessageBox.StandardButton.Ok)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             box.exec()
             if box.clickedButton() is edit_btn:
                 self.edit_patch_set_requested.emit()

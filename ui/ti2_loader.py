@@ -514,6 +514,8 @@ def _say_the_replace_failed(parent, folder, reason) -> None:
     box.setText(title)
     box.setInformativeText(body)
     box.addButton(QMessageBox.StandardButton.Ok)
+    from ui.widgets import keep_message_box_inside_the_work_area
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
     box.exec()
 
 
@@ -537,6 +539,8 @@ def _say_where_the_old_project_went(parent, name, dest) -> None:
     box.setText(title)
     box.setInformativeText(body)
     box.addButton(QMessageBox.StandardButton.Ok)
+    from ui.widgets import keep_message_box_inside_the_work_area
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
     box.exec()
 
 
@@ -556,6 +560,8 @@ def _say_that_file_holds_no_chart(parent, path) -> None:
     box.setText(title)
     box.setInformativeText(body)
     box.addButton(QMessageBox.StandardButton.Ok)
+    from ui.widgets import keep_message_box_inside_the_work_area
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
     box.exec()
 
 
@@ -777,6 +783,8 @@ def _choice_dialog(parent, title, intro_html, choices):
     box.setDefaultButton(cancel)
 
     from ui.widgets import fit_message_box_buttons
+    from ui.widgets import keep_message_box_inside_the_work_area
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
     fit_message_box_buttons(box)
 
     # THE CHOICES TOGETHER ON THE LEFT, CANCEL ON ITS OWN AT THE RIGHT.
@@ -1277,6 +1285,8 @@ def _ask_project_name(parent, default_name, working_dir):
             _box.setDefaultButton(_back)      # Return must never replace
             from ui.widgets import (fit_message_box_buttons,
                                     spread_message_box_buttons)
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(_box, widen_when_it_fits=False)
             fit_message_box_buttons(_box)
             spread_message_box_buttons(_box, order=[_yes, _back])
             _box.exec()
@@ -1828,6 +1838,8 @@ def _ask_profile_name(
         # the far right (Basti, 2026-08-27; the clipping fault is Knut's #130).
         from ui.widgets import (fit_message_box_buttons,
                                 spread_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(_box, widen_when_it_fits=False)
         fit_message_box_buttons(_box)
         spread_message_box_buttons(_box, order=[_yes, _back])
         _box.exec()
