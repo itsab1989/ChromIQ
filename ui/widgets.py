@@ -1428,6 +1428,19 @@ def keep_message_box_inside_the_work_area(box) -> None:
         # cap (998 px measured, against the 768 its own spacer asks for). A
         # rich-text box wraps its paragraphs at the width it was given.
         rich = label is not None and label.textFormat() == Qt.TextFormat.RichText
+        wanted = 0
+
+        def _hold_width_open(layout) -> None:
+            # setMinimumWidth does NOT work on a QMessageBox — it sizes from
+            # its own grid layout and squeezes straight back. A full-width
+            # spacer row is the way to hold it open. (Same trick, and same
+            # reason, as `fit_message_box_buttons`.)
+            layout.addItem(QSpacerItem(wanted, 0,
+                                       QSizePolicy.Policy.Minimum,
+                                       QSizePolicy.Policy.Expanding),
+                           layout.rowCount(), 0, 1, layout.columnCount())
+            layout.activate()
+
         if lay is not None and text and not rich:
             fm = QFontMetrics(label.font() if label is not None else box.font())
             longest = max((fm.horizontalAdvance(ln) for ln in text.splitlines()),
@@ -1439,21 +1452,21 @@ def keep_message_box_inside_the_work_area(box) -> None:
             wanted = min(longest + chrome,
                          int(work.width() * _MESSAGE_BOX_MAX_TEXT_WIDTH))
             if wanted > 0:
-                # setMinimumWidth does NOT work on a QMessageBox — it sizes from
-                # its own grid layout and squeezes straight back. A full-width
-                # spacer row is the way to hold it open. (Same trick, and same
-                # reason, as `fit_message_box_buttons`.)
-                lay.addItem(QSpacerItem(wanted, 0,
-                                        QSizePolicy.Policy.Minimum,
-                                        QSizePolicy.Policy.Expanding),
-                            lay.rowCount(), 0, 1, lay.columnCount())
-                lay.activate()
+                _hold_width_open(lay)
 
         # --- 2. move the overflow behind "Show Details" -------------------
         # The caption is not measurable before the window is mapped, so budget
         # for one. It is taken back in step 3 if it turns out to be wrong.
+        #
+        # NOT FOR RICH TEXT (2026-10-26). Qt shows the details as PLAIN text,
+        # so a rich-text body moved there reads as its own markup, and the
+        # verification pre-flight's body is one line of HTML with no paragraph
+        # break to cut at: the box kept every word above the fold and gained a
+        # "Show Details" button full of <p style=...> tags. Such a box shortens
+        # itself (the pre-flight's one-line version) before it calls this.
         room = work.height() - 60
-        if box.sizeHint().height() > room and text and not box.detailedText():
+        if (box.sizeHint().height() > room and text and not rich
+                and not box.detailedText()):
             head = text.split("\n\n", 1)[0]
             if head == text:
                 # No paragraph break to cut at (one long wrapped sentence, which
@@ -1463,8 +1476,18 @@ def keep_message_box_inside_the_work_area(box) -> None:
                 head = "\n".join(lines[:max(1, len(lines) // 4)])
             box.setDetailedText(text)
             box.setText(head)
+            # **setDetailedText BUILDS THE BOX A NEW LAYOUT AND DELETES THE OLD
+            # ONE** (QMessageBoxPrivate::setupLayout), so `lay` is a dead
+            # wrapper here: `lay.activate()` raised "wrapped C/C++ object of
+            # type QGridLayout has been deleted" on EVERY box this step
+            # shortened, the except below swallowed it, and step 3 was never
+            # scheduled. The new layout has also lost step 1's spacer.
+            lay = box.layout()
             if lay is not None:
-                lay.activate()
+                if wanted > 0:
+                    _hold_width_open(lay)
+                else:
+                    lay.activate()
 
         # --- 3. clamp the frame once it is real ---------------------------
         def _clamp() -> None:
