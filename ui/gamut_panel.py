@@ -1090,8 +1090,8 @@ class GamutPanel(QWidget):
 
         path = open_file_dialog(
             self,
-            "Select comparison ICC/ICM profile",
-            "ICC profiles (*.icc *.icm);;All files (*)",
+            tr("Select comparison ICC/ICM profile"),
+            tr("ICC profiles (*.icc *.icm);;All files (*)"),
             start_dir=argyll_ref or (sidebar[0] if sidebar else ""),
             extra_paths=sidebar,
         )

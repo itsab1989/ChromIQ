@@ -105,6 +105,13 @@ _NEAR_ENGLISH_OK = (
     # The version/author line: proper nouns plus the website anchor's HTML —
     # only "Created by" and the link word are translatable at all.
     "ChromIQ v{APP_VERSION} · Created by Sebastian Reiprich",
+    # Three file-dialog filters (4.3.16), which are mostly file patterns and
+    # format names that are never translated ("TI3 (*.ti3)", "i1Profiler
+    # CGATS (*.txt)"); only the first label and "All files" are words. In
+    # German, French and Dutch "Scans" is the word too.
+    "Measurements (*.ti3 *.mxf *.txt *.cxf);;TI3 (*.ti3);;",
+    "Patch sets (*.ti1 *.txt *.pxf);;TI1 (*.ti1);;",
+    "Scans and photographs (*.tif *.tiff *.jpg *.jpeg *.png);;",
 )
 
 _GLOSSARY = {

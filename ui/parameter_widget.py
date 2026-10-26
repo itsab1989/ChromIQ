@@ -469,7 +469,8 @@ class ParameterWidget(QWidget):
         if self._param.get("icc_sidebar"):
             from ui.widgets import icc_profile_paths
             extra_paths = icc_profile_paths()
-        path = open_file_dialog(self, "Select file", filt, extra_paths=extra_paths)
+        path = open_file_dialog(self, tr("Select file"), tr(filt) if filt else "",
+                                extra_paths=extra_paths)
         if path and isinstance(self._control, QLineEdit):
             self._control.setText(path)
 

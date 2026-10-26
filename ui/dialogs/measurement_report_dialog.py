@@ -7901,7 +7901,7 @@ class MeasurementReportDialog(QDialog):
         # (Sebastian, 2026-08-10).
         from ui.widgets import save_file_dialog
         path = save_file_dialog(
-            self, tr("Save report as PDF"), "PDF (*.pdf)",
+            self, tr("Save report as PDF"), tr("PDF (*.pdf)"),
             start_path=str(default),
             extra_path=str(self._settings.get("custom_output_path", "")))
         # The dialog does not force the extension — a name typed without one

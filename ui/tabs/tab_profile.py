@@ -1754,7 +1754,7 @@ class TabProfile(QWidget):
         return dest
 
     def _pc_browse_prev(self) -> None:
-        p = open_file_dialog(self, "Load previous .cal file", "CAL files (*.cal)",
+        p = open_file_dialog(self, tr("Load previous .cal file"), tr("CAL files (*.cal)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
             self._pc_prev_edit.setText(p)
@@ -1981,13 +1981,13 @@ class TabProfile(QWidget):
         return container
 
     def _ac_browse_cal(self) -> None:
-        p = open_file_dialog(self, "Select calibration file", "CAL files (*.cal)",
+        p = open_file_dialog(self, tr("Select calibration file"), tr("CAL files (*.cal)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
             self._ac_cal_edit.setText(p)
 
     def _ac_browse_in(self) -> None:
-        p = open_file_dialog(self, "Select input ICC profile", "ICC profiles (*.icc *.icm)",
+        p = open_file_dialog(self, tr("Select input ICC profile"), tr("ICC profiles (*.icc *.icm)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p:
             self._ac_in_edit.setText(p)
@@ -4968,8 +4968,8 @@ class TabProfile(QWidget):
         except Exception:      # noqa: BLE001 — fall through to the normal load
             pass
         path = open_file_dialog(
-            self, "Load measurement data",
-            "Measurement data (*.ti3 *.txt *.mxf *.cxf)",
+            self, tr("Load measurement data"),
+            tr("Measurement data (*.ti3 *.txt *.mxf *.cxf)"),
             extra_path=self._settings.get("custom_output_path", ""),
             declutter_settings=self._settings,
         )
@@ -5175,7 +5175,7 @@ class TabProfile(QWidget):
         bin_path = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
         ref_dir = Path(bin_path).parent / "ref"
         path = open_file_dialog(
-            self, "Select gamut source profile", "ICC profiles (*.icc *.icm)",
+            self, tr("Select gamut source profile"), tr("ICC profiles (*.icc *.icm)"),
             start_dir=str(ref_dir) if ref_dir.is_dir() else "",
         )
         if path:
@@ -5185,7 +5185,7 @@ class TabProfile(QWidget):
         bin_path = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
         ref_dir = Path(bin_path).parent / "ref"
         path = open_file_dialog(
-            self, "Select gamut source profile", "ICC profiles (*.icc *.icm)",
+            self, tr("Select gamut source profile"), tr("ICC profiles (*.icc *.icm)"),
             start_dir=str(ref_dir) if ref_dir.is_dir() else "",
         )
         if path:

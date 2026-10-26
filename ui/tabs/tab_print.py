@@ -3033,7 +3033,7 @@ class TabPrint(QWidget):
     def _on_load_ti2(self) -> None:
         from ui.ti2_loader import resolve_ti2
         path = open_file_dialog(
-            self, "Select .ti2 file to load its chart", "ArgyllCMS target files (*.ti2)",
+            self, tr("Select .ti2 file to load its chart"), tr("ArgyllCMS target files (*.ti2)"),
             extra_path=self._settings.get("custom_output_path", ""),
             declutter_settings=self._settings,
         )
@@ -3063,7 +3063,7 @@ class TabPrint(QWidget):
         from ui.widgets import open_files_dialog
         paths = open_files_dialog(
             self, tr("Select the TIFF images to print"),
-            "TIFF images (*.tif *.tiff)",
+            tr("TIFF images (*.tif *.tiff)"),
             extra_path=self._settings.get("custom_output_path", ""),
             preview=True,
             declutter_settings=self._settings,

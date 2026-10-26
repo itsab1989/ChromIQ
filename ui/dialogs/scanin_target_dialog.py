@@ -356,7 +356,7 @@ class ScaninTargetDialog(_ToolDialogBase):
     # ------------------------------------------------------------------ pick
     def _pick_ti3(self) -> None:
         path = open_file_dialog(
-            self, tr("Choose the chart's measurement"), _TI3_FILTER,
+            self, tr("Choose the chart's measurement"), tr(_TI3_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             declutter_settings=self._settings)
         if not path:
@@ -399,7 +399,7 @@ class ScaninTargetDialog(_ToolDialogBase):
     def _pick_pset(self) -> None:
         path = open_file_dialog(
             self, tr("Choose the patch set you loaded into i1Profiler"),
-            _PATCHSET_FILTER,
+            tr(_PATCHSET_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)))
         if not path:
             return
@@ -411,7 +411,7 @@ class ScaninTargetDialog(_ToolDialogBase):
 
     def _pick_tiffs(self) -> None:
         paths = open_files_dialog(
-            self, tr("Choose the chart pages i1Profiler saved"), _TIFF_FILTER,
+            self, tr("Choose the chart pages i1Profiler saved"), tr(_TIFF_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             preview=True,
             declutter_settings=self._settings)
@@ -426,7 +426,7 @@ class ScaninTargetDialog(_ToolDialogBase):
 
     def _pick_meas(self) -> None:
         path = open_file_dialog(
-            self, tr("Choose your measurement"), _MEAS_FILTER,
+            self, tr("Choose your measurement"), tr(_MEAS_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             declutter_settings=self._settings)
         if not path:

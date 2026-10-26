@@ -68,7 +68,41 @@ def extract_keys() -> set[str]:
     keys |= _compliance_set_keys()
     keys |= _report_type_keys()
     keys |= _reference_set_keys()
+    keys |= _parameter_file_filter_keys()
     return keys
+
+
+def _parameter_file_filter_keys() -> set[str]:
+    """The file-type filters of `data/parameters.yaml`'s file parameters.
+
+    `ParameterWidget._browse` opens its file dialog with `tr(filt)`, the
+    `filter:` value of the parameter (4.3.16): a tr() on a variable, which the
+    AST walk cannot see, and the parameters overlay does not carry a filter.
+    Read from the YAML itself so a new file parameter's filter is a key the
+    day it is added."""
+    try:
+        import yaml
+        data = yaml.safe_load((ROOT / "data" / "parameters.yaml")
+                              .read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: could not read data/parameters.yaml ({exc})",
+              file=sys.stderr)
+        return set()
+    out: set[str] = set()
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            flt = node.get("filter")
+            if node.get("type") == "file_path" and isinstance(flt, str) and flt:
+                out.add(flt)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(data)
+    return out
 
 
 def _reference_set_keys() -> set[str]:
@@ -228,6 +262,16 @@ _DIALOG_CALLS = {
     ("QFileDialog", "getSaveFileName"): (1,),
     ("QFileDialog", "getExistingDirectory"): (1,),
 }
+#: ChromIQ's own file dialogs, `ui.widgets.open_file_dialog(parent, title,
+#: name_filter)` and its three siblings: every file dialog in the app goes
+#: through them, and none of them is a `QFileDialog` call, so thirty titles
+#: and filters were swept by nothing until 4.3.16. Called by bare name or as
+#: `widgets.open_file_dialog`. `tests/test_every_file_dialog_title_and_
+#: filter_is_translated.py` also follows variables, constants and wrappers.
+_FILE_DIALOG_HELPERS = {
+    "open_file_dialog": (1, 2), "open_files_dialog": (1, 2),
+    "save_file_dialog": (1, 2), "open_dir_dialog": (1,),
+}
 #: `painter.drawText(rect, flags, text)` — the shape the missed string used.
 #: Swept by method name alone: no logger has a `drawText`.
 _DRAW_TEXT = "drawText"
@@ -299,9 +343,13 @@ def _sink_positions(node):
     """Which of *node*'s arguments hold text a user reads, or ()."""
     func = node.func
     if isinstance(func, ast.Name):
+        if func.id in _FILE_DIALOG_HELPERS:
+            return _FILE_DIALOG_HELPERS[func.id]
         return (0,) if func.id in _TEXT_CTORS else ()
     if not isinstance(func, ast.Attribute):
         return ()
+    if func.attr in _FILE_DIALOG_HELPERS:
+        return _FILE_DIALOG_HELPERS[func.attr]
     recv = func.value
     recv_name = (recv.id if isinstance(recv, ast.Name)
                  else recv.attr if isinstance(recv, ast.Attribute) else "")

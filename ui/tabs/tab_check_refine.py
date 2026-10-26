@@ -1625,7 +1625,7 @@ class TabCheckRefine(QWidget):
 
     def _on_browse_ti3(self) -> None:
         path = open_file_dialog(
-            self, "Select .ti3 file", "Test chart data (*.ti3)",
+            self, tr("Select .ti3 file"), tr("Test chart data (*.ti3)"),
             extra_path=self._settings.get("custom_output_path", ""),
         )
         if not path:
@@ -1739,7 +1739,7 @@ class TabCheckRefine(QWidget):
 
     def _on_browse_icc(self) -> None:
         path = open_file_dialog(
-            self, "Select ICC / ICM profile", "ICC profiles (*.icc *.icm)",
+            self, tr("Select ICC / ICM profile"), tr("ICC profiles (*.icc *.icm)"),
             extra_path=self._settings.get("custom_output_path", ""),
         )
         if path:

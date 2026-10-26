@@ -12118,8 +12118,8 @@ class TabChart(QWidget):
         if start:
             start = str(Path(start).parent)
         path = open_file_dialog(
-            self, "Select pre-conditioning profile",
-            "ICC / MPP profiles (*.icc *.icm *.mpp)",
+            self, tr("Select pre-conditioning profile"),
+            tr("ICC / MPP profiles (*.icc *.icm *.mpp)"),
             start_dir=start,
             extra_path=self._settings.get("custom_output_path", ""),
             extra_paths=icc_profile_paths(),
@@ -20513,8 +20513,8 @@ class TabChart(QWidget):
         if self._refuse_in_calibration("Load patch set"):
             return
         path = open_file_dialog(
-            self, "Load patch set",
-            "Patch sets (*.ti1 *.pxf *.cgats *.txt)",
+            self, tr("Load patch set"),
+            tr("Patch sets (*.ti1 *.pxf *.cgats *.txt)"),
             extra_path=self._settings.get("custom_output_path", ""),
             declutter_settings=self._settings,
         )

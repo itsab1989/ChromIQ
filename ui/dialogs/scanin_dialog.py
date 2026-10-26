@@ -4067,9 +4067,9 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _pick_chart(self) -> None:
         if self._printer_mode():
-            title, flt = tr("Choose the chart you printed"), _CHART_FILTER
+            title, flt = tr("Choose the chart you printed"), tr(_CHART_FILTER)
         else:
-            title, flt = tr("Choose the measured chart"), _TI3_FILTER
+            title, flt = tr("Choose the measured chart"), tr(_TI3_FILTER)
         path = open_file_dialog(self, title, flt,
                                 start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
                                 declutter_settings=self._settings)
@@ -4760,7 +4760,7 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _pick_cht(self) -> None:
         path = open_file_dialog(self, tr("Choose a .cht recognition file"),
-                                _CHT_FILTER,
+                                tr(_CHT_FILTER),
                                 start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
                                 declutter_settings=self._settings)
         if not path:
@@ -4781,7 +4781,7 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _pick_ref(self) -> None:
         path = open_file_dialog(self, tr("Choose the target reference data"),
-                                _REF_FILTER,
+                                tr(_REF_FILTER),
                                 start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
                                 declutter_settings=self._settings)
         if not path:
@@ -5227,7 +5227,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                     "plain scanin run won't work — for a bought target, switch to "
                     "“A standard target I own” above and load its .cht."))
             return
-        path = open_file_dialog(self, tr("Choose the scan"), _SCAN_FILTER,
+        path = open_file_dialog(self, tr("Choose the scan"), tr(_SCAN_FILTER),
                                 start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
                                 declutter_settings=self._settings)
         if not path:

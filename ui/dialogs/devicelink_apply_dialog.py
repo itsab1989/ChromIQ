@@ -239,7 +239,7 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
     # --------------------------------------------------------------- pickers
     def _pick_link(self) -> None:
         path = open_file_dialog(
-            self, tr("Choose device-link profile"), _ICC_FILTER,
+            self, tr("Choose device-link profile"), tr(_ICC_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             extra_paths=tuple(icc_profile_paths()))
         if not path:
@@ -260,7 +260,7 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
 
     def _pick_source(self) -> None:
         path = open_file_dialog(
-            self, tr("Choose the link's source colour space"), _ICC_FILTER,
+            self, tr("Choose the link's source colour space"), tr(_ICC_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             extra_paths=tuple(icc_profile_paths()))
         if path:
@@ -270,7 +270,7 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
 
     def _pick_images(self) -> None:
         paths = open_files_dialog(
-            self, tr("Choose images to convert"), _IMG_FILTER,
+            self, tr("Choose images to convert"), tr(_IMG_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)), preview=True)
         if not paths:
             return

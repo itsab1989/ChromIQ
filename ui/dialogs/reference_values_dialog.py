@@ -308,7 +308,7 @@ def iso_source() -> Source:
                           name=cs.ISO_USER_FILE,
                           write=lambda p: p.write_text(cs.iso_values_template(),
                                                        encoding="utf-8")),
-        file_filter="JSON files (*.json)",
+        file_filter=tr("JSON files (*.json)"),
     )
 
 
@@ -421,7 +421,7 @@ def fogra_source() -> Source:
         forgotten=forgotten,
         template=None,
         always_show_forget=False,
-        file_filter="Reference data (*.txt *.zip)",
+        file_filter=tr("Reference data (*.txt *.zip)"),
     )
 
 

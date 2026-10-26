@@ -578,7 +578,7 @@ class DeviceLinkDialog(_ToolDialogBase):
         return p
 
     def _pick_source(self) -> None:
-        p = self._browse_file(tr("Choose source profile"), _ICC_FILTER, icc=True)
+        p = self._browse_file(tr("Choose source profile"), tr(_ICC_FILTER), icc=True)
         if p:
             self._src_path = p
             self._src_field.setText(str(p))
@@ -586,18 +586,18 @@ class DeviceLinkDialog(_ToolDialogBase):
             self._refresh()
 
     def _pick_destination(self) -> None:
-        p = self._browse_file(tr("Choose printer profile"), _ICC_FILTER, icc=True)
+        p = self._browse_file(tr("Choose printer profile"), tr(_ICC_FILTER), icc=True)
         if p:
             self._set_destination(p)
 
     def _pick_abstract(self) -> None:
-        p = self._browse_file(tr("Choose abstract profile"), _ICC_FILTER, icc=True)
+        p = self._browse_file(tr("Choose abstract profile"), tr(_ICC_FILTER), icc=True)
         if p:
             self._abstract_path = p
             self._abstract_field.setText(str(p))
 
     def _pick_cal(self) -> None:
-        p = self._browse_file(tr("Choose calibration file"), _CAL_FILTER)
+        p = self._browse_file(tr("Choose calibration file"), tr(_CAL_FILTER))
         if p:
             self._cal_path = p
             self._cal_field.setText(str(p))
@@ -606,7 +606,7 @@ class DeviceLinkDialog(_ToolDialogBase):
         """Add one or more images to the gamut set (ChromIQ's own picker, with the
         OS image-folder sidebar shortcuts and a live preview pane)."""
         paths = open_files_dialog(
-            self, tr("Choose images to optimise for"), _IMG_FILTER,
+            self, tr("Choose images to optimise for"), tr(_IMG_FILTER),
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             preview=True)
         if not paths:
