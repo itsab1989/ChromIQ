@@ -2120,6 +2120,7 @@ def confirm(
     if destructive is not None and box.button(destructive) is not None:
         from ui.default_button import mark_destructive
         mark_destructive(box.button(destructive))
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
     fit_message_box_buttons(box)
     box.exec()
     return box.standardButton(box.clickedButton())
