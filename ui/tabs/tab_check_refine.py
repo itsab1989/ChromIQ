@@ -1855,6 +1855,8 @@ class TabCheckRefine(QWidget):
                                QMessageBox.ButtonRole.DestructiveRole)
         cancel = dlg.addButton(QMessageBox.StandardButton.Cancel)
         dlg.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
         dlg.exec()
         return dlg.clickedButton() is anyway
 
@@ -1893,6 +1895,8 @@ class TabCheckRefine(QWidget):
                                QMessageBox.ButtonRole.DestructiveRole)
         cancel = dlg.addButton(QMessageBox.StandardButton.Cancel)
         dlg.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
         dlg.exec()
         return dlg.clickedButton() is anyway
 
