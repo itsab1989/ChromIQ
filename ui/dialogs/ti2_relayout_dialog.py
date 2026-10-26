@@ -1762,7 +1762,7 @@ class _NewChartDialog(QDialog):
                  if self._settings else "") or str(default_output_root())
         path = open_file_dialog(
             self, tr("Choose preconditioning profile"),
-            "ICC profiles (*.icc *.icm)", start_dir=start,
+            tr("ICC profiles (*.icc *.icm)"), start_dir=start,
             extra_paths=icc_profile_paths())
         # macOS can hand focus to the editor window underneath when the file
         # dialog closes over two stacked modals — bring this window back on
@@ -4611,7 +4611,7 @@ class _NewChartDialog(QDialog):
         from ui.widgets import open_file_dialog
         path = open_file_dialog(
             self, tr("Load image"),
-            name_filter="Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)",
+            name_filter=tr("Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)"),
             start_dir=start, preview=True)
         if not path:
             return
@@ -4741,9 +4741,9 @@ class _NewChartDialog(QDialog):
 
     def _load_paste_file(self) -> None:
         path = open_file_dialog(
-            self, "Load colour values",
-            "Colour files (*.txt *.ti1 *.ti2 *.ti3 *.cgats *.csv *.tsv);;"
-            "All files (*)", start_dir=str(Path.home()))
+            self, tr("Load colour values"),
+            tr("Colour files (*.txt *.ti1 *.ti2 *.ti3 *.cgats *.csv *.tsv);;"
+               "All files (*)"), start_dir=str(Path.home()))
         if not path:
             return
         self.raise_(); self.activateWindow()   # keep above the editor (#96)
@@ -5036,9 +5036,9 @@ class _AddPatchesDialog(_NewChartDialog):
 
     def _load_add_file(self) -> None:
         path = open_file_dialog(
-            self, "Load colours",
-            "Colour files (*.txt *.ti1 *.ti2 *.ti3 *.cgats *.csv *.tsv);;"
-            "All files (*)", start_dir=str(Path.home()))
+            self, tr("Load colours"),
+            tr("Colour files (*.txt *.ti1 *.ti2 *.ti3 *.cgats *.csv *.tsv);;"
+               "All files (*)"), start_dir=str(Path.home()))
         if not path:
             return
         self.raise_(); self.activateWindow()   # keep above the editor (#96)
@@ -6282,9 +6282,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         start = (self._settings.get("custom_output_path", "")
                  or str(default_output_root()))
         path = open_file_dialog(
-            self, "Load chart",
-            "Charts & colour files (*.ti2 *.ti1 *.ti3 *.cgats *.txt);;"
-            "All files (*)", start_dir=start)
+            self, tr("Load chart"),
+            tr("Charts & colour files (*.ti2 *.ti1 *.ti3 *.cgats *.txt);;"
+               "All files (*)"), start_dir=start)
         if not path:
             return
         # A chart the person loads here is no longer the preset's.
@@ -7142,8 +7142,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                  or str(default_output_root()))
         default_name = f"{self._basename or 'chart'}-colours.txt"
         path = save_file_dialog(
-            self, "Save patch colours",
-            "Text files (*.txt)",
+            self, tr("Save patch colours"),
+            tr("Text files (*.txt)"),
             start_path=str(Path(start) / default_name),
         )
         if not path:
@@ -7190,8 +7190,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                  or str(default_output_root()))
         default_name = f"{self._basename or 'chart'}-i1profiler"
         path = save_file_dialog(
-            self, "Export i1Profiler files",
-            "i1Profiler (*.pxf)",
+            self, tr("Export i1Profiler files"),
+            tr("i1Profiler (*.pxf)"),
             start_path=str(Path(start) / default_name),
         )
         if not path:
