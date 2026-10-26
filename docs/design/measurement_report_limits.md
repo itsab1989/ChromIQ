@@ -94,7 +94,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §16.6 | E8 judge evenness in absolute Lab? | 2026-09-23, 5789263863 | superseded by his answer "Yes" (5795087247, §21.1) |
 | §21.1 | E8 evenness always judged in absolute Lab, whatever the print's intent | 2026-09-23, 5795087247 | agreed; built in beta 39, awaiting confirmation. Supersedes the "same yardstick" clause of §16.1 item 1 |
 | §21.2 | B8-483 the grey ramp's required steps picked roughly evenly spaced, within a few percent of full scale | 2026-09-22, 5775993270; 2026-09-23, 5795087247 | agreed; built in beta 39 (4 % of full scale), awaiting confirmation (gap G13 built) |
-| §21.3 | R2 the pre-flight widened to show the full paragraph (*"Leave the window wider as previously specified"*) | 2026-09-22, 5781645939; 2026-09-23, 5795087247 | agreed; built in beta 39, awaiting confirmation (gap G5 built) |
+| §21.3 | R2 the pre-flight widened to show the full paragraph (*"Leave the window wider as previously specified"*) | 2026-09-22, 5781645939; 2026-09-23, 5795087247 | agreed; built in beta 39, awaiting confirmation (gap G5 built); its last-resort scroll for a work area too short for the one line (§21.3a) confirmed by Basti 2026-10-26 |
 | §21.4 | A report deleted across projects goes to `<ChromIQ default folder>/old/<date>/`, shown in "Where are my files?" | 2026-09-23, 5795087247 | folder agreed ("Yes"); the help card rows built in beta 39, awaiting confirmation |
 | §17 | Trend graphs for the judged metrics, each with its own limit line (K20/K21) | 2026-09-23, 5785414710, 5787117741, 5787380408 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §17.1 | Every graph explains its lines, its red x and itself (K25 graphs) | 2026-09-23, 5789263863, 5789532633 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
@@ -4901,8 +4901,9 @@ Registered as B8-846. Proof: `~/Desktop/ChromIQ-beta39-proof/k28-a/`.
   px, German 968 × 875. A 13-inch MacBook Air has about 918 px of work area
   with the Dock hidden or at the side, so both fit; with the Dock at the
   bottom about 860, where English (827) fits and German (875) falls back to
-  the one line (driven with the guard handed 860: German frame 731 px, the OK
-  button and the tick on screen). Qt's width ceiling on a 1470 px wide Air is
+  the one line. (Beta 39 measured that German one-line frame at 731 px; **it is
+  999 px in 4.3.16**, so on a work area below about 1000 px even the one line
+  does not fit, and the last resort of §21.3a takes over.) Qt's width ceiling on a 1470 px wide Air is
   990 (derived from the ceiling measured here, not measured on an Air), so
   the 968 box fits its width.
 * **Built:** `ui/tabs/tab_measure.py::PREFLIGHT_TEXT_WIDTH`,
@@ -4919,6 +4920,31 @@ Registered as B8-846. Proof: `~/Desktop/ChromIQ-beta39-proof/k28-a/`.
 * **Proof:** photographs of the whole popup, English and German, and the
   German fallback at 860 px.
 * **Status:** agreed; built; awaiting confirmation.
+
+#### 21.3a The last resort: the one-line version's text scrolls
+
+**✅ Confirmed.** **Confirmed by:** Basti (Sebastian), 2026-10-26: *"scrolling
+can be added if really needed i think for very small screens"*.
+
+* **Rule:** only when even the one-line version does not fit the work area,
+  its text is shown in a scroll area, as tall as the work area leaves room
+  for. Everything else is the same box: the same title, no icon, the one OK
+  button (the default, and what Escape presses), the same keys, the same "do
+  not show again" tick, and what the window returns. The scroll area takes no
+  keyboard focus, so every key does what it did. A box that fits, wide or one
+  line, is never touched.
+* **Not in conflict with R2.** Knut's *"no scrolling is needed in that
+  window"* (5781645939) was said of the WIDE version, which is why the
+  window was widened; this scroll is for the one-line version on a screen
+  too short for it, a case R2 did not cover.
+* **Measured** (4.3.16): the German one-line version is 999 px tall, so it
+  needs the scroll on a work area below about 1000 px.
+* **Built:** `ui/tabs/tab_measure.py::_scroll_the_preflight_text`, asked from
+  `_show_verification_preflight_now` once the one-line version has been laid
+  out and `_preflight_fits` says it still does not fit.
+* **Verified by:**
+  `tests/test_the_preflight_scrolls_when_even_one_line_does_not_fit.py`.
+* **Status:** agreed and confirmed by Basti, 2026-10-26.
 
 ### 21.4 The ChromIQ folder's own old/ in "Where are my files?"
 
