@@ -4259,6 +4259,8 @@ class SettingsDialog(QDialog):
         # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
         # the safest." Return keeps colprof; enabling the engine is a click.
         box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._profile_engine_check.setChecked(False)
 

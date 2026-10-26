@@ -971,6 +971,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         box.setText(title)
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
 
     def _on_cr30_refused(self, reason: str) -> None:
@@ -1008,6 +1010,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         stop = box.addButton(tr("Stop session"),
                              QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(again)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         order_message_box_buttons(box, [again, stop])
         box.exec()
@@ -1036,6 +1040,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         box.setText(title)
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
 
     def _on_cr30_early_press(self, n: int) -> None:
@@ -1082,6 +1088,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         stop = box.addButton(tr("Stop session"),
                              QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(again)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         order_message_box_buttons(box, [again, stop])
         self._lost_window_open = True
@@ -1792,6 +1800,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         clear = box.addButton(tr("Clear"), QMessageBox.ButtonRole.DestructiveRole)
         cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         return self._ask(box) is clear
 
     def _suggested_save_path(self) -> "Path":
@@ -2204,6 +2214,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
         self._no_instrument_open = True
         try:
+            from ui.widgets import keep_message_box_inside_the_work_area
+            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             box.exec()
         finally:
             self._no_instrument_open = False
@@ -2284,6 +2296,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         discard = box.addButton(tr("Discard"), QMessageBox.ButtonRole.DestructiveRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(save)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         clicked = self._ask(box)
         if clicked is discard:
             self._closing = True

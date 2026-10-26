@@ -6652,6 +6652,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         for b in (discard, keep):
             b.setMinimumWidth(b.fontMetrics().horizontalAdvance(b.text()) + 64)
         box.setDefaultButton(keep)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         return box.clickedButton() is discard
 
@@ -6933,6 +6935,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             bbox.setContentsMargins(cm.left(), cm.top() + 28, cm.right(),
                                     cm.bottom())
         box.setDefaultButton(unique_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         clicked = box.clickedButton()
         if clicked is unique_btn:
@@ -6976,6 +6980,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         for b in (start_btn, end_btn, cancel_btn):
             b.setMinimumWidth(b.fontMetrics().horizontalAdvance(b.text()) + 64)
         box.setDefaultButton(end_btn)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         clicked = box.clickedButton()
         if clicked is start_btn:

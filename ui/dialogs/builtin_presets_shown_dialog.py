@@ -497,6 +497,8 @@ class BuiltinPresetsShownDialog(QDialog):
             # Not "OK": beside a sentence about the window's own OK, a second
             # OK that only closes this message would read as the same one.
             box.button(QMessageBox.StandardButton.Ok).setText(button)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         self._exec_box(box)
 
     def _set_status(self, text: str) -> None:

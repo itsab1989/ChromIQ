@@ -7068,6 +7068,8 @@ class MeasurementReportDialog(QDialog):
                            QMessageBox.ButtonRole.AcceptRole)
         cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         self._leave_out_box = box
         try:
@@ -7268,6 +7270,8 @@ class MeasurementReportDialog(QDialog):
         cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(new)
         box.setEscapeButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         self._update_or_new_box = box
         try:
@@ -13293,6 +13297,8 @@ class MeasurementReportDialog(QDialog):
                                | QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(QMessageBox.StandardButton.Cancel)
         ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         box.exec()
         # NOT `box.exec() == StandardButton.Ok`: exec() returns an int and a
         # PyQt6 enum member never equals an int, so that comparison is always

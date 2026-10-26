@@ -5056,6 +5056,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         box.setText(title)
         box.setInformativeText(body)
         box.addButton(QMessageBox.StandardButton.Ok)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -6861,6 +6863,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         build = box.addButton(tr("Build anyway"),
                               QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(stop)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         # Only "Build anyway" builds; a box closed without an answer stops
@@ -6888,6 +6892,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         build = box.addButton(tr("Build anyway"),
                               QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(stop)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         # Only "Build anyway" builds; a box closed without an answer stops
