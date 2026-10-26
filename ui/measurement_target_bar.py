@@ -1794,11 +1794,11 @@ class MeasurementTargetBar(QWidget):
                              QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(keep)
         from ui.widgets import fit_message_box_buttons
+        from ui.widgets import widen_message_box
+        widen_message_box(box)
         from ui.widgets import keep_message_box_inside_the_work_area
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
-        from ui.widgets import widen_message_box
-        widen_message_box(box)
         box.exec()
         return box.clickedButton() is go
 
@@ -1909,9 +1909,9 @@ class MeasurementTargetBar(QWidget):
             # plain (B8-1156) and is reached by a click.
             box.setDefaultButton(cancel)
             from ui.widgets import widen_message_box
+            widen_message_box(box)
             from ui.widgets import keep_message_box_inside_the_work_area
             keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
-            widen_message_box(box)
             box.exec()
             if box.clickedButton() is not restore:
                 return
@@ -1957,11 +1957,11 @@ class MeasurementTargetBar(QWidget):
             box.setInformativeText(result.regeneration_message)
             box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
             from ui.widgets import fit_message_box_buttons
+            from ui.widgets import widen_message_box
+            widen_message_box(box)
             from ui.widgets import keep_message_box_inside_the_work_area
             keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
             fit_message_box_buttons(box)
-            from ui.widgets import widen_message_box
-            widen_message_box(box)
             box.exec()
         elif result.should_rebuild:
             # The pages are being redrawn from the chart's own recipe; the
@@ -2062,11 +2062,11 @@ class MeasurementTargetBar(QWidget):
         cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
         from ui.widgets import fit_message_box_buttons
+        from ui.widgets import widen_message_box
+        widen_message_box(box)
         from ui.widgets import keep_message_box_inside_the_work_area
         keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
-        from ui.widgets import widen_message_box
-        widen_message_box(box)
         box.exec()
         if box.clickedButton() is not go:
             return
@@ -2126,14 +2126,16 @@ class MeasurementTargetBar(QWidget):
         # before the font swap widens it — fit every one of them (Knut, #130
         # 2026-07-28).
         from ui.widgets import fit_message_box_buttons, widen_message_box
-        from ui.widgets import keep_message_box_inside_the_work_area
-        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
-        fit_message_box_buttons(box)
         # This window carries several paragraphs now — what the run keeps in its
         # "old" folder, the chart copy a measurement was taken with, where the
         # files go. Without a measure to wrap at, a QMessageBox sizes itself
         # from its buttons and turns all of that into a tall narrow column.
+        # Widened BEFORE the work-area helper, which then counts the lines at
+        # the width the box really opens with (4.3.16).
         widen_message_box(box)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
         if clicked is cancel or clicked is None:
@@ -2189,9 +2191,9 @@ class MeasurementTargetBar(QWidget):
                     "run has moved.").format(paths="\n".join(exc.paths)))
             box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
             from ui.widgets import widen_message_box
+            widen_message_box(box)
             from ui.widgets import keep_message_box_inside_the_work_area
             keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
-            widen_message_box(box)
             box.exec()
         self._after_delete()
 

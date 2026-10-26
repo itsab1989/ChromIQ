@@ -8,7 +8,8 @@ below the bottom edge. Every one of them now calls the helper once, after its
 text and buttons are set and before it is shown (before the button fit too,
 because a box the helper shortens gains a "Show Details" button that the fit
 must size, and the layout Qt rebuilds for the details drops a spacer added
-earlier).
+earlier). `widen_message_box` comes before it, so the helper counts the lines
+at the width the box opens with.
 
 This reads the app's source, so a box added later without the helper fails
 here, with the file, the line and the function named. A real exception goes
@@ -141,8 +142,12 @@ def test_every_message_box_is_routed_once_before_it_is_shown():
 def test_the_helper_comes_before_the_button_fit():
     """A box the helper shortens gains "Show Details", and Qt builds it a new
     layout, which drops a spacer the fit added: so the fit comes after."""
+    # `widen_message_box` is NOT here: it only gives the box a measure to
+    # wrap at, and it comes BEFORE the helper, which then counts the lines at
+    # the width the box really opens with (measured on screen, 4.3.16: the
+    # Restore window counted at 6 lines before the widening, shown at 5).
     later = {"fit_message_box_buttons", "spread_message_box_buttons",
-             "order_message_box_buttons", "widen_message_box"}
+             "order_message_box_buttons"}
     bad = []
     for path in _app_files():
         rel = str(path.relative_to(ROOT))
