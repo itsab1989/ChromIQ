@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -623,7 +624,12 @@ def test_measure_my_speed_all_the_way_with_a_wrong_count(qapp, tmp_path,
                           8), sec.speed_message()
         text = sec.speed_message()
         assert text.startswith("Done, thank you.")
-        assert "your slowest 1.20 s" in text and "1.50 s suits you" in text
+        # The replay engine plays the presses 1.20 s apart in real time, so a
+        # loaded machine (a release gate on every core) reads a hundredth or
+        # two more: gate 2 of 4.3.16 read 1.21 s. The suggestion is the same.
+        m = re.search(r"your slowest (\d+\.\d\d) s", text)
+        assert m and 1.20 <= float(m.group(1)) <= 1.30, text
+        assert "1.50 s suits you" in text
         assert "on the slow side" in text            # the gentle note
         assert "Your current setting is 0.80 s." in text
         # measured: the instrument is let go before the choice
