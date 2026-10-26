@@ -1490,7 +1490,8 @@ def _message_box_text_lines_once_shown(box, label, work) -> int:
             pass
 
 
-def keep_message_box_inside_the_work_area(box) -> None:
+def keep_message_box_inside_the_work_area(
+        box, *, widen_when_it_fits: bool = True) -> None:
     """A message box may not open taller than the screen it opens on.
 
     **THE BOX THAT STARTED THIS WAS 1433 px TALL ON A 1079 px WORK AREA, AND
@@ -1526,6 +1527,15 @@ def keep_message_box_inside_the_work_area(box) -> None:
        is real and its caption has a height. Same arithmetic as
        :class:`WorkAreaClamped`, which a ``QMessageBox`` cannot inherit because
        it is Qt's class and not ours.
+
+    ``widen_when_it_fits=False`` makes step 1 apply only to a box that would
+    otherwise be too tall for the work area, so a box that fits keeps exactly
+    the size Qt gives it. **Every box routed here in 4.3.16 passes it**: until
+    then those boxes bypassed this helper, and Basti's rule for that release
+    is that a short box looks as it did in 4.3.15 (measured on screen: step 1
+    took a one-line question from 420 to 784 px wide, and every other short
+    box 5 to 13 px wider). ``warn`` / ``inform`` / ``ask`` and the Print
+    tab's questions keep the default, which is what they had in 4.3.15.
 
     Nothing here can raise: a message box is what the app reaches for when
     something has already gone wrong, and it must not be the thing that fails.
@@ -1577,6 +1587,10 @@ def keep_message_box_inside_the_work_area(box) -> None:
             chrome = 120
             wanted = min(longest + chrome,
                          int(work.width() * _MESSAGE_BOX_MAX_TEXT_WIDTH))
+            if (wanted > 0 and not widen_when_it_fits
+                    and _message_box_height_once_shown(box, label, work)
+                    <= work.height() - 60):
+                wanted = 0          # it fits as Qt sizes it: left as it was
             if wanted > 0:
                 _hold_width_open(lay)
 
