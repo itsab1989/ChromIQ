@@ -2112,6 +2112,8 @@ class TabProfile(QWidget):
                                QMessageBox.ButtonRole.DestructiveRole)
         cancel = dlg.addButton(QMessageBox.StandardButton.Cancel)
         dlg.setDefaultButton(cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(dlg, widen_when_it_fits=False)
         dlg.exec()
         return dlg.clickedButton() is anyway
 
@@ -5618,6 +5620,8 @@ class TabProfile(QWidget):
                            QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(back)
         box.setEscapeButton(back)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is go:
@@ -5651,6 +5655,8 @@ class TabProfile(QWidget):
         go = box.addButton(tr("Build anyway"), QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is go
@@ -5709,6 +5715,8 @@ class TabProfile(QWidget):
         # the safest." Where a duplicate can be made, Return makes it (nothing
         # is lost); otherwise Return presses Cancel, never "Build here anyway".
         box.setDefaultButton(dup or cancel)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
