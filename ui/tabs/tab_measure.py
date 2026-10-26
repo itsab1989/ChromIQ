@@ -1601,10 +1601,13 @@ def _preflight_fits(box) -> bool:
     shown box's frame; before it is shown, of its size hint (an estimate that
     can be 140 px short, which is why the pre-flight asks after showing).
 
-    A MacBook Air 13 has about 918 px of work area with the Dock hidden and
-    about 860 with it at the bottom. The wide German popup is 875 tall, so on
-    the second the one-line version is shown instead, and the OK button and
-    the "do not show again" tick can never fall off the screen.
+    A box that does not fit gets the one-line version instead. Since 4.3.16
+    that version is 999 px tall in German, more than a small work area holds
+    (a MacBook Air 13 has about 918 px with the Dock hidden, about 860 with
+    it at the bottom), so the one line alone no longer keeps the box on
+    screen: §21.3a's last resort, `_scroll_the_preflight_text`, puts the
+    text in a scroll area, and that is what keeps the OK button and the "do
+    not show again" tick on a very small work area.
     """
     lay = box.layout()
     if lay is not None:
