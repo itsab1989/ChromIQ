@@ -90,47 +90,92 @@ _PINNED_QAPP = None
 # 99 % and only a faulthandler dump named `ui/ti2_loader.py:1190`.
 #
 # A watchdog, not a ban. A test that legitimately drives a dialog still works,
-# because the timer only fires if the dialog is STILL up after the grace
-# period; then it closes it and the test fails with the dialog's own title in
-# the message. A test that monkeypatches `exec` itself still wins — this only
+# because a dialog is only closed once it has been VISIBLE for the whole grace
+# period; then it is closed and the test fails with the dialog's own title in
+# the message. A test that monkeypatches `exec` itself still wins: this only
 # wraps what is left.
+#
+# EACH DIALOG IS TIMED FROM WHEN IT IS FIRST SEEN, NOT FROM THE TEST'S SETUP
+# (review r7 of 4.3.18). It used to be one 4 s timer started when the test's
+# fixtures were set up. On a loaded worker, setup plus building a box can
+# take longer than that, and then the timer, already due, fired inside the
+# test's first `processEvents()` and rejected a box the test had shown a
+# moment before: `test_a_box_that_does_not_fit_scrolls_and_keeps_everything_
+# else` read the stale frame height, measured a box that was no longer
+# visible, and failed with "a modal dialog was left open". Now a sweep runs
+# every `MODAL_SWEEP_TICK_MS` and remembers when it first saw each dialog
+# visible; a dialog hidden in between starts again from zero. A genuinely
+# hung `exec()` is still ended, at most one tick after its grace runs out
+# (`tests/test_the_modal_sweep_times_each_dialog.py`).
 #
 # It must cover the STATIC helpers too: 68 of the ~216 modal entry points in
 # this app never touch `QDialog.exec` at all (41 `QMessageBox.warning`, 14
 # `.information`, 6 `.critical`, 2 `.question`, 4 `QColorDialog`, 1
 # `QInputDialog`), and only 8 lines in the whole suite touch any of them.
 MODAL_GRACE_MS = 4000
+MODAL_SWEEP_TICK_MS = 250
+
+
+class _ModalSweep:
+    """Closes a dialog that has been visible (and modal, or a message box)
+    for `MODAL_GRACE_MS` (or *grace_ms*) and names it in `stuck`. *clock*
+    gives seconds."""
+
+    def __init__(self, clock=None, grace_ms=None):
+        import time
+        self.clock = clock or time.monotonic
+        self.grace_ms = grace_ms
+        self.first_seen: dict = {}
+        self.stuck: list = []
+
+    def tick(self) -> None:
+        from PyQt6 import sip
+        from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
+        grace = (MODAL_GRACE_MS if self.grace_ms is None
+                 else self.grace_ms) / 1000.0
+        now = self.clock()
+        seen: dict = {}
+        for w in QApplication.topLevelWidgets():
+            if not w.isVisible():
+                continue
+            modal = isinstance(w, QDialog) and w.isModal()
+            if not (modal or isinstance(w, QMessageBox)):
+                continue
+            key = (int(sip.unwrapinstance(w)), id(w))
+            first = self.first_seen.get(key, now)
+            seen[key] = first
+            if now - first < grace:
+                continue
+            if modal:
+                self.stuck.append(w.windowTitle() or type(w).__name__)
+                w.reject()
+            else:
+                self.stuck.append(w.windowTitle() or w.text()[:60])
+                w.close()
+        # a dialog not visible on this tick is forgotten: shown again, it
+        # gets its whole grace period again
+        self.first_seen = seen
 
 
 @pytest.fixture(autouse=True)
 def _no_modal_may_hang_the_suite(request):
-    """Close any dialog still modal after `MODAL_GRACE_MS` and fail the test."""
+    """Close any dialog still up after `MODAL_GRACE_MS` visible, and fail
+    the test. Yields the sweep, so a test of the sweep can drive it."""
     from PyQt6.QtCore import QTimer
-    from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
-    stuck: list = []
-
-    def _sweep():
-        for w in QApplication.topLevelWidgets():
-            if isinstance(w, QDialog) and w.isVisible() and w.isModal():
-                stuck.append(w.windowTitle() or type(w).__name__)
-                w.reject()
-            elif isinstance(w, QMessageBox) and w.isVisible():
-                stuck.append(w.windowTitle() or w.text()[:60])
-                w.close()
-
+    sweep = _ModalSweep()
     timer = QTimer()
-    timer.setInterval(MODAL_GRACE_MS)
-    timer.timeout.connect(_sweep)
+    timer.setInterval(MODAL_SWEEP_TICK_MS)
+    timer.timeout.connect(sweep.tick)
     timer.start()
     try:
-        yield
+        yield sweep
     finally:
         timer.stop()
-    if stuck:
+    if sweep.stuck:
         raise AssertionError(
             "a modal dialog was left open and would have hung the run: "
-            + ", ".join(sorted(set(stuck)))
+            + ", ".join(sorted(set(sweep.stuck)))
             + "\nStub it in the test, or fix the code path that opens it with "
               "no project / no user present.")
 

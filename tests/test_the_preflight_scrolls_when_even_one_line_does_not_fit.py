@@ -48,6 +48,10 @@ def _preflight_like_box():
 def _show(box, app):
     box.show()
     app.processEvents()
+    # Review r7 of 4.3.18: the suite's modal sweep once closed the box in the
+    # processEvents() above, and every measurement after it read a box that
+    # was no longer on screen. If that ever happens again, say so here.
+    assert box.isVisible(), "the box was closed before it could be measured"
 
 
 def _wait_closed(box):
@@ -82,12 +86,14 @@ def test_a_box_that_does_not_fit_scrolls_and_keeps_everything_else(
     work = tall - 150
     monkeypatch.setattr(TM, "_preflight_work_height", lambda _b: work)
     text, title = box.text(), box.windowTitle()
+    assert box.isVisible(), "the box was closed before it could be measured"
     assert not TM._preflight_fits(box)
 
     assert TM._scroll_the_preflight_text(box) is True
     _app.processEvents()
     assert box.frameGeometry().height() <= work, (
         "the box is still taller than the work area")
+    assert box.isVisible(), "the box was closed before it could be measured"
     assert TM._preflight_fits(box)
     scroll = box.findChild(QScrollArea, "preflightScroll")
     assert scroll is not None and scroll.isVisible()
@@ -120,8 +126,10 @@ def test_return_still_presses_ok(_app, monkeypatch):
     _show(box, _app)
     work = box.frameGeometry().height() - 150
     monkeypatch.setattr(TM, "_preflight_work_height", lambda _b: work)
+    assert box.isVisible(), "the box was closed before it could be measured"
     assert TM._scroll_the_preflight_text(box) is True
     _app.processEvents()
+    assert box.isVisible(), "the box was closed before Return was pressed"
     QTest.keyClick(box, Qt.Key.Key_Return)
     _wait_closed(box)
     assert box.clickedButton() is ok
