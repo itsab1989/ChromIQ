@@ -333,7 +333,13 @@ def test_an_answer_one_patch_off_is_refused(tmp_path):
     r = auto_align("scanin", scan, cht, cie, boxes, exp, size,
                    runner=_FakeRun(_log_for(off, bbox), _log_for(off, bbox)))
     assert not r.ok, "a one-patch shift was applied"
-    assert r.reason == "no-usable-candidate"
+    # A smooth grey ramp: one patch over reads it just about as well, so the
+    # colours cannot say where the grid belongs, and that is what the refusal
+    # says (M-SCAN-ALIGN-REPEATS names "neighbouring patches change only
+    # gradually"). It used to end as "no-usable-candidate", whose message
+    # sends the user to check the chosen chart, which is not the problem
+    # (release review r5 of 4.3.18, N-1).
+    assert r.reason == "repeating-colours", (r.reason, r.rejected)
     assert any("edges" in s for s in r.rejected)
 
 

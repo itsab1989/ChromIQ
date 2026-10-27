@@ -639,8 +639,19 @@ def colours_repeat_along_the_chart(score, boxes: Sequence,
     anything at all.
 
     It is only asked when the colours are about to overrule the boundary check,
-    which is rare, so its cost (at most two reads per column and two per row)
-    is not paid on every press of the button.
+    or when the boundary has refused a grid the colours could not pin (review
+    r5 of 4.3.18, N-1, to say why), which is rare, so its cost (at most two
+    reads per column and two per row) is not paid on every press of the button.
+
+    ONLY STRAIGHT SHIFTS ARE TRIED. A chart that repeats only DIAGONALLY (one
+    repeat is so many patches across AND so many down, and no straight shift
+    reads it) is not caught here. That is safe as measured: in review r5's
+    probes (a 2-D period of 5 x 4, a row-major sequence whose period is the
+    width plus 4 or 5, a chart invariant only under a (4, 4) shift) the other
+    gates, the boundary check and :func:`pitch_search`'s uniqueness, refused
+    every such grid, on a dark and a light lid, and nothing wrong was
+    accepted. Such a refusal can then name the wrong reason, never the wrong
+    patches.
     """
     if score is None:
         return None
@@ -957,6 +968,25 @@ def auto_align(scanin_exe: str | Path,
         # (see `position_is_pinned`).
         if border_agreement(scan, boxes, turned) is False:
             if not pinned:
+                # A grid the colours read well, refused by the boundary, that
+                # the colours could not pin either: nearby, or one whole repeat
+                # further along, reads it just as well. That is the REPEATS
+                # case, and it is a fact about the chart, so it must be said
+                # whichever colour the scanner lid is. Before this the same
+                # chart one repeat off ended as REPEATS on a dark lid and as
+                # "no-usable-candidate" (M-SCAN-ALIGN-NO-FIT, "check the chart
+                # chosen ... is the one you scanned") on a light one (review r5
+                # of 4.3.18, N-1). Still a refusal either way.
+                if (why_nothing_is_unique(tried, floor=floor) == "position"
+                        or colours_repeat_along_the_chart(
+                            score, boxes, turned, image_size, rho,
+                            sample_frac=sample_frac) is not None):
+                    rejected.append(
+                        f"{source}: the grid's edges are not the chart's, and "
+                        f"its colours read as well in another position, so "
+                        f"they cannot say which one is right")
+                    repeats = True
+                    continue
                 rejected.append(f"{source}: the grid's edges are not the chart's")
                 continue
             # ...but only if the colours pin it across the WHOLE chart: a chart

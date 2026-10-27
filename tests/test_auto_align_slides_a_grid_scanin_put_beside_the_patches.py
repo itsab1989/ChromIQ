@@ -72,13 +72,15 @@ def _loc(c, r):
 
 
 def _chart(tmp_path: Path, *, shuffled=True, cols=12, rows=10, box=30,
-           margin=110, seed=3, half_turn_symmetric=False, period=None):
+           margin=110, seed=3, half_turn_symmetric=False, period=None,
+           row_period=None):
     """A grid of patches edge to edge on white paper. *shuffled*: colours in
     random order, the way a ChromIQ chart's patches are; otherwise a smooth
     grey ramp, whose neighbours look alike. *period*: the shuffled colours of
     the first *period* columns repeat across the whole chart, the way a chart
     printed in its original order or a chart definition that repeats a block
-    can."""
+    can. *row_period*: the same down the columns, so the colours repeat in
+    both directions."""
     rng = random.Random(seed)
     boxes, colors = [], {}
     for c in range(cols):
@@ -100,6 +102,10 @@ def _chart(tmp_path: Path, *, shuffled=True, cols=12, rows=10, box=30,
         for c in range(period, cols):
             for r in range(rows):
                 colors[_loc(c, r)] = colors[_loc(c % period, r)]
+    if row_period:
+        for c in range(cols):
+            for r in range(row_period, rows):
+                colors[_loc(c, r)] = colors[_loc(c, r % row_period)]
     exp = []
     for b in boxes:
         r_, g_, b_ = colors[b["loc"]]
@@ -312,6 +318,45 @@ def test_a_grid_one_repeat_off_a_repeating_chart_is_never_accepted(
     hit = A.colours_repeat_along_the_chart(
         score, c["boxes"], alias, c["size"], score(c["boxes"], alias))
     assert hit is not None and hit[1] == 0 and hit[0] % period == 0, hit
+
+
+@pytest.mark.parametrize("di, dj", [(5, 0), (0, 4), (5, 4)])
+def test_a_chart_one_repeat_off_says_it_repeats_whatever_the_lid(
+        tmp_path, monkeypatch, di, dj):
+    """Review r5 of 4.3.18, N-1. A chart whose colours repeat every 5 patches
+    along its rows and every 4 down its columns, with the grid one whole
+    repeat off. The colours read it almost perfectly there, so they cannot pin
+    it, and the boundary refuses it. Before the fix that ended as
+    "no-usable-candidate" (M-SCAN-ALIGN-NO-FIT, "check that the chart chosen
+    ... is the one you scanned", which is not the problem) whenever the
+    colours had not been asked about the repeat, and it depended on the colour
+    of the scanner lid. A refusal either way; now it always says the colours
+    repeat."""
+    from workflow import measurement_messages as M
+    c = _chart(tmp_path, cols=40, rows=16, box=20, margin=160, seed=9,
+               period=5, row_period=4)
+    t, p = c["truth"], c["box"]
+    given = _shift(t, di * p, dj * p)
+    monkeypatch.setattr(A, "border_agreement", lambda *a, **k: False)
+    r = _align(c, _cand(given, c["bbox"]), _cand(given, c["bbox"]))
+    assert not r.ok, f"accepted a grid {_worst(r.corners, t) / p:.1f} patches out"
+    assert r.reason == "repeating-colours", (r.reason, r.rejected)
+    assert M.scan_align_refusal(r.reason) is M.M_SCAN_ALIGN_REPEATS
+
+
+def test_an_unpinned_shuffled_grid_refused_by_its_edges_is_not_called_repeating(
+        tmp_path, monkeypatch):
+    """The other side of N-1: when nothing nearby or further along reads the
+    chart as well, a grid the boundary refuses still ends as before, not as
+    "the colours repeat"."""
+    c = _chart(tmp_path, cols=24, rows=20, box=20, margin=70)
+    monkeypatch.setattr(A, "border_agreement", lambda *a, **k: False)
+    monkeypatch.setattr(A, "_unique_winner", lambda *a, **k: None)
+    r = _align(c, _cand(c["truth"], c["bbox"]), _cand(c["truth"], c["bbox"]))
+    assert not r.ok
+    assert r.reason == "no-usable-candidate", (r.reason, r.rejected)
+    assert all("repeat" not in s and "another position" not in s
+               for s in r.rejected), r.rejected
 
 
 def test_a_repeating_chart_still_lands_when_its_edges_agree(tmp_path):
