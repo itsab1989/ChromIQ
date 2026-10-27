@@ -8625,13 +8625,10 @@ only when its device values then agree on every patch.**
 Measure tab's IMPORT module does it on its converted copy; Build Profile, Check
 & Refine and the new-project door do it through
 `measurement_filing.TurnedPairing`, against the chart that still has its order
-beside it, before a run is duplicated or a project is made. (Both of those
-took no turned files in r1; since review 4.3.17 r2, NIT-1, they carry them
-with a byte-for-byte copy of the chart, see the section below.) The paired copy
+beside it, before a run is duplicated or a project is made. The paired copy
 needs no order file any more, wherever it lands, and the person's own file is
-never touched. A pairing copy that cannot be written ends in the door's "could
-not file" window (r2, NIT-4). `say_what_was_filed` says so in a window if a door
-paired a copy and the filed copy does not pair with its run's chart. Tests:
+never touched. `say_what_was_filed` says so in a window if a door paired a copy
+and the filed copy does not pair with its run's chart. Tests:
 `tests/test_i1profiler_turned_import.py` (a simulated turned `.mxf` imports
 with every reading on its own patch; a file whose device values do not follow
 the order is refused; a partial one is refused with its own reason; a chart
@@ -8639,12 +8636,40 @@ whose names coincide is never paired by name; ordinary measurements are judged
 as before) and `tests/test_i1profiler_turned_doors.py` (every door, through the
 real tabs, and the option off in settings with a chart that has an order).
 
-#### ⏳ Awaiting confirmation: which files pair, and where the turned files go (review 4.3.17 r2)
+### Confirmed behaviour — §I.14, the turned files travel with an identical copy of the chart (beta)
+
+**Confirmed by:** Sebastian, 2026-10-27: *"i think this makes sense right?"*,
+asked whether the turned files may travel with the chart when a run is
+duplicated or a project is made from a chart folder, and given the reasoning:
+the files are tied to the chart's exact bytes, so they only count while the
+chart is identical, and a differing copy does not carry them. He confirmed
+this behaviour and nothing more.
+
+* **Duplicate run** (`Project.duplicate_run`, both the Duplicate button and
+  the import doors' "a new run", which copies the "chart" group only) and **a
+  new project made from a chart folder** (`ti2_loader._copy_files`) carry the
+  chart's turned i1Profiler export (the order file, the note and the `.txf`
+  files) only when the order names the chart being copied by its SHA-256
+  (`turned_order_for`). The copied `.ti2` is a byte-for-byte copy, so the
+  order still names it, and the copy then pairs a later turned measurement
+  and refuses a device-less one, like its source.
+* They are put into the new run's `exports/`, wherever they sat beside the
+  source chart (the TI2 layout editor writes them beside the chart, Create
+  Chart into `exports/`); `_copy_files` names them after the new project.
+* **An order that names another chart is not carried at all**: not by the
+  chart group, and not by a whole-run duplicate's `exports/` either. The
+  exact turned file names are taken out of every Duplicate pattern and judged
+  by the order alone (review 4.3.17 r3, SF-2); a file of the person's own
+  whose name merely starts the same way is copied as before.
+* Without turned files both copy exactly what 4.3.16 copied.
+* Tests: `tests/test_i1profiler_turned_files_travel_with_the_chart.py`.
+
+### ⏳ Awaiting confirmation — §I.14, the turned files outside pairing (beta, reviews 4.3.17 r2 and r3)
 
 **Confirmed by:** *nobody yet.*
 
-These follow from points 1 and 2 above and change neither; they are written
-down here because the texts and the code said otherwise until review round 2.
+These follow from points 1 and 2 of I.14 and change neither. They are built and
+tested; nobody has yet said that this is what ChromIQ should do.
 
 * **Which files pair.** Point 1 asks for device values, not for a format. An
   `.mxf` (the format the beta was checked with) carries them, and so does an
@@ -8655,21 +8680,31 @@ down here because the texts and the code said otherwise until review round 2.
   without device values is refused on such a chart (point 3). The note, the
   tooltip and the File Guide say exactly this; before r2 they said that only
   the `.mxf` keeps the device values.
+* **A pairing copy that cannot be written** ends in the door's "could not
+  file" window, and nothing is filed (review 4.3.17 r2, NIT-4).
 * **The option off does not delete the order of a chart that stays.** With the
   option off, Create Chart and the TI2 layout editor remove turned files only
   when their order no longer names the chart on disk
-  (`i1profiler_turned.remove_unless_current`). Restore Used Chart redraws the
-  same chart and keeps them (the rebuild guard holds and puts them back), and a
-  build that fails or is stopped gives them back with the chart it puts back
-  (`reset_chart_artefacts(stash=True)` sets them aside). Before r2 the option
-  off removed them on every build (SF-1).
-* **They travel with a byte-for-byte copy of the chart.** `duplicate_run`'s
-  "chart" group copies them, and so does `ti2_loader._copy_files` (a new
-  project from a chart folder), into the new run's `exports/` under the new
-  name, only while the copied `.ti2` has the bytes the order names
-  (`i1profiler_turned.carry_turned_export`). The copy then pairs a later
-  turned measurement and refuses a device-less one, like its source. Without
-  turned files both copy exactly what 4.3.16 copied (NIT-1).
+  (`i1profiler_turned.remove_unless_current`), and keep them otherwise. Restore
+  Used Chart redraws the same chart and keeps them (the rebuild guard holds
+  and puts them back), and a build that fails or is stopped gives them back
+  with the chart it puts back (`reset_chart_artefacts(stash=True)` sets them
+  aside). Before r2 the option off removed them on every build (SF-1).
+* **Restore Used Chart restores them with the chart** (review 4.3.17 r3,
+  NIT-5). The snapshot taken when a measurement starts copies the turned files
+  whose order names the live chart into `chart/exports/`, where no "is it the
+  same chart?" comparison sees them, and a restore puts them back into the
+  run's `exports/` when that order names the restored chart. The turned files
+  of the chart that was replaced go into its archive in `old/`, under
+  `exports/`. So chart A made with the option on, replaced by chart B, the
+  option switched off and A restored, comes back with A's order. Without
+  turned files the snapshot and the restore are what 4.3.16 wrote
+  (`tests/test_i1profiler_turned_restore_used_chart.py`).
+* **The File Guide lists them** while the option is on, and also while the
+  open project (or, in its `Where are my files.txt`, the project itself)
+  holds an order that names its chart; stale orders and the copies in `old/`
+  and `chart/` do not count (review 4.3.17 r3, NIT-1). Off and without such
+  files the guide is 4.3.16's.
 
 ## S. Sequences — what happens, in what order, for every entry condition
 
