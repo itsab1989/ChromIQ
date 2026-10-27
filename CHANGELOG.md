@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.19
+
+### Fixed
+- **A measurement of the turned i1Profiler chart is refused when i1Profiler laid that chart out on another grid** (beta option, off unless you switch it on). If i1Profiler made a different grid from the one the chart's note names, for example 25 columns instead of 24, its rows did not line up with the strips on your sheet and the readings belong to other patches, but the import still said the file fitted, because i1Profiler writes the colours of its test-chart file into every measurement. An .mxf file records i1Profiler's grid and where it put each patch, so ChromIQ now compares them with the grid the note names. When they differ, nothing is filed, and the message says what happened and how to measure again. A CGATS text export does not record the grid and is checked as before.
+- **The i1Profiler workflow file writer places patches on several pages the way i1Profiler does.** Its option to write each patch's place filled one page after the other, while i1Profiler fills one grid column by column and then shares its rows out over the pages, so on a chart of more than one page most places were wrong (26 of 702 right on a three-page file). ChromIQ does not use that option for any file it writes, so no chart or file of yours was affected.
+
 ## v4.3.18
 
 **For everyone updating from 4.3.17: Auto align in the scanner and camera tool now finds the patches of a ChromIQ chart that it used to miss, the "Advanced…" section there keeps the window's size, and a SpectroScan or CR30 chart laid out with "Prioritise chart area" no longer comes out shifted to the left. The beta option that lets i1Profiler measure a printed ChromIQ sheet now turns the sheet so that its clip border is at the top, and a chart on any paper size can qualify. With that option off, which is how it starts, nothing about your charts, presets, measurements or profiles changes because of it.**

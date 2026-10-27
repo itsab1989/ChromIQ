@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Callable
@@ -429,6 +430,10 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
              'KEYWORD "TARGET_INSTRUMENT"', f'TARGET_INSTRUMENT "{instrument}"']
     if date:
         lines += ['KEYWORD "CHROMIQ_MEASURED"', f'CHROMIQ_MEASURED "{date}"']
+    grid = _cxf_i1p_grid(root, targets)
+    if grid is not None:
+        lines += [f'KEYWORD "{I1P_GRID_KEYWORD}"',
+                  f'{I1P_GRID_KEYWORD} "{grid.as_keyword()}"']
     if space == "RGB":
         dev_fields, rep = "RGB_R RGB_G RGB_B", "iRGB_XYZ"
     else:
@@ -449,6 +454,117 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
         out_ti3 = artefact(out_ti3, ".ti3")
     out_ti3.write_text("\n".join(lines), encoding="utf-8")
     return out_ti3
+
+
+#: The header keyword that carries i1Profiler's grid from a CxF measurement
+#: into the converted ``.ti3`` (4.3.19, §I.14): the ``.ti3`` is all the import
+#: judges, and it is the only trace of where i1Profiler put each patch.
+I1P_GRID_KEYWORD = "CHROMIQ_I1P_GRID"
+
+
+@dataclass(frozen=True)
+class I1pGrid:
+    """The grid i1Profiler laid a measured chart out on, as its file says.
+
+    *columns*, *rows* and *pages* are ``NumberPatchColumns``,
+    ``NumberPatchRows`` (the rows of the first page) and ``NumberPatchPages``
+    (1 when absent). *patches* is the number of Target objects, *located*
+    how many of them carry a whole Location tag (Page, Row, Column), and
+    *misplaced* how many of THOSE are not in the cell i1Profiler's own fill
+    rule gives that entry on this grid (``i1profiler_export.i1p_location``).
+    A file with every Target located and none misplaced is a file whose
+    every patch sits where the grid says; comparing the grid with another
+    one then compares every cell."""
+    columns: int
+    rows: int
+    pages: int
+    patches: int
+    located: int
+    misplaced: int
+
+    def as_keyword(self) -> str:
+        return (f"columns={self.columns} rows={self.rows} pages={self.pages} "
+                f"patches={self.patches} located={self.located} "
+                f"misplaced={self.misplaced}")
+
+    @classmethod
+    def from_keyword(cls, value: str) -> "I1pGrid | None":
+        try:
+            kv = dict(part.split("=", 1) for part in str(value).split())
+            return cls(*(int(kv[k]) for k in (
+                "columns", "rows", "pages", "patches", "located",
+                "misplaced")))
+        except (KeyError, ValueError, TypeError):
+            return None
+
+
+def i1p_grid_of(ti3_path: "str | Path") -> "I1pGrid | None":
+    """The i1Profiler grid a converted ``.ti3`` carries (see
+    :data:`I1P_GRID_KEYWORD`), or ``None``: a file converted from a CGATS
+    export, from a CxF without the grid attributes, or written by any other
+    tool. Reads the header only."""
+    try:
+        with open(ti3_path, "r", encoding="utf-8", errors="replace") as fh:
+            for n, line in enumerate(fh):
+                s = line.strip()
+                if s == "BEGIN_DATA" or n > 400:
+                    break
+                m = re.match(rf'^{I1P_GRID_KEYWORD}\s+"([^"]*)"\s*$', s)
+                if m:
+                    return I1pGrid.from_keyword(m.group(1))
+    except OSError:
+        return None
+    return None
+
+
+def _cxf_i1p_grid(root, targets) -> "I1pGrid | None":
+    """The grid of a CxF measurement, when it carries i1Profiler's
+    ``NumberPatchColumns`` and ``NumberPatchRows``; ``None`` otherwise.
+
+    Read only, never used to pair: the readings are paired by their order
+    (and, for the turned chart, checked by their device values), exactly as
+    before. The Location tags are checked against i1Profiler's own fill rule
+    for the grid the file names (measured on every Target of three genuine
+    files, ``docs/dev_pxwf_format.md``)."""
+    from workflow.i1profiler_export import i1p_location, i1p_page_rows
+    attrs = None
+    for el in root.iter():
+        if el.tag.rsplit("}", 1)[-1] == "CustomAttributes" and (
+                el.get("NumberPatchColumns") is not None):
+            attrs = el
+            break
+    if attrs is None:
+        return None
+    try:
+        cols = int(str(attrs.get("NumberPatchColumns")).strip())
+        rows = int(str(attrs.get("NumberPatchRows")).strip())
+        pages = int(str(attrs.get("NumberPatchPages") or "1").strip())
+    except (TypeError, ValueError):
+        return None
+    if cols <= 0 or rows <= 0 or pages <= 0:
+        return None
+    n = len(targets)
+    rows_total = -(-n // cols)
+    per_page = i1p_page_rows(rows_total, pages)
+    located = misplaced = 0
+    for j, o in enumerate(targets):
+        tags = {}
+        for tc in o.findall("cc:TagCollection", _CXF_NS):
+            if tc.get("Name") != "Location":
+                continue
+            for t in tc.findall("cc:Tag", _CXF_NS):
+                tags[t.get("Name")] = t.get("Value")
+        try:
+            cell = (int(tags["Page"]), int(tags["Row"]), int(tags["Column"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        located += 1
+        try:
+            want = i1p_location(j, rows_total, per_page)
+        except ValueError:
+            want = None
+        misplaced += cell != want
+    return I1pGrid(cols, rows, pages, n, located, misplaced)
 
 
 def _cxf_instrument(root) -> str:

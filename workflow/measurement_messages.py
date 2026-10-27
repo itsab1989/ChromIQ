@@ -1571,6 +1571,71 @@ M_IMPORT_MISMATCH = _m(
     "measure again, and import that.",
     approved=False)
 
+# --- PROPOSED (4.3.19, Basti 2026-10-27: "if it is a bug fix it"): a
+#: measurement of the turned i1Profiler chart that i1Profiler laid out on
+#: another grid than the order file names (§I.14). Its device values still
+#: repeat the patch list, so they cannot show it; the grid and the Location
+#: tags of an .mxf can (`i1profiler_turned.grid_mismatch`). Two {reason}
+#: fragments, each followed by the same advice, for the windows that show an
+#: import refusal ("The reason: {reason}."), so no full stop at the end.
+#: {cols} and {rows} are the order's grid (step 5 of the how-to note);
+#: {got_cols}, {got_rows}, {got_pages} the file's; {count} of {total} the
+#: patches the file does not put in the turned chart's cell.
+_TURNED_GRID_DIFFERS = (
+    "this file is a measurement of the turned i1Profiler chart, but "
+    "i1Profiler laid that chart out on a different grid from the one the "
+    "how-to note for this chart names. The note names this grid: columns: "
+    "{cols}, rows: {rows}, pages: 1, so that every row is one strip of your "
+    "printed sheet. The file says that i1Profiler made this grid: columns: "
+    "{got_cols}, rows: {got_rows}, pages: {got_pages}. Its rows therefore did "
+    "not line up with the strips on your sheet, so the readings were taken on "
+    "other patches than the ones they are recorded for. The RGB values in the "
+    "file cannot show this, because "
+    "i1Profiler writes the RGB values of its test-chart file into every "
+    "measurement, whatever the instrument read.")
+_TURNED_GRID_CELLS_DIFFER = (
+    "this file is a measurement of the turned i1Profiler chart, and its grid "
+    "is the one the how-to note for this chart names (columns: {cols}, rows: "
+    "{rows}, pages: 1), but the file does not give {count} of its {total} "
+    "patches the place on that grid that the turned chart has for them. "
+    "Those readings were therefore taken on other patches than the ones they "
+    "are recorded for. The RGB values in the file cannot show this, because "
+    "i1Profiler writes the RGB values "
+    "of its test-chart file into every measurement, whatever the instrument "
+    "read.")
+_TURNED_GRID_WHAT_TO_DO = (
+    "To measure the sheet again: in i1Profiler, check that Default display "
+    "device is set to the family of the instrument you measure with (step 3 "
+    "of the how-to note, the file ending in -i1profiler-turned-how-to.txt "
+    "beside the turned test-chart files), load the turned test-chart file "
+    "(.txf) for that instrument again on the Test Chart page (step 4), and "
+    "check that i1Profiler now shows exactly the grid that step 5 names. "
+    "Then measure every row again, save the measurement as an .mxf file and "
+    "import that file")
+M_IMPORT_TURNED_GRID = _m(
+    "M-IMPORT-TURNED-GRID",
+    "A measurement of the turned i1Profiler chart on another grid: the reasons",
+    "\n".join((_TURNED_GRID_DIFFERS, _TURNED_GRID_CELLS_DIFFER,
+               _TURNED_GRID_WHAT_TO_DO)),
+    approved=False)
+
+
+def turned_grid_differs_reason(cols: int, rows: int, got_cols: int,
+                               got_rows: int, got_pages: int) -> str:
+    """{reason}: i1Profiler made another grid than the order names."""
+    return (tr(_TURNED_GRID_DIFFERS).format(
+        cols=cols, rows=rows, got_cols=got_cols, got_rows=got_rows,
+        got_pages=got_pages) + " " + tr(_TURNED_GRID_WHAT_TO_DO))
+
+
+def turned_grid_cells_differ_reason(cols: int, rows: int, count: int,
+                                    total: int) -> str:
+    """{reason}: the grid is the order's, but patches sit in other cells."""
+    return (tr(_TURNED_GRID_CELLS_DIFFER).format(
+        cols=cols, rows=rows, count=count, total=total)
+        + " " + tr(_TURNED_GRID_WHAT_TO_DO))
+
+
 M_IMPORT_DATE_TAKEN = _m(
     "M-IMPORT-DATE-TAKEN",
     "This verification already holds a measurement",
@@ -8150,6 +8215,7 @@ CATALOGUE = {m.id: m for m in (
     M_PATCH_CARD_PLAIN,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
+    M_IMPORT_TURNED_GRID,
     M_IMPORT_DONE_PROFILING,
     M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,

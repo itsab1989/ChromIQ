@@ -86,10 +86,58 @@ When present, each Object gets:
 </cc:TagCollection>
 ```
 
-- **Fill order is column-major** over the Objects (= `.ti1` order):
-  `Column = i // NumberPatchRows`, `Row = i % NumberPatchRows`, `Page` advances
-  when a sheet fills. Verified on the 29×20 (i1Pro3) and 39×15 (i1iO single)
-  charts.
+- **One grid, filled column-first, then cut into pages** (corrected 4.3.19,
+  study of 2026-10-27). i1Profiler lays out ALL `N` Objects (= `.ti1` order)
+  as ONE grid of `C = NumberPatchColumns` columns and `R = ceil(N / C)` rows,
+  column-major: entry `i` is at column `i // R` and global row `i % R`. Only
+  then are the rows cut into pages, shared out evenly with the larger shares
+  first (`R` rows on `P` pages: `R // P` each, the first `R % P` pages one
+  more). The tag's `Page` counts from 1, `Row` (on that page) and `Column`
+  from 0. `NumberPatchRows` is the rows of the FIRST page, not `R`.
+  Verified on every Target object of pharmacist's genuine i1Profiler 3.8.6
+  files (648 patches, 27 × 24 on one page: 648/648; 702 patches, 18 columns,
+  39 rows on 3 pages of 13: 702/702) and on X-Rite's own
+  `RGB_default-i1Pro.mxf` (2033 patches, 30 columns, 68 rows on 3 pages of
+  23 + 23 + 22: 2033/2033). For one page this is the same as the older
+  reading, which is why the 29×20 (i1Pro3) and 39×15 (i1iO single) charts
+  agreed with it.
+  - **What this file said until 4.3.19 was wrong for more than one page**:
+    "`Column = i // NumberPatchRows`, `Row = i % NumberPatchRows`, `Page`
+    advances when a sheet fills", i.e. filled page by page. That rule puts
+    only 26 of the 702 patches of pharmacist's 3-page file in i1Profiler's
+    cell. `write_pwxf(emit_locations=True)` followed it and now follows the
+    measured rule (`i1p_location`, `i1p_page_rows` in
+    `workflow/i1profiler_export.py`; `tests/test_i1profiler_grid_rule.py`
+    checks it against pharmacist's files when they are on disk). Nothing in
+    ChromIQ writes Location tags itself; the probe scripts do.
+  - X-Rite's `RGB_default-i1iO.mxf` (the i1iO table, 4 pages) does NOT follow
+    this rule (71 of 2033); the i1iO lays its pages out by its own rules, and
+    nothing here is claimed for it.
+- **How many columns i1Profiler makes, handheld i1Pro 2 / i1Pro 3** (3.8.8
+  measured for the cap and the page; the balancing step agrees with every
+  grid seen so far, 20 of 20 cases, among them three of pharmacist's
+  screenshots). `NumberPatchColumns` in a file that is LOADED is ignored;
+  i1Profiler works the grid out itself, with patch width `w` and page
+  width `W` in mm:
+
+  ```
+  max_cols = floor(min(241.5, W - 31) / w)   # the row cap, and 15.5 mm of page each side
+  rows     = ceil(N / max_cols)
+  cols     = ceil(N / rows)                  # "balancing": the rows evened out
+  ```
+
+  So the grid is not simply `max_cols` wide: 648 patches at 8.4 mm on a
+  296.7 mm page give `max_cols = 28`, 24 rows, and then **27** columns
+  (pharmacist's screenshot). The cap lies between 241.5 and 242.4 mm
+  (8.05 mm patches gave 30 per row, 8.08 mm gave 29); a 420 mm page changed
+  nothing, so the ruler is the limit and not the page, until the page is
+  narrower than the cap plus 31 mm.
+- **ChromIQ checks this grid on the way back** (4.3.19, §I.14): an `.mxf`
+  measurement of the turned chart carries `NumberPatchColumns/Rows/Pages`
+  and every Target's Location, and ChromIQ refuses it when they are not the
+  grid its order file names (`reference_convert.cxf_measurement_to_ti3`
+  writes them into the converted `.ti3` as `CHROMIQ_I1P_GRID`;
+  `i1profiler_turned.grid_mismatch` compares them).
 - `SampleID = -1` and `SampleName = ""` for **every** patch — the layout is
   purely positional, not name-keyed. We don't need to invent IDs.
 
@@ -104,9 +152,13 @@ Location tags; the May-1 576 files don't.
 | 576-patch i1Pro1/2 (May 1) | **no** | mixed | False |
 | 576-patch i1Pro3 / i1iO2 (May 28) | yes (576) | False | mostly True |
 
-**Open question (needs an i1Profiler round-trip test — only Nelson can run it):**
-does i1Profiler **recompute** the grid from page+patch size on load and ignore
-our `Column/Row`, or does it honour what we write? This decides whether we:
+**Answered since (i1Profiler 3.8.x, 2026-10-27):** it recomputes the grid
+from page and patch size on load and ignores both our `Column/Row/Page` and
+`NumberPatchColumns`, so (A) below is what ChromIQ does. The question as it
+was first asked (needs an i1Profiler round-trip test — only Nelson could run
+it): does i1Profiler **recompute** the grid from page+patch size on load and
+ignore our `Column/Row`, or does it honour what we write? This decides
+whether we:
 - (A) emit no Location tags + let i1Profiler auto-lay-out (simplest, matches the
   May-1 files which still printed fine), or
 - (B) compute and emit the column-major grid ourselves.
