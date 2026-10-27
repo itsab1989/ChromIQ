@@ -8603,7 +8603,8 @@ only when its device values then agree on every patch.**
    i1Profiler chart, whose patch names are the same as this chart's but sit on
    other patches, so ChromIQ cannot tell which patch each reading belongs to.
    If you measured the turned chart in i1Profiler, save the measurement as an
-   .mxf file, which keeps the colours, and import that instead. If you read
+   .mxf file, or as a CGATS text export that includes the RGB values: both
+   keep the colours ChromIQ needs. Then import that file instead. If you read
    this chart another way that gives a file without device values (for example
    with an i1iO through i1Profiler), ChromIQ pairs such a file by patch name
    only on a chart that was made with the turned i1Profiler option switched
@@ -8613,6 +8614,11 @@ only when its device values then agree on every patch.**
    could tell. It applies only where the order file for exactly this `.ti2`
    exists (`turned_order_for`, by SHA-256); every other chart is judged
    exactly as before.
+   * *Wording extended in review 4.3.17 r3, NIT-3:* the quoted text named only
+     the `.mxf`; it now also names the CGATS text export that includes the RGB
+     values, which pairs the same way. The rule is unchanged: a file without
+     device values is still refused on such a chart.
+     **Confirmed by:** Sebastian, 2026-10-27: *"yes, extend the text"*.
 4. **§I.5 itself is unchanged.**
 
 **Every door pairs a COPY before it files** (review 4.3.17 r1, S1 and S2). The
