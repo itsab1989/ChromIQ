@@ -1058,3 +1058,83 @@ def test_on_a_short_window_the_log_gives_the_open_advanced_section_room(
             _settle(_app, dlg)
     finally:
         dlg.deleteLater()
+
+
+def test_an_app_wide_refit_and_a_drag_keep_the_log_shared_while_advanced_is_open(
+        _app, _out_dir):
+    """Release review r5 of 4.3.18, N-3. With "Advanced…" open on a 640 px
+    window the log shows three lines. Two things used to put it back to its
+    full height until the window was next resized: a changed line count (or a
+    drag of ANY log's grip, which is the same app-wide refit), and dragging
+    this log's own grip, which also started from the setting's nine lines, so
+    a one-line drag jumped the log from three lines to about nine.
+
+    Now every refit shares the height again at once, and a drag moves the log
+    from the lines it shows, a line at a time, and keeps where it ended."""
+    from PyQt6.QtCore import QEvent, QPointF, Qt
+    from PyQt6.QtGui import QMouseEvent
+    from ui import widgets as W
+    dlg = _make(_app, _out_dir)
+    try:
+        _settle(_app, dlg)
+        log = dlg._log
+        h = max(dlg.minimumHeight(), 640)
+        dlg.resize(dlg.width(), h)
+        _settle(_app, dlg)
+        dlg._adv_inline_head.setChecked(True)
+        _settle(_app, dlg)
+        _settle(_app, dlg)
+        squeezed = log.height()
+        full = W.log_height_for_lines(log, W.log_visible_lines())
+        assert squeezed < full, "the log was not squeezed to begin with"
+        shown = W.log_lines_shown(log)
+
+        # 1. the app-wide refit (a changed line count, any log's grip)
+        W.set_log_visible_lines(W.log_visible_lines() + 1, save=False)
+        _settle(_app, dlg)
+        assert log.height() == squeezed, (
+            f"a refit gave the log {log.height()} px while Advanced is open "
+            f"(it had {squeezed})")
+        W.set_log_visible_lines(W.log_visible_lines() - 1, save=False)
+        _settle(_app, dlg)
+        assert log.height() == squeezed
+        assert dlg.height() == h
+
+        # 2. this log's own grip: one line up is one line more, not nine
+        grip = W.LogResizeGrip.of(log)
+        line = log.fontMetrics().lineSpacing()
+
+        def _mouse(kind, y):
+            return QMouseEvent(kind, QPointF(10.0, float(y)),
+                               QPointF(10.0, float(y)),
+                               Qt.MouseButton.LeftButton,
+                               Qt.MouseButton.LeftButton,
+                               Qt.KeyboardModifier.NoModifier)
+
+        grip.eventFilter(log, _mouse(QEvent.Type.MouseButtonPress, 2))
+        grip.eventFilter(log, _mouse(QEvent.Type.MouseMove, 2 - line))
+        _settle(_app, dlg)
+        assert W.log_lines_shown(log) == shown + 1, (
+            f"a one-line drag took the log from {shown} lines to "
+            f"{W.log_lines_shown(log)}")
+        grip.eventFilter(log, _mouse(QEvent.Type.MouseMove, 2 - 2 * line))
+        _settle(_app, dlg)
+        assert W.log_lines_shown(log) == shown + 2
+        grip.eventFilter(log, _mouse(QEvent.Type.MouseButtonRelease,
+                                     2 - 2 * line))
+        _settle(_app, dlg)
+        assert W.log_lines_shown(log) == shown + 2, "the drag snapped back"
+        assert dlg.height() == h, "the drag changed the window's height"
+        # ...and a resize afterwards keeps the split the drag chose
+        dlg.resize(dlg.width() + 10, h)
+        _settle(_app, dlg)
+        assert W.log_lines_shown(log) == shown + 2, (
+            "the next resize undid the drag")
+        # closing gives the full height back, as before
+        dlg._adv_inline_head.setChecked(False)
+        _settle(_app, dlg)
+        _settle(_app, dlg)
+        assert log.height() == W.log_height_for_lines(log, W.log_visible_lines())
+    finally:
+        W.refresh_log_panes_from_settings()
+        dlg.deleteLater()

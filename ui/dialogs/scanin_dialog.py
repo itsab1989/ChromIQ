@@ -2892,6 +2892,12 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._log.setMaximumHeight(16777215)
         fit_log_height(self._log)
         add_log_row(left_pane, self._log, left_pane_w)
+        # Every app-wide refit of the log (a drag of any log's grip, a changed
+        # line count) gives it its full height; while "Advanced…" is open on a
+        # short window this window shares that height again at once
+        # (`_let_the_log_give`, release review r5 of 4.3.18, N-3).
+        from ui.widgets import after_log_fit
+        after_log_fit(self._log, self._let_the_log_give)
 
         # A splitter, like the four main tabs (ui/tabs/tab_chart.py:2891), so
         # the divider can be dragged. tab_chart's own note warns that a splitter
@@ -3271,7 +3277,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         finally:
             self._fitting_floor = False
 
-    def _let_the_log_give(self) -> bool:
+    def _let_the_log_give(self, lines: "int | None" = None,
+                          log_h: "int | None" = None) -> bool:
         """Share the left column's height between the settings and the log.
 
         With "Advanced…" closed the log has the height the user chose for every
@@ -3289,6 +3296,23 @@ class ScannerProfileDialog(_ToolDialogBase):
         section was open is not pushed taller when it closes: the log simply
         stays smaller until there is room again (the next resize gives it
         back).
+
+        AND AFTER EVERY APP-WIDE REFIT, NOT ONLY ON A RESIZE (release review
+        r5 of 4.3.18, N-3). `fit_log_height` calls this with the *lines* it
+        has just applied and the log's height from before (*log_h*): setting
+        the log's minimum resizes it at once, while the settings area keeps
+        its height until the layout runs, so the log's height NOW would count
+        the same pixels twice. Before this, dragging any log's grip or
+        changing the line count put this log back to its full height until
+        the window was next resized.
+
+        DRAGGING THIS LOG'S OWN GRIP while it is shorter than the setting moves
+        it from the lines it SHOWS, by the lines dragged (the grip's
+        `lines_dragged_to`), so the edge follows the pointer instead of
+        jumping from 3 lines to the setting's 9. The split the drag ends on is
+        kept for this window (`_adv_settings_h`), so the next resize does not
+        undo it; the app-wide setting moves by the same number of lines as
+        always.
         """
         log, scroll = getattr(self, "_log", None), self._scroll
         head = getattr(self, "_adv_inline_head", None)
@@ -3299,22 +3323,38 @@ class ScannerProfileDialog(_ToolDialogBase):
                 # "Hide the log panel": nothing to share, and a height set
                 # now would be the one it comes back with.
                 return False
-            from ui.widgets import log_height_for_lines, log_visible_lines
-            full = log_height_for_lines(log, log_visible_lines())
+            from ui.widgets import (LogResizeGrip, log_height_for_lines,
+                                    log_visible_lines)
+            full = log_height_for_lines(
+                log, log_visible_lines() if lines is None else int(lines))
             least = min(full, log_height_for_lines(
                 log, self.LOG_LINES_WHILE_ADVANCED_OPEN))
-            shared = scroll.height() + log.height()
+            shared = scroll.height() + (log.height() if log_h is None
+                                        else int(log_h))
+            grip = LogResizeGrip.of(log)
+            asked = (log_height_for_lines(log, max(1, grip.lines_dragged_to()))
+                     if grip is not None and grip.dragging else None)
         except Exception:  # noqa: BLE001 — sizing must never raise, and the
             return False   # timer can fire after the window has gone
         if head.isChecked():
-            want = shared - self.ADV_OPEN_SETTINGS_H
+            settings_h = getattr(self, "_adv_settings_h", None)
+            if settings_h is None:
+                settings_h = self.ADV_OPEN_SETTINGS_H
+            want = max(least, min(full, shared - settings_h))
+            if asked is not None:
+                dragged = max(least, min(full, shared - self.MIN_LEFT_SCROLL_H,
+                                         asked))
+                if dragged != want:
+                    # the user moved the border between the two: keep it
+                    self._adv_settings_h = max(self.MIN_LEFT_SCROLL_H,
+                                               shared - dragged)
+                    want = dragged
         else:
             # The settings area can itself give down to MIN_LEFT_SCROLL_H on a
             # short window (`_let_the_settings_pane_give`), which is the state
             # a 640 px window opens in, so that is the floor the lines are
             # given back against.
-            want = shared - self.MIN_LEFT_SCROLL_H
-        want = max(least, min(full, want))
+            want = max(least, min(full, shared - self.MIN_LEFT_SCROLL_H))
         if want == log.minimumHeight() == log.maximumHeight():
             return False
         log.setMinimumHeight(want)

@@ -609,8 +609,13 @@ def _max_lines_for(log) -> int:
 
 
 def _fit_capped(log, n: int) -> None:
-    """Size one panel to *n* lines, or to as many as its own column can show."""
+    """Size one panel to *n* lines, or to as many as its own column can show.
+    A panel whose window shares its height itself is handed *n* as it is and
+    sizes itself within that window (`after_log_fit`)."""
     try:
+        if _owner_sizes(log):
+            fit_log_height(log, max(LOG_MIN_LINES, int(n)))
+            return
         fit_log_height(log, max(LOG_MIN_LINES, min(int(n), _max_lines_for(log))))
     except RuntimeError:                   # its C++ side is already gone
         pass
@@ -636,7 +641,13 @@ def _apply_lines(n: int, *, remember: bool) -> int:
         # user is watching, and the only one whose column can be measured.
         for widget in list(_LIVE_LOGS):
             try:
-                if widget.isVisible():
+                # A log whose window shares its height itself (`after_log_fit`)
+                # is never taller than that window gives it, so it does not cap
+                # everyone else: the scanner window's log, squeezed to three
+                # lines while "Advanced…" is open, held every log in the app
+                # to five lines, and a drag UP on it saved 5 in place of the
+                # user's 9 (release review r5 of 4.3.18, N-3).
+                if widget.isVisible() and not _owner_sizes(widget):
                     n = min(n, _max_lines_for(widget))
             except RuntimeError:
                 pass
@@ -983,11 +994,66 @@ def fit_log_height(log, lines: "int | None" = None) -> None:
     except (TypeError, RuntimeError):      # not a weak-referenceable widget
         pass
     try:
+        was = log.height()
         h = log_height_for_lines(log, lines)
         log.setMinimumHeight(h)
         log.setMaximumHeight(h)
     except Exception:      # noqa: BLE001 — sizing must never raise
+        return
+    _tell_the_owner(log, lines, was)
+
+
+#: Where a window that shares its log's height with something else (the
+#: scanner window, while "Advanced…" is open) asks to be told that the log has
+#: just been given the app-wide size. See :func:`after_log_fit`.
+_AFTER_FIT = "_cq_after_fit"
+
+
+def after_log_fit(log, method) -> None:
+    """Call the bound *method* ``(lines, height_before)`` every time *log* is
+    sized by :func:`fit_log_height`, which every app-wide refit goes through
+    (a drag of ANY log's grip, a changed line count, Restore Factory Defaults,
+    a window resize of the main window).
+
+    Release review r5 of 4.3.18, N-3. The scanner window makes its log shorter
+    while "Advanced…" is open on a short window, and every app-wide refit put
+    it straight back to its full height until that window was next resized.
+    Telling the owner after each fit lets it share the height again at once.
+
+    Held through a weak reference, so a log never keeps its window alive and
+    no closure capturing the window is parked on the widget.
+    """
+    try:
+        setattr(log, _AFTER_FIT, weakref.WeakMethod(method))
+    except (TypeError, RuntimeError):
         pass
+
+
+def _owner_sizes(log) -> bool:
+    """Whether a live window sizes *log* itself (`after_log_fit`)."""
+    ref = getattr(log, _AFTER_FIT, None)
+    return ref is not None and ref() is not None
+
+
+def _tell_the_owner(log, lines: int, was: int) -> None:
+    ref = getattr(log, _AFTER_FIT, None)
+    method = ref() if ref is not None else None
+    if method is None:
+        return
+    try:
+        method(lines, was)
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        _log.debug("a log's owner could not re-share its height",
+                   exc_info=True)
+
+
+def log_lines_shown(log) -> int:
+    """How many lines *log* shows at the height it has now: the inverse of
+    :func:`log_height_for_lines`, rounded to the nearest line."""
+    fm = log.fontMetrics()
+    extra = int(log.document().documentMargin()) * 2 + log.frameWidth() * 2
+    return max(1, int(round((log.height() - extra)
+                            / max(1, fm.lineSpacing()))))
 
 
 def log_height_for_lines(log, lines: int) -> int:
@@ -1053,8 +1119,31 @@ class LogResizeGrip(QObject):
         self._dragging = False
         self._press_y = 0
         self._press_lines = LOG_VISIBLE_LINES
+        #: How many lines THIS log showed when the drag began. Usually the
+        #: setting, but not where a window has made its log shorter for a
+        #: while (the scanner window with "Advanced…" open): measured from
+        #: the setting, a small drag there jumped from 3 lines to about 9
+        #: (release review r5 of 4.3.18, N-3).
+        self._press_shown = LOG_VISIBLE_LINES
+        #: Lines dragged so far, up positive.
+        self._delta = 0
         #: The size this drag is currently showing, so releasing keeps it.
         self._live = LOG_VISIBLE_LINES
+
+    @classmethod
+    def of(cls, log) -> "LogResizeGrip | None":
+        """The grip installed on *log*, or None."""
+        return getattr(log, cls._INSTALLED, None)
+
+    @property
+    def dragging(self) -> bool:
+        return self._dragging
+
+    def lines_dragged_to(self) -> int:
+        """The lines this log should show for the drag so far: what it
+        showed when the drag began, plus the lines dragged. The same delta
+        the app-wide setting moves by, so every log moves together."""
+        return self._press_shown + self._delta
 
     @staticmethod
     def _global_y(event) -> int:
@@ -1083,6 +1172,7 @@ class LogResizeGrip(QObject):
                     step = max(1, self._log.fontMetrics().lineSpacing())
                     # Dragging UP (a smaller y) makes the panel taller.
                     delta_lines = int(round((self._press_y - y) / step))
+                    self._delta = delta_lines
                     self._live = set_log_visible_lines(
                         self._press_lines + delta_lines, save=False)
                     return True
@@ -1097,6 +1187,11 @@ class LogResizeGrip(QObject):
                     self._dragging = True
                     self._press_y = self._global_y(event)
                     self._press_lines = log_visible_lines()
+                    try:
+                        self._press_shown = log_lines_shown(self._log)
+                    except Exception:      # noqa: BLE001
+                        self._press_shown = self._press_lines
+                    self._delta = 0
                     self._live = self._press_lines
                     return True
             elif etype == QEvent.Type.MouseButtonRelease and self._dragging:
