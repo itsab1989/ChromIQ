@@ -2747,6 +2747,28 @@ class Run:
         # and leave that one file, rather than the folder.
         from workflow.per_target_settings import (
             NEW_RUN_FILENAME as _NEW_RUN_FILENAME)
+        # …EXCEPT THE TURNED i1PROFILER EXPORT, WHEN THE BUILD MAY NOT FINISH
+        # (beta, review 4.3.17 r2, SF-1). Its order file is not rebuilt with
+        # the option off, and it is what pairs a turned measurement of the
+        # chart; a build that fails or is stopped puts that chart back, so it
+        # must get its order back too. Set aside in the stash (as `exports/`,
+        # which `settle_chart_stash` restores like any stashed name) and
+        # dropped with it when a new chart really is written. Nothing else in
+        # exports/ changes, and a run without these files is untouched.
+        if stash and self.exports_dir.is_dir():
+            turned = [q for q in I1ProfilerTurnedFiles(
+                self.exports_dir, s).all() if q.is_file()]
+            if turned:
+                stash_dir = make_chart_stash(self.dir)
+            if turned and stash_dir is not None:
+                keep = stash_dir / EXPORTS_DIRNAME
+                try:
+                    keep.mkdir(exist_ok=True)
+                    for q in turned:
+                        shutil.move(str(q), str(keep / q.name))
+                except OSError as exc:
+                    log.warning("Could not set the turned i1Profiler export "
+                                "aside: %s", exc)
         for sub in (self.exports_dir, self.cache_dir):
             if not sub.exists():
                 continue

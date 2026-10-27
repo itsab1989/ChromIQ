@@ -8733,7 +8733,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             also_shuffled=bool(self._settings and self._settings.get(
                 "export_shuffled_pxf", False)))
         # The beta "turned" i1Profiler export, beside the other sidecars
-        # (Preferences -> Beta). Off: only a stale one is removed.
+        # (Preferences -> Beta). Off: only one whose order names another
+        # chart is removed; one written for this very chart stays (SF-1).
         try:
             from workflow import i1profiler_turned as _turned
             if self._settings and self._settings.get(
@@ -8742,7 +8743,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                     target / f"{name}.ti2", target, name)
                 extras = list(extras) + list(_tres.written)
             else:
-                _turned.remove_stale(target, name)
+                _turned.remove_unless_current(
+                    target, name, target / f"{name}.ti2")
                 _tres = None
         except Exception:  # noqa: BLE001 — never block on the sidecars
             _tres = None

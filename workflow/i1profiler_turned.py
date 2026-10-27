@@ -425,6 +425,24 @@ def remove_stale(folder: "str | Path", stem: str) -> list:
     return gone
 
 
+def remove_unless_current(folder: "str | Path", stem: str,
+                          chart_ti2: "str | Path") -> list:
+    """With the option off: delete the turned export in *folder* only when it
+    no longer describes *chart_ti2*, the chart that stays on disk.
+
+    SWITCHING THE OPTION OFF IS NOT A REASON TO DELETE (review 4.3.17 r2,
+    SF-1; §I.14 point 2). A chart made with the option on keeps its order
+    file for as long as that chart is on disk, because the order is what lets
+    a turned measurement of THAT sheet be paired; Restore Used Chart redraws
+    the pages of the same chart and used to take the order with it. So the
+    files go only when their order names another chart (an earlier build of
+    this name), or there is no order to judge them by."""
+    files = TurnedFiles(Path(folder), stem)
+    if _order_in(files.order, chart_ti2) is not None:
+        return []
+    return remove_stale(folder, stem)
+
+
 def _write_txf(plan: TurnedPlan, family: str, out: Path, title: str) -> None:
     from workflow.i1profiler_export import Target, WorkflowOptions, write_pwxf
     d = design_settings(plan, family)
@@ -704,18 +722,35 @@ def turned_order_for(chart_ti2: "str | Path | None") -> "TurnedOrder | None":
     except OSError:
         return None
     for p in candidates:
-        try:
-            doc = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if (doc.get("version") != ORDER_VERSION
-                or doc.get("chart_sha256") != digest):
-            continue
-        order = doc.get("order") or []
+        found = _order_in(p, chart_ti2, digest)
+        if found is not None:
+            return found
+    return None
+
+
+def _order_in(path: Path, chart_ti2: "str | Path",
+              digest: "str | None" = None) -> "TurnedOrder | None":
+    """The order in the one file *path*, when it was written for exactly
+    *chart_ti2* (its SHA-256); otherwise ``None``."""
+    try:
+        if not Path(path).is_file() or not Path(chart_ti2).is_file():
+            return None
+        if digest is None:
+            digest = sha256_of(chart_ti2)
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (not isinstance(doc, dict) or doc.get("version") != ORDER_VERSION
+            or doc.get("chart_sha256") != digest):
+        return None
+    order = doc.get("order") or []
+    try:
         ids = [str(e.get("sample_id", "")) for e in order]
         locs = [str(e.get("loc", "")) for e in order]
-        if ids and all(ids) and len(set(ids)) == len(ids):
-            return TurnedOrder(p, ids, locs)
+    except AttributeError:
+        return None
+    if ids and all(ids) and len(set(ids)) == len(ids):
+        return TurnedOrder(Path(path), ids, locs)
     return None
 
 

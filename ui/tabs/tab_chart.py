@@ -5818,6 +5818,26 @@ class _ChartRebuildGuard:
                 self._companions[path] = path.read_bytes()
             except OSError:
                 log.warning("could not hold %s for the rebuild", path)
+        # …AND THE TURNED i1PROFILER EXPORT OF THIS CHART (beta, review 4.3.17
+        # r2, SF-1). The redraw's build clears exports/ before it starts, and
+        # with the option switched off nothing writes the turned files again,
+        # so a chart made with the option on lost the order that pairs its
+        # turned measurement, although the chart itself was put back. They are
+        # bound to the chart by its SHA-256, and the chart that stays is the
+        # one held here, so putting them back is always right; with the option
+        # on they are written afresh afterwards anyway.
+        try:
+            from core.file_manager import I1ProfilerTurnedFiles
+            turned = [p for f in I1ProfilerTurnedFiles.for_chart(ti2)
+                      for p in f.all()]
+        except Exception:      # noqa: BLE001 — never block a restore
+            turned = []
+        for path in turned:
+            try:
+                if path.is_file() and path not in self._companions:
+                    self._companions[path] = path.read_bytes()
+            except OSError:
+                log.warning("could not hold %s for the rebuild", path)
 
     def holds(self, path: "Path | str") -> bool:
         """Whether *path* is one of the files this guard puts back."""
@@ -5879,6 +5899,8 @@ class _ChartRebuildGuard:
             try:
                 if path.is_file() and path.read_bytes() == data:
                     continue
+                # exports/ may have been cleared as a whole by the redraw
+                path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
                 kept.append(path.name)
             except OSError:
@@ -24881,15 +24903,17 @@ class TabChart(QWidget):
     def _write_turned_i1profiler_export(self, ti2: Path, stem: str) -> None:
         """The beta "turned" i1Profiler export (Preferences -> Beta), written
         beside the other hand-off sidecars. Off: nothing is written or logged,
-        and only a turned export left by an earlier build of this chart is
-        removed, because it describes a chart that no longer exists. Never
-        blocks the build."""
+        and a turned export is removed only when its order no longer names the
+        chart on disk (an earlier build of this name). One written for THIS
+        chart stays: switching the option off later does not take away the
+        pairing of a sheet made with it on, and Restore Used Chart redraws the
+        same chart (review 4.3.17 r2, SF-1; §I.14). Never blocks the build."""
         try:
             from core.file_manager import exports_subdir
             from workflow import i1profiler_turned as turned
             out_dir = exports_subdir(ti2.parent)
             if not self._settings.get("i1profiler_turned_export", False):
-                turned.remove_stale(out_dir, stem)
+                turned.remove_unless_current(out_dir, stem, ti2)
                 return
             res = turned.write_turned_export(ti2, out_dir, stem)
             for e in res.written:
