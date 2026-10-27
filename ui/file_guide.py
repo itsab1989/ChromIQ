@@ -591,9 +591,34 @@ _open_project_root = None
 
 def set_open_project_root(resolver) -> None:
     """Tell the guide how to find the open project's folder: a callable
-    that returns a Path or None (review 4.3.17 r3, NIT-1)."""
+    that returns a Path or None (review 4.3.17 r3, NIT-1).
+
+    A bound method (the main window's) is held WEAKLY (review 4.3.17 r4,
+    NIT-5): the guide is a module and outlives every window, and a strong
+    reference kept a closed MainWindow alive and still answering for the
+    guide. Once its window is gone, or its Qt object deleted, the guide looks
+    at no project, as it does when nothing was ever set."""
     global _open_project_root
-    _open_project_root = resolver
+    if resolver is None or not (hasattr(resolver, "__self__")
+                                and hasattr(resolver, "__func__")):
+        _open_project_root = resolver
+        return
+    import weakref
+    ref = weakref.WeakMethod(resolver)
+
+    def _resolve():
+        method = ref()
+        if method is None:
+            return None
+        try:
+            from PyQt6 import sip
+            if sip.isdeleted(method.__self__):
+                return None
+        except (ImportError, TypeError):
+            pass
+        return method()
+
+    _open_project_root = _resolve
 
 
 _TURNED_ORDER_TAIL = "-i1profiler-turned.json"

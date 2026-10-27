@@ -158,3 +158,89 @@ def test_the_main_window_tells_the_guide_which_project_is_open():
     assert "set_open_project_root(self._open_project_root_or_none)" in src
     body = inspect.getsource(MainWindow._open_project_root_or_none)
     assert "get_target_name" not in body
+
+
+def test_a_destroyed_main_window_no_longer_answers_for_the_guide(
+        qapp, tmp_path, monkeypatch):
+    """Review 4.3.17 r4, NIT-5: the guide held the main window's bound
+    method strongly, so a closed window stayed alive and kept naming its
+    project. Held weakly, a window that is gone means "no project"."""
+    import gc
+    import weakref
+    from PyQt6.QtWidgets import QMainWindow
+    root = _project_with_turned(tmp_path, valid=True)
+    monkeypatch.setattr(fg, "turned_export_on", lambda: False)
+    monkeypatch.setattr(fg, "_open_project_root", None)
+
+    class _Window(QMainWindow):
+        def _open_project_root_or_none(self):
+            return root
+
+    w = _Window()
+    fg.set_open_project_root(w._open_project_root_or_none)
+    assert fg.turned_rows_wanted()
+    alive = weakref.ref(w)
+    del w
+    gc.collect()
+    assert alive() is None, "the guide kept the window alive"
+    assert fg._open_project_root() is None
+    assert not fg.turned_rows_wanted()
+    assert fg.file_guide_body() == fg.file_guide_body(turned=False)
+
+
+def test_a_window_whose_qt_object_is_deleted_no_longer_answers(
+        qapp, tmp_path, monkeypatch):
+    from PyQt6 import sip
+    from PyQt6.QtWidgets import QMainWindow
+    root = _project_with_turned(tmp_path, valid=True)
+    monkeypatch.setattr(fg, "turned_export_on", lambda: False)
+    monkeypatch.setattr(fg, "_open_project_root", None)
+
+    class _Window(QMainWindow):
+        def _open_project_root_or_none(self):
+            return root
+
+    w = _Window()
+    fg.set_open_project_root(w._open_project_root_or_none)
+    assert fg.turned_rows_wanted()
+    sip.delete(w)
+    assert not fg.turned_rows_wanted()
+
+
+def test_a_closed_and_deleted_main_window_no_longer_answers(
+        qapp, tmp_path, monkeypatch):
+    """The real MainWindow, wired by its own __init__: once its Qt object is
+    deleted, the guide looks at no project."""
+    from PyQt6 import sip
+    from PyQt6.QtCore import QCoreApplication, QEvent
+    from core.settings import AppSettings
+    from ui.main_window import MainWindow
+    root = _project_with_turned(tmp_path, valid=True)
+    monkeypatch.setattr(fg, "turned_export_on", lambda: False)
+    monkeypatch.setattr(fg, "_open_project_root", None)
+    s = AppSettings()
+    s.set("custom_output_path", str(tmp_path / "out"))
+    s.set("session_project", "")
+    s.set("restore_last_session", False)
+    w = MainWindow(s)
+
+    class _Fm:                     # the window's project is `root`
+        _target_name = "P"
+
+        @staticmethod
+        def working_dir():
+            return root
+
+    real, w._file_mgr = w._file_mgr, _Fm()
+    try:
+        assert fg._open_project_root() == root
+        assert fg.turned_rows_wanted()
+    finally:
+        w._file_mgr = real
+        w.close()
+    w._file_mgr = _Fm()            # still naming `root` when it is gone
+    w.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert sip.isdeleted(w)
+    assert fg._open_project_root() is None
+    assert not fg.turned_rows_wanted()
