@@ -8695,11 +8695,18 @@ tested; nobody has yet said that this is what ChromIQ should do.
   whose order names the live chart into `chart/exports/`, where no "is it the
   same chart?" comparison sees them, and a restore puts them back into the
   run's `exports/` when that order names the restored chart. The turned files
-  of the chart that was replaced go into its archive in `old/`, under
-  `exports/`. So chart A made with the option on, replaced by chart B, the
-  option switched off and A restored, comes back with A's order. Without
+  of the chart that was replaced, from `exports/` and from beside the chart
+  (where the TI2 layout editor writes them), go into its archive in `old/`
+  where that chart's files go: beside the archived chart and under its
+  `exports/`, so for a calibration `cal/old/<date>/chart/` and
+  `cal/old/<date>/chart/exports/`. A name already in that archive is not
+  replaced: a second restore in the same second numbers its set `_2`
+  (review 4.3.17 r4, NIT-2 to NIT-4). So chart A made with the option on,
+  replaced by chart B, the option switched off and A restored, comes back
+  with A's order. Without
   turned files the snapshot and the restore are what 4.3.16 wrote
-  (`tests/test_i1profiler_turned_restore_used_chart.py`).
+  (`tests/test_i1profiler_turned_restore_used_chart.py`,
+  `tests/test_i1profiler_turned_restore_archives_where_the_chart_goes.py`).
 * **The File Guide lists them** while the option is on, and also while the
   open project (or, in its `Where are my files.txt`, the project itself)
   holds an order that names its chart; stale orders and the copies in `old/`
