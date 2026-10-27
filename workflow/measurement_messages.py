@@ -4433,6 +4433,10 @@ M_SCAN_ALIGN_OFF_PATCHES = _m(
 #: which was false), and a chart whose colours repeat further along its rows,
 #: where a grid one whole repeat off reads almost perfectly and the colours
 #: must not overrule the boundary check (before this, M-SCAN-ALIGN-NO-FIT).
+#: Its last paragraph is M-SCAN-ALIGN-OFF-PATCHES' own (review r6, N-1): the
+#: colours of a smooth chart read "as well elsewhere" also when the WRONG chart
+#: is chosen (a column ramp scanned, a row ramp picked: turned, the one reads
+#: as the other), and 4.3.17 told that user to check the chart chosen.
 M_SCAN_ALIGN_REPEATS = _m(
     "M-SCAN-ALIGN-REPEATS",
     _ALIGN_KEPT,
@@ -4448,7 +4452,10 @@ M_SCAN_ALIGN_REPEATS = _m(
     "close as you can, and press Auto align again. Starting from your "
     "corners, it fine-tunes the grid onto the patches by itself.\n\n"
     "Then press “Check alignment” below to make sure the grid reads the right "
-    "patches before you build anything.",
+    "patches before you build anything.\n\n"
+    "If the grid still does not fit, check that the chart in the "
+    "“{chart_row}” row above is the one you scanned and, for a chart with "
+    "more than one page, that the scan shows the page chosen under “Page”.",
     approved=False)
 
 M_SCAN_ALIGN_NO_GEOMETRY = _m(

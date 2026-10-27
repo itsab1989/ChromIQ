@@ -359,6 +359,60 @@ def test_an_unpinned_shuffled_grid_refused_by_its_edges_is_not_called_repeating(
                for s in r.rejected), r.rejected
 
 
+@pytest.mark.parametrize("di, dj", [(1, 0), (0, 1), (2, 1)])
+def test_the_wrong_smooth_chart_chosen_is_refused_and_told_to_check_the_chart(
+        tmp_path, di, dj):
+    """Review r6 of 4.3.18, N-1. A scan of a grey ramp, with a DIFFERENT ramp
+    chosen as its chart (the scan steps down its columns, the chart chosen
+    along its rows), and the grid a patch or two off. Turned, the one ramp
+    reads as the other, so the colours honestly read "as well in more than one
+    position" and the ending is the repeat one. 4.3.17 ended the same scan as
+    M-SCAN-ALIGN-NO-FIT, "check that the chart chosen ... is the one you
+    scanned", which is the advice this user needs; so the repeat message must
+    carry it too, and it is still a refusal.
+
+    Requiring the grid to reach the floor before saying "repeats" was measured
+    and rejected: these grids read 0.998 (above the floor, so it would change
+    nothing here), while a genuine repeat a whole repeat off can read below it
+    (0.58 to 0.76 in review r6's probes) and would have lost its true
+    message."""
+    from workflow import measurement_messages as M
+    import re
+    c = _chart(tmp_path, shuffled=False, cols=30, rows=20, box=20, margin=70)
+    rows = 20
+    wrong = {}
+    for k in c["exp"]:
+        r = int(re.search(r"(\d+)$", k).group(1)) - 1   # the row, from the name
+        wrong[k] = 8.0 + 84.0 * r / (rows - 1)
+    c["exp"] = wrong
+    t, p = c["truth"], c["box"]
+    given = _shift(t, di * p, dj * p)
+    r = _align(c, _cand(given, c["bbox"]), _cand(given, c["bbox"]))
+    assert not r.ok or _worst(r.corners, t) < 1.0, (
+        f"accepted a grid {_worst(r.corners, t) / p:.1f} patches out")
+    assert not r.ok, (r.reason, r.rejected)
+    msg = M.scan_align_refusal(r.reason)
+    _title, body = msg.render(chart_row="Measured chart (.ti3)", ref_row="x")
+    assert "the chart in the “Measured chart (.ti3)” row above is the one you " \
+           "scanned" in body, (r.reason, body)
+
+
+def test_the_repeat_message_ends_with_the_chart_check_in_every_language():
+    """N-1's text change, held to the sentence M-SCAN-ALIGN-OFF-PATCHES
+    already uses, word for word, in English and in each translation."""
+    import json
+    from workflow import measurement_messages as M
+    rep = M.M_SCAN_ALIGN_REPEATS.body
+    off = M.M_SCAN_ALIGN_OFF_PATCHES.body
+    assert rep.split("\n\n")[-1] == off.split("\n\n")[-1]
+    root = Path(__file__).resolve().parent.parent / "data" / "i18n"
+    for f in sorted(root.glob("*.json")):
+        d = json.loads(f.read_text(encoding="utf-8"))
+        if rep not in d:
+            continue
+        assert d[rep].split("\n\n")[-1] == d[off].split("\n\n")[-1], f.name
+
+
 def test_a_repeating_chart_still_lands_when_its_edges_agree(tmp_path):
     """The repeat check takes away only the colours' right to overrule the
     boundary. A grid a patch out on a chart repeating every six patches, on

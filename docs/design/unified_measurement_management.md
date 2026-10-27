@@ -6381,8 +6381,13 @@ colours match". Before, the first case ended as M-SCAN-ALIGN-NO-FIT. When the
 positions that read alike are the chart turned round, the ending stays
 M-SCAN-ALIGN-AMBIGUOUS.*
 
-*No placeholders. The headline is the one every refusal from this button
-carries.*
+*The last paragraph is M-SCAN-ALIGN-OFF-PATCHES' own, added in release review
+r6 (N-1): on a chart whose patches change smoothly, the wrong chart chosen can
+read just as well in more than one position too (a scan of a column ramp with
+a row ramp chosen reads, turned, as the same chart), and this message then has
+to name the chart check that M-SCAN-ALIGN-NO-FIT gave in 4.3.17.
+`{chart_row}` is filled in as for M-SCAN-ALIGN-NO-FIT. The headline is the one
+every refusal from this button carries.*
 
 > **Auto align left your corners exactly where they are**
 >
@@ -6391,6 +6396,8 @@ carries.*
 > Drag the four corners onto the four corner patches of the chart, as close as you can, and press Auto align again. Starting from your corners, it fine-tunes the grid onto the patches by itself.
 >
 > Then press “Check alignment” below to make sure the grid reads the right patches before you build anything.
+>
+> If the grid still does not fit, check that the chart in the “{chart_row}” row above is the one you scanned and, for a chart with more than one page, that the scan shows the page chosen under “Page”.
 
 ### M-SCAN-FIT-TOO-FAR · PROPOSED · nothing was found, and the corners cannot be improved from where they are — the scanner window's log
 
