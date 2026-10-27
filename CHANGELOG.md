@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.19
+
+### Fixed
+- **The log note "low patch/spacer contrast" only appears where it is true.** Since 3.13 it appeared on most charts made with the ChromIQ layout engine, also with Spacers set to "Coloured" (the default) or "None", where it meant nothing: a coloured spacer is always chosen to stand out from both patches beside it, and with no spacers there is nothing between the patches at all (there it even named the strips where neighbouring patches differ the most). The note now only appears with Spacers set to "Black & white", where it really applies: a very dark patch sits right next to a very light one, so the black or white spacer between them looks almost like one of the two. It names the strips by the letters printed above them, explains what that means in plain words, says what to do if such a strip does not read cleanly, and is translated. A spacer you recoloured by hand is only checked when you chose black or white for it. Your charts themselves do not change.
+- **"Drawing the pages. This part runs in one go and cannot be stopped…" in the log is translated.** It was shown in English in every language.
+
 ## v4.3.18
 
 **For everyone updating from 4.3.17: Auto align in the scanner and camera tool now finds the patches of a ChromIQ chart that it used to miss, the "Advanced…" section there keeps the window's size, and a SpectroScan or CR30 chart laid out with "Prioritise chart area" no longer comes out shifted to the left. The beta option that lets i1Profiler measure a printed ChromIQ sheet now turns the sheet so that its clip border is at the top, and a chart on any paper size can qualify. With that option off, which is how it starts, nothing about your charts, presets, measurements or profiles changes because of it.**

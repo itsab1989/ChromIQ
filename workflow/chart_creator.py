@@ -283,6 +283,79 @@ def _ramp_whites_log_line(added: int,
             whites=whites)
 
 
+def _low_contrast_log_line(labels: "list[str]", randomized: bool) -> str:
+    """The engine's note about strips with a very dark patch beside a very
+    light one under "Black & white" spacers, or "" when there are none.
+
+    The layout engine only names a strip when black and white spacers are
+    really drawn (`contrast.drawn_low_contrast_passes`, 4.3.19), so the text
+    can say what the bar between those two patches looks like. The strips are
+    named by the labels printed above them, which are also what the Measure
+    tab and chartread call them. The control names are the Create Chart
+    panel's own `tr()` labels, filled in, so they always read as on screen. The
+    "New seed" advice is left out for a chart whose order is fixed, where that
+    button does nothing.
+    """
+    labels = [str(x) for x in labels or []]
+    if not labels:
+        return ""
+    from core.i18n import tr
+    names = dict(spacers=tr("Spacers"), coloured=tr("Coloured"),
+                 layout=tr("ChromIQ layout"), expert=tr("Expert Options"),
+                 randomisation=tr("Randomisation"), new_seed=tr("New seed"))
+    if len(labels) == 1:
+        if randomized:
+            text = tr(
+                "[ChromIQ layout engine] Note about strip {label}: a very dark "
+                "patch sits right next to a very light one. A black spacer "
+                "between the two looks almost like the dark patch, and a white "
+                "one almost like the light patch, so the instrument may find "
+                "that patch edge less easily. Most charts read fine anyway. If "
+                "this strip does not read cleanly, set “{spacers}” "
+                "to “{coloured}” ({layout}, {expert}), which picks "
+                "for every gap the colour that stands out most from both of "
+                "its neighbours, or press “{new_seed}” ({layout}, "
+                "{randomisation}) and build the chart again, so the patches "
+                "land in a different order.")
+        else:
+            text = tr(
+                "[ChromIQ layout engine] Note about strip {label}: a very dark "
+                "patch sits right next to a very light one. A black spacer "
+                "between the two looks almost like the dark patch, and a white "
+                "one almost like the light patch, so the instrument may find "
+                "that patch edge less easily. Most charts read fine anyway. If "
+                "this strip does not read cleanly, set “{spacers}” "
+                "to “{coloured}” ({layout}, {expert}), which picks "
+                "for every gap the colour that stands out most from both of "
+                "its neighbours.")
+        return text.format(label=labels[0], **names)
+    if randomized:
+        text = tr(
+            "[ChromIQ layout engine] Note about strips {labels}: in each of "
+            "them a very dark patch sits right next to a very light one. A "
+            "black spacer between the two looks almost like the dark patch, and "
+            "a white one almost like the light patch, so the instrument may "
+            "find that patch edge less easily. Most charts read fine anyway. "
+            "If one of these strips does not read cleanly, set "
+            "“{spacers}” to “{coloured}” ({layout}, "
+            "{expert}), which picks for every gap the colour that stands out "
+            "most from both of its neighbours, or press “{new_seed}” "
+            "({layout}, {randomisation}) and build the chart again, so the "
+            "patches land in a different order.")
+    else:
+        text = tr(
+            "[ChromIQ layout engine] Note about strips {labels}: in each of "
+            "them a very dark patch sits right next to a very light one. A "
+            "black spacer between the two looks almost like the dark patch, and "
+            "a white one almost like the light patch, so the instrument may "
+            "find that patch edge less easily. Most charts read fine anyway. "
+            "If one of these strips does not read cleanly, set "
+            "“{spacers}” to “{coloured}” ({layout}, "
+            "{expert}), which picks for every gap the colour that stands out "
+            "most from both of its neighbours.")
+    return text.format(labels=", ".join(labels), **names)
+
+
 def _chromiq_clip_active(p: "ChartParams") -> bool:
     """True when ChromIQ-style clipping border applies to this chart.
 
@@ -1709,8 +1782,10 @@ class ChartCreator:
             # screen. Until the engine runs off the GUI thread this is the
             # honest thing to do, and it is better than a button that appears
             # to be ignored.
-            from core.i18n import tr as _t
-            on_line(_t("[ChromIQ layout engine] Drawing the pages. This part "
+            # `tr` BY NAME: as `_t` the extractor never saw this key, so the
+            # line stayed English in every language until 4.3.19.
+            from core.i18n import tr
+            on_line(tr("[ChromIQ layout engine] Drawing the pages. This part "
                        "runs in one go and cannot be stopped, so the window "
                        "will not respond until it is finished."))
             # EACH INK'S RAMP ON ITS OWN STRIP, for a calibration chart only
@@ -1737,8 +1812,8 @@ class ChartCreator:
             self._finish([])
             return
 
-        from core.i18n import count_phrase as _cp, tr as _tr
-        _pages = _cp(result.layout.pages, _tr("1 page"), _tr("{n} pages"))
+        from core.i18n import count_phrase, tr
+        _pages = count_phrase(result.layout.pages, tr("1 page"), tr("{n} pages"))
         on_line(
             f"[ChromIQ layout engine] {result.layout.total_patches} patches "
             f"({result.layout.steps_in_pass}×{result.layout.passes}), "
@@ -1756,11 +1831,11 @@ class ChartCreator:
                                             getattr(result.layout, "padding", 0))
         if pad_line:
             on_line(pad_line)
-        if result.low_contrast_passes:
-            _strips = _cp(len(result.low_contrast_passes),
-                          _tr("1 strip"), _tr("{n} strips"))
-            on_line("[ChromIQ layout engine] note: low patch/spacer contrast "
-                    f"in {_strips}")
+        _contrast_line = _low_contrast_log_line(
+            list(getattr(result, "low_contrast_labels", None) or []),
+            bool(getattr(result, "randomize", True)))
+        if _contrast_line:
+            on_line(_contrast_line)
 
         tiffs = sorted(result.tiff_paths or [])
         if tiffs and self._pending_params is not None:

@@ -48,6 +48,7 @@ class PreflightReport:
 
 def check(geom: Geom, layout: Layout, *,
           low_contrast_passes: list[int] | None = None,
+          low_contrast_labels: list[str] | None = None,
           min_patch_mm: float = MIN_PATCH_MM) -> PreflightReport:
     """Headless readability checks for a built layout."""
     rep = PreflightReport()
@@ -60,11 +61,22 @@ def check(geom: Geom, layout: Layout, *,
             f"use a larger paper/instrument"
         )
 
+    # THE LIST IS THE ENGINE'S, and since 4.3.19 it only holds strips under
+    # "Black & white" spacers (`contrast.drawn_low_contrast_passes`), so the
+    # wording can say what is really on the sheet. Named by the labels printed
+    # above the strips when given, else by their number counted from 1.
     if low_contrast_passes:
+        names = (list(low_contrast_labels) if low_contrast_labels
+                 and len(low_contrast_labels) == len(low_contrast_passes)
+                 else [str(p + 1) for p in low_contrast_passes])
         rep.add_warning(
-            f"{len(low_contrast_passes)} strip(s) have low patch-to-spacer "
-            f"contrast (below ΔL {LOW_CONTRAST_THRESHOLD:.0f}) and may be harder "
-            f"to read: passes {low_contrast_passes}"
+            ("strip " if len(names) == 1 else "strips ")
+            + ", ".join(names)
+            + ": a very dark patch sits right next to a very light one, so "
+            "the black or white spacer between them differs from one of the "
+            f"two by less than {LOW_CONTRAST_THRESHOLD:.0f} of 255 in "
+            "brightness, and that patch edge may be harder for the instrument "
+            "to find"
         )
 
     rep.info.append(

@@ -27,6 +27,8 @@ class ChartResult:
     tiff_paths: list[Path] | None = None
     strip_rects: list[dict] | None = None
     low_contrast_passes: list[int] | None = None
+    #: The flagged strips by their sheet labels (``raster.RenderResult``).
+    low_contrast_labels: list[str] | None = None
     cht_paths: list[Path] | None = None
     pdf_path: Path | None = None
     #: The date drawn on the record strip (``YYYY-MM-DD``). Saved with the chart
@@ -671,6 +673,7 @@ def build_chart(
         color_rep=target.color_rep, layout=layout,
         tiff_paths=tiff_paths, strip_rects=rects,
         low_contrast_passes=render.low_contrast_passes,
+        low_contrast_labels=list(render.low_contrast_labels),
         cht_paths=cht_paths, pdf_path=pdf_path,
         # The date actually drawn, so it can be saved with the chart and handed
         # back to a later rebuild.

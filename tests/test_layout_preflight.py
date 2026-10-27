@@ -17,7 +17,7 @@ def test_low_contrast_warns_but_ok():
     rep = preflight.check(geom, lay, low_contrast_passes=[2, 5])
     assert rep.ok                       # warning, not a hard fail
     assert rep.warnings
-    assert "2 strip" in rep.warnings[0]
+    assert rep.warnings[0].startswith("strips 3, 6:")
 
 
 def test_indicator_width_warning():

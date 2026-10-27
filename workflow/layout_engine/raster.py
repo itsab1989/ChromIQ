@@ -13,7 +13,7 @@ import math
 
 from functools import lru_cache
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from core.stem_paths import artefact
@@ -2953,6 +2953,9 @@ def _render_notes_strip(width_px: int, height_px: int, dpi: int,
 class RenderResult:
     images: list[Image.Image]
     low_contrast_passes: list[int]   # global pass indices flagged by the guard
+    #: The same strips by the label printed above them (and used in the
+    #: .ti2), e.g. ``["D", "T"]``, so the log can name them as the sheet does.
+    low_contrast_labels: list[str] = field(default_factory=list)
     # Bottom of the rendered strip-label band (labels + underline) in page px,
     # or None when indicators are off. The measure-tab scan arrow hangs from
     # this line, printtarg-style; without it the arrow floats above the patches.
@@ -4221,8 +4224,16 @@ def render_pages(
         page_geoms.append(_geom_rows)
         _ink_tops.append(_ink_top)
 
-    flagged = contrast.low_contrast_passes(rgb_by_slot, steps)
+    # THE NOTE ONLY WHERE IT IS TRUE (4.3.19): the guard's bar is the "Black &
+    # white" rule, so it is asked only when such bars are really drawn, with
+    # the hand-set colours the drawing loop above used.
+    flagged = contrast.drawn_low_contrast_passes(
+        rgb_by_slot, steps, spacer_mode=spacer_mode,
+        spacers_drawn=sp_px > 0 or (ss_hex and _ring_px > 0),
+        spacer_overrides=spacer_overrides)
     return RenderResult(images=images, low_contrast_passes=flagged,
+                        low_contrast_labels=[label_strip(p + 1)
+                                             for p in flagged],
                         label_band_bottom_px=_band_bottom,
                         patch_ink_top_px=_ink_tops,
                         patch_geom=page_geoms if collect_device_geom else None,

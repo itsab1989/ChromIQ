@@ -128,3 +128,46 @@ def low_contrast_passes(slot_rgbs: list[tuple[int, int, int]], steps_in_pass: in
         if min_boundary_contrast(col) < LOW_CONTRAST_THRESHOLD:
             flagged.append(p)
     return flagged
+
+
+_BLACK_OR_WHITE = ((0, 0, 0), (255, 255, 255))
+
+
+def drawn_low_contrast_passes(
+        slot_rgbs: list[tuple[int, int, int]], steps_in_pass: int, *,
+        spacer_mode: str, spacers_drawn: bool,
+        spacer_overrides: "dict[int, tuple[int, int, int]] | None" = None,
+) -> list[int]:
+    """The strips the low-contrast note may name: only where it is TRUE.
+
+    `low_contrast_passes` imagines a black-or-white bar between every pair of
+    neighbouring patches, which is the "Black & white" rule and nothing else.
+    It was asked about every chart, so on the default "Coloured" spacers (the
+    picker keeps every drawn spacer far from both neighbours) it was a false
+    alarm, and with Spacers "None" (no bar at all) it named the pairs with the
+    HIGHEST patch-to-patch contrast on the sheet (4.3.19). So:
+
+    * a strip is tested only when black-and-white spacers are really drawn
+      (``spacer_mode == "bw"`` and a spacer has room on the sheet);
+    * a spacer the person recoloured by hand (``spacer_overrides``, keyed by
+      ``strip * steps_in_pass + index``, the renderer's own key) counts only
+      when the colour chosen is itself black or white. For a dark/light pair
+      every black or white bar is close to one of the two, so the test is the
+      same one. Any other hand-set colour is not what the note describes, and
+      that boundary is left out rather than guessed at.
+    """
+    if spacer_mode != "bw" or not spacers_drawn:
+        return []
+    flagged: list[int] = []
+    n_passes = (len(slot_rgbs) + steps_in_pass - 1) // steps_in_pass
+    for p in range(n_passes):
+        col = slot_rgbs[p * steps_in_pass:(p + 1) * steps_in_pass]
+        for j, (a, b) in enumerate(zip(col, col[1:])):
+            ov = spacer_overrides.get(p * steps_in_pass + j) \
+                if spacer_overrides else None
+            if ov is not None and tuple(ov) not in _BLACK_OR_WHITE:
+                continue
+            if min_boundary_contrast([a, b]) < LOW_CONTRAST_THRESHOLD:
+                flagged.append(p)
+                break
+    return flagged
