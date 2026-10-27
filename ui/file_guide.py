@@ -686,9 +686,11 @@ def _turned_rows():
             "instrument on i1Profiler's Test Chart page; the note beside them "
             "says which way to turn the sheet and how, step by step. They are "
             "written only for a chart that qualifies: an RGB chart from "
-            "ChromIQ's layout engine for the i1Pro, with no spacers, on any "
-            "paper size, with patches 10 to 25 mm long along the strip for the "
-            "i1Pro 2 and 7 to 25 mm long for the i1Pro 3."),
+            "ChromIQ's layout engine for the i1Pro, with no spacers and every "
+            "strip full, on any paper size, with patches 10 to 25 mm long "
+            "along the strip for the i1Pro 2 and 7 to 25 mm long for the "
+            "i1Pro 3, and at most about 150 strips, because one i1Profiler "
+            "page is at most 1270 mm tall."),
          tr("Create Chart (beta option)")),
         ("{name}-i1profiler-turned-how-to.txt", "runs/runN/exports",
          tr("The note that goes with those files. It says how to turn the "

@@ -8751,6 +8751,11 @@ of I.14 are unchanged except where this block says so.
   one order; this makes it "an order ChromIQ wrote for exactly that chart".
   If none agrees, the file is refused with §I.5's sentence, as before. An
   order of another chart (an earlier build of the same name) is never kept.
+  The orders are read from BOTH places a chart's turned files may be
+  (`exports/`, where Create Chart writes, and beside the chart, where the TI2
+  layout editor writes): the one in `exports/` is in force, every other
+  distinct order of the same patches is an earlier one, and a rewrite keeps
+  them all (review 4.3.18 r1, N-1).
 * **Paper sizes (not pairing, but the files this pairs with).** i1Profiler
   puts `floor(min(241.5 to 242.4 mm, page width - 31 mm) / patch width)`
   patches on a row (measured: `NumberPatchColumns` is ignored; page 266.0 and
@@ -8760,10 +8765,79 @@ of I.14 are unchanged except where this block says so.
   the A4-wide page. i1Profiler's page is at most 1270 mm tall (asked for
   2045 mm, it made 1270 mm and two pages), so a chart that needs a taller page
   gets the note with the real numbers instead of files.
+* **CHANGE TO POINT 1, FOR CONFIRMATION: a file that fits more than one
+  pairing is refused** (review 4.3.18 r1, SF-1). A chart that repeats its
+  colours (every patch the same, as on an evenness sheet, or laid out the
+  same when the sheet is turned half a turn) can agree on EVERY patch with
+  more than one order ChromIQ wrote for it, and the orders would put some
+  readings on different patches. "The first order that agrees" then decided
+  where the readings went, and the device values proved nothing about which
+  `.txf` had been measured: the reviewer's probe filed 96 of 96 readings on
+  the wrong patch. Now every order is compared; orders that agree AND put
+  every reading on the same patch are one pairing and pair as before; two
+  that agree and disagree on any reading are refused, nothing is filed, with
+  *"this file is a measurement of the turned i1Profiler chart, but ChromIQ
+  cannot tell which patch each of its readings belongs to. ChromIQ has
+  written more than one i1Profiler test-chart file for this chart: the one
+  beside it now, and an earlier one (for example from ChromIQ 4.3.17, which
+  turned the sheet the other way). This chart repeats its colours in such a
+  way that the readings fit both files on every patch, yet the two would put
+  some readings on different patches. Nothing in the file says which one you
+  measured with, so ChromIQ does not guess. Measuring the sheet again in i1Profiler would not help, because the new
+  readings would fit both files in the same way. Please measure this sheet in
+  ChromIQ instead: ChromIQ reads every patch where it is printed"*.
+  * **The same for the ordinary pairing, on such a chart only.** Point 1 says
+    only a file §I.5 has already refused is considered; but a uniform chart's
+    turned measurement is NOT refused by §I.5 (every device value agrees by
+    `SAMPLE_ID` too), so it was filed by `SAMPLE_ID` with every reading on
+    the wrong patch. On a chart that has its own turned order, a file §I.5
+    accepts is now also compared with the turned order(s), and if one of them
+    agrees on every patch and puts any reading elsewhere, it is refused
+    (*"ChromIQ cannot tell which patch each reading of this file belongs to.
+    This chart also has a turned i1Profiler chart, and it repeats its colours
+    in such a way that the readings fit the chart's patches both in the
+    chart's own order and in the order of the turned i1Profiler chart, yet
+    the two would put some readings on different patches. Nothing in the file
+    says whether it was measured on ChromIQ's sheet as printed or on the
+    turned i1Profiler chart, so ChromIQ does not guess. Measuring the sheet again in i1Profiler would not help, because
+    the new readings would fit both orders in the same way. Please measure
+    this sheet in ChromIQ instead: ChromIQ reads every patch where it is
+    printed"*). A chart without a turned order, and any chart whose colours
+    do not repeat that way, is judged exactly as before.
+  * Why "measure again in i1Profiler" is not offered: whether two orders both
+    agree is a property of the chart's colours, not of the file, so a new
+    measurement with the current `.txf` agrees with both in the same way.
+  * Both sentences are new `{reason}` texts of the import's refusal window
+    (M-IMPORT-MISMATCH and the doors that show `assess`'s reason). They are
+    proposed, shown from 4.3.18, and await approval with this block.
+  * Tests: `tests/test_i1profiler_turned_review_4318.py` (two orders that
+    both fit, a uniform chart, the same order in both places, an ordinary
+    measurement of a chart with a turned order).
+* **The note says when the files were written again** (review 4.3.18 r1,
+  SF-4). When the export of the same chart keeps an earlier order, the note
+  adds a paragraph: the files were written again for the clockwise turn; if
+  i1Profiler still has the earlier file loaded, load this one again on the
+  Test Chart page and turn the sheet clockwise as step 2 says; a measurement
+  made with the earlier file can still be imported unless the two files
+  cannot be told apart, which ChromIQ then says.
+* **Where the paper sizes were proven** (review 4.3.18 r1, SF-3). Cell by
+  cell against i1Profiler 3.8.8's own saved chart, i1Pro 3 files: A4 504/504,
+  two A4 sheets 1008/1008, Letter 506/506, A4 landscape 512/512, clip right
+  456/456 (report 2026-10-27_i1profiler_turn_and_sizes), and 4 x 6 inch with
+  7 mm patches 400/400 (page 174.5 mm wide), 4 x 6 inch with 25 mm patches
+  400/400 (5 per row, 80 rows, page 168.44 x 685 mm), 5 x 7 inch with 10 mm
+  patches 400/400 (page 196 mm), each "Page 1 of 1", the anticlockwise
+  control 0/400 (report 2026-10-27_fix_4318_r1). The i1Pro 2 files follow
+  the same rules but could not be opened in i1Profiler on this Mac, and the
+  tooltip, the note and the release notes say so. They also tell the person
+  to check the grid in step 5 whatever the chart.
 * Tests: `tests/test_i1profiler_turned_export.py` (both turns, the clip side,
   the page width for every patch length, every paper),
   `tests/test_i1profiler_turned_4317_files.py` (4.3.17's files, the earlier
-  order, refusals).
+  order, refusals), `tests/test_i1profiler_turned_review_4318.py` (the order
+  checked against turned and ranked patch centres for both turns and small
+  papers, every reading followed to the patch it was physically read from,
+  the refusals above, both places).
 
 ## S. Sequences — what happens, in what order, for every entry condition
 

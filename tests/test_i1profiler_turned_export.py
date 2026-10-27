@@ -326,11 +326,16 @@ def test_the_files_are_written_and_say_what_i1profiler_must_show(charts, tmp_pat
         assert reds == pytest.approx(
             [vals["R"] * 2.55 for _s, _l, vals in plan.order], abs=0.5)
     note = files.note.read_text(encoding="utf-8")
-    for must in ("CLOCKWISE", "clip border", "TOP row", "Test Chart", "Load",
+    # a WORD, not a substring: "CLOCKWISE" is also in "ANTICLOCKWISE"
+    # (review 4.3.18 r1, N-2)
+    assert re.search(r"\bCLOCKWISE\b", note)
+    assert not re.search(r"\bANTICLOCKWISE\b", note)
+    for must in ("clip border", "TOP row", "Test Chart", "Load",
                  f"columns: {plan.columns}, rows: {plan.rows}, pages: 1",
                  "Default display device", "-i1profiler-turned-i1Pro2.txf",
                  "Row 1: strip", "IMPORT", "Import Measurement", ".mxf",
-                 "nobody has yet read such a sheet with a real instrument",
+                 "Nobody has yet read such a sheet with a real instrument",
+                 "with the i1Pro 3 file",
                  # i1Profiler's own labels, per instrument (review 4.3.17 r1)
                  "With an i1Pro 2: Single Scan (M0), or Dual scan "
                  "(M0,M1,M2 and OBC)",
@@ -566,7 +571,10 @@ def test_the_note_says_which_way_for_each_clip_side(tmp_path):
         note = T.TurnedFiles(out, "N").note.read_text(encoding="utf-8")
         step2 = [l for l in note.splitlines() if l.startswith("2. ")][0]
         for w in words:
-            assert w in step2, (kw, w, step2)
+            # whole words: "CLOCKWISE" is also in "ANTICLOCKWISE"
+            assert re.search(rf"\b{re.escape(w)}\b", step2), (kw, w, step2)
+        other = "CLOCKWISE" if words[0] == "ANTICLOCKWISE" else "ANTICLOCKWISE"
+        assert not re.search(rf"\b{other}\b", step2), (kw, step2)
         order = json.loads(T.TurnedFiles(out, "N").order.read_text(
             encoding="utf-8"))
         assert order["turn"] == T.plan_for(ti2).turn

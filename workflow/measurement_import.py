@@ -326,6 +326,13 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
                 "file and import that file").format(
                     got=n_got, total=len(turned.order.sample_ids)),
                 n_chart=n_chart or 0, n_measured=n_got)
+        if turned.applies and turned.ambiguous:
+            # MORE THAN ONE ORDER FITS, AND THEY DISAGREE (review 4.3.18 r1,
+            # SF-1): the chart repeats its colours so that this file agrees
+            # with the order in force AND with an earlier one ChromIQ wrote
+            # for the same chart, each putting readings on other patches.
+            return ImportVerdict(False, turned_ambiguous_reason(),
+                                 n_chart=n_chart or 0, n_measured=n_got)
         if turned.applies and turned.verified:
             return ImportVerdict(True, "", partial=False,
                                  n_chart=n_chart or 0, n_measured=n_got,
@@ -336,6 +343,22 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
         return ImportVerdict(False, identity.get("reason") or tr(
             "the measured colours do not agree with the chart's patches"),
             n_chart=n_chart or 0, n_measured=n_got)
+    if identity.get("verdict") == "verified" and chart_ti2 is not None:
+        # THE ORDINARY PAIRING FITS, BUT DOES A TURNED ONE FIT AS WELL? Only a
+        # chart with its own turned order is asked (`turned_order_for` is one
+        # stat per folder without one), and only a chart that repeats its
+        # colours can fit both: an evenness sheet read on the turned
+        # i1Profiler chart agrees with its own patches by SAMPLE_ID too, and
+        # was filed with every reading on the wrong patch (review 4.3.18 r1,
+        # SF-1). Nothing in the file says which way it was measured.
+        from workflow.i1profiler_turned import (fits_straight_and_turned,
+                                                turned_match,
+                                                turned_order_for)
+        if turned_order_for(chart_ti2) is not None:
+            turned = turned_match(measured, chart_ti2)
+            if fits_straight_and_turned(measured, turned):
+                return ImportVerdict(False, straight_or_turned_reason(),
+                                     n_chart=n_chart or 0, n_measured=n_got)
     if not identity.get("checked"):
         # An uncheckable identity is not a refusal — the report records the
         # same state — but it must not pass in silence.
@@ -343,6 +366,42 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
                  "the import continues", identity.get("reason", ""))
     return ImportVerdict(True, "", partial=partial,
                          n_chart=n_chart or 0, n_measured=n_got, n_read=n_read)
+
+
+def turned_ambiguous_reason() -> str:
+    """The refusal for a turned measurement that fits more than one order
+    ChromIQ wrote for the chart (review 4.3.18 r1, SF-1; §I.14)."""
+    return tr(
+        "this file is a measurement of the turned i1Profiler chart, but "
+        "ChromIQ cannot tell which patch each of its readings belongs to. "
+        "ChromIQ has written more than one i1Profiler test-chart file for "
+        "this chart: the one beside it now, and an earlier one (for example "
+        "from ChromIQ 4.3.17, which turned the sheet the other way). This "
+        "chart repeats its colours in such a way that the readings fit both "
+        "files on every patch, yet the two would put some readings on "
+        "different patches. Nothing in the file says which one you measured "
+        "with, so ChromIQ does not guess. "
+        "Measuring the sheet again in i1Profiler would not help, because the "
+        "new readings would fit both files in the same way. Please measure "
+        "this sheet in ChromIQ instead: ChromIQ reads every patch where it "
+        "is printed")
+
+
+def straight_or_turned_reason() -> str:
+    """The refusal for a measurement that fits the chart both as it is and
+    through its turned i1Profiler order (review 4.3.18 r1, SF-1; §I.14)."""
+    return tr(
+        "ChromIQ cannot tell which patch each reading of this file belongs "
+        "to. This chart also has a turned i1Profiler chart, and it repeats "
+        "its colours in such a way that the readings fit the chart's patches "
+        "both in the chart's own order and in the order of the turned "
+        "i1Profiler chart, yet the two would put some readings on different "
+        "patches. Nothing in the file says whether it was measured on "
+        "ChromIQ's sheet as printed or on the turned i1Profiler chart, so "
+        "ChromIQ does not guess. Measuring the "
+        "sheet again in i1Profiler would not help, because the new readings "
+        "would fit both orders in the same way. Please measure this sheet in "
+        "ChromIQ instead: ChromIQ reads every patch where it is printed")
 
 
 def _device_type_reason(measured_space: str, chart_space: str) -> str:

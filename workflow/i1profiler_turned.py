@@ -620,40 +620,37 @@ def _order_doc(plan: TurnedPlan, ti2: Path, earlier: "list | None" = None) -> di
 
 
 def _earlier_orders(path: Path, ti2: Path, plan: TurnedPlan) -> list:
-    """The orders an existing order file at *path* holds for this very chart
-    (its own and the ones it kept), other than the new *plan*'s: kept in the
-    new file so a measurement made from the older ``.txf`` still pairs.
+    """The orders ChromIQ already wrote for this very chart, other than the
+    new *plan*'s: kept in the new file so a measurement made from an older
+    ``.txf`` still pairs.
 
-    Only for the same chart (SHA-256): an order of an earlier build of this
-    name describes another sheet and is dropped as before."""
+    FROM EVERY PLACE THE CHART'S TURNED FILES MAY BE (review 4.3.18 r1,
+    N-1): the order file at *path* that is about to be replaced, and those
+    in ``exports/`` and beside the chart (:meth:`TurnedFiles.for_chart`), each
+    with the orders it kept itself. Only for the same chart (SHA-256): an
+    order of an earlier build of this name describes another sheet and is
+    dropped as before."""
     try:
         digest = sha256_of(ti2)
-        if _order_in(path, ti2, digest) is None:
-            return []
-        doc = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except OSError:
         return []
+    paths = []
+    for p in [Path(path), *(f.order for f in TurnedFiles.for_chart(ti2))]:
+        if p not in paths:
+            paths.append(p)
+    found = [o for o in (_order_in(p, ti2, digest) for p in paths)
+             if o is not None]
     new_ids = [str(sid) for sid, _l, _v in plan.order]
     out, seen = [], {tuple(new_ids)}
-    cands = [{"version": doc.get("version"),
-              "turn": doc.get("turn") or ANTICLOCKWISE,
-              "order": doc.get("order") or []}]
-    cands += [e for e in (doc.get("earlier_orders") or [])
-              if isinstance(e, dict)]
-    for e in cands:
-        try:
-            ids = tuple(str(x.get("sample_id", "")) for x in e["order"])
-            locs = [str(x.get("loc", "")) for x in e["order"]]
-        except (AttributeError, KeyError, TypeError):
-            continue
-        if (not ids or not all(ids) or len(set(ids)) != len(ids)
-                or ids in seen):
-            continue
-        seen.add(ids)
-        out.append({"version": e.get("version"),
-                    "turn": e.get("turn") or ANTICLOCKWISE,
-                    "order": [{"sample_id": i, "loc": l}
-                              for i, l in zip(ids, locs)]})
+    for o in found:
+        for c in o.candidates():
+            key = tuple(c.sample_ids)
+            if key in seen or sorted(key) != sorted(new_ids):
+                continue
+            seen.add(key)
+            out.append({"version": c.version, "turn": c.turn,
+                        "order": [{"sample_id": i, "loc": l}
+                                  for i, l in zip(c.sample_ids, c.locs)]})
     return out
 
 
@@ -692,7 +689,8 @@ def write_turned_export(ti2: "str | Path", out_dir: "str | Path",
             json.dumps(_order_doc(plan, ti2, earlier), indent=1),
             encoding="utf-8")
         res.written.append(files.order)
-        files.note.write_text(note_qualified(plan, ti2.name, files),
+        files.note.write_text(note_qualified(plan, ti2.name, files,
+                                             written_again=bool(earlier)),
                               encoding="utf-8")
         res.written.append(files.note)
     except Exception:  # noqa: BLE001 — never break a chart build
@@ -707,14 +705,20 @@ def write_turned_export(ti2: "str | Path", out_dir: "str | Path",
 # The note
 # ---------------------------------------------------------------------------
 
-def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str:
+def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
+                   written_again: bool = False) -> str:
     """The plain-language note for a chart that qualifies.
 
     NO FILE STEM IN IT (review 4.3.17 r1). A project rename renames these
     files and the chart, and a note that named "Old.ti2" and
     "Old-i1profiler-turned.json" then sent the person looking for files that
     no longer existed. Every file is named by the ending it keeps whatever
-    the project is called. *chart_name* is kept for the callers."""
+    the project is called. *chart_name* is kept for the callers.
+
+    *written_again*: ChromIQ wrote these files for this very chart before,
+    in another order (4.3.17's anticlockwise turn), and kept that order as an
+    earlier one. The note then says so, because i1Profiler may still hold the
+    earlier ``.txf`` (review 4.3.18 r1, SF-4)."""
     parts = [tr("ChromIQ: measuring this chart in i1Profiler as well (beta)"),
              "=" * 60, ""]
     parts.append(tr(
@@ -726,10 +730,43 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
     parts.append("")
     parts.append(tr(
         "IMPORTANT: this is a beta. The layout was checked patch for patch "
-        "in i1Profiler 3.8.8, but nobody has yet read such a sheet with a "
-        "real instrument, or imported a real i1Profiler measurement of one. "
-        "Please check the result before you rely on it."))
+        "in i1Profiler 3.8.8 with the i1Pro 3 file. The i1Pro 2 file is "
+        "written by the same rules, but it could not be opened in i1Profiler "
+        "yet, so it has not been checked there. Nobody has yet read such a "
+        "sheet with a real instrument, or imported a real i1Profiler "
+        "measurement of one. Please check the result before you rely on it."))
     parts.append("")
+    if written_again:
+        if plan.turn == CLOCKWISE:
+            parts.append(tr(
+                "These files were written again. ChromIQ had already written "
+                "i1Profiler files for this very chart before, for a sheet "
+                "turned the other way (ChromIQ 4.3.17 turned every sheet "
+                "anticlockwise), and has now written them for a sheet turned "
+                "clockwise, so that the clip border is at the top. If "
+                "i1Profiler still has the earlier file loaded, or you loaded "
+                "it from i1Profiler's own folder, load the file from this "
+                "folder again on the Test Chart page (step 4), and turn the "
+                "sheet a quarter turn CLOCKWISE as step 2 says. A measurement "
+                "you already made with the earlier file can still be "
+                "imported: ChromIQ keeps the earlier order and puts its "
+                "readings on the right patches, unless this chart repeats "
+                "its colours so that the two files cannot be told apart; "
+                "ChromIQ then says so and changes nothing."))
+        else:
+            parts.append(tr(
+                "These files were written again. ChromIQ had already written "
+                "i1Profiler files for this very chart before, in another "
+                "order. If i1Profiler still has the earlier file loaded, or "
+                "you loaded it from i1Profiler's own folder, load the file "
+                "from this folder again on the Test Chart page (step 4), and "
+                "turn the sheet the way step 2 says. A measurement you "
+                "already made with the earlier file can still be imported: "
+                "ChromIQ keeps the earlier order and puts its readings on "
+                "the right patches, unless this chart repeats its colours so "
+                "that the two files cannot be told apart; ChromIQ then says "
+                "so and changes nothing."))
+        parts.append("")
     parts.append(tr("Which instruments"))
     parts.append(tr(
         "Only an i1Pro 2 or an i1Pro 3, read by hand along its ruler. Not the "
@@ -904,7 +941,12 @@ def note_not_qualified(plan: TurnedPlan, chart_name: str) -> str:
         "to 25 mm long for the i1Pro 2 and 7 to 25 mm long for the i1Pro 3, "
         "a strip may be at most 241.5 mm long, and the whole chart may have "
         "at most about 150 strips, because one i1Profiler page is at most "
-        "1270 mm tall. Only the i1Pro 2 and the i1Pro 3 can read it."))
+        "1270 mm tall. Only the i1Pro 2 and the i1Pro 3 can read it. The "
+        "layout was compared cell by cell with i1Profiler 3.8.8's own chart "
+        "on A4, Letter, A4 landscape, 4 x 6 inch and 5 x 7 inch paper, with "
+        "patches from 7 to 25 mm long (the i1Pro 3 file). Whatever the "
+        "chart, always check, as step 5 of the note for a qualifying chart "
+        "says, that i1Profiler shows exactly the grid that note names."))
     parts.append(tr(
         "How to make one: on Create Chart choose MANUAL and the instrument "
         "i1Pro / i1Pro 2 / i1Pro 3, tick \"Use the ChromIQ layout engine "
@@ -930,6 +972,8 @@ class TurnedOrder:
     #: Orders ChromIQ wrote EARLIER for this very chart, newest first, each a
     #: ``TurnedOrder`` without earlier orders of its own (see `_earlier_orders`).
     earlier: tuple = ()
+    #: The order file's version (1 = 4.3.17's), kept when it is carried over.
+    version: int = ORDER_VERSION
 
     def candidates(self) -> list:
         """This order first, then the earlier ones."""
@@ -955,11 +999,32 @@ def turned_order_for(chart_ti2: "str | Path | None") -> "TurnedOrder | None":
         digest = sha256_of(chart_ti2)
     except OSError:
         return None
-    for p in candidates:
-        found = _order_in(p, chart_ti2, digest)
-        if found is not None:
-            return found
-    return None
+    # BOTH PLACES ARE READ, AND MERGED (review 4.3.18 r1, N-1). Create Chart
+    # writes into exports/, the TI2 layout editor beside the chart; an order
+    # either of them wrote for exactly this chart is one ChromIQ wrote for it.
+    # The one in exports/ is the order in force; every other order found is
+    # an earlier one, each kept once.
+    found = [o for o in (_order_in(p, chart_ti2, digest) for p in candidates)
+             if o is not None]
+    return _merged(found) if found else None
+
+
+def _merged(found: list) -> "TurnedOrder":
+    """One order from several files' orders: the first file's own order in
+    force, every other distinct order of the same patches an earlier one."""
+    main = found[0]
+    seen = {tuple(main.sample_ids)}
+    earlier = []
+    for o in found:
+        for c in o.candidates():
+            key = tuple(c.sample_ids)
+            if key in seen or sorted(c.sample_ids) != sorted(main.sample_ids):
+                continue
+            seen.add(key)
+            earlier.append(TurnedOrder(c.path, c.sample_ids, c.locs,
+                                       turn=c.turn, version=c.version))
+    return TurnedOrder(main.path, main.sample_ids, main.locs, turn=main.turn,
+                       earlier=tuple(earlier), version=main.version)
 
 
 def _order_in(path: Path, chart_ti2: "str | Path",
@@ -979,18 +1044,24 @@ def _order_in(path: Path, chart_ti2: "str | Path",
             or doc.get("chart_sha256") != digest):
         return None
 
-    def _one(entries, turn):
+    def _one(entries, turn, version):
         try:
             ids = [str(e.get("sample_id", "")) for e in entries]
             locs = [str(e.get("loc", "")) for e in entries]
         except AttributeError:
             return None
         if ids and all(ids) and len(set(ids)) == len(ids):
-            return TurnedOrder(Path(path), ids, locs, turn=turn)
+            try:
+                version = int(version)
+            except (TypeError, ValueError):
+                version = 1
+            return TurnedOrder(Path(path), ids, locs, turn=turn,
+                               version=version)
         return None
 
     # Version 1 (4.3.17) knew one turn only, and wrote no word for it.
-    main = _one(doc.get("order") or [], str(doc.get("turn") or ANTICLOCKWISE))
+    main = _one(doc.get("order") or [], str(doc.get("turn") or ANTICLOCKWISE),
+                doc.get("version"))
     if main is None:
         return None
     earlier = []
@@ -998,13 +1069,14 @@ def _order_in(path: Path, chart_ti2: "str | Path",
         for e in doc.get("earlier_orders") or []:
             if not isinstance(e, dict):
                 continue
-            o = _one(e.get("order") or [], str(e.get("turn") or ANTICLOCKWISE))
+            o = _one(e.get("order") or [], str(e.get("turn") or ANTICLOCKWISE),
+                     e.get("version"))
             # The same patches, every one once: anything else is not an
             # order of this chart's patch list and is ignored.
             if o is not None and sorted(o.sample_ids) == sorted(main.sample_ids):
                 earlier.append(o)
     return TurnedOrder(main.path, main.sample_ids, main.locs, turn=main.turn,
-                       earlier=tuple(earlier))
+                       earlier=tuple(earlier), version=main.version)
 
 
 @dataclass(frozen=True)
@@ -1018,6 +1090,14 @@ class TurnedMatch:
     mismatched: int = 0
     worst: float = 0.0
     order: "TurnedOrder | None" = None
+    #: More than one order ChromIQ wrote for this chart agrees on every patch,
+    #: and they would put readings on different patches (review 4.3.18 r1,
+    #: SF-1). Never paired: nothing in the file says which one was measured.
+    ambiguous: bool = False
+    #: Every order whose device values agree on every patch (``order`` is the
+    #: first of them), so that a caller can compare their pairings with the
+    #: ordinary one by ``SAMPLE_ID`` (:func:`fits_straight_and_turned`).
+    fitting: tuple = ()
 
 
 def turned_match(measured, chart_ti2: "str | Path | None") -> TurnedMatch:
@@ -1071,20 +1151,56 @@ def turned_match(measured, chart_ti2: "str | Path | None") -> TurnedMatch:
                            compared=len(diffs), mismatched=bad,
                            worst=round(max(diffs), 4), order=cand)
 
-    # THE ORDER IN FORCE FIRST, THEN ANY EARLIER ONE ChromIQ WROTE FOR THIS
-    # VERY CHART (4.3.17's anticlockwise turn). Each was fixed when its
-    # `.txf` was written, so whichever one the device values follow is a
-    # pairing nobody chose by minimising the difference; one that agrees on
-    # EVERY patch is the order the file was measured in. If none does, the
-    # result of the order in force is returned, so the refusal is as before.
-    first = _against(order)
-    if first.verified:
-        return first
-    for cand in order.earlier:
-        m = _against(cand)
-        if m.verified:
-            return m
-    return first
+    # EVERY ORDER ChromIQ WROTE FOR THIS VERY CHART IS ASKED: the one in
+    # force and any earlier one (4.3.17's anticlockwise turn). Each was fixed
+    # when its `.txf` was written, so whichever one the device values follow
+    # is a pairing nobody chose by minimising the difference.
+    #
+    # BUT ONLY WHEN EXACTLY ONE PAIRING FITS (review 4.3.18 r1, SF-1). A chart
+    # that repeats its colours (every patch the same, or laid out the same
+    # when turned half a turn) can agree with two orders on every patch, and
+    # then the device values prove nothing about which `.txf` was measured:
+    # taking the first one put 96 of 96 readings of an evenness sheet on the
+    # wrong patch. Orders that agree AND put every reading on the same patch
+    # are one pairing, and are fine. If none agrees, the result of the order
+    # in force is returned, so the refusal is as before.
+    results = [_against(c) for c in order.candidates()]
+    fit = [m for m in results if m.verified]
+    if not fit:
+        return results[0]
+    pairings = {tuple(m.order.sample_ids[int(s) - 1] for s in ids) for m in fit}
+    if len(pairings) > 1:
+        first = fit[0]
+        return TurnedMatch(applies=True, verified=False, partial=partial,
+                           compared=first.compared, mismatched=0,
+                           worst=first.worst, order=first.order,
+                           ambiguous=True,
+                           fitting=tuple(m.order for m in fit))
+    m = fit[0]
+    return TurnedMatch(applies=True, verified=True, partial=partial,
+                       compared=m.compared, mismatched=m.mismatched,
+                       worst=m.worst, order=m.order,
+                       fitting=tuple(x.order for x in fit))
+
+
+def fits_straight_and_turned(measured, match: TurnedMatch) -> bool:
+    """True when *measured*, which the ordinary check by ``SAMPLE_ID`` has
+    already accepted, ALSO fits a turned order of the chart (*match*, from
+    :func:`turned_match`) that would put some reading on another patch.
+
+    Only a chart that repeats its colours can do that (an evenness sheet, say),
+    and then nothing in the file says whether it was measured on ChromIQ's
+    own layout or on the turned i1Profiler chart (review 4.3.18 r1, SF-1)."""
+    if not match.applies or not match.fitting or measured is None:
+        return False
+    ids = [str(s).strip('"') for s in (measured.sample_ids or [])]
+    for cand in match.fitting:
+        try:
+            if any(cand.sample_ids[int(s) - 1] != s for s in ids):
+                return True
+        except (ValueError, IndexError):
+            continue
+    return False
 
 
 #: Header keyword stamped on a measurement paired through the turned order.

@@ -3417,7 +3417,9 @@ class SettingsDialog(QDialog):
                   "Chart, so you usually turn the sheet clockwise: strip A is "
                   "then the top row and the strip labels are on the right. With "
                   "the clip border on the right you turn it anticlockwise "
-                  "instead, and strip A is the bottom row. The note written "
+                  "instead, and strip A is the bottom row. A chart without a "
+                  "clip border is turned clockwise too, so that the left-hand "
+                  "edge of the upright sheet is at the top. The note written "
                   "with each chart says which way to turn that chart. Then you "
                   "load the matching file in i1Profiler."),
                tr(
@@ -3433,10 +3435,18 @@ class SettingsDialog(QDialog):
                   "strip full. Any paper size works, portrait or landscape, and "
                   "so does any number of patches per strip: ChromIQ sets the "
                   "width of i1Profiler's page so that each i1Profiler row holds "
-                  "exactly one strip. Along the strip the patches must be 10 to "
-                  "25 mm long for the i1Pro 2 (X-Rite asks for at least 10 mm) "
-                  "and 7 to 25 mm long for the i1Pro 3, the lengths i1Profiler "
-                  "accepts, so 10 mm patches work for both. A strip may be up "
+                  "exactly one strip. This was compared cell by cell with "
+                  "i1Profiler 3.8.8's own chart on A4, Letter, A4 landscape, "
+                  "4 x 6 inch and 5 x 7 inch paper, with patches from 7 to 25 "
+                  "mm long (the i1Pro 3 file). Whatever the chart, always check "
+                  "that i1Profiler shows exactly the grid the note names (step "
+                  "5 of the note). Along the strip the patches must be 10 to 25 "
+                  "mm long for the i1Pro 2 and 7 to 25 mm long for the i1Pro 3. "
+                  "The shorter limit is the shortest patch X-Rite asks for when "
+                  "scanning with that instrument (i1Profiler's own slider goes "
+                  "a little lower, to 7 mm for the i1Pro 2 and 6 mm for the "
+                  "i1Pro 3), and 25 mm is the longest patch i1Profiler makes. "
+                  "So 10 mm patches work for both. A strip may be up "
                   "to 241.5 mm long, the longest row i1Profiler makes; "
                   "ChromIQ's own strips end at 240 mm unless you set a longer "
                   "“Strip length limit”. A very large chart can be too much for "
@@ -3451,7 +3461,9 @@ class SettingsDialog(QDialog):
                   "the way its own note says. If ChromIQ writes the files of "
                   "that very chart again, for the new turn, a measurement made "
                   "with the older file is still brought back onto the right "
-                  "patches."),
+                  "patches, unless the chart repeats its colours so that the "
+                  "two files cannot be told apart; ChromIQ then says so and "
+                  "changes nothing."),
                tr(
                   "Where the files go: into the chart's exports folder, next to "
                   "the other i1Profiler files. There is one test-chart file "
@@ -3502,9 +3514,12 @@ class SettingsDialog(QDialog):
                   "option off."),
                tr(
                   "This is a beta. The layout was checked patch for patch in "
-                  "i1Profiler 3.8.8, but nobody has yet read such a sheet with "
-                  "a real instrument or imported a real i1Profiler measurement "
-                  "of one. Check the result before you rely on it."),
+                  "i1Profiler 3.8.8 with the i1Pro 3 file. The i1Pro 2 file is "
+                  "written by the same rules, but it could not be opened in "
+                  "i1Profiler yet, so it has not been checked there. Nobody has "
+                  "yet read such a sheet with a real instrument or imported a "
+                  "real i1Profiler measurement of one. Check the result before "
+                  "you rely on it."),
                tr(
                   "With this off (the default), nothing changes: Create Chart "
                   "writes exactly the files it always wrote."),
