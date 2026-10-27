@@ -260,7 +260,8 @@ def state(chart: Path, spec: dict) -> tuple:
         return ("done" if key in _RESULTS else "pending", key)
 
 
-def grid_for(chart: "str | Path", spec: dict, *, wait: bool = False) -> dict:
+def grid_for(chart: "str | Path", spec: dict, *, wait: bool = False,
+             _forget: bool = True) -> dict:
     """The page grid of *chart* laid out by printtarg under *spec*.
 
     Known already: returned. Otherwise, with *wait*, laid out here and now
@@ -283,7 +284,8 @@ def grid_for(chart: "str | Path", spec: dict, *, wait: bool = False) -> dict:
     with _LOCK:
         _RESULTS[key] = res
         _TIMINGS[key] = time.monotonic() - t0
-        _PENDING.discard(key)
+        if _forget:
+            _PENDING.discard(key)
         _GENERATION += 1
     return res
 
@@ -791,14 +793,17 @@ def _run_job(job: tuple) -> None:
         return
     queued_key = call
     try:
-        grid_for(chart, spec, wait=True)
+        # `_forget=False`: this job forgets only the key it was queued
+        # under. The chart as it is now may have its own job queued by then,
+        # and forgetting that one too made `pending()` read one too low while
+        # it waited (review r8 of 4.3.18, NIT-3)
+        grid_for(chart, spec, wait=True, _forget=False)
     except Exception as exc:      # noqa: BLE001 - one preset is never fatal
         log.warning("laying %s out behind the scenes failed: %s", chart, exc)
         key = layout_key(chart, spec)
         with _LOCK:
             _RESULTS[key] = {
                 "reason": REASON_LAYOUT_REFUSED, "detail": str(exc)}
-            _PENDING.discard(key)
             _GENERATION += 1
     # `grid_for` files its answer under the key of the chart as it is NOW;
     # if the chart or printtarg changed after this job was queued, that is

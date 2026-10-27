@@ -522,10 +522,12 @@ def turns_that_fit(boxes: Sequence, quad: Sequence[tuple[float, float]],
     they have on paper, inside *quad*.
 
     The recogniser's own way up (``k = 0``) and its half turn (``k = 2``) are
-    ALWAYS kept: by construction ``k = 0`` lays the chart's x axis along the
-    recogniser's own x scale (:func:`corners_from_candidate`, and a quad
-    :func:`pitch_search` moves keeps that), so it can never be the squeezed
-    grid this rule is for, and the half turn has the same shape. Only the
+    ALWAYS kept: ``k = 0`` lays the chart's x axis along the recogniser's
+    own x scale (:func:`corners_from_candidate`, and a quad
+    :func:`pitch_search` moves keeps that), and a quad whose shape is more
+    than about 12 % off the chart's own is refused earlier by
+    :func:`quad_is_sane`, so ``k = 0`` is never the squeezed grid this rule
+    is for; the half turn has the same shape. Only the
     quarter turns (``k = 1`` and ``k = 3``) can be left out: each is kept when
     it stretches the patches at most *tolerance* times more than the way up
     that stretches them least (see :data:`TURNED_SHAPE_TOLERANCE`), so on a

@@ -100,3 +100,45 @@ def test_the_drop_path_reads_no_file_under_the_lock():
     import inspect
     src = inspect.getsource(PL._forget_locked)
     assert "layout_key(" not in src
+
+
+def test_a_running_job_does_not_forget_a_job_queued_for_the_chart_as_it_is_now(
+        tmp_path, monkeypatch):
+    """Review r8 of 4.3.18, NIT-3: a job whose chart changed before it ran
+    lays out the chart as it is now. If that newer chart got a job of its own
+    meanwhile, the first job used to forget the newer job's key as well, and
+    `pending()` read one too low while the newer job still waited."""
+    chart = tmp_path / "chart.ti1"
+    chart.write_text("CTI1\nNIT-3 before\n", encoding="utf-8")
+    entered = threading.Event()
+    leave = threading.Event()
+
+    def fake(c, spec):
+        entered.set()
+        leave.wait(10.0)
+        return {"pages": 1, "laid_out_by": "test"}
+    monkeypatch.setattr(PL, "lay_out_with_printtarg", fake)
+    release = _busy_worker()
+    try:
+        assert PL.grid_for(chart, {}) == {"reason": PL.REASON_LAYING_OUT}
+        chart.write_text("CTI1\nNIT-3 changed after it was queued\n",
+                         encoding="utf-8")
+    finally:
+        release.set()
+    try:
+        assert entered.wait(10.0), "the first layout never started"
+        # the chart as it is now gets its own job while the first one runs
+        assert PL.grid_for(chart, {}) == {"reason": PL.REASON_LAYING_OUT}
+        assert PL.pending() == 2
+        # keep the next job waiting, so what is counted can be read
+        PL._HOLD_UNTIL = time.monotonic() + 30.0
+    finally:
+        leave.set()
+    try:
+        assert _wait_until(lambda: PL.pending() < 2), "the first job never ended"
+        time.sleep(0.2)
+        assert PL.pending() == 1, (
+            "the newer job is still queued, so it must still be counted")
+    finally:
+        PL._HOLD_UNTIL = 0.0
+    assert _wait_until(lambda: PL.pending() == 0)

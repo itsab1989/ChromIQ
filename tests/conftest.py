@@ -114,6 +114,7 @@ _PINNED_QAPP = None
 # `QInputDialog`), and only 8 lines in the whole suite touch any of them.
 MODAL_GRACE_MS = 4000
 MODAL_SWEEP_TICK_MS = 250
+_MODAL_TOKEN = "_chromiq_modal_sweep_token"
 
 
 class _ModalSweep:
@@ -127,9 +128,9 @@ class _ModalSweep:
         self.grace_ms = grace_ms
         self.first_seen: dict = {}
         self.stuck: list = []
+        self.next_token = 0
 
     def tick(self) -> None:
-        from PyQt6 import sip
         from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
         grace = (MODAL_GRACE_MS if self.grace_ms is None
                  else self.grace_ms) / 1000.0
@@ -141,7 +142,14 @@ class _ModalSweep:
             modal = isinstance(w, QDialog) and w.isModal()
             if not (modal or isinstance(w, QMessageBox)):
                 continue
-            key = (int(sip.unwrapinstance(w)), id(w))
+            # a token kept ON the dialog, not its address: a dialog deleted
+            # and a new one built at the same address between two ticks must
+            # not inherit the old one's time (review r8 of 4.3.18, NIT-1)
+            key = w.property(_MODAL_TOKEN)
+            if key is None:
+                self.next_token += 1
+                key = self.next_token
+                w.setProperty(_MODAL_TOKEN, key)
             first = self.first_seen.get(key, now)
             seen[key] = first
             if now - first < grace:
@@ -153,7 +161,9 @@ class _ModalSweep:
                 self.stuck.append(w.windowTitle() or w.text()[:60])
                 w.close()
         # a dialog not visible on this tick is forgotten: shown again, it
-        # gets its whole grace period again
+        # gets its whole grace period again. So a dialog that happened to be
+        # hidden at every tick would never be swept; that cannot hide a hung
+        # `exec()`, which stays visible until it returns (review r8, NIT-2)
         self.first_seen = seen
 
 
