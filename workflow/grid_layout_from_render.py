@@ -96,14 +96,28 @@ def _rgb100_to_key8(rgb100: np.ndarray) -> np.ndarray:
     return (v[:, 0] << 16) | (v[:, 1] << 8) | v[:, 2]
 
 
+#: The page's own colours: i1Profiler draws its chart on white paper with black
+#: frame marks. A patch set that holds paper white or black (almost every real
+#: one does) shares them, so they cannot say where the patch BLOCK is.
+_PAGE_KEYS = np.array([0xFFFFFF, 0x000000], dtype=np.int64)
+
+
 def _block_bbox(img: np.ndarray, patch_keys: np.ndarray) -> tuple[int, int, int, int]:
     """Bounding box of the pixels whose colour is one of the exported patch
     colours — the patch block, excluding the page's registration furniture
-    (which is a thin frame + marks in colours the block does not use)."""
+    (a thin frame + marks).
+
+    Pure white and pure black are left out of this search: they are the
+    page's paper and its marks too, and counting them made the "block" the
+    whole page, so a correct i1Profiler chart was refused whenever its patch
+    set held white or black (2026-10-26). Only the box is found this way;
+    every cell, white and black ones included, is still colour-checked
+    afterwards. A set holding nothing else keeps the old search."""
     h, w = img.shape[:2]
     key = (img[:, :, 0].astype(np.int64) << 16) | \
           (img[:, :, 1].astype(np.int64) << 8) | img[:, :, 2].astype(np.int64)
-    mask = np.isin(key, patch_keys)
+    own = patch_keys[~np.isin(patch_keys, _PAGE_KEYS)]
+    mask = np.isin(key, own if own.size else patch_keys)
     ys, xs = np.where(mask)
     if xs.size == 0:
         raise GridGeometryError(

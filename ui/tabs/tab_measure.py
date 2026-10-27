@@ -14388,6 +14388,26 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                           chart=verdict.n_chart, got=verdict.patches_read)
         return None
 
+    @staticmethod
+    def _turned_refusal() -> str:
+        return tr("this file looked like a measurement of the turned "
+                  "i1Profiler chart, but its readings could not be put on "
+                  "this chart's patches")
+
+    def _complete_turned_import(self, converted: Path, chart: Path) -> bool:
+        """Pair a measurement of the turned i1Profiler export with *chart*
+        (on the converted copy) and say so in the log. False: refuse."""
+        from workflow.measurement_import import complete_from_turned_order
+        n = complete_from_turned_order(converted, chart)
+        if not n:
+            return False
+        self._log.appendPlainText("\n" + tr(
+            "[OK] This is a measurement of the turned i1Profiler chart, so "
+            "ChromIQ put every reading on its own patch of {chart}, in the "
+            "turned order. The colours in the file agree with the chart on "
+            "every patch.").format(chart=chart.name))
+        return True
+
     def _show_import_refusal(self, message, **kw) -> None:
         """One of the IMPORT module's refusal/guard windows. The **text** comes
         from ``workflow/measurement_messages.py`` (§M) — this method only
@@ -14574,6 +14594,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=reason)
             return
 
+        # 2b) A measurement of the TURNED i1Profiler export (beta, §I.14) takes
+        #     the chart's own patch ids and names, in the chart's order, on the
+        #     converted copy, before anything reads it as a measurement.
+        if getattr(verdict, "turned_order", False):
+            if not self._complete_turned_import(converted,
+                                                run.verify_chart_ti2):
+                self._show_import_refusal(
+                    M.M_IMPORT_MISMATCH, reason=self._turned_refusal())
+                return
+
         # 2a) A measurement with no device values of its own takes them from
         #     the chart, on the CONVERTED COPY in the run's cache and never on
         #     the user's file. It is done here, after the names have been
@@ -14727,6 +14757,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not verdict.ok:
             refuse_it_does_not_belong(self, verdict.reason)
             return
+
+        # 2b) The TURNED i1Profiler export (beta, §I.14), as on the other door.
+        if getattr(verdict, "turned_order", False):
+            if not self._complete_turned_import(converted, run.chart_ti2):
+                refuse_it_does_not_belong(self, self._turned_refusal())
+                return
 
         # 2a) A MEASUREMENT WITH NO DEVICE VALUES TAKES THEM FROM THE CHART,
         #     here exactly as on the verification door.

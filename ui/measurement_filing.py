@@ -608,6 +608,11 @@ def say_what_was_filed(parent, filed: Path) -> None:
         # real patch that is not the right one, saying nothing is wrong. Done
         # here because this is the one place every filing door ends on.
         complete_from_chart(Path(filed), chart)
+    if verdict.ok and verdict.turned_order:
+        # A measurement of the turned i1Profiler export (beta, §I.14): the
+        # copy takes the chart's patch ids and names, in the chart's order.
+        from workflow.measurement_import import complete_from_turned_order
+        complete_from_turned_order(Path(filed), chart)
     if verdict.ok and verdict.partial:
         InfoDialog(
             tr("Filed — and it is a partial measurement"),
