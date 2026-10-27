@@ -973,7 +973,14 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     # beside the chart; everything else it does is unchanged.
     _paired = None
     if _verdict.turned_order:
-        _paired = pairing.first(measurement, _chart_beside)
+        # THE COPY IS A WRITE, and a full disk or an unwritable temp folder
+        # is the door's "could not file" window, not an exception escaping a
+        # Qt slot (review 4.3.17 r2, NIT-4). Nothing has been made yet.
+        try:
+            _paired = pairing.first(measurement, _chart_beside)
+        except (OSError, ValueError) as exc:
+            return _cannot_file(parent, str(exc) or type(exc).__name__,
+                                project=name)
         if _paired is None:
             refuse_it_does_not_belong(parent, turned_refusal_reason())
             return True
@@ -1263,7 +1270,13 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         # A TURNED MEASUREMENT IS PAIRED WITH THE SOURCE'S CHART FIRST, which
         # still has its order beside it: the copy `duplicate_run` makes has
         # the same chart bytes and no `exports/` (review 4.3.17 r1, S2).
-        measurement = pairing.first(measurement, source.chart_ti2)
+        try:
+            measurement = pairing.first(measurement, source.chart_ti2)
+        except (OSError, ValueError) as exc:
+            # The pairing copy could not be written (NIT-4, as below).
+            _undo_the_run(proj, made_here, was_current)
+            return _cannot_file(parent, str(exc) or type(exc).__name__,
+                                project=name)
         if measurement is None:
             refuse_it_does_not_belong(parent, turned_refusal_reason())
             return True
@@ -1307,7 +1320,15 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # AGAINST, BEFORE THAT RUN IS DUPLICATED below, for the same reason. On
     # a measurement already paired above, or on a chart with no turned order,
     # this hands the file back unchanged.
-    measurement = pairing.first(measurement, run.chart_ti2)
+    try:
+        measurement = pairing.first(measurement, run.chart_ti2)
+    except (OSError, ValueError) as exc:
+        # THE PAIRING COPY IS A WRITE (review 4.3.17 r2, NIT-4): a full disk
+        # or an unwritable temp folder reaches the same friendly window as
+        # every other write of this door, and the run made here is undone.
+        _undo_the_run(proj, made_here, was_current)
+        return _cannot_file(parent, str(exc) or type(exc).__name__,
+                            project=name)
     if measurement is None:
         _undo_the_run(proj, made_here, was_current)
         refuse_it_does_not_belong(parent, turned_refusal_reason())
