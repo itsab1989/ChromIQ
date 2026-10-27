@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.3.18
+
+**For everyone updating from 4.3.17: the beta option that lets i1Profiler measure a printed ChromIQ sheet now turns the sheet so that its clip border is at the top, and it works on every paper size. With the option off, which is how it starts, nothing about your charts, presets, measurements or profiles changes.**
+
+### Changed (beta, off unless you switch it on)
+- **The sheet is turned so that its clip border is at the top.** The wide clip border of an i1Pro chart is on the left of the upright sheet, so you now turn the printed sheet a quarter turn clockwise: the clip of the ruler's backing board then holds the paper by that border, strip A is the top row and the strip labels are on the right. If you put the clip border on the right in Create Chart, you turn the sheet anticlockwise instead, so that border is at the top too. The note written with each chart says which way to turn it. Checked patch for patch in i1Profiler 3.8.8: one sheet 504 of 504, two sheets 1008 of 1008.
+- **Any paper size and any number of patches per strip.** In 4.3.17 a chart qualified only when its strips nearly filled i1Profiler's 241.5 mm row, so Letter, A4 landscape and the small photo sizes never did. ChromIQ now sets the width of i1Profiler's page so that each i1Profiler row holds exactly one strip, whatever its length. The patches only have to be 10 to 25 mm long along the strip for the i1Pro 2 and 7 to 25 mm for the i1Pro 3. A very large chart (more than about 150 strips) does not fit on one i1Profiler page, which is at most 1270 mm tall; it gets the note, which says so and how to make one that fits.
+- **Charts made with 4.3.17 keep working.** Their files were written for the anticlockwise turn and their note says so: turn those sheets the way their own note says. If ChromIQ writes the files of that same chart again, a measurement made with the older file is still put on the right patches.
+
 ## v4.3.17
 
 **For everyone updating from 4.3.16: this is a bug-fix release with one new beta option you can switch on if you want it. The ruler helper markers in the chart preview are single lines again, and charts laid out in i1Profiler are read again on the scanner path. With the new option off, which is how it starts, nothing about your charts, presets, measurements or profiles changes.**

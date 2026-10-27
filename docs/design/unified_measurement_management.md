@@ -8713,6 +8713,58 @@ tested; nobody has yet said that this is what ChromIQ should do.
   and `chart/` do not count (review 4.3.17 r3, NIT-1). Off and without such
   files the guide is 4.3.16's.
 
+### ⏳ Awaiting confirmation — §I.14, the sheet is turned with its clip border at the top, and 4.3.17's turned files still pair (beta, 4.3.18)
+
+**Confirmed by:** *nobody yet.*
+
+**Asked for by Basti, 2026-10-27:** *"You made it so for measuring in
+i1profiler the chart has to be rotated 90°. But 270° would make more sense
+because then the clip border would be on top of the patches and can fulfill
+its purpose. Also is it possible to use other papersizes or vary the patch
+sizes (smaller or bigger)? Analyse and fix if needed."* Built and tested; the
+layout was compared cell by cell with i1Profiler 3.8.8's own chart
+(`ChromIQ-work/2026-10-27_i1profiler_turn_and_sizes/report.md`). Points 1 to 4
+of I.14 are unchanged except where this block says so.
+
+* **Which way the sheet is turned.** An i1Pro chart has its clip border on the
+  LEFT of the upright sheet (26 mm, measured on the real chart; printtarg's
+  `-L` is "suppress any left paper clip border") and its strip labels along the
+  top. The export now writes the order for the quarter turn that puts the clip
+  border at the TOP, where the clip of the ruler's backing board holds it:
+  CLOCKWISE (strip A the top row, labels on the right, each row read from the
+  strip's last patch to its first) for a left clip border or none, and
+  ANTICLOCKWISE (4.3.17's turn: strip A the bottom row, labels on the left) for
+  a clip border set to the right. The note says which, for that chart.
+* **The order file says which turn it is for** (`"turn"`, version 2). Version
+  1 files, written by 4.3.17 and always anticlockwise, are still read and pair
+  exactly as before: the order in the file is the order of the `.txf` beside
+  it.
+* **CHANGE TO POINT 1, FOR CONFIRMATION: an earlier order of the same chart
+  still pairs.** When the export of the very same chart (same SHA-256) is
+  written again and its order differs (4.3.17's anticlockwise order, rewritten
+  for the clockwise turn), the old order is kept in the new file as an
+  `earlier_orders` entry. A measurement is compared with the order in force
+  first and then with each earlier one, and is paired by the first whose
+  device values agree on EVERY patch. Each of those orders was written by
+  ChromIQ for exactly that chart before the measurement existed, so the
+  comparison still checks a pairing nobody chose. Point 1 as confirmed names
+  one order; this makes it "an order ChromIQ wrote for exactly that chart".
+  If none agrees, the file is refused with §I.5's sentence, as before. An
+  order of another chart (an earlier build of the same name) is never kept.
+* **Paper sizes (not pairing, but the files this pairs with).** i1Profiler
+  puts `floor(min(241.5 to 242.4 mm, page width - 31 mm) / patch width)`
+  patches on a row (measured: `NumberPatchColumns` is ignored; page 266.0 and
+  270.5 mm gave 23 per row at 10 mm, 271.5 mm gave 24). A strip shorter than
+  i1Profiler's ruler window is therefore given a page `31 + (P + 0.5) x L` mm
+  wide, so every full-strip chart on any paper qualifies; 4.3.17's charts keep
+  the A4-wide page. i1Profiler's page is at most 1270 mm tall (asked for
+  2045 mm, it made 1270 mm and two pages), so a chart that needs a taller page
+  gets the note with the real numbers instead of files.
+* Tests: `tests/test_i1profiler_turned_export.py` (both turns, the clip side,
+  the page width for every patch length, every paper),
+  `tests/test_i1profiler_turned_4317_files.py` (4.3.17's files, the earlier
+  order, refusals).
+
 ## S. Sequences — what happens, in what order, for every entry condition
 
 **The rule this chapter exists to state: one window at a time.** Where a condition raises two, the second is not built until the first has returned. No window is ever opened from inside another's handler, and none is opened from a `showEvent` — a window raised while its parent is still being painted comes up behind it or over the wrong tab, which is how #134 and #130 both started.
