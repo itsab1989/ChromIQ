@@ -571,10 +571,73 @@ def _features():
     ]
 
 
-def _rows():
+def turned_export_on() -> bool:
+    """Whether the beta "turned" i1Profiler export is switched on
+    (Preferences -> Beta). Read lazily, so importing this module stays
+    Qt-free; any trouble reading it answers False, the 4.3.16 guide."""
+    try:
+        from core.settings import AppSettings
+        return bool(AppSettings().get("i1profiler_turned_export", False))
+    except Exception:  # noqa: BLE001 — the guide must never fail on a setting
+        return False
+
+
+def _turned_rows():
+    """The exports/ rows of the beta turned i1Profiler export (Basti,
+    2026-10-27: "let it list it when the option is on"). Only listed while
+    the option is on; off, the guide is exactly 4.3.16's."""
+    return [
+        ("{name}-i1profiler-turned-i1Pro2.txf / -i1Pro3.txf", "runs/runN/exports",
+         tr("Beta, written only while “Also write an i1Profiler chart "
+            "that matches the printed ChromIQ sheet” is on in "
+            "Preferences, Beta. Two i1Profiler test-chart files, one for the "
+            "i1Pro 2 and one for the i1Pro 3. With one of them, i1Profiler "
+            "lays out its chart exactly like ChromIQ's printed sheet turned a "
+            "quarter turn, so you can measure the same print in i1Profiler "
+            "as well. Load the one for your instrument on i1Profiler's Test "
+            "Chart page; the note beside them says how, step by step. They "
+            "are written only for a chart that qualifies (an RGB chart from "
+            "ChromIQ's layout engine for the i1Pro, with no spacers and a "
+            "fitting patch length)."),
+         tr("Create Chart (beta option)")),
+        ("{name}-i1profiler-turned-how-to.txt", "runs/runN/exports",
+         tr("The note that goes with those files. It says how to turn the "
+            "printed sheet, which file to load in i1Profiler, which grid "
+            "i1Profiler must then show, which i1Profiler row is which "
+            "ChromIQ strip, and how to bring the measurement back into "
+            "ChromIQ. For a chart that does not qualify it is the only file "
+            "written, and it says why, with the real numbers. Read it before "
+            "you measure in i1Profiler."),
+         tr("Create Chart (beta option)")),
+        ("{name}-i1profiler-turned.json", "runs/runN/exports",
+         tr("The order file: which chart patch each entry of the i1Profiler "
+            "patch list is, and a checksum of the exact chart it was made "
+            "for. ChromIQ reads it when you import the i1Profiler "
+            "measurement (the .mxf file) on the Measure tab, to put every "
+            "reading on its own patch. Leave it where it is and do not edit "
+            "it while you still want to bring that measurement back. While "
+            "it is there, ChromIQ accepts a measurement of this chart only "
+            "if it carries device values. Creating the chart again with the "
+            "option off removes these files."),
+         tr("Create Chart (beta option)")),
+    ]
+
+
+def _rows(turned: "bool | None" = None):
     """Groups of (file, folder, description, origin) rows, grouped by where
     they live (folder-first since #127). Lazily built so the tr() calls run
-    after the language is set."""
+    after the language is set.
+
+    *turned*: list the beta turned i1Profiler files; ``None`` reads the
+    setting (`turned_export_on`)."""
+    if turned is None:
+        turned = turned_export_on()
+    _exports = [
+        ("{name}-colours.txt", "runs/runN/exports", tr("The chart's colours as a plain hex list (RGB charts). Can be pasted back into the New-chart dialog."), tr("Create Chart (best-effort)")),
+        ("{name}-i1profiler.txt / .pxf", "runs/runN/exports", tr("The patch set in i1Profiler's formats, for measuring with an i1iSis in i1Profiler."), tr("Create Chart (best-effort)")),
+    ]
+    if turned:
+        _exports += _turned_rows()
     return [
         (tr("The three files that matter"), [
             ("{name}_01.tif, {name}_02.tif …", "runs/runN", tr("The printable chart pages. Print these."), tr("Create Chart")),
@@ -612,10 +675,7 @@ def _rows():
             # choosing between them belongs with the tool that applies it.
             ("<report title> - <date_time>.pdf", "reports/ — the one that matches the report's scope", tr("A printable PDF of a measurement report, written when you press “Save report as PDF”. Its name is the report's own title, which you set in Preferences → Reports, followed by the moment it was written. It is filed with whatever the report covers, whichever window it was made in, so a report always sits beside the measurements it describes: ONE PROFILING RUN goes in that run's reports folder (runs/runN/reports/). ONE DATED CHECK goes in that date's own folder (runs/runN/verifications/<date>/reports/). SEVERAL CHECKS OF ONE RUN (the trend across dates) go in runs/runN/verifications/reports/. SEVERAL RUNS, or the whole profile, go in the project's own reports folder next to runs/. A CALIBRATION goes in cal/reports/. SEVERAL PROJECTS go in the reports folder beside them, or in your ChromIQ folder's when they are not side by side. A file from outside a project gets a reports folder beside it."), tr("Measurement Report tool")),
         ]),
-        (tr("exports/ — files for other programs"), [
-            ("{name}-colours.txt", "runs/runN/exports", tr("The chart's colours as a plain hex list (RGB charts). Can be pasted back into the New-chart dialog."), tr("Create Chart (best-effort)")),
-            ("{name}-i1profiler.txt / .pxf", "runs/runN/exports", tr("The patch set in i1Profiler's formats, for measuring with an i1iSis in i1Profiler."), tr("Create Chart (best-effort)")),
-        ]),
+        (tr("exports/ — files for other programs"), _exports),
         (tr("cache/ — temporary tool files (always safe to delete)"), [
             ("*-patchbox.cht, *-sample.cht", "runs/runN/cache", tr("Prepared working copies of the recognition template the scanner tool reads instead of your original."), tr("Scanner/camera profiling")),
             ("*-diag.tif", "runs/runN/cache", tr("A diagnostic image showing where the tool found each patch — handy if recognition went wrong."), tr("Scanner/camera profiling")),
@@ -656,7 +716,8 @@ def _rows():
     ]
 
 
-def file_guide_html(tree_text_width: int = 62) -> str:
+def file_guide_html(tree_text_width: int = 62, *,
+                    turned: "bool | None" = None) -> str:
     """Rich-text (HTML) table for the Welcome/Help card (Knut).
 
     *tree_text_width* is how many characters of explanation each row of the
@@ -728,7 +789,7 @@ def file_guide_html(tree_text_width: int = 62) -> str:
             f"<td valign='top'><code>{esc(folder)}</code></td>"
             f"<td valign='top'>{esc(meaning)}</td></tr>")
     parts.append("</table>")
-    for title, rows in _rows():
+    for title, rows in _rows(turned):
         parts.append(f"<p style='margin:14px 0 0'><b>{esc(title)}</b></p>")
         parts.append(spacer)
         parts.append("<table cellspacing='0' cellpadding='4' width='100%' "
@@ -751,8 +812,9 @@ def file_guide_html(tree_text_width: int = 62) -> str:
     return "".join(parts)
 
 
-def file_guide_body() -> str:
-    """Plain-text version for the ``Where are my files.txt`` sidecar."""
+def file_guide_body(*, turned: "bool | None" = None) -> str:
+    """Plain-text version for the ``Where are my files.txt`` sidecar.
+    *turned* as in `_rows`."""
     lines = [_intro(), ""]
     # The same hierarchy as the card, and here it is even simpler: a text file
     # is already monospace, so the tree needs no markup at all (#130, Knut).
@@ -777,7 +839,7 @@ def file_guide_body() -> str:
         lines.append(f"  • {folder}")
         lines.append(f"      {meaning}")
     lines.append("")
-    for title, rows in _rows():
+    for title, rows in _rows(turned):
         lines.append(title.upper())
         lines.append("")
         for f, folder, desc, origin in rows:
