@@ -687,9 +687,9 @@ def _turned_rows():
             "says which way to turn the sheet and how, step by step. They are "
             "written only for a chart that qualifies: an RGB chart from "
             "ChromIQ's layout engine for the i1Pro, with no spacers and every "
-            "strip full, on any paper size, with patches 10 to 25 mm long "
-            "along the strip for the i1Pro 2 and 7 to 25 mm long for the "
-            "i1Pro 3, and small enough for one i1Profiler page, which is at "
+            "strip full, on any paper size, with patches 7 to 25 mm long "
+            "along the strip (for the i1Pro 2 and the i1Pro 3 alike), and "
+            "small enough for one i1Profiler page, which is at "
             "most 1270 mm tall: about 150 strips when they are 8 mm wide, "
             "about 100 when they are 12 mm wide."),
          tr("Create Chart (beta option)")),

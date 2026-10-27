@@ -72,7 +72,7 @@ def charts(tmp_path_factory):
     return {
         # ChromIQ's default i1Pro chart: 10 mm patches, 24 per strip
         "default": _chart(d / "default", "Default", 350),
-        # the study's 8 x 8 mm chart: 30 per strip, i1Pro 3 only
+        # the study's 8 x 8 mm chart: 30 per strip (both families since 4.3.18)
         "eight": _chart(d / "eight", "Eight", 350, patch_w_mm=8.0,
                         patch_h_mm=8.0),
         # two sheets
@@ -108,11 +108,12 @@ def test_the_default_i1pro_chart_qualifies_for_both_families(charts):
     assert len(plan.order) == plan.columns * plan.rows
 
 
-def test_an_8_mm_chart_is_for_the_i1pro_3_only_and_says_why(charts):
+def test_an_8_mm_chart_is_for_both_families(charts):
+    """4.3.18, Basti 2026-10-27: the i1Pro 2 from 7 mm, like the i1Pro 3
+    (4.3.17 wrote its file only from 10 mm)."""
     plan = T.plan_for(charts["eight"])
-    assert plan.families == ["i1Pro 3"]
-    why = " ".join(plan.family_reasons["i1Pro 2"])
-    assert "8.00 mm" in why and "10 mm" in why
+    assert plan.families == ["i1Pro 2", "i1Pro 3"], plan.family_reasons
+    assert plan.family_reasons["i1Pro 2"] == []
 
 
 def _strips_of(lay):

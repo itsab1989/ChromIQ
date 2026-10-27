@@ -215,15 +215,14 @@ def area_chart(area_charts):
     return area_charts["a3"]
 
 
-def test_his_suggested_grid_on_a4_qualifies_for_the_i1pro3(area_charts):
+def test_his_suggested_grid_on_a4_qualifies_for_both_families(area_charts):
     """24 strips of 27, "Prioritise chart area": 8.88 mm patches, 27 to a
-    row, and the i1Pro 2 refused only for X-Rite's 10 mm."""
+    row. Since 4.3.18 the i1Pro 2 qualifies from 7 mm too (Basti
+    2026-10-27), so both files are written."""
     plan = T.plan_for(area_charts["a4"])
-    assert plan.families == ["i1Pro 3"], plan.family_reasons
+    assert plan.families == ["i1Pro 2", "i1Pro 3"], plan.family_reasons
     assert (plan.rows, plan.columns) == (24, 27)
     assert 8.657 < plan.patch_len_mm <= 8.944       # window_mm(27)
-    assert any("10 mm X-Rite asks for" in r
-               for r in plan.family_reasons["i1Pro 2"])
     assert plan.hints == []
 
 

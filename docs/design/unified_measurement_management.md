@@ -8768,6 +8768,26 @@ of I.14 are unchanged except where this block says so.
   the A4-wide page. i1Profiler's page is at most 1270 mm tall (asked for
   2045 mm, it made 1270 mm and two pages), so a chart that needs a taller page
   gets the note with the real numbers instead of files.
+* **Patch length along the strip: 7 to 25 mm for both families** (Basti,
+  2026-10-27: allow the i1Pro 2 from 7 mm like the i1Pro 3, and *"we don't
+  show warnings for small sizes at the moment even within chromiq so this will
+  be on the users own risk. if we have no similar warning i don't want one
+  only for i1profiler"*). Until this, the i1Pro 2 file was written only from
+  10 mm, the length i1Profiler recommends for it; i1Profiler 3.8.8's patch
+  width slider for the i1Pro 2 goes down to 7 mm (measured; pharmacist,
+  forum: i1Profiler lets the i1Pro 2 go to 7 mm with a recommendation
+  warning, and such a chart reads fine). Every text (the Preferences tooltip,
+  the note, the File Guide, the release notes) now says 7 to 25 mm for both
+  and shows no warning about small patches. A shorter or longer patch is
+  refused for that family with *"the patches are {len} mm long along the
+  strip, and the {family} file is written only for patches {lo} to {hi} mm
+  long"*. The strip WIDTH is a separate limit and unchanged: i1Profiler's
+  patch height is held inside 8 to 12 mm for the i1Pro 2 and 6 to 12 mm for
+  the i1Pro 3. The i1Pro 2 file at 7 to 9.99 mm is written exactly as at
+  10 mm (slider percent `(L - 7) / 18 x 100`, 0 at 7 mm), and, like every
+  i1Pro 2 file, it has not been opened in i1Profiler
+  (`workflow/i1profiler_turned.py::PATCH_LEN_MM`;
+  `tests/test_i1profiler_turned_i1pro2_from_7_mm.py`).
 * **CHANGE TO POINT 1, FOR CONFIRMATION: a file that fits more than one
   pairing is refused** (review 4.3.18 r1, SF-1). A chart that repeats its
   colours (every patch the same, as on an evenness sheet, or laid out the

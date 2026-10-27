@@ -103,9 +103,21 @@ ROW_CAP_MM = {"i1Pro 2": (241.5, 242.4), "i1Pro 3": (241.5, 242.4)}
 #: height min, height max). Percent 0 is the slider minimum. [measured]
 SLIDER = {"i1Pro 2": (7.0, 25.0, 8.0, 12.0), "i1Pro 3": (6.0, 25.0, 6.0, 12.0)}
 
-#: The shortest patch X-Rite recommends along the scan, mm (i1Profiler warns
-#: below it for the i1Pro 2; 7 mm is the i1Pro 3's minimum).
-SCAN_MIN_W = {"i1Pro 2": 10.0, "i1Pro 3": 7.0}
+#: The patch lengths along the strip that a ``.txf`` is written for, mm:
+#: (shortest, longest), the same for both families. Each lies inside that
+#: family's i1Profiler width slider (``SLIDER``), so the slider percent in the
+#: file is never below 0 or above 100.
+#:
+#: 4.3.18, Basti 2026-10-27: the i1Pro 2 from 7 mm, like the i1Pro 3, and NO
+#: warning about small patches (*"we don't show warnings for small sizes at
+#: the moment even within chromiq so this will be on the users own risk. if we
+#: have no similar warning i don't want one only for i1profiler"*). Until then
+#: the i1Pro 2 needed 10 mm, the length i1Profiler 3.8.8 recommends for it;
+#: its slider goes down to 7 mm (measured, and pharmacist, forum: i1Profiler
+#: lets the i1Pro 2 go to 7 mm with a recommendation warning, and it reads
+#: fine). The strip WIDTH is a separate limit: i1Profiler's patch height is
+#: held inside 8 to 12 mm for the i1Pro 2 (``design_settings``), unchanged.
+PATCH_LEN_MM = {"i1Pro 2": (7.0, 25.0), "i1Pro 3": (7.0, 25.0)}
 
 #: A4 landscape as i1Profiler writes it, and the room its page keeps above and
 #: below the patch block (24.5 mm measured from the top, 20 mm reserve).
@@ -444,7 +456,7 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
 
     for fam in FAMILIES:
         why = []
-        wlo, whi, _hlo, _hhi = SLIDER[fam]
+        lo_len, hi_len = PATCH_LEN_MM[fam]
         cap_lo = ROW_CAP_MM[fam][0]
         if per * plen > cap_lo + 1e-9:
             # Longer than any i1Profiler row. ChromIQ's own limit is 240 mm,
@@ -455,7 +467,8 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
             # 4.3.18 with the margins Create Chart gives an i1Pro chart (38 /
             # 9 / 19 / 26 mm): A4 and Letter portrait stay within 240 mm, so
             # pharmacist's 24 strips of 27 (forum 149890) qualify there for
-            # the i1Pro 3; A3 makes 362.9 mm strips and Legal 298.4 mm. A strip
+            # both families (8.88 mm patches, the i1Pro 2 from 7 mm since
+            # 4.3.18); A3 makes 362.9 mm strips and Legal 298.4 mm. A strip
             # shorter than the ruler window is fine now: the page is made
             # narrow enough for it (`design_settings`).
             why.append(tr(
@@ -478,17 +491,13 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
                     "How many strips the sheet has does not matter.")
                 if hint not in plan.hints:
                     plan.hints.append(hint)
-        elif not (wlo <= plen <= whi):
+        elif not (lo_len - 1e-9 <= plen <= hi_len + 1e-9):
             why.append(tr(
-                "the patches are {len} mm long, outside the {lo} to {hi} mm "
-                "i1Profiler allows for the {family}").format(
-                    len=f"{plen:.2f}", lo=f"{wlo:g}", hi=f"{whi:g}",
+                "the patches are {len} mm long along the strip, and the "
+                "{family} file is written only for patches {lo} to {hi} mm "
+                "long").format(
+                    len=f"{plen:.2f}", lo=f"{lo_len:g}", hi=f"{hi_len:g}",
                     family=fam))
-        if plen < SCAN_MIN_W[fam] - 1e-9:
-            why.append(tr(
-                "the patches are {len} mm long, shorter than the {min} mm "
-                "X-Rite asks for when scanning with the {family}").format(
-                    len=f"{plen:.2f}", min=f"{SCAN_MIN_W[fam]:g}", family=fam))
         need_h = math.ceil(BLOCK_TOP_MM + len(strips) * min(
             max(swid, SLIDER[fam][2]), SLIDER[fam][3]) + BLOCK_BOTTOM_MM)
         if need_h > PAGE_MAX_H_MM:
@@ -1043,9 +1052,8 @@ def note_not_qualified(plan: TurnedPlan, chart_name: str) -> str:
     parts.append(tr(
         "What qualifies: an RGB chart made by ChromIQ's layout engine for the "
         "i1Pro family, with no spacers and every strip full, on any paper "
-        "size, portrait or landscape. Along the strip the patches must be 10 "
-        "to 25 mm long for the i1Pro 2 and 7 to 25 mm long for the i1Pro 3, "
-        "a strip may be at most 241.5 mm long, and the whole chart has to "
+        "size, portrait or landscape. Along the strip the patches must be 7 "
+        "to 25 mm long (for the i1Pro 2 and the i1Pro 3 alike), a strip may be at most 241.5 mm long, and the whole chart has to "
         "fit on one i1Profiler page, which is at most 1270 mm tall. "
         "i1Profiler gives each strip a row as tall as the strip is wide, but "
         "at least 8 mm (6 mm for the i1Pro 3) and at most 12 mm, so that is "
