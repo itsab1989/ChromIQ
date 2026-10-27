@@ -6356,7 +6356,7 @@ every refusal from this button carries.*
 
 > **Auto align left your corners exactly where they are**
 >
-> ChromIQ found the outline of the chart in your scan, but it could not line the grid up with the patches inside it. It tried every way up, and every position up to three patches to each side, and in none of them did the colours match this chart's measurements.
+> ChromIQ found the outline of the chart in your scan, but it could not line the grid up with the patches inside it. It tried every way up that fits that outline, and every position up to three patches to each side, and in none of them did the colours match this chart's measurements.
 >
 > Drag the four corners onto the four corner patches of the chart, as close as you can, and press Auto align again. Starting from your corners, it fine-tunes the grid onto the patches by itself.
 >
