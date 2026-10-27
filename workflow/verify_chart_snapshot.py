@@ -462,7 +462,23 @@ def _restore_turned_export(slot, archive: "Path | None") -> list:
     order that names the chart now on disk; the turned files of the chart it
     replaced go into that chart's archive in ``old/`` (removed when there is
     none). Nothing at all happens when the snapshot holds no such order.
-    Never raises: the chart itself is already back."""
+    Never raises: the chart itself is already back.
+
+    The replaced files are taken from BOTH places a chart's turned export can
+    sit (``TurnedFiles.for_chart``): ``exports/`` and, on a profiling run or
+    the calibration, beside the chart, where the TI2 layout editor writes it
+    (review 4.3.17 r4, NIT-4). Left there, it was a stale second set beside
+    the restored one. A verification chart's own folder is all chart, so
+    what sits beside it was restored with the chart and is not touched here.
+
+    In the archive they sit where the chart's files sit: beside the archived
+    chart, and its ``exports/`` in ``exports/`` below that. A calibration's
+    chart is archived in ``cal/old/<date>/chart/``, so its turned files go
+    into ``chart/`` and ``chart/exports/`` there, following
+    ``Calibration.reset``: *"cal/exports/ goes wherever the chart goes"*
+    (r4, NIT-2). A name already in the archive is never replaced: two
+    restores in the same second number the second set ``_2``, as
+    ``_archive_replaced_chart`` does (r4, NIT-3)."""
     put: list = []
     try:
         from core.file_manager import exports_subdir
@@ -472,15 +488,23 @@ def _restore_turned_export(slot, archive: "Path | None") -> list:
         if _order_in(snap.order, _slot_chart_ti2(slot)) is None:
             return put
         live = TurnedFiles(exports_subdir(slot.live_dir), slot.stem)
-        for q in live.all():
-            if not q.is_file():
-                continue
-            if archive is not None and Path(archive).is_dir():
-                keep = Path(archive) / TURNED_SNAPSHOT_SUBDIR
-                keep.mkdir(exist_ok=True)
-                shutil.move(str(q), str(keep / q.name))
-            else:
-                q.unlink()
+        arch = (Path(archive) if archive is not None
+                and Path(archive).is_dir() else None)
+        if arch is not None and _is_calibration_slot(slot):
+            arch = arch / "chart"
+        places = [(live, TURNED_SNAPSHOT_SUBDIR)]
+        if slot.suffixes is not None:
+            places.append((TurnedFiles(slot.live_dir, slot.stem), None))
+        for files, sub in places:
+            for q in files.all():
+                if not q.is_file():
+                    continue
+                if arch is not None:
+                    keep = arch / sub if sub else arch
+                    keep.mkdir(parents=True, exist_ok=True)
+                    _move_keeping_both(q, keep)
+                else:
+                    q.unlink()
         live.folder.mkdir(parents=True, exist_ok=True)
         for a, b in zip(snap.all(), live.all()):
             if a.is_file():
@@ -490,6 +514,18 @@ def _restore_turned_export(slot, archive: "Path | None") -> list:
         log.warning("could not put the turned i1Profiler export back with "
                     "the chart", exc_info=True)
     return put
+
+
+def _move_keeping_both(p: Path, folder: Path) -> Path:
+    """Move *p* into *folder*, as ``<stem>_N<suffix>`` when its name is
+    already taken there. ``shutil.move`` onto an existing name replaces it."""
+    dest = folder / p.name
+    n = 2
+    while dest.exists():
+        dest = folder / f"{p.stem}_{n}{p.suffix}"
+        n += 1
+    shutil.move(str(p), str(dest))
+    return dest
 
 
 def slot_snapshot_files(slot) -> "list[Path]":
@@ -679,12 +715,7 @@ def _archive_replaced_chart(stash: Path, archive_with, existing: "Path | None",
             folder = folder / sub
             folder.mkdir(parents=True, exist_ok=True)
         for p in files:
-            dest = folder / p.name
-            n = 2
-            while dest.exists():
-                dest = folder / f"{p.stem}_{n}{p.suffix}"
-                n += 1
-            shutil.move(str(p), str(dest))
+            _move_keeping_both(p, folder)
 
     if existing is not None:
         _place(existing, keep)
