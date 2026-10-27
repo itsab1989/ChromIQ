@@ -73,7 +73,7 @@ def test_a_page_with_white_and_black_patches_is_read(tmp_path):
 def test_a_real_i1profiler_page_with_white_and_black_is_read():
     """The chart i1Profiler 3.8.8 itself saved for a ChromIQ patch set that
     holds white and black (the turned export of a 600-patch chart)."""
-    doc = json.loads((DATA / "turned10_patch_list.json").read_text())
+    doc = json.loads((DATA / "turned10_patch_list.json").read_text(encoding="utf-8"))
     assert doc["white"] >= 1 and doc["black"] >= 1
     lay = derive_grid_layout([DATA / "turned10_i1pro3_page.png"], doc["rgb100"])
     assert len(lay["patches"]) == 600

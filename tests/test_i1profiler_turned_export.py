@@ -85,7 +85,7 @@ def charts(tmp_path_factory):
 
 
 def _geometry(ti2: Path):
-    lay = json.loads(ti2.with_name(f"{ti2.stem}.channels.json").read_text())
+    lay = json.loads(ti2.with_name(f"{ti2.stem}.channels.json").read_text(encoding="utf-8"))
     return lay["layout"]
 
 
@@ -214,7 +214,7 @@ def test_the_files_are_written_and_say_what_i1profiler_must_show(charts, tmp_pat
         # the patch list, in the turned order, on i1Profiler's 0..255 scale
         # (whole code values, as the existing patch-set writer rounds them)
         reds = [float(v) for v in re.findall(
-            r"<cc:R>([^<]+)</cc:R>", files.txf(fam).read_text())]
+            r"<cc:R>([^<]+)</cc:R>", files.txf(fam).read_text(encoding="utf-8"))]
         assert reds == pytest.approx(
             [vals["R"] * 2.55 for _s, _l, vals in plan.order], abs=0.5)
     note = files.note.read_text(encoding="utf-8")

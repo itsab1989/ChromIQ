@@ -121,7 +121,7 @@ def test_a_turned_measurement_imports_with_every_reading_on_its_patch(
     # names are the chart's own, and the file says how it was paired
     locs = parse_ti3(ti3).sample_locs
     assert set(locs) == {loc for _s, loc, _v in T.plan_for(ti2).order}
-    assert T.TURNED_KEYWORD in ti3.read_text()
+    assert T.TURNED_KEYWORD in ti3.read_text(encoding="utf-8")
     # filed twice is filed once: the second pass finds nothing to do
     assert assess(ti3, ti2).turned_order is False
     assert complete_from_turned_order(ti3, ti2) == 0
@@ -153,7 +153,7 @@ def test_an_order_written_for_another_chart_is_not_used(turned_chart, tmp_path):
     ti2, files = turned_chart
     mxf = _mxf_from_txf(files.txf("i1Pro 3"), tmp_path / "turned.mxf")
     ti3 = cxf_measurement_to_ti3(mxf, tmp_path / "turned.ti3")
-    ti2.write_text(ti2.read_text() + "\n", encoding="utf-8")   # another chart
+    ti2.write_text(ti2.read_text(encoding="utf-8") + "\n", encoding="utf-8")   # another chart
     assert T.turned_order_for(ti2) is None
     v = assess(ti3, ti2)
     assert not v.ok and not v.turned_order
@@ -258,11 +258,11 @@ def test_an_ordinary_measurement_is_judged_as_before(tmp_path, with_device):
 def test_a_wrong_measurement_is_refused_as_before(tmp_path):
     ti2 = _chart(tmp_path / "p", "P", 350)
     meas = _plain_measurement(ti2, tmp_path / "m.ti3", with_device=True)
-    txt = meas.read_text().splitlines()
+    txt = meas.read_text(encoding="utf-8").splitlines()
     i = txt.index("BEGIN_DATA") + 1
     a, b = txt[i].split(" ", 1), txt[i + 7].split(" ", 1)
     txt[i], txt[i + 7] = f"{b[0]} {a[1]}", f"{a[0]} {b[1]}"   # ids swapped
-    meas.write_text("\n".join(txt) + "\n")
+    meas.write_text("\n".join(txt) + "\n", encoding="utf-8")
     before = assess(meas, ti2)
     T.write_turned_export(ti2, exports_subdir(ti2.parent), "P")
     after = assess(meas, ti2)
