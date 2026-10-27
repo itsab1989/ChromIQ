@@ -5,8 +5,7 @@ WHAT IT IS FOR. ChromIQ's i1Profiler patch sets (``-i1profiler.txt/.pxf``)
 hand i1Profiler the COLOURS only; i1Profiler always lays out a page of its own,
 so a sheet printed by ChromIQ cannot be read in i1Profiler. This module writes
 the patch list in the order that makes i1Profiler's ROWS equal ChromIQ's
-STRIPS once the printed sheet is turned a quarter turn anticlockwise (strip A
-at the bottom, the label end of every strip on the left), plus an i1Profiler
+STRIPS once the printed sheet is turned a quarter turn, plus an i1Profiler
 test-chart file (``.txf``) per device family that sets the page, the patch
 size and the device in one step. One print can then be measured in both
 programs.
@@ -15,6 +14,31 @@ Everything here comes from a study measured in i1Profiler 3.8.8 itself
 (2026-10-26, ``ChromIQ-work/2026-10-26_i1profiler_layout/analysis.md``): 540 of
 540 and 1080 of 1080 patches in the same place, worst colour difference 0 of
 255. The physical read with a real instrument has NOT been tested yet.
+
+WHICH WAY THE SHEET IS TURNED (4.3.18, Basti 2026-10-27: *"270° would make
+more sense because then the clip border would be on top of the patches and can
+fulfill its purpose"*). An i1Pro chart carries its CLIP BORDER, the wide margin
+the clip of the ruler's backing board holds, on the LEFT edge of the portrait
+sheet (26 mm by default; printtarg's ``-L`` is "suppress any LEFT paper clip
+border"), and its strip labels along the TOP. Measured on a real chart
+(2026-10-27, A4, 504 patches): patch block 26.0 mm from the left edge, 9.0 mm
+from the right, 38.0 mm from the top (labels), 19.0 mm from the bottom. So:
+
+* a clip border on the left (the default) or none at all: a quarter turn
+  CLOCKWISE puts that border at the top. Strip A is then the TOP row, the label
+  end of every strip on the RIGHT, and a row read left to right runs from the
+  strip's last patch to its first;
+* a clip border on the right (Create Chart > Clip border > Side: Right): a
+  quarter turn ANTICLOCKWISE puts it at the top. Strip A is the BOTTOM row and
+  the labels are on the left, as every chart was turned in 4.3.17.
+
+4.3.17 always turned anticlockwise. Its order files (version 1, no ``turn``)
+are still read, and pair exactly as before: the order in the file IS the order
+of the ``.txf`` beside it. When a chart's export is written again for the very
+same chart, an order that differs from the new one is kept in the new file as
+an EARLIER order, so a measurement made from the older ``.txf`` still pairs,
+by the order ChromIQ wrote for it, and only when its device values agree
+(:func:`turned_match`).
 
 THE RULES, AND WHERE EACH COMES FROM (all measured in i1Profiler 3.8.8):
 
@@ -86,6 +110,19 @@ SCAN_MIN_W = {"i1Pro 2": 10.0, "i1Pro 3": 7.0}
 #: A4 landscape as i1Profiler writes it, and the room its page keeps above and
 #: below the patch block (24.5 mm measured from the top, 20 mm reserve).
 PAGE_W_MM = 296.93
+#: THE PAGE WIDTH IS THE OTHER LIMIT ON A ROW (measured 2026-10-27, i1Profiler
+#: 3.8.8, i1Pro 3 family, 10 mm patches). i1Profiler keeps 15.5 mm of page on
+#: each side of the patch block, and a row holds ``floor(min(cap, page width -
+#: 31 mm) / width)`` patches: page 266.0 and 270.5 mm gave 23 per row, 271.5
+#: gave 24, 232 to 245 gave 20 (``NumberPatchColumns`` is ignored: 20 asked,
+#: 24 made). So a strip SHORTER than the ruler window still becomes one row
+#: when the page is made just wide enough for it: ``31 + (P + 0.5) * L``.
+PAGE_SIDE_MM = 15.5
+#: i1Profiler's tallest custom page, mm: a .txf asking for 2045 mm was shown
+#: as "Custom Paper Size 296.8 x 1270 mm, Page 1 of 2" (250 rows split over
+#: two pages, which would no longer match ChromIQ's sheets); 1045 mm with 125
+#: rows stayed "Page 1 of 1". [measured 2026-10-27, i1Profiler 3.8.8]
+PAGE_MAX_H_MM = 1270.0
 PAGE_A4_H_MM = 210.06
 BLOCK_TOP_MM = 24.5
 BLOCK_BOTTOM_MM = 20.0
@@ -93,7 +130,26 @@ BLOCK_BOTTOM_MM = 20.0
 #: How far two patch lengths may differ and still count as one length, mm.
 LENGTH_TOL_MM = 0.05
 
-ORDER_VERSION = 1
+#: 2 (4.3.18) adds ``turn`` and ``earlier_orders``; 1 is 4.3.17's, always
+#: anticlockwise. Both are read.
+ORDER_VERSION = 2
+READABLE_ORDER_VERSIONS = (1, 2)
+
+#: The two quarter turns (the word stored in the order file).
+CLOCKWISE = "clockwise"
+ANTICLOCKWISE = "anticlockwise"
+
+
+def turn_for(recipe: dict) -> str:
+    """The quarter turn that puts the chart's clip border at the top.
+
+    The clip border is on the left unless Create Chart's Clip border > Side
+    says Right; a chart with the clip border switched off is turned like one
+    with it on the left (strip A then reads as the top row)."""
+    recipe = recipe if isinstance(recipe, dict) else {}
+    has_clip = bool(recipe.get("clip_border", True))
+    side = str(recipe.get("clip_side") or "left")
+    return ANTICLOCKWISE if (has_clip and side == "right") else CLOCKWISE
 
 
 def file_tag(family: str) -> str:
@@ -185,6 +241,8 @@ class TurnedPlan:
     strip_w_mm: float = 0.0
     row_strips: list = field(default_factory=list)  # (row, sheet, strip label)
     sheets: int = 1
+    turn: str = CLOCKWISE                         # which quarter turn
+    clip_border: bool = True                      # the chart has one
 
     @property
     def families(self) -> list:
@@ -210,8 +268,11 @@ def _strip_label(loc: str) -> str:
     return m.group(1) if m else loc
 
 
-def plan_for(ti2: "str | Path") -> TurnedPlan:
+def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
     """Decide whether *ti2* qualifies, and build the turned order if it does.
+
+    *turn* is the quarter turn to build the order for; by default the one that
+    puts this chart's clip border at the top (:func:`turn_for`).
 
     Never raises for a chart it cannot use; every refusal is a plain sentence
     with the real numbers in it.
@@ -220,6 +281,8 @@ def plan_for(ti2: "str | Path") -> TurnedPlan:
     plan = TurnedPlan()
     facts = _read_ti2(ti2)
     layout, recipe = _read_layout(ti2)
+    plan.turn = turn if turn in (CLOCKWISE, ANTICLOCKWISE) else turn_for(recipe)
+    plan.clip_border = bool(recipe.get("clip_border", True))
     rep = facts.color_rep.upper()
     if rep and not rep.endswith("RGB"):
         plan.reasons.append(tr(
@@ -340,15 +403,18 @@ def plan_for(ti2: "str | Path") -> TurnedPlan:
 
     for fam in FAMILIES:
         why = []
-        lo, hi = window_mm(per, fam)
         wlo, whi, _hlo, _hhi = SLIDER[fam]
-        if not (lo < plen <= hi):
+        cap_lo = ROW_CAP_MM[fam][0]
+        if per * plen > cap_lo + 1e-9:
+            # Longer than any i1Profiler row: only a chart built with
+            # "No strip length limit" gets here (ChromIQ's own limit is
+            # 240 mm). A strip shorter than the ruler window is fine now: the
+            # page is made narrow enough for it (`design_settings`).
             why.append(tr(
-                "the patches are {len} mm long; with {per} patches per strip "
-                "they must be longer than {lo} mm and at most {hi} mm, or "
-                "i1Profiler puts a different number of patches on each "
-                "row").format(len=f"{plen:.2f}", per=per,
-                              lo=f"{lo:.2f}", hi=f"{hi:.2f}"))
+                "the strips are {strip} mm long ({per} patches of {len} mm), "
+                "longer than the {cap} mm an i1Profiler row can hold").format(
+                    strip=f"{per * plen:.1f}", per=per, len=f"{plen:.2f}",
+                    cap=f"{cap_lo:g}"))
         elif not (wlo <= plen <= whi):
             why.append(tr(
                 "the patches are {len} mm long, outside the {lo} to {hi} mm "
@@ -360,16 +426,32 @@ def plan_for(ti2: "str | Path") -> TurnedPlan:
                 "the patches are {len} mm long, shorter than the {min} mm "
                 "X-Rite asks for when scanning with the {family}").format(
                     len=f"{plen:.2f}", min=f"{SCAN_MIN_W[fam]:g}", family=fam))
+        need_h = math.ceil(BLOCK_TOP_MM + len(strips) * min(
+            max(swid, SLIDER[fam][2]), SLIDER[fam][3]) + BLOCK_BOTTOM_MM)
+        if need_h > PAGE_MAX_H_MM:
+            why.append(tr(
+                "the chart has {rows} strips, and i1Profiler would need a "
+                "page {need} mm tall to show them as one page; its pages are "
+                "at most {max} mm tall, so it would split them over pages that "
+                "no longer match the printed sheets. Make the chart with fewer "
+                "patches, or as two charts").format(
+                    rows=len(strips), need=need_h, max=f"{PAGE_MAX_H_MM:g}"))
         plan.family_reasons[fam] = why
 
-    # The order: sheet by sheet, each sheet's strips from last to first (the
-    # turned sheet shows its strip A at the bottom).
+    # The order, sheet by sheet (i1Profiler shows all of them as one tall
+    # page, sheet 1 at the top).
+    # * CLOCKWISE: the sheet's left edge goes to the top, so its strips run
+    #   first to last, strip A the top row; its top edge (the label end) goes
+    #   to the right, so a row read left to right runs from the strip's LAST
+    #   patch to its first.
+    # * ANTICLOCKWISE (4.3.17's only turn): strips from last to first, strip A
+    #   the bottom row; a row runs from the label end, first patch first.
     pages = sorted({s.get("page", 0) for s in strips})
     row_of: dict[int, int] = {}
     r = 0
     for pg in pages:
         idx = [i for i, s in enumerate(strips) if s.get("page", 0) == pg]
-        for si in reversed(idx):
+        for si in (idx if plan.turn == CLOCKWISE else reversed(idx)):
             row_of[si] = r
             plan.row_strips.append(
                 (r + 1, pages.index(pg) + 1, _strip_label(members[si][0]["loc"])))
@@ -377,16 +459,38 @@ def plan_for(ti2: "str | Path") -> TurnedPlan:
     n_rows = len(strips)
     order: list = [None] * (per * n_rows)
     for si, m in enumerate(members):
-        for c, p in enumerate(m):
+        seq = list(reversed(m)) if plan.turn == CLOCKWISE else m
+        for c, p in enumerate(seq):
             order[c * n_rows + row_of[si]] = facts.rows[facts.by_loc[p["loc"]]]
     plan.order = order
     plan.rows, plan.columns, plan.sheets = n_rows, per, len(pages)
     return plan
 
 
+def in_ruler_window(plan: TurnedPlan, family: str) -> bool:
+    """The strip is long enough that i1Profiler's own row cap gives exactly
+    its patch count on the A4-wide page (4.3.17's only case, still used for
+    every chart it covered)."""
+    lo, hi = window_mm(plan.columns, family)
+    return lo < plan.patch_len_mm <= hi
+
+
+def page_width_mm(plan: TurnedPlan, family: str) -> float:
+    """The i1Profiler page width that makes one row exactly one strip.
+
+    In the ruler window, the A4 landscape width (the row cap decides, as
+    measured in 4.3.17). Otherwise a page just wide enough for the strip and
+    half a patch more, so that ``floor((width - 31) / L)`` is exactly the
+    strip's patch count, with half a patch of room either way."""
+    if in_ruler_window(plan, family):
+        return PAGE_W_MM
+    return round(2 * PAGE_SIDE_MM + (plan.columns + 0.5) * plan.patch_len_mm, 2)
+
+
 def design_settings(plan: TurnedPlan, family: str) -> dict:
     """i1Profiler's settings for *family*: patch width = ChromIQ's patch length,
-    patch height = the strip width (held inside the slider), one tall page."""
+    patch height = the strip width (held inside the slider), one tall page as
+    wide as `page_width_mm` says."""
     wlo, whi, hlo, hhi = SLIDER[family]
     pw = plan.patch_len_mm
     ph = min(max(plan.strip_w_mm, hlo), hhi)
@@ -395,7 +499,8 @@ def design_settings(plan: TurnedPlan, family: str) -> dict:
     return {"patch_w_mm": pw, "patch_h_mm": ph,
             "patch_w_percent": (pw - wlo) / (whi - wlo) * 100,
             "patch_h_percent": (ph - hlo) / (hhi - hlo) * 100,
-            "page_w_mm": PAGE_W_MM, "page_h_mm": float(page_h)}
+            "page_w_mm": page_width_mm(plan, family),
+            "page_h_mm": float(page_h)}
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +589,8 @@ def _write_txf(plan: TurnedPlan, family: str, out: Path, title: str) -> None:
                   for i, (sid, _loc, vals) in enumerate(plan.order)])
     opt = WorkflowOptions(
         device=family, measurement_mode=1,
-        paper_format=2 if d["page_h_mm"] <= PAGE_A4_H_MM else 0,
+        paper_format=(2 if (d["page_h_mm"] <= PAGE_A4_H_MM
+                            and d["page_w_mm"] == PAGE_W_MM) else 0),
         paper_orientation="Landscape", page_width_mm=d["page_w_mm"],
         page_height_mm=d["page_h_mm"], columns=plan.columns, rows=plan.rows,
         pages=1, patch_w_mm=d["patch_w_mm"], patch_h_mm=d["patch_h_mm"],
@@ -493,12 +599,13 @@ def _write_txf(plan: TurnedPlan, family: str, out: Path, title: str) -> None:
     write_pwxf(tgt, out, title, opt)
 
 
-def _order_doc(plan: TurnedPlan, ti2: Path) -> dict:
-    return {
+def _order_doc(plan: TurnedPlan, ti2: Path, earlier: "list | None" = None) -> dict:
+    doc = {
         "version": ORDER_VERSION,
         "what": "ChromIQ turned i1Profiler export: entry j of the i1Profiler "
                 "patch list (1-based) is the chart patch named here",
         "chart": ti2.name, "chart_sha256": sha256_of(ti2),
+        "turn": plan.turn,
         "patches": len(plan.order), "rows": plan.rows,
         "columns": plan.columns, "sheets": plan.sheets,
         "patch_length_mm": plan.patch_len_mm, "strip_width_mm": plan.strip_w_mm,
@@ -507,6 +614,47 @@ def _order_doc(plan: TurnedPlan, ti2: Path) -> dict:
                          for r, s, lab in plan.row_strips],
         "order": [{"sample_id": sid, "loc": loc} for sid, loc, _v in plan.order],
     }
+    if earlier:
+        doc["earlier_orders"] = earlier
+    return doc
+
+
+def _earlier_orders(path: Path, ti2: Path, plan: TurnedPlan) -> list:
+    """The orders an existing order file at *path* holds for this very chart
+    (its own and the ones it kept), other than the new *plan*'s: kept in the
+    new file so a measurement made from the older ``.txf`` still pairs.
+
+    Only for the same chart (SHA-256): an order of an earlier build of this
+    name describes another sheet and is dropped as before."""
+    try:
+        digest = sha256_of(ti2)
+        if _order_in(path, ti2, digest) is None:
+            return []
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    new_ids = [str(sid) for sid, _l, _v in plan.order]
+    out, seen = [], {tuple(new_ids)}
+    cands = [{"version": doc.get("version"),
+              "turn": doc.get("turn") or ANTICLOCKWISE,
+              "order": doc.get("order") or []}]
+    cands += [e for e in (doc.get("earlier_orders") or [])
+              if isinstance(e, dict)]
+    for e in cands:
+        try:
+            ids = tuple(str(x.get("sample_id", "")) for x in e["order"])
+            locs = [str(x.get("loc", "")) for x in e["order"]]
+        except (AttributeError, KeyError, TypeError):
+            continue
+        if (not ids or not all(ids) or len(set(ids)) != len(ids)
+                or ids in seen):
+            continue
+        seen.add(ids)
+        out.append({"version": e.get("version"),
+                    "turn": e.get("turn") or ANTICLOCKWISE,
+                    "order": [{"sample_id": i, "loc": l}
+                              for i, l in zip(ids, locs)]})
+    return out
 
 
 def write_turned_export(ti2: "str | Path", out_dir: "str | Path",
@@ -517,9 +665,13 @@ def write_turned_export(ti2: "str | Path", out_dir: "str | Path",
     try:
         ti2, out_dir = Path(ti2), Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        res.removed = remove_stale(out_dir, stem)
         files = TurnedFiles(out_dir, stem)
         plan = plan_for(ti2)
+        # Read BEFORE the old files go: an order this very chart already had
+        # (4.3.17's anticlockwise one, say) is kept as an earlier order.
+        earlier = (_earlier_orders(files.order, ti2, plan)
+                   if plan.qualifies else [])
+        res.removed = remove_stale(out_dir, stem)
         if not plan.qualifies:
             why = plan.reasons or [r for f in FAMILIES
                                    for r in plan.family_reasons.get(f, [])]
@@ -536,8 +688,9 @@ def write_turned_export(ti2: "str | Path", out_dir: "str | Path",
             out = files.txf(fam)
             _write_txf(plan, fam, out, f"{stem}-turned-{file_tag(fam)}")
             res.written.append(out)
-        files.order.write_text(json.dumps(_order_doc(plan, ti2), indent=1),
-                               encoding="utf-8")
+        files.order.write_text(
+            json.dumps(_order_doc(plan, ti2, earlier), indent=1),
+            encoding="utf-8")
         res.written.append(files.order)
         files.note.write_text(note_qualified(plan, ti2.name, files),
                               encoding="utf-8")
@@ -595,11 +748,7 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
     parts.append(tr(
         "1. Print the chart from ChromIQ as usual. Do not print i1Profiler's "
         "chart: the point is to measure ChromIQ's sheet."))
-    parts.append(tr(
-        "2. Turn the printed sheet a quarter turn ANTICLOCKWISE, so that the "
-        "strip labels are on the LEFT and the sheet's first strip (strip A on "
-        "sheet 1) is the BOTTOM row. Every ChromIQ strip is now one "
-        "i1Profiler row, read from left to right."))
+    parts.append(turn_step(plan))
     parts.append(tr(
         "3. Start i1Profiler. On its start page, under Application Settings, "
         "set Default display device to the family of the instrument you "
@@ -703,6 +852,36 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
     return "\n".join(parts) + "\n"
 
 
+def turn_step(plan: TurnedPlan) -> str:
+    """Step 2 of the note: which way to turn THIS chart's sheet, and what is
+    where afterwards."""
+    if plan.turn == ANTICLOCKWISE:
+        return tr(
+            "2. Turn the printed sheet a quarter turn ANTICLOCKWISE, so that "
+            "the clip border (the wide margin on the right-hand side of the "
+            "upright sheet) is at the TOP, where the clip of the ruler's "
+            "backing board holds the paper. The strip labels are now on the "
+            "LEFT, and the sheet's first strip (strip A on sheet 1) is the "
+            "BOTTOM row. Every ChromIQ strip is now one i1Profiler row, read "
+            "from left to right.")
+    if not plan.clip_border:
+        return tr(
+            "2. Turn the printed sheet a quarter turn CLOCKWISE, so that the "
+            "left-hand edge of the upright sheet is at the TOP. The strip "
+            "labels are now on the RIGHT, and the sheet's first strip (strip "
+            "A on sheet 1) is the TOP row. Every ChromIQ strip is now one "
+            "i1Profiler row, read from left to right, which is from the "
+            "strip's last patch to its first.")
+    return tr(
+        "2. Turn the printed sheet a quarter turn CLOCKWISE, so that the clip "
+        "border (the wide margin on the left-hand side of the upright sheet) "
+        "is at the TOP, where the clip of the ruler's backing board holds the "
+        "paper. The strip labels are now on the RIGHT, and the sheet's first "
+        "strip (strip A on sheet 1) is the TOP row. Every ChromIQ strip is "
+        "now one i1Profiler row, read from left to right, which is from the "
+        "strip's last patch to its first.")
+
+
 def note_not_qualified(plan: TurnedPlan, chart_name: str) -> str:
     """The short note for a chart that does not qualify: why, with numbers."""
     parts = [tr("ChromIQ: measuring this chart in i1Profiler as well (beta)"),
@@ -720,10 +899,20 @@ def note_not_qualified(plan: TurnedPlan, chart_name: str) -> str:
     parts.append("")
     parts.append(tr(
         "What qualifies: an RGB chart made by ChromIQ's layout engine for the "
-        "i1Pro family, with no spacers, every strip full, and a patch length "
-        "that gives exactly as many patches on one i1Profiler row as the "
-        "strip has: 10 mm patches with 24 per strip qualify, for example. "
-        "Only the i1Pro 2 and the i1Pro 3 can read it."))
+        "i1Pro family, with no spacers and every strip full, on any paper "
+        "size, portrait or landscape. Along the strip the patches must be 10 "
+        "to 25 mm long for the i1Pro 2 and 7 to 25 mm long for the i1Pro 3, "
+        "a strip may be at most 241.5 mm long, and the whole chart may have "
+        "at most about 150 strips, because one i1Profiler page is at most "
+        "1270 mm tall. Only the i1Pro 2 and the i1Pro 3 can read it."))
+    parts.append(tr(
+        "How to make one: on Create Chart choose MANUAL and the instrument "
+        "i1Pro / i1Pro 2 / i1Pro 3, tick \"Use the ChromIQ layout engine "
+        "instead of printtarg\", set Create layout to \"Prioritise patch "
+        "size, then fit to page\", type a patch size of 8 x 10 mm (8 mm "
+        "across the strip, 10 mm along it), leave the patch count on Auto, "
+        "open Expert Options and set Spacers to None. Then press Generate "
+        "Chart again."))
     return "\n".join(parts) + "\n"
 
 
@@ -736,6 +925,15 @@ class TurnedOrder:
     path: Path
     sample_ids: list        # chart SAMPLE_ID of i1Profiler entry j (index j-1)
     locs: list
+    #: Which quarter turn this order is for (version 1 files: anticlockwise).
+    turn: str = ANTICLOCKWISE
+    #: Orders ChromIQ wrote EARLIER for this very chart, newest first, each a
+    #: ``TurnedOrder`` without earlier orders of its own (see `_earlier_orders`).
+    earlier: tuple = ()
+
+    def candidates(self) -> list:
+        """This order first, then the earlier ones."""
+        return [self, *self.earlier]
 
 
 def turned_order_for(chart_ti2: "str | Path | None") -> "TurnedOrder | None":
@@ -776,18 +974,37 @@ def _order_in(path: Path, chart_ti2: "str | Path",
         doc = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if (not isinstance(doc, dict) or doc.get("version") != ORDER_VERSION
+    if (not isinstance(doc, dict)
+            or doc.get("version") not in READABLE_ORDER_VERSIONS
             or doc.get("chart_sha256") != digest):
         return None
-    order = doc.get("order") or []
-    try:
-        ids = [str(e.get("sample_id", "")) for e in order]
-        locs = [str(e.get("loc", "")) for e in order]
-    except AttributeError:
+
+    def _one(entries, turn):
+        try:
+            ids = [str(e.get("sample_id", "")) for e in entries]
+            locs = [str(e.get("loc", "")) for e in entries]
+        except AttributeError:
+            return None
+        if ids and all(ids) and len(set(ids)) == len(ids):
+            return TurnedOrder(Path(path), ids, locs, turn=turn)
         return None
-    if ids and all(ids) and len(set(ids)) == len(ids):
-        return TurnedOrder(Path(path), ids, locs)
-    return None
+
+    # Version 1 (4.3.17) knew one turn only, and wrote no word for it.
+    main = _one(doc.get("order") or [], str(doc.get("turn") or ANTICLOCKWISE))
+    if main is None:
+        return None
+    earlier = []
+    if doc.get("version") != 1:
+        for e in doc.get("earlier_orders") or []:
+            if not isinstance(e, dict):
+                continue
+            o = _one(e.get("order") or [], str(e.get("turn") or ANTICLOCKWISE))
+            # The same patches, every one once: anything else is not an
+            # order of this chart's patch list and is ignored.
+            if o is not None and sorted(o.sample_ids) == sorted(main.sample_ids):
+                earlier.append(o)
+    return TurnedOrder(main.path, main.sample_ids, main.locs, turn=main.turn,
+                       earlier=tuple(earlier))
 
 
 @dataclass(frozen=True)
@@ -841,16 +1058,33 @@ def turned_match(measured, chart_ti2: "str | Path | None") -> TurnedMatch:
     want = _rgb_to_0_100(np.asarray(design.rgb, dtype=float))
     got = _rgb_to_0_100(np.asarray(measured.rgb, dtype=float))
     by_id = {sid: i for i, sid in enumerate(design.sample_ids)}
-    diffs = []
-    for mi, sid in enumerate(ids):
-        di = by_id.get(order.sample_ids[int(sid) - 1])
-        if di is None:
-            return TurnedMatch(applies=True, order=order)
-        diffs.append(float(np.abs(want[di] - got[mi]).max()))
-    bad = sum(1 for d in diffs if d > PATCH_IDENTITY_TOL)
-    return TurnedMatch(applies=True, verified=bad == 0, partial=partial,
-                       compared=len(diffs), mismatched=bad,
-                       worst=round(max(diffs), 4), order=order)
+
+    def _against(cand: TurnedOrder) -> TurnedMatch:
+        diffs = []
+        for mi, sid in enumerate(ids):
+            di = by_id.get(cand.sample_ids[int(sid) - 1])
+            if di is None:
+                return TurnedMatch(applies=True, order=cand)
+            diffs.append(float(np.abs(want[di] - got[mi]).max()))
+        bad = sum(1 for d in diffs if d > PATCH_IDENTITY_TOL)
+        return TurnedMatch(applies=True, verified=bad == 0, partial=partial,
+                           compared=len(diffs), mismatched=bad,
+                           worst=round(max(diffs), 4), order=cand)
+
+    # THE ORDER IN FORCE FIRST, THEN ANY EARLIER ONE ChromIQ WROTE FOR THIS
+    # VERY CHART (4.3.17's anticlockwise turn). Each was fixed when its
+    # `.txf` was written, so whichever one the device values follow is a
+    # pairing nobody chose by minimising the difference; one that agrees on
+    # EVERY patch is the order the file was measured in. If none does, the
+    # result of the order in force is returned, so the refusal is as before.
+    first = _against(order)
+    if first.verified:
+        return first
+    for cand in order.earlier:
+        m = _against(cand)
+        if m.verified:
+            return m
+    return first
 
 
 #: Header keyword stamped on a measurement paired through the turned order.

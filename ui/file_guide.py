@@ -681,12 +681,14 @@ def _turned_rows():
             "Preferences, Beta. Two i1Profiler test-chart files, one for the "
             "i1Pro 2 and one for the i1Pro 3. With one of them, i1Profiler "
             "lays out its chart exactly like ChromIQ's printed sheet turned a "
-            "quarter turn, so you can measure the same print in i1Profiler "
-            "as well. Load the one for your instrument on i1Profiler's Test "
-            "Chart page; the note beside them says how, step by step. They "
-            "are written only for a chart that qualifies (an RGB chart from "
-            "ChromIQ's layout engine for the i1Pro, with no spacers and a "
-            "fitting patch length)."),
+            "quarter turn, with its clip border at the top, so you can measure "
+            "the same print in i1Profiler as well. Load the one for your "
+            "instrument on i1Profiler's Test Chart page; the note beside them "
+            "says which way to turn the sheet and how, step by step. They are "
+            "written only for a chart that qualifies: an RGB chart from "
+            "ChromIQ's layout engine for the i1Pro, with no spacers, on any "
+            "paper size, with patches 10 to 25 mm long along the strip for the "
+            "i1Pro 2 and 7 to 25 mm long for the i1Pro 3."),
          tr("Create Chart (beta option)")),
         ("{name}-i1profiler-turned-how-to.txt", "runs/runN/exports",
          tr("The note that goes with those files. It says how to turn the "

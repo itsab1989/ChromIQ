@@ -115,34 +115,104 @@ def test_an_8_mm_chart_is_for_the_i1pro_3_only_and_says_why(charts):
     assert "8.00 mm" in why and "10 mm" in why
 
 
-def test_the_order_is_column_major_with_each_sheets_strips_last_first(charts):
-    """Entry j sits at i1Profiler column j // R, row j % R. Row r is the
-    (r+1)-th strip counted from the LAST strip of its sheet, sheet by sheet;
-    column c is place c of that strip, counted from the label end."""
-    for key in ("default", "two"):
-        ti2 = charts[key]
-        plan = T.plan_for(ti2)
+def _strips_of(lay):
+    strips = lay["strips"]
+    by_strip: dict = {}
+    for p in lay["patches"]:
+        for si, s in enumerate(strips):
+            if (s["page"] == p["page"] and s["x"] <= p["x"] + 1
+                    and p["x"] < s["x"] + s["w"]):
+                by_strip.setdefault(si, []).append(p)
+                break
+    for si in by_strip:
+        by_strip[si].sort(key=lambda q: q["y"])
+    return strips, by_strip
+
+
+@pytest.mark.parametrize("key", ["default", "two"])
+def test_clockwise_strip_a_is_the_top_row_read_from_its_last_patch(charts, key):
+    """4.3.18 (Basti: the clip border belongs at the top). Entry j sits at
+    i1Profiler column j // R, row j % R. Turned CLOCKWISE, the sheet's left
+    edge goes to the top: row r is the (r+1)-th strip of its sheet counted
+    from strip A, sheet by sheet, and column c is place P-1-c of that strip,
+    because the label end of the strip is now on the right."""
+    ti2 = charts[key]
+    plan = T.plan_for(ti2)
+    assert plan.turn == T.CLOCKWISE
+    strips, by_strip = _strips_of(_geometry(ti2))
+    pages = sorted({s["page"] for s in strips})
+    rows = []
+    for pg in pages:
+        rows += [i for i, s in enumerate(strips) if s["page"] == pg]
+    assert len(rows) == plan.rows
+    for j, (_sid, loc, _v) in enumerate(plan.order):
+        c, r = divmod(j, plan.rows)
+        assert by_strip[rows[r]][plan.columns - 1 - c]["loc"] == loc
+    assert plan.row_strips[0][2] == "A"
+    if key == "two":
+        assert plan.sheets == 2
+        # sheet 2 starts with its own strip A... the strip after sheet 1's last
+        first_of_2 = [r for r, sh, _l in plan.row_strips if sh == 2][0]
+        assert first_of_2 == 1 + sum(1 for s in strips if s["page"] == pages[0])
+
+
+@pytest.mark.parametrize("key", ["default", "two"])
+def test_anticlockwise_is_4317s_order_exactly(charts, key):
+    """The other quarter turn is 4.3.17's order, unchanged: each sheet's
+    strips from last to first, each strip from its label end."""
+    ti2 = charts[key]
+    plan = T.plan_for(ti2, turn=T.ANTICLOCKWISE)
+    strips, by_strip = _strips_of(_geometry(ti2))
+    pages = sorted({s["page"] for s in strips})
+    rows = []
+    for pg in pages:
+        rows += list(reversed([i for i, s in enumerate(strips)
+                               if s["page"] == pg]))
+    for j, (_sid, loc, _v) in enumerate(plan.order):
+        c, r = divmod(j, plan.rows)
+        assert by_strip[rows[r]][c]["loc"] == loc
+
+
+def test_the_two_turns_are_not_the_same_order(charts):
+    cw = [l for _s, l, _v in T.plan_for(charts["default"]).order]
+    ccw = [l for _s, l, _v in T.plan_for(charts["default"],
+                                         turn=T.ANTICLOCKWISE).order]
+    assert sorted(cw) == sorted(ccw) and cw != ccw
+    # the anticlockwise list is the clockwise one turned by half a turn
+    assert ccw == list(reversed(cw))
+
+
+def test_the_turn_puts_the_clip_border_at_the_top(tmp_path):
+    """Left clip border (the default) or none: clockwise. Clip border on the
+    right: anticlockwise, which puts THAT edge at the top."""
+    assert T.turn_for({}) == T.CLOCKWISE
+    assert T.turn_for({"clip_border": True, "clip_side": "left"}) == T.CLOCKWISE
+    assert T.turn_for({"clip_border": True, "clip_side": "right"}) == T.ANTICLOCKWISE
+    assert T.turn_for({"clip_border": False, "clip_side": "right"}) == T.CLOCKWISE
+    right = _chart(tmp_path / "r", "Right", 200, clip_side="right")
+    assert T.plan_for(right).turn == T.ANTICLOCKWISE
+    off = _chart(tmp_path / "o", "Off", 200, clip_border=False)
+    plan = T.plan_for(off)
+    assert plan.turn == T.CLOCKWISE and not plan.clip_border
+
+
+def test_the_clip_border_really_is_the_left_margin(tmp_path):
+    """What the turn is chosen by, measured on a chart's own map: with the
+    clip border on the left the patch block starts 26 mm from the left edge;
+    with it on the right, 26 mm from the right edge, and the left margin is
+    the base one."""
+    from workflow.layout_engine import papers
+    w_mm, _h = papers.dimensions_mm("A4")
+    out = {}
+    for side in ("left", "right"):
+        ti2 = _chart(tmp_path / side, side.title(), 600, clip_side=side)
         lay = _geometry(ti2)
-        strips = lay["strips"]
-        pages = sorted({s["page"] for s in strips})
-        rows = []
-        for pg in pages:
-            rows += list(reversed([i for i, s in enumerate(strips)
-                                   if s["page"] == pg]))
-        assert len(rows) == plan.rows
-        by_strip: dict = {}
-        for p in lay["patches"]:
-            for si, s in enumerate(strips):
-                if (s["page"] == p["page"] and s["x"] <= p["x"] + 1
-                        and p["x"] < s["x"] + s["w"]):
-                    by_strip.setdefault(si, []).append(p)
-                    break
-        for si in by_strip:
-            by_strip[si].sort(key=lambda q: q["y"])
-        for j, (_sid, loc, _v) in enumerate(plan.order):
-            c, r = divmod(j, plan.rows)
-            assert by_strip[rows[r]][c]["loc"] == loc
-    assert T.plan_for(charts["two"]).sheets == 2
+        mm = 25.4 / lay["dpi"]
+        page0 = [p for p in lay["patches"] if p["page"] == 0]
+        out[side] = (min(p["x"] for p in page0) * mm,
+                     w_mm - max(p["x"] + p["w"] for p in page0) * mm)
+    assert out["left"][0] == pytest.approx(26.0, abs=0.1)
+    assert out["right"][1] >= 25.9 > out["right"][0]
 
 
 def test_padding_is_in_the_list(charts):
@@ -162,13 +232,51 @@ def test_a_chart_that_does_not_qualify_gets_a_reason(charts, key, words):
     assert any(words in r for r in plan.reasons)
 
 
-def test_a_patch_length_outside_the_window_gives_the_real_numbers(charts):
+def test_a_strip_shorter_than_the_ruler_window_qualifies_on_a_narrow_page(charts):
+    """4.3.18: 8 x 11 mm on A4 is 21 patches, 231 mm, outside 4.3.17's window
+    (i1Profiler's own cap would give 22 per row). The page is made just wide
+    enough instead: 31 mm of i1Profiler margin plus 21.5 patches."""
     plan = T.plan_for(charts["long"])
-    assert not plan.qualifies
-    why = " ".join(plan.family_reasons["i1Pro 3"])
-    assert "11.00 mm" in why
+    assert plan.qualifies and plan.families == ["i1Pro 2", "i1Pro 3"]
     lo, hi = T.window_mm(plan.columns, "i1Pro 3")
-    assert f"{lo:.2f}" in why and f"{hi:.2f}" in why
+    assert not (lo < plan.patch_len_mm <= hi)
+    w = T.page_width_mm(plan, "i1Pro 3")
+    assert w == pytest.approx(31 + (plan.columns + 0.5) * plan.patch_len_mm)
+    # i1Profiler's measured rule: floor((width - 31) / L) per row, capped
+    assert int((w - 31) // plan.patch_len_mm) == plan.columns
+
+
+def test_in_the_ruler_window_the_page_is_4317s(charts):
+    plan = T.plan_for(charts["default"])
+    for fam in T.FAMILIES:
+        assert T.in_ruler_window(plan, fam)
+        assert T.page_width_mm(plan, fam) == T.PAGE_W_MM
+
+
+def test_the_page_width_always_gives_exactly_one_strip_per_row():
+    """For every strip ChromIQ can make (patch length 6 to 25 mm, up to the
+    241.5 mm row cap), i1Profiler's measured row rule, ``floor(min(cap,
+    width - 31) / L)``, is the strip's patch count, whichever end of the
+    measured cap (241.5 to 242.4 mm) is the true one."""
+    from types import SimpleNamespace
+    for tenth in range(60, 251):
+        L = tenth / 10.0
+        for per in range(1, int(241.5 // L) + 1):
+            plan = SimpleNamespace(columns=per, patch_len_mm=L)
+            w = T.page_width_mm(plan, "i1Pro 3")
+            for cap in (241.5, 242.4):
+                assert int(min(cap, w - 31) // L + 1e-9) == per, (L, per, w)
+
+
+def test_a_strip_longer_than_an_i1profiler_row_gets_the_real_numbers(tmp_path):
+    """Only a chart built with "No strip length limit" can have one."""
+    ti2 = _chart(tmp_path / "nl", "NoLimit", 200, patch_w_mm=8.0,
+                 patch_h_mm=10.0, paper="A3", nolimit=True)
+    plan = T.plan_for(ti2)
+    if plan.columns * plan.patch_len_mm <= 241.5:
+        pytest.skip("this build did not make a strip past the cap")
+    why = " ".join(plan.family_reasons["i1Pro 3"])
+    assert "241.5 mm" in why and f"{plan.columns}" in why
 
 
 def test_a_chart_with_no_patch_map_is_refused_politely(tmp_path):
@@ -218,7 +326,7 @@ def test_the_files_are_written_and_say_what_i1profiler_must_show(charts, tmp_pat
         assert reds == pytest.approx(
             [vals["R"] * 2.55 for _s, _l, vals in plan.order], abs=0.5)
     note = files.note.read_text(encoding="utf-8")
-    for must in ("ANTICLOCKWISE", "Test Chart", "Load",
+    for must in ("CLOCKWISE", "clip border", "TOP row", "Test Chart", "Load",
                  f"columns: {plan.columns}, rows: {plan.rows}, pages: 1",
                  "Default display device", "-i1profiler-turned-i1Pro2.txf",
                  "Row 1: strip", "IMPORT", "Import Measurement", ".mxf",
@@ -400,3 +508,66 @@ def test_the_build_writes_it_after_the_old_sidecars_and_only_there():
         "self._write_turned_i1profiler_export(ti2, stem)")
     from ui.dialogs import ti2_relayout_dialog
     assert "i1profiler_turned_export" in inspect.getsource(ti2_relayout_dialog)
+
+
+# ---------------------------------------------------------------------------
+# 4.3.18: the clockwise turn, any paper size, the page-height limit
+# ---------------------------------------------------------------------------
+
+def test_a_narrow_page_txf_says_its_width_and_custom_format(charts, tmp_path):
+    out = tmp_path / "exports"
+    res = T.write_turned_export(charts["long"], out, "Long")
+    assert not res.skipped
+    plan = T.plan_for(charts["long"])
+    a = _attrs(T.TurnedFiles(out, "Long").txf("i1Pro 3"))
+    assert float(a["PageWidth"]) == pytest.approx(T.page_width_mm(plan, "i1Pro 3"))
+    assert a["PaperFormat"] == "0"
+    assert a["PatchSizeWidthValue"] == f"{plan.patch_len_mm:.2f}"
+
+
+@pytest.mark.parametrize("paper, patch_h", [
+    ("Letter", 10.0), ("A4R", 10.0), ("LetterR", 12.0), ("Legal", 10.0),
+    ("A3", 11.0), ("329x483", 10.5), ("4x6", 10.0)])
+def test_every_paper_size_qualifies_with_one_strip_per_row(tmp_path, paper,
+                                                          patch_h):
+    """Measured in i1Profiler 3.8.8: a row holds floor(min(cap, page width -
+    31) / L) patches. Whatever the paper, the page width written makes that
+    the strip's patch count."""
+    ti2 = _chart(tmp_path / paper, "P", 200, paper=paper, patch_w_mm=8.0,
+                 patch_h_mm=patch_h)
+    plan = T.plan_for(ti2)
+    assert plan.families == ["i1Pro 2", "i1Pro 3"], plan.family_reasons
+    w = T.page_width_mm(plan, "i1Pro 2")
+    assert int(min(241.5, w - 31) // plan.patch_len_mm) == plan.columns
+
+
+def test_too_many_strips_for_one_i1profiler_page_get_the_real_numbers(tmp_path):
+    """i1Profiler's page is at most 1270 mm tall (asked for 2045 mm, it made
+    1270 mm and two pages)."""
+    ti2 = _chart(tmp_path / "big", "Big", 4000, paper="A2")
+    plan = T.plan_for(ti2)
+    assert not plan.qualifies
+    why = " ".join(plan.family_reasons["i1Pro 3"])
+    assert "1270 mm" in why and f"{plan.rows} strips" in why
+    res = T.write_turned_export(ti2, tmp_path / "exports", "Big")
+    assert "1270 mm" in res.skipped
+
+
+def test_the_note_says_which_way_for_each_clip_side(tmp_path):
+    for kw, words in (({}, ("CLOCKWISE", "left-hand side", "TOP row", "RIGHT")),
+                      ({"clip_side": "right"},
+                       ("ANTICLOCKWISE", "right-hand side", "BOTTOM row", "LEFT")),
+                      ({"clip_border": False},
+                       ("CLOCKWISE", "left-hand edge", "TOP row"))):
+        ti2 = _chart(tmp_path / str(len(kw)) / str(kw.get("clip_side")), "N",
+                     200, **kw)
+        out = tmp_path / f"ex{kw}"
+        T.write_turned_export(ti2, out, "N")
+        note = T.TurnedFiles(out, "N").note.read_text(encoding="utf-8")
+        step2 = [l for l in note.splitlines() if l.startswith("2. ")][0]
+        for w in words:
+            assert w in step2, (kw, w, step2)
+        order = json.loads(T.TurnedFiles(out, "N").order.read_text(
+            encoding="utf-8"))
+        assert order["turn"] == T.plan_for(ti2).turn
+        assert order["version"] == T.ORDER_VERSION == 2
