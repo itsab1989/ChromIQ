@@ -184,7 +184,7 @@ def test_a_stale_turned_order_spelled_decomposed_is_not_copied(tmp_path):
     run.chart_ti2.write_text(t.replace('DESCRIPTOR "', 'DESCRIPTOR "X ', 1),
                              encoding="utf-8")
     T.write_turned_export(run.chart_ti2, run.exports_dir, st)
-    (run.exports_dir / f"{st}-i1profiler.txt").write_text("x")
+    (run.exports_dir / f"{st}-i1profiler.txt").write_text("x", encoding="utf-8")
     shutil.copy2(src, run.chart_ti2)            # the order is now stale
     for p in list(run.exports_dir.iterdir()):   # spelled as HFS+ spells it
         tmp = p.with_name("tmp_" + p.name)
