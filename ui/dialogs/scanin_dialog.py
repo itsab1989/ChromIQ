@@ -3421,8 +3421,23 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._refresh_min_width()
 
     def _on_advanced_toggled(self, on: bool) -> None:
+        """The user opened or closed "Advanced…". The window keeps its size.
+
+        Knut, 4.3.17: *"when clicking the "Advanced" frame to expand the
+        advanced options, the whole window resized to a smaller size. The
+        window size should be unaffected."* This used to end in
+        `_refit_height()`, which resizes the window to its layout's sizeHint
+        height: a window the user had made taller than that (or that macOS had
+        zoomed to the screen) dropped back to it the moment the section opened,
+        and grew or shrank again when it closed.
+
+        Nothing needs the refit. The left column is a scroll area, so the open
+        section scrolls inside the height the window already has, the same rule
+        `_show_the_advanced_section` follows for a bucket change. The window's
+        WIDTH is still kept wide enough for the open section, by
+        `_refresh_min_width`, which only ever grows it.
+        """
         self._show_the_advanced_section(on)
-        self._refit_height()
 
     def _restore_defaults_clicked(self) -> None:
         """Put this window's profile settings back to the built-in defaults.
