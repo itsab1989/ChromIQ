@@ -334,18 +334,57 @@ def _start_worker() -> None:
     """Called with `_LOCK` held, by whoever hands the thread work.
 
     Collection is switched off BEFORE the thread exists (B8-1191), so the
-    thread never runs a line of Python with it on."""
+    thread never runs a line of Python with it on.
+
+    **A STOP THAT TIMED OUT IS NOT A THREAD TO HAND WORK TO** (release review
+    r6 of 4.3.18, N-2). `_stop_worker` sets `_STOP` and waits; when its wait
+    runs out the thread is still finishing its job, and it ends straight
+    after it. Before this, that thread still counted as the worker, so the
+    next job neither started a thread nor cleared the flag and sat queued
+    with nothing to run it. Now a set flag means "this thread is ending": it
+    is marked retiring and a fresh one starts. `_WORKER` names the new thread
+    BEFORE the flag is cleared, and the old one checks both at the top of its
+    loop and again on every job it takes (`_still_the_worker`), so it can
+    never take up the queue again beside its successor; the successor waits
+    for it to end before it runs a job (`_work`), so one job still runs at a
+    time."""
     global _WORKER
     _hold_gc_locked()
     _THREADS[:] = [t for t in _THREADS if t.is_alive()]
     _RETIRING.intersection_update(_THREADS)
     if (_WORKER is None or not _WORKER.is_alive()
-            or _WORKER in _RETIRING):
-        _STOP.clear()
+            or _WORKER in _RETIRING or _STOP.is_set()):
+        old = _WORKER
+        if old is not None and old.is_alive():
+            _RETIRING.add(old)
         _WORKER = threading.Thread(target=_work, name="chromiq-preset-layout",
                                    daemon=True)
         _THREADS.append(_WORKER)
+        _STOP.clear()           # only now: `_WORKER` already names the new one
         _WORKER.start()
+
+
+def _still_the_worker(me: threading.Thread, job) -> bool:
+    """On the background thread, with *job* just taken from the queue: may
+    this thread run it? No when a newer thread has taken over while this one
+    waited (see `_start_worker`); the job then goes back to the queue for
+    that thread, or for the stop that is under way to drop. A thread that
+    finds nobody else running takes the queue on again, so a job is never
+    left behind."""
+    global _WORKER
+    with _LOCK:
+        if _WORKER is me:
+            return True
+        if job is None:
+            return False
+        live = (_WORKER is not None and _WORKER.is_alive()
+                and _WORKER not in _RETIRING)
+        if live or _STOP.is_set():
+            _QUEUE.put(job)
+            return False
+        _WORKER = me
+        _RETIRING.discard(me)
+        return True
 
 
 #: Whole assessments queued to the same thread (see :func:`request`), by the
@@ -526,8 +565,16 @@ def _work() -> None:
     me = threading.current_thread()
     restore: "float | None" = None
     idle_since: "float | None" = None
+    # A thread this one took over from may still be finishing its last job
+    # (`_start_worker`, after a stop that timed out). Wait for it, so that
+    # one layout runs at a time, as it always has.
+    with _LOCK:
+        before = [t for t in _THREADS if t is not me and t.is_alive()]
+    for t in before:
+        while t.is_alive() and not _STOP.is_set():
+            t.join(0.25)
     try:
-        while not _STOP.is_set():
+        while not _STOP.is_set() and _WORKER is me:
             try:
                 job = _QUEUE.get(timeout=0.25)
             except queue.Empty:
@@ -540,7 +587,7 @@ def _work() -> None:
                     return
                 continue
             idle_since = None
-            if job is None:
+            if job is None or not _still_the_worker(me, job):
                 return
             if _GC_HELD and gc.isenabled():
                 # somebody switched it back on while this thread lives (an
