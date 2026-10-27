@@ -67,9 +67,14 @@ def test_the_height_is_measured_not_hard_coded(qapp):
     """
     import inspect
     from ui.tabs.tab_measure import TabMeasure
-    from ui.widgets import fit_log_height
+    from ui.widgets import fit_log_height, log_height_for_lines
 
-    src = inspect.getsource(fit_log_height)
+    # The arithmetic itself sits in `log_height_for_lines` since 4.3.18, so
+    # the scanner window can ask what a number of lines measures without
+    # setting it (review r4, N-3); `fit_log_height` must still go through it.
+    assert "log_height_for_lines(log, lines)" in inspect.getsource(
+        fit_log_height)
+    src = inspect.getsource(log_height_for_lines)
     assert "fontMetrics()" in src and "lineSpacing()" in src
     assert "documentMargin()" in src, "the document's own margin counts too"
     assert "frameWidth()" in src, "so does the frame"
