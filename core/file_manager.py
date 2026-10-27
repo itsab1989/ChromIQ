@@ -3948,19 +3948,11 @@ class Project:
                    "{stem}.ps", "{stem}.pdf", "{stem}.channels.json",
                    "{stem}.strips.json", "{stem}.print.json",
                    "{stem}_*.tif", "{stem}.tif",
-                   "chart/**/*",
-                   # THE TURNED i1PROFILER EXPORT IS THE CHART'S TOO (beta,
-                   # review 4.3.17 r2, NIT-1). Its order file is what pairs a
-                   # turned measurement of this sheet, and it is bound to the
-                   # .ti2 by its SHA-256, which a byte-for-byte copy keeps. An
-                   # import that copies only the chart used to leave it behind.
-                   # Beside the chart (the TI2 layout editor) or in exports/.
-                   "{stem}-i1profiler-turned.json",
-                   "{stem}-i1profiler-turned-how-to.txt",
-                   "{stem}-i1profiler-turned-*.txf",
-                   "exports/{stem}-i1profiler-turned.json",
-                   "exports/{stem}-i1profiler-turned-how-to.txt",
-                   "exports/{stem}-i1profiler-turned-*.txf")),
+                   "chart/**/*")),
+                   # The chart's turned i1Profiler export (beta) is the
+                   # chart's too, but it is NOT a pattern here: it is carried
+                   # only while its order names this very chart, and into
+                   # exports/ wherever it sat (`_turned_files_to_carry`).
         # `.confirmed.json` is the measurement's yellow memory (#182 K4): which
         # patches a re-read confirmed. It is only believed while the .ti3 it
         # names by hash is unchanged, and the copy is byte for byte.
@@ -3996,9 +3988,15 @@ class Project:
         something is missing rather than simply absent.
         """
         plan = []
-        # A FILE IS COPIED ONCE, under the first group that names it: the
-        # turned export sits in exports/ and is also the chart's (above).
-        taken: set = set()
+        # THE TURNED i1PROFILER EXPORT IS NEVER COPIED BY NAME (beta, review
+        # 4.3.17 r3, SF-2). Its exact files, beside the chart or in exports/,
+        # are taken out of every pattern; the chart group then carries them
+        # only when their order names the chart being copied, by its SHA-256,
+        # the rule `ti2_loader._copy_files` follows. A stale order (an
+        # earlier chart of this name) is not carried at all. A run without
+        # these files plans exactly what 4.3.16 planned.
+        turned_every, carry = self._turned_files_to_carry(source)
+        taken: set = set(turned_every)
         for group, patterns in self.DUPLICATE_GROUPS:
             if groups is not None and group not in groups:
                 continue
@@ -4021,6 +4019,8 @@ class Project:
                 for p in hits:
                     if p.is_file() and p not in found and p not in taken:
                         found.append(p)
+            if group == "chart":
+                found.extend(carry)
             taken.update(found)
             if found:
                 total = 0
@@ -4031,6 +4031,25 @@ class Project:
                         pass
                 plan.append((group, found, total))
         return plan
+
+    @staticmethod
+    def _turned_files_to_carry(source: Run) -> "tuple[set, list[Path]]":
+        """``(every turned file of the run, the ones a duplicate carries)``.
+
+        The second list is empty unless an order beside the chart or in
+        ``exports/`` names *source*'s chart by its SHA-256 (``turned_order_
+        for``), and then holds that order's own files. With no turned files
+        nothing is hashed: whether one exists is asked first."""
+        every = {q for f in I1ProfilerTurnedFiles.for_chart(source.chart_ti2)
+                 for q in f.all() if q.is_file()}
+        if not every:
+            return set(), []
+        from workflow.i1profiler_turned import turned_order_for
+        order = turned_order_for(source.chart_ti2)
+        if order is None:
+            return every, []
+        files = I1ProfilerTurnedFiles(order.path.parent, source.chart_ti2.stem)
+        return every, [q for q in files.all() if q.is_file()]
 
     def duplicate_run(self, source: Run,
                       groups: "tuple[str, ...] | None" = None) -> Run:
@@ -4057,12 +4076,20 @@ class Project:
         # `reads/`, `reports/` and a 153 KB export, every one of them orphaned
         # the moment the import wrote its own `.ti3` over the top.
         plan = self.duplicate_run_plan(source, groups)
+        # A carried turned file goes into the new run's exports/, wherever it
+        # sat (the TI2 layout editor writes it beside the chart), as
+        # Create Chart and `ti2_loader._copy_files` place it.
+        turned_names = {q.name for q in I1ProfilerTurnedFiles(
+            source.dir, source.chart_ti2.stem).all()}
         new_run = self.new_run()
         try:
             for _group, files, _size in plan:
                 for src in files:
                     rel = src.relative_to(source.dir)
                     dst = new_run.dir / rel
+                    if (_group == "chart" and src.name in turned_names
+                            and src.parent in (source.dir, source.exports_dir)):
+                        dst = new_run.exports_dir / src.name
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(src, dst)
         except OSError:

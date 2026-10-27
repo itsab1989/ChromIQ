@@ -71,6 +71,12 @@ def test_a_duplicated_run_still_pairs_a_later_turned_mxf(
     dup = proj.duplicate_run(run, ("chart",))
     order = T.turned_order_for(dup.chart_ti2)
     assert order is not None
+    # Wherever it sat in the source, the copy holds it in exports/, as
+    # `_copy_files` and Create Chart place it (review 4.3.17 r3, SF-2).
+    assert order.path.parent == dup.exports_dir
+    assert sorted(p.name for p in dup.exports_dir.iterdir()) == sorted(
+        p.name for p in dup.i1profiler_turned.all())
+    assert not [p for p in dup.dir.iterdir() if "turned" in p.name]
     assert _sha(dup.chart_ti2) == json.loads(
         order.path.read_text(encoding="utf-8"))["chart_sha256"]
     _pairs(dup.chart_ti2, T.TurnedFiles(order.path.parent, dup.stem), tmp_path)
@@ -152,3 +158,47 @@ def test_without_turned_files_duplicate_and_copy_are_as_before(tmp_path, src):
                                       loose / "Loose.channels.json").exists()
                                     else [])])
     assert got["Fresh.ti2"] == ti2.read_bytes()
+
+
+@pytest.mark.parametrize("whole", [False, True], ids=["chart-only", "whole-run"])
+@pytest.mark.parametrize("beside", [False, True],
+                         ids=["in-exports", "beside-the-chart"])
+def test_a_duplicate_does_not_carry_an_order_for_another_chart(
+        tmp_path, src, whole, beside):
+    """Review 4.3.17 r3, SF-2: `duplicate_run` copied the turned files by
+    NAME, so a stale order (an earlier chart of this name) travelled into the
+    copy. The same SHA-256 rule as `_copy_files` now applies: not carried by
+    the chart group, and not by the whole run's exports/ either."""
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    run.ensure_dir()
+    _place(src, run.dir, run.stem, turned=True, beside=beside)
+    run.chart_ti2.write_text(run.chart_ti2.read_text(encoding="utf-8")
+                             + "\n", encoding="utf-8")
+    run.ensure_exports_dir()
+    (run.exports_dir / "P-colours.txt").write_text("x", encoding="utf-8")
+    assert T.turned_order_for(run.chart_ti2) is None
+    plan = proj.duplicate_run_plan(run, None if whole else ("chart",))
+    assert not [p for _g, f, _s in plan for p in f
+                if "-i1profiler-turned" in p.name]
+    dup = proj.duplicate_run(run, None if whole else ("chart",))
+    assert not [p for p in dup.dir.rglob("*") if "-i1profiler-turned" in p.name]
+    if whole:
+        assert (dup.exports_dir / "P-colours.txt").is_file()
+    # The source keeps what it had.
+    assert [p for p in run.dir.rglob("*") if "-i1profiler-turned" in p.name]
+
+
+def test_a_whole_run_duplicate_keeps_a_users_own_file_of_a_similar_name(
+        tmp_path, src):
+    """Only the exact names the export writes are judged by the order; a file
+    of the person's own that merely starts the same way is copied as ever."""
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    run.ensure_dir()
+    _place(src, run.dir, run.stem, turned=False)
+    run.ensure_exports_dir()
+    own = run.exports_dir / "P-i1profiler-turned-notes-of-mine.txt"
+    own.write_text("mine", encoding="utf-8")
+    dup = proj.duplicate_run(run)
+    assert (dup.exports_dir / own.name).read_text(encoding="utf-8") == "mine"
