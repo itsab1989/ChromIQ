@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.3.17
+
+**For everyone updating from 4.3.16: this is a bug-fix release with one new beta option you can switch on if you want it. The ruler helper markers in the chart preview are single lines again, and charts laid out in i1Profiler are read again on the scanner path. With the new option off, which is how it starts, nothing about your charts, presets, measurements or profiles changes.**
+
+### Fixed
+- **The ruler helper markers in the chart preview are one clean line each again.** On a large screen, where the preview shows the sheet at about its real pixel size, each marker could look like a thick line with a thin one beside it (thank you, Knut). Only the preview was affected: the printed chart, the TIFF and the PDF always had one line per marker, and they are unchanged.
+- **A chart laid out in i1Profiler is read again on the scanner path.** When you measure with a scanner and choose "Where the chart was laid out: In i1Profiler", ChromIQ refused a correct i1Profiler page whenever the patch set held pure white or pure black, which almost every patch set does. Wrong or shuffled pages are still refused.
+- **Build Profile no longer leaves a temporary folder behind** each time you import a measurement file from i1Profiler.
+
+### New (beta, off unless you switch it on)
+- **One printed ChromIQ sheet that i1Profiler can measure (i1Pro 2 and i1Pro 3).** In Preferences, on the Beta tab, you can let ChromIQ also write an i1Profiler test-chart file for every chart that qualifies. You print the chart from ChromIQ as usual, turn the sheet a quarter turn, load that file in i1Profiler, measure it there, and import the measurement back into ChromIQ, where every reading lands on its own patch. The info icon next to the option and a short note in the run's exports folder explain exactly which charts qualify and every step. This is a beta: the layout was checked patch for patch in i1Profiler itself, but nobody has read such a sheet with a real instrument yet. Feedback is very welcome.
+
 ## v4.3.16
 
 **For everyone updating from 4.3.15: this is a bug-fix release. Every file dialog now speaks your language, and long messages fit on your screen and are easier to read. Nothing about your charts, presets, measurements or profiles changes.**
