@@ -124,9 +124,20 @@ def test_a_superseded_thread_hands_its_job_back():
     saved = PL._WORKER
     try:
         with PL._LOCK:
-            PL._WORKER = keeper
+            PL._WORKER = keeper     # took over, which clears a stop's flag
+            PL._STOP.clear()
         assert PL._still_the_worker(me, job) is False
         assert PL._QUEUE.get_nowait() == job
+        # with a stop under way instead, the job is dropped as the stop drops
+        # every queued one, and forgotten, so asking again queues it again
+        # (fix round r7 of 4.3.18): put back, it outlived the stop's emptying
+        # of the queue with nothing left to run it
+        with PL._LOCK:
+            PL._REQUESTED.add(("r6-n2c", 1))
+            PL._STOP.set()
+        assert PL._still_the_worker(me, job) is False
+        assert PL._QUEUE.empty()
+        assert not PL.queued(("r6-n2c", 1))
         # nobody else alive and no stop under way: the thread takes the
         # queue on again, so the job is not left behind
         with PL._LOCK:

@@ -360,8 +360,42 @@ def _start_worker() -> None:
         _WORKER = threading.Thread(target=_work, name="chromiq-preset-layout",
                                    daemon=True)
         _THREADS.append(_WORKER)
+        # A stop's wake-ups are for the threads it was stopping, which end by
+        # the flag and `_WORKER` alone; left in the queue, the new thread
+        # would read one as its own ending (fix round r7 of 4.3.18).
+        _drop_wake_ups_locked()
         _STOP.clear()           # only now: `_WORKER` already names the new one
         _WORKER.start()
+
+
+def _drop_wake_ups_locked() -> None:
+    """Take every `None` wake-up out of the queue, keeping the jobs in their
+    order. Called with `_LOCK` held."""
+    kept = []
+    while True:
+        try:
+            job = _QUEUE.get_nowait()
+        except queue.Empty:
+            break
+        if job is not None:
+            kept.append(job)
+    for job in kept:
+        _QUEUE.put(job)
+
+
+def _forget_locked(job) -> None:
+    """A queued job that a stop drops: forget it was asked for, so whoever
+    wants it asks again and it is queued again. Called with `_LOCK` held."""
+    if not job:
+        return
+    kind, chart, spec, call = job
+    if kind == "call":
+        _REQUESTED.discard(call[0])
+    else:
+        try:
+            _PENDING.discard(layout_key(chart, spec))
+        except Exception:      # noqa: BLE001 - a key is a key
+            pass
 
 
 def _still_the_worker(me: threading.Thread, job) -> bool:
@@ -377,9 +411,17 @@ def _still_the_worker(me: threading.Thread, job) -> bool:
             return True
         if job is None:
             return False
+        if _STOP.is_set():
+            # A stop is under way and this thread is not the one it may let
+            # finish a job: the job is dropped as the stop drops every queued
+            # one. Put back, it would sit in the queue after the stop emptied
+            # it, still counted as asked for, so asking again would not queue
+            # it and nothing would run it (fix round r7 of 4.3.18).
+            _forget_locked(job)
+            return False
         live = (_WORKER is not None and _WORKER.is_alive()
                 and _WORKER not in _RETIRING)
-        if live or _STOP.is_set():
+        if live:
             _QUEUE.put(job)
             return False
         _WORKER = me
@@ -517,6 +559,8 @@ def release_gc_if_idle() -> bool:
         if not _GC_HELD:
             return True
         _THREADS[:] = [t for t in _THREADS if t.is_alive()]
+        if not _THREADS:
+            _drop_wake_ups_locked()     # nobody is left to wake
         if _THREADS or not _QUEUE.empty():
             return False
         _RETIRING.clear()
@@ -587,7 +631,13 @@ def _work() -> None:
                     return
                 continue
             idle_since = None
-            if job is None or not _still_the_worker(me, job):
+            if job is None:
+                with _LOCK:
+                    stale = _WORKER is me and not _STOP.is_set()
+                if stale:
+                    continue        # a wake-up for a thread stopped before me
+                return
+            if not _still_the_worker(me, job):
                 return
             if _GC_HELD and gc.isenabled():
                 # somebody switched it back on while this thread lives (an
@@ -751,35 +801,33 @@ def _stop_worker(timeout: float = 5.0) -> bool:
     that is running finishes and removes its folder, rather than leave a
     temporary folder behind; jobs still queued are dropped and may be asked
     for again. Never on the background thread. True when collection is back
-    (or was never held)."""
+    (or was never held).
+
+    **THE FLAG, THE QUEUE AND THE WAKE-UP CHANGE HANDS UNDER ONE LOCK** (fix
+    round r7 of 4.3.18). They used to be set, emptied and posted outside it,
+    around the wait. A `request` from another thread in that gap saw the flag,
+    started a fresh worker and queued its job, and then this emptied the
+    queue and dropped a job asked for AFTER the stop; or the fresh worker took
+    the wake-up as its own ending and left the job with nobody to run it.
+    Now a request is wholly before a stop (dropped here, and `queued()` says
+    so) or wholly after it (it runs). Only the wait is outside the lock,
+    because the job being waited for takes the lock to finish."""
     if _on_a_background_thread():
         return False
-    _STOP.set()
     with _LOCK:
-        threads = list(_THREADS)
-    _QUEUE.put(None)            # wakes a thread waiting for work
+        _STOP.set()
+        threads = [t for t in _THREADS if t.is_alive()]
+        while True:
+            try:
+                _forget_locked(_QUEUE.get_nowait())
+            except queue.Empty:
+                break
+        for _t in threads:
+            _QUEUE.put(None)        # wakes a thread waiting for work
     end = time.monotonic() + max(0.0, float(timeout))
     for t in threads:
         if t.is_alive():
             t.join(timeout=max(0.0, end - time.monotonic()))
-    dropped = []
-    while True:
-        try:
-            dropped.append(_QUEUE.get_nowait())
-        except queue.Empty:
-            break
-    with _LOCK:
-        for job in dropped:
-            if not job:
-                continue
-            kind, chart, spec, call = job
-            if kind == "call":
-                _REQUESTED.discard(call[0])
-            else:
-                try:
-                    _PENDING.discard(layout_key(chart, spec))
-                except Exception:      # noqa: BLE001 - a key is a key
-                    pass
     return release_gc_if_idle()
 
 
