@@ -127,7 +127,19 @@ def test_a_turned_measurement_imports_with_every_reading_on_its_patch(
     assert complete_from_turned_order(ti3, ti2) == 0
 
 
-def test_a_measurement_with_two_rows_swapped_is_refused(turned_chart, tmp_path):
+def test_a_file_whose_device_values_do_not_follow_the_turned_order_is_refused(
+        turned_chart, tmp_path):
+    """What the device-value check proves: that the file was made from THIS
+    chart's turned .txf, entry for entry. Here two i1Profiler rows were moved
+    in the FILE, device values with their readings (a file edited, merged or
+    made from another .txf), so the device values no longer follow the
+    order, and the file is refused.
+
+    It does NOT catch a row read physically in the wrong place: i1Profiler
+    writes the .txf's own device values whatever the instrument saw, so such a
+    file passes this check (see the test below). i1Profiler's own row check,
+    which compares every scanned row with the colours it expects there, is
+    what guards that."""
     ti2, files = turned_chart
     plan = T.plan_for(ti2)
     R = plan.rows
@@ -292,3 +304,106 @@ def test_every_import_door_files_a_turned_measurement_through_it():
                  TabMeasure._import_into_profiling_run):
         src = inspect.getsource(door)
         assert "turned_order" in src and "_complete_turned_import" in src
+
+
+def _mxf_physically_misread(txf: Path, out: Path, perm: list) -> Path:
+    """What i1Profiler would save if row readings landed in the wrong slots:
+    the device values stay the .txf's own, in patch-list order, and reading
+    k is the colour of patch perm[k]."""
+    text = txf.read_text(encoding="utf-8")
+    objs = re.findall(r'(<cc:Object ObjectType="Target".*?</cc:Object>)',
+                      text, flags=re.S)
+    rgb = [tuple(int(v) for v in re.findall(r"<cc:[RGB]>(\d+)</cc:[RGB]>", o))
+           for o in objs]
+    targets, meas = [], []
+    for k in range(len(objs)):
+        r, g, b = rgb[k]
+        targets.append(
+            f'<cc:Object ObjectType="Target" Name="Target{k + 1}" Id="c{k + 1}">'
+            f'<cc:DeviceColorValues><cc:ColorRGB ColorSpecification="Unknown">'
+            f"<cc:R>{r}</cc:R><cc:G>{g}</cc:G><cc:B>{b}</cc:B>"
+            "</cc:ColorRGB></cc:DeviceColorValues></cc:Object>")
+        sp = " ".join(str(v) for v in _spectrum(*rgb[perm[k]]))
+        meas.append(
+            f'<cc:Object ObjectType="M0_Measurement" Name="M0_Measurement{k + 1}" '
+            f'Id="m{k + 1}"><cc:ColorValues><cc:ReflectanceSpectrum '
+            f'StartWL="380">{sp}</cc:ReflectanceSpectrum></cc:ColorValues>'
+            "</cc:Object>")
+    out.write_text(
+        f'<?xml version="1.0" encoding="UTF-8"?><cc:CxF xmlns:cc="{_NS}">'
+        "<cc:Resources><cc:ObjectCollection>" + "".join(targets + meas)
+        + "</cc:ObjectCollection></cc:Resources></cc:CxF>", encoding="utf-8")
+    return out
+
+
+def test_a_row_read_in_the_wrong_place_is_not_caught_here(turned_chart,
+                                                          tmp_path):
+    """THE LIMIT OF THE CHECK, pinned so no text claims more (review 4.3.17
+    r1, S4). Two rows read into each other's slots keep the .txf's device
+    values, so the file pairs. Guarding that is i1Profiler's own row check,
+    which the note and the tooltip name."""
+    ti2, files = turned_chart
+    plan = T.plan_for(ti2)
+    R = plan.rows
+    perm = list(range(len(plan.order)))
+    for c in range(plan.columns):
+        a, b = c * R, c * R + 1
+        perm[a], perm[b] = perm[b], perm[a]
+    mxf = _mxf_physically_misread(files.txf("i1Pro 3"), tmp_path / "m.mxf",
+                                  perm)
+    ti3 = cxf_measurement_to_ti3(mxf, tmp_path / "m.ti3")
+    v = assess(ti3, ti2)
+    assert v.ok and v.turned_order
+
+
+def test_a_partial_turned_measurement_is_refused_with_its_real_reason(
+        turned_chart, tmp_path):
+    """S6: it said "350 of 350 patches do not hold the colour", which is not
+    what is wrong."""
+    ti2, files = turned_chart
+    n = len(T.plan_for(ti2).order)
+    mxf = _mxf_from_txf(files.txf("i1Pro 3"), tmp_path / "p.mxf",
+                        rows=list(range(n - 10)))
+    ti3 = cxf_measurement_to_ti3(mxf, tmp_path / "p.ti3")
+    before = ti3.read_bytes()
+    v = assess(ti3, ti2)
+    assert not v.ok and not v.turned_order
+    assert "do not hold the colour" not in v.reason
+    assert "turned i1Profiler chart" in v.reason
+    assert "every patch of the chart has been measured" in v.reason
+    assert f"{n - 10} of the chart's {n} readings" in v.reason
+    assert complete_from_turned_order(ti3, ti2) == 0
+    assert ti3.read_bytes() == before
+
+
+def test_a_partial_file_that_does_not_follow_the_order_keeps_the_old_reason(
+        turned_chart, tmp_path):
+    ti2, files = turned_chart
+    n = len(T.plan_for(ti2).order)
+    order = list(range(n - 10))
+    order[3], order[40] = order[40], order[3]
+    mxf = _mxf_from_txf(files.txf("i1Pro 3"), tmp_path / "p.mxf", rows=order)
+    v = assess(cxf_measurement_to_ti3(mxf, tmp_path / "p.ti3"), ti2)
+    assert not v.ok and "do not hold the colour" in v.reason
+
+
+def test_without_an_order_file_the_chart_is_not_even_hashed(tmp_path,
+                                                            monkeypatch):
+    """NIT of review 4.3.17 r1: the option off costs one look for a file."""
+    ti2 = _chart(tmp_path / "p", "P", 350)
+    monkeypatch.setattr(T, "sha256_of",
+                        lambda *a, **k: pytest.fail("hashed the chart"))
+    assert T.turned_order_for(ti2) is None
+
+
+def test_the_device_less_refusal_says_what_to_do_instead(turned_chart,
+                                                         tmp_path):
+    """S5: names both ways out, the .mxf and the option off for the chart."""
+    ti2, _files = turned_chart
+    plan = T.plan_for(ti2)
+    rows = [f'{sid} "{loc}" 40.0 41.0 42.0' for sid, loc, _v in plan.order]
+    bare = _cgats(tmp_path / "bare.ti3", "SAMPLE_ID SAMPLE_LOC XYZ_X XYZ_Y XYZ_Z",
+                  rows)
+    v = assess(bare, ti2)
+    assert not v.ok
+    assert ".mxf" in v.reason and "switched off" in v.reason

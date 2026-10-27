@@ -504,15 +504,21 @@ def write_turned_export(ti2: "str | Path", out_dir: "str | Path",
 # ---------------------------------------------------------------------------
 
 def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str:
-    """The plain-language note for a chart that qualifies."""
+    """The plain-language note for a chart that qualifies.
+
+    NO FILE STEM IN IT (review 4.3.17 r1). A project rename renames these
+    files and the chart, and a note that named "Old.ti2" and
+    "Old-i1profiler-turned.json" then sent the person looking for files that
+    no longer existed. Every file is named by the ending it keeps whatever
+    the project is called. *chart_name* is kept for the callers."""
     parts = [tr("ChromIQ: measuring this chart in i1Profiler as well (beta)"),
              "=" * 60, ""]
     parts.append(tr(
         "This folder holds i1Profiler test-chart files for the printed sheet "
-        "of {chart}. With one of them, i1Profiler lays out its own chart "
-        "exactly like ChromIQ's printed sheet turned a quarter turn, so you "
-        "can measure the SAME print in ChromIQ and in i1Profiler.").format(
-            chart=chart_name))
+        "of the chart they belong to: the .ti2 file whose name they start "
+        "with. With one of them, i1Profiler lays out its own chart exactly "
+        "like ChromIQ's printed sheet turned a quarter turn, so you can "
+        "measure the SAME print in ChromIQ and in i1Profiler."))
     parts.append("")
     parts.append(tr(
         "IMPORTANT: this is a beta. The layout was checked patch for patch "
@@ -528,8 +534,8 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
         "the other instruments ChromIQ supports."))
     for fam in FAMILIES:
         if fam in plan.families:
-            parts.append(tr("  {family}: load {file}").format(
-                family=fam, file=files.txf(fam).name))
+            parts.append(tr("  {family}: load the file ending in {ending}").format(
+                family=fam, ending=files.txf(fam).name[len(files.stem):]))
         else:
             parts.append(tr("  {family}: no file, because {why}.").format(
                 family=fam, why="; ".join(plan.family_reasons.get(fam, []))))
@@ -562,12 +568,20 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
         "the sheet.").format(cols=plan.columns, rows=plan.rows,
                              w=f"{plan.patch_len_mm:.2f}"))
     parts.append(tr(
-        "6. Press Next to the Measurement page, choose a measurement mode "
-        "(Single Scan (M0), or Dual Scan for M1 and M2 with an i1Pro 2 or 3), "
-        "calibrate, and measure the rows from top to bottom, each one from "
-        "left to right, starting and ending on the white paper beside the "
-        "row. i1Profiler checks every row's patch count and colours and asks "
-        "again if a row does not fit."))
+        "6. Press Next to the Measurement page and choose a measurement mode. "
+        "The names below are the ones i1Profiler shows in English. With an "
+        "i1Pro 2: Single Scan (M0), or Dual scan (M0,M1,M2 and OBC) if you "
+        "want M1 and M2 as well; each row is then read twice, forwards and "
+        "back. With an i1Pro 3: Single scan (M0,M1,M2 and OBC), which gives "
+        "M0, M1 and M2 in one pass. Calibrate, and measure the rows from top "
+        "to bottom, each one from left to right, starting and ending on the "
+        "white paper beside the row."))
+    parts.append(tr(
+        "   i1Profiler checks every row as you read it, against the colours "
+        "it expects on that row, and asks you to read it again if it does "
+        "not fit. That check is the one that catches a row read in the wrong "
+        "place, so always read the row again when it asks. ChromIQ cannot "
+        "see a misplaced row afterwards."))
     if plan.sheets > 1:
         parts.append(tr(
             "   This chart has {n} sheets. i1Profiler shows all of them as ONE "
@@ -579,19 +593,27 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
         "Measurement page and save the measurement in i1Profiler's own "
         "format, an .mxf file. Use the .mxf, not a CGATS text export: "
         "i1Profiler names the patches by its own rows and columns (its A1 "
-        "is not ChromIQ's A1), and only the colours in the .mxf let ChromIQ "
-        "check that every reading is put on the right patch. Leave "
-        "i1Profiler's Scramble patches setting off."))
+        "is not ChromIQ's A1), and only the .mxf keeps the device values "
+        "(the RGB values of the test-chart file) that ChromIQ needs to put "
+        "every reading on its own patch. Leave i1Profiler's Scramble patches "
+        "setting off. Measure the whole chart: ChromIQ brings a turned "
+        "measurement back only when every patch has been read, and refuses "
+        "a file that holds only part of the rows, saying how many readings "
+        "it holds."))
     parts.append(tr(
         "8. To bring the measurement into ChromIQ: open this run, go to the "
         "Measure tab, press IMPORT, choose the .mxf file with the folder "
         "button beside Measurement File (from i1Profiler), and press Import "
-        "Measurement. ChromIQ recognises the turned order from the file "
-        "{order} in this folder and puts every reading on its own patch. It "
-        "only does so when the colours in the file agree with this chart's "
-        "patches, patch for patch; otherwise it refuses the file and nothing "
-        "is changed. If the file holds more than one measurement condition, "
-        "ChromIQ uses M2, then M1, then M0.").format(order=files.order.name))
+        "Measurement. ChromIQ recognises the turned order from the order "
+        "file in this folder (the one ending in -i1profiler-turned.json) and "
+        "puts every reading on its own patch. First it checks that the "
+        "device values in the file are this chart's, entry for entry. That "
+        "proves the measurement was made from this chart's test-chart file; "
+        "it does not prove that each row was read in the right place, which "
+        "is what i1Profiler's row check in step 6 is for. If the device "
+        "values do not agree, ChromIQ refuses the file and nothing is "
+        "changed. If the file holds more than one measurement condition, "
+        "ChromIQ uses M2, then M1, then M0."))
     parts.append("")
     parts.append(tr("Which i1Profiler row is which ChromIQ strip"))
     for r, sheet, lab in plan.row_strips:
@@ -602,10 +624,28 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
             parts.append(tr("  Row {row}: strip {strip}").format(
                 row=r, strip=lab))
     parts.append("")
+    parts.append(tr("Measurements without device values"))
     parts.append(tr(
-        "Do not edit or move {order}: it records which chart these files were "
+        "While the order file is here, ChromIQ accepts a measurement of "
+        "this chart only if it carries device values. A file without them, "
+        "for example a CGATS text export or a reading made with an i1iO "
+        "through i1Profiler's measure tool, which ChromIQ otherwise pairs by "
+        "patch name, is refused for this chart: on this chart i1Profiler's "
+        "patch names are the same set as ChromIQ's but sit on other patches, "
+        "so pairing by name could put every reading on the wrong patch. This "
+        "belongs to the chart and its order file, not to the switch in "
+        "Preferences: turning the option off later does not change it. If "
+        "you want to read this chart in a way that gives no device values, "
+        "create the chart again in Create Chart with the option off; that "
+        "removes these files, and such a file is then paired by name as "
+        "before."))
+    parts.append("")
+    parts.append(tr(
+        "Do not edit or move the order file (the one ending in "
+        "-i1profiler-turned.json): it records which chart these files were "
         "made for, and ChromIQ needs it to bring the measurement back. A new "
-        "chart replaces all of these files.").format(order=files.order.name))
+        "chart replaces all of these files, and renaming the project renames "
+        "them with it."))
     return "\n".join(parts) + "\n"
 
 
@@ -614,9 +654,8 @@ def note_not_qualified(plan: TurnedPlan, chart_name: str) -> str:
     parts = [tr("ChromIQ: measuring this chart in i1Profiler as well (beta)"),
              "=" * 60, ""]
     parts.append(tr(
-        "No i1Profiler test-chart file was written for {chart}, because "
-        "this chart cannot be read in i1Profiler after a quarter turn:").format(
-            chart=chart_name))
+        "No i1Profiler test-chart file was written for this chart, because "
+        "it cannot be read in i1Profiler after a quarter turn:"))
     if plan.reasons:
         for r in plan.reasons:
             parts.append("  - " + r)
@@ -653,16 +692,18 @@ def turned_order_for(chart_ti2: "str | Path | None") -> "TurnedOrder | None":
     if chart_ti2 is None:
         return None
     chart_ti2 = Path(chart_ti2)
-    if not chart_ti2.is_file():
+    # WHETHER AN ORDER FILE EXISTS IS ASKED FIRST. Every import of every
+    # measurement reaches this, and with the option off there is none: a stat
+    # per candidate folder is all it may cost then, never a hash of the chart.
+    candidates = [f.order for f in TurnedFiles.for_chart(chart_ti2)]
+    candidates = [p for p in candidates if p.is_file()]
+    if not candidates or not chart_ti2.is_file():
         return None
     try:
         digest = sha256_of(chart_ti2)
     except OSError:
         return None
-    for files in TurnedFiles.for_chart(chart_ti2):
-        p = files.order
-        if not p.is_file():
-            continue
+    for p in candidates:
         try:
             doc = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -682,6 +723,9 @@ def turned_order_for(chart_ti2: "str | Path | None") -> "TurnedOrder | None":
 class TurnedMatch:
     applies: bool = False      # the file is shaped like a turned measurement
     verified: bool = False     # and its device values agree in that order
+    #: Fewer readings than the order has entries, numbered within 1..N: a
+    #: turned measurement that stopped part way. Never filed (§I.14).
+    partial: bool = False
     compared: int = 0
     mismatched: int = 0
     worst: float = 0.0
@@ -704,9 +748,18 @@ def turned_match(measured, chart_ti2: "str | Path | None") -> TurnedMatch:
         return TurnedMatch()
     n = len(order.sample_ids)
     ids = [str(s).strip('"') for s in (measured.sample_ids or [])]
+    partial = False
     if len(ids) != n or sorted(ids, key=lambda s: (len(s), s)) != [
             str(i) for i in range(1, n + 1)]:
-        return TurnedMatch(order=order)
+        # A PART OF A TURNED MEASUREMENT is recognised too, so that it can be
+        # refused for what it is: fewer readings, each numbered once within
+        # 1..N. It is still compared below, so that only a file whose device
+        # values really follow the turned order is called one.
+        allowed = {str(i) for i in range(1, n + 1)}
+        if not (0 < len(ids) < n and len(set(ids)) == len(ids)
+                and set(ids) <= allowed):
+            return TurnedMatch(order=order)
+        partial = True
     from workflow.measurement_report import PATCH_IDENTITY_TOL, _rgb_to_0_100
     from workflow.ti3_analysis import Ti3ParseError, parse_ti3
     import numpy as np
@@ -724,9 +777,9 @@ def turned_match(measured, chart_ti2: "str | Path | None") -> TurnedMatch:
             return TurnedMatch(applies=True, order=order)
         diffs.append(float(np.abs(want[di] - got[mi]).max()))
     bad = sum(1 for d in diffs if d > PATCH_IDENTITY_TOL)
-    return TurnedMatch(applies=True, verified=bad == 0, compared=len(diffs),
-                       mismatched=bad, worst=round(max(diffs), 4),
-                       order=order)
+    return TurnedMatch(applies=True, verified=bad == 0, partial=partial,
+                       compared=len(diffs), mismatched=bad,
+                       worst=round(max(diffs), 4), order=order)
 
 
 #: Header keyword stamped on a measurement paired through the turned order.
@@ -748,7 +801,8 @@ def reorder_turned_measurement(ti3_path: "str | Path",
     except (Ti3ParseError, OSError):
         return 0
     m = turned_match(measured, chart_ti2)
-    if not (m.applies and m.verified and m.order is not None):
+    if not (m.applies and m.verified and not m.partial
+            and m.order is not None):
         return 0
     text = read_text(ti3_path, lenient=True)
     t = _first_table(text)

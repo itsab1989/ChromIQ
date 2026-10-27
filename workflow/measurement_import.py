@@ -271,15 +271,25 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
         # printed (rows = strips, columns = places), each on a different patch.
         # A name pairing would pass every check and put every reading on the
         # wrong patch. Without device values nothing can tell the two apart.
+        # ONLY WHERE THIS CHART'S OWN ORDER FILE EXISTS: `turned_order_for`
+        # answers None unless an order file sits beside the chart (exports/ or
+        # its own folder) AND names this exact .ti2 by its SHA-256. A chart
+        # made with the option off has none (Create Chart removes a stale
+        # one), so it is judged exactly as before.
         from workflow.i1profiler_turned import turned_order_for
         if turned_order_for(chart_ti2) is not None:
             return ImportVerdict(False, tr(
                 "this file carries no device values, and this chart also has "
                 "a turned i1Profiler chart, whose patch names are the same as "
                 "this chart's but sit on other patches, so ChromIQ cannot tell "
-                "which patch each reading belongs to. Save the measurement in "
-                "i1Profiler as an .mxf file, which keeps the colours, and "
-                "import that instead"),
+                "which patch each reading belongs to. If you measured the "
+                "turned chart in i1Profiler, save the measurement as an .mxf "
+                "file, which keeps the colours, and import that instead. If "
+                "you read this chart another way that gives a file without "
+                "device values (for example with an i1iO through i1Profiler), "
+                "ChromIQ pairs such a file by patch name only on a chart that "
+                "was made with the turned i1Profiler option switched off "
+                "(Preferences, Beta)"),
                 n_chart=n_chart or 0, n_measured=n_got)
         verdict = _name_verdict(ti3, chart_ti2, n_chart, n_got, partial)
         if verdict is not None:
@@ -298,6 +308,22 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
         # patch: the colours check a pairing they did not choose (§I.9).
         from workflow.i1profiler_turned import turned_match
         turned = turned_match(measured, chart_ti2)
+        if turned.applies and turned.verified and turned.partial:
+            # PART OF A TURNED MEASUREMENT, refused for what it is. The
+            # identity sentence would say every patch holds the wrong colour,
+            # which is not what is wrong: the readings follow the turned order
+            # and only the rest of the rows is missing. §I.14 pairs a COMPLETE
+            # turned measurement only; that rule is unchanged here, the
+            # refusal just gives its true reason now.
+            return ImportVerdict(False, tr(
+                "this file is a measurement of the turned i1Profiler chart, "
+                "and ChromIQ can only bring such a measurement back when "
+                "every patch of the chart has been measured. This file holds "
+                "{got} of the chart's {total} readings. Measure the remaining "
+                "rows in i1Profiler, save the measurement again as an .mxf "
+                "file and import that file").format(
+                    got=n_got, total=len(turned.order.sample_ids)),
+                n_chart=n_chart or 0, n_measured=n_got)
         if turned.applies and turned.verified:
             return ImportVerdict(True, "", partial=False,
                                  n_chart=n_chart or 0, n_measured=n_got,

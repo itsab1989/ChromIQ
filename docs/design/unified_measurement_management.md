@@ -8518,9 +8518,14 @@ patch-identity line, the automatic report and the measurement details window
 read RGB device values only, and each now shows **M-VIEW-RGB-ONLY** in place of
 a parse error (§M-PROPOSED).
 
-### ⏳ Awaiting confirmation — §I.14, a measurement of the turned i1Profiler chart (beta)
+### Confirmed behaviour — §I.14, a measurement of the turned i1Profiler chart (beta)
 
-**Confirmed by:** *nobody yet.*
+**Confirmed by:** Sebastian, 2026-10-27: *"yes i agree, keep it tied to the
+chart"*. He confirmed points 1 to 4 of I.14 below and nothing more; §I.5 is
+unchanged, and he confirmed that his earlier rule stands. The wording of the
+bullets on what the check proves, on device-less files and on a partial file
+was corrected in the same round (review 4.3.17 r1, S4 to S6) and states the
+same rule.
 
 **Asked for by Basti, 2026-10-26:** *"measurements from i1profiler can already
 be imported into chromiq so this should be covered"*, for the beta option
@@ -8548,43 +8553,83 @@ either (§I.5, the 2026-08-08 round trip). So:
 **I.14 · A measurement of the turned chart is paired by the turned order, and
 only when its device values then agree on every patch.**
 
-* The export writes `<stem>-i1profiler-turned.json` beside the `.txf` files: for
-  every i1Profiler patch-list entry, the chart patch (`SAMPLE_ID`, `SAMPLE_LOC`)
-  it is, and the SHA-256 of the `.ti2` it was made from. An order whose checksum
-  is not the run's chart's is ignored (a chart rebuilt under the same name does
-  not inherit it).
-* Only a file §I.5 has already REFUSED is considered: it must carry device
-  values, hold exactly the order's N readings, numbered exactly 1..N. Reading
-  `j` is paired with the chart patch the order names for entry `j`.
-* The device values are then compared with that patch's, every one, within
-  `PATCH_IDENTITY_TOL`. The order was fixed when the chart was made, so the
-  colours check a pairing they did not choose (§I.9's objection is about a
-  pairing chosen by minimising the very difference that then validates it).
-  One patch off and the file is refused with §I.5's own sentence, exactly as
-  before.
-* Filed, the copy takes the chart's `SAMPLE_ID` and `SAMPLE_LOC` on every row,
-  in the chart's order, and says so in its header
-  (`CHROMIQ_PAIRED_BY_TURNED_ORDER "<order file>"`). From then on it is an
-  ordinary measurement: §I.5 verifies it by `SAMPLE_ID`, and filing it a second
-  time changes nothing.
-* **A file with no device values is refused** when the chart has a turned order
-  (*"this file carries no device values, and this chart also has a turned
-  i1Profiler chart, whose patch names are the same as this chart's but sit on
-  other patches, so ChromIQ cannot tell which patch each reading belongs to.
-  Save the measurement in i1Profiler as an .mxf file, which keeps the colours,
-  and import that instead"*). This is the one change to an existing import: on
-  such a chart §I.11's name pairing could be silently wrong, and nothing in the
-  file could tell. A chart without a turned order (the option off, or a chart
-  that did not qualify) is judged exactly as before.
+1. **Paired by the order ChromIQ wrote for exactly that chart.** The export
+   writes `<stem>-i1profiler-turned.json` beside the `.txf` files: for every
+   i1Profiler patch-list entry, the chart patch (`SAMPLE_ID`, `SAMPLE_LOC`) it
+   is, and the SHA-256 of the `.ti2` it was made from. An order whose checksum
+   is not the run's chart's is ignored (a chart rebuilt under the same name does
+   not inherit it). Only a file §I.5 has already REFUSED is considered: it must
+   carry device values and hold the order's N readings, numbered exactly 1..N.
+   Reading `j` is paired with the chart patch the order names for entry `j`,
+   and the device values are then compared with that patch's, every one, within
+   `PATCH_IDENTITY_TOL`. The order was fixed when the chart was made, so the
+   comparison checks a pairing it did not choose (§I.9's objection is about a
+   pairing chosen by minimising the very difference that then validates it).
+   One patch off and the file is refused with §I.5's own sentence, exactly as
+   before.
+   * **What the comparison proves, and what it does not.** i1Profiler writes
+     the device values of its `.txf` into the measurement, whatever the
+     instrument saw. So agreement proves that the file was made from THIS
+     chart's turned `.txf`, entry for entry (not another chart's, not edited,
+     not merged). It does NOT prove that each row was read in the right place:
+     a row read into another row's slot keeps the `.txf`'s device values and
+     passes. That is guarded by i1Profiler's own row check, which compares every
+     scanned row with the colours it expects there and asks for the row again
+     ("Reference colors do not match measured values"). The tooltip and the
+     note say this, and `tests/test_i1profiler_turned_import.py::
+     test_a_row_read_in_the_wrong_place_is_not_caught_here` pins the limit.
+   * **A partial turned measurement is refused**, with its own reason: fewer
+     readings, each numbered once within 1..N, whose device values follow the
+     order (*"this file is a measurement of the turned i1Profiler chart, and
+     ChromIQ can only bring such a measurement back when every patch of the
+     chart has been measured. This file holds {got} of the chart's {total}
+     readings. Measure the remaining rows in i1Profiler, save the measurement
+     again as an .mxf file and import that file"*). It used to be refused with
+     §I.5's "N of N patches do not hold the colour", which is not what is
+     wrong. A partial file that does not follow the order keeps §I.5's sentence.
+   * Filed, the copy takes the chart's `SAMPLE_ID` and `SAMPLE_LOC` on every
+     row, in the chart's order, and says so in its header
+     (`CHROMIQ_PAIRED_BY_TURNED_ORDER "<order file>"`). From then on it is an
+     ordinary measurement: §I.5 verifies it by `SAMPLE_ID`, and filing it a
+     second time changes nothing.
+2. **Tied to the chart, not to the switch.** I.14 applies only to a chart whose
+   own order file exists, which means a chart built while the beta option was
+   on. Nothing in the import path reads the option: switching it off later does
+   not disable I.14 for such a chart. Building that chart again with the option
+   off removes its turned files (Create Chart and the TI2 layout editor both
+   remove a stale export), and §I.5 alone applies again.
+3. **On such a chart, a measurement with no device values is refused**
+   (*"this file carries no device values, and this chart also has a turned
+   i1Profiler chart, whose patch names are the same as this chart's but sit on
+   other patches, so ChromIQ cannot tell which patch each reading belongs to.
+   If you measured the turned chart in i1Profiler, save the measurement as an
+   .mxf file, which keeps the colours, and import that instead. If you read
+   this chart another way that gives a file without device values (for example
+   with an i1iO through i1Profiler), ChromIQ pairs such a file by patch name
+   only on a chart that was made with the turned i1Profiler option switched
+   off (Preferences, Beta)"*). This is the one change to an existing import:
+   on such a chart §I.11's name pairing, including the i1iO read through
+   i1Profiler's measure tool, could be silently wrong, and nothing in the file
+   could tell. It applies only where the order file for exactly this `.ti2`
+   exists (`turned_order_for`, by SHA-256); every other chart is judged
+   exactly as before.
+4. **§I.5 itself is unchanged.**
 
-Every door reaches it through `measurement_import.assess`
-(`ImportVerdict.turned_order`) and files it with `complete_from_turned_order`:
-the Measure tab's IMPORT module for profiling and verification runs, and
-`measurement_filing.say_what_was_filed`, where every filing door ends. Tests:
+**Every door pairs a COPY before it files** (review 4.3.17 r1, S1 and S2). The
+Measure tab's IMPORT module does it on its converted copy; Build Profile, Check
+& Refine and the new-project door do it through
+`measurement_filing.TurnedPairing`, against the chart that still has its order
+beside it, before a run is duplicated (`duplicate_run(run, ("chart",))` copies
+no `exports/`) or a project is made (`_copy_files` takes no turned files). The
+paired copy needs no order file any more, wherever it lands, and the person's
+own file is never touched. `say_what_was_filed` says so in a window if a door
+paired a copy and the filed copy does not pair with its run's chart. Tests:
 `tests/test_i1profiler_turned_import.py` (a simulated turned `.mxf` imports
-with every reading on its own patch; a file with two rows swapped is refused; a
-chart whose names coincide is never paired by name; ordinary measurements are
-judged as before).
+with every reading on its own patch; a file whose device values do not follow
+the order is refused; a partial one is refused with its own reason; a chart
+whose names coincide is never paired by name; ordinary measurements are judged
+as before) and `tests/test_i1profiler_turned_doors.py` (every door, through the
+real tabs, and the option off in settings with a chart that has an order).
 
 ## S. Sequences — what happens, in what order, for every entry condition
 

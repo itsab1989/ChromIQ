@@ -14404,8 +14404,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._log.appendPlainText("\n" + tr(
             "[OK] This is a measurement of the turned i1Profiler chart, so "
             "ChromIQ put every reading on its own patch of {chart}, in the "
-            "turned order. The colours in the file agree with the chart on "
-            "every patch.").format(chart=chart.name))
+            "turned order. The device values in the file are this chart's on "
+            "every patch, so the measurement was made from this chart's "
+            "i1Profiler test-chart file.").format(chart=chart.name))
         return True
 
     def _show_import_refusal(self, message, **kw) -> None:

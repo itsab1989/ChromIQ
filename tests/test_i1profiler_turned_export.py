@@ -220,10 +220,27 @@ def test_the_files_are_written_and_say_what_i1profiler_must_show(charts, tmp_pat
     note = files.note.read_text(encoding="utf-8")
     for must in ("ANTICLOCKWISE", "Test Chart", "Load",
                  f"columns: {plan.columns}, rows: {plan.rows}, pages: 1",
-                 "Default display device", files.txf("i1Pro 2").name,
+                 "Default display device", "-i1profiler-turned-i1Pro2.txf",
                  "Row 1: strip", "IMPORT", "Import Measurement", ".mxf",
-                 "nobody has yet read such a sheet with a real instrument"):
+                 "nobody has yet read such a sheet with a real instrument",
+                 # i1Profiler's own labels, per instrument (review 4.3.17 r1)
+                 "With an i1Pro 2: Single Scan (M0), or Dual scan "
+                 "(M0,M1,M2 and OBC)",
+                 "With an i1Pro 3: Single scan (M0,M1,M2 and OBC)",
+                 # what is checked, and by whom (S4)
+                 "it does not prove that each row was read in the right place",
+                 "i1Profiler checks every row as you read it",
+                 # a partial file (S6) and a device-less one (S5)
+                 "ChromIQ brings a turned measurement back only when every "
+                 "patch has been read",
+                 "Measurements without device values",
+                 "turning the option off later does not change it",
+                 "-i1profiler-turned.json"):
         assert must in note, must
+    # NO FILE STEM: a project rename renames the files, and the note must not
+    # send anyone looking for the old names (review 4.3.17 r1).
+    assert "Default-" not in note and "Default.ti2" not in note
+    assert "colours in the file agree" not in note
     order = json.loads(files.order.read_text(encoding="utf-8"))
     assert order["chart_sha256"] == T.sha256_of(charts["default"])
     assert [e["loc"] for e in order["order"]] == [l for _s, l, _v in plan.order]
@@ -265,6 +282,32 @@ def test_the_run_names_the_files_and_a_rename_carries_them(tmp_path):
     from core import file_manager
     src = inspect.getsource(file_manager)
     assert "-turned(-i1Pro[23]|-how-to)?" in src
+
+
+def test_after_a_project_rename_the_note_names_no_old_file(tmp_path):
+    """The rename carries the files (`Project.rename`'s tail pattern); the
+    note, which names files by their endings only, stays true."""
+    import shutil
+    from core.file_manager import Project, exports_subdir
+    proj = Project.create(tmp_path / "Old", "Old")
+    run = proj.current_run()
+    run.ensure_dir()
+    src = _chart(tmp_path / "build", "Old", 350)
+    for f in src.parent.iterdir():
+        shutil.copy2(f, run.dir / f.name)
+    T.write_turned_export(run.chart_ti2, exports_subdir(run.dir), run.stem)
+    moved = tmp_path / "New"
+    proj.root.rename(moved)
+    proj = Project.load(moved)
+    proj.rename("New")
+    run = proj.current_run()
+    names = sorted(p.name for p in run.exports_dir.iterdir())
+    assert "New-i1profiler-turned-how-to.txt" in names, names
+    assert not any(n.startswith("Old") for n in names), names
+    note = (run.exports_dir / "New-i1profiler-turned-how-to.txt").read_text(
+        encoding="utf-8")
+    assert "Old" not in note
+    assert T.turned_order_for(run.chart_ti2) is not None
 
 
 # ---------------------------------------------------------------------------
