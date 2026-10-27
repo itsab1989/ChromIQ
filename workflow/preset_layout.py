@@ -296,7 +296,10 @@ def _schedule(key: tuple, chart: Path, spec: dict) -> None:
         # queued under the lock, so a thread deciding to retire (which it
         # does under the same lock, on an empty queue) cannot miss it
         _start_worker()
-        _QUEUE.put(("layout", chart, dict(spec), None))
+        # the job carries the key it was counted under, so it is forgotten
+        # by that key even if the chart or printtarg changes before it runs
+        # (review r7 of 4.3.18, NIT-1)
+        _QUEUE.put(("layout", chart, dict(spec), key))
     _held_by_caller()
 
 
@@ -388,14 +391,15 @@ def _forget_locked(job) -> None:
     wants it asks again and it is queued again. Called with `_LOCK` held."""
     if not job:
         return
-    kind, chart, spec, call = job
+    kind, _chart, _spec, call = job
     if kind == "call":
         _REQUESTED.discard(call[0])
     else:
-        try:
-            _PENDING.discard(layout_key(chart, spec))
-        except Exception:      # noqa: BLE001 - a key is a key
-            pass
+        # the key it was queued under, not one worked out again here: that
+        # read the chart and stat'ed printtarg with the lock held, and a file
+        # changed since the job was queued gave another key, so the queued
+        # one stayed pending for good (review r7 of 4.3.18, NIT-1)
+        _PENDING.discard(call)
 
 
 def _still_the_worker(me: threading.Thread, job) -> bool:
@@ -785,15 +789,23 @@ def _run_job(job: tuple) -> None:
             _FINISHED.add(key)
             _GENERATION += 1
         return
+    queued_key = call
     try:
         grid_for(chart, spec, wait=True)
     except Exception as exc:      # noqa: BLE001 - one preset is never fatal
         log.warning("laying %s out behind the scenes failed: %s", chart, exc)
+        key = layout_key(chart, spec)
         with _LOCK:
-            _RESULTS[layout_key(chart, spec)] = {
+            _RESULTS[key] = {
                 "reason": REASON_LAYOUT_REFUSED, "detail": str(exc)}
-            _PENDING.discard(layout_key(chart, spec))
+            _PENDING.discard(key)
             _GENERATION += 1
+    # `grid_for` files its answer under the key of the chart as it is NOW;
+    # if the chart or printtarg changed after this job was queued, that is
+    # not the key the job was counted under, which must go too or
+    # `pending()` never reaches 0 (review r7 of 4.3.18, NIT-1)
+    with _LOCK:
+        _PENDING.discard(queued_key)
 
 
 def _stop_worker(timeout: float = 5.0) -> bool:
