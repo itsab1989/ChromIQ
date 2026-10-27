@@ -143,6 +143,31 @@ def test_a_foreshortened_view_still_keeps_its_own_way_up():
         assert 0 in turns_that_fit(_boxes(30, 20), q), (xs, ys)
 
 
+def test_a_nearly_square_chart_seen_foreshortened_keeps_its_own_way_up():
+    """Review r7 of 4.3.18, SF-1. A chart of aspect 1.15 in a quad whose x
+    scale is a quarter below its y scale: the quarter turn stretches the
+    patches LESS than the true way up, and the rule used to leave the true
+    way up (and its half turn) out, so the right placement was never scored.
+    The recogniser's own way up and the half turn are never left out now."""
+    nx, ny = 23, 20                                  # aspect 1.15
+    bbox = _bbox(nx, ny)
+    for irot in (0.0, 3.0, 12.0, 40.0):
+        q = corners_from_candidate((0.8, irot, 0.0, 0.0, 3.0, 4.0), bbox)
+        got = turns_that_fit(_boxes(nx, ny), q)
+        assert 0 in got and 2 in got, (irot, got)
+
+
+def test_only_a_quarter_turn_is_ever_left_out():
+    """Whatever the quad, the rule may drop k = 1 and k = 3 only."""
+    for nx, ny in ((30, 20), (20, 30), (23, 20), (40, 10), (20, 20)):
+        bbox = _bbox(nx, ny)
+        for xs, ys in ((4.0, 4.0), (3.0, 4.0), (4.0, 3.0), (2.0, 4.0),
+                       (4.0, 1.5)):
+            q = corners_from_candidate((0.8, 7.0, 0.0, 0.0, xs, ys), bbox)
+            got = turns_that_fit(_boxes(nx, ny), q)
+            assert {0, 2} <= set(got), ((nx, ny), (xs, ys), got)
+
+
 def test_the_tolerance_is_the_documented_one():
     assert TURNED_SHAPE_TOLERANCE == pytest.approx(1.25)
 

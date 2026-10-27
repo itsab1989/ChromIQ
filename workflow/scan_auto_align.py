@@ -134,12 +134,18 @@ ORIENTATION_MARGIN = 0.15
 #: read: with a chart whose colours run down its columns chosen for a scan
 #: whose colours run along its rows, the quarter turn read 0.998 and was
 #: ACCEPTED, 30 patches out, on both scanner lids (4.3.17 did the same).
-#: A scanner and a camera keep a patch's shape, so the right way up stretches
-#: it by nothing; a view off square foreshortens one axis, and that is what
-#: the tolerance is for. 1.25 lets a quarter turn through only when the chart
-#: is within about 12 % of square (where the turned grid really is a
-#: plausible placement and the colours must decide, as before), so the
-#: charts that are clearly not square are the only ones it changes.
+#:
+#: WHERE 1.25 COMES FROM. It is not a measured value. It is the 12 %
+#: ``aspect_tol`` of :func:`quad_is_sane` in another form: in the chart's own
+#: outline, a quarter turn of a chart of aspect B stretches the patches by B
+#: squared relative to the right way up, and sqrt(1.25) = 1.118, so a quarter
+#: turn is still tried on a chart within about 12 % of square (where the
+#: turned grid really is a plausible placement and the colours must decide,
+#: as before) and on no chart further from square. No photograph or scan was measured for how much a camera
+#: view off square, or a scanner with different x and y resolutions,
+#: foreshortens one axis; that is why the recogniser's own way up and its
+#: half turn are never left out, whatever this tolerance says (review r7 of
+#: 4.3.18, SF-1; :func:`turns_that_fit`).
 TURNED_SHAPE_TOLERANCE = 1.25
 
 #: How many whole patch pitches, in each direction along the chart's own rows
@@ -515,12 +521,21 @@ def turns_that_fit(boxes: Sequence, quad: Sequence[tuple[float, float]],
     as in :func:`orientation_scores`) give this chart's patches the shape
     they have on paper, inside *quad*.
 
-    A way up is kept when it stretches the patches at most *tolerance* times
-    more than the way up that stretches them least (see
-    :data:`TURNED_SHAPE_TOLERANCE`). Turning by half keeps the shape, so ``k``
-    and ``k + 2`` always stand or fall together, and on a chart within about
-    12 % of square all four are kept, exactly as before. Every way up is kept
-    when the shape cannot be measured."""
+    The recogniser's own way up (``k = 0``) and its half turn (``k = 2``) are
+    ALWAYS kept: by construction ``k = 0`` lays the chart's x axis along the
+    recogniser's own x scale (:func:`corners_from_candidate`, and a quad
+    :func:`pitch_search` moves keeps that), so it can never be the squeezed
+    grid this rule is for, and the half turn has the same shape. Only the
+    quarter turns (``k = 1`` and ``k = 3``) can be left out: each is kept when
+    it stretches the patches at most *tolerance* times more than the way up
+    that stretches them least (see :data:`TURNED_SHAPE_TOLERANCE`), so on a
+    chart within about 12 % of square all four are kept, exactly as before.
+    Every way up is kept when the shape cannot be measured.
+
+    Review r7 of 4.3.18, SF-1: before this, ``k = 0`` itself could be left
+    out. On a nearly square chart (about 1.12 to 1.25) seen with one axis
+    foreshortened by a quarter, the quarter turn stretched the patches less
+    than the true way up, and the true placement was never scored."""
     if not boxes or len(quad) != 4:
         return [0, 1, 2, 3]
     bbox = (min(b.x1 for b in boxes), min(b.y1 for b in boxes),
@@ -531,7 +546,8 @@ def turns_that_fit(boxes: Sequence, quad: Sequence[tuple[float, float]],
         return [0, 1, 2, 3]
     least = min(abs(v) for v in stretch)
     allowed = least + math.log(max(1.0, float(tolerance)))
-    return [k for k, v in enumerate(stretch) if abs(v) <= allowed + 1e-9]
+    fits = {k for k, v in enumerate(stretch) if abs(v) <= allowed + 1e-9}
+    return sorted(fits | {0, 2})
 
 
 def _pitch_frame(boxes: Sequence, quad: Sequence[tuple[float, float]]):
@@ -969,9 +985,15 @@ def auto_align(scanin_exe: str | Path,
             reverse=True)
         rho, k = ranked[0]
         margin = rho - ranked[1][0]
-        # ...but whether ANY way up reads this chart is still asked of all
-        # four, so a refusal names the same reason it did before: a misfit
-        # quarter turn that reads well is not "four equally bad readings".
+        # `margin_of_all` sets the best way up that fits against the other
+        # three, ON PURPOSE including the quarter turns that do not fit. A
+        # misfit turn that reads well pulls it below ORIENTATION_MARGIN, so
+        # when the fitting ways up read below the floor the refusal is
+        # off-the-patches (M-SCAN-ALIGN-OFF-PATCHES, whose last paragraph
+        # says to check the chart chosen), not "one way up found that does
+        # not match". That is the wrong-chart case of fix round r7 of 4.3.18,
+        # a squeezed grid that read 0.998, and
+        # test_the_wrong_chart_is_no_longer_accepted_turned pins the reason.
         margin_of_all = rho - max(
             (-9.0 if s is None else s for kk, s in enumerate(scores)
              if kk != k), default=-9.0)
