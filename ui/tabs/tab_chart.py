@@ -25141,7 +25141,6 @@ class TabChart(QWidget):
                     self._log.appendPlainText(f"wrote {e.name}")
             except Exception:  # noqa: BLE001 — never block on the sidecars
                 log.warning("chart sidecar export failed", exc_info=True)
-            self._write_turned_i1profiler_export(ti2, stem)
             # If this chart was laid out in fixed order (-r "Preserve Patch
             # Order", e.g. a pre-shuffled generate-colour-sets / editor-recipe
             # layout) but its colours are actually well mixed, upgrade the tag so
@@ -25162,6 +25161,14 @@ class TabChart(QWidget):
             if deferred is not None:
                 self._declare_after_rebuild = None
                 self._declare_control_strip(deferred)
+            # THE TURNED i1PROFILER EXPORT DESCRIBES THE FINAL CHART TOO (beta).
+            # It sat beside the other sidecars, before the auto-tag and before
+            # the guard, so it was written for bytes that were then re-tagged
+            # or put back (Restore Used Chart): its order file named a SHA-256
+            # no chart on disk had, and its patch list could be another
+            # chart's (review 4.3.17 r1, S7). Here the .ti2 is the one that
+            # stays, whichever of the two it is.
+            self._write_turned_i1profiler_export(ti2, stem)
             # #137 decision 5: which calibration this run's chart was made
             # with, read from the FINAL sidecar (after the guard above).
             self._record_calibration_used(ti2)
