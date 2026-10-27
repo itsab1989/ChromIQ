@@ -75,9 +75,12 @@ def test_an_i1pro2_chart_from_7_mm_gets_its_file(short_charts, tmp_path, L):
     note = files.note.read_text(encoding="utf-8")
     assert "i1Pro 2: load the file ending in -i1profiler-turned-i1Pro2.txf" \
         in note
-    # the i1Pro 2 file is still said to be unchecked in i1Profiler
-    assert "The i1Pro 2 file is written by the same rules, but it could not " \
-           "be opened in i1Profiler" in note
+    # checked in i1Profiler 3.8.6 since 2026-10-28 (A4 with 7 mm patches
+    # 612/612 among them), and the note says which i1Profiler it needs
+    assert "could not be opened in i1Profiler" not in note
+    assert ("in i1Profiler 3.8.6, the last version that supports the i1Pro 2, "
+            "with the i1Pro 2 file") in note
+    assert "i1Profiler 3.8.6 or older" in note
 
 
 def test_a_7_mm_file_sits_at_the_bottom_of_the_i1pro2_slider(short_charts,

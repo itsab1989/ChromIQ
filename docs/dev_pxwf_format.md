@@ -107,11 +107,14 @@ When present, each Object gets:
     only 26 of the 702 patches of pharmacist's 3-page file in i1Profiler's
     cell. `write_pwxf(emit_locations=True)` followed it and now follows the
     measured rule (`i1p_location`, `i1p_page_rows` in
-    `workflow/i1profiler_export.py`; `tests/test_i1profiler_grid_rule.py`
-    checks it against pharmacist's files when they are on disk). Nothing in
+    `workflow/i1profiler_export.py`;
+    `tests/test_i1profiler_turned_grid_check.py::test_write_pwxf_puts_every_patch_where_i1profiler_put_it`
+    checks it against pharmacist's files and X-Rite's own `.mxf` when they
+    are on disk). Nothing in
     ChromIQ writes Location tags itself; the probe scripts do.
   - X-Rite's `RGB_default-i1iO.mxf` (the i1iO table, 4 pages) does NOT follow
-    this rule (71 of 2033); the i1iO lays its pages out by its own rules, and
+    this rule: of its 2033 patches only 71 are where the rule puts them and
+    1962 are elsewhere. The i1iO lays its pages out by its own rules, and
     nothing here is claimed for it.
 - **How many columns i1Profiler makes, handheld i1Pro 2 / i1Pro 3** (3.8.8
   measured for the cap and the page; the balancing step agrees with every

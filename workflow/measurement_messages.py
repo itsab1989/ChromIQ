@@ -1581,6 +1581,11 @@ M_IMPORT_MISMATCH = _m(
 #: {cols} and {rows} are the order's grid (step 5 of the how-to note);
 #: {got_cols}, {got_rows}, {got_pages} the file's; {count} of {total} the
 #: patches the file does not put in the turned chart's cell.
+#: {got_rows} is i1Profiler's NumberPatchRows, the rows of its FIRST page, so
+#: on more than one page it is named that way (review 4.3.19 r1, SF-1), and
+#: a file that only differs in its PAGES (the columns are the note's) has a
+#: reason of its own: i1Profiler numbered its rows page by page, which is not
+#: the grid the note names, but the rows need not have missed the strips.
 _TURNED_GRID_DIFFERS = (
     "this file is a measurement of the turned i1Profiler chart, but "
     "i1Profiler laid that chart out on a different grid from the one the "
@@ -1593,6 +1598,38 @@ _TURNED_GRID_DIFFERS = (
     "file cannot show this, because "
     "i1Profiler writes the RGB values of its test-chart file into every "
     "measurement, whatever the instrument read.")
+_TURNED_GRID_DIFFERS_PAGED = (
+    "this file is a measurement of the turned i1Profiler chart, but "
+    "i1Profiler laid that chart out on a different grid from the one the "
+    "how-to note for this chart names. The note names this grid: columns: "
+    "{cols}, rows: {rows}, pages: 1, so that every row is one strip of your "
+    "printed sheet. The file says that i1Profiler made this grid: columns: "
+    "{got_cols}, pages: {got_pages}, rows on its first page: {got_rows}. "
+    "Its rows therefore did not line up with the strips on your sheet, so the "
+    "readings were taken on other patches than the ones they are recorded "
+    "for. The RGB values in the file cannot show this, because i1Profiler "
+    "writes the RGB values of its test-chart file into every measurement, "
+    "whatever the instrument read.")
+_TURNED_GRID_PAGES = (
+    "this file is a measurement of the turned i1Profiler chart, and "
+    "i1Profiler kept the {cols} columns that the how-to note for this chart "
+    "names, but it cut the chart over {got_pages} pages instead of laying it "
+    "out on one. The note names this grid: columns: {cols}, rows: {rows}, "
+    "pages: 1, so that every row is one strip of your printed sheet. The file "
+    "says that i1Profiler made this grid: columns: {got_cols}, pages: "
+    "{got_pages}, rows on its first page: {got_rows}. Because i1Profiler "
+    "cut the chart over {got_pages} pages, it numbered its rows page by page, "
+    "starting again at row 1 on each page, so it did not lay the chart out as "
+    "the note names, and the note's list of which i1Profiler row is which "
+    "strip of your sheet does not match the rows i1Profiler showed you. The "
+    "readings are on the right patches only if you carried on down your "
+    "sheet from page to page, reading row 1 of each new page on the strip "
+    "after the one you read last, and nothing in the file shows whether you "
+    "did. The RGB values in the file cannot show it either, because "
+    "i1Profiler writes the RGB values of its test-chart file into every "
+    "measurement, whatever the instrument read. Step 5 of the note says to "
+    "stop when i1Profiler shows any other grid, so ChromIQ does not file "
+    "this measurement.")
 _TURNED_GRID_CELLS_DIFFER = (
     "this file is a measurement of the turned i1Profiler chart, and its grid "
     "is the one the how-to note for this chart names (columns: {cols}, rows: "
@@ -1615,15 +1652,27 @@ _TURNED_GRID_WHAT_TO_DO = (
 M_IMPORT_TURNED_GRID = _m(
     "M-IMPORT-TURNED-GRID",
     "A measurement of the turned i1Profiler chart on another grid: the reasons",
-    "\n".join((_TURNED_GRID_DIFFERS, _TURNED_GRID_CELLS_DIFFER,
+    "\n".join((_TURNED_GRID_DIFFERS, _TURNED_GRID_DIFFERS_PAGED,
+               _TURNED_GRID_PAGES, _TURNED_GRID_CELLS_DIFFER,
                _TURNED_GRID_WHAT_TO_DO)),
     approved=False)
 
 
 def turned_grid_differs_reason(cols: int, rows: int, got_cols: int,
                                got_rows: int, got_pages: int) -> str:
-    """{reason}: i1Profiler made another grid than the order names."""
-    return (tr(_TURNED_GRID_DIFFERS).format(
+    """{reason}: i1Profiler made another grid than the order names.
+
+    On one page {got_rows} is all of i1Profiler's rows; on more than one it is
+    the rows of the first page. With the note's columns and only the pages
+    different, the rows need not have missed the strips, and the reason says
+    exactly that (review 4.3.19 r1, SF-1)."""
+    if got_pages > 1 and got_cols == cols:
+        text = tr(_TURNED_GRID_PAGES)
+    elif got_pages > 1:
+        text = tr(_TURNED_GRID_DIFFERS_PAGED)
+    else:
+        text = tr(_TURNED_GRID_DIFFERS)
+    return (text.format(
         cols=cols, rows=rows, got_cols=got_cols, got_rows=got_rows,
         got_pages=got_pages) + " " + tr(_TURNED_GRID_WHAT_TO_DO))
 

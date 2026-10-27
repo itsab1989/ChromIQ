@@ -232,6 +232,71 @@ def test_the_planned_grid_split_over_two_pages_is_refused(turned_chart,
     assert not v.ok and "pages: 2" in v.reason
 
 
+# ---- review 4.3.19 r1, SF-1: only the PAGES differ ----------------------
+
+@pytest.fixture()
+def chart_360(tmp_path):
+    """The reviewer's case: 360 patches, 15 strips of 24 (the order asks for
+    24 x 15 on one page), which i1Profiler cut over 3 pages of 5 rows."""
+    ti2 = _chart(tmp_path / "p360", "P360", 360)
+    res = T.write_turned_export(ti2, exports_subdir(ti2.parent), "P360")
+    assert not res.skipped
+    plan = T.plan_for(ti2)
+    assert (plan.columns, plan.rows) == (24, 15)
+    return ti2, T.TurnedFiles(exports_subdir(ti2.parent), "P360"), plan
+
+
+def test_360_patches_on_3_pages_is_refused_without_claiming_the_rows_missed(
+        chart_360, tmp_path):
+    ti2, files, plan = chart_360
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "three.mxf",
+               columns=24, pages=3)
+    ti3, v = _import(mxf, ti2)
+    g = i1p_grid_of(ti3)
+    assert (g.columns, g.rows, g.pages) == (24, 5, 3)     # "rows: 5" = page 1
+    assert not v.ok                     # still refused: step 5 says stop
+    r = v.reason
+    assert ("i1Profiler kept the 24 columns that the how-to note for this "
+            "chart names, but it cut the chart over 3 pages") in r
+    assert "columns: 24, rows: 15, pages: 1" in r            # the note's grid
+    assert "columns: 24, pages: 3, rows on its first page: 5" in r
+    assert "numbered its rows page by page" in r
+    # Not the claim the review found false for this case:
+    assert "did not line up with the strips" not in r
+    assert "were taken on other patches" not in r
+    assert "rows: 5" not in r
+    assert r.endswith("import that file")
+
+
+def test_other_columns_on_several_pages_name_the_first_pages_rows(chart_360,
+                                                                   tmp_path):
+    ti2, files, plan = chart_360
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "wide.mxf",
+               columns=25, pages=3)
+    ti3, v = _import(mxf, ti2)
+    g = i1p_grid_of(ti3)
+    assert (g.columns, g.pages) == (25, 3)
+    assert not v.ok
+    assert (f"columns: 25, pages: 3, rows on its first page: {g.rows}"
+            in v.reason)
+    assert "did not line up with the strips" in v.reason
+    assert "kept the" not in v.reason
+
+
+def test_the_three_grid_reasons_are_chosen_by_columns_and_pages():
+    from workflow import measurement_messages as M
+    one = M.turned_grid_differs_reason(24, 15, 25, 15, 1)
+    paged = M.turned_grid_differs_reason(24, 15, 25, 5, 3)
+    pages = M.turned_grid_differs_reason(24, 15, 24, 5, 3)
+    assert "columns: 25, rows: 15, pages: 1" in one
+    assert "rows on its first page: 5" in paged
+    assert "did not line up" in one and "did not line up" in paged
+    assert "cut the chart over 3 pages" in pages
+    assert "did not line up" not in pages
+    for text in (one, paged, pages):
+        assert "{" not in text and "—" not in text
+
+
 # ---- a measurement of 4.3.17's anticlockwise .txf -------------------------
 
 def test_a_4317_anticlockwise_order_is_checked_by_its_grid_too(tmp_path):
@@ -333,13 +398,16 @@ def test_both_reasons_are_the_catalogues_and_end_with_the_way_out():
     from workflow import measurement_messages as M
     a = M.turned_grid_differs_reason(24, 21, 25, 21, 1)
     b = M.turned_grid_cells_differ_reason(24, 21, 3, 504)
-    for text in (a, b):
+    c = M.turned_grid_differs_reason(24, 21, 24, 7, 3)
+    d = M.turned_grid_differs_reason(24, 21, 25, 7, 3)
+    for text in (a, b, c, d):
         assert "{" not in text and "—" not in text
         assert text.startswith("this file is a measurement of the turned")
         assert text.endswith("import that file")
         assert "-i1profiler-turned-how-to.txt" in text
     assert not M.M_IMPORT_TURNED_GRID.approved
-    for part in (M._TURNED_GRID_DIFFERS, M._TURNED_GRID_CELLS_DIFFER,
+    for part in (M._TURNED_GRID_DIFFERS, M._TURNED_GRID_DIFFERS_PAGED,
+                 M._TURNED_GRID_PAGES, M._TURNED_GRID_CELLS_DIFFER,
                  M._TURNED_GRID_WHAT_TO_DO):
         assert part in M.M_IMPORT_TURNED_GRID.body
 

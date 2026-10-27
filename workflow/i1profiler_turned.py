@@ -40,7 +40,10 @@ an EARLIER order, so a measurement made from the older ``.txf`` still pairs,
 by the order ChromIQ wrote for it, and only when its device values agree
 (:func:`turned_match`).
 
-THE RULES, AND WHERE EACH COMES FROM (all measured in i1Profiler 3.8.8):
+THE RULES, AND WHERE EACH COMES FROM (measured in i1Profiler 3.8.8 with the
+i1Pro 3 files, and again in 3.8.6 with the i1Pro 2 files, 2026-10-28: A4
+504/504, Letter 506/506, A4 landscape 512/512, 4 x 6 and 5 x 7 inch with 10
+and 8 mm patches, A4 with 7 mm patches 612/612, every grid exact):
 
 * i1Profiler places patch-list entry ``j`` at column ``j // R``, row ``j % R``
   (column-major, ``R`` rows). So for row ``r`` and column ``c`` we need
@@ -54,9 +57,17 @@ THE RULES, AND WHERE EACH COMES FROM (all measured in i1Profiler 3.8.8):
   so the ``.txf`` asks for ONE tall page holding every row.
 * If its grid is not full i1Profiler adds grey fillers, so ChromIQ's own
   padding patches go into the list.
-* The device in a ``.txf`` is honoured only within i1Profiler's "Default
-  display device" family; otherwise the patch-size slider percent is read on
-  the wrong scale and the rows merge. Hence one file per family.
+* The device in a ``.txf``, and the default display device: measured in
+  i1Profiler 3.8.8, which offers only the i1Pro 3 family, an i1Pro 2 file is
+  opened as an i1Pro 3 one, the patch-size slider percent is read on the
+  wrong scale and the rows merge (30 x 22 for 27 x 24). Measured in
+  i1Profiler 3.8.6, which offers both families, the device written in the
+  file is used whichever family is the default: an i1Pro 2 file under an
+  i1Pro 3 default switched to the i1Pro 2 and laid out exactly, and so did
+  the reverse (2026-10-28_i1p386). So one file per family, and the note's
+  step 3 (set the default to your family) is harmless in 3.8.6 and what
+  3.8.8 needs; for the i1Pro 2, 3.8.6 or older is needed at all (X-Rite
+  removed it in 3.8.7, `I1PRO2_VERSION_NOTE`).
 * Rows are recognised by patch count plus expected colours, so a spacer would
   be counted as a patch: charts with spacers never qualify. Nor do the i1Pro
   (rev A to D), whose i1Profiler charts carry divider bars ChromIQ cannot draw
@@ -818,6 +829,34 @@ def write_turned_export(ti2: "str | Path", out_dir: "str | Path",
 # The note
 # ---------------------------------------------------------------------------
 
+#: i1Profiler's "Use legacy charts" draws its older chart, with divider bars
+#: between the patches (3.8.6, i1Pro 2: 55 x 15 on 2 pages for a 27 x 24
+#: chart). The files ask for it off (``UseLegacyTestChart="False"``); the
+#: note says to leave it off as well.
+LEGACY_CHARTS_NOTE = (
+    "Leave i1Profiler's “Use legacy charts” setting off. With it "
+    "on, i1Profiler draws its older chart, with divider bars between the "
+    "patches and a different grid, so its rows would not match your sheet. "
+    "The files ChromIQ writes ask for it off.")
+
+
+#: Which i1Profiler can open the i1Pro 2 file, and what happens in one that
+#: cannot (shared by the how-to note and the Preferences tooltip). X-Rite's
+#: own release notes (i1Profiler 3.8.8, "Version 3.8.7: Removes support for
+#: the i1Pro 2 and i1iO 2"), and the 2026-10-27 checks in i1Profiler 3.8.8
+#: (`ChromIQ-work/2026-10-27_pwxf_i1p_checks/results/summary.txt`): with only
+#: the i1Pro 3 family on offer, every i1Pro 2 file opened without a word on
+#: another grid (30 x 22 for 27 x 24, 26 x 20 for 24 x 21).
+I1PRO2_VERSION_NOTE = (
+    "For the i1Pro 2 you need i1Profiler 3.8.6 or older: X-Rite removed the "
+    "i1Pro 2 from i1Profiler in version 3.8.7, so newer versions do not offer "
+    "the i1Pro 2 family at all. If Default display device does not offer the "
+    "family of your instrument, the file for that instrument cannot work: "
+    "i1Profiler then opens it as a file for the other family, without a "
+    "warning, and lays it out on another grid, so its rows would not match "
+    "your sheet. Do not measure with it then.")
+
+
 def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
                    written_again: bool = False) -> str:
     """The plain-language note for a chart that qualifies.
@@ -843,11 +882,13 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
     parts.append("")
     parts.append(tr(
         "IMPORTANT: this is a beta. The layout was checked patch for patch "
-        "in i1Profiler 3.8.8 with the i1Pro 3 file. The i1Pro 2 file is "
-        "written by the same rules, but it could not be opened in i1Profiler "
-        "yet, so it has not been checked there. Nobody has yet read such a "
-        "sheet with a real instrument, or imported a real i1Profiler "
-        "measurement of one. Please check the result before you rely on it."))
+        "on A4, Letter, A4 landscape, 4 x 6 inch and 5 x 7 inch paper: in "
+        "i1Profiler 3.8.8 with the i1Pro 3 file, and in i1Profiler 3.8.6, "
+        "the last version that supports the i1Pro 2, with the i1Pro 2 "
+        "file. Nobody "
+        "has yet read such a sheet with a real instrument, or imported a real "
+        "i1Profiler measurement of one. Please check the result before you "
+        "rely on it."))
     parts.append("")
     if written_again:
         if plan.turn == CLOCKWISE:
@@ -905,12 +946,14 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
         "measure with: the i1Pro 2 family for an i1Pro 2, the i1Pro 3 family "
         "for an i1Pro 3. If it names the other family, i1Profiler reads the "
         "patch size on the wrong scale and the rows come out wrong."))
+    parts.append("   " + tr(I1PRO2_VERSION_NOTE))
     parts.append(tr(
         "4. Set User Mode to Advanced, choose Printer, then Profiling, and go "
         "to the Test Chart page (press Next on the Patch Set page). Under "
         "Page Data press Load and choose the file for your instrument (see "
         "above). When i1Profiler asks whether to copy the file to the assets "
         "folder, either answer is fine."))
+    parts.append("   " + tr(LEGACY_CHARTS_NOTE))
     parts.append(tr(
         "5. Check the chart i1Profiler now shows. It must be exactly "
         "this grid: columns: {cols}, rows: {rows}, pages: 1, patch width "

@@ -3393,6 +3393,7 @@ class SettingsDialog(QDialog):
 
         # The "turned" i1Profiler export (workflow.i1profiler_turned): one
         # ChromIQ print that i1Profiler can read too, after a quarter turn.
+        from workflow.i1profiler_turned import I1PRO2_VERSION_NOTE
         self._i1p_turned_check = QCheckBox(
             tr("Also write an i1Profiler chart that matches the printed "
                "ChromIQ sheet (i1Pro 2 and i1Pro 3, beta)"), self)
@@ -3429,6 +3430,7 @@ class SettingsDialog(QDialog):
                   "Plus (its i1Profiler rows are about twice as long as a "
                   "ChromIQ strip), the ColorMunki, the i1iO or the i1iSis, or "
                   "any other instrument."),
+               tr(I1PRO2_VERSION_NOTE),
                tr(
                   "Which charts: an RGB chart made by ChromIQ's layout engine "
                   "for the i1Pro, with no spacers between the patches and every "
@@ -3511,13 +3513,14 @@ class SettingsDialog(QDialog):
                   "already made. To read a chart that way, create it with this "
                   "option off."),
                tr(
-                  "This is a beta. The layout was checked patch for patch in "
-                  "i1Profiler 3.8.8 with the i1Pro 3 file. The i1Pro 2 file is "
-                  "written by the same rules, but it could not be opened in "
-                  "i1Profiler yet, so it has not been checked there. Nobody has "
-                  "yet read such a sheet with a real instrument or imported a "
-                  "real i1Profiler measurement of one. Check the result before "
-                  "you rely on it."),
+                  "This is a beta. The layout was checked patch for patch on "
+                  "A4, Letter, A4 landscape, 4 x 6 inch and 5 x 7 inch paper: "
+                  "in i1Profiler 3.8.8 with the i1Pro 3 file, and in "
+                  "i1Profiler 3.8.6, the last version that supports the "
+                  "i1Pro 2, with the i1Pro 2 file. Nobody has yet read such a "
+                  "sheet with a "
+                  "real instrument or imported a real i1Profiler measurement "
+                  "of one. Check the result before you rely on it."),
                tr(
                   "With this off (the default), nothing changes: Create Chart "
                   "writes exactly the files it always wrote."),
