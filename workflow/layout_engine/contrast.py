@@ -131,12 +131,23 @@ def low_contrast_passes(slot_rgbs: list[tuple[int, int, int]], steps_in_pass: in
 
 
 _BLACK_OR_WHITE = ((0, 0, 0), (255, 255, 255))
+_PAPER = (255, 255, 255)
+
+
+def _bar_gap(bar: tuple[int, int, int], a: tuple[int, int, int],
+             b: tuple[int, int, int]) -> float:
+    """The luminance gap between a bar of colour *bar* and the nearer in
+    brightness of the two things beside it."""
+    lb = luminance(bar)
+    return min(abs(luminance(a) - lb), abs(luminance(b) - lb))
 
 
 def drawn_low_contrast_passes(
         slot_rgbs: list[tuple[int, int, int]], steps_in_pass: int, *,
         spacer_mode: str, spacers_drawn: bool,
         spacer_overrides: "dict[int, tuple[int, int, int]] | None" = None,
+        edge_spacers: bool = False,
+        reads_strips: bool = True,
 ) -> list[int]:
     """The strips the low-contrast note may name: only where it is TRUE.
 
@@ -145,29 +156,53 @@ def drawn_low_contrast_passes(
     It was asked about every chart, so on the default "Coloured" spacers (the
     picker keeps every drawn spacer far from both neighbours) it was a false
     alarm, and with Spacers "None" (no bar at all) it named the pairs with the
-    HIGHEST patch-to-patch contrast on the sheet (4.3.19). So:
+    HIGHEST patch-to-patch contrast on the sheet (4.3.19). So a strip is named
+    only for a black or white bar that is really drawn and really close in
+    brightness to a patch beside it:
 
-    * a strip is tested only when black-and-white spacers are really drawn
-      (``spacer_mode == "bw"`` and a spacer has room on the sheet);
-    * a spacer the person recoloured by hand (``spacer_overrides``, keyed by
-      ``strip * steps_in_pass + index``, the renderer's own key) counts only
-      when the colour chosen is itself black or white. For a dark/light pair
-      every black or white bar is close to one of the two, so the test is the
-      same one. Any other hand-set colour is not what the note describes, and
-      that boundary is left out rather than guessed at.
+    * nothing is tested unless bars are drawn (``spacers_drawn``, a spacer has
+      room on the sheet, and ``spacer_mode`` is not "none", which leaves the
+      gap as paper);
+    * nothing is tested on a chart its instrument reads patch by patch
+      (``reads_strips`` False: the SpectroScan and the CR30, so every
+      honeycomb). Such an instrument is put on each patch by position and
+      never looks for a patch edge, which is what the note is about
+      (review 4.3.19 r1, N5);
+    * a bar ChromIQ coloured itself is tested under "Black & white" only
+      (`spacer_rgb`, the same bar the renderer draws). Under "Coloured" the
+      picker keeps every bar far from both neighbours;
+    * a bar the person recoloured by hand (``spacer_overrides``, keyed by
+      ``strip * steps_in_pass + index``, the renderer's own key) is judged by
+      ITS OWN brightness against both neighbours when it is black or white,
+      in any spacer mode: a hand-set black bar between a dark and a mid patch
+      looks like the dark one whatever the mode (review r1, N4). A hand-set
+      colour that is neither black nor white is not what the note describes,
+      and that boundary is left out rather than guessed at;
+    * with ``edge_spacers`` the bars before the first and after the last patch
+      are drawn too, between the paper and that patch, and under "Black &
+      white" they are tested the same way: a black bar beside a very dark
+      first patch is as hard to find as one between two patches (r1, N3).
+      These bars cannot be recoloured by hand.
     """
-    if spacer_mode != "bw" or not spacers_drawn:
+    if spacer_mode == "none" or not spacers_drawn or not reads_strips:
         return []
+    bw = spacer_mode == "bw"
     flagged: list[int] = []
     n_passes = (len(slot_rgbs) + steps_in_pass - 1) // steps_in_pass
     for p in range(n_passes):
         col = slot_rgbs[p * steps_in_pass:(p + 1) * steps_in_pass]
+        gaps: list[float] = []
         for j, (a, b) in enumerate(zip(col, col[1:])):
             ov = spacer_overrides.get(p * steps_in_pass + j) \
                 if spacer_overrides else None
-            if ov is not None and tuple(ov) not in _BLACK_OR_WHITE:
-                continue
-            if min_boundary_contrast([a, b]) < LOW_CONTRAST_THRESHOLD:
-                flagged.append(p)
-                break
+            if ov is not None:
+                if tuple(ov) in _BLACK_OR_WHITE:
+                    gaps.append(_bar_gap(tuple(ov), a, b))
+            elif bw:
+                gaps.append(_bar_gap(spacer_rgb(a, b), a, b))
+        if bw and edge_spacers and col:
+            gaps.append(_bar_gap(spacer_rgb(_PAPER, col[0]), _PAPER, col[0]))
+            gaps.append(_bar_gap(spacer_rgb(col[-1], _PAPER), col[-1], _PAPER))
+        if any(g < LOW_CONTRAST_THRESHOLD for g in gaps):
+            flagged.append(p)
     return flagged

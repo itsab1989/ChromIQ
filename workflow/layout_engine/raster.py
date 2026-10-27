@@ -4224,13 +4224,17 @@ def render_pages(
         page_geoms.append(_geom_rows)
         _ink_tops.append(_ink_top)
 
-    # THE NOTE ONLY WHERE IT IS TRUE (4.3.19): the guard's bar is the "Black &
-    # white" rule, so it is asked only when such bars are really drawn, with
-    # the hand-set colours the drawing loop above used.
+    # THE NOTE ONLY WHERE IT IS TRUE (4.3.19): asked only about black or white
+    # bars really drawn, with the hand-set colours and the edge bars the
+    # drawing loop above used, and only on a chart read along its strips. A
+    # SpectroScan or CR30 chart, and so every honeycomb, is read patch by patch
+    # at a known position, so no patch edge is looked for (review r1, N5).
+    from .instruments import reads_along_strips
     flagged = contrast.drawn_low_contrast_passes(
         rgb_by_slot, steps, spacer_mode=spacer_mode,
-        spacers_drawn=sp_px > 0 or (ss_hex and _ring_px > 0),
-        spacer_overrides=spacer_overrides)
+        spacers_drawn=sp_px > 0, spacer_overrides=spacer_overrides,
+        edge_spacers=bool(edge_spacers),
+        reads_strips=reads_along_strips(geom) and not ss_hex)
     return RenderResult(images=images, low_contrast_passes=flagged,
                         low_contrast_labels=[label_strip(p + 1)
                                              for p in flagged],

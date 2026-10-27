@@ -136,6 +136,137 @@ def test_a_hand_set_red_spacer_reaches_the_renderer(tmp_path, chart_with_two_pai
     assert list(res.low_contrast_passes) == [4]
 
 
+# ---- review 4.3.19 r1: the edge bars (N3) ---------------------------------
+
+def test_an_edge_bar_beside_a_very_dark_first_or_last_patch_is_tested():
+    """With "Edge spacers" the bar before the first patch sits between the
+    paper and that patch. Under "Black & white" it is black (the paper is
+    white), so beside a very dark patch it is as hard to find as any bar."""
+    kw = dict(spacer_mode="bw", spacers_drawn=True)
+    for slots in ([DARK, MID, MID, MID], [MID, MID, MID, DARK]):
+        assert contrast.drawn_low_contrast_passes(
+            slots, 4, edge_spacers=True, **kw) == [0], slots
+        assert contrast.drawn_low_contrast_passes(
+            slots, 4, edge_spacers=False, **kw) == [], slots
+    # A very light end patch gets a black bar too, far from both sides.
+    for slots in ([LIGHT, MID, MID, MID], [MID, MID, MID, LIGHT]):
+        assert contrast.drawn_low_contrast_passes(
+            slots, 4, edge_spacers=True, **kw) == [], slots
+    # Only "Black & white" draws a black or white edge bar.
+    assert contrast.drawn_low_contrast_passes(
+        [DARK, MID, MID, MID], 4, spacer_mode="colored", spacers_drawn=True,
+        edge_spacers=True) == []
+
+
+def test_the_edge_bar_is_the_one_the_renderer_draws():
+    from workflow.layout_engine.colorants import luminance
+    bar = contrast.spacer_for_mode("bw", (255, 255, 255), DARK)
+    assert bar == (0, 0, 0)
+    assert abs(luminance(bar) - luminance(DARK)) < contrast.LOW_CONTRAST_THRESHOLD
+
+
+def test_a_strip_that_starts_on_black_is_named_with_edge_spacers(tmp_path):
+    steps = _steps(tmp_path)
+    rows = [GREY] * (4 * steps)
+    rows[1 * steps] = BLACK                   # strip B starts on black
+    rows[3 * steps - 1] = BLACK               # strip C ends on black
+    ti1 = tmp_path / "ends.ti1"
+    _write_ti1(ti1, rows)
+    res = _build(tmp_path, ti1, "bw", "ends")          # edge_spacers on
+    assert list(res.low_contrast_passes) == [1, 2]
+    assert res.low_contrast_labels == ["B", "C"]
+    off = chart.build_chart(
+        str(ti1), str(tmp_path / "ends-off"), instrument="i1", paper="A4",
+        randomize=False, dpi=36, spacer_on=True, spacer_mode="bw",
+        edge_spacers=False)
+    # No edge bars drawn: the black end patches stand next to bare paper.
+    assert list(off.low_contrast_passes) == []
+
+
+# ---- review 4.3.19 r1: a hand-set black or white bar, by its own gap (N4) --
+
+def test_a_hand_set_black_bar_between_a_dark_and_a_mid_patch_is_named():
+    slots = [MID, MID, MID, DARK, MID, MID]   # boundary 3: dark | mid
+    black = {3: (0, 0, 0)}
+    for mode in ("bw", "colored"):
+        assert contrast.drawn_low_contrast_passes(
+            slots, 6, spacer_mode=mode, spacers_drawn=True,
+            spacer_overrides=black) == [0], mode
+    # ChromIQ's own bar there is white under "Black & white", far from both.
+    assert contrast.drawn_low_contrast_passes(
+        slots, 6, spacer_mode="bw", spacers_drawn=True) == []
+    # A hand-set white bar beside a light patch, in "Coloured" mode.
+    slots_l = [MID, MID, LIGHT, MID, MID, MID]
+    assert contrast.drawn_low_contrast_passes(
+        slots_l, 6, spacer_mode="colored", spacers_drawn=True,
+        spacer_overrides={2: (255, 255, 255)}) == [0]
+    # ...and a hand-set black bar far from both its neighbours is fine.
+    assert contrast.drawn_low_contrast_passes(
+        slots_l, 6, spacer_mode="colored", spacers_drawn=True,
+        spacer_overrides={2: (0, 0, 0)}) == []
+
+
+@pytest.mark.parametrize("mode", ["bw", "colored"])
+def test_a_hand_set_colour_that_is_not_black_or_white_is_never_named(mode):
+    slots = [MID, MID, MID, DARK, LIGHT, MID]
+    for colour in ((255, 0, 0), (12, 12, 12), (128, 128, 128)):
+        got = contrast.drawn_low_contrast_passes(
+            slots, 6, spacer_mode=mode, spacers_drawn=True,
+            spacer_overrides={3: colour})
+        assert got == [], (mode, colour)
+
+
+def test_spacers_none_draws_no_hand_set_bar_either():
+    assert contrast.drawn_low_contrast_passes(
+        [MID, DARK, MID, MID], 4, spacer_mode="none", spacers_drawn=True,
+        spacer_overrides={0: (0, 0, 0)}) == []
+
+
+def test_a_hand_set_black_bar_reaches_the_renderer_in_coloured_mode(
+        tmp_path, chart_with_two_pairs):
+    ti1, steps = chart_with_two_pairs
+    res = _build(tmp_path, ti1, "colored", "ovc",
+                 spacer_overrides={str(2 * steps + 3): "#000000"})
+    assert list(res.low_contrast_passes) == [2]
+    assert res.low_contrast_labels == ["C"]
+
+
+# ---- review 4.3.19 r1: charts read patch by patch (N5) ---------------------
+
+def test_a_chart_read_patch_by_patch_gets_no_note():
+    """The SpectroScan's table and the CR30 are put on each patch by position
+    and never look for a patch edge, so the note's "the instrument may find
+    that patch edge less easily" says nothing true about them."""
+    from workflow.layout_engine import instruments
+    assert instruments.READ_PATCH_BY_PATCH == {"SS", "CR30"}
+    assert contrast.drawn_low_contrast_passes(
+        [MID, DARK, LIGHT, MID], 4, spacer_mode="bw", spacers_drawn=True,
+        edge_spacers=True, reads_strips=False) == []
+    for key in ("i1", "p3", "CM", "41", "51"):
+        assert instruments.reads_along_strips(instruments.build(key)), key
+    for key in ("SS", "CR30"):
+        assert not instruments.reads_along_strips(instruments.build(key)), key
+
+
+@pytest.mark.parametrize("inst,hexagons", [("SS", False), ("SS", True),
+                                           ("CR30", False), ("CR30", True)])
+def test_spectroscan_and_cr30_charts_never_name_a_strip(tmp_path, inst,
+                                                        hexagons):
+    ti1 = tmp_path / "bwbw.ti1"
+    _write_ti1(ti1, [BLACK, WHITE] * 60)
+    res = chart.build_chart(
+        str(ti1), str(tmp_path / f"{inst}{hexagons}"), instrument=inst,
+        paper="A4", randomize=False, dpi=36, spacer_on=True,
+        spacer_mode="bw", edge_spacers=True, hflag=hexagons)
+    assert list(res.low_contrast_passes) == []
+    # the same patches on a strip reader are named
+    strip = chart.build_chart(
+        str(ti1), str(tmp_path / f"i1{inst}{hexagons}"), instrument="i1",
+        paper="A4", randomize=False, dpi=36, spacer_on=True,
+        spacer_mode="bw", edge_spacers=True)
+    assert list(strip.low_contrast_passes)
+
+
 # ---- the log line ---------------------------------------------------------
 
 def _line(labels, randomized=True):

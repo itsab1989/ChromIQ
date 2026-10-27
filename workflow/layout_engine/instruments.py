@@ -342,6 +342,20 @@ def is_hexagonal(geom) -> bool:
     return bool(getattr(geom, "hexagonal", False))
 
 
+#: Instruments that read a chart PATCH BY PATCH, at a position, instead of
+#: along a strip: the SpectroScan's table moves its head to each patch from the
+#: chart's reference points, and a CR30 is set down on each patch by hand. They
+#: never look for the edge between a patch and the spacer beside it.
+READ_PATCH_BY_PATCH = frozenset({"SS", "CR30"})
+
+
+def reads_along_strips(geom) -> bool:
+    """Whether *geom*'s instrument reads its chart along strips, finding each
+    patch edge by contrast (the i1Pro family, the ColorMunki, the DTP strip
+    readers), rather than patch by patch at a position."""
+    return str(getattr(geom, "key", "") or "") not in READ_PATCH_BY_PATCH
+
+
 def hex_capable(key: str) -> bool:
     """Whether *key* can be laid out with hexagonal patches.
 
@@ -692,16 +706,18 @@ def _row_rotation(v) -> int:
     return d if d in (0, 90, 180, 270) else 0
 
 
-def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
+def geom_from_build_kwargs(kw: dict) -> Geom:
     """Build a :class:`Geom` from a recipe ``build_kwargs()`` dict using every
     geometry-affecting key, so capacity estimates can never silently drift from
     the actual render (#93). Rendered-furniture reservations (label band, bottom
     sheet text / stamp) are applied too — the same step the renderer uses.
 
-    When *thresholds* (a ``{"L","R","T","B": mm}`` minimum-margin dict) is given,
-    the page margins are first raised so the realised patch area meets those
-    minimums — so both the capacity estimate and the render honour the user's
-    margin thresholds from this one chokepoint (#93)."""
+    No margin is ever raised here. The minimum margins of Preferences >
+    Margin Thresholds are checked and reported (the Measured-from-Preview
+    panel) and can pre-fill the margin boxes, but the margins asked for are
+    the margins laid out (Knut's model, #93). The clamp that once sat here,
+    ``margins_fit`` and a ``thresholds`` argument, was only ever called with
+    ``None`` and was removed in 4.3.19 (review r1 N8)."""
     # CM/SS/CR30 have no native clip border, but can still carry a notes/clip
     # band when clip content is on — reserve that band so capacity reflects it
     # (#93). CR30 joined this tuple in #159: the design says its clip band is
@@ -713,9 +729,6 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
             and kw.get("clip_content_mode", "off") not in ("off", None)
             and not kw.get("clip_band")):
         kw = {**kw, "clip_band": float(kw.get("clip_border_width") or 26.0)}
-    if thresholds:
-        from . import margins_fit   # lazy: imports this module
-        kw, _notes = margins_fit.clamp_margins_to_thresholds(kw, thresholds)
     # Area-first layout: derive patch_w/patch_h from the target grid, unless the
     # caller already set explicit sizes. Lazy import (it builds geoms via us).
     # THE SAME LABEL RULE THE AREA-FIRST PATCH SIZE WAS CHOSEN WITH (Basti,
