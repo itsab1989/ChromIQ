@@ -8818,8 +8818,10 @@ of I.14 are unchanged except where this block says so.
     ChromIQ. Both are filed by §I.5 as before. An i1Profiler measurement
     never says either: converted from its `.mxf` / `.cxf` it says
     `"ChromIQ"` (with the descriptor "Measurement data converted from
-    i1Profiler CxF"), converted from its CGATS `.txt` it says
-    `"Argyll txt2ti3"`. Any other file, or one whose header cannot be read,
+    i1Profiler CxF"), converted from its CGATS `.txt` by txt2ti3 it says
+    `"Argyll target"` (measured with ArgyllCMS 3.5.0's txt2ti3, review 4.3.18
+    r3, SF-2; the r2 text said "Argyll txt2ti3", which no Argyll tool
+    writes). Any other file, or one whose header cannot be read,
     is still asked, and refused when it fits both
     (`workflow/measurement_import.py::read_from_the_sheet_as_printed`).
   * **A copy pairs like the original** (review 4.3.18 r2, NIT5). Duplicate

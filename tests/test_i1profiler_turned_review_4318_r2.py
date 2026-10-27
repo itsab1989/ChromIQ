@@ -7,7 +7,8 @@
   chartread", or ChromIQ's own turned-pairing keyword) is filed by SAMPLE_ID
   as before; anything else, including both ways an i1Profiler measurement
   arrives (converted from .mxf: "ChromIQ"; converted from CGATS .txt by
-  txt2ti3: "Argyll txt2ti3"), is still asked and refused when it fits both.
+  txt2ti3: "Argyll target", as ArgyllCMS 3.5.0 writes it; r3 SF-2), is
+  still asked and refused when it fits both.
 * NIT5: a copy (Duplicate run, a new project from a chart folder) carried the
   order file of one place only, so an earlier order kept beside the original
   chart was lost: the copy paired and refused differently from the original.
@@ -103,7 +104,7 @@ def test_a_file_chromiq_already_paired_through_the_turned_order_is_filed(
     assert assess(ti3, uniform).ok
 
 
-@pytest.mark.parametrize("originator", ["ChromIQ", "Argyll txt2ti3",
+@pytest.mark.parametrize("originator", ["ChromIQ", "Argyll target",
                                         "X-Rite i1Profiler", None])
 def test_a_file_that_cannot_say_where_it_was_read_is_still_refused(
         uniform, tmp_path, originator):

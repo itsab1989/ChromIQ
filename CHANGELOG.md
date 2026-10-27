@@ -14,6 +14,8 @@
 
 ### Fixed
 - **"Edge spacers (bracket each strip)" under Expert Options is greyed only while ticking it cannot change your printed sheet**, which is on the i1Pro, i1Pro 3 Plus and ColorMunki (ChromIQ always brackets their strips anyway) and on a chart with no space between its patches; it stays available on the SpectroScan and the CR30 whenever there is space, also with Spacers set to None, its tooltip says why when it is greyed, and your tick is always kept.
+- **The info text of "Edge spacers (bracket each strip)" now says what the box really does.** It used to say that ticking it does not reduce the patch count. It can: ticking it keeps one extra space, as wide as the space between two patches, before the first and after the last patch of every strip, so on the SpectroScan and the CR30 a strip can hold one patch fewer and a chart can need another page (for example 600 patches on a CR30 with a 1 mm gap and Spacers set to None: 21 instead of 22 patches per strip, and 3 pages instead of 2). The text now also says that the box only matters when there is space between the patches, and that ChromIQ always does this on the i1Pro, i1Pro 3 Plus and ColorMunki. Nothing about your charts changes.
+- **The info button of "Straight strips" is hidden together with its box.** On every chart except a CR30 honeycomb the box is hidden, but its info button was left behind on its own, for example on a SpectroScan honeycomb.
 
 ## v4.3.17
 

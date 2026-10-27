@@ -61,7 +61,7 @@ def windows(monkeypatch, tmp_path):
 _SPECTRAL_ONLY_TI3 = """CTI3
 
 DESCRIPTOR "Argyll Calibration Target chart information 3"
-ORIGINATOR "Argyll txt2ti3"
+ORIGINATOR "Argyll target"
 DEVICE_CLASS "OUTPUT"
 COLOR_REP "iRGB_XYZ"
 SPECTRAL_BANDS "3"

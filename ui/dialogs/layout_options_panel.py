@@ -1394,13 +1394,38 @@ class LayoutOptionsPanel(QWidget):
         g.addWidget(self.edge_spacers_cb, 10, 1)
         g.addWidget(TooltipButton(
             tr("Edge spacers"),
-            tr("Adds a spacer before the first patch and after the last patch of "
-               "every strip — the way ArgyllCMS printtarg does. It's optional: "
-               "the instrument finds each strip from the white border the layout "
-               "already leaves at both ends, so this isn't needed for reliable "
-               "reading. It fits in space the layout already reserves, so it "
-               "doesn't reduce the patch count. Turn it on if you prefer the "
-               "printtarg look or want an extra separator at the strip ends."),
+            # Review 4.3.18 r3, SF-1: the old text said this "doesn't reduce
+            # the patch count". It does: geometry.py reserves one inter-patch
+            # space at each end of every strip when the box is ticked.
+            tr("When this box is ticked, every strip gets one extra space before "
+               "its first patch and one after its last patch, each as wide as "
+               "the space between two patches. With Coloured or Black & white "
+               "spacers a spacer is printed there; with Spacers set to None it "
+               "stays plain paper. This is how ArgyllCMS printtarg lays out its "
+               "charts.\n\n"
+               "**It can cost patches.** The two extra spaces come out of the "
+               "length of every strip, so a strip can hold one patch fewer, and "
+               "a chart with many patches may then need another page. With "
+               "\"Prioritise chart area, then fit patches to it\" the patches "
+               "are sized again to fill the area, so there the count can also "
+               "move by a patch or two either way. Watch the "
+               "patch count and the number of pages beside the preview when you "
+               "change it.\n\n"
+               "**It only makes a difference when there is space between the "
+               "patches**: when you have set an inter-patch gap, or (except on "
+               "the SpectroScan) chosen Coloured or Black & white spacers. When "
+               "the patches touch, there is nothing to add, so the box changes "
+               "nothing and is greyed.\n\n"
+               "**On the SpectroScan and the CR30 it is up to you.** These "
+               "instruments find each strip without it, from the white border "
+               "the layout already leaves at both ends, so you can read the "
+               "chart reliably either way. Tick it if you prefer the printtarg "
+               "look or want an extra separator at the ends of each strip; "
+               "leave it clear to fit as many patches as possible.\n\n"
+               "**On the i1Pro, i1Pro 3 Plus and ColorMunki, ChromIQ always "
+               "does this**, whatever the box says, so the box is greyed for "
+               "them. Your tick is kept for an instrument where it does make a "
+               "difference."),
             self), 10, 2)
 
         # ---- Straight strips: the honeycomb, turned 30 degrees (#159) ----
@@ -1413,7 +1438,10 @@ class LayoutOptionsPanel(QWidget):
             tr("Straight strips (turn the honeycomb 30°)"), self)
         self.hex_flat_top_cb.toggled.connect(self._emit)
         g.addWidget(self.hex_flat_top_cb, 11, 1)
-        g.addWidget(TooltipButton(
+        # The (i) button is kept so it can be hidden WITH the box: left on its
+        # own it stood as an orphan on every chart that hides the box
+        # (review 4.3.18 r3, N-4; SpectroScan honeycomb, photo 02).
+        self.hex_flat_top_info = TooltipButton(
             tr("Straight strips"),
             tr("Turns the honeycomb 30°, so every strip runs straight down the "
                "page instead of zigzagging from side to side.\n\n"
@@ -1435,7 +1463,8 @@ class LayoutOptionsPanel(QWidget):
                "the margins or patch size if you want it back.\n\n"
                "Only for the CR30 with hexagon patches. The option is hidden "
                "otherwise, and has no effect on any other chart."),
-            self), 11, 2)
+            self)
+        g.addWidget(self.hex_flat_top_info, 11, 2)
         _expert_v.addWidget(ps)
 
         # ---- Randomisation ----
@@ -4196,7 +4225,11 @@ class LayoutOptionsPanel(QWidget):
         inst = ""
         if getattr(self, "instr", None) is not None:
             inst = str(self.instr.currentData() or "")
-        cb.setVisible(self._area_is_hexagonal() and inst == "CR30")
+        shown = self._area_is_hexagonal() and inst == "CR30"
+        cb.setVisible(shown)
+        info = getattr(self, "hex_flat_top_info", None)
+        if info is not None:
+            info.setVisible(shown)
 
     def _area_is_turned_hex(self) -> bool:
         """Whether the honeycomb on screen is TURNED, from the live selectors.
@@ -5157,11 +5190,14 @@ class LayoutOptionsPanel(QWidget):
         if effect == "always_on":
             name = dict(self.INSTRUMENTS).get(inst, inst)
             cb.setToolTip(tr(
-                "On the {instrument}, ChromIQ always brackets every strip the "
-                "way this box would, so the instrument starts and ends each "
-                "strip the same way. Ticking or clearing the box therefore "
-                "changes nothing for this instrument. Whatever you set here is "
-                "kept, for an instrument where it does make a difference."
+                "On the {instrument}, ChromIQ always treats every strip as if "
+                "this box were ticked: before the first patch and after the "
+                "last patch of every strip it leaves the same space it leaves "
+                "between two patches, and prints a spacer there when the chart "
+                "has spacers. So the instrument starts and ends each strip the "
+                "same way. Ticking or clearing the box therefore changes "
+                "nothing for this instrument. Whatever you set here is kept, "
+                "for an instrument where it does make a difference."
             ).format(
                     instrument=name))
         elif effect == "no_room":

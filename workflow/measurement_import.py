@@ -379,8 +379,9 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
 #: tool ChromIQ measures a strip-reader chart with. It reads the sheet as
 #: printed, by the chart's own .ti2. An i1Profiler measurement reaches
 #: :func:`assess` as ``"ChromIQ"`` (converted from its .mxf / .cxf,
-#: `reference_convert.cxf_measurement_to_ti3`) or as ``"Argyll txt2ti3"``
-#: (converted from its CGATS .txt), never as this.
+#: `reference_convert.cxf_measurement_to_ti3`) or as ``"Argyll target"``
+#: (converted from its CGATS .txt by txt2ti3: measured with ArgyllCMS 3.5.0,
+#: review 4.3.18 r3, SF-2), never as this.
 CHARTREAD_ORIGINATOR = "Argyll chartread"
 
 
@@ -409,6 +410,9 @@ def read_from_the_sheet_as_printed(ti3: "Path | str") -> bool:
                  re.MULTILINE):
         return True
     m = re.search(r'^\s*ORIGINATOR\s+"([^"]*)"', text, re.MULTILINE)
+    # Safe for an averaged read too (r3, N-3): Argyll `average` keeps its
+    # FIRST input's header, so ChromIQ's average of chartread reads is
+    # exempt, and one with any other first input is asked (the safe side).
     return bool(m) and m.group(1).strip() == CHARTREAD_ORIGINATOR
 
 

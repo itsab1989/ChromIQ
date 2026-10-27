@@ -437,7 +437,8 @@ def _snapshot_turned_export(slot, d: Path) -> list:
     raises: a snapshot that cannot take them is still the chart's snapshot."""
     copied: list = []
     try:
-        from workflow.i1profiler_turned import TurnedFiles, turned_order_for
+        from workflow.i1profiler_turned import (TurnedFiles, turned_order_for,
+                                                write_merged_order)
         order = turned_order_for(_slot_chart_ti2(slot))
         if order is None:
             return copied
@@ -450,6 +451,12 @@ def _snapshot_turned_export(slot, d: Path) -> list:
             if a.is_file():
                 shutil.copy2(a, b)
                 copied.append(b)
+        # The stored order holds every order the chart has, from BOTH places
+        # (review 4.3.18 r3, N-2): a restore removes the files beside the
+        # chart, so an earlier order kept only there would be lost, and the
+        # restored chart would pair and refuse differently from the original.
+        if dst.order in copied:
+            write_merged_order(order, dst.order)
     except Exception:      # noqa: BLE001 — never break a snapshot
         log.warning("could not store the turned i1Profiler export with the "
                     "chart", exc_info=True)
