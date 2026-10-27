@@ -100,7 +100,7 @@ class _Runner:
 
 def _align(p, q, size, nx, ny, want):
     cie = p.with_suffix(".cie")
-    cie.write_text("")
+    cie.write_text("", encoding="utf-8")
     return auto_align("scanin", p, p, cie, _boxes(nx, ny), want, size,
                       runner=_Runner(_candidate(q, _bbox(nx, ny))))
 
