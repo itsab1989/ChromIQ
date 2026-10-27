@@ -72,7 +72,7 @@ log = get_logger(__name__)
 
 __all__ = ["AutoAlignResult", "agreement_scorer", "auto_align",
            "border_agreement", "drift_sampler",
-           "chart_pitch", "orientation_scores", "plain_id",
+           "chart_pitch", "orientation_scores", "plain_id", "turns_that_fit",
            "corners_from_candidate", "expected_luminance", "parse_candidates",
            "chosen_index", "quad_is_sane", "reference_agreement_at",
            "seating_drift"]
@@ -120,6 +120,27 @@ IMPROVEMENT_MARGIN = 0.02
 #: SpyderChecker24 1.16), and every chart built to be symmetric scored 0.000.
 #: 0.15 sits in the gap, nearer the ambiguous end.
 ORIENTATION_MARGIN = 0.15
+
+#: How much more one way up may stretch the chart's patches than the way up
+#: that stretches them least, inside the SAME quad, before it is not tried at
+#: all (:func:`turns_that_fit`), as a ratio of the two stretches.
+#:
+#: WHY (fix round r7 of 4.3.18). Turning the corner order a quarter turn
+#: lays the chart's x axis along the quad's y edge. On a chart that is not
+#: square the grid then no longer has the chart's shape: a 30 x 20 chart in
+#: a 30 x 20 quad turned a quarter is a 20 x 30 grid squeezed into it, every
+#: patch 2.25 times as tall, relative to its width, as on the paper. Such a
+#: grid is not a placement of this chart at all, but its colours can still
+#: read: with a chart whose colours run down its columns chosen for a scan
+#: whose colours run along its rows, the quarter turn read 0.998 and was
+#: ACCEPTED, 30 patches out, on both scanner lids (4.3.17 did the same).
+#: A scanner and a camera keep a patch's shape, so the right way up stretches
+#: it by nothing; a view off square foreshortens one axis, and that is what
+#: the tolerance is for. 1.25 lets a quarter turn through only when the chart
+#: is within about 12 % of square (where the turned grid really is a
+#: plausible placement and the colours must decide, as before), so the
+#: charts that are clearly not square are the only ones it changes.
+TURNED_SHAPE_TOLERANCE = 1.25
 
 #: How many whole patch pitches, in each direction along the chart's own rows
 #: and columns, :func:`pitch_search` may slide a rectangle the recogniser
@@ -471,6 +492,48 @@ def orientation_scores(image_path: Path, boxes: Sequence,
             for k in range(4)]
 
 
+def _stretch(corners: Sequence[tuple[float, float]],
+             bbox: tuple[float, float, float, float]) -> "float | None":
+    """How much *corners*, in marquee order, stretch the chart's patches:
+    ``log`` of (picture pixels per chart unit along the chart's x axis) over
+    (the same along its y axis). 0 keeps the patches' shape, as a scanner
+    does; a quarter turn of a 3:2 chart in its own quad is ``log(2.25)``."""
+    minx, miny, maxx, maxy = bbox
+    if maxx <= minx or maxy <= miny or len(corners) != 4:
+        return None
+    c0, c1, c2, c3 = corners
+    ex = (math.dist(c0, c1) + math.dist(c3, c2)) / 2.0 / (maxx - minx)
+    ey = (math.dist(c0, c3) + math.dist(c1, c2)) / 2.0 / (maxy - miny)
+    if not (ex > 0 and ey > 0) or not math.isfinite(ex / ey):
+        return None
+    return math.log(ex / ey)
+
+
+def turns_that_fit(boxes: Sequence, quad: Sequence[tuple[float, float]],
+                   tolerance: float = TURNED_SHAPE_TOLERANCE) -> "list[int]":
+    """Which of the four ways up (``k``, how far the corner order is rotated,
+    as in :func:`orientation_scores`) give this chart's patches the shape
+    they have on paper, inside *quad*.
+
+    A way up is kept when it stretches the patches at most *tolerance* times
+    more than the way up that stretches them least (see
+    :data:`TURNED_SHAPE_TOLERANCE`). Turning by half keeps the shape, so ``k``
+    and ``k + 2`` always stand or fall together, and on a chart within about
+    12 % of square all four are kept, exactly as before. Every way up is kept
+    when the shape cannot be measured."""
+    if not boxes or len(quad) != 4:
+        return [0, 1, 2, 3]
+    bbox = (min(b.x1 for b in boxes), min(b.y1 for b in boxes),
+            max(b.x2 for b in boxes), max(b.y2 for b in boxes))
+    q = [(float(x), float(y)) for x, y in quad]
+    stretch = [_stretch(q[k:] + q[:k], bbox) for k in range(4)]
+    if any(v is None for v in stretch):
+        return [0, 1, 2, 3]
+    least = min(abs(v) for v in stretch)
+    allowed = least + math.log(max(1.0, float(tolerance)))
+    return [k for k, v in enumerate(stretch) if abs(v) <= allowed + 1e-9]
+
+
 def _pitch_frame(boxes: Sequence, quad: Sequence[tuple[float, float]]):
     """What it takes to move *quad* by whole patch pitches along the chart's
     own rows and columns: ``(q, step, bbox, (cols, rows))``, where
@@ -517,13 +580,16 @@ def _pitch_search_tried(score, boxes: Sequence,
     if frame is None:
         return None
     _q, step, bbox, _size = frame
+    # a move keeps the quad's shape, so the ways up that fit it are the same
+    # at every position (fix round r7 of 4.3.18)
+    turns = turns_that_fit(boxes, quad)
     tried: list[tuple[float, int, int, int]] = []
     for i in range(-steps, steps + 1):
         for j in range(-steps, steps + 1):
             moved = step(i, j)
             if quad_is_sane(moved, image_size, bbox):
                 continue
-            for k in range(4):
+            for k in turns:
                 s = score(boxes, moved[k:] + moved[:k], sample_frac)
                 if s is not None:
                     tried.append((s, i, j, k))
@@ -888,14 +954,27 @@ def auto_align(scanin_exe: str | Path,
         # every direction has no answer, and picking one of four at random is
         # worse than not picking: a wrong orientation reads every patch as
         # another patch and the profile comes out confidently wrong.
+        #
+        # Only the ways up that give the patches their own shape inside this
+        # quad may be the answer: a quarter turn of a chart that is not square
+        # squeezes it into a grid that is not this chart, and its colours can
+        # still read (fix round r7 of 4.3.18, see TURNED_SHAPE_TOLERANCE).
+        turns = turns_that_fit(boxes, quad)
         scores = ([score(boxes, list(quad[k:]) + list(quad[:k]), sample_frac)
                    for k in range(4)] if score is not None
                   else [None, None, None, None])
         ranked = sorted(
-            ((-9.0 if s is None else s, k) for k, s in enumerate(scores)),
+            ((-9.0 if (s is None or k not in turns) else s, k)
+             for k, s in enumerate(scores)),
             reverse=True)
         rho, k = ranked[0]
         margin = rho - ranked[1][0]
+        # ...but whether ANY way up reads this chart is still asked of all
+        # four, so a refusal names the same reason it did before: a misfit
+        # quarter turn that reads well is not "four equally bad readings".
+        margin_of_all = rho - max(
+            (-9.0 if s is None else s for kk, s in enumerate(scores)
+             if kk != k), default=-9.0)
         if rho <= -9.0:
             rejected.append(f"{source}: could not be measured")
             continue
@@ -942,7 +1021,7 @@ def auto_align(scanin_exe: str | Path,
                 continue
             # NO WAY UP READS THIS CHART, here or nearby, so the rectangle is in
             # the wrong place rather than the chart being symmetric.
-            if margin < ORIENTATION_MARGIN:
+            if margin_of_all < ORIENTATION_MARGIN:
                 # Four equally BAD readings are not a symmetric chart. Saying
                 # so sent Knut to the Rotate button, which could not help.
                 rejected.append(f"{source}: no way up and no nearby position "
