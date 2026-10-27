@@ -4425,6 +4425,32 @@ M_SCAN_ALIGN_OFF_PATCHES = _m(
     "more than one page, that the scan shows the page chosen under “Page”.",
     approved=False)
 
+#: PROPOSED, 4.3.18 (review r4, SF-2 and N-2). The chart's colours do not say
+#: where the grid belongs: the search found it reading the chart just about as
+#: well in more than one POSITION, the same way up. Two ways in: a grid off the
+#: patches whose nearby positions read the chart only ambiguously (before this,
+#: M-SCAN-ALIGN-OFF-PATCHES said "in none of them did the colours match",
+#: which was false), and a chart whose colours repeat further along its rows,
+#: where a grid one whole repeat off reads almost perfectly and the colours
+#: must not overrule the boundary check (before this, M-SCAN-ALIGN-NO-FIT).
+M_SCAN_ALIGN_REPEATS = _m(
+    "M-SCAN-ALIGN-REPEATS",
+    _ALIGN_KEPT,
+    "ChromIQ found the chart in your scan, but this chart's colours cannot "
+    "tell it where the grid belongs: the grid matches them just about as well "
+    "in more than one position along the rows or columns, so ChromIQ did not "
+    "guess. That happens when the same run of patches comes back further "
+    "along the chart, or when neighbouring patches change only gradually, for "
+    "example on a chart whose patches were printed in their original order "
+    "instead of shuffled, or a chart definition that repeats a block of "
+    "patches.\n\n"
+    "Drag the four corners onto the four corner patches of the chart, as "
+    "close as you can, and press Auto align again. Starting from your "
+    "corners, it fine-tunes the grid onto the patches by itself.\n\n"
+    "Then press “Check alignment” below to make sure the grid reads the right "
+    "patches before you build anything.",
+    approved=False)
+
 M_SCAN_ALIGN_NO_GEOMETRY = _m(
     "M-SCAN-ALIGN-NO-GEOMETRY",
     _ALIGN_KEPT,
@@ -4619,6 +4645,7 @@ SCAN_ALIGN_REFUSALS = {
     "not-recognised": M_SCAN_ALIGN_NOT_FOUND,
     "no-usable-candidate": M_SCAN_ALIGN_NO_FIT,
     "off-the-patches": M_SCAN_ALIGN_OFF_PATCHES,
+    "repeating-colours": M_SCAN_ALIGN_REPEATS,
     "no-chart-geometry": M_SCAN_ALIGN_NO_GEOMETRY,
     "no-better": M_SCAN_ALIGN_NO_BETTER,
     # ...and the one ending that belongs to the second half of the operation
@@ -8160,7 +8187,7 @@ CATALOGUE = {m.id: m for m in (
     M_SCAN_DARK, M_SCAN_FIT_UNSUPPORTED, M_SCAN_SELFCHECK_UNUSABLE,
     M_SCAN_ALIGN_AMBIGUOUS, M_SCAN_ALIGN_NO_MATCH,
     M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NOT_FOUND_HEX, M_SCAN_ALIGN_NO_FIT,
-    M_SCAN_ALIGN_OFF_PATCHES,
+    M_SCAN_ALIGN_OFF_PATCHES, M_SCAN_ALIGN_REPEATS,
     M_SCAN_ALIGN_NO_GEOMETRY, M_SCAN_ALIGN_NO_BETTER, M_SCAN_ALIGN_NOT_SEATED,
     M_SCAN_ALIGN_PLACED_UNCHECKED, M_SCAN_ALIGN_PLACED_NOT_SEATED,
     M_SCAN_ALIGN_DONE, M_SCAN_ALIGN_NO_INPUT,

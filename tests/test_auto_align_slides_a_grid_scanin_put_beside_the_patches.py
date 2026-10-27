@@ -65,16 +65,25 @@ def _cand(quad, bbox, cc=0.8):
             f"yscale = {sy:f}\n")
 
 
+def _loc(c, r):
+    """A patch name for column *c*, row *r*: A..Z, then AA.., like a .cht."""
+    name = chr(65 + c % 26) if c < 26 else chr(64 + c // 26) + chr(65 + c % 26)
+    return f"{name}{r + 1:02d}"
+
+
 def _chart(tmp_path: Path, *, shuffled=True, cols=12, rows=10, box=30,
-           margin=110, seed=3, half_turn_symmetric=False):
+           margin=110, seed=3, half_turn_symmetric=False, period=None):
     """A grid of patches edge to edge on white paper. *shuffled*: colours in
     random order, the way a ChromIQ chart's patches are; otherwise a smooth
-    grey ramp, whose neighbours look alike."""
+    grey ramp, whose neighbours look alike. *period*: the shuffled colours of
+    the first *period* columns repeat across the whole chart, the way a chart
+    printed in its original order or a chart definition that repeats a block
+    can."""
     rng = random.Random(seed)
     boxes, colors = [], {}
     for c in range(cols):
         for r in range(rows):
-            loc = f"{chr(65 + c)}{r + 1:02d}"
+            loc = _loc(c, r)
             boxes.append({"loc": loc, "x": float(c * box), "y": float(r * box),
                           "w": float(box), "h": float(box)})
             if shuffled:
@@ -86,21 +95,25 @@ def _chart(tmp_path: Path, *, shuffled=True, cols=12, rows=10, box=30,
         for c in range(cols):
             for r in range(rows):
                 if c * rows + r >= cols * rows // 2:
-                    colors[f"{chr(65 + c)}{r + 1:02d}"] = colors[
-                        f"{chr(65 + cols - 1 - c)}{rows - r:02d}"]
+                    colors[_loc(c, r)] = colors[_loc(cols - 1 - c, rows - 1 - r)]
+    if period:
+        for c in range(period, cols):
+            for r in range(rows):
+                colors[_loc(c, r)] = colors[_loc(c % period, r)]
     exp = []
     for b in boxes:
         r_, g_, b_ = colors[b["loc"]]
         y = 0.2126 * r_ + 0.7152 * g_ + 0.0722 * b_
         exp.append((b["loc"], y / 2.55, y / 2.55, y / 2.55))
     text = build_cht_text(boxes, exp)
-    img = Image.new("RGB", (cols * box + 2 * margin, rows * box + 2 * margin),
-                    (250, 250, 248))
-    px = img.load()
+    import numpy as np
+    a = np.empty((rows * box + 2 * margin, cols * box + 2 * margin, 3),
+                 np.uint8)
+    a[:, :] = (250, 250, 248)
     for b in boxes:
-        for y in range(int(b["y"]) + margin, int(b["y"] + b["h"]) + margin):
-            for x in range(int(b["x"]) + margin, int(b["x"] + b["w"]) + margin):
-                px[x, y] = colors[b["loc"]]
+        y0, x0 = int(b["y"]) + margin, int(b["x"]) + margin
+        a[y0:y0 + int(b["h"]), x0:x0 + int(b["w"])] = colors[b["loc"]]
+    img = Image.fromarray(a)
     scan = tmp_path / "scan.tif"
     img.save(scan)
     cht = tmp_path / "chart.cht"
@@ -258,6 +271,134 @@ def test_the_final_check_lets_the_colours_overrule_the_boundary_too(
     off = _shift(c["truth"], c["box"], 0)
     assert not sp.seated_verdict(c["scan"], c["boxes"], off,
                                  expected_y=c["exp"], image_size=c["size"])[0]
+
+
+# ---------------------------------------------------------------------------
+# 3b. ...but never on a chart whose colours repeat (release review r4, SF-2)
+# ---------------------------------------------------------------------------
+# A chart printed in its original order, or a chart definition that repeats a
+# block, can repeat its colours every few patches along a row. A grid one whole
+# repeat off then reads it almost perfectly (0.88 against 1.00 measured), and
+# the right position is OUTSIDE the pitch search's three-patch window, so the
+# wrong one wins that window by a wide margin. Before the fix the colours then
+# overruled the boundary check and the grid was accepted whole strips out.
+@pytest.mark.parametrize("period", [4, 5, 6])
+@pytest.mark.parametrize("repeats_off", [1, -1, "1+1"])
+def test_a_grid_one_repeat_off_a_repeating_chart_is_never_accepted(
+        tmp_path, monkeypatch, period, repeats_off):
+    from workflow import scan_placement as sp
+    c = _chart(tmp_path, cols=60, rows=12, box=20, margin=160, seed=period,
+               period=period)
+    t, p = c["truth"], c["box"]
+    off = (period + 1) if repeats_off == "1+1" else repeats_off * period
+    alias = _shift(t, off * p, 0) if repeats_off != "1+1" else _shift(
+        t, period * p, 0)
+    given = _shift(t, off * p, 0)
+    # The boundary check is what refuses this in 4.3.17. Make it say "not the
+    # chart's" everywhere, as a dark scanner lid does, so the only thing that
+    # can still refuse is the colours declining to overrule it.
+    monkeypatch.setattr(A, "border_agreement", lambda *a, **k: False)
+    r = _align(c, _cand(given, c["bbox"]))
+    assert not r.ok or _worst(r.corners, t) < 1.0, (
+        f"accepted a grid {_worst(r.corners, t) / p:.1f} patches out")
+    assert not r.ok and r.reason == "repeating-colours", (r.reason, r.rejected)
+    from workflow import measurement_messages as M
+    assert M.scan_align_refusal(r.reason) is M.M_SCAN_ALIGN_REPEATS
+    # the final check place_grid asks of the corners it is about to set
+    assert not sp.seated_verdict(c["scan"], c["boxes"], alias,
+                                 expected_y=c["exp"], image_size=c["size"])[0]
+    score = A.agreement_scorer(c["scan"], c["exp"])
+    assert not A.position_is_pinned(score, c["boxes"], alias, c["size"])
+    hit = A.colours_repeat_along_the_chart(
+        score, c["boxes"], alias, c["size"], score(c["boxes"], alias))
+    assert hit is not None and hit[1] == 0 and hit[0] % period == 0, hit
+
+
+def test_a_repeating_chart_still_lands_when_its_edges_agree(tmp_path):
+    """The repeat check takes away only the colours' right to overrule the
+    boundary. A grid a patch out on a chart repeating every six patches, on
+    white paper, is still slid onto the patches (the next repeat is outside
+    the slide's reach), and the boundary agrees there."""
+    c = _chart(tmp_path, cols=60, rows=12, box=20, margin=160, seed=6,
+               period=6)
+    t, p = c["truth"], c["box"]
+    r = _align(c, _cand(_shift(t, p, 0), c["bbox"]))
+    assert r.ok, f"refused: {r.reason} {r.rejected}"
+    assert _worst(r.corners, t) < 1.0
+
+
+def test_a_shuffled_chart_has_nothing_repeating_so_its_colours_still_pin(
+        tmp_path):
+    """Knut's case: a ChromIQ chart in its usual shuffled order. No straight
+    shift anywhere along its rows or columns reads like the patches, so the
+    colours still overrule a boundary the scanner bed spoils."""
+    c = _chart(tmp_path, cols=24, rows=27, box=20, margin=70)
+    score = A.agreement_scorer(c["scan"], c["exp"])
+    rho = score(c["boxes"], c["truth"])
+    assert rho > 0.95
+    assert A.colours_repeat_along_the_chart(
+        score, c["boxes"], c["truth"], c["size"], rho) is None
+    assert A.position_is_pinned(score, c["boxes"], c["truth"], c["size"])
+
+
+# ---------------------------------------------------------------------------
+# 3c. "none of them matched" only when none of them did (review r4, N-2)
+# ---------------------------------------------------------------------------
+def test_a_symmetric_chart_a_patch_off_is_called_symmetric(tmp_path):
+    """The grid is a patch off, so the four ways up of the rectangle itself
+    read nothing; but one patch over the chart reads perfectly, twice, once
+    each way round. That is a symmetric chart, and saying "in none of them did
+    the colours match" would be false."""
+    from workflow import measurement_messages as M
+    c = _chart(tmp_path, half_turn_symmetric=True)
+    off = _shift(c["truth"], c["box"], 0)
+    r = _align(c, _cand(off, c["bbox"]), _cand(off, c["bbox"]))
+    assert not r.ok
+    assert r.reason == "ambiguous-orientation", (r.reason, r.rejected)
+    assert M.scan_align_refusal(r.reason) is M.M_SCAN_ALIGN_AMBIGUOUS
+
+
+@pytest.mark.parametrize("period", [2, 3])
+def test_a_chart_repeating_inside_the_window_a_patch_off_says_it_repeats(
+        tmp_path, period):
+    """A repeat short enough for the slide to see: several positions the same
+    way up read the chart perfectly. Neither "off the patches" nor
+    "symmetric" is true; the colours repeat."""
+    from workflow import measurement_messages as M
+    c = _chart(tmp_path, cols=60, rows=12, box=20, margin=160, period=period)
+    off = _shift(c["truth"], c["box"], 0)
+    r = _align(c, _cand(off, c["bbox"]), _cand(off, c["bbox"]))
+    assert not r.ok
+    assert r.reason == "repeating-colours", (r.reason, r.rejected)
+    msg = M.scan_align_refusal(r.reason)
+    assert msg is M.M_SCAN_ALIGN_REPEATS
+    title, body = msg.render(chart_row="Measured chart (.ti3)")
+    assert "{" not in title + body and "\u2014" not in title + body
+    assert "none of them" not in body and "whichever way round" not in body
+    from workflow.scan_placement import ENDINGS, _ending
+    assert "repeating-colours" in ENDINGS
+    assert _ending("repeating-colours", "too-far-to-fit") == "repeating-colours"
+
+
+def test_place_grid_reads_the_picture_once_for_its_colour_questions(
+        tmp_path, monkeypatch):
+    """Review r4, N-1: both searches and the final seating check score
+    against one reading of the picture."""
+    from workflow import scan_placement as sp
+    c = _chart(tmp_path)
+    made = []
+    real = A.agreement_scorer
+
+    def counting(*a, **k):
+        made.append(1)
+        return real(*a, **k)
+    monkeypatch.setattr(A, "agreement_scorer", counting)
+    monkeypatch.setattr(A, "border_agreement", lambda *a, **k: False)
+    log = _cand(_shift(c["truth"], c["box"], 0), c["bbox"])
+    r = sp.place_grid("scanin", c["scan"], c["cht"], c["cie"], c["boxes"],
+                      c["exp"], c["size"], runner=_FakeRun(log, log))
+    assert r.ending == "placed", (r.ending, r.find_reason, r.rejected)
+    assert len(made) == 1, f"the picture was read {len(made)} times"
 
 
 # ---------------------------------------------------------------------------

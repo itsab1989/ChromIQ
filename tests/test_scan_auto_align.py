@@ -854,7 +854,10 @@ REASONS = {"ambiguous-orientation", "below-floor", "not-recognised",
            "not-seated",
            # 4.3.18, Knut: found, and no way up or nearby position reads the
            # chart. It used to be reported as "ambiguous-orientation".
-           "off-the-patches"}
+           "off-the-patches",
+           # 4.3.18, review r4: the chart's colours read just as well in more
+           # than one position (a chart that repeats along its rows).
+           "repeating-colours"}
 
 
 def _catalogue():

@@ -710,6 +710,11 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # rectangle by whole patches; this is what it
                                  # says when even that reads nothing.
                                  "M-SCAN-ALIGN-OFF-PATCHES",
+                                 # 4.3.18, review r4 (SF-2, N-2): the
+                                 # chart's colours read just as well in more
+                                 # than one position, so they cannot say
+                                 # where the grid belongs.
+                                 "M-SCAN-ALIGN-REPEATS",
                                  # #182, 2026-09-11. Knut ruled that Auto
                                  # align must "place its best attempt and tell
                                  # user to check it" instead of leaving the

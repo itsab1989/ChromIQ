@@ -129,6 +129,7 @@ ENDINGS = (
     "no-usable-candidate",  # found something, and this chart does not fit it
     "ambiguous-orientation",  # the chart reads the same more than one way up
     "off-the-patches",     # found, and no way up or nearby position reads it
+    "repeating-colours",   # found, and it reads as well in more than one place
     "no-chart-geometry",   # the chart file records no patch positions
     "no-better",           # nothing better than the user's own corners
     "too-far",             # the best placement is further than it may move
@@ -145,7 +146,8 @@ ENDINGS = (
 #: refinement's reason is the only information there is.
 _DIAGNOSTIC_SEARCH_REASONS = ("ambiguous-orientation", "below-floor",
                               "no-usable-candidate", "not-recognised",
-                              "no-chart-geometry", "off-the-patches")
+                              "no-chart-geometry", "off-the-patches",
+                              "repeating-colours")
 
 #: Refinement reasons that mean "the best placement I can see is further away
 #: than I am allowed to move".
@@ -242,6 +244,7 @@ def seated_verdict(scan: Path, boxes: Sequence,
                    expected_y: "dict[str, float] | None" = None,
                    image_size: "tuple[int, int] | None" = None,
                    sample_frac: float = 0.6,
+                   score=None,
                    ) -> "tuple[bool, float | None]":
     """``(is the grid on the patches, the seating drift)``, from the PICTURE.
 
@@ -271,7 +274,14 @@ def seated_verdict(scan: Path, boxes: Sequence,
     exactly this position and this way up
     (:func:`~workflow.scan_auto_align.position_is_pinned`), a boundary that
     does not look like the chart's is the scanner bed showing through, not a
-    grid a patch out. The drift check still runs either way.
+    grid a patch out. A chart whose colours repeat is never pinned that way,
+    because it reads as well one whole repeat away. The drift check still runs
+    either way.
+
+    *score*, when given, is an
+    :func:`~workflow.scan_auto_align.agreement_scorer` scorer of the same
+    picture and *expected_y*, so :func:`place_grid` does not read the picture
+    again for this question.
     """
     from workflow.scan_auto_align import (SEATING_DRIFT_LIMIT,
                                           agreement_scorer, border_agreement,
@@ -282,7 +292,8 @@ def seated_verdict(scan: Path, boxes: Sequence,
             pinned = False
             if expected_y and image_size:
                 pinned = position_is_pinned(
-                    agreement_scorer(scan, expected_y), boxes, quad,
+                    score if score is not None
+                    else agreement_scorer(scan, expected_y), boxes, quad,
                     image_size, sample_frac=sample_frac)
             if not pinned:
                 log.info("placement refused: the grid's edges are not the "
@@ -383,9 +394,21 @@ def place_grid(scanin_exe: str | Path,
     that code at all. See :func:`_hex_search`.
     """
     from workflow.photo_fit import refine_corners
-    from workflow.scan_auto_align import auto_align, reference_agreement_at
+    from workflow.scan_auto_align import (agreement_scorer, auto_align,
+                                          reference_agreement_at)
 
     start = [tuple(c) for c in current_corners] if current_corners else None
+
+    # The picture is read ONCE for the colour questions every step below asks
+    # of it (both searches and the final check), rather than once per step.
+    # A picture that cannot be read gives None, and each step then reads it
+    # for itself exactly as before, and fails the same way.
+    try:
+        score = agreement_scorer(scan, expected_y)
+    except Exception:  # noqa: BLE001 — a shared cache must not become a crash
+        log.warning("could not read the picture for the colour checks",
+                    exc_info=True)
+        score = None
 
     # ---- 1. the search, with the drift gate SUSPENDED --------------------
     # It is asked once at the end instead, of the placement that is actually
@@ -393,14 +416,14 @@ def place_grid(scanin_exe: str | Path,
     found = auto_align(scanin_exe, scan, cht, cie, boxes, expected_y,
                        image_size, current_corners=current_corners,
                        sample_frac=sample_frac, drift_limit=float("inf"),
-                       timeout=timeout, runner=runner)
+                       timeout=timeout, runner=runner, score=score)
     if not found.ok and search_region is not None:
         narrowed = auto_align(scanin_exe, scan, cht, cie, boxes, expected_y,
                               image_size, current_corners=current_corners,
                               sample_frac=sample_frac,
                               drift_limit=float("inf"),
                               search_region=search_region, timeout=timeout,
-                              runner=runner)
+                              runner=runner, score=score)
         if narrowed.ok:
             found = narrowed
 
@@ -463,7 +486,7 @@ def place_grid(scanin_exe: str | Path,
     seated, drift = seated_verdict(scan, boxes, candidate,
                                    expected_y=expected_y,
                                    image_size=image_size,
-                                   sample_frac=sample_frac)
+                                   sample_frac=sample_frac, score=score)
     res.drift = drift
     if not seated:
         res.ending = "not-seated"
