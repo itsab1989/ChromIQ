@@ -33,8 +33,13 @@ def _box(text: str) -> QMessageBox:
 
 
 def _shown_height(box: QMessageBox, app) -> int:
+    # NO processEvents() WHILE THE BOX IS SHOWN. `show()` runs
+    # QMessageBox::showEvent, and its updateSize(), synchronously, so the
+    # height is final here. Pumping the loop with the box on screen let the
+    # suite's `_no_modal_may_hang_the_suite` sweep (every 4 s) fire inside it
+    # and fail this test as "a modal dialog was left open": measured in a
+    # loaded `--runslow` gate, 2026-10-27, while it passed 3 of 3 alone.
     box.show()
-    app.processEvents()
     h = box.height()
     box.close()
     box.deleteLater()
