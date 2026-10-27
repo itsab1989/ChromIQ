@@ -275,6 +275,29 @@ _DECLUTTER_MAP = (
 )
 
 
+def _as_on_disk(paths: "list[Path]") -> "list[Path]":
+    """Those of *paths* that exist, each spelled as its folder lists it.
+
+    The turned file names are built from the chart's stem, which may be
+    composed while the folder holds the decomposed spelling (a project such
+    as "Café" restored from an HFS+ volume, review 4.3.17 r4, NIT-1). The
+    folder is listed and compared on the composed spelling, so the path
+    returned is the one a glob of that folder returns too."""
+    out: list[Path] = []
+    by_folder: dict = {}
+    for q in paths:
+        by_folder.setdefault(q.parent, set()).add(nfc(q.name))
+    for folder, wanted in by_folder.items():
+        try:
+            entries = sorted(folder.iterdir())
+        except OSError:
+            continue
+        for e in entries:
+            if nfc(e.name) in wanted and e.is_file():
+                out.append(e)
+    return out
+
+
 def maybe_declutter_on_load(path: "Path | str | None", settings) -> int:
     """Declutter the folder holding *path* when the user's ``declutter_on_load``
     preference is on (#36). A no-op when the setting is off, *path* is falsy, or
@@ -3995,10 +4018,16 @@ class Project:
         # are taken out of every pattern; the chart group then carries them
         # only when their order names the chart being copied, by its SHA-256,
         # the rule `ti2_loader._copy_files` follows. A stale order (an
-        # earlier chart of this name) is not carried at all. A run without
-        # these files plans exactly what 4.3.16 planned.
+        # earlier chart of this name) is not carried at all.
+        #
+        # ONLY THOSE FILES ARE TAKEN OUT, AND NOTHING ELSE (review 4.3.17 r4,
+        # SF-1). A file two groups' patterns both match (`merged.ti3` in a
+        # project called "merged") is listed under both, as 4.3.16 listed it:
+        # the confirmation window's rows and sizes are 4.3.16's to the byte.
+        # The comparison is on the composed spelling (r4, NIT-1), so a stale
+        # order stored decomposed, off an HFS+ volume, is still recognised.
         turned_every, carry = self._turned_files_to_carry(source)
-        taken: set = set(turned_every)
+        turned_keys = {nfc(str(q)) for q in turned_every}
         for group, patterns in self.DUPLICATE_GROUPS:
             if groups is not None and group not in groups:
                 continue
@@ -4019,11 +4048,11 @@ class Project:
                 hits = (sorted(source.dir.glob(filled)) if "/" in filled
                         else files_matching(source.dir, filled))
                 for p in hits:
-                    if p.is_file() and p not in found and p not in taken:
+                    if (p.is_file() and p not in found
+                            and nfc(str(p)) not in turned_keys):
                         found.append(p)
             if group == "chart":
                 found.extend(carry)
-            taken.update(found)
             if found:
                 total = 0
                 for p in found:
@@ -4043,7 +4072,7 @@ class Project:
         for``), and then holds that order's own files. With no turned files
         nothing is hashed: whether one exists is asked first."""
         every = {q for f in I1ProfilerTurnedFiles.for_chart(source.chart_ti2)
-                 for q in f.all() if q.is_file()}
+                 for q in _as_on_disk(f.all())}
         if not every:
             return set(), []
         from workflow.i1profiler_turned import turned_order_for
@@ -4051,7 +4080,7 @@ class Project:
         if order is None:
             return every, []
         files = I1ProfilerTurnedFiles(order.path.parent, source.chart_ti2.stem)
-        return every, [q for q in files.all() if q.is_file()]
+        return every, _as_on_disk(files.all())
 
     def duplicate_run(self, source: Run,
                       groups: "tuple[str, ...] | None" = None) -> Run:
@@ -4081,7 +4110,7 @@ class Project:
         # A carried turned file goes into the new run's exports/, wherever it
         # sat (the TI2 layout editor writes it beside the chart), as
         # Create Chart and `ti2_loader._copy_files` place it.
-        turned_names = {q.name for q in I1ProfilerTurnedFiles(
+        turned_names = {nfc(q.name) for q in I1ProfilerTurnedFiles(
             source.dir, source.chart_ti2.stem).all()}
         new_run = self.new_run()
         try:
@@ -4089,7 +4118,7 @@ class Project:
                 for src in files:
                     rel = src.relative_to(source.dir)
                     dst = new_run.dir / rel
-                    if (_group == "chart" and src.name in turned_names
+                    if (_group == "chart" and nfc(src.name) in turned_names
                             and src.parent in (source.dir, source.exports_dir)):
                         dst = new_run.exports_dir / src.name
                     dst.parent.mkdir(parents=True, exist_ok=True)
