@@ -7514,7 +7514,7 @@
  "Which instruments": "支持哪些仪器",
  "not every strip is full: strip {n} holds {got} of its {per} places": "不是每个色条都是满的：色条 {n} 的 {per} 个位置里只有 {got} 个有色块",
  "the chart file holds no RGB patch list that could be read": "色卡文件中没有可以读取的 RGB 色块列表",
- "the chart has spacers at the ends of its strips; i1Profiler would count them as patches": "色卡的色条两端有间隔条；i1Profiler 会把它们当作色块来计数",
+ "Why the strips are so long: this chart was made with \"Prioritise chart area, then fit patches to it\", which stretches every strip over the whole height of the page. For a chart that i1Profiler can read as well, set \"Create layout\" on Create Chart to \"Prioritise patch size, then fit to page\" instead. It keeps every strip within 240 mm, and how many strips the sheet has does not matter.": "色条为什么这么长：这张色卡是用「优先色卡区域，再让色块适配」制作的，这种方式会把每个色条拉伸到页面的整个高度。要做一张 i1Profiler 也能读取的色卡，请在「创建色卡」中把「创建布局」改为「优先色块尺寸，再适配页面」。这样每个色条都不超过 240 mm，而纸上有多少色条都没关系。",
  "the chart has spacers between its patches; i1Profiler would count every spacer as a patch": "色卡的色块之间有间隔条；i1Profiler 会把每个间隔条都当作色块来计数",
  "the chart is laid out for the {instrument}, not for the i1Pro 2 or i1Pro 3": "这张色卡是为 {instrument} 排版的，不是为 i1Pro 2 或 i1Pro 3",
  "the chart is not an RGB chart ({rep}); the i1Profiler test-chart file can only be written for RGB charts": "这张色卡不是 RGB 色卡 ({rep})；i1Profiler 测试图表文件只能为 RGB 色卡生成",

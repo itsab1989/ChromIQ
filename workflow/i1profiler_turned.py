@@ -233,6 +233,7 @@ def _read_layout(ti2: Path) -> "tuple[dict, dict]":
 class TurnedPlan:
     """The outcome for one chart: why it does not qualify, or how it does."""
     reasons: list = field(default_factory=list)   # chart-wide refusals
+    hints: list = field(default_factory=list)     # what to change, said once
     family_reasons: dict = field(default_factory=dict)  # family -> [reasons]
     order: list = field(default_factory=list)     # (sid, loc, vals) per entry
     rows: int = 0                                 # i1Profiler rows = strips
@@ -266,6 +267,43 @@ def window_mm(per_strip: int, family: str) -> "tuple[float, float]":
 def _strip_label(loc: str) -> str:
     m = re.match(r"^([A-Za-z]+)", loc)
     return m.group(1) if m else loc
+
+
+def spacers_on_sheet(recipe: dict) -> "tuple[bool, bool]":
+    """``(between patches, at the strip ends)``: the spacers the PRINTED SHEET
+    has, asked of the build the chart was made with, not of the recipe's
+    fields.
+
+    **THE "EDGE SPACERS" BOX IS NOT A SPACER ON THE SHEET (4.3.18, forum,
+    pharmacist).** 4.3.17 refused every chart whose recipe said
+    ``edge_spacers``. But the engine draws an edge spacer only when the chart
+    has spacers at all (``raster.render_pages``: ``edge_spacers and sp_px > 0
+    and spacer_mode != "none"``), and with Spacers set to None the instrument's
+    spacer width is 0, so not even the room is reserved: the sheet is pixel for
+    pixel the one made without the box (measured, A4, i1Pro, 8 x 10 mm, 504
+    patches: only the printed project name differed). And for the i1Pro the box
+    is not even the user's: :meth:`LayoutRecipe.build_kwargs` turns edge spacers
+    on for every strip reader, a Guided chart stores that resolved value, and a
+    preset or a chart loaded from one carries it into Manual. So a chart with
+    no spacer anywhere on it was told *"the chart has spacers at the ends of its
+    strips"*, and the user who had set Spacers to None had nothing to change.
+
+    Asked the way the margin inspector and the strip-hover frame ask
+    (R22-F4, R23-F3, B8-1570): the kwargs as built, the geometry they give.
+    """
+    mode = str(recipe.get("spacer_mode", "colored"))
+    try:
+        from workflow.layout_engine import instruments
+        from workflow.layout_engine.presets import build_kwargs_as_built
+        kw = build_kwargs_as_built(recipe)
+        mode = str(kw.get("spacer_mode", mode))
+        pspa = float(instruments.geom_from_build_kwargs(kw).pspa)
+        edge = bool(kw.get("edge_spacers"))
+    except Exception:  # noqa: BLE001 - an unreadable recipe: the fields say
+        return mode != "none", mode != "none" and bool(
+            recipe.get("edge_spacers"))
+    drawn = mode != "none" and pspa > 0
+    return drawn, drawn and edge
 
 
 def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
@@ -312,16 +350,14 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
         plan.reasons.append(tr(
             "the chart is laid out for the {instrument}, not for the i1Pro 2 "
             "or i1Pro 3").format(instrument=name))
-    # The recipe's spacer_mode is what the build follows
-    # (`LayoutRecipe.build_kwargs`: spacer_on = spacer_mode != "none").
-    if str(recipe.get("spacer_mode", "colored")) != "none":
+    # One question, asked of the sheet: an edge spacer is only ever drawn on a
+    # chart that has spacers between its patches too (`spacers_on_sheet`), so
+    # that one reason covers both, and 4.3.17's "spacers at the ends of its
+    # strips" (said of sheets that had none) is gone.
+    if spacers_on_sheet(recipe)[0]:
         plan.reasons.append(tr(
             "the chart has spacers between its patches; i1Profiler would "
             "count every spacer as a patch"))
-    elif recipe.get("edge_spacers"):
-        plan.reasons.append(tr(
-            "the chart has spacers at the ends of its strips; i1Profiler "
-            "would count them as patches"))
     if plan.reasons:
         return plan
 
@@ -406,15 +442,34 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
         wlo, whi, _hlo, _hhi = SLIDER[fam]
         cap_lo = ROW_CAP_MM[fam][0]
         if per * plen > cap_lo + 1e-9:
-            # Longer than any i1Profiler row: only a chart built with
-            # "No strip length limit" gets here (ChromIQ's own limit is
-            # 240 mm). A strip shorter than the ruler window is fine now: the
-            # page is made narrow enough for it (`design_settings`).
+            # Longer than any i1Profiler row. ChromIQ's own limit is 240 mm,
+            # but two kinds of chart pass it: one built with "No strip length
+            # limit", and EVERY "Prioritise chart area" chart on a page taller
+            # than that, because area-first fills past the ruler by design and
+            # warns (geometry.compute, `fill_beyond_ruler`; Knut). Measured
+            # 4.3.18 with the margins Create Chart gives an i1Pro chart (38 /
+            # 9 / 19 / 26 mm): A4 and Letter portrait stay within 240 mm, so
+            # pharmacist's 24 strips of 27 (forum 149890) qualify there for
+            # the i1Pro 3; A3 makes 362.9 mm strips and Legal 298.4 mm. A strip
+            # shorter than the ruler window is fine now: the page is made
+            # narrow enough for it (`design_settings`).
             why.append(tr(
                 "the strips are {strip} mm long ({per} patches of {len} mm), "
                 "longer than the {cap} mm an i1Profiler row can hold").format(
                     strip=f"{per * plen:.1f}", per=per, len=f"{plen:.2f}",
                     cap=f"{cap_lo:g}"))
+            if str(recipe.get("layout_mode") or "") == "area_first":
+                hint = tr(
+                    "Why the strips are so long: this chart was made with "
+                    "\"Prioritise chart area, then fit patches to it\", which "
+                    "stretches every strip over the whole height of the page. "
+                    "For a chart that i1Profiler can read as well, set "
+                    "\"Create layout\" on Create Chart to \"Prioritise patch "
+                    "size, then fit to page\" instead. It keeps every strip "
+                    "within 240 mm, and how many strips the sheet has does not "
+                    "matter.")
+                if hint not in plan.hints:
+                    plan.hints.append(hint)
         elif not (wlo <= plen <= whi):
             why.append(tr(
                 "the patches are {len} mm long, outside the {lo} to {hi} mm "
@@ -933,6 +988,8 @@ def note_not_qualified(plan: TurnedPlan, chart_name: str) -> str:
         for fam in FAMILIES:
             for r in plan.family_reasons.get(fam, []):
                 parts.append(f"  - {fam}: {r}")
+    for h in plan.hints:
+        parts += ["", h]
     parts.append("")
     parts.append(tr(
         "What qualifies: an RGB chart made by ChromIQ's layout engine for the "

@@ -5107,6 +5107,15 @@ class LayoutOptionsPanel(QWidget):
             for w in self._spacer_width_row:
                 if w is not None:
                     w.setEnabled(live)
+            # "Edge spacers" is a spacer too, and the engine draws it only on a
+            # chart that has spacers (`raster.render_pages`: spacer_mode !=
+            # "none" and a width above 0). Left enabled with Spacers set to
+            # None, its tick printed nothing and still read as "this chart has
+            # spacers at the ends of its strips" to 4.3.17's turned
+            # i1Profiler export (forum, pharmacist, 4.3.18). Greyed the same
+            # way as the spacer size; its tick is kept, not cleared.
+            if hasattr(self, "edge_spacers_cb"):
+                self.edge_spacers_cb.setEnabled(live)
 
     def _compact_browse(self, tooltip: str):
         """A magenta folder browse button sized like the targen -c browse
