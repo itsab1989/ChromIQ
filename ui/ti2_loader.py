@@ -1335,6 +1335,7 @@ def resolve_ti3(
     settings: "AppSettings",
     *,
     name: str | None = None,
+    measurement_copy: "Path | None" = None,
 ) -> Path | None:
     """Determine how to load a .ti3 relative to the working folder.
 
@@ -1357,6 +1358,12 @@ def resolve_ti3(
     is given, the only window this can still raise is the one that has a
     genuinely different question to ask: a folder of that name already exists
     and something has to be done about it.
+
+    *measurement_copy* is the file to file as the new run's measurement in
+    place of *ti3_path* itself, when the import door has already put a copy
+    of it in the chart's order (a measurement of the turned i1Profiler chart,
+    `measurement_filing.TurnedPairing`). The chart is still the `.ti2` beside
+    *ti3_path*. ``None``, the default, is exactly what this always did.
     """
     # THE PROMISE THAT NOTHING IS DELETED, KEPT OR EXPLAINED.
     try:
@@ -1366,7 +1373,8 @@ def resolve_ti3(
         sibling_ti2 = chart_beside(ti3_path)
         if sibling_ti2 is not None:
             result = _handle_outside(parent, sibling_ti2, working_dir,
-                                     name=name)
+                                     name=name,
+                                     measurement_copy=measurement_copy)
             if result is None:
                 return None
             new_ti2, _tiffs = result
@@ -1458,6 +1466,7 @@ def _handle_outside(
     *,
     name: str | None = None,
     controller=None,
+    measurement_copy: "Path | None" = None,
 ) -> tuple[Path, list[Path]] | None:
     ti1, tiffs = _related_files(ti2_path)
     if name and _name_is_free(working_dir, name):
@@ -1468,7 +1477,8 @@ def _handle_outside(
     if result is None:
         return None
     new_name, overwrite = result
-    out = _copy_files(ti2_path, ti1, tiffs, working_dir, new_name, overwrite=overwrite)
+    out = _copy_files(ti2_path, ti1, tiffs, working_dir, new_name,
+                      overwrite=overwrite, measurement_copy=measurement_copy)
     if overwrite:
         _say_where_the_old_project_went(parent, new_name, working_dir / new_name)
     # …and the project the person has just named is the one they are now in.
@@ -1864,6 +1874,7 @@ def _copy_files(
     working_dir: Path,
     new_name: str,
     overwrite: bool = False,
+    measurement_copy: "Path | None" = None,
 ) -> tuple[Path, list[Path]]:
     """Import an external chart into a fresh project as run1.
 
@@ -1925,7 +1936,9 @@ def _copy_files(
         shutil.copy2(tiff, new_tiff)
         new_tiffs.append(new_tiff)
 
-    ti3 = ti2_path.with_suffix(".ti3")
+    # The measurement beside the chart, or the copy the import door already
+    # put in the chart's order (`resolve_ti3`'s *measurement_copy*).
+    ti3 = measurement_copy or ti2_path.with_suffix(".ti3")
     if ti3.exists():
         shutil.copy2(ti3, run.measurement_ti3)   # chart.ti3
 

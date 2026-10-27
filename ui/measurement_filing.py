@@ -23,6 +23,94 @@ from ui.widgets import fit_message_box_buttons, spread_message_box_buttons, fit_
 log = logging.getLogger(__name__)
 
 
+def _only_if_turned(turned: bool) -> dict:
+    """``{"turned": True}`` for a door that paired a turned measurement, and
+    nothing at all otherwise: every ordinary import calls the shared ending
+    exactly as it did in 4.3.16."""
+    return {"turned": True} if turned else {}
+
+
+def turned_refusal_reason() -> str:
+    """The refusal for a file that looked like a measurement of the turned
+    i1Profiler chart (beta, §I.14) and then would not pair. One copy, for
+    every door."""
+    return tr("this file looked like a measurement of the turned "
+              "i1Profiler chart, but its readings could not be put on "
+              "this chart's patches")
+
+
+class TurnedPairing:
+    """A measurement of the turned i1Profiler chart is put in the chart's
+    order ON A COPY, BEFORE anything is copied or filed (beta, §I.14).
+
+    The Measure tab's IMPORT module has always done this on its converted
+    copy. The other doors did it at the very end, in `say_what_was_filed`,
+    against the chart of the run the copy had landed in, and that chart had
+    lost its order on the way: `duplicate_run(run, ("chart",))` copies no
+    `exports/`, and a new project's `_copy_files` takes no turned files. So the
+    same file the pre-check called a turned measurement was refused with
+    "N of N patches do not hold the colour" (Build Profile and Check & Refine
+    into a run that already held a measurement) or, on the new-project door,
+    filed silently with every reading on the wrong patch (review 4.3.17 r1,
+    S1 and S2).
+
+    Paired first, the copy carries the chart's own SAMPLE_IDs and names, and
+    from then on it is an ordinary measurement of this chart, wherever it is
+    filed: it needs no order file any more. The person's own file is never
+    touched; the copy lives in a temporary folder this object removes.
+
+    For anything that is not a turned measurement, and for every chart with
+    no turned order (the option off), :meth:`first` hands the file back
+    unchanged after one look for an order file, so those imports run exactly
+    as in 4.3.16.
+    """
+
+    def __init__(self) -> None:
+        self._tmp = None
+        self.paired = False
+
+    def __enter__(self) -> "TurnedPairing":
+        return self
+
+    def __exit__(self, *_exc) -> bool:
+        self.close()
+        return False
+
+    def close(self) -> None:
+        if self._tmp is not None:
+            try:
+                self._tmp.cleanup()
+            except OSError:
+                log.warning("import: could not remove %s", self._tmp.name,
+                            exc_info=True)
+            self._tmp = None
+
+    def first(self, measurement: Path, chart: "Path | None") -> "Path | None":
+        """*measurement* as it is to be filed against *chart*: the file
+        itself, or a copy of it in the chart's order. ``None`` means it looked
+        like a turned measurement and did not pair: refuse it with
+        :func:`turned_refusal_reason`."""
+        from workflow.i1profiler_turned import turned_order_for
+        if chart is None or turned_order_for(chart) is None:
+            return measurement               # no turned order: as before
+        from workflow.measurement_import import (assess,
+                                                 complete_from_turned_order)
+        if not assess(Path(measurement), Path(chart)).turned_order:
+            return measurement
+        import tempfile
+        if self._tmp is None:
+            self._tmp = tempfile.TemporaryDirectory(prefix="chromiq-turned-")
+        folder = Path(tempfile.mkdtemp(dir=self._tmp.name))
+        copy = folder / Path(measurement).name
+        shutil.copy2(measurement, copy)
+        if not complete_from_turned_order(copy, Path(chart)):
+            return None
+        log.info("import: %s put in the turned order of %s before filing",
+                 Path(measurement).name, Path(chart).name)
+        self.paired = True
+        return copy
+
+
 def offer_import_into_a_project(parent, measurement: Path, *,
                                 accent: str = "",
                                 extra_answers=(),
@@ -575,7 +663,7 @@ def chart_the_copy_will_be_judged_against(filed: Path) -> "Path | None":
     return chart if chart.is_file() else None
 
 
-def say_what_was_filed(parent, filed: Path) -> None:
+def say_what_was_filed(parent, filed: Path, *, turned: bool = False) -> None:
     """Judge the copy against the run's own chart and SAY SO. One place.
 
     ROUND 2, T1-G, AND IT IS THE HEADLINE. `file_into_project` ran `assess()`
@@ -595,12 +683,23 @@ def say_what_was_filed(parent, filed: Path) -> None:
     Only the REPORT belongs here. A refusal has to happen before anything is
     written, where a rollback is still possible, and it does — see
     `refuse_it_does_not_belong`, which both doors call before they copy.
+
+    *turned* says the door put a measurement of the turned i1Profiler chart
+    in the chart's order before filing it (`TurnedPairing`). Such a copy must
+    then pair with the run's chart as an ordinary measurement; when it does
+    not, that is SAID, never left silent (review 4.3.17 r1, S1).
     """
     from workflow.measurement_import import assess, complete_from_chart
     chart = chart_the_copy_will_be_judged_against(filed)
     if chart is None:
+        if turned:
+            _say_the_turned_copy_does_not_pair(
+                parent, tr("there is no chart beside the filed copy"))
         return                       # a bare measurement: nothing to judge it by
     verdict = assess(Path(filed), chart)
+    if turned and not verdict.ok:
+        _say_the_turned_copy_does_not_pair(parent, verdict.reason)
+        return
     if verdict.ok and verdict.device_from_chart:
         # The COPY takes the chart's device values and the chart's row order.
         # Filed without them it is paired by whatever order the measuring tool
@@ -612,7 +711,9 @@ def say_what_was_filed(parent, filed: Path) -> None:
         # A measurement of the turned i1Profiler export (beta, §I.14): the
         # copy takes the chart's patch ids and names, in the chart's order.
         from workflow.measurement_import import complete_from_turned_order
-        complete_from_turned_order(Path(filed), chart)
+        if not complete_from_turned_order(Path(filed), chart):
+            _say_the_turned_copy_does_not_pair(parent, turned_refusal_reason())
+            return
     if verdict.ok and verdict.partial:
         InfoDialog(
             tr("Filed — and it is a partial measurement"),
@@ -624,6 +725,25 @@ def say_what_was_filed(parent, filed: Path) -> None:
                "measurement report states both counts."
                ).format(chart=verdict.n_chart, got=verdict.patches_read),
             parent, min_width=580).exec()
+
+
+def _say_the_turned_copy_does_not_pair(parent, reason: str) -> None:
+    """The window for a filed copy of a turned measurement that does not line
+    up with its run's chart. It should never be seen: every door pairs the
+    copy before it files it. If it is, the person must not build on that
+    copy without knowing."""
+    InfoDialog(
+        tr("Filed, but please check this measurement first"),
+        tr("ChromIQ recognised this file as a measurement of the turned "
+           "i1Profiler chart and put every reading on its own patch before "
+           "filing it. The copy that was filed does not line up with the "
+           "chart in its run, though, so its readings may sit on the wrong "
+           "patches.\n\n**The reason:** {reason}.\n\nPlease do not build "
+           "a profile from it yet. Import the .mxf file again from the "
+           "Measure tab (IMPORT, then Import Measurement) in the run whose "
+           "chart it was measured from. Your own file is untouched where it "
+           "is.").format(reason=reason),
+        parent, min_width=580).exec()
 
 
 def ask_to_make_a_new_run(parent, proj, run) -> bool:
@@ -704,7 +824,8 @@ def refuse_it_does_not_belong(parent, reason: str) -> None:
         parent, min_width=560).exec()
 
 
-def finish_the_import(parent, ctl, run_id: str, filed: Path, on_filed) -> None:
+def finish_the_import(parent, ctl, run_id: str, filed: Path, on_filed, *,
+                      turned: bool = False) -> None:
     """The tail EVERY successful import ends on, whichever door it came in by.
 
     Point the bar at the run the measurement went into, refresh it, SAY WHAT
@@ -766,7 +887,9 @@ def finish_the_import(parent, ctl, run_id: str, filed: Path, on_filed) -> None:
     # …AND ONLY NOW IS ANYTHING SAID. The bar behind the window names the run
     # the file went into, because it was pointed one line above (T1-H), and
     # BOTH doors reach this line, because there is only one of it (T1-G).
-    say_what_was_filed(parent, Path(filed))
+    # `turned` is passed only when it is True, so an ordinary import makes
+    # exactly the call it always made.
+    say_what_was_filed(parent, Path(filed), **_only_if_turned(turned))
     # THE FILED COPY IS HANDED BACK, NOT POKED INTO A TAB. This used to call
     # `parent.set_ti3_path(...)` and `parent.ti3_manually_loaded.emit()`, which
     # only Build Profile has. When Check & Refine became the third import door
@@ -778,7 +901,8 @@ def finish_the_import(parent, ctl, run_id: str, filed: Path, on_filed) -> None:
 
 
 def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
-                              *, accent: str = "", on_filed=None) -> bool:
+                              *, accent: str = "", on_filed=None,
+                              pairing: "TurnedPairing | None" = None) -> bool:
     """Make the project the person just named, put the measurement in it, and
     open it — the other half of `file_into_project`, and its equal.
 
@@ -801,6 +925,13 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
         raise TypeError(
             "make_new_project_and_file needs on_filed: the caller must say "
             "what to do with the copy it files")
+    if pairing is None:
+        # The copy a turned measurement is paired on (`TurnedPairing`) lives
+        # exactly as long as this door runs, and is removed however it ends.
+        with TurnedPairing() as pairing:
+            return make_new_project_and_file(
+                parent, name, measurement, fm, ctl, accent=accent,
+                on_filed=on_filed, pairing=pairing)
 
     root_dir = Path(fm.root_dir())
     # THE TAB'S OWN SETTINGS, which is the object every other `resolve_ti3`
@@ -833,8 +964,26 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     # would settle it compares device values this file does not have.
     if not only_you_can_confirm_the_chart(parent, _verdict, _chart_beside):
         return True
+    # A MEASUREMENT OF THE TURNED i1PROFILER CHART IS PUT IN ORDER HERE, on a
+    # copy, before the project exists. `_copy_files` takes the chart and the
+    # measurement but none of the turned files, so the new run's chart has no
+    # order and the copy judged there afterwards paired with nothing: it was
+    # filed with every reading on the wrong patch and nothing said (review
+    # 4.3.17 r1, S1). `resolve_ti3` files the paired copy instead of the file
+    # beside the chart; everything else it does is unchanged.
+    _paired = None
+    if _verdict.turned_order:
+        _paired = pairing.first(measurement, _chart_beside)
+        if _paired is None:
+            refuse_it_does_not_belong(parent, turned_refusal_reason())
+            return True
     try:
-        filed = resolve_ti3(parent, measurement, settings, name=name)
+        # Passed only when there is a paired copy, so every other import
+        # calls `resolve_ti3` exactly as it always did.
+        _copy_kw = ({"measurement_copy": _paired} if _paired is not None
+                    else {})
+        filed = resolve_ti3(parent, measurement, settings, name=name,
+                            **_copy_kw)
     except (OSError, ValueError) as exc:
         return _cannot_file(parent, str(exc) or type(exc).__name__, project=name)
     if filed is None:
@@ -882,7 +1031,8 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     except Exception:      # noqa: BLE001 — the file is filed either way
         log.warning("import: could not name the run %s went into", filed,
                     exc_info=True)
-    finish_the_import(parent, ctl, run_id, filed, on_filed)
+    finish_the_import(parent, ctl, run_id, filed, on_filed,
+                      **_only_if_turned(pairing.paired))
     return True
 
 
@@ -908,7 +1058,8 @@ def _the_run_the_person_is_looking_at(proj, ctl):
 
 
 def file_into_project(parent, name: str, measurement: Path, fm, ctl,
-                      *, accent: str = "", on_filed=None, root=None) -> bool:
+                      *, accent: str = "", on_filed=None, root=None,
+                      pairing: "TurnedPairing | None" = None) -> bool:
     """Open *name* (if it is not already open) and file the measurement in
     a run of it. Shared by the list and the name box, so both answers reach
     exactly the same act."""
@@ -925,6 +1076,13 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         raise TypeError(
             "file_into_project needs on_filed: the caller must say what to do "
             "with the copy it files")
+    if pairing is None:
+        # The copy a turned measurement is paired on (`TurnedPairing`) lives
+        # exactly as long as this door runs, and is removed however it ends.
+        with TurnedPairing() as pairing:
+            return file_into_project(
+                parent, name, measurement, fm, ctl, accent=accent,
+                on_filed=on_filed, root=root, pairing=pairing)
 
     made_here = None       # a run this call created, to undo if it refuses
     was_current = None     # …and the run the project was ON before we did
@@ -1102,6 +1260,13 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                    "ChromIQ can then tell you whether the two match."
                    ).format(name=name), parent, min_width=560).exec()
             return True
+        # A TURNED MEASUREMENT IS PAIRED WITH THE SOURCE'S CHART FIRST, which
+        # still has its order beside it: the copy `duplicate_run` makes has
+        # the same chart bytes and no `exports/` (review 4.3.17 r1, S2).
+        measurement = pairing.first(measurement, source.chart_ti2)
+        if measurement is None:
+            refuse_it_does_not_belong(parent, turned_refusal_reason())
+            return True
         try:
             run = proj.duplicate_run(source, ("chart",))
         except (OSError, ValueError) as exc:
@@ -1136,6 +1301,16 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                "has one, and ChromIQ can then tell you whether the two "
                "match.").format(run=_run_name),
             parent, min_width=560).exec()
+        return True
+
+    # A TURNED MEASUREMENT IS PAIRED WITH THE CHART OF THE RUN IT IS FILED
+    # AGAINST, BEFORE THAT RUN IS DUPLICATED below, for the same reason. On
+    # a measurement already paired above, or on a chart with no turned order,
+    # this hands the file back unchanged.
+    measurement = pairing.first(measurement, run.chart_ti2)
+    if measurement is None:
+        _undo_the_run(proj, made_here, was_current)
+        refuse_it_does_not_belong(parent, turned_refusal_reason())
         return True
 
     # §I.9: A RUN THAT ALREADY HOLDS A MEASUREMENT IS NOT DISPLACED.
@@ -1222,6 +1397,7 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # judgement of the same two files: `run.measurement_ti3` is the copy and
     # `run.chart_ti2` is its `.ti2` twin, which is what
     # `chart_the_copy_will_be_judged_against` computes.
-    finish_the_import(parent, ctl, run.id, run.measurement_ti3, on_filed)
+    finish_the_import(parent, ctl, run.id, run.measurement_ti3, on_filed,
+                      **_only_if_turned(pairing.paired))
     return True
 

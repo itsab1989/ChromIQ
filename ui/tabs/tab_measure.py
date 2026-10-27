@@ -14390,9 +14390,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     @staticmethod
     def _turned_refusal() -> str:
-        return tr("this file looked like a measurement of the turned "
-                  "i1Profiler chart, but its readings could not be put on "
-                  "this chart's patches")
+        # One copy of the sentence, shared with the filing doors.
+        from ui.measurement_filing import turned_refusal_reason
+        return turned_refusal_reason()
 
     def _complete_turned_import(self, converted: Path, chart: Path) -> bool:
         """Pair a measurement of the turned i1Profiler export with *chart*
@@ -14759,7 +14759,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
 
         # 2b) The TURNED i1Profiler export (beta, §I.14), as on the other door.
-        if getattr(verdict, "turned_order", False):
+        turned = bool(getattr(verdict, "turned_order", False))
+        if turned:
             if not self._complete_turned_import(converted, run.chart_ti2):
                 refuse_it_does_not_belong(self, self._turned_refusal())
                 return
@@ -14969,8 +14970,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # 6) The shared ending (§I.8): point the bar at the run the file went
         #    into, refresh it, and say §I.10's partial sentence if it applies —
         #    one copy of that sentence, in `say_what_was_filed`.
+        from ui.measurement_filing import _only_if_turned
         finish_the_import(self, ctl, run.id, dst,
-                          self._adopt_imported_measurement)
+                          self._adopt_imported_measurement,
+                          **_only_if_turned(turned))
         # …AND THE TAB THAT BUILDS FROM IT IS ARMED, exactly as it is after a
         # read made here. `MainWindow._on_measure_done` is what puts a finished
         # measurement into Build ICC profile (`set_ti3_path(ti3,
