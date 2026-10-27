@@ -188,7 +188,8 @@ def test_the_real_txt2ti3_writes_argyll_target_and_is_asked(uniform,
     txt = _i1profiler_txt(uniform, tmp_path / "m.txt")
     base = tmp_path / "m"
     r = subprocess.run([str(exe), str(txt), str(base)], capture_output=True,
-                       text=True, timeout=120)
+                       text=True, encoding="utf-8", errors="replace",
+                       timeout=120)
     assert r.returncode == 0, r.stderr or r.stdout
     ti3 = base.with_suffix(".ti3")
     head = ti3.read_text(encoding="utf-8", errors="replace")
