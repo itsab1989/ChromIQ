@@ -3668,8 +3668,10 @@ class Project:
         """
         self._root.mkdir(parents=True, exist_ok=True)
         try:
-            from ui.file_guide import file_guide_body
-            body = file_guide_body().replace("{name}", self.target_name)
+            from ui.file_guide import file_guide_body, turned_rows_wanted
+            body = file_guide_body(
+                turned=turned_rows_wanted(self._root)).replace(
+                    "{name}", self.target_name)
         except Exception:  # noqa: BLE001 — the guide must never block a project
             log.warning("file_guide unavailable — falling back to the static "
                         "README template", exc_info=True)

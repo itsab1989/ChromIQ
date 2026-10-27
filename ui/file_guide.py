@@ -12,6 +12,7 @@ other help text. ``{name}`` stands for the profile's name.
 from __future__ import annotations
 
 import html
+from pathlib import Path
 
 from core.i18n import tr
 
@@ -582,10 +583,72 @@ def turned_export_on() -> bool:
         return False
 
 
+#: Answers the folder of the project open in the app, or None. Set by the
+#: main window (`set_open_project_root`); unset (tests, scripts) the guide
+#: looks at no project.
+_open_project_root = None
+
+
+def set_open_project_root(resolver) -> None:
+    """Tell the guide how to find the open project's folder: a callable
+    that returns a Path or None (review 4.3.17 r3, NIT-1)."""
+    global _open_project_root
+    _open_project_root = resolver
+
+
+_TURNED_ORDER_TAIL = "-i1profiler-turned.json"
+_NOT_A_CHART_FOLDER = {"old", "chart", "cache", "reports", "reads"}
+
+
+def project_holds_turned_files(root) -> bool:
+    """Whether the project folder *root* holds a turned i1Profiler export
+    that is valid for its chart: an order file beside a chart, or in that
+    chart's exports/, naming that chart's exact bytes (SHA-256). A stale order
+    does not count. Archives (old/), stored charts (chart/) and scratch are
+    not looked in. Never raises."""
+    import os
+    try:
+        if root is None or not Path(root).is_dir():
+            return False
+        from workflow.i1profiler_turned import _order_in
+        for here, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in _NOT_A_CHART_FOLDER
+                       and not d.startswith(".")]
+            for name in files:
+                if not name.endswith(_TURNED_ORDER_TAIL):
+                    continue
+                stem = name[:-len(_TURNED_ORDER_TAIL)]
+                folder = Path(here)
+                chart_dir = (folder.parent if folder.name == "exports"
+                             else folder)
+                if _order_in(folder / name, chart_dir / f"{stem}.ti2"):
+                    return True
+    except Exception:  # noqa: BLE001 — the guide must never fail on a scan
+        return False
+    return False
+
+
+def turned_rows_wanted(project_root=None) -> bool:
+    """List the turned rows? Yes while the option is on, and also when the
+    project (*project_root*, else the one open in the app) actually holds
+    turned files valid for its chart: switched off later, they are still
+    there and still pair a turned measurement (§I.14 point 2). Off and with
+    none, no: the guide is exactly 4.3.16's."""
+    if turned_export_on():
+        return True
+    if project_root is None and _open_project_root is not None:
+        try:
+            project_root = _open_project_root()
+        except Exception:  # noqa: BLE001
+            project_root = None
+    return project_holds_turned_files(project_root)
+
+
 def _turned_rows():
     """The exports/ rows of the beta turned i1Profiler export (Basti,
-    2026-10-27: "let it list it when the option is on"). Only listed while
-    the option is on; off, the guide is exactly 4.3.16's."""
+    2026-10-27: "let it list it when the option is on"). Listed while the
+    option is on, or while the project holds such files (review 4.3.17 r3,
+    NIT-1); otherwise the guide is exactly 4.3.16's."""
     return [
         ("{name}-i1profiler-turned-i1Pro2.txf / -i1Pro3.txf", "runs/runN/exports",
          tr("Beta, written only while “Also write an i1Profiler chart "
@@ -630,10 +693,10 @@ def _rows(turned: "bool | None" = None):
     they live (folder-first since #127). Lazily built so the tr() calls run
     after the language is set.
 
-    *turned*: list the beta turned i1Profiler files; ``None`` reads the
-    setting (`turned_export_on`)."""
+    *turned*: list the beta turned i1Profiler files; ``None`` asks
+    `turned_rows_wanted` (the setting, or the open project's files)."""
     if turned is None:
-        turned = turned_export_on()
+        turned = turned_rows_wanted()
     _exports = [
         ("{name}-colours.txt", "runs/runN/exports", tr("The chart's colours as a plain hex list (RGB charts). Can be pasted back into the New-chart dialog."), tr("Create Chart (best-effort)")),
         ("{name}-i1profiler.txt / .pxf", "runs/runN/exports", tr("The patch set in i1Profiler's formats, for measuring with an i1iSis in i1Profiler."), tr("Create Chart (best-effort)")),

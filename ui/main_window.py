@@ -167,6 +167,12 @@ class MainWindow(QMainWindow):
         bind_log_settings(settings)
         self._runner    = ArgyllRunner(settings, self)
         self._file_mgr  = FileManager(settings)
+        # The folder guide lists the beta turned i1Profiler files when the
+        # open project holds them, even with the option off (review 4.3.17
+        # r3, NIT-1). Asked only for a project that is really open: reading
+        # get_target_name() would invent an automatic name.
+        from ui import file_guide as _file_guide
+        _file_guide.set_open_project_root(self._open_project_root_or_none)
         # A measurement whose copy of the printer calibration an earlier
         # engine wrote damaged is repaired before any Argyll tool loads it
         # (workflow/cal_repair.py); this window says so, once per action.
@@ -1426,6 +1432,14 @@ class MainWindow(QMainWindow):
             self._tab_chart._log.appendPlainText(line)
         except Exception:      # noqa: BLE001
             log.info("%s", line)
+
+    def _open_project_root_or_none(self):
+        """The open project's folder, or None; never creates anything."""
+        fm = getattr(self, "_file_mgr", None)
+        if fm is None or not getattr(fm, "_target_name", ""):
+            return None
+        root = fm.working_dir()
+        return root if root.is_dir() else None
 
     def _refresh_target_bar(self) -> None:
         if getattr(self, "_target_bar", None) is not None:
