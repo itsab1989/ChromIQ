@@ -407,3 +407,86 @@ def test_the_device_less_refusal_says_what_to_do_instead(turned_chart,
     v = assess(bare, ti2)
     assert not v.ok
     assert ".mxf" in v.reason and "switched off" in v.reason
+
+
+# ---------------------------------------------------------------------------
+# The CGATS text route (review 4.3.17 r2, SF-2)
+# ---------------------------------------------------------------------------
+
+def _i1p_cgats_export(ti2: Path, files, out: Path, *, rgb: bool) -> Path:
+    """A turned measurement as i1Profiler's CGATS text export writes one:
+    tab-separated, SAMPLE_ID 1..N in patch-list order, SAMPLE_NAME by its
+    own grid, then (when *rgb*) the device values of the .txf, then spectra."""
+    txf = files.txf("i1Pro 3")
+    objs = re.findall(r'(<cc:Object ObjectType="Target".*?</cc:Object>)',
+                      txf.read_text(encoding="utf-8"), flags=re.S)
+    rgbs = [tuple(int(v) for v in re.findall(r"<cc:[RGB]>(\d+)</cc:[RGB]>", o))
+            for o in objs]
+    plan = T.plan_for(ti2)
+    names = _i1p_names(plan.rows, plan.columns)
+    wl = [380 + 10 * i for i in range(36)]
+    fields = (["SAMPLE_ID", "SAMPLE_NAME"]
+              + (["RGB_R", "RGB_G", "RGB_B"] if rgb else [])
+              + [f"SPECTRAL_NM{w}" for w in wl])
+    rows = []
+    for j, ((r, g, b), n) in enumerate(zip(rgbs, names), 1):
+        dev = [f"{r:.2f}", f"{g:.2f}", f"{b:.2f}"] if rgb else []
+        rows.append("\t".join([str(j), n] + dev
+                              + [f"{v:.5f}" for v in _spectrum(r, g, b)]))
+    out.write_text(
+        'CGATS.17\n\nORIGINATOR\t"i1Profiler - X-Rite, Inc."\n'
+        'INSTRUMENTATION\t"i1Pro 3 ; Serial number 0"\n'
+        'DESCRIPTOR\t"turned"\nMEASUREMENT_CONDITION\t"M2"\n'
+        'CREATED\t"2026-10-27T00:21:51"\n\n'
+        f"NUMBER_OF_FIELDS\t{len(fields)}\nBEGIN_DATA_FORMAT\n"
+        + "\t".join(fields) + "\nEND_DATA_FORMAT\n\n"
+        f"NUMBER_OF_SETS\t{len(rows)}\nBEGIN_DATA\n" + "\n".join(rows)
+        + "\nEND_DATA\n", encoding="utf-8")
+    return out
+
+
+def _txt2ti3_dir() -> str:
+    from tests.argyll_env import argyll_bin_dir, argyll_tool
+    if argyll_tool("txt2ti3") is None:
+        pytest.skip("ArgyllCMS txt2ti3 is not installed")
+    return str(argyll_bin_dir())
+
+
+def test_a_cgats_export_with_rgb_values_pairs_like_the_mxf(turned_chart,
+                                                           tmp_path):
+    """Through the real converter (txt2ti3): the device values survive, the
+    file is recognised as turned, and once paired every reading is on the
+    patch the .mxf route puts it on."""
+    from workflow.reference_convert import convert_i1profiler_measurement
+    ti2, files = turned_chart
+    txt = _i1p_cgats_export(ti2, files, tmp_path / "turned.txt", rgb=True)
+    ti3 = convert_i1profiler_measurement(txt, _txt2ti3_dir(), tmp_path / "c")
+    v = assess(ti3, ti2)
+    assert v.ok and v.turned_order and not v.device_from_chart, v.reason
+    mxf_ti3 = cxf_measurement_to_ti3(
+        _mxf_from_txf(files.txf("i1Pro 3"), tmp_path / "t.mxf"),
+        tmp_path / "t.ti3")
+    n = complete_from_turned_order(ti3, ti2)
+    assert n == len(T.plan_for(ti2).order)
+    assert complete_from_turned_order(mxf_ti3, ti2) == n
+    a, b = _xyz_by_sid(ti3), _xyz_by_sid(mxf_ti3)
+    assert sorted(a) == sorted(b)
+    # txt2ti3 and the CxF parser integrate the spectra a little differently
+    # (a few hundredths), so each reading must lie within 0.2 of the one the
+    # .mxf route put on the SAME patch; another patch is far further away.
+    sids = sorted(b)
+    ref = np.array([b[k] for k in sids], dtype=float)
+    for sid in a:
+        d = np.linalg.norm(ref - np.array(a[sid], dtype=float), axis=1)
+        assert d[sids.index(sid)] < 0.2, (sid, d[sids.index(sid)])
+
+
+def test_a_cgats_export_without_device_values_is_refused_on_this_chart(
+        turned_chart, tmp_path):
+    from workflow.reference_convert import convert_i1profiler_measurement
+    ti2, files = turned_chart
+    txt = _i1p_cgats_export(ti2, files, tmp_path / "bare.txt", rgb=False)
+    ti3 = convert_i1profiler_measurement(txt, _txt2ti3_dir(), tmp_path / "c")
+    v = assess(ti3, ti2)
+    assert not v.ok and not v.turned_order
+    assert "carries no device values" in v.reason

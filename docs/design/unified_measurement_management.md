@@ -8619,10 +8619,12 @@ only when its device values then agree on every patch.**
 Measure tab's IMPORT module does it on its converted copy; Build Profile, Check
 & Refine and the new-project door do it through
 `measurement_filing.TurnedPairing`, against the chart that still has its order
-beside it, before a run is duplicated (`duplicate_run(run, ("chart",))` copies
-no `exports/`) or a project is made (`_copy_files` takes no turned files). The
-paired copy needs no order file any more, wherever it lands, and the person's
-own file is never touched. `say_what_was_filed` says so in a window if a door
+beside it, before a run is duplicated or a project is made. (Both of those
+took no turned files in r1; since review 4.3.17 r2, NIT-1, they carry them
+with a byte-for-byte copy of the chart, see the section below.) The paired copy
+needs no order file any more, wherever it lands, and the person's own file is
+never touched. A pairing copy that cannot be written ends in the door's "could
+not file" window (r2, NIT-4). `say_what_was_filed` says so in a window if a door
 paired a copy and the filed copy does not pair with its run's chart. Tests:
 `tests/test_i1profiler_turned_import.py` (a simulated turned `.mxf` imports
 with every reading on its own patch; a file whose device values do not follow
@@ -8630,6 +8632,38 @@ the order is refused; a partial one is refused with its own reason; a chart
 whose names coincide is never paired by name; ordinary measurements are judged
 as before) and `tests/test_i1profiler_turned_doors.py` (every door, through the
 real tabs, and the option off in settings with a chart that has an order).
+
+#### ⏳ Awaiting confirmation: which files pair, and where the turned files go (review 4.3.17 r2)
+
+**Confirmed by:** *nobody yet.*
+
+These follow from points 1 and 2 above and change neither; they are written
+down here because the texts and the code said otherwise until review round 2.
+
+* **Which files pair.** Point 1 asks for device values, not for a format. An
+  `.mxf` (the format the beta was checked with) carries them, and so does an
+  i1Profiler CGATS text export that includes the RGB values: driven through the
+  real converter (`convert_i1profiler_measurement`, txt2ti3), it is paired the
+  same way (`tests/test_i1profiler_turned_import.py::
+  test_a_cgats_export_with_rgb_values_pairs_like_the_mxf`). A CGATS export
+  without device values is refused on such a chart (point 3). The note, the
+  tooltip and the File Guide say exactly this; before r2 they said that only
+  the `.mxf` keeps the device values.
+* **The option off does not delete the order of a chart that stays.** With the
+  option off, Create Chart and the TI2 layout editor remove turned files only
+  when their order no longer names the chart on disk
+  (`i1profiler_turned.remove_unless_current`). Restore Used Chart redraws the
+  same chart and keeps them (the rebuild guard holds and puts them back), and a
+  build that fails or is stopped gives them back with the chart it puts back
+  (`reset_chart_artefacts(stash=True)` sets them aside). Before r2 the option
+  off removed them on every build (SF-1).
+* **They travel with a byte-for-byte copy of the chart.** `duplicate_run`'s
+  "chart" group copies them, and so does `ti2_loader._copy_files` (a new
+  project from a chart folder), into the new run's `exports/` under the new
+  name, only while the copied `.ti2` has the bytes the order names
+  (`i1profiler_turned.carry_turned_export`). The copy then pairs a later
+  turned measurement and refuses a device-less one, like its source. Without
+  turned files both copy exactly what 4.3.16 copied (NIT-1).
 
 ## S. Sequences — what happens, in what order, for every entry condition
 

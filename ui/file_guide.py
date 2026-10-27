@@ -613,12 +613,14 @@ def _turned_rows():
          tr("The order file: which chart patch each entry of the i1Profiler "
             "patch list is, and a checksum of the exact chart it was made "
             "for. ChromIQ reads it when you import the i1Profiler "
-            "measurement (the .mxf file) on the Measure tab, to put every "
-            "reading on its own patch. Leave it where it is and do not edit "
-            "it while you still want to bring that measurement back. While "
-            "it is there, ChromIQ accepts a measurement of this chart only "
-            "if it carries device values. Creating the chart again with the "
-            "option off removes these files."),
+            "measurement (the .mxf file, or a CGATS text export that includes "
+            "the RGB values) on the Measure tab, to put every reading on its "
+            "own patch. Leave it where it is and do not edit it while you "
+            "still want to bring that measurement back. While it is there, "
+            "ChromIQ accepts a measurement of this chart only if it carries "
+            "device values. Duplicating the run, or making a new project from "
+            "this chart's folder, copies these files with the chart. Creating "
+            "the chart again with the option off removes them."),
          tr("Create Chart (beta option)")),
     ]
 

@@ -641,20 +641,22 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
             "the same way when its rows come up.").format(n=plan.sheets))
     parts.append(tr(
         "7. When every row is measured, press Save under Page Data on the "
-        "Measurement page and save the measurement in i1Profiler's own "
-        "format, an .mxf file. Use the .mxf, not a CGATS text export: "
+        "Measurement page and save the measurement as an .mxf file, "
+        "i1Profiler's own format and the format this was checked with. A "
+        "CGATS text export that includes the RGB values is paired the same "
+        "way. One without device values is refused on this chart: "
         "i1Profiler names the patches by its own rows and columns (its A1 "
-        "is not ChromIQ's A1), and only the .mxf keeps the device values "
-        "(the RGB values of the test-chart file) that ChromIQ needs to put "
-        "every reading on its own patch. Leave i1Profiler's Scramble patches "
-        "setting off. Measure the whole chart: ChromIQ brings a turned "
+        "is not ChromIQ's A1), so only the device values (the RGB values of "
+        "the test-chart file) tell ChromIQ which patch each reading belongs "
+        "to. Leave i1Profiler's Scramble patches setting off. Measure the whole chart: ChromIQ brings a turned "
         "measurement back only when every patch has been read, and refuses "
         "a file that holds only part of the rows, saying how many readings "
         "it holds."))
     parts.append(tr(
         "8. To bring the measurement into ChromIQ: open this run, go to the "
-        "Measure tab, press IMPORT, choose the .mxf file with the folder "
-        "button beside Measurement File (from i1Profiler), and press Import "
+        "Measure tab, press IMPORT, choose the .mxf file (or the CGATS "
+        "text export with the RGB values) with the folder button beside "
+        "Measurement File (from i1Profiler), and press Import "
         "Measurement. ChromIQ recognises the turned order from the order "
         "file in this folder (the one ending in -i1profiler-turned.json) and "
         "puts every reading on its own patch. First it checks that the "
@@ -679,8 +681,8 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
     parts.append(tr(
         "While the order file is here, ChromIQ accepts a measurement of "
         "this chart only if it carries device values. A file without them, "
-        "for example a CGATS text export or a reading made with an i1iO "
-        "through i1Profiler's measure tool, which ChromIQ otherwise pairs by "
+        "for example a CGATS text export saved without the RGB values, or a "
+        "reading made with an i1iO through i1Profiler's measure tool, which ChromIQ otherwise pairs by "
         "patch name, is refused for this chart: on this chart i1Profiler's "
         "patch names are the same set as ChromIQ's but sit on other patches, "
         "so pairing by name could put every reading on the wrong patch. This "
@@ -695,8 +697,9 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles) -> str
         "Do not edit or move the order file (the one ending in "
         "-i1profiler-turned.json): it records which chart these files were "
         "made for, and ChromIQ needs it to bring the measurement back. A new "
-        "chart replaces all of these files, and renaming the project renames "
-        "them with it."))
+        "chart replaces all of these files (with the option off, it removes "
+        "them), and renaming the project renames them with it. Duplicating the run, or making a new project from "
+        "this chart's folder, copies them along with the chart."))
     return "\n".join(parts) + "\n"
 
 
