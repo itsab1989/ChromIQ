@@ -297,12 +297,17 @@ def spacers_on_sheet(recipe: dict) -> "tuple[bool, bool]":
         from workflow.layout_engine.presets import build_kwargs_as_built
         kw = build_kwargs_as_built(recipe)
         mode = str(kw.get("spacer_mode", mode))
-        pspa = float(instruments.geom_from_build_kwargs(kw).pspa)
+        geom = instruments.geom_from_build_kwargs(kw)
+        # A honeycomb carries its spacer as a ring round each hexagon
+        # (`instruments.build` moves pspa into `hex_ring_mm`), and the renderer
+        # draws it, edge sides included, whenever that ring is wider than 0.
+        width = max(float(geom.pspa or 0.0),
+                    float(getattr(geom, "hex_ring_mm", 0.0) or 0.0))
         edge = bool(kw.get("edge_spacers"))
     except Exception:  # noqa: BLE001 - an unreadable recipe: the fields say
         return mode != "none", mode != "none" and bool(
             recipe.get("edge_spacers"))
-    drawn = mode != "none" and pspa > 0
+    drawn = mode != "none" and width > 0
     return drawn, drawn and edge
 
 
@@ -466,8 +471,11 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
                     "For a chart that i1Profiler can read as well, set "
                     "\"Create layout\" on Create Chart to \"Prioritise patch "
                     "size, then fit to page\" instead. It keeps every strip "
-                    "within 240 mm, and how many strips the sheet has does not "
-                    "matter.")
+                    "within ChromIQ's strip length limit: 240 mm for the "
+                    "i1Pro, which fits one i1Profiler row, as long as \"Max "
+                    "strip length\" is left on auto (or set to at most "
+                    "241.5 mm) and \"Don't cap strip length\" is not ticked. "
+                    "How many strips the sheet has does not matter.")
                 if hint not in plan.hints:
                     plan.hints.append(hint)
         elif not (wlo <= plen <= whi):
@@ -630,10 +638,51 @@ def carry_turned_export(src_ti2: "str | Path", dst_ti2: "str | Path",
             if a.is_file():
                 shutil.copy2(a, b)
                 copied.append(b)
+        if dst.order in copied:
+            write_merged_order(order, dst.order)
     except Exception:  # noqa: BLE001 — never break an import
         log.warning("could not carry the turned i1Profiler export",
                     exc_info=True)
     return copied
+
+
+def write_merged_order(order: "TurnedOrder", dst: "str | Path") -> bool:
+    """Make the order file *dst*, a copy of *order*'s own file, hold every
+    order *order* merged: the one in force and each earlier one.
+
+    **A COPY PAIRS AND REFUSES EXACTLY LIKE THE ORIGINAL (review 4.3.18 r2,
+    NIT5).** :func:`turned_order_for` reads a chart's orders from ``exports/``
+    AND from beside the chart and merges them; a copy (Duplicate run, New
+    project from a chart folder) carries the files of one place only. Without
+    this, an earlier order kept only beside the original chart was lost: a
+    measurement made with that older ``.txf`` paired with the original and
+    was refused for the copy, and a file the original refuses as fitting two
+    orders could be filed by the copy, which knew only one. A version 1 file
+    (4.3.17, always anticlockwise, read without earlier orders) is written as
+    version 2 with its turn named, so the earlier orders are read. Nothing is
+    rewritten when there is no earlier order. Returns whether it wrote."""
+    if not order.earlier:
+        return False
+    dst = Path(dst)
+    try:
+        doc = json.loads(Path(order.path).read_text(encoding="utf-8"))
+        if not isinstance(doc, dict):
+            return False
+        if doc.get("version") == 1:
+            doc["version"] = ORDER_VERSION
+            doc["turn"] = str(doc.get("turn") or ANTICLOCKWISE)
+        doc["earlier_orders"] = [
+            {"version": c.version, "turn": c.turn,
+             "order": [{"sample_id": i, "loc": l}
+                       for i, l in zip(c.sample_ids, c.locs)]}
+            for c in order.earlier]
+        dst.write_text(json.dumps(doc, indent=1) + "\n",
+                       encoding="utf-8")
+        return True
+    except (OSError, ValueError):
+        log.warning("could not write the merged turned order %s", dst,
+                    exc_info=True)
+        return False
 
 
 def _write_txf(plan: TurnedPlan, family: str, out: Path, title: str) -> None:
@@ -996,9 +1045,12 @@ def note_not_qualified(plan: TurnedPlan, chart_name: str) -> str:
         "i1Pro family, with no spacers and every strip full, on any paper "
         "size, portrait or landscape. Along the strip the patches must be 10 "
         "to 25 mm long for the i1Pro 2 and 7 to 25 mm long for the i1Pro 3, "
-        "a strip may be at most 241.5 mm long, and the whole chart may have "
-        "at most about 150 strips, because one i1Profiler page is at most "
-        "1270 mm tall. Only the i1Pro 2 and the i1Pro 3 can read it. The "
+        "a strip may be at most 241.5 mm long, and the whole chart has to "
+        "fit on one i1Profiler page, which is at most 1270 mm tall. "
+        "i1Profiler gives each strip a row as tall as the strip is wide, but "
+        "at least 8 mm (6 mm for the i1Pro 3) and at most 12 mm, so that is "
+        "about 150 strips when they are 8 mm wide and about 100 when they "
+        "are 12 mm wide. Only the i1Pro 2 and the i1Pro 3 can read it. The "
         "layout was compared cell by cell with i1Profiler 3.8.8's own chart "
         "on A4, Letter, A4 landscape, 4 x 6 inch and 5 x 7 inch paper, with "
         "patches from 7 to 25 mm long (the i1Pro 3 file). Whatever the "

@@ -618,6 +618,8 @@ class LayoutOptionsPanel(QWidget):
             self.mode.currentIndexChanged.connect(self._sync_clip_content_for_mode)
             self.mode.currentIndexChanged.connect(self._emit)
             self.mode.currentIndexChanged.connect(self._update_clip_visibility)
+            # Flat or honeycomb decides whether there is room for an edge spacer.
+            self.mode.currentIndexChanged.connect(self._sync_edge_spacers_box)
             # The shape selector decides whether the two area-first boxes below
             # can do anything at all (see `_update_area_hex_locks`). It is
             # connected here, before those boxes exist; the slot is guarded on
@@ -1271,6 +1273,8 @@ class LayoutOptionsPanel(QWidget):
         self.patch_x = small_mm(special_auto=True)
         self.patch_y = small_mm(special_auto=True)
         self.inter_patch = mm()
+        # An inter-patch gap is room for an edge spacer (SF-A, 4.3.18 r2).
+        self.inter_patch.valueChanged.connect(self._sync_edge_spacers_box)
         self.strip_gap = mm()
         self.sig = mm()
         self._patch_size_row = add_row(
@@ -3241,6 +3245,9 @@ class LayoutOptionsPanel(QWidget):
                 self.clip_content_mode.setCurrentIndex(_notes)
         self._loading = False
         self._on_paper_changed()
+        # Another instrument can give "Edge spacers" room or take it away
+        # (SpectroScan -> CR30 left it greyed, 4.3.18 review r2, SF-A).
+        self._sync_edge_spacers_box()
 
     def _update_clip_visibility(self, *_a) -> None:
         """Show the clip-content group when a clip / notes band is available: for
@@ -5107,15 +5114,66 @@ class LayoutOptionsPanel(QWidget):
             for w in self._spacer_width_row:
                 if w is not None:
                     w.setEnabled(live)
-            # "Edge spacers" is a spacer too, and the engine draws it only on a
-            # chart that has spacers (`raster.render_pages`: spacer_mode !=
-            # "none" and a width above 0). Left enabled with Spacers set to
-            # None, its tick printed nothing and still read as "this chart has
-            # spacers at the ends of its strips" to 4.3.17's turned
-            # i1Profiler export (forum, pharmacist, 4.3.18). Greyed the same
-            # way as the spacer size; its tick is kept, not cleared.
-            if hasattr(self, "edge_spacers_cb"):
-                self.edge_spacers_cb.setEnabled(live)
+        self._sync_edge_spacers_box()
+
+    def _sync_edge_spacers_box(self, *_a) -> None:
+        """Grey "Edge spacers" exactly while ticking it cannot change the sheet.
+
+        Left enabled with Spacers set to None on an i1Pro, its tick printed
+        nothing and still read as "this chart has spacers at the ends of its
+        strips" to 4.3.17's turned i1Profiler export (forum, pharmacist). The
+        first fix greyed it by the spacer-SIZE rule, which was wrong both ways
+        (4.3.18 review r2, SF-A): a SpectroScan has a base spacer width of 0,
+        so the box was greyed on it in every mode, while with an inter-patch
+        gap its sheet differs ticked and clear; and the rule was only asked
+        again when Spacers changed, so after SpectroScan -> CR30 it stayed
+        greyed on an instrument where it works. It now asks the build
+        (`presets.edge_spacers_effect`), on every change that can move the
+        answer: instrument, shape, Spacers and the inter-patch gap.
+
+        The tick is never cleared, so a recipe saves what the person chose,
+        and the box's own tooltip says why it is greyed (NIT6: on the strip
+        readers the build brackets every strip anyway).
+        """
+        cb = getattr(self, "edge_spacers_cb", None)
+        if cb is None:
+            return
+        effect = "changes"
+        inst = (self.instr.currentData() if self.instr is not None
+                else self._inst) or "i1"
+        try:
+            from workflow.layout_engine.presets import (
+                LayoutRecipe, edge_spacers_effect)
+            if self.instr is not None:
+                r = self.get_recipe()
+            else:
+                r = self.apply_to_recipe(LayoutRecipe(
+                    instrument=inst,
+                    hflag=bool(getattr(self, "_recipe_hflag", False))))
+            effect = edge_spacers_effect(r)
+        except Exception:      # noqa: BLE001 - unknown: leave it usable
+            effect = "changes"
+        cb.setEnabled(effect == "changes")
+        if effect == "always_on":
+            name = dict(self.INSTRUMENTS).get(inst, inst)
+            cb.setToolTip(tr(
+                "On the {instrument}, ChromIQ always brackets every strip the "
+                "way this box would, so the instrument starts and ends each "
+                "strip the same way. Ticking or clearing the box therefore "
+                "changes nothing for this instrument. Whatever you set here is "
+                "kept, for an instrument where it does make a difference."
+            ).format(
+                    instrument=name))
+        elif effect == "no_room":
+            cb.setToolTip(tr(
+                "An edge spacer is as wide as the space between two patches, "
+                "and this chart has no space between its patches, so this box "
+                "changes nothing at the moment. It takes effect as soon as "
+                "there is space: set an inter-patch gap, or (except on the "
+                "SpectroScan) choose Coloured or Black & white spacers. "
+                "Whatever you set here is kept."))
+        else:
+            cb.setToolTip("")
 
     def _compact_browse(self, tooltip: str):
         """A magenta folder browse button sized like the targen -c browse
@@ -5963,6 +6021,8 @@ class LayoutOptionsPanel(QWidget):
         # BEFORE `_inst` / `_recipe_hflag` were written, so on a selector-less
         # panel it could only ask about the previous recipe's shape.
         self._update_area_hex_locks()
+        # …and "Edge spacers", which asks the same instrument and shape.
+        self._sync_edge_spacers_box()
         # One consolidated refresh now that loading is off: every field above was
         # set with change-signals suppressed, so without this the text/clip
         # previews and any listener (the layout editor's render preview) kept

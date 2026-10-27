@@ -8744,8 +8744,11 @@ of I.14 are unchanged except where this block says so.
   written again and its order differs (4.3.17's anticlockwise order, rewritten
   for the clockwise turn), the old order is kept in the new file as an
   `earlier_orders` entry. A measurement is compared with the order in force
-  first and then with each earlier one, and is paired by the first whose
-  device values agree on EVERY patch. Each of those orders was written by
+  and with every earlier one. It is paired when the orders whose device
+  values agree on EVERY patch all put every reading on the same patch; when
+  two of them agree and would put any reading on different patches, it is
+  refused (the point on a file that fits more than one pairing, below).
+  Each of those orders was written by
   ChromIQ for exactly that chart before the measurement existed, so the
   comparison still checks a pairing nobody chose. Point 1 as confirmed names
   one order; this makes it "an order ChromIQ wrote for exactly that chart".
@@ -8779,7 +8782,7 @@ of I.14 are unchanged except where this block says so.
   *"this file is a measurement of the turned i1Profiler chart, but ChromIQ
   cannot tell which patch each of its readings belongs to. ChromIQ has
   written more than one i1Profiler test-chart file for this chart: the one
-  beside it now, and an earlier one (for example from ChromIQ 4.3.17, which
+  it wrote last, and an earlier one (for example from ChromIQ 4.3.17, which
   turned the sheet the other way). This chart repeats its colours in such a
   way that the readings fit both files on every patch, yet the two would put
   some readings on different patches. Nothing in the file says which one you
@@ -8799,11 +8802,32 @@ of I.14 are unchanged except where this block says so.
     chart's own order and in the order of the turned i1Profiler chart, yet
     the two would put some readings on different patches. Nothing in the file
     says whether it was measured on ChromIQ's sheet as printed or on the
-    turned i1Profiler chart, so ChromIQ does not guess. Measuring the sheet again in i1Profiler would not help, because
-    the new readings would fit both orders in the same way. Please measure
-    this sheet in ChromIQ instead: ChromIQ reads every patch where it is
-    printed"*). A chart without a turned order, and any chart whose colours
-    do not repeat that way, is judged exactly as before.
+    turned i1Profiler chart, so ChromIQ does not guess. (A measurement made
+    in ChromIQ, or with ArgyllCMS chartread, says so in the file and is filed
+    without this question.) Measuring the sheet again in i1Profiler would not
+    help, because the new readings would fit both orders in the same way.
+    Please measure this sheet in ChromIQ instead: ChromIQ reads every patch
+    where it is printed"*). A chart without a turned order, and any chart
+    whose colours do not repeat that way, is judged exactly as before.
+  * **Not asked of a file that says it was read from the sheet as printed**
+    (review 4.3.18 r2, SF-B). A measurement whose `ORIGINATOR` is
+    `"Argyll chartread"` was made by the only tool ChromIQ measures an i1Pro
+    chart with, which reads the sheet by the chart's own `.ti2` and cannot
+    have read i1Profiler's turned chart, and one that carries
+    `CHROMIQ_PAIRED_BY_TURNED_ORDER` was already put in the chart's order by
+    ChromIQ. Both are filed by §I.5 as before. An i1Profiler measurement
+    never says either: converted from its `.mxf` / `.cxf` it says
+    `"ChromIQ"` (with the descriptor "Measurement data converted from
+    i1Profiler CxF"), converted from its CGATS `.txt` it says
+    `"Argyll txt2ti3"`. Any other file, or one whose header cannot be read,
+    is still asked, and refused when it fits both
+    (`workflow/measurement_import.py::read_from_the_sheet_as_printed`).
+  * **A copy pairs like the original** (review 4.3.18 r2, NIT5). Duplicate
+    run and a new project made from a chart folder carry the order file of
+    the place in force, and write into it every earlier order the original's
+    two places hold together (a 4.3.17 version 1 file is written as version 2
+    with its turn named), so the copy pairs and refuses exactly as the
+    original does (`i1profiler_turned.write_merged_order`).
   * Why "measure again in i1Profiler" is not offered: whether two orders both
     agree is a property of the chart's colours, not of the file, so a new
     measurement with the current `.txf` agrees with both in the same way.
@@ -8812,7 +8836,10 @@ of I.14 are unchanged except where this block says so.
     proposed, shown from 4.3.18, and await approval with this block.
   * Tests: `tests/test_i1profiler_turned_review_4318.py` (two orders that
     both fit, a uniform chart, the same order in both places, an ordinary
-    measurement of a chart with a turned order).
+    measurement of a chart with a turned order),
+    `tests/test_i1profiler_turned_review_4318_r2.py` (a chartread measurement
+    of a uniform chart is filed, every other origin still refused; a copy
+    pairs and refuses like the original).
 * **The note says when the files were written again** (review 4.3.18 r1,
   SF-4). When the export of the same chart keeps an earlier order, the note
   adds a paragraph: the files were written again for the clockwise turn; if

@@ -354,7 +354,14 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
         from workflow.i1profiler_turned import (fits_straight_and_turned,
                                                 turned_match,
                                                 turned_order_for)
-        if turned_order_for(chart_ti2) is not None:
+        # …UNLESS THE FILE SAYS IT WAS READ FROM CHROMIQ'S OWN SHEET (review
+        # 4.3.18 r2, SF-B): chartread reads the sheet as printed, by the
+        # chart's own .ti2, and could never have read i1Profiler's turned
+        # chart; a measurement ChromIQ already paired through the turned order
+        # carries its keyword and is in the chart's order. Refusing those told
+        # a person who HAD measured in ChromIQ to measure in ChromIQ.
+        if (turned_order_for(chart_ti2) is not None
+                and not read_from_the_sheet_as_printed(ti3)):
             turned = turned_match(measured, chart_ti2)
             if fits_straight_and_turned(measured, turned):
                 return ImportVerdict(False, straight_or_turned_reason(),
@@ -368,6 +375,43 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
                          n_chart=n_chart or 0, n_measured=n_got, n_read=n_read)
 
 
+#: The ``ORIGINATOR`` of a measurement made by ArgyllCMS chartread, the only
+#: tool ChromIQ measures a strip-reader chart with. It reads the sheet as
+#: printed, by the chart's own .ti2. An i1Profiler measurement reaches
+#: :func:`assess` as ``"ChromIQ"`` (converted from its .mxf / .cxf,
+#: `reference_convert.cxf_measurement_to_ti3`) or as ``"Argyll txt2ti3"``
+#: (converted from its CGATS .txt), never as this.
+CHARTREAD_ORIGINATOR = "Argyll chartread"
+
+
+def read_from_the_sheet_as_printed(ti3: "Path | str") -> bool:
+    """True when *ti3* itself says it holds readings in the chart's own order
+    and cannot be a measurement of the turned i1Profiler chart: written by
+    chartread (:data:`CHARTREAD_ORIGINATOR`), or already paired through the
+    turned order by ChromIQ (``TURNED_KEYWORD``). Anything else, including an
+    unreadable file, is "cannot tell" and keeps the straight-or-turned check
+    (review 4.3.18 r2, SF-B)."""
+    import re
+    from workflow.i1profiler_turned import TURNED_KEYWORD
+    try:
+        with open(ti3, "r", encoding="utf-8", errors="replace") as fh:
+            head = []
+            for line in fh:
+                if line.strip() == "BEGIN_DATA":
+                    break
+                head.append(line)
+                if len(head) > 400:
+                    break
+    except OSError:
+        return False
+    text = "".join(head)
+    if re.search(r'^\s*' + re.escape(TURNED_KEYWORD) + r'\b', text,
+                 re.MULTILINE):
+        return True
+    m = re.search(r'^\s*ORIGINATOR\s+"([^"]*)"', text, re.MULTILINE)
+    return bool(m) and m.group(1).strip() == CHARTREAD_ORIGINATOR
+
+
 def turned_ambiguous_reason() -> str:
     """The refusal for a turned measurement that fits more than one order
     ChromIQ wrote for the chart (review 4.3.18 r1, SF-1; §I.14)."""
@@ -375,7 +419,7 @@ def turned_ambiguous_reason() -> str:
         "this file is a measurement of the turned i1Profiler chart, but "
         "ChromIQ cannot tell which patch each of its readings belongs to. "
         "ChromIQ has written more than one i1Profiler test-chart file for "
-        "this chart: the one beside it now, and an earlier one (for example "
+        "this chart: the one it wrote last, and an earlier one (for example "
         "from ChromIQ 4.3.17, which turned the sheet the other way). This "
         "chart repeats its colours in such a way that the readings fit both "
         "files on every patch, yet the two would put some readings on "
@@ -398,7 +442,9 @@ def straight_or_turned_reason() -> str:
         "i1Profiler chart, yet the two would put some readings on different "
         "patches. Nothing in the file says whether it was measured on "
         "ChromIQ's sheet as printed or on the turned i1Profiler chart, so "
-        "ChromIQ does not guess. Measuring the "
+        "ChromIQ does not guess. (A measurement made in ChromIQ, or with "
+        "ArgyllCMS chartread, says so in the file and is filed without this "
+        "question.) Measuring the "
         "sheet again in i1Profiler would not help, because the new readings "
         "would fit both orders in the same way. Please measure this sheet in "
         "ChromIQ instead: ChromIQ reads every patch where it is printed")

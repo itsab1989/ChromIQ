@@ -4082,6 +4082,18 @@ class Project:
         files = I1ProfilerTurnedFiles(order.path.parent, source.chart_ti2.stem)
         return every, _as_on_disk(files.all())
 
+    @staticmethod
+    def _carry_merged_turned_order(source: Run, new_run: Run) -> None:
+        from workflow.i1profiler_turned import (turned_order_for,
+                                                write_merged_order)
+        if not I1ProfilerTurnedFiles(new_run.exports_dir,
+                                     source.chart_ti2.stem).order.is_file():
+            return
+        order = turned_order_for(source.chart_ti2)
+        if order is not None:
+            write_merged_order(order, I1ProfilerTurnedFiles(
+                new_run.exports_dir, source.chart_ti2.stem).order)
+
     def duplicate_run(self, source: Run,
                       groups: "tuple[str, ...] | None" = None) -> Run:
         """Copy *source*'s work into a brand-new run and make it current.
@@ -4123,6 +4135,11 @@ class Project:
                         dst = new_run.exports_dir / src.name
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(src, dst)
+            # The copy's order file holds every order the source's chart has,
+            # from both places, so the copy pairs and refuses a turned
+            # measurement exactly as the source does (review 4.3.18 r2, NIT5).
+            if groups is None or "chart" in groups:
+                self._carry_merged_turned_order(source, new_run)
         except OSError:
             # A half-copied run is worse than none: it would look like a real
             # run and measure into a chart that is missing pages. Undone here

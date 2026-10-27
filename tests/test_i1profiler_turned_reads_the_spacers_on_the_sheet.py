@@ -250,7 +250,9 @@ def test_the_hint_names_the_labels_the_ui_shows():
     from ui.dialogs import layout_options_panel as P
     src = inspect.getsource(P)
     for label in ("Prioritise chart area, then fit patches to it",
-                  "Prioritise patch size, then fit to page", "Create layout:"):
+                  "Prioritise patch size, then fit to page", "Create layout:",
+                  # review r2, NIT3: the hint names the strip length controls
+                  "Max strip length", "Don't cap strip length"):
         assert f'tr("{label}")' in src, label
 
 
@@ -270,6 +272,11 @@ def test_the_edge_spacer_box_is_greyed_while_spacers_are_none():
     from workflow.layout_engine.presets import LayoutRecipe
     panel = LayoutOptionsPanel()
     try:
+        # Pharmacist's case: i1Pro, Spacers None. Greyed, tick kept. Since
+        # review r2 (NIT6) it stays greyed on the i1Pro with spacers too,
+        # because the build brackets every i1Pro strip whatever it says; the
+        # full rule is pinned in
+        # test_edge_spacers_box_greys_only_when_it_changes_nothing.py.
         panel.set_recipe(LayoutRecipe(instrument="i1", spacer_mode="none",
                                       edge_spacers=True))
         cb = panel.edge_spacers_cb
@@ -277,8 +284,13 @@ def test_the_edge_spacer_box_is_greyed_while_spacers_are_none():
         assert cb.isChecked()                    # kept, not cleared
         assert panel.get_recipe().edge_spacers is True
         panel.spacer_mode.setCurrentIndex(panel.spacer_mode.findData("colored"))
+        assert not cb.isEnabled() and cb.isChecked()
+        # where the box does change the sheet, Spacers None greys it again
+        panel.set_recipe(LayoutRecipe(instrument="CR30",
+                                      spacer_mode="colored",
+                                      edge_spacers=True))
         assert cb.isEnabled() and cb.isChecked()
         panel.spacer_mode.setCurrentIndex(panel.spacer_mode.findData("none"))
-        assert not cb.isEnabled()
+        assert not cb.isEnabled() and cb.isChecked()
     finally:
         panel.deleteLater()

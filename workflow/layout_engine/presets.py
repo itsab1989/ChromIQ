@@ -97,6 +97,38 @@ def build_kwargs_as_built(recipe) -> dict:
     return kw
 
 
+#: The strip readers whose build turns edge spacers on whatever the recipe
+#: says (:meth:`LayoutRecipe.build_kwargs`, and Guided in chart_creator).
+EDGE_SPACERS_ALWAYS_ON = ("i1", "p3", "CM")
+
+
+def edge_spacers_effect(recipe: "LayoutRecipe") -> str:
+    """What ticking "Edge spacers" would do to the sheet *recipe* describes.
+
+    ``"always_on"``: a strip reader, whose build brackets every strip anyway,
+    so the tick changes nothing. ``"no_room"``: an edge spacer is as wide as
+    the space between two patches (``geom.pspa``, or the ring of a honeycomb),
+    and this chart has none, so the tick changes nothing either.
+    ``"changes"``: ticked and clear are two different sheets.
+
+    **NOT "Spacers is None" (4.3.18 review r2, SF-A).** With Spacers None and an
+    inter-patch gap, a SpectroScan or CR30 sheet still differs with the box
+    ticked: no ink, but the gap is reserved at both ends of every strip, so the
+    patches move. And a SpectroScan with Coloured spacers and no gap has no
+    room at all (its base spacer width is 0). Measured on every instrument,
+    mode, gap and honeycomb against the rendered TIFFs (2026-10-27,
+    tests/test_edge_spacers_box_greys_only_when_it_changes_nothing.py).
+    """
+    if recipe.instrument in EDGE_SPACERS_ALWAYS_ON:
+        return "always_on"
+    from . import instruments
+    kw = replace(recipe, edge_spacers=True).build_kwargs()
+    g = instruments.geom_from_build_kwargs(kw)
+    room = float(g.pspa or 0.0) > 0 or float(
+        getattr(g, "hex_ring_mm", 0.0) or 0.0) > 0
+    return "changes" if room else "no_room"
+
+
 @dataclass
 class LayoutRecipe:
     instrument: str = "i1"
