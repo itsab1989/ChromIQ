@@ -2,9 +2,9 @@
 
 Two layers:
 
-* **Headless checks** (no ArgyllCMS needed) that power the in-app green/red
-  badge before printing: patch-size reliability floor, inter-patch contrast,
-  and that the layout actually fits.  These protect Design priority #1.
+* **Headless checks** (no ArgyllCMS needed), shown in Preferences > Chart
+  Layout under the patch count: the patch-size reliability floor and the
+  width of the strip letters. These protect Design priority #1.
 * An optional **Argyll-backed round-trip** (``fakeread`` → ``colprof``) for
   CI/dev to confirm the ``.ti2`` is structurally sound end to end.
 
@@ -20,7 +20,6 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .contrast import LOW_CONTRAST_THRESHOLD
 from .geometry import Layout
 from .instruments import Geom
 from core.proc_text import run_text
@@ -47,37 +46,31 @@ class PreflightReport:
 
 
 def check(geom: Geom, layout: Layout, *,
-          low_contrast_passes: list[int] | None = None,
-          low_contrast_labels: list[str] | None = None,
           min_patch_mm: float = MIN_PATCH_MM) -> PreflightReport:
-    """Headless readability checks for a built layout."""
+    """Headless readability checks for a built layout.
+
+    Its one caller in the app is Preferences > Chart Layout, which shows
+    ``errors`` and ``warnings`` under the patch count, so they are translated.
+    ``info`` is shown nowhere and stays English.
+
+    THE LOW-CONTRAST WARNING THAT WAS HERE IS GONE (review 4.3.19 r1, N7). It
+    took the strips from a ``low_contrast_passes`` argument that no caller in
+    the app ever passed, so it could not be shown, and it was English with a
+    hand-built plural. The note a person sees is the Create Chart log line
+    (`chart_creator._low_contrast_log_line`, from
+    `contrast.drawn_low_contrast_passes`)."""
+    from core.i18n import tr
     rep = PreflightReport()
 
     smallest = min(geom.plen, geom.pwid)
     if smallest < min_patch_mm - 1e-6:
-        rep.add_error(
-            f"patch size {smallest:.1f} mm is below the {min_patch_mm:.1f} mm "
-            f"reliability floor — the instrument may misread; reduce the scale or "
-            f"use a larger paper/instrument"
-        )
-
-    # THE LIST IS THE ENGINE'S, and since 4.3.19 it only holds strips under
-    # "Black & white" spacers (`contrast.drawn_low_contrast_passes`), so the
-    # wording can say what is really on the sheet. Named by the labels printed
-    # above the strips when given, else by their number counted from 1.
-    if low_contrast_passes:
-        names = (list(low_contrast_labels) if low_contrast_labels
-                 and len(low_contrast_labels) == len(low_contrast_passes)
-                 else [str(p + 1) for p in low_contrast_passes])
-        rep.add_warning(
-            ("strip " if len(names) == 1 else "strips ")
-            + ", ".join(names)
-            + ": a very dark patch sits right next to a very light one, so "
-            "the black or white spacer between them differs from one of the "
-            f"two by less than {LOW_CONTRAST_THRESHOLD:.0f} of 255 in "
-            "brightness, and that patch edge may be harder for the instrument "
-            "to find"
-        )
+        rep.add_error(tr(
+            "The patches are {size} mm, smaller than the {floor} mm an "
+            "instrument needs to read a patch reliably, so it may misread "
+            "them. Choose a larger “{patch_scale}”, or a larger paper or "
+            "instrument.").format(
+                size=f"{smallest:.1f}", floor=f"{min_patch_mm:.1f}",
+                patch_scale=tr("Patch scale")))
 
     rep.info.append(
         f"{layout.steps_in_pass} patches/pass × {layout.passes} pass(es), "
@@ -108,9 +101,12 @@ def indicator_width_warning(geom, dpi: int, *, font: str = "JetBrains Mono",
         return None
     pair_mm = (widest_char * 2) / mm2px
     if pair_mm > geom.pwid + 0.1:
-        return (f"strip indicator may be wider than the strip "
-                f"(~{pair_mm:.1f} mm vs {geom.pwid:.1f} mm strip) — a two-letter "
-                f"label could overlap the next strip; reduce the indicator size")
+        from core.i18n import tr
+        return tr("The strip letters may be wider than a strip: two letters "
+                  "can take about {pair} mm, and a strip is {strip} mm wide, "
+                  "so a two-letter strip name could run into the next strip. "
+                  "Choose a smaller size for the strip letters.").format(
+                      pair=f"{pair_mm:.1f}", strip=f"{geom.pwid:.1f}")
     return None
 
 
