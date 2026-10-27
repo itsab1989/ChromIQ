@@ -957,6 +957,31 @@ def stubbed_judge():
     _forget_preset_answers()
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _the_presets_thread_ends_with_its_file():
+    """**THE PRESETS' BACKGROUND THREAD DOES NOT OUTLIVE THE FILE THAT
+    STARTED IT** (release review r5 of 4.3.18, SF-1).
+
+    A presets window or a Create Chart tab queues built-in presets on
+    "chromiq-preset-layout", and the thread went on laying them out (11 s for
+    one scanner preset) through whichever files the same xdist worker ran
+    next. That is how `area_fit`'s process-wide derivation depth reached
+    `test_row_indicators_without_strip_letters.py` and flipped its render
+    hash under load only. The depth is per thread now, which is the fix;
+    this keeps one file's background work out of the next file's timing and
+    state as well. The job that is running finishes (it removes its own
+    folder), queued jobs are dropped, and whoever asks again queues them
+    again (`preset_layout._stop_worker`)."""
+    yield
+    pl = sys.modules.get("workflow.preset_layout")
+    if pl is None:
+        return
+    with pl._LOCK:
+        alive = any(t.is_alive() for t in pl._THREADS)
+    if alive:
+        pl._stop_worker(30.0)
+
+
 @pytest.fixture()
 def preset_certificates():
     """Certificates read and written as the app does them (see above)."""

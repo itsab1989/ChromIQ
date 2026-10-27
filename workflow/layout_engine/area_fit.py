@@ -15,6 +15,7 @@ the derivation measures a real provisional geometry.
 from __future__ import annotations
 
 import math
+import threading
 
 from . import geometry, instruments, papers
 
@@ -170,7 +171,8 @@ def _as_area_first(geom):
 #: This function is pure in `kw`, so the repeats are free to remove. The
 #: arithmetic is untouched: the second and later callers get the answer the
 #: first one computed.
-_CACHE: "dict[str, tuple[float, float] | None]" = {}
+#: Each entry is ``(patch size, old label rule kept)``; see `_derive_with_rule`.
+_CACHE: "dict[str, tuple[tuple[float, float] | None, bool]]" = {}
 _CACHE_MAX = 64
 
 
@@ -188,25 +190,42 @@ def _cache_key(kw: dict) -> "str | None":
         return None
 
 
-#: How deep inside a derivation this thread is. The geometries a derivation
+#: How deep inside a derivation THIS THREAD is. The geometries a derivation
 #: builds for its candidate patch sizes must use the rule of the kwargs they
 #: were given; asking `old_label_rule_kept` from inside would ask this very
 #: derivation for its own answer.
-_DERIVING = 0
+#:
+#: **PER THREAD, AND UNTIL 4.3.18 IT WAS NOT (review r5 SF-1).** It was one
+#: integer for the whole process, so while the presets window's background
+#: thread ("chromiq-preset-layout", `workflow/preset_layout.py`) was deriving
+#: an area-first size, `old_label_rule_kept` answered False on the GUI thread
+#: too. `instruments.geom_from_build_kwargs` then laid out the old rule's patch
+#: size with the new rule's label geometry: measured on a SpectroScan
+#: area-first A4 chart, the patch block 2.8 mm to the left (x0 30.28 against
+#: 33.08 mm). It was also the render-hash flake of
+#: `test_row_indicators_without_strip_letters.py`.
+_TLS = threading.local()
 
-#: Cache keys of area-first recipes whose patch size is the OLD rule's
-#: (`old_label_rule_kept`).
-_OLD_RULE_KEPT: set = set()
+#: Guards every read-modify-write of `_CACHE`. Held only around the dict
+#: operations, never across a derivation: a derivation re-enters this module
+#: (the old rule's size, and every candidate geometry asks
+#: `old_label_rule_kept`), and the GUI thread must never wait seconds for a
+#: scanner preset the background thread is sizing. Two threads asking for the
+#: same recipe at once both derive it; the function is pure, so they agree.
+_LOCK = threading.RLock()
+
+
+def _depth() -> int:
+    return getattr(_TLS, "depth", 0)
 
 
 def old_label_rule_kept(kw: dict) -> bool:
     """True when *kw*'s area-first patch size kept the row labels clear of the
     whole clip border because the new rule would have fitted fewer patches
     (`derive_area_patch_size`). The geometry must then use that rule too."""
-    if kw.get("layout_mode") != "area_first" or _DERIVING:
+    if kw.get("layout_mode") != "area_first" or _depth():
         return False
-    derive_area_patch_size(kw)
-    return _cache_key(kw) in _OLD_RULE_KEPT
+    return _derive_with_rule(kw)[1]
 
 
 def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
@@ -216,15 +235,28 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
 
     Memoised on the whole of *kw*; see :data:`_CACHE`.
     """
+    return _derive_with_rule(kw)[0]
+
+
+def _derive_with_rule(kw: dict) -> "tuple[tuple[float, float] | None, bool]":
+    """``(patch size, old label rule kept)`` for *kw*, from one cache entry.
+
+    The two answers are cached TOGETHER, so a reader can never see a size
+    from one derivation and the rule flag from another (or from none, after
+    the cache was emptied between the two lookups).
+    """
     _key = _cache_key(kw)
-    if _key is not None and _key in _CACHE:
-        return _CACHE[_key]
-    global _DERIVING
-    _DERIVING += 1
+    if _key is not None:
+        with _LOCK:
+            _hit = _CACHE.get(_key)
+        if _hit is not None:
+            return _hit
+    _TLS.depth = _depth() + 1
     try:
         _out = _derive_area_patch_size(kw)
     finally:
-        _DERIVING -= 1
+        _TLS.depth -= 1
+    _kept = False
     # FREED SPACE MAY ONLY HELP (Basti, 2026-10-25). Row labels may use the
     # free part of a clip border (`row_label_geometry.md` §R1.3a), which
     # widens the patch area; area-first then sizes the patches to the wider
@@ -245,12 +277,13 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
                                       "patch_h": _old[1]})
             if _n_old > _n_new:
                 _out = _old
-                _OLD_RULE_KEPT.add(_key)
+                _kept = True
     if _key is not None:
-        if len(_CACHE) >= _CACHE_MAX:
-            _CACHE.clear()
-        _CACHE[_key] = _out
-    return _out
+        with _LOCK:
+            if len(_CACHE) >= _CACHE_MAX:
+                _CACHE.clear()
+            _CACHE[_key] = (_out, _kept)
+    return _out, _kept
 
 
 def _derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
