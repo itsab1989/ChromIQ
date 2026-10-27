@@ -18909,8 +18909,8 @@ class TabChart(QWidget):
                      eff_lb: bool, nsl: bool, pscale: float, margin: float,
                      guided: bool = True):
         """Build a layout-engine Geom from the guided/manual effective values,
-        with the user's margin thresholds enforced (so the count matches what
-        the engine will actually build, #93).
+        exactly as the engine will build it, so the count matches (#93). No
+        margin is raised to a margin threshold, here or in the build.
 
         Spacers are decided HERE, from *guided*, and never by a caller. They
         were hard-coded ``True``, which stayed invisible until the CR30 became
@@ -18972,12 +18972,10 @@ class TabChart(QWidget):
             # the Calculated Patches figure lies, which is a bug this comment
             # already records being fixed once.
             kw["hex_flat_top"] = bool(kw.get("hflag"))
-        # Guided mode has no margin boxes and no "Use instrument margins"
-        # recipe toggle, so the jig-safety threshold clamp is NOT applied here.
-        # It would pin the patch count regardless of the clip-border / strip-cap
-        # toggles (the thresholds dominate). Mirrors chart_creator's Guided
-        # generation path so the estimate matches the real render.
-        return instruments.geom_from_build_kwargs(kw, thresholds=None)
+        # No margin is raised to a threshold, here or anywhere: the margins
+        # asked for are the margins laid out (#93). Mirrors chart_creator's
+        # Guided generation path so the estimate matches the real render.
+        return instruments.geom_from_build_kwargs(kw)
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
                          eff_lb: bool, nsl: bool, pscale: float, margin: float,

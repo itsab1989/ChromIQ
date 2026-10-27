@@ -192,7 +192,7 @@ def check_numbers() -> None:
             kw["nolpcbord"] = False
         if instr == "CM":
             kw["density"] = 1
-        geom = instruments.geom_from_build_kwargs(kw, thresholds=None)
+        geom = instruments.geom_from_build_kwargs(kw)
         got = int(geometry.patches_per_sheet(geom, *papers.dimensions_mm(paper)))
         if got == want:
             ok(f"engine {instr}/{paper}", str(got))

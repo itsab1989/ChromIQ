@@ -68,10 +68,10 @@ def test_the_render_geometry_is_told_about_the_helper_markers(monkeypatch,
     seen: dict = {}
     real = instruments.geom_from_build_kwargs
 
-    def spy(kw, thresholds=None):
+    def spy(kw):
         if not seen:
             seen.update(kw)
-        return real(kw, thresholds)
+        return real(kw)
 
     monkeypatch.setattr(le_chart.instruments, "geom_from_build_kwargs", spy)
 

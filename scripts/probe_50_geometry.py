@@ -37,7 +37,7 @@ def main() -> int:
     out = {}
     for name, kw in CASES.items():
         try:
-            g = instruments.geom_from_build_kwargs(kw, thresholds=None)
+            g = instruments.geom_from_build_kwargs(kw)
             pw, ph = papers.dimensions_mm(kw["paper"])
             lay = geometry.compute(g, pw, ph, npat)
             pl = geometry.placement(g, pw, ph, lay)

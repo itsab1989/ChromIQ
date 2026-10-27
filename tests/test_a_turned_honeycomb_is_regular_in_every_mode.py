@@ -59,7 +59,7 @@ def _kw(paper="A4", *, hflag=True, flat_top=True, mode="area_first",
 
 
 def _geom(kw):
-    return instruments.geom_from_build_kwargs(kw, thresholds=None)
+    return instruments.geom_from_build_kwargs(kw)
 
 
 def _drawn(geom):

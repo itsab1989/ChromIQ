@@ -435,7 +435,7 @@ def main() -> int:                                             # noqa: C901
         try:
             params = tab._collect_manual()             # the app's own params
             import types as _t
-            ns = _t.SimpleNamespace(_threshold_notes=[], _settings=settings)
+            ns = _t.SimpleNamespace(_settings=settings)
             kw = ChartCreator._engine_kwargs(ns, params)
             row["instrument"] = kw.get("instrument")
             row["paper"] = kw.get("paper")

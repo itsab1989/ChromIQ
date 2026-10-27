@@ -239,7 +239,7 @@ def test_recipe_margins_always_authoritative_no_clamp(tmp_path: Path) -> None:
         kw = creator._engine_kwargs(ChartParams(instrument="i1", paper="A4",
                                                 layout_recipe=r))
         assert kw["margins"][0] == 5.0       # never clamped up to the threshold
-        assert not creator._threshold_notes
+        assert not hasattr(creator, "_threshold_notes")
 
 
 def test_guided_does_not_enforce_margin_thresholds(tmp_path: Path) -> None:
@@ -255,7 +255,7 @@ def test_guided_does_not_enforce_margin_thresholds(tmp_path: Path) -> None:
     kw = creator._engine_kwargs(p)
     # geom_from_build_kwargs is called without thresholds → no silent clamp
     assert instruments.geom_from_build_kwargs(kw) is not None
-    assert not creator._threshold_notes, "Guided must not record a clamp note"
+    assert not hasattr(creator, "_threshold_notes"), "no clamp, no clamp note"
     # capacity equals an engine with no threshold table at all
     plain = ChartCreator(_EngineRunner(), _MockFileManager(tmp_path / "q"),
                          _EngineSettings())._engine_total_patches(p)

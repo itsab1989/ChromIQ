@@ -24,7 +24,7 @@ def main() -> int:
     tiles = []
     for L in (0.0, 1.0, 2.0, 2.5, 3.0, 4.0):
         kw = {**BASE, "margins": (6.0, 2.0, 1.0, L), "border": L}
-        g = instruments.geom_from_build_kwargs(kw, thresholds=None)
+        g = instruments.geom_from_build_kwargs(kw)
         pw, ph = papers.dimensions_mm("A4")
         lay = geometry.compute(g, pw, ph, 1144)
         pl = geometry.placement(g, pw, ph, lay)

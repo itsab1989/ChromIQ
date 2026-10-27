@@ -313,8 +313,9 @@ def _low_contrast_log_line(labels: "list[str]", randomized: bool) -> str:
     The layout engine only names a strip when black and white spacers are
     really drawn (`contrast.drawn_low_contrast_passes`, 4.3.19), so the text
     can say what the bar between those two patches looks like. The strips are
-    named by the labels printed above them, which are also what the Measure
-    tab and chartread call them. The control names are the Create Chart
+    named by their strip names, the letters ChromIQ prints above them when
+    strip letters are on; the Measure tab and chartread call them by the same
+    names whether the letters are printed or not (review 4.3.19 r1, N6). The control names are the Create Chart
     panel's own `tr()` labels, filled in, so they always read as on screen. The
     "New seed" advice is left out for a chart whose order is fixed, where that
     button does nothing.
@@ -1739,8 +1740,10 @@ class ChartCreator:
             # engine never silently raises them to meet instrument-margin minimums.
             # "Use instrument margins" only pre-fills the boxes once in the UI;
             # going below an instrument minimum is allowed and merely flagged as a
-            # violation in the Measured-from-Preview panel. So no build-time clamp.
-            self._threshold_notes = []
+            # violation in the Measured-from-Preview panel. So no build-time clamp
+            # (the clamp that once did it, `_apply_margin_thresholds` and
+            # `layout_engine.margins_fit`, had no caller and was removed in
+            # 4.3.19, review r1 N8).
             if _in_order:
                 kw["randomize"] = False
             return kw
@@ -1750,31 +1753,10 @@ class ChartCreator:
         # clip-border / strip-cap toggles (the thresholds dominated), which the
         # user asked to revert: Guided behaves like before the #93 threshold
         # feature. Mirrors the Guided capacity estimate in
-        # tab_chart._engine_geom (thresholds=None) so count and chart agree.
-        self._threshold_notes = []
+        # tab_chart._engine_geom so count and chart agree.
         kw = self._engine_build_kwargs(params)
         if _in_order:
             kw["randomize"] = False
-        return kw
-
-    def _apply_margin_thresholds(self, kw: dict) -> dict:
-        """Raise the layout's margins so the patch area meets the user's margin
-        thresholds for this instrument/paper combo (#93). No-op when the combo
-        has no thresholds. Records any adjustments in ``_threshold_notes`` for
-        the build log. Applied at this one point so the capacity estimate
-        (_engine_total_patches) and the real render agree."""
-        self._threshold_notes: list[str] = []
-        try:
-            from core.settings import thresholds_for_combo
-            from workflow.layout_engine import margins_fit, papers
-            w_mm, h_mm = papers.dimensions_mm(kw.get("paper", "A4"))
-            thr = thresholds_for_combo(
-                self._settings.get_margin_thresholds(), kw.get("instrument", "i1"),
-                w_mm, h_mm)
-            kw, notes = margins_fit.clamp_margins_to_thresholds(kw, thr)
-            self._threshold_notes = notes
-        except Exception as exc:  # noqa: BLE001 — never block generation on this
-            log.warning("margin-threshold clamp skipped: %s", exc)
         return kw
 
     def _run_engine(
@@ -1791,8 +1773,6 @@ class ChartCreator:
         on_line(tr("[ChromIQ layout engine] building chart from the "
                    "targen .ti1…"))
         engine_kwargs = self._engine_kwargs(params)
-        for _note in getattr(self, "_threshold_notes", []):
-            on_line(f"[ChromIQ layout engine] {_note}")
         try:
             # No .cht at build time: a scan-recognition template is only useful
             # paired with a *measured* .cie, so both are produced together after
@@ -2345,7 +2325,6 @@ class ChartCreator:
                 # a page that was never drawn.
                 _patch_gap = 0.0
                 if engine_chart:
-                    _saved_notes = list(getattr(self, "_threshold_notes", []))
                     try:
                         from workflow.layout_engine import instruments as _inst
                         _patch_gap = float(getattr(
@@ -2354,10 +2333,6 @@ class ChartCreator:
                             "side_stamp_freed_mm", 0.0) or 0.0)
                     except Exception as exc:  # noqa: BLE001 — never block it
                         log.debug("side-stamp gap unavailable: %s", exc)
-                    finally:
-                        # `_engine_kwargs` clears this as a side effect and the
-                        # log line that reads it has already run.
-                        self._threshold_notes = _saved_notes
                 stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
                                      _font_family, _size_pt, _reach, _gap,
                                      _edge_t, _edge_b, _patch_gap)

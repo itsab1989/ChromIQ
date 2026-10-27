@@ -1,76 +1,41 @@
-"""The layout engine honours the user's margin thresholds (#93).
-
-Thresholds (Preferences → Margin Thresholds) are per-side MINIMUMS. The engine
-raises the page margins so the realised patch area meets them, before anything
-is rendered — so both the capacity estimate and the chart obey the rule. Until
-now the engine ignored them, so an i1Pro chart could land inside a defined
-minimum (e.g. a 27.8 mm top run-up under a 38 mm rule)."""
+"""Margin thresholds (Preferences > Margin Thresholds) are minimums that are
+CHECKED, never applied: the margins asked for are the margins laid out (Knut's
+model, #93). The engine once had a clamp that raised margins to the thresholds
+(``layout_engine.margins_fit`` and a ``thresholds`` argument of
+``instruments.geom_from_build_kwargs``); it was only ever called with nothing
+to clamp to and was removed in 4.3.19 (review r1 N8). What stays is the lookup
+of a combo's thresholds, which the panel and the inspector use, and the
+guarantee that nothing raises a margin (also pinned by
+``tests/test_chart_creator_engine.py::test_recipe_margins_always_authoritative_no_clamp``).
+"""
 from __future__ import annotations
 
-import pytest
+import inspect
+from dataclasses import replace
+from pathlib import Path
 
 from core.settings import (
     canonical_paper_name,
     margin_combo_key,
     thresholds_for_combo,
 )
-from workflow.layout_engine import geometry, instruments, margins_fit, papers
+from workflow.layout_engine import instruments
 from workflow.layout_engine.presets import default_recipe
 
 
-def _insets(kw):
-    geom = instruments.geom_from_build_kwargs(kw)
-    w, h = papers.dimensions_mm(kw["paper"])
-    cap = geometry.patches_per_sheet(geom, w, h)
-    lay = geometry.compute(geom, w, h, cap)
-    L, R, T, B = geometry.realized_margins_mm(geom, w, h, lay)
-    return {"L": L, "R": R, "T": T, "B": B}, cap
+def test_a_small_margin_is_laid_out_as_asked():
+    """A 5 mm top margin stays 5 mm although the i1Pro's minimum is larger."""
+    r = replace(default_recipe("i1", "A4", mode="clip"), margin_top=5.0,
+                use_instrument_margins=True)
+    geom = instruments.geom_from_build_kwargs(r.build_kwargs())
+    assert geom.margin_t == 5.0
 
 
-def test_clamp_raises_top_to_meet_threshold():
-    # patch ×0.95, 10 mm margins → a ~37 mm top run-up; threshold wants 38.
-    from dataclasses import replace
-    r = replace(default_recipe("i1", "A4", mode="clip"), pscale=0.95,
-                margin_top=10, margin_right=10, margin_bottom=10, margin_left=10)
-    kw = r.build_kwargs()
-    before, _ = _insets(kw)
-    assert before["T"] < 38.0
-
-    thr = {"L": 26, "R": 9, "T": 38, "B": 10}
-    kw2, notes = margins_fit.clamp_margins_to_thresholds(kw, thr)
-    after, _ = _insets(kw2)
-    for side, want in thr.items():
-        assert after[side] >= want - 0.05, (side, after[side], want)
-    assert any("Top" in n for n in notes)
-
-
-def test_clamp_is_noop_without_thresholds():
-    kw = default_recipe("i1", "A4", mode="clip").build_kwargs()
-    out, notes = margins_fit.clamp_margins_to_thresholds(kw, None)
-    assert out is kw and notes == []
-    out, notes = margins_fit.clamp_margins_to_thresholds(kw, {"T": 0, "R": ""})
-    assert notes == []
-
-
-def test_clamp_reduces_capacity_when_it_must_reserve_more():
-    # A big top minimum forces a larger top margin → fewer rows fit.
-    kw = default_recipe("i1", "A4", mode="clip").build_kwargs()
-    _, cap_before = _insets(kw)
-    kw2, _ = margins_fit.clamp_margins_to_thresholds(kw, {"T": 60})
-    after, cap_after = _insets(kw2)
-    assert after["T"] >= 60 - 0.05
-    assert cap_after <= cap_before
-
-
-def test_geom_from_build_kwargs_applies_thresholds():
-    """The chokepoint applies thresholds, so capacity reflects them too."""
-    kw = default_recipe("i1", "A4", mode="clip").build_kwargs()
-    w, h = papers.dimensions_mm("A4")
-    plain = geometry.patches_per_sheet(
-        instruments.geom_from_build_kwargs(kw), w, h)
-    clamped = geometry.patches_per_sheet(
-        instruments.geom_from_build_kwargs(kw, thresholds={"T": 60}), w, h)
-    assert clamped <= plain
+def test_the_clamp_is_gone_for_good():
+    root = Path(__file__).resolve().parents[1]
+    assert not (root / "workflow/layout_engine/margins_fit.py").exists()
+    assert list(inspect.signature(
+        instruments.geom_from_build_kwargs).parameters) == ["kw"]
 
 
 def test_thresholds_for_combo_resolves_key():

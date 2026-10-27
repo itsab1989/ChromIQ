@@ -496,7 +496,7 @@ def stage_the_project(settings) -> bool:
         # columns agree, which is the whole point of the panel.
         #
         # MARGINS ARE (TOP, RIGHT, BOTTOM, LEFT) — CSS order, not L/R/T/B.
-        # `margins_fit` indexes the tuple with `_T, _R, _B, _L = 0, 1, 2, 3`.
+        # `instruments.build()` reads the tuple in that order.
         # Getting this wrong is silent: passing the i1Pro minimums as
         # (L,R,T,B) = (26, 9, 38, 19) asks for Top 26 and Bottom 38, so the top
         # lands at 28.0 mm against its 38 mm minimum and the Create Chart shot

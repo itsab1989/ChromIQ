@@ -29,7 +29,7 @@ def _geom(inst, paper, *, hflag, mode, ratio=0.0):
     kw = dict(instrument=inst, paper=paper, spacer_on=True, pscale=1.0,
               margins=(6.0,) * 4, border=6.0, nolimit=False,
               hflag=hflag, layout_mode=mode, area_ratio=ratio)
-    return instruments.geom_from_build_kwargs(kw, thresholds=None)
+    return instruments.geom_from_build_kwargs(kw)
 
 
 def _count(g, paper):

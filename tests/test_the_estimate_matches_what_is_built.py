@@ -26,7 +26,7 @@ def _hand_built(instr: str, paper: str, *, spacers: bool):
         kw["spacer_mode"] = "none"
     if instr in ("i1", "p3", "CM"):
         kw["edge_spacers"] = True
-    return instruments.geom_from_build_kwargs(kw, thresholds=None)
+    return instruments.geom_from_build_kwargs(kw)
 
 
 def _from_a_recipe(instr: str, paper: str, *, spacers: bool):
@@ -64,9 +64,9 @@ def test_a_missing_text_distance_key_does_not_change_the_geometry():
     base = dict(instrument="CR30", paper="A4", spacer_on=False,
                 spacer_mode="none", pscale=1.0, margins=(6.0,) * 4,
                 border=6.0, nolimit=False)
-    absent = instruments.geom_from_build_kwargs(dict(base), thresholds=None)
+    absent = instruments.geom_from_build_kwargs(dict(base))
     spelled = instruments.geom_from_build_kwargs(
-        dict(base, text_edge_clip=4.0), thresholds=None)
+        dict(base, text_edge_clip=4.0))
     assert absent.margin_l == pytest.approx(spelled.margin_l, abs=0.01), (
         "leaving the text-distance key out of the build kwargs produced a "
         "different left margin from spelling out its default")
