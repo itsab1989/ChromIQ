@@ -262,10 +262,33 @@ def _engine_padding_log_line(total: int, padding: int) -> str:
     from core.i18n import count_phrase, tr
     fill = count_phrase(padding, tr("1 paper-white fill-up patch"),
                         tr("{n} paper-white fill-up patches"))
-    return (f"[ChromIQ layout engine] patch count: {designed} designed "
-            f"+ {fill} completing the last "
-            f"strip = {total} total. Instruments read whole strips; the "
-            f"fill-up patches are measured like any others.")
+    # ONE `tr()` SENTENCE (4.3.19): it was an English f-string, so only the
+    # counted fill-up phrase inside it was ever translated.
+    return tr("[ChromIQ layout engine] patch count: {designed} designed "
+              "+ {fill} completing the last strip = {total} total. "
+              "Instruments read whole strips; the fill-up patches are "
+              "measured like any others.").format(
+                  designed=designed, fill=fill, total=total)
+
+
+def _engine_summary_log_line(total: int, steps: int, passes: int,
+                             pages: int, seed) -> str:
+    """The engine's "what was built" line: patches, grid, pages and seed.
+
+    4.3.19: it was an English f-string ("441 patches (21×21), 1 page, random
+    start 1007764308") with only the page count translated, and "random
+    start" is not what the panel calls it. The seed is named by the
+    Randomisation group's own `tr("Seed:")` label, so the log and the control
+    read the same in every language. Both counts go through `count_phrase`,
+    so Russian, Ukrainian and Polish get the form each number needs.
+    """
+    from core.i18n import count_phrase, tr
+    patches = count_phrase(int(total), tr("1 patch"), tr("{n} patches"))
+    page_text = count_phrase(int(pages), tr("1 page"), tr("{n} pages"))
+    return tr("[ChromIQ layout engine] {patches} ({steps}×{passes}), "
+              "{pages}, {seed_label} {seed}").format(
+                  patches=patches, steps=steps, passes=passes,
+                  pages=page_text, seed_label=tr("Seed:"), seed=seed)
 
 
 def _ramp_whites_log_line(added: int,
@@ -1764,7 +1787,9 @@ class ChartCreator:
 
         stem = self._file_mgr.chart_stem(cal_target=params.cal_target)
         ti1 = work_dir / f"{stem}.ti1"
-        on_line("[ChromIQ layout engine] building chart from the targen .ti1…")
+        from core.i18n import tr
+        on_line(tr("[ChromIQ layout engine] building chart from the "
+                   "targen .ti1…"))
         engine_kwargs = self._engine_kwargs(params)
         for _note in getattr(self, "_threshold_notes", []):
             on_line(f"[ChromIQ layout engine] {_note}")
@@ -1800,7 +1825,8 @@ class ChartCreator:
                 **engine_kwargs)
         except Exception as exc:  # noqa: BLE001 — surface any engine failure
             log.exception("ChromIQ layout engine failed")
-            on_line(f"[ERROR] ChromIQ layout engine: {exc}")
+            on_line(tr("[ERROR] ChromIQ layout engine: {error}").format(
+                error=exc))
             # A calibration for other inks is the user's to fix, so it gets
             # the window a recognised printtarg error gets, in their words
             # rather than the engine's (#182 5956560815: the log line alone
@@ -1812,12 +1838,9 @@ class ChartCreator:
             self._finish([])
             return
 
-        from core.i18n import count_phrase, tr
-        _pages = count_phrase(result.layout.pages, tr("1 page"), tr("{n} pages"))
-        on_line(
-            f"[ChromIQ layout engine] {result.layout.total_patches} patches "
-            f"({result.layout.steps_in_pass}×{result.layout.passes}), "
-            f"{_pages}, random start {result.seed}")
+        on_line(_engine_summary_log_line(
+            result.layout.total_patches, result.layout.steps_in_pass,
+            result.layout.passes, result.layout.pages, result.seed))
         # Explain a total that grew past the designed count: a partial last
         # strip is topped up with paper-white patches so the instrument reads
         # whole strips (printtarg behaviour, mirrored by the engine). Knut

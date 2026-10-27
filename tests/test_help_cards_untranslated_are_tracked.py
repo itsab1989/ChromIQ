@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-10-27, 4.3.19 (the layout engine log lines through tr()): "[ChromIQ layout engine] {patches} ({steps}×{passes}), {pages}, {seed_label} {seed}" is only filled-in parts, two fixed tags and punctuation, and "[ERROR] ChromIQ layout engine: {error}" is two fixed tags and the error, so both read the same: +2 per language, except fr (+1, the error line has the French space before its colon) and ja and zh_CN (+1, the summary takes their own brackets and commas); the same as in test_i18n's ledger. The other two new lines are translated in every catalogue. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: Verify a profile never makes a 3D map (that is Check & Refine's profcheck -w), so its output cell is now the bare path "reports/Verify_Profile_N_{name}.txt", the same in every language like "reports/Verify_Reference_N_{name}.txt" beside it: +1 per language, all thirteen, on purpose (uk had translated the folder name, which is "reports" on disk). COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-10-02, #202 (Knut 5943245399): the Preferences row label "ColorMunki / i1Studio / ColorChecker Studio" names every instrument the Instrument selection offers under that entry. It is three product names, the same in every language, so it is an echo everywhere: +1 per language, all thirteen, on purpose; the same +1 as in test_i18n's ledger. The four other #202 strings are translated in every catalogue. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-28, the 4.3.0 translation pass (every language translated, reviewed a second time and checked on screen; German's eight long help texts translated): the ceilings came DOWN from the hundreds to what is left identical on purpose (names, units, symbols, the verdict words), so a new untranslated string is noticed again. COUNTED off the tree, BOTH ledgers.
@@ -1100,27 +1101,27 @@ _BUDGET = {
     # +1 on 2026-10-23 (4.3.10, jctay 149803) for every language that writes
     # centimetres with Latin letters: the new paper "10 × 15 cm (100 × 150 mm)"
     # is a size, the same in each of them (ru and uk write "см").
-    "de": 8,
-    "es": 8,
+    "de": 10,
+    "es": 10,
     # +1 for French on 2026-10-26 (4.3.16): the patch set editor's image
     # filter, "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)", now
     # goes through tr(), and "Images" is the French word too.
-    "fr": 10,
-    "it": 8,
-    "ja": 6,
-    "nl": 9,
-    "no": 8,
-    "pl": 8,
-    "pt": 8,
-    "ru": 6,
-    "sv": 8,
-    "zh_CN": 7,
+    "fr": 11,
+    "it": 10,
+    "ja": 7,
+    "nl": 11,
+    "no": 10,
+    "pl": 10,
+    "pt": 10,
+    "ru": 8,
+    "sv": 10,
+    "zh_CN": 8,
     # +2 on 2026-10-02 (b740e16e): "reports/Quality_Check_N_{name}.txt,
     # reports/Refine_Strips_N_{name}.txt" and "reports/Verify_Reference_N_
     # {name}.txt" are file paths, wrongly translated as "звіти/" (a folder that
     # does not exist), and now equal their key as in every other language. The
     # same two that test_i18n's _IDENTICAL_TO_KEY["uk"] already counts.
-    "uk": 5,
+    "uk": 7,
 }
 
 

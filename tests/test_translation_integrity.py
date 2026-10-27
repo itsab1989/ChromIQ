@@ -112,6 +112,10 @@ _NEAR_ENGLISH_OK = (
     "Measurements (*.ti3 *.mxf *.txt *.cxf);;TI3 (*.ti3);;",
     "Patch sets (*.ti1 *.txt *.pxf);;TI1 (*.ti1);;",
     "Scans and photographs (*.tif *.tiff *.jpg *.jpeg *.png);;",
+    # The layout engine summary (4.3.19): a fixed tag, placeholders filled
+    # with translated phrases and the panel's own "Seed:" label, and
+    # punctuation. Japanese and Chinese change only the brackets and commas.
+    "[ChromIQ layout engine] {patches} ({steps}×{passes}), {pages}, ",
 )
 
 _GLOSSARY = {
