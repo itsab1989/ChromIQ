@@ -120,6 +120,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-PATCH-SIMILAR joined on 2026-10-15 (4.3.5 beta 8): Knut confirmed the
 # similar-patch rule for both tests (#182 6196599132); its card texts are ours.
 AWAITING_APPROVAL: "set[str]" = {
+    # A measurement of the turned i1Profiler chart on another grid (4.3.19,
+    # Basti 2026-10-27 approved building it; the wording waits here).
+    "M-IMPORT-TURNED-GRID",
     # "Label offset" X: held on the paper, or nearer the next strip (Basti
     # 2026-10-24), 4.3.13.
     "M-CHART-STRIP-LABELS-X-HELD-EDGE", "M-CHART-STRIP-LABELS-X-NEAR-NEIGHBOUR",

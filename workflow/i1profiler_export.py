@@ -623,14 +623,50 @@ _PWXF_PROFILE_SETTINGS_RGB = """  <ProfileSettings DeviceType="Printer">
   </ProfileSettings>"""
 
 
+# --- i1Profiler's handheld grid ---------------------------------------------
+#
+# Measured on pharmacist's genuine i1Profiler 3.8.6 files (648 patches on one
+# page, 702 on three) and X-Rite's own RGB_default-i1Pro.mxf (2033 on three),
+# every Target object of each (study 2026-10-27, docs/dev_pxwf_format.md):
+# i1Profiler lays its patch list out as ONE grid of ``columns`` columns and
+# ``ceil(N / columns)`` rows, filled COLUMN-FIRST in patch-list order (entry
+# ``j`` at column ``j // rows``, row ``j % rows``), and only then cuts the rows
+# into pages, shared out evenly with the larger shares first (68 rows on 3
+# pages = 23 + 23 + 22). A Location tag holds (Page from 1, Row on that page
+# from 0, Column from 0); ``NumberPatchRows`` is the rows of the first page.
+
+
+def i1p_page_rows(rows_total: int, pages: int) -> "list[int]":
+    """The rows on each of *pages* pages, shared out evenly, larger first."""
+    base, extra = divmod(int(rows_total), max(1, int(pages)))
+    return [base + (1 if k < extra else 0) for k in range(max(1, int(pages)))]
+
+
+def i1p_location(j: int, rows_total: int,
+                 per_page: "list[int]") -> "tuple[int, int, int]":
+    """(Page from 1, Row on that page, Column) of patch-list entry *j*."""
+    col, rg = divmod(int(j), int(rows_total))
+    start = 0
+    for k, r in enumerate(per_page):
+        if rg < start + r:
+            return k + 1, rg - start, col
+        start += r
+    raise ValueError(f"entry {j} lies beyond a grid of {rows_total} rows")
+
+
 @dataclass
 class WorkflowOptions:
     """The 16 layout/device knobs that vary across i1Profiler workflow files.
 
     Defaults reproduce an A4-landscape i1Pro 3 single-scan chart. ``columns`` /
-    ``rows`` / ``emit_locations`` drive the patch grid: with
+    ``rows`` / ``pages`` / ``emit_locations`` drive the patch grid: with
     ``emit_locations=False`` (Phase 1 default) the grid attributes are still
     written but no per-patch Location tags are, so i1Profiler auto-lays-out.
+    With ``emit_locations=True`` every patch gets the cell i1Profiler's own
+    fill rule gives it (:func:`i1p_location`): ``columns`` columns, the rows
+    shared out over ``pages`` pages. ``rows`` only fills
+    ``NumberPatchRows``, which in i1Profiler's own files is the rows of the
+    first (largest) page.
     """
 
     device: str = "i1Pro 3"            # free string: "i1Pro 2", "i1Pro 3", "i1iO 2", ...
@@ -809,14 +845,23 @@ def write_pwxf(
         "\t<cc:Resources>",
         "\t\t<cc:ObjectCollection>",
     ]
+    # THE CELLS FOLLOW i1PROFILER'S OWN FILL RULE (4.3.19). Until then this
+    # filled page by page (`columns x rows` patches on page 1, then page 2),
+    # while i1Profiler fills ONE grid column-first and only then cuts its rows
+    # into pages: on pharmacist's 3-page 702-patch file (i1Profiler 3.8.6) the
+    # old rule put 26 of 702 patches in i1Profiler's cell. Unused by ChromIQ
+    # itself (the turned export writes no Location); the probe scripts use it.
+    grid = None
+    if opt.emit_locations and opt.columns > 0 and n:
+        rows_total = -(-n // opt.columns)
+        # `rows` is not asked: the cells follow from the columns and the
+        # pages alone, as in i1Profiler's own files.
+        grid = (rows_total, i1p_page_rows(rows_total, max(1, opt.pages)))
     for idx, (_sid, v) in enumerate(target.rows, start=1):
         loc = None
-        if opt.emit_locations and opt.rows > 0:
-            i = idx - 1
-            per_page = opt.columns * opt.rows
-            page = i // per_page + 1
-            within = i % per_page
-            loc = (within // opt.rows, page, within % opt.rows)
+        if grid is not None:
+            page, row, col = i1p_location(idx - 1, *grid)
+            loc = (col, page, row)
         parts += _pwxf_rgb_object(idx, v, created, loc)
     parts.append("\t\t</cc:ObjectCollection>")
     parts += _color_specification()

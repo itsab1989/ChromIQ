@@ -334,6 +334,17 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             return ImportVerdict(False, turned_ambiguous_reason(),
                                  n_chart=n_chart or 0, n_measured=n_got)
         if turned.applies and turned.verified:
+            # …AND ONLY WHEN i1PROFILER LAID IT OUT ON THE GRID THE .TXF ASKS
+            # FOR (4.3.19). The device values repeat the patch list whatever
+            # grid i1Profiler made, so with one column more every row was
+            # read on other patches and the file still agreed on every patch.
+            # An .mxf records the grid and every patch's place on it; a file
+            # that does not (a CGATS export) is judged as before.
+            from workflow.i1profiler_turned import grid_mismatch
+            why = grid_mismatch(ti3, turned.order)
+            if why:
+                return ImportVerdict(False, why, n_chart=n_chart or 0,
+                                     n_measured=n_got)
             return ImportVerdict(True, "", partial=False,
                                  n_chart=n_chart or 0, n_measured=n_got,
                                  turned_order=True)

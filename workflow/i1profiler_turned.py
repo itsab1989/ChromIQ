@@ -1091,6 +1091,12 @@ class TurnedOrder:
     earlier: tuple = ()
     #: The order file's version (1 = 4.3.17's), kept when it is carried over.
     version: int = ORDER_VERSION
+    #: The i1Profiler grid the ``.txf`` beside it asks for: one row per strip,
+    #: one column per place, on one page (``rows``/``columns`` of the order
+    #: file, both versions; 0 when the file does not say). Earlier orders are
+    #: of the same chart, so they share it.
+    rows: int = 0
+    columns: int = 0
 
     def candidates(self) -> list:
         """This order first, then the earlier ones."""
@@ -1139,9 +1145,11 @@ def _merged(found: list) -> "TurnedOrder":
                 continue
             seen.add(key)
             earlier.append(TurnedOrder(c.path, c.sample_ids, c.locs,
-                                       turn=c.turn, version=c.version))
+                                       turn=c.turn, version=c.version,
+                                       rows=main.rows, columns=main.columns))
     return TurnedOrder(main.path, main.sample_ids, main.locs, turn=main.turn,
-                       earlier=tuple(earlier), version=main.version)
+                       earlier=tuple(earlier), version=main.version,
+                       rows=main.rows, columns=main.columns)
 
 
 def _order_in(path: Path, chart_ti2: "str | Path",
@@ -1161,6 +1169,14 @@ def _order_in(path: Path, chart_ti2: "str | Path",
             or doc.get("chart_sha256") != digest):
         return None
 
+    def _count(key):
+        try:
+            v = int(doc.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+        return v if v > 0 else 0
+    grid_rows, grid_cols = _count("rows"), _count("columns")
+
     def _one(entries, turn, version):
         try:
             ids = [str(e.get("sample_id", "")) for e in entries]
@@ -1173,7 +1189,8 @@ def _order_in(path: Path, chart_ti2: "str | Path",
             except (TypeError, ValueError):
                 version = 1
             return TurnedOrder(Path(path), ids, locs, turn=turn,
-                               version=version)
+                               version=version, rows=grid_rows,
+                               columns=grid_cols)
         return None
 
     # Version 1 (4.3.17) knew one turn only, and wrote no word for it.
@@ -1193,7 +1210,8 @@ def _order_in(path: Path, chart_ti2: "str | Path",
             if o is not None and sorted(o.sample_ids) == sorted(main.sample_ids):
                 earlier.append(o)
     return TurnedOrder(main.path, main.sample_ids, main.locs, turn=main.turn,
-                       earlier=tuple(earlier), version=main.version)
+                       earlier=tuple(earlier), version=main.version,
+                       rows=main.rows, columns=main.columns)
 
 
 @dataclass(frozen=True)
@@ -1320,6 +1338,59 @@ def fits_straight_and_turned(measured, match: TurnedMatch) -> bool:
     return False
 
 
+def grid_mismatch(ti3_path: "str | Path",
+                  order: "TurnedOrder | None") -> str:
+    """Why a COMPLETE turned measurement *ti3_path*, whose device values
+    follow *order*, was not read on the grid the order's ``.txf`` asks for;
+    ``""`` when it was, or when nothing in the file says (4.3.19, §I.14).
+
+    THE DEVICE VALUES CANNOT ANSWER THIS. i1Profiler writes the device values
+    of its ``.txf`` into the measurement, so they repeat the patch list in
+    whatever grid i1Profiler laid it out: with one column more (25 x 21 for a
+    chart of 21 strips of 24) every row was read on other physical patches,
+    and the file still agrees with the order on every patch (study
+    2026-10-27, ``way_back.py`` case B). What can answer it is i1Profiler's
+    own record of its grid, which an ``.mxf`` carries and the conversion
+    keeps (``reference_convert.I1P_GRID_KEYWORD``): ``NumberPatchColumns``,
+    ``NumberPatchRows``, ``NumberPatchPages`` and each patch's Location.
+
+    The ``.txf`` asks for ``order.columns`` columns and ``order.rows`` rows on
+    ONE page, so entry ``j`` belongs at page 1, row ``j % rows``, column
+    ``j // rows``. The file's grid must be exactly that, and every Location it
+    carries must be the cell i1Profiler's fill rule gives that entry on it
+    (which, the grids being equal, is that same cell). A file with the grid
+    attributes and no Locations is judged by the grid alone. A CGATS export
+    (no grid at all) and an order that names no grid answer ``""``, so they
+    are judged exactly as before. Only a check: nothing is paired by it."""
+    from workflow.measurement_messages import (
+        turned_grid_cells_differ_reason, turned_grid_differs_reason)
+    from workflow.reference_convert import i1p_grid_of
+    if order is None or order.rows <= 0 or order.columns <= 0:
+        return ""
+    grid = i1p_grid_of(ti3_path)
+    if grid is None:
+        return ""
+    if (grid.columns, grid.rows, grid.pages) != (order.columns, order.rows, 1):
+        log.info("import: i1Profiler laid the turned chart out %d x %d on %d "
+                 "page(s); the order asks for %d x %d on one",
+                 grid.columns, grid.rows, grid.pages, order.columns,
+                 order.rows)
+        return turned_grid_differs_reason(
+            cols=order.columns, rows=order.rows, got_cols=grid.columns,
+            got_rows=grid.rows, got_pages=grid.pages)
+    if grid.located == 0:
+        return ""
+    off = grid.misplaced + (grid.patches - grid.located)
+    if off:
+        log.info("import: %d of %d patches of the turned measurement are not "
+                 "in the cell the turned chart has for them", off,
+                 grid.patches)
+        return turned_grid_cells_differ_reason(
+            cols=order.columns, rows=order.rows, count=off,
+            total=grid.patches)
+    return ""
+
+
 #: Header keyword stamped on a measurement paired through the turned order.
 TURNED_KEYWORD = "CHROMIQ_PAIRED_BY_TURNED_ORDER"
 
@@ -1341,6 +1412,10 @@ def reorder_turned_measurement(ti3_path: "str | Path",
     m = turned_match(measured, chart_ti2)
     if not (m.applies and m.verified and not m.partial
             and m.order is not None):
+        return 0
+    if grid_mismatch(ti3_path, m.order):
+        # Read on another grid than the .txf asks for (4.3.19): never paired,
+        # whichever door asks (`measurement_import.assess` says why).
         return 0
     text = read_text(ti3_path, lenient=True)
     t = _first_table(text)
