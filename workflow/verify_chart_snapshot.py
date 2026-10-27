@@ -412,10 +412,84 @@ def snapshot_slot(slot) -> "Path | None":
                         old_file.name, exc)
     for src in sources:
         shutil.copy2(src, d / src.name)
+    _snapshot_turned_export(slot, d)
     log.info("stored %s into %s",
              "1 chart file" if len(sources) == 1
              else f"{len(sources)} chart files", d)
     return d
+
+
+#: Where a snapshot keeps the chart's turned i1Profiler export (beta). A
+#: sub-folder, so none of the root-file comparisons above ever sees it: it
+#: travels with the chart and never decides whether the chart differs.
+TURNED_SNAPSHOT_SUBDIR = "exports"
+
+
+def _slot_chart_ti2(slot) -> Path:
+    return slot.live_dir / f"{slot.stem}.ti2"
+
+
+def _snapshot_turned_export(slot, d: Path) -> list:
+    """Copy the chart's turned i1Profiler export into ``<snapshot>/exports/``,
+    only when its order names the live chart by its SHA-256 (review 4.3.17
+    r3, NIT-5; §I.14 point 2, tied to the chart, not to the switch). A chart
+    without one copies nothing and the snapshot is what 4.3.16 wrote. Never
+    raises: a snapshot that cannot take them is still the chart's snapshot."""
+    copied: list = []
+    try:
+        from workflow.i1profiler_turned import TurnedFiles, turned_order_for
+        order = turned_order_for(_slot_chart_ti2(slot))
+        if order is None:
+            return copied
+        if slot.suffixes is None and order.path.parent == slot.live_dir:
+            return copied      # a verification slot copied them as chart files
+        src = TurnedFiles(order.path.parent, slot.stem)
+        dst = TurnedFiles(d / TURNED_SNAPSHOT_SUBDIR, slot.stem)
+        dst.folder.mkdir(parents=True, exist_ok=True)
+        for a, b in zip(src.all(), dst.all()):
+            if a.is_file():
+                shutil.copy2(a, b)
+                copied.append(b)
+    except Exception:      # noqa: BLE001 — never break a snapshot
+        log.warning("could not store the turned i1Profiler export with the "
+                    "chart", exc_info=True)
+    return copied
+
+
+def _restore_turned_export(slot, archive: "Path | None") -> list:
+    """Put the restored chart's turned i1Profiler export back into its
+    ``exports/`` (review 4.3.17 r3, NIT-5). Only when the snapshot holds an
+    order that names the chart now on disk; the turned files of the chart it
+    replaced go into that chart's archive in ``old/`` (removed when there is
+    none). Nothing at all happens when the snapshot holds no such order.
+    Never raises: the chart itself is already back."""
+    put: list = []
+    try:
+        from core.file_manager import exports_subdir
+        from workflow.i1profiler_turned import TurnedFiles, _order_in
+        snap = TurnedFiles(slot.snapshot_dir / TURNED_SNAPSHOT_SUBDIR,
+                           slot.stem)
+        if _order_in(snap.order, _slot_chart_ti2(slot)) is None:
+            return put
+        live = TurnedFiles(exports_subdir(slot.live_dir), slot.stem)
+        for q in live.all():
+            if not q.is_file():
+                continue
+            if archive is not None and Path(archive).is_dir():
+                keep = Path(archive) / TURNED_SNAPSHOT_SUBDIR
+                keep.mkdir(exist_ok=True)
+                shutil.move(str(q), str(keep / q.name))
+            else:
+                q.unlink()
+        live.folder.mkdir(parents=True, exist_ok=True)
+        for a, b in zip(snap.all(), live.all()):
+            if a.is_file():
+                shutil.copy2(a, b)
+                put.append(b)
+    except Exception:      # noqa: BLE001 — never break a restore
+        log.warning("could not put the turned i1Profiler export back with "
+                    "the chart", exc_info=True)
+    return put
 
 
 def slot_snapshot_files(slot) -> "list[Path]":
@@ -824,6 +898,8 @@ def restore_slot(slot) -> "RestoreResult":
         # Only when nothing depends on it any more.
         if _rollback_ok:
             shutil.rmtree(stash, ignore_errors=True)
+    if not result.rolled_back and result.restored:
+        _restore_turned_export(slot, result.archive)
     return result
 
 
