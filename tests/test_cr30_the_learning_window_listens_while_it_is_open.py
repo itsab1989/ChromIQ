@@ -139,7 +139,13 @@ def test_the_live_line_counts_the_presses_as_they_land(qtbot):
 
 
 def test_declining_stops_the_learner_and_says_what_it_costs(qtbot):
-    host, reader = _host(qtbot), _Reader(presses=2)
+    # A READER THAT NEVER FINISHES BY ITSELF (fix 4.3.18 r3). With two presses
+    # the learner proved the tile after 0.6 s and the window closed itself;
+    # on a loaded gate the GUI thread could be starved for longer than that,
+    # so "Not now" was never pressed, nothing was declined and no wait could
+    # see a cancel (it failed at 30 s as it had at 3 s). Here only the decline
+    # can end the learn, which is what this test is about.
+    host, reader = _host(qtbot), _Reader(presses=100_000)
 
     def decline():
         dlg = _live_dialog()
