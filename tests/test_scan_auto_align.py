@@ -851,7 +851,10 @@ REASONS = {"ambiguous-orientation", "below-floor", "not-recognised",
            # rather than about colour -- the patches in the picture do not sit
            # where the returned grid would put them. See
            # `tests/test_a_photograph_off_square_is_not_a_placement.py`.
-           "not-seated"}
+           "not-seated",
+           # 4.3.18, Knut: found, and no way up or nearby position reads the
+           # chart. It used to be reported as "ambiguous-orientation".
+           "off-the-patches"}
 
 
 def _catalogue():

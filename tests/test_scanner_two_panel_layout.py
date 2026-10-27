@@ -882,9 +882,11 @@ def test_a_bucket_change_does_not_refit_the_windows_height(_app, _out_dir):
     assert "_refit_height" not in made, (
         "_sync_inline_advanced refits the window's height directly, which is "
         "the same jump by another route")
-    # …and the toggle handler itself still refits, or opening Advanced squashes
-    # the rows it just revealed.
-    assert "_refit_height" in calls(cls._on_advanced_toggled)
+    # …and since 4.3.18 the toggle handler does not refit either. Knut: opening
+    # "Advanced" shrank the whole window, and "the window size should be
+    # unaffected". The left column scrolls instead; the size itself is pinned
+    # on a real window in `test_opening_advanced_keeps_the_window_size`.
+    assert "_refit_height" not in calls(cls._on_advanced_toggled)
     # …while the part it shares with the bucket change does not.
     assert "_refit_height" not in calls(cls._show_the_advanced_section)
 
@@ -966,5 +968,43 @@ def test_the_glosses_are_one_line_with_the_detail_behind_the_info_button(
         # …and the general half is still there, unedited, so its twelve
         # translations still resolve.
         assert type(dlg)._SCENARIO_HELP_HEAD in body
+    finally:
+        dlg.deleteLater()
+
+
+def test_opening_advanced_keeps_the_window_size(_app, _out_dir):
+    """Knut, 4.3.17: *"when clicking the "Advanced" frame to expand the
+    advanced options, the whole window resized to a smaller size. The window
+    size should be unaffected when clicking the advanced options frame."*
+
+    Asked at three heights, because the fault only shows on a window that is
+    NOT at its sizeHint: the old handler resized TO the sizeHint, so a window
+    the user had made taller dropped back to it (and one made shorter grew).
+    Opened and closed twice, in all three source modes' default state.
+    """
+    dlg = _make(_app, _out_dir)
+    try:
+        _settle(_app, dlg)
+        floor = dlg.minimumHeight()
+        avail = dlg.screen().availableGeometry().height()
+        for h in (floor, (floor + avail) // 2, avail - 40):
+            h = max(floor, min(h, avail - 40))
+            dlg.resize(dlg.width(), h)
+            _settle(_app, dlg)
+            before = dlg.size()
+            for on in (True, False, True, False):
+                dlg._adv_inline_head.setChecked(on)
+                _settle(_app, dlg)
+                assert dlg.height() == before.height(), (
+                    f"Advanced {'opened' if on else 'closed'} and the window "
+                    f"went from {before.height()} to {dlg.height()} px high")
+                assert dlg.width() >= before.width(), (
+                    "opening Advanced made the window narrower")
+            # the open section is reachable: the left column scrolls
+            dlg._adv_inline_head.setChecked(True)
+            _settle(_app, dlg)
+            assert dlg._adv_inline_body.isVisible()
+            dlg._adv_inline_head.setChecked(False)
+            _settle(_app, dlg)
     finally:
         dlg.deleteLater()

@@ -702,6 +702,14 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # however narrow it is. Behaviour unchanged,
                                  # WORDING new, so it waits here.
                                  "M-SCAN-ALIGN-NOT-FOUND-HEX",
+                                 # 4.3.18, Knut: scanin put its rectangle
+                                 # whole strips beside a ChromIQ chart's
+                                 # patches and he was told the chart "looks
+                                 # the same whichever way round it is
+                                 # turned". Auto align now slides the
+                                 # rectangle by whole patches; this is what it
+                                 # says when even that reads nothing.
+                                 "M-SCAN-ALIGN-OFF-PATCHES",
                                  # #182, 2026-09-11. Knut ruled that Auto
                                  # align must "place its best attempt and tell
                                  # user to check it" instead of leaving the

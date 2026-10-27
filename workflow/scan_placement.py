@@ -128,6 +128,7 @@ ENDINGS = (
     "below-floor",         # found, and it does not match this reference
     "no-usable-candidate",  # found something, and this chart does not fit it
     "ambiguous-orientation",  # the chart reads the same more than one way up
+    "off-the-patches",     # found, and no way up or nearby position reads it
     "no-chart-geometry",   # the chart file records no patch positions
     "no-better",           # nothing better than the user's own corners
     "too-far",             # the best placement is further than it may move
@@ -144,7 +145,7 @@ ENDINGS = (
 #: refinement's reason is the only information there is.
 _DIAGNOSTIC_SEARCH_REASONS = ("ambiguous-orientation", "below-floor",
                               "no-usable-candidate", "not-recognised",
-                              "no-chart-geometry")
+                              "no-chart-geometry", "off-the-patches")
 
 #: Refinement reasons that mean "the best placement I can see is further away
 #: than I am allowed to move".
@@ -238,6 +239,9 @@ def _ending(find_reason: str, fit_reason: str) -> str:
 
 def seated_verdict(scan: Path, boxes: Sequence,
                    corners: Sequence[tuple[float, float]],
+                   expected_y: "dict[str, float] | None" = None,
+                   image_size: "tuple[int, int] | None" = None,
+                   sample_frac: float = 0.6,
                    ) -> "tuple[bool, float | None]":
     """``(is the grid on the patches, the seating drift)``, from the PICTURE.
 
@@ -261,14 +265,31 @@ def seated_verdict(scan: Path, boxes: Sequence,
     A check that cannot be made is not evidence of a fault. An exception here
     accepts and says so in the log, the same rule
     :func:`~workflow.scan_auto_align.auto_align` applies to its own drift.
+
+    *expected_y* and *image_size*, when given, let the chart's own colours
+    overrule the boundary check, and only that one: when they pin the grid to
+    exactly this position and this way up
+    (:func:`~workflow.scan_auto_align.position_is_pinned`), a boundary that
+    does not look like the chart's is the scanner bed showing through, not a
+    grid a patch out. The drift check still runs either way.
     """
     from workflow.scan_auto_align import (SEATING_DRIFT_LIMIT,
-                                          border_agreement, seating_drift)
+                                          agreement_scorer, border_agreement,
+                                          position_is_pinned, seating_drift)
     quad = [tuple(c) for c in corners]
     try:
         if border_agreement(scan, boxes, quad) is False:
-            log.info("placement refused: the grid's edges are not the chart's")
-            return False, None
+            pinned = False
+            if expected_y and image_size:
+                pinned = position_is_pinned(
+                    agreement_scorer(scan, expected_y), boxes, quad,
+                    image_size, sample_frac=sample_frac)
+            if not pinned:
+                log.info("placement refused: the grid's edges are not the "
+                         "chart's")
+                return False, None
+            log.info("the grid's edges do not look like the chart's, but its "
+                     "colours pin it to these patches")
         drift = seating_drift(scan, boxes, quad)
     except Exception:  # noqa: BLE001 — a safety check must not become a crash
         log.warning("could not check where the placed grid sits", exc_info=True)
@@ -439,7 +460,10 @@ def place_grid(scanin_exe: str | Path,
     # dressed up as an answer -- so that ending still returns with no corners
     # and keeps its own wording.
     res.corners = candidate
-    seated, drift = seated_verdict(scan, boxes, candidate)
+    seated, drift = seated_verdict(scan, boxes, candidate,
+                                   expected_y=expected_y,
+                                   image_size=image_size,
+                                   sample_frac=sample_frac)
     res.drift = drift
     if not seated:
         res.ending = "not-seated"

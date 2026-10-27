@@ -121,6 +121,32 @@ IMPROVEMENT_MARGIN = 0.02
 #: 0.15 sits in the gap, nearer the ambiguous end.
 ORIENTATION_MARGIN = 0.15
 
+#: How many whole patch pitches, in each direction along the chart's own rows
+#: and columns, :func:`pitch_search` may slide a rectangle the recogniser
+#: returned when none of its four orientations reads this chart.
+#:
+#: WHY IT EXISTS (Knut, 4.3.17, a flatbed scan of a 1944-patch ChromIQ chart).
+#: ``scanin`` lines a chart up by correlating the straight patch edges in the
+#: picture with the ``.cht``'s edge lists. On a ChromIQ chart every strip and
+#: every row has the SAME pitch, so a rectangle one, two or three strips to the
+#: side lines up with almost as many edges as the right one, and scanin can
+#: settle there. It got the scale and the angle right and the position wrong
+#: by whole strips: measured on 36 simulated scans of four ChromIQ charts
+#: built like his (24 strips x 27 patches, coloured spacers, helper markers),
+#: scanin's second candidate was a whole strip out in every one, and in 4 of
+#: the 36 BOTH candidates were (one strip one way, two the other). Those 4
+#: ended exactly as his did, and the window then told him the chart "looks
+#: the same whichever way round it is turned", which was not true: no
+#: orientation read the chart at all (best 0.03-0.10, where a correct
+#: placement reads 0.97), so the four were equally bad rather than equally
+#: good. Sliding the same rectangle by whole pitches found the right
+#: placement every time, at 0.974-0.979 against a runner-up of at most 0.12.
+#:
+#: Three pitches is one more than the largest slip measured. The search scores
+#: (2 * 3 + 1) ** 2 positions four ways up, 196 reads of an image sampled
+#: once, about half a second.
+PITCH_SEARCH_STEPS = 3
+
 #: How far, in PATCH PITCHES, the sheet's own patches may say the grid should
 #: move before the answer is refused (:func:`seating_drift`). Every other gate
 #: in this module is blind to a keystone, because the quad this module can
@@ -437,6 +463,103 @@ def orientation_scores(image_path: Path, boxes: Sequence,
             for k in range(4)]
 
 
+def pitch_search(score, boxes: Sequence,
+                 quad: Sequence[tuple[float, float]],
+                 image_size: tuple[int, int],
+                 floor: float = AGREEMENT_FLOOR,
+                 sample_frac: float = 0.6,
+                 steps: int = PITCH_SEARCH_STEPS,
+                 margin: float = ORIENTATION_MARGIN):
+    """Slide *quad* by whole patch pitches and find the one position, and the
+    one way up, that reads this chart -- or ``None``.
+
+    *quad* is a recogniser answer in marquee order: corner ``n`` is where the
+    ``.cht`` patch area's corner ``n`` lands. Moving the patch area by ``i``
+    pitches across and ``j`` down in the ``.cht``'s own coordinates moves every
+    corner by the same vector in the picture, so the angle and the scale the
+    recogniser found are kept exactly and only the position changes.
+
+    *score* is an :func:`agreement_scorer` scorer, so the picture is read once.
+
+    It answers only when the winner is unambiguous: it must reach *floor*, and
+    it must beat every other position and orientation it tried by *margin*,
+    the same rule :data:`ORIENTATION_MARGIN` applies to the four orientations
+    of one placement. On a chart whose neighbouring patches look alike the
+    neighbours score nearly as well, and then there is no answer to give.
+
+    Returns ``(rho, corners, (i, j, k), runner_up)``: *corners* are already
+    moved and turned the winning way up, ``(i, j)`` is the move in pitches and
+    ``k`` the turn (how far the corner order was rotated), so ``(0, 0, 0)``
+    means *quad* itself was the answer.
+    """
+    if score is None or len(quad) != 4 or not boxes:
+        return None
+    minx = min(b.x1 for b in boxes)
+    maxx = max(b.x2 for b in boxes)
+    miny = min(b.y1 for b in boxes)
+    maxy = max(b.y2 for b in boxes)
+    if maxx <= minx or maxy <= miny:
+        return None
+    px, py = chart_pitch(boxes)
+    q = [(float(x), float(y)) for x, y in quad]
+    ux = ((q[1][0] - q[0][0]) / (maxx - minx), (q[1][1] - q[0][1]) / (maxx - minx))
+    uy = ((q[3][0] - q[0][0]) / (maxy - miny), (q[3][1] - q[0][1]) / (maxy - miny))
+    bbox = (minx, miny, maxx, maxy)
+    tried: list[tuple[float, int, int, int]] = []
+    for i in range(-steps, steps + 1):
+        for j in range(-steps, steps + 1):
+            dx = i * px * ux[0] + j * py * uy[0]
+            dy = i * px * ux[1] + j * py * uy[1]
+            moved = [(x + dx, y + dy) for x, y in q]
+            if quad_is_sane(moved, image_size, bbox):
+                continue
+            for k in range(4):
+                s = score(boxes, moved[k:] + moved[:k], sample_frac)
+                if s is not None:
+                    tried.append((s, i, j, k))
+    if len(tried) < 2:
+        return None
+    tried.sort(reverse=True)
+    rho, i, j, k = tried[0]
+    runner_up = tried[1][0]
+    if rho < floor or rho - runner_up < margin:
+        return None
+    dx = i * px * ux[0] + j * py * uy[0]
+    dy = i * px * ux[1] + j * py * uy[1]
+    moved = [(x + dx, y + dy) for x, y in q]
+    return rho, moved[k:] + moved[:k], (i, j, k), runner_up
+
+
+def position_is_pinned(score, boxes: Sequence,
+                       corners: Sequence[tuple[float, float]],
+                       image_size: tuple[int, int],
+                       floor: float = AGREEMENT_FLOOR,
+                       sample_frac: float = 0.6) -> bool:
+    """Do this chart's own colours say the grid is HERE, and this way up?
+
+    True when *corners*, exactly as given, are :func:`pitch_search`'s unique
+    winner: they reach *floor* and beat every position up to
+    :data:`PITCH_SEARCH_STEPS` patches away, and every other way up, by
+    :data:`ORIENTATION_MARGIN`.
+
+    It is what :func:`border_agreement` exists to stand in for. That check
+    looks at the chart's outer boundary because "a rank correlation cannot see
+    a placement shifted by a whole patch pitch on a chart whose patches step
+    smoothly". On such a chart the neighbouring positions score nearly as well
+    and this is False, so the boundary check still decides. On a chart whose
+    neighbours are unlike each other -- every ChromIQ chart, whose patch order
+    is shuffled -- a whole-patch shift reads nothing (measured 0.11 at best,
+    against 0.97 at the patches), so the colours alone pin the position, and
+    the boundary check can only add a wrong refusal: on a dark scanner bed the
+    band "a patch further out" runs off the paper's edge onto the bed, and the
+    grid of a correct placement was refused (Knut's chart simulated on a black
+    lid, 600 dpi, turned 90 and 180 degrees: 0.974 at the patches, refused).
+    """
+    got = pitch_search(score, boxes, corners, image_size, floor=floor,
+                       sample_frac=sample_frac)
+    return got is not None and got[2] == (0, 0, 0)
+
+
 # ---------------------------------------------------------------------------
 # the button's worker
 # ---------------------------------------------------------------------------
@@ -574,8 +697,13 @@ def auto_align(scanin_exe: str | Path,
 
     rejected: list[str] = []
     ambiguous = False
+    off_patches = False
     best_margin = None
     best: tuple[float, str, list[tuple[float, float]]] | None = None
+    # The picture is read ONCE for every candidate, every orientation and every
+    # position the pitch search tries; `orientation_scores` would read it again
+    # for each candidate.
+    score = agreement_scorer(scan, expected_y)
     for source, quad in seen:
         why = quad_is_sane(quad, image_size, bbox)
         if why:
@@ -587,7 +715,9 @@ def auto_align(scanin_exe: str | Path,
         # every direction has no answer, and picking one of four at random is
         # worse than not picking: a wrong orientation reads every patch as
         # another patch and the profile comes out confidently wrong.
-        scores = orientation_scores(scan, boxes, quad, expected_y, sample_frac)
+        scores = ([score(boxes, list(quad[k:]) + list(quad[:k]), sample_frac)
+                   for k in range(4)] if score is not None
+                  else [None, None, None, None])
         ranked = sorted(
             ((-9.0 if s is None else s, k) for k, s in enumerate(scores)),
             reverse=True)
@@ -597,7 +727,38 @@ def auto_align(scanin_exe: str | Path,
             rejected.append(f"{source}: could not be measured")
             continue
         turned = list(quad[k:]) + list(quad[:k])
-        if margin < ORIENTATION_MARGIN:
+        # WHERE, AS WELL AS WHICH WAY UP. The recogniser can put its rectangle
+        # whole strips to the side of the patches (Knut, 4.3.17: both of
+        # scanin's answers were, and he was told his chart "looks the same
+        # whichever way round it is turned"). So the same rectangle is also
+        # scored a few whole pitches either way; see PITCH_SEARCH_STEPS. An
+        # answer only counts when it is unique, so a chart whose neighbouring
+        # patches look alike gets none here and is judged exactly as before.
+        slid = pitch_search(score, boxes, quad, image_size, floor=floor,
+                            sample_frac=sample_frac)
+        pinned = slid is not None
+        if slid is not None:
+            was = rho
+            rho, turned, (si, sj, _sk), runner_up = slid
+            margin = rho - runner_up
+            if si or sj:
+                log.info("auto align: %s answer was %d pitch(es) across and %d "
+                         "down from the patches; moved it (%.3f -> %.3f, next "
+                         "best %.3f)", source, si, sj, was, rho, runner_up)
+        elif rho < floor:
+            # NO WAY UP READS THIS CHART, here or nearby, so the rectangle is in
+            # the wrong place rather than the chart being symmetric.
+            if margin < ORIENTATION_MARGIN:
+                # Four equally BAD readings are not a symmetric chart. Saying
+                # so sent Knut to the Rotate button, which could not help.
+                rejected.append(f"{source}: no way up and no nearby position "
+                                f"reads this chart's patches (best {rho:.2f})")
+                off_patches = True
+                continue
+            # else: one way up is clearly better and still below the floor --
+            # a placement that is found and does not match, which the floor
+            # below refuses in its own words, exactly as before.
+        elif margin < ORIENTATION_MARGIN:
             rejected.append(f"{source}: the chart reads the same more than one "
                             f"way up (margin {margin:.2f})")
             ambiguous = True
@@ -606,16 +767,31 @@ def auto_align(scanin_exe: str | Path,
         # cannot: a placement shifted by a whole patch pitch reads every patch
         # as its neighbour, and on a chart whose patches step smoothly the
         # ranks survive that. The chart's outer boundary does not.
+        #
+        # Unless the colours have already pinned the position: then nothing a
+        # boundary can add is evidence, and on a dark scanner bed the band
+        # outside the grid runs off the paper and refuses a correct placement
+        # (see `position_is_pinned`).
         if border_agreement(scan, boxes, turned) is False:
-            rejected.append(f"{source}: the grid's edges are not the chart's")
-            continue
+            if not pinned:
+                rejected.append(f"{source}: the grid's edges are not the chart's")
+                continue
+            log.info("auto align: %s grid's edges did not look like the "
+                     "chart's, but its colours pin it (%.3f, next best %.3f)",
+                     source, rho, rho - margin)
         if best is None or rho > best[0]:
             best = (rho, source, turned)
             best_margin = margin
 
     if best is None:
+        # A chart that genuinely reads well more than one way up outranks a
+        # grid that read nothing: the first is a fact about the chart, the
+        # second only about where the recogniser put its rectangle.
+        reason = ("ambiguous-orientation" if ambiguous
+                  else "off-the-patches" if off_patches
+                  else "no-usable-candidate")
         return AutoAlignResult(
-            reason="ambiguous-orientation" if ambiguous else "no-usable-candidate",
+            reason=reason,
             rho_before=rho_before, candidates=len(seen), log_tail=log_tail,
             rejected=rejected)
     rho, source, quad = best

@@ -4403,6 +4403,28 @@ M_SCAN_ALIGN_NO_FIT = _m(
     "fitting this target's patches onto it. Check that the chart chosen in "
     "the “{chart_row}” row above is the one you actually scanned.")
 
+#: PROPOSED, 4.3.18 (Knut, a flatbed scan of a 1944-patch ChromIQ chart). The
+#: recogniser found the chart's outline and put its rectangle whole strips to
+#: the side, so no orientation read the chart at all. Until then that reached
+#: the user as M-SCAN-ALIGN-AMBIGUOUS, "looks the same whichever way round it
+#: is turned", which sent him to the Rotate button for a fault rotation cannot
+#: touch. Auto align now slides such a rectangle by whole patches and usually
+#: lands; this is what it says when even that finds nothing.
+M_SCAN_ALIGN_OFF_PATCHES = _m(
+    "M-SCAN-ALIGN-OFF-PATCHES",
+    _ALIGN_KEPT,
+    "ChromIQ found the outline of the chart in your scan, but it could not "
+    "line the grid up with the patches inside it. It tried every way up, and "
+    "every position up to three patches to each side, and in none of them "
+    "did the colours match this chart's measurements.\n\n"
+    "Drag the four corners onto the four corner patches of the chart, as "
+    "close as you can, and press Auto align again. Starting from your "
+    "corners, it fine-tunes the grid onto the patches by itself.\n\n"
+    "If the grid still does not fit, check that the chart in the "
+    "“{chart_row}” row above is the one you scanned and, for a chart with "
+    "more than one page, that the scan shows the page chosen under “Page”.",
+    approved=False)
+
 M_SCAN_ALIGN_NO_GEOMETRY = _m(
     "M-SCAN-ALIGN-NO-GEOMETRY",
     _ALIGN_KEPT,
@@ -4596,6 +4618,7 @@ SCAN_ALIGN_REFUSALS = {
     "not-seated": M_SCAN_ALIGN_NOT_SEATED,
     "not-recognised": M_SCAN_ALIGN_NOT_FOUND,
     "no-usable-candidate": M_SCAN_ALIGN_NO_FIT,
+    "off-the-patches": M_SCAN_ALIGN_OFF_PATCHES,
     "no-chart-geometry": M_SCAN_ALIGN_NO_GEOMETRY,
     "no-better": M_SCAN_ALIGN_NO_BETTER,
     # ...and the one ending that belongs to the second half of the operation
@@ -8137,6 +8160,7 @@ CATALOGUE = {m.id: m for m in (
     M_SCAN_DARK, M_SCAN_FIT_UNSUPPORTED, M_SCAN_SELFCHECK_UNUSABLE,
     M_SCAN_ALIGN_AMBIGUOUS, M_SCAN_ALIGN_NO_MATCH,
     M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NOT_FOUND_HEX, M_SCAN_ALIGN_NO_FIT,
+    M_SCAN_ALIGN_OFF_PATCHES,
     M_SCAN_ALIGN_NO_GEOMETRY, M_SCAN_ALIGN_NO_BETTER, M_SCAN_ALIGN_NOT_SEATED,
     M_SCAN_ALIGN_PLACED_UNCHECKED, M_SCAN_ALIGN_PLACED_NOT_SEATED,
     M_SCAN_ALIGN_DONE, M_SCAN_ALIGN_NO_INPUT,
