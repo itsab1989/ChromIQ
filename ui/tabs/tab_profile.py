@@ -4857,27 +4857,41 @@ class TabProfile(QWidget):
         nor `.txt` can be read directly. Converting first is what lets the
         question be the same for every format instead of one route per suffix.
         Returns None when the conversion failed, having already said so.
+
+        THE CONVERTED COPY LIVES IN A ``chromiq-import-*`` FOLDER, which the
+        caller removes when the import is over (review 4.3.17 r2, NIT-3). It
+        was a bare ``mkdtemp()``, with no prefix and never removed, so every
+        Build Profile .mxf/.txt import left a folder behind. Nothing reads the
+        copy after the import: the filing door files a copy of its own into
+        the project, and the old route below converts the original again. A
+        failed conversion removes the folder here.
         """
+        import shutil
         import tempfile
         from workflow.reference_convert import (ReferenceConvertError,
                                                 convert_i1profiler_measurement)
         argyll = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
+        work = Path(tempfile.mkdtemp(prefix="chromiq-import-"))
         try:
-            out = convert_i1profiler_measurement(
-                src, argyll, out_dir=Path(tempfile.mkdtemp()))
+            out = convert_i1profiler_measurement(src, argyll, out_dir=work)
         except ReferenceConvertError as exc:
+            shutil.rmtree(work, ignore_errors=True)
             # The converter's reason is a whole §M message in the user's
             # language (M-CONVERT-*); shown as it is, under its own headline.
             InfoDialog(exc.title or tr("The file could not be converted"),
                        str(exc), self, min_width=560).exec()
             return None
         except (OSError, ValueError) as exc:
+            shutil.rmtree(work, ignore_errors=True)
             InfoDialog(tr("The file could not be converted"),
                        tr("ChromIQ could not read “{name}” as a measurement.\n\n"
                           "**The reason:** {reason}.").format(name=src.name,
                                                           reason=exc),
                        self, min_width=560).exec()
             return None
+        except BaseException:
+            shutil.rmtree(work, ignore_errors=True)
+            raise
         return Path(out)
 
     def _offer_import_into_a_project(self, measurement: Path) -> bool:
@@ -4994,8 +5008,18 @@ class TabProfile(QWidget):
         from ui.ti2_loader import _project_root_for as _root_for
         _wd = self._settings.get("custom_output_path", "") or None
         _root = Path(_wd) if _wd else default_output_root()
-        if _root_for(p, _root) is None and \
-                self._offer_import_into_a_project(_ask_about):
+        try:
+            _handled = (_root_for(p, _root) is None
+                        and self._offer_import_into_a_project(_ask_about))
+        finally:
+            # The converted copy has done its work whatever the answer was:
+            # filed (as a copy), refused, cancelled, or an error. NIT-3.
+            # Only ever the folder `_convert_for_import` made for it.
+            if (_converted is not None
+                    and _converted.parent.name.startswith("chromiq-import-")):
+                import shutil
+                shutil.rmtree(_converted.parent, ignore_errors=True)
+        if _handled:
             return
         if p.suffix.lower() in (".mxf", ".cxf"):
             self._import_i1profiler_cxf(p)          # i1Profiler native CxF3
