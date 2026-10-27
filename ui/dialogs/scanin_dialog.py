@@ -660,6 +660,18 @@ class ScannerProfileDialog(_ToolDialogBase):
     #: being a pane and becomes a slit.
     MIN_LEFT_SCROLL_H = 96
 
+    #: WHILE "Advanced…" IS OPEN, the settings area is given at least this much
+    #: height by the log below it, which then shows fewer lines (never fewer
+    #: than `LOG_LINES_WHILE_ADVANCED_OPEN`). Release review r4 of 4.3.18, N-3:
+    #: at a 640 px window the open section was reachable only through a
+    #: settings area about 110 px high, because the nine-line log kept its full
+    #: height. The window itself keeps its size (Knut, 4.3.17); only the split
+    #: between the settings and the log moves, and it moves back when the
+    #: section closes. On a tall window the settings area is already taller
+    #: than this and nothing changes.
+    ADV_OPEN_SETTINGS_H = 300
+    LOG_LINES_WHILE_ADVANCED_OPEN = 3
+
     # Prepended OUTSIDE the main tr() key — appending inside would orphan the
     # existing help key and its translations (the WHICH_CHART_HELP lesson).
     #
@@ -3255,8 +3267,59 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._fitting_floor = True
         try:
             self._let_the_settings_pane_give()
+            self._let_the_log_give()
         finally:
             self._fitting_floor = False
+
+    def _let_the_log_give(self) -> bool:
+        """Share the left column's height between the settings and the log.
+
+        With "Advanced…" closed the log has the height the user chose for every
+        log in the app (`fit_log_height`). With it open, and only when the
+        settings area would otherwise be shorter than `ADV_OPEN_SETTINGS_H`,
+        the log gives up the difference, down to
+        `LOG_LINES_WHILE_ADVANCED_OPEN` lines: the open section is what the
+        user just asked to see, and the log keeps scrolling as it always does.
+
+        IT NEVER MAKES THE WINDOW BIGGER. Everything is worked out from the
+        height the two already share (settings area + log), so the column's
+        total does not move. Giving the lines back when the section closes is
+        capped by the same total, less the smallest the settings area may be
+        (`MIN_LEFT_SCROLL_H`), so a window the user made shorter while the
+        section was open is not pushed taller when it closes: the log simply
+        stays smaller until there is room again (the next resize gives it
+        back).
+        """
+        log, scroll = getattr(self, "_log", None), self._scroll
+        head = getattr(self, "_adv_inline_head", None)
+        if log is None or scroll is None or head is None:
+            return False
+        try:
+            if log.isHidden():
+                # "Hide the log panel": nothing to share, and a height set
+                # now would be the one it comes back with.
+                return False
+            from ui.widgets import log_height_for_lines, log_visible_lines
+            full = log_height_for_lines(log, log_visible_lines())
+            least = min(full, log_height_for_lines(
+                log, self.LOG_LINES_WHILE_ADVANCED_OPEN))
+            shared = scroll.height() + log.height()
+        except Exception:  # noqa: BLE001 — sizing must never raise, and the
+            return False   # timer can fire after the window has gone
+        if head.isChecked():
+            want = shared - self.ADV_OPEN_SETTINGS_H
+        else:
+            # The settings area can itself give down to MIN_LEFT_SCROLL_H on a
+            # short window (`_let_the_settings_pane_give`), which is the state
+            # a 640 px window opens in, so that is the floor the lines are
+            # given back against.
+            want = shared - self.MIN_LEFT_SCROLL_H
+        want = max(least, min(full, want))
+        if want == log.minimumHeight() == log.maximumHeight():
+            return False
+        log.setMinimumHeight(want)
+        log.setMaximumHeight(want)
+        return True
 
     def _refit_height(self) -> None:
         """The base class's "the layout changed, sit the window on it again",
@@ -3436,8 +3499,16 @@ class ScannerProfileDialog(_ToolDialogBase):
         `_show_the_advanced_section` follows for a bucket change. The window's
         WIDTH is still kept wide enough for the open section, by
         `_refresh_min_width`, which only ever grows it.
+
+        What does move is the split inside the left column: while the section
+        is open on a short window the log gives the settings area some of its
+        height (`_let_the_log_give`, review r4 of 4.3.18), and takes it back
+        when the section closes. It runs once the layout has settled, because
+        it reads the heights the two rows really have.
         """
         self._show_the_advanced_section(on)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._let_the_log_give)
 
     def _restore_defaults_clicked(self) -> None:
         """Put this window's profile settings back to the built-in defaults.

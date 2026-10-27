@@ -983,14 +983,21 @@ def fit_log_height(log, lines: "int | None" = None) -> None:
     except (TypeError, RuntimeError):      # not a weak-referenceable widget
         pass
     try:
-        fm = log.fontMetrics()
-        doc_margin = int(log.document().documentMargin()) * 2
-        frame = log.frameWidth() * 2
-        h = fm.lineSpacing() * lines + doc_margin + frame
+        h = log_height_for_lines(log, lines)
         log.setMinimumHeight(h)
         log.setMaximumHeight(h)
     except Exception:      # noqa: BLE001 — sizing must never raise
         pass
+
+
+def log_height_for_lines(log, lines: int) -> int:
+    """The height, in pixels, at which *log* shows exactly *lines* lines of the
+    font it really has: the arithmetic :func:`fit_log_height` applies, for a
+    caller that has to know the number without setting it."""
+    fm = log.fontMetrics()
+    doc_margin = int(log.document().documentMargin()) * 2
+    frame = log.frameWidth() * 2
+    return fm.lineSpacing() * lines + doc_margin + frame
 
 
 class LogResizeGrip(QObject):

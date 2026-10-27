@@ -1008,3 +1008,53 @@ def test_opening_advanced_keeps_the_window_size(_app, _out_dir):
             _settle(_app, dlg)
     finally:
         dlg.deleteLater()
+
+
+def test_on_a_short_window_the_log_gives_the_open_advanced_section_room(
+        _app, _out_dir):
+    """Release review r4 of 4.3.18, N-3: at 640 px with "Advanced…" open the
+    settings area was about 110 px high, because the nine-line log kept its
+    full height. The window still keeps its size; the log gives the settings
+    area room while the section is open, never below three lines, and takes
+    it back when the section closes. On a tall window nothing moves."""
+    from ui.widgets import log_height_for_lines, log_visible_lines
+    dlg = _make(_app, _out_dir)
+    try:
+        _settle(_app, dlg)
+        log = dlg._log
+        full = log_height_for_lines(log, log_visible_lines())
+        three = log_height_for_lines(log, dlg.LOG_LINES_WHILE_ADVANCED_OPEN)
+        avail = dlg.screen().availableGeometry().height()
+        h = max(dlg.minimumHeight(), 640)
+        dlg.resize(dlg.width(), h)
+        _settle(_app, dlg)
+        assert log.height() == full
+        before_scroll = dlg._scroll.height()
+        dlg._adv_inline_head.setChecked(True)
+        _settle(_app, dlg)
+        _settle(_app, dlg)
+        assert dlg.height() == h
+        gave = full - log.height()
+        assert gave > 0, "the log kept its full height on a short window"
+        assert log.height() >= three
+        assert dlg._scroll.height() >= min(dlg.ADV_OPEN_SETTINGS_H,
+                                           before_scroll + full - three) - 2
+        dlg._adv_inline_head.setChecked(False)
+        _settle(_app, dlg)
+        _settle(_app, dlg)
+        assert dlg.height() == h
+        assert log.height() == full, "the log did not get its lines back"
+        # a tall window: the settings area already has room, nothing moves
+        tall = max(dlg.minimumHeight(), avail - 40)
+        dlg.resize(dlg.width(), tall)
+        _settle(_app, dlg)
+        if dlg._scroll.height() >= dlg.ADV_OPEN_SETTINGS_H:
+            dlg._adv_inline_head.setChecked(True)
+            _settle(_app, dlg)
+            _settle(_app, dlg)
+            assert log.height() == full
+            assert dlg.height() == tall
+            dlg._adv_inline_head.setChecked(False)
+            _settle(_app, dlg)
+    finally:
+        dlg.deleteLater()
