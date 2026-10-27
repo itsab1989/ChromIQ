@@ -59,6 +59,7 @@ def test_the_files_ask_for_legacy_charts_off(tmp_path):
 
 def test_the_preferences_help_says_the_same():
     src = (ROOT / "ui/dialogs/settings_dialog.py").read_text(encoding="utf-8")
+    src = re.sub(r'"\s*\n\s*"', "", src)      # join wrapped literals
     assert "tr(I1PRO2_VERSION_NOTE)" in src
     assert "could not be opened in" not in src
     assert "the last version that supports the i1Pro 2" in src
