@@ -58,6 +58,7 @@ import json
 import logging
 import math
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -441,6 +442,38 @@ def remove_unless_current(folder: "str | Path", stem: str,
     if _order_in(files.order, chart_ti2) is not None:
         return []
     return remove_stale(folder, stem)
+
+
+def carry_turned_export(src_ti2: "str | Path", dst_ti2: "str | Path",
+                        dst_folder: "str | Path", dst_stem: str) -> list:
+    """Copy the turned export of *src_ti2* beside its copy *dst_ti2*, into
+    *dst_folder* under *dst_stem* (a new project made from a chart folder;
+    review 4.3.17 r2, NIT-1). Returns what was copied.
+
+    ONLY WHEN THE COPY IS STILL THAT CHART. The order is bound to the chart
+    by its SHA-256, so it is carried only when it names *src_ti2* AND the
+    copied *dst_ti2* has the very same bytes; anything else would put an
+    order beside a chart it does not describe. Nothing is copied when the
+    chart has no turned export. Best-effort: never raises."""
+    copied: list = []
+    try:
+        src_ti2, dst_ti2 = Path(src_ti2), Path(dst_ti2)
+        order = turned_order_for(src_ti2)
+        if order is None or _order_in(order.path, dst_ti2) is None:
+            return copied
+        src = TurnedFiles(order.path.parent, src_ti2.stem)
+        dst = TurnedFiles(Path(dst_folder), dst_stem)
+        pairs = [(src.order, dst.order), (src.note, dst.note),
+                 *((src.txf(f), dst.txf(f)) for f in FAMILIES)]
+        Path(dst_folder).mkdir(parents=True, exist_ok=True)
+        for a, b in pairs:
+            if a.is_file():
+                shutil.copy2(a, b)
+                copied.append(b)
+    except Exception:  # noqa: BLE001 — never break an import
+        log.warning("could not carry the turned i1Profiler export",
+                    exc_info=True)
+    return copied
 
 
 def _write_txf(plan: TurnedPlan, family: str, out: Path, title: str) -> None:

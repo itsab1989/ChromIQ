@@ -1948,6 +1948,14 @@ def _copy_files(
             shutil.copy2(icc, run.profile_icc)    # chart.icc
             break
 
+    # The chart's turned i1Profiler export (beta), beside it or in its
+    # exports/, goes into the new run's exports/ under the new name: it is
+    # what pairs a turned measurement of this sheet, and it is carried only
+    # while the copied .ti2 is byte for byte the chart it was written for
+    # (review 4.3.17 r2, NIT-1). A chart without one copies nothing more.
+    from workflow.i1profiler_turned import carry_turned_export
+    carry_turned_export(ti2_path, run.chart_ti2, run.exports_dir, run.stem)
+
     return run.chart_ti2, new_tiffs
 
 

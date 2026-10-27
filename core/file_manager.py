@@ -3948,7 +3948,19 @@ class Project:
                    "{stem}.ps", "{stem}.pdf", "{stem}.channels.json",
                    "{stem}.strips.json", "{stem}.print.json",
                    "{stem}_*.tif", "{stem}.tif",
-                   "chart/**/*")),
+                   "chart/**/*",
+                   # THE TURNED i1PROFILER EXPORT IS THE CHART'S TOO (beta,
+                   # review 4.3.17 r2, NIT-1). Its order file is what pairs a
+                   # turned measurement of this sheet, and it is bound to the
+                   # .ti2 by its SHA-256, which a byte-for-byte copy keeps. An
+                   # import that copies only the chart used to leave it behind.
+                   # Beside the chart (the TI2 layout editor) or in exports/.
+                   "{stem}-i1profiler-turned.json",
+                   "{stem}-i1profiler-turned-how-to.txt",
+                   "{stem}-i1profiler-turned-*.txf",
+                   "exports/{stem}-i1profiler-turned.json",
+                   "exports/{stem}-i1profiler-turned-how-to.txt",
+                   "exports/{stem}-i1profiler-turned-*.txf")),
         # `.confirmed.json` is the measurement's yellow memory (#182 K4): which
         # patches a re-read confirmed. It is only believed while the .ti3 it
         # names by hash is unchanged, and the copy is byte for byte.
@@ -3984,6 +3996,9 @@ class Project:
         something is missing rather than simply absent.
         """
         plan = []
+        # A FILE IS COPIED ONCE, under the first group that names it: the
+        # turned export sits in exports/ and is also the chart's (above).
+        taken: set = set()
         for group, patterns in self.DUPLICATE_GROUPS:
             if groups is not None and group not in groups:
                 continue
@@ -4004,8 +4019,9 @@ class Project:
                 hits = (sorted(source.dir.glob(filled)) if "/" in filled
                         else files_matching(source.dir, filled))
                 for p in hits:
-                    if p.is_file() and p not in found:
+                    if p.is_file() and p not in found and p not in taken:
                         found.append(p)
+            taken.update(found)
             if found:
                 total = 0
                 for p in found:
