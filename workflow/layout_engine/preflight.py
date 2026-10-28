@@ -54,16 +54,55 @@ class PreflightReport:
 #: by the label Preferences > Chart Layout shows for it.
 #: Each is one whole literal, so that `scripts/i18n_extract.py` sees it as a
 #: key (it reads ``tr(NAME)`` of a module-level string constant).
-SMALL_AREA_GRID = (
+#: "Prioritise chart area" names the control for the SIDE that is too small
+#: (review 4.3.19 r3, N1). In "By columns / rows" the strip count sets only the
+#: patch width and the patches per strip only the height
+#: (`area_fit._derive_area_patch_size`: ``cols`` -> ``pw``, ``rows`` -> ``ph``);
+#: in "By patch width" the minimum width sets the width and the height % the
+#: height. Until r3 both were offered with "or", so for 20 strips of 60 on A4
+#: (8.89 x 3.73 mm) "fewer strips" was advice that left the patches as they were.
+#: A HONEYCOMB IS ITS OWN CASE: its height follows its width
+#: (`_hex_locked_rows` greys the height % and, with the strips set, the rows),
+#: so whichever side is small, the width control is the one that helps.
+SMALL_AREA_GRID_WIDTH = (
+    "The patches are {width} mm wide, narrower than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "To make them wider, choose fewer “{strips}”: each strip then gets "
+    "more of the page's width.")
+SMALL_AREA_GRID_HEIGHT = (
+    "The patches are {height} mm tall, shorter than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "To make them taller, choose fewer “{rows}”: each patch then gets "
+    "more room along its strip.")
+SMALL_AREA_GRID_BOTH = (
+    "The patches are {width} mm wide and {height} mm tall, both smaller "
+    "than the {floor} mm an instrument needs to read a patch reliably, so "
+    "it may misread them. To make them larger, choose fewer “{strips}” for "
+    "wider patches and fewer “{rows}” for taller ones.")
+SMALL_AREA_GRID_HEX = (
     "The patches are {size} mm, smaller than the {floor} mm an "
     "instrument needs to read a patch reliably, so it may misread them. "
-    "To make them larger, choose fewer “{strips}” or fewer “{rows}”: "
-    "each patch then gets more room on the page.")
-SMALL_AREA_WIDTH = (
+    "The height of a hexagon follows its width, so to make the patches "
+    "larger, choose fewer “{strips}”.")
+SMALL_AREA_WIDTH_WIDTH = (
+    "The patches are {width} mm wide, narrower than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "To make them wider, choose a larger “{min_width}”.")
+SMALL_AREA_WIDTH_HEIGHT = (
+    "The patches are {height} mm tall, shorter than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "To make them taller, choose a larger “{min_height}”.")
+SMALL_AREA_WIDTH_BOTH = (
+    "The patches are {width} mm wide and {height} mm tall, both smaller "
+    "than the {floor} mm an instrument needs to read a patch reliably, so "
+    "it may misread them. To make them larger, choose a larger "
+    "“{min_width}” for wider patches and a larger “{min_height}” for "
+    "taller ones.")
+SMALL_AREA_WIDTH_HEX = (
     "The patches are {size} mm, smaller than the {floor} mm an "
     "instrument needs to read a patch reliably, so it may misread them. "
-    "To make them larger, choose a larger “{min_width}” or a larger "
-    "“{min_height}”.")
+    "The height of a hexagon follows its width, so to make the patches "
+    "larger, choose a larger “{min_width}”.")
 SMALL_TYPED = (
     "The patches are {size} mm, smaller than the {floor} mm an "
     "instrument needs to read a patch reliably, so it may misread them. "
@@ -80,8 +119,12 @@ SMALL_SCALE = (
     "instrument needs to read a patch reliably, so it may misread them. "
     "To make them larger, choose a larger “{patch_scale}”.")
 #: The full English keys, as the catalogues hold them.
-SMALL_PATCH_TEXTS = (SMALL_AREA_GRID, SMALL_AREA_WIDTH, SMALL_TYPED,
-                     SMALL_TYPED_AND_SCALE, SMALL_SCALE)
+SMALL_AREA_TEXTS = (SMALL_AREA_GRID_WIDTH, SMALL_AREA_GRID_HEIGHT,
+                    SMALL_AREA_GRID_BOTH, SMALL_AREA_GRID_HEX,
+                    SMALL_AREA_WIDTH_WIDTH, SMALL_AREA_WIDTH_HEIGHT,
+                    SMALL_AREA_WIDTH_BOTH, SMALL_AREA_WIDTH_HEX)
+SMALL_PATCH_TEXTS = SMALL_AREA_TEXTS + (SMALL_TYPED, SMALL_TYPED_AND_SCALE,
+                                        SMALL_SCALE)
 
 
 def small_patch_case(recipe, geom: Geom, floor: float) -> str:
@@ -94,9 +137,17 @@ def small_patch_case(recipe, geom: Geom, floor: float) -> str:
     width (``pwid``) and a typed height the length along it (``plen``), as in
     `instruments.build`; a side left empty is the scaled one."""
     if recipe is not None and getattr(recipe, "layout_mode", "") == "area_first":
-        if getattr(recipe, "area_method", "by_width") == "by_grid":
-            return SMALL_AREA_GRID
-        return SMALL_AREA_WIDTH
+        from .instruments import is_hexagonal
+        grid = getattr(recipe, "area_method", "by_width") == "by_grid"
+        narrow = geom.pwid < floor - 1e-6
+        short = geom.plen < floor - 1e-6
+        if is_hexagonal(geom):
+            return SMALL_AREA_GRID_HEX if grid else SMALL_AREA_WIDTH_HEX
+        if narrow and short:
+            return SMALL_AREA_GRID_BOTH if grid else SMALL_AREA_WIDTH_BOTH
+        if short:
+            return SMALL_AREA_GRID_HEIGHT if grid else SMALL_AREA_WIDTH_HEIGHT
+        return SMALL_AREA_GRID_WIDTH if grid else SMALL_AREA_WIDTH_WIDTH
     typed_w = bool(recipe is not None and getattr(recipe, "patch_w_mm", 0))
     typed_h = bool(recipe is not None and getattr(recipe, "patch_h_mm", 0))
     small = [typed for typed, mm in ((typed_w, geom.pwid), (typed_h, geom.plen))
@@ -112,10 +163,22 @@ def _translated_small_patch_text(key: str) -> str:
     """*key* in the person's language, by an explicit ``tr(NAME)`` per text so
     the extractor and the stale-key check see every one."""
     from core.i18n import tr
-    if key == SMALL_AREA_GRID:
-        return tr(SMALL_AREA_GRID)
-    if key == SMALL_AREA_WIDTH:
-        return tr(SMALL_AREA_WIDTH)
+    if key == SMALL_AREA_GRID_WIDTH:
+        return tr(SMALL_AREA_GRID_WIDTH)
+    if key == SMALL_AREA_GRID_HEIGHT:
+        return tr(SMALL_AREA_GRID_HEIGHT)
+    if key == SMALL_AREA_GRID_BOTH:
+        return tr(SMALL_AREA_GRID_BOTH)
+    if key == SMALL_AREA_GRID_HEX:
+        return tr(SMALL_AREA_GRID_HEX)
+    if key == SMALL_AREA_WIDTH_WIDTH:
+        return tr(SMALL_AREA_WIDTH_WIDTH)
+    if key == SMALL_AREA_WIDTH_HEIGHT:
+        return tr(SMALL_AREA_WIDTH_HEIGHT)
+    if key == SMALL_AREA_WIDTH_BOTH:
+        return tr(SMALL_AREA_WIDTH_BOTH)
+    if key == SMALL_AREA_WIDTH_HEX:
+        return tr(SMALL_AREA_WIDTH_HEX)
     if key == SMALL_TYPED:
         return tr(SMALL_TYPED)
     if key == SMALL_TYPED_AND_SCALE:
@@ -147,6 +210,7 @@ def check(geom: Geom, layout: Layout, *,
         rep.add_error(_translated_small_patch_text(
             small_patch_case(recipe, geom, min_patch_mm)).format(
             size=f"{smallest:.1f}", floor=f"{min_patch_mm:.1f}",
+            width=f"{geom.pwid:.1f}", height=f"{geom.plen:.1f}",
             strips=tr("Strips (columns)"),
             rows=tr("Patches per strip (rows)"),
             min_width=tr("Minimum patch width"),
