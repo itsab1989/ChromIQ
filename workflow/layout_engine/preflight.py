@@ -45,13 +45,93 @@ class PreflightReport:
         self.warnings.append(msg)
 
 
+#: The patch-size error, one full sentence per way the chart's patch size is
+#: decided (review 4.3.19 r2, SF-A). Until r2 it always said to choose a
+#: larger "Patch scale", which changes nothing with "Prioritise chart area"
+#: (`presets.build_kwargs` forces pscale 1.0 there and the row is hidden) or
+#: for a patch size typed in (`instruments.build`: patch_w/patch_h replace the
+#: scaled size). Each names the control that really makes the patches larger,
+#: by the label Preferences > Chart Layout shows for it.
+#: Each is one whole literal, so that `scripts/i18n_extract.py` sees it as a
+#: key (it reads ``tr(NAME)`` of a module-level string constant).
+SMALL_AREA_GRID = (
+    "The patches are {size} mm, smaller than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "To make them larger, choose fewer “{strips}” or fewer “{rows}”: "
+    "each patch then gets more room on the page.")
+SMALL_AREA_WIDTH = (
+    "The patches are {size} mm, smaller than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "To make them larger, choose a larger “{min_width}” or a larger "
+    "“{min_height}”.")
+SMALL_TYPED = (
+    "The patches are {size} mm, smaller than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "You typed this patch size in, so “{patch_scale}” does not change "
+    "it. To make the patches larger, type a larger “{patch_size}”.")
+SMALL_TYPED_AND_SCALE = (
+    "The patches are {size} mm, smaller than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "To make them larger, type a larger “{patch_size}” for the side you "
+    "typed in, and choose a larger “{patch_scale}” for the side you left "
+    "empty.")
+SMALL_SCALE = (
+    "The patches are {size} mm, smaller than the {floor} mm an "
+    "instrument needs to read a patch reliably, so it may misread them. "
+    "To make them larger, choose a larger “{patch_scale}”.")
+#: The full English keys, as the catalogues hold them.
+SMALL_PATCH_TEXTS = (SMALL_AREA_GRID, SMALL_AREA_WIDTH, SMALL_TYPED,
+                     SMALL_TYPED_AND_SCALE, SMALL_SCALE)
+
+
+def small_patch_case(recipe, geom: Geom, floor: float) -> str:
+    """Which of :data:`SMALL_PATCH_TEXTS` fits how *recipe* sizes its patches
+    (the English key).
+
+    *recipe* is a `LayoutRecipe` (or anything with its ``layout_mode``,
+    ``area_method``, ``patch_w_mm`` and ``patch_h_mm``); None means the
+    instrument's own size times "Patch scale". A typed width sets the strip
+    width (``pwid``) and a typed height the length along it (``plen``), as in
+    `instruments.build`; a side left empty is the scaled one."""
+    if recipe is not None and getattr(recipe, "layout_mode", "") == "area_first":
+        if getattr(recipe, "area_method", "by_width") == "by_grid":
+            return SMALL_AREA_GRID
+        return SMALL_AREA_WIDTH
+    typed_w = bool(recipe is not None and getattr(recipe, "patch_w_mm", 0))
+    typed_h = bool(recipe is not None and getattr(recipe, "patch_h_mm", 0))
+    small = [typed for typed, mm in ((typed_w, geom.pwid), (typed_h, geom.plen))
+             if mm < floor - 1e-6]
+    if small and all(small):
+        return SMALL_TYPED
+    if any(small):
+        return SMALL_TYPED_AND_SCALE
+    return SMALL_SCALE
+
+
+def _translated_small_patch_text(key: str) -> str:
+    """*key* in the person's language, by an explicit ``tr(NAME)`` per text so
+    the extractor and the stale-key check see every one."""
+    from core.i18n import tr
+    if key == SMALL_AREA_GRID:
+        return tr(SMALL_AREA_GRID)
+    if key == SMALL_AREA_WIDTH:
+        return tr(SMALL_AREA_WIDTH)
+    if key == SMALL_TYPED:
+        return tr(SMALL_TYPED)
+    if key == SMALL_TYPED_AND_SCALE:
+        return tr(SMALL_TYPED_AND_SCALE)
+    return tr(SMALL_SCALE)
+
+
 def check(geom: Geom, layout: Layout, *,
-          min_patch_mm: float = MIN_PATCH_MM) -> PreflightReport:
+          min_patch_mm: float = MIN_PATCH_MM, recipe=None) -> PreflightReport:
     """Headless readability checks for a built layout.
 
     Its one caller in the app is Preferences > Chart Layout, which shows
     ``errors`` and ``warnings`` under the patch count, so they are translated.
-    ``info`` is shown nowhere and stays English.
+    ``info`` is shown nowhere and stays English. *recipe* is the recipe the
+    layout was built from; it decides which control the patch-size error
+    names (:func:`small_patch_case`).
 
     THE LOW-CONTRAST WARNING THAT WAS HERE IS GONE (review 4.3.19 r1, N7). It
     took the strips from a ``low_contrast_passes`` argument that no caller in
@@ -64,13 +144,15 @@ def check(geom: Geom, layout: Layout, *,
 
     smallest = min(geom.plen, geom.pwid)
     if smallest < min_patch_mm - 1e-6:
-        rep.add_error(tr(
-            "The patches are {size} mm, smaller than the {floor} mm an "
-            "instrument needs to read a patch reliably, so it may misread "
-            "them. Choose a larger “{patch_scale}”, or a larger paper or "
-            "instrument.").format(
-                size=f"{smallest:.1f}", floor=f"{min_patch_mm:.1f}",
-                patch_scale=tr("Patch scale")))
+        rep.add_error(_translated_small_patch_text(
+            small_patch_case(recipe, geom, min_patch_mm)).format(
+            size=f"{smallest:.1f}", floor=f"{min_patch_mm:.1f}",
+            strips=tr("Strips (columns)"),
+            rows=tr("Patches per strip (rows)"),
+            min_width=tr("Minimum patch width"),
+            min_height=tr("Minimum patch height"),
+            patch_size=tr("Patch size"),
+            patch_scale=tr("Patch scale")))
 
     rep.info.append(
         f"{layout.steps_in_pass} patches/pass × {layout.passes} pass(es), "

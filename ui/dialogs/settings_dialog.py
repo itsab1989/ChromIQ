@@ -7253,7 +7253,7 @@ class SettingsDialog(QDialog):
             w_mm, h_mm = papers.dimensions_mm(r.paper)
             cap = geometry.patches_per_sheet(geom, w_mm, h_mm)
             layout = geometry.compute(geom, w_mm, h_mm, cap)
-            rep = preflight.check(geom, layout)
+            rep = preflight.check(geom, layout, recipe=r)
             msgs = [(e, True) for e in rep.errors] + [(w, False) for w in rep.warnings]
             usable = h_mm - geom.margin_t - geom.margin_b
             if r.max_strip_mm and r.max_strip_mm > usable:

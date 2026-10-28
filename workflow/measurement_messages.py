@@ -1640,15 +1640,19 @@ _TURNED_GRID_CELLS_DIFFER = (
     "i1Profiler writes the RGB values "
     "of its test-chart file into every measurement, whatever the instrument "
     "read.")
+#: The way out leads with what puts the grid right, loading the .txf again
+#: and checking step 5's grid; Default display device comes second (review
+#: 4.3.19 r2, N-b: in i1Profiler 3.8.6 either family laid both files out
+#: exactly).
 _TURNED_GRID_WHAT_TO_DO = (
-    "To measure the sheet again: in i1Profiler, check that Default display "
-    "device is set to the family of the instrument you measure with (step 3 "
-    "of the how-to note, the file ending in -i1profiler-turned-how-to.txt "
-    "beside the turned test-chart files), load the turned test-chart file "
-    "(.txf) for that instrument again on the Test Chart page (step 4), and "
+    "To measure the sheet again: in i1Profiler, load the turned test-chart "
+    "file (.txf) for the instrument you measure with again on the Test Chart "
+    "page (step 4 of the how-to note, the file ending in "
+    "-i1profiler-turned-how-to.txt beside the turned test-chart files), and "
     "check that i1Profiler now shows exactly the grid that step 5 names. "
-    "Then measure every row again, save the measurement as an .mxf file and "
-    "import that file")
+    "Also check that Default display device is set to the family of that "
+    "instrument (step 3). Then measure every row again, save the measurement "
+    "as an .mxf file and import that file")
 M_IMPORT_TURNED_GRID = _m(
     "M-IMPORT-TURNED-GRID",
     "A measurement of the turned i1Profiler chart on another grid: the reasons",

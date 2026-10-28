@@ -3,10 +3,16 @@
 X-Rite removed the i1Pro 2 from i1Profiler in 3.8.7 (its own release notes),
 and 3.8.8 opened every i1Pro 2 file without a word as an i1Pro 3 one, on
 another grid. 3.8.6 laid out every i1Pro 2 file exactly. So the how-to note
-and the Preferences help say which i1Profiler the i1Pro 2 needs, that a file
-for a family Default display device does not offer cannot work, that the i1Pro
-2 file was checked in 3.8.6, and to leave "Use legacy charts" off, which the
-files ask for too.
+and the Preferences help say which i1Profiler the i1Pro 2 needs, that 3.8.7
+and newer open the i1Pro 2 file as an i1Pro 3 one on another grid, that the
+i1Pro 2 file was checked in 3.8.6, and to leave "Use legacy charts" off, which
+the files ask for too.
+
+Review r2 made them say only what was observed: "Use legacy charts" changed
+the grid for the i1Pro 2 in 3.8.6 alone (the i1Pro 3 in 3.8.8 changed only
+the title, SF-C); only the i1Pro 2 family was ever missing (N-d); and in 3.8.6
+either Default display device laid both files out exactly, so step 3 no longer
+says the other family reads the patch size on the wrong scale (N-a).
 """
 from __future__ import annotations
 
@@ -72,3 +78,17 @@ def test_the_new_texts_are_in_every_catalogue():
         for key in (T.I1PRO2_VERSION_NOTE, T.LEGACY_CHARTS_NOTE):
             assert d.get(key), (cat.name, key[:40])
             assert "—" not in d[key]
+
+
+def test_r2_the_texts_claim_only_what_was_observed(tmp_path):
+    legacy = T.LEGACY_CHARTS_NOTE
+    assert "i1Profiler 3.8.6 draws the i1Pro 2's older chart" in legacy
+    assert "for either instrument" in legacy
+    v = T.I1PRO2_VERSION_NOTE
+    assert "as a file for the i1Pro 3 family" in v
+    assert "the other family" not in v
+    assert "does not offer the family of your instrument" not in v
+    note = _note(tmp_path)
+    step3 = next(l for l in note.splitlines() if l.startswith("3. "))
+    assert "wrong scale" not in step3
+    assert "set Default display device to the family" in step3

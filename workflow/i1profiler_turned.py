@@ -829,15 +829,19 @@ def write_turned_export(ti2: "str | Path", out_dir: "str | Path",
 # The note
 # ---------------------------------------------------------------------------
 
-#: i1Profiler's "Use legacy charts" draws its older chart, with divider bars
-#: between the patches (3.8.6, i1Pro 2: 55 x 15 on 2 pages for a 27 x 24
-#: chart). The files ask for it off (``UseLegacyTestChart="False"``); the
-#: note says to leave it off as well.
+#: i1Profiler's "Use legacy charts": observed only for the i1Pro 2 in 3.8.6,
+#: which then draws its older chart with divider bars between the patches,
+#: on another grid (55 x 15 on 2 pages for a 27 x 24 chart; 2026-10-28_i1p386
+#: P7). For the i1Pro 3 in 3.8.8 it changed only the chart's title, so the
+#: note claims nothing for that one (review 4.3.19 r2, SF-C). The files ask
+#: for it off (``UseLegacyTestChart="False"``), and the note says to leave it
+#: off for either instrument.
 LEGACY_CHARTS_NOTE = (
-    "Leave i1Profiler's “Use legacy charts” setting off. With it "
-    "on, i1Profiler draws its older chart, with divider bars between the "
-    "patches and a different grid, so its rows would not match your sheet. "
-    "The files ChromIQ writes ask for it off.")
+    "Leave i1Profiler's “Use legacy charts” setting off, for either "
+    "instrument. With it on, i1Profiler 3.8.6 draws the i1Pro 2's older "
+    "chart, with divider bars between the patches and a different grid, so "
+    "its rows would not match your sheet. The files ChromIQ writes ask for "
+    "it off.")
 
 
 #: Which i1Profiler can open the i1Pro 2 file, and what happens in one that
@@ -846,15 +850,16 @@ LEGACY_CHARTS_NOTE = (
 #: the i1Pro 2 and i1iO 2"), and the 2026-10-27 checks in i1Profiler 3.8.8
 #: (`ChromIQ-work/2026-10-27_pwxf_i1p_checks/results/summary.txt`): with only
 #: the i1Pro 3 family on offer, every i1Pro 2 file opened without a word on
-#: another grid (30 x 22 for 27 x 24, 26 x 20 for 24 x 21).
+#: another grid (30 x 22 for 27 x 24, 26 x 20 for 24 x 21). Only the i1Pro 2
+#: family was ever seen missing, so the note says only that (review 4.3.19
+#: r2, N-d); in 3.8.6 both files laid out exactly under either family.
 I1PRO2_VERSION_NOTE = (
     "For the i1Pro 2 you need i1Profiler 3.8.6 or older: X-Rite removed the "
     "i1Pro 2 from i1Profiler in version 3.8.7, so newer versions do not offer "
-    "the i1Pro 2 family at all. If Default display device does not offer the "
-    "family of your instrument, the file for that instrument cannot work: "
-    "i1Profiler then opens it as a file for the other family, without a "
-    "warning, and lays it out on another grid, so its rows would not match "
-    "your sheet. Do not measure with it then.")
+    "the i1Pro 2 family at all. They open the i1Pro 2 file as a file for the "
+    "i1Pro 3 family, without a warning, and lay it out on another grid, so "
+    "its rows would not match your sheet. Do not use the i1Pro 2 file in "
+    "those versions.")
 
 
 def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
@@ -944,8 +949,7 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
         "3. Start i1Profiler. On its start page, under Application Settings, "
         "set Default display device to the family of the instrument you "
         "measure with: the i1Pro 2 family for an i1Pro 2, the i1Pro 3 family "
-        "for an i1Pro 3. If it names the other family, i1Profiler reads the "
-        "patch size on the wrong scale and the rows come out wrong."))
+        "for an i1Pro 3."))
     parts.append("   " + tr(I1PRO2_VERSION_NOTE))
     parts.append(tr(
         "4. Set User Mode to Advanced, choose Printer, then Profiling, and go "
