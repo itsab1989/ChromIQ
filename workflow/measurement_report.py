@@ -858,7 +858,7 @@ def _reference_labs(ti2_path: Path) -> "dict[str, tuple]":
 #: Sized from a real round trip rather than guessed: a 550-patch ChromIQ set
 #: taken through i1Profiler and back came out with a worst channel error of
 #: **0.5 on the 0..255 scale — 0.196 here — and not one patch above it.** That
-#: error is rounding, nothing more (a value of 42.5 came back as 43). So 1.0 is
+#: error is rounding, nothing more (i1Profiler cuts 42.5 off to 42). So 1.0 is
 #: about five times the worst observed error, which leaves room for a different
 #: writer's rounding while staying far below a real mix-up: two different
 #: patches of a profiling chart are separated by whole device units, not
