@@ -208,12 +208,16 @@ def _detect_kind(channels: list[str], color_rep: str) -> str:
 # --- value formatting ------------------------------------------------------
 
 
-def _to_255_float(v: float) -> float:
-    return v * 2.55
-
-
 def _to_255_int(v: float) -> int:
-    return max(0, min(255, round(v * 2.55)))
+    """The whole 0..255 value ChromIQ prints for a 0..100 device value.
+
+    The same sum as the chart itself (``layout_engine.colorants.
+    to_display_rgb``), and the value printtarg puts in its TIFF: measured on
+    7- and 11-step grids, 50 % is 128 and 90 % is 230 in both. ``v * 2.55``
+    is not the same sum: 2.55 is not exact in binary, so 50 * 2.55 comes out
+    as 127.4999... and rounded to 127, one level below the printed patch.
+    """
+    return max(0, min(255, round(v / 100.0 * 255.0)))
 
 
 def _trim(v: float) -> str:
@@ -261,10 +265,18 @@ def write_txt(target: Target, out_path: Path, descriptor: str) -> bool:
     """Write the CGATS .txt patch set. Returns False (no file) for CMYK+N."""
     if target.kind == "RGB":
         lines = _txt_header(descriptor, "SampleID RGB_R RGB_G RGB_B ", 4, len(target.rows))
+        # WHOLE NUMBERS, the same ones the .pxf and the printed chart carry.
+        # i1Profiler 3.8.8 cuts the fraction off a CGATS value when it keeps
+        # the patch set (42.5 -> 42, 84.9999 -> 84) while it draws its own
+        # test chart from the rounded value (43, 85), so a fractional value
+        # left it one level below the patch it printed. Measured 2026-10-29
+        # by loading such a .txt and saving the patch set as .pxf. CMYK
+        # percentages are kept to four decimals there, so they stay as
+        # they are. X-Rite's own RGB patch sets are whole numbers too.
         for sid, v in target.rows:
             lines.append(
-                f"{sid} {_to_255_float(v['R']):.4f} "
-                f"{_to_255_float(v['G']):.4f} {_to_255_float(v['B']):.4f} "
+                f"{sid} {_to_255_int(v['R']):.4f} "
+                f"{_to_255_int(v['G']):.4f} {_to_255_int(v['B']):.4f} "
             )
     elif target.kind == "CMYK":
         lines = _txt_header(descriptor, "SampleID CMYK_C CMYK_M CMYK_Y CMYK_K ", 5, len(target.rows))

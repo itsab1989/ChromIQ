@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.3.20
+
+**For everyone updating from 4.3.19: the patch set files ChromIQ writes for i1Profiler now carry exactly the colour values your printed chart carries. Your charts, measurements and profiles do not change.**
+
+### Fixed
+- **The i1Profiler .txt patch set no longer loads one step too dark for some patches.** ChromIQ wrote its colour values with decimals, for example 42.5 for a patch printed as 43 on a chart with 7 steps per colour. i1Profiler cuts off the decimals of such a value when it loads the file, so it kept 42 while the chart shows 43. Checked in i1Profiler 3.8.8: it kept 42.5 as 42, 84.9999 as 84 and 127.5 as 127. The .txt now holds the same whole numbers the printed chart holds, so there is nothing left to cut off. (Reported on the forum by jctay, thank you.)
+- **The i1Profiler .pxf patch set and workflow file carry the printed value at 50 % and 90 % too.** They wrote 127 for a 50 % patch and 229 for a 90 % patch, where the chart printed by ChromIQ has 128 and 230, because of a rounding slip in the calculation. Every other value was already right. The turned i1Profiler export (beta option) uses the same files, so it is corrected too.
+- **i1Profiler files you already have still work.** A measurement made in i1Profiler from an older .txt or .pxf still imports onto the right patches: the difference is one step out of 255, far less than the check that makes sure a measurement belongs to the chart allows. If you want i1Profiler to use exactly the printed values, write the patch set again with "Convert TI1 → i1Profiler" in the Tools menu, from the chart's .ti1 file, and load the new file in i1Profiler. CMYK .txt files keep their decimals, because i1Profiler keeps those as they are.
+
 ## v4.3.19
 
 **For everyone updating from 4.3.18: the Create Chart log now warns about poor contrast between a patch and the spacer beside it only where that is really printed, names those strips, and is translated, like the rest of the layout engine's lines. With the beta option that lets i1Profiler measure a printed ChromIQ sheet, a measurement that i1Profiler laid out on another grid than the note names is now refused instead of being filed onto the wrong patches, and the i1Pro 2 file has now been checked in i1Profiler 3.8.6, the last version that supports that instrument, which the note now names. Your charts, presets, measurements and profiles do not change.**
