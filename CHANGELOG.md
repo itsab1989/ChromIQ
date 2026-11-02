@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.3.21
+
+**For everyone updating from 4.3.20: with the beta option that lets i1Profiler measure a printed ChromIQ sheet, a measurement that i1Profiler spread over several pages is now brought in, as long as i1Profiler kept the columns the note names and every patch is in its place. Your charts, measurements and profiles do not change.**
+
+### Fixed
+- **A measurement of the turned i1Profiler chart is no longer refused just because i1Profiler cut the chart over several pages** (beta option, off unless you switch it on). When i1Profiler's paper size is smaller than the chart, it keeps the same columns and spreads the rows over several pages. ChromIQ refused such a measurement, and its message said that i1Profiler had numbered its rows page by page, starting again at row 1 on each page. That was wrong: i1Profiler carries on counting its rows from one page to the next (with 10 rows on a page, page 2 starts with row 11), so every row is still one strip of your sheet, and the list of rows in the chart's note still holds. ChromIQ now brings such an .mxf measurement in, and files it exactly as it files a measurement made on one page, after checking that every patch is in the place on the pages that the turned chart has for it. If any patch is somewhere else, or the file does not say where its patches were, the measurement is still refused, and the message now says exactly that. A different number of columns is refused as before. Step 5 of the note now says that the rows spread over several pages are fine too, and that you stop only when i1Profiler shows other columns or another patch width. (Reported on the forum by jctay, with both of his measurements of the same sheet and i1Profiler's screenshots, which made this easy to check. Thank you!)
+
 ## v4.3.20
 
 **For everyone updating from 4.3.19: the patch set files ChromIQ writes for i1Profiler now carry exactly the colour values your printed chart carries. Your charts, measurements and profiles do not change.**

@@ -958,12 +958,24 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
         "above). When i1Profiler asks whether to copy the file to the assets "
         "folder, either answer is fine."))
     parts.append("   " + tr(LEGACY_CHARTS_NOTE))
+    # "pages: 1" IS WHAT THE .TXF ASKS FOR, NOT THE ONLY GRID THAT FITS
+    # (4.3.21, jctay's forum report): with a shorter page i1Profiler cuts the
+    # same grid over several pages and carries on counting its rows, so the
+    # row list below still holds. `grid_mismatch` checks every patch of such
+    # a file by its Location.
     parts.append(tr(
-        "5. Check the chart i1Profiler now shows. It must be exactly "
-        "this grid: columns: {cols}, rows: {rows}, pages: 1, patch width "
-        "{w} mm. If it shows anything else, stop: the rows would not match "
-        "the sheet.").format(cols=plan.columns, rows=plan.rows,
-                             w=f"{plan.patch_len_mm:.2f}"))
+        "5. Check the chart i1Profiler now shows. It should be this grid: "
+        "columns: {cols}, rows: {rows}, pages: 1, patch width {w} mm. "
+        "i1Profiler may instead share the same rows out over several pages, "
+        "for example when its paper size has been made smaller than this "
+        "chart. That is fine as long as it keeps {cols} columns and the patch "
+        "width: it carries on counting its rows from one page to the next "
+        "(when page 1 holds rows 1 to 10, page 2 starts with row 11), so the "
+        "row it asks you to read is still the row in the list below, and you "
+        "simply carry on down the same sheet. If it shows another number of "
+        "columns or another patch width, stop: the rows would not match the "
+        "sheet.").format(cols=plan.columns, rows=plan.rows,
+                         w=f"{plan.patch_len_mm:.2f}"))
     parts.append(tr(
         "6. Press Next to the Measurement page and choose a measurement mode. "
         "The names below are the ones i1Profiler shows in English. With an "
@@ -1403,19 +1415,61 @@ def grid_mismatch(ti3_path: "str | Path",
 
     The ``.txf`` asks for ``order.columns`` columns and ``order.rows`` rows on
     ONE page, so entry ``j`` belongs at page 1, row ``j % rows``, column
-    ``j // rows``. The file's grid must be exactly that, and every Location it
-    carries must be the cell i1Profiler's fill rule gives that entry on it
-    (which, the grids being equal, is that same cell). A file with the grid
-    attributes and no Locations is judged by the grid alone. A CGATS export
-    (no grid at all) and an order that names no grid answer ``""``, so they
-    are judged exactly as before. Only a check: nothing is paired by it."""
+    ``j // rows``. On one page the file's grid must be exactly that, and every
+    Location it carries must be the cell i1Profiler's fill rule gives that
+    entry on it (which, the grids being equal, is that same cell). A file with
+    the grid attributes and no Locations is judged by the grid alone. A CGATS
+    export (no grid at all) and an order that names no grid answer ``""``, so
+    they are judged exactly as before. Only a check: nothing is paired by it.
+
+    THE SAME GRID CUT OVER SEVERAL PAGES IS THE SAME GRID (4.3.21, forum
+    report by jctay, 2026-11-02). i1Profiler cuts the chart over pages when
+    its page is shorter than the chart: it keeps the columns, shares the
+    order's rows out over the pages, and counts its rows ON from page to page
+    ("Measuring row 11 on page 2" after ten rows on page 1, his screenshots).
+    Its Location tags number the rows within each page, and the fill rule
+    (``i1profiler_export.i1p_location``) turns them back into the row of the
+    whole grid: the rows on the earlier pages plus the row on this page. His
+    600-patch chart measured on 12 x 50 on one page and on 12 x 10 on five
+    pages put every one of the 600 entries in the same cell of the whole
+    grid, with the same device values, and the readings agreed (mean 0.1,
+    worst 0.83 in XYZ). So with the order's columns, a file on several pages
+    is filed only when EVERY patch carries a Location and every Location,
+    counted on over the pages, is exactly the cell the order gives that
+    entry; with no Locations, or any patch elsewhere, it is refused, and
+    other columns are refused as before."""
     from workflow.measurement_messages import (
-        turned_grid_cells_differ_reason, turned_grid_differs_reason)
+        turned_grid_cells_differ_reason, turned_grid_differs_reason,
+        turned_grid_paged_cells_reason)
     from workflow.reference_convert import i1p_grid_of
     if order is None or order.rows <= 0 or order.columns <= 0:
         return ""
     grid = i1p_grid_of(ti3_path)
     if grid is None:
+        return ""
+    if grid.pages > 1 and grid.columns == order.columns:
+        # The Locations are the only evidence of where each entry sat; the
+        # converted file keeps how many were in i1Profiler's cell for them
+        # (`reference_convert._cxf_i1p_grid`, with the rows of the whole
+        # grid shared out over the pages). That cell is the order's only
+        # when the whole grid has the order's rows and patches.
+        whole_rows = -(-grid.patches // grid.columns)
+        if (whole_rows != order.rows
+                or grid.patches != len(order.sample_ids)):
+            off = grid.patches
+        else:
+            off = grid.misplaced + (grid.patches - grid.located)
+        if off:
+            log.info("import: the turned measurement on %d pages has %d of "
+                     "%d patches outside the turned chart's cell, counting "
+                     "the rows on over the pages", grid.pages, off,
+                     grid.patches)
+            return turned_grid_paged_cells_reason(
+                cols=order.columns, rows=order.rows, got_rows=grid.rows,
+                got_pages=grid.pages, count=off, total=grid.patches)
+        log.info("import: i1Profiler cut the turned chart over %d pages of "
+                 "%d columns; every patch, counted on over the pages, is in "
+                 "the turned chart's cell", grid.pages, grid.columns)
         return ""
     if (grid.columns, grid.rows, grid.pages) != (order.columns, order.rows, 1):
         log.info("import: i1Profiler laid the turned chart out %d x %d on %d "

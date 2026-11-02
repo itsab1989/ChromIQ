@@ -5593,16 +5593,16 @@ chart's file name. Two buttons: **Import it** and **Cancel**.*
 >
 > Import it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.
 
-### M-IMPORT-TURNED-GRID · PROPOSED · a measurement of the turned i1Profiler chart that i1Profiler laid out on another grid: the four reasons and the advice after each, every import door, 4.3.19
+### M-IMPORT-TURNED-GRID · PROPOSED · a measurement of the turned i1Profiler chart that i1Profiler laid out on another grid: the four reasons and the advice after each, every import door, 4.3.19, revised 4.3.21
 
-*New 2026-10-27, 4.3.19 (the .pwxf study, `ChromIQ-work/2026-10-27_pwxf_study/analysis.md` finding 5; Basti approved building it 2026-10-27: "if it is a bug fix it"; the wording awaits approval and is shown in the release meanwhile, Knut #182 6166519230). §I.14, awaiting confirmation: an `.mxf` measurement of the turned chart whose device values follow the order is refused when its i1Profiler grid (`NumberPatchColumns`, `NumberPatchRows`, `NumberPatchPages`) is not the order's (columns, rows, one page): with the first line on one page; with the second when i1Profiler used more than one page and other columns; with the third when only the pages differ (the note's columns, the rows cut over more pages: i1Profiler numbered its rows page by page, so the note's row list does not match what it showed, but the readings need not have missed the strips, so this reason does not claim they did; review 4.3.19 r1, SF-1, a 360-patch chart of 15 strips of 24 that i1Profiler cut over 3 pages of 5 rows). When the grid is the order's but patches carry another Location than i1Profiler's fill rule gives them, with the fourth. Each is followed by the fifth. They are the {reason} of the refusal window each door shows ("The reason: {reason}."), so they open in lower case and carry no closing full stop. {cols}, {rows}: the order's grid (step 5 of the how-to note); {got_cols}, {got_rows}, {got_pages}: the file's (`NumberPatchRows` is the rows of i1Profiler's first page, and on more than one page the text calls it that); {count} of {total}: the patches not in the turned chart's cell, including any without a Location. Nothing is filed. The fifth leads with loading the `.txf` again and checking the grid of step 5, and names Default display device second (review 4.3.19 r2, N-b). The quoted lines below are the code's fragments word for word (`tests/test_4319_r2_the_turned_grid_block_is_the_code.py`).*
+*New 2026-10-27, 4.3.19 (the .pwxf study, `ChromIQ-work/2026-10-27_pwxf_study/analysis.md` finding 5; Basti approved building it 2026-10-27: "if it is a bug fix it"; the wording awaits approval and is shown in the release meanwhile, Knut #182 6166519230). §I.14, awaiting confirmation: an `.mxf` measurement of the turned chart whose device values follow the order is refused when its i1Profiler grid (`NumberPatchColumns`, `NumberPatchRows`, `NumberPatchPages`) is not the order's (columns, rows, one page; since 4.3.21 the order's columns cut over several pages count as the order's grid when every Location fits, see below): with the first line on one page; with the second when i1Profiler used more than one page and other columns; and with the note's columns on one page but patches carrying another Location than i1Profiler's fill rule gives them, with the third. **Revised 4.3.21 (forum report by jctay, 2026-11-02; not yet approved):** the note's columns on MORE THAN ONE page are no longer another grid. i1Profiler cuts the same grid over pages when its page is shorter than the chart and carries on counting its rows (his screenshots: "Measuring row 11 on page 2", "row 21 on page 3" ... after 10 rows a page), so its pages together are the note's grid; such a file is filed when every patch's Location, counted on over the pages, is the turned chart's cell (§I.14). 4.3.19's reason for that case said i1Profiler "numbered its rows page by page, starting again at row 1 on each page", which his screenshots show to be false; it is withdrawn. Such a file with any patch outside its cell, or without Locations, is refused with the fourth (new in 4.3.21): it says that the pages on their own are fine and how many patches are not in their cell. Each is followed by the fifth. They are the {reason} of the refusal window each door shows ("The reason: {reason}."), so they open in lower case and carry no closing full stop. {cols}, {rows}: the order's grid (step 5 of the how-to note); {got_cols}, {got_rows}, {got_pages}: the file's (`NumberPatchRows` is the rows of i1Profiler's first page, and on more than one page the text calls it that); {count} of {total}: the patches not in the turned chart's cell, including any without a Location (on more than one page, counting the rows on over the pages). Nothing is filed. The fifth leads with loading the `.txf` again and checking the grid of step 5, and names Default display device second (review 4.3.19 r2, N-b). The quoted lines below are the code's fragments word for word (`tests/test_4319_r2_the_turned_grid_block_is_the_code.py`).*
 
 > **A measurement of the turned i1Profiler chart on another grid: the reasons**
 >
 > this file is a measurement of the turned i1Profiler chart, but i1Profiler laid that chart out on a different grid from the one the how-to note for this chart names. The note names this grid: columns: {cols}, rows: {rows}, pages: 1, so that every row is one strip of your printed sheet. The file says that i1Profiler made this grid: columns: {got_cols}, rows: {got_rows}, pages: {got_pages}. Its rows therefore did not line up with the strips on your sheet, so the readings were taken on other patches than the ones they are recorded for. The RGB values in the file cannot show this, because i1Profiler writes the RGB values of its test-chart file into every measurement, whatever the instrument read.
 > this file is a measurement of the turned i1Profiler chart, but i1Profiler laid that chart out on a different grid from the one the how-to note for this chart names. The note names this grid: columns: {cols}, rows: {rows}, pages: 1, so that every row is one strip of your printed sheet. The file says that i1Profiler made this grid: columns: {got_cols}, pages: {got_pages}, rows on its first page: {got_rows}. Its rows therefore did not line up with the strips on your sheet, so the readings were taken on other patches than the ones they are recorded for. The RGB values in the file cannot show this, because i1Profiler writes the RGB values of its test-chart file into every measurement, whatever the instrument read.
-> this file is a measurement of the turned i1Profiler chart, and i1Profiler kept the {cols} columns that the how-to note for this chart names, but it cut the chart over {got_pages} pages instead of laying it out on one. The note names this grid: columns: {cols}, rows: {rows}, pages: 1, so that every row is one strip of your printed sheet. The file says that i1Profiler made this grid: columns: {got_cols}, pages: {got_pages}, rows on its first page: {got_rows}. Because i1Profiler cut the chart over {got_pages} pages, it numbered its rows page by page, starting again at row 1 on each page, so it did not lay the chart out as the note names, and the note's list of which i1Profiler row is which strip of your sheet does not match the rows i1Profiler showed you. The readings are on the right patches only if you carried on down your sheet from page to page, reading row 1 of each new page on the strip after the one you read last, and nothing in the file shows whether you did. The RGB values in the file cannot show it either, because i1Profiler writes the RGB values of its test-chart file into every measurement, whatever the instrument read. Step 5 of the note says to stop when i1Profiler shows any other grid, so ChromIQ does not file this measurement.
 > this file is a measurement of the turned i1Profiler chart, and its grid is the one the how-to note for this chart names (columns: {cols}, rows: {rows}, pages: 1), but the file does not give {count} of its {total} patches the place on that grid that the turned chart has for them. Those readings were therefore taken on other patches than the ones they are recorded for. The RGB values in the file cannot show this, because i1Profiler writes the RGB values of its test-chart file into every measurement, whatever the instrument read.
+> this file is a measurement of the turned i1Profiler chart, and i1Profiler kept the {cols} columns that the how-to note for this chart names but cut the chart over {got_pages} pages, with {got_rows} rows on its first page. That on its own is fine: i1Profiler carries on counting its rows from one page to the next (when page 1 holds rows 1 to 10, page 2 starts with row 11), so its pages together make the grid that the note names (columns: {cols}, rows: {rows}), and every row is still one strip of your printed sheet. But the file does not give {count} of its {total} patches the place on that grid that the turned chart has for them, counting the rows on from page to page. ChromIQ therefore cannot tell whether those readings were taken on the patches they are recorded for, so it does not file this measurement. The RGB values in the file cannot show this, because i1Profiler writes the RGB values of its test-chart file into every measurement, whatever the instrument read.
 > To measure the sheet again: in i1Profiler, load the turned test-chart file (.txf) for the instrument you measure with again on the Test Chart page (step 4 of the how-to note, the file ending in -i1profiler-turned-how-to.txt beside the turned test-chart files), and check that i1Profiler now shows exactly the grid that step 5 names. Also check that Default display device is set to the family of that instrument (step 3). Then measure every row again, save the measurement as an .mxf file and import that file
 
 ### M-IMPORT-DATE-TAKEN · PROPOSED · importing over an existing dated result — Measure ▸ IMPORT
@@ -9001,7 +9001,8 @@ it is a bug fix it"*); the behaviour and the wording await approval.
   measurement whose device values follow an order is filed only when:
   * the grid is the one the order file names, which is the one step 5 of the
     how-to note asks the person to check: `columns` columns, `rows` rows,
-    one page; and
+    one page (since 4.3.21 also those columns with the rows cut over several
+    pages, see the 4.3.21 point below); and
   * every Location the file carries is the cell i1Profiler's fill rule gives
     that entry (one grid filled column-first, its rows then shared out over
     the pages, measured on every patch of pharmacist's two genuine
@@ -9012,12 +9013,42 @@ it is a bug fix it"*); the behaviour and the wording await approval.
   and the one i1Profiler made, or how many patches sit elsewhere, and what to
   do: check Default display device (step 3), load the `.txf` again (step 4),
   check the grid in step 5, measure again and save an `.mxf`
-  (**M-IMPORT-TURNED-GRID**, §M-PROPOSED). The grid split over two pages or
-  more is refused the same way, because the `.txf` asks for one and step 5
-  says to stop; with the note's columns that refusal says only what is true:
-  i1Profiler numbered its rows page by page, so the note's row list did not
-  match what it showed, and nothing in the file shows whether each row was
-  still read on the strip that follows (review 4.3.19 r1, SF-1).
+  (**M-IMPORT-TURNED-GRID**, §M-PROPOSED). Until 4.3.20 the grid split over
+  two pages or more was refused the same way, also with the note's columns,
+  with a reason saying that i1Profiler numbered its rows page by page (review
+  4.3.19 r1, SF-1). That was wrong, see the next point.
+* **CHANGE, 4.3.21, FOR CONFIRMATION: the note's columns cut over several
+  pages are the note's grid.** Forum report by jctay, 2026-11-02
+  (`ChromIQ-work/2026-11-02_jctay_issue/`): his 600-patch chart, whose
+  order asks for 12 x 50 on one page, measured once on that grid (filed)
+  and once after he made i1Profiler's page shorter, which cut it into 5
+  pages of 10 rows (`NumberPatchRows` 10, `NumberPatchPages` 5), refused by
+  4.3.20. i1Profiler carries on counting its rows over the pages: his
+  screenshots show "Measuring row 1 on page 1", "row 11 on page 2", "row 21
+  on page 3", "row 31 on page 4", "row 41 on page 5", so the row it asks for
+  is the row of the note's list and the person carries on down the same
+  sheet. Its Location tags number the rows within each page (0 to 9 on every
+  page), and counted on over the pages (the rows on the earlier pages plus
+  the row on this page, i1Profiler's fill rule) all 600 are the same cell
+  of the whole grid as in his one-page file, with the same device values at
+  the same entry; the readings of the two runs agree (M2, XYZ: mean 0.10,
+  worst 0.83; with pages 2 and 3 swapped they would differ by 11.7 on
+  average). So, with the order's columns on more than one page, the file is
+  filed when EVERY patch carries a Location and every Location, counted on
+  over the pages, is the cell the order gives that entry (the grid keyword's
+  `located` = `patches` and `misplaced` = 0, which the conversion computes
+  with the order's rows shared out over the pages, larger first, as in
+  X-Rite's own `RGB_default-i1Pro.mxf`, 23 + 23 + 22); it is then paired and
+  filed exactly like the one-page file (same `SAMPLE_ID`, `SAMPLE_LOC`,
+  order; the grid keyword keeps what i1Profiler made). Refused, with the
+  fourth reason of **M-IMPORT-TURNED-GRID**: any patch outside its cell
+  (another split, a swapped cell on any page) and a paged file without
+  Locations, which leaves nothing to show where each patch was. Other
+  columns on several pages are refused as before. Step 5 of the how-to note
+  says so: the grid with pages: 1, or the same columns and patch width with
+  the rows shared out over several pages; any other columns or patch width,
+  stop. Uneven splits are judged by the Locations alone: no real i1Profiler
+  measurement with an uneven split of the turned chart has been seen.
 * **Only a check, never a pairing.** Readings are still paired by their
   order, and checked by their device values, exactly as point 1 says; the
   Location tags only decide whether the file is filed at all. Earlier orders
@@ -9029,10 +9060,14 @@ it is a bug fix it"*); the behaviour and the wording await approval.
   an order file that names no grid. A file with the grid attributes and no
   Location tags is judged by the grid alone. Imports of charts without a
   turned order, and turned imports whose grid matches, are unchanged.
-* Tests: `tests/test_i1profiler_turned_grid_check.py` (the planned grid
+* Tests: `tests/test_4321_turned_grid_over_pages.py` (4.3.21: five pages
+  filed exactly like one page; an uneven split filed when every Location
+  fits; another split, a swapped cell on page 3, other columns and pages
+  without Locations refused; the note's step 5; the Measure tab's door) and
+  `tests/test_i1profiler_turned_grid_check.py` (the planned grid
   pairs as before; one column more is refused although the device values
   agree; patches in other cells; grid attributes without Locations; the grid
-  on two pages; 4.3.17's order and an earlier order; an order without a
+  on two and three pages, filed since 4.3.21; 4.3.17's order and an earlier order; an order without a
   grid; an ordinary measurement with a grid; a CGATS export; i1Profiler's
   fill rule and `write_pwxf`, against pharmacist's files where they are on
   disk).
