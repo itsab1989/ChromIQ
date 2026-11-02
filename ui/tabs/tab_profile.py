@@ -594,8 +594,10 @@ class TabProfile(QWidget):
             self._manual_btn.setChecked(True)
         self._build_state_box.setVisible(mode == "guided")
         self._apply_instrument_constraints()
-        # The module now on screen gets its command box brought up to date.
-        self._schedule_argyll_commands()
+        # The module now on screen gets its command box brought up to date AT
+        # ONCE, not after the typing debounce: a box that came on screen with
+        # stale text for 150 ms and then changed height (review round 2).
+        self._refresh_argyll_commands_now()
 
     def _current_mode(self) -> str:
         return "guided" if self._stack.currentIndex() == 0 else "manual"
@@ -832,6 +834,7 @@ class TabProfile(QWidget):
                         self._outer_stack.widget(1),
                         self._outer_stack.widget(2)):
             self._watch_for_command_changes(_module)
+        self._argyll_cmds_ready = True
         self.refresh_argyll_commands()
 
     # ------------------------------------------------------------------
@@ -905,6 +908,16 @@ class TabProfile(QWidget):
             return "_ac_cmd_box"
         return ("_guided_cmd_box" if self._current_mode() == "guided"
                 else "_manual_cmd_box")
+
+    def _refresh_argyll_commands_now(self) -> None:
+        """Refresh the box on screen immediately (a module switch), once the
+        tab is built; a pending debounced refresh is then not needed."""
+        if not getattr(self, "_argyll_cmds_ready", False):
+            return
+        timer = getattr(self, "_argyll_cmd_timer", None)
+        if timer is not None:
+            timer.stop()
+        self.refresh_argyll_commands()
 
     def refresh_argyll_commands(self, every: bool = False) -> None:
         """Rewrite the command box of the module on screen.
@@ -1231,7 +1244,7 @@ class TabProfile(QWidget):
         """Switch the outer stack page and update the 3 calibration mode buttons.
         page 0 = colprof (Build Profile), 1 = printcal, 2 = applycal."""
         self._outer_stack.setCurrentIndex(page)
-        self._schedule_argyll_commands()     # this module's box, now on screen
+        self._refresh_argyll_commands_now()  # this module's box, now on screen
         self._cal_create_btn.setChecked(page == 1)
         self._cal_profile_btn.setChecked(page == 0)
         self._cal_apply_btn.setChecked(page == 2)

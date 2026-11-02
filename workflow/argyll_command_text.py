@@ -49,13 +49,23 @@ def quote_arg(arg: str, placeholders: Iterable[str] = ()) -> str:
 #: ``@`` (splatting), ``$``, backtick, quotes, brackets, ``;``, ``&``, ``|``,
 #: ``<``, ``>``, ``#`` and spaces all do, so anything else is quoted.
 _PS_PLAIN = re.compile(r"[\w%+:./\\=-]+")
+#: …and an argument that starts with ``-`` stays bare only when it is letters,
+#: digits and dashes: Windows PowerShell 5.1 splits a bare ``-s1.0`` at the
+#: dot when it hands it to a program (review round 2; the known
+#: ``-Dmaven.test.skip=true`` bug). Quoted, it arrives whole in every version.
+_PS_PLAIN_FLAG = re.compile(r"-[A-Za-z0-9-]*")
+#: Every character PowerShell reads as a single quote: ASCII ' and the
+#: typographic ones U+2018 to U+201B. Inside single quotes each is doubled.
+_PS_SINGLE_QUOTES = "'\u2018\u2019\u201a\u201b"
 
 
 def powershell_quote(text: str) -> str:
     """*text* as one literal PowerShell argument."""
-    if text and _PS_PLAIN.fullmatch(text):
+    if text and _PS_PLAIN.fullmatch(text) and (
+            not text.startswith("-") or _PS_PLAIN_FLAG.fullmatch(text)):
         return text
-    return "'" + text.replace("'", "''") + "'"
+    return "'" + "".join(c * 2 if c in _PS_SINGLE_QUOTES else c
+                         for c in text) + "'"
 
 
 def command_line(tool: str, args: "list[str]",
@@ -73,9 +83,14 @@ def command_line(tool: str, args: "list[str]",
 def change_folder_line(folder: "Path | str",
                        placeholders: Iterable[str] = ()) -> str:
     """The ``cd`` a tool that takes a bare file name needs first."""
-    # `cd` alone on every platform: PowerShell's `cd` (Set-Location) changes
-    # the drive too, and `/d` is cmd's and is refused by PowerShell.
-    return f"cd {quote_arg(str(folder), tuple(placeholders))}"
+    target = quote_arg(str(folder), tuple(placeholders))
+    if _windows():
+        # PowerShell: `-LiteralPath`, because plain `cd` matches wildcards and
+        # fails on a folder with [ or ] in its name (review round 2). It also
+        # changes the drive, which cmd's `cd` needs `/d` for (PowerShell
+        # refuses `/d`).
+        return f"Set-Location -LiteralPath {target}"
+    return f"cd {target}"
 
 
 def program_example(path: "Path | str") -> str:

@@ -451,11 +451,20 @@ def test_windows_commands_are_written_for_powershell(monkeypatch):
     monkeypatch.setattr(act, "_windows", lambda: True)
     assert act.command_line("colprof", ["-D", "Tom & Jerry's 50%", "-al"]) \
         == "colprof -D 'Tom & Jerry''s 50%' -al"
-    assert act.change_folder_line(r"C:\My Prints\run1") \
-        == r"cd 'C:\My Prints\run1'"
+    assert act.change_folder_line(r"C:\My [Prints]\run1") \
+        == r"Set-Location -LiteralPath 'C:\My [Prints]\run1'"
     assert act.program_example(r"C:\Program Files\ArgyllCMS\bin\colprof.exe") \
         == r"& 'C:\Program Files\ArgyllCMS\bin\colprof.exe'"
     assert act.quote_arg("a,b") == "'a,b'"            # a comma is an array
+    # Review round 2: PowerShell 5.1 splits a bare "-s1.0" at the dot.
+    assert act.quote_arg("-s1.0") == "'-s1.0'"
+    assert act.quote_arg("-r0.50") == "'-r0.50'"
+    assert act.quote_arg("-al") == "-al" and act.quote_arg("-l250") == "-l250"
+    assert act.quote_arg("0.1") == "0.1"
+    # …and reads U+2018..U+201B as single quotes too: each is doubled.
+    assert act.quote_arg("Bob\u2019s printer") == "'Bob\u2019\u2019s printer'"
+    assert act.quote_arg("\u201aa\u201bb\u2018") \
+        == "'\u201a\u201aa\u201b\u201bb\u2018\u2018'"
 
 
 def test_posix_commands_are_written_for_the_shell(monkeypatch):
@@ -474,3 +483,22 @@ def test_the_tooltip_names_the_shells_and_quotes_its_example():
     assert "PowerShell on Windows" in src
     assert "_program_example(" in src
     assert "hides the boxes, and the Create Chart note" in src
+    # Truthful about what is quoted, and about PowerShell 5.1 (round 2).
+    assert "This holds for the Build Profile boxes" in src
+    assert "Windows PowerShell 5.1" in src
+    assert "shows the exact commands" not in src
+
+
+def test_a_module_switch_refreshes_its_box_at_once(qapp, tmp_path,
+                                                   monkeypatch):
+    """Round 2: no stale text for the length of the typing debounce."""
+    tab, _calls = _tab(tmp_path, monkeypatch)
+    tab.set_ti3_path(_measurement(tmp_path))
+    tab._switch_mode("guided")
+    tab._manual_cmd_box.setText("stale")
+    tab._switch_mode("manual")          # no timer, no event loop
+    assert "colprof " in tab._manual_cmd_box.text()
+    tab._ac_cmd_box.setText("stale")
+    tab._switch_cal_mode(2)
+    assert "applycal " in tab._ac_cmd_box.text()
+    tab.deleteLater()
