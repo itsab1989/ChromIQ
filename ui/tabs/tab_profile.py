@@ -594,6 +594,8 @@ class TabProfile(QWidget):
             self._manual_btn.setChecked(True)
         self._build_state_box.setVisible(mode == "guided")
         self._apply_instrument_constraints()
+        # The module now on screen gets its command box brought up to date.
+        self._schedule_argyll_commands()
 
     def _current_mode(self) -> str:
         return "guided" if self._stack.currentIndex() == 0 else "manual"
@@ -836,7 +838,7 @@ class TabProfile(QWidget):
     # The ArgyllCMS command boxes (a dpreview request, 2026-11-02)
     # ------------------------------------------------------------------
 
-    def _make_argyll_command_box(self, parent: QWidget) -> QLabel:
+    def _make_argyll_command_box(self, parent: QWidget) -> QWidget:
         """One module's "these are the ArgyllCMS commands" box.
 
         The Create Chart tab's command box, in this tab's colour: the same
@@ -846,11 +848,11 @@ class TabProfile(QWidget):
         terminal. Marked ``argyllCommands`` so Preferences → General → "Show
         the ArgyllCMS commands" finds every such box in the app by that mark
         (``MainWindow._apply_argyll_command_visibility``), not by a list."""
-        box = QLabel("", parent)
+        # Not a QLabel: a label cannot break a token with no space or sign in
+        # it, and grew past the scroll area (ui/argyll_command_box.py).
+        from ui.argyll_command_box import ArgyllCommandBox
+        box = ArgyllCommandBox(parent)
         box.setObjectName("info_profile")
-        box.setWordWrap(True)
-        box.setTextFormat(Qt.TextFormat.PlainText)
-        box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         box.setProperty(ARGYLL_COMMANDS_PROPERTY, True)
         box.setVisible(bool(self._settings.get("show_argyll_commands", True)))
         return box
@@ -893,14 +895,36 @@ class TabProfile(QWidget):
             self._argyll_cmd_timer = timer
         timer.start()
 
-    def refresh_argyll_commands(self) -> None:
-        """Rewrite every command box from the module's current settings."""
+    def _visible_command_box(self) -> "str | None":
+        """The attribute name of the one command box on screen, or None."""
+        stack = getattr(self, "_outer_stack", None)
+        page = stack.currentIndex() if stack is not None else 0
+        if page == 1:
+            return "_pc_cmd_box"
+        if page == 2:
+            return "_ac_cmd_box"
+        return ("_guided_cmd_box" if self._current_mode() == "guided"
+                else "_manual_cmd_box")
+
+    def refresh_argyll_commands(self, every: bool = False) -> None:
+        """Rewrite the command box of the module on screen.
+
+        ONLY THAT ONE, unless *every* (review round 1): the colprof box reads
+        the measurement (its ink limit, whether it is multi-ink, the merge
+        check), and filling Guided's and Manual's on every keystroke read it
+        twice on the GUI thread for a box nobody can see. A module that comes
+        on screen is refreshed then (`_switch_mode`, `_switch_cal_mode`), and
+        nothing is computed while Preferences hides the boxes."""
+        wanted = self._visible_command_box()
+        show = bool(self._settings.get("show_argyll_commands", True))
         for attr, make in (("_guided_cmd_box", self._colprof_guided_text),
                            ("_manual_cmd_box", self._colprof_manual_text),
                            ("_pc_cmd_box", self._printcal_commands_text),
                            ("_ac_cmd_box", self._applycal_commands_text)):
             box = getattr(self, attr, None)
             if box is None:
+                continue
+            if not every and (attr != wanted or not show):
                 continue
             try:
                 text = make()
@@ -927,7 +951,7 @@ class TabProfile(QWidget):
         ``ProfileBuilder._build_args`` for colprof's arguments. Nothing here
         decides a flag of its own."""
         from workflow.argyll_command_text import command_line
-        from workflow.ti3_merge import average_merge_args
+        from workflow.ti3_merge import average_merge_args, merge_refusal
         ph = tr("<measurement>")
         ti3 = self._ti3_path or Path(ph + ".ti3")
         params = replace(self._collect_params(mode), ti3_path=ti3)
@@ -944,6 +968,12 @@ class TabProfile(QWidget):
                 "ChromIQ engine.")
         lines: list[str] = []
         plan = self._preconditioning_merge_plan(params)
+        # THE SAME CHECK THE MERGE MAKES before it runs `average`: when the
+        # two measurements differ in COLOR_REP or DATA_FORMAT the build says so
+        # and builds from the new measurement alone, so the box must too.
+        not_merged = plan is not None and merge_refusal(plan[0], plan[1])
+        if not_merged:
+            plan = None
         merge_line = (command_line("average", average_merge_args(*plan), (ph,))
                       if plan is not None else "")
         if engine == "engine":
@@ -961,8 +991,12 @@ class TabProfile(QWidget):
         else:
             build_params = (replace(params, ti3_path=plan[2])
                             if plan is not None else params)
+            # -l from the FRESH measurement: merged.ti3 may not exist yet or
+            # be left over from an earlier build, and `average -m` carries
+            # the first (fresh) file's TOTAL_INK_LIMIT into it.
             colprof_line = command_line(
-                "colprof", self._builder._build_args(build_params), (ph,))
+                "colprof", self._builder._build_args(
+                    build_params, ink_limit_from=params.ti3_path), (ph,))
             if merge_line:
                 lines.append(tr("Build Profile runs these ArgyllCMS "
                                 "commands, in this order:"))
@@ -970,6 +1004,11 @@ class TabProfile(QWidget):
             else:
                 lines.append(tr("Build Profile runs this ArgyllCMS command:"))
                 lines.append(colprof_line)
+        if not_merged:
+            lines.append(tr(
+                "ChromIQ-style refinement is on, but the pre-conditioning "
+                "data cannot be combined with this measurement, so the "
+                "profile is built from the new measurement only."))
         if self._ti3_path is None:
             lines.append(_placeholder_note())
         return "\n".join(lines)
@@ -1192,6 +1231,7 @@ class TabProfile(QWidget):
         """Switch the outer stack page and update the 3 calibration mode buttons.
         page 0 = colprof (Build Profile), 1 = printcal, 2 = applycal."""
         self._outer_stack.setCurrentIndex(page)
+        self._schedule_argyll_commands()     # this module's box, now on screen
         self._cal_create_btn.setChecked(page == 1)
         self._cal_profile_btn.setChecked(page == 0)
         self._cal_apply_btn.setChecked(page == 2)

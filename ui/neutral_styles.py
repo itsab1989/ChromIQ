@@ -688,7 +688,7 @@ QLabel#info_measure {{
     padding: 6px 10px;
 }}
 /* Build Profile's command boxes: one accent in this theme, so the #info shape. */
-QLabel#info_profile {{
+QLabel#info_profile, QTextEdit#info_profile, QTextEdit#info_profile:disabled {{
     background: {NM_BG_SURFACE};
     color: {NM_TEXT_MAIN};
     border: 1px solid {NM_BORDER};

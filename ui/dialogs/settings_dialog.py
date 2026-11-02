@@ -3082,6 +3082,10 @@ class SettingsDialog(QDialog):
         self._show_argyll_cmds_check = QCheckBox(
             tr("Show the ArgyllCMS commands ChromIQ runs"), self)
         from core.resource_path import argyll_binary as _argyll_binary
+        # Quoted as that platform's terminal needs it: the Windows default
+        # folder has a space in it ("C:\\Program Files\\…", review round 1).
+        from workflow.argyll_command_text import \
+            program_example as _program_example
         show_argyll_cmds_tip = TooltipButton(
             tr("Show the ArgyllCMS Commands ChromIQ Runs"),
             tr("ChromIQ does its colour work with ArgyllCMS, a set of free "
@@ -3108,8 +3112,10 @@ class SettingsDialog(QDialog):
                "USING A COMMAND YOURSELF\n"
                "Select the text in the box with the mouse and copy it, for "
                "example to change one option and run it again in a terminal. "
-               "Anything a terminal would misread, such as a name with a space "
-               "in it, is already in quotes. printcal "
+               "Anything the terminal would misread, such as a name with a "
+               "space in it, is already in quotes, written for Terminal on "
+               "macOS, the usual shells on Linux and PowerShell on Windows. "
+               "printcal "
                "names its measurement without a folder, so its box starts with "
                "the cd line that goes to that folder first. If the terminal "
                "cannot find a program, type the ArgyllCMS folder from the top "
@@ -3122,13 +3128,14 @@ class SettingsDialog(QDialog):
                "The Measure tab's box stays either way: it lists the "
                "options GUIDED leaves at their standard settings, which is "
                "help for that panel rather than a command.\n\n"
-               "Turning this OFF hides the boxes, the Create Chart note with "
-               "them. ChromIQ runs exactly the "
+               "Turning this OFF hides the boxes, and the Create Chart note "
+               "with them. ChromIQ runs exactly the "
                "same commands and makes exactly the same charts, profiles and "
                "calibrations either way.\n\n"
                "**Default:** on.").format(
-                   example=str(Path(default_argyll_bin_dir())
-                               / _argyll_binary("colprof"))),
+                   example=_program_example(
+                       Path(default_argyll_bin_dir())
+                       / _argyll_binary("colprof"))),
             self,
             min_width=620,
         )

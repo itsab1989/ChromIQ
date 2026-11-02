@@ -545,7 +545,7 @@ QLabel#info_measure {{
     padding: 6px 10px;
 }}
 /* Build Profile's ArgyllCMS command boxes: the #info shape in this tab's cyan. */
-QLabel#info_profile {{
+QLabel#info_profile, QTextEdit#info_profile, QTextEdit#info_profile:disabled {{
     background: #eef9fc;
     color: #0b6f84;
     border: 1px solid #37bcd6;

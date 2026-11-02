@@ -496,7 +496,7 @@ QLabel#info_measure {{
    tab's cyan, ground included, as #info_measure is in the Measure tab's green.
    The per-tab sheet recolours only the ink and the border of a plain #info,
    so a plain one kept Create Chart's magenta ground under cyan text. */
-QLabel#info_profile {{
+QLabel#info_profile, QTextEdit#info_profile, QTextEdit#info_profile:disabled {{
     background: #04191e; color: #37bcd6;
     border: 1px solid #37bcd6; border-radius: 4px; padding: 6px 10px;
 }}

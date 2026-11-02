@@ -1,6 +1,7 @@
 """Orchestrates colprof for ICC profile creation and installation."""
 from __future__ import annotations
 
+import functools
 import os
 
 import re
@@ -825,7 +826,17 @@ class ProfileBuilder:
 
     # ------------------------------------------------------------------
 
-    def _build_args(self, p: ProfileParams) -> list[str]:
+    def _build_args(self, p: ProfileParams,
+                    ink_limit_from: "Path | None" = None) -> list[str]:
+        """colprof's arguments for *p*.
+
+        *ink_limit_from* names the measurement whose ``TOTAL_INK_LIMIT``
+        becomes ``-l`` when it is not *p*'s own file. The Build Profile
+        command box passes the FRESH measurement while the build will run on
+        a ``merged.ti3`` that does not exist yet: ``average -m`` keeps the
+        first file's keywords, so the merge carries the fresh measurement's
+        limit and no other (measured with Argyll 3.5.0 on 2026-11-02: a limit
+        only in the second file did not reach the result)."""
         args: list[str] = []
         if p.verbose:
             args.append("-v")        # colprof prints progress + any error
@@ -928,7 +939,7 @@ class ProfileBuilder:
         # tested — unless the user already set -l/-L themselves. RGB
         # measurements never carry the keyword, so this is a no-op for them.
         if not any(a.startswith(("-l", "-L")) for a in args):
-            limit = self._ti3_ink_limit(p.ti3_path)
+            limit = self._ti3_ink_limit(ink_limit_from or p.ti3_path)
             if limit is not None:
                 args.append(f"-l{int(limit)}")
         # Base name without extension
@@ -937,13 +948,28 @@ class ProfileBuilder:
 
     @staticmethod
     def _ti3_ink_limit(ti3_path: Path) -> float | None:
-        """The measurement's ``TOTAL_INK_LIMIT`` (percent), or None (#72)."""
+        """The measurement's ``TOTAL_INK_LIMIT`` (percent), or None (#72).
+
+        Remembered per file, size and modification time: the command box asks
+        on every change of a setting, and a measurement is read once until it
+        changes."""
         try:
-            text = Path(ti3_path).read_text(encoding="utf-8", errors="ignore")
+            st = Path(ti3_path).stat()
         except OSError:
             return None
-        m = re.search(r'^TOTAL_INK_LIMIT\s+"([\d.]+)"', text, re.MULTILINE)
-        try:
-            return float(m.group(1)) if m else None
-        except ValueError:
-            return None
+        return _ink_limit_of(str(ti3_path), st.st_size, st.st_mtime_ns)
+
+
+@functools.lru_cache(maxsize=32)
+def _ink_limit_of(ti3_path: str, _size: int, _mtime_ns: int) -> "float | None":
+    """`ProfileBuilder._ti3_ink_limit`'s read, keyed so a changed file is
+    read again."""
+    try:
+        text = Path(ti3_path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    m = re.search(r'^TOTAL_INK_LIMIT\s+"([\d.]+)"', text, re.MULTILINE)
+    try:
+        return float(m.group(1)) if m else None
+    except ValueError:
+        return None

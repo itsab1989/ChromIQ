@@ -21,6 +21,7 @@ and read back by profcheck.
 """
 from __future__ import annotations
 
+import functools
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -108,6 +109,52 @@ def _resolve_average(bin_dir: Path | str | None) -> str:
     return name
 
 
+def _mismatch(fresh: _Parsed, pre: _Parsed) -> "str | None":
+    """Why the two measurements cannot be merged, or None when they can."""
+    if fresh.color_rep != pre.color_rep:
+        return (
+            "The pre-conditioning measurements use a different colour "
+            f"representation ({pre.color_rep}) than the chart just measured "
+            f"({fresh.color_rep}). They were likely made with a different "
+            "instrument or colour space and cannot be combined.\n\n"
+            "The profile will be built from the new measurements only."
+        )
+    if fresh.data_format != pre.data_format:
+        return (
+            "The pre-conditioning measurements have a different data layout "
+            "(e.g. spectral vs. non-spectral, or a different field set) than "
+            "the chart just measured, so they cannot be combined.\n\n"
+            "The profile will be built from the new measurements only."
+        )
+    return None
+
+
+def merge_refusal(fresh_ti3: Path, pre_data: Path) -> "str | None":
+    """The check :func:`merge_preconditioning` makes before it runs
+    ``average``, without merging anything: why it would refuse, or None.
+
+    The Build Profile command box asks it, so the box shows the ``average``
+    merge only when the build will run it; when the build would fall back to
+    the fresh measurement alone (a different COLOR_REP or DATA_FORMAT, or a
+    file it cannot read), the box shows that instead (review round 1).
+    Remembered per file state, as the box asks on every change."""
+    try:
+        f, p = Path(fresh_ti3).stat(), Path(pre_data).stat()
+    except OSError as exc:
+        return str(exc)
+    return _merge_refusal_of(str(fresh_ti3), f.st_size, f.st_mtime_ns,
+                             str(pre_data), p.st_size, p.st_mtime_ns)
+
+
+@functools.lru_cache(maxsize=16)
+def _merge_refusal_of(fresh: str, _fs: int, _fm: int,
+                      pre: str, _ps: int, _pm: int) -> "str | None":
+    try:
+        return _mismatch(_parse(Path(fresh)), _parse(Path(pre)))
+    except Ti3MergeError as exc:
+        return exc.message
+
+
 def average_merge_args(fresh_ti3: Path, pre_data: Path,
                        out_ti3: Path) -> "list[str]":
     """The arguments ``average`` is given to merge the two measurements.
@@ -139,21 +186,9 @@ def merge_preconditioning(
     fresh = _parse(fresh_ti3)
     pre = _parse(pre_data)
 
-    if fresh.color_rep != pre.color_rep:
-        raise Ti3MergeError(
-            "The pre-conditioning measurements use a different colour "
-            f"representation ({pre.color_rep}) than the chart just measured "
-            f"({fresh.color_rep}). They were likely made with a different "
-            "instrument or colour space and cannot be combined.\n\n"
-            "The profile will be built from the new measurements only."
-        )
-    if fresh.data_format != pre.data_format:
-        raise Ti3MergeError(
-            "The pre-conditioning measurements have a different data layout "
-            "(e.g. spectral vs. non-spectral, or a different field set) than "
-            "the chart just measured, so they cannot be combined.\n\n"
-            "The profile will be built from the new measurements only."
-        )
+    refusal = _mismatch(fresh, pre)
+    if refusal is not None:
+        raise Ti3MergeError(refusal)
 
     average = _resolve_average(bin_dir)
     cmd = [average] + average_merge_args(fresh_ti3, pre_data, out_ti3)

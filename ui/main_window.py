@@ -2733,11 +2733,13 @@ class MainWindow(QMainWindow):
         lists the options Guided leaves at their standard settings, which is
         guidance about the panel rather than a command, so it stays.
         """
-        from PyQt6.QtWidgets import QLabel
+        from PyQt6.QtWidgets import QWidget
         from ui.widgets import ARGYLL_COMMANDS_PROPERTY
 
         show = bool(self._settings.get("show_argyll_commands", True))
-        for box in self.findChildren(QLabel):
+        # QWidget, not QLabel: Create Chart's boxes are labels, Build
+        # Profile's are text boxes that wrap anywhere.
+        for box in self.findChildren(QWidget):
             if box.property(ARGYLL_COMMANDS_PROPERTY):
                 box.setVisible(show)
         # What a build runs can follow other preferences too (the profile
