@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.21
+
+### New
+- **Build Profile shows the ArgyllCMS commands it runs.** Every module of the Build Profile tab now has a box, in the tab's cyan, with the exact command ChromIQ will run with the settings you have chosen: colprof in GUIDED and MANUAL, printcal in Create Calibration File and applycal in Apply Calibration (these two appear when calibration options are on). With ChromIQ-style refinement, the average command that merges in your pre-conditioning data is shown first, in the order the build runs them. The box follows every change you make, so it also shows which command-line option a setting stands for. The text can be selected and copied into a terminal: anything a terminal would misread, such as a name with a space, is already in quotes, and names in angle brackets, such as <measurement>, stand for files you have not chosen yet. When the ChromIQ profile engine (Preferences → Beta) builds the profile itself, the box says so instead of showing a command that is never run. This is the record of the commands sent to Argyll that ThrillaMozilla asked for on dpreview, as an example and a starting point for anyone who wants to change one little thing in a profile. Thank you!
+- **Preferences → General → "Show the ArgyllCMS commands ChromIQ runs".** One switch for these boxes and the targen and printtarg boxes on Create Chart, on by default, so everything stays as it was plus the new boxes. Turn it off if you never use the commands: the boxes are hidden, and ChromIQ runs exactly the same commands either way. The Measure tab's box is not affected: it lists the options GUIDED leaves at their standard settings, which is help for that panel rather than a command.
+
 ## v4.3.20
 
 **For everyone updating from 4.3.19: the patch set files ChromIQ writes for i1Profiler now carry exactly the colour values your printed chart carries. Your charts, measurements and profiles do not change.**

@@ -687,6 +687,14 @@ QLabel#info_measure {{
     border-radius: 4px;
     padding: 6px 10px;
 }}
+/* Build Profile's command boxes: one accent in this theme, so the #info shape. */
+QLabel#info_profile {{
+    background: {NM_BG_SURFACE};
+    color: {NM_TEXT_MAIN};
+    border: 1px solid {NM_BORDER};
+    border-radius: 4px;
+    padding: 6px 10px;
+}}
 QLabel#error {{
     background: {NM_BG_SURFACE};
     color: {NM_TEXT_MAIN};

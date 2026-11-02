@@ -492,6 +492,14 @@ QLabel#info_measure {{
     background: #062018; color: #56d6a5;
     border: 1px solid #56d6a5; border-radius: 4px; padding: 6px 10px;
 }}
+/* The Build Profile tab's ArgyllCMS command boxes: the #info shape in that
+   tab's cyan, ground included, as #info_measure is in the Measure tab's green.
+   The per-tab sheet recolours only the ink and the border of a plain #info,
+   so a plain one kept Create Chart's magenta ground under cyan text. */
+QLabel#info_profile {{
+    background: #04191e; color: #37bcd6;
+    border: 1px solid #37bcd6; border-radius: 4px; padding: 6px 10px;
+}}
 QLabel#error {{
     background: #3a0a0a; color: {ACCENT_ERROR};
     border: 1px solid {ACCENT_ERROR}; border-radius: 4px; padding: 6px 10px;

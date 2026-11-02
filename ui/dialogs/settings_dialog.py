@@ -3079,6 +3079,60 @@ class SettingsDialog(QDialog):
             min_width=560,
         )
 
+        self._show_argyll_cmds_check = QCheckBox(
+            tr("Show the ArgyllCMS commands ChromIQ runs"), self)
+        from core.resource_path import argyll_binary as _argyll_binary
+        show_argyll_cmds_tip = TooltipButton(
+            tr("Show the ArgyllCMS Commands ChromIQ Runs"),
+            tr("ChromIQ does its colour work with ArgyllCMS, a set of free "
+               "programs that are normally typed into a terminal (targen, "
+               "printtarg, colprof, printcal, applycal and others). With this "
+               "option ON, ChromIQ shows the exact commands it will run with "
+               "your current settings, in a box below the settings:\n\n"
+               "  • Create Chart, in GUIDED and MANUAL: the targen and "
+               "printtarg commands that make the chart. When the ChromIQ "
+               "layout engine lays the chart out instead of printtarg, the "
+               "box lists the engine's layout settings in its place. The same box "
+               "also carries a short note about the chart, for example that a "
+               "built-in preset is used as it is.\n"
+               "  • Build Profile, in GUIDED and MANUAL: the colprof command "
+               "that builds the profile. With ChromIQ-style refinement it also "
+               "shows the average command that merges in the pre-conditioning "
+               "data first.\n"
+               "  • Create Calibration File and Apply Calibration (shown when "
+               "calibration options are on): the printcal and applycal "
+               "commands.\n\n"
+               "The boxes follow every change you make, so they are also a "
+               "handy way to see which command-line option a setting stands "
+               "for.\n\n"
+               "USING A COMMAND YOURSELF\n"
+               "Select the text in the box with the mouse and copy it, for "
+               "example to change one option and run it again in a terminal. "
+               "Anything a terminal would misread, such as a name with a space "
+               "in it, is already in quotes. printcal "
+               "names its measurement without a folder, so its box starts with "
+               "the cd line that goes to that folder first. If the terminal "
+               "cannot find a program, type the ArgyllCMS folder from the top "
+               "of this page in front of its name, for example {example}. "
+               "Names in angle brackets, such as <measurement>, stand for files "
+               "you have not chosen yet.\n\n"
+               "When no ArgyllCMS command builds the profile (the ChromIQ "
+               "profile engine in Preferences → Beta makes it itself), the box "
+               "says so instead of showing a command that is never run.\n\n"
+               "The Measure tab's box stays either way: it lists the "
+               "options GUIDED leaves at their standard settings, which is "
+               "help for that panel rather than a command.\n\n"
+               "Turning this OFF hides the boxes, the Create Chart note with "
+               "them. ChromIQ runs exactly the "
+               "same commands and makes exactly the same charts, profiles and "
+               "calibrations either way.\n\n"
+               "**Default:** on.").format(
+                   example=str(Path(default_argyll_bin_dir())
+                               / _argyll_binary("colprof"))),
+            self,
+            min_width=620,
+        )
+
         self._show_location_check = QCheckBox(
             tr("Show the location being edited"), self)
         show_location_tip = TooltipButton(
@@ -4075,6 +4129,7 @@ class SettingsDialog(QDialog):
             _bh_cell(self._themed_colors_check, themed_colors_tip),
             _bh_cell(self._show_location_check, show_location_tip),
             _bh_cell(self._hide_log_check, hide_log_tip),
+            _bh_cell(self._show_argyll_cmds_check, show_argyll_cmds_tip),
             _bh_cell(self._native_files_check, native_files_tip),
             _bh_cell(self._cal_mode_check, cal_tip),
             _bh_cell(self._declutter_check, declutter_tip),
@@ -6107,6 +6162,8 @@ class SettingsDialog(QDialog):
         self._show_location_check.setChecked(
             bool(s.get("show_location_being_edited", True)))
         self._hide_log_check.setChecked(bool(s.get("hide_log_output", False)))
+        self._show_argyll_cmds_check.setChecked(
+            bool(s.get("show_argyll_commands", True)))
         # Scanner Limits — must follow Restore Factory Defaults too (Knut #108)
         self._scan_peak_spin.setValue(float(s.get("scanner_selfcheck_peak", 30.0)))
         self._scan_avg_spin.setValue(float(s.get("scanner_selfcheck_avg", 12.0)))
@@ -7519,6 +7576,7 @@ class SettingsDialog(QDialog):
         s.set("show_location_being_edited",
               self._show_location_check.isChecked())
         s.set("hide_log_output",           self._hide_log_check.isChecked())
+        s.set("show_argyll_commands",      self._show_argyll_cmds_check.isChecked())
         s.set("chromiq_refinement",        self._chromiq_refine_check.isChecked())
         s.set("averaging_enabled",         self._averaging_check.isChecked())
         s.set("declutter_on_load",         self._declutter_check.isChecked())

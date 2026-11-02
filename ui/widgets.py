@@ -5928,3 +5928,11 @@ class GatedOption:
     """
     widgets: list[QWidget] = field(default_factory=list)
     neutralise: Callable[[Any], None] = lambda params: None
+
+
+#: The dynamic property every "ArgyllCMS commands" box carries (Create Chart's
+#: Guided and Manual boxes, the Build Profile tab's four). The Preferences
+#: switch "Show the ArgyllCMS commands ChromIQ runs" finds them all by this
+#: mark (``MainWindow._apply_argyll_command_visibility``) rather than by a
+#: list, so the next such box is covered the moment it carries the mark.
+ARGYLL_COMMANDS_PROPERTY = "argyllCommands"

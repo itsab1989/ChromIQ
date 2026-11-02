@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import TailFollowLog, add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, message_box, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import ARGYLL_COMMANDS_PROPERTY, TailFollowLog, add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, message_box, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
@@ -339,6 +339,11 @@ def _align_form_labels(panel: QWidget) -> None:
 
 _ROLE_NAMED_PROFILES = ("merged.icc", "merged.icm", "calibrated.icc",
                         "preconditioning.icc")
+
+
+def _placeholder_note() -> str:
+    return tr("Names in angle brackets stand for files you have not chosen "
+              "yet.")
 
 
 def _role_named_fallback(icc_path) -> "str | None":
@@ -820,21 +825,228 @@ class TabProfile(QWidget):
 
         root.addWidget(self._outer_stack, stretch=1)
 
+        # Every control of every module feeds the command boxes.
+        for _module in (self._guided_panel, self._manual_panel,
+                        self._outer_stack.widget(1),
+                        self._outer_stack.widget(2)):
+            self._watch_for_command_changes(_module)
+        self.refresh_argyll_commands()
+
+    # ------------------------------------------------------------------
+    # The ArgyllCMS command boxes (a dpreview request, 2026-11-02)
+    # ------------------------------------------------------------------
+
+    def _make_argyll_command_box(self, parent: QWidget) -> QLabel:
+        """One module's "these are the ArgyllCMS commands" box.
+
+        The Create Chart tab's command box, in this tab's colour: the same
+        shape as ``#info``, styled ``#info_profile`` so its ground is cyan too
+        (the per-tab sheet recolours only an ``#info`` label's ink and border,
+        which left Create Chart's magenta ground under cyan text). Selectable, because it is there to be copied into a
+        terminal. Marked ``argyllCommands`` so Preferences → General → "Show
+        the ArgyllCMS commands" finds every such box in the app by that mark
+        (``MainWindow._apply_argyll_command_visibility``), not by a list."""
+        box = QLabel("", parent)
+        box.setObjectName("info_profile")
+        box.setWordWrap(True)
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        box.setProperty(ARGYLL_COMMANDS_PROPERTY, True)
+        box.setVisible(bool(self._settings.get("show_argyll_commands", True)))
+        return box
+
+    def _watch_for_command_changes(self, root: QWidget) -> None:
+        """Refresh the command boxes when any control under *root* changes.
+
+        Found by type rather than listed: the modules hold well over a hundred
+        controls, and a hand-written list would miss the next one added, which
+        would leave the box quietly describing a command that is no longer
+        run. Bound methods only (CLAUDE.md: no self-capturing lambda on a
+        child's signal)."""
+        from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,
+                                     QComboBox, QLineEdit)
+        for w in root.findChildren(QComboBox):
+            w.currentIndexChanged.connect(self._schedule_argyll_commands)
+        for w in root.findChildren(QLineEdit):
+            w.textChanged.connect(self._schedule_argyll_commands)
+        for w in root.findChildren(QAbstractSpinBox):
+            if hasattr(w, "valueChanged"):
+                w.valueChanged.connect(self._schedule_argyll_commands)
+        for w in root.findChildren(QAbstractButton):
+            if w.isCheckable():
+                w.toggled.connect(self._schedule_argyll_commands)
+
+    def _schedule_argyll_commands(self, *_args) -> None:
+        """Refresh the command boxes a moment after the last change.
+
+        Typing a description fires on every keystroke, and the colprof box
+        reads the measurement (its ink limit) and may ask the engine whether
+        it can build it, so the refresh waits until the typing stops, like
+        the Create Chart box (`_schedule_manual_command_preview`)."""
+        timer = getattr(self, "_argyll_cmd_timer", None)
+        if timer is None:
+            from PyQt6.QtCore import QTimer
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(150)
+            timer.timeout.connect(self.refresh_argyll_commands)
+            self._argyll_cmd_timer = timer
+        timer.start()
+
+    def refresh_argyll_commands(self) -> None:
+        """Rewrite every command box from the module's current settings."""
+        for attr, make in (("_guided_cmd_box", self._colprof_guided_text),
+                           ("_manual_cmd_box", self._colprof_manual_text),
+                           ("_pc_cmd_box", self._printcal_commands_text),
+                           ("_ac_cmd_box", self._applycal_commands_text)):
+            box = getattr(self, attr, None)
+            if box is None:
+                continue
+            try:
+                text = make()
+            except Exception:      # noqa: BLE001 - a preview must never break the tab
+                log.warning("the %s command box could not be filled", attr,
+                            exc_info=True)
+                text = tr("The ArgyllCMS command cannot be shown for these "
+                          "settings right now.")
+            if box.text() != text:
+                box.setText(text)
+
+    def _colprof_guided_text(self) -> str:
+        return self._colprof_commands_text("guided")
+
+    def _colprof_manual_text(self) -> str:
+        return self._colprof_commands_text("manual")
+
+    def _colprof_commands_text(self, mode: str) -> str:
+        """What Build Profile runs, from the build's own decisions.
+
+        Each step is the build's: :meth:`_collect_params` for the settings,
+        :meth:`_choose_engine` for which builder makes the profile,
+        :meth:`_preconditioning_merge_plan` for the ``average`` merge, and
+        ``ProfileBuilder._build_args`` for colprof's arguments. Nothing here
+        decides a flag of its own."""
+        from workflow.argyll_command_text import command_line
+        from workflow.ti3_merge import average_merge_args
+        ph = tr("<measurement>")
+        ti3 = self._ti3_path or Path(ph + ".ti3")
+        params = replace(self._collect_params(mode), ti3_path=ti3)
+        try:
+            engine, _note = self._choose_engine(params)
+        except Exception:      # noqa: BLE001 - the build treats it the same way
+            engine = "colprof"
+        if engine == "blocked":
+            return tr(
+                "ArgyllCMS colprof cannot build a profile from this "
+                "multi-ink measurement (inks beyond CMYK), so Build Profile "
+                "runs no ArgyllCMS command for it. Turn on “ChromIQ profile "
+                "engine (beta)” in Preferences → Beta to build it with the "
+                "ChromIQ engine.")
+        lines: list[str] = []
+        plan = self._preconditioning_merge_plan(params)
+        merge_line = (command_line("average", average_merge_args(*plan), (ph,))
+                      if plan is not None else "")
+        if engine == "engine":
+            lines.append(tr(
+                "Build Profile makes this profile with the ChromIQ profile "
+                "engine (Preferences → Beta), not with an ArgyllCMS command. "
+                "The engine may run colprof and xicclu on temporary copies, "
+                "but only as a reference for its gamut mapping, so no command "
+                "line can be shown that would make the same profile."))
+            if merge_line:
+                lines.append(tr(
+                    "Before the build, ChromIQ merges in the pre-conditioning "
+                    "data with this ArgyllCMS command:"))
+                lines.append(merge_line)
+        else:
+            build_params = (replace(params, ti3_path=plan[2])
+                            if plan is not None else params)
+            colprof_line = command_line(
+                "colprof", self._builder._build_args(build_params), (ph,))
+            if merge_line:
+                lines.append(tr("Build Profile runs these ArgyllCMS "
+                                "commands, in this order:"))
+                lines += [merge_line, colprof_line]
+            else:
+                lines.append(tr("Build Profile runs this ArgyllCMS command:"))
+                lines.append(colprof_line)
+        if self._ti3_path is None:
+            lines.append(_placeholder_note())
+        return "\n".join(lines)
+
+    def _printcal_commands_text(self) -> str:
+        """What Create Calibration File runs: printcal, in the measurement's
+        folder (it takes a bare base name), from the run's own builder."""
+        from workflow.argyll_command_text import change_folder_line, command_line
+        ph_file = tr("<calibration measurement>")
+        ph_dir = tr("<measurement folder>")
+        ti3 = self._cal_ti3_path or Path(ph_file + ".ti3")
+        params = self._collect_printcal_params(ti3)
+        work_dir, args = self._printcal_runner.command_for(params)
+        folder = work_dir if self._cal_ti3_path is not None else ph_dir
+        lines = [
+            tr("Create Calibration File runs this ArgyllCMS command, in the "
+               "folder of the measurement:"),
+            change_folder_line(folder, (ph_dir,)),
+            command_line("printcal", args, (ph_file,)),
+        ]
+        if self._cal_ti3_path is None:
+            lines.append(_placeholder_note())
+        return "\n".join(lines)
+
+    def _applycal_commands_text(self) -> str:
+        """What Apply Calibration runs, from `ApplycalRunner._build_args`."""
+        from workflow.argyll_command_text import command_line
+        ph_cal = tr("<calibration file>")
+        ph_icc = tr("<profile>")
+        ph_dir = tr("<profile folder>")
+        cal = self._ac_cal_edit.text().strip()
+        in_icc = self._ac_in_edit.text().strip()
+        if in_icc:
+            out_icc = self._applycal_output(in_icc)
+        else:
+            out_icc = (self._ac_out_edit.text().strip()
+                       or str(Path(ph_dir) / Run.for_dir(Path(ph_dir))
+                              .calibrated_icc.name))
+        args = ApplycalRunner._build_args(
+            Path(cal or ph_cal), Path(in_icc or ph_icc), Path(out_icc),
+            self._ac_mode_combo.currentData() or "apply",
+            self._ac_verbose_cb.isChecked())
+        lines = [tr("Apply Calibration runs this ArgyllCMS command:"),
+                 command_line("applycal", args, (ph_cal, ph_icc, ph_dir))]
+        if not cal or not in_icc:
+            lines.append(_placeholder_note())
+        return "\n".join(lines)
+
     # ------------------------------------------------------------------
     # Calibration mode
     # ------------------------------------------------------------------
 
     def _resolve_engine(self, params: ProfileParams) -> str:
         """Which engine builds this measurement: ``"colprof"``, ``"engine"``,
-        or ``"blocked"`` (multi-ink without the beta setting)."""
+        or ``"blocked"`` (multi-ink without the beta setting). Writes the
+        reason into the log, as a build announces its builder."""
+        engine, note = self._choose_engine(params)
+        if note:
+            self._log.appendPlainText(note)
+        return engine
+
+    def _choose_engine(self, params: ProfileParams) -> "tuple[str, str]":
+        """:meth:`_resolve_engine`'s answer and the log line it explains it
+        with, WITHOUT writing that line anywhere.
+
+        The Build Profile command box asks the same question on every change
+        of a setting, and must get the build's own answer (a box that showed
+        ``colprof`` for a build the engine makes would be a record of a
+        command nobody ran), so the decision lives here, once, and the build
+        only adds the logging."""
         beta = bool(self._settings.get("profile_engine_beta", False))
         if is_multi_ink(params.ti3_path):
             if beta:
-                self._log.appendPlainText(tr(
+                return "engine", tr(
                     "[INFO] Multi-ink measurement — Argyll colprof can't "
-                    "build these, using the ChromIQ engine."))
-                return "engine"
-            return "blocked"
+                    "build these, using the ChromIQ engine.")
+            return "blocked", ""
         if beta:
             # Bit-exact gamut mapping on a standard (<=4-ink) measurement:
             # colprof builds these natively, so run it directly for a result
@@ -847,18 +1059,17 @@ class TabProfile(QWidget):
             # engine — the engine then matches colprof's *rendering* through
             # the oracle while keeping the improved colorimetric tables.
             if str(self._settings.get("gammap_mode", "fast")) == "argyll":
-                self._log.appendPlainText(tr(
+                return "colprof", tr(
                     "[INFO] Bit-exact gamut mapping on a standard (≤4-ink) "
                     "measurement — building with ArgyllCMS colprof directly, "
-                    "for a profile identical to Argyll."))
-                return "colprof"
+                    "for a profile identical to Argyll.")
             ok, why = engine_support(params)
             if ok:
-                return "engine"
-            self._log.appendPlainText(tr(
+                return "engine", ""
+            return "colprof", tr(
                 "[INFO] This build needs Argyll colprof because of: {what}. "
-                "Building with colprof.").format(what=why))
-        return "colprof"
+                "Building with colprof.").format(what=why)
+        return "colprof", ""
 
     def _accurate_engine_active(self) -> bool:
         """True while builds run through the engine's Maximum accuracy
@@ -877,6 +1088,9 @@ class TabProfile(QWidget):
     def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().showEvent(event)
         self._refresh_engine_rows()
+        # Preferences (the profile engine, refinement) may have changed what
+        # a build runs since the boxes were last written.
+        self._schedule_argyll_commands()
         self._refit_logs()
         # THE NAME IS RECOMPOSED ON ARRIVAL. It is built from the project name
         # and the run's own description, and both live on another tab — so
@@ -1123,6 +1337,7 @@ class TabProfile(QWidget):
         self._preconditioning_source = path
         if path is not None:
             log.info("Pre-conditioning merge source set to %s", path)
+        self._schedule_argyll_commands()
 
     def set_cal_ti3_path(self, ti3: Path) -> None:
         """Receive the calibration .ti3 from the measure tab, pre-fill printcal, and switch to it."""
@@ -1383,6 +1598,8 @@ class TabProfile(QWidget):
         _tg = QVBoxLayout(self._pc_targets_widget)
         _tg.addWidget(_targets_inner)
         gw_layout.addWidget(self._pc_targets_widget)
+        self._pc_cmd_box = self._make_argyll_command_box(grp_wrapper)
+        gw_layout.addWidget(self._pc_cmd_box)
         gw_layout.addStretch()
         scroll.setWidget(grp_wrapper)
         cc.addWidget(scroll, stretch=1)
@@ -1768,6 +1985,30 @@ class TabProfile(QWidget):
         targets = [{"ch": row.ch, **row.save()} for row in self._pc_channel_rows]
         s.set("printcal_channel_targets",  json.dumps(targets))
 
+    def _collect_printcal_params(self, ti3_path: Path) -> PrintcalParams:
+        """The printcal parameters the Create Calibration File module shows.
+
+        One reading of the module's controls, for the run AND for the command
+        box, so the box cannot show a flag the run does not pass."""
+        channel_targets = [
+            ct for row in self._pc_channel_rows
+            if (ct := row.channel_target()) is not None
+        ]
+
+        return PrintcalParams(
+            ti3_path        = ti3_path,
+            mode            = self._pc_mode_combo.currentData() or "initial",
+            prev_cal        = self._pc_prev_edit.text().strip(),
+            verbosity       = self._pc_verb_spin.value(),
+            smoothing       = self._pc_smooth_spin.value(),
+            dry_run         = self._pc_dry_run_cb.isChecked(),
+            channel_targets = channel_targets,
+            description     = self._pc_desc_edit.text().strip(),
+            manufacturer    = self._pc_mfr_edit.text().strip() if self._pc_mfr_check.isChecked() else "",
+            model           = self._pc_model_edit.text().strip() if self._pc_model_check.isChecked() else "",
+            copyright       = self._pc_copy_edit.text().strip() if self._pc_copy_check.isChecked() else "",
+        )
+
     def _on_printcal_run(self) -> None:
         if self._runner.is_running:
             return
@@ -1786,24 +2027,7 @@ class TabProfile(QWidget):
         self._pc_progress.set_value(None)
         self._pc_progress.start()
 
-        channel_targets = [
-            ct for row in self._pc_channel_rows
-            if (ct := row.channel_target()) is not None
-        ]
-
-        params = PrintcalParams(
-            ti3_path        = self._cal_ti3_path,
-            mode            = self._pc_mode_combo.currentData() or "initial",
-            prev_cal        = self._pc_prev_edit.text().strip(),
-            verbosity       = self._pc_verb_spin.value(),
-            smoothing       = self._pc_smooth_spin.value(),
-            dry_run         = self._pc_dry_run_cb.isChecked(),
-            channel_targets = channel_targets,
-            description     = self._pc_desc_edit.text().strip(),
-            manufacturer    = self._pc_mfr_edit.text().strip() if self._pc_mfr_check.isChecked() else "",
-            model           = self._pc_model_edit.text().strip() if self._pc_model_check.isChecked() else "",
-            copyright       = self._pc_copy_edit.text().strip() if self._pc_copy_check.isChecked() else "",
-        )
+        params = self._collect_printcal_params(self._cal_ti3_path)
 
         def _on_line(line: str) -> None:
             self._pc_log.appendPlainText(line)
@@ -1939,6 +2163,8 @@ class TabProfile(QWidget):
         g.addLayout(opt_row)
 
         cc.addWidget(grp)
+        self._ac_cmd_box = self._make_argyll_command_box(container)
+        cc.addWidget(self._ac_cmd_box)
         cc.addStretch()
 
         # ---- Button row (outside groupbox) ----
@@ -2023,6 +2249,16 @@ class TabProfile(QWidget):
         s.set("applycal_mode", self._ac_mode_combo.currentData() or "apply")
         s.set("applycal_verbose", self._ac_verbose_cb.isChecked())
 
+    def _applycal_output(self, in_icc: str) -> str:
+        """Where applycal writes: the Output field, or, left blank,
+        ``calibrated.icc`` beside the input profile (`Run.calibrated_icc`).
+
+        Asked by the run and by the command box, so both name one file."""
+        out_raw = self._ac_out_edit.text().strip()
+        if out_raw:
+            return out_raw
+        return str(Run.for_dir(Path(in_icc).parent).calibrated_icc)
+
     def _on_applycal_run(self) -> None:
         if self._runner.is_running:
             return
@@ -2033,12 +2269,7 @@ class TabProfile(QWidget):
                 tr("[ERROR] Please select a .cal file and an input ICC "
                    "profile."))
             return
-        out_raw = self._ac_out_edit.text().strip()
-        if out_raw:
-            out_icc = out_raw
-        else:
-            in_path = Path(in_icc)
-            out_icc = str(Run.for_dir(in_path.parent).calibrated_icc)
+        out_icc = self._applycal_output(in_icc)
 
         mode = self._ac_mode_combo.currentData() or "apply"
         if mode == "apply" and not self._confirm_not_calibrated_twice(in_icc):
@@ -2316,6 +2547,8 @@ class TabProfile(QWidget):
         self._build_gamut_group(inner_layout)
         self._build_metadata_group(inner_layout)
         self._build_advanced_group(inner_layout)
+        self._guided_cmd_box = self._make_argyll_command_box(inner)
+        inner_layout.addWidget(self._guided_cmd_box)
 
         inner_layout.addStretch()
         scroll.setWidget(inner)
@@ -2407,6 +2640,8 @@ class TabProfile(QWidget):
         self._build_m_gamut_group(layout)
         self._build_m_metadata_group(layout)
         self._build_m_advanced_group(layout)
+        self._manual_cmd_box = self._make_argyll_command_box(inner)
+        layout.addWidget(self._manual_cmd_box)
 
         layout.addStretch()
         scroll.setWidget(inner)
@@ -4612,6 +4847,7 @@ class TabProfile(QWidget):
 
     def set_ti3_path(self, path: Path, propagate: bool = True) -> None:
         self._ti3_path = path
+        self._schedule_argyll_commands()
         # A newly selected measurement file invalidates any prior merge source;
         # the main window re-sets it afterwards on the measure handoff if opted in.
         self._preconditioning_source = None
@@ -4753,6 +4989,9 @@ class TabProfile(QWidget):
         calibration cal_*.ti3), shows a single replace-in-place log line, and
         re-applies the option gate. Pass ``path=None`` to reset (e.g. on clear).
         """
+        # Every measurement that arrives here (Build Profile's and the
+        # calibration's) changes the file names in the command boxes.
+        self._schedule_argyll_commands()
         instr = read_target_instrument(path) if path and path.exists() else None
         spectral = has_spectral_data(path) if path and path.exists() else False
         if cal:
@@ -5229,14 +5468,10 @@ class TabProfile(QWidget):
         On a colour-space / format mismatch the merge is skipped, the user is
         told, and the profile is built from the fresh measurements only.
         """
-        if not bool(self._settings.get("chromiq_refinement", False)):
+        plan = self._preconditioning_merge_plan(params)
+        if plan is None:
             return params
-        src = self._preconditioning_source
-        fresh = params.ti3_path
-        if not src or not src.exists() or not fresh.exists():
-            return params
-
-        merged = Run.for_dir(fresh.parent).merged_ti3
+        fresh, src, merged = plan
         bin_dir = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
         try:
             total = merge_preconditioning(fresh, src, merged, bin_dir=bin_dir)
@@ -5249,6 +5484,22 @@ class TabProfile(QWidget):
             f"{src.name} — building from {total} patches ({merged.name})."
         )
         return replace(params, ti3_path=merged)
+
+    def _preconditioning_merge_plan(self, params: ProfileParams
+                                    ) -> "tuple[Path, Path, Path] | None":
+        """``(fresh, pre-conditioning, merged)`` when the build will merge
+        pre-conditioning data in first, else None.
+
+        Asked by :meth:`_apply_preconditioning_merge` and by the command box,
+        so the box names the ``average`` merge exactly when the build runs
+        it."""
+        if not bool(self._settings.get("chromiq_refinement", False)):
+            return None
+        src = self._preconditioning_source
+        fresh = params.ti3_path
+        if not src or not src.exists() or not fresh or not fresh.exists():
+            return None
+        return fresh, src, Run.for_dir(fresh.parent).merged_ti3
 
     #: Runs silenced for this session — §6d. Per run and in memory only, the
     #: same shape as the Measure tab's "don't ask again": quiet while you work
@@ -6530,8 +6781,9 @@ class TabProfile(QWidget):
     # Param collection
     # ------------------------------------------------------------------
 
-    def _collect_params(self) -> ProfileParams:
-        params = (self._collect_guided_profile() if self._current_mode() == "guided"
+    def _collect_params(self, mode: "str | None" = None) -> ProfileParams:
+        mode = mode or self._current_mode()
+        params = (self._collect_guided_profile() if mode == "guided"
                   else self._collect_manual_profile())
         # Strip options the detected instrument can't support, even if they were
         # enabled before the .ti3 was loaded (the widgets are also greyed out).

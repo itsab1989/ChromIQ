@@ -108,6 +108,15 @@ def _resolve_average(bin_dir: Path | str | None) -> str:
     return name
 
 
+def average_merge_args(fresh_ti3: Path, pre_data: Path,
+                       out_ti3: Path) -> "list[str]":
+    """The arguments ``average`` is given to merge the two measurements.
+
+    One list for the merge below AND for the Build Profile tab's command box,
+    so the command shown is the command run."""
+    return ["-m", str(fresh_ti3), str(pre_data), str(out_ti3)]
+
+
 def merge_preconditioning(
     fresh_ti3: Path,
     pre_data: Path,
@@ -147,7 +156,7 @@ def merge_preconditioning(
         )
 
     average = _resolve_average(bin_dir)
-    cmd = [average, "-m", str(fresh_ti3), str(pre_data), str(out_ti3)]
+    cmd = [average] + average_merge_args(fresh_ti3, pre_data, out_ti3)
     try:
         proc = run_text(cmd, capture_output=True, stdin=subprocess.DEVNULL)
     except OSError as exc:

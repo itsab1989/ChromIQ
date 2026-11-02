@@ -149,11 +149,9 @@ class PrintcalRunner:
         from workflow.cal_repair import repair_embedded_cal
         repair_embedded_cal(params.ti3_path)
 
-        stem = params.ti3_path.stem  # base name without extension
-        work_dir = params.ti3_path.parent
-        self._out_cal = work_dir / f"{stem}.cal"
+        work_dir, args = self.command_for(params)
+        self._out_cal = work_dir / f"{params.ti3_path.stem}.cal"
 
-        args = self._build_args(params, stem)
         log.info("printcal args: %s", args)
 
         def _scan(line: str) -> None:
@@ -167,6 +165,16 @@ class PrintcalRunner:
             on_line=_scan,
             on_finish=lambda code: self._done(code, on_finish),
         )
+
+    def command_for(self, params: PrintcalParams) -> "tuple[Path, list[str]]":
+        """The folder printcal runs in, and the arguments it is given.
+
+        printcal takes the measurement as a bare base name and writes the
+        ``.cal`` beside it, so it runs IN the measurement's folder. One answer
+        for :meth:`run` and for the Build Profile tab's command box, so the
+        command shown is the command run."""
+        stem = params.ti3_path.stem  # base name without extension
+        return params.ti3_path.parent, self._build_args(params, stem)
 
     def _scan_line(self, line: str) -> None:
         for pattern, key, fmt in _PRINTCAL_ERROR_PATTERNS:

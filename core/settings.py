@@ -217,6 +217,11 @@ DEFAULTS: dict[str, Any] = {
     # Hide the log panel on every tab (Basti, 2026-08-07). Off by default:
     # the log is where a failure explains itself, so it is opt-out.
     "hide_log_output":           False,
+    # Show the ArgyllCMS command boxes (Create Chart's and Build Profile's).
+    # On by default: the boxes were always there on Create Chart, and the
+    # Build Profile ones were asked for (dpreview, 2026-11-02). App-wide, not
+    # per target (docs/design/per_target_settings.md: an app preference).
+    "show_argyll_commands":      True,
     # Calibration workflow
     "calibration_mode":          False,
     "printcal_smoothing":        1.0,

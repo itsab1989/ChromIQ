@@ -544,6 +544,14 @@ QLabel#info_measure {{
     border-radius: 4px;
     padding: 6px 10px;
 }}
+/* Build Profile's ArgyllCMS command boxes: the #info shape in this tab's cyan. */
+QLabel#info_profile {{
+    background: #eef9fc;
+    color: #0b6f84;
+    border: 1px solid #37bcd6;
+    border-radius: 4px;
+    padding: 6px 10px;
+}}
 QLabel#error {{
     background: #ffebee;
     color: {LM_ACCENT_ERROR};

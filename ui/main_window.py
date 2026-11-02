@@ -438,6 +438,7 @@ class MainWindow(QMainWindow):
         # The log panels exist by now, so honour the preference before the
         # window is first shown rather than after the first Preferences visit.
         self._apply_log_visibility()
+        self._apply_argyll_command_visibility()
 
         # Restore geometry
         geom = self._settings.get("window_geometry")
@@ -2718,6 +2719,31 @@ class MainWindow(QMainWindow):
         if getattr(self, "_target_bar", None) is not None:
             self._target_bar.refresh()
         self._apply_log_visibility()
+        self._apply_argyll_command_visibility()
+
+    def _apply_argyll_command_visibility(self) -> None:
+        """Show or hide every "ArgyllCMS commands" box at once.
+
+        Preferences → General → "Show the ArgyllCMS commands ChromIQ runs"
+        (on by default). The boxes are found by the mark they carry
+        (``ui.widgets.ARGYLL_COMMANDS_PROPERTY``), not by a list: Create Chart
+        has two and Build Profile four, and a list would miss the next one.
+
+        Only boxes that show commands carry the mark. The Measure tab's box
+        lists the options Guided leaves at their standard settings, which is
+        guidance about the panel rather than a command, so it stays.
+        """
+        from PyQt6.QtWidgets import QLabel
+        from ui.widgets import ARGYLL_COMMANDS_PROPERTY
+
+        show = bool(self._settings.get("show_argyll_commands", True))
+        for box in self.findChildren(QLabel):
+            if box.property(ARGYLL_COMMANDS_PROPERTY):
+                box.setVisible(show)
+        # What a build runs can follow other preferences too (the profile
+        # engine, refinement), so the boxes are rewritten as well.
+        if hasattr(self._tab_profile, "refresh_argyll_commands"):
+            self._tab_profile.refresh_argyll_commands()
 
     def _apply_log_visibility(self) -> None:
         """Show or hide the log panel on every tab at once.

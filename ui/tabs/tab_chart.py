@@ -7560,6 +7560,13 @@ class TabChart(QWidget):
         self._guided_info_lbl = QLabel("", inner)
         self._guided_info_lbl.setObjectName("info")
         self._guided_info_lbl.setWordWrap(True)
+        # It names the targen and printtarg commands, so Preferences → General
+        # → "Show the ArgyllCMS commands ChromIQ runs" hides it with the
+        # Build Profile boxes (found by this mark, ui/main_window.py).
+        from ui.widgets import ARGYLL_COMMANDS_PROPERTY
+        self._guided_info_lbl.setProperty(ARGYLL_COMMANDS_PROPERTY, True)
+        self._guided_info_lbl.setVisible(
+            bool(self._settings.get("show_argyll_commands", True)))
         layout.addWidget(self._guided_info_lbl)
 
         layout.addStretch()
@@ -8700,6 +8707,11 @@ class TabChart(QWidget):
         # make it text-selectable (#58).
         self._manual_info_lbl.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse)
+        # The same switch as the Guided box above hides this one.
+        from ui.widgets import ARGYLL_COMMANDS_PROPERTY
+        self._manual_info_lbl.setProperty(ARGYLL_COMMANDS_PROPERTY, True)
+        self._manual_info_lbl.setVisible(
+            bool(self._settings.get("show_argyll_commands", True)))
         inner_layout.addWidget(self._manual_info_lbl)
 
         # Wire every parameter widget to refresh the live command preview.
