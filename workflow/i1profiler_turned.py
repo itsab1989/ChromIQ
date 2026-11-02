@@ -519,10 +519,11 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
             why.append(tr(
                 "the chart has {rows} strips, and i1Profiler would need a "
                 "page {need} mm tall to show them as one page; its pages are "
-                "at most {max} mm tall. How i1Profiler lays out a chart that "
-                "does not fit on one of its pages has not been checked yet, "
-                "so ChromIQ does not write these files for it. Make the chart "
-                "with fewer patches, or as two charts").format(
+                "at most {max} mm tall. How i1Profiler lays out a test-chart "
+                "file that asks for a page taller than that has not been "
+                "checked yet, so ChromIQ does not write these files for this "
+                "chart. Make the chart with fewer patches, or as two "
+                "charts").format(
                     rows=len(strips), need=need_h, max=f"{PAGE_MAX_H_MM:g}"))
         plan.family_reasons[fam] = why
 

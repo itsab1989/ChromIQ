@@ -9060,8 +9060,10 @@ it is a bug fix it"*); the behaviour and the wording await approval.
   it needs it in front, which would take the keyboard). Also unchanged: a
   chart that would need an i1Profiler page taller than 1270 mm still gets
   no files; its reason no longer says pages could not match the sheet, only
-  that such a layout has not been checked (lifting the limit needs Basti's
-  decision and a measurement).
+  that i1Profiler has not been checked with a test-chart file asking for a
+  page taller than that (review 4.3.21 r2; jctay's paged case is checked,
+  the taller `.txf` is not; lifting the limit needs Basti's decision and a
+  measurement).
 * **Only a check, never a pairing.** Readings are still paired by their
   order, and checked by their device values, exactly as point 1 says; the
   Location tags only decide whether the file is filed at all. Earlier orders

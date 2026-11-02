@@ -313,6 +313,10 @@ def test_the_note_of_a_chart_of_several_sheets_allows_pages(chart_600):
 
 def test_the_too_tall_refusal_no_longer_says_pages_cannot_match():
     import inspect
-    src = inspect.getsource(T.plan_for)
+    src = re.sub(r'"\s*\n\s*"', "", inspect.getsource(T.plan_for))
     assert "no longer match the printed sheets" not in src
-    assert "has not been checked yet" in src
+    # what is unchecked is a .txf asking for a taller page, not pages as
+    # such (review 4.3.21 r2): jctay's paged case is checked
+    assert ("How i1Profiler lays out a test-chart file that asks for a page "
+            "taller than that has not been checked yet") in src
+    assert "does not fit on one of its pages" not in src
