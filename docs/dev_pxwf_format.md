@@ -156,6 +156,12 @@ When present, each Object gets:
   same device values, and the M0/M1/M2 objects carry the same Location as the
   Target of the same index in both files. The import files such a file when
   every patch is located and none is misplaced, and refuses it otherwise.
+  How many rows each page holds is taken from the file's own Locations (the
+  highest `Row` on that page, plus one; `reference_convert._cxf_i1p_grid`),
+  not from `i1p_page_rows`: every split seen so far fits both "even, larger
+  pages first" and "fill each page, the rest last", so the rule itself is
+  still open (review 4.3.21 r1). `i1p_page_rows` stays what `write_pwxf`
+  writes.
 - `SampleID = -1` and `SampleName = ""` for **every** patch — the layout is
   purely positional, not name-keyed. We don't need to invent IDs.
 

@@ -1642,6 +1642,25 @@ _TURNED_GRID_PAGED_CELLS = (
     "so it does not file this measurement. The RGB values in the file cannot "
     "show this, because i1Profiler writes the RGB values of its test-chart "
     "file into every measurement, whatever the instrument read.")
+#: The same paged file when it records no place (no Location) for any patch
+#: (review 4.3.21 r1): on more than one page only the Locations say where each
+#: patch was, so it is refused, and said in a clause of its own rather than
+#: as "does not give 600 of its 600 patches the place".
+_TURNED_GRID_PAGED_NO_PLACE = (
+    "this file is a measurement of the turned i1Profiler chart, and "
+    "i1Profiler kept the {cols} columns that the how-to note for this chart "
+    "names but cut the chart over {got_pages} pages, with {got_rows} rows on "
+    "its first page. That on its own is fine: i1Profiler carries on counting "
+    "its rows from one page to the next (when page 1 holds rows 1 to 10, "
+    "page 2 starts with row 11), so its pages together make the grid that the "
+    "note names (columns: {cols}, rows: {rows}), and every row is still one "
+    "strip of your printed sheet. But the file records no place on those "
+    "pages for any of its patches, and on more than one page that record is "
+    "the only way to check where each patch was. ChromIQ therefore cannot "
+    "tell whether the readings were taken on the patches they are recorded "
+    "for, so it does not file this measurement. The RGB values in the file "
+    "cannot show this, because i1Profiler writes the RGB values of its "
+    "test-chart file into every measurement, whatever the instrument read.")
 #: The way out leads with what puts the grid right, loading the .txf again
 #: and checking step 5's grid; Default display device comes second (review
 #: 4.3.19 r2, N-b: in i1Profiler 3.8.6 either family laid both files out
@@ -1660,7 +1679,7 @@ M_IMPORT_TURNED_GRID = _m(
     "A measurement of the turned i1Profiler chart on another grid: the reasons",
     "\n".join((_TURNED_GRID_DIFFERS, _TURNED_GRID_DIFFERS_PAGED,
                _TURNED_GRID_CELLS_DIFFER, _TURNED_GRID_PAGED_CELLS,
-               _TURNED_GRID_WHAT_TO_DO)),
+               _TURNED_GRID_PAGED_NO_PLACE, _TURNED_GRID_WHAT_TO_DO)),
     approved=False)
 
 
@@ -1698,6 +1717,15 @@ def turned_grid_paged_cells_reason(cols: int, rows: int, got_rows: int,
     return (tr(_TURNED_GRID_PAGED_CELLS).format(
         cols=cols, rows=rows, got_rows=got_rows, got_pages=got_pages,
         count=count, total=total)
+        + " " + tr(_TURNED_GRID_WHAT_TO_DO))
+
+
+def turned_grid_paged_no_place_reason(cols: int, rows: int, got_rows: int,
+                                      got_pages: int) -> str:
+    """{reason}: the note's columns cut over several pages, and no patch
+    carries a Location, so nothing shows where each one was (4.3.21 r1)."""
+    return (tr(_TURNED_GRID_PAGED_NO_PLACE).format(
+        cols=cols, rows=rows, got_rows=got_rows, got_pages=got_pages)
         + " " + tr(_TURNED_GRID_WHAT_TO_DO))
 
 

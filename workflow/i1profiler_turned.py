@@ -143,8 +143,12 @@ PAGE_W_MM = 296.93
 PAGE_SIDE_MM = 15.5
 #: i1Profiler's tallest custom page, mm: a .txf asking for 2045 mm was shown
 #: as "Custom Paper Size 296.8 x 1270 mm, Page 1 of 2" (250 rows split over
-#: two pages, which would no longer match ChromIQ's sheets); 1045 mm with 125
-#: rows stayed "Page 1 of 1". [measured 2026-10-27, i1Profiler 3.8.8]
+#: two pages); 1045 mm with 125 rows stayed "Page 1 of 1". [measured
+#: 2026-10-27, i1Profiler 3.8.8] Since 4.3.21 a measurement on several pages
+#: is filed when every patch's Location fits (`grid_mismatch`), but how
+#: i1Profiler lays out a .txf asking for more than this height has not been
+#: checked patch for patch, so such a chart still gets no files: lifting that
+#: needs Basti's decision and a measurement (review 4.3.21 r1).
 PAGE_MAX_H_MM = 1270.0
 PAGE_A4_H_MM = 210.06
 BLOCK_TOP_MM = 24.5
@@ -515,14 +519,16 @@ def plan_for(ti2: "str | Path", turn: "str | None" = None) -> TurnedPlan:
             why.append(tr(
                 "the chart has {rows} strips, and i1Profiler would need a "
                 "page {need} mm tall to show them as one page; its pages are "
-                "at most {max} mm tall, so it would split them over pages that "
-                "no longer match the printed sheets. Make the chart with fewer "
-                "patches, or as two charts").format(
+                "at most {max} mm tall. How i1Profiler lays out a chart that "
+                "does not fit on one of its pages has not been checked yet, "
+                "so ChromIQ does not write these files for it. Make the chart "
+                "with fewer patches, or as two charts").format(
                     rows=len(strips), need=need_h, max=f"{PAGE_MAX_H_MM:g}"))
         plan.family_reasons[fam] = why
 
-    # The order, sheet by sheet (i1Profiler shows all of them as one tall
-    # page, sheet 1 at the top).
+    # The order, sheet by sheet (the .txf asks i1Profiler to show all of them
+    # as one tall page, sheet 1 at the top; cut over pages, the rows run on
+    # in the same order, 4.3.21).
     # * CLOCKWISE: the sheet's left edge goes to the top, so its strips run
     #   first to last, strip A the top row; its top edge (the label end) goes
     #   to the right, so a row read left to right runs from the strip's LAST
@@ -993,8 +999,10 @@ def note_qualified(plan: TurnedPlan, chart_name: str, files: TurnedFiles,
         "see a misplaced row afterwards."))
     if plan.sheets > 1:
         parts.append(tr(
-            "   This chart has {n} sheets. i1Profiler shows all of them as ONE "
-            "tall page: the first rows belong to sheet 1, then the next sheet "
+            "   This chart has {n} sheets. i1Profiler shows the rows of all of "
+            "them one after the other, on ONE tall page, or on several pages "
+            "if it shares them out as step 5 describes, counting on from page "
+            "to page: the first rows belong to sheet 1, then the next sheet "
             "follows (see the list of rows below). Lay each sheet down turned "
             "the same way when its rows come up.").format(n=plan.sheets))
     parts.append(tr(
@@ -1417,8 +1425,9 @@ def grid_mismatch(ti3_path: "str | Path",
     ONE page, so entry ``j`` belongs at page 1, row ``j % rows``, column
     ``j // rows``. On one page the file's grid must be exactly that, and every
     Location it carries must be the cell i1Profiler's fill rule gives that
-    entry on it (which, the grids being equal, is that same cell). A file with
-    the grid attributes and no Locations is judged by the grid alone. A CGATS
+    entry on it (which, the grids being equal, is that same cell). A file on
+    ONE page with the grid attributes and no Locations is judged by the grid
+    alone; on more than one page it is refused (below). A CGATS
     export (no grid at all) and an order that names no grid answer ``""``, so
     they are judged exactly as before. Only a check: nothing is paired by it.
 
@@ -1429,7 +1438,11 @@ def grid_mismatch(ti3_path: "str | Path",
     ("Measuring row 11 on page 2" after ten rows on page 1, his screenshots).
     Its Location tags number the rows within each page, and the fill rule
     (``i1profiler_export.i1p_location``) turns them back into the row of the
-    whole grid: the rows on the earlier pages plus the row on this page. His
+    whole grid: the rows on the earlier pages plus the row on this page. How
+    many rows each page holds is read from the file's own Locations
+    (``reference_convert._cxf_i1p_grid``, review 4.3.21 r1), never assumed:
+    "even, larger pages first" and "fill each page, the rest last" both fit
+    every split seen so far. His
     600-patch chart measured on 12 x 50 on one page and on 12 x 10 on five
     pages put every one of the 600 entries in the same cell of the whole
     grid, with the same device values, and the readings agreed (mean 0.1,
@@ -1440,7 +1453,7 @@ def grid_mismatch(ti3_path: "str | Path",
     other columns are refused as before."""
     from workflow.measurement_messages import (
         turned_grid_cells_differ_reason, turned_grid_differs_reason,
-        turned_grid_paged_cells_reason)
+        turned_grid_paged_cells_reason, turned_grid_paged_no_place_reason)
     from workflow.reference_convert import i1p_grid_of
     if order is None or order.rows <= 0 or order.columns <= 0:
         return ""
@@ -1449,10 +1462,16 @@ def grid_mismatch(ti3_path: "str | Path",
         return ""
     if grid.pages > 1 and grid.columns == order.columns:
         # The Locations are the only evidence of where each entry sat; the
-        # converted file keeps how many were in i1Profiler's cell for them
-        # (`reference_convert._cxf_i1p_grid`, with the rows of the whole
-        # grid shared out over the pages). That cell is the order's only
+        # converted file keeps how many were in their cell, the rows counted
+        # on over the pages as the file's own Locations share them out
+        # (`reference_convert._cxf_i1p_grid`). That cell is the order's only
         # when the whole grid has the order's rows and patches.
+        if grid.located == 0:
+            log.info("import: the turned measurement on %d pages records no "
+                     "place for any of its patches", grid.pages)
+            return turned_grid_paged_no_place_reason(
+                cols=order.columns, rows=order.rows, got_rows=grid.rows,
+                got_pages=grid.pages)
         whole_rows = -(-grid.patches // grid.columns)
         if (whole_rows != order.rows
                 or grid.patches != len(order.sample_ids)):

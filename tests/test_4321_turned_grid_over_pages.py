@@ -20,6 +20,7 @@ each patch was on the pages.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -111,18 +112,70 @@ def test_an_uneven_split_is_filed_when_every_location_fits(tmp_path):
     assert _data_rows(four) == _data_rows(one)
 
 
-def test_another_split_than_i1profilers_is_refused(tmp_path):
-    """Locations that follow another split (3 + 4 + 4 + 4) put rows on
-    pages 1 to 3 into other rows of the whole grid: refused, and nothing
-    paired."""
+@pytest.fixture()
+def chart_360(tmp_path):
     ti2 = _chart(tmp_path / "p350", "P350", 350)
     T.write_turned_export(ti2, exports_subdir(ti2.parent), "P350")
-    files = T.TurnedFiles(exports_subdir(ti2.parent), "P350")
-    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "odd.mxf", columns=24,
-               pages=4, per_page=[3, 4, 4, 4])
+    plan = T.plan_for(ti2)
+    assert (plan.columns, plan.rows) == (24, 15)
+    return ti2, T.TurnedFiles(exports_subdir(ti2.parent), "P350"), plan
+
+
+@pytest.mark.parametrize("split", [[3, 4, 4, 4], [5, 5, 5], [4, 4, 4, 3],
+                                   [6, 6, 3]])
+def test_any_consistent_split_the_file_records_is_counted_on(chart_360,
+                                                            tmp_path, split):
+    """Review 4.3.21 r1: the rows on each page are read from the file's own
+    Locations, not assumed. "Even, larger first" (4 + 4 + 4 + 3) and other
+    splits (3 + 4 + 4 + 4) are filed alike when every Location, counted on
+    over the pages, is the order's cell."""
+    ti2, files, plan = chart_360
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "s.mxf", columns=24,
+               pages=len(split), per_page=split)
     ti3, v = _import(mxf, ti2)
     g = i1p_grid_of(ti3)
-    assert g.pages == 4 and g.misplaced > 0
+    assert (g.pages, g.misplaced, g.located) == (len(split), 0, g.patches)
+    assert v.ok and v.turned_order, v.reason
+
+
+def test_a_page_filled_to_capacity_with_the_rest_last_is_filed(chart_600,
+                                                               tmp_path):
+    """The reviewer's case: 12 + 12 + 1 rows ("fill each page, the rest
+    last"), which an "even" model (9 + 8 + 8) would have refused."""
+    ti2, files, plan = chart_600
+    mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "cap.mxf", columns=24,
+               pages=3, per_page=[12, 12, 1])
+    one = _filed(_mxf(files.txf("i1Pro 3"), tmp_path / "one.mxf",
+                      columns=24), ti2)
+    cap = _filed(mxf, ti2)
+    g = i1p_grid_of(cap)
+    assert (g.rows, g.pages, g.misplaced) == (12, 3, 0)
+    assert _data_rows(cap) == _data_rows(one)
+
+
+def _shift_page(mxf: Path, page: int, by: int) -> Path:
+    """Every Location on *page* moves *by* rows down (a gap at its top)."""
+    text = mxf.read_text(encoding="utf-8")
+    pat = re.compile(r'(<cc:Tag Name="Page" Value="%d"/>'
+                     r'<cc:Tag Name="Row" Value=")(\d+)(")' % page)
+    text, n = pat.subn(lambda m: f"{m.group(1)}{int(m.group(2)) + by}"
+                       f"{m.group(3)}", text)
+    assert n
+    mxf.write_text(text, encoding="utf-8")
+    return mxf
+
+
+def test_a_page_that_does_not_start_at_its_first_row_is_refused(chart_600,
+                                                                tmp_path):
+    """Page 2's rows start at row 1 instead of row 0: counted on over the
+    pages, every patch from page 2 on sits one row off its cell, so the file
+    is refused, with how many patches are outside their cell."""
+    ti2, files, plan = chart_600
+    mxf = _shift_page(_mxf(files.txf("i1Pro 3"), tmp_path / "gap.mxf",
+                           columns=24, pages=5), 2, 1)
+    ti3, v = _import(mxf, ti2)
+    g = i1p_grid_of(ti3)
+    assert g.misplaced > 0
     assert not v.ok and not v.turned_order
     assert (f"does not give {g.misplaced} of its {g.patches} patches the "
             "place") in v.reason
@@ -182,7 +235,11 @@ def test_pages_without_locations_are_refused(chart_600, tmp_path):
     g = i1p_grid_of(ti3)
     assert (g.pages, g.located) == (5, 0)
     assert not v.ok and not v.turned_order
-    assert "does not give 600 of its 600 patches the place" in v.reason
+    # its own clause (review 4.3.21 r1), not "does not give 600 of its 600"
+    assert ("the file records no place on those pages for any of its "
+            "patches") in v.reason
+    assert "does not give" not in v.reason
+    assert v.reason.endswith("import that file")
 
 
 def test_the_note_allows_pages_and_still_says_stop_for_other_columns(
@@ -243,3 +300,19 @@ def test_the_measure_tab_files_a_paged_turned_mxf(qapp, tmp_path,
     assert seen["refused"] == [], seen["refused"]
     new_dir = _the_only_new_run(proj.root, before)
     _well_filed(new_dir / "M.ti3", new_dir / "M.ti2", truth)
+
+
+def test_the_note_of_a_chart_of_several_sheets_allows_pages(chart_600):
+    """Step 6's sheets line agrees with step 5 (review 4.3.21 r1)."""
+    ti2, files, plan = chart_600
+    assert plan.sheets == 2
+    note = files.note.read_text(encoding="utf-8")
+    assert "This chart has 2 sheets." in note
+    assert "or on several pages if it shares them out as step 5 describes" in note
+
+
+def test_the_too_tall_refusal_no_longer_says_pages_cannot_match():
+    import inspect
+    src = inspect.getsource(T.plan_for)
+    assert "no longer match the printed sheets" not in src
+    assert "has not been checked yet" in src
