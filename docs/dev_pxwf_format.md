@@ -141,6 +141,27 @@ When present, each Object gets:
   grid its order file names (`reference_convert.cxf_measurement_to_ti3`
   writes them into the converted `.ti3` as `CHROMIQ_I1P_GRID`;
   `i1profiler_turned.grid_mismatch` compares them).
+- **The same grid cut over pages is the same grid** (4.3.21, forum report by
+  jctay, 2026-11-02). When i1Profiler's page is shorter than the chart it
+  keeps the columns and shares the rows out over pages. In the FILE the
+  Location `Row` counts within each page (0 to 9 on each of jctay's five
+  pages of 10 rows); on SCREEN i1Profiler carries on counting ("Measuring
+  row 11 on page 2", "row 21 on page 3" ...). The row of the whole grid is
+  therefore the rows on the earlier pages plus `Row`, which is what
+  `i1p_location` computes in reverse. Measured on his two `.mxf` files of
+  one 600-patch sheet (12 x 50 on 1 page, and 12 x 10 on 5 pages,
+  `NumberPatchRows="10" NumberPatchPages="5"`, `PageHeight` 440 and 120 mm,
+  patch size 10 x 7.9 mm in both): all 600 Targets of the paged file, mapped
+  that way, land on the cell of the same entry in the one-page file, with the
+  same device values, and the M0/M1/M2 objects carry the same Location as the
+  Target of the same index in both files. The import files such a file when
+  every patch is located and none is misplaced, and refuses it otherwise.
+  How many rows each page holds is taken from the file's own Locations (the
+  highest `Row` on that page, plus one; `reference_convert._cxf_i1p_grid`),
+  not from `i1p_page_rows`: every split seen so far fits both "even, larger
+  pages first" and "fill each page, the rest last", so the rule itself is
+  still open (review 4.3.21 r1). `i1p_page_rows` stays what `write_pwxf`
+  writes.
 - `SampleID = -1` and `SampleName = ""` for **every** patch — the layout is
   purely positional, not name-keyed. We don't need to invent IDs.
 

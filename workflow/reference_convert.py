@@ -471,7 +471,9 @@ class I1pGrid:
     (1 when absent). *patches* is the number of Target objects, *located*
     how many of them carry a whole Location tag (Page, Row, Column), and
     *misplaced* how many of THOSE are not in the cell i1Profiler's own fill
-    rule gives that entry on this grid (``i1profiler_export.i1p_location``).
+    rule gives that entry on this grid (``i1profiler_export.i1p_location``);
+    on more than one page, with the rows of each page taken from the file's
+    own Locations and counted on over the pages (4.3.21).
     A file with every Target located and none misplaced is a file whose
     every patch sits where the grid says; comparing the grid with another
     one then compares every cell."""
@@ -545,9 +547,8 @@ def _cxf_i1p_grid(root, targets) -> "I1pGrid | None":
         return None
     n = len(targets)
     rows_total = -(-n // cols)
-    per_page = i1p_page_rows(rows_total, pages)
-    located = misplaced = 0
-    for j, o in enumerate(targets):
+    cells = []
+    for o in targets:
         tags = {}
         for tc in o.findall("cc:TagCollection", _CXF_NS):
             if tc.get("Name") != "Location":
@@ -555,8 +556,31 @@ def _cxf_i1p_grid(root, targets) -> "I1pGrid | None":
             for t in tc.findall("cc:Tag", _CXF_NS):
                 tags[t.get("Name")] = t.get("Value")
         try:
-            cell = (int(tags["Page"]), int(tags["Row"]), int(tags["Column"]))
+            cells.append((int(tags["Page"]), int(tags["Row"]),
+                          int(tags["Column"])))
         except (KeyError, TypeError, ValueError):
+            cells.append(None)
+    per_page = i1p_page_rows(rows_total, pages)
+    if pages > 1:
+        # THE SPLIT IS THE FILE'S OWN (4.3.21, review r1). How i1Profiler
+        # shares rows out over pages has been seen only where both readings
+        # agree (23 + 23 + 22, 13 + 13 + 13, 10 x 5): "even, larger pages
+        # first" and "fill each page, the rest last" fit them alike. So the
+        # rows on page k are read from the Locations themselves (the highest
+        # row on that page, plus one), and every cell is then checked against
+        # the rows counted on over the pages. A file whose pages are not one
+        # grid cut into consecutive blocks of rows (a gap, a page missing its
+        # top rows, rows that do not add up) puts patches outside their cell
+        # and is counted so; it is never fitted to make it agree.
+        tops: dict = {}
+        for c in cells:
+            if c is not None and c[0] >= 1 and c[1] >= 0:
+                tops[c[0]] = max(tops.get(c[0], -1), c[1])
+        if tops:
+            per_page = [tops.get(k, -1) + 1 for k in range(1, max(tops) + 1)]
+    located = misplaced = 0
+    for j, cell in enumerate(cells):
+        if cell is None:
             continue
         located += 1
         try:

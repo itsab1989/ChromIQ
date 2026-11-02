@@ -68,18 +68,22 @@ def _loc_xml(cell) -> str:
 
 def _mxf(txf: Path, out: Path, *, columns: int, pages: int = 1,
          locations: "str" = "rule", swap: "tuple | None" = None,
-         attributes: bool = True) -> Path:
+         attributes: bool = True, per_page: "list | None" = None) -> Path:
     """An .mxf shaped like i1Profiler's own (X-Rite's RGB_default-i1Pro.mxf):
     Target objects in patch-list order with the device values of *txf*,
     M0/M1/M2 measurement objects index-aligned, and the CustomAttributes with
     the grid i1Profiler made: *columns* columns, its rows shared out over
     *pages* pages. *locations*: "rule" (the cell i1Profiler's fill rule
     gives), "none" (no Location tags). *swap* exchanges the Locations of two
-    entries (the readings and device values stay where they are)."""
+    entries (the readings and device values stay where they are).
+    *per_page* overrides how the rows are shared out over the pages (another
+    split than i1Profiler's, for the tests that need one)."""
     rgb = _rgbs(txf)
     n = len(rgb)
     rows_total = -(-n // columns)
-    per_page = i1p_page_rows(rows_total, pages)
+    if per_page is None:
+        per_page = i1p_page_rows(rows_total, pages)
+    assert len(per_page) == pages and sum(per_page) == rows_total
     cells = [i1p_location(j, rows_total, per_page) for j in range(n)]
     if swap is not None:
         a, b = swap
@@ -217,11 +221,13 @@ def test_grid_attributes_without_locations_are_judged_by_the_grid(
 
 # ---- the grid split over pages ------------------------------------------
 
-def test_the_planned_grid_split_over_two_pages_is_refused(turned_chart,
-                                                          tmp_path):
-    """The .txf asks for ONE tall page. i1Profiler shares rows out over its
-    pages (i1p_grid's model), which no longer matches ChromIQ's sheets; the
-    file's own Locations follow that split and are read as such."""
+def test_the_planned_grid_split_over_two_pages_is_the_same_grid(turned_chart,
+                                                                tmp_path):
+    """The .txf asks for ONE tall page. With a shorter page i1Profiler shares
+    the rows out over its pages and carries on counting them (4.3.21, jctay's
+    forum report): the file's own Locations follow that split, and counted on
+    over the pages every patch is in the turned chart's cell, so it is filed
+    (it was refused in 4.3.19 and 4.3.20)."""
     ti2, files, plan = turned_chart
     mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "two.mxf",
                columns=plan.columns, pages=2)
@@ -229,10 +235,10 @@ def test_the_planned_grid_split_over_two_pages_is_refused(turned_chart,
     g = i1p_grid_of(ti3)
     assert (g.pages, g.misplaced, g.located) == (2, 0, len(plan.order))
     assert g.rows == -(-plan.rows // 2)
-    assert not v.ok and "pages: 2" in v.reason
+    assert v.ok and v.turned_order, v.reason
 
 
-# ---- review 4.3.19 r1, SF-1: only the PAGES differ ----------------------
+# ---- review 4.3.19 r1, SF-1: only the PAGES differ (filed since 4.3.21) ---
 
 @pytest.fixture()
 def chart_360(tmp_path):
@@ -246,26 +252,25 @@ def chart_360(tmp_path):
     return ti2, T.TurnedFiles(exports_subdir(ti2.parent), "P360"), plan
 
 
-def test_360_patches_on_3_pages_is_refused_without_claiming_the_rows_missed(
-        chart_360, tmp_path):
+def test_360_patches_on_3_pages_is_filed_like_one_page(chart_360, tmp_path):
+    """The reviewer's case of 4.3.19 r1, SF-1: refused then with a reason
+    that said i1Profiler "numbered its rows page by page, starting again at
+    row 1 on each page", which jctay's screenshots show to be false (it asks
+    for "row 11 on page 2"). Counted on over the pages it is the note's grid,
+    and filed exactly as the one-page measurement of the same readings."""
     ti2, files, plan = chart_360
     mxf = _mxf(files.txf("i1Pro 3"), tmp_path / "three.mxf",
                columns=24, pages=3)
     ti3, v = _import(mxf, ti2)
     g = i1p_grid_of(ti3)
     assert (g.columns, g.rows, g.pages) == (24, 5, 3)     # "rows: 5" = page 1
-    assert not v.ok                     # still refused: step 5 says stop
-    r = v.reason
-    assert ("i1Profiler kept the 24 columns that the how-to note for this "
-            "chart names, but it cut the chart over 3 pages") in r
-    assert "columns: 24, rows: 15, pages: 1" in r            # the note's grid
-    assert "columns: 24, pages: 3, rows on its first page: 5" in r
-    assert "numbered its rows page by page" in r
-    # Not the claim the review found false for this case:
-    assert "did not line up with the strips" not in r
-    assert "were taken on other patches" not in r
-    assert "rows: 5" not in r
-    assert r.endswith("import that file")
+    assert v.ok and v.turned_order, v.reason
+    one, v1 = _import(_mxf(files.txf("i1Pro 3"), tmp_path / "one.mxf",
+                           columns=24), ti2)
+    assert v1.ok and v1.turned_order, v1.reason
+    assert complete_from_turned_order(ti3, ti2) == 360
+    assert complete_from_turned_order(one, ti2) == 360
+    assert _xyz_by_sid(ti3) == _xyz_by_sid(one)
 
 
 def test_other_columns_on_several_pages_name_the_first_pages_rows(chart_360,
@@ -281,20 +286,25 @@ def test_other_columns_on_several_pages_name_the_first_pages_rows(chart_360,
             in v.reason)
     assert "did not line up with the strips" in v.reason
     assert "kept the" not in v.reason
+    assert complete_from_turned_order(ti3, ti2) == 0
 
 
-def test_the_three_grid_reasons_are_chosen_by_columns_and_pages():
+def test_the_grid_reasons_are_chosen_by_columns_and_pages():
     from workflow import measurement_messages as M
     one = M.turned_grid_differs_reason(24, 15, 25, 15, 1)
     paged = M.turned_grid_differs_reason(24, 15, 25, 5, 3)
-    pages = M.turned_grid_differs_reason(24, 15, 24, 5, 3)
+    cells = M.turned_grid_paged_cells_reason(24, 15, 5, 3, 2, 360)
     assert "columns: 25, rows: 15, pages: 1" in one
     assert "rows on its first page: 5" in paged
     assert "did not line up" in one and "did not line up" in paged
-    assert "cut the chart over 3 pages" in pages
-    assert "did not line up" not in pages
-    for text in (one, paged, pages):
+    assert "cut the chart over 3 pages, with 5 rows on its first page" in cells
+    assert "does not give 2 of its 360 patches the place" in cells
+    assert "did not line up" not in cells
+    # 4.3.19's claim, false by jctay's screenshots, is said nowhere
+    for text in (one, paged, cells):
         assert "{" not in text and "—" not in text
+        assert "page by page" not in text
+        assert "starting again at row 1" not in text
 
 
 # ---- a measurement of 4.3.17's anticlockwise .txf -------------------------
@@ -398,7 +408,7 @@ def test_both_reasons_are_the_catalogues_and_end_with_the_way_out():
     from workflow import measurement_messages as M
     a = M.turned_grid_differs_reason(24, 21, 25, 21, 1)
     b = M.turned_grid_cells_differ_reason(24, 21, 3, 504)
-    c = M.turned_grid_differs_reason(24, 21, 24, 7, 3)
+    c = M.turned_grid_paged_cells_reason(24, 21, 7, 3, 3, 504)
     d = M.turned_grid_differs_reason(24, 21, 25, 7, 3)
     for text in (a, b, c, d):
         assert "{" not in text and "—" not in text
@@ -407,7 +417,8 @@ def test_both_reasons_are_the_catalogues_and_end_with_the_way_out():
         assert "-i1profiler-turned-how-to.txt" in text
     assert not M.M_IMPORT_TURNED_GRID.approved
     for part in (M._TURNED_GRID_DIFFERS, M._TURNED_GRID_DIFFERS_PAGED,
-                 M._TURNED_GRID_PAGES, M._TURNED_GRID_CELLS_DIFFER,
+                 M._TURNED_GRID_CELLS_DIFFER, M._TURNED_GRID_PAGED_CELLS,
+                 M._TURNED_GRID_PAGED_NO_PLACE,
                  M._TURNED_GRID_WHAT_TO_DO):
         assert part in M.M_IMPORT_TURNED_GRID.body
 
