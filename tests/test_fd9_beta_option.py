@@ -526,3 +526,30 @@ def test_the_beta_row_credits_lessbones_and_says_restart(qapp, tmp_path):
         assert dlg._fd9_support_restart_hint.isHidden() is True
     finally:
         dlg.deleteLater()
+
+
+def test_the_layout_panel_greys_only_what_the_fd9_ignores(qapp):
+    """Output, Printer calibration and Randomisation are honoured for the
+    FD-9 and stay live; the geometry controls are greyed with the reason and
+    come back exactly as they were (found on screen: the first cut greyed
+    everything, because those groups sit inside Basic / Expert Options)."""
+    from ui.dialogs.layout_options_panel import (LayoutOptionsPanel,
+                                                 fd9_greyed_reason)
+    p = LayoutOptionsPanel(None, with_selectors=True, with_calibration=True)
+    try:
+        margin = next(iter(p.margins.values()))
+        tip_before = margin.toolTip()
+        p.instr.setCurrentIndex(p.instr.findData("FD9"))
+        p._sync_instrument_widgets("FD9")
+        for live in (p.compression, p.bit_depth, p.export_pdf,
+                     p.randomize_cb, p.dpi):
+            assert live.isEnabled(), live
+        assert p.dpi.maximum() == 600
+        assert not margin.isEnabled()
+        assert margin.toolTip() == fd9_greyed_reason()
+        p.instr.setCurrentIndex(p.instr.findData("i1"))
+        p._sync_instrument_widgets("i1")
+        assert margin.isEnabled() and margin.toolTip() == tip_before
+        assert p.dpi.maximum() == 1200
+    finally:
+        p.deleteLater()
