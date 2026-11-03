@@ -3600,6 +3600,74 @@ class SettingsDialog(QDialog):
         _i1prow.addWidget(i1p_turned_tip)
         _beta.addLayout(_i1prow)
 
+        # Konica Minolta FD-9 support (PR #213, written and contributed by
+        # lessbones). Restart-to-apply: `workflow.fd9.support` reads it once
+        # per run, so the lists built at start-up and the Measure tab agree.
+        self._fd9_support_check = QCheckBox(
+            tr("Konica Minolta FD-9 support (beta)"), self)
+        fd9_support_tip = TooltipButton(
+            tr("Konica Minolta FD-9 support (beta)"),
+            "\n\n".join((
+                tr("FD-9 support was written and contributed by lessbones. "
+                   "Thank you!"),
+                tr("The Konica Minolta FD-9 is an automatic chart reader. You "
+                   "feed it a printed chart, it pulls the sheet in, finds the "
+                   "patches by itself and measures them row by row, with no "
+                   "ruler and no strips to swipe by hand."),
+                tr("ChromIQ talks to the FD-9 directly over your network "
+                   "(Ethernet), with its own driver. You do not need any "
+                   "Konica Minolta software, and none of it is used. The FD-9 "
+                   "has to be switched on and connected to the same network as "
+                   "this computer, and no other program may be talking to it "
+                   "while ChromIQ measures."),
+                tr("What turning this on adds, after a restart of ChromIQ:\n"
+                   "  •  Create Chart: \"FD-9\" in the Instrument list of "
+                   "Guided and of Manual. An FD-9 chart has its own sheet "
+                   "sizes, a \"Custom sheet…\" button and its own patch width, "
+                   "patch height and gap.\n"
+                   "  •  Measure: when an FD-9 chart is loaded, a row with the "
+                   "measurement condition (M0, M1 or M2), Resume and \"FD-9 "
+                   "setup…\", where you enter the FD-9's network address. "
+                   "Start then measures the sheet in the FD-9."),
+                tr("The limits of this first version:\n"
+                   "  •  one sheet per chart (no charts over several pages);\n"
+                   "  •  patches from 6 to 30 mm wide and high;\n"
+                   "  •  sheets from 137 to 330 mm wide and from 170 to 660 mm "
+                   "long, measured the way the sheet goes into the FD-9;\n"
+                   "  •  only FD-9 firmware 1.0.0.2. ChromIQ refuses to measure "
+                   "with any other version rather than guess;\n"
+                   "  •  it has been tested on one FD-9, on macOS only."),
+                tr("How to feed the sheet: arrow first, with the printed side "
+                   "facing up. The FD-9 finds the four small black squares in "
+                   "the corners, but it cannot tell a sheet that is turned "
+                   "round or a different chart with the same grid. Such a "
+                   "sheet would be measured as if it were the right one. So "
+                   "after measuring, look at the measured colours next to the "
+                   "expected ones in the Measure tab's preview: if many "
+                   "patches are far off, the wrong sheet or the wrong way "
+                   "round is the likely reason."),
+                tr("If you turn this off again, an FD-9 chart stays as it is, "
+                   "and ChromIQ tells you when you press Start that it needs "
+                   "FD-9 support to measure it."),
+                tr("With this off (the default), nothing changes: the FD-9 is "
+                   "not offered anywhere and ChromIQ works exactly as before."),
+                tr("The change takes effect the next time you start ChromIQ."),
+                tr("**Default:** off"))),
+            self,
+            min_width=680,
+        )
+        self._fd9_support_restart_hint = QLabel(
+            tr("Takes effect after you restart ChromIQ."), self)
+        _ink(self._fd9_support_restart_hint, "#e6a23c", " font-size: 11px;")
+        self._fd9_support_restart_hint.setVisible(False)
+        self._fd9_support_check.toggled.connect(self._fd9_support_toggled)
+        _fd9row = QHBoxLayout()
+        _fd9row.addWidget(self._fd9_support_check)
+        _fd9row.addStretch()
+        _fd9row.addWidget(fd9_support_tip)
+        _beta.addLayout(_fd9row)
+        _beta.addWidget(self._fd9_support_restart_hint)
+
         # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
         #
         # The setting existed and the changelog told users to reach for it, but
@@ -6201,6 +6269,9 @@ class SettingsDialog(QDialog):
             bool(s.get("scanner_hex_charts", False)))
         self._i1p_turned_check.setChecked(
             bool(s.get("i1profiler_turned_export", False)))
+        self._fd9_support_check.setChecked(
+            bool(s.get("fd9_support_beta", False)))
+        self._fd9_support_toggled()
         self._splash_classic_check.setChecked(bool(s.get("splash_classic", False)))
         self._engine_all_modes_check.setChecked(
             bool(s.get("engine_all_modes", False)))
@@ -6392,6 +6463,13 @@ class SettingsDialog(QDialog):
         setting = self._appearance_combo.currentData()
         mode = apply_appearance(app, main_window, str(setting))
         self._apply_indicator_theme(mode)
+
+    def _fd9_support_toggled(self, *_a) -> None:
+        """FD-9 support is restart-to-apply (`workflow.fd9.support`): say so
+        while the box differs from what THIS run of ChromIQ is using."""
+        from workflow.fd9.support import fd9_enabled
+        self._fd9_support_restart_hint.setVisible(
+            self._fd9_support_check.isChecked() != fd9_enabled())
 
     def _on_language_changed(self, _index: int) -> None:
         # Language is restart-to-apply (strings are translated at widget
@@ -7601,6 +7679,7 @@ class SettingsDialog(QDialog):
               self._calibrate_button_check.isChecked())
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
+        s.set("fd9_support_beta", self._fd9_support_check.isChecked())
         s.set("splash_classic", self._splash_classic_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
         from core.settings import store_compliance_overrides

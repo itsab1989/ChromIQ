@@ -443,7 +443,7 @@ parameters:
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan（平板）"
         - "CR30 (ChnSpec, patch by patch)"
-        - "FD-9 (Konica Minolta)"
+        - "FD-9"
         - "i1iSis（经i1Profiler）"
     "-h":
       name: "双倍密度"

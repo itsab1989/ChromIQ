@@ -271,6 +271,15 @@ DEFAULTS: dict[str, Any] = {
     #: of 4.3.16; the layout is measured in i1Profiler 3.8.8, a real read with
     #: an instrument is not tested yet.
     "i1profiler_turned_export":  False,
+    #: Beta (Settings -> Beta): Konica Minolta FD-9 support, written and
+    #: contributed by lessbones (PR #213). Off = exactly 4.3.21: no FD-9 in
+    #: any list, no FD-9 panel, no chart read for it. Restart to apply
+    #: (`workflow.fd9.support`).
+    "fd9_support_beta":          False,
+    #: The FD-9's Ethernet address (moved here from a separate QSettings
+    #: domain, so CHROMIQ_SETTINGS_FILE sandboxes it too). Only read or
+    #: written while FD-9 support is on.
+    "fd9_host":                  "",
     # Qt's QSplashScreen burns ~1 s inside its own show() waiting on a
     # condition that never becomes true; the plain window paints the same
     # pixmap in 9-66 ms. This restores the old one if it ever matters.

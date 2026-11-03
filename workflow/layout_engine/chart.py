@@ -333,7 +333,8 @@ def build_chart(
                          randomize=randomize, seed=seed, bit16=bit16,
                          cal_path=cal_path, apply_cal=apply_cal, export_pdf=export_pdf,
                          ramps_per_strip=ramps_per_strip, patch_mm=patch_w or 8.0,
-                         patch_height_mm=patch_h, gap_mm=fd9_gap)
+                         patch_height_mm=patch_h, gap_mm=fd9_gap,
+                         compression=compression)
     target = ti1_reader.read_ti1(ti1_path)
     # What goes on paper. Differs from `target` only under -K.
     printed = target

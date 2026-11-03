@@ -1,5 +1,6 @@
 """FD-9 generated pixels, physical identity, and native GUI routing."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import json
 import numpy as np
 import pytest

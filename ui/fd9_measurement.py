@@ -1,35 +1,59 @@
-"""Normal Measure-tab FD9 routing. Device work stays off the GUI thread."""
+"""Measure-tab routing for the Konica Minolta FD-9. Device work stays off the
+GUI thread.
 
-from pathlib import Path
+FD-9 support was written and contributed by lessbones (PR #213). It is a Beta
+(Preferences > Beta, restart to apply, `workflow.fd9.support`): with it off,
+`TabMeasure` never builds the FD-9 panel (`_init_fd9_panel` is not called), so
+`_fd9_on()` is False, every hook in the tab answers "not an FD-9 chart" without
+reading a file, and nothing here runs. `workflow.fd9.measurement` and the
+vendored driver are imported only from inside the methods, so with the option
+off they are not even loaded (`tests/test_fd9_off_changes_nothing.py`).
+
+Every window here takes its text from the §M catalogue
+(`workflow.measurement_messages`, M-FD9-*), through `_fd9_window`.
+"""
+
+import re
 import threading
 from dataclasses import replace
-from PyQt6.QtCore import QThread, pyqtSignal, QSettings
+from pathlib import Path
+
+from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
-    QComboBox,
-    QPushButton,
-    QCheckBox,
-    QDialog,
-    QVBoxLayout,
-    QFormLayout,
     QLineEdit,
-    QDialogButtonBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from core.i18n import tr
-from core.thread_stack import roomy
+
 from core import instrument_lease
+from core.i18n import tr
 from core.keep_awake import keep_awake
-from workflow.fd9.measurement import (
-    FD9Settings,
-    is_fd9_chart,
-    checked_chart,
-    measure_chart,
-    publish_measurement,
-    resume_plan,
-    sha,
-)
+from core.logger import get_logger
+from core.thread_stack import roomy
+
+log = get_logger(__name__)
+
+#: FD-9 jobs that have been started and may not have finished yet.
+#:
+#: NOT PARENTED TO THE TAB, for the reason `workflow/cr30/measure_bridge.py`
+#: records for its `_LIVE`: a QThread destroyed while it still runs calls
+#: qFatal(), and a parent and its thread in a reference cycle are freed by the
+#: cyclic collector at an arbitrary moment. Holding the job here keeps it
+#: reachable until it has said it is finished (review M11).
+_LIVE_JOBS: "list[QThread]" = []
+
+
+def _measure_chart(*args, **kwargs):
+    from workflow.fd9.measurement import measure_chart
+    return measure_chart(*args, **kwargs)
 
 
 class FD9Job(QThread):
@@ -40,13 +64,13 @@ class FD9Job(QThread):
     result = pyqtSignal(object)
     failed = pyqtSignal(str, bool)
 
-    def __init__(self, chart, settings, session, parent=None, action=measure_chart):
+    def __init__(self, chart, settings, session, parent=None, action=None):
         super().__init__(parent)
         roomy(self)
         self.chart = chart
         self.settings = settings
         self.session = session
-        self.action = action
+        self.action = action or _measure_chart
         self.stop_event = threading.Event()
         self.new_readings = 0
 
@@ -75,26 +99,72 @@ class FD9Job(QThread):
         self.stop_event.set()
 
 
+def condition_help() -> "tuple[str, str]":
+    """The (i) beside the M0 / M1 / M2 choice: title and text."""
+    return tr("Measurement condition (M0, M1, M2)"), "\n\n".join((
+        tr("M0, M1 and M2 are the measurement conditions of the ISO 13655 "
+           "standard. They differ in how much ultraviolet light is in the light "
+           "the FD-9 measures with, and that matters for papers with optical "
+           "brighteners (OBAs). Brighteners are added to many papers to make "
+           "them look whiter: they turn invisible ultraviolet light into "
+           "visible blue light, so the paper looks bluer and brighter the more "
+           "ultraviolet there is."),
+        tr("  •  M1 is like daylight (D50), with its ultraviolet, so the "
+           "brighteners glow as they do in daylight. It is the usual choice "
+           "for printing today and the default here. If you are not sure, "
+           "choose M1.\n"
+           "  •  M2 leaves the ultraviolet out (UV cut), so the brighteners do "
+           "not glow. Choose it when your prints will be looked at under light "
+           "with little or no ultraviolet, such as many indoor and LED lights, "
+           "or when you want to compare with other M2 measurements.\n"
+           "  •  M0 is how many older instruments measure, with a lamp whose "
+           "ultraviolet is not defined. Choose it only to compare with older "
+           "measurements made that way."),
+        tr("On a paper without brighteners the three give almost the same "
+           "colours. On a paper with them, M1 and M2 can differ clearly, "
+           "mostly in the paper white and the light colours."),
+        tr("The FD-9 measures all three at once, but ChromIQ saves the "
+           "measurement for the one condition chosen here when you press "
+           "Start. Resume continues only with the same condition, so keep it "
+           "the same until the chart is finished."),
+        tr("**Default:** M1"),
+    ))
+
+
+def setup_note() -> str:
+    """The explanation in the FD-9 setup window."""
+    return tr(
+        "ChromIQ measures with the FD-9 directly over your network, with its "
+        "own driver. It reads the FD-9's own factory calibration from the "
+        "instrument, so no Konica Minolta software, conversion profile or "
+        "reference measurement is needed.\n\n"
+        "Enter the address the FD-9 has on your network (an IP address such as "
+        "192.168.1.50). The FD-9 and this computer must be on the same "
+        "network, and no other program may be connected to the FD-9 while "
+        "ChromIQ measures.\n\n"
+        "FD-9 support is a beta and has been tested on one FD-9 with firmware "
+        "1.0.0.2, on macOS.")
+
+
 class FD9Setup(QDialog):
+    """The FD-9's network address, kept in AppSettings ("fd9_host") so that
+    CHROMIQ_SETTINGS_FILE sandboxes it like every other setting (review M3)."""
+
     def __init__(self, settings, parent=None):
         super().__init__(parent)
+        self.setObjectName("fd9_setup")
         self.setWindowTitle(tr("FD-9 setup"))
-        self.resize(650, 420)
+        self.resize(560, 300)
         self.store = settings
-        self.inputs = {}
         layout = QVBoxLayout(self)
-        form = QFormLayout()
-        layout.addLayout(form)
-        edit = QLineEdit(str(settings.value("host", "")))
-        self.inputs["host"] = edit
-        form.addRow(tr("Ethernet address"), edit)
-        note = QLabel(
-            tr(
-                "The independent driver uses the FD-9’s own factory characterization. No conversion profile, reference measurement or manufacturer host software is required. Disconnect other FD-9 clients before measuring. This driver is experimental and has been tested on one FD-9."
-            )
-        )
+        note = QLabel(setup_note())
         note.setWordWrap(True)
         layout.addWidget(note)
+        form = QFormLayout()
+        layout.addLayout(form)
+        self.host = QLineEdit(str(settings.get("fd9_host", "") or ""))
+        self.host.setPlaceholderText("192.168.1.50")
+        form.addRow(tr("Network address:"), self.host)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -103,14 +173,91 @@ class FD9Setup(QDialog):
         layout.addWidget(buttons)
 
     def save(self):
-        for key, edit in self.inputs.items():
-            self.store.setValue(key, edit.text().strip())
+        self.store.set("fd9_host", self.host.text().strip())
         self.accept()
 
 
+#: The driver's English progress lines, and what the log says instead. The
+#: driver is lessbones' package and stays as he wrote it; the user reads these.
+def _progress_line(text: str) -> "tuple[str | None, str]":
+    """(stage, line for the log) for one progress line of the driver."""
+    if text.startswith("Remove any previously ejected sheet"):
+        return "prepare", tr(
+            "If a sheet from an earlier measurement is still in or at the "
+            "FD-9, take it out completely. Keep this chart outside until the "
+            "FD-9 is ready for it.")
+    if text.startswith("FD9 insertion screen ready"):
+        return "insert", tr(
+            "The FD-9 is ready: insert the chart now, arrow first and printed "
+            "side up.")
+    if text.startswith("Sheet detected"):
+        return "sheet_in", tr(
+            "The FD-9 has the sheet and is looking for the chart on it.")
+    m = re.match(r"Four marks verified\. Measuring (\d+) ", text)
+    if m:
+        return "measuring", tr(
+            "The FD-9 found the chart. Measuring {n} patches.").format(
+                n=int(m.group(1)))
+    m = re.match(r"FD9 measurement: (\d+)/(\d+) patches", text)
+    if m:
+        return None, tr("FD-9: {count} of {total} patches measured.").format(
+            count=int(m.group(1)), total=int(m.group(2)))
+    if text.startswith("Measurement complete."):
+        return "done", tr(
+            "The FD-9 has finished measuring. Take the sheet completely out of "
+            "the FD-9, past its paper sensor, before you start another "
+            "measurement.")
+    return None, text
+
+
+def fd9_error_kind(message: str) -> str:
+    """Which M-FD9-* window an error belongs to."""
+    low = str(message or "").lower()
+    if "unsupported sensor model version" in low:
+        return "firmware"
+    if any(k in low for k in (
+            "isolated square marks", "marks do not form", "chart skew",
+            "grid must lie within the marks", "measurement cell lies outside")):
+        return "marks"
+    if low.startswith("resume") or any(k in low for k in (
+            "only a consistent partial measurement can resume",
+            "saved measurement printer calibration differs",
+            "resume requires", "resume needs", "resume measurement",
+            "resume factory", "resume spectral", "resume conversion",
+            "pending measurement belongs to another chart")):
+        return "resume"
+    if "operator stopped" in low:
+        return "stopped"
+    if any(k in low for k in (
+            "timed out", "connection refused", "no route to host",
+            "network is unreachable", "host is down", "closed the connection",
+            "deadline expired", "registration was declined", "errno",
+            "nodename nor servname", "name or service not known",
+            "connection reset", "broken pipe", "not connected")):
+        return "connection"
+    return "failed"
+
+
 class FD9MeasureMixin:
+    #: Class defaults, so every hook in TabMeasure can ask without getattr and
+    #: with FD-9 support off the answers are the "nothing here" ones.
+    _fd9_live = False
+    _fd9_pending = None
+    _fd9_job = None
+    _fd9_shown = False
+    _fd9_scan_preview = None
+    _fd9_readings = 0
+    _fd9_choice = None
+
+    def _fd9_on(self) -> bool:
+        """True when this tab has FD-9 support (the Beta was on at start-up)."""
+        return "_fd9_panel" in self.__dict__
+
     def _init_fd9_panel(self, layout):
-        self._fd9_store = QSettings("ChromIQ", "IndependentFD9")
+        """Build the FD-9 row. Called by TabMeasure only while FD-9 support is
+        on (`workflow.fd9.support.fd9_enabled`)."""
+        from ui.tooltip_button import TooltipButton
+
         self._fd9_live = False
         self._fd9_job = None
         self._fd9_awake = False
@@ -125,65 +272,202 @@ class FD9MeasureMixin:
         self._fd9_ordered_locations = []
         self._fd9_prior_count = 0
         self._fd9_prior_measurement = None
-        self._fd9_panel = QWidget(self)
-        row = QHBoxLayout(self._fd9_panel)
+        self._fd9_shown = False
+        self._fd9_sheet_in = False
+        self._fd9_insert_box = None
+        self._fd9_session = None
+        panel = QWidget(self)
+        panel.setObjectName("fd9_panel")
+        row = QHBoxLayout(panel)
         row.setContentsMargins(0, 0, 0, 0)
         row.addWidget(QLabel(tr("FD-9 condition:")))
         self._fd9_condition = QComboBox()
+        self._fd9_condition.setObjectName("fd9_condition")
         # ISO condition identifiers are language-independent profile values.
         for condition in ("M0", "M1", "M2"):
             self._fd9_condition.addItem(condition, condition)
         self._fd9_condition.setCurrentText("M1")
         row.addWidget(self._fd9_condition)
+        row.addWidget(TooltipButton(*condition_help(), self, min_width=620))
         self._fd9_resume = QCheckBox(tr("Resume"))
+        self._fd9_resume.setObjectName("fd9_resume")
+        self._fd9_resume.setToolTip(tr(
+            "Continue this chart's measurement from the first row the FD-9 has "
+            "not measured yet. Insert the same sheet again; the rows already "
+            "measured are kept. Offered when the chart is partly measured."))
         self._fd9_resume.toggled.connect(self._fd9_resume_changed)
         row.addWidget(self._fd9_resume)
         self._fd9_setup_btn = QPushButton(tr("FD-9 setup…"))
+        self._fd9_setup_btn.setObjectName("fd9_setup_button")
+        self._fd9_setup_btn.setToolTip(tr(
+            "Enter the FD-9's network address."))
         self._fd9_setup_btn.clicked.connect(self._configure_fd9)
         row.addWidget(self._fd9_setup_btn)
-        layout.addWidget(self._fd9_panel)
-        self._fd9_panel.hide()
+        row.addStretch()
+        layout.addWidget(panel)
+        panel.hide()
+        self._fd9_panel = panel
 
+    # ---- windows (text from the §M catalogue only) ------------------------
+    def _fd9_window(self, message, **kw):
+        """One M-FD9-* window: the catalogue's text, in the log and on screen.
+        Returns the box after it closed (tests replace this method)."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M  # noqa: F401 (catalogue)
+        title, body = message.render(**kw)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
+        return box
+
+    def _fd9_show_insert_window(self):
+        """M-FD9-INSERT-SHEET, NOT modal: the worker is waiting for the sheet
+        and the window closes by itself once the FD-9 has it."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        self._fd9_close_insert_window()
+        title, body = M.M_FD9_INSERT_SHEET.render()
+        box = QMessageBox(self)
+        box.setObjectName("fd9_insert_sheet")
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.setModal(False)
+        self._fd9_insert_box = box
+        box.show()
+
+    def _fd9_close_insert_window(self):
+        box = self._fd9_insert_box
+        self._fd9_insert_box = None
+        if box is not None:
+            try:
+                box.close()
+                box.deleteLater()
+            except RuntimeError:
+                pass
+
+    def _fd9_explain_error(self, message, cancelled=False):
+        """Put an error into words, in the window that fits it."""
+        from workflow import measurement_messages as M
+        kind = "stopped" if cancelled else fd9_error_kind(message)
+        sheet_in = bool(getattr(self, "_fd9_sheet_in", False))
+        self._fd9_sheet_in = False
+        if kind == "stopped":
+            if sheet_in:
+                self._fd9_window(M.M_FD9_SHEET_STILL_INSIDE)
+            return
+        reason = str(message or "").replace(
+            "Capture failed; evidence preserved: ", "")
+        if kind == "firmware":
+            self._fd9_window(M.M_FD9_WRONG_FIRMWARE, reason=reason)
+        elif kind == "marks":
+            self._fd9_window(M.M_FD9_MARKS_NOT_FOUND, reason=reason)
+        elif kind == "resume":
+            self._fd9_window(M.M_FD9_RESUME_REFUSED, reason=reason)
+        elif kind == "connection":
+            self._fd9_window(M.M_FD9_NO_CONNECTION, reason=reason,
+                             address=self._fd9_host() or "?")
+        else:
+            self._fd9_window(M.M_FD9_FAILED, reason=reason)
+
+    # ---- state ------------------------------------------------------------
     def _fd9_resume_changed(self, checked):
         self._refresh_start_button_label()
 
     def _configure_fd9(self):
-        FD9Setup(self._fd9_store, self).exec()
+        FD9Setup(self._settings, self).exec()
+
+    def _fd9_host(self) -> str:
+        try:
+            return str(self._settings.get("fd9_host", "") or "").strip()
+        except Exception:  # noqa: BLE001
+            return ""
 
     def _is_fd9_target(self):
+        """True when FD-9 support is on and the loaded chart is an FD-9 chart.
+
+        With FD-9 support off this is False without reading anything."""
+        if not self._fd9_on():
+            return False
         path = getattr(self, "_ti1_path", None)
-        return bool(path and is_fd9_chart(self._chart_file_for(path)))
+        if not path:
+            return False
+        from workflow.fd9.measurement import is_fd9_chart
+        return bool(is_fd9_chart(self._chart_file_for(path)))
+
+    def _fd9_options_locked(self) -> bool:
+        """The chartread options are greyed while an FD-9 chart is loaded:
+        none of them applies to the FD-9 (patch by patch included).
+        `TabMeasure._set_settings_enabled` asks this, so a running read's own
+        lock and this one never overwrite each other (review H3)."""
+        return bool(self._fd9_shown)
 
     def _refresh_fd9_panel(self):
+        """Follow the loaded chart. The option areas change ONLY when the tab
+        enters or leaves an FD-9 chart, and then through the same rule
+        `_set_settings_enabled` applies: never a blanket "enabled" over the
+        lock of a running read (review H3)."""
+        if not self._fd9_on():
+            return
         active = self._is_fd9_target()
-        if hasattr(self, "_fd9_panel"):
-            self._fd9_panel.setVisible(active)
-        for name in ("_g_options", "_m_options", "_m_presets_grp"):
-            widget = getattr(self, name, None)
-            if widget is not None:
-                widget.setEnabled(not active and not self._fd9_live)
-        if active:
-            from workflow.measurement_state import classify, Ti3State
+        self._fd9_panel.setVisible(active)
+        if active != self._fd9_shown:
+            self._fd9_shown = active
+            unlocked = bool(getattr(self, "_settings_unlocked", True))
+            for name in ("_g_options", "_m_options", "_m_presets_grp"):
+                widget = getattr(self, name, None)
+                if widget is not None:
+                    widget.setEnabled(unlocked and not active)
+            btn = getattr(self, "_save_defaults_btn", None)
+            if btn is not None:
+                btn.setEnabled(unlocked and not active)
+            if not active:
+                self._fd9_close_insert_window()
+                if hasattr(self, "_calm_outer"):
+                    self._calm_outer.setVisible(self._current_mode() == "guided")
+        if not active:
+            return
+        from workflow.measurement_state import Ti3State, classify
 
-            chart = self._chart_file_for(self._ti1_path)
-            available = (
-                self._fd9_pending is not None
-                or classify(chart.with_suffix(".ti3"), chart).state is Ti3State.PARTIAL
-            )
-            self._fd9_resume.setVisible(available)
-            if not available:
-                self._fd9_resume.setChecked(False)
-            self._refresh_start_button_label()
-            self._preview.set_no_swipe(True)
+        chart = self._chart_file_for(self._ti1_path)
+        try:
+            partial = classify(chart.with_suffix(".ti3"), chart).state is Ti3State.PARTIAL
+        except Exception:  # noqa: BLE001
+            partial = False
+        available = self._fd9_pending is not None or partial
+        self._fd9_resume.setVisible(available)
+        if not available:
+            self._fd9_resume.setChecked(False)
+        self._refresh_start_button_label()
+        self._preview.set_no_swipe(True)
+        if hasattr(self, "_calm_outer"):
             self._calm_outer.hide()
-            self._save_defaults_btn.setEnabled(False)
-        elif hasattr(self, "_calm_outer"):
-            self._calm_outer.setVisible(self._current_mode() == "guided")
 
+    def _fd9_resumes(self) -> bool:
+        """The FD-9 twin of `_read_builds_on_existing`."""
+        return bool(self._fd9_pending is not None or (
+            not self._fd9_resume.isHidden() and self._fd9_resume.isChecked()))
+
+    # ---- preview ----------------------------------------------------------
     def _fd9_load_preview(self, base_path):
         """Display-only geometry diagram, never a printable chart TIFF."""
         from PIL import Image, ImageDraw
         from PyQt6.QtCore import QRect
+
+        from workflow.fd9.measurement import checked_chart, sha
+        from workflow.fd9.sessions import preview_cache_dir
 
         try:
             chart = self._chart_file_for(base_path)
@@ -210,7 +494,6 @@ class FD9MeasureMixin:
             )
             draw = ImageDraw.Draw(image)
             boxes = {}
-            columns = [[] for _ in layout["rows"][0]]
             for row in layout["rows"]:
                 for c, p in enumerate(row):
                     values = dict(zip(layout["channel_tokens"], p["device_values"]))
@@ -254,7 +537,6 @@ class FD9MeasureMixin:
                         [rect.x(), rect.y(), rect.right(), rect.bottom()], fill=rgb
                     )
                     boxes[locations[p["id"]]] = rect
-                    columns[c].append(rect)
             for x, y in layout["fiducials_mm"]:
                 draw.rectangle(
                     [
@@ -278,23 +560,17 @@ class FD9MeasureMixin:
                 ],
                 fill="black",
             )
-            cache = chart.parent / "cache"
-            cache.mkdir(exist_ok=True)
+            # The run's cache/ (always safe to delete), never a stray cache/
+            # beside a verification chart (review M8).
+            cache = preview_cache_dir(chart)
+            cache.mkdir(parents=True, exist_ok=True)
             path = cache / ("fd9-preview-" + sha(layout_path)[:12] + ".png")
             image.save(path)
             self._tiff_pages = [path]
             self._preview.load_tiff([path])
             self._patch_boxes = [boxes]
-            rects = []
-            for column in columns:
-                rect = QRect(column[0])
-                for r in column[1:]:
-                    rect = rect.united(r)
-                rects.append(rect)
-            self._page_stripe_rects = [rects]
-            self._strips_per_page = [len(columns)]
+            self._fd9_use_rows_as_strips(layout["rows"], list(boxes.values()))
             self._preview.set_page_patch_boxes({0: list(boxes.values())})
-            self._preview.set_stripe_rects(rects, "base")
             self._preview.set_no_swipe(True)
             self._preview.set_notice(
                 tr("FD-9 layout preview: approximate colours, not a print file.")
@@ -304,25 +580,73 @@ class FD9MeasureMixin:
             self._fd9_log("[FD9 preview] " + str(e))
             return False
 
+    def _fd9_use_rows_as_strips(self, rows, boxes):
+        """The FD-9 reads ROWS, so a row is what the preview may light up as
+        "the strip", never a column (review M10). No swipe arrow: the FD-9
+        moves the sheet itself."""
+        ncols = len(rows[0]) if rows else 0
+        strips = []
+        for r in range(len(rows)):
+            row_boxes = boxes[r * ncols:(r + 1) * ncols]
+            if not row_boxes:
+                continue
+            rect = row_boxes[0]
+            for b in row_boxes[1:]:
+                rect = rect.united(b)
+            strips.append(rect)
+        self._page_stripe_rects = [strips]
+        self._strips_per_page = [len(strips)]
+        self._preview.set_stripe_rects(strips, "base")
+        self._preview.set_stripe_click_enabled(False)
+        self._preview.set_no_swipe(True)
+
+    # ---- start ------------------------------------------------------------
     def _fd9_settings(self):
-        s = self._fd9_store
-        source = str(s.value("driver_source", "")).strip()
+        from workflow.fd9.measurement import FD9Settings
+
+        # Always the bundled driver: the hidden "driver_source" key that could
+        # load Python from any folder is gone from the app (review M3).
         return FD9Settings(
-            Path(source) if source else None,
             None,
             None,
             None,
-            str(s.value("host", "")),
+            None,
+            self._fd9_host(),
             self._fd9_condition.currentText(),
             True,  # Selecting an FD-9 chart selects its independent driver.
             conversion_source="instrument_firmware",
         )
 
     def _start_fd9_measurement(self):
+        """Start on an FD-9 chart: THE SAME PREFLIGHT AS EVERY INSTRUMENT
+        (review H4: §5's replace warnings, W6, the autosave recovery and the
+        verification resume staging), then the FD-9 worker."""
+        from workflow import measurement_messages as M
+        from workflow.fd9.measurement import checked_chart, resume_plan, sha
+
         if self._fd9_live or self._runner.is_running:
             return
+        if not self._ti1_path:
+            return
+        self._recover_engine_autosave()       # M3, before §3a looks at the .ti3
         if self._blocked_by_new_run() or self._blocked_by_missing_chart_file():
             return
+        resumes = self._fd9_resumes()
+        if self._blocked_by_a_misfitting_measurement(
+                params=type("P", (), {"resume": resumes})()):
+            return
+        if not self._fd9_host():
+            self._fd9_window(M.M_FD9_NO_ADDRESS)
+            return
+        block = self._verification_guard()
+        if block:
+            self._show_verification_guard(block)
+            return
+        if self._fd9_pending is None and not self._confirm_replacing_measurement():
+            return
+        if not self._snapshot_verification_chart():
+            return
+        staged = False
         try:
             chart = self._chart_file_for(self._ti1_path)
             checked_chart(chart)
@@ -336,29 +660,22 @@ class FD9MeasureMixin:
                     raise ValueError(
                         "Pending measurement belongs to another chart or changed measurement"
                     )
+            elif self._stage_verification_for_resume() is not None:
+                staged = True
             settings = replace(
                 settings,
-                resume=self._fd9_resume.isChecked() or self._fd9_pending is not None,
+                resume=resumes or staged,
                 resume_source=(
                     Path(self._fd9_pending["staged"]) if self._fd9_pending else None
                 ),
             )
             settings.validate()
             prior_path, prior_rows, _ = resume_plan(chart, settings)
-            block = self._verification_guard()
-            if block:
-                title, body = block.render()
-                raise ValueError(title + "\n" + body)
             if not instrument_lease.acquire(self, instrument_lease.MEASURE_TAB):
                 raise ValueError(tr("Another window holds the instrument."))
-            if not self._snapshot_verification_chart():
-                instrument_lease.release(self)
-                return
-            chart = self._chart_file_for(self._ti1_path)
-            checked_chart(chart)
-            from uuid import uuid4
+            from workflow.fd9.sessions import new_session_dir
 
-            session = chart.parent / "fd9-sessions" / uuid4().hex[:12]
+            session = new_session_dir(chart)
             from workflow.measurement_session import MeasurementSession
 
             self._fd9_guard = MeasurementSession(chart.with_suffix(".ti3"), chart)
@@ -372,7 +689,9 @@ class FD9MeasureMixin:
             )
             self._fd9_readings = self._fd9_seed_unsaved
             self._fd9_choice = None
+            self._fd9_sheet_in = False
             self._fd9_active_settings = settings
+            self._fd9_session = session
             self._fd9_condition.setCurrentText(settings.condition)
             self.save_target_settings()
             self._fd9_live = True
@@ -394,28 +713,44 @@ class FD9MeasureMixin:
             self._start_btn.setEnabled(False)
             self._stop_btn.setEnabled(True)
             self._calibrate_btn.setEnabled(False)
-            self._fd9_previous_job = (
-                self._fd9_job
-            )  # retain completed thread until its queued signals have drained
-            self._fd9_job = FD9Job(chart, settings, session, self)
-            self._fd9_job.progress.connect(self._fd9_log)
-            self._fd9_job.readings.connect(self._fd9_count_changed)
-            self._fd9_job.scan_ready.connect(self._fd9_scan_ready)
-            self._fd9_job.patch_ready.connect(self._fd9_patch_ready)
-            self._fd9_job.result.connect(self._fd9_result)
-            self._fd9_job.failed.connect(self._fd9_failed)
+            job = FD9Job(chart, settings, session, None)   # unparented: _LIVE_JOBS
+            _LIVE_JOBS[:] = [j for j in _LIVE_JOBS if j.isRunning()]
+            _LIVE_JOBS.append(job)
+            self._fd9_job = job
+            job.progress.connect(self._fd9_progress)
+            job.readings.connect(self._fd9_count_changed)
+            job.scan_ready.connect(self._fd9_scan_ready)
+            job.patch_ready.connect(self._fd9_patch_ready)
+            job.result.connect(self._fd9_result)
+            job.failed.connect(self._fd9_failed)
             keep_awake.hold()
             self._fd9_awake = True
             self.measurement_active.emit(True)
-            self._fd9_job.start()
+            job.start()
         except Exception as e:
             instrument_lease.release(self)
+            if staged:
+                self._drop_unused_verification_stage()
             self._fd9_failed(str(e), False)
 
     def _fd9_log(self, text):
         self._log.appendPlainText(text)
 
+    def _fd9_progress(self, text):
+        """A progress line of the driver: in the user's words in the log, and
+        the insertion window opened and closed at the right moments."""
+        stage, line = _progress_line(str(text))
+        if stage == "insert":
+            self._fd9_show_insert_window()
+        elif stage in ("sheet_in", "measuring"):
+            self._fd9_close_insert_window()
+            self._fd9_sheet_in = True
+        elif stage == "done":
+            self._fd9_sheet_in = False
+        self._fd9_log(line)
+
     def _fd9_restore_controls(self):
+        self._fd9_close_insert_window()
         if self._fd9_awake:
             self._fd9_awake = False
             keep_awake.release()
@@ -430,8 +765,28 @@ class FD9MeasureMixin:
         self.measurement_active.emit(False)
         self._refresh_fd9_panel()
         self._refresh_progress()
+        self._fd9_tidy_sessions()
+
+    def _fd9_tidy_sessions(self):
+        """Apply the session retention rule (`workflow.fd9.sessions`), keeping
+        the session still running or still waiting to be saved or resumed."""
+        try:
+            if not self._ti1_path:
+                return
+            from workflow.fd9.sessions import prune_sessions
+
+            keep = set()
+            if self._fd9_live and self._fd9_session is not None:
+                keep.add(Path(self._fd9_session).name)
+            if self._fd9_pending:
+                keep.add(Path(self._fd9_pending.get("session", "")).name)
+            prune_sessions(self._chart_file_for(self._ti1_path), keep=keep)
+        except Exception:  # noqa: BLE001 - housekeeping never fails a read
+            log.warning("FD-9 session tidy-up failed", exc_info=True)
 
     def _fd9_scan_ready(self, event):
+        from workflow.fd9.measurement import sha
+
         try:
             chart = self._chart_file_for(self._ti1_path)
             if event["session"] != str(self._fd9_job.session.resolve()) or event[
@@ -479,20 +834,9 @@ class FD9MeasureMixin:
         if len(boxes) != len(self._fd9_ordered_locations):
             raise ValueError("Scan grid does not match the selected chart")
         self._patch_boxes = [dict(zip(self._fd9_ordered_locations, boxes))]
-        columns = []
-        ncols = len(event["rows"][0])
-        for c in range(ncols):
-            rect = boxes[c]
-            for i in range(c + ncols, len(boxes), ncols):
-                rect = rect.united(boxes[i])
-            columns.append(rect)
-        self._page_stripe_rects = [columns]
-        self._strips_per_page = [len(columns)]
-        self._preview.set_stripe_rects(columns, "base")
+        self._fd9_use_rows_as_strips(event["rows"], boxes)
         self._preview.set_page_patch_boxes({0: boxes})
         self._preview.set_patch_click_enabled(False)
-        self._preview.set_stripe_click_enabled(False)
-        self._preview.set_no_swipe(True)
         self._preview.set_notice(tr("FD-9 scan: green rows are complete."))
         self._refresh_progress()
         self._fd9_restore_scan_colours(chart)
@@ -543,6 +887,7 @@ class FD9MeasureMixin:
         self._progress_locs = set(self._fd9_ordered_locations[start : start + count])
         self._refresh_progress()
 
+    # ---- the end ----------------------------------------------------------
     def _fd9_result(self, result, prompt=True):
         if self._fd9_ending:
             self._fd9_deferred = ("result", result)
@@ -575,10 +920,13 @@ class FD9MeasureMixin:
                     "The previous measurement is unchanged. Raw session evidence is preserved. If the sheet remains in the FD-9, use its controls to recover it."
                 )
             )
+            self._fd9_explain_error(result["acquisition_error"], stopped)
         if prompt:
             self._fd9_end_prompt(self.END_FAILURE_WINDOW)
 
     def _fd9_publish(self, result):
+        from workflow.fd9.measurement import publish_measurement, sha
+
         self._fd9_pending = result
         try:
             chart = self._chart_file_for(self._ti1_path)
@@ -619,6 +967,12 @@ class FD9MeasureMixin:
         except Exception as error:
             self._fd9_failed(str(error), False)
             return
+        try:
+            from workflow.fd9.sessions import mark_filed
+
+            mark_filed(result.get("session"))
+        except Exception:  # noqa: BLE001
+            log.warning("could not mark the FD-9 session as filed", exc_info=True)
         self._fd9_pending = None
         self._fd9_choice = None
         self._fd9_restore_controls()
@@ -660,6 +1014,7 @@ class FD9MeasureMixin:
             self._fd9_panel.setEnabled(False)
             self._stop_btn.setEnabled(True)
             self.measurement_active.emit(True)
+        self._fd9_explain_error(message, cancelled)
 
     def _fd9_end_prompt(self, how):
         if self._fd9_ending:
@@ -702,7 +1057,7 @@ class FD9MeasureMixin:
                 self._fd9_failed(*value)
 
     def _fd9_worker_running(self):
-        job = getattr(self, "_fd9_job", None)
+        job = self._fd9_job
         running = getattr(job, "isRunning", None)
         return bool(callable(running) and running())
 

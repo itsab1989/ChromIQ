@@ -1735,7 +1735,9 @@ class ChartCreator:
                 seed=recipe_kw.get("seed"),
                 cal_path=params.engine_cal_path or None,
                 apply_cal=bool(params.engine_apply_cal),
-                export_pdf=bool(recipe_kw.get("export_pdf", False)))
+                export_pdf=bool(recipe_kw.get("export_pdf", False)),
+                # Honoured, like for every engine chart (Output > Compression).
+                compression=str(recipe_kw.get("compression", "lzw") or "lzw"))
         _in_order = bool(getattr(params, "cal_target", False))
         if params.layout_recipe is not None and hasattr(params.layout_recipe, "build_kwargs"):
             kw = params.layout_recipe.build_kwargs()

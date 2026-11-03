@@ -1,5 +1,6 @@
 """Portable synthetic wire: partial-row recovery, provenance and resumed rows."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import hashlib
 import json
 import shutil
@@ -342,8 +343,7 @@ def configure(tab, s):
         observer=None,
         conversion_source="instrument_firmware",
     )
-    tab._fd9_store.setValue("driver_source", str(s.settings.driver_source))
-    tab._fd9_store.setValue("host", "test-host")
+    tab._settings.set("fd9_host", "test-host")
     tab.set_ti1_path(s.chart.with_suffix(".ti1"))
 
 
@@ -412,7 +412,12 @@ def test_native_discard_partial_retains_old_complete_measurement(
         return "discard"
 
     monkeypatch.setattr(tab, "_confirm_end_of_session", discard)
+    # §5 (review H4): replacing a complete measurement is asked first.
+    asked = []
+    monkeypatch.setattr(tab, "_confirm_replacing_measurement",
+                        lambda: asked.append(True) or True)
     tab._on_start()
+    assert asked == [True]
     qtbot.waitUntil(
         lambda: not tab._fd9_live and tab._fd9_pending is None, timeout=10000
     )

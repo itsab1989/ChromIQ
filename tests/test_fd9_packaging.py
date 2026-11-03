@@ -1,5 +1,6 @@
 """Bundled SDK-free dependency and platform packaging contract."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import ast
 import json
 import os

@@ -105,12 +105,18 @@ def export_native(
         + ["XYZ_X", "XYZ_Y", "XYZ_Z", "LAB_L", "LAB_A", "LAB_B"]
         + [f"SPEC_{w}" for w in range(380, 731, 10)]
     )
+    from core.cgats_date import created_stamp
+    from .support import TARGET_INSTRUMENT
+
     metadata = {
         "DESCRIPTOR": "FD9 factory-native spectral measurement",
         "ORIGINATOR": "ChromIQ independent FD9",
+        # When it was measured, as every other .ti3 says it (Inspect a
+        # measurement shows it as "Measured on"; review M6).
+        "CREATED": created_stamp(),
         "DEVICE_CLASS": "OUTPUT",
         "COLOR_REP": rep + "_XYZ",
-        "TARGET_INSTRUMENT": "FD-9",
+        "TARGET_INSTRUMENT": TARGET_INSTRUMENT,
         "MEASUREMENT_CONDITION": condition,
         "CALIBRATED_REFLECTANCE": "YES",
         "FD9_CONVERSION_SOURCE": (

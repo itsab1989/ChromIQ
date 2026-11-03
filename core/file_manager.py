@@ -119,6 +119,8 @@ CACHE_DIRNAME   = "cache"
 #: #130 — a profiling run's verification activity lives here: the shared verify
 #: chart at the folder root, plus one dated sub-folder per verification run.
 VERIFICATIONS_DIRNAME = "verifications"
+#: The FD-9 Beta's per-Start session evidence (`Run.fd9_sessions_dir`).
+FD9_SESSIONS_DIRNAME = "fd9-sessions"
 #: #130 — the copy of the chart a run (or a dated verification) was measured
 #: with. Same name at both levels, so one word means one thing.
 CHART_SNAPSHOT_DIRNAME = "chart"
@@ -2368,6 +2370,11 @@ class Run:
     def exports_dir(self) -> Path:            return self.dir / EXPORTS_DIRNAME
     @property
     def cache_dir(self) -> Path:              return self.dir / CACHE_DIRNAME
+    # fd9-sessions/ — the Konica Minolta FD-9's session evidence (Beta, PR
+    # #213): one folder per Start, kept while it filed data or can resume,
+    # pruned otherwise (`workflow.fd9.sessions`, docs/dev_folder_layout.md).
+    @property
+    def fd9_sessions_dir(self) -> Path:       return self.dir / FD9_SESSIONS_DIRNAME
 
     def ensure_reports_dir(self) -> Path:     return ensure_subdir(self.reports_dir)
     def ensure_exports_dir(self) -> Path:     return ensure_subdir(self.exports_dir)

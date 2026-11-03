@@ -90,7 +90,7 @@ Grouped as the Tools pull-down groups them (`ui/tools_popup.py:49`).
 
 | Tool | S1 profiling run | S2 new profiling | S3 verification | S4 new verification | S5 calibration | Note |
 |---|---|---|---|---|---|---|
-| **Read single patches** `spot_read` | ○ | ○ | ○ | ○ | ○ | Writes nothing; a hand-held meter reading. Never selection-dependent |
+| **Read single patches** `spot_read` | ○ | ○ | ○ | ○ | ○ | Writes nothing; a hand-held meter reading. Never selection-dependent. The FD-9 (Beta) is not one of its instruments and is not offered there |
 | **Average measurements** `average` | ● | ✕ | ● | ✕ | ● | Combines repeated reads of *this* chart. A New run has no measurement to average |
 | **Merge measurements** `merge` | ● | ✕ | ● | ✕ | ● | Same reasoning as averaging |
 | **Inspect a measurement** `ti3_info` | ○ | ○ | ○ | ○ | ○ | Read-only on any file |
@@ -100,7 +100,7 @@ Grouped as the Tools pull-down groups them (`ui/tools_popup.py:49`).
 
 | Tool | S1 | S2 | S3 | S4 | S5 | Note |
 |---|---|---|---|---|---|---|
-| **Edit / create chart patch set** `ti2_relayout` | ● | ○ | ● | ○ | ● | Opens the selected target's chart (fixed in beta.203). With no chart yet it still creates one from scratch, so it is not blocked |
+| **Edit / create chart patch set** `ti2_relayout` | ● | ○ | ● | ○ | ● | Opens the selected target's chart (fixed in beta.203). With no chart yet it still creates one from scratch, so it is not blocked. **FD-9 chart (Beta, PR #213): ✕ in every column** while FD-9 support is on: the editor cannot lay out the FD-9's own grid (`workflow/fd9/chart.py`, marks and arrow), so it says so and points to Create Chart instead of opening (`MainWindow._refuse_editor_for_fd9`). With FD-9 support off nothing is read and it opens as in 4.3.21. *Awaiting confirmation; confirmed by nobody yet.* |
 | **Show patch distribution (3D)** `patch_cube` | ● | ✕ | ● | ✕ | ● | Shows *the selected target's* chart — had the beta.203 fault too, fixed here. Nothing to show before a chart exists |
 
 ### Scanner & camera

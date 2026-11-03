@@ -89,7 +89,9 @@ def saved_scan_preview(chart):
         )
         if not re.fullmatch(r"[A-Za-z0-9_-]+", session_name):
             return None
-        session = chart.parent / "fd9-sessions" / session_name
+        from .sessions import sessions_dir
+
+        session = sessions_dir(chart) / session_name
         meta = json.loads(
             (session / "measurement-metadata.json").read_text(encoding="utf-8")
         )

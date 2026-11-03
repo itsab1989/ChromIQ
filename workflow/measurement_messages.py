@@ -556,6 +556,149 @@ M_CR30_TRIGGER_NOT_ARMED = _m(
     "still works exactly as before.",
     approved=False)
 
+# --- PROPOSED: the Konica Minolta FD-9 (PR #213, a Beta) --------------------
+#: FD-9 support was written and contributed by lessbones. It is a Beta behind
+#: Preferences > Beta ("Konica Minolta FD-9 support (beta)"), and ChromIQ
+#: drives the FD-9 itself over Ethernet, so these windows are ChromIQ's own and
+#: not a tool's error. Shown by `ui.fd9_measurement.FD9MeasureMixin`.
+#: {reason} is the driver's own English sentence, kept for diagnosis.
+
+#: An FD-9 chart is loaded while FD-9 support is off (a shared project, or the
+#: option switched off later). Raised at Start, in the place 4.3.21 already
+#: reads the chart's TARGET_INSTRUMENT; nothing is started.
+M_FD9_SUPPORT_OFF = _m(
+    "M-FD9-SUPPORT-OFF",
+    "Turn on FD-9 support to measure this chart",
+    "This chart was made for the Konica Minolta FD-9, an automatic chart "
+    "reader that ChromIQ talks to over the network with its own driver. FD-9 "
+    "support is a beta, and it is switched off at the moment, so ChromIQ "
+    "cannot measure this chart.\n\n"
+    "To measure it, open Preferences, go to the Beta tab, tick “Konica "
+    "Minolta FD-9 support (beta)” and restart ChromIQ. Then press Start "
+    "again.\n\n"
+    "Nothing is wrong with the chart, and nothing you have already measured "
+    "is changed.",
+    approved=False)
+
+#: Start pressed and no address has been entered in "FD-9 setup…".
+M_FD9_NO_ADDRESS = _m(
+    "M-FD9-NO-ADDRESS",
+    "ChromIQ needs the FD-9's network address",
+    "ChromIQ measures with the FD-9 by connecting to it over your network, "
+    "so it needs to know the FD-9's address there. No address has been "
+    "entered yet.\n\n"
+    "Choose “FD-9 setup…” beside the measurement condition, type the "
+    "address the FD-9 has on your network (an IP address such as "
+    "192.168.1.50), and press Start again.",
+    approved=False)
+
+#: The FD-9 shows its insertion screen and waits for the sheet. Not modal:
+#: it closes by itself once the FD-9 has the sheet, or when the run ends.
+M_FD9_INSERT_SHEET = _m(
+    "M-FD9-INSERT-SHEET",
+    "Insert the chart into the FD-9",
+    "The FD-9 is ready for the sheet. Insert the printed chart now:\n\n"
+    "  •  the end with the arrow goes in first;\n"
+    "  •  the printed side faces up.\n\n"
+    "The FD-9 pulls the sheet in, looks for the four small black squares near "
+    "the corners, and then measures the chart row by row. This window closes "
+    "by itself as soon as the FD-9 has the sheet. ChromIQ waits for up to an "
+    "hour; press Stop if you want to give up.\n\n"
+    "The FD-9 cannot tell a sheet that is turned round, or a different chart "
+    "with the same grid, from the right one. Please make sure it is the right "
+    "sheet, the right way round.",
+    approved=False)
+
+#: The connection to the FD-9 could not be made or was lost.
+M_FD9_NO_CONNECTION = _m(
+    "M-FD9-NO-CONNECTION",
+    "ChromIQ could not reach the FD-9",
+    "ChromIQ tried to talk to the FD-9 at {address}, and the connection could "
+    "not be made or was lost.\n\n"
+    "Please check that:\n"
+    "  •  the FD-9 is switched on and has finished starting up;\n"
+    "  •  it is connected to the same network as this computer;\n"
+    "  •  the address in “FD-9 setup…” is the FD-9's address now (it can "
+    "change when a router hands out the addresses);\n"
+    "  •  no other program is connected to the FD-9 at the same time.\n\n"
+    "Your previous measurement is unchanged. If a sheet is in the FD-9, take "
+    "it out with the FD-9's own controls before you try again.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+#: The FD-9 runs firmware other than 1.0.0.2; refused before the sheet.
+M_FD9_WRONG_FIRMWARE = _m(
+    "M-FD9-WRONG-FIRMWARE",
+    "This FD-9 has firmware ChromIQ does not know",
+    "ChromIQ works out the M0, M1 and M2 values from data stored inside the "
+    "FD-9, and it knows how that data is laid out only for FD-9 firmware "
+    "1.0.0.2. This FD-9 reports a different version, so ChromIQ stopped "
+    "before measuring rather than risk wrong colours.\n\n"
+    "Nothing was measured and nothing was changed. If you would like your "
+    "firmware to be supported, please tell us which version your FD-9 "
+    "has.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+#: The pre-scan did not find the four corner marks, or they did not form the
+#: chart's rectangle.
+M_FD9_MARKS_NOT_FOUND = _m(
+    "M-FD9-MARKS-NOT-FOUND",
+    "The FD-9 could not find the chart on the sheet",
+    "The FD-9 looked at the sheet but could not find the four small black "
+    "squares near the corners, or they did not form a straight rectangle. "
+    "That happens when the sheet went in crooked or printed side down, or "
+    "when it is not a chart made for the FD-9.\n\n"
+    "Take the sheet out of the FD-9 (with the FD-9's own controls if it does "
+    "not come out by itself), check that it is the right chart, insert it "
+    "straight, arrow first and printed side up, and press Start again.\n\n"
+    "Nothing from this attempt was saved, and your previous measurement is "
+    "unchanged.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+#: The run ended (Stop, a fault) after the FD-9 had taken the sheet in and
+#: before it said the measurement was complete.
+M_FD9_SHEET_STILL_INSIDE = _m(
+    "M-FD9-SHEET-STILL-INSIDE",
+    "The sheet may still be in the FD-9",
+    "The measurement ended before the FD-9 had finished with the sheet, so "
+    "the sheet may still be inside. ChromIQ does not move the sheet after a "
+    "stop or a fault.\n\n"
+    "If the sheet is still in the FD-9, take it out with the FD-9's own "
+    "controls, and take it out completely before you start the next "
+    "measurement.",
+    approved=False)
+
+#: "Resume" was ticked, and the measurement to continue does not belong with
+#: this chart, condition or FD-9.
+M_FD9_RESUME_REFUSED = _m(
+    "M-FD9-RESUME-REFUSED",
+    "This measurement cannot be continued",
+    "“Resume” continues a measurement from the first row the FD-9 has not "
+    "measured yet. ChromIQ only does that when everything about it is the "
+    "same as before: the same chart, the same measurement condition (M0, M1 "
+    "or M2) and the same FD-9. Here something is different, so the new "
+    "readings would not belong with the ones already there.\n\n"
+    "Untick “Resume” to measure the whole chart again (your current "
+    "measurement is then moved to the run's old folder, not deleted), or set "
+    "things back to how they were.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+#: Any other fault in an FD-9 run.
+M_FD9_FAILED = _m(
+    "M-FD9-FAILED",
+    "The FD-9 measurement stopped",
+    "The measurement stopped because of a problem it could not get past.\n\n"
+    "Your previous measurement is unchanged. Everything the FD-9 sent is kept "
+    "in the run's fd9-sessions folder, so the problem can be looked into. If "
+    "the sheet is still in the FD-9, take it out with the FD-9's own controls "
+    "before you start again.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+
 
 # --- PROPOSED: two windows reaching for one instrument ---------------------
 #: #159, 2026-09-02. Tools ▸ "Read single patches" can now drive the CR30 with
@@ -8342,6 +8485,9 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
+    M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET,
+    M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
+    M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
     M_CAL_DONE_UNDERLAY,
     M_REPORT_NOT_SAVED,

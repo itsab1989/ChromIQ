@@ -1,5 +1,6 @@
 """Scan projection, queued row updates and persisted/resumed preview ownership."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -187,8 +188,14 @@ def test_fresh_read_resets_old_progress_and_discard_restores_it(
         ),
     )
     monkeypatch.setattr(tab, "_confirm_end_of_session", lambda how: "discard")
+    # §5 (review H4): a fresh read over a complete measurement asks first,
+    # as it does for every instrument.
+    asked = []
+    monkeypatch.setattr(tab, "_confirm_replacing_measurement",
+                        lambda: asked.append(True) or True)
     try:
         tab._on_start()
+        assert asked == [True]
         qtbot.waitUntil(
             lambda: tab._fd9_readings == 12 and tab._fd9_scan_preview is not None,
             timeout=10000,

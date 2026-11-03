@@ -285,6 +285,11 @@ def main() -> int:
             splash.wait_until_visible()
         _pump(0.18)             # get it on screen before the blocking build
 
+    # FD-9 support (Preferences > Beta) is restart-to-apply: fix this run's
+    # answer before any list that offers the FD-9 is built.
+    from workflow.fd9.support import latch_from as _latch_fd9
+    _latch_fd9(settings)
+
     # Heavy UI import + construction, now visibly covered by the splash.
     from ui.main_window import MainWindow
     win = MainWindow(settings)

@@ -207,49 +207,51 @@ and answered the same day by Knut: **no**. So the chart-file import keeps its
 three choices and never lays a chart out again, and "replace only the chart"
 stays where it is, on the patch-set load.
 
-## FD-9 creation and handoff (proposed, 2026-11-01)
+## FD-9 (Beta): creating, loading and generating an FD-9 chart
 
 ### ⏳ Awaiting confirmation
 
 **Confirmed by:** *nobody yet.*
 
-The FD-9 instrument choice uses ChromIQ's layout builder after ordinary
-targen/patch-set selection. It creates one printable sheet plus TI2 and FD9
-geometry sidecars. That target passes to Print and Measure without an import.
-The feed-oriented size selector allows 137–330 × 170–660 mm. Count is limited to
-12 columns and 1–25 rows, at most 300 patches, matching the current independent
-measurement implementation. Larger counts fail before rendering. Stored sheets
-load rather than silently rebuild. Other instruments keep their existing layout
-and multi-page behavior. This records proposed behavior and test work, not
-maintainer confirmation or hardware certification.
+*Written 2026-11-03 for PR #213 (the Konica Minolta FD-9, written and
+contributed by lessbones). It replaces the contribution's five successive
+proposal blocks, which contradicted each other (a 12 x 25 / 300-patch ceiling,
+then none; square patches only, then rectangles). What the app does now,
+verified by tests and on screen without an FD-9.*
 
-Pure calibration ramps start each ink on its own column with paper white first,
-continuing long ramps in additional columns and filling unused cells with white.
-The rewritten TI1 retains original headers and later tables; a repeat build is
-stable. This follows the proposed calibration run-type amendment. The fixed
-native layout does not use the generic patch-size/ruler controls.
-
-FD-9 revision, 2026-11-01 (awaiting maintainer confirmation): the prototype
-12 × 25 ceiling is removed. Columns and rows derive from the sheet area at
-8 mm patch size / 1 mm gaps (up to 2,145 on 330 × 660 mm). Marks have 4 mm
-outside their left/right edges. Generated charts, measurement commands, wire
-verification, progress and partial/resume use the declared variable grid. The
-expanded acquisition path is synthetic-tested and awaits physical validation;
-the user currently requests PDF/TIFF evaluation only. This supersedes the fixed
-300-patch limits in the preceding proposal; legacy imported layouts are retained.
-
-FD-9 patch-size revision (2026-11-01, awaiting confirmation): Guided's Custom
-sheet dialog and Manual's FD-9 size control offer square patches from 6 to 30 mm,
-retaining 8 mm by default and 1 mm white gaps. Capacity, pixels, PDF paths, scan
-polygons and saved recipes use the selected size. Reopening restores it; Generate
-is required to change a chart. At 6 mm: A4 800, A3 1862, 330 x 660 mm 3612.
-Smaller-patch physical validation is deferred along with the larger-grid test.
-
-FD-9 rectangular/gap revision (awaiting maintainer confirmation): independent
-6..30 mm width and height, with a 0..5 mm gap. Default remains 8 × 8 mm with
-1 mm gaps. The four-mark detector uses the saved grid, so touching rectangles
-are supported by the synthetic recognition checks. FD-9 layout editing opens
-only its own size dialog, without changing the renderer preference or falling
-back to i1Pro/printtarg. Its dimensions/gap carry between the FD-9 editors.
-Zero-gap raster cells share boundaries; minimum-size quantization is reflected
-in the matching PDF and definition. Physical validation remains pending.
+* **Only with FD-9 support on** (Preferences > Beta, off by default, restart
+  to apply). With it off "FD-9" is in no list (Guided's and Manual's
+  Instrument, the layout panel, Preferences > Chart Layout), and a chart file
+  that names the FD-9 loads as it did in 4.3.21 (its instrument is not
+  recognised, so it is taken as an i1Pro chart, as any unknown name is).
+* **Instrument "FD-9"** in Guided and in Manual. The chart is laid out by
+  ChromIQ's own FD-9 layout (`workflow/fd9/chart.py`), never printtarg:
+  one sheet, patches 6-30 mm wide and high, a gap of 0-5 mm (default 8 x 8 mm,
+  1 mm), at least 15 mm free on each side, the middle of the first row 42 mm
+  from the leading edge and at least 33 mm free at the trailing edge, four 3 mm
+  marks near the corners, an arrow showing which end goes in first, and
+  nothing else printed.
+* **Sheets:** 137x300, A4, A4 landscape, Letter, Letter landscape, A3,
+  329x483 and 330x660, plus "Custom sheet…" for any 137-330 mm across the
+  feed and 170-660 mm along it. Landscape A4 (297 x 210) and Letter (279.4 x
+  215.9) are inside that envelope and are laid out by the same geometry
+  (`tests/test_fd9_beta_option.py`).
+* **Options in Manual's layout panel:** bit depth, compression, PDF export,
+  resolution and printer calibration (Output and Printer calibration) are
+  honoured. Every other layout control is greyed while the FD-9 is selected,
+  with a tooltip saying why (the FD-9's fixed layout), and given back as it
+  was when another instrument is chosen. Pages is 1.
+* **Guided** reaches the patch size, height and gap through "Custom sheet…"
+  and "Edit layout defaults", which open the FD-9's own size window rather
+  than Preferences.
+* **Files:** `<stem>.ti2` with the header every engine chart has
+  (`DESCRIPTOR`, `CREATED`, `TARGET_INSTRUMENT "Konica Minolta FD-9"`,
+  `APPROX_WHITE_POINT`), quoted `SAMPLE_LOC`, `<stem>.fd9.json` (the physical
+  grid and marks the measurement uses) and the usual `.strips.json`.
+  `.fd9.json` is a chart companion: it is copied, stashed, archived and
+  imported with the chart. Padding cells are paper white with the engine's
+  media white aim. The run description is not printed (nothing but marks,
+  arrow and patches may be on the sheet) and the TIFF is not stamped.
+* **Calibration charts** put one ink's ramp per column, paper white first.
+* **The patch set editor** (Tools) does not open an FD-9 chart; it says so
+  and points to Create Chart (`tool_availability.md`).

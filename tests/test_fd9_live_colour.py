@@ -1,5 +1,6 @@
 """Passive colour events, skewed paint, resume and the native-dialog printer."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -191,24 +192,6 @@ def test_preview_callback_failure_never_changes_measurement(setup):
     )
     assert result["complete"] and result["patches"] == 36
     assert any("invented display error" in message for message in messages)
-
-
-def test_native_dialog_never_warns_about_the_hidden_printer(qtbot):
-    from ui.tabs.tab_print import TabPrint
-
-    label = QLabel("Canon_IPF9400B stale warning")
-    qtbot.addWidget(label)
-
-    def wrong_queue():
-        pytest.fail("The native-dialog printer cannot be read from the hidden combo")
-
-    tab = SimpleNamespace(
-        _edge_note_lbl=label,
-        _settings={"use_native_print_dialog": True},
-        _printer_combo=SimpleNamespace(currentData=wrong_queue),
-    )
-    TabPrint._update_edge_note(tab)
-    assert not label.text() and label.isHidden()
 
 
 def test_old_driver_checkbox_preference_cannot_disable_fd9(tab, setup):

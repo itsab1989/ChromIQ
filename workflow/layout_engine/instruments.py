@@ -87,7 +87,10 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
     "41": "X-Rite DTP41",
     "51": "X-Rite DTP51",
     "SS": "GretagMacbeth SpectroScan",
-    "FD9": "FD-9",
+    # Konica Minolta FD-9 (PR #213, a Beta): the vendor-qualified name, like
+    # the other instruments. Charts made before the Beta wrote "FD-9" and are
+    # still read (`workflow.fd9.support.TARGET_INSTRUMENT_NAMES`).
+    "FD9": "Konica Minolta FD-9",
     # ChnSpec CR30 (#159). The HONEST name, by ruling: the device reports "CR30"
     # for itself, so that is what the chart says it is. Consequence, stated here
     # because it is load-bearing: stock ArgyllCMS `chartread` matches
@@ -836,7 +839,7 @@ def _build_base(
     """
     if key == "FD9":
         return replace(_build_base("SS", spacer_on=False), key="FD9",
-                       target_name="FD-9", plen=8.0, pwid=8.0, rrsp=9.0,
+                       target_name=TARGET_INSTRUMENT_NAME["FD9"], plen=8.0, pwid=8.0, rrsp=9.0,
                        pspa=1.0, txhisl=0.0, rlwi=0.0, mxpprow=25,
                        padlrow=True, margin_t=38.0, margin_b=33.0,
                        margin_l=15.0, margin_r=15.0)

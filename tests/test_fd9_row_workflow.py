@@ -1,5 +1,6 @@
 """Invented device model and row wire, with no captured numerical fixtures."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import hashlib
 import json
 import struct
@@ -299,7 +300,6 @@ def test_gui_files_row_conversion_without_profile_access(setup, qtbot, monkeypat
     app_settings.set("custom_output_path", str(s.tmp / "out"))
     tab = TabMeasure(ArgyllRunner(app_settings), app_settings)
     qtbot.addWidget(tab)
-    tab._fd9_store = QSettings(str(s.tmp / "gui.ini"), QSettings.Format.IniFormat)
     configure(tab, s)
 
     def work(*args, **kwargs):

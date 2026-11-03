@@ -2075,8 +2075,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if hasattr(self, "_import_btn"):
             self._import_btn.setChecked(mode == "import")
         self._calm_outer.setVisible(mode == "guided")
-        if hasattr(self, '_fd9_panel'):
-            self._refresh_fd9_panel()
+        self._refresh_fd9_panel()      # FD-9 (Beta); nothing when it is off
         # The two modules keep INDEPENDENT "Live preview" settings; apply the
         # now-active module's view state to the shared preview so switching
         # module shows that module's chosen view (Basti). Guarded for build time.
@@ -2775,7 +2774,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         top_layout = QVBoxLayout(top_widget)
         top_layout.setContentsMargins(16, 12, 16, 6)
         top_layout.setSpacing(8)
-        self._init_fd9_panel(top_layout)
+        # The FD-9 row (PR #213, a Beta): built only while FD-9 support is on
+        # (Preferences > Beta, restart to apply). Off, this tab is 4.3.21's.
+        from workflow.fd9.support import fd9_enabled
+        if fd9_enabled():
+            self._init_fd9_panel(top_layout)
         # Load-chart + reveal-folder icons in the header's upper-right, like the
         # Create Chart and Print Chart tabs (Knut/Basti). The selected file still
         # shows in the Chart File frame below.
@@ -4706,8 +4709,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # reason as the -B auto-detect one line above.
         self._apply_cr30_pbp_lock()
         self._apply_cr30_dead_options()
-        # #134 / K1 (Knut): the overlay auto-offer is a MEASURE-tab feature, but
+        # FD-9 (Beta): its panel follows the chart; nothing when it is off.
         self._refresh_fd9_panel()
+        # #134 / K1 (Knut): the overlay auto-offer is a MEASURE-tab feature, but
         # set_ti1_path is also driven cross-tab — the Print tab's ti2_loaded, the
         # Check tab's ti2_found, project open, session restore and Profile-run /
         # Run-type bar changes all call it. Only pop the offer when the Measure
@@ -5427,7 +5431,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._clear_previous_instrument_log()
             if instr:
                 label = instrument_label(instr)
-                if is_spectroscan(instr) or (hasattr(self, '_fd9_panel') and self._is_fd9_target()):
+                if is_spectroscan(instr) or self._is_fd9_target():
                     # XY table — reads patches individually, so the
                     # bidirectional "reading direction" note does not apply.
                     msg = tr("Chart instrument: {label}.").format(label=label)
@@ -5967,8 +5971,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         (`_refresh_start_button_label`), so any message that hard-codes "Start
         Measurement" names a button the user cannot see. Ask the button.
         """
-        if hasattr(self, '_fd9_panel') and self._is_fd9_target():
-            return tr('Continue Measurement') if self._fd9_resume.isChecked() or self._fd9_pending else tr('Start Measurement')
+        if self._is_fd9_target():
+            return (tr("Continue Measurement") if self._fd9_resumes()
+                    else tr("Start Measurement"))
         btn = getattr(self, "_start_btn", None)
         try:
             return btn.text() if btn is not None else tr("Start Measurement")
@@ -5979,8 +5984,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """Show 'Continue Measurement' on the Start button when the resume
         checkbox for the active mode is ticked (i.e. the next run will pass
         chartread's -r flag)."""
-        if hasattr(self, '_fd9_resume') and self._is_fd9_target():
-            self._start_btn.setText(self._start_button_name());return
+        if self._is_fd9_target():
+            self._start_btn.setText(self._start_button_name())
+            return
         cb = self._resume_cb if self._current_mode() == "guided" else self._m_resume_cb
         if cb.isVisible() and cb.isChecked():
             self._start_btn.setText(tr("Continue Measurement"))
@@ -6125,9 +6131,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         cb.setChecked(True)
 
     def _try_load_tiffs(self, base_path: Path) -> None:
-        if hasattr(self, '_fd9_panel') and self._is_fd9_target():
-            if self._fd9_load_preview(base_path):
-                return
+        if self._is_fd9_target() and self._fd9_load_preview(base_path):
+            return
         # ONE strip, by name: `with_suffix("").stem` stripped twice, turning
         # "X-w10.0mm.ti2" into "X-w10" and widening the glob below to any
         # chart sharing that prefix (core/stem_paths.py).
@@ -6215,7 +6220,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # are square, so it must NOT borrow the hex zigzag to achieve that
         # (#159). Read from the chart, like everything else on this path — via
         # _chart_is_cr30, which resolves the .ti2 the keyword actually lives in.
-        self._preview.set_no_swipe(self._chart_is_cr30())
+        # The FD-9 (Beta) moves the sheet itself: no swipe either.
+        self._preview.set_no_swipe(self._chart_is_cr30()
+                                   or self._is_fd9_target())
 
         engine = self._engine_stripe_rects()
         if engine is not None:
@@ -6275,12 +6282,16 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # (its controls only change the preview, so they stay usable, #41).
         # Disabling the scrolls' inner content greys the options exactly as
         # before, while the scroll widgets themselves remain interactive.
+        # An FD-9 chart (Beta) greys the chartread options too, as a second
+        # lock beside this one: neither may lift the other (review H3).
+        self._settings_unlocked = bool(enabled)
+        options = enabled and not self._fd9_options_locked()
         for w in (getattr(self, "_g_options", None), getattr(self, "_m_options", None),
                   getattr(self, "_m_presets_grp", None)):
             if w is not None:
-                w.setEnabled(enabled)
+                w.setEnabled(options)
         self._file_grp.setEnabled(enabled)
-        self._save_defaults_btn.setEnabled(enabled)
+        self._save_defaults_btn.setEnabled(options)
         # Keep the chart path/name tooltip from popping up over the chart while a
         # read runs — it gets in the way of swiping and the patch hover tile.
         self._preview.set_suppress_file_tooltip(not enabled)
@@ -6613,6 +6624,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return False
         if name is None or name in KNOWN_INSTRUMENTS:
             return False       # absent is fine: ArgyllCMS then uses its default
+        # A Konica Minolta FD-9 chart (PR #213, a Beta). Its name is read HERE,
+        # where 4.3.21 already reads it, so no chart is read for the FD-9 that
+        # was not read before. With FD-9 support on, an FD-9 chart never gets
+        # this far (`_on_start` hands it to the FD-9 worker); with it off, the
+        # chart cannot be measured and M-FD9-SUPPORT-OFF says how to change
+        # that, instead of offering to "correct" a name that is right.
+        from workflow.fd9.support import is_fd9_instrument_name
+        if is_fd9_instrument_name(name):
+            self._fd9_support_off_window()
+            self._log.appendPlainText(tr(
+                "Measurement not started: this chart is for the Konica Minolta "
+                "FD-9, and FD-9 support is switched off in Preferences > Beta."))
+            return True
 
         from PyQt6.QtWidgets import QMessageBox
         box = QMessageBox(self)
@@ -6647,6 +6671,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self._repair_target_instrument(chart, name):
             return True
         return False           # repaired — carry on and measure
+
+    def _fd9_support_off_window(self) -> None:
+        """M-FD9-SUPPORT-OFF on screen: the text is the catalogue's."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        title, body = M.M_FD9_SUPPORT_OFF.render()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import (fit_message_box_buttons,
+                                keep_message_box_inside_the_work_area)
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
 
     def _repair_target_instrument(self, ti2, found: str) -> bool:
         """Rewrite an unusable ``TARGET_INSTRUMENT`` to the ArgyllCMS name for the
@@ -7821,6 +7862,28 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._log.ensureCursorVisible()
         self._flash_status(title, duration_ms=8000)
 
+    def _show_verification_guard(self, block) -> None:
+        """The #130 Hole 1/2 window. Its own method so the FD-9 Start (Beta)
+        shows the very same window (review H4)."""
+        from PyQt6.QtWidgets import QMessageBox
+        # Each guard carries its own headline now that both are in §M. The
+        # window used to say "Build a profile before verifying" for both,
+        # which was wrong for the run that HAS a profile and only lacks its
+        # verification chart.
+        title, body = block.render()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+        fit_message_box_buttons(box)
+        box.exec()
+
     def _blocked_by_new_run(self) -> bool:
         """True — and the explaining pop-up has been shown — when the bar's
         **Profile run** is "New run" (#130, Knut). A run has to exist before its
@@ -7839,9 +7902,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     @_disarms_a_start_that_did_not_start
     @_settles_the_replaced_chart
     def _on_start(self) -> None:
-        if getattr(self, '_fd9_live', False) or self._fd9_worker_running():
+        # FD-9 (Beta): its own worker, after the same preflight as every
+        # instrument (`_start_fd9_measurement`). Nothing when it is off.
+        if self._fd9_live or self._fd9_worker_running():
             return
-        if hasattr(self, '_fd9_panel') and self._is_fd9_target():
+        if self._is_fd9_target():
             self._start_fd9_measurement()
             return
         if not self._ti1_path:
@@ -7920,24 +7985,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # #130 Hole 1: don't start a verification of a run that has no profile.
         block = self._verification_guard()
         if block:
-            from PyQt6.QtWidgets import QMessageBox
-            # Each guard carries its own headline now that both are in §M. The
-            # window used to say "Build a profile before verifying" for both,
-            # which was wrong for the run that HAS a profile and only lacks its
-            # verification chart.
-            title, body = block.render()
-            box = QMessageBox(self)
-            box.setIcon(QMessageBox.Icon.NoIcon)
-            box.setWindowTitle(title)
-            box.setText(title)
-            box.setInformativeText(body)
-            box.setStandardButtons(QMessageBox.StandardButton.Ok)
-            from ui.widgets import (fit_message_box_buttons,
-                                order_message_box_buttons)
-            from ui.widgets import keep_message_box_inside_the_work_area
-            keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
-            fit_message_box_buttons(box)
-            box.exec()
+            self._show_verification_guard(block)
             # The old code unticked the module's Verification box here. With
             # that box gone the equivalent would be to change the Profile-run
             # bar under the user, which is a bigger thing to do unasked — the
@@ -18986,6 +19034,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         separate jobs, and in the move it lost the condition the question
         applies. One test now asserts both call this.
         """
+        if self._is_fd9_target():           # FD-9 (Beta): its own Resume box
+            return self._fd9_resumes()
         guided = self._current_mode() == "guided"
         resume = (self._resume_cb if guided else self._m_resume_cb)
         refine = (self._refine_cb if guided else self._m_refine_cb)

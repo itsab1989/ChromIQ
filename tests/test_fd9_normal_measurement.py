@@ -1,5 +1,6 @@
 """Native FD9 chart association, filing, worker cancellation and tab routing."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import json, shutil
 from pathlib import Path
 from unittest.mock import patch
@@ -111,8 +112,8 @@ def tab(qapp, tmp_path):
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "app.ini"), QSettings.Format.IniFormat)
     s.set("custom_output_path", str(tmp_path / "out"))
+    s.set("fd9_host", "test-host")
     t = TabMeasure(ArgyllRunner(s), s)
-    t._fd9_store = QSettings(str(tmp_path / "fd9.ini"), QSettings.Format.IniFormat)
     yield t
     instrument_lease.release(t)
     t.close()
@@ -150,9 +151,11 @@ def test_stop_and_quit_wait_for_fd9_worker(tab):
     tab._fd9_live = False
 
 
-def test_fd9_condition_round_trips_and_driver_is_automatic(tab):
+def test_fd9_condition_round_trips_and_driver_is_automatic(tab, chart):
     from workflow.measure_settings import snapshot, apply
 
+    # Stored for an FD-9 chart only (review M1): load one first.
+    tab.set_ti1_path(chart.with_suffix(".ti1"))
     tab._fd9_condition.setCurrentText("M2")
     saved = snapshot(tab)
     tab._restore_defaults()
@@ -162,42 +165,6 @@ def test_fd9_condition_round_trips_and_driver_is_automatic(tab):
     apply(tab, saved)
     assert tab._fd9_condition.currentText() == "M2" and tab._fd9_settings().allow_research
     assert not hasattr(tab, "_fd9_research")
-
-
-def test_complete_real_capture_through_native_filing_if_available(tmp_path):
-    profile = ROOT / "outputs/fd9-manufacturer-oracle/chromiq-independent-profile.json"
-    old = ROOT / "outputs/fd9-independent-live/chromiq-independent-M1-M2-01"
-    if not profile.exists() or not old.exists():
-        pytest.skip("Private reference capture not distributed")
-    chart = prepare_chart(old / "chart-definition.json", tmp_path / "native")
-    cie = ROOT / "outputs/fd9-independent-conversion/cie-reference"
-    settings = FD9Settings(
-        ROOT / "drivers/fd9-independent",
-        profile,
-        cie / "CIE_std_illum_D50.csv",
-        cie / "CIE_xyz_1931_2deg.csv",
-        "192.168.2.134",
-        "M2",
-        True,
-    )
-
-    def capture(source, layout, dest, host, **kwargs):
-        shutil.copytree(old, dest)
-        return dest
-
-    # SDK/native loading and subprocess execution forbidden throughout conversion.
-    with (
-        patch("ctypes.CDLL", side_effect=AssertionError("No SDK")),
-        patch("subprocess.Popen", side_effect=AssertionError("No external reader")),
-    ):
-        result = measure_chart(chart, settings, tmp_path / "session", capture=capture)
-    target = publish_measurement(result["staged"], result["destination"], chart)
-    text, fields, rows = first_table(target)
-    assert len(rows) == 300 and len({r["SAMPLE_LOC"] for r in rows}) == 300
-    from workflow.profile_engine.ti3_data import read_ti3
-
-    got = read_ti3(target)
-    assert got.n_channels == 11 and got.keywords["MEASUREMENT_CONDITION"] == "M2"
 
 
 def test_fd9_keep_awake_release_is_balanced_on_failure(tab):

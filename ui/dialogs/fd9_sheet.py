@@ -21,6 +21,15 @@ from workflow.fd9.chart import (
 )
 
 
+def fd9_layout_note() -> str:
+    """What the FD-9 layout is, shown above its patch controls."""
+    return tr(
+        "FD-9 chart: patches from 6 to 30 mm wide and high, and a gap between "
+        "them from 0 to 5 mm (0 means the patches touch). The chart is always "
+        "one sheet. Insert the printed sheet into the FD-9 arrow first, with "
+        "the printed side facing up.")
+
+
 class FD9PatchControls(QWidget):
     changed = pyqtSignal()
 
@@ -31,11 +40,18 @@ class FD9PatchControls(QWidget):
         self.patch_width = NoScrollDoubleSpinBox(self)
         self.patch_height = NoScrollDoubleSpinBox(self)
         self.gap = NoScrollDoubleSpinBox(self)
-        for spin, label, low, high, value in (
-            (self.patch_width, tr("Patch width:"), 6, 30, 8),
-            (self.patch_height, tr("Patch height:"), 6, 30, 8),
-            (self.gap, tr("Gap between patches:"), 0, 5, 1),
+        for spin, label, low, high, value, tip in (
+            (self.patch_width, tr("Patch width:"), 6, 30, 8, tr(
+                "How wide each patch is, across the feed, from 6 to 30 mm. "
+                "Larger patches are read more reliably; smaller ones fit more "
+                "colours on the sheet.")),
+            (self.patch_height, tr("Patch height:"), 6, 30, 8, tr(
+                "How high each patch is, along the feed, from 6 to 30 mm.")),
+            (self.gap, tr("Gap between patches:"), 0, 5, 1, tr(
+                "The strip of plain paper between two patches, from 0 to 5 "
+                "mm. At 0 the patches touch.")),
         ):
+            spin.setToolTip(tip)
             spin.setRange(low, high)
             spin.setDecimals(1)
             spin.setSingleStep(0.5)
@@ -77,11 +93,7 @@ class FD9SheetDialog(QDialog):
             tr("FD-9 sheet size") if edit_sheet else tr("FD-9 patch layout")
         )
         outer = QVBoxLayout(self)
-        note = QLabel(
-            tr(
-                "FD-9: 6-30 mm patch width and height; gaps may be zero. Feed arrow first, printed face up."
-            )
-        )
+        note = QLabel(fd9_layout_note())
         note.setWordWrap(True)
         outer.addWidget(note)
         try:

@@ -630,7 +630,7 @@ parameters:
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (flatbed)"
         - "CR30 (ChnSpec, patch by patch)"
-        - "FD-9 (Konica Minolta)"
+        - "FD-9"
         - "i1iSis (via i1Profiler)"
       default: "i1"
       no_space: true

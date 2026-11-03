@@ -1,0 +1,250 @@
+"""WITH FD-9 SUPPORT OFF, CHROMIQ IS 4.3.21 (Basti's requirement 2, PR #213).
+
+The Konica Minolta FD-9 (written and contributed by lessbones) is a Beta in
+Preferences > Beta, off by default. Off, there may be no FD-9 in any list, no
+FD-9 panel or hook on the Measure tab, no chart file read to find out whether
+it is an FD-9 chart, no new key in any target's meta.json, and nothing else
+that behaves differently. Three nets, because each catches what the others
+cannot:
+
+1. A child process builds the real main window and Preferences with the
+   option off and reports every combo box entry, every widget name and every
+   module it loaded. An "FD-9" anywhere, or the FD-9 measurement code or the
+   vendored driver being loaded at all, fails. A new ungated hook that touches
+   the FD-9 code shows up here even if nobody thought to test it.
+2. In this process, the Measure tab with the option off: an FD-9 chart and an
+   ordinary chart are loaded and started, and `is_fd9_chart` must never be
+   asked; the stored settings carry no FD-9 key.
+3. The files outside the FD-9's own modules that mention the FD-9 are pinned,
+   so a new one is a deliberate act that shows in the diff.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(autouse=True)
+def fd9_beta_off():
+    from workflow.fd9 import support
+    before = support._latched
+    support.set_enabled_for_this_process(False)
+    try:
+        yield
+    finally:
+        support._latched = before
+
+
+PROBE = r"""
+import json, os, sys
+sys.path.insert(0, os.environ["CHROMIQ_ROOT"])
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+from PyQt6.QtWidgets import QApplication, QComboBox, QWidget
+app = QApplication([])
+from ui.styles import WinButtonLayoutStyle
+app.setStyle(WinButtonLayoutStyle("Fusion"))
+from core.numeric_locale import pin_c_numeric_locale
+pin_c_numeric_locale()
+from core.settings import AppSettings
+s = AppSettings()
+s.set("custom_output_path", os.environ["CHROMIQ_PROBE_OUT"])
+s.set("restore_last_session", False)
+s.set("session_project", "")
+from workflow.fd9.support import latch_from
+assert latch_from(s) is False
+from ui.main_window import MainWindow
+win = MainWindow(s)
+from ui.dialogs.settings_dialog import SettingsDialog
+dlg = SettingsDialog(s, win)
+entries, names = [], []
+for top in (win, dlg):
+    for combo in top.findChildren(QComboBox):
+        for i in range(combo.count()):
+            entries.append([combo.itemText(i), str(combo.itemData(i))])
+    for w in top.findChildren(QWidget):
+        if w.objectName():
+            names.append(w.objectName())
+loaded = sorted(m for m in sys.modules
+                if m.startswith(("workflow.fd9", "fd9_independent",
+                                 "ui.fd9_measurement", "ui.dialogs.fd9_sheet")))
+print("PROBE" + json.dumps({"entries": entries, "names": names,
+                            "loaded": loaded}))
+dlg.deleteLater(); win.close()
+os._exit(0)
+"""
+
+
+def test_the_real_window_offers_no_fd9_and_loads_none_of_its_code(tmp_path):
+    env = dict(os.environ)
+    env.update(CHROMIQ_ROOT=str(ROOT), QT_QPA_PLATFORM="offscreen",
+               CHROMIQ_SETTINGS_FILE=str(tmp_path / "settings.ini"),
+               CHROMIQ_PROBE_OUT=str(tmp_path / "out"))
+    try:
+        r = subprocess.run([sys.executable, "-c", PROBE], capture_output=True,
+                           text=True, env=env, cwd=str(tmp_path), timeout=600)
+    except subprocess.TimeoutExpired:
+        pytest.fail("the probe did not finish building the window in 600 s "
+                    "(a loaded machine, or a window waiting for an answer)")
+    line = next((ln for ln in r.stdout.splitlines() if ln.startswith("PROBE")),
+                None)
+    assert line, f"probe failed (exit {r.returncode}):\n{r.stderr[-3000:]}"
+    got = json.loads(line[len("PROBE"):])
+    fd9_entries = [e for e in got["entries"]
+                   if e[1] == "FD9" or "FD-9" in e[0] or "FD9" in e[0]]
+    assert not fd9_entries, (
+        f"with FD-9 support off a list still offers the FD-9: {fd9_entries}")
+    fd9_names = [n for n in got["names"] if n.lower().startswith("fd9")]
+    assert not fd9_names, f"FD-9 widgets built with the option off: {fd9_names}"
+    # The only FD-9 module the app may load with the option off is the switch
+    # itself (workflow.fd9 is its package). The mixin's module is imported by
+    # the Measure tab for the class, and holds no FD-9 import at module level.
+    allowed = {"workflow.fd9", "workflow.fd9.support", "ui.fd9_measurement"}
+    extra = sorted(set(got["loaded"]) - allowed)
+    assert not extra, (
+        "with FD-9 support off these FD-9 modules were loaded, so some code "
+        f"path reached the FD-9 without asking the switch: {extra}")
+
+
+def _fd9_chart(tmp_path, name="FD-9"):
+    ti2 = tmp_path / "fd9chart.ti2"
+    ti2.write_text(
+        "CTI2\n\n"
+        'DESCRIPTOR "Argyll Calibration Target chart information 2"\n'
+        f'TARGET_INSTRUMENT "{name}"\nCOLOR_REP "RGB"\n'
+        "NUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
+        "END_DATA_FORMAT\nNUMBER_OF_SETS 1\nBEGIN_DATA\n"
+        '1 "A1" 100 100 100 95 100 108\nEND_DATA\n', encoding="utf-8")
+    ti2.with_suffix(".ti1").write_text(ti2.read_text(encoding="utf-8")
+                                       .replace("CTI2", "CTI1", 1),
+                                       encoding="utf-8")
+    return ti2
+
+
+@pytest.fixture
+def tab(qapp, tmp_path):
+    from PyQt6.QtCore import QSettings
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "app.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "out"))
+    t = TabMeasure(ArgyllRunner(s), s)
+    yield t
+    t.close()
+    t.deleteLater()
+
+
+def test_the_measure_tab_never_asks_whether_a_chart_is_the_fd9s(
+        tab, tmp_path, monkeypatch):
+    import workflow.fd9.measurement as fm
+
+    def asked(*_a, **_k):
+        raise AssertionError("is_fd9_chart was asked with FD-9 support off")
+
+    monkeypatch.setattr(fm, "is_fd9_chart", asked)
+    assert not tab._fd9_on()
+    assert not hasattr(tab, "_fd9_condition")
+    for name in ("FD-9", "Konica Minolta FD-9"):
+        ti2 = _fd9_chart(tmp_path, name)
+        tab.set_ti1_path(ti2.with_suffix(".ti1"))
+        assert tab._is_fd9_target() is False
+        tab._refresh_start_button_label()
+        assert not tab._read_builds_on_existing()
+
+
+def test_the_stored_target_settings_carry_no_fd9_key(tab, tmp_path):
+    from workflow.measure_settings import FD9_CONTROLS, snapshot
+    tab.set_ti1_path(_fd9_chart(tmp_path).with_suffix(".ti1"))
+    assert not set(FD9_CONTROLS) & set(snapshot(tab))
+
+
+def test_an_fd9_chart_is_refused_at_start_with_the_beta_named(
+        tab, tmp_path, monkeypatch):
+    """Requirement 3: an FD-9 chart with the option off is refused at Start
+    with M-FD9-SUPPORT-OFF, and nothing is started."""
+    shown = []
+    monkeypatch.setattr(tab, "_fd9_support_off_window",
+                        lambda: shown.append("M-FD9-SUPPORT-OFF"))
+    monkeypatch.setattr(tab, "_repair_target_instrument", lambda *a: pytest.fail(
+        "an FD-9 chart must not be offered a name 'correction'"))
+    for name in ("FD-9", "Konica Minolta FD-9"):
+        ti2 = _fd9_chart(tmp_path, name)
+        tab.set_ti1_path(ti2.with_suffix(".ti1"))
+        assert tab._blocked_by_unusable_target_instrument() is True
+    assert shown == ["M-FD9-SUPPORT-OFF"] * 2
+
+
+def test_the_chartread_option_lock_is_4321s(tab):
+    """The FD-9's option lock is a second lock; off, it never engages."""
+    tab._set_settings_enabled(False)
+    assert not tab._g_options.isEnabled()
+    tab._set_settings_enabled(True)
+    assert tab._g_options.isEnabled() and tab._save_defaults_btn.isEnabled()
+
+
+def test_the_lists_and_the_instrument_flag_are_4321s():
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    from workflow.ti2_relayout import instrument_to_flag
+    import ui.tabs.tab_chart  # noqa: F401  (imports cleanly with the option off)
+    assert "FD9" not in dict(LayoutOptionsPanel.instruments())
+    assert instrument_to_flag("Konica Minolta FD-9") == "i1"
+    assert instrument_to_flag("FD-9") == "i1"
+
+
+#: Files outside the FD-9's own modules that name the FD-9, each of which
+#: asks the switch (`workflow.fd9.support`) before acting. A new file here is
+#: a new hook: make it ask the switch, then add it, in the same commit.
+FD9_OWN = ("workflow/fd9/", "ui/fd9_measurement.py", "ui/dialogs/fd9_sheet.py",
+           "vendor/")
+HOOKED_FILES = {
+    "core/file_manager.py",          # .fd9.json companion; Run.fd9_sessions_dir
+    "core/settings.py",              # the switch and the FD-9 keys' defaults
+    "data/patch_db.py",              # the label; filtered by the switch
+    "main.py",                       # latches the switch
+    "ui/dialogs/layout_options_panel.py",
+    "ui/dialogs/settings_dialog.py",  # the Beta row
+    "ui/main_window.py",             # the patch set editor refusal
+    "ui/tabs/tab_chart.py",
+    "ui/tabs/tab_measure.py",
+    "ui/licences.py",                # the licence notice section
+    "workflow/chart_creator.py",     # instrument "FD9" only
+    "workflow/chart_import.py",      # .fd9.json companion
+    "workflow/layout_engine/chart.py",
+    "workflow/layout_engine/geometry.py",
+    "workflow/layout_engine/instruments.py",
+    "workflow/layout_engine/papers.py",
+    "workflow/layout_engine/presets.py",
+    "workflow/measure_settings.py",
+    "workflow/measurement_messages.py",
+    "workflow/ti2_relayout.py",
+}
+
+
+def test_the_files_that_name_the_fd9_are_the_known_ones():
+    pat = re.compile(r"fd9|fd-9", re.I)
+    found = set()
+    for base in ("core", "ui", "workflow", "data"):
+        for p in (ROOT / base).rglob("*.py"):
+            rel = p.relative_to(ROOT).as_posix()
+            if rel.startswith(FD9_OWN):
+                continue
+            if pat.search(p.read_text(encoding="utf-8", errors="ignore")):
+                found.add(rel)
+    if pat.search((ROOT / "main.py").read_text(encoding="utf-8")):
+        found.add("main.py")
+    assert found == HOOKED_FILES, (
+        f"new: {sorted(found - HOOKED_FILES)}; gone: "
+        f"{sorted(HOOKED_FILES - found)}")

@@ -1,5 +1,6 @@
 """Native FD-9 shapes, touching-cell pixels and the dedicated edit route."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import json
 from pathlib import Path
 

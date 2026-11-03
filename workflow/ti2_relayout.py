@@ -154,13 +154,17 @@ def check_printtarg_can_lay_out(instrument_flag: str, paper_flag: str) -> None:
 # import the ui layer. printtarg -i accepts PRINTTARG_INSTRUMENTS, above.
 def instrument_to_flag(target_instrument: str | None) -> str:
     name = (target_instrument or "").lower()
+    # The Konica Minolta FD-9 (PR #213, a Beta): its own layout key, only while
+    # FD-9 support is on. Off, an FD-9 chart reads as it did in 4.3.21.
+    if "fd-9" in name or name == "fd9":
+        from workflow.fd9.support import fd9_enabled
+        if fd9_enabled():
+            return "FD9"
     # The CR30 is checked FIRST and is not a printtarg code at all (#159):
     # printtarg has no -iCR30 and never lays this chart out. It is returned so
     # a CR30 chart relayouts as a CR30 rather than silently falling through to
     # the i1Pro default below, which would re-lay a hand-placed grid as a strip
     # chart. chart_creator forces the layout engine for this key.
-    if "fd-9" in name or name == "fd9":
-        return "FD9"
     if "cr30" in name:
         return "CR30"
     if "colormunki" in name:

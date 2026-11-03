@@ -1,5 +1,6 @@
 """Portable invented factory-native wire; no unit data or vendor code/fixtures."""
 
+from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import hashlib
 import json
 import struct
@@ -267,17 +268,22 @@ def test_gui_only_offers_factory_settings(qapp, tmp_path):
     from ui.fd9_measurement import FD9Setup, FD9MeasureMixin
     from types import SimpleNamespace
 
-    store = QSettings(str(tmp_path / "fd9.ini"), QSettings.Format.IniFormat)
-    store.setValue("host", "test-host")
-    # Existing research paths must not influence the normal GUI anymore.
-    store.setValue("profile", "missing.json")
+    from core.settings import AppSettings
+
+    store = AppSettings()
+    store._qs = QSettings(str(tmp_path / "fd9.ini"), QSettings.Format.IniFormat)
+    store.set("fd9_host", "test-host")
+    # The address is an AppSettings key now (review M3), so the sandbox
+    # covers it; the setup window offers the address and nothing else.
     dialog = FD9Setup(store)
-    assert set(dialog.inputs) == {"host"}
+    assert dialog.host.text() == "test-host"
     owner = SimpleNamespace(
-        _fd9_store=store,
+        _settings=store,
         _fd9_condition=SimpleNamespace(currentText=lambda: "M1"),
     )
+    owner._fd9_host = lambda: FD9MeasureMixin._fd9_host(owner)
     settings = FD9MeasureMixin._fd9_settings(owner)
+    assert settings.driver_source is None   # always the bundled driver
     assert settings.conversion_source == "instrument_firmware"
     assert (
         settings.profile is None
@@ -380,7 +386,6 @@ def test_gui_factory_measurement_runs_real_export_and_filing(setup, qtbot, monke
     app_settings.set("custom_output_path", str(s.tmp / "out"))
     tab = TabMeasure(ArgyllRunner(app_settings), app_settings)
     qtbot.addWidget(tab)
-    tab._fd9_store = QSettings(str(s.tmp / "gui.ini"), QSettings.Format.IniFormat)
     configure(tab, s)
     tab._fd9_condition.setCurrentText("M2")
 

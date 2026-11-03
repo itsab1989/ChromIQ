@@ -54,8 +54,6 @@ NOT_A_SETTING = {
 #: Manual only: Guided is a way of *choosing* these, and it fills the same
 #: underlying reading — the same rule Create Chart follows.
 MEASURE_CONTROLS: "dict[str, str]" = {
-    "fd9_resume":         "_fd9_resume",
-    "fd9_condition":      "_fd9_condition",
     "suppress_warnings":   "_m_suppress_cb",
     "disable_initial_cal": "_m_nocal_cb",
     "patch_by_patch":      "_m_pbp_cb",
@@ -124,6 +122,24 @@ def _write(widget, value) -> None:
         widget.setText("" if value is None else str(value))
 
 
+#: The FD-9's own two controls (PR #213, a Beta). Stored ONLY for an FD-9
+#: chart while FD-9 support is on (review M1, per_target_settings.md): with it
+#: off, or for any other chart, a target's record is exactly what 4.3.21
+#: wrote, so no meta.json is rewritten because of the FD-9.
+FD9_CONTROLS: "dict[str, str]" = {
+    "fd9_resume":         "_fd9_resume",
+    "fd9_condition":      "_fd9_condition",
+}
+
+
+def _fd9_target(tab: Any) -> bool:
+    ask = getattr(tab, "_is_fd9_target", None)
+    try:
+        return bool(callable(ask) and ask())
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def snapshot(tab: Any) -> "dict[str, dict]":
     """What the Measure tab would store for the selected target, right now."""
     out: "dict[str, dict]" = {}
@@ -131,6 +147,11 @@ def snapshot(tab: Any) -> "dict[str, dict]":
         got = _read(getattr(tab, attr, None))
         if got is not None:
             out[key] = {"enabled": got[0], "value": got[1]}
+    if _fd9_target(tab):
+        for key, attr in FD9_CONTROLS.items():
+            got = _read(getattr(tab, attr, None))
+            if got is not None:
+                out[key] = {"enabled": got[0], "value": got[1]}
     # …and every chartread option of BOTH modules, which the tab already
     # keeps as lists — enumerable, so they cannot be forgotten. Guided and
     # Manual are separate rows on screen, so each set is stored under its
@@ -173,8 +194,15 @@ def apply(tab: Any, stored: "dict[str, dict]") -> "list[str]":
     # Manual twin, which is where those options live now, unless the file
     # already carries one.
     stored = dict(stored or {})
-    # The independent driver is selected by the FD-9 chart, not a separate opt-in.
+    # The FD-9's keys: put back when this tab has the FD-9 controls (FD-9
+    # support on), and otherwise left alone, never "unknown" (§7 A). The
+    # "fd9_research" key of the contributor's early builds is dropped: the
+    # FD-9 chart itself selects the driver.
     stored.pop("fd9_research", None)
+    for key, attr in FD9_CONTROLS.items():
+        rec = stored.pop(key, None)
+        if isinstance(rec, dict) and getattr(tab, attr, None) is not None:
+            _write(getattr(tab, attr), rec.get("value"))
     for key in [k for k in stored if k.startswith("chartread.")]:
         suffix = key.split(".", 1)[1]
         manual_key = f"chartread_manual.{suffix}"

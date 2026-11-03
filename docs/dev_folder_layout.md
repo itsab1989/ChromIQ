@@ -59,9 +59,31 @@ path construction are owned by `core/file_manager.py` via three classes:
         <name>-colours.txt / <name>-i1profiler.txt / .pxf
       cache/                         # #127: tool intermediates — always safe to delete
         *-patchbox.cht / *-sample.cht / *-diag.tif
+        fd9-preview-<hash>.png       # FD-9 (Beta): the Measure tab's layout preview
+      <target-name>.fd9.json         # FD-9 (Beta): the physical grid and marks
+      fd9-sessions/                  # FD-9 (Beta): one folder per Start (Run.fd9_sessions_dir)
+        <session id>/                #   scan.pgm, wire/, progress.json, the
+                                     #   staged measurement, metadata; filed.json
+                                     #   once its measurement was saved
       meta.json
     run2/ …
 ```
+
+**FD-9 session folders** (PR #213, the Konica Minolta FD-9 Beta written and
+contributed by lessbones). Every Start on an FD-9 chart records what the
+instrument sent in `fd9-sessions/<session id>/` beside the chart: for a
+profiling chart the run folder, for a verification chart the run's
+`verifications/` folder. That is what a Resume continues from and what a fault
+is looked into with. The retention rule (`workflow/fd9/sessions.py`,
+applied whenever an FD-9 read ends): **kept** are every session that filed
+data (it carries `filed.json`, or the `.ti3` beside the chart or one in
+`old/` names it in `FD9_SOURCE_SESSIONS` / `CHROMIQ_FD9_SESSION`) and every
+session that can still be resumed or is running; **deleted** is a session that
+ended without filing anything and cannot be resumed, **except the newest such
+one**, which stays for diagnosis. The layout preview goes to the run's
+`cache/`, also for a verification chart. None of this is under the system temp
+folder, so `scripts/session_cleanup.py` and the suite's temp sweep never touch
+it (and must not: it is the user's project).
 
 **The v2 rule (#127):** everything a user prints, installs or measures stays
 at the run root (the Argyll tools are stem+cwd coupled there — chartread runs

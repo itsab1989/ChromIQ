@@ -16,7 +16,11 @@ MAX_COLUMNS = 64
 MAX_ROWS = 128
 MIN_WIDTH, MAX_WIDTH = 137.0, 330.0
 MIN_HEIGHT, MAX_HEIGHT = 170.0, 660.0
-PAPERS = ("137x300", "A4", "Letter", "A3", "329x483", "330x660")
+#: The sheets offered for the FD-9, named the way they go INTO the FD-9 (width
+#: across the feed x length along it). A4R / LetterR are the landscape sheets:
+#: 297 x 210 and 279.4 x 215.9 mm, inside the 137..330 x 170..660 envelope.
+PAPERS = ("137x300", "A4", "A4R", "Letter", "LetterR", "A3", "329x483",
+          "330x660")
 PATCH = 8.0
 PITCH = 9.0
 
@@ -132,8 +136,12 @@ def _calibration_target(
     patches = [target.patches[i] for i in order]
     rewritten = rewrite_ti1_text(text, order)
     rewritten = re.sub(r'^FD9_CALIBRATION_ROWS\s+"\d+"\s*\n', "", rewritten, flags=re.M)
+    rewritten = re.sub(r'^KEYWORD\s+"FD9_CALIBRATION_ROWS"\s*\n', "", rewritten,
+                       flags=re.M)
     first_line, rest = rewritten.split("\n", 1)
-    rewritten = first_line + f'\nFD9_CALIBRATION_ROWS "{rows}"\n' + rest
+    # Declared, as CGATS wants for a keyword of its own (review Low).
+    rewritten = (first_line + '\nKEYWORD "FD9_CALIBRATION_ROWS"\n'
+                 + f'FD9_CALIBRATION_ROWS "{rows}"\n' + rest)
     return (
         ColorTarget(target.color_rep, target.device_fields, patches, target.ink_limit),
         rows,
@@ -158,6 +166,7 @@ def build_chart(
     patch_mm=8.0,
     patch_height_mm=None,
     gap_mm=1.0,
+    compression="lzw",
     **unused,
 ):
     """Create device-native TIFF + matching TI2 and FD9 physical definition.
@@ -241,9 +250,11 @@ def build_chart(
     if size[0] * size[1] * channels * (2 if bit16 else 1) > 512 * 1024 * 1024:
         raise ValueError("FD-9 raster exceeds 512 MiB; reduce resolution or sheet size")
     white = tuple(100.0 if additive and not gray_ink else 0.0 for _ in fields)
-    patches = (
-        list(target.patches) + [(white, (95.047, 100.0, 108.883))] * layout.padding
-    )
+    from workflow.layout_engine.ti2_writer import DEFAULT_WHITE_POINT
+
+    # Padding cells are paper white, with the same media-white aim the layout
+    # engine gives its padding (D50, not D65; review Low).
+    patches = list(target.patches) + [(white, DEFAULT_WHITE_POINT)] * layout.padding
     order = list(range(len(patches)))
     seed = random.SystemRandom().randrange(1, 2**31) if seed is None else int(seed)
     if randomize:
@@ -273,10 +284,12 @@ def build_chart(
         (width / 2 - 4.5, 20),
         (width / 2 - 1, 20),
     ]
+    from .support import TARGET_INSTRUMENT
+
     doc = {
         "schema": 1,
         "name": base.name,
-        "instrument": "FD-9",
+        "instrument": TARGET_INSTRUMENT,
         "paper_mm": [width, height],
         "patch_mm": [pw, ph],
         "gap_mm": [gap, gap],
@@ -360,6 +373,7 @@ def build_chart(
             val = [(100 - v if gray_ink else v) / 100 * maxval for v in values]
             arr[y0:y1, x0:x1] = np.rint(val).astype(dtype)
     base.parent.mkdir(parents=True, exist_ok=True)
+    tiff_compression = None if compression in (None, "", "none") else compression
     if additive:
         import tifffile
 
@@ -369,7 +383,7 @@ def build_chart(
             photometric="rgb",
             resolution=(dpi, dpi),
             resolutionunit="inch",
-            compression="lzw",
+            compression=tiff_compression,
         )
         tiffs = [artefact(base, ".tif")]
     else:
@@ -378,11 +392,22 @@ def build_chart(
             artefact(base, ".tif"),
             dpi,
             ink_names=ink_names_from_fields(print_fields),
+            compression=compression or "none",
         )
+    from core.cgats_date import created_stamp
+    from workflow.layout_engine.ti2_writer import DEFAULT_WHITE_POINT as _wp
+
+    # The header the layout engine writes for every chart (ti2_writer), so an
+    # FD-9 chart reads like the others: DESCRIPTOR, CREATED, the instrument's
+    # full name and the media white point (review M6).
     lines = [
         "CTI2",
+        "",
+        'DESCRIPTOR "Argyll Calibration Target chart information 2"',
         'ORIGINATOR "ChromIQ independent FD9 layout"',
-        'TARGET_INSTRUMENT "FD-9"',
+        f'CREATED "{created_stamp()}"',
+        f'TARGET_INSTRUMENT "{TARGET_INSTRUMENT}"',
+        'APPROX_WHITE_POINT "%s"' % " ".join(f"{c:.6f}" for c in _wp),
         f'COLOR_REP "{rep}"',
         f'PAPER_SIZE "{width:g}x{height:g}"',
         f'STEPS_IN_PASS "{nrows}"',
@@ -404,7 +429,7 @@ def build_chart(
         "BEGIN_DATA",
     ]
     lines += [
-        f"{i} {loc} " + " ".join(f"{v:.10f}" for v in tuple(dev) + tuple(xyz))
+        f'{i} "{loc}" ' + " ".join(f"{v:.10f}" for v in tuple(dev) + tuple(xyz))
         for i, loc, dev, xyz in sorted(rows)
     ]
     lines += ["END_DATA", ""]

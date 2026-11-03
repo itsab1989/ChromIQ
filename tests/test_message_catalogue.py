@@ -571,6 +571,16 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # process state, and this reader is not a
                                  # process.
                                  "M-INSTRUMENT-BUSY",
+                                 # 2026-11-03, PR #213 (lessbones): the
+                                 # Konica Minolta FD-9 Beta. ChromIQ drives
+                                 # the FD-9 itself, so its windows are its
+                                 # own; shown from the beta that proposes them.
+                                 "M-FD9-SUPPORT-OFF", "M-FD9-NO-ADDRESS",
+                                 "M-FD9-INSERT-SHEET", "M-FD9-NO-CONNECTION",
+                                 "M-FD9-WRONG-FIRMWARE",
+                                 "M-FD9-MARKS-NOT-FOUND",
+                                 "M-FD9-SHEET-STILL-INSIDE",
+                                 "M-FD9-RESUME-REFUSED", "M-FD9-FAILED",
                                  # 2026-09-03, review 3. Tools ▸ Read single
                                  # patches could bin a whole session in silence
                                  # by two routes: Clear had no question and no
@@ -992,6 +1002,11 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_say_patch_set_kept_unchecked"),
     ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
     ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
+    # PR #213 (lessbones), the FD-9 Beta: every FD-9 window renders M-FD9-*.
+    ("ui.tabs.tab_measure", "TabMeasure", "_fd9_support_off_window"),
+    ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_window"),
+    ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_show_insert_window"),
+    ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_explain_error"),
     # Forum report, 2026-10-03: a chart whose locations its patterns cannot
     # read, before any reader starts and from the engine's typed event.
     ("ui.tabs.tab_measure", "TabMeasure", "_chart_unreadable_window"),

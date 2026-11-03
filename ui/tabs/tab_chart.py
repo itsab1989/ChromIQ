@@ -4005,6 +4005,40 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
 ]
 
 
+def fd9_instrument_bullet() -> str:
+    """The FD-9's bullet in the Instrument (i) of Guided and Manual. Only
+    shown while FD-9 support (Beta) is on."""
+    return tr(
+        "  •  FD-9 (Konica Minolta): an automatic chart reader. You feed it "
+        "the printed sheet and it finds and measures the patches by itself, "
+        "row by row. ChromIQ talks to it over the network with its own "
+        "driver. An FD-9 chart is one sheet with patches from 6 to 30 mm, "
+        "four small black squares near the corners and an arrow that shows "
+        "which end goes in first. FD-9 support is a beta, written and "
+        "contributed by lessbones (Preferences > Beta).")
+
+
+def _without_choice(params: dict, value: str) -> dict:
+    """*params* (parameters.yaml, translated) with the choice *value* and its
+    label removed from every choice list that offers it.
+
+    Used for the FD-9 (printtarg -i "FD9"), a Beta that is offered only while
+    Preferences > Beta turns it on (`workflow.fd9.support`)."""
+    for defs in params.values():
+        if not isinstance(defs, list):
+            continue
+        for param in defs:
+            choices = param.get("choices")
+            if not isinstance(choices, list) or value not in choices:
+                continue
+            i = choices.index(value)
+            param["choices"] = choices[:i] + choices[i + 1:]
+            labels = param.get("labels")
+            if isinstance(labels, list) and len(labels) == len(choices):
+                param["labels"] = labels[:i] + labels[i + 1:]
+    return params
+
+
 def instrument_group_rank(heading: str) -> int:
     """Where a built-in group stands: THE ORDER OF THE CREATE CHART
     "INSTRUMENT" PULLDOWN (Knut, #182 5833490026: *"The sequence of the groups
@@ -7194,8 +7228,13 @@ class TabChart(QWidget):
         # Guided mode: Guided's job is to optimise the chart layout for the
         # instrument, but for these devices the layout is recomputed by an
         # external tool (i1Profiler) — so there's nothing to optimise here.
+        from workflow.fd9.support import fd9_enabled
         for code, label in INSTRUMENT_LABELS.items():
             if code in EXTERNAL_INSTRUMENTS:
+                continue
+            # The FD-9 is a Beta (Preferences > Beta, restart to apply): off,
+            # the list is exactly 4.3.21's.
+            if code == "FD9" and not fd9_enabled():
                 continue
             self._instr_combo.addItem(label, code)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
@@ -7247,7 +7286,8 @@ class TabChart(QWidget):
             "     A CR30 chart is always laid out by ChromIQ's own layout "
             "engine, and can only be read by ChromIQ — standard ArgyllCMS "
             "chartread does not know this instrument and will refuse the "
-            "chart."),
+            "chart.") + (("\n\n" + fd9_instrument_bullet())
+                         if fd9_enabled() else ""),
             inner,
             min_width=600,
         ))
@@ -7331,10 +7371,19 @@ class TabChart(QWidget):
         # the guided -L checkbox is visible.
         self._paper_combo.currentIndexChanged.connect(self._update_dd_visibility)
         paper_row.addWidget(self._paper_combo, stretch=1)
-        self._fd9_sheet_btn = QPushButton(tr("Custom sheet…"), inner)
-        self._fd9_sheet_btn.clicked.connect(self._choose_fd9_sheet)
-        self._fd9_sheet_btn.hide()
-        paper_row.addWidget(self._fd9_sheet_btn)
+        # FD-9 (Beta, PR #213): its own sheet sizes. Built only while FD-9
+        # support is on (Preferences > Beta, restart to apply).
+        from workflow.fd9.support import fd9_enabled
+        if fd9_enabled():
+            self._fd9_sheet_btn = QPushButton(tr("Custom sheet…"), inner)
+            self._fd9_sheet_btn.setObjectName("fd9_custom_sheet")
+            self._fd9_sheet_btn.setToolTip(tr(
+                "Choose any sheet size for the FD-9: 137 to 330 mm across the "
+                "feed and 170 to 660 mm along it, with the patch width, patch "
+                "height and gap. The capacity shown is for one sheet."))
+            self._fd9_sheet_btn.clicked.connect(self._choose_fd9_sheet)
+            self._fd9_sheet_btn.hide()
+            paper_row.addWidget(self._fd9_sheet_btn)
         paper_row.addWidget(TooltipButton(
             tr("Paper Size"),
             tr("Sets the dimensions of each sheet in the printed chart. The chart "
@@ -8587,7 +8636,9 @@ class TabChart(QWidget):
         self._manual_layout_panel = LayoutOptionsPanel(
             self._manual_layout_grp, with_selectors=True, with_calibration=True,
             browse_icon="folder_create")
-        self._manual_layout_panel.fd9_controls.changed.connect(self._fd9_manual_patch_changed)
+        if hasattr(self._manual_layout_panel, "fd9_controls"):   # FD-9 Beta on
+            self._manual_layout_panel.fd9_controls.changed.connect(
+                self._fd9_manual_patch_changed)
         # Let the panel's "Use instrument margins" checkbox read the user's
         # Instrument-Margins thresholds for the current combo (#93, Knut).
         self._manual_layout_panel.set_threshold_lookup(self._combo_thresholds)
@@ -11643,7 +11694,19 @@ class TabChart(QWidget):
             with open(path, encoding="utf-8") as f:
                 data = yaml.load(f, Loader=_Loader)
             from core.i18n import translate_parameters
-            return translate_parameters(data.get("parameters", {}))
+            from workflow.fd9.support import fd9_enabled
+            params = translate_parameters(data.get("parameters", {}))
+            if not fd9_enabled():
+                params = _without_choice(params, "FD9")
+            else:
+                # The -i (i) gets the FD-9's bullet, only while it is offered.
+                for param in params.get("printtarg", []) or []:
+                    if param.get("flag") == "-i" and "FD9" in (
+                            param.get("choices") or []):
+                        param["tooltip_body"] = (
+                            str(param.get("tooltip_body", "")).rstrip()
+                            + "\n\n" + fd9_instrument_bullet())
+            return params
         except Exception as exc:
             log.error("Cannot load parameters.yaml: %s", exc)
             return {}
@@ -12116,11 +12179,10 @@ class TabChart(QWidget):
             new = now.get(field)
             if before is None or before.get(field) != new:
                 self._shared_set(dst, field, new)
-        if dst == "manual":
-            self._sync_engine_panel_after_transfer()
         if dst == "guided":
             self._update_patch_count()
         else:
+            self._sync_engine_panel_after_transfer()
             self._refresh_manual_command_preview()
 
     def _sync_engine_panel_after_transfer(self) -> None:
@@ -19052,7 +19114,7 @@ class TabChart(QWidget):
         from the instrument/paper (not from an editable recipe). Manual mode
         has a live recipe panel — see :meth:`_engine_info_line_from_recipe`."""
         if instr == "FD9":
-            return tr("FD-9: {w:g} × {h:g} mm patches, {gap:g} mm gaps. Feed arrow first, printed face up.").format(
+            return tr("FD-9 chart: {w:g} × {h:g} mm patches with {gap:g} mm gaps, on one sheet. Insert it into the FD-9 arrow first, printed side up.").format(
                 w=getattr(self, "_fd9_patch_mm", 8.0),
                 h=getattr(self, "_fd9_patch_h_mm", None) or getattr(self, "_fd9_patch_mm", 8.0),
                 gap=getattr(self, "_fd9_gap_mm", 1.0))
@@ -19081,7 +19143,7 @@ class TabChart(QWidget):
         to reflect the recipe's own margins / patch size / clip border / etc.,
         otherwise it shows stale printtarg values (#93)."""
         if r.instrument == "FD9":
-            return tr("FD-9: {w:g} × {h:g} mm patches, {gap:g} mm gaps. Feed arrow first, printed face up.").format(
+            return tr("FD-9 chart: {w:g} × {h:g} mm patches with {gap:g} mm gaps, on one sheet. Insert it into the FD-9 arrow first, printed side up.").format(
                 w=r.patch_w_mm or 8.0, h=r.patch_h_mm or r.patch_w_mm or 8.0, gap=r.fd9_gap_mm)
         from workflow.layout_engine import papers
         bits = [tr("ChromIQ layout engine"), r.instrument,
@@ -19427,10 +19489,10 @@ class TabChart(QWidget):
                     sizes.append(current)
             except (ValueError, TypeError, AttributeError):
                 current = "137x300"
-        if hasattr(self, "_fd9_sheet_btn"):
+        if hasattr(self, "_fd9_sheet_btn"):       # FD-9 Beta on
             self._fd9_sheet_btn.setVisible(instr == "FD9")
-        if hasattr(self, "_pages_spin"):
-            self._pages_spin.setMaximum(1 if instr == "FD9" else 20)
+            if hasattr(self, "_pages_spin"):
+                self._pages_spin.setMaximum(1 if instr == "FD9" else 20)
         for size in sizes:
             if size not in excluded:
                 self._paper_combo.addItem(paper_display_label(size), size)
@@ -30704,9 +30766,10 @@ class TabChart(QWidget):
         s.set("chart_left_clip_info",      bool(params.left_clip_info))
         s.set("chart_instrument",          params.instrument)
         s.set("chart_paper",               params.paper)
-        s.set("chart_fd9_patch_mm", params.fd9_patch_mm)
-        s.set("chart_fd9_patch_h_mm", params.fd9_patch_h_mm)
-        s.set("chart_fd9_gap_mm", params.fd9_gap_mm)
+        if params.instrument == "FD9":       # FD-9 (Beta) only: no new keys
+            s.set("chart_fd9_patch_mm", params.fd9_patch_mm)
+            s.set("chart_fd9_patch_h_mm", params.fd9_patch_h_mm or 0.0)
+            s.set("chart_fd9_gap_mm", params.fd9_gap_mm)
         s.set("chart_pages",               params.pages)
         s.set("chart_double_density",      params.double_density)
         s.set("chart_triple_density",      params.triple_density)

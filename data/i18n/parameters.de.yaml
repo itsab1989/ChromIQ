@@ -489,7 +489,7 @@ parameters:
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (Flachbett)"
         - "CR30 (ChnSpec, patch by patch)"
-        - "FD-9 (Konica Minolta)"
+        - "FD-9"
         - "i1iSis (über i1Profiler)"
       tooltip_title: "Messgerät (-i)"
       tooltip_body: |

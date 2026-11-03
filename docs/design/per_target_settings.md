@@ -123,6 +123,26 @@ by its row).
 the equivalent registry on each in-scope tab, never hand-written, so a parameter
 added to `parameters.yaml` cannot be forgotten.
 
+### 1.4 ⏳ Awaiting confirmation: the FD-9's two Measure settings (Beta, PR #213)
+
+**Confirmed by:** *nobody yet.*
+
+The Konica Minolta FD-9 (written and contributed by lessbones; Preferences >
+Beta, off by default) adds two Measure controls: the measurement condition
+(M0 / M1 / M2) and Resume. They are stored per target, as `fd9_condition` and
+`fd9_resume` in the target's `meta.json`, **only for an FD-9 chart and only
+while FD-9 support is on** (`workflow/measure_settings.py` `FD9_CONTROLS`).
+For every other chart, and for every chart with FD-9 support off, the record
+is exactly what 4.3.21 wrote, so no target's `meta.json` changes because of
+the FD-9. A record that carries the keys is read back when the FD-9 controls
+exist and is otherwise left as it is, never reported as unknown. Restore
+Defaults puts the condition back to M1 and unticks Resume.
+
+Global, not per target (AppSettings): the FD-9's network address (`fd9_host`,
+"FD-9 setup…") and the Create Chart FD-9 patch width, height and gap last used
+(`chart_fd9_patch_mm`, `chart_fd9_patch_h_mm`, `chart_fd9_gap_mm`), which are
+written only when an FD-9 chart is generated.
+
 ---
 
 ## 2. When settings are loaded

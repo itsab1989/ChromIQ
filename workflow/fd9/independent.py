@@ -374,7 +374,7 @@ def export_saved(
         'ORIGINATOR "ChromIQ independent FD9"',
         'DEVICE_CLASS "OUTPUT"',
         f'COLOR_REP "{rep}_XYZ"',
-        'TARGET_INSTRUMENT "FD-9"',
+        'TARGET_INSTRUMENT "Konica Minolta FD-9"',
         f'MEASUREMENT_CONDITION "{condition}"',
         'CALIBRATED_REFLECTANCE "NO"',
         'FD9_RESEARCH_ONLY "YES"',

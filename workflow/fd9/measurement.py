@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import hashlib, json, math, os, re, shlex, shutil, tempfile
 from pathlib import Path
 from .independent import driver, chart_grid, capture_layout, export_saved, CaptureFailed
+from .support import TARGET_INSTRUMENT, is_fd9_instrument_name
 
 
 def sha(path):
@@ -13,7 +14,11 @@ def sha(path):
 
 
 def first_table(path):
-    text = Path(path).read_text(encoding="utf-8")
+    # Through core.text_io, like every other chart read: a chart edited on a
+    # Windows machine may be cp1252 (#178, review H2).
+    from core.text_io import read_text
+
+    text = read_text(path)
     fm = re.search(
         r"^BEGIN_DATA_FORMAT\s*$(.*?)^END_DATA_FORMAT\s*$", text, re.M | re.S
     )
@@ -31,16 +36,40 @@ def first_table(path):
     return text, fields, [dict(zip(fields, row)) for row in rows]
 
 
+_FD9_NAME = re.compile(
+    rb'^TARGET_INSTRUMENT[ \t]+"(?:FD-9|Konica Minolta FD-9)"[ \t]*\r?$', re.M
+)
+_IS_FD9_CACHE: "dict[str, tuple[tuple[int, int], bool]]" = {}
+
+
 def is_fd9_chart(path):
+    """True when the chart file at *path* names the FD-9 in TARGET_INSTRUMENT.
+
+    NEVER RAISES, AND READS NO TEXT DECODING (review H2): a chart made on a
+    German Windows is cp1252, and a strict UTF-8 read of it raised
+    UnicodeDecodeError and broke the Measure tab for every instrument. The
+    keyword is ASCII, so only the header BYTES are searched. The answer is
+    cached per path, file size and modification time, because the Measure tab
+    asks on every Start-label refresh. Callers in the app ask only while FD-9
+    support is on (`workflow.fd9.support.fd9_enabled`)."""
     try:
-        text = Path(path).read_text(encoding="utf-8")
-    except OSError:
+        p = Path(path)
+        st = p.stat()
+        key = str(p)
+        stamp = (st.st_mtime_ns, st.st_size)
+        hit = _IS_FD9_CACHE.get(key)
+        if hit is not None and hit[0] == stamp:
+            return hit[1]
+        with p.open("rb") as f:
+            head = f.read(65536)
+        head = head.split(b"BEGIN_DATA_FORMAT", 1)[0]
+        answer = bool(_FD9_NAME.search(head))
+        if len(_IS_FD9_CACHE) > 256:
+            _IS_FD9_CACHE.clear()
+        _IS_FD9_CACHE[key] = (stamp, answer)
+        return answer
+    except Exception:  # noqa: BLE001 - a chart we cannot read is not FD-9's
         return False
-    return bool(
-        re.search(
-            r'^TARGET_INSTRUMENT\s+"(?:FD-9|Konica Minolta FD-9)"\s*$', text, re.M
-        )
-    )
 
 
 def checked_chart(chart):
@@ -115,7 +144,7 @@ def prepare_chart(layout_path, directory, *, stem="fd9-chart"):
             "CTI2",
             'DESCRIPTOR "FD9 physical-layout chart"',
             'ORIGINATOR "ChromIQ FD9"',
-            'TARGET_INSTRUMENT "FD-9"',
+            f'TARGET_INSTRUMENT "{TARGET_INSTRUMENT}"',
             f'COLOR_REP "{rep}"',
             f'STEPS_IN_PASS "{len(layout["rows"])}"',
             f'PASSES_IN_STRIPS2 "{len(layout["rows"][0])}"',
@@ -373,7 +402,6 @@ def resume_plan(chart, settings):
         "FD9_LAYOUT_SHA256": sha(layout_path),
         "SPECTRAL_NORM": "100",
         "COLOR_REP": layout["color_rep"] + "_XYZ",
-        "TARGET_INSTRUMENT": "FD-9",
         "SPECTRAL_BANDS": "36",
         "SPECTRAL_START_NM": "380",
         "SPECTRAL_END_NM": "730",
@@ -385,7 +413,9 @@ def resume_plan(chart, settings):
             {
                 "FD9_CONVERSION_SOURCE": metadata.get("FD9_CONVERSION_SOURCE"),
                 "CALIBRATED_REFLECTANCE": "YES",
-                "FD9_HOST": settings.host,
+                # Not FD9_HOST: the factory and model fingerprints below
+                # identify the FD-9, and an address handed out again by a
+                # router must not make a partial run unresumable (review M11).
                 "FD9_COLOUR_DATA_SHA256": colour_data()[2],
             }
         )
@@ -414,7 +444,11 @@ def resume_plan(chart, settings):
                 "OBSERVER_SOURCE_SHA256": sha(settings.observer),
             }
         )
-    if any(metadata.get(k) != v for k, v in required.items()):
+    # Either spelling: "FD-9" (charts made before the Beta switch) or the full
+    # "Konica Minolta FD-9" ChromIQ writes now.
+    if not is_fd9_instrument_name(metadata.get("TARGET_INSTRUMENT")) or any(
+        metadata.get(k) != v for k, v in required.items()
+    ):
         raise ValueError(
             "Resume requires the same chart, condition, conversion source and colour data"
         )

@@ -228,6 +228,20 @@ def pt_to_mm(pt: float) -> float:
     return round(float(pt or 0.0) * MM_PER_PT, 2)
 
 
+def fd9_greyed_reason() -> str:
+    """The tooltip of a Create Chart control the FD-9 layout does not use."""
+    return tr(
+        "Not used for the FD-9. An FD-9 chart has a fixed layout of its own, "
+        "made for the way the FD-9 finds and reads the sheet: at least 15 mm "
+        "free on each side, the middle of the first row of patches 42 mm from "
+        "the end that goes in first, and at least 33 mm free at the other end. "
+        "Four small black squares near the corners let the FD-9 find the "
+        "patches, and an arrow shows which end goes in first. Nothing else is "
+        "printed on the sheet. You set the patch width, the patch height and "
+        "the gap between patches above, and an FD-9 chart is always one "
+        "sheet.")
+
+
 class LayoutOptionsPanel(QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
@@ -308,8 +322,20 @@ class LayoutOptionsPanel(QWidget):
                    ("p3", "i1Pro 3 Plus"),
                    ("CM", "ColorMunki / i1Studio / ColorChecker Studio"),
                    ("SS", "SpectroScan (flatbed)"),
-                   ("CR30", "CR30 (ChnSpec, patch by patch)"),
-                   ("FD9", "FD-9 (Konica Minolta)")]
+                   ("CR30", "CR30 (ChnSpec, patch by patch)")]
+    #: Offered only while FD-9 support is on (Preferences > Beta, restart to
+    #: apply, `workflow.fd9.support`); `instruments()` adds it then.
+    FD9_INSTRUMENT = ("FD9", "FD-9")
+
+    @classmethod
+    def instruments(cls) -> "list[tuple[str, str]]":
+        """The instrument list this run offers: INSTRUMENTS, plus the FD-9
+        when its Beta is on."""
+        from workflow.fd9.support import fd9_enabled
+        out = list(cls.INSTRUMENTS)
+        if fd9_enabled():
+            out.append(cls.FD9_INSTRUMENT)
+        return out
 
     @staticmethod
     def mode_label_for(inst: str) -> str:
@@ -529,7 +555,7 @@ class LayoutOptionsPanel(QWidget):
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
             self.instr = ElidingComboBox(self)
-            for k, lbl in self.INSTRUMENTS:
+            for k, lbl in self.instruments():
                 self.instr.addItem(lbl, k)
             sel.addWidget(QLabel(tr("Instrument:"), self), 0, 0)
             sel.addWidget(self.instr, 0, 1, 1, 3)
@@ -602,18 +628,22 @@ class LayoutOptionsPanel(QWidget):
             self._custom_paper_w.setVisible(False)
             sel.setColumnStretch(1, 1)        # paper / instrument / mode expand
             v.addLayout(sel)
-            self.fd9_notice = QLabel(tr("FD-9: 6-30 mm patch width and height; gaps may be zero. Feed arrow first, printed face up."), self)
-            self.fd9_notice.setWordWrap(True)
-            self.fd9_notice.hide()
-            v.addWidget(self.fd9_notice)
-            from ui.dialogs.fd9_sheet import FD9PatchControls
-            self.fd9_controls = FD9PatchControls(self)
-            self.fd9_patch = self.fd9_controls.patch_width
-            self.fd9_height = self.fd9_controls.patch_height
-            self.fd9_gap = self.fd9_controls.gap
-            self.fd9_controls.changed.connect(self._emit)
-            self.fd9_controls.hide()
-            v.addWidget(self.fd9_controls)
+            # FD-9 (Beta): built only while FD-9 support is on, so with it off
+            # the panel is 4.3.21's widget for widget.
+            from workflow.fd9.support import fd9_enabled
+            if fd9_enabled():
+                from ui.dialogs.fd9_sheet import FD9PatchControls, fd9_layout_note
+                self.fd9_notice = QLabel(fd9_layout_note(), self)
+                self.fd9_notice.setWordWrap(True)
+                self.fd9_notice.hide()
+                v.addWidget(self.fd9_notice)
+                self.fd9_controls = FD9PatchControls(self)
+                self.fd9_patch = self.fd9_controls.patch_width
+                self.fd9_height = self.fd9_controls.patch_height
+                self.fd9_gap = self.fd9_controls.gap
+                self.fd9_controls.changed.connect(self._emit)
+                self.fd9_controls.hide()
+                v.addWidget(self.fd9_controls)
             # Long paper labels shouldn't force the panel wide; the paper combo
             # gets a roomier minimum (it shares its row only with Pages) while
             # instrument/mode stay capped. The dropdown always shows full text.
@@ -3122,34 +3152,9 @@ class LayoutOptionsPanel(QWidget):
         for every instrument — e.g. "Offset every second strip" (a ColorMunki-
         only option) showed for SpectroScan / i1Pro / DTP41 / DTP51 until the
         user manually changed the instrument (Knut)."""
-        if self.instr is not None:
-            fd9 = inst == "FD9"
-            if hasattr(self, "fd9_notice"):
-                self.fd9_notice.setVisible(fd9)
-                self.fd9_controls.setVisible(fd9)
-            from PyQt6.QtWidgets import QGroupBox
-            for group in self.findChildren(QGroupBox, options=Qt.FindChildOption.FindDirectChildrenOnly):
-                if group.title() in (tr("Output"), tr("Printer calibration")):
-                    continue
-                # Keep explanatory (i) buttons usable while fixed native
-                # geometry controls are greyed. Disabling the parent also
-                # disables those buttons, regardless of their own state.
-                from PyQt6.QtWidgets import QAbstractSpinBox, QAbstractButton, QComboBox
-                for control in group.findChildren((QAbstractSpinBox, QAbstractButton, QComboBox)):
-                    if isinstance(control, TooltipButton):
-                        continue
-                    if fd9:
-                        if not hasattr(control, "_fd9_prior_enabled"):
-                            control._fd9_prior_enabled = control.isEnabledTo(group)
-                        control.setEnabled(False)
-                    elif hasattr(control, "_fd9_prior_enabled"):
-                        control.setEnabled(control._fd9_prior_enabled)
-                        del control._fd9_prior_enabled
-            if self.pages is not None:
-                self.pages.setMaximum(1 if fd9 else 20)
-            if hasattr(self, "custom_w"):
-                self.custom_w.setRange(137 if fd9 else 20, 330 if fd9 else 2000)
-                self.custom_h.setRange(170 if fd9 else 20, 660 if fd9 else 2000)
+        if self.instr is not None and hasattr(self, "fd9_controls"):
+            # Only while FD-9 support is on (the controls exist only then).
+            self._sync_fd9_widgets(inst == "FD9")
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
         if hasattr(self, "clip_enable"):
@@ -3167,6 +3172,72 @@ class LayoutOptionsPanel(QWidget):
         # simply cannot reach any other instrument's Geom, because `_build_base`
         # writes `hex_flat_top` only in the CR30 honeycomb branch.
         self._sync_hex_flat_top_visibility()
+
+    #: Output and Printer calibration work for the FD-9 (bit depth,
+    #: compression, PDF, dpi, calibration); every other group's controls are
+    #: greyed, because the FD-9 chart has a fixed geometry of its own.
+    _FD9_LIVE_GROUPS = ("Output", "Printer calibration")
+
+    def _sync_fd9_widgets(self, fd9: bool) -> None:
+        """Enter or leave the FD-9's own layout. ONLY ON A CHANGE: entering
+        greys the controls the FD-9 layout does not read and gives each a
+        tooltip saying why; leaving puts back exactly what was there
+        (enabled state, tooltip, page count and custom sheet size), never a
+        blanket "enabled"."""
+        self.fd9_notice.setVisible(fd9)
+        self.fd9_controls.setVisible(fd9)
+        was = getattr(self, "_fd9_saved", None)
+        if fd9 == (was is not None):
+            return
+        from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,
+                                     QComboBox, QGroupBox)
+        if fd9:
+            live = {tr(t) for t in self._FD9_LIVE_GROUPS}
+            why = fd9_greyed_reason()
+            saved = {"controls": [], "pages": None, "custom": None}
+            for group in self.findChildren(
+                    QGroupBox, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                if group.title() in live:
+                    continue
+                # Keep the (i) buttons usable: disabling the parent group
+                # would grey them too, so each control is greyed instead.
+                for control in group.findChildren(
+                        (QAbstractSpinBox, QAbstractButton, QComboBox)):
+                    if isinstance(control, TooltipButton):
+                        continue
+                    saved["controls"].append(
+                        (control, control.isEnabled(), control.toolTip()))
+                    control.setEnabled(False)
+                    control.setToolTip(why)
+            if self.pages is not None:
+                saved["pages"] = (self.pages.maximum(), self.pages.value())
+                self.pages.setMaximum(1)
+            if hasattr(self, "custom_w"):
+                saved["custom"] = (self.custom_w.minimum(), self.custom_w.maximum(),
+                                   self.custom_w.value(), self.custom_h.minimum(),
+                                   self.custom_h.maximum(), self.custom_h.value())
+                from workflow.fd9.chart import (MAX_HEIGHT, MAX_WIDTH,
+                                                MIN_HEIGHT, MIN_WIDTH)
+                self.custom_w.setRange(MIN_WIDTH, MAX_WIDTH)
+                self.custom_h.setRange(MIN_HEIGHT, MAX_HEIGHT)
+            self._fd9_saved = saved
+            return
+        self._fd9_saved = None
+        for control, enabled, tip in was["controls"]:
+            try:
+                control.setEnabled(enabled)
+                control.setToolTip(tip)
+            except RuntimeError:       # deleted with a rebuilt section
+                pass
+        if was["pages"] is not None:
+            self.pages.setMaximum(was["pages"][0])
+            self.pages.setValue(was["pages"][1])
+        if was["custom"] is not None:
+            wmin, wmax, wval, hmin, hmax, hval = was["custom"]
+            self.custom_w.setRange(wmin, wmax)
+            self.custom_h.setRange(hmin, hmax)
+            self.custom_w.setValue(wval)
+            self.custom_h.setValue(hval)
 
     def _on_instr_changed(self, *_a) -> None:
         """The instrument combo moved. ``_instr_changing`` is True for the
@@ -5229,7 +5300,7 @@ class LayoutOptionsPanel(QWidget):
             effect = "changes"
         cb.setEnabled(effect == "changes")
         if effect == "always_on":
-            name = dict(self.INSTRUMENTS).get(inst, inst)
+            name = dict(self.instruments()).get(inst, inst)
             cb.setToolTip(tr(
                 "On the {instrument}, ChromIQ always treats every strip as if "
                 "this box were ticked: before the first patch and after the "
@@ -5242,8 +5313,7 @@ class LayoutOptionsPanel(QWidget):
             ).format(
                     instrument=name))
         elif effect == "fixed":
-            cb.setToolTip(tr(
-                "FD-9: 6-30 mm patch width and height; gaps may be zero. Feed arrow first, printed face up."))
+            cb.setToolTip(fd9_greyed_reason())
         elif effect == "no_room":
             cb.setToolTip(tr(
                 "An edge spacer is as wide as the space between two patches, "
@@ -5606,7 +5676,8 @@ class LayoutOptionsPanel(QWidget):
         else:
             r = base if base is not None else LayoutRecipe()
         r = self.apply_to_recipe(r)
-        if self.instr is not None and self.instr.currentData() == "FD9":
+        if (self.instr is not None and hasattr(self, "fd9_controls")
+                and self.instr.currentData() == "FD9"):
             r.patch_w_mm, r.patch_h_mm, r.fd9_gap_mm = self.fd9_controls.values()
             r.layout_mode = "patch_first"
         return r
