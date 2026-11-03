@@ -4487,17 +4487,33 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             label=tr("Spectral filter type (-F)"),
             tooltip_title=tr("Spectral Filter (-F)"),
             tooltip_body=(
-                tr("Overrides the illuminant/filter condition used for measurement.\n\n"
-                "Select the filter physically in use on your spectrophotometer:\n\n"
-                "  n = None  (M0 — no filter, uncontrolled UV)\n"
-                "  5 = D50   (M1 — controlled UV, ISO 13655 standard)\n"
-                "  6 = D65   illuminant\n"
-                "  u = UV Cut (M2 — UV excluded)\n"
-                "  p = Polarizing filter (M3)\n\n"
-                "The app defaults to D50 (M1), which matches the most common\n"
-                "workflow for ICC print profiling with the i1Pro family.\n"
-                "Change this only if your instrument has a different filter\n"
-                "physically fitted. Wrong selection silently skews measured values.")
+                # 4.3.23: the text claimed a D50 (M1) default, while
+                # the row is off unless switched on, and an off row passes no
+                # -F, so chartread measures in the instrument's normal mode
+                # (M0 on the i1Pro family; chartread.html: -F "allows
+                # configuring the instrument to have a particular filter
+                # fitted", or an emulation mode on the i1Pro 3). The default
+                # itself is Basti's call and is unchanged.
+                tr("Sets the filter or measurement mode chartread measures "
+                   "with.\n\n"
+                   "Some instruments take a physical filter that you fit "
+                   "yourself (for example the Spectrolino); others, such as "
+                   "the i1Pro 3, have measurement modes that imitate a filter. "
+                   "Choose what applies to your instrument:\n\n"
+                   "  n = None  (M0: no filter, the instrument's own lamp)\n"
+                   "  5 = D50   (M1: controlled UV, the ISO 13655 standard)\n"
+                   "  6 = D65   illuminant\n"
+                   "  u = UV Cut (M2: UV excluded)\n"
+                   "  p = Polarizing filter (M3)\n\n"
+                   "While this row is switched off, which it is unless you "
+                   "switch it on, ChromIQ does not pass -F at all, and "
+                   "chartread measures in the instrument's normal mode: on the "
+                   "i1Pro family that is M0, the instrument's own lamp without "
+                   "a filter. When you switch the row on, D50 (M1) is selected "
+                   "to start with.\n\n"
+                   "Change this only if you know which filter or mode your "
+                   "instrument uses. A wrong choice silently skews the "
+                   "measured values.")
             ),
             widget=filter_combo,
         ))
@@ -14598,13 +14614,23 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             from ui.measurement_filing import refuse_it_does_not_belong
             refuse_it_does_not_belong(self, tr(CHART_NOT_A_MEASUREMENT))
             return None
+        # WHICH READINGS OF AN i1Profiler CxF (4.3.23): asked before anything
+        # is converted, when the file holds more than one measurement
+        # condition (M-IMPORT-CXF-CONDITION). Cancel imports nothing.
+        from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
+        condition = choose_cxf_condition(
+            self, Path(path), log=self._log.appendPlainText,
+            accent=_TAB_COLOR)
+        if condition is None:
+            return None
         try:
             from workflow.reference_convert import (
                 ReferenceConvertError, convert_i1profiler_measurement)
             argyll = self._settings.get("argyll_bin_path",
                                         "/Applications/Argyll/bin")
             converted = convert_i1profiler_measurement(
-                Path(path), argyll, run.ensure_cache_dir() / "import")
+                Path(path), argyll, run.ensure_cache_dir() / "import",
+                condition=condition or None)
         except ReferenceConvertError as exc:
             self._say_on_screen(
                 tr("The file could not be converted"), str(exc))

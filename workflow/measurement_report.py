@@ -4998,12 +4998,21 @@ def report_scope(runs: "list[dict]") -> dict:
     date_range = (dates[0], dates[-1]) if dates else ("", "")
 
     warnings: list[dict] = []
-    insts = [r.get("instrument") or "Unknown instrument" for r in runs]
+    # ONE INSTRUMENT UNDER TWO NAMES IS ONE INSTRUMENT (4.3.23): an i1Profiler
+    # import names its instrument the way ArgyllCMS does ("X-Rite i1 Pro 3"),
+    # where 4.3.22 and earlier wrote i1Profiler's own name ("i1Pro 3"). Runs of
+    # both, and chartread runs of the same instrument, are compared by the
+    # ArgyllCMS name, so they are not reported as a change of instrument.
+    from workflow.reference_convert import argyll_instrument_name
+
+    def _inst(r):
+        return argyll_instrument_name(r.get("instrument")) or "Unknown instrument"
+    insts = [_inst(r) for r in runs]
     if len(set(insts)) > 1:
         dominant = Counter(insts).most_common(1)[0][0]
         odd = [{"run": _run_label(r), "instrument": r.get("instrument") or "Unknown instrument"}
                for r in runs
-               if (r.get("instrument") or "Unknown instrument") != dominant]
+               if _inst(r) != dominant]
         warnings.append({"kind": "instrument", "dominant": dominant, "runs": odd})
 
     missing = []

@@ -106,6 +106,17 @@ def _chromiq_root(settings) -> Path:
     return root if root.exists() else Path.home()
 
 
+
+def _instrument_text(kw: dict) -> str:
+    """The instrument row: ArgyllCMS's name, and i1Profiler's own beside it
+    for a measurement imported from i1Profiler (4.3.23 writes ArgyllCMS's
+    name, so that FWA compensation can find the instrument)."""
+    name = kw.get("TARGET_INSTRUMENT") or "\u2014"
+    i1p = kw.get("CHROMIQ_I1P_INSTRUMENT")
+    if i1p and i1p != name:
+        return tr("{name} (in i1Profiler: {i1p})").format(name=name, i1p=i1p)
+    return name
+
 class Ti3InfoDialog(QDialog):
     def __init__(
         self,
@@ -719,7 +730,7 @@ class Ti3InfoDialog(QDialog):
             tr("How many colour patches were printed and measured. More patches "
                "generally let the profile describe your printer more accurately."))
         self._row_kv(
-            tr("Instrument"), kw.get("TARGET_INSTRUMENT", "—"),
+            tr("Instrument"), _instrument_text(kw),
             tr("The measuring device that read the chart. Different instruments "
                "can disagree slightly, so it's good to know which one produced "
                "these numbers."))
@@ -738,10 +749,23 @@ class Ti3InfoDialog(QDialog):
             tr("Whether the file stores the full colour spectrum of each patch, "
                "not just a single XYZ value. Spectral data lets ChromIQ "
                "recompute the colours under different lighting (see below)."))
-        if kw.get("CREATED"):
-            self._row_kv(tr("Measured on"), kw["CREATED"], tr(
+        # A measurement imported from i1Profiler has no CREATED (the import
+        # writes when it was MEASURED, CHROMIQ_MEASURED, not when it was
+        # converted), so the date it was read is shown from that (4.3.23).
+        measured_on = kw.get("CREATED") or kw.get("CHROMIQ_MEASURED")
+        if measured_on:
+            self._row_kv(tr("Measured on"), measured_on, tr(
                 "When the chart was read. Inks and paper can change over time, so "
                 "an old measurement may no longer match today's prints."))
+        condition = kw.get("MEASUREMENT_CONDITION")
+        if condition:
+            from workflow.measurement_condition import condition_name
+            self._row_kv(tr("Measurement condition"), condition_name(condition), tr(
+                "How much ultraviolet light reached the paper while it was "
+                "measured. M0 is the instrument's own lamp, M1 is like D50 "
+                "daylight with its ultraviolet, and M2 cuts the ultraviolet "
+                "out, as if the paper had no optical brighteners. Brightener "
+                "compensation (FWA) only works with M0 readings."))
 
         # --- Tone & contrast ---------------------------------------------
         self._section(tr("Tone & contrast"), tr(

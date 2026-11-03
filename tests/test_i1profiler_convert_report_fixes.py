@@ -79,7 +79,7 @@ def test_report_as_ti3_converts_i1profiler(qapp, settings, tmp_path, monkeypatch
 
     seen = {}
 
-    def fake_convert(src, argyll, out_dir):
+    def fake_convert(src, argyll, out_dir, **_kw):
         seen["src"] = Path(src)
         out = Path(out_dir) / f"{Path(src).stem}.ti3"
         out.write_text("y", encoding="utf-8")
@@ -132,7 +132,7 @@ def test_report_as_ti3_raises_on_bad_file(qapp, settings, tmp_path, monkeypatch)
     """_as_ti3 raises on a bad file so the batch adder can list what failed."""
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
 
-    def boom(src, argyll, out_dir):
+    def boom(src, argyll, out_dir, **_kw):
         raise ValueError("not an i1Profiler file")
 
     monkeypatch.setattr(

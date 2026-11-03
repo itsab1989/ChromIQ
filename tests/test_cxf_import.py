@@ -66,7 +66,9 @@ def test_cxf_to_ti3_stamps_instrument_date_and_rescales(tmp_path: Path):
     out = cxf_measurement_to_ti3(_cxf(tmp_path), tmp_path / "out.ti3")
     d = parse_ti3(out)
     assert len(d.sample_ids) == 3
-    assert d.keywords.get("TARGET_INSTRUMENT") == "i1Pro 2"
+    # ArgyllCMS's name for it since 4.3.23, i1Profiler's own kept beside it.
+    assert d.keywords.get("TARGET_INSTRUMENT") == "X-Rite i1 Pro 2"
+    assert d.keywords.get("CHROMIQ_I1P_INSTRUMENT") == "i1Pro 2"
     assert d.keywords.get("CHROMIQ_MEASURED") == "2026-02-14"
     import numpy as np
     assert float(np.asarray(d.rgb).max()) <= 100.5      # 0..255 → 0..100
@@ -74,7 +76,7 @@ def test_cxf_to_ti3_stamps_instrument_date_and_rescales(tmp_path: Path):
     rep = build_report(out)
     assert rep["reference_source"] == "device"
     assert rep["created"].startswith("2026-02-14")
-    assert rep["instrument"] == "i1Pro 2"
+    assert rep["instrument"] == "X-Rite i1 Pro 2"
     assert rep["paper_white"]["lab"][0] > rep["max_black"]["lab"][0]
 
 
@@ -89,7 +91,7 @@ def test_convert_dispatcher_routes_cxf(tmp_path: Path):
     src = _cxf(tmp_path, ext=".cxf")
     out = convert_i1profiler_measurement(src, "/nonexistent/argyll", tmp_path / "d")
     assert out.suffix == ".ti3" and out.is_file()
-    assert parse_ti3(out).keywords.get("TARGET_INSTRUMENT") == "i1Pro 2"
+    assert parse_ti3(out).keywords.get("TARGET_INSTRUMENT") == "X-Rite i1 Pro 2"
 
 
 def test_cxf_rejects_mismatched_or_empty(tmp_path: Path):

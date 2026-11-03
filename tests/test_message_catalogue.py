@@ -141,6 +141,10 @@ AWAITING_APPROVAL: "set[str]" = {
     # A chart a little larger than its paper (jctay 149803, Basti 2026-10-23).
     "M-PRINT-CHART-CUT", "M-PRINT-CHART-CUT-PARTS",
     "M-EDGE-NOT-PRINTED", "M-EDGE-NOT-PRINTED-PARTS",
+    # Which measurement condition of an i1Profiler CxF to import (jctay,
+    # forum 2026-11-03; Basti 2026-11-03: "ChromIQ offers a choice of
+    # condition"), 4.3.23.
+    "M-IMPORT-CXF-CONDITION", "M-IMPORT-CXF-CONDITION-PARTS",
     # Forum post 149786 (4.3.10): part of a strip read one patch out, warned
     # about while measuring and named in the report. Proposed 2026-10-22.
     "M-STRIP-PART-SLIPPED-LATE", "M-STRIP-PART-SLIPPED-EARLY",
@@ -971,6 +975,8 @@ def test_the_revision_note_names_what_awaits_review():
 
 # ---- 2. the windows render from the catalogue ----------------------------
 WINDOW_SOURCES = [
+    # 4.3.23: which measurement condition of an i1Profiler CxF to import.
+    ("ui.dialogs.cxf_condition_dialog", "CxfConditionDialog", "__init__"),
     ("ui.tabs.tab_measure", "TabMeasure", "_replace_message"),
     ("ui.tabs.tab_chart", "TabChart", "_profiling_chart_message"),
     ("ui.tabs.tab_chart", "TabChart", "_verify_chart_message"),

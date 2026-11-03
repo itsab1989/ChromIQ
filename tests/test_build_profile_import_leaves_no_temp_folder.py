@@ -71,7 +71,7 @@ def test_the_folder_goes_whatever_the_door_answers(tab, monkeypatch, answer):
         assert Path(measurement).parent.name.startswith("chromiq-import-")
         return answer
     monkeypatch.setattr(tab, "_offer_import_into_a_project", offer)
-    monkeypatch.setattr(tab, "_import_i1profiler_cxf", lambda p: None)
+    monkeypatch.setattr(tab, "_import_i1profiler_cxf", lambda p, **_kw: None)
     tab._on_load_ti3()
     assert seen["existed"]
     assert not seen["path"].parent.exists()

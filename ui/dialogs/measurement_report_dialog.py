@@ -5892,7 +5892,16 @@ class MeasurementReportDialog(QDialog):
         self._converted_tmpdirs.append(holder)
         out_dir = Path(holder.name)
         argyll = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
-        return convert_i1profiler_measurement(src, argyll, out_dir)
+        # Which readings of a CxF (4.3.23, M-IMPORT-CXF-CONDITION). Cancel
+        # leaves the file out, named among those that were not added.
+        from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
+        from workflow import measurement_messages as _MM
+        from workflow.reference_convert import ReferenceConvertError
+        condition = choose_cxf_condition(self, src)
+        if condition is None:
+            raise ReferenceConvertError(_MM.cxf_condition_cancelled_line())
+        return convert_i1profiler_measurement(src, argyll, out_dir,
+                                              condition=condition or None)
 
     def _on_remove_profile(self) -> None:
         # Any selected row — the profile's own or one of its run rows — names

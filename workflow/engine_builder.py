@@ -381,6 +381,12 @@ class EngineProfileBuilder:
         # oracle, so a damaged calibration table is put right here as well.
         from workflow.cal_repair import repair_embedded_cal
         repair_embedded_cal(params.ti3_path)
+        # FWA on an M1/M2 measurement (4.3.23), as colprof's floor does.
+        from workflow.measurement_condition import (
+            fwa_condition_dropped_log_line, without_fwa_unless_m0)
+        params, dropped_for = without_fwa_unless_m0(params)
+        if dropped_for:
+            on_line(fwa_condition_dropped_log_line(dropped_for))
         try:
             settings = settings_from_params(params)
             if self._app_settings is not None:

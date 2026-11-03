@@ -143,6 +143,10 @@ def _answer(monkeypatch, *, project="Turn", run_id="run1"):
         def exec(self):
             return 0
     monkeypatch.setattr(mf, "InfoDialog", _Info)
+    # 4.3.23: an .mxf with M0, M1 and M2 asks which condition to import
+    # (M-IMPORT-CXF-CONDITION); answered with Import on the preselection.
+    import ui.dialogs.cxf_condition_dialog as ccd
+    monkeypatch.setattr(ccd, "_run", lambda dlg: True)
     return seen
 
 

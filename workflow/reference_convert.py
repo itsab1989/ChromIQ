@@ -161,7 +161,8 @@ def is_ti3(path: str | Path) -> bool:
 def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
                                    out_dir: str | Path,
                                    runner: Callable[..., subprocess.CompletedProcess]
-                                   = subprocess.run) -> Path:
+                                   = subprocess.run,
+                                   condition: "str | None" = None) -> Path:
     """Turn an i1Profiler **measurement** export into a ``.ti3`` ``scanin_target``
     can use, running ``txt2ti3`` for the user (the same tool as Tools → Convert
     i1Profiler → TI3). A file that is already a ``.ti3`` is returned unchanged.
@@ -169,6 +170,8 @@ def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
     ``txt2ti3`` copies the export's ``SampleID`` into ``SAMPLE_LOC`` — the patch
     numbers ``1…N`` — which is exactly what the render-derived geometry is keyed
     on. Writes ``<out_dir>/<stem>.ti3``. Raises :class:`ReferenceConvertError`.
+    *condition* is passed to :func:`cxf_measurement_to_ti3` for a CxF file
+    (the condition the person chose, 4.3.23) and ignored otherwise.
     """
     p = Path(path)
     if is_ti3(p):
@@ -178,7 +181,8 @@ def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
     # CxF3 (i1Profiler's native .mxf / .cxf): a pure-Python parse, no txt2ti3 —
     # instrument + date are stamped as part of the write (Basti).
     if is_cxf(p):
-        return cxf_measurement_to_ti3(p, out_dir / f"{p.stem}.ti3")
+        return cxf_measurement_to_ti3(p, out_dir / f"{p.stem}.ti3",
+                                      condition=condition)
     # `base` is a STEM built from the imported file's name, which routinely
     # carries a version dot ("Epson P900 v1.2.txt"). txt2ti3 APPENDS ".ti3" to
     # the outbase it is given, so the path we look for must be built the same
@@ -323,7 +327,19 @@ def stamp_instrument_from_source(ti3_path: str | Path, source_txt: str | Path,
     existing = m.group(1).strip() if m else None
     if existing and not _is_txt2ti3_placeholder_instrument(existing):
         return existing                       # a real instrument — leave it
-    name = read_instrumentation(source_txt) or fallback
+    i1p_name = read_instrumentation(source_txt)
+    # THE NAME ARGYLLCMS KNOWS IT BY (4.3.23): "i1Pro 2" stopped colprof -f
+    # with "Unrecognised target instrument"; i1Profiler's own name is kept in
+    # a declared keyword beside it (see `argyll_instrument_name`).
+    name = argyll_instrument_name(i1p_name) or fallback
+    if i1p_name and name != i1p_name and I1P_INSTRUMENT_KEYWORD not in text:
+        lines = text.splitlines()
+        at = 1 if lines and lines[0].strip().upper().startswith("CTI3") else 0
+        lines[at:at] = [f'KEYWORD "{I1P_INSTRUMENT_KEYWORD}"',
+                        f'{I1P_INSTRUMENT_KEYWORD} "{i1p_name}"']
+        text = "\n".join(lines) + "\n"
+        m = re.search(r'^\s*TARGET_INSTRUMENT\s+"?(.*?)"?\s*$', text,
+                      re.IGNORECASE | re.MULTILINE)
     if m:
         # Replace txt2ti3's placeholder value in place (its KEYWORD line stays).
         text = re.sub(r'^(\s*TARGET_INSTRUMENT\s+).*$', rf'\1"{name}"', text,
@@ -341,9 +357,18 @@ def stamp_instrument_from_source(ti3_path: str | Path, source_txt: str | Path,
 
 
 _CXF_NS = {"cc": "http://colorexchangeformat.com/CxF3-core"}
-# Preferred measurement mode (ISO 13655 illumination condition): M2 = UV-cut is
-# the safest default for modern OBA papers; fall back to M1 (D50) then M0.
-_CXF_MODES = ("M2_Measurement", "M1_Measurement", "M0_Measurement")
+#: The measurement conditions (ISO 13655) an i1Profiler CxF can hold, in the
+#: order the condition window lists them. Until 4.3.23 the import took the
+#: first of M2, M1, M0 the file held, without asking and without saying so
+#: (jctay, printerknowledge, 2026-11-03: he compared ChromIQ's import with his
+#: M1 readings, and it was M2). Now the person chooses
+#: (`ui.dialogs.cxf_condition_dialog`), and the choice is written into the
+#: ``.ti3`` (``MEASUREMENT_CONDITION``).
+_CXF_CONDITIONS = ("M0", "M1", "M2")
+#: The condition preselected when the file does not say, with certainty,
+#: which one i1Profiler was set to: M1 is the ISO 13655 standard for papers
+#: with brighteners viewed in daylight (Basti, 2026-11-03).
+DEFAULT_CXF_CONDITION = "M1"
 
 
 def is_cxf(path: str | Path) -> bool:
@@ -352,7 +377,180 @@ def is_cxf(path: str | Path) -> bool:
     return Path(path).suffix.lower() in (".mxf", ".cxf")
 
 
-def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
+@dataclass(frozen=True)
+class CxfConditions:
+    """What a CxF measurement says about its measurement conditions.
+
+    *available* are the conditions the file holds readings for, in
+    :data:`_CXF_CONDITIONS` order. *selected_raw* is i1Profiler's own
+    ``SelectedMeasurementCondition`` as the file writes it (None when absent),
+    and *selected* the condition that value names WITH CERTAINTY, else None.
+    Only a text label is certain: X-Rite's i1iSis sample writes
+    ``"UV excluded [M2]"``. i1Profiler 3.x writes a number ("0" in jctay's
+    files), and which number is which condition has not been proved, so a
+    number is reported but never mapped (Basti, 2026-11-03).
+    *preselect* is what the window offers first: *selected* when the file
+    holds it, else M1 when it holds M1, else the first it holds."""
+    available: tuple
+    selected_raw: "str | None"
+    selected: "str | None"
+
+    @property
+    def preselect(self) -> str:
+        if self.selected in self.available:
+            return self.selected
+        if DEFAULT_CXF_CONDITION in self.available:
+            return DEFAULT_CXF_CONDITION
+        return self.available[0] if self.available else ""
+
+    @property
+    def needs_choice(self) -> bool:
+        return len(self.available) > 1
+
+
+_CONDITION_LABEL_RE = re.compile(r"(?<![A-Za-z0-9])M([0-3])(?![0-9])",
+                                 re.IGNORECASE)
+
+
+def condition_from_label(raw: "str | None") -> "str | None":
+    """The condition a ``SelectedMeasurementCondition`` value names with
+    certainty, or None. A label that carries one condition token ("UV
+    excluded [M2]", "M1", "M0 - No Filter") names it; a bare number does
+    not (see :class:`CxfConditions`), and neither does a label naming two."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text or re.fullmatch(r"[-+]?\d+", text):
+        return None
+    found = {f"M{d}" for d in _CONDITION_LABEL_RE.findall(text)}
+    return found.pop() if len(found) == 1 else None
+
+
+def _cxf_root(cxf_path: Path):
+    import xml.etree.ElementTree as ET
+    try:
+        return ET.parse(cxf_path).getroot()
+    except ET.ParseError as exc:
+        raise _failure(M.M_CONVERT_CXF_UNREADABLE, name=cxf_path.name,
+                       detail=str(exc)) from exc
+
+
+def _cxf_selected_raw(root) -> "str | None":
+    """i1Profiler's ``SelectedMeasurementCondition``: an attribute (Prism's
+    CustomAttributes) or a ``Tag Name=... Value=...`` (other writers)."""
+    for el in root.iter():
+        v = el.get("SelectedMeasurementCondition")
+        if v is not None:
+            return v.strip()
+        if (el.get("Name") or "") == "SelectedMeasurementCondition" \
+                and el.get("Value") is not None:
+            return el.get("Value").strip()
+    return None
+
+
+def _cxf_conditions_of(root) -> CxfConditions:
+    kinds = {o.get("ObjectType") for o in root.findall(".//cc:Object", _CXF_NS)}
+    available = tuple(c for c in _CXF_CONDITIONS
+                      if f"{c}_Measurement" in kinds)
+    raw = _cxf_selected_raw(root)
+    return CxfConditions(available, raw, condition_from_label(raw))
+
+
+def cxf_conditions(cxf_path: str | Path) -> CxfConditions:
+    """The measurement conditions of the CxF file at *cxf_path*. Raises
+    :class:`ReferenceConvertError` when it is not readable XML."""
+    return _cxf_conditions_of(_cxf_root(Path(cxf_path)))
+
+
+#: i1Profiler's instrument names (``MeasurementDevice``) and the names
+#: ArgyllCMS knows the same instruments by (``inst_name`` in
+#: ``spectro/insttypes.c``; checked against the strings of colprof and
+#: spec2cie 3.5.0, 2026-11-03). ArgyllCMS looks the instrument up by this name
+#: for FWA compensation, and stopped with "Unrecognised target instrument
+#: 'i1Pro 3'" on every import (jctay, 2026-11-03). Keys are lower case with
+#: spaces, hyphens and the maker's name removed. The i1iO tables carry an
+#: i1Pro of the same generation, and ArgyllCMS drives the i1Pro 3 Plus as an
+#: i1Pro 3. The i1iSis is not an ArgyllCMS instrument, so it keeps its name.
+_ARGYLL_INSTRUMENT_NAMES = {
+    "i1pro": "GretagMacbeth i1 Pro",
+    "i1pro1": "GretagMacbeth i1 Pro",
+    "i1pro2": "X-Rite i1 Pro 2",
+    "i1pro3": "X-Rite i1 Pro 3",
+    "i1pro3plus": "X-Rite i1 Pro 3",
+    "i1io": "GretagMacbeth i1 Pro",
+    "i1io1": "GretagMacbeth i1 Pro",
+    "i1io2": "X-Rite i1 Pro 2",
+    "i1io3": "X-Rite i1 Pro 3",
+    "i1io3plus": "X-Rite i1 Pro 3",
+}
+
+#: The header keyword that keeps i1Profiler's own name for the instrument
+#: beside the ArgyllCMS name in ``TARGET_INSTRUMENT`` (4.3.23).
+I1P_INSTRUMENT_KEYWORD = "CHROMIQ_I1P_INSTRUMENT"
+
+
+def _instrument_key(name: str) -> str:
+    key = re.sub(r"[\s_\-]+", "", str(name).lower())
+    for maker in ("x-rite", "xrite", "gretagmacbeth"):
+        if key.startswith(maker.replace("-", "")):
+            key = key[len(maker.replace("-", "")):]
+    return key
+
+
+def argyll_instrument_name(name: "str | None") -> "str | None":
+    """The name ArgyllCMS knows the instrument *name* by, when *name* is one
+    of i1Profiler's for an instrument ArgyllCMS supports ("i1Pro 3" ->
+    "X-Rite i1 Pro 3"); otherwise *name* unchanged (an ArgyllCMS name, the
+    i1iSis, an unknown device, None)."""
+    if not name:
+        return name
+    return _ARGYLL_INSTRUMENT_NAMES.get(_instrument_key(name), name)
+
+
+def same_instrument(a: "str | None", b: "str | None") -> bool:
+    """Whether two ``TARGET_INSTRUMENT`` values name the same instrument,
+    counting an import's i1Profiler name ("i1Pro 3", written by 4.3.22 and
+    earlier) and its ArgyllCMS name ("X-Rite i1 Pro 3") as one."""
+    return argyll_instrument_name(a) == argyll_instrument_name(b)
+
+
+def _cxf_wavelengths(root, spectrum_el, bands: int):
+    """The wavelengths of a CxF reflectance spectrum: its own ``StartWL``, and
+    the ``WavelengthRange`` (``StartWL``, ``Increment``) of the
+    ColorSpecification it names. 380 nm and 10 nm only where the file says
+    nothing (every i1Profiler file seen says both)."""
+    import numpy as np
+    start = spectrum_el.get("StartWL")
+    step = None
+    spec_id = spectrum_el.get("ColorSpecification")
+    if spec_id:
+        for cs in root.findall(".//cc:ColorSpecification", _CXF_NS):
+            if cs.get("Id") != spec_id:
+                continue
+            wr = cs.find(".//cc:WavelengthRange", _CXF_NS)
+            if wr is not None:
+                step = wr.get("Increment")
+                start = start or wr.get("StartWL")
+            break
+    try:
+        start = float(start) if start is not None else 380.0
+    except ValueError:
+        start = 380.0
+    try:
+        step = float(step) if step is not None else 10.0
+    except ValueError:
+        step = 10.0
+    if step <= 0:
+        step = 10.0
+    return start + step * np.arange(bands)
+
+
+def _nm(v: float) -> str:
+    return f"{int(round(v))}" if abs(v - round(v)) < 1e-6 else f"{v:g}"
+
+
+def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
+                           condition: "str | None" = None) -> Path:
     """Convert an i1Profiler CxF3 measurement (``.mxf`` / ``.cxf``) straight to an
     Argyll ``.ti3`` — txt2ti3 can't read CxF, and this needs no export step.
 
@@ -362,17 +560,21 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
     reflectance to XYZ under D50 / CIE 1931 2° (matching the report's colorimetry),
     rescale device RGB to Argyll's 0..100, and stamp the instrument + measurement
     date. RGB or CMYK (beta 7); extended inks raise.
+
+    *condition* ("M0", "M1", "M2") names the readings to take; None takes
+    :attr:`CxfConditions.preselect` (the file's own setting when it is
+    certain, else M1, else the only one there is). Since 4.3.23 the result
+    also keeps the chosen readings' spectra (``SPEC_`` columns in percent, the
+    wavelengths the file gives), names the condition
+    (``MEASUREMENT_CONDITION``) and gives ``TARGET_INSTRUMENT`` the name
+    ArgyllCMS knows the instrument by, i1Profiler's own name kept in
+    ``CHROMIQ_I1P_INSTRUMENT``.
     """
     import numpy as np
-    import xml.etree.ElementTree as ET
     from workflow.profile_engine.spectral import spectra_to_xyz
 
     cxf_path = Path(cxf_path)
-    try:
-        root = ET.parse(cxf_path).getroot()
-    except ET.ParseError as exc:
-        raise _failure(M.M_CONVERT_CXF_UNREADABLE, name=cxf_path.name,
-                       detail=str(exc)) from exc
+    root = _cxf_root(cxf_path)
     objs = root.findall(".//cc:Object", _CXF_NS)
 
     targets = [o for o in objs if o.get("ObjectType") == "Target"]
@@ -401,33 +603,51 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
     if not rgb:
         raise _failure(M.M_CONVERT_CXF_NO_PATCHES, name=cxf_path.name)
 
-    meas = next(([o for o in objs if o.get("ObjectType") == m] for m in _CXF_MODES
-                if any(o.get("ObjectType") == m for o in objs)), [])
+    conds = _cxf_conditions_of(root)
+    chosen = (str(condition).strip().upper() if condition
+              else conds.preselect)
+    if chosen not in conds.available:
+        # A condition the file does not hold (a stale choice, a caller's
+        # mistake): never another condition in silence, so no readings.
+        meas = []
+    else:
+        meas = [o for o in objs
+                if o.get("ObjectType") == f"{chosen}_Measurement"]
     if len(meas) != len(targets):
         raise _failure(M.M_CONVERT_CXF_COUNTS_DIFFER, name=cxf_path.name,
                        patches=len(targets), readings=len(meas))
 
-    refl, start_wl = [], None
+    refl, first_sp = [], None
     for o in meas:
         sp = o.find("cc:ColorValues/cc:ReflectanceSpectrum", _CXF_NS)
         if sp is None or not sp.text:
             raise _failure(M.M_CONVERT_CXF_NO_SPECTRUM, name=cxf_path.name)
-        start_wl = float(sp.get("StartWL") or 380.0)
+        first_sp = first_sp if first_sp is not None else sp
         refl.append([float(v) for v in sp.text.split()])
     bands = len(refl[0])
     if any(len(r) != bands for r in refl):
         raise _failure(M.M_CONVERT_CXF_UNEQUAL_SPECTRA, name=cxf_path.name)
 
-    lam = start_wl + 10.0 * np.arange(bands)           # i1Pro: 10 nm intervals
-    xyz = spectra_to_xyz(np.asarray(refl), lam, illuminant="D50")   # Y=100, D50
+    lam = _cxf_wavelengths(root, first_sp, bands)
+    refl = np.asarray(refl, dtype=float)
+    xyz = spectra_to_xyz(refl, lam, illuminant="D50")   # Y=100, D50
     # CxF ColorRGB is 0..255; ColorCMYK is already percent.
     rgb100 = np.asarray(rgb) * ((100.0 / 255.0) if space == "RGB" else 1.0)
+    # CxF reflectance is 0..1; an ArgyllCMS .ti3 carries it in percent
+    # (chartread's SPEC_ columns), so a value above 2 is already percent.
+    spec100 = refl * (1.0 if float(np.nanmax(refl)) > 2.0 else 100.0)
 
-    instrument = _cxf_instrument(root)
+    i1p_name = _cxf_instrument(root)
+    instrument = argyll_instrument_name(i1p_name)
     date = _cxf_measured_date(root, meas)
     lines = ["CTI3", "", 'DESCRIPTOR "Measurement data converted from i1Profiler CxF"',
              'ORIGINATOR "ChromIQ"',
              'KEYWORD "TARGET_INSTRUMENT"', f'TARGET_INSTRUMENT "{instrument}"']
+    if i1p_name != _IMPORTED_INSTRUMENT_FALLBACK:
+        lines += [f'KEYWORD "{I1P_INSTRUMENT_KEYWORD}"',
+                  f'{I1P_INSTRUMENT_KEYWORD} "{i1p_name}"']
+    lines += ['KEYWORD "MEASUREMENT_CONDITION"',
+              f'MEASUREMENT_CONDITION "{chosen}"']
     if date:
         lines += ['KEYWORD "CHROMIQ_MEASURED"', f'CHROMIQ_MEASURED "{date}"']
     grid = _cxf_i1p_grid(root, targets)
@@ -438,14 +658,19 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
         dev_fields, rep = "RGB_R RGB_G RGB_B", "iRGB_XYZ"
     else:
         dev_fields, rep = "CMYK_C CMYK_M CMYK_Y CMYK_K", "CMYK_XYZ"
-    lines += ['DEVICE_CLASS "OUTPUT"', f'COLOR_REP "{rep}"', "",
-              f"NUMBER_OF_FIELDS {5 + len(dev_fields.split())}",
+    spec_fields = " ".join(f"SPEC_{_nm(w)}" for w in lam)
+    lines += ['DEVICE_CLASS "OUTPUT"', f'COLOR_REP "{rep}"',
+              f'SPECTRAL_BANDS "{bands}"',
+              f'SPECTRAL_START_NM "{lam[0]:.6f}"',
+              f'SPECTRAL_END_NM "{lam[-1]:.6f}"', "",
+              f"NUMBER_OF_FIELDS {5 + len(dev_fields.split()) + bands}",
               "BEGIN_DATA_FORMAT",
-              f"SAMPLE_ID SAMPLE_LOC {dev_fields} XYZ_X XYZ_Y XYZ_Z",
+              f"SAMPLE_ID SAMPLE_LOC {dev_fields} XYZ_X XYZ_Y XYZ_Z {spec_fields}",
               "END_DATA_FORMAT", "", f"NUMBER_OF_SETS {len(rgb100)}", "BEGIN_DATA"]
-    for i, (dev, (x, y, z)) in enumerate(zip(rgb100, xyz), 1):
+    for i, (dev, (x, y, z), sp) in enumerate(zip(rgb100, xyz, spec100), 1):
         d = " ".join(f"{v:.4f}" for v in dev)
-        lines.append(f'{i} "{i}" {d} {x:.4f} {y:.4f} {z:.4f}')
+        s = " ".join(f"{v:.5f}" for v in sp)
+        lines.append(f'{i} "{i}" {d} {x:.4f} {y:.4f} {z:.4f} {s}')
     lines += ["END_DATA", ""]
     out_ti3 = Path(out_ti3)
     if not out_ti3.name.lower().endswith(".ti3"):
@@ -453,6 +678,11 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
         # of ".2", and with_suffix() would REPLACE it (core/stem_paths.py).
         out_ti3 = artefact(out_ti3, ".ti3")
     out_ti3.write_text("\n".join(lines), encoding="utf-8")
+    logging.getLogger(__name__).info(
+        "cxf import: %s -> %s, condition %s of %s (i1Profiler's setting %r), "
+        "%d bands from %s nm, instrument %r (i1Profiler %r)",
+        cxf_path.name, out_ti3.name, chosen, "/".join(conds.available),
+        conds.selected_raw, bands, _nm(lam[0]), instrument, i1p_name)
     return out_ti3
 
 

@@ -50,6 +50,9 @@ class _Parsed:
     color_rep: str
     data_format: list[str]
     n_sets: int
+    #: MEASUREMENT_CONDITION ("M0", "M1", "M2"), or "" when the file names
+    #: none (every chartread file).
+    condition: str = ""
 
 
 def _parse(path: Path) -> _Parsed:
@@ -64,11 +67,16 @@ def _parse(path: Path) -> _Parsed:
 
     lines = text.splitlines()
     color_rep = ""
+    condition = ""
     data_format: list[str] = []
 
     for i, ln in enumerate(lines):
         s = ln.strip()
-        if s.startswith("COLOR_REP"):
+        if s.startswith("MEASUREMENT_CONDITION"):
+            parts = s.split(None, 1)
+            if len(parts) == 2:
+                condition = parts[1].strip().strip('"').upper()
+        elif s.startswith("COLOR_REP"):
             parts = s.split(None, 1)
             if len(parts) == 2:
                 color_rep = parts[1].strip().strip('"')
@@ -96,7 +104,7 @@ def _parse(path: Path) -> _Parsed:
     if n_sets == 0:
         raise Ti3MergeError(f"'{path.name}' contains no measurement data.")
 
-    return _Parsed(color_rep, data_format, n_sets)
+    return _Parsed(color_rep, data_format, n_sets, condition)
 
 
 def _resolve_average(bin_dir: Path | str | None) -> str:
@@ -119,6 +127,21 @@ def _mismatch(fresh: _Parsed, pre: _Parsed) -> "str | None":
             "instrument or colour space and cannot be combined.\n\n"
             "The profile will be built from the new measurements only."
         )
+    if fresh.condition and pre.condition and fresh.condition != pre.condition:
+        # 4.3.23: an i1Profiler import keeps its spectra now, so it has the
+        # same columns as a chartread measurement and an import of another
+        # measurement condition. Readings of one patch under M1 and M2 differ
+        # by several dE on a brightened paper; averaged together they describe
+        # neither. Only when BOTH files name their condition.
+        from core.i18n import tr
+        return tr(
+            "The pre-conditioning measurements were taken under measurement "
+            "condition {pre}, and the chart just measured under {fresh}. "
+            "Readings taken under different conditions cannot be combined, "
+            "because the optical brighteners in the paper glow differently "
+            "under each.\n\n"
+            "The profile will be built from the new measurements only."
+        ).format(pre=pre.condition, fresh=fresh.condition)
     if fresh.data_format != pre.data_format:
         return (
             "The pre-conditioning measurements have a different data layout "

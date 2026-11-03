@@ -453,6 +453,14 @@ class TabProfile(QWidget):
         # active. EMPTY for now — populate once the incompatible options are
         # confirmed (e.g. FWA -f, illuminant -i, observer).
         self._gated_options: list[GatedOption] = []
+        # The FWA gate by measurement condition (4.3.23,
+        # `workflow.measurement_condition`): the loaded measurement's
+        # MEASUREMENT_CONDITION, the tooltips the FWA widgets had before the
+        # gate greyed them, and the condition the last `_collect_params` took
+        # a -f out for (None when it took nothing out).
+        self._fwa_condition: "str | None" = None
+        self._fwa_condition_tips: dict[int, str] = {}
+        self._fwa_condition_dropped: "str | None" = None
 
         self._build_ui()
         self._restore_defaults()
@@ -1929,7 +1937,15 @@ class TabProfile(QWidget):
                              tr("Measurement data (*.ti3 *.mxf *.txt *.cxf);;All files (*)"),
                              extra_path=self._settings.get("custom_output_path", ""))
         if p and Path(p).suffix.lower() != ".ti3":
-            converted = self._convert_calibration_measurement(Path(p))
+            # Which readings of a CxF (4.3.23, M-IMPORT-CXF-CONDITION).
+            from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
+            _condition = choose_cxf_condition(
+                self, Path(p), log=self._log.appendPlainText,
+                accent=_TAB_COLOR)
+            if _condition is None:
+                return
+            converted = self._convert_calibration_measurement(
+                Path(p), condition=_condition)
             p = str(converted) if converted is not None else ""
         if p:
             self._cal_ti3_path = Path(p)
@@ -1962,7 +1978,9 @@ class TabProfile(QWidget):
             if lbl is not None and lbl.property(_NOTE_INK):
                 _paint_note(lbl, mode)
 
-    def _convert_calibration_measurement(self, src: Path) -> "Path | None":
+    def _convert_calibration_measurement(self, src: Path,
+                                         condition: "str | None" = None
+                                         ) -> "Path | None":
         """An i1Profiler calibration measurement as a ``.ti3`` printcal reads.
 
         Converted by the same ``convert_i1profiler_measurement`` as every
@@ -1987,7 +2005,8 @@ class TabProfile(QWidget):
         argyll = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
         with tempfile.TemporaryDirectory(prefix="chromiq_cal_import_") as tmp:
             try:
-                out = convert_i1profiler_measurement(src, argyll, Path(tmp))
+                out = convert_i1profiler_measurement(
+                    src, argyll, Path(tmp), condition=condition or None)
                 dest = artefact(src.parent / src.stem, ".ti3")
                 n = 2
                 while dest.exists():
@@ -3544,7 +3563,9 @@ class TabProfile(QWidget):
         self._m_fwa_illum_combo.setObjectName("compact_input")
         self._m_fwa_illum_combo.style().unpolish(self._m_fwa_illum_combo)
         self._m_fwa_illum_combo.style().polish(self._m_fwa_illum_combo)
-        self._m_fwa_check.toggled.connect(self._m_fwa_illum_combo.setEnabled)
+        # Through the condition gate, so a setting or preset that ticks the
+        # box while an M1/M2 measurement is loaded cannot wake the combo.
+        self._m_fwa_check.toggled.connect(self._apply_fwa_condition_gate)
         fwa_row.addWidget(self._m_fwa_check)
         fwa_row.addWidget(self._m_fwa_illum_combo, stretch=1)
         fwa_row.addWidget(TooltipButton(
@@ -4580,7 +4601,7 @@ class TabProfile(QWidget):
         for label, val in _ILLUMINANTS[1:]:
             self._fwa_illum_combo.addItem(label, val)
         self._fwa_illum_combo.setEnabled(False)
-        self._fwa_check.toggled.connect(self._fwa_illum_combo.setEnabled)
+        self._fwa_check.toggled.connect(self._apply_fwa_condition_gate)
         fwa_row.addWidget(self._fwa_check)
         fwa_row.addWidget(self._fwa_illum_combo, stretch=1)
         fwa_row.addWidget(TooltipButton(
@@ -5054,6 +5075,9 @@ class TabProfile(QWidget):
         else:
             self._detected_instrument = instr
             self._detected_has_spectral = spectral
+            from workflow.measurement_condition import read_condition
+            self._fwa_condition = (read_condition(path)
+                                   if path and path.exists() else None)
             prefix, prev = "Detected instrument", self._instr_log_text
 
         msg = None
@@ -5089,6 +5113,44 @@ class TabProfile(QWidget):
         for opt in self._gated_options:
             for w in opt.widgets:
                 w.setEnabled(not active)
+        self._apply_fwa_condition_gate()
+
+    def _fwa_refused_by_condition(self) -> bool:
+        """Whether the loaded measurement was taken under a condition FWA
+        compensation does not fit (M1, M2; `workflow.measurement_condition`).
+        Its own gate, beside the spectral one."""
+        from workflow.measurement_condition import fwa_refused_by_condition
+        return fwa_refused_by_condition(getattr(self, "_fwa_condition", None))
+
+    def _apply_fwa_condition_gate(self, *_args) -> None:
+        """Grey the FWA box and its illuminant while an M1/M2 measurement is
+        loaded, with the reason as their tooltip; otherwise the combo follows
+        its box, as it always has. Also the slot of both boxes' ``toggled``.
+        The box keeps its tick: a saved setting is not changed by loading a
+        measurement, `_collect_params` leaves -f out instead."""
+        refused = self._fwa_refused_by_condition()
+        reason = ""
+        if refused:
+            from workflow.measurement_condition import fwa_condition_reason
+            reason = fwa_condition_reason(self._fwa_condition)
+        tips = getattr(self, "_fwa_condition_tips", None)
+        if tips is None:
+            tips = self._fwa_condition_tips = {}
+        for box_name, combo_name in (("_fwa_check", "_fwa_illum_combo"),
+                                     ("_m_fwa_check", "_m_fwa_illum_combo")):
+            box = getattr(self, box_name, None)
+            combo = getattr(self, combo_name, None)
+            if box is None or combo is None:
+                continue
+            box.setEnabled(not refused)
+            combo.setEnabled(not refused and box.isChecked())
+            for w in (box, combo):
+                key = id(w)
+                if refused:
+                    tips.setdefault(key, w.toolTip())
+                    w.setToolTip(reason)
+                elif key in tips:
+                    w.setToolTip(tips.pop(key))
 
     # ------------------------------------------------------------------
     # Internal
@@ -5141,7 +5203,8 @@ class TabProfile(QWidget):
             target = Path(custom).expanduser() if custom else default_output_root()
         reveal_in_file_manager(target)
 
-    def _convert_for_import(self, src: Path) -> "Path | None":
+    def _convert_for_import(self, src: Path,
+                            condition: "str | None" = None) -> "Path | None":
         """An i1Profiler file as a `.ti3`, so the import can look inside it.
 
         The import has to READ the measurement — how many patches, and are they
@@ -5165,7 +5228,8 @@ class TabProfile(QWidget):
         argyll = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
         work = Path(tempfile.mkdtemp(prefix="chromiq-import-"))
         try:
-            out = convert_i1profiler_measurement(src, argyll, out_dir=work)
+            out = convert_i1profiler_measurement(src, argyll, out_dir=work,
+                                                 condition=condition or None)
         except ReferenceConvertError as exc:
             shutil.rmtree(work, ignore_errors=True)
             # The converter's reason is a whole §M message in the user's
@@ -5292,8 +5356,17 @@ class TabProfile(QWidget):
         # Convert first (that is format work), then ask where the measurement
         # belongs (that is the same question for every format).
         _converted = None
+        # WHICH READINGS OF AN i1Profiler CxF (4.3.23), asked once for both
+        # conversions below (M-IMPORT-CXF-CONDITION). Cancel imports nothing.
+        _condition = None
+        if p.suffix.lower() in (".mxf", ".cxf"):
+            from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
+            _condition = choose_cxf_condition(
+                self, p, log=self._log.appendPlainText, accent=_TAB_COLOR)
+            if _condition is None:
+                return                       # cancelled, and the log says so
         if p.suffix.lower() in (".mxf", ".cxf", ".txt"):
-            _converted = self._convert_for_import(p)
+            _converted = self._convert_for_import(p, condition=_condition)
             if _converted is None:
                 return                       # conversion failed and said so
         _ask_about = _converted or p
@@ -5314,7 +5387,7 @@ class TabProfile(QWidget):
         if _handled:
             return
         if p.suffix.lower() in (".mxf", ".cxf"):
-            self._import_i1profiler_cxf(p)          # i1Profiler native CxF3
+            self._import_i1profiler_cxf(p, condition=_condition)  # native CxF3
         elif p.suffix.lower() == ".txt":
             self._import_i1profiler_txt(p)
         else:
@@ -5339,16 +5412,34 @@ class TabProfile(QWidget):
     # i1Profiler .txt import  (txt2ti3 → .ti3)
     # ------------------------------------------------------------------
 
-    def _import_i1profiler_cxf(self, cxf_path: Path) -> None:
+    def _import_i1profiler_cxf(self, cxf_path: Path,
+                               condition: "str | None" = None) -> None:
         """Import an i1Profiler NATIVE measurement (CxF3 ``.mxf`` / ``.cxf``):
         parse it straight to a ``.ti3`` (no txt2ti3, no export step), instrument
-        and measurement date stamped, then load it like any external .ti3."""
+        and measurement date stamped, then load it like any external .ti3.
+        *condition* is the one chosen in the condition window (4.3.23); a
+        caller that has not asked gets the window here."""
         import tempfile
         from workflow.reference_convert import (cxf_measurement_to_ti3,
                                                 ReferenceConvertError)
         self._log.clear()
         self._log.appendPlainText(
             f"Importing i1Profiler measurement: {cxf_path.name} …")
+        if not condition:
+            from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
+            condition = choose_cxf_condition(
+                self, cxf_path, log=self._log.appendPlainText,
+                accent=_TAB_COLOR)
+            if condition is None:
+                return
+        else:
+            from workflow.reference_convert import cxf_conditions
+            from workflow import measurement_messages as _MM
+            try:
+                self._log.appendPlainText(_MM.cxf_condition_log_line(
+                    condition, cxf_conditions(cxf_path).available))
+            except Exception:      # noqa: BLE001 - the conversion says why
+                pass
         # Held on the tab so it is reclaimed with it. A bare mkdtemp here had
         # no prefix at all, so it was invisible even to a prefix-based sweep,
         # and nothing ever removed it (main.py exits via os._exit(), so no
@@ -5356,7 +5447,8 @@ class TabProfile(QWidget):
         self._cxf_tmp = tempfile.TemporaryDirectory(prefix="chromiq_cxf_")
         try:
             out = cxf_measurement_to_ti3(
-                cxf_path, Path(self._cxf_tmp.name) / f"{cxf_path.stem}.ti3")
+                cxf_path, Path(self._cxf_tmp.name) / f"{cxf_path.stem}.ti3",
+                condition=condition or None)
         except ReferenceConvertError as exc:
             self._log.appendPlainText(f"[ERROR] {exc}")
             # The CxF parse names its own reason (M-CONVERT-CXF-*). The txt2ti3
@@ -6185,6 +6277,11 @@ class TabProfile(QWidget):
         self._log.clear()
 
         params = self._collect_params()
+        if self._fwa_condition_dropped:
+            from workflow.measurement_condition import \
+                fwa_condition_dropped_log_line
+            self._log.appendPlainText(fwa_condition_dropped_log_line(
+                self._fwa_condition_dropped))
         if not self._validate_gamut_source(params):
             return
         # WHICH BUILDER WILL RUN, ASKED ONCE AND ASKED ABOVE THE ARCHIVE.
@@ -6843,6 +6940,14 @@ class TabProfile(QWidget):
         if self._gate_active():
             for opt in self._gated_options:
                 opt.neutralise(params)
+        # FWA on an M1/M2 measurement (4.3.23): never on a command line or in
+        # the command box, whether the box, a preset, a saved setting or the
+        # extra arguments asked for it. `_on_build` says so in the log.
+        from workflow.measurement_condition import remove_fwa
+        self._fwa_condition_dropped = (
+            self._fwa_condition
+            if self._fwa_refused_by_condition() and remove_fwa(params)
+            else None)
         return params
 
     def _collect_guided_profile(self) -> ProfileParams:

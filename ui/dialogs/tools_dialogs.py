@@ -1591,8 +1591,17 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
         if is_cxf(self._txt):
             self._log.clear()
             self._log.appendPlainText(f"Converting {self._txt.name} → {out.name}")
+            # Which readings (4.3.23, M-IMPORT-CXF-CONDITION); Cancel
+            # converts nothing.
+            from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
+            condition = choose_cxf_condition(
+                self, self._txt, log=self._log.appendPlainText)
+            if condition is None:
+                self._finish(False)
+                return
             try:
-                cxf_measurement_to_ti3(self._txt, out)
+                cxf_measurement_to_ti3(self._txt, out,
+                                       condition=condition or None)
             except ReferenceConvertError as exc:
                 self._log.appendPlainText(f"[ERROR] {exc}")
                 self._finish(False)

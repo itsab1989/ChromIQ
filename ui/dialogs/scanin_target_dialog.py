@@ -530,10 +530,17 @@ class ScaninTargetDialog(_ToolDialogBase):
         if not is_ti3(ti3):
             self._log.appendPlainText(tr(
                 "Converting i1Profiler's measurement to a .ti3…"))
+            # Which readings of a CxF (4.3.23, M-IMPORT-CXF-CONDITION).
+            from ui.dialogs.cxf_condition_dialog import choose_cxf_condition
+            condition = choose_cxf_condition(
+                self, self._meas_path, log=self._log.appendPlainText)
+            if condition is None:
+                self._finish(False)
+                return
             try:
                 ti3 = convert_i1profiler_measurement(
                     self._meas_path, self._settings.get("argyll_bin_path", ""),
-                    self._meas_path.parent)
+                    self._meas_path.parent, condition=condition or None)
             except ReferenceConvertError as exc:
                 self._log.appendPlainText(f"[ERROR] {exc}")
                 self._finish(False)

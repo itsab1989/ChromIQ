@@ -7342,6 +7342,145 @@ CONVERT_MESSAGES = (
 
 
 
+# --- PROPOSED (4.3.23): which measurement condition of an i1Profiler CxF ---
+#: An i1Profiler .mxf / .cxf holds every patch's spectrum under up to three
+#: measurement conditions (M0, M1, M2). Until 4.3.23 the import took M2 in
+#: silence (jctay, printerknowledge, 2026-11-03, compared it with his M1
+#: readings). Basti, 2026-11-03: "ChromIQ offers a choice of condition." The
+#: window (`ui.dialogs.cxf_condition_dialog`) opens on every door that
+#: converts such a file when it holds more than one condition: the Measure
+#: tab's IMPORT, Build Profile's import, Tools > Convert i1Profiler > TI3, the
+#: calibration measurement, the Measurement Report's "add" and the scanner
+#: target's i1Profiler measurement. {name} is the file's name, {conditions}
+#: the conditions it holds ("M0, M1 and M2"). The options, the line about
+#: i1Profiler's own setting, the FWA note and the log lines are the parts
+#: below.
+M_IMPORT_CXF_CONDITION = _m(
+    "M-IMPORT-CXF-CONDITION",
+    "Choose the measurement condition",
+    "{name} holds the readings of every patch more than once: i1Profiler "
+    "saved them under the measurement conditions {conditions}. The "
+    "conditions differ only in how much ultraviolet light reached the paper "
+    "while it was measured.\n\n"
+    "That matters for papers with optical brighteners. Brighteners turn "
+    "invisible ultraviolet light into visible blue light, which is what makes "
+    "many papers look extra white. The more ultraviolet there is, the more "
+    "they glow, so the same patch can measure a little differently under "
+    "each condition. On a paper without brighteners the conditions give "
+    "almost the same numbers.\n\n"
+    "ChromIQ imports one condition. Choose the one that matches the light "
+    "your prints will be seen in.",
+    approved=False)
+_COND_M0_LABEL = "M0: the instrument's own lamp"
+_COND_M0_TEXT = ("The light of the lamp inside the instrument. It carries some "
+                 "ultraviolet, but how much depends on the instrument, so the "
+                 "glow of the brighteners can come out differently from one "
+                 "instrument to another. Brightener compensation (FWA) in "
+                 "Build Profile works only with these readings.")
+_COND_M1_LABEL = "M1: daylight with ultraviolet (D50)"
+_COND_M1_TEXT = ("Light with a defined amount of ultraviolet, like D50 "
+                 "daylight. This is the standard condition (ISO 13655) for "
+                 "papers with optical brighteners that are viewed in "
+                 "daylight: the readings include the glow of the brighteners "
+                 "as daylight shows it. If you are not sure, M1 is a good "
+                 "choice.")
+_COND_M2_LABEL = "M2: ultraviolet cut"
+_COND_M2_TEXT = ("The ultraviolet is filtered out, so the readings look as if "
+                 "the paper had no brighteners. Good for prints that will be "
+                 "seen under light with little ultraviolet, such as many LED "
+                 "and halogen lamps, or behind glass that blocks ultraviolet.")
+_COND_SETTING_KNOWN = ("In i1Profiler, this measurement was set to "
+                       "{condition}, so that condition is selected below.")
+_COND_SETTING_UNKNOWN = ("The file records i1Profiler's own setting as "
+                         "\u201c{value}\u201d, but ChromIQ cannot tell for "
+                         "certain which condition that stands for, so "
+                         "{condition} is selected below.")
+_COND_SETTING_NONE = ("The file does not say which condition i1Profiler was "
+                      "set to, so {condition} is selected below.")
+_COND_FWA_NOTE = ("Brightener compensation (FWA) in Build Profile and Check & "
+                  "Refine only works with M0 readings, because it works out "
+                  "the glow from the lamp inside the instrument. With M1 or M2 "
+                  "readings it is switched off.")
+_COND_KEPT = ("Your file is not changed. The condition you choose is written "
+              "into the imported measurement, and the Measurement info window "
+              "shows it later.")
+_COND_IMPORT = "Import"
+_COND_AND = "{first} and {last}"
+_COND_LOG_ONLY = ("Measurement condition: {condition}, the only one in the "
+                  "file.")
+_COND_LOG_CHOSEN = ("Measurement condition: {condition}, as chosen (the file "
+                    "also holds {others}).")
+_COND_LOG_CANCELLED = ("Nothing was imported: no measurement condition was "
+                       "chosen.")
+M_IMPORT_CXF_CONDITION_PARTS = _m(
+    "M-IMPORT-CXF-CONDITION-PARTS",
+    "Choosing the measurement condition: the options, notes and log lines",
+    "\n".join((_COND_M0_LABEL, _COND_M0_TEXT, _COND_M1_LABEL, _COND_M1_TEXT,
+               _COND_M2_LABEL, _COND_M2_TEXT, _COND_SETTING_KNOWN,
+               _COND_SETTING_UNKNOWN, _COND_SETTING_NONE, _COND_FWA_NOTE,
+               _COND_KEPT, _COND_IMPORT, _COND_AND, _COND_LOG_ONLY,
+               _COND_LOG_CHOSEN, _COND_LOG_CANCELLED)),
+    approved=False)
+
+#: The label and the explanation of each condition, in the window's order.
+CXF_CONDITION_OPTIONS = {
+    "M0": (_COND_M0_LABEL, _COND_M0_TEXT),
+    "M1": (_COND_M1_LABEL, _COND_M1_TEXT),
+    "M2": (_COND_M2_LABEL, _COND_M2_TEXT),
+}
+
+
+def cxf_condition_list(conditions) -> str:
+    """"M0, M1 and M2" in the user's language."""
+    items = [str(c) for c in conditions]
+    if len(items) <= 1:
+        return "".join(items)
+    return tr(_COND_AND).format(first=", ".join(items[:-1]), last=items[-1])
+
+
+def cxf_condition_setting_line(selected_raw, selected, preselect) -> str:
+    """The line about i1Profiler's own setting under the window's text."""
+    if selected and selected == preselect:
+        return tr(_COND_SETTING_KNOWN).format(condition=selected)
+    if selected_raw:
+        return tr(_COND_SETTING_UNKNOWN).format(value=selected_raw,
+                                                condition=preselect)
+    return tr(_COND_SETTING_NONE).format(condition=preselect)
+
+
+def cxf_condition_label(condition: str) -> str:
+    return tr(CXF_CONDITION_OPTIONS[condition][0])
+
+
+def cxf_condition_text(condition: str) -> str:
+    return tr(CXF_CONDITION_OPTIONS[condition][1])
+
+
+def cxf_condition_fwa_note() -> str:
+    return tr(_COND_FWA_NOTE)
+
+
+def cxf_condition_kept_note() -> str:
+    return tr(_COND_KEPT)
+
+
+def cxf_condition_import_button() -> str:
+    return tr(_COND_IMPORT)
+
+
+def cxf_condition_log_line(condition: str, available) -> str:
+    """The log line every door writes after the condition is settled."""
+    others = [c for c in available if c != condition]
+    if not others:
+        return tr(_COND_LOG_ONLY).format(condition=condition)
+    return tr(_COND_LOG_CHOSEN).format(condition=condition,
+                                       others=cxf_condition_list(others))
+
+
+def cxf_condition_cancelled_line() -> str:
+    return tr(_COND_LOG_CANCELLED)
+
+
 # --- PROPOSED: a resume whose readings do not fit the chart's layout (#211) ---
 #: Issue #211 (vezar, 4.3.5-beta.7): a measurement converted from i1Profiler
 #: names its patches by i1Profiler's own sheet (A1 … T21 on each of four
@@ -8378,6 +8517,7 @@ M_GESTURE_STATUS = _m(
 
 
 CATALOGUE = {m.id: m for m in (
+    M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
     M_GESTURE_STATUS,
     M_PAGE_PAUSE, M_PAGE_PAUSE_END, M_PAGE_PAUSE_OTHER_PAGES,
     M_PAGE_PAUSE_BUTTON, M_PAGE_PAUSE_FOUND, M_PAGE_PAUSE_CONTROLS,

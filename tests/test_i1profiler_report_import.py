@@ -155,9 +155,12 @@ def test_finalize_stamps_both_instrument_and_date(tmp_path: Path):
     src = _dated_txt(tmp_path, "March 15, 2026", instr="i1Pro 2")
     ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3_255, encoding="utf-8")
     instr, date = finalize_converted_ti3(ti3, src)
-    assert instr == "i1Pro 2" and date == "2026-03-15"
+    # ArgyllCMS's name since 4.3.23 (FWA compensation finds the instrument by
+    # it); i1Profiler's own is kept in CHROMIQ_I1P_INSTRUMENT.
+    assert instr == "X-Rite i1 Pro 2" and date == "2026-03-15"
+    assert 'CHROMIQ_I1P_INSTRUMENT "i1Pro 2"' in ti3.read_text(encoding="utf-8")
     rep = build_report(ti3)
-    assert rep["instrument"] == "i1Pro 2" and rep["created"].startswith("2026-03-15")
+    assert rep["instrument"] == "X-Rite i1 Pro 2" and rep["created"].startswith("2026-03-15")
 
 
 def test_report_without_measurement_date_uses_now(tmp_path: Path):
