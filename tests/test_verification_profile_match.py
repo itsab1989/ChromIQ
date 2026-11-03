@@ -285,18 +285,24 @@ def test_a_document_covering_no_moving_date_stays(run):
 # Knut's run2, as measured on disk
 # ---------------------------------------------------------------------------
 def test_a_run_shaped_like_knuts_run2_is_text_a_with_one_date(tmp_path):
-    """Header 2026-10-02 22:39:18 UTC; one date measured after it, from a
-    gamut chart CREATED 21:27:02 and printed 21:27:45 local, on 2026-10-02."""
+    """A chart made before the profile, measured afterwards, is text A.
+
+    Keep the chart's times relative to the UTC profile header, then convert
+    all three to local time. Fixed local chart times can be AFTER this UTC
+    header in western time zones, which changes the scenario being tested.
+    """
     r = Run.for_dir(tmp_path / "test" / "runs" / "run2")
     r.verifications_dir.mkdir(parents=True)
     write_icc(r.profile_icc, HEADER_UTC)
     p = VPM.profile_created(r.profile_icc)
     v = measured(r, p + timedelta(minutes=18, seconds=49))
+    chart_created = local(HEADER_UTC - timedelta(hours=1, minutes=12, seconds=16))
+    chart_printed = local(HEADER_UTC - timedelta(hours=1, minutes=11, seconds=33))
     reference(v.dir / "chart" / f"{v.stem}-reference.ti3",
-              "Fri Oct 02 21:27:02 2026")
+              created_stamp(chart_created))
     print_record(v.dir / "chart" / f"{v.stem}.print.json",
-                 datetime(2026, 10, 2, 21, 27, 45))
-    gamut_chart(r, "Fri Oct 02 21:27:02 2026")
+                 chart_printed)
+    gamut_chart(r, created_stamp(chart_created))
     items = VPM.earlier_profile_items(r)
     assert items.variant == "A" and items.dates == (v.id,)
 
