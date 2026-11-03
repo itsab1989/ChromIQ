@@ -47,7 +47,8 @@ Two successive native positions on the same row completed without ejection
 between them, including factory-record checks through the reusable API. Native
 M0/M1/M2 agreed with the same-raw references within 3.6e-7 reflectance over both
 positions. A subsequent 21-position test passed seven vertical rows and calibration
-renewal. Full native GUI chart acquisition and live Stop/Resume remain pending.
+renewal. A later 460-patch native GUI chart passed; physical native Stop/Resume
+remains pending.
 
 ## Factory-calibrated automatic rows
 
@@ -69,6 +70,7 @@ samples below 360 nm are zero in this established packet convention.
 All 481 entries from the earlier 21-point and 460-point native acquisitions
 matched this host conversion within 4.8e-7 reflectance for all three conditions.
 This is same-entry arithmetic validation on one device, not cross-device
-certification. Physical verification of automatic acquisition plus this host
-conversion remains pending. Unknown sensor versions are refused rather than
+certification. Automatic acquisition plus this host conversion then passed a
+460-patch, 23-row chart through the normal GUI at user-confirmed normal speed.
+Physical Stop/Resume of that path remains pending. Unknown sensor versions are refused rather than
 substituting fitted weights or asking users for manufacturer comparisons.

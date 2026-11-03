@@ -98,6 +98,8 @@ must match both the checked factory sections and the conversion model.
 Offline conversion of 481 previously acquired raw entries across two charts
 matched the same-entry native M0/M1/M2 within 4.8e-7 reflectance. Portable
 transport tests check single-command rows and prohibit per-patch exposure and
-getters. Physical validation of the new combined automatic-row path is pending;
-the underlying raw row sequence was previously exercised on hardware. These
-checks do not establish other versions/units or ISO certification.
+getters. The combined automatic-row path subsequently completed a user-created,
+printed 460-patch chart (20 columns, 23 rows) on the owned unit. All three
+conditions exported successfully from the saved raw/model wire; the user
+confirmed normal measurement speed. Physical Stop/Resume on this path remains
+pending. These checks do not establish other versions/units or ISO certification.

@@ -76,8 +76,9 @@ isolated offline manufacturer calculations on identical raw entries within
 4.8e-7 reflectance. Those comparisons are development checks, never user setup
 requirements, and their fixtures are excluded. A 460-patch native GUI acquisition on a 20-column sheet passed. The new
 automatic-row conversion matches those 460 raw entries plus the earlier 21
-within 4.8e-7 reflectance. Physical verification of the combined fast path and
-its Stop/Resume remains pending on the owned unit.
+within 4.8e-7 reflectance. The combined automatic-row path then completed the user-created and printed
+460-patch chart at normal speed, using 23 row commands and no extra finite
+per-patch acquisitions. Its physical Stop/Resume check remains pending.
 Other devices/firmware and Windows/Linux access remain untested.
 
 ## Command-line and tests
@@ -136,8 +137,8 @@ partial saves and suffix resume. Locations continue A..Z, AA..AG on wide sheets.
 
 The expanded grid is validated with invented transport and full 2,145-point
 partial/resume tests. A 20-column, 460-patch native GUI print/measurement completed on one unit.
-The new automatic-row factory conversion still needs its live check; larger
-variable-width sheets remain untested. No hardware capacity
+The automatic-row factory conversion also passed the 20-column chart at
+normal speed. Larger variable-width sheets remain untested. No hardware capacity
 or ISO certification claim follows from the larger PDF/TIFF outputs.
 
 Feed arrow first, printed face up, at actual size. Sheet size, seed, geometry
@@ -150,8 +151,8 @@ and uses the independent backend automatically for FD-9 charts.
 
 Tests cover RGB/gray/CMYK/eleven-channel pixels, sheet limits, registration at
 scan resolution, calibration and ink-limit filing, seed/precision, dotted names,
-and tab handoff. New physical print/scan validation remains pending; the
-previously exercised 137 × 300 mm geometry is the baseline. Arbitrary grids,
+and tab handoff. The user-created Letter chart has passed print/scan validation
+on one unit; larger and smaller-patch layouts still need physical checks. Arbitrary grids,
 auto feeding and certified ISO measurement are not supported.
 
 Patch layout controls: width and height are independently selectable from 6 to

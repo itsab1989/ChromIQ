@@ -189,3 +189,14 @@ rows 1, 7, 13, …, and never interleaves finite sensor acquisitions or cached
 getters. Per-point callbacks are passive: issuing an instrument command there
 is rejected. The original native final-point API remains available for
 reference work and continuation of older native partial sessions.
+
+## Automatic-row GUI validation (2026-11-02)
+
+The normal Measure tab completed a user-created and printed 460-patch Letter
+chart: 20 columns by 23 rows. Its same-connection transcript contains five
+read-only model spans, eleven read-only factory records, 23 whole-row `0x106`
+requests, only the pre-scan's mode-5 `0x203`, no cached `0x205` getters, and
+one final home/ejection. All rows, raw/model conversion, geometry and three
+condition exports passed offline verification. The user reported normal speed.
+This validates the tested combined path on one owned unit. Physical Stop/Resume,
+other sensor versions and larger or smaller-patch layouts remain separate checks.
