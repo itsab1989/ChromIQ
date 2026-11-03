@@ -403,6 +403,21 @@ leaves Verification lets go of the dated verification before it selects
 Profiling, so Profiling is selected once, not twice (the second selection
 reloaded the stored settings over the chart).
 
+**An open under Run type Calibration (4.3.23, review r3 B1).** An open
+resets only Verification, so with Run type Calibration it ends on the
+opened project's calibration, and the chart it shows, and hands to Print
+Chart and Measure, is the calibration chart, whether the bar moves or not
+(none when the calibration has no chart: the preview is cleared and Print
+and Measure are emptied). Before: with the bar on another run, the bar
+move painted the calibration chart and the open's fallback then painted
+the current run's profiling chart over it (95828edc2); with the bar
+already on the current run, the open showed the profiling chart (4.3.22
+too). The fallback now paints only the chart the bar's target resolves to
+(`_resolve_target_chart`). Code: `TabChart._chart_the_open_ends_on`,
+`_paint_what_the_bar_move_did_not`; tests: `tests/test_4323_review_r3.py`
+(same project and another project, bar moving and not; Profiling and
+Verification opens unchanged).
+
 **The chart's paper after a run change (4.3.23, fix_final).** Found while
 testing the opens, and the run change's own, older fault (4.3.22 had it):
 after any run change, a plain one included, a write of Create Chart (a
@@ -425,6 +440,15 @@ records it like the layout's own fields: the next writes file the run's
 own paper, and a paper the user then chooses is saved as theirs. Two tab
 changes after a run change leave `meta.json` byte-identical, on Create
 Chart and from Measure, and after every open above.
+
+With the layout engine off (and an instrument printtarg lays out), the
+hidden panel's recipe is not copied into `-p` or `-i` while a target's
+stored settings load (review r3 M1): printtarg's row holds the run's own
+stored values, and the hidden panel's last recipe (A3, say) no longer
+replaced a hand-set Letter after a run change. With the engine on, or the
+CR30, `-p` follows the stored recipe as above
+(`TabChart._recipe_load_leaves_printtarg_alone`;
+`tests/test_4323_review_r3.py`).
 
 Code: `TabChart._set_engine_recipe` and `_sync_manual_selection_from_panel`
 (`_panel_recipe_depth`, `_panel_mirror_pending`); tests:

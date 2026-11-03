@@ -10973,6 +10973,18 @@ class TabChart(QWidget):
         stamp = self._chart_stamp(ti2)
         if stamp is not None and stamp == self._shown_chart_stamp:
             return
+        # Only the chart the bar's target resolves to: a held chart of any
+        # other target is not painted over the one the move showed (review r3
+        # B1: the run's profiling chart over the calibration chart, handed to
+        # Print and Measure while Run type read Calibration).
+        resolved = self._resolve_target_chart()
+        try:
+            same = (resolved is not None
+                    and Path(resolved[0]).resolve() == Path(ti2).resolve())
+        except OSError:
+            same = False
+        if not same:
+            return
         log.warning("Open Project: the bar move did not show %s; painting it "
                     "without the run-change protection", ti2)
         self._display_run_chart(ti2, tiffs, ti1)
@@ -11089,6 +11101,18 @@ class TabChart(QWidget):
             tr("Loaded profile “{name}”.").format(name=self._last_target_name))
         if tiffs:
             ti1 = run.chart_ti1          # resolves; `ti2` above already does
+        # THE CHART AN OPEN SHOWS IS THE CHART OF THE TARGET IT ENDS ON.
+        #
+        # An open keeps Run type Calibration (only Verification is reset), so
+        # under Calibration it ends on the project's calibration, and the
+        # preview, Print Chart and Measure must hold the calibration chart.
+        # The run's profiling chart was painted regardless: over the bar
+        # move's calibration chart (review r3 B1, 4.3.23), and on its own
+        # when the bar did not move (4.3.22 too).
+        chart = self._chart_the_open_ends_on(
+            (ti2, list(tiffs), ti1) if tiffs else None)
+        if chart is not None:
+            ti2, tiffs, ti1 = chart
             # OPENING THE TARGET THAT IS ALREADY OPEN IS STILL AN OPEN (§2 L2).
             #
             # The chart is painted here, BEFORE the bar is pointed at the
@@ -11122,7 +11146,35 @@ class TabChart(QWidget):
         else:
             self._preview.clear()
             self._current_ti1_path = None
+            # Nothing of the project being left stays with Print and Measure.
+            if getattr(self, "_shown_chart_ti2", None) is not None:
+                self._shown_chart_ti2 = None
+                self._shown_chart_stamp = None
+                self.chart_finished.emit([], None, False)
         return True
+
+    def _chart_the_open_ends_on(self, profiling):
+        """``(ti2, tiffs, ti1)`` of the chart an Open Project ends on, or None
+        when that target has no chart. *profiling* is the opened project's
+        current run's chart (or None). Run type Calibration survives an open,
+        so then it is the project's calibration chart; on Profiling, and on
+        Verification (which the open puts back to Profiling), it is
+        *profiling*. Asked after the file manager has switched."""
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            if ctl is not None and ctl.target.is_calibration():
+                proj = ctl.project_or_none()
+                if proj is None:
+                    return None
+                cal = proj.calibration
+                tiffs = list(cal.chart_tiffs())
+                if cal.ti2.is_file() and tiffs:
+                    return cal.ti2, tiffs, cal.ti1
+                return None
+        except Exception:      # noqa: BLE001 — in doubt, the run's chart
+            log.warning("Open Project: could not resolve the calibration "
+                        "chart", exc_info=True)
+        return profiling
 
     def _display_run_chart(self, ti2: Path, tiffs: list[Path], ti1: Path) -> None:
         """Show an existing chart (its pages, margins and own creation settings)
@@ -29782,7 +29834,29 @@ class TabChart(QWidget):
         if (not self._panel_recipe_depth
                 and getattr(self, "_panel_mirror_pending", False)):
             self._panel_mirror_pending = False
-            self._sync_manual_selection_from_panel()
+            if not self._recipe_load_leaves_printtarg_alone():
+                self._sync_manual_selection_from_panel()
+
+    def _recipe_load_leaves_printtarg_alone(self) -> bool:
+        """Whether the recipe just applied is a target's stored HIDDEN panel,
+        whose instrument and paper must not be mirrored into printtarg.
+
+        A PAPER YOU CHOOSE YOURSELF IS STORED AS YOURS, ALSO WITH THE ENGINE
+        OFF (review r3 M1, 4.3.23). With the engine off printtarg's -i and -p
+        are the run's own values, loaded from its record just before its
+        ui state; the layout panel is hidden and lays nothing out, and the
+        recipe it keeps is whatever it last held. Mirroring that recipe's
+        paper during the load replaced a hand-set Letter with the panel's A3
+        (or A4) after a run change, and the next write stored it. With the
+        engine on, or an instrument only the engine lays out (the CR30), the
+        panel is what lays the chart out, and -p follows its recipe as before
+        (56f21256a)."""
+        if not getattr(self, "_loading_target_settings", False):
+            return False
+        try:
+            return not self._manual_panel_lays_out()
+        except Exception:      # noqa: BLE001 — in doubt, mirror as before
+            return False
 
 
     def _refresh_helper_marker_support(self, *_a) -> None:
