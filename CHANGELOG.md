@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v4.3.23
+
+**For everyone updating from 4.3.22: when you import an i1Profiler measurement, ChromIQ now asks which measurement condition (M0, M1 or M2) to use, keeps its spectra and records the condition, and brightener (FWA) compensation is only offered where it can work. Opening a project or picking another run no longer changes the stored settings of a run. Your charts, measurements and profiles do not change.**
 
 ### New
 - **When an i1Profiler measurement (.mxf or .cxf) holds more than one measurement condition, ChromIQ now asks which one to import.** i1Profiler can save every patch three times: M0 (the light of the instrument's own lamp), M1 (light with a defined amount of ultraviolet, like D50 daylight, the ISO 13655 standard for papers with optical brighteners viewed in daylight) and M2 (ultraviolet cut, as if the paper had no brighteners). On a paper with brighteners they can differ by several ΔE. Until now ChromIQ took the M2 readings without asking and without saying so. A window now explains the three in plain words, says which condition i1Profiler's own setting names when the file says so clearly, and preselects M1 otherwise. It appears wherever ChromIQ converts such a file: the Measure tab's IMPORT, Build Profile, Tools ▸ Convert i1Profiler ▸ TI3, the calibration measurement, the Measurement Report and the scanner target. A file with only one condition is imported under it, and the log says which. The choice is written into the measurement, and the Measurement info window shows it. Thanks to jctay on printerknowledge, whose careful comparison of ChromIQ's import with his own converter found this.
