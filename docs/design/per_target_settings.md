@@ -138,10 +138,12 @@ the FD-9. A record that carries the keys is read back when the FD-9 controls
 exist and is otherwise left as it is, never reported as unknown. Restore
 Defaults puts the condition back to M1 and unticks Resume.
 
-Global, not per target (AppSettings): the FD-9's network address (`fd9_host`,
-"FD-9 setup…") and the Create Chart FD-9 patch width, height and gap last used
-(`chart_fd9_patch_mm`, `chart_fd9_patch_h_mm`, `chart_fd9_gap_mm`), which are
-written only when an FD-9 chart is generated.
+Global, not per target (AppSettings): the FD-9 network address (`fd9_host`,
+"FD-9 setup…"). Width, height and the two gaps now use the ordinary layout
+recipe and Chart Layout presets. Earlier equal-gap recipes and legacy
+`chart_fd9_patch_mm`, `chart_fd9_patch_h_mm`, `chart_fd9_gap_mm` defaults remain
+readable; a shared-control recipe records explicit zeros and distinct gaps.
+Pages uses the existing per-target page setting, without an FD-9 override.
 
 ---
 

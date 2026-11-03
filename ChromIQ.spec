@@ -224,6 +224,7 @@ a = Analysis(
         *_ft_datas,
     ],
     hiddenimports=[
+        'workflow.fd9.pages',
         'fd9_independent.conversion_profile', 'fd9_independent.motion',
         'fd9_independent.geometry', 'fd9_independent.operator_controls',
         'fd9_independent.native', 'fd9_independent.native_motion',

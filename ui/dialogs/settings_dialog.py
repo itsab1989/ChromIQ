@@ -3620,27 +3620,8 @@ class SettingsDialog(QDialog):
                    "has to be switched on and connected to the same network as "
                    "this computer, and no other program may be talking to it "
                    "while ChromIQ measures."),
-                tr("What turning this on adds, after a restart of ChromIQ:\n"
-                   "  •  Create Chart: “FD-9” in the Instrument list of "
-                   "Guided and of Manual. An FD-9 chart has its own sheet "
-                   "sizes, a “Custom sheet…” button and its own patch width, "
-                   "patch height and gap.\n"
-                   "  •  Measure: when an FD-9 chart is loaded, a row with the "
-                   "measurement condition (M0, M1 or M2), Resume and “FD-9 "
-                   "setup…”, where you enter the FD-9's network address. "
-                   "Start then measures the sheet in the FD-9."),
-                tr("The limits of this first version:\n"
-                   "  •  one sheet per chart (no charts over several pages);\n"
-                   "  •  patches from 6 to 30 mm wide and high;\n"
-                   "  •  sheets from 137 to 330 mm wide and from 170 to 660 mm "
-                   "long, measured the way the sheet goes into the FD-9;\n"
-                   "  •  only an FD-9 whose measuring sensor reports the "
-                   "version 1.0.0.2. This is the version of the sensor inside "
-                   "the FD-9, not the FD-9's own firmware version, so it can "
-                   "differ from the number the FD-9 shows. ChromIQ checks it "
-                   "before every measurement and refuses any other version "
-                   "rather than guess;\n"
-                   "  •  it has been tested on one FD-9, on macOS only."),
+                tr('Create Chart offers FD-9 in Guided and Manual, using the existing layout controls and Pages setting. Manual also offers Custom paper. Measure offers M0/M1/M2, Resume and FD-9 setup.'),
+                tr('Supported: 6 to 30 mm patches; sheets 137 to 330 mm across the feed and 170 to 660 mm along it. The measuring sensor reports the version 1.0.0.2; other versions are refused before motion. Tested on one FD-9, on macOS. Multi-page reading still needs hardware validation.'),
                 tr("How to feed the sheet: arrow first, with the printed side "
                    "facing up. The FD-9 finds the chart by the four small "
                    "black squares around the patch area, but it cannot tell a "

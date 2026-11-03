@@ -45,7 +45,11 @@ def line_command(points,calibrate,more):
         if not all(math.isfinite(v) for v in (x,y)) or not 12<x<3625 or not 12<y<19000:
             raise ValueError('Measurement point exceeds explicit geometry envelope')
         packed.append(struct.pack('<4f',x,y,0,0))
-    if any(points[i][0]>=points[i+1][0] for i in range(len(points)-1)):raise ValueError('Points must be ordered by sensor X')
+    # Command 0x106 takes explicit points in travel order. Both monotonic
+    # directions occur in observed OEM traffic; there is no direction flag.
+    deltas=[points[i+1][0]-points[i][0] for i in range(len(points)-1)]
+    if deltas and not (all(d>0 for d in deltas) or all(d<0 for d in deltas)):
+        raise ValueError('Points must be strictly monotonic in sensor X')
     return struct.pack('<9I',0x106,1,130,150,int(calibrate),0,65,int(more),len(points))+b''.join(packed)
 
 
@@ -82,6 +86,25 @@ class RawAcquisition:
             try:self._event(min(2,deadline-time.monotonic()))
             except TimeoutError:self.instrument.status()
         self.phase=Phase.FAILED;raise TimeoutError('Sheet did not reach the expected mechanical state')
+
+    @failed_on_error
+    def wait_sheet_clear(self,wait_seconds=180):
+        """Wait read-only for the ejected sheet to leave the paper sensor.
+
+        Observed removal goes 10/1 -> 2/1 -> 2/0 (mechanism/paper).
+        Require both empty readiness fields; paper=0 alone is insufficient.
+        No load, display, scan or model request is sent from this wait.
+        """
+        if self.phase!=Phase.NEW:raise RuntimeError('Wait for clearance before beginning a new load')
+        if not 1<=wait_seconds<=86400:raise ValueError('Clearance wait must be 1..86400 seconds')
+        self.last_status=None
+        deadline=time.monotonic()+wait_seconds
+        self.instrument.status()
+        while time.monotonic()<deadline:
+            try:self._event(min(1,max(.001,deadline-time.monotonic())))
+            except TimeoutError:self.instrument.status()
+            if self.last_status and (self.last_status.mechanism,self.last_status.paper)==(2,0):return
+        raise TimeoutError('Previous sheet did not clear the FD-9 paper sensor')
 
     @failed_on_error
     def prepare(self,name='FD9 RAW CHART',wait_seconds=180):

@@ -99,6 +99,22 @@ any merge decision.
 
 ## Scan preview and live progress
 
+Automatic factory-calibrated jobs now alternate row travel direction: first
+increasing sensor X, then decreasing X, repeating within the sheet. Each new
+sheet or resumed pass starts increasing X, irrespective of its original row
+number. Progress and live colours use the actual acquisition locations; TI3
+rows remain in logical chart order so whole-row prefix resumes stay stable.
+The capture's `progress.json` records `row_order` as `alternating-x-v1` or
+`increasing-x-v1`. Missing means the historical increasing-X policy. Unknown
+policies and declared order that disagrees with wire commands are refused.
+The legacy native-point reference backend remains forward-only. No extra device
+command, exposure, calibration write or conversion is added. Synthetic checks
+pass. A two-page GUI run then measured 2,040 patches using alternating rows
+and automatic handoff. Against the same sheets measured forward-only, median
+M0 repeat difference was 0.177 delta E76 (maximum 1.382). Every exported M0
+spectrum matched its verified raw/model sample under the correct patch ID.
+This is a one-unit repeat comparison, not an absolute accuracy certification.
+
 Once the pre-scan geometry passes, Measure shows the actual grayscale scan in
 feed orientation with skew-corrected patch outlines. Pending rows have cyan
 outlines, the next row is amber, and completed rows are green. These marks show
@@ -114,24 +130,22 @@ failure leaves measurement and evidence preservation working normally.
 
 ## Creating printable charts
 
-Choose **FD-9 (Konica Minolta)** in Create Chart, select a listed sheet or
-**Custom sheet…**, and use **Generate Chart**. The ordinary Print and Measure
+Choose **FD-9** in Create Chart, select a listed sheet (or Manual’s ordinary
+Custom paper entry), set Pages and use **Generate Chart**. The ordinary Print and Measure
 tabs receive the resulting chart automatically. Guided uses targen's RGB patch
 recipe; Manual also accepts ChromIQ's CMYK and CMYK+N recipes or existing TI1
 patch sets. TIFF pixels retain device channels, including distinct light inks.
 Optional vector PDF uses the same patch geometry and named inks.
 Calibration targets start each pure single-ink ramp in a fresh column, with its
 own paper white. Long ramps continue in the next column; unused cells remain
-white. Eleven 25-level ink ramps fit a 300-cell sheet. Ramps that cannot fit
-in the selected sheet's columns are refused. The chart keeps nominal values while printer
+white. Eleven 25-level ink ramps fit a 300-cell sheet. Longer targets continue on additional sheets. The chart keeps nominal values while printer
 calibration, when selected, affects only the printable colors.
 
 The default grid uses the selected sheet area with 8 mm patches and 1 mm white gaps.
-A4 fits 500 patches, Letter 460, A3 1,102 and 330 × 660 mm 2,145. One sheet
-per chart is supported. Width is 137–330 mm and length 170–660 mm in feed
+A4 fits 500 patches, Letter 460, A3 1,102 and 330 × 660 mm 2,145. Charts can span multiple sheets. Width is 137–330 mm and length 170–660 mm in feed
 orientation. Side fiducials have 4 mm of paper outside their outer edges;
-the upper/lower clear areas retain the transport allowances. Requests exceeding
-the selected sheet capacity fail explicitly. Variable columns and rows flow
+the upper/lower clear areas retain the transport allowances. Larger requests are split into numbered page TIFFs, one PDF and one TI2.
+The last page pads complete columns only. Variable columns and rows flow
 through TI2/FD9 geometry, command point counts, wire verification, row progress,
 partial saves and suffix resume. Locations continue A..Z, AA..AG on wide sheets.
 
@@ -155,13 +169,31 @@ and tab handoff. The user-created Letter chart has passed print/scan validation
 on one unit; larger and smaller-patch layouts still need physical checks. Arbitrary grids,
 auto feeding and certified ISO measurement are not supported.
 
-Patch layout controls: width and height are independently selectable from 6 to
-30 mm. The gap is 0..5 mm, with 1 mm retained as the default; zero means touching
-patches. Guided exposes the controls in Custom sheet, and Manual exposes them
-in its FD-9 panel. The layout-edit button opens an FD-9-only size dialog instead
-of Preferences/printtarg. Mode switches, defaults and saved recipes preserve
-both dimensions and zero gaps. Capacity, TIFF/PDF rendering, physical sidecars,
-scan polygons and measurement centres use the same geometry.
+Patch width and height use the standard layout panel, independently from
+6 to 30 mm. Its inter-patch gap controls separation along the feed and its strip
+gap controls separation across the feed, each 0..5 mm. Zero means touching.
+Guided uses the normal layout defaults; Manual exposes the existing controls.
+Edit layout defaults opens Chart Layout preferences, never printtarg for FD-9.
+The extra FD-9 dialog and Guided Custom sheet button have been removed.
+Legacy equal-gap recipes and schema-1 physical charts are still read.
+
+Multi-page charts use schema 2 with a per-page physical grid and globally unique
+patch IDs/locations. Each sheet is pre-scanned and measured on the retained
+sheet using the existing single-sheet acquisition; the shared page-pause panel
+announces the automatically queued next sheet after ejection/disconnection.
+The worker waits read-only for mechanism 2 and paper 0 before loading again;
+the notice closes when the insertion prompt appears, without Continue. Stop
+still preserves completed pages while waiting for the exit sensor. Earlier pages stay
+in the same measurement, including on partial Save/Resume. Session evidence is
+nested by page below the normal per-Start fd9-sessions directory. Page numbers
+are printed for the operator: four symmetric marks cannot prove page identity.
+Synthetic tests cover generation, second-page failure, cross-page resume,
+previews and the automatic handoff. A two-page, 2,040-patch M0 run and page-2
+resume passed on one unit; its first 1,020 readings were unchanged. That run
+used forward-only rows and the earlier manual handoff. A follow-up run on the
+same two sheets then passed alternating rows and automatic exit-sensor handoff,
+with both pages combined into one 2,040-patch M0 measurement. Stop/Resume within
+a descending row remains covered by synthetic tests only.
 
 The detector finds four isolated square fiducials and uses the declared grid;
 it does not detect each colour patch. Patch gaps and square patch shapes are

@@ -221,7 +221,7 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
     """
     if _is_fd9(geom):
         from workflow.fd9.chart import packing
-        return packing(f"{paper_w_mm:g}x{paper_h_mm:g}", npat, geom.pwid, geom.plen, geom.pspa, None)
+        return packing(f"{paper_w_mm:g}x{paper_h_mm:g}", npat, geom.pwid, geom.plen, geom.pspa, None, strip_gap_mm=geom.rrsp-geom.pwid)
     if npat < 1:
         raise LayoutError("need at least one patch")
 
@@ -908,10 +908,11 @@ def strip_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             h = px(place.y_of(col_n - 1) + place.plen) + _stag - y
             width = px(place.pwid)
             if _is_fd9(geom):
+                if abs(geom.rrsp - geom.pwid) < 1e-9:
+                    x = px(place.x0) + round(p * place.pwid * mm2px)
+                    width = px(place.x0) + round((p+1) * place.pwid * mm2px) - x
                 if geom.pspa == 0:
-                    x = px(place.x0) + round(p * place.rrsp * mm2px)
                     y = px(place.y0_first)
-                    width = px(place.x0) + round((p+1) * place.rrsp * mm2px) - x
                     h = round(col_n * place.plen * mm2px)
                 minimum = math.ceil(6 * mm2px)
                 width = max(width, minimum)
@@ -1032,9 +1033,10 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                 _x1 = px(place.x_of(p) + place.pwid)
                 _y1 = px(place.y_of(j) + place.plen) + _stag
             if _is_fd9(geom):
+                if abs(geom.rrsp - geom.pwid) < 1e-9:
+                    _x0 = px(place.x0) + round(p * place.pwid * mm2px)
+                    _x1 = px(place.x0) + round((p+1) * place.pwid * mm2px)
                 if geom.pspa == 0:
-                    _x0 = px(place.x0) + round(p * place.rrsp * mm2px)
-                    _x1 = px(place.x0) + round((p+1) * place.rrsp * mm2px)
                     _y0 = px(place.y0_first) + round(j * place.plen * mm2px)
                     _y1 = px(place.y0_first) + round((j+1) * place.plen * mm2px)
                 minimum = math.ceil(6 * mm2px)

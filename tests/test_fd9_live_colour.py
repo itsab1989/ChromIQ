@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import QLabel
 from tests.test_fd9_partial import setup, configure, capture
 from tests.test_fd9_normal_measurement import tab, FD9Job
 from tests.test_fd9_factory_workflow import native_settings
-from tests.test_fd9_row_workflow import fixture_rows
 from workflow.fd9.preview import build_scan_preview
 from workflow.fd9.measurement import measure_chart, first_table, publish_measurement
 
@@ -42,7 +41,9 @@ def colours(s, path):
 
 def acquisition(s, count=36):
     def run(source, layout, destination, host, **kwargs):
-        root = fixture_rows(s, destination, kwargs["row_indices"], count, True)
+        from tests._fd9_bidirectional_wire import fixture, FORWARD
+        root = fixture(s, destination, kwargs["row_indices"], count, True,
+                       kwargs.get("row_order", FORWARD))
         kwargs["on_scan"](root)
         for i, sample in enumerate(colours(s, root), 1):
             kwargs["on_readings"](i)
@@ -71,12 +72,14 @@ def test_worker_queues_selected_condition_colours_equal_to_export(tab, setup, qt
         worker.start()
     worker.wait(2000)
     assert len(events) == 36 and all(t is tab.thread() for t in threads)
-    records = first_table(finished.args[0]["staged"])[2]
-    for event, row in zip(events, records):
+    records = {r["SAMPLE_LOC"]: r for r in first_table(finished.args[0]["staged"])[2]}
+    # Events follow head travel; the filed table stays in logical chart order.
+    for event in events:
         assert event["condition"] == "M2" and event["session"] == str(
             worker.session.resolve()
         )
         patch = event["patches"][0]
+        row = records[patch["loc"]]
         assert patch["loc"] == row["SAMPLE_LOC"]
         assert patch["xyz"] == pytest.approx(
             [float(row[k]) for k in ("XYZ_X", "XYZ_Y", "XYZ_Z")], abs=1e-8

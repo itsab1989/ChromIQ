@@ -108,8 +108,9 @@ careful piece of work, and the review rounds that followed taught us exactly
 which places a new instrument touches. The vendored driver is
 `vendor/fd9-independent/`; ChromIQ's glue is `workflow/fd9/` (chart, sessions,
 measurement, export, preview), `ui/fd9_measurement.py::FD9MeasureMixin` (the
-Measure tab part) and `ui/dialogs/fd9_sheet.py` (sheet and patch size
-controls). The switch is `workflow/fd9/support.py`. Read
+Measure tab part). Its sheet and patch sizes, gaps and page count use the
+shared `ui/dialogs/layout_options_panel.py` and ordinary layout recipes;
+`ui/dialogs/fd9_sheet.py` supplies only the instrument note. The switch is `workflow/fd9/support.py`. Read
 `workflow/fd9/README.md` for its own overview.
 
 ## 4. Behind a Beta option, and off means no change

@@ -124,11 +124,10 @@ def test_rgb_chart_is_additive_and_measurable(tmp_path):
         )
 
 
-def test_oversize_or_calibration_refused_before_outputs(tmp_path):
+def test_oversize_charts_span_sheets(tmp_path):
     source, _ = ti1(tmp_path, count=501)
-    with pytest.raises(ValueError, match="one sheet"):
-        build_chart(source, tmp_path / "too-many")
-    assert not (tmp_path / "too-many.tif").exists()
+    result = build_chart(source, tmp_path / "too-many", dpi=72)
+    assert result.layout.pages == 2 and len(result.tiff_paths) == 2
     source, _ = ti1(tmp_path, count=12)
     with pytest.raises(FileNotFoundError):
         build_chart(source, tmp_path / "cal", cal_path=tmp_path / "missing.cal")
@@ -151,16 +150,13 @@ def test_normal_engine_dispatch_and_geometry_estimate(tmp_path):
     assert len(checked_chart(result.ti2_path)[2]) == 300
 
 
-def test_sheet_dialog_limits_and_capacity(qtbot):
-    from ui.dialogs.fd9_sheet import FD9SheetDialog
-
-    dialog = FD9SheetDialog("A4")
-    qtbot.addWidget(dialog)
-    dialog.width.setValue(330)
-    dialog.height.setValue(660)
-    assert dialog.paper() == "330x660" and "2145" in dialog.summary.text()
-    dialog.height.setValue(170)
-    assert "363" in dialog.summary.text()
+def test_shared_custom_sheet_limits_and_capacity(qtbot):
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    panel = LayoutOptionsPanel(with_selectors=True)
+    qtbot.addWidget(panel)
+    panel.instr.setCurrentIndex(panel.instr.findData("FD9"))
+    assert panel.custom_w.maximum() == 330 and panel.custom_h.maximum() == 660
+    assert capacity("330x660") == 2145
 
 
 def test_guided_fd9_selection_collects_native_parameters(qapp, tmp_path, qtbot):
@@ -179,8 +175,8 @@ def test_guided_fd9_selection_collects_native_parameters(qapp, tmp_path, qtbot):
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("FD9"))
     assert tab._paper_combo.findData("137x300") >= 0
     assert tab._paper_combo.findData("A2") < 0
-    assert not tab._fd9_sheet_btn.isHidden()
-    assert tab._pages_spin.maximum() == 1
+    assert not hasattr(tab, "_fd9_sheet_btn")
+    assert tab._pages_spin.maximum() == 20
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("137x300"))
     params = tab._collect_guided()
     assert (
@@ -188,7 +184,7 @@ def test_guided_fd9_selection_collects_native_parameters(qapp, tmp_path, qtbot):
     )
     assert tab._predicted_patch_count == 300
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("i1"))
-    assert tab._pages_spin.maximum() == 20 and tab._fd9_sheet_btn.isHidden()
+    assert tab._pages_spin.maximum() == 20
 
 
 def test_native_vector_pdf_retains_multichannel_colorants(tmp_path):
@@ -211,7 +207,7 @@ def test_manual_fd9_limits_papers_pages_and_explains_fixed_grid(qapp, qtbot):
     qtbot.addWidget(panel)
     panel.instr.setCurrentIndex(panel.instr.findData("FD9"))
     assert panel.paper.findData("A2") < 0
-    assert panel.pages.maximum() == 1
+    assert panel.pages.maximum() == 20
     assert not panel.fd9_notice.isHidden()
     assert panel.custom_w.maximum() == 330 and panel.custom_h.maximum() == 660
 
@@ -266,9 +262,7 @@ def test_generated_square_marks_are_recognised_at_scanner_scale(tmp_path, patch_
 
     from pathlib import Path
 
-    package = Path(__file__).resolve().parents[3] / "drivers/fd9-independent"
-    if not package.is_dir():
-        package = Path(__file__).resolve().parents[1] / "vendor/fd9-independent"
+    package = Path(__file__).resolve().parents[1] / "vendor/fd9-independent"
     driver(package)
     from fd9_independent.geometry import find_marks, grid_rows
 
@@ -518,16 +512,14 @@ def test_long_calibration_ramp_continues_before_next_ink(tmp_path):
     assert definition["rows"][7][1]["device_values"] == [100] * 3
 
 
-def test_calibration_refuses_when_ramp_columns_do_not_fit(tmp_path):
+def test_calibration_spans_sheets_when_ramp_columns_do_not_fit(tmp_path):
     source = ramp_ti1(
         tmp_path, ("C", "M", "Y", "K", "c", "m", "k", "1k", "R", "G", "B"), 25
     )
-    original = source.read_bytes()
-    with pytest.raises(ValueError, match="ramps do not fit"):
-        build_chart(
-            source, tmp_path / "bad", paper="137x170", dpi=72, ramps_per_strip=True
-        )
-    assert source.read_bytes() == original and not (tmp_path / "bad.tif").exists()
+    result = build_chart(source, tmp_path / "ramps", paper="137x170", dpi=72, ramps_per_strip=True)
+    assert result.layout.pages > 1 and len(result.tiff_paths) == result.layout.pages
+    assert result.ramp_whites_added > 0
+
 
 
 @pytest.mark.parametrize("paper", ["A3", "330x660"])
@@ -652,14 +644,10 @@ def test_invalid_patch_size_never_creates_outputs(tmp_path, size):
     assert not (tmp_path / "invalid.tif").exists()
 
 
-def test_patch_size_dialog_and_manual_recipe_restore(qapp, qtbot):
-    from ui.dialogs.fd9_sheet import FD9SheetDialog
+def test_shared_patch_size_controls_and_manual_recipe_restore(qapp, qtbot):
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel
     from workflow.layout_engine.presets import LayoutRecipe
 
-    dialog = FD9SheetDialog("A4", patch_mm=6)
-    qtbot.addWidget(dialog)
-    assert "800" in dialog.summary.text() and dialog.patch.minimum() == 6
     panel = LayoutOptionsPanel(with_selectors=True)
     qtbot.addWidget(panel)
     panel.set_recipe(
@@ -667,7 +655,7 @@ def test_patch_size_dialog_and_manual_recipe_restore(qapp, qtbot):
     )
     recipe = panel.get_recipe()
     assert recipe.build_kwargs()["patch_w"] == 6 and recipe.patch_h_mm == 6
-    assert panel.fd9_patch.isEnabled()
+    assert panel.patch_x.isEnabled() and panel.patch_y.isEnabled()
 
 
 def test_guided_small_patch_size_reaches_creator_and_restore(qapp, qtbot, tmp_path):

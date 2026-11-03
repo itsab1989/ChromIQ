@@ -57,6 +57,22 @@ accepts up to 128 rows. Twelve-point framing remains byte-identical. This
 extension is tested with invented messages and a 33-point acquisition, not a
 new physical capture. The 12-point hardware-tested history above is retained.
 
+Alternating row direction (2026-11-03): saved OEM traffic contains 25 twelve-point
+0x106 commands, alternating increasing and decreasing X. Their headers differ
+only in the existing calibration/continuation fields. The point list therefore
+specifies travel order; no new direction flag or command is introduced.
+`line_command` accepts either strictly increasing or strictly decreasing X,
+rejecting duplicates, a turn within a row, and the existing invalid bounds.
+The caller must keep patch identity separate from arrival order. ChromIQ records
+`row_order` in each acquisition and starts each sheet or resumed pass with
+increasing X, reversing every second selected row. Geometry stays in logical
+order; wire evidence is checked against the declared travel order before export.
+Private traffic is development evidence only, never a shipped fixture. The
+new alternating path subsequently completed a two-page, 2,040-point GUI run
+on one owned unit (34 rows of 30 points per sheet, 17 rows in each direction).
+Wire verification and a repeat comparison with the earlier forward-only run
+checked patch correspondence; the OEM observation alone was not the live proof.
+
 ## Sensor characterization and cached-output reads (2026-11-01)
 
 The spectral sensor has a separate record interface. A read request is uint32
@@ -133,6 +149,16 @@ Single-point native M0/M1/M2 and two successive positions on one row are
 demonstrated on one unit. Multirow transport remains experimental. A sheet can remain across the exit sensor
 after ejection; measurement completion and physical paper clearance are
 separate events.
+
+Exit-clear observation (2026-11-03): read-only registration/status traffic while
+the operator removed an ejected sheet reported mechanism/paper 10/1, then 2/1,
+then 2/0. `wait_sheet_clear` requires 2/0 on a fresh connection before loading
+another page. It consumes existing 0x300 notifications, using only the existing
+0x0000 status request during quiet intervals. It sends no model, display, load,
+scan, home or eject request, and cancellation/fault/timeout closes the connection.
+ChromIQ queues subsequent pages through this wait; initial pages retain their
+existing insertion workflow. A subsequent two-page GUI run passed automatic
+clearance, insertion and measurement of the second sheet on the same unit.
 
 
 ## Native batch validation (2026-11-02)

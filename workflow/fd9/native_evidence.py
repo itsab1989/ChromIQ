@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def verified_native_rows(source, session, layout_path, *, allow_partial=False):
-    from .independent import driver, chart_grid
+    from .independent import driver, chart_grid, FORWARD_ROW_ORDER
 
     driver(source)
     from fd9_independent.protocol import MessageDecoder, RawSpectrum
@@ -28,6 +28,8 @@ def verified_native_rows(source, session, layout_path, *, allow_partial=False):
 
     root = Path(session)
     report = json.loads((root / "progress.json").read_text(encoding="utf-8"))
+    if report.get("row_order", FORWARD_ROW_ORDER) != FORWARD_ROW_ORDER:
+        raise ValueError("Legacy native point evidence requires forward row order")
     complete = report.get("success") is True and report.get("phase") == "done"
     if (
         report.get("conversion_source") != "instrument_firmware"

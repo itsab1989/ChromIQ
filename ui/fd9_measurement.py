@@ -61,6 +61,7 @@ class FD9Job(QThread):
     readings = pyqtSignal(int)
     scan_ready = pyqtSignal(object)
     patch_ready = pyqtSignal(object)
+    page_requested = pyqtSignal(int, int)
     result = pyqtSignal(object)
     #: (message, stopped by the user, which M-FD9-* window: `fd9_exception_kind`)
     failed = pyqtSignal(str, bool, str)
@@ -87,6 +88,7 @@ class FD9Job(QThread):
                     on_readings=self.note_readings,
                     on_scan=self.scan_ready.emit,
                     on_patch=self.patch_ready.emit,
+                    on_page=self.queue_page,
                 )
             )
         except Exception as e:
@@ -96,6 +98,12 @@ class FD9Job(QThread):
     def note_readings(self, count):
         self.new_readings = count
         self.readings.emit(count)
+
+    def queue_page(self, page, pages):
+        if self.stop_event.is_set():
+            raise InterruptedError("Operator stopped between FD-9 pages")
+        if page > 1:
+            self.page_requested.emit(page, pages)
 
     def request_stop(self):
         self.stop_event.set()
@@ -322,8 +330,11 @@ class FD9MeasureMixin:
         self._fd9_readings = 0
         self._fd9_seed_unsaved = 0
         self._fd9_scan_preview = None
+        self._fd9_scan_previews = {}
+        self._fd9_live_colours = {}
         self._fd9_scan_chart = None
         self._fd9_ordered_locations = []
+        self._fd9_acquisition_locations = None
         self._fd9_prior_count = 0
         self._fd9_prior_measurement = None
         self._fd9_shown = False
@@ -590,96 +601,106 @@ class FD9MeasureMixin:
                 from workflow.fd9.preview import saved_scan_preview
 
                 event = None if self._fd9_live else saved_scan_preview(chart)
-            if event and event["layout_sha256"] == sha(layout_path):
+            if event and event["layout_sha256"] == sha(layout_path) and layout.get("schema") != 2:
                 self._fd9_show_scan(event, chart)
                 return True
             self._fd9_scan_preview = None
             self._fd9_scan_chart = None
-            scale = 4
-            paper = layout.get("paper_mm", [137, 300])
-            patch = layout.get("patch_mm", [8, 8])
-            image = Image.new(
-                "RGB", (round(paper[0] * scale), round(paper[1] * scale)), "white"
-            )
-            draw = ImageDraw.Draw(image)
-            boxes = {}
-            for row in layout["rows"]:
-                for c, p in enumerate(row):
-                    values = dict(zip(layout["channel_tokens"], p["device_values"]))
-                    cyan = min(1, (values.get("C", 0) + values.get("c", 0)) / 100)
-                    magenta = min(1, (values.get("M", 0) + values.get("m", 0)) / 100)
-                    yellow = values.get("Y", 0) / 100
-                    black = min(
-                        1,
-                        (values.get("K", 0) + values.get("k", 0) + values.get("1k", 0))
-                        / 100,
-                    )
-                    red, green, blue = (values.get(k, 0) / 100 for k in ("R", "G", "B"))
-                    rgb = tuple(
-                        round(255 * max(0, 1 - a - b - c) * (1 - black))
-                        for a, b, c in (
-                            (cyan, green, blue),
-                            (magenta, red, blue),
-                            (yellow, red, green),
+            from workflow.fd9.chart import chart_pages
+            pages = chart_pages(layout)
+            cache = preview_cache_dir(chart)
+            cache.mkdir(parents=True, exist_ok=True)
+            paths, page_boxes, stripe_rects = [], [], []
+            for page_index, page in enumerate(pages):
+                scale = 4
+                paper = page.get("paper_mm", [137, 300])
+                patch = page.get("patch_mm", [8, 8])
+                image = Image.new(
+                    "RGB", (round(paper[0] * scale), round(paper[1] * scale)), "white"
+                )
+                draw = ImageDraw.Draw(image)
+                boxes = {}
+                for row in page["rows"]:
+                    for c, p in enumerate(row):
+                        values = dict(zip(page["channel_tokens"], p["device_values"]))
+                        cyan = min(1, (values.get("C", 0) + values.get("c", 0)) / 100)
+                        magenta = min(1, (values.get("M", 0) + values.get("m", 0)) / 100)
+                        yellow = values.get("Y", 0) / 100
+                        black = min(
+                            1,
+                            (values.get("K", 0) + values.get("k", 0) + values.get("1k", 0))
+                            / 100,
                         )
-                    )
-                    # RGB channels are additive device values, not the red,
-                    # green and blue spot inks of a CMYK+N target.
-                    rep = layout.get("color_rep")
-                    if rep in ("RGB", "iRGB") and set(values) == {"R", "G", "B"}:
+                        red, green, blue = (values.get(k, 0) / 100 for k in ("R", "G", "B"))
                         rgb = tuple(
-                            round(255 * values[k] / 100) for k in ("R", "G", "B")
+                            round(255 * max(0, 1 - a - b - c) * (1 - black))
+                            for a, b, c in (
+                                (cyan, green, blue),
+                                (magenta, red, blue),
+                                (yellow, red, green),
+                            )
                         )
-                    elif rep in ("W", "K") and len(values) == 1:
-                        gray = next(iter(values.values()))
-                        if rep == "K":
-                            gray = 100 - gray
-                        rgb = (round(255 * gray / 100),) * 3
-                    x, y = p["centre_mm"]
-                    rect = QRect(
-                        round((x - patch[0] / 2) * scale),
-                        round((y - patch[1] / 2) * scale),
-                        round(patch[0] * scale),
-                        round(patch[1] * scale),
-                    )
+                        # RGB channels are additive device values, not the red,
+                        # green and blue spot inks of a CMYK+N target.
+                        rep = page.get("color_rep")
+                        if rep in ("RGB", "iRGB") and set(values) == {"R", "G", "B"}:
+                            rgb = tuple(
+                                round(255 * values[k] / 100) for k in ("R", "G", "B")
+                            )
+                        elif rep in ("W", "K") and len(values) == 1:
+                            gray = next(iter(values.values()))
+                            if rep == "K":
+                                gray = 100 - gray
+                            rgb = (round(255 * gray / 100),) * 3
+                        x, y = p["centre_mm"]
+                        rect = QRect(
+                            round((x - patch[0] / 2) * scale),
+                            round((y - patch[1] / 2) * scale),
+                            round(patch[0] * scale),
+                            round(patch[1] * scale),
+                        )
+                        draw.rectangle(
+                            [rect.x(), rect.y(), rect.right(), rect.bottom()], fill=rgb
+                        )
+                        boxes[locations[p["id"]]] = rect
+                for x, y in page["fiducials_mm"]:
                     draw.rectangle(
-                        [rect.x(), rect.y(), rect.right(), rect.bottom()], fill=rgb
+                        [
+                            round((x - 1.5) * scale),
+                            round((y - 1.5) * scale),
+                            round((x + 1.5) * scale),
+                            round((y + 1.5) * scale),
+                        ],
+                        fill="black",
                     )
-                    boxes[locations[p["id"]]] = rect
-            for x, y in layout["fiducials_mm"]:
-                draw.rectangle(
+                middle = paper[0] * scale / 2
+                draw.polygon(
                     [
-                        round((x - 1.5) * scale),
-                        round((y - 1.5) * scale),
-                        round((x + 1.5) * scale),
-                        round((y + 1.5) * scale),
+                        (middle, 20),
+                        (middle - 12, 40),
+                        (middle - 4, 40),
+                        (middle - 4, 65),
+                        (middle + 4, 65),
+                        (middle + 4, 40),
+                        (middle + 12, 40),
                     ],
                     fill="black",
                 )
-            middle = paper[0] * scale / 2
-            draw.polygon(
-                [
-                    (middle, 20),
-                    (middle - 12, 40),
-                    (middle - 4, 40),
-                    (middle - 4, 65),
-                    (middle + 4, 65),
-                    (middle + 4, 40),
-                    (middle + 12, 40),
-                ],
-                fill="black",
-            )
-            # The run's cache/ (always safe to delete), never a stray cache/
-            # beside a verification chart (review M8).
-            cache = preview_cache_dir(chart)
-            cache.mkdir(parents=True, exist_ok=True)
-            path = cache / ("fd9-preview-" + sha(layout_path)[:12] + ".png")
-            image.save(path)
-            self._tiff_pages = [path]
-            self._preview.load_tiff([path])
-            self._patch_boxes = [boxes]
-            self._fd9_use_rows_as_strips(layout["rows"], list(boxes.values()))
-            self._preview.set_page_patch_boxes({0: list(boxes.values())})
+                path = cache / ("fd9-preview-" + sha(layout_path)[:12] + f"-{page_index+1}.png")
+                image.save(path)
+                paths.append(path)
+                page_boxes.append(boxes)
+                self._fd9_use_rows_as_strips(page["rows"], list(boxes.values()))
+                stripe_rects.append(self._page_stripe_rects[0])
+            self._tiff_pages = paths
+            self._preview.load_tiff(paths)
+            self._patch_boxes = page_boxes
+            self._page_stripe_rects = stripe_rects
+            self._strips_per_page = [len(r) for r in stripe_rects]
+            self._preview.set_page_patch_boxes({i: list(b.values()) for i,b in enumerate(page_boxes)})
+            self._preview.set_stripe_rects(stripe_rects[0], "base")
+            if event and event["layout_sha256"] == sha(layout_path):
+                self._fd9_show_scan(event, chart)
             self._preview.set_no_swipe(True)
             self._preview.set_notice(
                 tr("FD-9 layout preview: the colours are approximate, and this is not the file that is printed.")
@@ -820,6 +841,9 @@ class FD9MeasureMixin:
             self._live_expected = self._expected_source_for(chart.with_suffix(".ti3"))
             self._reset_flag_judge()
             self._fd9_scan_preview = None
+            self._fd9_scan_previews = {}
+            self._fd9_live_colours = {}
+            self._fd9_acquisition_locations = None
             self._fd9_scan_chart = None
             self._fd9_load_preview(chart)
             self._reset_progress(from_files=False)
@@ -841,6 +865,7 @@ class FD9MeasureMixin:
             job.readings.connect(self._fd9_count_changed)
             job.scan_ready.connect(self._fd9_scan_ready)
             job.patch_ready.connect(self._fd9_patch_ready)
+            job.page_requested.connect(self._fd9_page_requested)
             job.result.connect(self._fd9_result)
             job.failed.connect(self._fd9_failed)
             keep_awake.hold()
@@ -861,6 +886,7 @@ class FD9MeasureMixin:
         the insertion window opened and closed at the right moments."""
         stage, line = _progress_line(str(text))
         if stage == "insert":
+            self._fd9_close_page_notice()
             self._fd9_show_insert_window()
         elif stage in ("sheet_in", "measuring"):
             self._fd9_close_insert_window()
@@ -869,7 +895,34 @@ class FD9MeasureMixin:
             self._fd9_sheet_in = False
         self._fd9_log(line)
 
+    def _fd9_page_requested(self, page, pages):
+        from workflow import measurement_messages as M
+        title, body = M.M_FD9_NEXT_PAGE.render(page=page, pages=pages)
+        self._fd9_sheet_in = False
+        self._fd9_close_insert_window()
+        self._page_pause_box.set_content(title, body.split("\n\n"), "", [])
+        self._page_pause_continue_btn.hide()
+        self._page_pause_reread_btn.hide()
+        self._page_pause_help_btn.hide()
+        self._page_pause = {"plan": {"kind": "fd9", "page": page}, "button": False}
+        self._page_pause_effect.setOpacity(1.0)
+        self._place_page_pause_note()
+        self._page_pause_panel.show()
+        self._preview_legend_makes_way(True)
+        self._fd9_log(f"[{title}]\n{body}")
+
+    def _fd9_close_page_notice(self):
+        if not getattr(self, "_page_pause", None) or self._page_pause["plan"].get("kind") != "fd9":
+            return
+        self._hide_page_pause()
+        self._page_pause_panel.hide()
+        self._preview_legend_makes_way(False)
+        self._page_pause_continue_btn.show()
+        self._page_pause_reread_btn.show()
+        self._page_pause_help_btn.show()
+
     def _fd9_restore_controls(self):
+        self._fd9_close_page_notice()
         self._fd9_close_insert_window()
         if self._fd9_awake:
             self._fd9_awake = False
@@ -913,6 +966,16 @@ class FD9MeasureMixin:
                 "layout_sha256"
             ] != sha(chart.with_suffix(".fd9.json")):
                 return
+            if "measurement_locations" in event:
+                planned = list(event["measurement_locations"])
+                offset = int(event.get("reading_offset", 0))
+                remaining = self._fd9_ordered_locations[self._fd9_prior_count:]
+                if self._fd9_acquisition_locations is None:
+                    self._fd9_acquisition_locations = list(remaining)
+                expected = self._fd9_acquisition_locations[offset:offset+len(planned)]
+                if offset < 0 or len(expected) != len(planned) or set(expected) != set(planned):
+                    raise ValueError("Scan acquisition order does not match remaining patches")
+                self._fd9_acquisition_locations[offset:offset+len(planned)] = planned
             self._fd9_show_scan(event, chart)
         except Exception as error:
             self._fd9_log("[FD9 preview] " + str(error))
@@ -930,6 +993,7 @@ class FD9MeasureMixin:
                 or event["condition"] != self._fd9_active_settings.condition
             ):
                 return
+            self._fd9_live_colours.update({p["loc"]: p for p in event.get("patches", [])})
             self._on_chart_measured(event)
         except Exception as error:
             self._fd9_log("[FD9 preview] " + str(error))
@@ -941,8 +1005,12 @@ class FD9MeasureMixin:
         self._fd9_scan_preview = event
         self._fd9_scan_chart = str(chart.resolve())
         image = Path(event["image"])
-        self._tiff_pages = [image]
-        self._preview.load_tiff([image])
+        page = int(event.get("page", 0))
+        count = int(event.get("pages", 1))
+        paths = list(self._tiff_pages) if len(self._tiff_pages) == count else [image]*count
+        paths[page] = image
+        self._tiff_pages = paths
+        self._preview.load_tiff(paths)
         # Remap a resumed prefix to the new scan rather than retaining boxes
         # from the nominal TIFF or a previous insertion.
         self._preview.clear_patch_overlay()
@@ -951,15 +1019,26 @@ class FD9MeasureMixin:
             for row in event["rows"]
             for cell in row
         ]
-        if len(boxes) != len(self._fd9_ordered_locations):
+        page_locations = event.get("locations", self._fd9_ordered_locations)
+        if len(boxes) != len(page_locations):
             raise ValueError("Scan grid does not match the selected chart")
-        self._patch_boxes = [dict(zip(self._fd9_ordered_locations, boxes))]
+        mapping = list(self._patch_boxes) if len(self._patch_boxes) == count else [{} for _ in range(count)]
+        mapping[page] = dict(zip(page_locations, boxes))
+        stripes = list(self._page_stripe_rects) if len(self._page_stripe_rects) == count else [[] for _ in range(count)]
         self._fd9_use_rows_as_strips(event["rows"], boxes)
-        self._preview.set_page_patch_boxes({0: boxes})
+        stripes[page] = self._page_stripe_rects[0]
+        self._patch_boxes = mapping
+        self._page_stripe_rects = stripes
+        self._strips_per_page = [len(r) for r in stripes]
+        self._preview.set_page_patch_boxes({i: list(b.values()) for i,b in enumerate(mapping)})
+        self._fd9_scan_previews[page] = event
+        self._preview.show_page(page)
         self._preview.set_patch_click_enabled(False)
         self._preview.set_notice(tr("FD-9 scan of the sheet: rows outlined in green are measured, the amber row is next, and blue rows are still to come."))
         self._refresh_progress()
         self._fd9_restore_scan_colours(chart)
+        if self._fd9_live_colours:
+            self._on_chart_measured({"patches": list(self._fd9_live_colours.values())}, live=False)
 
     def _fd9_restore_scan_colours(self, chart):
         try:
@@ -981,13 +1060,16 @@ class FD9MeasureMixin:
             self._fd9_log("[FD9 preview] " + str(error))
 
     def _fd9_update_scan_grid(self):
-        event = self._fd9_scan_preview
+        event = self._fd9_scan_previews.get(self._preview.current_page(), self._fd9_scan_preview)
+        if event and event.get("page", 0) != self._preview.current_page():
+            self._preview.set_scan_grid(None)
+            return
         if not event or not self._ti1_path:
             return
         if self._fd9_scan_chart != str(self._chart_file_for(self._ti1_path).resolve()):
             return
         measured = self._progress_file_locs | self._progress_locs
-        locations = self._fd9_ordered_locations
+        locations = event.get("locations", self._fd9_ordered_locations)
         ncols = len(event["rows"][0])
         completed = {
             i
@@ -1004,7 +1086,10 @@ class FD9MeasureMixin:
     def _fd9_count_changed(self, count):
         self._fd9_readings = self._fd9_seed_unsaved + count
         start = self._fd9_prior_count
-        self._progress_locs = set(self._fd9_ordered_locations[start : start + count])
+        planned = self._fd9_acquisition_locations
+        if planned is None:
+            planned = self._fd9_ordered_locations[start:]
+        self._progress_locs = set(planned[:count])
         self._refresh_progress()
 
     # ---- the end ----------------------------------------------------------

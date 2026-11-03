@@ -151,10 +151,12 @@ def verified_factory_rows(source, session, layout_path, *, allow_partial=False):
             "No complete converted rows, or incomplete successful acquisition"
         )
     indices = evidence["row_indices"][:rows_complete]
+    from .independent import ordered_measurement_rows
     return {
         **evidence,
         "row_indices": indices,
-        "patches": [p for i in indices for p in evidence["layout"]["rows"][i]],
+        "patches": [p for row in ordered_measurement_rows(
+            evidence["layout"]["rows"], indices, evidence["row_order"]) for p in row],
         "samples": converted[: rows_complete * columns],
         "factory_sections_sha256": model.factory_sections_sha256,
         "model_sha256": model.model_sha256,

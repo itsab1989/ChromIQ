@@ -1683,10 +1683,10 @@ class ChartCreator:
         from workflow.fd9.support import fd9_enabled
         if params.instrument == "FD9" and fd9_enabled():
             from workflow.fd9.chart import capacity
-            if params.pages != 1:
-                raise ValueError("FD-9 currently supports one sheet per chart")
             kw = self._engine_kwargs(params)
-            return capacity(params.paper, kw["patch_w"], kw["patch_h"], kw["fd9_gap"], kw["dpi"])
+            return capacity(params.paper, kw["patch_w"], kw["patch_h"],
+                            kw.get("fd9_gap", kw.get("inter_patch", 1.0)), kw["dpi"],
+                            strip_gap_mm=kw.get("strip_gap")) * max(1, int(params.pages))
         if not self._should_use_engine(params):
             return None
         try:
@@ -1728,7 +1728,8 @@ class ChartCreator:
                 instrument="FD9", paper=params.paper,
                 patch_w=float(getattr(recipe, "patch_w_mm", 0) or getattr(params, "fd9_patch_mm", 8.0)),
                 patch_h=float(getattr(recipe, "patch_h_mm", 0) or getattr(params, "fd9_patch_h_mm", None) or getattr(recipe, "patch_w_mm", 0) or params.fd9_patch_mm),
-                fd9_gap=float(getattr(recipe, "fd9_gap_mm", params.fd9_gap_mm)),
+                **({"fd9_gap": params.fd9_gap_mm} if recipe is None else
+                   {k: recipe_kw[k] for k in ("fd9_gap", "inter_patch", "strip_gap") if k in recipe_kw}),
                 dpi=int(recipe_kw.get("dpi", params.tiff_dpi) or 300),
                 bit16=bool(recipe_kw.get("bit16", params.tiff_16bit)),
                 randomize=(bool(recipe_kw.get("randomize", not params.no_randomise))

@@ -12013,6 +12013,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         pause = getattr(self, "_page_pause", None)
         if pause is None:
             return
+        if pause["plan"].get("kind") == "fd9":
+            # The FD-9 resumes automatically after exit-sensor clearance.
+            return
         pause["continued"] = True
         plan = pause["plan"]
         self._page_pause_review = None
@@ -17208,6 +17211,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # on the sheet, so it means something different on every page, and
         # "Show only measured patches" paints from it.
         self._update_engine_read_map(idx)
+        if self._fd9_on() and self._is_fd9_target():
+            self._fd9_update_scan_grid()
 
     def _on_preview_strip_clicked(self, page: int, local_idx: int) -> None:
         if not self._manager.engine_active:

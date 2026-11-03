@@ -38,6 +38,49 @@ def commands(sent):
 
 
 class MotionTests(unittest.TestCase):
+    def test_wait_for_clear_does_not_load_until_both_sensor_and_mechanism_are_ready(self):
+        sock=SocketScript([reply(3),reply(0,40),state(10,paper=1),
+                           state(2,paper=1),state(5,paper=0),state(2,paper=0)])
+        instrument=Instrument('synthetic',socket_factory=lambda *_:sock).connect()
+        workflow=RawAcquisition(instrument,enable_experimental_motion=True)
+        workflow.wait_sheet_clear(60)
+        self.assertEqual((workflow.last_status.mechanism,workflow.last_status.paper),(2,0))
+        self.assertEqual(workflow.phase,Phase.NEW)
+        self.assertEqual(commands(sock.sent),[3,0])
+
+    def test_fault_while_waiting_for_clearance_closes_without_loading(self):
+        sock=SocketScript([reply(3),reply(0,40),state(2,paper=0,stop=1)])
+        instrument=Instrument('synthetic',socket_factory=lambda *_:sock).connect()
+        workflow=RawAcquisition(instrument,enable_experimental_motion=True)
+        with self.assertRaises(DeviceStopped):workflow.wait_sheet_clear(60)
+        self.assertTrue(sock.closed)
+        self.assertEqual(commands(sock.sent),[3,0])
+
+    def test_clearance_timeout_is_bounded_and_does_not_load(self):
+        sock=SocketScript([reply(3)])
+        instrument=Instrument('synthetic',socket_factory=lambda *_:sock).connect()
+        workflow=RawAcquisition(instrument,enable_experimental_motion=True)
+        with patch.object(instrument,'status'),patch('fd9_independent.motion.time.monotonic',return_value=0) as clock:
+            def quiet(timeout):
+                clock.return_value=100
+                raise TimeoutError('Invented quiet interval')
+            with patch.object(workflow,'_event',side_effect=quiet):
+                with self.assertRaises(TimeoutError):workflow.wait_sheet_clear(60)
+        self.assertTrue(sock.closed)
+        self.assertEqual(commands(sock.sent),[3])
+
+    def test_operator_stop_during_clearance_does_not_send_a_loading_command(self):
+        import threading
+        from fd9_independent.client import OperationCancelled
+        stop=threading.Event();sock=SocketScript([reply(3)])
+        instrument=Instrument('synthetic',socket_factory=lambda *_:sock,
+                              cancelled=stop.is_set).connect()
+        workflow=RawAcquisition(instrument,enable_experimental_motion=True)
+        stop.set()
+        with self.assertRaises(OperationCancelled):workflow.wait_sheet_clear(60)
+        self.assertTrue(sock.closed)
+        self.assertEqual(commands(sock.sent),[3])
+
     def test_nonfinal_progress_cannot_interrupt_the_next_row_with_a_sensor_query(self):
         script=[reply(3),position(-1),reply(1,7348),reply(0x105),image(400),reply(0x106),spectrum()]
         sock=SocketScript(script)

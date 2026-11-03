@@ -81,7 +81,8 @@ def checked_chart(chart):
     if not is_fd9_chart(chart):
         raise ValueError("This chart does not name the FD-9")
     layout = json.loads(layout_path.read_text(encoding="utf-8"))
-    chart_grid(layout)
+    from .chart import chart_pages
+    chart_pages(layout)
     text, fields, rows = first_table(chart)
     rep = layout["color_rep"]
     tokens = layout["channel_tokens"]
@@ -457,8 +458,10 @@ def resume_plan(chart, settings):
         )
     patches = [p for row in layout["rows"] for p in row]
     count = len(records)
-    columns = len(layout["rows"][0])
-    if not count or count % columns or count >= len(patches):
+    row_ends = []
+    for row in layout["rows"]:
+        row_ends.append((row_ends[-1] if row_ends else 0) + len(row))
+    if not count or count not in row_ends or count >= len(patches):
         raise ValueError("Resume requires an incomplete measurement of complete rows")
     if [int(r["SAMPLE_ID"]) for r in records] != [p["id"] for p in patches[:count]]:
         raise ValueError("Resume measurement must be a complete leading-row prefix")
@@ -479,7 +482,7 @@ def resume_plan(chart, settings):
             raise ValueError(
                 "Resume measurement has missing or nonfinite spectral data"
             )
-    return Path(base), records, list(range(count // columns, len(layout["rows"])))
+    return Path(base), records, list(range(row_ends.index(count) + 1, len(layout["rows"])))
 
 
 def measure_chart(
@@ -493,9 +496,19 @@ def measure_chart(
     on_scan=lambda event: None,
     on_patch=None,
     capture=capture_layout,
+    on_page=lambda page, pages: None,
+    _expected_identity=None,
+    _wait_for_sheet_clear=False,
 ):
     chart = Path(chart)
     layout_path, layout, locations = checked_chart(chart)
+    if layout.get("schema") == 2:
+        from .pages import measure_pages
+        settings.validate()
+        return measure_pages(chart, settings, session, progress=progress,
+                             cancelled=cancelled, on_readings=on_readings,
+                             on_scan=on_scan, on_patch=on_patch, on_page=on_page,
+                             capture=capture)
     profile = settings.validate()
     base_path, base_rows, remaining = resume_plan(chart, settings)
     native = settings.conversion_source == "instrument_firmware"
@@ -519,6 +532,7 @@ def measure_chart(
             from .preview import build_scan_preview
 
             event = build_scan_preview(root, layout_path, settings.driver_source)
+            event["measurement_locations"] = [locations[p["id"]] for p in selected_patches]
             on_scan(event)
         except Exception as error:
             progress("[FD9 preview] " + str(error))
@@ -562,6 +576,11 @@ def measure_chart(
         capture_options = {}
         if native:
             capture_options["native_factory"] = True
+            if _expected_identity:
+                capture_options["expected_factory_sha256"] = _expected_identity["FD9_FACTORY_SHA256"]
+                capture_options["factory_row_sequencing"] = _expected_identity["FD9_CONVERSION_SOURCE"] == "INSTRUMENT_MODEL"
+                if capture_options["factory_row_sequencing"]:
+                    capture_options["expected_model_sha256"] = _expected_identity["FD9_MODEL_SHA256"]
             if base_path:
                 base_metadata = _keywords(base_path.read_text(encoding="utf-8"))
                 capture_options["expected_factory_sha256"] = base_metadata[
@@ -576,6 +595,13 @@ def measure_chart(
                     capture_options["expected_model_sha256"] = base_metadata[
                         "FD9_MODEL_SHA256"
                     ]
+        from .independent import (ordered_measurement_rows, ALTERNATING_ROW_ORDER,
+                                  FORWARD_ROW_ORDER)
+        capture_options["row_order"] = (
+            ALTERNATING_ROW_ORDER if native and capture_options.get("factory_row_sequencing", True)
+            else FORWARD_ROW_ORDER)
+        selected_patches = [p for row in ordered_measurement_rows(
+            layout["rows"], remaining, capture_options["row_order"]) for p in row]
         session = capture(
             settings.driver_source,
             layout_path,
@@ -589,6 +615,7 @@ def measure_chart(
             on_readings=on_readings,
             on_scan=scan_ready,
             on_sample=sample_ready if on_patch else None,
+            wait_for_sheet_clear=_wait_for_sheet_clear,
             **capture_options,
         )
     except CaptureFailed as error:

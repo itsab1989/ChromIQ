@@ -1,4 +1,4 @@
-"""Printable single-sheet FD-9 grids for the independently supported geometry.
+"""Printable FD-9 grids for the independently supported geometry.
 
 The grid fills the selected sheet with fixed-size patches. The
 sheet envelope is deliberately narrower than the manufacturer's hardware spec.
@@ -65,29 +65,33 @@ def patch_dimensions(patch_mm=8.0, patch_height_mm=None, gap_mm=1.0, dpi=300):
     return width, height, gap
 
 
-def grid_shape(paper, patch_mm=8.0, patch_height_mm=None, gap_mm=1.0, dpi=300):
+def grid_shape(paper, patch_mm=8.0, patch_height_mm=None, gap_mm=1.0, dpi=300, *, strip_gap_mm=None):
     width, height = dimensions(paper)
     pw, ph, gap = patch_dimensions(patch_mm, patch_height_mm, gap_mm, dpi)
-    columns = min(MAX_COLUMNS, 1 + math.floor((width - 30 - pw) / (pw + gap)))
+    gx = gap if strip_gap_mm is None else patch_dimensions(pw, ph, strip_gap_mm, dpi)[2]
+    columns = min(MAX_COLUMNS, 1 + math.floor((width - 30 - pw) / (pw + gx)))
     rows = min(MAX_ROWS, 1 + math.floor((height - 33 - ph / 2 - 42) / (ph + gap)))
     return columns, rows
 
 
-def capacity(paper, patch_mm=8.0, patch_height_mm=None, gap_mm=1.0, dpi=300):
-    columns, rows = grid_shape(paper, patch_mm, patch_height_mm, gap_mm, dpi)
+def capacity(paper, patch_mm=8.0, patch_height_mm=None, gap_mm=1.0, dpi=300, *, strip_gap_mm=None):
+    columns, rows = grid_shape(paper, patch_mm, patch_height_mm, gap_mm, dpi, strip_gap_mm=strip_gap_mm)
     return columns * rows
 
 
-def packing(paper, count, patch_mm=8.0, patch_height_mm=None, gap_mm=1.0, dpi=300):
+def packing(paper, count, patch_mm=8.0, patch_height_mm=None, gap_mm=1.0, dpi=300, *, strip_gap_mm=None):
     from workflow.layout_engine.geometry import Layout
 
-    columns, max_rows = grid_shape(paper, patch_mm, patch_height_mm, gap_mm, dpi)
+    columns, max_rows = grid_shape(paper, patch_mm, patch_height_mm, gap_mm, dpi, strip_gap_mm=strip_gap_mm)
     cap = columns * max_rows
     if count < 1:
         raise ValueError("An FD-9 chart needs at least one patch")
     rows = min(max_rows, math.ceil(count / columns))
     pages = math.ceil(count / cap)
-    padded = math.ceil(count / columns) * columns
+    padded = (math.ceil(count / columns) * columns if pages == 1 else
+              math.ceil(count / max_rows) * max_rows)
+    if pages > 1:
+        columns = (padded - (pages - 1) * cap) // max_rows
     return Layout(rows, columns, 1, columns, cap, pages, padded - count, padded, rows)
 
 
@@ -100,6 +104,8 @@ def _calibration_target(
     patch_height_mm=None,
     gap_mm=1.0,
     dpi=300,
+    multisheet=False,
+    strip_gap_mm=None,
 ):
     """One pure single-ink ramp per printed column; preserve targen tables."""
     if not enabled:
@@ -119,11 +125,11 @@ def _calibration_target(
     if not ramps.is_targen_order and not previously_arranged:
         return target, None, 0, None
     available_columns, max_rows = grid_shape(
-        paper, patch_mm, patch_height_mm, gap_mm, dpi
+        paper, patch_mm, patch_height_mm, gap_mm, dpi, strip_gap_mm=strip_gap_mm
     )
     rows = min(max(len(steps) + 1 for steps in ramps.ramps), max_rows)
     columns = sum(math.ceil((len(steps) + 1) / rows) for steps in ramps.ramps)
-    if columns > available_columns:
+    if columns > available_columns and not multisheet:
         raise ValueError(
             "FD-9 calibration ramps do not fit on one sheet; reduce the steps or use a larger sheet"
         )
@@ -150,7 +156,7 @@ def _calibration_target(
     )
 
 
-def build_chart(
+def _build_single_chart(
     ti1_path,
     out_base,
     *,
@@ -167,12 +173,16 @@ def build_chart(
     patch_height_mm=None,
     gap_mm=1.0,
     compression="lzw",
+    strip_gap_mm=None,
+    _columns=None,
+    _rows=None,
+    _page_label=None,
     **unused,
 ):
     """Create device-native TIFF + matching TI2 and FD9 physical definition.
 
-    A single sheet is the current measurement implementation's explicit limit.
-    Reject larger requests before writing rather than dropping/splitting patches.
+    Render one physical sheet. The public builder splits larger charts first.
+    Reject an oversized subset before writing rather than dropping patches.
     """
     from workflow.layout_engine.ti1_reader import read_ti1
     from workflow.layout_engine.chart import ChartResult
@@ -190,18 +200,19 @@ def build_chart(
         patch_size(patch_mm if patch_height_mm is None else patch_height_mm),
     ]
     pw, ph, gap = patch_dimensions(*requested, gap_mm, dpi)
-    pitch_x, pitch_y = pw + gap, ph + gap
+    gx = gap if strip_gap_mm is None else patch_dimensions(pw, ph, strip_gap_mm, dpi)[2]
+    pitch_x, pitch_y = pw + gx, ph + gap
     width, height = dimensions(paper)
     target = read_ti1(ti1_path)
     target, ramp_rows, added_whites, rewritten_ti1 = _calibration_target(
-        target, ti1_path, paper, ramps_per_strip, pw, ph, gap, None
+        target, ti1_path, paper, ramps_per_strip, pw, ph, gap, None, strip_gap_mm=gx
     )
     if ramp_rows is not None:
         randomize = False
     count = len(target.patches)
-    if count > capacity(paper, pw, ph, gap, None):
+    if count > capacity(paper, pw, ph, gap, None, strip_gap_mm=gx):
         raise ValueError(
-            f"FD-9 currently supports one sheet: this size fits {capacity(paper, pw, ph, gap, None)} patches; reduce the patch count or use a larger sheet"
+            f"FD-9 sheet capacity exceeded: this size fits {capacity(paper, pw, ph, gap, None, strip_gap_mm=gx)} patches"
         )
     cal = None
     if cal_path:
@@ -234,9 +245,14 @@ def build_chart(
     if any(not math.isfinite(v) for dev, xyz in target.patches for v in xyz):
         raise ValueError("FD-9 patch aim values must be finite")
     base = Path(out_base)
-    layout = packing(paper, count, pw, ph, gap, None)
-    columns, _ = grid_shape(paper, pw, ph, gap, None)
-    nrows = math.ceil(count / columns)
+    layout = packing(paper, count, pw, ph, gap, None, strip_gap_mm=gx)
+    columns, _ = grid_shape(paper, pw, ph, gap, None, strip_gap_mm=gx)
+    columns = columns if _columns is None else _columns
+    nrows = math.ceil(count / columns) if _rows is None else _rows
+    if _columns is not None:
+        from workflow.layout_engine.geometry import Layout
+        layout = Layout(nrows, columns, 1, columns, columns*nrows, 1,
+                        columns*nrows-count, columns*nrows, nrows)
     size = (round(width * dpi / 25.4), round(height * dpi / 25.4))
     gray_ink = target.color_rep == "K" and len(fields) == 1
     additive = (
@@ -292,7 +308,7 @@ def build_chart(
         "instrument": TARGET_INSTRUMENT,
         "paper_mm": [width, height],
         "patch_mm": [pw, ph],
-        "gap_mm": [gap, gap],
+        "gap_mm": [gx, gap],
         "fiducials_mm": marks,
         "color_rep": rep,
         "channel_tokens": tokens,
@@ -324,6 +340,8 @@ def build_chart(
             )
             rows.append((index + 1, f"{alpha_label(col+1)}{row+1}", dev, xyz))
         doc["rows"].append(cells)
+    if _page_label:
+        doc["page_label"] = _page_label
     # Check the exact same geometry that the measurement route accepts.
     from .independent import chart_grid
 
@@ -342,6 +360,27 @@ def build_chart(
     draw.polygon(
         [(round(x * dpi / 25.4), round(y * dpi / 25.4)) for x, y in arrow], fill=1
     )
+    label_runs = []
+    if _page_label:
+        from PIL import ImageFont
+        label = Image.new("1", size, 0)
+        painter = ImageDraw.Draw(label)
+        font = ImageFont.load_default(size=max(6, round(2.4*dpi/25.4)))
+        xy = (round(8*dpi/25.4), round(10*dpi/25.4))
+        painter.text(xy, _page_label, font=font, fill=1)
+        bounds = label.getbbox()
+        if bounds:
+            for yy in range(bounds[1], bounds[3]):
+                xx = bounds[0]
+                while xx < bounds[2]:
+                    if not label.getpixel((xx,yy)):
+                        xx += 1
+                        continue
+                    x0 = xx
+                    while xx < bounds[2] and label.getpixel((xx,yy)):
+                        xx += 1
+                    draw.rectangle((x0, yy, xx-1, yy), fill=1)
+                    label_runs.append((x0, yy, xx, yy+1))
     ink = np.zeros(channels, dtype=dtype)
     if not additive:
         # Furniture in the actual black channel, never in every ink.
@@ -356,7 +395,7 @@ def build_chart(
         for ci, cell in enumerate(row):
             x, y = cell["centre_mm"]
             x0, y0, x1, y1 = box(x - pw / 2, y - ph / 2, x + pw / 2, y + ph / 2)
-            if gap == 0:
+            if gap == 0 and gx == 0:
                 scale = dpi / 25.4
                 anchor_x = round((first_x - pw / 2) * scale)
                 anchor_y = round((42 - ph / 2) * scale)
@@ -446,10 +485,28 @@ def build_chart(
     from workflow.layout_engine import geometry, instruments
 
     geom = instruments.geom_from_build_kwargs(
-        {"instrument": "FD9", "patch_w": pw, "patch_h": ph, "fd9_gap": gap, "dpi": dpi}
+        {"instrument": "FD9", "patch_w": pw, "patch_h": ph, "inter_patch": gap, "strip_gap": gx, "dpi": dpi}
     )
-    strips = geometry.strip_rects_px(geom, width, height, layout, dpi)
-    rects = geometry.patch_rects_px(geom, width, height, layout, dpi)
+    rects, strips = [], []
+    for col in range(columns):
+        column_rects = []
+        for row in range(nrows):
+            x, y = doc["rows"][row][col]["centre_mm"]
+            x0, y0, x1, y1 = box(x-pw/2, y-ph/2, x+pw/2, y+ph/2)
+            if gap == 0 and gx == 0:
+                scale = dpi / 25.4
+                ax, ay = round((first_x-pw/2)*scale), round((42-ph/2)*scale)
+                x0, x1 = (ax+round(c*pw*scale) for c in (col, col+1))
+                y0, y1 = (ay+round(r*ph*scale) for r in (row, row+1))
+            minimum = math.ceil(6*dpi/25.4)
+            rect = dict(page=0, slot=col*nrows+row,
+                        loc=f"{alpha_label(col+1)}{row+1}", x=x0, y=y0,
+                        w=max(x1-x0, minimum), h=max(y1-y0, minimum))
+            rects.append(rect)
+            column_rects.append(rect)
+        strips.append(dict(page=0, **{"pass": col}, x=column_rects[0]["x"],
+                           y=column_rects[0]["y"], w=column_rects[0]["w"],
+                           h=column_rects[-1]["y"]+column_rects[-1]["h"]-column_rects[0]["y"]))
     side.write_text(
         json.dumps(
             {
@@ -480,6 +537,7 @@ def build_chart(
             ("rect", vector_box(x - 1.5, y - 1.5, x + 1.5, y + 1.5), ink_values)
             for x, y in marks
         ]
+        elements += [("rect", run, ink_values) for run in label_runs]
         elements.append(
             ("hex", [(x * dpi / 25.4, y * dpi / 25.4) for x, y in arrow], ink_values)
         )
@@ -524,3 +582,151 @@ def build_chart(
         pdf_path=pdf_path,
         ramp_whites_added=added_whites,
     )
+
+
+def chart_pages(layout):
+    """Single-page schema 1 remains valid; schema 2 names each physical sheet."""
+    from .independent import chart_grid
+    if layout.get("schema", 1) == 1:
+        chart_grid(layout)
+        return [layout]
+    if layout.get("schema") != 2:
+        raise ValueError("Unsupported FD-9 layout schema")
+    pages = layout.get("pages")
+    if not isinstance(pages, list) or not 2 <= len(pages) <= 10000:
+        raise ValueError("Invalid FD-9 page list")
+    for page in pages:
+        if page.get("schema") != 1 or any(page.get(k) != layout.get(k) for k in
+                ("color_rep", "channel_tokens", "device_fields", "paper_mm", "patch_mm", "gap_mm")):
+            raise ValueError("FD-9 pages disagree with chart definition")
+        chart_grid(page)
+    if layout.get("rows") != [row for page in pages for row in page["rows"]]:
+        raise ValueError("FD-9 page order disagrees with chart rows")
+    return pages
+
+
+def build_chart(ti1_path, out_base, **kwargs):
+    """Use ordinary page artifacts and globally unique locations for all sheets."""
+    from tempfile import TemporaryDirectory
+    from core.stem_paths import artefact
+    from workflow.layout_engine.ti1_reader import read_ti1
+    from workflow.layout_engine.ti2_writer import DEFAULT_WHITE_POINT
+    from workflow.layout_engine.chart import ChartResult
+    from workflow.layout_engine.labels import alpha_label
+    from .measurement import first_table
+    from dataclasses import replace
+    import shutil
+    import re
+
+    paper = kwargs.get("paper", "A4")
+    pw = kwargs.get("patch_mm", 8.0)
+    ph = kwargs.get("patch_height_mm")
+    gap = kwargs.get("gap_mm", 1.0)
+    gx = kwargs.get("strip_gap_mm")
+    dpi = kwargs.get("dpi", 300)
+    target = read_ti1(ti1_path)
+    columns, rows = grid_shape(paper, pw, ph, gap, dpi, strip_gap_mm=gx)
+    cap = columns * rows
+    added_whites, rewritten, ramp_rows = 0, None, None
+    if kwargs.get("ramps_per_strip"):
+        target, ramp_rows, added_whites, rewritten = _calibration_target(
+            target, ti1_path, paper, True, pw, ph, gap, dpi,
+            multisheet=True, strip_gap_mm=gx)
+        if ramp_rows is not None:
+            rows = ramp_rows
+            cap = columns * rows
+            kwargs["randomize"] = False
+    if len(target.patches) <= cap:
+        return _build_single_chart(ti1_path, out_base, **kwargs)
+    base = Path(out_base)
+    base.parent.mkdir(parents=True, exist_ok=True)
+    seed = kwargs.get("seed")
+    seed = random.SystemRandom().randrange(1, 2**31) if seed is None else int(seed)
+    pages, records, rects, strips, images, results = [], [], [], [], [], []
+    fields = target.device_fields
+    fmt = ["SAMPLE_ID", *fields, "XYZ_X", "XYZ_Y", "XYZ_Z"]
+    with TemporaryDirectory(prefix="chromiq-fd9-pages-") as temp:
+        for page_index, start in enumerate(range(0, len(target.patches), cap)):
+            subset = target.patches[start:start+cap]
+            page_columns = math.ceil(len(subset)/rows)
+            padded = page_columns*rows
+            white = tuple(100.0 if target.color_rep in ("RGB", "iRGB", "W") else 0.0 for _ in fields)
+            subset = list(subset) + [(white, DEFAULT_WHITE_POINT)]*(padded-len(subset))
+            source = Path(temp)/"page.ti1"
+            lines = ["CTI1", f'COLOR_REP "{target.color_rep}"']
+            if target.ink_limit is not None:
+                lines.append(f'TOTAL_INK_LIMIT "{target.ink_limit:g}"')
+            lines += [f"NUMBER_OF_FIELDS {len(fmt)}", "BEGIN_DATA_FORMAT", " ".join(fmt),
+                      "END_DATA_FORMAT", f"NUMBER_OF_SETS {len(subset)}", "BEGIN_DATA"]
+            lines += [str(i+1)+" "+" ".join(f"{v:.10f}" for v in (*dev,*xyz))
+                      for i,(dev,xyz) in enumerate(subset)]
+            source.write_text("\n".join(lines+["END_DATA", ""]), encoding="utf-8")
+            options = dict(kwargs, seed=seed+page_index, _columns=page_columns, _rows=rows,
+                           _page_label=f"{page_index+1}/{math.ceil(len(target.patches)/cap)}")
+            # Keep pre-arranged ramp order when splitting a calibration chart.
+            options["ramps_per_strip"] = False
+            result = _build_single_chart(source, Path(temp)/"page", **options)
+            results.append(result)
+            doc = json.loads(artefact(Path(temp)/"page", ".fd9.json").read_text(encoding="utf-8"))
+            _, table_fields, table = first_table(result.ti2_path)
+            for row in doc["rows"]:
+                for patch in row:
+                    patch["id"] += start
+            for record in table:
+                record["SAMPLE_ID"] = str(int(record["SAMPLE_ID"])+start)
+                match = re.fullmatch(r"([A-Z]+)([0-9]+)",record["SAMPLE_LOC"])
+                local_col = next(i for i in range(page_columns) if alpha_label(i+1)==match[1])
+                record["SAMPLE_LOC"] = f"{alpha_label(page_index*columns+local_col+1)}{match[2]}"
+            records += table
+            side = json.loads(artefact(Path(temp)/"page", ".strips.json").read_text(encoding="utf-8"))
+            for cell in side["patches"]:
+                cell["page"] = page_index
+                cell["slot"] += start
+                match = re.fullmatch(r"([A-Z]+)([0-9]+)",cell["loc"])
+                col = next(i for i in range(page_columns) if alpha_label(i+1)==match[1])
+                cell["loc"] = f"{alpha_label(page_index*columns+col+1)}{match[2]}"
+            for strip in side["strips"]:
+                strip["page"] = page_index
+            rects += side["patches"]
+            strips += side["strips"]
+            page_path = artefact(base, f"_{page_index+1:02d}.tif")
+            shutil.copyfile(result.tiff_paths[0], page_path)
+            images.append(page_path)
+            pages.append(doc)
+            if result.pdf_path:
+                shutil.copyfile(result.pdf_path, Path(temp)/f"page-{page_index}.pdf")
+        text = results[-1].ti2_path.read_text(encoding="utf-8")
+        head = text.split("BEGIN_DATA\n",1)[0]
+        head = re.sub(r'^NUMBER_OF_SETS .*$',f'NUMBER_OF_SETS {len(records)}',head,flags=re.M)
+        head = re.sub(r'^PASSES_IN_STRIPS2 .*$',
+                      'PASSES_IN_STRIPS2 "'+','.join(str(len(p["rows"][0])) for p in pages)+'"',head,flags=re.M)
+        data = [" ".join('"'+r[f]+'"' if f=="SAMPLE_LOC" else r[f] for f in table_fields)
+                for r in sorted(records,key=lambda r:int(r["SAMPLE_ID"]))]
+        tail = text.split("\nEND_DATA\n",1)[1]
+        artefact(base,".ti2").write_text(head+"BEGIN_DATA\n"+"\n".join(data)+"\nEND_DATA"+tail,encoding="utf-8")
+        doc = dict(pages[0], schema=2, name=base.name, pages=pages,
+                   rows=[r for p in pages for r in p["rows"]])
+        doc["generation"] = dict(doc["generation"], single_sheet=False,
+                                 designed_patches=len(target.patches),
+                                 padding_patches=len(records)-len(target.patches), seed=seed)
+        artefact(base,".fd9.json").write_text(json.dumps(doc,indent=2)+"\n",encoding="utf-8")
+        side.update(patches=rects,strips=strips)
+        artefact(base,".strips.json").write_text(json.dumps(side),encoding="utf-8")
+        pdf_path = None
+        if kwargs.get("export_pdf"):
+            import fitz
+            pdf_path = artefact(base,".pdf")
+            with fitz.open() as pdf:
+                for i in range(len(pages)):
+                    with fitz.open(Path(temp)/f"page-{i}.pdf") as page_pdf:
+                        pdf.insert_pdf(page_pdf)
+                pdf.save(pdf_path)
+    from workflow.layout_engine.geometry import Layout
+    last_columns = len(pages[-1]["rows"][0])
+    layout = Layout(rows, last_columns, 1, last_columns, cap, len(pages),
+                    len(records)-len(target.patches), len(records), rows)
+    if rewritten is not None:
+        Path(ti1_path).write_text(rewritten, encoding="utf-8")
+    return ChartResult(artefact(base,".ti2"),seed,bool(kwargs.get("randomize",True)),
+                       results[0].color_rep,layout,images,strips,pdf_path=pdf_path,
+                       ramp_whites_added=added_whites)
