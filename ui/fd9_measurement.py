@@ -345,6 +345,8 @@ class FD9MeasureMixin:
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.setModal(False)
+        from ui.widgets import keep_message_box_inside_the_work_area
+        keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
         self._fd9_insert_box = box
         box.show()
 

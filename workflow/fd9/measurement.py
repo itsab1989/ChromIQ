@@ -60,7 +60,7 @@ def is_fd9_chart(path):
         hit = _IS_FD9_CACHE.get(key)
         if hit is not None and hit[0] == stamp:
             return hit[1]
-        with p.open("rb") as f:
+        with open(p, "rb") as f:
             head = f.read(65536)
         head = head.split(b"BEGIN_DATA_FORMAT", 1)[0]
         answer = bool(_FD9_NAME.search(head))

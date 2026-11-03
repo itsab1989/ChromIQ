@@ -1688,6 +1688,14 @@ def _scroll_the_preflight_text(box) -> bool:
 from ui.fd9_measurement import FD9MeasureMixin
 
 
+def _fd9_ask(tab, name: str) -> bool:
+    """Ask the FD-9 mixin (Beta) *name*, answering False for a stand-in tab
+    that has no FD-9 methods. With FD-9 support off every answer is False
+    without reading anything."""
+    fn = getattr(tab, name, None)
+    return bool(fn()) if callable(fn) else False
+
+
 class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
 
@@ -2075,7 +2083,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if hasattr(self, "_import_btn"):
             self._import_btn.setChecked(mode == "import")
         self._calm_outer.setVisible(mode == "guided")
-        self._refresh_fd9_panel()      # FD-9 (Beta); nothing when it is off
+        _fd9_ask(self, "_refresh_fd9_panel")   # FD-9 (Beta); nothing when off
         # The two modules keep INDEPENDENT "Live preview" settings; apply the
         # now-active module's view state to the shared preview so switching
         # module shows that module's chosen view (Basti). Guarded for build time.
@@ -4710,7 +4718,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._apply_cr30_pbp_lock()
         self._apply_cr30_dead_options()
         # FD-9 (Beta): its panel follows the chart; nothing when it is off.
-        self._refresh_fd9_panel()
+        _fd9_ask(self, "_refresh_fd9_panel")
         # #134 / K1 (Knut): the overlay auto-offer is a MEASURE-tab feature, but
         # set_ti1_path is also driven cross-tab — the Print tab's ti2_loaded, the
         # Check tab's ti2_found, project open, session restore and Profile-run /
@@ -5391,7 +5399,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._settings.set("session_ti1_path", "")
         self._refresh_bidir_autodetect()
         # FD-9 (Beta): no chart is not an FD-9 chart; nothing when it is off.
-        self._refresh_fd9_panel()
+        _fd9_ask(self, "_refresh_fd9_panel")
 
     # ------------------------------------------------------------------
     # Auto bidirectional (-B) detection
@@ -5433,7 +5441,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._clear_previous_instrument_log()
             if instr:
                 label = instrument_label(instr)
-                if is_spectroscan(instr) or self._is_fd9_target():
+                if is_spectroscan(instr) or _fd9_ask(self, "_is_fd9_target"):
                     # XY table — reads patches individually, so the
                     # bidirectional "reading direction" note does not apply.
                     msg = tr("Chart instrument: {label}.").format(label=label)
@@ -5973,7 +5981,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         (`_refresh_start_button_label`), so any message that hard-codes "Start
         Measurement" names a button the user cannot see. Ask the button.
         """
-        if self._is_fd9_target():
+        if _fd9_ask(self, "_is_fd9_target"):
             return (tr("Continue Measurement") if self._fd9_resumes()
                     else tr("Start Measurement"))
         btn = getattr(self, "_start_btn", None)
@@ -5986,7 +5994,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """Show 'Continue Measurement' on the Start button when the resume
         checkbox for the active mode is ticked (i.e. the next run will pass
         chartread's -r flag)."""
-        if self._is_fd9_target():
+        if _fd9_ask(self, "_is_fd9_target"):
             self._start_btn.setText(self._start_button_name())
             return
         cb = self._resume_cb if self._current_mode() == "guided" else self._m_resume_cb
@@ -6133,7 +6141,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                         cb.setChecked(True)
 
     def _try_load_tiffs(self, base_path: Path) -> None:
-        if self._is_fd9_target() and self._fd9_load_preview(base_path):
+        if _fd9_ask(self, "_is_fd9_target") and self._fd9_load_preview(base_path):
             return
         # ONE strip, by name: `with_suffix("").stem` stripped twice, turning
         # "X-w10.0mm.ti2" into "X-w10" and widening the glob below to any
@@ -6224,7 +6232,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # _chart_is_cr30, which resolves the .ti2 the keyword actually lives in.
         # The FD-9 (Beta) moves the sheet itself: no swipe either.
         self._preview.set_no_swipe(self._chart_is_cr30()
-                                   or self._is_fd9_target())
+                                   or _fd9_ask(self, "_is_fd9_target"))
 
         engine = self._engine_stripe_rects()
         if engine is not None:
@@ -6287,7 +6295,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # An FD-9 chart (Beta) greys the chartread options too, as a second
         # lock beside this one: neither may lift the other (review H3).
         self._settings_unlocked = bool(enabled)
-        options = enabled and not self._fd9_options_locked()
+        options = enabled and not _fd9_ask(self, "_fd9_options_locked")
         for w in (getattr(self, "_g_options", None), getattr(self, "_m_options", None),
                   getattr(self, "_m_presets_grp", None)):
             if w is not None:
@@ -7906,9 +7914,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     def _on_start(self) -> None:
         # FD-9 (Beta): its own worker, after the same preflight as every
         # instrument (`_start_fd9_measurement`). Nothing when it is off.
-        if self._fd9_live or self._fd9_worker_running():
+        if getattr(self, "_fd9_live", False) or _fd9_ask(
+                self, "_fd9_worker_running"):
             return
-        if self._is_fd9_target():
+        if _fd9_ask(self, "_is_fd9_target"):
             self._start_fd9_measurement()
             return
         if not self._ti1_path:
@@ -9313,7 +9322,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """True while a reader is live and waiting for this tab's keys."""
         if (getattr(self, '_fd9_live', False)
                 or getattr(self, '_fd9_pending', None) is not None
-                or self._fd9_worker_running()):
+                or _fd9_ask(self, "_fd9_worker_running")):
             return True
         return bool(getattr(self, "_session_live", False)) and \
             bool(self._runner.is_running)
@@ -9346,7 +9355,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if not self.a_measurement_is_running():
             return True
         self._key_watchdog.stop()
-        if (self._fd9_worker_running()
+        if (_fd9_ask(self, "_fd9_worker_running")
                 and not getattr(self, '_fd9_live', False)
                 and getattr(self, '_fd9_pending', None) is None):
             # A queued result may be filed before QThread emits finished.
@@ -19036,7 +19045,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         separate jobs, and in the move it lost the condition the question
         applies. One test now asserts both call this.
         """
-        if self._is_fd9_target():           # FD-9 (Beta): its own Resume box
+        if _fd9_ask(self, "_is_fd9_target"):           # FD-9 (Beta): its own Resume box
             return self._fd9_resumes()
         guided = self._current_mode() == "guided"
         resume = (self._resume_cb if guided else self._m_resume_cb)
@@ -20068,7 +20077,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     def _clear_overlay(self) -> None:
         """Remove the optional engine overlay; FD-9 owns its scan colours."""
         event = getattr(self, "_fd9_scan_preview", None)
-        if event and self._is_fd9_target():
+        if event and _fd9_ask(self, "_is_fd9_target"):
             from workflow.fd9.measurement import sha
             chart = self._chart_file_for(self._ti1_path)
             try:

@@ -91,7 +91,7 @@ def test_the_real_window_offers_no_fd9_and_loads_none_of_its_code(tmp_path):
                CHROMIQ_PROBE_OUT=str(tmp_path / "out"))
     try:
         r = subprocess.run([sys.executable, "-c", PROBE], capture_output=True,
-                           text=True, env=env, cwd=str(tmp_path), timeout=600)
+                           text=True, encoding="utf-8", errors="replace", env=env, cwd=str(tmp_path), timeout=600)
     except subprocess.TimeoutExpired:
         pytest.fail("the probe did not finish building the window in 600 s "
                     "(a loaded machine, or a window waiting for an answer)")

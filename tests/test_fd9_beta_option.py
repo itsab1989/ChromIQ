@@ -63,13 +63,14 @@ def test_both_spellings_are_fd9_charts_and_the_answer_is_cached(
                     .encode("cp1252"))
     assert fm.is_fd9_chart(ti2) is True
     opened = []
-    real = Path.open
+    import builtins
+    real = builtins.open
 
-    def counting(self, *a, **k):
-        opened.append(self)
-        return real(self, *a, **k)
+    def counting(file, *a, **k):
+        opened.append(file)
+        return real(file, *a, **k)
 
-    monkeypatch.setattr(Path, "open", counting)
+    monkeypatch.setattr(builtins, "open", counting)
     assert fm.is_fd9_chart(ti2) is True
     assert opened == [], "the second answer must come from the cache"
 
@@ -305,7 +306,8 @@ def test_colprof_builds_a_profile_from_an_fd9_measurement(
         args += ["-kr", "-l300"]
     try:
         r = subprocess.run(args + ["fd9"], cwd=str(out), capture_output=True,
-                           text=True, timeout=600)
+                           text=True, encoding="utf-8", errors="replace",
+                           timeout=600)
     except subprocess.TimeoutExpired:
         pytest.fail("colprof did not finish within 600 s")
     assert r.returncode == 0, r.stderr[-2000:] + r.stdout[-2000:]
