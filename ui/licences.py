@@ -186,6 +186,47 @@ def reference_data_terms() -> "list[tuple[str, str]]":
     return list(seen.items())
 
 
+#: The FD-9 driver's licence (lessbones, PR #213, GPL-3.0-or-later). The three
+#: packaging specs copy it to ``licenses/fd9-independent/`` in a built app; in
+#: the source tree it is where the driver lives. Whichever is there is listed
+#: (review r2 M4). It is listed with FD-9 support off as well, because the
+#: driver's code travels in the build either way.
+FD9_DRIVER_LICENCE = ("licenses/fd9-independent/LICENSE",
+                      "vendor/fd9-independent/LICENSE")
+
+
+def licence_file_label(path: Path) -> str:
+    """*path* as the bundle names it (``licenses/fd9-independent/LICENSE``),
+    or its own name when it lies outside the bundle."""
+    try:
+        return path.relative_to(resource_path(".")).as_posix()
+    except ValueError:
+        try:
+            return path.resolve().relative_to(
+                resource_path(".").resolve()).as_posix()
+        except (ValueError, OSError):
+            return path.name
+
+
+def reveal_file(path: Path, *_signal_args) -> None:
+    """Show *path* selected in the system's own file browser, or open its
+    folder where that browser cannot select a file."""
+    import subprocess
+    import sys
+    path = Path(path)
+    try:
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", str(path)])
+        elif sys.platform == "win32":
+            subprocess.Popen(["explorer", "/select,", str(path)])
+        else:
+            from PyQt6.QtCore import QUrl
+            from PyQt6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
+    except OSError as exc:
+        log.warning("could not reveal %s: %s", path, exc)
+
+
 def bundled_licence_files() -> "list[Path]":
     """Licence files that travel inside the bundle and can be revealed.
 
@@ -196,7 +237,8 @@ def bundled_licence_files() -> "list[Path]":
     for name in (LICENCE_FILE, NOTICES_FILE,
                  "assets/fonts/OFL.txt",
                  "data/reference_sets/LICENSE",
-                 "data/compliance_sets/LICENSE"):
+                 "data/compliance_sets/LICENSE",
+                 *FD9_DRIVER_LICENCE):
         p = resource_path(name)
         try:
             if p.is_file():

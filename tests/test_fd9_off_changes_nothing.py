@@ -285,3 +285,67 @@ def test_the_files_that_name_the_fd9_are_the_known_ones():
     assert found == HOOKED_FILES, (
         f"new: {sorted(found - HOOKED_FILES)}; gone: "
         f"{sorted(HOOKED_FILES - found)}")
+
+
+def test_the_layout_engine_knows_no_fd9_while_off(monkeypatch):
+    """Review r2 S2: off, an FD-9 chart or recipe is one for an instrument the
+    layout engine does not know, as in 4.3.21, and no FD-9 layout code runs.
+    `workflow.fd9.chart` is made unimportable, so reaching for it fails here
+    instead of quietly laying the chart out the FD-9's way."""
+    import sys
+    from workflow.layout_engine import geometry, instruments, papers
+    from workflow.layout_engine.presets import LayoutRecipe, edge_spacers_effect
+    monkeypatch.setitem(sys.modules, "workflow.fd9.chart", None)
+    with pytest.raises(ValueError, match="unknown instrument"):
+        instruments.build("FD9")
+    recipe = LayoutRecipe(instrument="FD9", paper="A4", patch_w_mm=8.0,
+                          patch_h_mm=8.0, fd9_gap_mm=1.0,
+                          layout_mode="patch_first")
+    with pytest.raises(ValueError, match="unknown instrument"):
+        instruments.geom_from_build_kwargs(recipe.build_kwargs())
+    with pytest.raises(ValueError, match="unknown instrument"):
+        edge_spacers_effect(recipe)
+    assert papers.list_papers("FD9") == papers.list_papers("no-such-device")
+    # A geometry carrying the FD-9's key (none can be built while off) is
+    # never sent down the FD-9's own packing either.
+    from dataclasses import replace
+    fake = replace(instruments.build("SS"), key="FD9")
+    assert geometry._is_fd9(fake) is False
+    geometry.compute(fake, 210.0, 297.0, 20)
+
+
+def test_create_chart_settings_of_an_fd9_target_are_carried_while_off():
+    """Review r2 S1, the rule itself: the stored FD-9 instrument, sheet,
+    pages, margins and gap go back over the i1Pro the off tab falls back to,
+    in the stored order, and nothing else of the user's is touched."""
+    from workflow.fd9.support import carry_fd9_chart_keys
+    stored_params = {"printtarg-i": {"enabled": True, "value": "FD9"},
+                     "printtarg-p": {"enabled": True, "value": "137x300"},
+                     "targen-f": {"enabled": True, "value": 300}}
+    stored_ui = {"mode": "guided",
+                 "guided": {"instrument": "FD9", "paper": "137x300",
+                            "pages": 1, "precond": ""},
+                 "engine_recipe": {"instrument": "FD9", "paper": "137x300",
+                                   "margin_top": 6.0, "patch_w_mm": 8.0,
+                                   "fd9_gap_mm": 1.0, "dpi": 300}}
+    wanted = {"printtarg-i": {"enabled": True, "value": "i1"},
+              "printtarg-p": {"enabled": True, "value": "A4"},
+              "targen-f": {"enabled": True, "value": 400}}
+    ui = {"mode": "manual",
+          "guided": {"instrument": "i1", "paper": "A4", "pages": 3,
+                     "precond": ""},
+          "engine_recipe": {"instrument": "i1", "paper": "A4",
+                            "margin_top": 38.0, "patch_w_mm": 8.0,
+                            "dpi": 600}}
+    carry_fd9_chart_keys(wanted, ui, stored_params, stored_ui)
+    assert wanted == {**stored_params, "targen-f": {"enabled": True,
+                                                    "value": 400}}
+    assert ui["mode"] == "manual"
+    assert ui["guided"] == stored_ui["guided"]
+    assert ui["engine_recipe"] == {**stored_ui["engine_recipe"], "dpi": 600}
+    assert list(ui["engine_recipe"]) == list(stored_ui["engine_recipe"])
+    # An i1Pro target stored with the Beta off is left alone.
+    plain = {"guided": {"instrument": "i1", "paper": "A4", "pages": 2}}
+    ui2 = {"guided": {"instrument": "i1", "paper": "A3", "pages": 1}}
+    carry_fd9_chart_keys({}, ui2, {}, plain)
+    assert ui2 == {"guided": {"instrument": "i1", "paper": "A3", "pages": 1}}

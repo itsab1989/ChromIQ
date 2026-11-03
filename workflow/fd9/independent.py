@@ -67,9 +67,16 @@ def chart_grid(layout):
 
 
 class CaptureFailed(RuntimeError):
-    def __init__(self, session, message):
+    """A capture that failed with its evidence kept. *cause* is the exception
+    that ended it, so the window it belongs to is chosen by the exception's
+    TYPE, not by the words of this wrapper (review r2 M2)."""
+
+    def __init__(self, session, message, cause=None):
         super().__init__(message)
         self.session = Path(session)
+        self.cause = cause
+        if cause is not None:
+            self.__cause__ = cause
 
 
 def capture_layout(
@@ -174,6 +181,7 @@ def capture_layout(
             encoding="utf-8",
         )
 
+    failure = None
     try:
         with instrument:
             if native_factory:
@@ -285,6 +293,7 @@ def capture_layout(
                 "paper sensor before starting another FD-9 measurement."
             )
     except (Exception, KeyboardInterrupt) as e:
+        failure = e
         report["error"] = str(e)
         report["cancelled"] = bool(cancelled is not None and cancelled())
     finally:
@@ -297,6 +306,7 @@ def capture_layout(
         raise CaptureFailed(
             root,
             "Capture failed; evidence preserved: " + report.get("error", "unknown"),
+            cause=failure,
         )
     return root
 

@@ -19153,7 +19153,8 @@ class TabChart(QWidget):
         The printtarg widgets do NOT drive the engine here, so the info box has
         to reflect the recipe's own margins / patch size / clip border / etc.,
         otherwise it shows stale printtarg values (#93)."""
-        if r.instrument == "FD9":
+        from workflow.fd9.support import fd9_enabled
+        if r.instrument == "FD9" and fd9_enabled():
             return tr("FD-9 chart: {w:g} × {h:g} mm patches with {gap:g} mm gaps, on one sheet. Insert it into the FD-9 arrow first, printed side up.").format(
                 w=r.patch_w_mm or 8.0, h=r.patch_h_mm or r.patch_w_mm or 8.0, gap=r.fd9_gap_mm)
         from workflow.layout_engine import papers
@@ -19503,7 +19504,19 @@ class TabChart(QWidget):
         if hasattr(self, "_fd9_sheet_btn"):       # FD-9 Beta on
             self._fd9_sheet_btn.setVisible(instr == "FD9")
             if hasattr(self, "_pages_spin"):
-                self._pages_spin.setMaximum(1 if instr == "FD9" else 20)
+                # The FD-9 reads one sheet. Leaving it gives back the Pages
+                # value it replaced, not only the maximum, as Manual's panel
+                # already does (review r2 M1).
+                was = getattr(self, "_fd9_guided_pages_was", None)
+                if instr == "FD9":
+                    if was is None:
+                        self._fd9_guided_pages_was = self._pages_spin.value()
+                    self._pages_spin.setMaximum(1)
+                else:
+                    self._pages_spin.setMaximum(20)
+                    if was is not None:
+                        self._fd9_guided_pages_was = None
+                        self._pages_spin.setValue(was)
         for size in sizes:
             if size not in excluded:
                 self._paper_combo.addItem(paper_display_label(size), size)
@@ -21747,18 +21760,34 @@ class TabChart(QWidget):
                 # THE SHIELD IS ASKED WHOSE IT IS, against the very store this
                 # write is going to. See `_note_what_the_chart_imposed`.
                 keep(wanted, ui_state, fingerprint)
-            if self._written_cache().get(fingerprint) == (wanted, ui_state):
+            # AN FD-9 TARGET KEEPS ITS FD-9 VALUES WHILE THE BETA IS OFF
+            # (review r2 S1). The tab shows the i1Pro it falls back to, and
+            # that fallback is not the user's choice. Off only: one read of
+            # meta.json, and nothing at all with the Beta on.
+            # The memory below holds what the TAB wanted, before the carry,
+            # so a repeat with nothing changed still reads nothing.
+            from workflow.fd9.support import carry_fd9_chart_keys, fd9_enabled
+            if fd9_enabled():
+                screen = (wanted, ui_state)    # the carry does nothing then
+            else:
+                import copy as _copy
+                screen = (_copy.deepcopy(wanted), _copy.deepcopy(ui_state))
+            if self._written_cache().get(fingerprint) == screen:
                 return False
             meta = store.load_meta()
+            carry_fd9_chart_keys(
+                wanted, ui_state,
+                getattr(meta, "create_chart_settings", None),
+                getattr(meta, "create_chart_ui", None))
             if (getattr(meta, "create_chart_settings", None) == wanted
                     and getattr(meta, "create_chart_ui", None) == ui_state):
-                self._written_cache()[fingerprint] = (wanted, ui_state)
+                self._written_cache()[fingerprint] = screen
                 return False       # nothing changed; don't churn the file
             meta.create_chart_settings = wanted
             if hasattr(meta, "create_chart_ui"):
                 meta.create_chart_ui = ui_state
             store.save_meta(meta)
-            self._written_cache()[fingerprint] = (wanted, ui_state)
+            self._written_cache()[fingerprint] = screen
             log.debug("create-chart settings written for %s (%d parameters "
                       "+ ui state)",
                       getattr(store, "id", store), len(wanted))
@@ -25654,7 +25683,8 @@ class TabChart(QWidget):
             if npat < steps or (npat - 1) % (steps - 1):
                 return npat
             channels = (npat - 1) // (steps - 1)
-            if kw.get("instrument") == "FD9":
+            from workflow.fd9.support import fd9_enabled
+            if kw.get("instrument") == "FD9" and fd9_enabled():
                 from workflow.fd9.chart import grid_shape
                 columns, max_rows = grid_shape(kw.get("paper", "A4"), kw.get("patch_w") or 8.0,
                                                kw.get("patch_h"), kw.get("fd9_gap", 1.0), kw.get("dpi", 300))
@@ -26090,7 +26120,13 @@ class TabChart(QWidget):
         # judged a ColorMunki chart against i1Pro's margins (Knut, #130
         # 2026-07-27).
         instr_flag = self._chart_instrument_flag() or self._active_instrument_flag()
-        instr_label = _MARGIN_INSTR_LABEL.get(instr_flag, "i1Pro")
+        # An FD-9 chart with FD-9 support (Beta) off is a chart for an
+        # instrument this build does not know, judged as 4.3.21 judged one:
+        # against i1Pro's minimums, with no FD-9 geometry (review r2 S2).
+        from workflow.fd9.support import fd9_enabled
+        fd9_chart = instr_flag == "FD9" and fd9_enabled()
+        instr_label = ("i1Pro" if instr_flag == "FD9" and not fd9_chart
+                       else _MARGIN_INSTR_LABEL.get(instr_flag, "i1Pro"))
         paper_name = _canonical_paper_name(report.page_w_mm, report.page_h_mm)
         orient = "Landscape" if report.page_w_mm > report.page_h_mm else "Portrait"
         # Which minimums this chart is judged against (Knut, #130 2026-07-27).
@@ -26104,7 +26140,7 @@ class TabChart(QWidget):
             key = margin_combo_key(instr_label, paper_name, orient)
             thresholds = self._settings.get_margin_thresholds().get(key)
 
-        if instr_flag == "FD9":
+        if fd9_chart:
             # Fixed native geometry; never substitute i1Pro's ruler/margins.
             thresholds = {"T": 23.0, "B": 33.0, "L": 4.0, "R": 4.0}
 
@@ -29360,14 +29396,19 @@ class TabChart(QWidget):
         chart loaded from disk, a carry-back from the patch-set editor, the
         restored session — goes through here, so none of them can drift again.
         """
-        if getattr(recipe, "instrument", None) == "FD9":
+        # With FD-9 support (Beta) off an FD-9 recipe is one for an unknown
+        # instrument and goes to the panel as 4.3.21 sent one (review r2 S2).
+        from workflow.fd9.support import fd9_enabled
+        fd9_recipe = (getattr(recipe, "instrument", None) == "FD9"
+                      and fd9_enabled())
+        if fd9_recipe:
             self._fd9_patch_mm = recipe.patch_w_mm or 8.0
             self._fd9_patch_h_mm = recipe.patch_h_mm or self._fd9_patch_mm
             self._fd9_gap_mm = recipe.fd9_gap_mm
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is None:
             return
-        if getattr(recipe, "instrument", None) == "FD9":
+        if fd9_recipe:
             # A partially restored generic panel must not mirror its old
             # instrument back into Guided or switch the renderer to printtarg.
             from PyQt6.QtCore import QSignalBlocker

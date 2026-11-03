@@ -42,11 +42,15 @@ ArgyllCMS binary the user installed themselves.
 ## Independent FD-9 source — `vendor/fd9-independent/`
 
 The FD-9 contribution includes newly authored Python source under
-**GPL-3.0-or-later**. The full licence is
-`vendor/fd9-independent/LICENSE`; development provenance and the distinction
-between observed protocol facts and excluded manufacturer material are recorded
-in `vendor/fd9-independent/docs/PROVENANCE.md`. Both files are included in all
-three platform packaging specifications.
+**GPL-3.0-or-later**. Development provenance and the distinction between
+observed protocol facts and excluded manufacturer material are recorded in
+`PROVENANCE.md`. All three platform packaging specifications copy both files
+into the installed ChromIQ, where they are
+`licenses/fd9-independent/LICENSE` and
+`licenses/fd9-independent/PROVENANCE.md`; Preferences > Licences lists the
+licence file and can reveal it. In the source tree they are
+`vendor/fd9-independent/LICENSE` and
+`vendor/fd9-independent/docs/PROVENANCE.md`.
 
 No Konica Minolta source, SDK, shared library, captured display artwork,
 extracted numerical table or external conversion profile is supplied here.

@@ -1680,7 +1680,8 @@ class ChartCreator:
         Used to drive the targen ``-f`` count in Guided and Manual-auto so the
         chart fills the page(s) under the engine's own packing.
         """
-        if params.instrument == "FD9":
+        from workflow.fd9.support import fd9_enabled
+        if params.instrument == "FD9" and fd9_enabled():
             from workflow.fd9.chart import capacity
             if params.pages != 1:
                 raise ValueError("FD-9 currently supports one sheet per chart")

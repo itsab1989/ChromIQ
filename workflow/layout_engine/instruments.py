@@ -103,6 +103,13 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
 # Instruments ChromIQ never lays out itself (delegated to i1Profiler).
 DELEGATED = {"isis"}
 
+def _fd9_on() -> bool:
+    """FD-9 support (Preferences > Beta). Off, an FD-9 chart is a chart for an
+    instrument the layout engine does not know, as in 4.3.21 (review r2 S2)."""
+    from workflow.fd9.support import fd9_enabled
+    return fd9_enabled()
+
+
 def _inch(mm: float) -> float:
     return mm * 25.4
 
@@ -722,7 +729,7 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
     the margins laid out (Knut's model, #93). The clamp that once sat here,
     ``margins_fit`` and a ``thresholds`` argument, was only ever called with
     ``None`` and was removed in 4.3.19 (review r1 N8)."""
-    if kw.get("instrument") == "FD9":
+    if kw.get("instrument") == "FD9" and _fd9_on():
         from workflow.fd9.chart import patch_dimensions
         w, h, gap = patch_dimensions(kw.get("patch_w") or 8.0, kw.get("patch_h"),
                                       kw.get("fd9_gap", 1.0), kw.get("dpi", 300))
@@ -837,6 +844,10 @@ def _build_base(
     extension beyond printtarg's single level; tighter rows pending hardware
     validation, guarded by the 6 mm reliability floor).
     """
+    if key == "FD9" and not _fd9_on():
+        # FD-9 support (Preferences > Beta) is off: 4.3.21 knew no FD-9, and
+        # neither does the layout engine now (review r2 S2).
+        raise ValueError(f"unknown instrument {key!r}")
     if key == "FD9":
         return replace(_build_base("SS", spacer_on=False), key="FD9",
                        target_name=TARGET_INSTRUMENT_NAME["FD9"], plen=8.0, pwid=8.0, rrsp=9.0,

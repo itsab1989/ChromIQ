@@ -327,7 +327,8 @@ def build_chart(
     once. A ``.ti2`` carrying calibrated values made a profile of the raw
     printer, and ``applycal`` then calibrated it a second time.
     """
-    if instrument == "FD9":
+    from workflow.fd9.support import fd9_enabled
+    if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import build_chart as build_fd9
         return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
                          randomize=randomize, seed=seed, bit16=bit16,

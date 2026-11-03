@@ -511,6 +511,7 @@ def measure_chart(
     destination = chart.with_suffix(".ti3")
     base_sha = sha(destination) if destination.exists() else None
     acquisition_error = None
+    acquisition_cause = None
 
     def scan_ready(root):
         # A presentation failure must never turn a valid acquisition into a failure.
@@ -592,12 +593,14 @@ def measure_chart(
         )
     except CaptureFailed as error:
         acquisition_error = str(error)
+        acquisition_cause = getattr(error, "cause", None)
         session = error.session
     session = Path(session)
     if acquisition_error and not (session / "geometry.json").is_file():
         # Stopping before the pre-scan has no geometry or rows to export.
         # Keep the actual transport/cancel error instead of a missing-file error.
-        raise CaptureFailed(session, acquisition_error)
+        raise CaptureFailed(session, acquisition_error,
+                            cause=acquisition_cause)
     raw_export = (
         session / f"{settings.condition}-{'factory' if native else 'research'}.ti3"
     )
@@ -709,4 +712,7 @@ def measure_chart(
     (session / "measurement-metadata.json").write_text(
         json.dumps(result, indent=2) + "\n", encoding="utf-8"
     )
-    return result | {"staged": str(staged), "destination": str(destination)}
+    # The exception itself, for the window it belongs to (review r2 M2). Not
+    # in measurement-metadata.json: only its words are, above.
+    return result | {"staged": str(staged), "destination": str(destination),
+                     "acquisition_exception": acquisition_cause}

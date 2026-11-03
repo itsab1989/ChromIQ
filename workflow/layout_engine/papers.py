@@ -92,7 +92,8 @@ def list_papers(instrument: str | None = None, *, for_engine: bool = False
     (offers portrait A2/A3/A3+ on strip readers) vs printtarg's stricter
     :data:`EXCLUDED_PAPERS`, matching the dropdown behaviour elsewhere.
     """
-    if instrument == "FD9":
+    from workflow.fd9.support import fd9_enabled
+    if instrument == "FD9" and fd9_enabled():
         from workflow.fd9.chart import PAPERS
         return [(code, label(code), dimensions_mm(code)) for code in PAPERS]
     table = ENGINE_EXCLUDED_PAPERS if for_engine else EXCLUDED_PAPERS

@@ -240,7 +240,11 @@ def fd9_error_kind(message: str) -> str:
             "deadline expired", "registration was declined",
             "nodename nor servname", "name or service not known",
             "connection reset", "connection abort", "broken pipe",
-            "not connected")):
+            "not connected",
+            # Windows says it its own way (WinError 10061, 10060, 10065).
+            "no connection could be made", "actively refused",
+            "did not properly respond", "host has failed to respond",
+            "unreachable host")):
         # Not "errno": every OSError says it, a missing layout file and an
         # unwritable session folder too, and neither is the network (review
         # r1 F4). The words a network fault puts after its [Errno N] are
@@ -263,6 +267,12 @@ def fd9_exception_kind(error: BaseException) -> str:
     OSError (a missing file, a folder that cannot be written) never is
     (review r1 F4). Then by its words, for the driver's own messages."""
     import socket
+    # A capture that failed is wrapped ("Capture failed; evidence preserved:
+    # ...") with the exception that ended it kept as its cause: that
+    # exception's TYPE decides, not the wrapper's (review r2 M2).
+    cause = getattr(error, "cause", None)
+    if isinstance(cause, BaseException) and cause is not error:
+        return fd9_exception_kind(cause)
     if isinstance(error, (ConnectionError, TimeoutError, socket.gaierror,
                           socket.herror)):
         return "connection"
@@ -749,9 +759,12 @@ class FD9MeasureMixin:
         if block:
             self._show_verification_guard(block)
             return
-        if self._fd9_pending is None and not self._confirm_replacing_measurement():
-            return
+        # The verification chart's copy FIRST, then §5's replace question,
+        # in the order every other instrument's Start asks them (review r2
+        # M3, `TabMeasure._on_start`).
         if not self._snapshot_verification_chart():
+            return
+        if self._fd9_pending is None and not self._confirm_replacing_measurement():
             return
         staged = False
         try:
@@ -1028,7 +1041,11 @@ class FD9MeasureMixin:
                     "Your previous measurement is unchanged, and everything the FD-9 sent is kept in the run's fd9-sessions folder. If the sheet is still in the FD-9, take it out with the FD-9's own controls."
                 )
             )
-            self._fd9_explain_error(result["acquisition_error"], stopped)
+            failure = result.get("acquisition_exception")
+            self._fd9_explain_error(
+                result["acquisition_error"], stopped,
+                kind=(fd9_exception_kind(failure)
+                      if isinstance(failure, BaseException) else ""))
         if prompt:
             self._fd9_end_prompt(self.END_FAILURE_WINDOW)
 

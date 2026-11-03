@@ -77,3 +77,66 @@ def is_fd9_instrument_name(name: "str | None") -> bool:
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
         text = text[1:-1].strip()
     return text.casefold() in {n.casefold() for n in TARGET_INSTRUMENT_NAMES}
+
+
+#: What makes a target's Create Chart settings the FD-9's (review r2 S1), per
+#: place they are stored. With the Beta off the tab cannot show an FD-9, so
+#: these are the values it would otherwise replace with the i1Pro it falls
+#: back to. Everything else in the block is the user's, FD-9 or not.
+CHART_PARAM_KEYS = ("printtarg-i", "printtarg-p")
+CHART_GUIDED_KEYS = ("instrument", "paper", "pages")
+CHART_RECIPE_KEYS = ("instrument", "paper", "border", "margin_top",
+                     "margin_right", "margin_bottom", "margin_left",
+                     "use_instrument_margins", "patch_w_mm", "patch_h_mm",
+                     "fd9_gap_mm", "layout_mode")
+
+
+def _names_fd9(value: Any) -> bool:
+    return str(value or "") == "FD9"
+
+
+def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
+                         stored_params: "dict | None",
+                         stored_ui: "dict | None") -> None:
+    """Put the stored FD-9 Create Chart values back into *wanted* and
+    *ui_state* (in place) while FD-9 support is OFF (review r2 S1).
+
+    The Create Chart counterpart of ``measure_settings.carry_fd9_keys``. A
+    target whose chart was made for the FD-9 with the Beta on keeps its FD-9
+    instrument, sheet, pages, margins and gap when it is opened with the Beta
+    off: the tab shows the i1Pro instead, as 4.3.21 would, but that is the
+    app's fallback and not the user's choice, so it is never filed into the
+    target. With nothing else changed the write is then skipped altogether
+    and ``meta.json`` stays byte-identical. With the Beta on this does
+    nothing: the tab writes its own FD-9 values, as before."""
+    if fd9_enabled():
+        return
+    params = stored_params if isinstance(stored_params, dict) else {}
+    if isinstance(wanted, dict) and _names_fd9(
+            (params.get("printtarg-i") or {}).get("value")):
+        for key in CHART_PARAM_KEYS:
+            if key in params:
+                wanted[key] = params[key]
+    ui = stored_ui if isinstance(stored_ui, dict) else {}
+    if not isinstance(ui_state, dict):
+        return
+    for block, keys in (("guided", CHART_GUIDED_KEYS),
+                        ("engine_recipe", CHART_RECIPE_KEYS)):
+        was = ui.get(block)
+        now = ui_state.get(block)
+        if not (isinstance(was, dict) and _names_fd9(was.get("instrument"))):
+            continue
+        if not isinstance(now, dict):
+            continue
+        # In the STORED order, so a block written again (the user switched
+        # Guided/Manual and back, say) comes out byte for byte as it was.
+        ordered = {}
+        for key in was:
+            if key in keys:
+                ordered[key] = was[key]
+            elif key in now:
+                ordered[key] = now[key]
+        for key in now:
+            if key not in ordered and key not in keys:
+                ordered[key] = now[key]
+        ui_state[block] = ordered

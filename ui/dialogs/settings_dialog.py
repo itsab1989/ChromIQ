@@ -7135,6 +7135,39 @@ class SettingsDialog(QDialog):
         files_row.addWidget(own)
         files_row.addStretch(1)
         v.addLayout(files_row)
+
+        # -- the licence files themselves, where they are in this build
+        # (review r2 M4: the FD-9 driver's licence travels in a built app at
+        # licenses/fd9-independent/LICENSE and nothing pointed at it).
+        files = licences.bundled_licence_files()
+        if files:
+            grp = QGroupBox(tr("Licence files that come with ChromIQ"), self)
+            grp.setObjectName("licence_files")
+            g = QGridLayout(grp)
+            g.setHorizontalSpacing(10)
+            g.setVerticalSpacing(4)
+            hint = QLabel(tr(
+                "Each licence is also kept as a file of its own inside "
+                "ChromIQ, so you can read it, print it or pass it on. Click "
+                "Reveal to see the file in your file browser."), self)
+            hint.setWordWrap(True)
+            _ink(hint, "#606060", " font-size: 11px;", level="faint")
+            g.addWidget(hint, 0, 0, 1, 2)
+            from functools import partial
+            for row, path in enumerate(files, start=1):
+                name = QLabel(licences.licence_file_label(path), self)
+                name.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.TextSelectableByMouse)
+                g.addWidget(name, row, 0)
+                reveal = QPushButton(tr("Reveal"), self)
+                reveal.setObjectName("licence_reveal")
+                reveal.setToolTip(str(path))
+                # partial, not a lambda: it holds the path and not `self`
+                # (CLAUDE.md, the self-capturing slot that crashed the app).
+                reveal.clicked.connect(partial(licences.reveal_file, path))
+                g.addWidget(reveal, row, 1)
+            g.setColumnStretch(0, 1)
+            v.addWidget(grp)
         return page
 
     def _on_credits_toggled(self, shown: bool) -> None:

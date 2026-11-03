@@ -202,6 +202,16 @@ def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
     return max(mints, leader_top + ink + LABEL_INK_CLEARANCE_MM)
 
 
+def _is_fd9(geom) -> bool:
+    """An FD-9 geometry, and FD-9 support on (review r2 S2). Off, `build`
+    refuses the FD-9 as an unknown instrument, so this is never True then;
+    asked anyway so no FD-9 branch can run without the switch."""
+    if getattr(geom, "key", None) != "FD9":
+        return False
+    from workflow.fd9.support import fd9_enabled
+    return fd9_enabled()
+
+
 def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
             *, scanc: int = 0) -> Layout:
     """Lay *npat* patches out for *geom* on a ``paper_w_mm`` × ``paper_h_mm`` sheet.
@@ -209,7 +219,7 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
     *scanc* bit 2 set ⇒ scan-compatibility first-row extra width (printtarg -s).
     Returns a :class:`Layout`.  Raises :class:`LayoutError` if nothing fits.
     """
-    if geom.key == "FD9":
+    if _is_fd9(geom):
         from workflow.fd9.chart import packing
         return packing(f"{paper_w_mm:g}x{paper_h_mm:g}", npat, geom.pwid, geom.plen, geom.pspa, None)
     if npat < 1:
@@ -416,7 +426,7 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     the strip-reader instruments that use one strip per page (i1/p3/CM/SS);
     multi-strip instruments (DTP41/51) will gain strip gutters in a later pass.
     """
-    if geom.key == "FD9":
+    if _is_fd9(geom):
         return Placement((paper_w_mm - ((layout.passes - 1) * geom.rrsp + geom.pwid)) / 2, 42-geom.plen/2, geom.plen, geom.pwid, geom.pspa, geom.rrsp,
                          layout.steps_in_pass, 23)
     g = geom
@@ -897,7 +907,7 @@ def strip_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             y = px(place.y_of(0)) + _stag
             h = px(place.y_of(col_n - 1) + place.plen) + _stag - y
             width = px(place.pwid)
-            if geom.key == "FD9":
+            if _is_fd9(geom):
                 if geom.pspa == 0:
                     x = px(place.x0) + round(p * place.rrsp * mm2px)
                     y = px(place.y0_first)
@@ -1021,7 +1031,7 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                 _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
                 _x1 = px(place.x_of(p) + place.pwid)
                 _y1 = px(place.y_of(j) + place.plen) + _stag
-            if geom.key == "FD9":
+            if _is_fd9(geom):
                 if geom.pspa == 0:
                     _x0 = px(place.x0) + round(p * place.rrsp * mm2px)
                     _x1 = px(place.x0) + round((p+1) * place.rrsp * mm2px)

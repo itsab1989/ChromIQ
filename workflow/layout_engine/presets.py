@@ -123,7 +123,9 @@ def edge_spacers_effect(recipe: "LayoutRecipe") -> str:
     if recipe.instrument in EDGE_SPACERS_ALWAYS_ON:
         return "always_on"
     if recipe.instrument == "FD9":
-        return "fixed"
+        from workflow.fd9.support import fd9_enabled
+        if fd9_enabled():
+            return "fixed"
     from . import instruments
     kw = replace(recipe, edge_spacers=True).build_kwargs()
     g = instruments.geom_from_build_kwargs(kw)

@@ -85,6 +85,22 @@ CASES = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _fd9_beta_for_fd9_cases(request):
+    """The FD-9 cases need FD-9 support (Preferences > Beta) on: off, the
+    layout engine knows no FD-9 (review r2 S2)."""
+    from workflow.fd9 import support
+    callspec = getattr(request.node, "callspec", None)
+    wanted = bool(callspec and callspec.params.get("inst") == "FD9")
+    before = support._latched
+    if wanted:
+        support.set_enabled_for_this_process(True)
+    try:
+        yield
+    finally:
+        support._latched = before
+
+
 @pytest.mark.parametrize("inst,mode,gap,hflag", CASES,
                          ids=[f"{i}-{m}-gap{g:g}-{'hex' if h else 'flat'}"
                               for i, m, g, h in CASES])
