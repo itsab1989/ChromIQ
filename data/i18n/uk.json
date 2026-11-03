@@ -8773,7 +8773,7 @@
  "Merge these measurements?": "Об’єднати ці вимірювання?",
  "Average these measurements?": "Усереднити ці вимірювання?",
  "Measurements not averaged": "Вимірювання не усереднено",
- "Not combined without asking": "Не поєднано без запитання",
+ "Not combined without asking": "Не поєднано: не було кого запитати",
  "Merge or average: the question's parts": "Об’єднання або усереднення: частини запитання",
  "Continuing a measurement: the condition's parts": "Продовження вимірювання: частини про умову",
  "This measurement cannot be continued with this setting": "Це вимірювання не можна продовжити з цим налаштуванням",
