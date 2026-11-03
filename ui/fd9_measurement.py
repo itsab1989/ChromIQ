@@ -124,8 +124,8 @@ def condition_help() -> "tuple[str, str]":
            "colours. On a paper with them, M1 and M2 can differ clearly, "
            "mostly in the paper white and the light colours."),
         tr("The FD-9 measures all three at once, but ChromIQ saves the "
-           "measurement for the one condition chosen here when you press "
-           "Start. Resume continues only with the same condition, so keep it "
+           "measurement only for the condition chosen here. Choose it before "
+           "you press Start. Resume continues only with the same condition, so keep it "
            "the same until the chart is finished."),
         tr("**Default:** M1"),
     ))

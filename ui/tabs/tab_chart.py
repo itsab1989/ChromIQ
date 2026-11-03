@@ -4015,7 +4015,7 @@ def fd9_instrument_bullet() -> str:
         "driver. An FD-9 chart is one sheet with patches from 6 to 30 mm, "
         "four small black squares near the corners and an arrow that shows "
         "which end goes in first. FD-9 support is a beta, written and "
-        "contributed by lessbones (Preferences > Beta).")
+        "contributed by lessbones (Preferences → Beta).")
 
 
 def _without_choice(params: dict, value: str) -> dict:

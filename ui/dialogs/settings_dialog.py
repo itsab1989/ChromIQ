@@ -3621,13 +3621,13 @@ class SettingsDialog(QDialog):
                    "this computer, and no other program may be talking to it "
                    "while ChromIQ measures."),
                 tr("What turning this on adds, after a restart of ChromIQ:\n"
-                   "  •  Create Chart: \"FD-9\" in the Instrument list of "
+                   "  •  Create Chart: “FD-9” in the Instrument list of "
                    "Guided and of Manual. An FD-9 chart has its own sheet "
-                   "sizes, a \"Custom sheet…\" button and its own patch width, "
+                   "sizes, a “Custom sheet…” button and its own patch width, "
                    "patch height and gap.\n"
                    "  •  Measure: when an FD-9 chart is loaded, a row with the "
-                   "measurement condition (M0, M1 or M2), Resume and \"FD-9 "
-                   "setup…\", where you enter the FD-9's network address. "
+                   "measurement condition (M0, M1 or M2), Resume and “FD-9 "
+                   "setup…”, where you enter the FD-9's network address. "
                    "Start then measures the sheet in the FD-9."),
                 tr("The limits of this first version:\n"
                    "  •  one sheet per chart (no charts over several pages);\n"
@@ -3647,7 +3647,7 @@ class SettingsDialog(QDialog):
                    "patches are far off, the wrong sheet or the wrong way "
                    "round is the likely reason."),
                 tr("If you turn this off again, an FD-9 chart stays as it is, "
-                   "and ChromIQ tells you when you press Start that it needs "
+                   "and when you press Start, ChromIQ tells you that it needs "
                    "FD-9 support to measure it."),
                 tr("With this off (the default), nothing changes: the FD-9 is "
                    "not offered anywhere and ChromIQ works exactly as before."),

@@ -6637,7 +6637,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             self._fd9_support_off_window()
             self._log.appendPlainText(tr(
                 "Measurement not started: this chart is for the Konica Minolta "
-                "FD-9, and FD-9 support is switched off in Preferences > Beta."))
+                "FD-9, and FD-9 support is switched off in Preferences → Beta."))
             return True
 
         from PyQt6.QtWidgets import QMessageBox

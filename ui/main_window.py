@@ -2343,7 +2343,7 @@ class MainWindow(QMainWindow):
                   "cannot lay it out yet.\n\n"
                   "To change the patches of this chart, use Create Chart: "
                   "choose the number of patches in Guided, or load or make a "
-                  "patch set in Manual, and press Generate. The FD-9 stays "
+                  "patch set in Manual, and press Generate Chart. The FD-9 stays "
                   "selected as the instrument, and the new chart replaces "
                   "this one in the run."))
         return True
