@@ -91,6 +91,13 @@ To build a profile you need three things:
    | `SS` | SpectroScan (flatbed XY table) |
    | `CR30` | ChnSpec CR30, a low-cost hand-held spectrophotometer with no ArgyllCMS support: ChromIQ drives it itself, over USB and Bluetooth |
 
+   **In beta** (off until you turn it on in Preferences → Beta; with it off,
+   ChromIQ works exactly as before):
+
+   | Code | Instrument | Contributed by |
+   |------|-----------|----------------|
+   | `FD9` | Konica Minolta FD-9, an automatic chart reader that measures the whole sheet by itself, over your network (Ethernet), with ChromIQ's own driver and no Konica Minolta software. Tested on one FD-9 on macOS so far: your report helps | [lessbones](https://github.com/lessbones), thank you! |
+
    Your instrument is not listed? See
    [Adding an instrument](docs/adding_an_instrument.md).
 
