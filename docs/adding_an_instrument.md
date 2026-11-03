@@ -306,11 +306,17 @@ yours will be a similar short code.
       `tests/test_target_instrument_gate.py`,
       `tests/test_instrument_matches_chart.py`,
       `tests/test_chart_instrument_comes_from_the_chart.py`.
-- [ ] **Spectral options** (FWA, illuminant, observer): decide whether they
-      apply to your data, in `ui/ti2_loader.py::spectral_options_unavailable`
-      and `workflow/profile_engine/fwa.py::instrument_supports_fwa`. An
-      instrument without spectra, or whose light does not excite optical
-      brighteners, must not be offered FWA.
+- [ ] **FWA compensation (-f)**: `workflow/fwa_gate.py` is the one place
+      that answers whether FWA can be used for a measurement, and why not.
+      ArgyllCMS applies -f only to the exact instrument names in
+      `workflow/fwa_gate.py::ARGYLL_FWA_INSTRUMENTS` (measured with
+      `spec2cie -f`); a measurement without spectra, under any other name, or
+      taken under M1/M2 has the option greyed with a reason and -f left out.
+      A new instrument gets its own `FwaRefusal` kind only if it needs its
+      own text (the FD-9 has one). Also look at
+      `workflow/profile_engine/fwa.py::instrument_supports_fwa` (ChromIQ's
+      engine) and `ui/ti2_loader.py::spectral_options_unavailable` (the
+      illuminant and observer).
 - [ ] **Sidecar files** (if your chart has one, like `.fd9.json`):
       `core/file_manager.py::CHART_COMPANION_SUFFIXES` and
       `workflow/chart_import.py::_CHART_EXTS`, so copy, rename, import and

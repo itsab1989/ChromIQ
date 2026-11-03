@@ -202,7 +202,7 @@ def _unquote(value: "str | None") -> "str | None":
     return v
 
 
-_KW_RE = re.compile(rb"^[ \t]*([A-Z_][A-Z0-9_]*)[ \t]+(.*?)[ \t]*$")
+_KW_RE = re.compile(r"^[ \t]*([A-Z_][A-Z0-9_]*)[ \t]+(.*?)[ \t]*$")
 
 
 def _read_header(path) -> "_Header | None":
@@ -218,16 +218,18 @@ def _read_header(path) -> "_Header | None":
             head = fh.read(_HEAD_BYTES)
     except (OSError, TypeError, ValueError):
         return None
-    head = head.split(b"BEGIN_DATA_FORMAT", 1)[0]
+    # Bytes decoded as latin-1: every byte maps to one character, so a
+    # cp1252 header never fails; the names compared are ASCII.
+    text = head.split(b"BEGIN_DATA_FORMAT", 1)[0].decode("latin-1")
     found: dict[str, str] = {}
-    for raw in head.splitlines():
+    for raw in text.splitlines():
         m = _KW_RE.match(raw)
         if not m:
             continue
-        key = m.group(1).decode("ascii", "replace")
+        key = m.group(1)
         if key in ("TARGET_INSTRUMENT", "MEASUREMENT_CONDITION",
                    "SPECTRAL_BANDS") and key not in found:
-            found[key] = _unquote(m.group(2).decode("latin-1")) or ""
+            found[key] = _unquote(m.group(2)) or ""
     try:
         bands = int(found.get("SPECTRAL_BANDS") or 0)
     except ValueError:
