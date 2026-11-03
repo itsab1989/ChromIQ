@@ -149,14 +149,28 @@ Copy the FD-9's pattern; it was reviewed twice.
       shown by `ui/tabs/tab_measure.py::_fd9_support_off_window`). It is not
       "corrected" to another instrument's name.
 - [ ] **Stale settings are harmless.** A user can turn the option on, make a
-      chart, then turn it off again. Saved instrument choices, saved layout
-      recipes and per-target settings that name your instrument must then read
-      as "none" and stay in the store untouched, for the day the option is on
-      again. See `ui/tabs/tab_chart.py::_stored_defaults_recipe`,
+      chart, then turn it off again. Saved instrument choices and saved layout
+      recipes that name your instrument must then read as "none". Per-target
+      settings that name it stay in the store as they are, for the day the
+      option is on again, but only for a value the user has not changed: the
+      tab shows a fallback instrument, and that fallback is not the user's
+      choice, so it is never filed into the target. A value the user changes
+      is the user's and is written. See
+      `ui/tabs/tab_chart.py::_stored_defaults_recipe`,
       `workflow/measure_settings.py::carry_fd9_keys` (Measure) and
       `workflow/fd9/support.py::carry_fd9_chart_keys` (Create Chart target
-      settings): opening your project with the option off and changing tabs
-      must leave its `meta.json` byte-identical.
+      settings). The Create Chart carry follows three rules:
+      a stored value is carried only while the value on screen is still the
+      one the target opened with and the user has never had another one
+      written (the stored values are those read when the target was opened,
+      `workflow/fd9/support.py::Fd9OffSnapshot`, never the file as it reads
+      at write time, because by then it can hold the user's own earlier
+      change); nothing is carried after the user generates into the run
+      (`ui/tabs/tab_chart.py::_forget_fd9_off_screen`); and nothing is
+      carried once the run's `.ti2` `TARGET_INSTRUMENT` is not your
+      instrument's (`workflow/fd9/support.py::chart_names_fd9`). Opening your
+      project with the option off and changing tabs must leave its
+      `meta.json` byte-identical.
 
 ### How to prove it
 
@@ -181,8 +195,17 @@ for your instrument.
 4. **A real project, on then off**: make a chart with the option on, restart
    with it off, open the project and change tabs; `meta.json` is
    byte-identical and none of your modules load
-   (`tests/test_fd9_off_stale_project.py`). Each half runs in its own process,
-   because the switch is read once per process.
+   (`tests/test_fd9_off_stale_project.py::test_an_fd9_project_opened_with_the_beta_off_is_left_as_it_was`).
+   The same file also proves that a change the user makes with the option off
+   is kept, also when they change a value and back with a write in between
+   (`tests/test_fd9_off_stale_project.py::test_a_change_the_user_makes_with_the_beta_off_is_kept`,
+   `tests/test_fd9_off_stale_project.py::test_a_change_back_after_a_write_without_a_reload_is_kept`),
+   and that Generate with the option off, which makes an i1Pro chart in
+   the run, leaves no trace of your instrument in its `meta.json`
+   (`tests/test_fd9_off_stale_project.py::test_generating_an_i1pro_chart_into_the_fd9_run_leaves_no_fd9`).
+   Each half runs in its own process, because the switch is read once per
+   process. `tests/test_fd9_review_r4.py` proves the carry rules over random
+   sequences of edits, writes and Generate.
 
 Tests of the instrument itself turn the option on for their process with an
 autouse fixture like `tests/_fd9_beta.py::fd9_beta_on`.
@@ -358,8 +381,9 @@ yours will be a similar short code.
 - [ ] **The switch** latched in `main.py`, and its Preferences row.
 - [ ] **Packaging** in `ChromIQ.spec`, `ChromIQWin.spec` and
       `ChromIQLinux.spec`, and the licence notice in `THIRD-PARTY-NOTICES.md`,
-      `ui/licences.py::NOTICE_SECTIONS` and
-      `ui/licences.py::bundled_licence_files`
+      `ui/licences.py::NOTICE_SECTIONS` and the
+      `ui/licences.py::BUNDLED_LICENCE_FILES` tuple, which
+      `tests/test_fd9_review_r3.py` checks against the specs
       ([section 9](#9-the-driver-and-the-device)).
 - [ ] **Optional**: the welcome dialog (`ui/dialogs/welcome_dialog.py`) and the
       keyboard help (`ui/keyboard_help.py`) mention the CR30; mention yours
@@ -521,10 +545,18 @@ yours will be a similar short code.
   address or port there; never a path to code that the app would import.
 - **Write your keys only when your instrument is used.** Chart keys only when
   a chart for your instrument is generated; Measure keys only for your charts
-  while the option is on. With the option off, keys already stored pass through
-  unchanged (`workflow/measure_settings.py::carry_fd9_keys` for Measure,
-  `workflow/fd9/support.py::carry_fd9_chart_keys` for Create Chart), so no
-  `meta.json` is rewritten. Record new per-target keys in
+  while the option is on. With the option off, keys already stored are
+  carried over the fallback the tab shows
+  (`workflow/measure_settings.py::carry_fd9_keys` for Measure,
+  `workflow/fd9/support.py::carry_fd9_chart_keys` for Create Chart), so an
+  untouched project's `meta.json` is not rewritten. On Create Chart a key is
+  carried only while the user has not changed its value since the target was
+  opened, never after a Generate into the run, and never once the run's
+  `.ti2` `TARGET_INSTRUMENT` is not your instrument's
+  (`workflow/fd9/support.py::chart_names_fd9`); a value the user changes is
+  written as theirs
+  ([section 4](#4-behind-a-beta-option-and-off-means-no-change)). Record new
+  per-target keys in
   `docs/design/per_target_settings.md` in an "Awaiting confirmation" block
   (the FD-9's is §1.4).
 - **All paths go through `Project` / `Run` / `Calibration`** in
@@ -563,9 +595,12 @@ yours will be a similar short code.
   and `tests/test_cr30_packaging.py`. Ship the licence beside the app, add a
   section to `THIRD-PARTY-NOTICES.md`, name it in
   `ui/licences.py::NOTICE_SECTIONS`, and add the bundled licence to the
-  licence window's Reveal list (`ui/licences.py::bundled_licence_files`, as
-  `ui/licences.py::FD9_DRIVER_LICENCE` does), with both the bundled and the
-  source-tree location named in `THIRD-PARTY-NOTICES.md`.
+  licence window's Reveal list: add its paths to the
+  `ui/licences.py::BUNDLED_LICENCE_FILES` tuple, as the FD-9 driver's
+  `ui/licences.py::FD9_DRIVER_LICENCE` paths are. `tests/test_fd9_review_r3.py`
+  fails on a licence file a platform spec ships that the tuple leaves out.
+  Name both the bundled and the source-tree location in
+  `THIRD-PARTY-NOTICES.md`.
 - **Ship only what the app runs.** The bundle holds the driver code the GUI
   uses and nothing else: no research code, no developer command-line tools,
   and no option that loads Python from a folder.
