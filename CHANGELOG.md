@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## v4.3.22
+
+**For everyone updating from 4.3.21: ChromIQ can now measure with the Konica Minolta FD-9 automatic chart reader, as a beta option written and contributed by lessbones. It is off unless you turn it on in Preferences → Beta, and with it off ChromIQ works exactly as before. Your charts, measurements and profiles do not change.**
 
 ### New
 - **Konica Minolta FD-9 support (beta), written and contributed by lessbones. Thank you!** A new option in Preferences → Beta, off by default. With it on (after a restart of ChromIQ), the FD-9, an automatic chart reader, is offered as "FD-9" in Create Chart (Guided and Manual), with its own sheet sizes (including A4 and Letter landscape), a "Custom sheet…" button and its own patch width, patch height and gap. The Measure tab then measures an FD-9 chart in the FD-9 itself, over your network, with ChromIQ's own driver: no Konica Minolta software is needed. Choose the measurement condition (M0, M1 or M2) beside it; its ⓘ explains which to pick for papers with optical brighteners. Limits of this first version: one sheet per chart, patches 6 to 30 mm, sheets 137 to 330 × 170 to 660 mm, an FD-9 whose measuring sensor reports the version 1.0.0.2 (checked before the FD-9 moves anything), tested on one FD-9 on macOS. Insert the sheet arrow first, printed side up: a sheet turned round or a different chart with the same grid is not detected, so check the measured colours against the expected ones. With the option off, ChromIQ works exactly as before; an FD-9 chart opened then is refused at Start with a window that says how to turn the support on.
+- **Preferences → Licences lists the licence files that come with ChromIQ,** each with a button that shows the file on your computer, so the terms of every part ChromIQ ships (ArgyllCMS, the FD-9 driver and the others) are one click away.
+- **A guide for adding a measuring instrument to ChromIQ.** Anyone who owns an instrument ChromIQ does not support yet, and has got it talking to their computer, finds in `docs/adding_an_instrument.md` everything we learned while bringing in the CR30 and the FD-9: where an instrument has to be registered, how it goes behind a Beta option so nothing changes for anyone else, the texts, tests and checks a pull request needs, and a prompt to hand to an AI coding agent so it follows the same rules. AGENTS.md, CONTRIBUTING.md and the README point to it.
 
 ## v4.3.21
 
