@@ -489,6 +489,7 @@ parameters:
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan（フラットベッド）"
         - "CR30 (ChnSpec, patch by patch)"
+        - "FD-9 (Konica Minolta)"
         - "i1iSis（i1Profiler経由）"
     "-h":
       name: "ダブルデンシティ"

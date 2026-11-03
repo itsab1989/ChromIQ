@@ -86,16 +86,42 @@ def test_reading_a_patch_marks_the_session_unsaved():
     assert mgr._read_something is True
 
 
-def test_stop_only_offers_to_save_when_there_is_something_to_save():
-    """Why the regex mattered so much: this is the gate it feeds."""
-    import inspect
+@pytest.mark.parametrize("unsaved", [False, True])
+def test_stop_only_offers_to_save_when_there_is_something_to_save(qtbot, monkeypatch, unsaved):
+    """Exercise the stock-reader gate, independent of its conditional spelling."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from PyQt6.QtWidgets import QWidget, QPlainTextEdit, QMessageBox
     from ui.tabs.tab_measure import TabMeasure
-    # The gate lives in the shared ending window now — every route reaches
-    # it (spec §S2), so the check moved with it rather than being duplicated.
-    src = inspect.getsource(TabMeasure._confirm_end_of_session)
-    assert "if not self._manager.has_unsaved_readings:" in src
-    act = inspect.getsource(TabMeasure._end_session)
-    assert "self._manager.abort()" in act, "…and abort() is a kill, which loses them"
+
+    window = QWidget()
+    qtbot.addWidget(window)
+    window._manager = SimpleNamespace(has_unsaved_readings=unsaved, readings_this_session=2)
+    window._log = QPlainTextEdit(window)
+    window._readings_before_session = lambda: 0
+    window._session_wrote_its_file = lambda: False
+    seen = []
+
+    def save(box):
+        seen.append(box.text())
+        button = next(b for b in box.buttons() if b.text() == "Save and stop")
+        button.click()
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", save)
+    choice = TabMeasure._confirm_end_of_session(window, TabMeasure.END_STOP)
+    assert choice == ("save" if unsaved else "discard")
+    assert bool(seen) == unsaved
+    if unsaved:
+        assert "2 patches" in seen[0]
+    else:
+        assert "Nothing was measured, so nothing was saved." in window._log.toPlainText()
+    # Discard must still kill the stock reader; Save must use its save chain.
+    manager = SimpleNamespace(abort=Mock(), send_save_partial_and_quit=Mock())
+    session = SimpleNamespace(_manager=manager, _auto_proceed=True)
+    TabMeasure._end_session(session, choice)
+    assert manager.abort.called == (not unsaved)
+    assert manager.send_save_partial_and_quit.called == unsaved
 
 
 # ---- fault 2: a zero exit code that means failure ------------------------

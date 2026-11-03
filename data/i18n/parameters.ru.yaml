@@ -504,6 +504,7 @@ parameters:
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (планшетный)"
         - "CR30 (ChnSpec, patch by patch)"
+        - "FD-9 (Konica Minolta)"
         - "i1iSis (через i1Profiler)"
     "-h":
       name: "Двойная плотность"

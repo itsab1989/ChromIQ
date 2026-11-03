@@ -55,6 +55,8 @@ KNOWN_INSTRUMENTS: tuple[str, ...] = (
     "GretagMacbeth i1 Pro",       # i1 Pro family (i1 Pro / Pro 2 / Pro 3 / Pro 3+)
     "GretagMacbeth SpectroScan",  # motorized XY table (patch-by-patch, not strips)
     "CR30",                       # ChnSpec CR30 — ChromIQ reads it, Argyll cannot
+    "FD-9",                       # independent Ethernet driver; bypass chartread
+    "Konica Minolta FD-9",
 )
 
 

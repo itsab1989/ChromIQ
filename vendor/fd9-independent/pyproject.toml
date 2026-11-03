@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fd9-independent"
+version = "0.5.5"
+description = "Independent FD-9 Ethernet protocol implementation candidate"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+dependencies = []
+
+[project.scripts]
+fd9-independent = "fd9_independent.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

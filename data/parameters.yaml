@@ -623,13 +623,14 @@ parameters:
     - flag: "-i"
       name: "Measurement Instrument"
       type: choice
-      choices: ["i1", "p3", "CM", "SS", "CR30", "isis"]
+      choices: ["i1", "p3", "CM", "SS", "CR30", "FD9", "isis"]
       labels:
         - "i1Pro / i1Pro 2 / i1Pro 3"
         - "i1Pro 3 Plus"
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (flatbed)"
         - "CR30 (ChnSpec, patch by patch)"
+        - "FD-9 (Konica Minolta)"
         - "i1iSis (via i1Profiler)"
       default: "i1"
       no_space: true

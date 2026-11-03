@@ -11,6 +11,7 @@ The variable names mirror printtarg.c so the two can be diffed line-for-line.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 from . import hexagon
 from .instruments import Geom
@@ -208,6 +209,9 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
     *scanc* bit 2 set ⇒ scan-compatibility first-row extra width (printtarg -s).
     Returns a :class:`Layout`.  Raises :class:`LayoutError` if nothing fits.
     """
+    if geom.key == "FD9":
+        from workflow.fd9.chart import packing
+        return packing(f"{paper_w_mm:g}x{paper_h_mm:g}", npat, geom.pwid, geom.plen, geom.pspa, None)
     if npat < 1:
         raise LayoutError("need at least one patch")
 
@@ -412,6 +416,9 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     the strip-reader instruments that use one strip per page (i1/p3/CM/SS);
     multi-strip instruments (DTP41/51) will gain strip gutters in a later pass.
     """
+    if geom.key == "FD9":
+        return Placement((paper_w_mm - ((layout.passes - 1) * geom.rrsp + geom.pwid)) / 2, 42-geom.plen/2, geom.plen, geom.pwid, geom.pspa, geom.rrsp,
+                         layout.steps_in_pass, 23)
     g = geom
     ph = paper_h_mm
     pw = paper_w_mm
@@ -889,9 +896,19 @@ def strip_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             x = px(place.x_of(p))
             y = px(place.y_of(0)) + _stag
             h = px(place.y_of(col_n - 1) + place.plen) + _stag - y
+            width = px(place.pwid)
+            if geom.key == "FD9":
+                if geom.pspa == 0:
+                    x = px(place.x0) + round(p * place.rrsp * mm2px)
+                    y = px(place.y0_first)
+                    width = px(place.x0) + round((p+1) * place.rrsp * mm2px) - x
+                    h = round(col_n * place.plen * mm2px)
+                minimum = math.ceil(6 * mm2px)
+                width = max(width, minimum)
+                h = max(h, px(place.y_of(col_n-1)) + _stag + minimum - y)
             rects.append({
                 "page": page, "pass": p,
-                "x": x, "y": y, "w": px(place.pwid), "h": h,
+                "x": x, "y": y, "w": width, "h": h,
             })
     return rects
 
@@ -1004,6 +1021,14 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                 _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
                 _x1 = px(place.x_of(p) + place.pwid)
                 _y1 = px(place.y_of(j) + place.plen) + _stag
+            if geom.key == "FD9":
+                if geom.pspa == 0:
+                    _x0 = px(place.x0) + round(p * place.rrsp * mm2px)
+                    _x1 = px(place.x0) + round((p+1) * place.rrsp * mm2px)
+                    _y0 = px(place.y0_first) + round(j * place.plen * mm2px)
+                    _y1 = px(place.y0_first) + round((j+1) * place.plen * mm2px)
+                minimum = math.ceil(6 * mm2px)
+                _x1, _y1 = max(_x1, _x0 + minimum), max(_y1, _y0 + minimum)
             out.append({
                 "page": page, "slot": gslot, "loc": loc,
                 "x": _x0, "y": _y0,

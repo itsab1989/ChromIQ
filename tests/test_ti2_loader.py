@@ -181,6 +181,9 @@ def test_known_instruments_registry() -> None:
         # know this name and refuses the chart, which is why
         # TabMeasure._blocked_by_stock_chartread_for_cr30 exists.
         "CR30",
+        # Native independent FD9 routing, never stock chartread.
+        "FD-9",
+        "Konica Minolta FD-9",
     )
 
 

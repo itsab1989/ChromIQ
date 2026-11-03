@@ -200,6 +200,7 @@ def build_chart(
     margins: tuple[float, float, float, float] | None = None,
     patch_w: float | None = None,
     patch_h: float | None = None,
+    fd9_gap: float = 1.0,
     spacer_width: float | None = None,
     inter_patch: float | None = None,
     strip_gap: float | None = None,
@@ -326,6 +327,13 @@ def build_chart(
     once. A ``.ti2`` carrying calibrated values made a profile of the raw
     printer, and ``applycal`` then calibrated it a second time.
     """
+    if instrument == "FD9":
+        from workflow.fd9.chart import build_chart as build_fd9
+        return build_fd9(ti1_path, out_base, paper=paper, dpi=dpi,
+                         randomize=randomize, seed=seed, bit16=bit16,
+                         cal_path=cal_path, apply_cal=apply_cal, export_pdf=export_pdf,
+                         ramps_per_strip=ramps_per_strip, patch_mm=patch_w or 8.0,
+                         patch_height_mm=patch_h, gap_mm=fd9_gap)
     target = ti1_reader.read_ti1(ti1_path)
     # What goes on paper. Differs from `target` only under -K.
     printed = target

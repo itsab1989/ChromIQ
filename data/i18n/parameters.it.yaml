@@ -513,6 +513,7 @@ parameters:
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (piano)"
         - "CR30 (ChnSpec, patch by patch)"
+        - "FD-9 (Konica Minolta)"
         - "i1iSis (via i1Profiler)"
     "-h":
       name: "Double density"

@@ -49,7 +49,9 @@ DEVICES = {
            ("ColorMunki", "header", "colormunki")],
 }
 #: Not timed, by Knut's ruling: no strips.
-NO_STRIPS = {"SS": "spectroscan", "CR30": "cr30"}
+# FD9 is driven by its native acquisition worker; its motor controls motion.
+# It never enters the chartread swipe-pace manager and needs no manual-rate row.
+NO_STRIPS = {"SS": "spectroscan", "CR30": "cr30", "FD9": "native-fd9"}
 
 CASES = [(code, name, where, key)
          for code, devs in DEVICES.items() for name, where, key in devs]

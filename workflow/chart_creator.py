@@ -186,7 +186,7 @@ _PRINTTARG_CAL_MISMATCH = re.compile(
 
 
 # Instruments the ChromIQ layout engine can lay out itself (issue #93).
-ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30"}
+ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30", "FD9"}
 
 # Instruments the engine is the ONLY route for - printtarg cannot lay them out
 # at all, so the printtarg path is not a fallback, it is a fault (#159).
@@ -201,7 +201,7 @@ ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30"}
 # to printtarg once per probe. So the CR30 is forced onto the engine in
 # _should_use_engine, and _build_printtarg_args REFUSES to build an argv for it
 # rather than emitting a flag printtarg will reject.
-ENGINE_ONLY_INSTRUMENTS = {"CR30"}
+ENGINE_ONLY_INSTRUMENTS = {"CR30", "FD9"}
 
 # printtarg's ColorMunki triple-density trick (-ii1) uses -a1.3 by default; the
 # engine's native extra-high-density (pscale 1.0) reproduces exactly that size,
@@ -786,6 +786,9 @@ class ChartParams:
     layout_recipe: "object | None" = None
     engine_cal_path: str | None = None
     engine_apply_cal: bool = False
+    fd9_patch_mm: float = 8.0
+    fd9_patch_h_mm: float | None = None
+    fd9_gap_mm: float = 1.0
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
     # following measure / colprof runs. Set by the guided tab when the user
@@ -1565,6 +1568,8 @@ class ChartCreator:
         return bool(self._settings.get("use_chromiq_layout_engine", False))
 
     def _engine_build_kwargs(self, params: "ChartParams") -> dict:
+        if params.instrument == "FD9":
+            return self._engine_kwargs(params)
         spacer_mode = ("none" if params.no_spacers
                        else "bw" if params.bw_spacers else "colored")
         kw: dict = dict(
@@ -1675,6 +1680,12 @@ class ChartCreator:
         Used to drive the targen ``-f`` count in Guided and Manual-auto so the
         chart fills the page(s) under the engine's own packing.
         """
+        if params.instrument == "FD9":
+            from workflow.fd9.chart import capacity
+            if params.pages != 1:
+                raise ValueError("FD-9 currently supports one sheet per chart")
+            kw = self._engine_kwargs(params)
+            return capacity(params.paper, kw["patch_w"], kw["patch_h"], kw["fd9_gap"], kw["dpi"])
         if not self._should_use_engine(params):
             return None
         try:
@@ -1709,6 +1720,22 @@ class ChartCreator:
         diagnosis 2026-10-03), and the help card's "a plain ramp of one ink
         channel at a time" was false.
         """
+        if params.instrument == "FD9":
+            recipe = params.layout_recipe
+            recipe_kw = recipe.build_kwargs() if recipe is not None else {}
+            return dict(
+                instrument="FD9", paper=params.paper,
+                patch_w=float(getattr(recipe, "patch_w_mm", 0) or getattr(params, "fd9_patch_mm", 8.0)),
+                patch_h=float(getattr(recipe, "patch_h_mm", 0) or getattr(params, "fd9_patch_h_mm", None) or getattr(recipe, "patch_w_mm", 0) or params.fd9_patch_mm),
+                fd9_gap=float(getattr(recipe, "fd9_gap_mm", params.fd9_gap_mm)),
+                dpi=int(recipe_kw.get("dpi", params.tiff_dpi) or 300),
+                bit16=bool(recipe_kw.get("bit16", params.tiff_16bit)),
+                randomize=(bool(recipe_kw.get("randomize", not params.no_randomise))
+                           and not params.cal_target),
+                seed=recipe_kw.get("seed"),
+                cal_path=params.engine_cal_path or None,
+                apply_cal=bool(params.engine_apply_cal),
+                export_pdf=bool(recipe_kw.get("export_pdf", False)))
         _in_order = bool(getattr(params, "cal_target", False))
         if params.layout_recipe is not None and hasattr(params.layout_recipe, "build_kwargs"):
             kw = params.layout_recipe.build_kwargs()
@@ -1845,7 +1872,8 @@ class ChartCreator:
             self._write_channel_sidecar(work_dir, stem, self._pending_params,
                                         engine="chromiq")
             self._embed_layout_geometry(work_dir, stem, result, params)
-            self._stamp_tiff_metadata(tiffs, self._pending_params)
+            if params.instrument != "FD9":
+                self._stamp_tiff_metadata(tiffs, self._pending_params)
 
         self._finish(tiffs)
 

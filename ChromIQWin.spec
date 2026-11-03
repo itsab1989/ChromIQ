@@ -113,12 +113,14 @@ if platform.machine().upper() in ('ARM64', 'AARCH64'):
 
 a = Analysis(
     ['main.py'],
-    pathex=['.'],
+    pathex=['.', os.path.join(os.path.dirname(os.path.abspath(SPEC)), 'vendor', 'fd9-independent', 'src')],
     binaries=[*_ic_binaries, *_winpty_binaries, *_we_binaries],
     datas=[
         ('LICENSE',              '.'),
         ('THIRD-PARTY-NOTICES.md', '.'),
         *_native_licences,
+        ('vendor/fd9-independent/LICENSE', 'licenses/fd9-independent'),
+        ('vendor/fd9-independent/docs/PROVENANCE.md', 'licenses/fd9-independent'),
         ('assets',               'assets'),
         ('data/parameters.yaml', 'data'),
         ('data/preset_defaults.json', 'data'),
@@ -145,6 +147,11 @@ a = Analysis(
         *_we_datas,
     ],
     hiddenimports=[
+        'fd9_independent.conversion_profile', 'fd9_independent.motion',
+        'fd9_independent.geometry', 'fd9_independent.operator_controls',
+        'fd9_independent.native', 'fd9_independent.native_motion',
+        'fd9_independent.instrument_model', 'fd9_independent.factory_motion',
+        'fd9_independent.factory', 'fd9_independent.sensor_data', 'fd9_independent.sensor_status',
         'PyQt6.sip',
         'PyQt6.QtCore',
         'PyQt6.QtGui',

@@ -159,6 +159,8 @@ def instrument_to_flag(target_instrument: str | None) -> str:
     # a CR30 chart relayouts as a CR30 rather than silently falling through to
     # the i1Pro default below, which would re-lay a hand-placed grid as a strip
     # chart. chart_creator forces the layout engine for this key.
+    if "fd-9" in name or name == "fd9":
+        return "FD9"
     if "cr30" in name:
         return "CR30"
     if "colormunki" in name:

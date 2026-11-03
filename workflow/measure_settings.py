@@ -54,6 +54,8 @@ NOT_A_SETTING = {
 #: Manual only: Guided is a way of *choosing* these, and it fills the same
 #: underlying reading — the same rule Create Chart follows.
 MEASURE_CONTROLS: "dict[str, str]" = {
+    "fd9_resume":         "_fd9_resume",
+    "fd9_condition":      "_fd9_condition",
     "suppress_warnings":   "_m_suppress_cb",
     "disable_initial_cal": "_m_nocal_cb",
     "patch_by_patch":      "_m_pbp_cb",
@@ -171,6 +173,8 @@ def apply(tab: Any, stored: "dict[str, dict]") -> "list[str]":
     # Manual twin, which is where those options live now, unless the file
     # already carries one.
     stored = dict(stored or {})
+    # The independent driver is selected by the FD-9 chart, not a separate opt-in.
+    stored.pop("fd9_research", None)
     for key in [k for k in stored if k.startswith("chartread.")]:
         suffix = key.split(".", 1)[1]
         manual_key = f"chartread_manual.{suffix}"

@@ -24,6 +24,9 @@ DEFAULTS: dict[str, Any] = {
     # otherwise starts ArgyllCMS spotread exactly as before.
     "spot_read_instrument":      "auto",
     "chart_paper":               "A4",
+    "chart_fd9_patch_mm":        8.0,
+    "chart_fd9_patch_h_mm":      0.0,
+    "chart_fd9_gap_mm":          1.0,
     "chart_pages":               1,
     # Which BUILT-IN presets the Create Chart lists show directly (Knut, #182
     # 5818659478), as a JSON object {preset key: shown}. It holds only the

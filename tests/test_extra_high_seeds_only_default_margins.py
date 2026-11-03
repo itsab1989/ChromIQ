@@ -251,8 +251,12 @@ def test_max_strip_length_is_greyed_in_area_first_for_every_instrument(app, inst
     # The value is kept for patch-first.
     assert p.max_strip.value() == 150.0
     _layout(p, "patch_first")
-    assert p.max_strip.isVisibleTo(p) and p.max_strip.isEnabled()
+    assert p.max_strip.isVisibleTo(p)
+    # Native FD-9 has a fixed grid in both modes; this value is retained
+    # solely for switching back to a configurable instrument.
+    assert p.max_strip.isEnabled() == (inst != "FD9")
     assert lbl.isEnabled()
+    assert p._max_strip_row[2].isEnabled()
     assert p.max_strip.toolTip() == P.max_strip_tooltip(False)
     assert p.get_recipe().max_strip_mm == 150.0
 

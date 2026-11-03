@@ -80,6 +80,8 @@ CASES = [
     # the strip readers bracket every strip whatever the box says
     ("i1", "colored", 1.0, False), ("p3", "bw", 0.0, False),
     ("CM", "colored", 0.0, False),
+    # FD-9 uses its native fixed one-mm gaps, independent of this recipe tick.
+    ("FD9", "none", 0.0, False), ("FD9", "colored", 1.0, False),
 ]
 
 

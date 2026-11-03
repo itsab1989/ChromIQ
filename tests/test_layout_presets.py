@@ -1,4 +1,6 @@
 """Tests for LayoutRecipe + PresetStore (round-trip persistence, presets)."""
+import pytest
+
 from workflow.layout_engine.presets import (
     LayoutRecipe, PresetStore, default_recipe,
 )
@@ -44,17 +46,19 @@ def test_store_get_set_default_fallback():
     assert got.seed is None
 
 
-def test_all_fields_persist_through_named_dict():
+@pytest.mark.parametrize("instrument", ["i1", "FD9"])
+def test_all_fields_persist_through_named_dict(instrument):
     """Every engine option must survive the file-backed preset path
     (store.set → as_named_dict → from_named_dict → get) so it saves as a default
     / preset like the printtarg options. Presets drop only the per-chart seed."""
     from dataclasses import fields, replace
     full = LayoutRecipe(
-        instrument="i1", paper="A4", clip_border=True, dpi=150, randomize=True,
+        instrument=instrument, paper="A4", clip_border=True, dpi=150, randomize=True,
         cm_density=1, spacer_on=True, spacer_mode="bw",
         spacer_palette=["#112233", "#445566"], pscale=0.9, sscale=1.1,
         border=8.0, margin_top=10.0, margin_right=8.0, margin_bottom=12.0,
         margin_left=9.0, patch_w_mm=9.0, patch_h_mm=11.0, spacer_width_mm=2.0,
+        fd9_gap_mm=0.0 if instrument == "FD9" else 1.0,
         inter_patch_mm=1.0, max_strip_mm=200.0, strip_indicator_gap_mm=3.0,
         offset_x_mm=4.0, offset_y_mm=5.0, bit16=True, compression="zlib",
         show_strip_indicators=True, show_row_indicators=False,
@@ -93,7 +97,7 @@ def test_all_fields_persist_through_named_dict():
     store = PresetStore()
     store.set(full)
     reloaded = PresetStore.from_named_dict(store.as_named_dict())
-    got = reloaded.get("i1", "A4", "clip")
+    got = reloaded.get(instrument, "A4", full.mode())
     # every field except the deliberately-dropped per-chart seed must match
     for f in fields(LayoutRecipe):
         if f.name == "seed":

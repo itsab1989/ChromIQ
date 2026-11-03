@@ -2090,6 +2090,7 @@ class TiffPreview(QWidget):
         self._hover_stripe: int = -1
         self._pan_dist: int = 0
         self._patch_overlay: dict[int, list] = {}
+        self._scan_grid = None
         #: CR30 aiming help: the instrument's body and aperture, drawn to scale
         #: on the patch being asked for. See `set_aim_overlay`.
         self._aim_overlay = False
@@ -2301,6 +2302,7 @@ class TiffPreview(QWidget):
         re-rendering as options change), so the user isn't yanked back to fit.
         """
         self._ink_channels = ink_channels
+        self._scan_grid = None
         self._pages = []
         self._prefetch_sig = None
         for p in paths:
@@ -2342,6 +2344,58 @@ class TiffPreview(QWidget):
         """Set the small ALL-CAPS caption above the preview (e.g. 'PRINT PREVIEW')."""
         self._caption_lbl.setText(text)
         self._caption_lbl.setVisible(bool(text))
+
+    def set_scan_grid(self, rows, completed=(), active=None) -> None:
+        """Acquisition cells in image pixels; separate from colorimetric flags."""
+        if rows is None:
+            state = None
+        else:
+            state = (rows, frozenset(completed), active)
+        if self._scan_grid != state:
+            self._scan_grid = state
+            self._schedule_refresh()
+
+    def _draw_scan_grid(self, painter, sx, sy, ox, oy):
+        from PyQt6.QtGui import QPen, QPolygonF
+        rows, completed, active = self._scan_grid
+        # Reuse the normal measured/expected colours and hover data. The scan
+        # adds skewed polygons; never paint an axis-aligned box over its gaps.
+        overlays = {(r.x(), r.y(), r.width(), r.height()): (expected, measured, warn)
+                    for r, expected, measured, warn in self._patch_overlay.get(self._current, [])}
+        painter.save()
+        for i, row in enumerate(rows):
+            colour = QColor("#56d6a5" if i in completed else
+                            "#ffbc55" if i == active else "#159cc2")
+            for cell in row:
+                points = [QPointF(x * sx + ox, y * sy + oy) for x, y in cell]
+                path = QPainterPath()
+                path.addPolygon(QPolygonF(points))
+                path.closeSubpath()
+                rect = QPolygonF([QPointF(x, y) for x, y in cell]).boundingRect().toAlignedRect()
+                overlay = overlays.get((rect.x(), rect.y(), rect.width(), rect.height()))
+                warn = False
+                if overlay is not None:
+                    expected, measured, warn = overlay
+                    painter.fillPath(path, expected if self._overlay_mode == "expected" else measured)
+                    if self._overlay_mode == "both":
+                        triangle = QPainterPath()
+                        triangle.addPolygon(QPolygonF([points[0], points[1], points[3]]))
+                        triangle.closeSubpath()
+                        painter.fillPath(triangle.intersected(path), expected)
+                elif self._show_only_measured:
+                    painter.fillPath(path, QColor("white"))
+                elif i in completed:
+                    fill = QColor(colour)
+                    fill.setAlpha(35)
+                    painter.fillPath(path, fill)
+                # Acquisition status and colour flags are independent. Keep
+                # the row edge visible without tinting measured colour fills.
+                pen = QPen(_ring_colours(warn)[0] if warn else colour)
+                pen.setWidthF(1.6 if warn or i in completed or i == active else 0.8)
+                pen.setCosmetic(True)
+                painter.setPen(pen)
+                painter.drawPath(path)
+        painter.restore()
 
     def set_measurement_progress(self, percent: "float | None",
                                  *, tracking: bool = True) -> None:
@@ -3671,6 +3725,7 @@ class TiffPreview(QWidget):
         self._hide_print_chip()
 
     def clear(self) -> None:
+        self._scan_grid = None
         self.reset_ink_inspector()
         self._pages = []
         self._current = 0
@@ -4906,6 +4961,9 @@ class TiffPreview(QWidget):
         `legend=False` places the chip (its rectangle is still recorded for
         the hover test) but leaves the painting to `_paint_legend_chip`, so a
         caller can draw the scan arrows in between (K1)."""
+        if self._scan_grid is not None:
+            self._draw_scan_grid(painter, s, s if sy is None else sy, ox, oy)
+            return
         sy = s if sy is None else sy
         self._legend_paint = None
         from PyQt6.QtGui import QPen, QPainterPath as _QP

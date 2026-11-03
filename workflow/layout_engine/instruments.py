@@ -87,6 +87,7 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
     "41": "X-Rite DTP41",
     "51": "X-Rite DTP51",
     "SS": "GretagMacbeth SpectroScan",
+    "FD9": "FD-9",
     # ChnSpec CR30 (#159). The HONEST name, by ruling: the device reports "CR30"
     # for itself, so that is what the chart says it is. Consequence, stated here
     # because it is load-bearing: stock ArgyllCMS `chartread` matches
@@ -718,6 +719,11 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
     the margins laid out (Knut's model, #93). The clamp that once sat here,
     ``margins_fit`` and a ``thresholds`` argument, was only ever called with
     ``None`` and was removed in 4.3.19 (review r1 N8)."""
+    if kw.get("instrument") == "FD9":
+        from workflow.fd9.chart import patch_dimensions
+        w, h, gap = patch_dimensions(kw.get("patch_w") or 8.0, kw.get("patch_h"),
+                                      kw.get("fd9_gap", 1.0), kw.get("dpi", 300))
+        return replace(build("FD9"), plen=h, pwid=w, pspa=gap, rrsp=w+gap)
     # CM/SS/CR30 have no native clip border, but can still carry a notes/clip
     # band when clip content is on — reserve that band so capacity reflects it
     # (#93). CR30 joined this tuple in #159: the design says its clip band is
@@ -828,6 +834,12 @@ def _build_base(
     extension beyond printtarg's single level; tighter rows pending hardware
     validation, guarded by the 6 mm reliability floor).
     """
+    if key == "FD9":
+        return replace(_build_base("SS", spacer_on=False), key="FD9",
+                       target_name="FD-9", plen=8.0, pwid=8.0, rrsp=9.0,
+                       pspa=1.0, txhisl=0.0, rlwi=0.0, mxpprow=25,
+                       padlrow=True, margin_t=38.0, margin_b=33.0,
+                       margin_l=15.0, margin_r=15.0)
     if key == "CM" and hflag and density < 2:
         density = 2   # back-compat: hflag meant "rig" (double density)
     if key in DELEGATED:

@@ -10668,3 +10668,75 @@ Knut, 2026-10-20 (mail "Small bug and results from profiling"): run 1 was instal
 * **Replace** writes the new file and then removes the other one (`remove_installed_twins`, called by `install_profile_file` and the scanner window), so one profile of that name stays installed. A file that cannot be removed (held open by another program) is left, logged, and never fails the install. **Cancel** changes nothing. A typed name that is installed with the other extension is shown the same way, and Replace treats it the same way.
 * The 100-character cut is kept as it is (Basti, 2026-10-21).
 * Tests: `tests/test_k2_icc_and_icm_are_one_name.py`.
+
+### FD-9 experimental integration wording (proposal for maintainer review)
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+The independent FD-9 integration is a new experimental reader. Its setup labels
+and log messages are implemented in the contribution for review; this is not a
+claim that the design authority has approved their wording. The ending question
+and its buttons reuse M-END/M-END-EMPTY without changes. No new ending dialog or
+instrument-motion cancel command is introduced.
+
+Proposed setup notice:
+
+> The independent driver uses an external conversion profile. The current profile is experimental and validated on one FD-9. Manufacturer software must be disconnected.
+
+Proposed preview and session log messages:
+
+> FD-9 layout preview: approximate colours, not a print file.
+>
+> Stopping FD-9 communication. Keep this window open until the operation ends.
+>
+> Quit again after the FD-9 operation has ended.
+>
+> FD-9 measurement saved: {path}
+>
+> The previous measurement is unchanged. Raw session evidence is preserved. If the sheet remains in the FD-9, use its controls to recover it.
+>
+> If the sheet remains in the FD-9, use its controls to recover it.
+
+Save files only complete acknowledged rows. Discard preserves the previous
+canonical file. Keep continues a connected acquisition; after a failure it keeps
+the staged readings and requires explicit Continue after sheet recovery. Resume
+requests only the remaining row suffix on a reinserted matching sheet. The
+software tests cover these paths. A supervised live 36-patch stop/save and
+264-patch suffix resume passed on one owned unit on 2026-10-16, with unchanged
+prior readings, verified home/ejection and exact packet/transcript matches.
+This records test evidence, not approval of the proposed behaviour.
+The scan preview displays a horizontally corrected grayscale image with the
+measurement cells projected through the detected marks. Cyan means pending,
+amber the next row, and green a fully acquired row; these are acquisition
+indicators, not colour-quality judgments. The existing progress header counts
+unique measured locations, including prior rows on resume, and honours its
+preference switch. Discard restores the canonical measurement's progress.
+
+Proposed scan notice:
+
+> FD-9 scan: green rows are complete.
+
+These FD-9-specific behaviours and wording await maintainer confirmation.
+
+## FD-9 generated-chart filing (proposed, 2026-11-01)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+FD-9 creation uses the normal Create → Print → Measure handoff. Generated grids
+carry the same checked sample identities as imported grids. Printer CAL tables
+and chart total ink limits survive conversion, location stamping, partial
+filing and Resume. A changed printer calibration cannot resume an old partial
+measurement. Cancelling before the pre-scan returns the original stop/transport
+reason, because no geometry or completed row exists to export. The common
+Save/Discard/Keep lifecycle continues to own canonical filing.
+
+FD-9 revision, 2026-11-01 (awaiting maintainer confirmation): the prototype
+12 × 25 ceiling is removed. Columns and rows derive from the sheet area at
+8 mm patch size / 1 mm gaps (up to 2,145 on 330 × 660 mm). Marks have 4 mm
+outside their left/right edges. Generated charts, measurement commands, wire
+verification, progress and partial/resume use the declared variable grid. The
+expanded acquisition path is synthetic-tested and awaits physical validation;
+the user currently requests PDF/TIFF evaluation only. This supersedes the fixed
+300-patch limits in the preceding proposal; legacy imported layouts are retained.

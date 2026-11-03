@@ -1685,7 +1685,10 @@ def _scroll_the_preflight_text(box) -> bool:
     return True
 
 
-class TabMeasure(Cr30CalibrationMixin, QWidget):
+from ui.fd9_measurement import FD9MeasureMixin
+
+
+class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
 
     measure_finished   = pyqtSignal(Path)  # emits the .ti3 path on success
@@ -2072,6 +2075,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if hasattr(self, "_import_btn"):
             self._import_btn.setChecked(mode == "import")
         self._calm_outer.setVisible(mode == "guided")
+        if hasattr(self, '_fd9_panel'):
+            self._refresh_fd9_panel()
         # The two modules keep INDEPENDENT "Live preview" settings; apply the
         # now-active module's view state to the shared preview so switching
         # module shows that module's chosen view (Basti). Guarded for build time.
@@ -2770,6 +2775,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         top_layout = QVBoxLayout(top_widget)
         top_layout.setContentsMargins(16, 12, 16, 6)
         top_layout.setSpacing(8)
+        self._init_fd9_panel(top_layout)
         # Load-chart + reveal-folder icons in the header's upper-right, like the
         # Create Chart and Print Chart tabs (Knut/Basti). The selected file still
         # shows in the Chart File frame below.
@@ -4701,6 +4707,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._apply_cr30_pbp_lock()
         self._apply_cr30_dead_options()
         # #134 / K1 (Knut): the overlay auto-offer is a MEASURE-tab feature, but
+        self._refresh_fd9_panel()
         # set_ti1_path is also driven cross-tab — the Print tab's ti2_loaded, the
         # Check tab's ti2_found, project open, session restore and Profile-run /
         # Run-type bar changes all call it. Only pop the offer when the Measure
@@ -5420,7 +5427,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._clear_previous_instrument_log()
             if instr:
                 label = instrument_label(instr)
-                if is_spectroscan(instr):
+                if is_spectroscan(instr) or (hasattr(self, '_fd9_panel') and self._is_fd9_target()):
                     # XY table — reads patches individually, so the
                     # bidirectional "reading direction" note does not apply.
                     msg = tr("Chart instrument: {label}.").format(label=label)
@@ -5960,6 +5967,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         (`_refresh_start_button_label`), so any message that hard-codes "Start
         Measurement" names a button the user cannot see. Ask the button.
         """
+        if hasattr(self, '_fd9_panel') and self._is_fd9_target():
+            return tr('Continue Measurement') if self._fd9_resume.isChecked() or self._fd9_pending else tr('Start Measurement')
         btn = getattr(self, "_start_btn", None)
         try:
             return btn.text() if btn is not None else tr("Start Measurement")
@@ -5970,6 +5979,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """Show 'Continue Measurement' on the Start button when the resume
         checkbox for the active mode is ticked (i.e. the next run will pass
         chartread's -r flag)."""
+        if hasattr(self, '_fd9_resume') and self._is_fd9_target():
+            self._start_btn.setText(self._start_button_name());return
         cb = self._resume_cb if self._current_mode() == "guided" else self._m_resume_cb
         if cb.isVisible() and cb.isChecked():
             self._start_btn.setText(tr("Continue Measurement"))
@@ -6114,6 +6125,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                         cb.setChecked(True)
 
     def _try_load_tiffs(self, base_path: Path) -> None:
+        if hasattr(self, '_fd9_panel') and self._is_fd9_target():
+            if self._fd9_load_preview(base_path):
+                return
         # ONE strip, by name: `with_suffix("").stem` stripped twice, turning
         # "X-w10.0mm.ti2" into "X-w10" and widening the glob below to any
         # chart sharing that prefix (core/stem_paths.py).
@@ -7825,6 +7839,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     @_disarms_a_start_that_did_not_start
     @_settles_the_replaced_chart
     def _on_start(self) -> None:
+        if getattr(self, '_fd9_live', False) or self._fd9_worker_running():
+            return
+        if hasattr(self, '_fd9_panel') and self._is_fd9_target():
+            self._start_fd9_measurement()
+            return
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")
             self._log.ensureCursorVisible()
@@ -9063,7 +9082,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
 
-        if not self._manager.has_unsaved_readings:
+        fd9 = getattr(self, '_fd9_live', False) or getattr(self, '_fd9_pending', None) is not None
+        if not (self._fd9_readings if fd9 else self._manager.has_unsaved_readings):
             # M-END-EMPTY. Nothing to lose, so nothing to ask — but say so,
             # because silence after pressing Stop is what has to be interpreted.
             self._log.appendPlainText(
@@ -9097,7 +9117,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Every route in reaches this window either from a window that has
         # already cued (all of the above) or from a button the user has just
         # pressed themselves, so nothing is left unannounced by the removal.
-        n = self._manager.readings_this_session
+        n = self._fd9_readings if fd9 else self._manager.readings_this_session
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
         title = tr("Keep what you have measured so far?")
@@ -9168,6 +9188,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         approved sentence about it is true and is said (4.3.5 beta 5
         regression review).
         """
+        if getattr(self, "_fd9_live", False) or getattr(self, "_fd9_pending", None) is not None:
+            return int(getattr(getattr(self, "_fd9_guard", None), "before", 0) or 0)
         sess = getattr(self, "_session_guard", None)
         before = int(getattr(sess, "before", 0) or 0)
         if before:
@@ -9227,6 +9249,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         process discards them. Pressing 'd' asked and saved; pressing Stop threw
         the work away without a word. Both now ask the same question.
         """
+        if getattr(self, '_fd9_live', False) or getattr(self, '_fd9_pending', None) is not None:
+            self._stop_fd9_measurement()
+            return
         self._key_watchdog.stop()
         self._end_session(self._confirm_end_of_session(self.END_STOP))
 
@@ -9236,6 +9261,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def a_measurement_is_running(self) -> bool:
         """True while a reader is live and waiting for this tab's keys."""
+        if (getattr(self, '_fd9_live', False)
+                or getattr(self, '_fd9_pending', None) is not None
+                or self._fd9_worker_running()):
+            return True
         return bool(getattr(self, "_session_live", False)) and \
             bool(self._runner.is_running)
 
@@ -9267,6 +9296,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not self.a_measurement_is_running():
             return True
         self._key_watchdog.stop()
+        if (self._fd9_worker_running()
+                and not getattr(self, '_fd9_live', False)
+                and getattr(self, '_fd9_pending', None) is None):
+            # A queued result may be filed before QThread emits finished.
+            # Keep its parent alive until the worker has actually returned.
+            self._fd9_log(tr('Quit again after the FD-9 operation has ended.'))
+            return False
+        if getattr(self, '_fd9_live', False) or getattr(self, '_fd9_pending', None) is not None:
+            self._fd9_end_prompt(self.END_QUIT)
+            if self.a_measurement_is_running():
+                if self._fd9_choice is not None:self._fd9_log(tr('Quit again after the FD-9 operation has ended.'))
+                return False
+            return True
         choice = self._confirm_end_of_session(self.END_QUIT)
         if choice is None:
             log.info("quit cancelled: the user chose to keep measuring")
@@ -17703,6 +17745,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         preview = getattr(self, "_preview", None)
         if preview is None or not hasattr(preview, "set_measurement_progress"):
             return
+        if getattr(self, "_fd9_scan_preview", None):
+            self._fd9_update_scan_grid()
         if not self._progress_enabled():
             preview.set_measurement_progress(None, tracking=False)
             return
@@ -19970,7 +20014,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return True
 
     def _clear_overlay(self) -> None:
-        """Remove a statically-shown overlay (#134)."""
+        """Remove the optional engine overlay; FD-9 owns its scan colours."""
+        event = getattr(self, "_fd9_scan_preview", None)
+        if event and self._is_fd9_target():
+            from workflow.fd9.measurement import sha
+            chart = self._chart_file_for(self._ti1_path)
+            try:
+                matches = (self._fd9_scan_chart == str(chart.resolve())
+                           and event["layout_sha256"] == sha(chart.with_suffix(".fd9.json")))
+            except OSError:
+                matches = False
+            if matches:
+                if not self._fd9_live:
+                    self._fd9_restore_scan_colours(chart)
+                return
         self._preview.clear_patch_overlay()
 
     def _chart_identity(self) -> "tuple | None":
@@ -21107,6 +21164,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._log.ensureCursorVisible()
 
     def _restore_defaults(self) -> None:
+        if hasattr(self, '_fd9_condition'):
+            self._fd9_condition.setCurrentText('M1')
+            self._fd9_resume.setChecked(False)
         s = self._settings
         # Guided defaults. The legacy guided default was -B on (DEFAULTS has
         # measure_disable_bidir=True), so a brand-new user migrates to "disable"

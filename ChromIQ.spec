@@ -179,7 +179,7 @@ if _missing_licences:
 
 a = Analysis(
     ['main.py'],
-    pathex=['.'],
+    pathex=['.', os.path.join(os.path.dirname(os.path.abspath(SPEC)), 'vendor', 'fd9-independent', 'src')],
     binaries=[*_ic_binaries, *_we_binaries, *_oc_binaries, *_ak_binaries,
               *_np_binaries, *_ft_binaries,
               # CR30 Bluetooth: dbus-fast (Linux) and the winrt packages
@@ -187,6 +187,8 @@ a = Analysis(
               # binaries, not just as importable names.
               *_bl_binaries, *_btp_binaries],
     datas=[
+        ('vendor/fd9-independent/LICENSE', 'licenses/fd9-independent'),
+        ('vendor/fd9-independent/docs/PROVENANCE.md', 'licenses/fd9-independent'),
         # #182 F3: a licence page can only show what actually travelled. These
         # two were at the project root and in nobody's `datas`, so a user who
         # installed the .dmg had neither ChromIQ's own licence nor the notices
@@ -222,6 +224,11 @@ a = Analysis(
         *_ft_datas,
     ],
     hiddenimports=[
+        'fd9_independent.conversion_profile', 'fd9_independent.motion',
+        'fd9_independent.geometry', 'fd9_independent.operator_controls',
+        'fd9_independent.native', 'fd9_independent.native_motion',
+        'fd9_independent.instrument_model', 'fd9_independent.factory_motion',
+        'fd9_independent.factory', 'fd9_independent.sensor_data', 'fd9_independent.sensor_status',
         'PyQt6.sip',
         'PyQt6.QtCore',
         'PyQt6.QtGui',

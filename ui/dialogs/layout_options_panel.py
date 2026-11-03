@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 from contextlib import contextmanager
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtWidgets import (
     QButtonGroup, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
     QSizePolicy, QSpacerItem, QToolButton, QVBoxLayout, QWidget,
@@ -308,7 +308,8 @@ class LayoutOptionsPanel(QWidget):
                    ("p3", "i1Pro 3 Plus"),
                    ("CM", "ColorMunki / i1Studio / ColorChecker Studio"),
                    ("SS", "SpectroScan (flatbed)"),
-                   ("CR30", "CR30 (ChnSpec, patch by patch)")]
+                   ("CR30", "CR30 (ChnSpec, patch by patch)"),
+                   ("FD9", "FD-9 (Konica Minolta)")]
 
     @staticmethod
     def mode_label_for(inst: str) -> str:
@@ -601,6 +602,18 @@ class LayoutOptionsPanel(QWidget):
             self._custom_paper_w.setVisible(False)
             sel.setColumnStretch(1, 1)        # paper / instrument / mode expand
             v.addLayout(sel)
+            self.fd9_notice = QLabel(tr("FD-9: 6-30 mm patch width and height; gaps may be zero. Feed arrow first, printed face up."), self)
+            self.fd9_notice.setWordWrap(True)
+            self.fd9_notice.hide()
+            v.addWidget(self.fd9_notice)
+            from ui.dialogs.fd9_sheet import FD9PatchControls
+            self.fd9_controls = FD9PatchControls(self)
+            self.fd9_patch = self.fd9_controls.patch_width
+            self.fd9_height = self.fd9_controls.patch_height
+            self.fd9_gap = self.fd9_controls.gap
+            self.fd9_controls.changed.connect(self._emit)
+            self.fd9_controls.hide()
+            v.addWidget(self.fd9_controls)
             # Long paper labels shouldn't force the panel wide; the paper combo
             # gets a roomier minimum (it shares its row only with Pages) while
             # instrument/mode stay capped. The dropdown always shows full text.
@@ -3109,6 +3122,34 @@ class LayoutOptionsPanel(QWidget):
         for every instrument — e.g. "Offset every second strip" (a ColorMunki-
         only option) showed for SpectroScan / i1Pro / DTP41 / DTP51 until the
         user manually changed the instrument (Knut)."""
+        if self.instr is not None:
+            fd9 = inst == "FD9"
+            if hasattr(self, "fd9_notice"):
+                self.fd9_notice.setVisible(fd9)
+                self.fd9_controls.setVisible(fd9)
+            from PyQt6.QtWidgets import QGroupBox
+            for group in self.findChildren(QGroupBox, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                if group.title() in (tr("Output"), tr("Printer calibration")):
+                    continue
+                # Keep explanatory (i) buttons usable while fixed native
+                # geometry controls are greyed. Disabling the parent also
+                # disables those buttons, regardless of their own state.
+                from PyQt6.QtWidgets import QAbstractSpinBox, QAbstractButton, QComboBox
+                for control in group.findChildren((QAbstractSpinBox, QAbstractButton, QComboBox)):
+                    if isinstance(control, TooltipButton):
+                        continue
+                    if fd9:
+                        if not hasattr(control, "_fd9_prior_enabled"):
+                            control._fd9_prior_enabled = control.isEnabledTo(group)
+                        control.setEnabled(False)
+                    elif hasattr(control, "_fd9_prior_enabled"):
+                        control.setEnabled(control._fd9_prior_enabled)
+                        del control._fd9_prior_enabled
+            if self.pages is not None:
+                self.pages.setMaximum(1 if fd9 else 20)
+            if hasattr(self, "custom_w"):
+                self.custom_w.setRange(137 if fd9 else 20, 330 if fd9 else 2000)
+                self.custom_h.setRange(170 if fd9 else 20, 660 if fd9 else 2000)
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
         if hasattr(self, "clip_enable"):
@@ -5200,6 +5241,9 @@ class LayoutOptionsPanel(QWidget):
                 "for an instrument where it does make a difference."
             ).format(
                     instrument=name))
+        elif effect == "fixed":
+            cb.setToolTip(tr(
+                "FD-9: 6-30 mm patch width and height; gaps may be zero. Feed arrow first, printed face up."))
         elif effect == "no_room":
             cb.setToolTip(tr(
                 "An edge spacer is as wide as the space between two patches, "
@@ -5561,7 +5605,11 @@ class LayoutOptionsPanel(QWidget):
             r = default_recipe(inst, paper, mode=mode)
         else:
             r = base if base is not None else LayoutRecipe()
-        return self.apply_to_recipe(r)
+        r = self.apply_to_recipe(r)
+        if self.instr is not None and self.instr.currentData() == "FD9":
+            r.patch_w_mm, r.patch_h_mm, r.fd9_gap_mm = self.fd9_controls.values()
+            r.layout_mode = "patch_first"
+        return r
 
     def _emit(self, *_a) -> None:
         # **TIMED, BECAUSE A LOG CANNOT BE READ FOR A DURATION IT NEVER
@@ -5787,6 +5835,8 @@ class LayoutOptionsPanel(QWidget):
         """
         with self._clip_preview_batched():
             try:
+                if hasattr(self, "fd9_patch") and r.instrument == "FD9":
+                    self.fd9_controls.set_values(r.patch_w_mm or 8.0, r.patch_h_mm or r.patch_w_mm or 8.0, r.fd9_gap_mm)
                 self._set_recipe_impl(r)
             finally:
                 # A HALF-DONE LOAD MUST NOT KILL THE PANEL. `_set_recipe_impl`

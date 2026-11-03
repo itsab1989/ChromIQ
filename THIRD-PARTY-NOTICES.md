@@ -39,6 +39,28 @@ ArgyllCMS binary the user installed themselves.
 
 ---
 
+## Independent FD-9 source — `vendor/fd9-independent/`
+
+The FD-9 contribution includes newly authored Python source under
+**GPL-3.0-or-later**. The full licence is
+`vendor/fd9-independent/LICENSE`; development provenance and the distinction
+between observed protocol facts and excluded manufacturer material are recorded
+in `vendor/fd9-independent/docs/PROVENANCE.md`. Both files are included in all
+three platform packaging specifications.
+
+No Konica Minolta source, SDK, shared library, captured display artwork,
+extracted numerical table or external conversion profile is supplied here.
+The original instrument artwork is rendered by `display.py`. References to
+public technical papers identify mathematical background, not bundled assets.
+ChromIQ's normal FD-9 workflow obtains native M0/M1/M2 from the firmware using
+its factory characterization. No external profile, manufacturer host library or
+reference chart is required. Factory records are read and checked on the current
+device, not bundled or reapplied by the host. ChromIQ's existing D50/2-degree
+standards data are used for XYZ/Lab integration. One-unit offline comparisons
+are development checks, not a user setup step or certification claim.
+
+---
+
 ## Colour profiles — `assets/profiles/`
 
 Five ICC profiles, each **copied byte for byte** from ArgyllCMS 3.5.0's `ref/`

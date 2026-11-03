@@ -206,3 +206,50 @@ screen, alongside the three choices it has now. Asked on the issue 2026-09-11
 and answered the same day by Knut: **no**. So the chart-file import keeps its
 three choices and never lays a chart out again, and "replace only the chart"
 stays where it is, on the patch-set load.
+
+## FD-9 creation and handoff (proposed, 2026-11-01)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+The FD-9 instrument choice uses ChromIQ's layout builder after ordinary
+targen/patch-set selection. It creates one printable sheet plus TI2 and FD9
+geometry sidecars. That target passes to Print and Measure without an import.
+The feed-oriented size selector allows 137–330 × 170–660 mm. Count is limited to
+12 columns and 1–25 rows, at most 300 patches, matching the current independent
+measurement implementation. Larger counts fail before rendering. Stored sheets
+load rather than silently rebuild. Other instruments keep their existing layout
+and multi-page behavior. This records proposed behavior and test work, not
+maintainer confirmation or hardware certification.
+
+Pure calibration ramps start each ink on its own column with paper white first,
+continuing long ramps in additional columns and filling unused cells with white.
+The rewritten TI1 retains original headers and later tables; a repeat build is
+stable. This follows the proposed calibration run-type amendment. The fixed
+native layout does not use the generic patch-size/ruler controls.
+
+FD-9 revision, 2026-11-01 (awaiting maintainer confirmation): the prototype
+12 × 25 ceiling is removed. Columns and rows derive from the sheet area at
+8 mm patch size / 1 mm gaps (up to 2,145 on 330 × 660 mm). Marks have 4 mm
+outside their left/right edges. Generated charts, measurement commands, wire
+verification, progress and partial/resume use the declared variable grid. The
+expanded acquisition path is synthetic-tested and awaits physical validation;
+the user currently requests PDF/TIFF evaluation only. This supersedes the fixed
+300-patch limits in the preceding proposal; legacy imported layouts are retained.
+
+FD-9 patch-size revision (2026-11-01, awaiting confirmation): Guided's Custom
+sheet dialog and Manual's FD-9 size control offer square patches from 6 to 30 mm,
+retaining 8 mm by default and 1 mm white gaps. Capacity, pixels, PDF paths, scan
+polygons and saved recipes use the selected size. Reopening restores it; Generate
+is required to change a chart. At 6 mm: A4 800, A3 1862, 330 x 660 mm 3612.
+Smaller-patch physical validation is deferred along with the larger-grid test.
+
+FD-9 rectangular/gap revision (awaiting maintainer confirmation): independent
+6..30 mm width and height, with a 0..5 mm gap. Default remains 8 × 8 mm with
+1 mm gaps. The four-mark detector uses the saved grid, so touching rectangles
+are supported by the synthetic recognition checks. FD-9 layout editing opens
+only its own size dialog, without changing the renderer preference or falling
+back to i1Pro/printtarg. Its dimensions/gap carry between the FD-9 editors.
+Zero-gap raster cells share boundaries; minimum-size quantization is reflected
+in the matching PDF and definition. Physical validation remains pending.

@@ -69,6 +69,7 @@ def own_licence_text() -> str:
 #: bundle; only what the WINDOW renders is chosen here.
 NOTICE_SECTIONS: "tuple[str, ...]" = (
     "The rule",
+    "Independent FD-9 source",
     "Colour profiles",
     "Fonts",
     "Vendored JavaScript",

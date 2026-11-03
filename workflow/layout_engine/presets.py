@@ -109,7 +109,8 @@ def edge_spacers_effect(recipe: "LayoutRecipe") -> str:
     so the tick changes nothing. ``"no_room"``: an edge spacer is as wide as
     the space between two patches (``geom.pspa``, or the ring of a honeycomb),
     and this chart has none, so the tick changes nothing either.
-    ``"changes"``: ticked and clear are two different sheets.
+    ``"fixed"``: the native instrument layout has its own fixed gaps and does
+    not read this setting. ``"changes"``: ticked and clear are two different sheets.
 
     **NOT "Spacers is None" (4.3.18 review r2, SF-A).** With Spacers None and an
     inter-patch gap, a SpectroScan or CR30 sheet still differs with the box
@@ -121,6 +122,8 @@ def edge_spacers_effect(recipe: "LayoutRecipe") -> str:
     """
     if recipe.instrument in EDGE_SPACERS_ALWAYS_ON:
         return "always_on"
+    if recipe.instrument == "FD9":
+        return "fixed"
     from . import instruments
     kw = replace(recipe, edge_spacers=True).build_kwargs()
     g = instruments.geom_from_build_kwargs(kw)
@@ -196,6 +199,7 @@ class LayoutRecipe:
     use_instrument_margins: bool = True
     patch_w_mm: float = 0.0        # explicit patch width / height (mm); 0 = auto
     patch_h_mm: float = 0.0
+    fd9_gap_mm: float = 1.0
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -428,6 +432,8 @@ class LayoutRecipe:
     # ---- serialisation (meta.json round-trip) --------------------------
     def to_dict(self) -> dict:
         d = asdict(self)
+        if self.instrument != "FD9":
+            d.pop("fd9_gap_mm", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -483,6 +489,7 @@ class LayoutRecipe:
             margin_top=m[0], margin_right=m[1], margin_bottom=m[2], margin_left=m[3],
             patch_w_mm=float(d.get("patch_w") or 0.0),
             patch_h_mm=float(d.get("patch_h") or 0.0),
+            fd9_gap_mm=float(d.get("fd9_gap", 1.0)),
             layout_mode=d.get("layout_mode") or "patch_first",
             area_method=d.get("area_method") or "by_width",
             area_cols=int(d.get("area_cols") or 0),
@@ -650,7 +657,7 @@ class LayoutRecipe:
         grew the spacers, and the offset moved the block out of the margins.
         The patch-area alignment is NOT neutralised: the built-in area-first
         presets set it on purpose."""
-        area = self.layout_mode == "area_first"
+        area = self.layout_mode == "area_first" and self.instrument != "FD9"
         kw = {
             "instrument": self.instrument,
             "paper": self.paper,
@@ -681,7 +688,7 @@ class LayoutRecipe:
                         self.margin_bottom, self.margin_left),
             "patch_w": None if area else (self.patch_w_mm or None),
             "patch_h": None if area else (self.patch_h_mm or None),
-            "layout_mode": self.layout_mode,
+            "layout_mode": "patch_first" if self.instrument == "FD9" else self.layout_mode,
             "area_method": self.area_method,
             "area_cols": self.area_cols,
             "area_rows": self.area_rows,
@@ -773,6 +780,8 @@ class LayoutRecipe:
             "strip_pattern": self.strip_pattern,
             "patch_pattern": self.patch_pattern,
         }
+        if self.instrument == "FD9":
+            kw["fd9_gap"] = self.fd9_gap_mm
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
