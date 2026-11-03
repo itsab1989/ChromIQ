@@ -187,13 +187,13 @@ def _tab_round(qapp, win):
 
 
 def _stored_p(meta: Path):
-    d = json.loads(meta.read_text())
+    d = json.loads(meta.read_text(encoding="utf-8"))
     v = (d.get("create_chart_settings") or {}).get("printtarg-p")
     return v.get("value") if isinstance(v, dict) else v
 
 
 def _stored_recipe_paper(meta: Path):
-    d = json.loads(meta.read_text())
+    d = json.loads(meta.read_text(encoding="utf-8"))
     rec = (d.get("create_chart_ui") or {}).get("engine_recipe") or {}
     return rec.get("paper")
 
@@ -247,7 +247,7 @@ def test_m1_engine_off_a_hand_set_paper_survives_a_run_change(
     _tab_round(qapp, win)
     _tab_round(qapp, win)
     assert _stored_p(m1) == "Letter"
-    d = json.loads(m1.read_text())
+    d = json.loads(m1.read_text(encoding="utf-8"))
     assert (d.get("create_chart_ui") or {}).get("engine_on") is False
 
 
