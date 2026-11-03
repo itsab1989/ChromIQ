@@ -3173,10 +3173,14 @@ class LayoutOptionsPanel(QWidget):
         # writes `hex_flat_top` only in the CR30 honeycomb branch.
         self._sync_hex_flat_top_visibility()
 
-    #: Output and Printer calibration work for the FD-9 (bit depth,
-    #: compression, PDF, dpi, calibration); every other group's controls are
-    #: greyed, because the FD-9 chart has a fixed geometry of its own.
-    _FD9_LIVE_GROUPS = ("Output", "Printer calibration")
+    #: What the FD-9 layout honours: Output (bit depth, compression, PDF),
+    #: Printer calibration, Randomisation (order and seed) and the resolution.
+    #: Every other control inside a group is greyed, because the FD-9 chart
+    #: has a fixed geometry of its own. The groups are found at any depth:
+    #: they sit inside "Basic" and "Expert Options".
+    _FD9_LIVE_GROUPS = ("Output", "Printer calibration", "Randomisation")
+    #: The FD-9 renderer's highest resolution (`workflow.fd9.chart`).
+    _FD9_MAX_DPI = 600
 
     def _sync_fd9_widgets(self, fd9: bool) -> None:
         """Enter or leave the FD-9's own layout. ONLY ON A CHANGE: entering
@@ -3194,21 +3198,27 @@ class LayoutOptionsPanel(QWidget):
         if fd9:
             live = {tr(t) for t in self._FD9_LIVE_GROUPS}
             why = fd9_greyed_reason()
-            saved = {"controls": [], "pages": None, "custom": None}
-            for group in self.findChildren(
-                    QGroupBox, options=Qt.FindChildOption.FindDirectChildrenOnly):
-                if group.title() in live:
+            saved = {"controls": [], "pages": None, "custom": None, "dpi": None}
+            # Keep the (i) buttons usable: disabling a whole group would grey
+            # them too, so each control is greyed instead.
+            for control in self.findChildren(
+                    (QAbstractSpinBox, QAbstractButton, QComboBox)):
+                if isinstance(control, TooltipButton) or control is self.dpi:
                     continue
-                # Keep the (i) buttons usable: disabling the parent group
-                # would grey them too, so each control is greyed instead.
-                for control in group.findChildren(
-                        (QAbstractSpinBox, QAbstractButton, QComboBox)):
-                    if isinstance(control, TooltipButton):
-                        continue
-                    saved["controls"].append(
-                        (control, control.isEnabled(), control.toolTip()))
-                    control.setEnabled(False)
-                    control.setToolTip(why)
+                groups = []
+                p = control.parentWidget()
+                while p is not None and p is not self:
+                    if isinstance(p, QGroupBox):
+                        groups.append(p.title())
+                    p = p.parentWidget()
+                if not groups or any(t in live for t in groups):
+                    continue          # the selectors, the FD-9's own, or live
+                saved["controls"].append(
+                    (control, control.isEnabled(), control.toolTip()))
+                control.setEnabled(False)
+                control.setToolTip(why)
+            saved["dpi"] = self.dpi.maximum()
+            self.dpi.setMaximum(self._FD9_MAX_DPI)
             if self.pages is not None:
                 saved["pages"] = (self.pages.maximum(), self.pages.value())
                 self.pages.setMaximum(1)
@@ -3229,6 +3239,8 @@ class LayoutOptionsPanel(QWidget):
                 control.setToolTip(tip)
             except RuntimeError:       # deleted with a rebuilt section
                 pass
+        if was.get("dpi") is not None:
+            self.dpi.setMaximum(was["dpi"])
         if was["pages"] is not None:
             self.pages.setMaximum(was["pages"][0])
             self.pages.setValue(was["pages"][1])

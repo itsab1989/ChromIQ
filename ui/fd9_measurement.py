@@ -435,6 +435,15 @@ class FD9MeasureMixin:
                 btn.setEnabled(unlocked and not active)
             if not active:
                 self._fd9_close_insert_window()
+                # Give the preview back what the FD-9 changed on it: the
+                # swipe arrow (the CR30 rule decides it again) and the FD-9's
+                # own notice, if it is still the one showing. Found on screen:
+                # a normal chart after an FD-9 chart kept "no swipe".
+                self._preview.set_no_swipe(self._chart_is_cr30())
+                self._preview.set_scan_grid(None)
+                lbl = getattr(self._preview, "_notice_lbl", None)
+                if lbl is not None and lbl.text() in self._fd9_notices():
+                    self._preview.set_notice(None)
                 if hasattr(self, "_calm_outer"):
                     self._calm_outer.setVisible(self._current_mode() == "guided")
         if not active:
@@ -454,6 +463,14 @@ class FD9MeasureMixin:
         self._preview.set_no_swipe(True)
         if hasattr(self, "_calm_outer"):
             self._calm_outer.hide()
+
+    @staticmethod
+    def _fd9_notices() -> "tuple[str, str]":
+        """The two notices the FD-9 puts under the preview."""
+        return (
+            tr("FD-9 layout preview: the colours are approximate, and this is not the file that is printed."),
+            tr("FD-9 scan of the sheet: rows outlined in green are measured, the amber row is next, and blue rows are still to come."),
+        )
 
     def _fd9_resumes(self) -> bool:
         """The FD-9 twin of `_read_builds_on_existing`."""

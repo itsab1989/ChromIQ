@@ -5390,6 +5390,8 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._update_resume_availability()
         self._settings.set("session_ti1_path", "")
         self._refresh_bidir_autodetect()
+        # FD-9 (Beta): no chart is not an FD-9 chart; nothing when it is off.
+        self._refresh_fd9_panel()
 
     # ------------------------------------------------------------------
     # Auto bidirectional (-B) detection

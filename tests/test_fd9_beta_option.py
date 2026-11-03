@@ -129,6 +129,28 @@ def test_a_chart_change_mid_read_never_unlocks_the_options(tab, fd9_chart,
     assert _options(tab) == (True, True, True)
 
 
+def test_clearing_the_chart_leaves_the_fd9_state(tab, fd9_chart):
+    """Found on screen: opening another project cleared the Measure tab's
+    chart through `clear_chart_file`, and the FD-9 row and the greyed
+    options stayed for a tab with no chart at all."""
+    tab.set_ti1_path(fd9_chart.with_suffix(".ti1"))
+    assert tab._fd9_shown and not tab._fd9_panel.isHidden()
+    tab.clear_chart_file()
+    assert not tab._fd9_shown and tab._fd9_panel.isHidden()
+    assert _options(tab) == (True, True, True)
+
+
+def test_a_normal_chart_after_an_fd9_chart_gets_its_preview_back(
+        tab, fd9_chart, tmp_path):
+    """Found on screen: the swipe arrow stayed off for the next chart."""
+    tab.set_ti1_path(fd9_chart.with_suffix(".ti1"))
+    assert tab._preview._no_swipe is True
+    assert tab._preview._notice_lbl.text() in tab._fd9_notices()
+    tab.set_ti1_path(_plain_chart(tmp_path).with_suffix(".ti1"))
+    assert tab._preview._no_swipe is False
+    assert tab._preview._notice_lbl.text() not in tab._fd9_notices()
+
+
 def test_an_fd9_chart_keeps_its_options_greyed_after_a_read_ends(tab,
                                                                  fd9_chart):
     tab.set_ti1_path(fd9_chart.with_suffix(".ti1"))
