@@ -10913,6 +10913,85 @@ class TabChart(QWidget):
         # never deletes anything, but the folder visibly reorganises — so tell
         # the user first, in plain language, before it happens.
         self._maybe_announce_project_port(manifest)
+        # AN OPEN WRITES THE TARGET IT LEAVES ONCE, HERE, AND THEN NEVER AGAIN.
+        #
+        # §2.1: a target change writes the outgoing target first, while it is
+        # still selected and its own values are still on screen. That is now,
+        # before anything of the incoming project is opened or painted. The
+        # bar's own pre-change write cannot do it: the bar is moved at the END
+        # of the open, after the incoming chart has been painted and after the
+        # file manager has switched, so it filed the incoming chart's recipe
+        # into the run, verification or other project's run 1 being left
+        # (4.3.23). Until the open has moved the bar, nothing writes that
+        # target again: see `_write_the_target_the_open_leaves`.
+        self._write_the_target_the_open_leaves()
+        try:
+            if self._open_project_at_manifest(manifest):
+                # #130: default the shared bar to this project's current run.
+                self._default_bar_to_current_run()
+                self._reset_run_type_for_loaded_project()
+        finally:
+            self._opening_project = False
+
+    def _write_the_target_the_open_leaves(self) -> None:
+        """§2.1 for Open Project: write the selected target now, then hold
+        every write that would reach it again until the open is over.
+
+        The write goes through the bar's own trigger, `about_to_change_target`,
+        so the tab on screen files its values exactly as it does when the user
+        opens a pulldown: Create Chart from the masthead, Measure from the
+        import. Then `_opening_project` makes the writes that follow, inside
+        the open, no-ops unless they reach the target the open ends on
+        (`_the_open_ends_on`). Three kinds were filing what the open had put
+        on screen: the bar's pre-change writes of the target being left (the
+        main window asks before it calls the visible tab); `_on_target_
+        changed`'s write of the store it was on, which is still the outgoing
+        target when Create Chart is not the tab on screen; and the writes of
+        the selections the bar passes through on the way, such as run 1 of
+        the incoming project while the bar still names "run 1" after the
+        file manager has switched. The incoming target's own write is not
+        held, so everything else the open does stays as it was.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None:
+            try:
+                ctl.about_to_change_target.emit()
+            except Exception:      # noqa: BLE001 — never block an open
+                log.warning("Could not write the target before opening",
+                            exc_info=True)
+        self._opening_project = True
+
+    def _the_open_ends_on(self, store) -> bool:
+        """Whether *store* is the target an Open Project in progress ends on,
+        with the bar already naming it: the opened project's current run on
+        Run type Profiling, or its calibration on Run type Calibration (which
+        an open does not reset). Anything else, or any doubt, is False."""
+        if store is _NO_STORE_GIVEN or store is None:
+            return False
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return False
+        try:
+            proj = ctl.project_or_none()
+            target = ctl.target
+            if proj is None or target.is_verification():
+                return False
+            if not target.is_calibration() and (
+                    target.is_new_run()
+                    or target.profile_run != proj.current_run().id):
+                return False
+            here = self._target_settings_store()
+            return here is not None and (
+                Path(getattr(store, "dir", "")).resolve()
+                == Path(getattr(here, "dir", "")).resolve())
+        except Exception:      # noqa: BLE001 — in doubt, hold the write
+            return False
+
+    def _open_project_at_manifest(self, manifest: Path) -> bool:
+        """The open itself, from the file manager switch to the chart on
+        screen. False when it ended with the project closed again (the
+        rename chooser cancelled); `open_project_manifest` then moves no bar.
+        It holds the writes around this and the bar moves that follow."""
         # Which project was open before this one, if any: opening the SAME
         # project on the SAME run is the one open the bar does not see.
         was_open = self._root_of_the_open_project()
@@ -10927,7 +11006,7 @@ class TabChart(QWidget):
             # to its starting state, the one Close Project leaves, and
             # nothing of this project is shown.
             self._close_after_folder_rename_cancelled()
-            return
+            return False
         self._last_target_name = self._file_mgr.get_target_name()
         self._update_name_fields()
         # Loading a saved project is a clean slate for the preset/applied bindings.
@@ -10986,9 +11065,7 @@ class TabChart(QWidget):
         else:
             self._preview.clear()
             self._current_ti1_path = None
-        # #130: default the shared bar to this project's current run.
-        self._default_bar_to_current_run()
-        self._reset_run_type_for_loaded_project()
+        return True
 
     def _display_run_chart(self, ti2: Path, tiffs: list[Path], ti1: Path) -> None:
         """Show an existing chart (its pages, margins and own creation settings)
@@ -21687,6 +21764,14 @@ class TabChart(QWidget):
         """
         if getattr(self, "_loading_target_settings", False):
             return False
+        # AN OPEN IN PROGRESS HAS ALREADY WRITTEN THE TARGET IT LEAVES (§2.1,
+        # `_write_the_target_the_open_leaves`). Until it is over, the only
+        # target this tab may write is the one the open ends on; every other
+        # write would file what the open has put on screen into a target
+        # nobody selected. See `_the_open_ends_on`.
+        if (getattr(self, "_opening_project", False)
+                and not self._the_open_ends_on(store)):
+            return False
         # An explicit store is how a TARGET CHANGE writes the OUTGOING target.
         # By the time the bar reports the change, _target_text_store() already
         # points at the new one — so writing "the current target" there would
@@ -24610,6 +24695,9 @@ class TabChart(QWidget):
         """
         self._cancel_pending_auto_preview()
         try:
+            # Inside Open Project this write is held: the open made it before
+            # it began (`_write_the_target_the_open_leaves`), against the same
+            # target, with the same screen. Kept for any other caller.
             self.save_target_settings()
             # The shield of the earlier episode has been spent on that write.
             self._chart_imposed = {}

@@ -1795,6 +1795,12 @@ class MainWindow(QMainWindow):
         tab = getattr(self, "_settings_tab_showing", None)
         if tab is None:
             return
+        # AN OPEN MOVES THE BAR AFTER IT HAS PAINTED THE INCOMING PROJECT, and
+        # it wrote the target it leaves before it began (§2.1, 4.3.23,
+        # `TabChart._write_the_target_the_open_leaves`). Writing that target
+        # again here would file what the open has since put on screen.
+        if getattr(getattr(self, "_tab_chart", None), "_opening_project", False):
+            return
         try:
             tab.save_target_settings()
         except Exception:      # noqa: BLE001 — never break a pulldown

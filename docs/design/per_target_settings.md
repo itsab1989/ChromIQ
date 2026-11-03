@@ -322,13 +322,54 @@ write files the run's own values and not the chart's.
   drift driver: A4, 38/26 mm, area first became Letter, 6/6 mm, patch first.
 * A value the user changes by hand after the reopen is theirs and is written,
   and only that value.
-* Every other open is unchanged: a different project, a bar on another run, or
-  Run type Verification each moves the bar, and `_on_target_changed` protects
-  that as before.
+* A different project, a bar on another run, or Run type Verification each
+  moves the bar, and `_on_target_changed` protects the incoming target as
+  before. What those opens did to the target being LEFT is the next block.
 
 Code: `TabChart._open_leaves_the_bar_where_it_is` and
 `_reshow_the_selected_targets_chart` (`ui/tabs/tab_chart.py`); tests:
 `tests/test_reopening_the_open_project_keeps_the_runs_settings.py`.
+
+**Every Open Project writes the target it leaves once, first, and never
+again (4.3.23).** Found while checking the fix above; present since 4.1.x.
+Open Project paints the incoming chart and only then moves the bar, and each
+bar setter fires the §2.1 write of the outgoing target before it changes the
+selection. That write therefore filed the incoming chart's recipe into the
+target being left, against §2.0 ("never written by the act of looking at a
+different target"):
+
+* Run type Verification and Open Project on the same project: the profiling
+  chart's recipe (paper, margins, layout mode, "layout chosen explicitly",
+  the layout-engine tick) landed in `verifications/meta.json`;
+* the bar on another run of the same project: that run got the current
+  run's chart recipe;
+* the bar on run 1 of one project and another project opened: the OTHER
+  project's run 1, which nobody selected, got its current run's chart recipe
+  (and, with the Measure tab on screen, the Measure settings of the project
+  left), because the file manager had switched while the bar still said
+  "run 1".
+
+As built: the open now makes the §2.1 write before it begins, through the
+same trigger a pulldown uses, so whichever tab is on screen (Create Chart
+from the masthead, Measure from an import) files its values against the
+target that is still selected, with that target's own screen still up. From
+then until the bar has been moved, no tab writes anything except the target
+the open ends on (the opened project's current run on Profiling, or its
+calibration on Calibration). Everything the open loads, paints and shields
+for the incoming target is unchanged, and so is the reopen above.
+
+* A value the user changed on the outgoing target and had not yet saved
+  (no tab change since) is in that target's store after the open, and in no
+  other.
+* The screen after the open is unchanged by this. Seen while testing and not
+  touched now: after such an open the Create Chart panel can show the
+  incoming target's stored settings rather than its chart's.
+
+Code: `TabChart._write_the_target_the_open_leaves`, `_the_open_ends_on` and
+the `_opening_project` guard in `save_target_settings` (`ui/tabs/tab_chart.py`)
+and in `MainWindow._save_settings_of_visible_tab`; tests:
+`tests/test_opening_a_project_never_writes_the_target_it_leaves.py` (both
+ways in: the masthead, and the open the Measure tab's import performs).
 
 ## 3. When settings are written
 
