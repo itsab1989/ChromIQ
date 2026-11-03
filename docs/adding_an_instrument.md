@@ -159,7 +159,7 @@ Copy the FD-9's pattern; it was reviewed twice.
       `ui/tabs/tab_chart.py::_stored_defaults_recipe`,
       `workflow/measure_settings.py::carry_fd9_keys` (Measure) and
       `workflow/fd9/support.py::carry_fd9_chart_keys` (Create Chart target
-      settings). The Create Chart carry follows three rules:
+      settings). The Create Chart carry follows four rules:
       a stored value is carried only while the value on screen is still the
       one the target opened with and the user has never had another one
       written (the stored values are those read when the target was opened,
@@ -168,7 +168,10 @@ Copy the FD-9's pattern; it was reviewed twice.
       change); nothing is carried after the user generates into the run
       (`ui/tabs/tab_chart.py::_forget_fd9_off_screen`); and nothing is
       carried once the run's `.ti2` `TARGET_INSTRUMENT` is not your
-      instrument's (`workflow/fd9/support.py::chart_names_fd9`). Opening your
+      instrument's (`workflow/fd9/support.py::chart_names_fd9`); and once the
+      user changes a block's instrument, the whole block is theirs and none
+      of its stored values are carried again, so no margin or gap of your
+      instrument ends up beside another one. Opening your
       project with the option off and changing tabs must leave its
       `meta.json` byte-identical.
 
@@ -554,7 +557,8 @@ yours will be a similar short code.
   opened, never after a Generate into the run, and never once the run's
   `.ti2` `TARGET_INSTRUMENT` is not your instrument's
   (`workflow/fd9/support.py::chart_names_fd9`); a value the user changes is
-  written as theirs
+  written as theirs, and once the user changes a block's instrument, the
+  whole block is theirs
   ([section 4](#4-behind-a-beta-option-and-off-means-no-change)). Record new
   per-target keys in
   `docs/design/per_target_settings.md` in an "Awaiting confirmation" block
