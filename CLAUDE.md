@@ -694,6 +694,17 @@ and runs printtarg only). The full mechanism, file/function map, gotchas, and a
 step-by-step recipe are in **`docs/dev_builtin_presets.md`** — read it before
 adding another.
 
+### Adding a measuring instrument
+
+Read **`docs/adding_an_instrument.md`** in full before adding or changing an
+instrument, and plan against its registration checklist. It distils the CR30
+and FD-9 integrations and the FD-9 review rounds: the Preferences > Beta
+option (off means no change, pinned by a test like
+`tests/test_fd9_off_changes_nothing.py`), every place an instrument is
+registered, the shared Start preflight, the read-only stance towards the
+device, and no device data in the repository. Contributors' agents start from
+`AGENTS.md` and `docs/adding_an_instrument_agent_prompt.md`.
+
 ### The design specifications are binding
 
 `docs/design/` holds the agreed specifications for #130. Knut's rule
