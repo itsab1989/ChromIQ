@@ -8133,6 +8133,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         if self._stage_verification_for_resume() is not None:
             params.resume = self._resume_has_anything_to_resume(True)
         _ti3_pre = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
+        # THE CONDITION THIS READ MEASURES UNDER (review round 1, S3): the
+        # -F the reader is given, recorded in the file it writes when the
+        # session ends (`_record_measurement_condition_at_end`).
+        from workflow.measurement_condition import filter_code_from_args
+        self._session_filter = filter_code_from_args(
+            getattr(params, "extra_args", "") or "")
         self._ti3_mtime_before = (
             _ti3_pre.stat().st_mtime if (_ti3_pre and _ti3_pre.exists()) else None
         )
@@ -15579,6 +15585,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # A resumed verification that read nothing: its dated measurement is
         # untouched, so the working copy beside the chart goes again.
         self._drop_unused_verification_stage()
+        # The measurement condition (-F) goes into the file this session
+        # wrote, BEFORE the yellow memory below takes the file's checksum.
+        self._record_measurement_condition_at_end()
         # THE YELLOW MEMORY, STAMPED FOR THE FINAL FILE (#182 K4). Now, before
         # anything paints from the file, and only for a .ti3 this session
         # actually wrote: a measurement put back from old/ (nothing was read)
@@ -19994,6 +20003,41 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — never block loading or starting
             log.debug("engine autosave not recovered", exc_info=True)
             return False
+
+    def _record_measurement_condition_at_end(self) -> None:
+        """Write the measurement condition this session measured under into
+        the ``.ti3`` it wrote (review round 1, S3, Basti 2026-11-03): ``-F
+        n`` M0, ``-F 5`` M1, ``-F u`` M2, ``-F p`` M3, as
+        ``MEASUREMENT_CONDITION``, the keyword the i1Profiler import and the
+        FD-9 writer use. The FWA gate and the pre-conditioning merge read it.
+
+        Without ``-F`` (the default) nothing is recorded: the instrument
+        measured in its normal mode, and the file is judged as before. Only
+        a file this session wrote is touched (newer than it was at Start; a
+        measurement the session guard put back keeps its own time), and only
+        its header: the readings are not rewritten."""
+        code = getattr(self, "_session_filter", None)
+        self._session_filter = None
+        ti1 = getattr(self, "_ti1_path", None)
+        if not code or not ti1:
+            return
+        try:
+            from workflow.measurement_condition import (condition_for_filter,
+                                                        record_condition)
+            cond = condition_for_filter(code)
+            ti3 = Path(ti1).with_suffix(".ti3")
+            if cond is None or not ti3.is_file():
+                return
+            before = getattr(self, "_ti3_mtime_before", None)
+            if before is not None and ti3.stat().st_mtime <= before:
+                return
+            if _cgats_has_no_readings(ti3):
+                return
+            if record_condition(ti3, cond):
+                log.info("recorded measurement condition %s (-F %s) in %s",
+                         cond, code, ti3.name)
+        except Exception:      # noqa: BLE001 — never block a session's end
+            log.debug("measurement condition not recorded", exc_info=True)
 
     def _settle_engine_autosave_at_end(self) -> None:
         """M3 review: at a session's end, a kept save that is the newest copy

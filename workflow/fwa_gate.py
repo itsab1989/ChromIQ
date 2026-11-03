@@ -45,7 +45,11 @@ with only the header changed; the probes and their output are kept in the
   (``MEASUREMENT_CONDITION``, ``workflow.measurement_condition``) would have a
   glow corrected that is not there in the form the model assumes (measured on
   jctay's M2 readings: ``spec2cie -f`` moved them by 0.37 mean / 0.72 max
-  dE76 for nothing). A file that names no condition is judged as before.
+  dE76 for nothing). The Measure tab records the condition from chartread's
+  ``-F`` (review round 1, S3), so a chartread M1/M2 is refused too. A
+  chartread file that names no condition is judged as before; an i1Profiler
+  import that names none is refused (S4), because i1Profiler exports M1 and
+  M2 as readily as M0.
 
 The header is read once, as bytes, up to the data (a chart made on a German
 Windows is cp1252), and nothing is imported from the instrument's own
@@ -73,8 +77,10 @@ class FwaRefusal:
     instrument without an ultraviolet lamp), ``"reimport"`` (an import by an
     earlier ChromIQ that kept i1Profiler's name for an instrument ArgyllCMS
     knows under another), ``"instrument"`` (any other name ArgyllCMS has no
-    FWA lamp for) or ``"condition"`` (an M1/M2 measurement); *instrument*
-    and *condition* are what the file says."""
+    FWA lamp for), ``"condition"`` (an M1/M2 measurement) or
+    ``"import_condition"`` (an i1Profiler import that does not say which
+    condition it holds); *instrument* and *condition* are what the file
+    says."""
     kind: str
     instrument: "str | None" = None
     condition: "str | None" = None
@@ -94,6 +100,8 @@ class FwaRefusal:
             return _reimport_reason(self.instrument or "")
         if self.kind == "instrument":
             return _instrument_reason(self.instrument or "")
+        if self.kind == "import_condition":
+            return _import_condition_reason()
         return _condition_reason(self.condition or "")
 
     @property
@@ -121,6 +129,13 @@ class FwaRefusal:
                 "FWA data for the instrument this measurement names "
                 "(“{instrument}”), so it would stop with an error."
             ).format(instrument=self.instrument or "")
+        if self.kind == "import_condition":
+            return tr(
+                "[NOTE] FWA compensation (-f) was left out: this measurement "
+                "was imported from i1Profiler and does not say which "
+                "measurement condition it was measured under, and FWA "
+                "compensation only fits readings taken under the "
+                "instrument's own lamp (M0).")
         return tr(
             "[NOTE] Brightener compensation (FWA, -f) was left out: this "
             "measurement was taken under condition {condition}, and FWA "
@@ -147,10 +162,15 @@ ARGYLL_FWA_INSTRUMENTS = frozenset({
 #: What the i1Profiler import writes when the file names no instrument
 #: (``workflow.reference_convert._IMPORTED_INSTRUMENT_FALLBACK``).
 _IMPORT_NAMES_NO_INSTRUMENT = "i1Profiler (unspecified)"
+#: The keyword an i1Profiler import keeps i1Profiler's own instrument name
+#: in (``workflow.reference_convert.I1P_INSTRUMENT_KEYWORD``): it marks the
+#: file as an import.
+_I1P_INSTRUMENT_KEYWORD = "CHROMIQ_I1P_INSTRUMENT"
 
 
 def fwa_refusal(instrument: "str | None", *, has_spectral: bool = True,
-                condition: "str | None" = None) -> "FwaRefusal | None":
+                condition: "str | None" = None,
+                i1p_import: bool = False) -> "FwaRefusal | None":
     """Whether FWA compensation can be used for a measurement whose header
     says *instrument* (``TARGET_INSTRUMENT``), *has_spectral*
     (``SPECTRAL_BANDS`` above 0) and *condition* (``MEASUREMENT_CONDITION``):
@@ -160,13 +180,26 @@ def fwa_refusal(instrument: "str | None", *, has_spectral: bool = True,
 
     None, and so nothing changed, for exactly the files ArgyllCMS applies
     ``-f`` to: a name in :data:`ARGYLL_FWA_INSTRUMENTS`, spectra, and no
-    condition or M0."""
+    condition or M0.
+
+    *i1p_import* says the file is an i1Profiler import (it carries
+    ``CHROMIQ_I1P_INSTRUMENT``): such a file that names no condition is
+    refused (review round 1, S4), because i1Profiler exports M1 and M2 as
+    readily as M0, while a chartread file that names none was measured in
+    the instrument's normal mode."""
     name = _unquote(instrument)
     cond = (str(condition).strip().upper() or None) if condition else None
     if name:
         from workflow.fd9.support import is_fd9_instrument_name
         if is_fd9_instrument_name(name):
             return FwaRefusal("fd9", name, cond)
+    # AN IMPORT BY AN EARLIER CHROMIQ IS NAMED BEFORE "NO SPECTRA" (review
+    # round 1, S2): 4.3.22 and older kept i1Profiler's name ("i1Pro 3") AND
+    # left the spectra out, so "measure with an i1Pro" told the person to do
+    # what they had done. Importing the .mxf again fixes both, and asks for
+    # the condition.
+    if name and _is_earlier_import_name(name):
+        return FwaRefusal("reimport", name, cond)
     if not has_spectral:
         return FwaRefusal("no_spectra", name, cond)
     if not name or name == _IMPORT_NAMES_NO_INSTRUMENT:
@@ -174,16 +207,25 @@ def fwa_refusal(instrument: "str | None", *, has_spectral: bool = True,
     if name not in ARGYLL_FWA_INSTRUMENTS:
         if "colormunki" in name.lower():
             return FwaRefusal("colormunki", name, cond)
-        from workflow.reference_convert import argyll_instrument_name
-        # i1Profiler's own names ("i1Pro 3") carry no maker; a misspelt
-        # ArgyllCMS name ("gretagmacbeth i1 pro") is not an import.
-        if argyll_instrument_name(name) in ARGYLL_FWA_INSTRUMENTS and not \
-                name.lower().startswith(("gretagmacbeth", "x-rite", "xrite")):
-            return FwaRefusal("reimport", name, cond)
         return FwaRefusal("instrument", name, cond)
     if cond and cond != "M0":
         return FwaRefusal("condition", name, cond)
+    if not cond and i1p_import:
+        return FwaRefusal("import_condition", name, cond)
     return None
+
+
+def _is_earlier_import_name(name: str) -> bool:
+    """Whether *name* is i1Profiler's own name for an instrument ArgyllCMS
+    knows under another ("i1Pro 3"), as imports by 4.3.22 and older wrote
+    it. i1Profiler's names carry no maker; a misspelt ArgyllCMS name
+    ("gretagmacbeth i1 pro") is not an import."""
+    if name in ARGYLL_FWA_INSTRUMENTS:
+        return False
+    if name.lower().startswith(("gretagmacbeth", "x-rite", "xrite")):
+        return False
+    from workflow.reference_convert import argyll_instrument_name
+    return argyll_instrument_name(name) in ARGYLL_FWA_INSTRUMENTS
 
 
 @dataclass(frozen=True)
@@ -191,6 +233,7 @@ class _Header:
     instrument: "str | None"
     condition: "str | None"
     has_spectral: bool
+    i1p_import: bool = False
 
 
 def _unquote(value: "str | None") -> "str | None":
@@ -228,14 +271,16 @@ def _read_header(path) -> "_Header | None":
             continue
         key = m.group(1)
         if key in ("TARGET_INSTRUMENT", "MEASUREMENT_CONDITION",
-                   "SPECTRAL_BANDS") and key not in found:
+                   "SPECTRAL_BANDS", _I1P_INSTRUMENT_KEYWORD) \
+                and key not in found:
             found[key] = _unquote(m.group(2)) or ""
     try:
         bands = int(found.get("SPECTRAL_BANDS") or 0)
     except ValueError:
         bands = 0
     return _Header(found.get("TARGET_INSTRUMENT"),
-                   found.get("MEASUREMENT_CONDITION"), bands > 0)
+                   found.get("MEASUREMENT_CONDITION"), bands > 0,
+                   _I1P_INSTRUMENT_KEYWORD in found)
 
 
 def fwa_refusal_for_file(path) -> "FwaRefusal | None":
@@ -245,7 +290,7 @@ def fwa_refusal_for_file(path) -> "FwaRefusal | None":
     if h is None:
         return None
     return fwa_refusal(h.instrument, has_spectral=h.has_spectral,
-                       condition=h.condition)
+                       condition=h.condition, i1p_import=h.i1p_import)
 
 
 def drop_fwa(params) -> bool:
@@ -408,23 +453,43 @@ def _colormunki_reason() -> str:
 
 def _reimport_reason(instrument: str) -> str:
     return tr(
-        "FWA compensation is not available for this measurement, because "
-        "ArgyllCMS does not know the name it gives the instrument: "
-        "“{instrument}”.\n\n"
+        "FWA compensation is not available for this measurement, because it "
+        "was imported from i1Profiler by an earlier version of ChromIQ.\n\n"
         "Optical brighteners in paper turn invisible ultraviolet light into "
         "visible blue light, which makes the paper look whiter. FWA "
-        "compensation in ArgyllCMS works out that glow from the light inside "
-        "the instrument that took the readings, and it finds that light by "
-        "the instrument's name in the measurement file. This measurement was "
-        "imported from i1Profiler by an earlier version of ChromIQ, which "
-        "kept i1Profiler's name for the instrument. ArgyllCMS knows the same "
-        "instrument under another name, so with this one it would stop with "
-        "an error instead of building your profile or checking it.\n\n"
-        "To use FWA compensation, import the i1Profiler file again: ChromIQ "
-        "now gives the instrument the name ArgyllCMS knows it by. If the "
-        "file holds more than one measurement condition, choose M0, because "
-        "FWA compensation only works with those readings."
+        "compensation in ArgyllCMS works out that glow from the spectrum of "
+        "every patch and from the light inside the instrument that took the "
+        "readings, which it finds by the instrument's name in the measurement "
+        "file. The earlier import kept i1Profiler's name for the instrument, "
+        "“{instrument}”, which ArgyllCMS does not know, and it may also have "
+        "left the spectral readings out. With either, ArgyllCMS would stop "
+        "with an error instead of building your profile or checking it.\n\n"
+        "To use FWA compensation, import the i1Profiler file (.mxf or .cxf) "
+        "again. ChromIQ now gives the instrument the name ArgyllCMS knows it "
+        "by, keeps the spectral readings, and asks which measurement "
+        "condition to import when the file holds more than one. Choose M0, "
+        "because FWA compensation only works with those readings."
     ).format(instrument=instrument)
+
+
+def _import_condition_reason() -> str:
+    return tr(
+        "FWA compensation is not available for this measurement, because it "
+        "was imported from i1Profiler and the file does not say which "
+        "measurement condition it was measured under.\n\n"
+        "Optical brighteners in paper turn invisible ultraviolet light into "
+        "visible blue light, which makes the paper look whiter. FWA "
+        "compensation works out that glow from the lamp inside the "
+        "instrument, so it only fits readings taken under that lamp: "
+        "condition M0. i1Profiler can also save readings taken under M1 "
+        "(like D50 daylight, glow included) and M2 (ultraviolet cut, no "
+        "glow), and applying FWA compensation to those would correct "
+        "something that is not there. Because this file does not say which "
+        "one it holds, ChromIQ leaves FWA compensation off rather than "
+        "guess.\n\n"
+        "To use FWA compensation, import the i1Profiler .mxf or .cxf file of "
+        "the same measurement and choose M0, or export the readings from "
+        "i1Profiler again as M0.")
 
 
 def _instrument_reason(instrument: str) -> str:

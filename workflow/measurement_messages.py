@@ -7438,6 +7438,81 @@ def cxf_condition_list(conditions) -> str:
     return tr(_COND_AND).format(first=", ".join(items[:-1]), last=items[-1])
 
 
+# --- PROPOSED (4.3.23, review round 1): merges of different conditions ----
+#: Basti, 2026-11-03 (review round 1, S3): the pre-conditioning merge and
+#: Tools > Merge measurements refuse two measurements when one names M1, M2
+#: (or M3) and the other names a different condition or none ("not
+#: recorded"): no condition is not the same as M1/M2. None with M0, or none
+#: with none, merges as before. {pre} / {fresh} / {primary_condition} /
+#: {condition} are a condition's name ("M1 (daylight with UV, D50)") or
+#: "not recorded". Shown in the beta while awaiting approval.
+_MERGE_COND_HEAD = (
+    "The pre-conditioning measurements were not merged into the chart just "
+    "measured, because the two were not measured under the same measurement "
+    "condition.\n\n"
+    "Pre-conditioning measurements: {pre}\n"
+    "Chart just measured: {fresh}")
+_MERGE_COND_TOOLS_HEAD = (
+    "'{name}' was not measured under the same measurement condition as the "
+    "primary file '{primary}', so they were not merged.\n\n"
+    "'{primary}': {primary_condition}\n"
+    "'{name}': {condition}")
+_MERGE_COND_BODY = (
+    "The measurement condition is the light the instrument shines on the "
+    "paper while it measures: M0 is the instrument's own lamp, M1 is light "
+    "with a defined amount of ultraviolet, like D50 daylight, and M2 cuts "
+    "the ultraviolet out. Optical brighteners in the paper turn "
+    "ultraviolet light into a blue glow, so on a paper with brighteners "
+    "the same patch can read several ΔE apart under each condition. "
+    "Readings taken under different conditions describe the paper in two "
+    "different ways, and a profile built from both together would fit "
+    "neither.\n\n"
+    "\u201cNot recorded\u201d means the file does not say which condition it "
+    "was measured under. ChromIQ records it when the Measure tab's "
+    "\u201cSpectral filter type (-F)\u201d option is switched on, and when an "
+    "i1Profiler .mxf or .cxf file is imported. Without that option the "
+    "instrument measures in its normal mode, which is M0 on the i1Pro "
+    "family, so such a measurement is not combined with M1 or M2 "
+    "readings.\n\n"
+    "To combine them, both measurements need the same condition. Measure "
+    "the chart again with \u201cSpectral filter type (-F)\u201d on the "
+    "Measure tab switched on and set to the condition of the other "
+    "measurement. Or, if one of them was imported from i1Profiler, import "
+    "its .mxf file again and choose the condition that matches the other "
+    "measurement.")
+_MERGE_COND_TAIL = "The profile will be built from the new measurements only."
+M_MERGE_CONDITION = _m(
+    "M-MERGE-CONDITION",
+    "Pre-conditioning data not merged",
+    _MERGE_COND_HEAD + "\n\n" + _MERGE_COND_BODY + "\n\n" + _MERGE_COND_TAIL,
+    approved=False)
+M_MERGE_CONDITION_TOOLS = _m(
+    "M-MERGE-CONDITION-TOOLS",
+    "Measurements not merged",
+    _MERGE_COND_TOOLS_HEAD + "\n\n" + _MERGE_COND_BODY,
+    approved=False)
+
+
+def merge_condition_body() -> str:
+    """The explanation shared by both merge refusals."""
+    return tr(_MERGE_COND_BODY)
+
+
+def merge_condition_text(pre: str, fresh: str) -> str:
+    """M-MERGE-CONDITION's body: *pre* and *fresh* are the two conditions,
+    already in words."""
+    return M_MERGE_CONDITION.render(pre=pre, fresh=fresh)[1]
+
+
+def merge_condition_tools_text(name: str, primary: str,
+                               primary_condition: str,
+                               condition: str) -> str:
+    """M-MERGE-CONDITION-TOOLS's body."""
+    return M_MERGE_CONDITION_TOOLS.render(
+        name=name, primary=primary, primary_condition=primary_condition,
+        condition=condition)[1]
+
+
 def cxf_condition_setting_line(selected_raw, selected, preselect) -> str:
     """The line about i1Profiler's own setting under the window's text."""
     if selected and selected == preselect:
@@ -8518,6 +8593,7 @@ M_GESTURE_STATUS = _m(
 
 CATALOGUE = {m.id: m for m in (
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
+    M_MERGE_CONDITION, M_MERGE_CONDITION_TOOLS,
     M_GESTURE_STATUS,
     M_PAGE_PAUSE, M_PAGE_PAUSE_END, M_PAGE_PAUSE_OTHER_PAGES,
     M_PAGE_PAUSE_BUTTON, M_PAGE_PAUSE_FOUND, M_PAGE_PAUSE_CONTROLS,

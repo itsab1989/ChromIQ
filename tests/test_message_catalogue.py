@@ -145,6 +145,9 @@ AWAITING_APPROVAL: "set[str]" = {
     # forum 2026-11-03; Basti 2026-11-03: "ChromIQ offers a choice of
     # condition"), 4.3.23.
     "M-IMPORT-CXF-CONDITION", "M-IMPORT-CXF-CONDITION-PARTS",
+    # Merges of measurements of different conditions are refused (Basti,
+    # 2026-11-03, 4.3.23 review round 1, S3).
+    "M-MERGE-CONDITION", "M-MERGE-CONDITION-TOOLS",
     # Forum post 149786 (4.3.10): part of a strip read one patch out, warned
     # about while measuring and named in the report. Proposed 2026-10-22.
     "M-STRIP-PART-SLIPPED-LATE", "M-STRIP-PART-SLIPPED-EARLY",

@@ -117,6 +117,38 @@ def _resolve_average(bin_dir: Path | str | None) -> str:
     return name
 
 
+#: Conditions whose readings are not M0's: measured with brighteners
+#: glowing as daylight shows it (M1), not glowing (M2), or through a
+#: polarising filter (M3).
+_NOT_M0 = frozenset({"M1", "M2", "M3"})
+
+
+def conditions_clash(a: str, b: str) -> bool:
+    """Whether two measurements' ``MEASUREMENT_CONDITION`` values ("" for
+    none) keep them from being merged (review round 1, S3, Basti
+    2026-11-03): one names M1, M2 or M3 and the other names a different
+    condition OR NONE, because a file that names none was measured in the
+    instrument's normal mode (M0 on the i1Pro family) as far as anyone
+    knows, which is not the same as M1 or M2. Two different named
+    conditions clash too. No condition with M0, or none with none, merges
+    as before."""
+    a = (a or "").strip().upper()
+    b = (b or "").strip().upper()
+    if a == b:
+        return False
+    if a and b:
+        return True
+    return bool({a, b} & _NOT_M0)
+
+
+def _condition_text(condition: str) -> str:
+    from core.i18n import tr
+    if not condition:
+        return tr("not recorded")
+    from workflow.measurement_condition import condition_name
+    return condition_name(condition)
+
+
 def _mismatch(fresh: _Parsed, pre: _Parsed) -> "str | None":
     """Why the two measurements cannot be merged, or None when they can."""
     if fresh.color_rep != pre.color_rep:
@@ -127,21 +159,11 @@ def _mismatch(fresh: _Parsed, pre: _Parsed) -> "str | None":
             "instrument or colour space and cannot be combined.\n\n"
             "The profile will be built from the new measurements only."
         )
-    if fresh.condition and pre.condition and fresh.condition != pre.condition:
-        # 4.3.23: an i1Profiler import keeps its spectra now, so it has the
-        # same columns as a chartread measurement and an import of another
-        # measurement condition. Readings of one patch under M1 and M2 differ
-        # by several dE on a brightened paper; averaged together they describe
-        # neither. Only when BOTH files name their condition.
-        from core.i18n import tr
-        return tr(
-            "The pre-conditioning measurements were taken under measurement "
-            "condition {pre}, and the chart just measured under {fresh}. "
-            "Readings taken under different conditions cannot be combined, "
-            "because the optical brighteners in the paper glow differently "
-            "under each.\n\n"
-            "The profile will be built from the new measurements only."
-        ).format(pre=pre.condition, fresh=fresh.condition)
+    if conditions_clash(fresh.condition, pre.condition):
+        # M-MERGE-CONDITION (§M-PROPOSED).
+        from workflow.measurement_messages import merge_condition_text
+        return merge_condition_text(_condition_text(pre.condition),
+                                    _condition_text(fresh.condition))
     if fresh.data_format != pre.data_format:
         return (
             "The pre-conditioning measurements have a different data layout "
@@ -272,6 +294,14 @@ def merge_measurements(
                 "made with a different instrument or colour space and cannot "
                 "be combined."
             )
+        if conditions_clash(primary.condition, extra.condition):
+            # M-MERGE-CONDITION-TOOLS (§M-PROPOSED).
+            from workflow.measurement_messages import \
+                merge_condition_tools_text
+            raise Ti3MergeError(merge_condition_tools_text(
+                extra_path.name, inputs[0].name,
+                _condition_text(primary.condition),
+                _condition_text(extra.condition)))
         if extra.data_format != primary.data_format:
             raise Ti3MergeError(
                 f"'{extra_path.name}' has a different data layout (e.g. spectral "

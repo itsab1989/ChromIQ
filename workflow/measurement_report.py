@@ -4998,15 +4998,24 @@ def report_scope(runs: "list[dict]") -> dict:
     date_range = (dates[0], dates[-1]) if dates else ("", "")
 
     warnings: list[dict] = []
-    # ONE INSTRUMENT UNDER TWO NAMES IS ONE INSTRUMENT (4.3.23): an i1Profiler
-    # import names its instrument the way ArgyllCMS does ("X-Rite i1 Pro 3"),
-    # where 4.3.22 and earlier wrote i1Profiler's own name ("i1Pro 3"). Runs of
-    # both, and chartread runs of the same instrument, are compared by the
-    # ArgyllCMS name, so they are not reported as a change of instrument.
+    # ONE INSTRUMENT UNDER SEVERAL NAMES IS ONE INSTRUMENT (4.3.23): an
+    # i1Profiler import names its instrument the way ArgyllCMS does ("X-Rite
+    # i1 Pro 3"), where 4.3.22 and earlier wrote i1Profiler's own name
+    # ("i1Pro 3"), and a chartread run of the same i1Pro 3 carries the name
+    # printtarg gave the chart, "GretagMacbeth i1 Pro", which ArgyllCMS gives
+    # every i1Pro (1, 2, 3, 3 Plus) alike. So the i1Pro family is compared as
+    # one instrument (review round 1, M3): a chartread file cannot say which
+    # i1Pro took it, and a warning on that difference only ever flagged one
+    # instrument against itself. Other names are compared by their ArgyllCMS
+    # name.
     from workflow.reference_convert import argyll_instrument_name
 
     def _inst(r):
-        return argyll_instrument_name(r.get("instrument")) or "Unknown instrument"
+        name = argyll_instrument_name(r.get("instrument")) or ""
+        low = name.lower()
+        if "i1 pro" in low or "i1pro" in low:
+            return "i1pro"
+        return name or "Unknown instrument"
     insts = [_inst(r) for r in runs]
     if len(set(insts)) > 1:
         dominant_key = Counter(insts).most_common(1)[0][0]

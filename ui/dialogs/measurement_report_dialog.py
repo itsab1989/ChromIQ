@@ -4601,10 +4601,17 @@ class MeasurementReportDialog(QDialog):
         if by_path not in keys:
             keys.append(by_path)
         if origin is not None and Path(origin) != Path(ti3):
+            # **AND THE CONDITION IT WAS IMPORTED UNDER (4.3.23, review round
+            # 1, M1).** One .mxf holds M0, M1 and M2, and the person chooses
+            # one per import: the same file under another condition is
+            # another measurement, and was dropped here as a duplicate,
+            # without a word, after the condition window had asked.
+            from workflow.measurement_condition import read_condition
+            cond = read_condition(ti3) or ""
             try:
-                keys.append(("origin", str(Path(origin).resolve())))
+                keys.append(("origin", str(Path(origin).resolve()), cond))
             except OSError:
-                keys.append(("origin", str(origin)))
+                keys.append(("origin", str(origin), cond))
         return tuple(keys)
 
     @staticmethod
@@ -4770,9 +4777,16 @@ class MeasurementReportDialog(QDialog):
         # this window. The reading opens the file, so it is not something to
         # repeat on every repaint. See `_scale_label`.
         from ui.measurement_filing import the_colour_scale_note
+        # An import names the condition it holds in the list, so one .mxf
+        # added under two conditions reads as two (review round 1, M1).
+        imported_condition = ""
+        if origin is not None and Path(origin) != Path(ti3):
+            from workflow.measurement_condition import read_condition
+            imported_condition = read_condition(ti3) or ""
         self._sources.append({"key": key, "keys": keys,
                               "name": name, "dir": ti3.parent,
                               "ti3": ti3, "origin": Path(origin or ti3),
+                              "condition": imported_condition,
                               "runs": runs,
                               "stamp": self._disk_stamp(ti3),
                               "scale_note": the_colour_scale_note(ti3)})
@@ -5325,8 +5339,12 @@ class MeasurementReportDialog(QDialog):
                 # B8-1641: the count is a label value ("Measurements: 3"), not a
                 # number followed by a noun, which Polish, Russian and
                 # Ukrainian cannot inflect with only a singular and a plural.
+                _cond = s.get("condition") or ""
+                if _cond:
+                    from workflow.measurement_condition import condition_name
+                    _cond = f"{condition_name(_cond)}  ·  "
                 self._profile_list.addItem(
-                    f'{s["name"]}  ·  '
+                    f'{s["name"]}  ·  ' + _cond
                     + tr("Measurements: {n}").format(n=n)
                     + (the_colour_scale_tag() if s.get("scale_note") else ""))
                 self._list_rows.append(("source", si, None))
@@ -6433,8 +6451,10 @@ class MeasurementReportDialog(QDialog):
         snap = getattr(self, "_page_snapshot", None)
         moved = bool(snap) and (
             self._page_coverage_moved()
-            or [str(s.get("origin")) for s in snap["sources"]]
-            != [str(s.get("origin")) for s in (self._sources or [])])
+            or [(str(s.get("origin")), s.get("condition") or "")
+                for s in snap["sources"]]
+            != [(str(s.get("origin")), s.get("condition") or "")
+                for s in (self._sources or [])])
         if not moved:
             yield
             return
@@ -6456,6 +6476,8 @@ class MeasurementReportDialog(QDialog):
     def _source_signature(self) -> tuple:
         """Which measurements are loaded, as a comparable value (round 2B)."""
         return tuple(sorted(str(src.get("origin") or "")
+                            + (f"|{src['condition']}"
+                               if src.get("condition") else "")
                             for src in (self._sources or [])))
 
     def _note_which_document_the_page_is(self) -> None:

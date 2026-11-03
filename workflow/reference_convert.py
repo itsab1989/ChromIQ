@@ -1243,7 +1243,42 @@ def finalize_converted_ti3(ti3_path: str | Path,
         logging.getLogger(__name__).warning("%s: %s", Path(ti3_path).name, note)
     instrument = stamp_instrument_from_source(ti3_path, source_txt)
     date = stamp_measurement_date_from_source(ti3_path, source_txt)
+    # THE CONDITION, WHEN THE EXPORT SAYS IT (review round 1, S4). Not
+    # stated: nothing is recorded, and the FWA gate refuses -f for an
+    # i1Profiler import of unknown condition.
+    condition = read_txt_condition(source_txt)
+    if condition:
+        from workflow.measurement_condition import record_condition
+        record_condition(ti3_path, condition)
     return instrument, date
+
+
+#: i1Profiler's CGATS export names the condition it was asked to export in
+#: ``MEASUREMENT_SOURCE``: "Illumination=D50 ObserverAngle=2 WhiteBase=Abs
+#: Filter=No". The four values are i1Profiler's own strings (``strings`` of
+#: i1Profiler 3.8, 2026-10-04 work folder ``i203/jctay/i1p_strings.txt``):
+#: no filter M0, D50 M1, UVcut M2, Polarized M3. One condition per file.
+_TXT_FILTER_CONDITIONS = {"no": "M0", "none": "M0", "d50": "M1",
+                          "uvcut": "M2", "polarized": "M3"}
+
+
+def read_txt_condition(txt_path: str | Path) -> "str | None":
+    """The measurement condition an i1Profiler CGATS export names in its
+    ``MEASUREMENT_SOURCE`` (``Filter=...``), or None when it names none
+    ("Not specified", no ``Filter=``, a value not known)."""
+    try:
+        text = read_text(Path(txt_path), lenient=True)
+    except (OSError, UnicodeDecodeError):
+        return None
+    head = text.split("BEGIN_DATA_FORMAT", 1)[0]
+    m = re.search(r'^\s*MEASUREMENT_SOURCE\s+"?(.*?)"?\s*$', head,
+                  re.IGNORECASE | re.MULTILINE)
+    if not m:
+        return None
+    f = re.search(r"\bFilter\s*=\s*([A-Za-z0-9]+)", m.group(1), re.IGNORECASE)
+    if not f:
+        return None
+    return _TXT_FILTER_CONDITIONS.get(f.group(1).lower())
 
 
 def _run(argyll_bin: Path, tool: str, args: list[str],
