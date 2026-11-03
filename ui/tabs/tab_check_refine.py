@@ -48,7 +48,9 @@ from ui.gamut_panel import GamutPanel
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.widgets import TailFollowLog, add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
-from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
+from ui.ti2_loader import (drop_fwa, fwa_dropped_log_line, fwa_unavailable,
+                          fwa_unavailable_reason, has_spectral_data,
+                          instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 
 _TAB_COLOR = "#9f82ff"  # Check & Refine tab accent
@@ -373,6 +375,11 @@ class TabCheckRefine(QWidget):
         # is active. EMPTY for now — populate once the incompatible options are
         # confirmed (e.g. the spectral-only options).
         self._gated_options: list[GatedOption] = []
+        # The FWA gate (`ui.ti2_loader.fwa_unavailable`): the tooltips
+        # the FWA widgets had before it greyed them, and whether the last
+        # `_collect_params` took a -f out.
+        self._fwa_plain_tips: dict[int, str] = {}
+        self._fwa_dropped_by_collect = False
 
         self._build_ui()
         self._restore_defaults()
@@ -519,6 +526,36 @@ class TabCheckRefine(QWidget):
         for opt in self._gated_options:
             for w in opt.widgets:
                 w.setEnabled(not active)
+        self._apply_fwa_gate()
+
+    def _fwa_refused(self) -> bool:
+        """Whether the loaded measurement is one ArgyllCMS cannot apply
+        FWA compensation (-f) to (``ui.ti2_loader.fwa_unavailable``). Its
+        own gate, beside the spectral one, so no other measurement is
+        touched by it."""
+        return fwa_unavailable(self._detected_instrument)
+
+    def _apply_fwa_gate(self, *_args) -> None:
+        """Grey the FWA box and its illuminant while the gate is shut, with
+        the reason as their tooltip; otherwise the combo follows its box, as
+        it always has. Also the slot of both boxes' ``toggled``."""
+        refused = self._fwa_refused()
+        reason = fwa_unavailable_reason() if refused else ""
+        for box_name, combo_name in (("_fwa_cb", "_fwa_combo"),
+                                     ("_m_fwa_cb", "_m_fwa_combo")):
+            box = getattr(self, box_name, None)
+            combo = getattr(self, combo_name, None)
+            if box is None or combo is None:
+                continue
+            box.setEnabled(not refused)
+            combo.setEnabled(not refused and box.isChecked())
+            for w in (box, combo):
+                key = id(w)
+                if refused:
+                    self._fwa_plain_tips.setdefault(key, w.toolTip())
+                    w.setToolTip(reason)
+                elif key in self._fwa_plain_tips:
+                    w.setToolTip(self._fwa_plain_tips.pop(key))
 
     # ------------------------------------------------------------------
     # UI construction
@@ -891,7 +928,8 @@ class TabCheckRefine(QWidget):
         for label, val in _ILLUMINANTS:
             self._fwa_combo.addItem(label, val)
         self._fwa_combo.setEnabled(False)
-        self._fwa_cb.toggled.connect(self._fwa_combo.setEnabled)
+        # Through the FWA gate (a measurement it refuses keeps it grey).
+        self._fwa_cb.toggled.connect(self._apply_fwa_gate)
         fwa_row.addWidget(self._fwa_combo)
         fwa_row.addStretch()
         fwa_row.addWidget(TooltipButton(
@@ -1210,7 +1248,7 @@ class TabCheckRefine(QWidget):
         for label, val in _ILLUMINANTS:
             self._m_fwa_combo.addItem(label, val)
         self._m_fwa_combo.setEnabled(False)
-        self._m_fwa_cb.toggled.connect(self._m_fwa_combo.setEnabled)
+        self._m_fwa_cb.toggled.connect(self._apply_fwa_gate)
         self._m_fwa_combo.setObjectName("compact_input")
         self._m_fwa_combo.style().unpolish(self._m_fwa_combo)
         self._m_fwa_combo.style().polish(self._m_fwa_combo)
@@ -1375,7 +1413,7 @@ class TabCheckRefine(QWidget):
         _set(self._m_verb_combo,   "verbosity",  "2")
         self._m_fwa_cb.setChecked(bool(data.get("fwa_enabled", False)))
         _set(self._m_fwa_combo,    "fwa_illum",  "D50")
-        self._m_fwa_combo.setEnabled(self._m_fwa_cb.isChecked())
+        self._apply_fwa_gate()
         _set(self._m_illum_combo,  "illum",      "D50")
         _set(self._m_obs_combo,    "observer",   "1931_2")
         self._m_prune_cb.setChecked(bool(data.get("prune_enabled", False)))
@@ -1400,7 +1438,7 @@ class TabCheckRefine(QWidget):
             _set(self._m_verb_combo,   "manual2_profcheck_verbosity",  "2")
             self._m_fwa_cb.setChecked(bool(s.get("manual2_profcheck_fwa_enabled", False)))
             _set(self._m_fwa_combo,    "manual2_profcheck_fwa_illum",  "D50")
-            self._m_fwa_combo.setEnabled(self._m_fwa_cb.isChecked())
+            self._apply_fwa_gate()
             _set(self._m_illum_combo,  "manual2_profcheck_illum",      "D50")
             _set(self._m_obs_combo,    "manual2_profcheck_observer",   "1931_2")
             self._m_prune_cb.setChecked(bool(s.get("manual2_profcheck_prune_enabled", False)))
@@ -1818,6 +1856,8 @@ class TabCheckRefine(QWidget):
         # The window names every number after the formula the check used.
         self._last_de_formula = params.de_formula
         self._log.clear()
+        if self._fwa_dropped_by_collect:
+            self._log.appendPlainText(fwa_dropped_log_line())
         self._last_result = None
         self._run_btn.setEnabled(False)
 
@@ -2502,6 +2542,10 @@ class TabCheckRefine(QWidget):
         if self._gate_active():
             for opt in self._gated_options:
                 opt.neutralise(params)
+        # FWA where the gate is shut: profcheck refuses it. Dropped here; the
+        # check says so in the log.
+        self._fwa_dropped_by_collect = (self._fwa_refused()
+                                        and drop_fwa(params))
         return params
 
     def _collect_guided_check(self) -> ProfcheckParams:
@@ -2601,7 +2645,7 @@ class TabCheckRefine(QWidget):
         idx = self._fwa_combo.findData(fwa_illum)
         if idx >= 0:
             self._fwa_combo.setCurrentIndex(idx)
-        self._fwa_combo.setEnabled(self._fwa_cb.isChecked())
+        self._apply_fwa_gate()
 
         illum = s.get("profcheck_illum", "D50")
         idx = self._illum_combo.findData(illum)
@@ -2641,7 +2685,7 @@ class TabCheckRefine(QWidget):
         _set_m(self._m_verb_combo,   "manual2_profcheck_verbosity",  "2")
         self._m_fwa_cb.setChecked(bool(s.get("manual2_profcheck_fwa_enabled", False)))
         _set_m(self._m_fwa_combo,    "manual2_profcheck_fwa_illum",  "D50")
-        self._m_fwa_combo.setEnabled(self._m_fwa_cb.isChecked())
+        self._apply_fwa_gate()
         _set_m(self._m_illum_combo,  "manual2_profcheck_illum",      "D50")
         _set_m(self._m_obs_combo,    "manual2_profcheck_observer",   "1931_2")
         self._m_prune_cb.setChecked(bool(s.get("manual2_profcheck_prune_enabled", False)))

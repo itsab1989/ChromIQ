@@ -561,6 +561,27 @@ class ProfileParams:
     render_style: str = "argyll"
 
 
+def without_fwa_where_argyll_refuses(params, keywords_from=None):
+    """*params* without FWA compensation when the measurement is one
+    ArgyllCMS cannot apply ``-f`` to (``ui.ti2_loader.fwa_unavailable``
+    says which), as ``(params, dropped)``. A copy is
+    returned when anything is dropped, so the caller's object is left as it
+    was; otherwise the same object. *keywords_from* is the file to ask when
+    *params*' own measurement does not exist yet (a merge still to be made)."""
+    from dataclasses import replace
+    from ui.ti2_loader import drop_fwa, fwa_unavailable_for_file
+    wants = bool(getattr(params, "fwa_enabled", False)) or "-f" in (
+        getattr(params, "extra_args", "") or "")
+    if not wants:
+        return params, False
+    ti3 = getattr(params, "ti3_path", None)
+    asked = ti3 if ti3 is not None and Path(ti3).is_file() else keywords_from
+    if not fwa_unavailable_for_file(asked):
+        return params, False
+    copy = replace(params)
+    return (copy, True) if drop_fwa(copy) else (params, False)
+
+
 class ProfileBuilder:
     def __init__(self, runner: "ArgyllRunner") -> None:
         self._runner = runner
@@ -583,6 +604,17 @@ class ProfileBuilder:
         from workflow.cal_repair import repair_embedded_cal
         repair_embedded_cal(params.ti3_path)
         self._ti3_path = params.ti3_path
+        # FWA ON A MEASUREMENT ARGYLL CANNOT PLACE ENDS COLPROF ("Unrecognised target
+        # instrument"), whichever door the switch came through: a saved
+        # setting, a preset, the extra arguments, a caller that is not the
+        # Build Profile tab. Left out with a line in the log, never a crash.
+        # The tab normally drops it first (and says so); this is the floor.
+        params, dropped = without_fwa_where_argyll_refuses(params)
+        if dropped:
+            from ui.ti2_loader import fwa_dropped_log_line
+            log.info("colprof: -f left out for %s (instrument unknown to ArgyllCMS's FWA)",
+                     params.ti3_path)
+            on_line(fwa_dropped_log_line())
         args = self._build_args(params)
         cwd  = params.ti3_path.parent
         log.info("colprof: %s  [cwd=%s]", " ".join(args), cwd)
@@ -837,6 +869,9 @@ class ProfileBuilder:
         first file's keywords, so the merge carries the fresh measurement's
         limit and no other (measured with Argyll 3.5.0 on 2026-11-02: a limit
         only in the second file did not reach the result)."""
+        # Never a -f ArgyllCMS will refuse (see `build`); asked of the file
+        # that carries the keywords (a merge keeps the first file's).
+        p, _ = without_fwa_where_argyll_refuses(p, ink_limit_from)
         args: list[str] = []
         if p.verbose:
             args.append("-v")        # colprof prints progress + any error

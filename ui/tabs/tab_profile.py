@@ -45,7 +45,9 @@ from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.widgets import ARGYLL_COMMANDS_PROPERTY, TailFollowLog, add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, message_box, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
-from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
+from ui.ti2_loader import (drop_fwa, fwa_dropped_log_line, fwa_unavailable,
+                          fwa_unavailable_reason, has_spectral_data,
+                          instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
 from workflow.engine_builder import (EngineProfileBuilder, engine_support,
@@ -453,6 +455,11 @@ class TabProfile(QWidget):
         # active. EMPTY for now — populate once the incompatible options are
         # confirmed (e.g. FWA -f, illuminant -i, observer).
         self._gated_options: list[GatedOption] = []
+        # The FWA gate (`ui.ti2_loader.fwa_unavailable`): the tooltips
+        # the FWA widgets had before it greyed them, and whether the last
+        # `_collect_params` took a -f out.
+        self._fwa_plain_tips: dict[int, str] = {}
+        self._fwa_dropped_by_collect = False
 
         self._build_ui()
         self._restore_defaults()
@@ -3544,7 +3551,9 @@ class TabProfile(QWidget):
         self._m_fwa_illum_combo.setObjectName("compact_input")
         self._m_fwa_illum_combo.style().unpolish(self._m_fwa_illum_combo)
         self._m_fwa_illum_combo.style().polish(self._m_fwa_illum_combo)
-        self._m_fwa_check.toggled.connect(self._m_fwa_illum_combo.setEnabled)
+        # Through the FWA gate, so a setting or preset that ticks the box
+        # while the FWA gate is shut cannot wake the combo.
+        self._m_fwa_check.toggled.connect(self._apply_fwa_gate)
         fwa_row.addWidget(self._m_fwa_check)
         fwa_row.addWidget(self._m_fwa_illum_combo, stretch=1)
         fwa_row.addWidget(TooltipButton(
@@ -4580,7 +4589,7 @@ class TabProfile(QWidget):
         for label, val in _ILLUMINANTS[1:]:
             self._fwa_illum_combo.addItem(label, val)
         self._fwa_illum_combo.setEnabled(False)
-        self._fwa_check.toggled.connect(self._fwa_illum_combo.setEnabled)
+        self._fwa_check.toggled.connect(self._apply_fwa_gate)
         fwa_row.addWidget(self._fwa_check)
         fwa_row.addWidget(self._fwa_illum_combo, stretch=1)
         fwa_row.addWidget(TooltipButton(
@@ -5089,6 +5098,36 @@ class TabProfile(QWidget):
         for opt in self._gated_options:
             for w in opt.widgets:
                 w.setEnabled(not active)
+        self._apply_fwa_gate()
+
+    def _fwa_refused(self) -> bool:
+        """Whether the loaded measurement is one ArgyllCMS cannot apply
+        FWA compensation (-f) to (``ui.ti2_loader.fwa_unavailable``). Its
+        own gate, beside the spectral one, so no other measurement is
+        touched by it."""
+        return fwa_unavailable(self._detected_instrument)
+
+    def _apply_fwa_gate(self, *_args) -> None:
+        """Grey the FWA box and its illuminant while the gate is shut, with
+        the reason as their tooltip; otherwise the combo follows its box, as
+        it always has. Also the slot of both boxes' ``toggled``."""
+        refused = self._fwa_refused()
+        reason = fwa_unavailable_reason() if refused else ""
+        for box_name, combo_name in (("_fwa_check", "_fwa_illum_combo"),
+                                     ("_m_fwa_check", "_m_fwa_illum_combo")):
+            box = getattr(self, box_name, None)
+            combo = getattr(self, combo_name, None)
+            if box is None or combo is None:
+                continue
+            box.setEnabled(not refused)
+            combo.setEnabled(not refused and box.isChecked())
+            for w in (box, combo):
+                key = id(w)
+                if refused:
+                    self._fwa_plain_tips.setdefault(key, w.toolTip())
+                    w.setToolTip(reason)
+                elif key in self._fwa_plain_tips:
+                    w.setToolTip(self._fwa_plain_tips.pop(key))
 
     # ------------------------------------------------------------------
     # Internal
@@ -6185,6 +6224,8 @@ class TabProfile(QWidget):
         self._log.clear()
 
         params = self._collect_params()
+        if self._fwa_dropped_by_collect:
+            self._log.appendPlainText(fwa_dropped_log_line())
         if not self._validate_gamut_source(params):
             return
         # WHICH BUILDER WILL RUN, ASKED ONCE AND ASKED ABOVE THE ARCHIVE.
@@ -6843,6 +6884,12 @@ class TabProfile(QWidget):
         if self._gate_active():
             for opt in self._gated_options:
                 opt.neutralise(params)
+        # FWA where the gate is shut: ArgyllCMS refuses it (and the engine
+        # does too), so it never reaches a command line or the command box,
+        # whether the box, a preset, a saved setting or the extra arguments
+        # asked for it. `_on_build` says so in the log.
+        self._fwa_dropped_by_collect = (self._fwa_refused()
+                                        and drop_fwa(params))
         return params
 
     def _collect_guided_profile(self) -> ProfileParams:

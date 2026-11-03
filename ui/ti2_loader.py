@@ -182,6 +182,104 @@ def spectral_options_unavailable(name: str | None,
     return is_colormunki(name) or is_cr30(name) or not has_spectral
 
 
+# ---------------------------------------------------------------------------
+# FWA compensation (-f) on a measurement ArgyllCMS cannot place.
+#
+# ArgyllCMS models optical brighteners from the lamp of the instrument that
+# took the readings, and it finds that lamp by the TARGET_INSTRUMENT name. A
+# name it does not know ends colprof, profcheck and spec2cie at once:
+#
+#     colprof: Error - Unrecognised target instrument 'Konica Minolta FD-9'
+#
+# Measured with ArgyllCMS 3.5.0 on 2026-11-03 (fix_fwa/repro): the FD-9 under
+# both of its spellings fails with -f in colprof, profcheck and spec2cie; the
+# illuminant (-i) and the observer (-o) work, and so does the same file named
+# "GretagMacbeth i1 Pro". So this gate is the FD-9's and FWA's ONLY: it is
+# separate from `spectral_options_unavailable`, matches nothing but an FD-9
+# TARGET_INSTRUMENT, and is NOT behind the Beta switch, because the refusal is
+# ArgyllCMS's and an FD-9 file stays an FD-9 file after the Beta is turned
+# off. It reads nothing a 4.3.21 build did not already read: the name comes
+# from the header the tabs read for every measurement, and a path is asked
+# with `workflow.fd9.support.chart_names_fd9`, which reads the header bytes
+# and imports nothing else of the FD-9's.
+# ---------------------------------------------------------------------------
+
+
+def fwa_unavailable(name: "str | None") -> bool:
+    """Whether colprof / profcheck ``-f`` must not be offered for a
+    measurement whose ``TARGET_INSTRUMENT`` is *name* (the FD-9, either
+    spelling). See the block above."""
+    if not name:
+        return False
+    from workflow.fd9.support import is_fd9_instrument_name
+    return is_fd9_instrument_name(name)
+
+
+def fwa_unavailable_for_file(path: "Path | str | None") -> bool:
+    """:func:`fwa_unavailable` for the measurement file at *path*. False for
+    no path, a missing file or one that cannot be read."""
+    if not path:
+        return False
+    from workflow.fd9.support import chart_names_fd9
+    return bool(chart_names_fd9(path))
+
+
+def drop_fwa(params) -> bool:
+    """Take FWA compensation out of a colprof / profcheck parameter object, in
+    place: the ``fwa_enabled`` switch, and any ``-f`` the user typed into
+    colprof's extra arguments. True when anything was removed."""
+    import shlex
+    dropped = False
+    if getattr(params, "fwa_enabled", False):
+        params.fwa_enabled = False
+        dropped = True
+    extra = getattr(params, "extra_args", "") or ""
+    if extra.strip():
+        try:
+            toks = shlex.split(extra)
+        except ValueError:      # unbalanced quotes: colprof gets it as typed
+            toks = None
+        if toks is not None:
+            kept = [t for t in toks if not t.startswith("-f")]
+            if len(kept) != len(toks):
+                params.extra_args = shlex.join(kept)
+                dropped = True
+    return dropped
+
+
+def fwa_unavailable_reason() -> str:
+    """The tooltip on the greyed FWA option while an FD-9 measurement is
+    loaded (Build Profile and Check & Refine)."""
+    return tr(
+        "FWA compensation is not available for FD-9 measurements.\n\n"
+        "Optical brighteners in paper turn invisible ultraviolet light into "
+        "visible blue light. FWA compensation in ArgyllCMS estimates that "
+        "effect from the light inside the instrument that took the readings, "
+        "and it only knows that light for the instruments it supports itself. "
+        "The FD-9 is not one of them, so ArgyllCMS would stop with an error "
+        "instead of building your profile or checking it.\n\n"
+        "With the FD-9 you choose how the brighteners are measured on the "
+        "Measure tab, before you measure (M0, M1 or M2). M1 is like daylight "
+        "(D50) with its ultraviolet, so your readings already include the "
+        "glow of the brighteners as it looks in daylight, which is what FWA "
+        "compensation tries to estimate. M2 leaves the ultraviolet out, so "
+        "the brighteners do not glow. To change it, measure the chart again "
+        "with the other condition.\n\n"
+        "The illuminant and observer options still work with FD-9 "
+        "measurements.")
+
+
+def fwa_dropped_log_line() -> str:
+    """The line the Build Profile and Check & Refine logs show when FWA
+    compensation was switched on (a saved setting, a preset, the extra
+    arguments) and is left out for an FD-9 measurement."""
+    return tr(
+        "[NOTE] FWA compensation (-f) was left out: ArgyllCMS cannot apply it "
+        "to FD-9 measurements, and the FD-9's own measurement condition "
+        "(M0, M1 or M2) already decides how the brighteners in the paper "
+        "were measured.")
+
+
 def instrument_family(name: str | None) -> "str | None":
     """Coarse instrument family for instruction wording: ``"colormunki"``
     (ColorMunki / i1Studio / ColorChecker Studio), ``"i1pro"`` (the whole i1 Pro

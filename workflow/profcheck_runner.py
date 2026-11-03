@@ -178,6 +178,18 @@ class ProfcheckRunner:
             self._scan_line(line)
             on_line(line)
 
+        # FWA on a measurement Argyll cannot place ends profcheck and spec2cie
+        # ("unrecognised target instrument"), whichever door the switch came
+        # through. Left out with a line in the log; the Check & Refine tab
+        # normally drops it first and greys the option.
+        from workflow.profile_builder import without_fwa_where_argyll_refuses
+        params, dropped = without_fwa_where_argyll_refuses(params)
+        if dropped:
+            from ui.ti2_loader import fwa_dropped_log_line
+            log.info("profcheck: -f left out for %s (instrument unknown to ArgyllCMS's FWA)",
+                     params.ti3_path)
+            on_line(fwa_dropped_log_line())
+
         # >4-ink profiles: stock profcheck refuses the colourspace, so run the
         # Python N-channel check (icclu forward lookup + ΔE) — same output
         # format, so all downstream parsing / grading / refine-strip flagging
