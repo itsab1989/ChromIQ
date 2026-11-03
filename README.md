@@ -835,7 +835,21 @@ A few patterns worth knowing:
 
 More developer docs live in [`docs/`](docs/) (folder layout, built-in presets,
 the i1Profiler export format, and more), and project-specific guidance is in
-[`CLAUDE.md`](CLAUDE.md).
+[`CLAUDE.md`](CLAUDE.md). How to contribute is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+### Want to add an instrument?
+
+If you own a measuring instrument ChromIQ does not support yet, and you have a
+driver or a working connection to it, we would love your help. Start with
+[`docs/adding_an_instrument.md`](docs/adding_an_instrument.md): it explains
+what to bring, which existing integration to model yours on (the CR30 or the
+FD-9), the Preferences > Beta option that keeps everyone else's ChromIQ
+unchanged, and every place an instrument has to be registered. If you work
+with a coding agent, hand it
+[`docs/adding_an_instrument_agent_prompt.md`](docs/adding_an_instrument_agent_prompt.md).
+The maintainers cannot test hardware they do not own, so your tests on the
+real device are an important part of the pull request.
 
 ---
 
