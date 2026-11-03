@@ -2211,6 +2211,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             if self._measure_written_cache().get(fingerprint) == wanted:
                 return False
             meta = store.load_meta()
+            # FD-9 (Beta) off: its stored keys pass through unchanged, so no
+            # meta.json is rewritten for them (review r1 F6).
+            from workflow.measure_settings import carry_fd9_keys
+            wanted = carry_fd9_keys(self, wanted,
+                                    getattr(meta, "measure_settings", None))
             if getattr(meta, "measure_settings", None) == wanted:
                 self._measure_written_cache()[fingerprint] = wanted
                 return False
@@ -6300,7 +6305,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                   getattr(self, "_m_presets_grp", None)):
             if w is not None:
                 w.setEnabled(options)
-        self._file_grp.setEnabled(enabled)
+        # …and the chart file stays where it is while an FD-9 result (Beta)
+        # still waits for its end window (review r1 F1).
+        self._file_grp.setEnabled(enabled
+                                  and not _fd9_ask(self, "_fd9_holds_a_result"))
         self._save_defaults_btn.setEnabled(options)
         # Keep the chart path/name tooltip from popping up over the chart while a
         # read runs — it gets in the way of swiping and the patch hover tile.
@@ -7385,6 +7393,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         """
         rec = getattr(self, "_replaced_chart", None)
         if rec is None or getattr(self, "_session_live", False):
+            return
+        # The FD-9 (Beta) has its own worker and never sets _session_live:
+        # while it reads, or its stopped result still waits to be saved or
+        # resumed, the record stays, and the FD-9's own ending settles it
+        # (`FD9MeasureMixin._fd9_settle`, review r1 F2).
+        if _fd9_ask(self, "_fd9_holds_a_result"):
             return
         self._replaced_chart = None
         try:
@@ -9141,7 +9155,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
 
-        fd9 = getattr(self, '_fd9_live', False) or getattr(self, '_fd9_pending', None) is not None
+        fd9 = _fd9_ask(self, "_fd9_engaged")
         if not (self._fd9_readings if fd9 else self._manager.has_unsaved_readings):
             # M-END-EMPTY. Nothing to lose, so nothing to ask — but say so,
             # because silence after pressing Stop is what has to be interpreted.
@@ -9247,7 +9261,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         approved sentence about it is true and is said (4.3.5 beta 5
         regression review).
         """
-        if getattr(self, "_fd9_live", False) or getattr(self, "_fd9_pending", None) is not None:
+        if _fd9_ask(self, "_fd9_engaged"):
             return int(getattr(getattr(self, "_fd9_guard", None), "before", 0) or 0)
         sess = getattr(self, "_session_guard", None)
         before = int(getattr(sess, "before", 0) or 0)
@@ -9308,7 +9322,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         process discards them. Pressing 'd' asked and saved; pressing Stop threw
         the work away without a word. Both now ask the same question.
         """
-        if getattr(self, '_fd9_live', False) or getattr(self, '_fd9_pending', None) is not None:
+        if _fd9_ask(self, "_fd9_engaged"):
             self._stop_fd9_measurement()
             return
         self._key_watchdog.stop()
@@ -9320,8 +9334,7 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
 
     def a_measurement_is_running(self) -> bool:
         """True while a reader is live and waiting for this tab's keys."""
-        if (getattr(self, '_fd9_live', False)
-                or getattr(self, '_fd9_pending', None) is not None
+        if (_fd9_ask(self, "_fd9_engaged")
                 or _fd9_ask(self, "_fd9_worker_running")):
             return True
         return bool(getattr(self, "_session_live", False)) and \
@@ -9356,13 +9369,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             return True
         self._key_watchdog.stop()
         if (_fd9_ask(self, "_fd9_worker_running")
-                and not getattr(self, '_fd9_live', False)
-                and getattr(self, '_fd9_pending', None) is None):
+                and not _fd9_ask(self, "_fd9_engaged")):
             # A queued result may be filed before QThread emits finished.
             # Keep its parent alive until the worker has actually returned.
             self._fd9_log(tr('The FD-9 is still finishing. Please wait until it has ended, then quit again.'))
             return False
-        if getattr(self, '_fd9_live', False) or getattr(self, '_fd9_pending', None) is not None:
+        if _fd9_ask(self, "_fd9_engaged"):
             self._fd9_end_prompt(self.END_QUIT)
             if self.a_measurement_is_running():
                 if self._fd9_choice is not None:self._fd9_log(tr('The FD-9 is still finishing. Please wait until it has ended, then quit again.'))

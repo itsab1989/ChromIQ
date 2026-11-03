@@ -600,8 +600,9 @@ M_FD9_INSERT_SHEET = _m(
     "The FD-9 is ready for the sheet. Insert the printed chart now:\n\n"
     "  •  the end with the arrow goes in first;\n"
     "  •  the printed side faces up.\n\n"
-    "The FD-9 pulls the sheet in, looks for the four small black squares near "
-    "the corners, and then measures the chart row by row. This window closes "
+    "The FD-9 pulls the sheet in, looks for the four small black squares "
+    "around the patch area, and then measures the chart row by row. This "
+    "window closes "
     "by itself as soon as the FD-9 has the sheet. ChromIQ waits for up to an "
     "hour; press Stop if you want to give up.\n\n"
     "The FD-9 cannot tell a sheet that is turned round, or a different chart "
@@ -626,27 +627,35 @@ M_FD9_NO_CONNECTION = _m(
     "The technical reason was: {reason}",
     approved=False)
 
-#: The FD-9 runs firmware other than 1.0.0.2; refused before the sheet.
+#: The FD-9's measuring sensor reports a version other than 1.0.0.2; refused
+#: before anything moves. It is the SENSOR's version (command 0x216) that the
+#: driver checks, not the FD-9's main firmware (driver audit, section 4), so
+#: the window says so. The id keeps its first name.
 M_FD9_WRONG_FIRMWARE = _m(
     "M-FD9-WRONG-FIRMWARE",
-    "This FD-9 has firmware ChromIQ does not know",
-    "ChromIQ works out the M0, M1 and M2 values from data stored inside the "
-    "FD-9, and it knows how that data is laid out only for FD-9 firmware "
-    "1.0.0.2. This FD-9 reports a different version, so ChromIQ stopped "
-    "before measuring rather than risk wrong colours.\n\n"
-    "Nothing was measured and nothing was changed. If you would like your "
-    "firmware to be supported, please tell us which version your FD-9 "
-    "has.\n\n"
+    "This FD-9's sensor version is not supported yet",
+    "ChromIQ works out the M0, M1 and M2 values from data stored in the "
+    "FD-9's measuring sensor, and it knows how that data is laid out only for "
+    "the sensor version 1.0.0.2. The sensor in this FD-9 reports a different "
+    "version, so ChromIQ stopped before the FD-9 moved anything, rather than "
+    "risk wrong colours.\n\n"
+    "This is the version of the measuring sensor inside the FD-9, not the "
+    "FD-9's own firmware version, so it can differ from the version number "
+    "the FD-9 or Konica Minolta's software shows you.\n\n"
+    "Nothing was measured and nothing on the FD-9 was changed. If you would "
+    "like this FD-9 to be supported, please tell us, and include the "
+    "technical reason below.\n\n"
     "The technical reason was: {reason}",
     approved=False)
 
-#: The pre-scan did not find the four corner marks, or they did not form the
-#: chart's rectangle.
+#: The pre-scan did not find the four marks around the patch area, or they did
+#: not form the chart's rectangle.
 M_FD9_MARKS_NOT_FOUND = _m(
     "M-FD9-MARKS-NOT-FOUND",
     "The FD-9 could not find the chart on the sheet",
     "The FD-9 looked at the sheet but could not find the four small black "
-    "squares near the corners, or they did not form a straight rectangle. "
+    "squares around the patch area, or they did not form a straight "
+    "rectangle. "
     "That happens when the sheet went in crooked or printed side down, or "
     "when it is not a chart made for the FD-9.\n\n"
     "Take the sheet out of the FD-9 (with the FD-9's own controls if it does "

@@ -190,6 +190,19 @@ def capture_layout(
                     ):
                         raise ValueError("Resume spectral model differs from this FD-9")
                 else:
+                    # The older native path, reached only to resume a partial
+                    # measurement of lessbones' earlier builds, had no sensor
+                    # version check (driver audit, section 4). Read the model
+                    # as a new job does, and it refuses any sensor version
+                    # other than 1.0.0.2 before any motion, display or job
+                    # command. Read-only: 0x200, 0x216, 0x20E and 0x206, which
+                    # the native evidence check accepts before the first
+                    # positioning request.
+                    from fd9_independent import instrument_model
+
+                    instrument_model.InstrumentModel.read(
+                        instrument, allow_experimental=True
+                    )
                     factory_digest = (
                         instrument.factory_characterization().verified_sections_sha256
                     )

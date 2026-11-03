@@ -335,6 +335,11 @@ def test_native_capture_checks_factory_before_insertion(setup, monkeypatch):
 
     monkeypatch.setattr(fd9_independent, "Instrument", Instrument)
     monkeypatch.setattr("fd9_independent.native_motion.NativeAcquisition", Acquisition)
+    # The sensor version check ChromIQ added to this path (review r1, driver
+    # audit section 4) runs first; it passes here.
+    monkeypatch.setattr(
+        "fd9_independent.instrument_model.InstrumentModel.read",
+        classmethod(lambda cls, instrument, **k: events.append("model")))
     with pytest.raises(CaptureFailed, match="factory characterization differs"):
         capture_layout(
             setup.settings.driver_source,
@@ -346,7 +351,7 @@ def test_native_capture_checks_factory_before_insertion(setup, monkeypatch):
             factory_row_sequencing=False,
             expected_factory_sha256="b" * 64,
         )
-    assert events == ["factory", "close"]
+    assert events == ["model", "factory", "close"]
 
 
 def test_native_resume_refuses_different_factory_even_with_valid_spectra(setup):

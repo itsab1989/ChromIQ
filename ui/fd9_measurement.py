@@ -62,7 +62,8 @@ class FD9Job(QThread):
     scan_ready = pyqtSignal(object)
     patch_ready = pyqtSignal(object)
     result = pyqtSignal(object)
-    failed = pyqtSignal(str, bool)
+    #: (message, stopped by the user, which M-FD9-* window: `fd9_exception_kind`)
+    failed = pyqtSignal(str, bool, str)
 
     def __init__(self, chart, settings, session, parent=None, action=None):
         super().__init__(parent)
@@ -89,7 +90,8 @@ class FD9Job(QThread):
                 )
             )
         except Exception as e:
-            self.failed.emit(str(e), self.stop_event.is_set())
+            self.failed.emit(str(e), self.stop_event.is_set(),
+                             fd9_exception_kind(e))
 
     def note_readings(self, count):
         self.new_readings = count
@@ -142,8 +144,9 @@ def setup_note() -> str:
         "192.168.1.50). The FD-9 and this computer must be on the same "
         "network, and no other program may be connected to the FD-9 while "
         "ChromIQ measures.\n\n"
-        "FD-9 support is a beta and has been tested on one FD-9 with firmware "
-        "1.0.0.2, on macOS.")
+        "FD-9 support is a beta and has been tested on one FD-9, on macOS. It "
+        "works only with an FD-9 whose measuring sensor reports the version "
+        "1.0.0.2, and ChromIQ checks that before the FD-9 moves anything.")
 
 
 class FD9Setup(QDialog):
@@ -213,7 +216,10 @@ def _progress_line(text: str) -> "tuple[str | None, str]":
 def fd9_error_kind(message: str) -> str:
     """Which M-FD9-* window an error belongs to."""
     low = str(message or "").lower()
-    if "unsupported sensor model version" in low:
+    # The vendored driver says "Sensor model version is not supported"
+    # (instrument_model.py); the older wording is kept for saved sessions.
+    if ("unsupported sensor model version" in low
+            or "sensor model version is not supported" in low):
         return "firmware"
     if any(k in low for k in (
             "isolated square marks", "marks do not form", "chart skew",
@@ -231,11 +237,49 @@ def fd9_error_kind(message: str) -> str:
     if any(k in low for k in (
             "timed out", "connection refused", "no route to host",
             "network is unreachable", "host is down", "closed the connection",
-            "deadline expired", "registration was declined", "errno",
+            "deadline expired", "registration was declined",
             "nodename nor servname", "name or service not known",
-            "connection reset", "broken pipe", "not connected")):
+            "connection reset", "connection abort", "broken pipe",
+            "not connected")):
+        # Not "errno": every OSError says it, a missing layout file and an
+        # unwritable session folder too, and neither is the network (review
+        # r1 F4). The words a network fault puts after its [Errno N] are
+        # listed above instead.
         return "connection"
     return "failed"
+
+
+def _network_errnos() -> "set[int]":
+    import errno
+    return {getattr(errno, n) for n in (
+        "ECONNREFUSED", "ECONNRESET", "ECONNABORTED", "EHOSTUNREACH",
+        "EHOSTDOWN", "ENETUNREACH", "ENETDOWN", "ETIMEDOUT", "EPIPE",
+        "ENOTCONN") if hasattr(errno, n)}
+
+
+def fd9_exception_kind(error: BaseException) -> str:
+    """Which M-FD9-* window an exception belongs to: by its TYPE first, so a
+    network fault is a connection problem whatever it says, and any other
+    OSError (a missing file, a folder that cannot be written) never is
+    (review r1 F4). Then by its words, for the driver's own messages."""
+    import socket
+    if isinstance(error, (ConnectionError, TimeoutError, socket.gaierror,
+                          socket.herror)):
+        return "connection"
+    kind = fd9_error_kind(str(error))
+    if (kind == "connection" and isinstance(error, OSError)
+            and error.errno not in _network_errnos()):
+        return "failed"
+    return kind
+
+
+def fd9_start_kind(error: BaseException) -> str:
+    """The window for a fault BEFORE the worker started: nothing has been
+    sent to the FD-9 yet, so it is never a connection problem. A refused
+    resume keeps its own window; anything else is M-FD9-FAILED, which shows
+    the reason (review r1 F4)."""
+    kind = fd9_error_kind(str(error))
+    return kind if kind == "resume" else "failed"
 
 
 class FD9MeasureMixin:
@@ -360,10 +404,12 @@ class FD9MeasureMixin:
             except RuntimeError:
                 pass
 
-    def _fd9_explain_error(self, message, cancelled=False):
-        """Put an error into words, in the window that fits it."""
+    def _fd9_explain_error(self, message, cancelled=False, kind=""):
+        """Put an error into words, in the window that fits it. *kind* is the
+        one `fd9_exception_kind` / `fd9_start_kind` found from the exception
+        itself; without it the words decide (`fd9_error_kind`)."""
         from workflow import measurement_messages as M
-        kind = "stopped" if cancelled else fd9_error_kind(message)
+        kind = "stopped" if cancelled else (kind or fd9_error_kind(message))
         sheet_in = bool(getattr(self, "_fd9_sheet_in", False))
         self._fd9_sheet_in = False
         if kind == "stopped":
@@ -408,6 +454,40 @@ class FD9MeasureMixin:
             return False
         from workflow.fd9.measurement import is_fd9_chart
         return bool(is_fd9_chart(self._chart_file_for(path)))
+
+    def _fd9_holds_a_result(self) -> bool:
+        """True while an FD-9 read is live or its stopped result still waits
+        for the end window ("Keep measuring" leaves it waiting). The chart file
+        group stays greyed until then, so another chart cannot be loaded over a
+        result that is not settled yet (review r1 F1)."""
+        return bool(self._fd9_live or self._fd9_pending is not None)
+
+    def _fd9_engaged(self) -> bool:
+        """True when the FD-9 owns the tab's endings (Stop, quit, the end
+        window): a read is live, or a waiting result belongs to the chart that
+        is loaded NOW. A result left for another chart never takes over a
+        normal chart's Stop or quit (review r1 F1)."""
+        if self._fd9_live:
+            return True
+        pending = self._fd9_pending
+        if pending is None:
+            return False
+        if not pending.get("chart"):
+            return True           # no chart recorded: it may be this one
+        try:
+            loaded = self._chart_file_for(self._ti1_path).resolve()
+            return Path(pending["chart"]).resolve() == loaded
+        except Exception:  # noqa: BLE001 - no loaded chart, not this result
+            return False
+
+    def _fd9_settle(self):
+        """An FD-9 ending: put a stored chart set aside at Start back, the way
+        `_settles_the_replaced_chart` does after every chartread ending
+        (review r1 F2). `_settle_the_replaced_chart` keeps it while the FD-9
+        is still reading or a result still waits to be saved or resumed."""
+        settle = getattr(self, "_settle_the_replaced_chart", None)
+        if settle is not None:
+            settle()
 
     def _fd9_options_locked(self) -> bool:
         """The chartread options are greyed while an FD-9 chart is loaded:
@@ -650,6 +730,14 @@ class FD9MeasureMixin:
         self._recover_engine_autosave()       # M3, before §3a looks at the .ti3
         if self._blocked_by_new_run() or self._blocked_by_missing_chart_file():
             return
+        # Another window holding the instrument is asked FIRST, before any
+        # question or snapshot, and in the window every instrument uses,
+        # M-INSTRUMENT-BUSY (review r1 F7). The acquire below stays, for the
+        # moment between this and the start.
+        busy = instrument_lease.held_by_other(self)
+        if busy is not None:
+            self._instrument_busy_window(busy)
+            return
         resumes = self._fd9_resumes()
         if self._blocked_by_a_misfitting_measurement(
                 params=type("P", (), {"resume": resumes})()):
@@ -750,7 +838,7 @@ class FD9MeasureMixin:
             instrument_lease.release(self)
             if staged:
                 self._drop_unused_verification_stage()
-            self._fd9_failed(str(e), False)
+            self._fd9_failed(str(e), False, fd9_start_kind(e))
 
     def _fd9_log(self, text):
         self._log.appendPlainText(text)
@@ -918,6 +1006,7 @@ class FD9MeasureMixin:
             self._fd9_pending = None
             self._reset_progress()
             self._fd9_restore_controls()
+            self._fd9_settle()
             return
         stopped = self._fd9_job.stop_event.is_set()
         if self._fd9_choice == "save" or (
@@ -984,7 +1073,8 @@ class FD9MeasureMixin:
                 result["staged"], result["destination"], chart, **options
             )
         except Exception as error:
-            self._fd9_failed(str(error), False)
+            # Filing happens on this computer, after the FD-9 has finished.
+            self._fd9_failed(str(error), False, "failed")
             return
         try:
             from workflow.fd9.sessions import mark_filed
@@ -1012,11 +1102,16 @@ class FD9MeasureMixin:
             self._fd9_log(
                 tr("If the sheet is still in the FD-9, take it out with the FD-9's own controls.")
             )
+        self._fd9_settle()
 
-    def _fd9_failed(self, message, cancelled):
+    def _fd9_failed(self, message, cancelled, kind=""):
         if self._fd9_ending:
-            self._fd9_deferred = ("failed", (message, cancelled))
+            self._fd9_deferred = ("failed", (message, cancelled, kind))
             return
+        # A discard is settled BEFORE the controls come back, so the chart
+        # file group is not left greyed for a result nobody keeps (r1 F1).
+        if self._fd9_choice == "discard":
+            self._fd9_pending = None
         if not self._fd9_pending:
             self._reset_progress()
         self._fd9_restore_controls()
@@ -1027,13 +1122,12 @@ class FD9MeasureMixin:
                 "Your previous measurement is unchanged, and everything the FD-9 sent is kept in the run's fd9-sessions folder. If the sheet is still in the FD-9, take it out with the FD-9's own controls."
             )
         )
-        if self._fd9_choice == "discard":
-            self._fd9_pending = None
         if self._fd9_pending:
             self._fd9_panel.setEnabled(False)
             self._stop_btn.setEnabled(True)
             self.measurement_active.emit(True)
-        self._fd9_explain_error(message, cancelled)
+        self._fd9_settle()
+        self._fd9_explain_error(message, cancelled, kind)
 
     def _fd9_end_prompt(self, how):
         if self._fd9_ending:
@@ -1067,6 +1161,7 @@ class FD9MeasureMixin:
                     self._reset_progress()
                     self._fd9_restore_controls()
                     self._refresh_fd9_panel()
+                    self._fd9_settle()
         if self._fd9_deferred is not None:
             kind, value = self._fd9_deferred
             self._fd9_deferred = None

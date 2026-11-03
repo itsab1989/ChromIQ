@@ -4263,7 +4263,7 @@ jobs, which is allowed and should be.*
 >   •  the end with the arrow goes in first;
 >   •  the printed side faces up.
 >
-> The FD-9 pulls the sheet in, looks for the four small black squares near the corners, and then measures the chart row by row. This window closes by itself as soon as the FD-9 has the sheet. ChromIQ waits for up to an hour; press Stop if you want to give up.
+> The FD-9 pulls the sheet in, looks for the four small black squares around the patch area, and then measures the chart row by row. This window closes by itself as soon as the FD-9 has the sheet. ChromIQ waits for up to an hour; press Stop if you want to give up.
 >
 > The FD-9 cannot tell a sheet that is turned round, or a different chart with the same grid, from the right one. Please make sure it is the right sheet, the right way round.
 
@@ -4285,25 +4285,27 @@ jobs, which is allowed and should be.*
 >
 > The technical reason was: {reason}
 
-### M-FD9-WRONG-FIRMWARE · PROPOSED · the FD-9 reports firmware other than 1.0.0.2, Measure
+### M-FD9-WRONG-FIRMWARE · PROPOSED · the FD-9's measuring sensor reports a version other than 1.0.0.2, Measure
 
-*New 2026-11-03 (PR #213, the Konica Minolta FD-9 Beta written and contributed by lessbones). The driver reads the instrument's model data only for the layout it knows (firmware 1.0.0.2) and refuses others before the insertion screen. {reason} is the driver's sentence.*
+*New 2026-11-03 (PR #213, the Konica Minolta FD-9 Beta written and contributed by lessbones). The driver reads the instrument's model data only for the layout it knows and refuses others before anything moves. Reworded 2026-11-03 (review r1, driver audit section 4): the version the driver checks is the measuring SENSOR's (command 0x216), not the FD-9's main firmware, so the first wording ("firmware 1.0.0.2") was not correct. The id keeps its first name. Since the same review the older native path (resuming a partial measurement of the contributor's earlier builds) checks the same version. {reason} is the driver's sentence.*
 
-> **This FD-9 has firmware ChromIQ does not know**
+> **This FD-9's sensor version is not supported yet**
 >
-> ChromIQ works out the M0, M1 and M2 values from data stored inside the FD-9, and it knows how that data is laid out only for FD-9 firmware 1.0.0.2. This FD-9 reports a different version, so ChromIQ stopped before measuring rather than risk wrong colours.
+> ChromIQ works out the M0, M1 and M2 values from data stored in the FD-9's measuring sensor, and it knows how that data is laid out only for the sensor version 1.0.0.2. The sensor in this FD-9 reports a different version, so ChromIQ stopped before the FD-9 moved anything, rather than risk wrong colours.
 >
-> Nothing was measured and nothing was changed. If you would like your firmware to be supported, please tell us which version your FD-9 has.
+> This is the version of the measuring sensor inside the FD-9, not the FD-9's own firmware version, so it can differ from the version number the FD-9 or Konica Minolta's software shows you.
+>
+> Nothing was measured and nothing on the FD-9 was changed. If you would like this FD-9 to be supported, please tell us, and include the technical reason below.
 >
 > The technical reason was: {reason}
 
-### M-FD9-MARKS-NOT-FOUND · PROPOSED · the pre-scan did not find the four corner marks, Measure
+### M-FD9-MARKS-NOT-FOUND · PROPOSED · the pre-scan did not find the four marks around the patch area, Measure
 
 *New 2026-11-03 (PR #213, the Konica Minolta FD-9 Beta written and contributed by lessbones). The driver's mark detector found not exactly four isolated marks, or they did not form the chart's rectangle, or the skew is too large. Nothing is filed.*
 
 > **The FD-9 could not find the chart on the sheet**
 >
-> The FD-9 looked at the sheet but could not find the four small black squares near the corners, or they did not form a straight rectangle. That happens when the sheet went in crooked or printed side down, or when it is not a chart made for the FD-9.
+> The FD-9 looked at the sheet but could not find the four small black squares around the patch area, or they did not form a straight rectangle. That happens when the sheet went in crooked or printed side down, or when it is not a chart made for the FD-9.
 >
 > Take the sheet out of the FD-9 (with the FD-9's own controls if it does not come out by itself), check that it is the right chart, insert it straight, arrow first and printed side up, and press Start again.
 >

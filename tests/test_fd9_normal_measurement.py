@@ -102,7 +102,9 @@ def test_worker_reports_cancellation_without_result(qtbot, tmp_path):
     with qtbot.waitSignal(worker.failed, timeout=2000) as sig:
         worker.start()
     worker.wait(2000)
-    assert sig.args == ["stopped", True]
+    # The third argument is the M-FD9-* window the exception belongs to
+    # (`fd9_exception_kind`, review r1 F4); a stop is shown as a stop anyway.
+    assert sig.args == ["stopped", True, "failed"]
 
 
 @pytest.fixture

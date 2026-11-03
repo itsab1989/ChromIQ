@@ -37,7 +37,10 @@ def first_table(path):
 
 
 _FD9_NAME = re.compile(
-    rb'^TARGET_INSTRUMENT[ \t]+"(?:FD-9|Konica Minolta FD-9)"[ \t]*\r?$', re.M
+    # Any letter case, quoted with " or ' or not at all (review r1 minor),
+    # the same names `is_fd9_instrument_name` accepts.
+    rb'^TARGET_INSTRUMENT[ \t]+(["\']?)[ \t]*(?:FD-9|Konica Minolta FD-9)[ \t]*\1[ \t]*\r?$',
+    re.M | re.I
 )
 _IS_FD9_CACHE: "dict[str, tuple[tuple[int, int], bool]]" = {}
 

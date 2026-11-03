@@ -4013,7 +4013,8 @@ def fd9_instrument_bullet() -> str:
         "the printed sheet and it finds and measures the patches by itself, "
         "row by row. ChromIQ talks to it over the network with its own "
         "driver. An FD-9 chart is one sheet with patches from 6 to 30 mm, "
-        "four small black squares near the corners and an arrow that shows "
+        "four small black squares around the patch area and an arrow that "
+        "shows "
         "which end goes in first. FD-9 support is a beta, written and "
         "contributed by lessbones (Preferences → Beta).")
 
@@ -9725,6 +9726,16 @@ class TabChart(QWidget):
         saved = self._settings.get("manual_engine_recipe", None)
         if not isinstance(saved, dict):
             return None
+        if saved.get("instrument") == "FD9":
+            # An FD-9 recipe saved while the Beta was on. With it off the
+            # FD-9 is not offered, so the recipe counts as none, as it would
+            # in 4.3.21, and no FD-9 code is loaded to lay it out (review r1
+            # F3). It stays in the store, for the day the Beta is on again.
+            from workflow.fd9.support import fd9_enabled
+            if not fd9_enabled():
+                log.info("the stored layout recipe is for the FD-9 and FD-9 "
+                         "support (Beta) is off: read as none")
+                return None
         shape = _unseen_panel_shape(saved)
         if shape is not None:
             log.info("the stored layout recipe is the placeholder of a panel "
@@ -31312,7 +31323,12 @@ class TabChart(QWidget):
         self._fd9_patch_h_mm = float(s.get("chart_fd9_patch_h_mm", None) or self._fd9_patch_mm)
         self._fd9_gap_mm = float(s.get("chart_fd9_gap_mm", 1.0))
         paper = s.get("chart_paper", "A4")
-        if instr == "FD9" and self._paper_combo.findData(paper) < 0:
+        # The COMBO's instrument, not the saved one: with FD-9 support (Beta)
+        # off, a saved "FD9" is not in the list, and its sheet must not be
+        # added to the i1Pro's papers either, nor workflow.fd9 imported for it
+        # (review r1 F3).
+        if (self._instr_combo.currentData() == "FD9"
+                and self._paper_combo.findData(paper) < 0):
             from workflow.fd9.chart import dimensions
             try:
                 dimensions(paper)

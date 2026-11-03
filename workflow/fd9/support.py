@@ -69,5 +69,11 @@ def set_enabled_for_this_process(value: "bool | None") -> None:
 
 
 def is_fd9_instrument_name(name: "str | None") -> bool:
-    """True for a ``TARGET_INSTRUMENT`` value that names the FD-9."""
-    return str(name or "").strip() in TARGET_INSTRUMENT_NAMES
+    """True for a ``TARGET_INSTRUMENT`` value that names the FD-9: either
+    spelling, in any letter case, with or without the quotes CGATS puts
+    around it (review r1 minor: a chart edited by hand or written by another
+    tool says "fd-9" or 'FD-9' just as well)."""
+    text = str(name or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        text = text[1:-1].strip()
+    return text.casefold() in {n.casefold() for n in TARGET_INSTRUMENT_NAMES}

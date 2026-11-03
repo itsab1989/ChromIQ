@@ -140,6 +140,29 @@ def _fd9_target(tab: Any) -> bool:
         return False
 
 
+#: Every key the FD-9 (Beta) may have stored in a target's record, the
+#: contributor's early "fd9_research" included.
+FD9_STORED_KEYS = (*FD9_CONTROLS, "fd9_research")
+
+
+def carry_fd9_keys(tab: Any, wanted: "dict[str, dict]",
+                   stored: "dict[str, dict] | None") -> "dict[str, dict]":
+    """*wanted* with the FD-9 keys of *stored* carried through UNCHANGED while
+    this tab has no FD-9 controls (FD-9 support off, review r1 F6).
+
+    With the Beta off, `apply` leaves those keys alone and `snapshot` cannot
+    produce them, so without this the next write of a target measured with the
+    FD-9 dropped them: a meta.json rewritten because of the FD-9, the record
+    gone when the Beta is turned on again. With the Beta on the tab writes its
+    own FD-9 keys (`snapshot`), as before."""
+    if getattr(tab, "_fd9_condition", None) is not None or not stored:
+        return wanted
+    carried = {k: stored[k] for k in FD9_STORED_KEYS if k in stored}
+    if not carried:
+        return wanted
+    return {**wanted, **carried}
+
+
 def snapshot(tab: Any) -> "dict[str, dict]":
     """What the Measure tab would store for the selected target, right now."""
     out: "dict[str, dict]" = {}

@@ -60,10 +60,23 @@ s = AppSettings()
 s.set("custom_output_path", os.environ["CHROMIQ_PROBE_OUT"])
 s.set("restore_last_session", False)
 s.set("session_project", "")
+if os.environ.get("CHROMIQ_PROBE_STALE"):
+    # What a user leaves behind who made an FD-9 chart with the Beta on and
+    # then turned it off (review r1 F3): the Guided instrument and sheet, and
+    # an FD-9 recipe as Manual's "Save as Defaults".
+    s.set("chart_instrument", "FD9")
+    s.set("chart_paper", "137x300")
+    from workflow.layout_engine.presets import LayoutRecipe
+    s.set("manual_engine_recipe", LayoutRecipe(
+        instrument="FD9", paper="137x300", patch_w_mm=10.0, patch_h_mm=12.0,
+        fd9_gap_mm=2.0, layout_mode="patch_first").to_dict())
 from workflow.fd9.support import latch_from
 assert latch_from(s) is False
 from ui.main_window import MainWindow
 win = MainWindow(s)
+guided = win._tab_chart._paper_combo
+papers = [str(guided.itemData(i)) for i in range(guided.count())]
+instrument = str(win._tab_chart._instr_combo.currentData())
 from ui.dialogs.settings_dialog import SettingsDialog
 dlg = SettingsDialog(s, win)
 entries, names = [], []
@@ -78,17 +91,23 @@ loaded = sorted(m for m in sys.modules
                 if m.startswith(("workflow.fd9", "fd9_independent",
                                  "ui.fd9_measurement", "ui.dialogs.fd9_sheet")))
 print("PROBE" + json.dumps({"entries": entries, "names": names,
-                            "loaded": loaded}))
+                            "loaded": loaded, "papers": papers,
+                            "instrument": instrument}))
 dlg.deleteLater(); win.close()
 os._exit(0)
 """
 
 
-def test_the_real_window_offers_no_fd9_and_loads_none_of_its_code(tmp_path):
+def _probe(tmp_path, stale=False):
+    """Build the real window in a child process; its report as a dict."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)
+    env.pop("CHROMIQ_PROBE_STALE", None)
     env.update(CHROMIQ_ROOT=str(ROOT), QT_QPA_PLATFORM="offscreen",
                CHROMIQ_SETTINGS_FILE=str(tmp_path / "settings.ini"),
                CHROMIQ_PROBE_OUT=str(tmp_path / "out"))
+    if stale:
+        env["CHROMIQ_PROBE_STALE"] = "1"
     try:
         r = subprocess.run([sys.executable, "-c", PROBE], capture_output=True,
                            text=True, encoding="utf-8", errors="replace", env=env, cwd=str(tmp_path), timeout=600)
@@ -98,7 +117,25 @@ def test_the_real_window_offers_no_fd9_and_loads_none_of_its_code(tmp_path):
     line = next((ln for ln in r.stdout.splitlines() if ln.startswith("PROBE")),
                 None)
     assert line, f"probe failed (exit {r.returncode}):\n{r.stderr[-3000:]}"
-    got = json.loads(line[len("PROBE"):])
+    return json.loads(line[len("PROBE"):])
+
+
+@pytest.mark.parametrize("stale", [False, True],
+                         ids=["fresh settings", "stale FD-9 settings"])
+def test_the_real_window_offers_no_fd9_and_loads_none_of_its_code(
+        tmp_path, stale):
+    """Also from the settings a user leaves behind after turning the Beta
+    off again (review r1 F3): the FD-9 chosen in Guided on the FD-9's own
+    137 x 300 mm sheet, and an FD-9 recipe stored for Manual. The window then
+    opens as if the FD-9 had never been there: no FD-9 sheet in the i1Pro's
+    paper list, and no FD-9 code loaded to find that out."""
+    got = _probe(tmp_path / ("stale" if stale else "fresh"), stale)
+    if stale:
+        fresh = _probe(tmp_path / "fresh", False)
+        assert got["papers"] == fresh["papers"], (
+            "stale FD-9 settings changed Guided's paper list: "
+            f"{sorted(set(got['papers']) ^ set(fresh['papers']))}")
+        assert got["instrument"] != "FD9"
     fd9_entries = [e for e in got["entries"]
                    if e[1] == "FD9" or "FD-9" in e[0] or "FD9" in e[0]]
     assert not fd9_entries, (

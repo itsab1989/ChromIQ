@@ -235,7 +235,7 @@ def fd9_greyed_reason() -> str:
         "made for the way the FD-9 finds and reads the sheet: at least 15 mm "
         "free on each side, the middle of the first row of patches 42 mm from "
         "the end that goes in first, and at least 33 mm free at the other end. "
-        "Four small black squares near the corners let the FD-9 find the "
+        "Four small black squares around the patch area let the FD-9 find the "
         "patches, and an arrow shows which end goes in first. Nothing else is "
         "printed on the sheet. You set the patch width, the patch height and "
         "the gap between patches above, and an FD-9 chart is always one "
@@ -3196,23 +3196,9 @@ class LayoutOptionsPanel(QWidget):
         from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,
                                      QComboBox, QGroupBox)
         if fd9:
-            live = {tr(t) for t in self._FD9_LIVE_GROUPS}
             why = fd9_greyed_reason()
             saved = {"controls": [], "pages": None, "custom": None, "dpi": None}
-            # Keep the (i) buttons usable: disabling a whole group would grey
-            # them too, so each control is greyed instead.
-            for control in self.findChildren(
-                    (QAbstractSpinBox, QAbstractButton, QComboBox)):
-                if isinstance(control, TooltipButton) or control is self.dpi:
-                    continue
-                groups = []
-                p = control.parentWidget()
-                while p is not None and p is not self:
-                    if isinstance(p, QGroupBox):
-                        groups.append(p.title())
-                    p = p.parentWidget()
-                if not groups or any(t in live for t in groups):
-                    continue          # the selectors, the FD-9's own, or live
+            for control in self._fd9_greyable_controls():
                 saved["controls"].append(
                     (control, control.isEnabled(), control.toolTip()))
                 control.setEnabled(False)
@@ -3250,6 +3236,55 @@ class LayoutOptionsPanel(QWidget):
             self.custom_h.setRange(hmin, hmax)
             self.custom_w.setValue(wval)
             self.custom_h.setValue(hval)
+
+    def _fd9_greyable_controls(self):
+        """The controls the FD-9 layout does not read: every spin box, button
+        and list inside a group that is not one of `_FD9_LIVE_GROUPS`, except
+        the (i) buttons (disabling a whole group would grey them too, so each
+        control is greyed instead) and the resolution."""
+        from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,
+                                     QComboBox, QGroupBox)
+        live = {tr(t) for t in self._FD9_LIVE_GROUPS}
+        for control in self.findChildren(
+                (QAbstractSpinBox, QAbstractButton, QComboBox)):
+            if isinstance(control, TooltipButton) or control is self.dpi:
+                continue
+            groups = []
+            p = control.parentWidget()
+            while p is not None and p is not self:
+                if isinstance(p, QGroupBox):
+                    groups.append(p.title())
+                p = p.parentWidget()
+            if not groups or any(t in live for t in groups):
+                continue          # the selectors, the FD-9's own, or live
+            yield control
+
+    def _hold_fd9_greying(self) -> None:
+        """While the FD-9 is selected, grey again what a recipe load or one of
+        the panel's own `_sync_*` rules has just enabled (review r1 F5: loading
+        a recipe gave the four page margins back, "Use instrument margins"
+        gave back the clip-border width). What that rule wanted is remembered
+        instead, so leaving the FD-9 puts back the newest state, not the one
+        from when the FD-9 was chosen. Nothing at all when the FD-9 is not
+        selected."""
+        saved = getattr(self, "_fd9_saved", None)
+        if saved is None:
+            return
+        why = fd9_greyed_reason()
+        index = {id(c): i for i, (c, _e, _t) in enumerate(saved["controls"])}
+        for control in self._fd9_greyable_controls():
+            enabled, tip = control.isEnabled(), control.toolTip()
+            i = index.get(id(control))
+            if i is None:                 # built since the FD-9 was chosen
+                saved["controls"].append((control, enabled, tip))
+            elif enabled or tip != why:   # a rule has changed it since
+                old_tip = saved["controls"][i][2]
+                saved["controls"][i] = (control, enabled,
+                                        tip if tip != why else old_tip)
+            else:
+                continue
+            control.setEnabled(False)
+            control.setToolTip(why)
 
     def _on_instr_changed(self, *_a) -> None:
         """The instrument combo moved. ``_instr_changing`` is True for the
@@ -5921,6 +5956,7 @@ class LayoutOptionsPanel(QWidget):
                 if hasattr(self, "fd9_patch") and r.instrument == "FD9":
                     self.fd9_controls.set_values(r.patch_w_mm or 8.0, r.patch_h_mm or r.patch_w_mm or 8.0, r.fd9_gap_mm)
                 self._set_recipe_impl(r)
+                self._hold_fd9_greying()          # review r1 F5
             finally:
                 # A HALF-DONE LOAD MUST NOT KILL THE PANEL. `_set_recipe_impl`
                 # clears `_loading` on its last line only, so a raise part way
@@ -6359,3 +6395,33 @@ class LayoutOptionsPanel(QWidget):
         r.clip_border_free_space = bool(
             getattr(self, "_clip_border_free_space", True))
         return r
+
+
+def _holds_fd9_greying(method):
+    """Run one of the panel's `_sync_*` rules, then keep the FD-9's greying
+    (`LayoutOptionsPanel._hold_fd9_greying`, review r1 F5). Applied below to
+    every rule that enables or disables a control, instead of a call at the end
+    of each, which the next rule added would miss."""
+    import functools
+    code = method.__code__
+    # Qt hands a slot every argument of its signal and lets a Python slot
+    # drop what it does not take; this wrapper takes *args, so it cuts them
+    # to what the rule accepts itself (as `_settles_the_replaced_chart` does).
+    n = None if code.co_flags & 0x04 else code.co_argcount - 1
+
+    @functools.wraps(method)
+    def held(self, *args, **kwargs):
+        try:
+            return method(self, *(args if n is None else args[:n]), **kwargs)
+        finally:
+            if getattr(self, "_fd9_saved", None) is not None:
+                self._hold_fd9_greying()
+    return held
+
+
+for _name in [n for n in vars(LayoutOptionsPanel)
+              if n.startswith("_sync_") and n != "_sync_fd9_widgets"
+              and callable(vars(LayoutOptionsPanel)[n])]:
+    setattr(LayoutOptionsPanel, _name,
+            _holds_fd9_greying(vars(LayoutOptionsPanel)[_name]))
+del _name

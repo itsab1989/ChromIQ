@@ -229,7 +229,7 @@ verified by tests and on screen without an FD-9.*
   one sheet, patches 6-30 mm wide and high, a gap of 0-5 mm (default 8 x 8 mm,
   1 mm), at least 15 mm free on each side, the middle of the first row 42 mm
   from the leading edge and at least 33 mm free at the trailing edge, four 3 mm
-  marks near the corners, an arrow showing which end goes in first, and
+  marks around the patch area, an arrow showing which end goes in first, and
   nothing else printed.
 * **Sheets:** 137x300, A4, A4 landscape, Letter, Letter landscape, A3,
   329x483 and 330x660, plus "Custom sheet…" for any 137-330 mm across the
