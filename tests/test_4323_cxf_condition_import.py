@@ -551,7 +551,8 @@ def test_argyllcms_applies_fwa_to_an_m0_import(tmp_path):
                                  condition="M0")
     r = subprocess.run([_argyll("spec2cie"), "-f", "-i", "D50", str(out),
                         str(tmp_path / "f.ti3")], capture_output=True,
-                       text=True, timeout=120)
+                       text=True, encoding="utf-8",
+                       errors="replace", timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     old = tmp_path / "old.ti3"
     old.write_text(out.read_text(encoding="utf-8").replace(
@@ -559,7 +560,8 @@ def test_argyllcms_applies_fwa_to_an_m0_import(tmp_path):
         encoding="utf-8")
     r = subprocess.run([_argyll("spec2cie"), "-f", "-i", "D50", str(old),
                         str(tmp_path / "g.ti3")], capture_output=True,
-                       text=True, timeout=120)
+                       text=True, encoding="utf-8",
+                       errors="replace", timeout=120)
     assert r.returncode != 0 and "nrecognised target instrument" in (
         r.stdout + r.stderr)
 
@@ -577,7 +579,8 @@ def test_a_spectral_import_builds_a_profile(tmp_path):
         _params(ti3, quality="l", fwa_enabled=True))
     assert not any(a.startswith("-f") for a in args)
     r = subprocess.run([_argyll("colprof"), *args], cwd=work,
-                       capture_output=True, text=True, timeout=600)
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=600)
     assert r.returncode == 0, (r.stdout + r.stderr)[-2000:]
     assert any(p.suffix in (".icc", ".icm") for p in work.iterdir())
 

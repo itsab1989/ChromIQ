@@ -78,7 +78,7 @@ def test_a_failed_save_says_so(tmp_path, monkeypatch, qapp):
     converted = tmp_path / "out.ti3"
     converted.write_text("CTI3\n", encoding="utf-8")
     monkeypatch.setattr(rc, "convert_i1profiler_measurement",
-                        lambda s, a, o: converted)
+                        lambda s, a, o, **_kw: converted)
 
     def no_room(a, b, *k, **kw):
         raise PermissionError(13, "Permission denied")

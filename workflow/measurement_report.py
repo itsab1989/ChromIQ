@@ -5009,10 +5009,14 @@ def report_scope(runs: "list[dict]") -> dict:
         return argyll_instrument_name(r.get("instrument")) or "Unknown instrument"
     insts = [_inst(r) for r in runs]
     if len(set(insts)) > 1:
-        dominant = Counter(insts).most_common(1)[0][0]
+        dominant_key = Counter(insts).most_common(1)[0][0]
+        # Named as the runs themselves name it (the commonest spelling).
+        dominant = Counter(r.get("instrument") or "Unknown instrument"
+                           for r in runs
+                           if _inst(r) == dominant_key).most_common(1)[0][0]
         odd = [{"run": _run_label(r), "instrument": r.get("instrument") or "Unknown instrument"}
                for r in runs
-               if _inst(r) != dominant]
+               if _inst(r) != dominant_key]
         warnings.append({"kind": "instrument", "dominant": dominant, "runs": odd})
 
     missing = []
