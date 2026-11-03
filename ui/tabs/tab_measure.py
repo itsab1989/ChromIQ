@@ -9349,12 +9349,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 and getattr(self, '_fd9_pending', None) is None):
             # A queued result may be filed before QThread emits finished.
             # Keep its parent alive until the worker has actually returned.
-            self._fd9_log(tr('Quit again after the FD-9 operation has ended.'))
+            self._fd9_log(tr('The FD-9 is still finishing. Please wait until it has ended, then quit again.'))
             return False
         if getattr(self, '_fd9_live', False) or getattr(self, '_fd9_pending', None) is not None:
             self._fd9_end_prompt(self.END_QUIT)
             if self.a_measurement_is_running():
-                if self._fd9_choice is not None:self._fd9_log(tr('Quit again after the FD-9 operation has ended.'))
+                if self._fd9_choice is not None:self._fd9_log(tr('The FD-9 is still finishing. Please wait until it has ended, then quit again.'))
                 return False
             return True
         choice = self._confirm_end_of_session(self.END_QUIT)

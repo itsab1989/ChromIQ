@@ -573,7 +573,7 @@ class FD9MeasureMixin:
             self._preview.set_page_patch_boxes({0: list(boxes.values())})
             self._preview.set_no_swipe(True)
             self._preview.set_notice(
-                tr("FD-9 layout preview: approximate colours, not a print file.")
+                tr("FD-9 layout preview: the colours are approximate, and this is not the file that is printed.")
             )
             return True
         except Exception as e:
@@ -672,7 +672,7 @@ class FD9MeasureMixin:
             settings.validate()
             prior_path, prior_rows, _ = resume_plan(chart, settings)
             if not instrument_lease.acquire(self, instrument_lease.MEASURE_TAB):
-                raise ValueError(tr("Another window holds the instrument."))
+                raise ValueError(tr("Another window is using the instrument. Close it, then press Start again."))
             from workflow.fd9.sessions import new_session_dir
 
             session = new_session_dir(chart)
@@ -837,7 +837,7 @@ class FD9MeasureMixin:
         self._fd9_use_rows_as_strips(event["rows"], boxes)
         self._preview.set_page_patch_boxes({0: boxes})
         self._preview.set_patch_click_enabled(False)
-        self._preview.set_notice(tr("FD-9 scan: green rows are complete."))
+        self._preview.set_notice(tr("FD-9 scan of the sheet: rows outlined in green are measured, the amber row is next, and blue rows are still to come."))
         self._refresh_progress()
         self._fd9_restore_scan_colours(chart)
 
@@ -917,7 +917,7 @@ class FD9MeasureMixin:
             self._fd9_log("[ERROR] " + result["acquisition_error"])
             self._fd9_log(
                 tr(
-                    "The previous measurement is unchanged. Raw session evidence is preserved. If the sheet remains in the FD-9, use its controls to recover it."
+                    "Your previous measurement is unchanged, and everything the FD-9 sent is kept in the run's fd9-sessions folder. If the sheet is still in the FD-9, take it out with the FD-9's own controls."
                 )
             )
             self._fd9_explain_error(result["acquisition_error"], stopped)
@@ -991,7 +991,7 @@ class FD9MeasureMixin:
                 self.measure_finished.emit(target)
         if result.get("acquisition_error"):
             self._fd9_log(
-                tr("If the sheet remains in the FD-9, use its controls to recover it.")
+                tr("If the sheet is still in the FD-9, take it out with the FD-9's own controls.")
             )
 
     def _fd9_failed(self, message, cancelled):
@@ -1005,7 +1005,7 @@ class FD9MeasureMixin:
         self._fd9_log(("[STOPPED] " if cancelled else "[ERROR] ") + message)
         self._fd9_log(
             tr(
-                "The previous measurement is unchanged. Raw session evidence is preserved. If the sheet remains in the FD-9, use its controls to recover it."
+                "Your previous measurement is unchanged, and everything the FD-9 sent is kept in the run's fd9-sessions folder. If the sheet is still in the FD-9, take it out with the FD-9's own controls."
             )
         )
         if self._fd9_choice == "discard":
@@ -1036,7 +1036,7 @@ class FD9MeasureMixin:
                 self._stop_btn.setEnabled(False)
                 self._fd9_log(
                     tr(
-                        "Stopping FD-9 communication. Keep this window open until the operation ends."
+                        "Stopping the FD-9. Please keep ChromIQ open until this has finished."
                     )
                 )
             elif self._fd9_pending:
