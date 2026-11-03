@@ -16540,8 +16540,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 + "\n" + tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile.")
             )
             # Its condition, before the yellow memory takes its checksum:
-            # the reads' common one, or none (S-A2).
-            settle_combined_condition(result, check)
+            # the reads' common one; after "Average them" (the only way
+            # here when it asked) the KNOWN one; else none (S-A2).
+            settle_combined_condition(result, check, confirmed=True)
             # The averaged file is the run's measurement now: its yellow
             # memory is this session's, stamped for it (#182 K4). Patches are
             # keyed by location, which averaging (by SAMPLE_ID) never changes.

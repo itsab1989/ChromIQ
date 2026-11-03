@@ -361,6 +361,13 @@ def merge_preconditioning(
             + "\n\nThe profile will be built from the new measurements only."
         )
 
+    if merge_unrecorded:
+        # "Merge them": the merged file records the KNOWN condition, in
+        # either order of the two files (`average -m` copies the fresh
+        # one's header, which may be the one that records none).
+        _record_confirmed(out_ti3, _check_of(
+            [(pre_data, pre.condition), (fresh_ti3, fresh.condition)]))
+
     total = fresh.n_sets + pre.n_sets
     log.info(
         "Merged measurements via 'average -m': %d fresh + %d pre-conditioning "
@@ -442,6 +449,10 @@ def merge_measurements(
             + (f":\n{detail}" if detail else ".")
         )
 
+    if merge_unrecorded:
+        # "Merge them": the KNOWN condition, whichever file is the primary.
+        _record_confirmed(out_ti3, check)
+
     log.info(
         "Merged %d measurement files via 'average -m' = %d sets -> %s",
         len(inputs), total, out_ti3.name,
@@ -449,18 +460,39 @@ def merge_measurements(
     return total
 
 
-def settle_combined_condition(result: Path, check: ConditionCheck) -> None:
-    """After ``average`` has combined measurements into *result*: it says
-    the condition they were measured under only when every input recorded
-    the same one (review round 2, S-A2). ``average`` copies the FIRST
-    file's header, so after "Average them" on a file that records none and
-    one that records M1, the result would claim M1 for readings ChromIQ
-    cannot vouch for; it records nothing instead."""
+def _record_confirmed(out_ti3: Path, check: ConditionCheck) -> None:
+    """After a merge the person confirmed ("Merge them"): *out_ti3* records
+    the known condition (:func:`settle_combined_condition`)."""
+    if check.asks:
+        settle_combined_condition(out_ti3, check, confirmed=True)
+
+
+def settle_combined_condition(result: Path, check: ConditionCheck, *,
+                              confirmed: bool = False) -> None:
+    """After ``average`` has combined measurements into *result*: the
+    condition it says it was measured under.
+
+    * every input records the same one: that one (review round 2, S-A2);
+    * some record none and the others M1, M2 or M3, and the person answered
+      "Merge them" / "Average them" (*confirmed*): the KNOWN one, the
+      condition the recorded files name. The answer says they were all
+      measured the same way, so the result is that condition's readings,
+      and FWA stays refused for M1/M2 (Basti 2026-11-03). ``average`` copies
+      the FIRST file's header, so without this the result named whatever
+      the first file had, or nothing, and FWA could be allowed on M1/M2
+      data;
+    * otherwise (none beside M0, which nobody was asked about): nothing.
+
+    Only the header is changed (:func:`record_condition`)."""
     from workflow.measurement_condition import (clear_condition,
                                                 record_condition)
     try:
         if check.common:
             record_condition(result, check.common)
+        elif confirmed and check.asks:
+            if record_condition(result, check.recorded):
+                log.info("combined %s records %s: confirmed as measured "
+                         "the same way", Path(result).name, check.recorded)
         elif clear_condition(result):
             log.info("averaged %s records no measurement condition: not "
                      "every input recorded the same one", Path(result).name)

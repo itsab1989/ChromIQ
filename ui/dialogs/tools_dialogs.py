@@ -936,9 +936,10 @@ class AverageMeasurementsDialog(_ToolDialogBase):
 
         def _on_finish(result: Path | None) -> None:
             if result is not None:
-                # The result says the condition only when every input
-                # recorded the same one (`average` copies the first file's).
-                settle_combined_condition(result, check)
+                # The result says the condition every input records, or,
+                # after "Average them" (the only way here when it asked),
+                # the KNOWN one; `average` alone copies the first file's.
+                settle_combined_condition(result, check, confirmed=True)
                 self._log.appendPlainText(f"[OK] Wrote {result}")
                 _remember_dir(self._settings, self.TOOL_KEY, result.parent)
                 self._finish(True)

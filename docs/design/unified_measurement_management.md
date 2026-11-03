@@ -9443,9 +9443,19 @@ ChromIQ took the M2 readings and he compared M1.
   different conditions before ArgyllCMS `average` runs
   (M-AVERAGE-CONDITION; on the Measure tab the reads stay and the newest is
   the run's measurement, as when `average` refuses) and ask about reads that
-  record none beside M1, M2 or M3 (M-AVERAGE-CONDITION-ASK). The averaged
-  file records the condition every read records, and none otherwise
-  (`average` alone copies the first read's).
+  record none beside M1, M2 or M3 (M-AVERAGE-CONDITION-ASK).
+* **What the merged or averaged file records** (Basti 2026-11-03, final
+  ruling for 4.3.23). Every input records the same condition: that one.
+  After "Merge them" or "Average them" (one records none, another M1, M2 or
+  M3): the KNOWN condition, the one the recorded file names, whichever file
+  comes first, because the answer confirms both were measured the same way;
+  so FWA stays refused for a result that is really M1 or M2. Otherwise (none
+  beside M0, which is not asked about) an average records none. Written into
+  the header only, as the `-F` stamp is; the readings are not rewritten. The
+  same in the Build Profile merge, Tools ▸ Merge measurements, the Measure
+  tab's averaging and Tools ▸ Average measurements (`average` alone copies
+  the first file's header, so before this the result named whatever the
+  first file had, or nothing).
 * **Refine / resume keeps one condition** (S-A1). chartread rewrites the
   header on a resume, so the recorded condition did not survive one. When
   Refine / resume would continue a measurement that records a condition and

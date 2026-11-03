@@ -11,7 +11,8 @@ S-A3  "not recorded" against M1/M2/M3 is ASKED about, for the
       the person to match "not recorded". A caller that cannot ask does not
       merge, and logs it.
 S-A2  averaging (the Measure tab's and Tools > Average) follows the same
-      rule; the averaged result keeps the common condition, or none.
+      rule; the averaged result keeps the common condition, or none
+      (after "Average them" the known one: test_4323_confirmed_condition).
 M-A1  the report folds only ArgyllCMS's generic "GretagMacbeth i1 Pro" into
       the i1Pro the other runs name; i1 Pro 2 against i1 Pro 3 is flagged.
 M-A2  the FWA tooltip of a chartread M1/M2/M3 says to set -F to None (M0)
@@ -545,8 +546,9 @@ def test_s_a2_the_result_keeps_the_common_condition_or_none(tmp_path):
     out = _cond(_ti3(tmp_path / "out.ti3"), "M1")
     settle_combined_condition(out, condition_check([a, b]))
     assert read_condition(out) == "M1"
-    # "Average them" on a not-recorded pair: `average` copied the first
-    # file's M1, and the result records nothing.
+    # A not-recorded pair nobody confirmed: `average` copied the first
+    # file's M1, and the result records nothing. (After "Average them" it
+    # records the known one: test_4323_confirmed_condition.py.)
     before = out.read_bytes().split(b"BEGIN_DATA_FORMAT", 1)[1]
     settle_combined_condition(out, condition_check([a, n]))
     assert read_condition(out) is None
@@ -557,7 +559,7 @@ def test_s_a2_the_result_keeps_the_common_condition_or_none(tmp_path):
 def test_s_a2_the_result_is_settled_before_the_yellow_memory():
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure._run_average_and_proceed)
-    assert src.index("settle_combined_condition(result, check)") < \
+    assert src.index("settle_combined_condition(result, check") < \
         src.index("self._save_confirmed_memory(result)")
     assert src.index("condition_check(reads)") < \
         src.index("self._avg_runner.run(")
