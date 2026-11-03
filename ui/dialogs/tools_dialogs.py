@@ -284,7 +284,9 @@ def _device_default_size(w_lo: int, w_hi: int, h_lo: int, h_hi: int) -> tuple[in
     if w_lo >= 16:                       # PLUS / M3
         return min(20, w_hi), min(20, h_hi)
     return max(8, w_lo), max(7, h_lo)
-from workflow.ti3_merge import Ti3MergeError, merge_measurements
+from workflow.ti3_merge import (Ti3MergeError, clash_text,
+                                condition_check, merge_measurements,
+                                settle_combined_condition)
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -905,6 +907,23 @@ class AverageMeasurementsDialog(_ToolDialogBase):
 
         method = "median" if self._median_btn.isChecked() else "mean"
         self._log.clear()
+        # THE SAME RULE AS MERGING (review round 2, S-A2): two different
+        # recorded conditions are refused before `average` runs (it would
+        # keep the first file's condition for all of them); one recording
+        # none against M1/M2/M3 is asked.
+        check = condition_check(self._inputs)
+        if check.clash is not None:
+            self._log.appendPlainText(
+                "[ERROR] " + clash_text(check, averaging=True))
+            self._finish(False)
+            return
+        if check.asks and not _ask_unrecorded_condition(
+                self, "average_tool", check):
+            self._log.appendPlainText("[INFO] " + tr(
+                "Nothing was averaged, as chosen: not every measurement "
+                "records its measurement condition."))
+            self._finish(False)
+            return
         self._log.appendPlainText(
             f"Averaging {len(self._inputs)} measurement files ({method}) → {out.name}"
         )
@@ -917,6 +936,9 @@ class AverageMeasurementsDialog(_ToolDialogBase):
 
         def _on_finish(result: Path | None) -> None:
             if result is not None:
+                # The result says the condition only when every input
+                # recorded the same one (`average` copies the first file's).
+                settle_combined_condition(result, check)
                 self._log.appendPlainText(f"[OK] Wrote {result}")
                 _remember_dir(self._settings, self.TOOL_KEY, result.parent)
                 self._finish(True)
@@ -929,6 +951,18 @@ class AverageMeasurementsDialog(_ToolDialogBase):
                 self._finish(False)
 
         self._avg_runner.run(params, _on_line, _on_finish)
+
+
+def _ask_unrecorded_condition(parent, kind: str, check) -> bool:
+    """M-MERGE-CONDITION-ASK / M-AVERAGE-CONDITION-ASK for a Tools window:
+    True to go ahead."""
+    from ui.widgets import ask_condition_question
+    from workflow import measurement_messages as MM
+    from workflow.measurement_condition import condition_name
+    title, body, yes, no = MM.condition_ask(
+        kind, check.lines(), condition_name(check.recorded))
+    return ask_condition_question(parent, title, body, yes, no,
+                                  f"{kind}_condition_question")
 
 
 # ---------------------------------------------------------------------------
@@ -1077,8 +1111,22 @@ class MergeMeasurementsDialog(_ToolDialogBase):
         )
 
         bin_dir = Path(self._settings.get("argyll_bin_path", "/Applications/Argyll/bin"))
+        # Some record no measurement condition, the others M1/M2/M3: asked
+        # (M-MERGE-CONDITION-ASK, review round 2, S-A3). Two different
+        # recorded conditions are refused by the merge itself.
+        merge_unrecorded = False
+        check = condition_check(inputs)
+        if check.asks:
+            merge_unrecorded = _ask_unrecorded_condition(self, "merge", check)
+            if not merge_unrecorded:
+                self._log.appendPlainText("[INFO] " + tr(
+                    "Nothing was merged, as chosen: not every measurement "
+                    "records its measurement condition."))
+                self._finish(False)
+                return
         try:
-            total = merge_measurements(inputs, out, bin_dir=bin_dir)
+            total = merge_measurements(inputs, out, bin_dir=bin_dir,
+                                       merge_unrecorded=merge_unrecorded)
         except Ti3MergeError as exc:
             self._log.appendPlainText(f"[ERROR] {exc.message}")
             self._finish(False)

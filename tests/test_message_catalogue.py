@@ -148,6 +148,12 @@ AWAITING_APPROVAL: "set[str]" = {
     # Merges of measurements of different conditions are refused (Basti,
     # 2026-11-03, 4.3.23 review round 1, S3).
     "M-MERGE-CONDITION", "M-MERGE-CONDITION-TOOLS",
+    # Review round 2, part A (Basti, 2026-11-03): averaging follows the merge
+    # rule, "not recorded" against M1/M2/M3 is asked about, and a resume
+    # under another condition is refused.
+    "M-AVERAGE-CONDITION", "M-MERGE-CONDITION-ASK", "M-AVERAGE-CONDITION-ASK",
+    "M-CONDITION-ASK-PARTS", "M-CONDITION-NOT-ASKED", "M-RESUME-CONDITION",
+    "M-RESUME-CONDITION-PARTS",
     # Forum post 149786 (4.3.10): part of a strip read one patch out, warned
     # about while measuring and named in the report. Proposed 2026-10-22.
     "M-STRIP-PART-SLIPPED-LATE", "M-STRIP-PART-SLIPPED-EARLY",

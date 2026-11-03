@@ -7438,14 +7438,19 @@ def cxf_condition_list(conditions) -> str:
     return tr(_COND_AND).format(first=", ".join(items[:-1]), last=items[-1])
 
 
-# --- PROPOSED (4.3.23, review round 1): merges of different conditions ----
-#: Basti, 2026-11-03 (review round 1, S3): the pre-conditioning merge and
-#: Tools > Merge measurements refuse two measurements when one names M1, M2
-#: (or M3) and the other names a different condition or none ("not
-#: recorded"): no condition is not the same as M1/M2. None with M0, or none
-#: with none, merges as before. {pre} / {fresh} / {primary_condition} /
-#: {condition} are a condition's name ("M1 (daylight with UV, D50)") or
-#: "not recorded". Shown in the beta while awaiting approval.
+# --- PROPOSED (4.3.23, review rounds 1 and 2): measurements of different ---
+# --- conditions, merged, averaged or continued -----------------------------
+#: Basti, 2026-11-03 (review round 1, S3; round 2, S-A2 and S-A3): the
+#: pre-conditioning merge, Tools > Merge measurements, the Measure tab's
+#: averaging and Tools > Average measurements refuse two measurements that
+#: RECORD two different conditions. When one records none ("not recorded")
+#: and the other M1, M2 or M3, they ASK (M-MERGE-CONDITION-ASK,
+#: M-AVERAGE-CONDITION-ASK): none is not the same as M1/M2, but a
+#: measurement made with ChromIQ 4.3.22 or older records none whatever -F it
+#: was measured with. None with M0, or none with none, merges as before.
+#: {pre} / {fresh} / {condition} / {other_condition} are a condition's name
+#: ("M1 (daylight with UV, D50)"); a refusal never names "not recorded".
+#: Shown in the beta while awaiting approval.
 _MERGE_COND_HEAD = (
     "The pre-conditioning measurements were not merged into the chart just "
     "measured, because the two were not measured under the same measurement "
@@ -7453,11 +7458,16 @@ _MERGE_COND_HEAD = (
     "Pre-conditioning measurements: {pre}\n"
     "Chart just measured: {fresh}")
 _MERGE_COND_TOOLS_HEAD = (
-    "'{name}' was not measured under the same measurement condition as the "
-    "primary file '{primary}', so they were not merged.\n\n"
-    "'{primary}': {primary_condition}\n"
+    "'{name}' and '{other}' were not measured under the same measurement "
+    "condition, so nothing was merged.\n\n"
+    "'{other}': {other_condition}\n"
     "'{name}': {condition}")
-_MERGE_COND_BODY = (
+_AVERAGE_COND_HEAD = (
+    "'{name}' and '{other}' were not measured under the same measurement "
+    "condition, so they were not averaged.\n\n"
+    "'{other}': {other_condition}\n"
+    "'{name}': {condition}")
+_COND_WHAT = (
     "The measurement condition is the light the instrument shines on the "
     "paper while it measures: M0 is the instrument's own lamp, M1 is light "
     "with a defined amount of ultraviolet, like D50 daylight, and M2 cuts "
@@ -7466,20 +7476,14 @@ _MERGE_COND_BODY = (
     "the same patch can read several ΔE apart under each condition. "
     "Readings taken under different conditions describe the paper in two "
     "different ways, and a profile built from both together would fit "
-    "neither.\n\n"
-    "\u201cNot recorded\u201d means the file does not say which condition it "
-    "was measured under. ChromIQ records it when the Measure tab's "
-    "\u201cSpectral filter type (-F)\u201d option is switched on, and when an "
-    "i1Profiler .mxf or .cxf file is imported. Without that option the "
-    "instrument measures in its normal mode, which is M0 on the i1Pro "
-    "family, so such a measurement is not combined with M1 or M2 "
-    "readings.\n\n"
-    "To combine them, both measurements need the same condition. Measure "
-    "the chart again with \u201cSpectral filter type (-F)\u201d on the "
-    "Measure tab switched on and set to the condition of the other "
-    "measurement. Or, if one of them was imported from i1Profiler, import "
-    "its .mxf file again and choose the condition that matches the other "
-    "measurement.")
+    "neither.")
+_COND_FIX = (
+    "To combine them, both need the same condition. Measure one of them "
+    "again with “Spectral filter type (-F)” on the Measure tab "
+    "switched on and set to the condition of the other. Or, if one of them "
+    "was imported from i1Profiler, import its .mxf file again and choose "
+    "the condition that matches the other measurement.")
+_MERGE_COND_BODY = _COND_WHAT + "\n\n" + _COND_FIX
 _MERGE_COND_TAIL = "The profile will be built from the new measurements only."
 M_MERGE_CONDITION = _m(
     "M-MERGE-CONDITION",
@@ -7491,10 +7495,81 @@ M_MERGE_CONDITION_TOOLS = _m(
     "Measurements not merged",
     _MERGE_COND_TOOLS_HEAD + "\n\n" + _MERGE_COND_BODY,
     approved=False)
+M_AVERAGE_CONDITION = _m(
+    "M-AVERAGE-CONDITION",
+    "Measurements not averaged",
+    _AVERAGE_COND_HEAD + "\n\n" + _MERGE_COND_BODY,
+    approved=False)
+
+#: The question when one measurement records no condition (review round 2,
+#: S-A3, Basti 2026-11-03). {measurements} is one line per measurement,
+#: built from M-CONDITION-LINE; {condition} is the condition the others
+#: record; {if_not} is what "Don't merge" / "Don't average" does there.
+_COND_UNRECORDED_WHY = (
+    "A measurement does not record its condition when it was made with "
+    "ChromIQ 4.3.22 or older, or while the Measure tab's “Spectral "
+    "filter type (-F)” option was switched off. The measurement "
+    "condition is the light the instrument shines on the paper, and "
+    "optical brighteners in the paper read differently under each one.")
+M_MERGE_CONDITION_ASK = _m(
+    "M-MERGE-CONDITION-ASK",
+    "Merge these measurements?",
+    "One of these measurements does not record the measurement condition "
+    "it was measured under, so ChromIQ cannot check that they belong "
+    "together.\n\n"
+    "{measurements}\n\n"
+    + _COND_UNRECORDED_WHY + "\n\n"
+    "Merging them is right only if both were measured with the same "
+    "setting. If you know that the one that is not recorded was measured "
+    "under {condition} too, merge them. If you are not sure, don't.\n\n"
+    "{if_not}",
+    approved=False)
+M_AVERAGE_CONDITION_ASK = _m(
+    "M-AVERAGE-CONDITION-ASK",
+    "Average these measurements?",
+    "Some of these measurements do not record the measurement condition "
+    "they were measured under, so ChromIQ cannot check that they belong "
+    "together.\n\n"
+    "{measurements}\n\n"
+    + _COND_UNRECORDED_WHY + "\n\n"
+    "Averaging them is right only if all of them were measured with the "
+    "same setting. If you know that the ones that are not recorded were "
+    "measured under {condition} too, average them. If you are not sure, "
+    "don't.\n\n"
+    "{if_not}",
+    approved=False)
+#: The question's parts: one line per measurement, the buttons and the
+#: {if_not} sentences.
+_COND_LINE = "'{name}': {condition}"
+_COND_YES_MERGE = "Merge them"
+_COND_NO_MERGE = "Don't merge"
+_COND_YES_AVERAGE = "Average them"
+_COND_NO_AVERAGE = "Don't average"
+_COND_IF_NOT_BUILD = ("If you don't merge them, the profile is built from "
+                      "the new measurement only.")
+_COND_IF_NOT_MERGE = "If you don't merge them, nothing is written."
+_COND_IF_NOT_AVERAGE = ("If you don't average them, your reads are all "
+                        "kept, and {read}, the one you took last, is this "
+                        "run's measurement.")
+_COND_IF_NOT_AVERAGE_TOOL = "If you don't average them, nothing is written."
+M_CONDITION_ASK_PARTS = _m(
+    "M-CONDITION-ASK-PARTS",
+    "Merge or average: the question's parts",
+    "\n".join((_COND_LINE, _COND_YES_MERGE, _COND_NO_MERGE,
+               _COND_YES_AVERAGE, _COND_NO_AVERAGE, _COND_IF_NOT_BUILD,
+               _COND_IF_NOT_MERGE, _COND_IF_NOT_AVERAGE,
+               _COND_IF_NOT_AVERAGE_TOOL)),
+    approved=False)
+_COND_IF_NOT = {
+    "build": _COND_IF_NOT_BUILD,
+    "merge": _COND_IF_NOT_MERGE,
+    "average": _COND_IF_NOT_AVERAGE,
+    "average_tool": _COND_IF_NOT_AVERAGE_TOOL,
+}
 
 
 def merge_condition_body() -> str:
-    """The explanation shared by both merge refusals."""
+    """The explanation shared by the merge and average refusals."""
     return tr(_MERGE_COND_BODY)
 
 
@@ -7504,13 +7579,116 @@ def merge_condition_text(pre: str, fresh: str) -> str:
     return M_MERGE_CONDITION.render(pre=pre, fresh=fresh)[1]
 
 
-def merge_condition_tools_text(name: str, primary: str,
-                               primary_condition: str,
+def merge_condition_tools_text(name: str, other: str, other_condition: str,
                                condition: str) -> str:
     """M-MERGE-CONDITION-TOOLS's body."""
     return M_MERGE_CONDITION_TOOLS.render(
-        name=name, primary=primary, primary_condition=primary_condition,
+        name=name, other=other, other_condition=other_condition,
         condition=condition)[1]
+
+
+def average_condition_text(name: str, other: str, other_condition: str,
+                           condition: str) -> str:
+    """M-AVERAGE-CONDITION's body."""
+    return M_AVERAGE_CONDITION.render(
+        name=name, other=other, other_condition=other_condition,
+        condition=condition)[1]
+
+
+def condition_ask(kind: str, lines, condition: str,
+                  read: str = "") -> "tuple[str, str, str, str]":
+    """The question when one measurement records no condition:
+    ``(title, body, yes, no)``. *kind* is ``"build"`` (the pre-conditioning
+    merge), ``"merge"`` (Tools > Merge), ``"average"`` (the Measure tab's
+    averaging; *read* the read kept when they are not averaged) or
+    ``"average_tool"``; *lines* are ``(name, condition_in_words)``."""
+    measurements = "\n".join(
+        tr(_COND_LINE).format(name=n, condition=c) for n, c in lines)
+    if_not = tr(_COND_IF_NOT[kind]).format(read=read)
+    averaging = kind.startswith("average")
+    msg = M_AVERAGE_CONDITION_ASK if averaging else M_MERGE_CONDITION_ASK
+    title, body = msg.render(measurements=measurements, condition=condition,
+                             if_not=if_not)
+    if averaging:
+        return title, body, tr(_COND_YES_AVERAGE), tr(_COND_NO_AVERAGE)
+    return title, body, tr(_COND_YES_MERGE), tr(_COND_NO_MERGE)
+
+
+#: The log line when a merge or an average that would have asked runs where
+#: nobody can answer: it is not made (review round 2, S-A3).
+M_CONDITION_NOT_ASKED = _m(
+    "M-CONDITION-NOT-ASKED",
+    "Not combined without asking",
+    "[NOTE] '{name}' does not record its measurement condition and the "
+    "other measurements were measured under {condition}, so they were not "
+    "combined: nobody could be asked whether they belong together.",
+    approved=False)
+
+
+def condition_not_asked_line(name: str, condition: str) -> str:
+    return M_CONDITION_NOT_ASKED.render(name=name, condition=condition)[1]
+
+
+#: Refine / resume onto a measurement that records another condition than
+#: the -F the Measure tab is set to now (review round 2, S-A1, Basti
+#: 2026-11-03). {before} is the condition the measurement records, {now}
+#: what the Measure tab is set to (a condition's name, or one of the two
+#: phrases below), {setting} the "Spectral filter type (-F)" choice that
+#: gives {before} ("D50 (M1)"), {box} the resume or refine box's own text.
+M_RESUME_CONDITION = _m(
+    "M-RESUME-CONDITION",
+    "This measurement cannot be continued with this setting",
+    "The measurement you are continuing records a different measurement "
+    "condition from the one the Measure tab is set to now.\n\n"
+    "The measurement so far: {before}\n"
+    "The Measure tab now: {now}\n\n"
+    "The measurement condition is the light the instrument shines on the "
+    "paper. Optical brighteners in the paper read differently under each "
+    "one, so new readings taken now would not belong with the ones already "
+    "there.\n\n"
+    "To continue this measurement, switch “Spectral filter type "
+    "(-F)” on and set it to “{setting}”, then press Start "
+    "again. Or untick “{box}” to measure the whole chart again "
+    "under the new setting: your current measurement is then moved to the "
+    "run's old folder, not deleted.\n\n"
+    "Nothing has been measured or changed.",
+    approved=False)
+#: {now} when the row is off, and when it names a filter that is no
+#: measurement condition (D65); and the log line when the measurement so
+#: far records nothing (S-A1: allowed, and nothing is recorded at the end).
+_RESUME_NOW_OFF = (
+    "\u201cSpectral filter type (-F)\u201d switched off (the instrument's "
+    "normal mode)")
+_RESUME_NOW_NO_CONDITION = (
+    "\u201cSpectral filter type (-F)\u201d set to \u201c{setting}\u201d, "
+    "which is no measurement condition")
+_RESUME_UNRECORDED_LOG = (
+    "[NOTE] The first part of this measurement does not record its "
+    "measurement condition, so none is recorded for it now either, "
+    "although \u201cSpectral filter type (-F)\u201d is set to "
+    "\u201c{setting}\u201d.")
+M_RESUME_CONDITION_PARTS = _m(
+    "M-RESUME-CONDITION-PARTS",
+    "Continuing a measurement: the condition's parts",
+    "\n".join((_RESUME_NOW_OFF, _RESUME_NOW_NO_CONDITION,
+               _RESUME_UNRECORDED_LOG)),
+    approved=False)
+
+
+def resume_condition_now(setting: "str | None", condition: "str | None"
+                         ) -> str:
+    """{now} of M-RESUME-CONDITION: *setting* is the -F choice's label
+    (None when the row is off), *condition* the condition it gives."""
+    if not setting:
+        return tr(_RESUME_NOW_OFF)
+    if not condition:
+        return tr(_RESUME_NOW_NO_CONDITION).format(setting=setting)
+    from workflow.measurement_condition import condition_name
+    return condition_name(condition)
+
+
+def resume_condition_unrecorded_line(setting: str) -> str:
+    return tr(_RESUME_UNRECORDED_LOG).format(setting=setting)
 
 
 def cxf_condition_setting_line(selected_raw, selected, preselect) -> str:
@@ -8593,7 +8771,9 @@ M_GESTURE_STATUS = _m(
 
 CATALOGUE = {m.id: m for m in (
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
-    M_MERGE_CONDITION, M_MERGE_CONDITION_TOOLS,
+    M_MERGE_CONDITION, M_MERGE_CONDITION_TOOLS, M_AVERAGE_CONDITION,
+    M_MERGE_CONDITION_ASK, M_AVERAGE_CONDITION_ASK, M_CONDITION_ASK_PARTS,
+    M_CONDITION_NOT_ASKED, M_RESUME_CONDITION, M_RESUME_CONDITION_PARTS,
     M_GESTURE_STATUS,
     M_PAGE_PAUSE, M_PAGE_PAUSE_END, M_PAGE_PAUSE_OTHER_PAGES,
     M_PAGE_PAUSE_BUTTON, M_PAGE_PAUSE_FOUND, M_PAGE_PAUSE_CONTROLS,

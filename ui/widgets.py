@@ -5936,3 +5936,26 @@ class GatedOption:
 #: mark (``MainWindow._apply_argyll_command_visibility``) rather than by a
 #: list, so the next such box is covered the moment it carries the mark.
 ARGYLL_COMMANDS_PROPERTY = "argyllCommands"
+
+
+def ask_condition_question(parent, title: str, body: str, yes: str, no: str,
+                           object_name: str = "condition_question") -> bool:
+    """M-MERGE-CONDITION-ASK / M-AVERAGE-CONDITION-ASK (4.3.23 review round
+    2, S-A3): one measurement records no measurement condition and another
+    M1, M2 or M3. True for *yes* ("Merge them" / "Average them"). *no* is
+    the default and the Escape button, so a closed window combines nothing,
+    as the refusal before the question did."""
+    box = QMessageBox(parent)
+    box.setObjectName(object_name)
+    box.setIcon(QMessageBox.Icon.NoIcon)
+    box.setWindowTitle(title)
+    box.setText(title)
+    box.setInformativeText(body)
+    dont = box.addButton(no, QMessageBox.ButtonRole.RejectRole)
+    go = box.addButton(yes, QMessageBox.ButtonRole.AcceptRole)
+    box.setDefaultButton(dont)
+    box.setEscapeButton(dont)
+    keep_message_box_inside_the_work_area(box, widen_when_it_fits=False)
+    fit_message_box_buttons(box)
+    box.exec()
+    return box.clickedButton() is go

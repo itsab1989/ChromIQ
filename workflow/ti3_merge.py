@@ -45,6 +45,15 @@ class Ti3MergeError(Exception):
         self.message = message
 
 
+class Ti3MergeConditionUnrecorded(Ti3MergeError):
+    """Raised instead of merging when one measurement records no condition
+    and another records M1, M2 or M3, and the caller has not said the merge
+    may go ahead (review round 2, S-A3): a caller that can ask the person
+    asks first (:func:`condition_check`) and passes ``merge_unrecorded``;
+    any other caller gets this, which is "Don't merge", with a log line as
+    its ``message``."""
+
+
 @dataclass
 class _Parsed:
     color_rep: str
@@ -125,20 +134,81 @@ _NOT_M0 = frozenset({"M1", "M2", "M3"})
 
 def conditions_clash(a: str, b: str) -> bool:
     """Whether two measurements' ``MEASUREMENT_CONDITION`` values ("" for
-    none) keep them from being merged (review round 1, S3, Basti
-    2026-11-03): one names M1, M2 or M3 and the other names a different
-    condition OR NONE, because a file that names none was measured in the
-    instrument's normal mode (M0 on the i1Pro family) as far as anyone
-    knows, which is not the same as M1 or M2. Two different named
-    conditions clash too. No condition with M0, or none with none, merges
+    none) keep them from being merged or averaged: both RECORD a condition,
+    and not the same one (review round 2, S-A3, Basti 2026-11-03). One that
+    records none against M1, M2 or M3 is not a clash but a question
+    (:func:`condition_unrecorded`); none with M0, or none with none, merges
     as before."""
     a = (a or "").strip().upper()
     b = (b or "").strip().upper()
-    if a == b:
-        return False
-    if a and b:
-        return True
-    return bool({a, b} & _NOT_M0)
+    return bool(a and b and a != b)
+
+
+def condition_unrecorded(a: str, b: str) -> bool:
+    """Whether one of two measurements records no condition while the other
+    records M1, M2 or M3: they are combined only when the person says so
+    (M-MERGE-CONDITION-ASK, M-AVERAGE-CONDITION-ASK). A file that records
+    none may have been measured under any condition (ChromIQ 4.3.22 and
+    older recorded none, whatever -F was set to), so ChromIQ cannot tell."""
+    a = (a or "").strip().upper()
+    b = (b or "").strip().upper()
+    return (not a) != (not b) and bool({a, b} & _NOT_M0)
+
+
+@dataclass
+class ConditionCheck:
+    """What the recorded conditions of several measurements allow.
+
+    *clash* is the first two files that record different conditions, as
+    ``((path, condition), (path, condition))``, or None. When there is no
+    clash, *recorded* is the one condition the files that record one share
+    ("" when none records one), and *unrecorded* the files that record
+    none; :attr:`asks` says whether the person must be asked first."""
+    clash: "tuple[tuple[Path, str], tuple[Path, str]] | None"
+    recorded: str
+    unrecorded: "list[Path]"
+    conditions: "list[tuple[Path, str]]"
+
+    @property
+    def asks(self) -> bool:
+        return (self.clash is None and bool(self.unrecorded)
+                and self.recorded in _NOT_M0)
+
+    @property
+    def common(self) -> str:
+        """The condition every file records ("" when they do not all record
+        the same one): what a combined file may say it was measured
+        under."""
+        if self.clash is None and not self.unrecorded:
+            return self.recorded
+        return ""
+
+    def lines(self) -> "list[tuple[str, str]]":
+        """``(file name, condition in words)`` for the question."""
+        return [(Path(p).name, _condition_text(c)) for p, c in self.conditions]
+
+
+def condition_check(paths) -> ConditionCheck:
+    """:class:`ConditionCheck` for the measurements at *paths*, in order."""
+    from workflow.measurement_condition import read_condition
+    conds = [(Path(p), (read_condition(p) or "").upper()) for p in paths]
+    return _check_of(conds)
+
+
+def _check_of(conds: "list[tuple[Path, str]]") -> ConditionCheck:
+    first: "tuple[Path, str] | None" = None
+    clash = None
+    unrecorded = []
+    for p, c in conds:
+        if not c:
+            unrecorded.append(p)
+            continue
+        if first is None:
+            first = (p, c)
+        elif clash is None and c != first[1]:
+            clash = (first, (p, c))
+    return ConditionCheck(clash, first[1] if first else "", unrecorded,
+                          list(conds))
 
 
 def _condition_text(condition: str) -> str:
@@ -147,6 +217,23 @@ def _condition_text(condition: str) -> str:
         return tr("not recorded")
     from workflow.measurement_condition import condition_name
     return condition_name(condition)
+
+
+def _not_asked(check: ConditionCheck) -> str:
+    from workflow.measurement_condition import condition_name
+    from workflow.measurement_messages import condition_not_asked_line
+    return condition_not_asked_line(Path(check.unrecorded[0]).name,
+                                    condition_name(check.recorded))
+
+
+def clash_text(check: ConditionCheck, *, averaging: bool = False) -> str:
+    """M-MERGE-CONDITION-TOOLS (or M-AVERAGE-CONDITION) for a clash."""
+    from workflow import measurement_messages as MM
+    (p1, c1), (p2, c2) = check.clash
+    fn = MM.average_condition_text if averaging else \
+        MM.merge_condition_tools_text
+    return fn(Path(p2).name, Path(p1).name, _condition_text(c1),
+              _condition_text(c2))
 
 
 def _mismatch(fresh: _Parsed, pre: _Parsed) -> "str | None":
@@ -200,6 +287,15 @@ def _merge_refusal_of(fresh: str, _fs: int, _fm: int,
         return exc.message
 
 
+def merge_asks(fresh_ti3: Path, pre_data: Path) -> "ConditionCheck | None":
+    """The conditions of the two measurements when the pre-conditioning
+    merge must ask before it runs (one records none, the other M1, M2 or
+    M3; M-MERGE-CONDITION-ASK), else None. Pre-conditioning first, as the
+    question lists them."""
+    check = condition_check([pre_data, fresh_ti3])
+    return check if check.asks else None
+
+
 def average_merge_args(fresh_ti3: Path, pre_data: Path,
                        out_ti3: Path) -> "list[str]":
     """The arguments ``average`` is given to merge the two measurements.
@@ -214,8 +310,15 @@ def merge_preconditioning(
     pre_data: Path,
     out_ti3: Path,
     bin_dir: Path | str | None = None,
+    *,
+    merge_unrecorded: bool = False,
 ) -> int:
     """Merge ``pre_data`` patches into ``fresh_ti3``; write the result to ``out_ti3``.
+
+    When one of the two records no measurement condition and the other M1,
+    M2 or M3, the merge is made only with ``merge_unrecorded`` (the person
+    answered "Merge them" to M-MERGE-CONDITION-ASK); otherwise
+    :class:`Ti3MergeConditionUnrecorded` is raised and nothing is merged.
 
     ``pre_data`` holds CGATS .ti3 content (typically the run's
     ``preconditioning.ti3``). The merge is performed by ``average -m`` (located
@@ -234,6 +337,11 @@ def merge_preconditioning(
     refusal = _mismatch(fresh, pre)
     if refusal is not None:
         raise Ti3MergeError(refusal)
+    if condition_unrecorded(fresh.condition, pre.condition) \
+            and not merge_unrecorded:
+        # Nobody said yes: "Don't merge" (review round 2, S-A3).
+        raise Ti3MergeConditionUnrecorded(_not_asked(_check_of(
+            [(pre_data, pre.condition), (fresh_ti3, fresh.condition)])))
 
     average = _resolve_average(bin_dir)
     cmd = [average] + average_merge_args(fresh_ti3, pre_data, out_ti3)
@@ -266,8 +374,15 @@ def merge_measurements(
     inputs: list[Path],
     out_ti3: Path,
     bin_dir: Path | str | None = None,
+    *,
+    merge_unrecorded: bool = False,
 ) -> int:
     """Concatenate the patches of ``inputs`` into ``out_ti3`` via ``average -m``.
+
+    Inputs that record two different measurement conditions are refused
+    (M-MERGE-CONDITION-TOOLS). When some record none and the others M1, M2
+    or M3, they are merged only with ``merge_unrecorded``; otherwise
+    :class:`Ti3MergeConditionUnrecorded` is raised.
 
     Generalises :func:`merge_preconditioning` to any number of measurement
     files (two or more). The first input is the primary: ``average -m`` takes
@@ -283,9 +398,16 @@ def merge_measurements(
     from workflow.cal_repair import repair_all
     repair_all(inputs)
     primary = _parse(inputs[0])
+    parsed = [primary] + [_parse(p) for p in inputs[1:]]
+    # EVERY PAIR, not only each file against the primary: two additional
+    # files of M1 and M2 beside a primary that records none clash too.
+    check = _check_of([(Path(p), x.condition)
+                       for p, x in zip(inputs, parsed)])
+    if check.clash is not None:
+        # M-MERGE-CONDITION-TOOLS (§M-PROPOSED).
+        raise Ti3MergeError(clash_text(check))
     total = primary.n_sets
-    for extra_path in inputs[1:]:
-        extra = _parse(extra_path)
+    for extra_path, extra in zip(inputs[1:], parsed[1:]):
         if extra.color_rep != primary.color_rep:
             raise Ti3MergeError(
                 f"'{extra_path.name}' uses a different colour representation "
@@ -294,14 +416,6 @@ def merge_measurements(
                 "made with a different instrument or colour space and cannot "
                 "be combined."
             )
-        if conditions_clash(primary.condition, extra.condition):
-            # M-MERGE-CONDITION-TOOLS (§M-PROPOSED).
-            from workflow.measurement_messages import \
-                merge_condition_tools_text
-            raise Ti3MergeError(merge_condition_tools_text(
-                extra_path.name, inputs[0].name,
-                _condition_text(primary.condition),
-                _condition_text(extra.condition)))
         if extra.data_format != primary.data_format:
             raise Ti3MergeError(
                 f"'{extra_path.name}' has a different data layout (e.g. spectral "
@@ -309,6 +423,8 @@ def merge_measurements(
                 f"file '{inputs[0].name}', so they cannot be combined."
             )
         total += extra.n_sets
+    if check.asks and not merge_unrecorded:
+        raise Ti3MergeConditionUnrecorded(_not_asked(check))
 
     average = _resolve_average(bin_dir)
     cmd = [average, "-m", *(str(p) for p in inputs), str(out_ti3)]
@@ -331,3 +447,22 @@ def merge_measurements(
         len(inputs), total, out_ti3.name,
     )
     return total
+
+
+def settle_combined_condition(result: Path, check: ConditionCheck) -> None:
+    """After ``average`` has combined measurements into *result*: it says
+    the condition they were measured under only when every input recorded
+    the same one (review round 2, S-A2). ``average`` copies the FIRST
+    file's header, so after "Average them" on a file that records none and
+    one that records M1, the result would claim M1 for readings ChromIQ
+    cannot vouch for; it records nothing instead."""
+    from workflow.measurement_condition import (clear_condition,
+                                                record_condition)
+    try:
+        if check.common:
+            record_condition(result, check.common)
+        elif clear_condition(result):
+            log.info("averaged %s records no measurement condition: not "
+                     "every input recorded the same one", Path(result).name)
+    except Exception:      # noqa: BLE001 — never fail an average over this
+        log.debug("condition of %s not settled", result, exc_info=True)

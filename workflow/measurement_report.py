@@ -5001,20 +5001,32 @@ def report_scope(runs: "list[dict]") -> dict:
     # ONE INSTRUMENT UNDER SEVERAL NAMES IS ONE INSTRUMENT (4.3.23): an
     # i1Profiler import names its instrument the way ArgyllCMS does ("X-Rite
     # i1 Pro 3"), where 4.3.22 and earlier wrote i1Profiler's own name
-    # ("i1Pro 3"), and a chartread run of the same i1Pro 3 carries the name
-    # printtarg gave the chart, "GretagMacbeth i1 Pro", which ArgyllCMS gives
-    # every i1Pro (1, 2, 3, 3 Plus) alike. So the i1Pro family is compared as
-    # one instrument (review round 1, M3): a chartread file cannot say which
-    # i1Pro took it, and a warning on that difference only ever flagged one
-    # instrument against itself. Other names are compared by their ArgyllCMS
-    # name.
+    # ("i1Pro 3"), so names are compared by their ArgyllCMS name. And a
+    # chartread run of an i1Pro 3 carries the name printtarg gave the chart,
+    # "GretagMacbeth i1 Pro", which ArgyllCMS gives every i1Pro (1, 2, 3,
+    # 3 Plus) alike: that one name cannot say which i1Pro took it, so it is
+    # counted as the i1Pro the other runs name (review round 1, M3). Two
+    # SPECIFIC names, "X-Rite i1 Pro 2" and "X-Rite i1 Pro 3", are two
+    # instruments and are still flagged (review round 2, M-A1).
     from workflow.reference_convert import argyll_instrument_name
 
-    def _inst(r):
-        name = argyll_instrument_name(r.get("instrument")) or ""
+    _GENERIC_I1PRO = "GretagMacbeth i1 Pro"
+
+    def _name(r):
+        return argyll_instrument_name(r.get("instrument")) or ""
+
+    def _is_i1pro(name):
         low = name.lower()
-        if "i1 pro" in low or "i1pro" in low:
-            return "i1pro"
+        return "i1 pro" in low or "i1pro" in low
+
+    specific = Counter(n for n in (_name(r) for r in runs)
+                       if n and n != _GENERIC_I1PRO and _is_i1pro(n))
+    generic_as = specific.most_common(1)[0][0] if specific else _GENERIC_I1PRO
+
+    def _inst(r):
+        name = _name(r)
+        if name == _GENERIC_I1PRO:
+            return generic_as
         return name or "Unknown instrument"
     insts = [_inst(r) for r in runs]
     if len(set(insts)) > 1:

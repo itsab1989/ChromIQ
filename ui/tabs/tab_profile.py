@@ -53,7 +53,9 @@ from workflow.engine_builder import (EngineProfileBuilder, engine_support,
                                      is_multi_ink)
 from workflow.profile_builder import (COLPROF_DARK_EMPHASIS_MAX, ProfileBuilder,
                                       ProfileParams)
-from workflow.ti3_merge import merge_preconditioning, Ti3MergeError
+from workflow.ti3_merge import (Ti3MergeConditionUnrecorded, Ti3MergeError,
+                                merge_asks, merge_preconditioning,
+                                merge_refusal)
 from workflow.printcal_runner import PrintcalRunner, PrintcalParams, ChannelTarget
 from workflow.applycal_runner import ApplycalRunner
 
@@ -996,6 +998,8 @@ class TabProfile(QWidget):
         not_merged = plan is not None and merge_refusal(plan[0], plan[1])
         if not_merged:
             plan = None
+        from workflow.ti3_merge import merge_asks
+        asks = plan is not None and merge_asks(plan[0], plan[1]) is not None
         merge_line = (command_line("average", average_merge_args(*plan), (ph,))
                       if plan is not None else "")
         if engine == "engine":
@@ -1030,6 +1034,12 @@ class TabProfile(QWidget):
             lines.append(tr(
                 "ChromIQ-style refinement is on, but the pre-conditioning "
                 "data cannot be combined with this measurement, so the "
+                "profile is built from the new measurement only."))
+        if asks:
+            lines.append(tr(
+                "One of the two measurements does not record its "
+                "measurement condition, so Build Profile asks before it "
+                "merges them. If you answer \u201cDon't merge\u201d, the "
                 "profile is built from the new measurement only."))
         if self._ti3_path is None:
             lines.append(_placeholder_note())
@@ -5612,10 +5622,29 @@ class TabProfile(QWidget):
             return params
         fresh, src, merged = plan
         bin_dir = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
+        # ONE OF THEM RECORDS NO CONDITION, THE OTHER M1/M2/M3 (review round
+        # 2, S-A3, Basti 2026-11-03): asked, not refused. "Don't merge" (the
+        # default) builds from the new measurement only, as the refusal did.
+        merge_unrecorded = False
+        if merge_refusal(fresh, src) is None:
+            asks = merge_asks(fresh, src)
+            if asks is not None:
+                merge_unrecorded = self._ask_merge_unrecorded_condition(asks)
+                if not merge_unrecorded:
+                    self._log.appendPlainText(
+                        "[INFO] " + tr(
+                            "Pre-conditioning data not merged, as chosen: "
+                            "one of the two measurements does not record "
+                            "its measurement condition."))
+                    return params
         try:
-            total = merge_preconditioning(fresh, src, merged, bin_dir=bin_dir)
+            total = merge_preconditioning(fresh, src, merged, bin_dir=bin_dir,
+                                          merge_unrecorded=merge_unrecorded)
+        except Ti3MergeConditionUnrecorded as exc:
+            self._log.appendPlainText(exc.message)
+            return params
         except Ti3MergeError as exc:
-            self._show_tool_failure_dialog("Pre-conditioning data not merged", exc.message)
+            self._show_tool_failure_dialog(tr("Pre-conditioning data not merged"), exc.message)
             return params
 
         self._log.appendPlainText(
@@ -5623,6 +5652,20 @@ class TabProfile(QWidget):
             f"{src.name} — building from {total} patches ({merged.name})."
         )
         return replace(params, ti3_path=merged)
+
+    def _ask_merge_unrecorded_condition(self, check) -> bool:
+        """M-MERGE-CONDITION-ASK for the pre-conditioning merge: True for
+        "Merge them"."""
+        from ui.widgets import ask_condition_question
+        from workflow import measurement_messages as MM
+        from workflow.measurement_condition import condition_name
+        title, body, yes, no = MM.condition_ask(
+            "build", check.lines(), condition_name(check.recorded))
+        merge = ask_condition_question(self, title, body, yes, no,
+                                       "merge_condition_question")
+        log.info("pre-conditioning merge with an unrecorded condition "
+                 "(%s): %s", check.recorded, "merge" if merge else "not merged")
+        return merge
 
     def _preconditioning_merge_plan(self, params: ProfileParams
                                     ) -> "tuple[Path, Path, Path] | None":

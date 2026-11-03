@@ -156,3 +156,29 @@ def record_condition(ti3_path: "str | Path", condition: str) -> bool:
     except OSError:
         return False
     return True
+
+
+def clear_condition(ti3_path: "str | Path") -> bool:
+    """Take ``MEASUREMENT_CONDITION`` (and its ``KEYWORD`` line) out of the
+    header of the measurement at *ti3_path*; every other byte stays. True
+    when the file was changed."""
+    p = Path(ti3_path)
+    try:
+        raw = p.read_bytes()
+    except OSError:
+        return False
+    head, sep, rest = raw.partition(b"BEGIN_DATA_FORMAT")
+    if not sep:
+        return False
+    key = re.escape(CONDITION_KEYWORD.encode("ascii"))
+    line_re = re.compile(
+        rb'^[ \t]*(?:KEYWORD[ \t]+"?' + key + rb'"?|' + key
+        + rb'[ \t]+[^\r\n]*)[ \t]*\r?\n', re.MULTILINE)
+    new_head, n = line_re.subn(b"", head)
+    if not n:
+        return False
+    try:
+        p.write_bytes(new_head + sep + rest)
+    except OSError:
+        return False
+    return True

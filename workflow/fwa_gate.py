@@ -84,6 +84,9 @@ class FwaRefusal:
     kind: str
     instrument: "str | None" = None
     condition: "str | None" = None
+    #: The file is an i1Profiler import (``CHROMIQ_I1P_INSTRUMENT``): for
+    #: ``"condition"``, the way back to M0 is another import, not -F.
+    i1p_import: bool = False
 
     @property
     def reason(self) -> str:
@@ -102,7 +105,7 @@ class FwaRefusal:
             return _instrument_reason(self.instrument or "")
         if self.kind == "import_condition":
             return _import_condition_reason()
-        return _condition_reason(self.condition or "")
+        return _condition_reason(self.condition or "", self.i1p_import)
 
     @property
     def log_line(self) -> str:
@@ -209,7 +212,7 @@ def fwa_refusal(instrument: "str | None", *, has_spectral: bool = True,
             return FwaRefusal("colormunki", name, cond)
         return FwaRefusal("instrument", name, cond)
     if cond and cond != "M0":
-        return FwaRefusal("condition", name, cond)
+        return FwaRefusal("condition", name, cond, i1p_import)
     if not cond and i1p_import:
         return FwaRefusal("import_condition", name, cond)
     return None
@@ -383,22 +386,45 @@ def _fd9_reason() -> str:
         "measurements.")
 
 
-def _condition_reason(condition: str) -> str:
-    return tr(
-        "Brightener compensation (FWA) is not available for this "
-        "measurement, because it was measured under condition {condition}.\n\n"
-        "Optical brighteners in paper turn invisible ultraviolet light into "
-        "visible blue light, which makes the paper look whiter. FWA "
-        "compensation works out that glow from the lamp inside the instrument, "
-        "so it only fits readings taken under that lamp: condition M0.\n\n"
-        "M1 readings already include the glow as daylight (D50) shows it, and "
-        "M2 readings leave the ultraviolet out, so the brighteners do not glow "
-        "at all. Applying FWA compensation to either would correct something "
-        "that is not there.\n\n"
-        "To use FWA compensation, import the M0 readings of the same "
-        "measurement (i1Profiler saves all of its conditions in one .mxf "
-        "file), or measure the chart in M0."
-    ).format(condition=condition)
+def _condition_reason(condition: str, i1p_import: bool = False) -> str:
+    """Why -f is refused for an M1/M2/M3 measurement, and how to get M0
+    readings: for an i1Profiler import another import, for a chartread
+    measurement the Measure tab's "Spectral filter type (-F)" set to None
+    (M0) or switched off (review round 2, M-A2). M3 has its own sentence:
+    a polarising filter, which (ISO 13655) also cuts the ultraviolet."""
+    parts = [
+        tr("Brightener compensation (FWA) is not available for this "
+           "measurement, because it was measured under condition "
+           "{condition}.").format(condition=condition),
+        tr("Optical brighteners in paper turn invisible ultraviolet light "
+           "into visible blue light, which makes the paper look whiter. FWA "
+           "compensation works out that glow from the lamp inside the "
+           "instrument, so it only fits readings taken under that lamp: "
+           "condition M0."),
+    ]
+    if str(condition).upper() == "M3":
+        parts.append(tr(
+            "M3 readings are taken through a polarising filter, which also "
+            "cuts out the ultraviolet, so the brighteners do not glow at "
+            "all. Applying FWA compensation to them would correct something "
+            "that is not there."))
+    else:
+        parts.append(tr(
+            "M1 readings already include the glow as daylight (D50) shows "
+            "it, and M2 readings leave the ultraviolet out, so the "
+            "brighteners do not glow at all. Applying FWA compensation to "
+            "either would correct something that is not there."))
+    if i1p_import:
+        parts.append(tr(
+            "To use FWA compensation, import the M0 readings of the same "
+            "measurement (i1Profiler saves all of its conditions in one "
+            ".mxf file), or measure the chart in M0."))
+    else:
+        parts.append(tr(
+            "To use FWA compensation, measure the chart again with the "
+            "Measure tab's \u201cSpectral filter type (-F)\u201d set to "
+            "\u201cNone (M0)\u201d, or switched off."))
+    return "\n\n".join(parts)
 
 
 def _no_spectra_reason() -> str:

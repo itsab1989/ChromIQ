@@ -199,19 +199,22 @@ def _merge_pair(tmp_path, fresh_cond, pre_cond):
     return merge_refusal(a, b)
 
 
-def test_s3_m1_or_m2_against_another_or_no_condition_is_refused(tmp_path):
-    for fresh, pre in (("M1", None), (None, "M1"), ("M2", None),
-                       (None, "M2"), ("M1", "M2"), ("M0", "M1"),
-                       ("M2", "M0"), ("M3", None)):
+def test_s3_two_different_recorded_conditions_are_refused(tmp_path):
+    """Round 2 (S-A3) narrowed round 1's rule: only two RECORDED, different
+    conditions are refused; "not recorded" against M1/M2/M3 is asked
+    (tests/test_4323_review_r2a.py)."""
+    for fresh, pre in (("M1", "M2"), ("M0", "M1"), ("M2", "M0"),
+                       ("M3", "M1")):
         refusal = _merge_pair(tmp_path, fresh, pre)
         assert refusal, (fresh, pre)
         for c in (fresh, pre):
-            if c:
-                assert c in refusal, (fresh, pre, refusal)
-        if None in (fresh, pre):
-            assert "not recorded" in refusal
+            assert c in refusal, (fresh, pre, refusal)
+        assert "not recorded" not in refusal
         assert "measure" in refusal and ".mxf" in refusal
         assert "—" not in refusal
+    for fresh, pre in (("M1", None), (None, "M1"), ("M2", None),
+                       (None, "M2"), ("M3", None)):
+        assert _merge_pair(tmp_path, fresh, pre) is None, (fresh, pre)
 
 
 def test_s3_unknown_with_m0_or_unknown_merges_as_before(tmp_path):
@@ -220,11 +223,11 @@ def test_s3_unknown_with_m0_or_unknown_merges_as_before(tmp_path):
         assert _merge_pair(tmp_path, fresh, pre) is None, (fresh, pre)
 
 
-def test_s3_the_tools_merge_refuses_the_same_pairs(tmp_path):
+def test_s3_the_tools_merge_refuses_two_recorded_conditions(tmp_path):
     import pytest
     from workflow.ti3_merge import Ti3MergeError, merge_measurements
     a = _ti3(tmp_path / "a.ti3", "M1")
-    b = _ti3(tmp_path / "b.ti3", None)
+    b = _ti3(tmp_path / "b.ti3", "M2")
     with pytest.raises(Ti3MergeError) as exc:
         merge_measurements([a, b], tmp_path / "out.ti3", bin_dir=None)
     assert "b.ti3" in exc.value.message and "M1" in exc.value.message
@@ -386,7 +389,7 @@ def _scope_warnings(*instruments):
 def test_m3_a_chartread_i1pro_and_an_i1pro3_import_are_one_instrument():
     assert _scope_warnings("GretagMacbeth i1 Pro", "X-Rite i1 Pro 3") == []
     assert _scope_warnings("GretagMacbeth i1 Pro", "i1Pro 3",
-                           "X-Rite i1 Pro 2") == []
+                           "X-Rite i1 Pro 3") == []
 
 
 def test_m3_another_instrument_is_still_flagged():

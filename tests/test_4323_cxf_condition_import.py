@@ -257,10 +257,11 @@ def test_the_spectral_options_are_offered_for_an_import_now(tmp_path):
 def test_an_import_merges_with_a_chartread_measurement_of_its_layout(
         tmp_path):
     """Same columns as chartread now. An M0 import merges with a chartread
-    file that names no condition; an M1 or M2 import does not (review round
-    1, S3, Basti 2026-11-03: no condition is not the same as M1/M2), and two
-    named, different conditions never do."""
-    from workflow.ti3_merge import merge_refusal
+    file that names no condition; an M1 or M2 import is not refused but
+    ASKED about (review round 2, S-A3, Basti 2026-11-03: no condition is not
+    the same as M1/M2, and the person decides), and two named, different
+    conditions never merge."""
+    from workflow.ti3_merge import merge_asks, merge_refusal
     src = _cxf(tmp_path / "a.mxf")
     m0 = cxf_measurement_to_ti3(src, tmp_path / "m0.ti3", condition="M0")
     m1 = cxf_measurement_to_ti3(src, tmp_path / "m1.ti3", condition="M1")
@@ -272,9 +273,12 @@ def test_an_import_merges_with_a_chartread_measurement_of_its_layout(
     assert read_condition(chartread_like) is None
     assert merge_refusal(m0, chartread_like) is None
     assert merge_refusal(chartread_like, m0) is None
+    assert merge_asks(m0, chartread_like) is None
     for named in (m1, m2):
-        assert merge_refusal(named, chartread_like)
-        assert merge_refusal(chartread_like, named)
+        assert merge_refusal(named, chartread_like) is None
+        assert merge_refusal(chartread_like, named) is None
+        assert merge_asks(named, chartread_like) is not None
+        assert merge_asks(chartread_like, named) is not None
     refusal = merge_refusal(m1, m2)
     assert refusal and "M2" in refusal and "M1" in refusal
 

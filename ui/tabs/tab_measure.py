@@ -7863,6 +7863,118 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         self._say_on_screen(title, body)
         return True
 
+    #: The "Spectral filter type (-F)" choices, as the row lists them.
+    _FILTER_LABELS = {"n": "None (M0)", "5": "D50 (M1)", "6": "D65",
+                      "u": "UV Cut (M2)", "p": "Polarizing (M3)"}
+
+    def _filter_label(self, code: "str | None") -> str:
+        return self._FILTER_LABELS.get(str(code or "").lower(), str(code or ""))
+
+    def _measure_filter_code(self) -> "str | None":
+        """The -F this read would pass, from the module's option rows (asked
+        before the parameters are collected, by the rule they use)."""
+        from workflow.measurement_condition import filter_code_from_args
+        opts = (self._chartread_opts if self._current_mode() == "guided"
+                else self._m_chartread_opts) or []
+        args: "list[str]" = []
+        for opt in opts:
+            try:
+                args += opt.build_args()
+            except Exception:      # noqa: BLE001 — a row that cannot say
+                continue
+        import shlex
+        return filter_code_from_args(shlex.join(args))
+
+    def _measurement_to_continue(self) -> "Path | None":
+        """The ``.ti3`` this read builds on (Refine / resume), or None: the
+        dated verification about to be staged, else the one beside the
+        chart. Asks only."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None or _fd9_ask(self, "_is_fd9_target"):
+            return None      # the FD-9 has its own resume rule
+        staged = self._verification_to_stage()
+        if staged is not None:
+            return Path(staged)
+        # Whether chartread is given -r, by the rule the parameters use
+        # (`_collect_guided` / `_collect_manual`), as the layout check asks.
+        cb = (self._resume_cb if self._current_mode() == "guided"
+              else self._m_resume_cb)
+        if cb is None or not self._resume_has_anything_to_resume(
+                cb.isChecked()):
+            return None
+        ti3 = Path(ti1).with_suffix(".ti3")
+        if not ti3.is_file() or _cgats_has_no_readings(ti3):
+            return None
+        return ti3
+
+    def _resumes_unrecorded_condition(self, ti3) -> bool:
+        """Whether *ti3*, which this read continues, holds readings and
+        records no measurement condition (S-A1)."""
+        if ti3 is None:
+            return False
+        try:
+            ti3 = Path(ti3)
+            if not ti3.is_file() or _cgats_has_no_readings(ti3):
+                return False
+            from workflow.measurement_condition import read_condition
+            return read_condition(ti3) is None
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _blocked_by_a_differing_condition(self) -> bool:
+        """True, and M-RESUME-CONDITION shown, when Refine / resume would
+        continue a measurement that records a measurement condition and the
+        Measure tab's -F gives another one, or none (review round 2, S-A1,
+        Basti 2026-11-03). chartread rewrites the header from the chart on
+        a resume, so the finished file would claim the new half's condition
+        (or none) for readings of both. A measurement that records no
+        condition is not refused: the session then records none
+        (:meth:`_resumes_unrecorded_condition`). Asked before anything is
+        archived, staged or opened, so a refusal changes nothing."""
+        try:
+            ti3 = self._measurement_to_continue()
+            if ti3 is None:
+                return False
+            from workflow.measurement_condition import (condition_for_filter,
+                                                        read_condition)
+            before = read_condition(ti3)
+            if before is None:
+                return False
+            code = self._measure_filter_code()
+            now = condition_for_filter(code)
+            if now == before:
+                return False
+        except Exception:      # noqa: BLE001 — never block a read on this check
+            log.debug("could not compare the measurement condition",
+                      exc_info=True)
+            return False
+        from workflow import measurement_messages as M
+        from workflow.measurement_condition import (FILTER_CONDITIONS,
+                                                    condition_name)
+        setting_code = next((c for c, m in FILTER_CONDITIONS.items()
+                             if m == before), None)
+        box_cb = (self._resume_cb if self._current_mode() == "guided"
+                  else self._m_resume_cb)
+        title, body = M.M_RESUME_CONDITION.render(
+            before=condition_name(before),
+            now=M.resume_condition_now(
+                self._filter_label(code) if code else None, now),
+            setting=self._filter_label(setting_code) if setting_code
+            else before,
+            box=box_cb.text() if box_cb is not None else "")
+        log.warning("Refine / resume refused: %s records measurement "
+                    "condition %s, and -F %s gives %s", ti3, before,
+                    code or "(off)", now or "none")
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        if getattr(self, "_sound", None) is not None:
+            try:
+                self._sound.disarm()
+            except Exception:      # noqa: BLE001
+                pass
+        self._say_on_screen(title, body)
+        return True
+
     def _chart_legacy_stock_window(self, detail: str) -> None:
         """M-CHART-LEGACY-STOCK: only ChromIQ's engine can read this sheet,
         and Preferences selects ArgyllCMS chartread."""
@@ -7989,6 +8101,12 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # question that can write (the stored chart, the replace question),
         # the archive and the instrument: nothing is touched.
         if self._blocked_by_a_misfitting_measurement():
+            return
+        # …and when it records another measurement condition than the -F
+        # this read would measure under (review round 2, S-A1): the reader
+        # rewrites the header on a resume, so the mixed file would say
+        # nothing, or the new half's condition, about readings of both.
+        if self._blocked_by_a_differing_condition():
             return
         # #131: enter measurement mode so per-patch/strip sounds are allowed and
         # the selected clips are pre-loaded for zero-latency playback. On stock
@@ -8139,6 +8257,21 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         from workflow.measurement_condition import filter_code_from_args
         self._session_filter = filter_code_from_args(
             getattr(params, "extra_args", "") or "")
+        # A RESUME ONTO A MEASUREMENT THAT RECORDS NO CONDITION (S-A1, Basti
+        # 2026-11-03): allowed, but the finished file records none either,
+        # because its first part may have been measured under any; the log
+        # says why. (One that records a DIFFERENT condition was refused
+        # above, `_blocked_by_a_differing_condition`.)
+        if self._session_filter and getattr(params, "resume", False) \
+                and self._resumes_unrecorded_condition(_ti3_pre):
+            from workflow.measurement_messages import \
+                resume_condition_unrecorded_line
+            self._log.appendPlainText(resume_condition_unrecorded_line(
+                self._filter_label(self._session_filter)))
+            log.info("resume onto %s, which records no measurement "
+                     "condition: -F %s is not recorded", _ti3_pre,
+                     self._session_filter)
+            self._session_filter = None
         self._ti3_mtime_before = (
             _ti3_pre.stat().st_mtime if (_ti3_pre and _ti3_pre.exists()) else None
         )
@@ -16347,6 +16480,19 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         # The averaged result IS the canonical measurement (chart.ti3); the
         # per-read snapshots stay in reads/ for diagnostics.
         out = Run.for_dir(base.parent).measurement_ti3
+        # THE SAME RULE AS MERGING (review round 2, S-A2, Basti 2026-11-03):
+        # reads that record two different measurement conditions are not
+        # averaged (`average` would keep the first read's condition for all
+        # of them), and a read that records none beside M1/M2/M3 is asked
+        # about. Either way the reads stay, and the last one is the run's
+        # measurement, as when `average` itself refuses.
+        from workflow.ti3_merge import (condition_check,
+                                        settle_combined_condition)
+        check = condition_check(reads)
+        if check.clash is not None or (
+                check.asks and not self._ask_average_unrecorded(check, reads)):
+            self._average_not_made(out, check)
+            return
         self._log.appendPlainText(
             f"\n[INFO] Averaging {len(reads)} reads → {out.name} …"
         )
@@ -16393,6 +16539,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 tr("[OK] Averaged measurement saved: {name}").format(name=result.name)
                 + "\n" + tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile.")
             )
+            # Its condition, before the yellow memory takes its checksum:
+            # the reads' common one, or none (S-A2).
+            settle_combined_condition(result, check)
             # The averaged file is the run's measurement now: its yellow
             # memory is this session's, stamped for it (#182 K4). Patches are
             # keyed by location, which averaging (by SAMPLE_ID) never changes.
@@ -16405,6 +16554,49 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
             on_line=self._on_log_line,
             on_finish=_on_avg_finish,
         )
+
+    def _ask_average_unrecorded(self, check, reads) -> bool:
+        """M-AVERAGE-CONDITION-ASK for the reads of this run: True for
+        "Average them"."""
+        from ui.widgets import ask_condition_question
+        from workflow import measurement_messages as M
+        from workflow.measurement_condition import condition_name
+        title, body, yes, no = M.condition_ask(
+            "average", check.lines(), condition_name(check.recorded),
+            read=Path(reads[-1]).name if reads else "")
+        go = ask_condition_question(self, title, body, yes, no,
+                                    "average_condition_question")
+        log.info("averaging reads with an unrecorded condition (%s): %s",
+                 check.recorded, "average" if go else "not averaged")
+        return go
+
+    def _average_not_made(self, out: Path, check) -> None:
+        """The reads were not averaged because of their measurement
+        conditions (S-A2): refused (two recorded conditions differ,
+        M-AVERAGE-CONDITION in the averaging-failed window) or "Don't
+        average". The newest read is put back as the run's measurement,
+        exactly as when `average` itself refuses."""
+        from workflow.ti3_merge import clash_text
+        kept = self._put_the_last_read_back(out)
+        if check.clash is not None:
+            detail = clash_text(check, averaging=True)
+            self._log.appendPlainText("\n[ERROR] " + detail)
+        else:
+            self._log.appendPlainText("\n[INFO] " + tr(
+                "The reads were not averaged, as chosen: not every read "
+                "records its measurement condition."))
+        if kept is not None:
+            self._log.appendPlainText("\n" + tr(
+                "[INFO] The reads are all kept. {read}, the one you "
+                "took last, is this run's measurement, so you can "
+                "build from it or measure the chart again.").format(
+                    read=kept.name))
+            self._save_confirmed_memory(out)     # #182 K4
+            self.measure_finished.emit(out)
+        if check.clash is not None:
+            import html
+            self._show_average_failed_dialog(
+                html.escape(detail).replace("\n", "<br>"))
 
     def _show_average_failed_dialog(self, detail: str) -> None:
         # Found by the audit of 2026-07-28 (Knut): a failure window raised
