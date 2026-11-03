@@ -22101,6 +22101,17 @@ class TabChart(QWidget):
             log.warning("Could not note the FD-9 target's screen",
                         exc_info=True)
 
+    def _forget_fd9_off_screen(self) -> None:
+        """A GENERATE IS THE USER'S CHOICE OF CHART (review r3 R3-1).
+
+        With the Beta off it makes the chart for what the screen shows, so
+        from then on that is what the target records, never the FD-9 values
+        it was opened with. Called right before the build's own write."""
+        store = self._target_settings_store()
+        if store is not None:
+            self._fd9_off_screens().pop(str(getattr(store, "dir", store)),
+                                        None)
+
     def _fd9_off_screen_for(self, store, fingerprint: str):
         """The screen to carry against, or None when nothing may be carried.
 
@@ -25624,14 +25635,7 @@ class TabChart(QWidget):
             # earlier write of the empty screen and was defending THAT.
             self._chart_imposed = {}
             self._release_imposed_connections()
-            # A GENERATE IS THE USER'S CHOICE OF CHART (review r3 R3-1): with
-            # the Beta off it makes the chart for what the screen shows, so
-            # from here on that is what the target records, never the FD-9
-            # values it was opened with.
-            _store = self._target_settings_store()
-            if _store is not None:
-                self._fd9_off_screens().pop(
-                    str(getattr(_store, "dir", _store)), None)
+            self._forget_fd9_off_screen()     # review r3 R3-1
             self.save_target_settings()
         except Exception:      # noqa: BLE001 — a failed write must not lose the chart
             log.warning("could not file the built chart's settings against its "
