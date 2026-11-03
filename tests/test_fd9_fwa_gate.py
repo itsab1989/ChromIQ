@@ -114,6 +114,18 @@ def test_the_spectral_gate_is_untouched_by_the_fd9():
         assert spectral_options_unavailable(name, True) is False
 
 
+def test_the_fd9_reason_names_d50_and_where_the_condition_is_chosen():
+    """Review of b32cae5e7: M1 matches what FWA compensation estimates only
+    for a D50 target, and the Measure tab measures an FD-9 only with the
+    Beta on, so the tooltip says both."""
+    from workflow.fwa_gate import FwaRefusal
+    reason = FwaRefusal("fd9").reason
+    assert "as it looks in D50 daylight" in reason
+    assert "(with FD-9 support on in Preferences → Beta)" in reason
+    assert "set to D50" in reason
+    assert "—" not in reason
+
+
 def test_the_gate_does_not_ask_the_beta(tmp_path):
     """ArgyllCMS refuses -f on an FD-9 file whatever the switch says."""
     from workflow.fwa_gate import fwa_refusal_for_file
@@ -240,6 +252,45 @@ def test_the_builder_drops_f_whatever_hands_it_over(tmp_path):
         on_line=lines.append, on_finish=lambda code: None)
     assert _fwa_in(ran[0]) == []
     assert any(line.startswith("[NOTE] FWA compensation") for line in lines)
+
+
+def test_the_fresh_measurement_is_asked_before_a_stale_merge(tmp_path):
+    """fix_fwa2 (review of b32cae5e7): the command box hands over the fresh
+    measurement while the build runs on a merged.ti3 that may be left over
+    from an earlier build. The fresh file decides, both ways."""
+    from workflow.fwa_gate import without_refused_fwa
+    from workflow.profile_builder import ProfileBuilder, ProfileParams
+    stale_fd9 = _ti3(tmp_path, FD9_NAMES[0], "stale")
+    fresh_i1 = _ti3(tmp_path, OTHER_NAMES[0], "fresh")
+    p = ProfileParams(ti3_path=stale_fd9, fwa_enabled=True, fwa_illum="D50")
+    assert _fwa_in(ProfileBuilder(None)._build_args(p, fresh_i1)) == ["-fD50"]
+    assert without_refused_fwa(p, fresh_i1) == (p, None)
+
+    stale_i1 = _ti3(tmp_path, OTHER_NAMES[0], "stale2")
+    fresh_fd9 = _ti3(tmp_path, FD9_NAMES[1], "fresh2")
+    p = ProfileParams(ti3_path=stale_i1, fwa_enabled=True, fwa_illum="D50")
+    assert _fwa_in(ProfileBuilder(None)._build_args(p, fresh_fd9)) == []
+    # No fresh file (or one that is not there): the params' own file decides.
+    assert _fwa_in(ProfileBuilder(None)._build_args(
+        p, tmp_path / "missing.ti3")) == ["-fD50"]
+    p = ProfileParams(ti3_path=stale_fd9, fwa_enabled=True, fwa_illum="D50")
+    assert _fwa_in(ProfileBuilder(None)._build_args(p)) == []
+
+
+@pytest.mark.parametrize("extra, left", [
+    ("-f D50 -nc", "-nc"),
+    ("-f", ""),
+    ("-fD50 -nc", "-nc"),
+    ("-f -nc", "-nc"),
+    ("-nc -f D65", "-nc"),
+    ("-r 0.5", "-r 0.5"),
+])
+def test_drop_fwa_takes_a_separate_illuminant_value_with_it(extra, left):
+    from types import SimpleNamespace
+    from workflow.fwa_gate import drop_fwa
+    p = SimpleNamespace(fwa_enabled=False, extra_args=extra)
+    assert drop_fwa(p) is (extra != left)
+    assert p.extra_args == left
 
 
 def test_the_builder_keeps_f_for_every_other_measurement(tmp_path):

@@ -184,12 +184,20 @@ def _parse_iso(text: str) -> "datetime | None":
         return None
 
 
-def build_light_problem(profile_settings: "Mapping | None") -> str:
+def build_light_problem(profile_settings: "Mapping | None", *,
+                        fwa_left_out: bool = False) -> str:
     """Why the run's profile predicts colour under another light, or ''.
 
     Read from the run's Build Profile settings (``RunMeta.profile_settings``,
     Manual and Guided both): an illuminant other than D50 (``-i``), an
     observer other than 1931 2° (``-o``), or FWA compensation (``-f``).
+
+    *fwa_left_out* says the build could not have passed ``-f`` whatever the
+    settings say: the profile was made from a measurement THE FWA GATE
+    refuses ``-f`` for (``workflow.fwa_gate``), where the FWA box is greyed
+    but keeps its tick and the build leaves ``-f`` out
+    (``workflow.fwa_gate.without_refused_fwa``). The FWA settings are then
+    ignored, as for any build without ``-f``.
     """
     s = dict(profile_settings or {})
     for k in _ILLUMINANT_KEYS:
@@ -200,10 +208,27 @@ def build_light_problem(profile_settings: "Mapping | None") -> str:
         v = str(s.get(k) or "").strip()
         if v not in _DEFAULT_OBSERVERS:
             return f"the profile was built with observer {v} (-o)"
-    for k in _FWA_KEYS:
+    for k in () if fwa_left_out else _FWA_KEYS:
         if bool(s.get(k)):
             return "the profile was built with FWA compensation (-f)"
     return ""
+
+
+def _profile_built_without_fwa(run, profile: Path) -> bool:
+    """Whether *profile* was built from a measurement THE FWA GATE refuses
+    ``-f`` for (``workflow.fwa_gate``), so the build left FWA compensation
+    out whatever the run's settings say. ``merged.icc`` is built from
+    ``merged.ti3`` (which keeps the fresh measurement's keywords), any other
+    profile from the run's measurement."""
+    from workflow.fwa_gate import fwa_refusal_for_file
+    try:
+        if Path(profile).stem == "merged":
+            source = run.merged_ti3
+        else:
+            source = run.measurement_ti3
+    except Exception:      # noqa: BLE001 — not knowing keeps the settings
+        return False
+    return fwa_refusal_for_file(source) is not None
 
 
 def _rgb_rows(ti2: Path) -> "list[tuple[str, tuple[float, float, float]]]":
@@ -476,7 +501,8 @@ def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
         settings = getattr(run.load_meta(), "profile_settings", None)
     except Exception:      # noqa: BLE001
         settings = None
-    light = build_light_problem(settings)
+    light = build_light_problem(
+        settings, fwa_left_out=_profile_built_without_fwa(run, profile))
     if light:
         return estimate(light)
     kind, cal_src, why = _sent_values_plan(rec, run, ti2)

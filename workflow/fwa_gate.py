@@ -167,7 +167,20 @@ def drop_fwa(params) -> bool:
         except ValueError:      # unbalanced quotes: left as typed
             toks = None
         if toks is not None:
-            kept = [t for t in toks if not t.startswith("-f")]
+            # "-f", "-fD50" and the separate form "-f D50" (ArgyllCMS takes
+            # both), whose value would otherwise be left behind as a stray
+            # argument.
+            kept = []
+            skip_value = False
+            for t in toks:
+                if skip_value:
+                    skip_value = False
+                    if not t.startswith("-"):
+                        continue
+                if t.startswith("-f"):
+                    skip_value = t == "-f"
+                    continue
+                kept.append(t)
             if len(kept) != len(toks):
                 params.extra_args = shlex.join(kept)
                 dropped = True
@@ -185,13 +198,18 @@ def without_refused_fwa(params, keywords_from=None):
     """*params* without FWA compensation when the gate refuses it for their
     measurement, as ``(params, refusal_or_None)``: the refusal when something
     was dropped, else None. A copy is returned when anything is dropped, so
-    the caller's object is left as it was. *keywords_from* is the file to ask
-    when *params*' own measurement does not exist yet (a merge still to be
-    made)."""
+    the caller's object is left as it was. *keywords_from* is the fresh
+    measurement a merge still to be made will copy its keywords from: when it
+    is given and there, it is asked FIRST, because *params*' own
+    ``merged.ti3`` may be a stale one from an earlier build (the command box
+    would then show no ``-f`` while the build passes it, or the other way
+    round). Without it, *params*' own measurement is asked."""
     if not wants_fwa(params):
         return params, None
-    ti3 = getattr(params, "ti3_path", None)
-    asked = ti3 if ti3 is not None and Path(ti3).is_file() else keywords_from
+    if keywords_from is not None and Path(keywords_from).is_file():
+        asked = keywords_from
+    else:
+        asked = getattr(params, "ti3_path", None)
     refusal = fwa_refusal_for_file(asked)
     if refusal is None:
         return params, None
@@ -212,13 +230,14 @@ def _fd9_reason() -> str:
         "and it only knows that light for the instruments it supports itself. "
         "The FD-9 is not one of them, so ArgyllCMS would stop with an error "
         "instead of building your profile or checking it.\n\n"
-        "With the FD-9 you choose how the brighteners are measured on the "
-        "Measure tab, before you measure (M0, M1 or M2). M1 is like daylight "
-        "(D50) with its ultraviolet, so your readings already include the "
-        "glow of the brighteners as it looks in daylight, which is what FWA "
-        "compensation tries to estimate. M2 leaves the ultraviolet out, so "
-        "the brighteners do not glow. To change it, measure the chart again "
-        "with the other condition.\n\n"
+        "With the FD-9 you choose how the brighteners are measured before "
+        "you measure, on the Measure tab (with FD-9 support on in "
+        "Preferences → Beta): M0, M1 or M2. M1 is like daylight (D50) with "
+        "its ultraviolet, so your readings already include the glow of the "
+        "brighteners as it looks in D50 daylight. That is what FWA "
+        "compensation estimates when it is set to D50, which is the default. "
+        "M2 leaves the ultraviolet out, so the brighteners do not glow. To "
+        "change it, measure the chart again with the other condition.\n\n"
         "The illuminant and observer options still work with FD-9 "
         "measurements.")
 

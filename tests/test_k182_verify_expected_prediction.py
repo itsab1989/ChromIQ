@@ -396,6 +396,48 @@ def test_falls_back_for_a_profile_built_under_another_light(tmp_path, settings, 
     assert not tools.calls
 
 
+@pytest.mark.parametrize("settings", [{"fwa_enabled": True},
+                                      {"g_fwa_enabled": True}])
+def test_an_fd9_profile_ignores_a_ticked_but_greyed_fwa_box(tmp_path, settings):
+    """fix_fwa2 (review of b32cae5e7): an FD-9 run whose FWA box is ticked but
+    greyed was built WITHOUT -f (the build leaves it out), so its saved
+    fwa_enabled is not a reason to fall back to the estimate, and the log must
+    not say the profile was built with FWA compensation."""
+    run, ti2, ti3, bin_dir = _project(tmp_path, settings=settings)
+    run.measurement_ti3.write_text(
+        'CTI3\n\nTARGET_INSTRUMENT "Konica Minolta FD-9"\n'
+        + _ti3_text({loc: xyz for loc, _rgb, xyz in PATCHES}).split("\n", 2)[2],
+        encoding="utf-8")
+    le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=_Tools())
+    assert le.is_prediction, le.reason
+    assert "FWA" not in le.reason
+
+
+def test_an_fd9_profile_still_falls_back_for_another_illuminant(tmp_path):
+    run, ti2, ti3, bin_dir = _project(
+        tmp_path, settings={"fwa_enabled": True, "illuminant": "D65"})
+    run.measurement_ti3.write_text(
+        'CTI3\n\nTARGET_INSTRUMENT "FD-9"\n', encoding="utf-8")
+    le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=_Tools())
+    assert not le.is_prediction and "illuminant" in le.reason
+
+
+def test_a_non_fd9_profile_with_fwa_still_falls_back(tmp_path):
+    run, ti2, ti3, bin_dir = _project(tmp_path, settings={"fwa_enabled": True})
+    run.measurement_ti3.write_text(
+        'CTI3\n\nTARGET_INSTRUMENT "GretagMacbeth i1 Pro"\n', encoding="utf-8")
+    le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=_Tools())
+    assert not le.is_prediction and "FWA" in le.reason
+
+
+def test_build_light_problem_ignores_fwa_only_when_it_was_left_out():
+    assert "FWA" in ve.build_light_problem({"fwa_enabled": True})
+    assert ve.build_light_problem({"fwa_enabled": True},
+                                  fwa_left_out=True) == ""
+    assert "observer" in ve.build_light_problem(
+        {"fwa_enabled": True, "observer": "1964_10"}, fwa_left_out=True)
+
+
 def test_the_default_build_settings_do_not_fall_back(tmp_path):
     run, ti2, ti3, bin_dir = _project(tmp_path, settings={
         "illuminant": "", "observer": "", "fwa_enabled": False,
