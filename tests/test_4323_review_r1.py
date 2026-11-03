@@ -24,8 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # ---------------------------------------------------------------------------
 
 def _unreleased() -> str:
+    # The 4.3.23 notes: "## Unreleased" until the release, "## v4.3.23" after.
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    return text.split("## Unreleased", 1)[1].split("\n## v", 1)[0]
+    head = "## Unreleased" if "## Unreleased" in text else "## v4.3.23"
+    return text.split(head, 1)[1].split("\n## v", 1)[0]
 
 
 def test_s1_the_changelog_says_minus_f_is_left_out_while_the_option_is_off():
