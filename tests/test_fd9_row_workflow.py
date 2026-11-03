@@ -327,8 +327,9 @@ def test_gui_files_row_conversion_without_profile_access(setup, qtbot, monkeypat
 
 
 @pytest.mark.parametrize("mismatch", [None, "model", "factory"])
+@pytest.mark.parametrize("wait_for_clear", [False, True])
 def test_capture_defaults_to_rows_and_checks_model_before_loading(
-    setup, monkeypatch, mismatch
+    setup, monkeypatch, mismatch, wait_for_clear
 ):
     from types import SimpleNamespace
     import fd9_independent
@@ -372,6 +373,9 @@ def test_capture_defaults_to_rows_and_checks_model_before_loading(
                 factory_sections_sha256="b" * 64,
             )
 
+        def wait_sheet_clear(self, seconds):
+            events.append("clear")
+
         def begin_loading(self):
             events.append("loading")
 
@@ -384,6 +388,9 @@ def test_capture_defaults_to_rows_and_checks_model_before_loading(
         def measure_rows(self, rows, on_point):
             events.append("rows")
             assert len(rows) == 3 and all(len(row) == 12 for row in rows)
+            assert rows[0][0][0] < rows[0][-1][0]
+            assert rows[1][0][0] > rows[1][-1][0]
+            assert rows[2][0][0] < rows[2][-1][0]
             self.phase = Phase.DONE
 
     monkeypatch.setattr(fd9_independent, "Instrument", Instrument)
@@ -404,13 +411,15 @@ def test_capture_defaults_to_rows_and_checks_model_before_loading(
             "test-host",
             native_factory=True,
             allow_experimental=True,
+            wait_for_sheet_clear=wait_for_clear,
             **options
         )
 
     if mismatch:
         with pytest.raises(CaptureFailed, match="differs"):
             run()
-        assert events == ["model", "close"]
+        assert events == (["clear"] if wait_for_clear else []) + ["model", "close"]
     else:
-        run()
-        assert events == ["model", "loading", "ready", "rows", "close"]
+        root = run()
+        assert events == (["clear"] if wait_for_clear else []) + ["model", "loading", "ready", "rows", "close"]
+        assert json.loads((root / "progress.json").read_text(encoding="utf-8"))["row_order"] == "alternating-x-v1"

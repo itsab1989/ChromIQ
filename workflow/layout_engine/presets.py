@@ -201,7 +201,7 @@ class LayoutRecipe:
     use_instrument_margins: bool = True
     patch_w_mm: float = 0.0        # explicit patch width / height (mm); 0 = auto
     patch_h_mm: float = 0.0
-    fd9_gap_mm: float = 1.0
+    fd9_gap_mm: float | None = 1.0  # legacy equal-gap recipes; None uses shared controls
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -491,7 +491,8 @@ class LayoutRecipe:
             margin_top=m[0], margin_right=m[1], margin_bottom=m[2], margin_left=m[3],
             patch_w_mm=float(d.get("patch_w") or 0.0),
             patch_h_mm=float(d.get("patch_h") or 0.0),
-            fd9_gap_mm=float(d.get("fd9_gap", 1.0)),
+            fd9_gap_mm=(float(d["fd9_gap"]) if d.get("fd9_gap") is not None else
+                        None if "inter_patch" in d or "strip_gap" in d else 1.0),
             layout_mode=d.get("layout_mode") or "patch_first",
             area_method=d.get("area_method") or "by_width",
             area_cols=int(d.get("area_cols") or 0),
@@ -783,7 +784,12 @@ class LayoutRecipe:
             "patch_pattern": self.patch_pattern,
         }
         if self.instrument == "FD9":
-            kw["fd9_gap"] = self.fd9_gap_mm
+            if self.fd9_gap_mm is not None:
+                kw["fd9_gap"] = self.fd9_gap_mm
+            else:
+                # Preserve an explicit zero instead of the generic None/auto.
+                kw["inter_patch"] = self.inter_patch_mm
+                kw["strip_gap"] = self.strip_gap_mm
         # Only when it moves anything, so the kwargs of every chart that does
         # not use it are the ones it had before the field existed.
         if self.strip_label_offset_x_mm:
@@ -801,6 +807,11 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
                    ) -> LayoutRecipe:
     """A sensible default recipe for *instrument*/*paper* (and optional *mode*)."""
     r = LayoutRecipe(instrument=instrument, paper=paper)
+    if instrument == "FD9":
+        r.layout_mode = "patch_first"
+        r.patch_w_mm = r.patch_h_mm = 8.0
+        r.inter_patch_mm = r.strip_gap_mm = 1.0
+        r.fd9_gap_mm = None
     # The SpectroScan is a flatbed XY-table: it reads a FIXED 2-D grid, so
     # "prioritise patch size, then fit to page" (patch_first) is its natural
     # layout — it gives the proper grid of hexagons/squares. The generic

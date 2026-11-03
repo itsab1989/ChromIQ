@@ -230,16 +230,7 @@ def pt_to_mm(pt: float) -> float:
 
 def fd9_greyed_reason() -> str:
     """The tooltip of a Create Chart control the FD-9 layout does not use."""
-    return tr(
-        "Not used for the FD-9. An FD-9 chart has a fixed layout of its own, "
-        "made for the way the FD-9 finds and reads the sheet: at least 15 mm "
-        "free on each side, the middle of the first row of patches 42 mm from "
-        "the end that goes in first, and at least 33 mm free at the other end. "
-        "Four small black squares around the patch area let the FD-9 find the "
-        "patches, and an arrow shows which end goes in first. Nothing else is "
-        "printed on the sheet. You set the patch width, the patch height and "
-        "the gap between patches above, and an FD-9 chart is always one "
-        "sheet.")
+    return tr('Not used for the FD-9. Its four marks and feed margins are fixed. Patch size, gaps, paper size and pages use the standard layout controls.')
 
 
 class LayoutOptionsPanel(QWidget):
@@ -551,6 +542,15 @@ class LayoutOptionsPanel(QWidget):
         v.setSpacing(10)
 
         self.instr = self.paper = self.mode = self.pages = None
+        # FD-9 (Beta): built only while FD-9 support is on, so with it off
+        # the panel is 4.3.21's widget for widget.
+        from workflow.fd9.support import fd9_enabled
+        if fd9_enabled():
+            from ui.dialogs.fd9_sheet import fd9_layout_note
+            self.fd9_notice = QLabel(fd9_layout_note(), self)
+            self.fd9_notice.setWordWrap(True)
+            self.fd9_notice.hide()
+            v.addWidget(self.fd9_notice)
         if with_selectors:
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
@@ -628,22 +628,8 @@ class LayoutOptionsPanel(QWidget):
             self._custom_paper_w.setVisible(False)
             sel.setColumnStretch(1, 1)        # paper / instrument / mode expand
             v.addLayout(sel)
-            # FD-9 (Beta): built only while FD-9 support is on, so with it off
-            # the panel is 4.3.21's widget for widget.
-            from workflow.fd9.support import fd9_enabled
-            if fd9_enabled():
-                from ui.dialogs.fd9_sheet import FD9PatchControls, fd9_layout_note
-                self.fd9_notice = QLabel(fd9_layout_note(), self)
-                self.fd9_notice.setWordWrap(True)
-                self.fd9_notice.hide()
-                v.addWidget(self.fd9_notice)
-                self.fd9_controls = FD9PatchControls(self)
-                self.fd9_patch = self.fd9_controls.patch_width
-                self.fd9_height = self.fd9_controls.patch_height
-                self.fd9_gap = self.fd9_controls.gap
-                self.fd9_controls.changed.connect(self._emit)
-                self.fd9_controls.hide()
-                v.addWidget(self.fd9_controls)
+
+
             # Long paper labels shouldn't force the panel wide; the paper combo
             # gets a roomier minimum (it shares its row only with Pages) while
             # instrument/mode stay capped. The dropdown always shows full text.
@@ -3152,7 +3138,7 @@ class LayoutOptionsPanel(QWidget):
         for every instrument — e.g. "Offset every second strip" (a ColorMunki-
         only option) showed for SpectroScan / i1Pro / DTP41 / DTP51 until the
         user manually changed the instrument (Knut)."""
-        if self.instr is not None and hasattr(self, "fd9_controls"):
+        if hasattr(self, "fd9_notice"):
             # Only while FD-9 support is on (the controls exist only then).
             self._sync_fd9_widgets(inst == "FD9")
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
@@ -3189,7 +3175,6 @@ class LayoutOptionsPanel(QWidget):
         (enabled state, tooltip, page count and custom sheet size), never a
         blanket "enabled"."""
         self.fd9_notice.setVisible(fd9)
-        self.fd9_controls.setVisible(fd9)
         was = getattr(self, "_fd9_saved", None)
         if fd9 == (was is not None):
             return
@@ -3205,9 +3190,6 @@ class LayoutOptionsPanel(QWidget):
                 control.setToolTip(why)
             saved["dpi"] = self.dpi.maximum()
             self.dpi.setMaximum(self._FD9_MAX_DPI)
-            if self.pages is not None:
-                saved["pages"] = (self.pages.maximum(), self.pages.value())
-                self.pages.setMaximum(1)
             if hasattr(self, "custom_w"):
                 saved["custom"] = (self.custom_w.minimum(), self.custom_w.maximum(),
                                    self.custom_w.value(), self.custom_h.minimum(),
@@ -3216,9 +3198,23 @@ class LayoutOptionsPanel(QWidget):
                                                 MIN_HEIGHT, MIN_WIDTH)
                 self.custom_w.setRange(MIN_WIDTH, MAX_WIDTH)
                 self.custom_h.setRange(MIN_HEIGHT, MAX_HEIGHT)
+            saved["ranges"] = [(c, c.minimum(), c.maximum(), c.value(), c.specialValueText())
+                               for c in (self.patch_x, self.patch_y,
+                                         self.inter_patch, self.strip_gap)]
+            for c in (self.patch_x, self.patch_y):
+                c.setSpecialValueText("")
+                c.setRange(6, 30)
+                if saved["ranges"][(self.patch_x, self.patch_y).index(c)][3] == 0:
+                    c.setValue(8)
+            for c in (self.inter_patch, self.strip_gap):
+                c.setRange(0, 5)
             self._fd9_saved = saved
             return
         self._fd9_saved = None
+        for control, lo, hi, value, special in was.get("ranges", []):
+            control.setSpecialValueText(special)
+            control.setRange(lo, hi)
+            control.setValue(value)
         for control, enabled, tip in was["controls"]:
             try:
                 control.setEnabled(enabled)
@@ -3247,7 +3243,8 @@ class LayoutOptionsPanel(QWidget):
         live = {tr(t) for t in self._FD9_LIVE_GROUPS}
         for control in self.findChildren(
                 (QAbstractSpinBox, QAbstractButton, QComboBox)):
-            if isinstance(control, TooltipButton) or control is self.dpi:
+            if isinstance(control, TooltipButton) or control in (
+                    self.dpi, self.patch_x, self.patch_y, self.inter_patch, self.strip_gap):
                 continue
             groups = []
             p = control.parentWidget()
@@ -5723,9 +5720,8 @@ class LayoutOptionsPanel(QWidget):
         else:
             r = base if base is not None else LayoutRecipe()
         r = self.apply_to_recipe(r)
-        if (self.instr is not None and hasattr(self, "fd9_controls")
-                and self.instr.currentData() == "FD9"):
-            r.patch_w_mm, r.patch_h_mm, r.fd9_gap_mm = self.fd9_controls.values()
+        if r.instrument == "FD9" and hasattr(self, "fd9_notice"):
+            r.fd9_gap_mm = None  # shared inter-patch and strip-gap controls
             r.layout_mode = "patch_first"
         return r
 
@@ -5953,8 +5949,14 @@ class LayoutOptionsPanel(QWidget):
         """
         with self._clip_preview_batched():
             try:
-                if hasattr(self, "fd9_patch") and r.instrument == "FD9":
-                    self.fd9_controls.set_values(r.patch_w_mm or 8.0, r.patch_h_mm or r.patch_w_mm or 8.0, r.fd9_gap_mm)
+                if r.instrument == "FD9":
+                    from dataclasses import replace
+                    r = replace(r, patch_w_mm=r.patch_w_mm or 8.0,
+                                patch_h_mm=r.patch_h_mm or r.patch_w_mm or 8.0,
+                                layout_mode="patch_first",
+                                inter_patch_mm=(r.fd9_gap_mm if r.fd9_gap_mm is not None else r.inter_patch_mm),
+                                strip_gap_mm=(r.fd9_gap_mm if r.fd9_gap_mm is not None else r.strip_gap_mm),
+                                fd9_gap_mm=None)
                 self._set_recipe_impl(r)
                 self._hold_fd9_greying()          # review r1 F5
             finally:
@@ -6278,6 +6280,11 @@ class LayoutOptionsPanel(QWidget):
         r.area_rows = int(self.area_rows.value())
         r.area_ratio = float(self.area_ratio.value()) / 100.0          # % → frac
         r.area_min_patch_mm = float(self.area_min_patch.value())
+        if r.instrument == "FD9":
+            from workflow.fd9.support import fd9_enabled
+            if fd9_enabled():
+                r.fd9_gap_mm = None
+                r.layout_mode = "patch_first"
         r.patch_w_mm = self.patch_x.value()
         r.patch_h_mm = self.patch_y.value()
         r.inter_patch_mm = self.inter_patch.value()

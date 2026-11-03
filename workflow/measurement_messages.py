@@ -611,6 +611,13 @@ M_FD9_INSERT_SHEET = _m(
     approved=False)
 
 #: The connection to the FD-9 could not be made or was lost.
+M_FD9_NEXT_PAGE = _m(
+    "M-FD9-NEXT-PAGE",
+    'Prepare page {page} of {pages}',
+    'The next page is queued. Remove the ejected sheet completely from the FD-9. When the paper sensor is clear, the instrument will show the insertion screen automatically. Then feed page {page} of {pages}, arrow first and printed side up. Earlier readings are kept. The four marks check geometry only; make sure this is the correct page.',
+    approved=False)
+
+
 M_FD9_NO_CONNECTION = _m(
     "M-FD9-NO-CONNECTION",
     "ChromIQ could not reach the FD-9",
@@ -8890,7 +8897,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
-    M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET,
+    M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,

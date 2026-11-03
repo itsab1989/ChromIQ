@@ -74,7 +74,13 @@ def export_native(
         raise ValueError("Malformed ink representation")
     rows = []
     ids = set()
-    for patch, sample in zip(evidence["patches"], evidence["samples"]):
+    # Pair in acquisition order first, then restore logical row order for a
+    # stable complete-row prefix, including partial saves and later resumes.
+    ranks = {p["id"]: i for i, p in enumerate(
+        p for row in layout["rows"] for p in row)}
+    pairs = sorted(zip(evidence["patches"], evidence["samples"]),
+                   key=lambda pair: ranks[pair[0]["id"]])
+    for patch, sample in pairs:
         device = patch["device_values"]
         if (
             type(patch["id"]) is not int

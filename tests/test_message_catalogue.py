@@ -589,7 +589,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # the FD-9 itself, so its windows are its
                                  # own; shown from the beta that proposes them.
                                  "M-FD9-SUPPORT-OFF", "M-FD9-NO-ADDRESS",
-                                 "M-FD9-INSERT-SHEET", "M-FD9-NO-CONNECTION",
+                                 "M-FD9-INSERT-SHEET", "M-FD9-NEXT-PAGE", "M-FD9-NO-CONNECTION",
                                  "M-FD9-WRONG-FIRMWARE",
                                  "M-FD9-MARKS-NOT-FOUND",
                                  "M-FD9-SHEET-STILL-INSIDE",
@@ -1022,6 +1022,7 @@ WINDOW_SOURCES = [
     ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_window"),
     ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_show_insert_window"),
     ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_explain_error"),
+    ("ui.fd9_measurement", "FD9MeasureMixin", "_fd9_page_requested"),
     # Forum report, 2026-10-03: a chart whose locations its patterns cannot
     # read, before any reader starts and from the engine's typed event.
     ("ui.tabs.tab_measure", "TabMeasure", "_chart_unreadable_window"),

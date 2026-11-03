@@ -250,3 +250,10 @@ stage.
    (i1Profiler doesn't default to writing into ChromIQ's `exports/`), but
    if it ever bites, the fix is to special-case `parent.name == "exports"`
    in `_handle_inside` and route to the import flow instead.
+
+
+FD-9 multi-page measurements retain one `fd9-sessions/<id>/` per Start. Its
+`page-NNN/` folders hold the physical page definition, chart subset and the
+existing acquisition evidence under `capture/`; the parent staged TI3 and
+metadata bind the pages into one result. Retention acts on the parent session,
+so it cannot delete an earlier sheet of a filed or resumable measurement.

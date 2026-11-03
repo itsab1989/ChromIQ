@@ -38,18 +38,18 @@ def chart_tab(qapp, tmp_path, qtbot):
     return t
 
 
-def test_leaving_the_fd9_in_guided_gives_back_the_pages_it_replaced(
+def test_fd9_shares_guided_page_count_with_other_instruments(
         chart_tab):
     t = chart_tab
     t._instr_combo.setCurrentIndex(t._instr_combo.findData("i1"))
     t._pages_spin.setValue(3)
     t._instr_combo.setCurrentIndex(t._instr_combo.findData("FD9"))
-    assert t._pages_spin.maximum() == 1 and t._pages_spin.value() == 1
+    assert t._pages_spin.maximum() == 20 and t._pages_spin.value() == 3
     t._instr_combo.setCurrentIndex(t._instr_combo.findData("CM"))
     assert t._pages_spin.maximum() == 20
     assert t._pages_spin.value() == 3, (
-        "leaving the FD-9 kept its one page instead of the 3 it replaced")
-    # Once given back it is not given back again over a later choice.
+        "switching instruments changed the shared page count")
+    # Later instrument changes preserve the newly chosen page count.
     t._pages_spin.setValue(5)
     t._instr_combo.setCurrentIndex(t._instr_combo.findData("i1"))
     assert t._pages_spin.value() == 5

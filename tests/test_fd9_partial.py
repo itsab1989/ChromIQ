@@ -27,9 +27,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 @pytest.fixture
 def setup(tmp_path):
-    source = ROOT / "drivers/fd9-independent"
-    if not source.is_dir():
-        source = Path(__file__).resolve().parents[1] / "vendor/fd9-independent"
+    source = Path(__file__).resolve().parents[1] / "vendor/fd9-independent"
     driver(source)
     layout = {
         "color_rep": "CMYK",

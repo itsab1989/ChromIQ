@@ -18,17 +18,16 @@ from tests.test_fd9_review_r2 import chart_tab  # noqa: F401
 ROOT = Path(__file__).resolve().parent.parent
 
 
-# ---- R3-3: the remembered Pages value belongs to one target ---------------
-def test_a_target_change_forgets_the_pages_guided_remembered(chart_tab):
+# ---- R3-3: Pages follows the loaded target, with no FD-9 override ----------
+def test_target_change_has_no_fd9_page_count_override(chart_tab):
     t = chart_tab
     t._instr_combo.setCurrentIndex(t._instr_combo.findData("i1"))
     t._pages_spin.setValue(5)
     t._instr_combo.setCurrentIndex(t._instr_combo.findData("FD9"))
-    assert t._fd9_guided_pages_was == 5      # project A's own value
+    assert getattr(t, "_fd9_guided_pages_was", None) is None      # project A's own value
     t._on_target_changed()                   # another project/run
     t._instr_combo.setCurrentIndex(t._instr_combo.findData("i1"))
-    assert t._pages_spin.value() == 1, (
-        "project A's 5 pages reached the next target")
+    assert t._pages_spin.value() == 5  # no instrument-specific forced page count
 
 
 def test_opening_an_fd9_target_does_not_remember_the_last_ones_pages(
@@ -61,7 +60,7 @@ def test_a_load_that_leaves_the_fd9_keeps_the_stored_pages(chart_tab):
         t._pages_spin.setValue(7)                # the stored value
     finally:
         t._loading_target_settings = False
-    assert t._pages_spin.value() == 7 and t._fd9_guided_pages_was is None
+    assert t._pages_spin.value() == 7 and getattr(t, "_fd9_guided_pages_was", None) is None
 
 
 # ---- R3-2: every licence file the specs ship is listed --------------------

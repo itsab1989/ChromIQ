@@ -200,7 +200,7 @@ def build_chart(
     margins: tuple[float, float, float, float] | None = None,
     patch_w: float | None = None,
     patch_h: float | None = None,
-    fd9_gap: float = 1.0,
+    fd9_gap: float | None = None,
     spacer_width: float | None = None,
     inter_patch: float | None = None,
     strip_gap: float | None = None,
@@ -334,7 +334,9 @@ def build_chart(
                          randomize=randomize, seed=seed, bit16=bit16,
                          cal_path=cal_path, apply_cal=apply_cal, export_pdf=export_pdf,
                          ramps_per_strip=ramps_per_strip, patch_mm=patch_w or 8.0,
-                         patch_height_mm=patch_h, gap_mm=fd9_gap,
+                         patch_height_mm=patch_h,
+                         gap_mm=(fd9_gap if fd9_gap is not None else inter_patch if inter_patch is not None else 1.0),
+                         strip_gap_mm=(strip_gap if strip_gap is not None else fd9_gap),
                          compression=compression)
     target = ti1_reader.read_ti1(ti1_path)
     # What goes on paper. Differs from `target` only under -K.

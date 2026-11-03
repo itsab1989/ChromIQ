@@ -4,6 +4,25 @@ import csv, hashlib, importlib, json, math, struct, sys
 from pathlib import Path
 
 
+FORWARD_ROW_ORDER = "increasing-x-v1"
+ALTERNATING_ROW_ORDER = "alternating-x-v1"
+
+
+def ordered_measurement_rows(rows, selected, row_order=FORWARD_ROW_ORDER):
+    """Travel order, starting with increasing X on every retained-sheet pass.
+
+    Geometry and chart rows stay in logical order. The policy is recorded in
+    each acquisition, so old sessions without it retain their forward mapping.
+    Resume restarts the alternation at its first selected row, not at row zero
+    of the original chart. The same permutation applies to points and patches.
+    """
+    if row_order not in (FORWARD_ROW_ORDER, ALTERNATING_ROW_ORDER):
+        raise ValueError("Unsupported FD-9 row-order policy")
+    return [list(reversed(rows[i]))
+            if row_order == ALTERNATING_ROW_ORDER and n % 2 else list(rows[i])
+            for n, i in enumerate(selected)]
+
+
 def driver(source):
     if source is None or not str(source).strip():
         try:
@@ -98,9 +117,17 @@ def capture_layout(
     expected_factory_sha256=None,
     factory_row_sequencing=True,
     expected_model_sha256=None,
+    row_order=None,
+    wait_for_sheet_clear=False,
 ):
     if allow_experimental is not True:
         raise ValueError("Explicit experimental capture opt-in required")
+    fast_factory = native_factory and factory_row_sequencing
+    if row_order is None:
+        row_order = ALTERNATING_ROW_ORDER if fast_factory else FORWARD_ROW_ORDER
+    ordered_measurement_rows([], [], row_order)  # refuse an unknown policy before connecting
+    if native_factory and not fast_factory and row_order != FORWARD_ROW_ORDER:
+        raise ValueError("The legacy native point backend requires forward rows")
     driver(source)
     from fd9_independent import Instrument
     from fd9_independent.motion import RawAcquisition
@@ -128,7 +155,6 @@ def capture_layout(
     progress("Independent capture output: " + str(root.resolve()))
     (root / "chart-definition.json").write_bytes(layout_bytes)
     instrument = Instrument(host, timeout=10, cancelled=cancelled)
-    fast_factory = native_factory and factory_row_sequencing
     acq = (
         FactoryRowAcquisition(
             instrument, enable_experimental_motion=True, enable_experimental_model=True
@@ -154,6 +180,8 @@ def capture_layout(
         ),
         "stages": [],
         "measurement_row_indices": selected,
+        "row_order": row_order,
+        "wait_for_sheet_clear": bool(wait_for_sheet_clear),
     }
 
     def save():
@@ -184,6 +212,14 @@ def capture_layout(
     failure = None
     try:
         with instrument:
+            progress(
+                "Remove any previously ejected sheet completely from the FD-9. "
+                "Keep the next chart outside until the insertion screen is ready."
+            )
+            if wait_for_sheet_clear:
+                acq.wait_sheet_clear(wait_seconds)
+                report["stages"].append("previous sheet clearance verified")
+                save()
             if native_factory:
                 # Check this device before displaying the insertion screen. No
                 # reference reading, host profile or numerical table is needed.
@@ -222,10 +258,6 @@ def capture_layout(
                     raise ValueError(
                         "Resume factory characterization differs from this FD-9"
                     )
-            progress(
-                "Remove any previously ejected sheet completely from the FD-9. "
-                "Keep the next chart outside until the insertion screen is ready."
-            )
             acq.begin_loading()
             report["stages"].append("original insertion screen acknowledged")
             save()
@@ -281,11 +313,13 @@ def capture_layout(
                 progress(f"FD9 measurement: {count}/{total} patches")
 
             if fast_factory:
-                acq.measure_rows([rows[i] for i in selected], on_point=row_done)
+                acq.measure_rows(ordered_measurement_rows(rows, selected, row_order),
+                                 on_point=row_done)
             elif native_factory:
                 acq.measure_native([rows[i] for i in selected], on_point=row_done)
             else:
-                acq.measure([rows[i] for i in selected], on_row=row_done)
+                acq.measure(ordered_measurement_rows(rows, selected, row_order),
+                            on_row=row_done)
             report["stages"].append("raw measurement and ejection complete")
             report["success"] = True
             progress(
@@ -359,7 +393,9 @@ def export_saved(
     obs = tuple(Curve([r[0] for r in ot], [r[i] for r in ot]) for i in (1, 2, 3))
     calibration = evidence["calibration"]
     rows = []
-    for patch, s in zip(patches, raw):
+    ranks = {p["id"]: i for i, p in enumerate(
+        p for row in layout["rows"] for p in row)}
+    for patch, s in sorted(zip(patches, raw), key=lambda pair: ranks[pair[0]["id"]]):
         device = patch["device_values"]
         if len(device) != len(tokens) or any(
             not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= 100

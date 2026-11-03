@@ -1,4 +1,4 @@
-"""Native FD-9 shapes, touching-cell pixels and the dedicated edit route."""
+"""Native FD-9 shapes, touching-cell pixels and the shared edit route."""
 
 from tests._fd9_beta import fd9_beta_on, fd9_windows  # noqa: F401
 import json
@@ -104,9 +104,7 @@ def test_corner_recognition_does_not_need_patch_gaps(tmp_path, width, height, ga
     from PIL import Image
     from workflow.fd9.independent import driver, chart_grid
 
-    package = Path(__file__).resolve().parents[3] / "drivers/fd9-independent"
-    if not package.is_dir():
-        package = Path(__file__).resolve().parents[1] / "vendor/fd9-independent"
+    package = Path(__file__).resolve().parents[1] / "vendor/fd9-independent"
     driver(package)
     from fd9_independent.geometry import find_marks, grid_rows
 
@@ -161,7 +159,7 @@ def test_invalid_native_sizes_fail_before_output(tmp_path, height, gap):
 
 
 @pytest.mark.parametrize("mode", ["guided", "manual", "gamut"])
-def test_native_editor_never_opens_preferences_or_printtarg(
+def test_native_editor_opens_shared_preferences_and_keeps_printtarg_off(
     qapp, qtbot, tmp_path, monkeypatch, mode
 ):
     from core.settings import AppSettings
@@ -170,7 +168,6 @@ def test_native_editor_never_opens_preferences_or_printtarg(
     from core.argyll_runner import ArgyllRunner
     from core.file_manager import FileManager
     from ui.tabs.tab_chart import TabChart, _layout_panel_lays_out
-    from ui.dialogs.fd9_sheet import FD9SheetDialog
     from ui.dialogs import settings_dialog
 
     settings = AppSettings()
@@ -192,33 +189,18 @@ def test_native_editor_never_opens_preferences_or_printtarg(
         tab._user_switch_mode("gamut")
     assert tab._active_instrument_flag() == "FD9"
 
-    def wrong(*_, **__):
-        raise AssertionError("FD-9 size edit opened generic Preferences")
-
-    monkeypatch.setattr(settings_dialog, "SettingsDialog", wrong)
-    seen = []
-
-    def edit(dialog):
-        assert isinstance(dialog, FD9SheetDialog)
-        assert dialog.windowTitle() == "FD-9 patch layout"
-        assert dialog.patch_controls.values() == (8, 6, 0)
-        dialog.patch_controls.set_values(10, 7, 0.5)
-        seen.append(dialog)
-        return QDialog.DialogCode.Accepted
-
-    monkeypatch.setattr(FD9SheetDialog, "exec", edit)
+    seen=[]
+    class Preferences:
+        def __init__(self, *args, **kwargs):
+            seen.append(kwargs["layout_combo"])
+        def exec(self):
+            return QDialog.DialogCode.Rejected
+    monkeypatch.setattr(settings_dialog, "SettingsDialog", Preferences)
     tab._edit_layout_defaults()
-    assert seen
-    params = (
-        tab._collect_manual() if mode in ("manual", "gamut") else tab._collect_guided()
-    )
-    assert (params.fd9_patch_mm, params.fd9_patch_h_mm, params.fd9_gap_mm) == (
-        10,
-        7,
-        0.5,
-    )
+    assert seen and seen[0][0] == "FD9"
     assert _layout_panel_lays_out("FD9", False)
     assert settings.get("use_chromiq_layout_engine") is False
+
 
 
 @pytest.mark.parametrize("mode", ["guided", "manual"])
@@ -254,11 +236,9 @@ def test_native_dimensions_survive_startup_and_mode_switches(
         tab._user_switch_mode(destination)
         params = tab._collect_params()
         assert params.instrument == "FD9"
-        assert (
-            params.fd9_patch_mm,
-            params.fd9_patch_h_mm,
-            params.fd9_gap_mm,
-        ) == expected
+        r = params.layout_recipe
+        assert (r.patch_w_mm, r.patch_h_mm,
+                r.fd9_gap_mm if r.fd9_gap_mm is not None else r.inter_patch_mm) == expected
         assert settings.get("use_chromiq_layout_engine") is False
 
 

@@ -69,6 +69,12 @@ user requirement, ISO certification or proof of other firmware/units.
 Ejection is separate from clearing the exit paper sensor. Remove the ejected
 sheet completely before starting another loading job.
 
+`RawAcquisition.wait_sheet_clear(seconds)` may run in the NEW phase before the
+next load. It waits on read-only controller status for mechanism 2 and paper 0,
+observed when an ejected sheet fully clears the exit sensor. ChromIQ queues
+later sheets through this wait, before model reads or loading. Cancellation,
+fault and timeout close communication without an automatic motion command.
+
 `NativeAcquisition` is the separately opted-in batch API. Its loading/pre-scan
 methods match `RawAcquisition`; `measure_native(rows)` reads native conditions
 before each move, tracks completed rows and retains partial results on failure.
@@ -94,6 +100,18 @@ read spans are serialized, always with read flag zero; no arbitrary reader,
 writer, firmware loader or calibration setter is exposed. Each session retains
 the data actually read and its fingerprints. A resumed automatic-row session
 must match both the checked factory sections and the conversion model.
+
+Explicit row coordinates may run in either strictly monotonic X direction.
+ChromIQ alternates the point order of successive rows, starting with increasing
+X on each sheet or resumed pass. This changes head travel, not spectral
+conversion, calibration cadence or the final home/ejection. Session evidence
+records the ordering; sessions without that field keep the historical increasing-X
+interpretation. Synthetic tests cover descending rows and cancellation within
+one. A subsequent two-page GUI run completed 2,040 points (30 columns and
+34 rows per sheet), with 17 increasing and 17 decreasing rows on each sheet,
+and automatic paper-clear handoff. Every filed M0 spectrum matched the
+verified raw/model data under its logical patch ID. Physical interruption and
+resume within a descending row remain untested.
 
 Offline conversion of 481 previously acquired raw entries across two charts
 matched the same-entry native M0/M1/M2 within 4.8e-7 reflectance. Portable

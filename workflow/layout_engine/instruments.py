@@ -732,8 +732,10 @@ def geom_from_build_kwargs(kw: dict) -> Geom:
     if kw.get("instrument") == "FD9" and _fd9_on():
         from workflow.fd9.chart import patch_dimensions
         w, h, gap = patch_dimensions(kw.get("patch_w") or 8.0, kw.get("patch_h"),
-                                      kw.get("fd9_gap", 1.0), kw.get("dpi", 300))
-        return replace(build("FD9"), plen=h, pwid=w, pspa=gap, rrsp=w+gap)
+                                      kw.get("fd9_gap", kw.get("inter_patch", 1.0)), kw.get("dpi", 300))
+        gx = kw.get("strip_gap")
+        gx = gap if gx is None else patch_dimensions(w, h, gx, kw.get("dpi", 300))[2]
+        return replace(build("FD9"), plen=h, pwid=w, pspa=gap, rrsp=w+gx)
     # CM/SS/CR30 have no native clip border, but can still carry a notes/clip
     # band when clip content is on — reserve that band so capacity reflects it
     # (#93). CR30 joined this tuple in #159: the design says its clip band is

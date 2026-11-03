@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- FD-9 automatic rows alternate head travel direction, while live colours and
+  progress follow the actual patch being read. Saved measurements keep logical
+  chart order, including partial saves and resumed or multi-page jobs. Older
+  forward-only sessions remain readable. A two-page, 2,040-patch M0 run passed
+  with alternating rows on one FD-9.
+- FD-9 uses the existing patch-size, gap, paper and Pages controls. Multi-page
+  targets generate numbered TIFFs and one PDF/TI2, and measurement uses the
+  shared page-pause panel with whole-chart progress and resume. Later sheets
+  queue automatically: remove the ejected sheet, then wait for the next insertion
+  prompt without clicking Continue. A two-sheet 2,040-patch run and page-2 resume
+  passed on one FD-9; the automatic exit-sensor handoff then passed on the same
+  two sheets.
+  Existing single-page charts remain readable.
+
+
+
 ## v4.3.23
 
 **For everyone updating from 4.3.22: when you import an i1Profiler measurement, ChromIQ now asks which measurement condition (M0, M1 or M2) to use, keeps its spectra and records the condition, and brightener (FWA) compensation is only offered where it can work. Opening a project or picking another run no longer changes the stored settings of a run. Your charts, measurements and profiles do not change.**

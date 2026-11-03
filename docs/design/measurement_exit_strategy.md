@@ -533,3 +533,27 @@ Preferences ▸ Measurement ▸ *Instrument button shortcuts*, **off by default*
 * **What the user sees.** The Measure tab's status line and the log (M-GESTURE-STATUS): "Double press: back to strip B", "... back to patch C4". No sound (`measurement_window_sounds.md` §4f).
 * **Try it.** Preferences' own area opens the instrument through the engine (`--button-test`), takes the instrument lease (`BUTTON_TRY`), refuses while anything reads, reads and writes nothing, and lets the instrument go on Stop and however the dialog closes.
 
+
+
+## FD-9 multi-page sheet handoff
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+The FD-9 adapter uses the existing page-pause panel between physical sheets.
+M-FD9-NEXT-PAGE asks the operator to fully remove the ejected sheet and prepare
+the named next page. It is queued automatically, without Continue. The worker
+opens a new connection and waits read-only for mechanism 2 and paper 0, observed
+when the old sheet clears the exit sensor. Only then does it read the model and
+prepare insertion. The shared panel closes when the insertion prompt appears;
+its Continue, reread and help buttons are hidden during this notice and restored
+afterward. It never calls chartread's goto or resume commands.
+Stop and quit still use the shared Save/Discard/Keep ending. A stopped wait or
+failure on a later page keeps the verified prefix from earlier pages; Resume
+skips complete pages and measures the remaining whole-row suffix of the first
+incomplete sheet. No new home, eject or reset command is introduced.
+
+A two-page, 2,040-patch M0 run on 2026-11-03 passed automatic exit-sensor
+clearance and second-sheet insertion on one owned FD-9. Stop during this wait
+is covered by synthetic tests; no physical stop during the new wait was tested.

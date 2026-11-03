@@ -34,6 +34,42 @@ def setup(rows):
 
 
 class Tests(unittest.TestCase):
+    def test_alternating_rows_keep_batching_calibration_and_final_ejection(self):
+        rows = [[(100 + 30*c, 200 + 30*r) for c in range(4)] for r in range(7)]
+        rows = [list(reversed(row)) if r % 2 else row for r, row in enumerate(rows)]
+        client, acq, socket = setup(rows)
+        with patch("fd9_independent.motion.time.sleep"):
+            got = acq.measure_rows(rows)
+        self.assertEqual(len(got), 28)
+        self.assertEqual(acq.completed_native_rows, 7)
+        lines = [p[4:] for p in socket.sent if struct.unpack_from('<I', p, 4)[0] == 0x106]
+        for r, payload in enumerate(lines):
+            header = struct.unpack_from('<9I', payload)
+            self.assertEqual(header[4], int(r % 6 == 0))
+            self.assertEqual(header[7], int(r < 6))
+            self.assertEqual([struct.unpack_from('<2f', payload, 36+16*c)
+                              for c in range(4)], rows[r])
+        ids = commands(socket.sent)
+        self.assertEqual(ids.count(0x106), 7)
+        self.assertEqual(ids.count(0x100), 1)
+        self.assertEqual(ids.count(0x101), 1)
+        self.assertNotIn(0x203, ids)
+        self.assertNotIn(0x205, ids)
+
+    def test_stop_within_descending_row_keeps_completed_rows_without_ejection(self):
+        rows = [[(100,200),(200,200)],[(200,240),(100,240)]]
+        client, acq, socket = setup(rows)
+        def stop(count, total):
+            if count == 3:
+                raise InterruptedError('Invented stop during descending row')
+        with self.assertRaises(InterruptedError):
+            acq.measure_rows(rows, on_point=stop)
+        self.assertEqual(len(acq.native_samples), 3)
+        self.assertEqual(acq.completed_native_rows, 1)
+        self.assertEqual(commands(socket.sent).count(0x106), 2)
+        self.assertNotIn(0x101, commands(socket.sent))
+        self.assertTrue(socket.closed)
+
     def test_twenty_columns_use_one_command_per_row_with_all_conditions(self):
         rows = [[(100 + 30 * c, 200 + 30 * r) for c in range(20)] for r in range(7)]
         client, acq, socket = setup(rows)

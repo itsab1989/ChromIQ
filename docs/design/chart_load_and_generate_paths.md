@@ -226,24 +226,30 @@ verified by tests and on screen without an FD-9.*
   recognised, so it is taken as an i1Pro chart, as any unknown name is).
 * **Instrument "FD-9"** in Guided and in Manual. The chart is laid out by
   ChromIQ's own FD-9 layout (`workflow/fd9/chart.py`), never printtarg:
-  one sheet, patches 6-30 mm wide and high, a gap of 0-5 mm (default 8 x 8 mm,
+  one or more sheets, patches 6-30 mm wide and high, gaps of 0-5 mm (default 8 x 8 mm,
   1 mm), at least 15 mm free on each side, the middle of the first row 42 mm
   from the leading edge and at least 33 mm free at the trailing edge, four 3 mm
   marks around the patch area, an arrow showing which end goes in first, and
-  nothing else printed.
+  nothing else printed on a single-page chart. Multi-page sheets add a small
+  numeric page label in the leading clear area; this is for the operator, not
+  an automatic page-identity check.
 * **Sheets:** 137x300, A4, A4 landscape, Letter, Letter landscape, A3,
-  329x483 and 330x660, plus "Custom sheet…" for any 137-330 mm across the
-  feed and 170-660 mm along it. Landscape A4 (297 x 210) and Letter (279.4 x
+  329x483 and 330x660 in Guided. Manual uses the ordinary Custom paper entry
+  for any 137-330 mm across the feed and 170-660 mm along it. Landscape A4 (297 x 210) and Letter (279.4 x
   215.9) are inside that envelope and are laid out by the same geometry
   (`tests/test_fd9_beta_option.py`).
-* **Options in Manual's layout panel:** bit depth, compression, PDF export,
-  resolution and printer calibration (Output and Printer calibration) are
-  honoured. Every other layout control is greyed while the FD-9 is selected,
-  with a tooltip saying why (the FD-9's fixed layout), and given back as it
-  was when another instrument is chosen. Pages is 1.
-* **Guided** reaches the patch size, height and gap through "Custom sheet…"
-  and "Edit layout defaults", which open the FD-9's own size window rather
-  than Preferences.
+* **Shared layout controls:** patch width and height, inter-patch gap along
+  the feed, strip gap across it, paper and Pages use the existing controls.
+  Rectangles and zero gaps are supported. There is no separate FD-9 size
+  dialog or Guided Custom sheet button. Edit layout defaults opens the normal
+  Chart Layout preferences and does not enable printtarg for the FD-9.
+  Other unsupported controls stay greyed, with their state restored on leaving
+  FD-9. Output, printer calibration and randomisation remain available.
+* **Multiple pages:** the existing Pages selector controls Guided capacity.
+  A patch set exceeding one sheet is split into ordinary numbered TIFFs and
+  one PDF/TI2, with unique sample IDs/locations across the chart. Only complete
+  columns pad the last sheet. Schema-2 physical sidecars contain a grid per
+  page; schema-1 printed charts remain unchanged and readable.
 * **Files:** `<stem>.ti2` with the header every engine chart has
   (`DESCRIPTOR`, `CREATED`, `TARGET_INSTRUMENT "Konica Minolta FD-9"`,
   `APPROX_WHITE_POINT`), quoted `SAMPLE_LOC`, `<stem>.fd9.json` (the physical

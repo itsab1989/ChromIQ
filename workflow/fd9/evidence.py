@@ -9,7 +9,8 @@ from pathlib import Path
 def verified_rows(
     source, session, layout_path, *, allow_partial=False, _factory_model=False
 ):
-    from .independent import driver, chart_grid
+    from .independent import (driver, chart_grid, ordered_measurement_rows,
+                              FORWARD_ROW_ORDER)
 
     driver(source)
     from fd9_independent.protocol import MessageDecoder, RawSpectrum
@@ -57,6 +58,8 @@ def verified_rows(
         raise ValueError(
             "Only a complete chart or a contiguous remaining-row suffix is supported"
         )
+    row_order = report.get("row_order", FORWARD_ROW_ORDER)
+    measurement_rows = ordered_measurement_rows(geometry["rows"], selected, row_order)
     manifest = json.loads((root / "wire/manifest.json").read_text(encoding="utf-8"))
     wire = (root / "wire/received.bin").read_bytes()
     sent = (root / "wire/sent.bin").read_bytes()
@@ -81,7 +84,7 @@ def verified_rows(
         raise ValueError("Unexpected measurement row count")
     for i, command in enumerate(lines):
         if command != line_command(
-            geometry["rows"][selected[i]], i % 6 == 0, i < len(selected) - 1
+            measurement_rows[i], i % 6 == 0, i < len(selected) - 1
         ):
             raise ValueError("Acquisition commands do not match chart geometry")
     if command_ids.count(3) != 1:
@@ -131,7 +134,8 @@ def verified_rows(
         for p in acknowledgements[: len(measured)]
     ):
         raise ValueError("Measured row lacks a successful acknowledgement")
-    patches = [p for i in measured for p in layout["rows"][i]]
+    patches = [p for row in ordered_measurement_rows(layout["rows"], measured, row_order)
+               for p in row]
     return {
         "layout": layout,
         "patches": patches,
@@ -143,4 +147,5 @@ def verified_rows(
         "calibration": (root / "instrument-calibration.bin").read_bytes(),
         "acquisition_complete": complete,
         "row_indices": measured,
+        "row_order": row_order,
     }
