@@ -8475,7 +8475,7 @@ alone.
 >
 > The measurement condition is the light the instrument shines on the paper. Optical brighteners in the paper read differently under each one, so new readings taken now would not belong with the ones already there.
 >
-> To continue this measurement, switch “Spectral filter type (-F)” on and set it to “{setting}”, then press Start again. Or untick “{box}” to measure the whole chart again under the new setting: your current measurement is then moved to the run's old folder, not deleted.
+> To continue this measurement, switch “Spectral filter type (-F)” on and set it to “{setting}” (the option is in Manual mode), then press Start again. Or untick “{box}” to measure the whole chart again under the new setting: your current measurement is then moved to the run's old folder, not deleted.
 >
 > Nothing has been measured or changed.
 
