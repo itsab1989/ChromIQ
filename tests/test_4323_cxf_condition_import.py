@@ -23,9 +23,9 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from workflow import measurement_messages as M                    # noqa: E402
-from workflow.measurement_condition import (                         # noqa: E402
-    fwa_refused_by_condition, fwa_refused_for_file, read_condition,
-    remove_fwa, without_fwa_unless_m0)
+from workflow.fwa_gate import (                                      # noqa: E402
+    drop_fwa, fwa_refusal, fwa_refusal_for_file, without_refused_fwa)
+from workflow.measurement_condition import read_condition            # noqa: E402
 from workflow.reference_convert import (                             # noqa: E402
     ReferenceConvertError, argyll_instrument_name, condition_from_label,
     convert_i1profiler_measurement, cxf_conditions, cxf_measurement_to_ti3,
@@ -299,9 +299,13 @@ def test_the_turned_reorder_keeps_every_spectrum(tmp_path):
 # ---- FWA: only M0 readings ------------------------------------------------------
 
 def test_fwa_is_refused_for_m1_and_m2_only():
-    assert not fwa_refused_by_condition(None)
-    assert not fwa_refused_by_condition("M0")
-    assert fwa_refused_by_condition("M1") and fwa_refused_by_condition("m2")
+    i1 = "X-Rite i1 Pro 3"
+    assert fwa_refusal(i1, condition=None) is None
+    assert fwa_refusal(i1, condition="M0") is None
+    for cond in ("M1", "m2"):
+        refusal = fwa_refusal(i1, condition=cond)
+        assert refusal.kind == "condition"
+        assert refusal.condition == cond.upper()
 
 
 def _params(ti3, **kw):
@@ -363,7 +367,7 @@ def test_remove_fwa_takes_typed_f_out_and_keeps_the_rest():
         fwa_enabled = True
         extra_args = "-qh -fD65 -v"
     p = P()
-    assert remove_fwa(p)
+    assert drop_fwa(p)
     assert not p.fwa_enabled and p.extra_args == "-qh -v"
 
 
@@ -371,9 +375,9 @@ def test_a_file_without_a_condition_is_judged_as_before(tmp_path):
     ti3 = tmp_path / "cr.ti3"
     ti3.write_text("CTI3\nTARGET_INSTRUMENT \"X-Rite i1 Pro 3\"\nBEGIN_DATA\n"
                    "END_DATA\n", encoding="utf-8")
-    assert not fwa_refused_for_file(ti3)
+    assert fwa_refusal_for_file(ti3) is None
     p = _params(ti3, fwa_enabled=True)
-    same, dropped = without_fwa_unless_m0(p)
+    same, dropped = without_refused_fwa(p)
     assert same is p and dropped is None
 
 
@@ -403,7 +407,7 @@ def test_build_profile_greys_fwa_for_m1_and_says_why(qapp, tmp_path):
     assert tab._fwa_check.isChecked(), "a setting is not changed by a load"
     params = tab._collect_params()
     assert not params.fwa_enabled
-    assert tab._fwa_condition_dropped == "M1"
+    assert tab._fwa_dropped_by_collect.condition == "M1"
     # an M0 measurement gives it back, with its own tooltip
     m0 = cxf_measurement_to_ti3(src, tmp_path / "m0.ti3", condition="M0")
     tab._ti3_path = m0

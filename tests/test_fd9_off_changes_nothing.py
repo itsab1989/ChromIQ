@@ -259,6 +259,9 @@ HOOKED_FILES = {
     "ui/licences.py",                # the licence notice section
     "workflow/chart_creator.py",     # instrument "FD9" only
     "workflow/chart_import.py",      # .fd9.json companion
+    # NOT switched, on purpose: ArgyllCMS refuses -f on an FD-9 measurement
+    # with the Beta on or off (THE FWA GATE; tests/test_fd9_fwa_gate.py).
+    "workflow/fwa_gate.py",
     "workflow/layout_engine/chart.py",
     "workflow/layout_engine/geometry.py",
     "workflow/layout_engine/instruments.py",

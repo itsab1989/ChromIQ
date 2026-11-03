@@ -178,16 +178,16 @@ class ProfcheckRunner:
             self._scan_line(line)
             on_line(line)
 
-        # FWA on an M1/M2 measurement (4.3.23): left out with a line in the
-        # log, whichever door it came through. The Check & Refine tab
-        # normally drops it first and greys the option.
-        from workflow.measurement_condition import (
-            fwa_condition_dropped_log_line, without_fwa_unless_m0)
-        params, dropped_for = without_fwa_unless_m0(params)
-        if dropped_for:
-            log.info("profcheck: -f left out for %s (measured under %s)",
-                     params.ti3_path, dropped_for)
-            on_line(fwa_condition_dropped_log_line(dropped_for))
+        # THE FWA GATE (`workflow.fwa_gate`): -f on a measurement it refuses
+        # is left out with a line in the log, whichever door the switch came
+        # through. Before the N-channel route, so that is covered too. The
+        # Check & Refine tab normally drops it first and greys the option.
+        from workflow.fwa_gate import without_refused_fwa
+        params, refusal = without_refused_fwa(params)
+        if refusal is not None:
+            log.info("profcheck: -f left out for %s (FWA gate: %s)",
+                     params.ti3_path, refusal.kind)
+            on_line(refusal.log_line)
 
         # >4-ink profiles: stock profcheck refuses the colourspace, so run the
         # Python N-channel check (icclu forward lookup + ΔE) — same output

@@ -583,18 +583,18 @@ class ProfileBuilder:
         from workflow.cal_repair import repair_embedded_cal
         repair_embedded_cal(params.ti3_path)
         self._ti3_path = params.ti3_path
-        # FWA ON AN M1/M2 MEASUREMENT (4.3.23, `workflow.measurement_condition`):
-        # left out with a line in the log whichever door asked for it (a saved
-        # setting, a preset, the extra arguments, a caller that is not the
-        # Build Profile tab). The tab normally drops it first; this is the
-        # floor.
-        from workflow.measurement_condition import (
-            fwa_condition_dropped_log_line, without_fwa_unless_m0)
-        params, dropped_for = without_fwa_unless_m0(params)
-        if dropped_for:
-            log.info("colprof: -f left out for %s (measured under %s)",
-                     params.ti3_path, dropped_for)
-            on_line(fwa_condition_dropped_log_line(dropped_for))
+        # THE FWA GATE (`workflow.fwa_gate`): -f on a measurement it refuses
+        # ends colprof or builds the wrong thing, whichever door the switch
+        # came through: a saved setting, a preset, the extra arguments, a
+        # caller that is not the Build Profile tab. Left out with a line in
+        # the log, never a crash. The tab normally drops it first (and says
+        # so); this is the floor.
+        from workflow.fwa_gate import without_refused_fwa
+        params, refusal = without_refused_fwa(params)
+        if refusal is not None:
+            log.info("colprof: -f left out for %s (FWA gate: %s)",
+                     params.ti3_path, refusal.kind)
+            on_line(refusal.log_line)
         args = self._build_args(params)
         cwd  = params.ti3_path.parent
         log.info("colprof: %s  [cwd=%s]", " ".join(args), cwd)
@@ -849,10 +849,10 @@ class ProfileBuilder:
         first file's keywords, so the merge carries the fresh measurement's
         limit and no other (measured with Argyll 3.5.0 on 2026-11-02: a limit
         only in the second file did not reach the result)."""
-        # Never a -f on an M1/M2 measurement (see `build`); asked of the file
+        # Never a -f the FWA gate refuses (see `build`); asked of the file
         # that carries the keywords (a merge keeps the first file's).
-        from workflow.measurement_condition import without_fwa_unless_m0
-        p, _ = without_fwa_unless_m0(p, ink_limit_from)
+        from workflow.fwa_gate import without_refused_fwa
+        p, _ = without_refused_fwa(p, ink_limit_from)
         args: list[str] = []
         if p.verbose:
             args.append("-v")        # colprof prints progress + any error
