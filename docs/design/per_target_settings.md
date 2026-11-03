@@ -299,6 +299,37 @@ whatever the Seed box happened to be holding. With randomisation OFF the tag
 records the checkbox literally, which commits to nothing while his answer to the
 question above is outstanding.
 
+### ⏳ Awaiting confirmation: opening the project that is already open (4.3.23)
+
+**Confirmed by:** *nobody yet.* (The fix was approved by Basti on 2026-11-03;
+that approves building it, not this text as confirmed behaviour.)
+
+Open Project on the project that is already open, when the bar already names
+that project's current run and Run type is not Verification, is still L2: the
+bar does not move, so no target change follows, and the open itself now takes
+the steps §2.1 and this section take for one. In order: what is on screen is
+written to the selected target (W6, against the target that is still
+selected); that target's stored settings are loaded; the run's chart is
+painted over the panel; and the values the chart moved are noted, so the next
+write files the run's own values and not the chart's.
+
+* The screen is what it was before 4.3.23: the panel shows the chart's own
+  recipe ("the chart wins").
+* What is stored is not touched by the reopen. Before, the first tab change
+  after it filed the chart's recipe (paper, margins, layout mode, "layout
+  chosen explicitly", the layout-engine tick) as the run's own, which replaced
+  a layout the user had saved but not generated. Measured on screen with the
+  drift driver: A4, 38/26 mm, area first became Letter, 6/6 mm, patch first.
+* A value the user changes by hand after the reopen is theirs and is written,
+  and only that value.
+* Every other open is unchanged: a different project, a bar on another run, or
+  Run type Verification each moves the bar, and `_on_target_changed` protects
+  that as before.
+
+Code: `TabChart._open_leaves_the_bar_where_it_is` and
+`_reshow_the_selected_targets_chart` (`ui/tabs/tab_chart.py`); tests:
+`tests/test_reopening_the_open_project_keeps_the_runs_settings.py`.
+
 ## 3. When settings are written
 
 Knut's general rule, in full:

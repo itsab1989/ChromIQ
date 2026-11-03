@@ -10913,6 +10913,9 @@ class TabChart(QWidget):
         # never deletes anything, but the folder visibly reorganises — so tell
         # the user first, in plain language, before it happens.
         self._maybe_announce_project_port(manifest)
+        # Which project was open before this one, if any: opening the SAME
+        # project on the SAME run is the one open the bar does not see.
+        was_open = self._root_of_the_open_project()
         # Open at the project's ACTUAL folder (handles a nested sub-folder
         # location as well as a direct child of the ChromIQ folder).
         self._file_mgr.open_project_at(manifest.parent)
@@ -10963,7 +10966,23 @@ class TabChart(QWidget):
             tr("Loaded profile “{name}”.").format(name=self._last_target_name))
         if tiffs:
             ti1 = run.chart_ti1          # resolves; `ti2` above already does
-            self._display_run_chart(ti2, tiffs, ti1)
+            # OPENING THE TARGET THAT IS ALREADY OPEN IS STILL AN OPEN (§2 L2).
+            #
+            # The chart is painted here, BEFORE the bar is pointed at the
+            # project's current run below. When the bar already names that run
+            # it does not move, so `_on_target_changed` never runs: nothing was
+            # saved first, the run's stored settings were not loaded, and the
+            # §2.2 shield was never armed. The next tab change then filed the
+            # chart's own recipe as the run's settings. Measured on screen: a
+            # Manual layout saved but not generated (A4, 38/26 mm, area first)
+            # became the chart's (Letter, 6/6 mm, patch first) after one reopen
+            # and one tab change. Since 4.1.x; fixed in 4.3.23 (Basti). The
+            # panel still shows the chart's recipe, as before.
+            if self._open_leaves_the_bar_where_it_is(was_open):
+                self._reshow_the_selected_targets_chart(
+                    lambda: self._display_run_chart(ti2, tiffs, ti1))
+            else:
+                self._display_run_chart(ti2, tiffs, ti1)
         else:
             self._preview.clear()
             self._current_ti1_path = None
@@ -24534,6 +24553,78 @@ class TabChart(QWidget):
         except Exception as exc:  # noqa: BLE001 — never break the tab on this
             log.warning("Run-type switch: could not resolve target chart: %s", exc)
         return None
+
+    def _root_of_the_open_project(self) -> "Path | None":
+        """The resolved folder of the project the bar is on, or None."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            proj = ctl.project_or_none()
+            return None if proj is None else Path(proj.root).resolve()
+        except Exception:      # noqa: BLE001 — a question, never fatal
+            return None
+
+    def _open_leaves_the_bar_where_it_is(self, was_open: "Path | None") -> bool:
+        """Whether this Open Project reopens the target already selected, so
+        that NO target change will follow it.
+
+        The same two tests the open itself runs after painting the chart,
+        and nothing else: `_default_bar_to_current_run` moves the bar only
+        when it names another run than the project's current one, and
+        `_reset_run_type_for_loaded_project` only when Run type is
+        Verification. Either of those is a real target change, and
+        `_on_target_changed` protects it as it always has. *was_open* is the
+        project that was open before this one, so a different project is
+        never taken for this one.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or was_open is None:
+            return False
+        try:
+            proj = ctl.project_or_none()
+            if proj is None or Path(proj.root).resolve() != was_open:
+                return False
+            if ctl.target.profile_run != proj.current_run().id:
+                return False        # the bar moves: `_on_target_changed` runs
+            if ctl.target.is_verification():
+                return False        # Run type goes back to Profiling: ditto
+            return True
+        except Exception:      # noqa: BLE001 — when in doubt, the old route
+            return False
+
+    def _reshow_the_selected_targets_chart(self, paint) -> None:
+        """Paint the selected target's chart again, protected the way a real
+        target change protects it (§2 L2, §2.1, §2.2).
+
+        For the open that the bar does not see (`_open_leaves_the_bar_where_
+        it_is`): the same steps `_on_target_changed` takes, in its order.
+        Write what is on screen first, against the target that is selected
+        (it is still the same one); load that target's stored settings; note
+        them; let *paint* lay the chart's own recipe over the panel; then
+        record what the chart moved, so the next write files the run's own
+        values and not the chart's. The panel ends showing the chart's
+        recipe, exactly as it did before this existed; only what a later
+        write stores is different. A value the user then changes by hand is
+        theirs and is written as usual.
+        """
+        self._cancel_pending_auto_preview()
+        try:
+            self.save_target_settings()
+            # The shield of the earlier episode has been spent on that write.
+            self._chart_imposed = {}
+            self._release_imposed_connections()
+            self.load_target_settings()
+            self._own_values_before_chart = (
+                self._target_own_snapshot()
+                if self._target_has_stored_settings() else None)
+            self._settings_store = self._target_settings_store()
+            self._settings_key = self._target_settings_key()
+            paint()
+        finally:
+            self._note_what_the_chart_imposed()
+            self._settle_live_preview()
+            self._mark_settings_applied()
 
     def _default_bar_to_current_run(self) -> None:
         """Point the shared bar at the loaded project's current run (#130), so the

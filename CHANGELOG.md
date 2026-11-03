@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Opening the project you already have open no longer replaces the layout you set up for the run.** If you changed the layout in Create Chart (Manual), for example the paper, the margins or "Prioritise chart area", and had not pressed Generate Chart yet, and you then used Open Project on the same project while the bar still showed the same run, Create Chart showed the layout of the run's printed chart again, which is what it should show. But as soon as you went to another tab, ChromIQ stored that chart's layout as your own settings for the run, so the layout you had set up was gone without a word, and the "ChromIQ layout engine" tick could change with it. This has been so since 4.1. Now opening the open project again works like opening it the first time: Create Chart still shows the layout of the run's chart, and your own settings for the run stay exactly as you saved them. If you change something after opening it, that change is stored, and only that. Your charts, measurements and profiles do not change.
+
 ## v4.3.22
 
 **For everyone updating from 4.3.21: ChromIQ can now measure with the Konica Minolta FD-9 automatic chart reader, as a beta option written and contributed by lessbones. It is off unless you turn it on in Preferences → Beta, and with it off ChromIQ works exactly as before. Your charts, measurements and profiles do not change.**
