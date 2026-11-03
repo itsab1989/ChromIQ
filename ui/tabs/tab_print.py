@@ -2449,12 +2449,20 @@ class TabPrint(QWidget):
         self._printer_dirty = True
         self._on_printer_changed()
 
-    def _update_edge_note(self) -> None:
+    def _update_edge_note(self, *, native: "bool | None" = None) -> None:
         """Say which ruler helper markers or text of the chart fall into the
         edge the chosen printer does not print (M-EDGE-NOT-PRINTED), placed
         as the print will place it; hidden when nothing does."""
         lbl = getattr(self, "_edge_note_lbl", None)
         if lbl is None:
+            return
+        if native is None:
+            native = bool(self._settings.get("use_native_print_dialog", False))
+        if native:
+            # The system dialog selects its own printer. The direct-print
+            # combo can retain a stale queue such as Canon_IPF9400B.
+            lbl.clear()
+            lbl.hide()
             return
         note = None
         try:
@@ -4461,6 +4469,7 @@ class TabPrint(QWidget):
 
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
+        self._update_edge_note(native=enabled)
         self._update_verify_route_note(native=enabled)
         self._update_ps_form_row()
         self._printer_grp.setVisible(not enabled)

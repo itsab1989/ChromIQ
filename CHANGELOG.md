@@ -15,6 +15,8 @@
   passed on one FD-9; the automatic exit-sensor handoff then passed on the same
   two sheets.
   Existing single-page charts remain readable.
+- Print Chart hides a stale direct-printer edge notice when the system print
+  dialog is selected; that dialog chooses its own printer.
 
 
 
