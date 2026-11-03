@@ -9,9 +9,9 @@ Adding or changing a measuring instrument? Copy this list in and tick it.
 Everything is explained in docs/adding_an_instrument.md.
 
 - [ ] Behind a Preferences > Beta option; with it off nothing changes (tests named)
-- [ ] Every row of the registration checklist done, or said why not
+- [ ] Self-review table: every row of sections 5 and 15 marked done, not applicable (why) or open
 - [ ] What was and was not tested on the device
 - [ ] New message IDs in §M-PROPOSED; specs marked "Awaiting confirmation"
-- [ ] All 13 languages; translations I am unsure of:
+- [ ] All 13 translations; ones I am unsure of:
 - [ ] No device data in the commits
 -->

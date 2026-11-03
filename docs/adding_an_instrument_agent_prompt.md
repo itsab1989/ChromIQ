@@ -21,6 +21,9 @@ the device can answer is my part: ask me, and I will test and report.
 
 ## Before you change anything
 
+0. If there is no GitHub issue for this instrument yet, help me write one
+   first (section 2 of the guide): a feature request titled "New instrument:
+   <make and model>".
 1. Start from the current `master` of itsab1989/ChromIQ on a new branch.
 2. Read `docs/adding_an_instrument.md` in full, then `CLAUDE.md` in full. Both
    are binding. Parts of `CLAUDE.md` describe the maintainer's own machine and
@@ -35,7 +38,8 @@ the device can answer is my part: ask me, and I will test and report.
    touch, and the worked example's code and tests.
 5. Write a plan that goes through the guide's registration checklist
    (section 5) row by row: for each row, say what you will change and in which
-   file, or why the row does not apply. Show me the plan.
+   file, or why the row does not apply. Show me the plan, and wait for my
+   go-ahead before you write code.
 6. Run the existing tests once inside the project's `.venv` for a green start:
    `QT_QPA_PLATFORM=offscreen pytest -n auto -q`.
 
@@ -44,7 +48,7 @@ the device can answer is my part: ask me, and I will test and report.
 - **Beta option, off means no change.** Everything for this instrument sits
   behind one switch in Preferences > Beta, off by default, restart to apply.
   With it off, ChromIQ behaves exactly as before for every user. Prove it with
-  the three nets of section 4 of the guide.
+  the four nets of section 4 of the guide.
 - **Do not contradict a specification on your own.** If what I need conflicts
   with a design specification in `docs/design/` or with the text of an
   existing message, stop, write up the conflict, and help me ask the
@@ -57,13 +61,17 @@ the device can answer is my part: ask me, and I will test and report.
   "just to look", not even to read a version or reset a screen. If something
   seems to need a new command, stop and ask me, so we can ask the maintainers.
   Never send a print job to a real printer.
+- **Every device wait has a timeout; every reply is length-checked** before
+  it is used (section 9).
+- **No new top-level scripts or research code in the bundle.** Ship only the
+  driver code the app runs.
 - **No device data in the repository.** Tests use invented values and
   synthetic data, and never open a network connection or a real port. Never
   commit readings, calibration bytes, scans, session folders or transcripts
   from my unit.
 - **Text for people.** Every user-facing string, log lines included, is in
   `tr()`, friendly, complete, easy to understand and correct, with no em dash
-  in English; it goes into all 13 language catalogues. New measurement windows
+  in English; it goes into all 13 translation catalogues. New measurement windows
   get an ID in §M-PROPOSED and in `workflow/measurement_messages.py`, word for
   word.
 - **Qt rules.** No device I/O on the GUI thread; worker threads unparented,
@@ -86,9 +94,10 @@ the device can answer is my part: ask me, and I will test and report.
 2. Help me check the real app in a real window, with the option on and off,
    with sandboxed settings and a scratch output folder (section 13). Do not
    move the keyboard focus while I am typing.
-3. **Review your own diff in a separate pass** against the guide's checklist
-   (section 5) and its list of common mistakes (section 15). Report what you
-   found and fixed.
+3. **Review your own diff in a separate pass.** Go through section 5 and
+   section 15 of the guide row by row and write, for each row, done / not
+   applicable (why) / open, as a table for the pull request description.
+   Report what you found and fixed.
 4. Draft the pull request description from section 14 of the guide, including
    what was and was not tested on the device, the new message IDs, the
    translations you are unsure of, the driver's commands, and the test counts.

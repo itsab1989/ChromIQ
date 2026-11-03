@@ -13,7 +13,12 @@ these files. So:
   so a new registration point cannot be added there and forgotten here;
 * every pointer file (AGENTS.md, CONTRIBUTING.md, CLAUDE.md, README.md and the
   two files under .github/) links to the guide;
-* the guide's own section links resolve;
+* the guide's own section links resolve, and every section the agent prompt
+  cites by number exists;
+* a path under a folder the repository does not have (a typo such as
+  ``wokflow/``) fails instead of being skipped;
+* a ``Class.attr`` symbol really sits inside that class;
+* no gate command is piped (``pytest ... | tail`` reports tail's exit code);
 * none of the new text uses an em dash (house rule for new English text).
 """
 from __future__ import annotations
@@ -50,8 +55,19 @@ POINTERS = ("AGENTS.md", "CONTRIBUTING.md", "CLAUDE.md", "README.md",
             ".github/copilot-instructions.md",
             ".github/PULL_REQUEST_TEMPLATE.md", PROMPT)
 
-#: First path components that mean "this is a path in the repository".
-_ROOTS = {p.name for p in ROOT.iterdir()}
+#: The repository's top-level folders, fixed on purpose. A path under any
+#: other first component (``wokflow/...``, ``doc/...``) is a typo and fails,
+#: instead of being skipped; a folder that only exists on one machine (``.venv``,
+#: ``build/``) cannot change what is checked. Add a new top-level folder here
+#: when the repository gains one.
+_ROOTS = frozenset({
+    ".github", "assets", "benchmarks", "core", "data", "demo-projects", "docs",
+    "hooks", "native", "scripts", "tests", "tools", "ui", "vendor", "workflow",
+})
+
+#: A token with a slash and one of these endings is a repository path even
+#: when its first component is unknown, so it is checked (and fails).
+_FILE_END = re.compile(r"\.(py|md|yaml|yml|json|toml|spec|txt|ini)$")
 
 _TICKED = re.compile(r"`([^`\n]+)`")
 _LINK = re.compile(r"\]\(([^)\s]+)\)")
@@ -87,7 +103,10 @@ def _named() -> "list[tuple[str, str, str | None]]":
                 if not path.startswith(".github/"):
                     continue
             if "/" in path:
-                if path.split("/", 1)[0] not in _ROOTS:
+                if path.startswith("/"):
+                    continue            # an absolute scratch path, e.g. /tmp
+                if (path.split("/", 1)[0] not in _ROOTS
+                        and not _FILE_END.search(path)):
                     continue
             elif path.startswith("test_") and path.endswith(".py"):
                 path = "tests/" + path
@@ -117,13 +136,59 @@ def _defines(source: str, name: str) -> bool:
         rf"|^\s*{re.escape(name)}\s*[:=]", source, re.M))
 
 
+def _names_bound_in(body) -> "set[str]":
+    """Names a module or class body defines directly: functions, classes,
+    assignments and annotated assignments."""
+    out = set()
+    for node in body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef)):
+            out.add(node.name)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                for leaf in ast.walk(target):
+                    if isinstance(leaf, ast.Name):
+                        out.add(leaf.id)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target,
+                                                            ast.Name):
+            out.add(node.target.id)
+    return out
+
+
+def _py_defines(source: str, dotted: str) -> bool:
+    """``Class.attr`` must be bound in the body of ``Class``; a bare name
+    anywhere in the module (a method of some class, a module global)."""
+    tree = ast.parse(source)
+    parts = dotted.split(".")
+    if len(parts) == 1:
+        return any(parts[0] in _names_bound_in(getattr(n, "body", []))
+                   for n in ast.walk(tree)
+                   if isinstance(n, (ast.Module, ast.ClassDef,
+                                     ast.FunctionDef)))
+    scope = tree.body
+    for part in parts[:-1]:
+        cls = next((n for n in scope if isinstance(n, ast.ClassDef)
+                    and n.name == part), None)
+        if cls is None:
+            return False
+        scope = cls.body
+    return parts[-1] in _names_bound_in(scope)
+
+
+def _symbol_is_defined(path: str, symbol: str) -> bool:
+    symbol = symbol.rstrip("()")
+    source = (ROOT / path).read_text(encoding="utf-8")
+    if path.endswith(".py"):
+        return _py_defines(source, symbol)
+    return _defines(source, symbol.split(".")[-1])
+
+
 def test_every_symbol_named_exists_where_it_is_said_to_be():
     wrong = []
     for where, path, symbol in _named():
         if symbol is None or not (ROOT / path).is_file():
             continue
-        name = symbol.split(".")[-1].rstrip("()")
-        if not _defines((ROOT / path).read_text(encoding="utf-8"), name):
+        if not _symbol_is_defined(path, symbol):
             wrong.append(f"{where}: {path}::{symbol}")
     assert not wrong, "no such definition:\n  " + "\n  ".join(sorted(set(wrong)))
 
@@ -155,6 +220,28 @@ def test_the_section_links_resolve(rel):
     broken = [a for a in re.findall(r"\]\(#([^)]+)\)", text)
               if a not in anchors]
     assert not broken, f"{rel}: links to missing sections: {broken}"
+
+
+def _cited_sections(text: str) -> "set[int]":
+    """Every number in "section 5", "sections 5 and 15", "section 5 and
+    section 15"."""
+    found = set()
+    for m in re.finditer(r"\bsections?\s+(\d+)((?:\s*(?:,|and|or)\s*"
+                         r"(?:section\s+)?\d+)*)", text, re.I):
+        found.add(int(m.group(1)))
+        found.update(int(n) for n in re.findall(r"\d+", m.group(2)))
+    return found
+
+
+def test_every_section_the_prompt_cites_exists():
+    """The prompt cites the guide by section number. A renumbering of the
+    guide must not leave it pointing at a section that is gone."""
+    guide = (ROOT / GUIDE).read_text(encoding="utf-8")
+    present = {int(n) for n in re.findall(r"^## (\d+)\. ", guide, re.M)}
+    cited = _cited_sections((ROOT / PROMPT).read_text(encoding="utf-8"))
+    assert cited >= {5, 15}, f"the parser found too little: {sorted(cited)}"
+    missing = sorted(cited - present)
+    assert not missing, f"{PROMPT} cites sections the guide lacks: {missing}"
 
 
 def _hooked_files() -> "set[str]":
@@ -197,8 +284,12 @@ def test_the_guide_points_at_its_prompt_and_at_claude_md():
 def test_no_em_dash_in_the_new_text(rel):
     text = _texts()[rel]
     lines = [f"{n}: {line.strip()}" for n, line in
-             enumerate(text.splitlines(), 1) if "—" in line]
+             enumerate(text.splitlines(), 1) if "\u2014" in line]
     assert not lines, f"{rel} uses an em dash:\n  " + "\n  ".join(lines)
+
+
+#: A gate command line that pipes pytest's output somewhere.
+_PIPED_GATE = re.compile(r"pytest[^\n`]*--runslow[^\n`]*\|")
 
 
 def test_the_gate_command_reads_pytests_own_exit_code():
@@ -207,3 +298,13 @@ def test_the_gate_command_reads_pytests_own_exit_code():
         text = (ROOT / rel).read_text(encoding="utf-8")
         assert "--runslow -n auto" in text, rel
         assert re.search(r"--runslow -n auto -q > \S+ 2>&1", text), rel
+
+
+@pytest.mark.parametrize("rel", list(NEW_FILES) + list(SECTIONS))
+def test_no_gate_command_is_piped(rel):
+    piped = [f"{n}: {line.strip()}" for n, line in
+             enumerate(_texts()[rel].splitlines(), 1)
+             if _PIPED_GATE.search(line)]
+    assert not piped, (f"{rel} pipes the gate, so the exit code read after "
+                       "it is the pipe's, not pytest's:\n  "
+                       + "\n  ".join(piped))

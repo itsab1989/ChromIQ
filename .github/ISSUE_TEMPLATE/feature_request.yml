@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest a new feature or improvement.
+description: 'Suggest a new feature or improvement. Support for a new measuring instrument? Please read docs/adding_an_instrument.md first and title the issue "New instrument: <make and model>".'
 title: "[Feature] <short summary>"
 labels: ["enhancement"]
 body:

@@ -68,6 +68,7 @@ so you never have to memorise a single flag.
 - [Troubleshooting](#troubleshooting)
 - [Configuration & logs](#configuration--logs)
 - [For developers](#for-developers)
+  - [Want to add an instrument?](#want-to-add-an-instrument)
 - [Reporting issues & feedback](#reporting-issues--feedback)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
@@ -89,6 +90,9 @@ To build a profile you need three things:
    | `CM` | ColorMunki / i1Studio / ColorChecker Studio |
    | `SS` | SpectroScan (flatbed XY table) |
    | `CR30` | ChnSpec CR30, a low-cost hand-held spectrophotometer with no ArgyllCMS support: ChromIQ drives it itself, over USB and Bluetooth |
+
+   Your instrument is not listed? See
+   [Adding an instrument](docs/adding_an_instrument.md).
 
 3. **ArgyllCMS** installed on your computer — ChromIQ looks for it automatically
    and walks you through installing it if it's missing. See

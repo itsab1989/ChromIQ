@@ -16,6 +16,10 @@ source .venv/bin/activate
 python main.py
 ```
 
+**Adding or changing a measuring instrument?** Read
+`docs/adding_an_instrument.md` first (details under "Adding a measuring
+instrument" below).
+
 ## Test
 
 ```bash
@@ -700,7 +704,8 @@ Read **`docs/adding_an_instrument.md`** in full before adding or changing an
 instrument, and plan against its registration checklist. It distils the CR30
 and FD-9 integrations and the FD-9 review rounds: the Preferences > Beta
 option (off means no change, pinned by a test like
-`tests/test_fd9_off_changes_nothing.py`), every place an instrument is
+`tests/test_fd9_off_changes_nothing.py` and
+`tests/test_fd9_off_stale_project.py`), every place an instrument is
 registered, the shared Start preflight, the read-only stance towards the
 device, and no device data in the repository. Contributors' agents start from
 `AGENTS.md` and `docs/adding_an_instrument_agent_prompt.md`.

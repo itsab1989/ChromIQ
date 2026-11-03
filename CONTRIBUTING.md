@@ -45,7 +45,10 @@ you tested on the device is part of the pull request.
   echo "exit=$?"
   ```
 
-- User-facing text goes through `tr()` into all 13 language catalogues in
+  On Windows PowerShell:
+  `$env:QT_QPA_PLATFORM='offscreen'; pytest --runslow -n auto -q > $env:TEMP\chromiq-gate.txt 2>&1; echo "exit=$LASTEXITCODE"`.
+
+- User-facing text goes through `tr()` into all 13 translation catalogues in
   `data/i18n/`, and new English text uses no em dash.
 - New behaviour that a design specification covers is written there as
   "Awaiting confirmation"; a conflict with a specification is raised on GitHub

@@ -68,8 +68,9 @@ first.
 
 ## 2. Talk to us first
 
-Open an issue on <https://github.com/itsab1989/ChromIQ/issues> before you write
-much code. Say which instrument it is, how it connects (USB serial, USB HID,
+Open a
+[feature request](https://github.com/itsab1989/ChromIQ/issues/new?template=feature_request.yml)
+titled "New instrument: <make and model>" before you write much code. Say which instrument it is, how it connects (USB serial, USB HID,
 Bluetooth, Ethernet), what your driver can already do, its licence, and which
 existing integration you plan to model it on (next section). The maintainers
 may know of constraints this guide does not cover yet.
@@ -85,7 +86,7 @@ a pull request.
 | Kind | Examples | Model it on | Route |
 |---|---|---|---|
 | **ArgyllCMS already drives it**, ChromIQ does not offer it yet | a strip reader in ArgyllCMS's list | the i1Pro / ColorMunki entries | Registration only ([section 5](#5-the-registration-checklist)): labels, layout engine geometry, pace row. ArgyllCMS does the reading. |
-| **Handheld spot or strip instrument** with its own driver | ChnSpec CR30 (USB serial and Bluetooth) | **CR30**: the measure bridge | ChromIQ's own `chromiq-chartread` (in `native/`) runs the session and asks for one patch at a time (`-xx`, see `workflow/measure_manager.py`). `workflow/cr30/measure_bridge.py::Cr30MeasureBridge` answers each prompt with a reading from the device. chartread keeps the session, the `.ti3` and all the measurement logic. |
+| **Handheld spot or strip instrument** with its own driver | ChnSpec CR30 (USB serial and Bluetooth) | **CR30**: the measure bridge | ChromIQ's own `chromiq-chartread` (in `native/`) runs the session with external values (`-xx`: it opens no instrument and asks ChromIQ for each patch's XYZ over a JSON channel, `workflow/measure_manager.py::MeasureParams.external_values`). `workflow/cr30/measure_bridge.py::Cr30MeasureBridge` answers each prompt with a reading from the device. chartread keeps the session, the `.ti3` and all the measurement logic. |
 | **Scanning strip reader** with its own driver | a motorised or hand-swept strip reader ArgyllCMS does not know | usually **CR30**, if the driver can hand over patch by patch | Open an issue first. If readings can be delivered patch by patch, the bridge works and you get resume, re-reading and the end-of-session windows for free. A new third route needs the maintainers' agreement. |
 | **Automatic chart reader or XY table** | Konica Minolta FD-9 (Ethernet) | **FD-9**: its own path | An autonomous reader that pre-scans the sheet and returns whole rows. A per-patch prompt protocol would only add a translation layer, so it has its own worker (`ui/fd9_measurement.py::FD9Job`), its own chart generator (`workflow/fd9/chart.py`) and its own `.ti3` writer, and shares everything else with the other instruments: the Start preflight, the instrument lease, the end-of-session window, the archiving of a replaced measurement. |
 | **Scanner or camera** | a flatbed scanner, a camera on a copy stand | the existing scanner route | Not an instrument in this sense. ChromIQ already reads charts from a scan with ArgyllCMS `scanin` (`workflow/scanin_runner.py`, Tools > "Build profile with scanner or camera"). Open an issue if that route does not fit your device. |
@@ -131,7 +132,7 @@ Copy the FD-9's pattern; it was reviewed twice.
       built, so a live switch would leave half the app on the old answer.
       `main.py` latches the value once before the window exists, and the
       Preferences row shows "Takes effect after you restart ChromIQ." while the
-      stored value differs from the running one
+      checkbox differs from the value this run of ChromIQ is using
       (`ui/dialogs/settings_dialog.py::_fd9_support_toggled`).
 - [ ] **The setting lives in `core/settings.py::DEFAULTS`**, default `False`.
 - [ ] **The Preferences row** sits on the Beta tab of
@@ -151,12 +152,16 @@ Copy the FD-9's pattern; it was reviewed twice.
       chart, then turn it off again. Saved instrument choices, saved layout
       recipes and per-target settings that name your instrument must then read
       as "none" and stay in the store untouched, for the day the option is on
-      again. See `ui/tabs/tab_chart.py` around `_stored_defaults_recipe` and
-      `workflow/measure_settings.py::carry_fd9_keys`.
+      again. See `ui/tabs/tab_chart.py::_stored_defaults_recipe`,
+      `workflow/measure_settings.py::carry_fd9_keys` (Measure) and
+      `workflow/fd9/support.py::carry_fd9_chart_keys` (Create Chart target
+      settings): opening your project with the option off and changing tabs
+      must leave its `meta.json` byte-identical.
 
 ### How to prove it
 
-`tests/test_fd9_off_changes_nothing.py` is the model; write the same three nets
+`tests/test_fd9_off_changes_nothing.py` and
+`tests/test_fd9_off_stale_project.py` are the model; write the same four nets
 for your instrument.
 
 1. **A child process builds the real main window and Preferences with the
@@ -173,6 +178,11 @@ for your instrument.
    `tests/test_fd9_off_changes_nothing.py::test_the_files_that_name_the_fd9_are_the_known_ones`).
    A new hook is then a deliberate act that shows in the diff, and comes with a
    test that it does nothing while the option is off.
+4. **A real project, on then off**: make a chart with the option on, restart
+   with it off, open the project and change tabs; `meta.json` is
+   byte-identical and none of your modules load
+   (`tests/test_fd9_off_stale_project.py`). Each half runs in its own process,
+   because the switch is read once per process.
 
 Tests of the instrument itself turn the option on for their process with an
 autouse fixture like `tests/_fd9_beta.py::fd9_beta_on`.
@@ -199,13 +209,22 @@ yours will be a similar short code.
       it is offered (`ui/tabs/tab_chart.py::fd9_instrument_bullet`).
       Enforced by `tests/test_i18n.py` (overlays cover every parameter).
 - [ ] **The layout panel** (also used by Preferences > Chart Layout):
-      `ui/dialogs/layout_options_panel.py::LayoutOptionsPanel.instruments`.
+      `ui/dialogs/layout_options_panel.py::LayoutOptionsPanel.INSTRUMENTS` for
+      an always-offered instrument, or, behind the switch, the
+      `ui/dialogs/layout_options_panel.py::LayoutOptionsPanel.instruments`
+      classmethod that adds it, as the FD-9 does.
 - [ ] **Preset groups and built-in presets**, if you ship any:
       `ui/tabs/tab_chart.py::INSTRUMENT_GROUP_LABELS`,
       `ui/tabs/tab_chart.py::BUILTIN_PRESET_GROUPS`, and read
       `docs/dev_builtin_presets.md` first.
-- [ ] **Margin labels**: `ui/tabs/tab_chart.py::_MARGIN_INSTR_LABEL` and
-      `workflow/layout_engine/instruments.py::_MARGIN_LABEL_TO_KEY`.
+- [ ] **Margin labels and Preferences instrument limits**:
+      `ui/tabs/tab_chart.py::_MARGIN_INSTR_LABEL`,
+      `workflow/layout_engine/instruments.py::_MARGIN_LABEL_TO_KEY`,
+      `core/settings.py::THRESHOLD_INSTR_LABEL` and
+      `ui/dialogs/settings_dialog.py::SettingsDialog._MARGIN_INSTRUMENTS` (the
+      CR30 is in all of them), with seed thresholds in
+      `core/settings.py::default_margin_thresholds`. The FD-9 is deliberately
+      absent: its geometry is fixed, so there is no margin to choose.
 
 ### Create Chart: the layout
 
@@ -228,10 +247,15 @@ yours will be a similar short code.
       `workflow/layout_engine/geometry.py::compute`,
       `workflow/layout_engine/geometry.py::placement`,
       `workflow/layout_engine/geometry.py::strip_rects_px` and
-      `workflow/layout_engine/geometry.py::patch_rects_px`. These branches run
-      only for your instrument's key; make sure nothing can hand them that key
-      while the option is off (an old chart, a stored recipe), and prefer an
-      explicit switch check there too, as the second FD-9 review asked.
+      `workflow/layout_engine/geometry.py::patch_rects_px`; the edge spacers
+      in `workflow/layout_engine/presets.py` and the capacity in
+      `workflow/chart_creator.py` branch too. Each of these branches asks the
+      switch as well as the key (an old chart or a stored recipe can still
+      hand them the key while the option is off): with the option off the
+      engine must refuse your instrument as unknown, as
+      `workflow/layout_engine/instruments.py::build` and
+      `workflow/layout_engine/geometry.py` do for the FD-9
+      (`tests/test_fd9_off_changes_nothing.py::test_the_layout_engine_knows_no_fd9_while_off`).
 - [ ] **Papers**: `workflow/layout_engine/papers.py::list_papers`,
       `workflow/layout_engine/papers.py::ENGINE_EXCLUDED_PAPERS`,
       `data/patch_db.py::EXCLUDED_PAPERS`, `data/patch_db.py::PAPER_FALLBACK`.
@@ -247,9 +271,12 @@ yours will be a similar short code.
 ### Loading a chart and its files
 
 - [ ] **Instrument names a chart can carry**:
-      `ui/ti2_loader.py::KNOWN_INSTRUMENTS`, an `is_<yours>` test beside
-      `ui/ti2_loader.py::is_cr30`, and `ui/ti2_loader.py::instrument_family`
-      for instruction wording. Related tests:
+      `ui/ti2_loader.py::KNOWN_INSTRUMENTS`, a check that a chart is yours,
+      behind the switch and lazily imported (the FD-9's are
+      `workflow/fd9/support.py::is_fd9_instrument_name` and
+      `workflow/fd9/measurement.py::is_fd9_chart`; the CR30's, which is not
+      gated, is `ui/ti2_loader.py::is_cr30`), and
+      `ui/ti2_loader.py::instrument_family` for instruction wording. Related tests:
       `tests/test_target_instrument_gate.py`,
       `tests/test_instrument_matches_chart.py`,
       `tests/test_chart_instrument_comes_from_the_chart.py`.
@@ -266,14 +293,20 @@ yours will be a similar short code.
 ### Measure tab
 
 - [ ] **Routing at Start**: `ui/tabs/tab_measure.py::_on_start`. Either the
-      chartread route (CR30) or a branch to your own start method after the
-      shared preflight ([section 7](#7-measuring)).
+      chartread route (CR30), or a branch at the top of `_on_start` to your own
+      start method, which then runs the same preflight steps in the same order
+      ([section 7](#7-measuring)).
 - [ ] **Controls that do not apply** are greyed with a reason, not hidden in
       silence: `ui/tabs/tab_measure.py::_apply_cr30_dead_options`,
       `ui/tabs/tab_measure.py::_apply_cr30_pbp_lock`.
 - [ ] **Pace row** (Preferences > Measurement, minimum reading speed):
-      `core/measure_pace.py::MODEL_DEFAULTS` and
-      `core/measure_pace.py::model_key`. Instruments that do not swipe strips
+      `core/measure_pace.py::MODEL_DEFAULTS`,
+      `core/measure_pace.py::ESTIMATE_PATCHES`,
+      `core/measure_pace.py::model_key` and
+      `core/measure_pace.py::_OTHER_MODEL_KEYS` (needed for an instrument
+      ArgyllCMS does not name), plus the pace table in
+      `ui/dialogs/settings_dialog.py` (see `PACE_LOCKED_ROWS` and its
+      `key == "cr30"` branch). Instruments that do not swipe strips
       are listed in
       `tests/test_b202_every_offered_instrument_has_its_pace_row.py::NO_STRIPS`;
       strip readers go in
@@ -293,7 +326,23 @@ yours will be a similar short code.
       itself has its own discovery, like `workflow/cr30/discovery.py`.
 - [ ] **Tools > Read single patches**, only for a spot instrument:
       `ui/dialogs/spot_read_dialog.py`. An automatic reader is not offered
-      there (`docs/design/tool_availability.md`).
+      there (`docs/design/tool_availability.md`). A spot instrument ChromIQ
+      drives itself also needs a spot manager like
+      `workflow/cr30_spot_manager.py`.
+- [ ] **User calibration**, for a handheld instrument that needs a white or
+      black calibration from the user: windows like
+      `ui/cr30_calibration.py::Cr30CalibrationMixin`, with their own message
+      IDs (the CR30's are M-CR30-*).
+- [ ] **Platform and operating system drivers** (USB serial, Bluetooth): the
+      Python packages in `requirements.txt` (the CR30 uses pyserial and bleak),
+      a driver installer for a USB bridge that needs one on Windows
+      (`core/usb_driver_installer.py`, `core/ch34x_driver.py`), and a platform
+      note like `docs/cr30_platform_support.md`.
+- [ ] **Optional: connection diagnostics**, such as Tools > "CR30 Bluetooth
+      report" (`ui/tools_popup.py`, `scripts/cr30_bluetooth_report.py`).
+- [ ] **Optional: aiming help in the preview**: `ui/tiff_preview.py` draws the
+      CR30's body and aperture to scale
+      (`ui/tiff_preview.py::TiffPreview.set_aim_overlay`).
 
 ### Messages, text, settings, packaging, docs
 
@@ -308,15 +357,17 @@ yours will be a similar short code.
 - [ ] **Settings** in `core/settings.py::DEFAULTS`.
 - [ ] **The switch** latched in `main.py`, and its Preferences row.
 - [ ] **Packaging** in `ChromIQ.spec`, `ChromIQWin.spec` and
-      `ChromIQLinux.spec`, and the licence notice in `THIRD-PARTY-NOTICES.md`
-      and `ui/licences.py::NOTICE_SECTIONS`
+      `ChromIQLinux.spec`, and the licence notice in `THIRD-PARTY-NOTICES.md`,
+      `ui/licences.py::NOTICE_SECTIONS` and
+      `ui/licences.py::bundled_licence_files`
       ([section 9](#9-the-driver-and-the-device)).
 - [ ] **Optional**: the welcome dialog (`ui/dialogs/welcome_dialog.py`) and the
       keyboard help (`ui/keyboard_help.py`) mention the CR30; mention yours
       only if it adds something a first-time user needs.
 - [ ] **Docs**: `CHANGELOG.md` under `## Unreleased`, an "Awaiting
       confirmation" block in each design specification your instrument
-      touches, and `docs/dev_folder_layout.md` for any new folder.
+      touches (one current block per topic: replace your earlier block rather
+      than stacking a second one that contradicts it), and `docs/dev_folder_layout.md` for any new folder.
 - [ ] **The pin of hooked files** (`HOOKED_FILES`, see
       [section 4](#4-behind-a-beta-option-and-off-means-no-change)) lists every
       shared file above that now names your instrument.
@@ -364,6 +415,11 @@ yours will be a similar short code.
   CHANGELOG, the specification). Think about orientation: the FD-9's four
   marks look the same after a 180° turn, so a reversed sheet cannot be
   detected, and the texts have to say so.
+- **Help the user tell sheets apart.** Print the chart's name on the sheet,
+  outside the area the instrument reads, and, if the instrument allows it,
+  make a reversed or wrong sheet detectable rather than measuring it.
+- **Synthetic patches use D50.** Any padding or synthetic patch your
+  generator adds aims at D50, like every other ChromIQ chart, not D65.
 - **Create Chart options your layout does not use** are greyed with a tooltip
   that says why (`ui/dialogs/layout_options_panel.py::fd9_greyed_reason`), and
   stay greyed after a recipe load and after the panel's own rules run
@@ -383,11 +439,13 @@ yours will be a similar short code.
   and missing-chart guards, the instrument lease check, the misfit check
   (`ui/tabs/tab_measure.py::_blocked_by_a_misfitting_measurement`), the
   verification guard (`ui/tabs/tab_measure.py::_verification_guard`), the
-  replace warnings of §5
-  (`ui/tabs/tab_measure.py::_confirm_replacing_measurement`), the
-  verification snapshot (`ui/tabs/tab_measure.py::_snapshot_verification_chart`)
-  and resume staging (`ui/tabs/tab_measure.py::_stage_verification_for_resume`),
-  in that order. `ui/fd9_measurement.py::_start_fd9_measurement` is the worked
+  verification snapshot (`ui/tabs/tab_measure.py::_snapshot_verification_chart`),
+  the replace warnings of §5
+  (`ui/tabs/tab_measure.py::_confirm_replacing_measurement`) and resume
+  staging (`ui/tabs/tab_measure.py::_stage_verification_for_resume`), in that
+  order. `_on_start` branches to your start method at its very top, so your
+  method runs every one of these steps itself.
+  `ui/fd9_measurement.py::FD9MeasureMixin._start_fd9_measurement` is the worked
   example, and
   `tests/test_fd9_beta_option.py::test_the_start_runs_the_preflight_every_instrument_gets`
   proves it.
@@ -410,7 +468,10 @@ yours will be a similar short code.
   end window (`ui/fd9_measurement.py::_fd9_engaged`). A verification
   re-measure must not get its stored chart back while your instrument still
   reads (`ui/tabs/tab_measure.py::_settle_the_replaced_chart`), and every
-  ending of yours settles it.
+  ending of yours settles it. Bind a resumable session to the **device's
+  identity** (for example its serial number), not to its network address: an
+  address the network hands out can change between two sittings, and that once
+  made a partial FD-9 run impossible to resume.
 - **Endings.** Reuse the end-of-session window and its texts
   (`ui/tabs/tab_measure.py::_confirm_end_of_session`, M-END) with your counts;
   read `docs/design/measurement_exit_strategy.md` first. For multi-page charts
@@ -461,13 +522,14 @@ yours will be a similar short code.
 - **Write your keys only when your instrument is used.** Chart keys only when
   a chart for your instrument is generated; Measure keys only for your charts
   while the option is on. With the option off, keys already stored pass through
-  unchanged (`workflow/measure_settings.py::carry_fd9_keys`), so no
+  unchanged (`workflow/measure_settings.py::carry_fd9_keys` for Measure,
+  `workflow/fd9/support.py::carry_fd9_chart_keys` for Create Chart), so no
   `meta.json` is rewritten. Record new per-target keys in
   `docs/design/per_target_settings.md` in an "Awaiting confirmation" block
   (the FD-9's is §1.4).
 - **All paths go through `Project` / `Run` / `Calibration`** in
   `core/file_manager.py`. A new folder is a property on `Run`, like
-  `core/file_manager.py::fd9_sessions_dir`, and is documented in
+  `core/file_manager.py::Run.fd9_sessions_dir`, and is documented in
   `docs/dev_folder_layout.md`. Never build a stem pattern elsewhere.
 - **Session data has a retention rule.** If each Start records evidence (raw
   data, scans, transcripts), keep what produced the filed measurement or can
@@ -500,14 +562,28 @@ yours will be a similar short code.
   `tests/test_fd9_packaging.py::test_all_platform_specs_include_the_driver_and_its_license`
   and `tests/test_cr30_packaging.py`. Ship the licence beside the app, add a
   section to `THIRD-PARTY-NOTICES.md`, name it in
-  `ui/licences.py::NOTICE_SECTIONS`, and check whether the licence window's
-  Reveal list (`ui/licences.py::bundled_licence_files`) should show your file.
+  `ui/licences.py::NOTICE_SECTIONS`, and add the bundled licence to the
+  licence window's Reveal list (`ui/licences.py::bundled_licence_files`, as
+  `ui/licences.py::FD9_DRIVER_LICENCE` does), with both the bundled and the
+  source-tree location named in `THIRD-PARTY-NOTICES.md`.
+- **Ship only what the app runs.** The bundle holds the driver code the GUI
+  uses and nothing else: no research code, no developer command-line tools,
+  and no option that loads Python from a folder.
 - **Read-only towards the device, and as few commands as possible.**
   - Send only the commands a measurement needs. List every command the driver
     can send in the pull request or the provenance note, with what it does
     (read, measurement, motion, display) and where it is built.
   - No writes to device memory, settings, calibration or firmware. No firmware
     updates.
+  - A write that is not a measurement but is part of operating the device is
+    allowed only when the session needs it, and is listed and documented with
+    what it changes and whether it persists after a disconnect or a power
+    cycle. The FD-9's example is the display image it shows on the
+    instrument's own screen (command 0x0005, see
+    `vendor/fd9-independent/docs/PROTOCOL.md`).
+  - Keep the generic send primitive private, and call it only from fixed
+    serialisers, one per command (the FD-9's is
+    `vendor/fd9-independent/src/fd9_independent/client.py::Instrument._exchange`).
   - No address, length, flag or command number taken from user input or from
     a file.
   - Refuse an unknown firmware or sensor version **before** anything moves, and
@@ -515,9 +591,19 @@ yours will be a similar short code.
   - Do not add a command "just to look", for example to read a version or reset
     a screen. If something seems to need a new command, ask the maintainers on
     GitHub first.
+- **Robust towards the device's replies.**
+  - Every wait has a timeout: connecting, each exchange, sheet insertion, a
+    scan.
+  - Check every reply's length and echo before you use it, and cap message
+    and buffer sizes. Never size an allocation from a length the device sent.
+  - No discovery broadcasts and nothing that phones home; validate an address
+    the user types before you connect to it.
 - **No device data in the repository or the pull request.** Never commit or
   attach readings, calibration or model bytes, scans, session folders or
-  network transcripts from a real unit. Tests use invented values and
+  network transcripts from a real unit. The session folders ChromIQ writes on
+  your disk (`core/file_manager.py::Run.fd9_sessions_dir` for the FD-9) hold your
+  unit's calibration and model bytes: never copy one into the repository as a
+  test fixture. Tests use invented values and
   synthetic scans and never open a network connection or a real port.
   Evidence for reviewers is photos of the device, ChromIQ screenshots, the
   steps you took and short log lines.
@@ -533,7 +619,7 @@ yours will be a similar short code.
   (`tests/test_i18n.py::test_no_user_facing_literal_skips_tr`). Runtime values
   use `tr("... {name} ...").format(name=...)`. Messages with a count get real
   singular and plural variants, never "(s)".
-- **All 13 languages.** Every new or changed string goes into every
+- **All 13 translations.** Every new or changed string goes into every
   `data/i18n/<code>.json`, and parameter texts into every
   `data/i18n/parameters.<code>.yaml`. Use the register the catalogue already
   uses (informal: German "du", French "tu"). `python scripts/i18n_extract.py
@@ -586,12 +672,20 @@ yours will be a similar short code.
   in the pull request.
 - **Use fakes.** A scripted socket, a fake serial port or an injected reading
   function; invented values; synthetic scans. No test opens a network
-  connection or a real device.
+  connection or a real device, and no test runs only when private captures or
+  an IP address are present: a test that skips everywhere but your desk
+  proves nothing to anyone else.
+- **Do not rewrite an existing test to make your change pass.** If a guard
+  really has to change, say which one and why in the pull request, so the
+  reviewers can decide.
 - **House rules for tests** (see `CLAUDE.md`): anything that runs ArgyllCMS or
   a subprocess has a `timeout=` sized for a fully loaded machine; no test calls
   a modal `.exec()` or `qapp.setStyleSheet()`; use pytest-qt's `qapp` fixture
   (`tests/conftest.py` pins one `QApplication` per worker) and never create
   or destroy a `QApplication` of your own.
+- **Set up first.** The "Setup" section of `CLAUDE.md` creates the `.venv`
+  and installs `requirements.txt` and `requirements-dev.txt`. Install
+  ArgyllCMS 3.5.0 as well: the slow tier of the gate runs the real tools.
 - **Run, inside the project's `.venv`:**
 
   ```bash
@@ -600,6 +694,9 @@ yours will be a similar short code.
   QT_QPA_PLATFORM=offscreen pytest --runslow -n auto -q > /tmp/chromiq-gate.txt 2>&1
   echo "exit=$?"                                                   # the gate
   ```
+
+  On Windows PowerShell the gate is
+  `$env:QT_QPA_PLATFORM='offscreen'; pytest --runslow -n auto -q > $env:TEMP\chromiq-gate.txt 2>&1; echo "exit=$LASTEXITCODE"`.
 
   **Read the exit code from pytest itself, not through a pipe**:
   `pytest | tail` reports `tail`'s exit code, which is 0 however red the run
@@ -668,7 +765,9 @@ must approve something, read "the ChromIQ maintainers".
 - **Review your own diff in a separate pass** against
   [the checklist](#5-the-registration-checklist) and
   [the common mistakes](#15-common-mistakes-we-have-seen) before you open the
-  pull request.
+  pull request, and put the result in the description as a table: one line
+  per row of section 5 and section 15, each marked done, not applicable (with
+  the reason) or open.
 
 ## 15. Common mistakes we have seen
 
@@ -679,10 +778,10 @@ avoid from the start.
 
 | Mistake | What happened | Do this instead |
 |---|---|---|
-| Ungated changes | The instrument appeared in every list for every user, and per-target settings changed for people without the device. | Put everything behind the Beta switch, and pin it with the three nets of [section 4](#4-behind-a-beta-option-and-off-means-no-change). |
+| Ungated changes | The instrument appeared in every list for every user, and per-target settings changed for people without the device. | Put everything behind the Beta switch, and pin it with the four nets of [section 4](#4-behind-a-beta-option-and-off-means-no-change). |
 | A chart check that crashes | Detecting "is this my chart?" read every `.ti2` as strict UTF-8, so a cp1252 chart from a German Windows broke the Measure tab for every instrument. | `core/text_io.py::read_text`, never raise, cache, and only when the option is on. |
 | Lifting the parameter lock | Refreshing the instrument panel set shared option groups enabled on every chart load, which could unlock options in the middle of another instrument's read. | Change enabling only when your state changes, as a second lock. |
-| Skipping the Start preflight | The instrument's own Start skipped the replace warnings of §5, the misfit check, autosave recovery and verification staging. | Run the shared preflight, then branch ([section 7](#7-measuring)). |
+| Skipping the Start preflight | The instrument's own Start skipped the replace warnings of §5, the misfit check, autosave recovery and verification staging. | Run every step of the shared preflight, in the same order, before any device work ([section 7](#7-measuring)). |
 | Rewriting `meta.json` | New Measure keys in the shared settings dict made every target's `meta.json` change; later, a Create Chart save rewrote an instrument project's keys while the option was off. | Instrument-only keys, written only for your charts, carried through unchanged when off. |
 | Settings outside `AppSettings` | A separate `QSettings` domain escaped the sandbox, and a hidden key could load Python from any folder. | `AppSettings` only; no code paths in settings. |
 | English-only log messages | The instructions that guide the physical work and every error were English log lines nobody was shown in a window. | `tr()` everywhere, and windows from the catalogue for what the user must act on. |
@@ -697,6 +796,11 @@ avoid from the start.
 | Packaging and licence gaps | The licence window and the bundle did not agree on where the vendored licence lives. | Spec files, `THIRD-PARTY-NOTICES.md`, `ui/licences.py`, and a test. |
 | An unrelated change inside | A Print tab behaviour change for every printer rode along. | One topic per pull request. |
 | Parent-owned worker thread | A `QThread` parented to the tab risks a fatal abort if the tab goes while it runs. | Unparented and held in a module list until finished. |
+| Research code in the bundle | Developer tools, research modules and an option to load Python from a folder were on their way into the shipped app. | Ship only what the GUI runs ([section 9](#9-the-driver-and-the-device)). |
+| Resume tied to an address | A new network address from the router made a partial run impossible to resume. | Bind resume to the device's identity. |
+| A test rewritten to pass | An existing guard test was changed to fit the new code without saying so. | Leave existing tests alone, or name the change and the reason in the pull request. |
+| Tests only the author can run | A test needed private captures or a reachable instrument, so it skipped for everybody else. | Invented data only; every test runs anywhere. |
+| Stacked specification blocks | A second "Awaiting confirmation" block was added beside an older one that said something else. | One current block per topic; replace your earlier one. |
 
 And a positive one to copy: the FD-9 driver kept a strict read-only stance
 towards the device, refused unknown sensor versions before anything moved, and
