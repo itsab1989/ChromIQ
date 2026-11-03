@@ -14,12 +14,29 @@ One question, asked in one place, by everything that could pass ``-f``:
   extra arguments) with :attr:`FwaRefusal.log_line` in the log, whichever
   door asked for it.
 
-The reasons, each measured rather than assumed:
+The reasons, each measured rather than assumed (ArgyllCMS 3.5.0,
+2026-11-03, ``spec2cie -f`` and ``colprof -f`` on one real spectral ``.ti3``
+with only the header changed; the probes and their output are kept in the
+4.3.23 work folder, ``fwa_unify/argyll_probe``):
 
-* **The instrument ArgyllCMS cannot place.** ArgyllCMS models the brighteners'
-  glow from the lamp of the instrument that took the readings and finds that
-  lamp by ``TARGET_INSTRUMENT``. The Konica Minolta FD-9 is not one it knows:
-  ``colprof -f`` stops with "Unrecognised target instrument 'Konica Minolta
+* **No spectra.** FWA compensation works on the spectrum of every patch. A
+  file without ``SPECTRAL_BANDS`` stops ``colprof -f`` with "Input file
+  doesn't contain keyword SPECTRAL_BANDS" (or "...field SPEC_380" when the
+  keyword is there and the columns are not). A CR30 ``.ti3`` is colorimetric
+  by design, and so is anything saved without spectra.
+* **An instrument ArgyllCMS has no FWA lamp for.** ArgyllCMS finds the lamp by
+  ``TARGET_INSTRUMENT``, by an EXACT, case-sensitive match against its own
+  name table (``spectro/insttypes.c``; "gretagmacbeth i1 pro", a trailing
+  space or "X-Rite i1 Pro 3+" are all "Unrecognised"). Every name in that
+  table was tried: :data:`ARGYLL_FWA_INSTRUMENTS` is exactly the set that
+  passed. The ColorMunki family is in the table but stops with "Instrument
+  doesn't have an FWA illuminent" (its white LED has no ultraviolet); every
+  other name (the CR30, the i1iSis and the names i1Profiler gives, an earlier
+  import's "i1Pro 3", "i1Profiler (unspecified)", a file with no name) stops
+  with "Unrecognised target instrument" or "Can't find target instrument
+  needed for FWA compensation".
+* **The FD-9**, one of those unknown names, with its own text, because it
+  measures under a condition chosen on the Measure tab: ``colprof -f`` stops with "Unrecognised target instrument 'Konica Minolta
   FD-9'" (ArgyllCMS 3.5.0, 2026-11-03, both spellings), while ``-i`` and
   ``-o`` work on the same file. Not behind the Beta switch: the refusal is
   ArgyllCMS's, and the file stays what it is after the Beta is turned off.
@@ -51,9 +68,13 @@ _HEAD_BYTES = 65536
 class FwaRefusal:
     """Why FWA compensation cannot be used for a measurement.
 
-    *kind* is one of ``"fd9"`` (an FD-9 measurement) or ``"condition"`` (an
-    M1/M2 measurement); *instrument* and *condition* are what the file
-    says."""
+    *kind* is one of ``"fd9"`` (an FD-9 measurement), ``"no_spectra"``,
+    ``"no_name"`` (the file names no instrument), ``"colormunki"`` (an
+    instrument without an ultraviolet lamp), ``"reimport"`` (an import by an
+    earlier ChromIQ that kept i1Profiler's name for an instrument ArgyllCMS
+    knows under another), ``"instrument"`` (any other name ArgyllCMS has no
+    FWA lamp for) or ``"condition"`` (an M1/M2 measurement); *instrument*
+    and *condition* are what the file says."""
     kind: str
     instrument: "str | None" = None
     condition: "str | None" = None
@@ -63,6 +84,16 @@ class FwaRefusal:
         """The tooltip on the greyed FWA box and its illuminant."""
         if self.kind == "fd9":
             return _fd9_reason()
+        if self.kind == "no_spectra":
+            return _no_spectra_reason()
+        if self.kind == "no_name":
+            return _no_name_reason()
+        if self.kind == "colormunki":
+            return _colormunki_reason()
+        if self.kind == "reimport":
+            return _reimport_reason(self.instrument or "")
+        if self.kind == "instrument":
+            return _instrument_reason(self.instrument or "")
         return _condition_reason(self.condition or "")
 
     @property
@@ -74,6 +105,22 @@ class FwaRefusal:
                 "apply it to FD-9 measurements, and the FD-9's own measurement "
                 "condition (M0, M1 or M2) already decides how the brighteners "
                 "in the paper were measured.")
+        if self.kind == "no_spectra":
+            return tr(
+                "[NOTE] FWA compensation (-f) was left out: this measurement "
+                "has no spectral readings, and FWA compensation works from "
+                "the spectrum of every patch.")
+        if self.kind == "no_name":
+            return tr(
+                "[NOTE] FWA compensation (-f) was left out: this measurement "
+                "does not say which instrument took it, and ArgyllCMS needs "
+                "that to apply FWA compensation.")
+        if self.kind in ("colormunki", "reimport", "instrument"):
+            return tr(
+                "[NOTE] FWA compensation (-f) was left out: ArgyllCMS has no "
+                "FWA data for the instrument this measurement names "
+                "(“{instrument}”), so it would stop with an error."
+            ).format(instrument=self.instrument or "")
         return tr(
             "[NOTE] Brightener compensation (FWA, -f) was left out: this "
             "measurement was taken under condition {condition}, and FWA "
@@ -82,17 +129,58 @@ class FwaRefusal:
         ).format(condition=self.condition or "")
 
 
-def fwa_refusal(instrument: "str | None", *,
+#: The ``TARGET_INSTRUMENT`` values ArgyllCMS 3.5.0 applies ``-f`` to: every
+#: name in its own instrument table (``strings spec2cie``) that
+#: ``spec2cie -f D50`` accepted, measured 2026-11-03 (see the module text).
+#: Matched exactly, as ArgyllCMS does.
+ARGYLL_FWA_INSTRUMENTS = frozenset({
+    "GretagMacbeth i1 Pro", "X-Rite i1 Pro", "Xrite i1 Pro",
+    "X-Rite i1 Pro 2", "Xrite i1 Pro 2",
+    "X-Rite i1 Pro 3", "Xrite i1 Pro 3",
+    "GretagMacbeth SpectroScan", "GretagMacbeth SpectroScanT",
+    "GretagMacbeth Spectrolino",
+    "X-Rite DTP20", "X-Rite DTP22", "X-Rite DTP41", "X-Rite DTP51",
+    "Xrite DTP20", "Xrite DTP22", "Xrite DTP41", "Xrite DTP51",
+})
+
+
+#: What the i1Profiler import writes when the file names no instrument
+#: (``workflow.reference_convert._IMPORTED_INSTRUMENT_FALLBACK``).
+_IMPORT_NAMES_NO_INSTRUMENT = "i1Profiler (unspecified)"
+
+
+def fwa_refusal(instrument: "str | None", *, has_spectral: bool = True,
                 condition: "str | None" = None) -> "FwaRefusal | None":
     """Whether FWA compensation can be used for a measurement whose header
-    says *instrument* (``TARGET_INSTRUMENT``) and *condition*
-    (``MEASUREMENT_CONDITION``): None when it can, else the reason."""
+    says *instrument* (``TARGET_INSTRUMENT``), *has_spectral*
+    (``SPECTRAL_BANDS`` above 0) and *condition* (``MEASUREMENT_CONDITION``):
+    None when it can, else the reason. When several hold, the one that
+    helps most is named: the FD-9, no spectra, the instrument, the
+    condition.
+
+    None, and so nothing changed, for exactly the files ArgyllCMS applies
+    ``-f`` to: a name in :data:`ARGYLL_FWA_INSTRUMENTS`, spectra, and no
+    condition or M0."""
     name = _unquote(instrument)
     cond = (str(condition).strip().upper() or None) if condition else None
     if name:
         from workflow.fd9.support import is_fd9_instrument_name
         if is_fd9_instrument_name(name):
             return FwaRefusal("fd9", name, cond)
+    if not has_spectral:
+        return FwaRefusal("no_spectra", name, cond)
+    if not name or name == _IMPORT_NAMES_NO_INSTRUMENT:
+        return FwaRefusal("no_name", name, cond)
+    if name not in ARGYLL_FWA_INSTRUMENTS:
+        if "colormunki" in name.lower():
+            return FwaRefusal("colormunki", name, cond)
+        from workflow.reference_convert import argyll_instrument_name
+        # i1Profiler's own names ("i1Pro 3") carry no maker; a misspelt
+        # ArgyllCMS name ("gretagmacbeth i1 pro") is not an import.
+        if argyll_instrument_name(name) in ARGYLL_FWA_INSTRUMENTS and not \
+                name.lower().startswith(("gretagmacbeth", "x-rite", "xrite")):
+            return FwaRefusal("reimport", name, cond)
+        return FwaRefusal("instrument", name, cond)
     if cond and cond != "M0":
         return FwaRefusal("condition", name, cond)
     return None
@@ -102,6 +190,7 @@ def fwa_refusal(instrument: "str | None", *,
 class _Header:
     instrument: "str | None"
     condition: "str | None"
+    has_spectral: bool
 
 
 def _unquote(value: "str | None") -> "str | None":
@@ -136,11 +225,15 @@ def _read_header(path) -> "_Header | None":
         if not m:
             continue
         key = m.group(1).decode("ascii", "replace")
-        if key in ("TARGET_INSTRUMENT", "MEASUREMENT_CONDITION") \
-                and key not in found:
+        if key in ("TARGET_INSTRUMENT", "MEASUREMENT_CONDITION",
+                   "SPECTRAL_BANDS") and key not in found:
             found[key] = _unquote(m.group(2).decode("latin-1")) or ""
+    try:
+        bands = int(found.get("SPECTRAL_BANDS") or 0)
+    except ValueError:
+        bands = 0
     return _Header(found.get("TARGET_INSTRUMENT"),
-                   found.get("MEASUREMENT_CONDITION"))
+                   found.get("MEASUREMENT_CONDITION"), bands > 0)
 
 
 def fwa_refusal_for_file(path) -> "FwaRefusal | None":
@@ -149,7 +242,8 @@ def fwa_refusal_for_file(path) -> "FwaRefusal | None":
     h = _read_header(path)
     if h is None:
         return None
-    return fwa_refusal(h.instrument, condition=h.condition)
+    return fwa_refusal(h.instrument, has_spectral=h.has_spectral,
+                       condition=h.condition)
 
 
 def drop_fwa(params) -> bool:
@@ -258,3 +352,93 @@ def _condition_reason(condition: str) -> str:
         "measurement (i1Profiler saves all of its conditions in one .mxf "
         "file), or measure the chart in M0."
     ).format(condition=condition)
+
+
+def _no_spectra_reason() -> str:
+    return tr(
+        "FWA compensation is not available for this measurement, because it "
+        "has no spectral readings.\n\n"
+        "Optical brighteners in paper turn invisible ultraviolet light into "
+        "visible blue light, which makes the paper look whiter. FWA "
+        "compensation corrects for that glow by looking at the full spectrum "
+        "of every patch, wavelength by wavelength. This measurement only "
+        "holds colour values, for example because the instrument does not "
+        "report spectra (the CR30 does not) or because the file was saved "
+        "without them. So there is nothing for FWA compensation to work "
+        "from, and ArgyllCMS would stop with an error instead of building "
+        "your profile or checking it.\n\n"
+        "To use FWA compensation, measure the chart with a spectrophotometer "
+        "that saves spectral readings, such as an i1Pro.")
+
+
+def _no_name_reason() -> str:
+    return tr(
+        "FWA compensation is not available for this measurement, because the "
+        "file does not say which instrument took it.\n\n"
+        "Optical brighteners in paper turn invisible ultraviolet light into "
+        "visible blue light, which makes the paper look whiter. FWA "
+        "compensation in ArgyllCMS works out that glow from the light inside "
+        "the instrument that took the readings, and it finds that light by "
+        "the instrument's name in the measurement file. Without a name, "
+        "ArgyllCMS would stop with an error instead of building your profile "
+        "or checking it.\n\n"
+        "To use FWA compensation, measure the chart with an instrument "
+        "ArgyllCMS knows the light of: the i1Pro family, the SpectroScan, "
+        "the Spectrolino, or the DTP20, DTP22, DTP41 or DTP51.")
+
+
+def _colormunki_reason() -> str:
+    return tr(
+        "FWA compensation is not available for measurements taken with a "
+        "ColorMunki (also sold as i1Studio and ColorChecker Studio).\n\n"
+        "Optical brighteners in paper turn invisible ultraviolet light into "
+        "visible blue light, which makes the paper look whiter. FWA "
+        "compensation works out that glow from the light inside the "
+        "instrument that took the readings. The ColorMunki lights the paper "
+        "with a white LED that gives off no ultraviolet light, so the "
+        "brighteners do not glow while it measures, and ArgyllCMS has nothing "
+        "to work from: it would stop with an error instead of building your "
+        "profile or checking it.\n\n"
+        "Your readings show the paper as it looks under light without "
+        "ultraviolet. To use FWA compensation, measure the chart with an "
+        "instrument whose lamp gives off ultraviolet, such as an i1Pro.")
+
+
+def _reimport_reason(instrument: str) -> str:
+    return tr(
+        "FWA compensation is not available for this measurement, because "
+        "ArgyllCMS does not know the name it gives the instrument: "
+        "“{instrument}”.\n\n"
+        "Optical brighteners in paper turn invisible ultraviolet light into "
+        "visible blue light, which makes the paper look whiter. FWA "
+        "compensation in ArgyllCMS works out that glow from the light inside "
+        "the instrument that took the readings, and it finds that light by "
+        "the instrument's name in the measurement file. This measurement was "
+        "imported from i1Profiler by an earlier version of ChromIQ, which "
+        "kept i1Profiler's name for the instrument. ArgyllCMS knows the same "
+        "instrument under another name, so with this one it would stop with "
+        "an error instead of building your profile or checking it.\n\n"
+        "To use FWA compensation, import the i1Profiler file again: ChromIQ "
+        "now gives the instrument the name ArgyllCMS knows it by. If the "
+        "file holds more than one measurement condition, choose M0, because "
+        "FWA compensation only works with those readings."
+    ).format(instrument=instrument)
+
+
+def _instrument_reason(instrument: str) -> str:
+    return tr(
+        "FWA compensation is not available for this measurement, because "
+        "ArgyllCMS has no FWA data for the instrument it names: "
+        "“{instrument}”.\n\n"
+        "Optical brighteners in paper turn invisible ultraviolet light into "
+        "visible blue light, which makes the paper look whiter. FWA "
+        "compensation in ArgyllCMS works out that glow from the light inside "
+        "the instrument that took the readings, and it finds that light by "
+        "the instrument's name in the measurement file. It knows that light "
+        "only for the i1Pro family, the SpectroScan, the Spectrolino and the "
+        "DTP20, DTP22, DTP41 and DTP51. For any other instrument it would "
+        "stop with an error instead of building your profile or checking "
+        "it.\n\n"
+        "To use FWA compensation, measure the chart with one of those "
+        "instruments."
+    ).format(instrument=instrument)

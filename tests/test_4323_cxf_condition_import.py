@@ -373,7 +373,8 @@ def test_remove_fwa_takes_typed_f_out_and_keeps_the_rest():
 
 def test_a_file_without_a_condition_is_judged_as_before(tmp_path):
     ti3 = tmp_path / "cr.ti3"
-    ti3.write_text("CTI3\nTARGET_INSTRUMENT \"X-Rite i1 Pro 3\"\nBEGIN_DATA\n"
+    ti3.write_text("CTI3\nTARGET_INSTRUMENT \"X-Rite i1 Pro 3\"\n"
+                   "SPECTRAL_BANDS \"36\"\nBEGIN_DATA\n"
                    "END_DATA\n", encoding="utf-8")
     assert fwa_refusal_for_file(ti3) is None
     p = _params(ti3, fwa_enabled=True)

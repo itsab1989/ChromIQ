@@ -9305,8 +9305,17 @@ ChromIQ took the M2 readings and he compared M1.
   box, a preset, a saved setting or the extra arguments asked for it: it is
   left out with a `[NOTE]` line in the log. The box keeps its tick, so a
   setting is not changed by loading a measurement. A file that names no
-  condition is judged as before. This rule sits beside the FD-9 Beta's
-  instrument-name rule (4.3.22), not inside it.
+  condition is judged as before. Since the merge of 4.3.22 into 4.3.23 this
+  rule is one reason of THE FWA GATE (`workflow.fwa_gate`), which answers
+  "can FWA be used for this .ti3, and if not, why" for every reason at once:
+  the FD-9 (4.3.22), no spectra, an instrument ArgyllCMS has no FWA lamp for
+  (every name in ArgyllCMS 3.5.0's instrument table was tried with
+  `spec2cie -f`; it accepts only the i1Pro family, the SpectroScan, the
+  Spectrolino and the DTP20/22/41/51, by exact name), and this condition. One
+  tooltip per reason, the most helpful one named when several hold (FD-9, no
+  spectra, instrument, condition), and the same greying, keeping of the tick
+  and `[NOTE]` line for each. Old imports named "i1Pro 3" are refused with a
+  tooltip that suggests importing the file again.
 * **Measured on.** The Measurement info window shows "Measured on" from
   `CHROMIQ_MEASURED` when the file has no `CREATED` (every i1Profiler
   import).

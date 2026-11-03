@@ -423,11 +423,34 @@ def test_an_fd9_profile_still_falls_back_for_another_illuminant(tmp_path):
 
 
 def test_a_non_fd9_profile_with_fwa_still_falls_back(tmp_path):
+    """A measurement THE FWA GATE lets through (an i1 Pro with spectra) was
+    built with -f, so FWA is still a reason to fall back."""
     run, ti2, ti3, bin_dir = _project(tmp_path, settings={"fwa_enabled": True})
     run.measurement_ti3.write_text(
-        'CTI3\n\nTARGET_INSTRUMENT "GretagMacbeth i1 Pro"\n', encoding="utf-8")
+        'CTI3\n\nTARGET_INSTRUMENT "GretagMacbeth i1 Pro"\n'
+        'SPECTRAL_BANDS "36"\n', encoding="utf-8")
     le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=_Tools())
     assert not le.is_prediction and "FWA" in le.reason
+
+
+@pytest.mark.parametrize("header", [
+    'TARGET_INSTRUMENT "X-Rite ColorMunki"\nSPECTRAL_BANDS "36"\n',
+    'TARGET_INSTRUMENT "GretagMacbeth i1 Pro"\n',            # no spectra
+    'TARGET_INSTRUMENT "X-Rite i1 Pro 3"\nSPECTRAL_BANDS "36"\n'
+    'MEASUREMENT_CONDITION "M2"\n',
+])
+def test_any_measurement_the_gate_refuses_ignores_a_ticked_fwa_box(
+        tmp_path, header):
+    """4.3.23: the same for every refusal of THE FWA GATE, not only the
+    FD-9's: the build left -f out, so the saved tick is no reason to fall
+    back."""
+    run, ti2, ti3, bin_dir = _project(tmp_path, settings={"fwa_enabled": True})
+    run.measurement_ti3.write_text(
+        'CTI3\n\n' + header
+        + _ti3_text({loc: xyz for loc, _rgb, xyz in PATCHES}).split("\n", 2)[2],
+        encoding="utf-8")
+    le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=_Tools())
+    assert le.is_prediction, le.reason
 
 
 def test_build_light_problem_ignores_fwa_only_when_it_was_left_out():

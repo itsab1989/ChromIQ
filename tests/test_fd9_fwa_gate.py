@@ -32,8 +32,9 @@ BASE = (ROOT / "tests/data/g_basti_et8550_run1_verify/"
 ARGYLL = Path("/Applications/Argyll/bin")
 
 FD9_NAMES = ("Konica Minolta FD-9", "FD-9")
+#: Measurements ArgyllCMS applies -f to (`workflow.fwa_gate`): unchanged.
 OTHER_NAMES = ("GretagMacbeth i1 Pro", "X-Rite i1 Pro 3",
-               "X-Rite ColorMunki", "CHNSpec CR30")
+               "GretagMacbeth SpectroScan", "X-Rite DTP41")
 
 
 @pytest.fixture(scope="module")
@@ -101,10 +102,16 @@ def test_an_fd9_name_shuts_the_fwa_gate(name):
     assert fwa_refusal(name).kind == "fd9"
 
 
-@pytest.mark.parametrize("name", OTHER_NAMES + (None, "", "FD-7"))
-def test_no_other_name_shuts_it(name):
+@pytest.mark.parametrize("name", OTHER_NAMES + (
+    None, "", "FD-7", "FD-9 Pro", "X-Rite ColorMunki", "CHNSpec CR30"))
+def test_no_other_name_is_refused_as_an_fd9(name):
+    """Other names may be refused for their own reasons (THE FWA GATE); only
+    an FD-9 name gets the FD-9's text."""
     from workflow.fwa_gate import fwa_refusal
-    assert fwa_refusal(name) is None
+    refusal = fwa_refusal(name)
+    assert refusal is None or refusal.kind != "fd9"
+    if name in OTHER_NAMES:
+        assert refusal is None
 
 
 def test_the_spectral_gate_is_untouched_by_the_fd9():
