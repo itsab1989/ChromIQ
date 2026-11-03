@@ -227,6 +227,25 @@ def reveal_file(path: Path, *_signal_args) -> None:
         log.warning("could not reveal %s: %s", path, exc)
 
 
+#: Every licence file the three .spec files put in the app (review r3 R3-2),
+#: by the path it has inside the bundle, which for all but the FD-9 driver's
+#: is also its path in the source tree. `tests/test_fd9_review_r3.py` reads
+#: the specs and fails on a shipped licence file this list leaves out.
+BUNDLED_LICENCE_FILES: "tuple[str, ...]" = (
+    LICENCE_FILE, NOTICES_FILE,
+    # the AGPLv3 Argyll-derived helpers (chartread, gammap) and instlib
+    "native/argyll/LICENSE",
+    "native/instlib/License.txt",
+    "native/instlib/License2.txt",
+    "assets/fonts/OFL.txt",
+    "assets/test_images/PhotoDisc-Freeware-License.pdf",
+    "data/reference_sets/LICENSE",
+    "data/compliance_sets/LICENSE",
+    "data/scanner_targets/LICENSE",
+    *FD9_DRIVER_LICENCE,
+)
+
+
 def bundled_licence_files() -> "list[Path]":
     """Licence files that travel inside the bundle and can be revealed.
 
@@ -234,11 +253,7 @@ def bundled_licence_files() -> "list[Path]":
     the build did not ship is worse than no button.
     """
     out: "list[Path]" = []
-    for name in (LICENCE_FILE, NOTICES_FILE,
-                 "assets/fonts/OFL.txt",
-                 "data/reference_sets/LICENSE",
-                 "data/compliance_sets/LICENSE",
-                 *FD9_DRIVER_LICENCE):
+    for name in BUNDLED_LICENCE_FILES:
         p = resource_path(name)
         try:
             if p.is_file():

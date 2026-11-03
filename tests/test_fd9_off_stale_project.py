@@ -65,6 +65,17 @@ def close_modals():
     w = QApplication.activeModalWidget()
     if w is not None:
         windows.append(type(w).__name__ + ": " + (w.windowTitle() or ""))
+        if MODE == "off-generate":
+            # Generate over run 1 asks first; the user says go ahead.
+            from PyQt6.QtWidgets import QAbstractButton
+            for b in w.findChildren(QAbstractButton):
+                t = b.text().replace("&", "")
+                if b.isVisible() and any(k in t for k in (
+                        "Overwrite", "Replace", "Generate", "Continue",
+                        "Yes", "OK")):
+                    windows.append("  -> " + t)
+                    b.click()
+                    return
         w.reject() if hasattr(w, "reject") else w.close()
 
 guard = QTimer()
@@ -93,6 +104,41 @@ if MODE == "on":
     pump(500)
     tab._target_name_edit.setText(NAME)
     pump(300)
+    QTimer.singleShot(0, tab._on_generate)
+    pump(1500)
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 300 and win._runner.is_running:
+        pump(300)
+    pump(2000)
+    visit_every_tab()
+    loaded = []
+elif MODE == "off-edit":
+    # Review r3 R3-1: the user picks another sheet and page count with the
+    # Beta off. That is the user's choice and must be written.
+    QTimer.singleShot(0, lambda: tab.open_project_manifest(
+        Path(out) / NAME / "project.json"))
+    pump(2500)
+    win._tabs.setCurrentIndex(0)
+    pump(700)
+    tab._switch_mode("guided")
+    pump(800)
+    i = tab._paper_combo.findData("Letter")
+    tab._paper_combo.setCurrentIndex(i)
+    tab._paper_combo.activated.emit(i)
+    pump(500)
+    tab._pages_spin.setValue(2)
+    pump(500)
+    visit_every_tab()
+    loaded = [str(tab._paper_combo.currentData()), tab._pages_spin.value()]
+elif MODE == "off-generate":
+    # Review r3 R3-1: the user generates an i1Pro chart into the FD-9 run.
+    QTimer.singleShot(0, lambda: tab.open_project_manifest(
+        Path(out) / NAME / "project.json"))
+    pump(2500)
+    win._tabs.setCurrentIndex(0)
+    pump(700)
+    tab._switch_mode("guided")
+    pump(800)
     QTimer.singleShot(0, tab._on_generate)
     pump(1500)
     t0 = time.monotonic()
@@ -157,12 +203,20 @@ def _digest(project):
             for p in sorted(project.rglob("meta.json"))}
 
 
-@pytest.mark.skipif(not (ARGYLL / "targen").exists(),
-                    reason="ArgyllCMS is needed to generate the FD-9 chart")
-def test_an_fd9_project_opened_with_the_beta_off_is_left_as_it_was(tmp_path):
-    out = tmp_path / "projects"
-    on = _run("on", tmp_path / "on.ini", out)
-    project = out / "FD9-Stale-Project"
+NAME = "FD9-Stale-Project"
+needs_argyll = pytest.mark.skipif(
+    not (ARGYLL / "targen").exists(),
+    reason="ArgyllCMS is needed to generate the FD-9 chart")
+
+
+@pytest.fixture(scope="module")
+def fd9_project(tmp_path_factory):
+    """One FD-9 project, made by the app with the Beta on (Guided, Generate
+    Chart, real ArgyllCMS). Each test works on its own copy."""
+    base = tmp_path_factory.mktemp("fd9-made-on")
+    out = base / "projects"
+    on = _run("on", base / "on.ini", out)
+    project = out / NAME
     metas = sorted(project.rglob("runs/*/meta.json"))
     assert metas, f"the FD-9 chart was not generated: {on}"
     meta = json.loads(metas[0].read_text(encoding="utf-8"))
@@ -171,6 +225,36 @@ def test_an_fd9_project_opened_with_the_beta_off_is_left_as_it_was(tmp_path):
             and ui["guided"]["instrument"] == "FD9"
             and ui["engine_recipe"]["instrument"] == "FD9"), (
         "the generated chart is not an FD-9 one, so this proves nothing")
+    yield project
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def _copy_of(fd9_project, tmp_path):
+    out = tmp_path / "projects"
+    shutil.copytree(fd9_project, out / NAME)
+    return out, out / NAME
+
+
+def _run1_meta(project):
+    return json.loads((project / "runs" / "run1" / "meta.json")
+                      .read_text(encoding="utf-8"))
+
+
+def _names_fd9_anywhere(meta):
+    cs = meta.get("create_chart_settings") or {}
+    ui = meta.get("create_chart_ui") or {}
+    return sorted(
+        [k for k in ("printtarg-i",) if (cs.get(k) or {}).get("value") == "FD9"]
+        + [f"{b}.instrument" for b in ("guided", "engine_recipe")
+           if (ui.get(b) or {}).get("instrument") == "FD9"]
+        + [f"engine_recipe.{k}" for k in ("fd9_gap_mm",)
+           if k in (ui.get("engine_recipe") or {})])
+
+
+@needs_argyll
+def test_an_fd9_project_opened_with_the_beta_off_is_left_as_it_was(
+        fd9_project, tmp_path):
+    out, project = _copy_of(fd9_project, tmp_path)
     as_generated = _digest(project)
     # Keep what the user generated, to compare by eye when this goes red.
     keep = {k: (project / k).read_bytes() for k in as_generated}
@@ -198,3 +282,38 @@ def test_an_fd9_project_opened_with_the_beta_off_is_left_as_it_was(tmp_path):
         "with FD-9 support off, opening an FD-9 project loaded FD-9 code: "
         f"{extra}")
     shutil.rmtree(out, ignore_errors=True)
+
+
+@needs_argyll
+def test_a_change_the_user_makes_with_the_beta_off_is_kept(
+        fd9_project, tmp_path):
+    """Review r3 R3-1: with the Beta off, the user picks Letter and 2 pages on
+    the FD-9 run. The carry used to put A4 and 1 page back without a word."""
+    out, project = _copy_of(fd9_project, tmp_path)
+    got = _run("off-edit", tmp_path / "off.ini", out)
+    assert got["loaded"] == ["Letter", 2], (
+        f"the screen did not keep the user's change: {got}")
+    meta = _run1_meta(project)
+    guided = meta["create_chart_ui"]["guided"]
+    # Guided keeps its own sheet and pages; the printtarg rows follow at
+    # Generate, exactly as on an i1Pro run (review r3 control drive).
+    assert (guided["paper"], guided["pages"]) == ("Letter", 2), (
+        f"the paper and pages the user picked were not saved: {guided}")
+
+
+@needs_argyll
+def test_generating_an_i1pro_chart_into_the_fd9_run_leaves_no_fd9(
+        fd9_project, tmp_path):
+    """Review r3 R3-1: Generate Chart with the Beta off makes an i1Pro chart
+    in run 1. Its meta.json must then describe that chart, not the FD-9."""
+    out, project = _copy_of(fd9_project, tmp_path)
+    got = _run("off-generate", tmp_path / "off.ini", out)
+    ti2 = next((project / "runs" / "run1").glob("*.ti2"))
+    head = ti2.read_bytes().split(b"BEGIN_DATA_FORMAT", 1)[0]
+    assert b"FD-9" not in head, (
+        f"the generate did not make an i1Pro chart, so this proves nothing: "
+        f"{got}")
+    meta = _run1_meta(project)
+    assert not _names_fd9_anywhere(meta), (
+        "run 1 holds an i1Pro chart but its meta.json still names the FD-9: "
+        f"{_names_fd9_anywhere(meta)}")

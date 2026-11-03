@@ -337,7 +337,9 @@ def test_create_chart_settings_of_an_fd9_target_are_carried_while_off():
           "engine_recipe": {"instrument": "i1", "paper": "A4",
                             "margin_top": 38.0, "patch_w_mm": 8.0,
                             "dpi": 600}}
-    carry_fd9_chart_keys(wanted, ui, stored_params, stored_ui)
+    import copy
+    at_load = (copy.deepcopy(wanted), copy.deepcopy(ui))
+    carry_fd9_chart_keys(wanted, ui, stored_params, stored_ui, at_load)
     assert wanted == {**stored_params, "targen-f": {"enabled": True,
                                                     "value": 400}}
     assert ui["mode"] == "manual"
@@ -347,5 +349,68 @@ def test_create_chart_settings_of_an_fd9_target_are_carried_while_off():
     # An i1Pro target stored with the Beta off is left alone.
     plain = {"guided": {"instrument": "i1", "paper": "A4", "pages": 2}}
     ui2 = {"guided": {"instrument": "i1", "paper": "A3", "pages": 1}}
-    carry_fd9_chart_keys({}, ui2, {}, plain)
+    carry_fd9_chart_keys({}, ui2, {}, plain, ({}, copy.deepcopy(ui2)))
     assert ui2 == {"guided": {"instrument": "i1", "paper": "A3", "pages": 1}}
+
+
+def _fd9_stored():
+    params = {"printtarg-i": {"enabled": True, "value": "FD9"},
+              "printtarg-p": {"enabled": True, "value": "A4"}}
+    ui = {"guided": {"instrument": "FD9", "paper": "A4", "pages": 1},
+          "engine_recipe": {"instrument": "FD9", "paper": "A4",
+                            "margin_top": 6.0, "fd9_gap_mm": 1.0}}
+    return params, ui
+
+
+def test_a_value_the_user_changed_with_the_beta_off_is_the_users():
+    """Review r3 R3-1: only a value still as the off load left it is carried.
+    A paper and page count the user picked are written as picked."""
+    import copy
+    from workflow.fd9.support import carry_fd9_chart_keys
+    stored_params, stored_ui = _fd9_stored()
+    at_load = ({"printtarg-i": {"enabled": True, "value": "i1"},
+                "printtarg-p": {"enabled": True, "value": "A4"}},
+               {"guided": {"instrument": "i1", "paper": "A4", "pages": 1},
+                "engine_recipe": {"instrument": "i1", "paper": "A4",
+                                  "margin_top": 38.0}})
+    wanted = {"printtarg-i": {"enabled": True, "value": "i1"},
+              "printtarg-p": {"enabled": True, "value": "Letter"}}
+    ui = {"guided": {"instrument": "i1", "paper": "Letter", "pages": 2},
+          "engine_recipe": {"instrument": "i1", "paper": "Letter",
+                            "margin_top": 38.0}}
+    carry_fd9_chart_keys(wanted, ui, stored_params, stored_ui,
+                         copy.deepcopy(at_load))
+    assert wanted["printtarg-p"]["value"] == "Letter"
+    assert wanted["printtarg-i"]["value"] == "FD9"       # untouched: carried
+    assert ui["guided"] == {"instrument": "FD9", "paper": "Letter",
+                            "pages": 2}
+    assert ui["engine_recipe"]["paper"] == "Letter"
+    assert ui["engine_recipe"]["margin_top"] == 6.0      # untouched: carried
+
+
+def test_without_a_snapshot_nothing_is_carried():
+    """No snapshot = the user generated into the target, or its chart is not
+    an FD-9 chart any more: the screen is written as it is."""
+    from workflow.fd9.support import carry_fd9_chart_keys
+    stored_params, stored_ui = _fd9_stored()
+    wanted = {"printtarg-i": {"enabled": True, "value": "i1"}}
+    ui = {"guided": {"instrument": "i1", "paper": "A4", "pages": 1}}
+    carry_fd9_chart_keys(wanted, ui, stored_params, stored_ui, None)
+    assert wanted == {"printtarg-i": {"enabled": True, "value": "i1"}}
+    assert ui == {"guided": {"instrument": "i1", "paper": "A4", "pages": 1}}
+
+
+@pytest.mark.parametrize("line, answer", [
+    ('TARGET_INSTRUMENT "Konica Minolta FD-9"', True),
+    ('TARGET_INSTRUMENT "FD-9"', True),
+    ("TARGET_INSTRUMENT 'fd-9'", True),
+    ('TARGET_INSTRUMENT "GretagMacbeth i1 Pro"', False),
+    ('DESCRIPTOR "made for the FD-9"', False),
+])
+def test_the_chart_is_asked_by_its_target_instrument(tmp_path, line, answer):
+    from workflow.fd9.support import chart_names_fd9
+    ti2 = tmp_path / "x.ti2"
+    ti2.write_bytes(("CTI2\n\n" + line + "\nBEGIN_DATA_FORMAT\n"
+                     'TARGET_INSTRUMENT "FD-9"\n').encode("cp1252"))
+    assert chart_names_fd9(ti2) is answer
+    assert chart_names_fd9(tmp_path / "missing.ti2") is None

@@ -95,11 +95,53 @@ def _names_fd9(value: Any) -> bool:
     return str(value or "") == "FD9"
 
 
+def chart_names_fd9(path: Any) -> "bool | None":
+    """Whether the chart file at *path* names the FD-9 in its
+    ``TARGET_INSTRUMENT`` (either spelling, see :func:`is_fd9_instrument_name`).
+
+    None when there is no chart file to ask. Never raises: a file that cannot
+    be read is not an FD-9 chart. Only the header BYTES are read (a chart made
+    on a German Windows is cp1252), and nothing else from ``workflow.fd9`` is
+    imported, so the off app loads no FD-9 code for it (review r3 R3-1).
+    Asked only while the Beta is off AND the target's stored settings name the
+    FD-9, so a 4.3.21 target never has its chart read for this."""
+    from pathlib import Path
+    try:
+        p = Path(path)
+        if not p.is_file():
+            return None
+        with open(p, "rb") as f:
+            head = f.read(65536)
+    except (OSError, TypeError, ValueError):
+        return None if path is None else False
+    head = head.split(b"BEGIN_DATA_FORMAT", 1)[0]
+    for raw in head.splitlines():
+        line = raw.strip()
+        if line[:17].upper() == b"TARGET_INSTRUMENT" and (
+                len(line) == 17 or line[17:18] in (b" ", b"\t")):
+            value = line[17:].strip().decode("latin-1")
+            return is_fd9_instrument_name(value)
+    return False
+
+
+def target_names_fd9(stored_params: "dict | None",
+                     stored_ui: "dict | None") -> bool:
+    """True when a target's stored Create Chart block names the FD-9."""
+    params = stored_params if isinstance(stored_params, dict) else {}
+    if _names_fd9((params.get("printtarg-i") or {}).get("value")):
+        return True
+    ui = stored_ui if isinstance(stored_ui, dict) else {}
+    return any(isinstance(ui.get(b), dict) and _names_fd9(ui[b].get("instrument"))
+               for b in ("guided", "engine_recipe"))
+
+
 def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
                          stored_params: "dict | None",
-                         stored_ui: "dict | None") -> None:
+                         stored_ui: "dict | None",
+                         screen_at_load: "tuple | None" = None) -> None:
     """Put the stored FD-9 Create Chart values back into *wanted* and
-    *ui_state* (in place) while FD-9 support is OFF (review r2 S1).
+    *ui_state* (in place) while FD-9 support is OFF (review r2 S1, narrowed
+    in review r3 R3-1).
 
     The Create Chart counterpart of ``measure_settings.carry_fd9_keys``. A
     target whose chart was made for the FD-9 with the Beta on keeps its FD-9
@@ -107,15 +149,31 @@ def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
     off: the tab shows the i1Pro instead, as 4.3.21 would, but that is the
     app's fallback and not the user's choice, so it is never filed into the
     target. With nothing else changed the write is then skipped altogether
-    and ``meta.json`` stays byte-identical. With the Beta on this does
+    and ``meta.json`` stays byte-identical.
+
+    *screen_at_load* is ``(wanted, ui_state)`` as the tab showed them right
+    after it opened this target with the Beta off. A key is carried ONLY while
+    its value on screen is still that one: a value the user changed is the
+    user's and is written as it is (R3-1: a paper or page count picked with
+    the Beta off used to be thrown away without a word). Without a snapshot
+    nothing is carried; the caller passes None once the target's chart is no
+    longer an FD-9 chart or the user has generated into it, so ``meta.json``
+    then describes the chart that is really there. With the Beta on this does
     nothing: the tab writes its own FD-9 values, as before."""
     if fd9_enabled():
         return
+    if not (isinstance(screen_at_load, tuple) and len(screen_at_load) == 2):
+        return
+    loaded_params, loaded_ui = screen_at_load
+    loaded_params = loaded_params if isinstance(loaded_params, dict) else {}
+    loaded_ui = loaded_ui if isinstance(loaded_ui, dict) else {}
+    _missing = object()
     params = stored_params if isinstance(stored_params, dict) else {}
     if isinstance(wanted, dict) and _names_fd9(
             (params.get("printtarg-i") or {}).get("value")):
         for key in CHART_PARAM_KEYS:
-            if key in params:
+            if key in params and (wanted.get(key, _missing)
+                                  == loaded_params.get(key, _missing)):
                 wanted[key] = params[key]
     ui = stored_ui if isinstance(stored_ui, dict) else {}
     if not isinstance(ui_state, dict):
@@ -128,15 +186,20 @@ def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
             continue
         if not isinstance(now, dict):
             continue
+        at_load = loaded_ui.get(block)
+        at_load = at_load if isinstance(at_load, dict) else {}
+        carried = {key for key in keys
+                   if key in was and now.get(key, _missing)
+                   == at_load.get(key, _missing)}
         # In the STORED order, so a block written again (the user switched
         # Guided/Manual and back, say) comes out byte for byte as it was.
         ordered = {}
         for key in was:
-            if key in keys:
+            if key in carried:
                 ordered[key] = was[key]
             elif key in now:
                 ordered[key] = now[key]
         for key in now:
-            if key not in ordered and key not in keys:
+            if key not in ordered and key not in carried:
                 ordered[key] = now[key]
         ui_state[block] = ordered

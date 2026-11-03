@@ -19507,16 +19507,24 @@ class TabChart(QWidget):
                 # The FD-9 reads one sheet. Leaving it gives back the Pages
                 # value it replaced, not only the maximum, as Manual's panel
                 # already does (review r2 M1).
+                #
+                # The value belongs to the target it was remembered on
+                # (review r3 R3-3). While a target's settings are being put
+                # on screen the Pages box still holds the previous target's
+                # count, so nothing is remembered or given back then, and a
+                # target change forgets it (`_on_target_changed`).
+                loading = getattr(self, "_loading_target_settings", False)
                 was = getattr(self, "_fd9_guided_pages_was", None)
                 if instr == "FD9":
-                    if was is None:
+                    if was is None and not loading:
                         self._fd9_guided_pages_was = self._pages_spin.value()
                     self._pages_spin.setMaximum(1)
                 else:
                     self._pages_spin.setMaximum(20)
                     if was is not None:
                         self._fd9_guided_pages_was = None
-                        self._pages_spin.setValue(was)
+                        if not loading:     # the stored Pages value wins
+                            self._pages_spin.setValue(was)
         for size in sizes:
             if size not in excluded:
                 self._paper_combo.addItem(paper_display_label(size), size)
@@ -21768,17 +21776,26 @@ class TabChart(QWidget):
             # so a repeat with nothing changed still reads nothing.
             from workflow.fd9.support import carry_fd9_chart_keys, fd9_enabled
             if fd9_enabled():
+                at_load = None
                 screen = (wanted, ui_state)    # the carry does nothing then
             else:
                 import copy as _copy
-                screen = (_copy.deepcopy(wanted), _copy.deepcopy(ui_state))
+                # Only a target opened as an FD-9 one has anything to carry,
+                # and only until its chart stops being one or the user
+                # generates into it (review r3 R3-1). Part of the memory, so
+                # the write that follows such a change is not skipped as a
+                # repeat of the carried one.
+                at_load = getattr(self, "_fd9_off_screen_for",
+                                  lambda *_a: None)(store, fingerprint)
+                screen = (_copy.deepcopy(wanted), _copy.deepcopy(ui_state),
+                          at_load is not None)
             if self._written_cache().get(fingerprint) == screen:
                 return False
             meta = store.load_meta()
             carry_fd9_chart_keys(
                 wanted, ui_state,
                 getattr(meta, "create_chart_settings", None),
-                getattr(meta, "create_chart_ui", None))
+                getattr(meta, "create_chart_ui", None), at_load)
             if (getattr(meta, "create_chart_settings", None) == wanted
                     and getattr(meta, "create_chart_ui", None) == ui_state):
                 self._written_cache()[fingerprint] = screen
@@ -22027,6 +22044,7 @@ class TabChart(QWidget):
             # The non-parameter controls follow in the same load (Knut's
             # beta.3 bug-test): module, Guided shared settings, engine
             # toggle + recipe, gamut options.
+            ui_state = None
             try:
                 ui_state = getattr(store.load_meta(), "create_chart_ui", None)
                 # An EMPTY dict must still be applied: _apply_ui_state resets
@@ -22040,6 +22058,9 @@ class TabChart(QWidget):
             except Exception:      # noqa: BLE001
                 log.warning("Could not apply the target's Create Chart ui "
                             "state", exc_info=True)
+            _remember = getattr(self, "_remember_fd9_off_screen", None)
+            if _remember is not None:      # liftable, as save is
+                _remember(store, stored, ui_state)
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Create Chart settings",
@@ -22047,6 +22068,62 @@ class TabChart(QWidget):
             return False
         finally:
             self._loading_target_settings = False
+
+    def _fd9_off_screens(self) -> dict:
+        """This tab's own record of what an FD-9 target looked like on screen
+        right after it was opened with the Beta off (review r3 R3-1)."""
+        if "_fd9_off_screen_at_load" not in self.__dict__:
+            self._fd9_off_screen_at_load = {}
+        return self._fd9_off_screen_at_load
+
+    def _remember_fd9_off_screen(self, store, stored, ui_state) -> None:
+        """WHAT THE OFF APP PUT ON SCREEN FOR AN FD-9 TARGET (review r3 R3-1).
+
+        With the Beta off the tab cannot show the FD-9 and falls back to the
+        i1Pro; `carry_fd9_chart_keys` puts the stored FD-9 values back over
+        that fallback when the target is written. It may do so only for a
+        value the user has not touched since, so this keeps the screen as the
+        load left it, per target. Nothing is kept with the Beta on, or for a
+        target whose stored settings do not name the FD-9 (every 4.3.21
+        target), so neither ever pays for it."""
+        try:
+            from workflow.fd9.support import fd9_enabled, target_names_fd9
+            fingerprint = str(getattr(store, "dir", store))
+            self._fd9_off_screens().pop(fingerprint, None)
+            if fd9_enabled() or not target_names_fd9(stored, ui_state):
+                return
+            import copy as _copy
+            from workflow.per_target_settings import snapshot
+            self._fd9_off_screens()[fingerprint] = (
+                _copy.deepcopy(snapshot(self)),
+                _copy.deepcopy(self._collect_ui_state()))
+        except Exception:      # noqa: BLE001 — never block a load over it
+            log.warning("Could not note the FD-9 target's screen",
+                        exc_info=True)
+
+    def _fd9_off_screen_for(self, store, fingerprint: str):
+        """The screen to carry against, or None when nothing may be carried.
+
+        Nothing once the user has generated into this target (the generate
+        write forgets it) and nothing once the target's chart is not an FD-9
+        chart any more, so ``meta.json`` describes the chart that is really
+        there and FD-9 values never reach a run that is not an FD-9 run."""
+        at_load = self._fd9_off_screens().get(fingerprint)
+        if at_load is None:
+            return None
+        from workflow.fd9.support import chart_names_fd9
+        chart = None
+        for name in ("chart_ti2", "ti2"):
+            try:
+                chart = getattr(store, name, None)
+            except Exception:      # noqa: BLE001
+                chart = None
+            if chart is not None:
+                break
+        if chart is not None and chart_names_fd9(chart) is False:
+            self._fd9_off_screens().pop(fingerprint, None)
+            return None
+        return at_load
 
     #: The last snapshot written for each target, so a repeated write trigger
     #: costs nothing. See save_target_settings.
@@ -24915,6 +24992,10 @@ class TabChart(QWidget):
         if getattr(self, "_inside_target_change", False):
             return
         self._inside_target_change = True
+        # The Pages value Guided remembered when the FD-9 was picked belongs
+        # to the OUTGOING target; it must never reach this one (review r3
+        # R3-3: an i1Pro project's 5 pages turned up in an FD-9 project).
+        self._fd9_guided_pages_was = None
         self._cancel_pending_auto_preview()
         try:
             """React to a Profile-run / Run-type change: show THAT target's chart —
@@ -25543,6 +25624,14 @@ class TabChart(QWidget):
             # earlier write of the empty screen and was defending THAT.
             self._chart_imposed = {}
             self._release_imposed_connections()
+            # A GENERATE IS THE USER'S CHOICE OF CHART (review r3 R3-1): with
+            # the Beta off it makes the chart for what the screen shows, so
+            # from here on that is what the target records, never the FD-9
+            # values it was opened with.
+            _store = self._target_settings_store()
+            if _store is not None:
+                self._fd9_off_screens().pop(
+                    str(getattr(_store, "dir", _store)), None)
             self.save_target_settings()
         except Exception:      # noqa: BLE001 — a failed write must not lose the chart
             log.warning("could not file the built chart's settings against its "
