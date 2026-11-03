@@ -138,10 +138,11 @@ def target_names_fd9(stored_params: "dict | None",
 def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
                          stored_params: "dict | None",
                          stored_ui: "dict | None",
-                         screen_at_load: "tuple | None" = None) -> None:
+                         screen_at_load: "tuple | None" = None,
+                         own: "set | None" = None) -> set:
     """Put the stored FD-9 Create Chart values back into *wanted* and
     *ui_state* (in place) while FD-9 support is OFF (review r2 S1, narrowed
-    in review r3 R3-1).
+    in review r3 R3-1 and r4 R4-1).
 
     The Create Chart counterpart of ``measure_settings.carry_fd9_keys``. A
     target whose chart was made for the FD-9 with the Beta on keeps its FD-9
@@ -151,33 +152,68 @@ def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
     target. With nothing else changed the write is then skipped altogether
     and ``meta.json`` stays byte-identical.
 
-    *screen_at_load* is ``(wanted, ui_state)`` as the tab showed them right
-    after it opened this target with the Beta off. A key is carried ONLY while
-    its value on screen is still that one: a value the user changed is the
-    user's and is written as it is (R3-1: a paper or page count picked with
-    the Beta off used to be thrown away without a word). Without a snapshot
-    nothing is carried; the caller passes None once the target's chart is no
-    longer an FD-9 chart or the user has generated into it, so ``meta.json``
-    then describes the chart that is really there. With the Beta on this does
-    nothing: the tab writes its own FD-9 values, as before."""
+    *stored_params* / *stored_ui* are the target's blocks AS THEY WERE WHEN
+    THE TAB OPENED IT, never as ``meta.json`` reads at write time: once the
+    user's own value has been written, the file holds the user's value, and
+    carrying "the stored value" back would then put the user's earlier choice
+    over their later one (R4-1). *screen_at_load* is ``(wanted, ui_state)``
+    as the tab showed them right after that load. A key is carried ONLY while
+    its value on screen is still that one and it is not in *own*: a value the
+    user changed is the user's and is written as it is (R3-1). Keys are named
+    ``("params", key)`` or ``(block, key)``.
+
+    The other FD-9 values of a block come back only while its instrument
+    does: a user who picks another instrument has made the block theirs.
+
+    Returns the keys this write files as the user's. The caller adds them to
+    *own* once the write is done, so a key the user changed is never carried
+    again, even after they change it back to the value it opened with.
+
+    Without a snapshot nothing is carried; the caller passes None once the
+    target's chart is no longer an FD-9 chart or the user has generated into
+    it, so ``meta.json`` then describes the chart that is really there. With
+    the Beta on this does nothing: the tab writes its own FD-9 values."""
+    users: set = set()
     if fd9_enabled():
-        return
+        return users
     if not (isinstance(screen_at_load, tuple) and len(screen_at_load) == 2):
-        return
+        return users
+    own = own if isinstance(own, (set, frozenset)) else set()
     loaded_params, loaded_ui = screen_at_load
     loaded_params = loaded_params if isinstance(loaded_params, dict) else {}
     loaded_ui = loaded_ui if isinstance(loaded_ui, dict) else {}
     _missing = object()
+
+    def _split(where, keys, was, now, at_load):
+        """(carried, changed) for one block: carried while unchanged and
+        not the user's, and only while its instrument is carried too."""
+        carried, changed = set(), set()
+        for key in keys:
+            if key not in was:
+                continue
+            if (where, key) in own:
+                changed.add(key)
+            elif now.get(key, _missing) == at_load.get(key, _missing):
+                carried.add(key)
+            else:
+                changed.add(key)
+        instrument = "printtarg-i" if where == "params" else "instrument"
+        if instrument not in carried:
+            changed |= carried
+            carried = set()
+        return carried, changed
+
     params = stored_params if isinstance(stored_params, dict) else {}
     if isinstance(wanted, dict) and _names_fd9(
             (params.get("printtarg-i") or {}).get("value")):
-        for key in CHART_PARAM_KEYS:
-            if key in params and (wanted.get(key, _missing)
-                                  == loaded_params.get(key, _missing)):
-                wanted[key] = params[key]
+        carried, changed = _split("params", CHART_PARAM_KEYS, params, wanted,
+                                  loaded_params)
+        for key in carried:
+            wanted[key] = params[key]
+        users |= {("params", key) for key in changed}
     ui = stored_ui if isinstance(stored_ui, dict) else {}
     if not isinstance(ui_state, dict):
-        return
+        return users
     for block, keys in (("guided", CHART_GUIDED_KEYS),
                         ("engine_recipe", CHART_RECIPE_KEYS)):
         was = ui.get(block)
@@ -188,9 +224,10 @@ def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
             continue
         at_load = loaded_ui.get(block)
         at_load = at_load if isinstance(at_load, dict) else {}
-        carried = {key for key in keys
-                   if key in was and now.get(key, _missing)
-                   == at_load.get(key, _missing)}
+        carried, changed = _split(block, keys, was, now, at_load)
+        users |= {(block, key) for key in changed}
+        if not carried:
+            continue
         # In the STORED order, so a block written again (the user switched
         # Guided/Manual and back, say) comes out byte for byte as it was.
         ordered = {}
@@ -203,3 +240,30 @@ def carry_fd9_chart_keys(wanted: "dict | None", ui_state: "dict | None",
             if key not in ordered and key not in carried:
                 ordered[key] = now[key]
         ui_state[block] = ordered
+    return users
+
+
+class Fd9OffSnapshot:
+    """An FD-9 target as the Beta-off tab opened it (review r3 R3-1, r4 R4-1).
+
+    *screen* is what the tab showed right after the load, *stored* the
+    target's Create Chart blocks as ``meta.json`` held them then, and *own*
+    the keys since written as the user's (never carried again)."""
+
+    __slots__ = ("screen", "stored", "own")
+
+    def __init__(self, screen_params, screen_ui, stored_params, stored_ui):
+        import copy
+        self.screen = (copy.deepcopy(screen_params), copy.deepcopy(screen_ui))
+        self.stored = (copy.deepcopy(stored_params), copy.deepcopy(stored_ui))
+        self.own: set = set()
+
+    def carry(self, wanted: "dict | None", ui_state: "dict | None") -> set:
+        """`carry_fd9_chart_keys` from the values as loaded. Returns the keys
+        this write files as the user's; pass them to :meth:`written`."""
+        return carry_fd9_chart_keys(wanted, ui_state, self.stored[0],
+                                    self.stored[1], self.screen, self.own)
+
+    def written(self, users: set) -> None:
+        """The write that carried went to disk: its user keys are theirs."""
+        self.own |= set(users or ())

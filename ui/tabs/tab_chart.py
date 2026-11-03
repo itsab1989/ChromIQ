@@ -21774,7 +21774,7 @@ class TabChart(QWidget):
             # meta.json, and nothing at all with the Beta on.
             # The memory below holds what the TAB wanted, before the carry,
             # so a repeat with nothing changed still reads nothing.
-            from workflow.fd9.support import carry_fd9_chart_keys, fd9_enabled
+            from workflow.fd9.support import fd9_enabled
             if fd9_enabled():
                 at_load = None
                 screen = (wanted, ui_state)    # the carry does nothing then
@@ -21792,19 +21792,22 @@ class TabChart(QWidget):
             if self._written_cache().get(fingerprint) == screen:
                 return False
             meta = store.load_meta()
-            carry_fd9_chart_keys(
-                wanted, ui_state,
-                getattr(meta, "create_chart_settings", None),
-                getattr(meta, "create_chart_ui", None), at_load)
+            # Carried from the blocks AS OPENED, never from this meta.json:
+            # after a write it holds the user's own earlier value (R4-1).
+            users = at_load.carry(wanted, ui_state) if at_load else set()
             if (getattr(meta, "create_chart_settings", None) == wanted
                     and getattr(meta, "create_chart_ui", None) == ui_state):
                 self._written_cache()[fingerprint] = screen
+                if at_load:
+                    at_load.written(users)
                 return False       # nothing changed; don't churn the file
             meta.create_chart_settings = wanted
             if hasattr(meta, "create_chart_ui"):
                 meta.create_chart_ui = ui_state
             store.save_meta(meta)
             self._written_cache()[fingerprint] = screen
+            if at_load:
+                at_load.written(users)
             log.debug("create-chart settings written for %s (%d parameters "
                       "+ ui state)",
                       getattr(store, "id", store), len(wanted))
@@ -22092,11 +22095,15 @@ class TabChart(QWidget):
             self._fd9_off_screens().pop(fingerprint, None)
             if fd9_enabled() or not target_names_fd9(stored, ui_state):
                 return
-            import copy as _copy
+            from workflow.fd9.support import Fd9OffSnapshot
             from workflow.per_target_settings import snapshot
-            self._fd9_off_screens()[fingerprint] = (
-                _copy.deepcopy(snapshot(self)),
-                _copy.deepcopy(self._collect_ui_state()))
+            # The stored blocks are read again, as the file holds them, and
+            # kept: the carry takes its values from these (review r4 R4-1).
+            meta = store.load_meta()
+            self._fd9_off_screens()[fingerprint] = Fd9OffSnapshot(
+                snapshot(self), self._collect_ui_state(),
+                getattr(meta, "create_chart_settings", None),
+                getattr(meta, "create_chart_ui", None))
         except Exception:      # noqa: BLE001 — never block a load over it
             log.warning("Could not note the FD-9 target's screen",
                         exc_info=True)

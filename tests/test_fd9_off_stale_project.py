@@ -130,6 +130,33 @@ elif MODE == "off-edit":
     pump(500)
     visit_every_tab()
     loaded = [str(tab._paper_combo.currentData()), tab._pages_spin.value()]
+elif MODE == "off-flip-pulldown":
+    # Review r4 R4-1: Letter, a write with no reload (what opening the
+    # Profile-run pulldown does), A4 again, leave the tab. The user's A4
+    # must be what is filed, not their own earlier Letter.
+    QTimer.singleShot(0, lambda: tab.open_project_manifest(
+        Path(out) / NAME / "project.json"))
+    pump(2500)
+    win._tabs.setCurrentIndex(0)
+    pump(700)
+    tab._switch_mode("guided")
+    pump(800)
+    first = str(tab._paper_combo.currentData())
+    for paper in ("Letter", first):
+        i = tab._paper_combo.findData(paper)
+        tab._paper_combo.setCurrentIndex(i)
+        tab._paper_combo.activated.emit(i)
+        pump(500)
+        if paper == "Letter":
+            win._save_settings_of_visible_tab()
+            pump(500)
+            m = json.loads((Path(out) / NAME / "runs" / "run1" / "meta.json")
+                           .read_text(encoding="utf-8"))
+            windows.append("after the pulldown write: "
+                           + str(m["create_chart_ui"]["guided"]["paper"]))
+    win._tabs.setCurrentIndex(1)
+    pump(700)
+    loaded = [first, str(tab._paper_combo.currentData())]
 elif MODE == "off-generate":
     # Review r3 R3-1: the user generates an i1Pro chart into the FD-9 run.
     QTimer.singleShot(0, lambda: tab.open_project_manifest(
@@ -317,3 +344,23 @@ def test_generating_an_i1pro_chart_into_the_fd9_run_leaves_no_fd9(
     assert not _names_fd9_anywhere(meta), (
         "run 1 holds an i1Pro chart but its meta.json still names the FD-9: "
         f"{_names_fd9_anywhere(meta)}")
+
+
+@needs_argyll
+def test_a_change_back_after_a_write_without_a_reload_is_kept(
+        fd9_project, tmp_path):
+    """Review r4 R4-1: A4 as opened, Letter, the Profile-run pulldown writes
+    (no reload), A4 again, leave the tab. The carry used to take "the stored
+    value" from meta.json as it was by then, which was the user's own Letter,
+    so the A4 they picked last was lost."""
+    out, project = _copy_of(fd9_project, tmp_path)
+    got = _run("off-flip-pulldown", tmp_path / "off.ini", out)
+    assert got["loaded"] == ["A4", "A4"], (
+        f"the FD-9 chart did not open on A4, so this proves nothing: {got}")
+    assert "after the pulldown write: Letter" in got["windows"], (
+        f"the pulldown write did not file the user's Letter: {got}")
+    guided = _run1_meta(project)["create_chart_ui"]["guided"]
+    assert guided["paper"] == "A4", (
+        f"the user's A4 was replaced by their own earlier Letter: {guided}")
+    assert guided["instrument"] == "FD9", (
+        f"the untouched FD-9 instrument was not carried: {guided}")
