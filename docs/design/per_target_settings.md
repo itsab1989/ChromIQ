@@ -403,13 +403,35 @@ leaves Verification lets go of the dated verification before it selects
 Profiling, so Profiling is selected once, not twice (the second selection
 reloaded the stored settings over the chart).
 
-Seen while testing and not changed (it is the run change's own and older):
-after a run change, a SECOND write of Create Chart (a second tab change, or
-entering Create Chart from Measure and leaving it) files the chart's paper
-into the Guided paper row (`printtarg -p`), while the Manual layout stays
-the run's own. Measured after a plain run change as well as after the
-opens; recorded as an expected failure in the open tests. Not fixed: a
-question for Basti.
+**The chart's paper after a run change (4.3.23, fix_final).** Found while
+testing the opens, and the run change's own, older fault (4.3.22 had it):
+after any run change, a plain one included, a write of Create Chart (a
+second tab change, or entering Create Chart from Measure and leaving it;
+sometimes already the first) filed the chart's paper into the run's stored
+`printtarg -p` (Letter became A4), while the Manual layout stayed the run's
+own. No one had changed the paper, so this broke §2.2.
+
+Why the shield did not cover it: loading the run's stored Manual layout
+sets the layout panel's instrument before its paper, and that instrument
+change copied the panel's PREVIOUS paper (the chart's) into `-p` before
+the stored paper arrived. So the snapshot of the run's own values already
+held the chart's paper, nothing seemed to move, and every later visit to
+the tab put the chart's paper back on `-p`.
+
+As built: the copy into `-p` waits until the panel holds the whole stored
+layout, so after a load `-p` is the run's own. When the chart is then
+painted, `-p` takes the chart's paper with the panel, and the §2.2 shield
+records it like the layout's own fields: the next writes file the run's
+own paper, and a paper the user then chooses is saved as theirs. Two tab
+changes after a run change leave `meta.json` byte-identical, on Create
+Chart and from Measure, and after every open above.
+
+Code: `TabChart._set_engine_recipe` and `_sync_manual_selection_from_panel`
+(`_panel_recipe_depth`, `_panel_mirror_pending`); tests:
+`tests/test_4323_run_change_keeps_the_paper.py`, and the open tests below
+(the Measure and import routes were an expected failure until then).
+
+**Confirmed by:** *nobody yet.*
 
 Code: `TabChart._open_moves_the_bar`, `_paint_what_the_bar_move_did_not`,
 `_reset_run_type_for_loaded_project`; tests: the `OPEN_ROUTES` tests in

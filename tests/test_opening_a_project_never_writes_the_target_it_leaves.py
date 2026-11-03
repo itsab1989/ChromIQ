@@ -475,32 +475,47 @@ def test_an_open_shows_the_runs_chart_in_the_panel(qapp, world, route):
         tab._log.toPlainText())
 
 
-_GUIDED_PAPER_ROW = pytest.mark.xfail(strict=True, reason=(
-    "the run change's own, older gap, not the open's: when Create Chart is "
-    "ENTERED after the run change (here from Measure, where these opens "
-    "leave the app), the visit files the chart's paper into the Guided "
-    "paper row (printtarg -p). Measured the same after a plain run change "
-    "made on Measure; recorded for Basti, 4.3.23 fix_r2B"))
+# THE MEASURE AND IMPORT ROUTES WERE A STRICT XFAIL UNTIL 4.3.23 fix_final:
+# entering Create Chart after the run change filed the chart's paper into
+# printtarg -p, the run change's own older gap (4.3.22 had it). Loading the
+# run's stored layout mirrored the panel's PREVIOUS paper, the chart's, into
+# -p before the recipe's own paper arrived, so the §2.2 shield never saw -p
+# move. The mirror now waits for the whole recipe (`_set_engine_recipe`);
+# tests/test_4323_run_change_keeps_the_paper.py pins the plain run change.
 
-
-@pytest.mark.parametrize("route", [
-    r if not r.endswith(("_measure", "_import"))
-    else pytest.param(r, marks=_GUIDED_PAPER_ROW) for r in OPEN_ROUTES])
+@pytest.mark.parametrize("route", OPEN_ROUTES)
 def test_after_an_open_a_tab_change_writes_nothing_into_the_run(
         qapp, world, route):
     """The §2.2 shield is armed: what the chart put on the panel is not
     filed as the run's own."""
     win, copy = world
     project, meta, _chart, how = _before_the_open(qapp, win, copy, route)
-    before = _bytes(meta)
+    before = _but_measure(meta)
+    before_bytes = _bytes(meta)
     _open(qapp, win, project, how)
     assert win._tab_chart._chart_imposed, "the §2.2 shield is not armed"
-    # One tab change, as after a run change. (A SECOND one files the Guided
-    # paper row from the chart after a plain run change too; that is the run
-    # change's own, older behaviour and not what this is about.)
+    # Two tab changes: the second used to file the chart's paper into
+    # printtarg -p (fixed in 4.3.23, fix_final).
     _one_tab_change(qapp, win)
-    assert _bytes(meta) == before, (
+    assert _but_measure(meta) == before, (
         f"the open's chart was filed as the run's own: {_stored(meta)}")
+    _one_tab_change(qapp, win)
+    assert _but_measure(meta) == before, (
+        f"the second tab change filed the chart: {_everything_stored(meta)}")
+    if how == "masthead":
+        # Measure never left: the file itself, byte for byte.
+        assert _bytes(meta) == before_bytes
+
+
+def _but_measure(meta: Path) -> str:
+    """meta.json as text without `measure_settings`. On the Measure and
+    import routes the first tab change LEAVES Measure, and the Measure tab
+    files its own settings into the opened run, which had none stored: its
+    own §2.1 write, not Create Chart's. Everything else must be unchanged,
+    byte for byte in its serialisation."""
+    data = json.loads(meta.read_text(encoding="utf-8"))
+    data.pop("measure_settings", None)
+    return json.dumps(data, indent=2)
 
 
 @pytest.mark.parametrize("route", ("cold", "other_run", "verification",

@@ -9796,6 +9796,11 @@ class TabChart(QWidget):
                 or getattr(self, "_syncing_manual_sel", False)
                 or getattr(p, "_loading", False)):
             return
+        if getattr(self, "_panel_recipe_depth", 0):
+            # Mid-recipe: the paper is not the recipe's yet. Mirrored once
+            # the panel holds all of it (`_set_engine_recipe`).
+            self._panel_mirror_pending = True
+            return
         eng = p.instr.currentData() or "i1"
         # `selection()`, not `paper.currentData()`: on Custom the combo's data
         # is the sentinel "__custom__", which -p cannot take, so -p kept the
@@ -29745,14 +29750,39 @@ class TabChart(QWidget):
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is None:
             return
-        if fd9_recipe:
-            # A partially restored generic panel must not mirror its old
-            # instrument back into Guided or switch the renderer to printtarg.
-            from PyQt6.QtCore import QSignalBlocker
-            with QSignalBlocker(panel):
+        # THE PAPER MIRRORED INTO -p IS THE RECIPE'S, NEVER THE ONE BEFORE IT
+        # (4.3.23, §2.2). `set_recipe` sets the instrument first, and the
+        # panel's `_on_instr_changed` closes its own `_loading` window part
+        # way through, so `_sync_manual_selection_from_panel` ran while the
+        # panel still showed the PREVIOUS paper and filed that into printtarg
+        # -p; the recipe's own paper then arrived under `_loading` and was
+        # never mirrored. On a run change that previous paper is the chart's:
+        # loading the run's stored layout left -p on the chart's A4 instead
+        # of its stored Letter, so the shield's "own" snapshot already held
+        # the chart's paper, saw nothing move, and the next write filed it
+        # (and every later visit to the tab did it again). The mirror now
+        # waits until the panel holds the whole recipe; when the paint of a
+        # chart moves -p after that, `_note_what_the_chart_imposed` sees it
+        # and the shield keeps the run's own paper, as it does for the
+        # layout's fields. Only a mirror the load asked for runs, so a
+        # recipe that does not change the instrument still mirrors nothing.
+        self._panel_recipe_depth = getattr(self, "_panel_recipe_depth", 0) + 1
+        try:
+            if fd9_recipe:
+                # A partially restored generic panel must not mirror its old
+                # instrument back into Guided or switch the renderer to
+                # printtarg.
+                from PyQt6.QtCore import QSignalBlocker
+                with QSignalBlocker(panel):
+                    panel.set_recipe(recipe)
+            else:
                 panel.set_recipe(recipe)
-        else:
-            panel.set_recipe(recipe)
+        finally:
+            self._panel_recipe_depth -= 1
+        if (not self._panel_recipe_depth
+                and getattr(self, "_panel_mirror_pending", False)):
+            self._panel_mirror_pending = False
+            self._sync_manual_selection_from_panel()
 
 
     def _refresh_helper_marker_support(self, *_a) -> None:
