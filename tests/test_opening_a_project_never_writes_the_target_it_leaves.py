@@ -372,3 +372,169 @@ def test_an_unsaved_edit_in_the_project_left_lands_in_its_run_only(
     _one_tab_change(qapp, win)
     assert _settings_in(y / "runs" / "run1" / "meta.json") == set()
     assert _stored(x1) == want, _stored(x1)
+
+
+# ---- the screen after an open that moves the bar (review r2B S1) ----------
+#
+# §2.2 (confirmed by Knut and Sebastian, 2026-09-10): selecting a run paints
+# that run's chart over the Create Chart panel, and what the chart moved is
+# noted so the next write files the run's own values. An open that ends on a
+# run with a chart is held to the same rule (Basti's ruling, 2026-11-03). The
+# open used to paint the chart and then let the bar move load the run's
+# stored settings over it, where "already showing this chart" left them: the
+# panel showed the stored Manual layout under the chart's preview, the log
+# said the chart's own settings had been restored, and Generate would have
+# built the stored layout. Each route below lands on a run whose stored
+# layout (Letter, 38/26 mm, area first, engine off) differs from its chart's.
+
+OPEN_ROUTES = ("cold", "other_run", "verification",
+               "other_project", "other_project_measure",
+               "other_project_import")
+
+
+def _a_run_with_its_own_layout(qapp, win, copy, name, run_id):
+    project = copy(name)
+    _tweak_sidecar(project / "runs" / run_id / f"{name}.channels.json",
+                   12.0, 9.0)
+    _open(qapp, win, project)
+    assert win._target_ctl.target.profile_run == run_id
+    _leave_and_return(qapp, win)
+    _own_layout(qapp, win, 38.0, 26.0)
+    _leave_and_return(qapp, win)
+    meta = project / "runs" / run_id / "meta.json"
+    _settle(qapp, win, meta)
+    assert _stored(meta)["paper"] == "Letter", _stored(meta)
+    return project, meta
+
+
+def _before_the_open(qapp, win, copy, route):
+    """Set the scene for *route*; return (project to open, the incoming
+    run's meta.json, the chart's sidecar recipe, how to open it)."""
+    if route == "other_run":
+        project, meta = _a_run_with_its_own_layout(
+            qapp, win, copy, "Demo-Full-RGB", "run3")
+        win._target_ctl.set_profile_run("run2")
+        _pump(qapp, 400)
+        _leave_and_return(qapp, win)
+        how = "masthead"
+    else:
+        project, meta = _a_run_with_its_own_layout(
+            qapp, win, copy, "Demo-Verify-History", "run1")
+        how = "masthead"
+        if route == "cold":
+            win._reset_after_project_gone(deleted=False)
+            _pump(qapp, 300)
+            assert win._target_ctl.project_or_none() is None
+        elif route == "verification":
+            win._target_ctl.set_run_type("verification")
+            _pump(qapp, 400)
+            _leave_and_return(qapp, win)
+        else:
+            x = copy("Demo-Full-RGB")
+            _open(qapp, win, x)
+            _leave_and_return(qapp, win)
+            win._target_ctl.set_profile_run("run2")
+            _pump(qapp, 400)
+            _leave_and_return(qapp, win)
+            _settle(qapp, win, x / "runs" / "run2" / "meta.json")
+            how = {"other_project": "masthead",
+                   "other_project_measure": "measure",
+                   "other_project_import": "import"}[route]
+    side = project / "runs" / meta.parent.name / (
+        f"{project.name}.channels.json")
+    chart = json.loads(side.read_text(encoding="utf-8"))["layout"]["recipe"]
+    return project, meta, chart, how
+
+
+def _panel(win) -> dict:
+    rec = win._tab_chart._manual_layout_panel.get_recipe()
+    return {f: getattr(rec, f, None)
+            for f in ("paper", "margin_top", "margin_left", "layout_mode")}
+
+
+@pytest.mark.parametrize("route", OPEN_ROUTES)
+def test_an_open_shows_the_runs_chart_in_the_panel(qapp, world, route):
+    win, copy = world
+    project, meta, chart, how = _before_the_open(qapp, win, copy, route)
+    stored = _stored(meta)
+    _open(qapp, win, project, how)
+    tab = win._tab_chart
+    assert win._target_ctl.target.profile_run == meta.parent.name
+    assert win._target_ctl.target.run_type == "profiling"
+    assert Path(tab._shown_chart_ti2).name == f"{project.name}.ti2"
+    want = {f: chart[f] for f in
+            ("paper", "margin_top", "margin_left", "layout_mode")}
+    assert want != {f: stored[f] for f in want}, "nothing to tell apart"
+    assert _panel(win) == want, (
+        "after the open the Create Chart panel does not show the chart on "
+        f"screen:\n  panel {_panel(win)}\n  chart {want}\n  stored {stored}")
+    # …with the §2.2 shield armed, as after a run change.
+    assert tab._chart_imposed, "the §2.2 shield is not armed"
+    # The log says what the panel shows.
+    assert "Restored the chart's own layout settings" in (
+        tab._log.toPlainText())
+
+
+_GUIDED_PAPER_ROW = pytest.mark.xfail(strict=True, reason=(
+    "the run change's own, older gap, not the open's: when Create Chart is "
+    "ENTERED after the run change (here from Measure, where these opens "
+    "leave the app), the visit files the chart's paper into the Guided "
+    "paper row (printtarg -p). Measured the same after a plain run change "
+    "made on Measure; recorded for Basti, 4.3.23 fix_r2B"))
+
+
+@pytest.mark.parametrize("route", [
+    r if not r.endswith(("_measure", "_import"))
+    else pytest.param(r, marks=_GUIDED_PAPER_ROW) for r in OPEN_ROUTES])
+def test_after_an_open_a_tab_change_writes_nothing_into_the_run(
+        qapp, world, route):
+    """The §2.2 shield is armed: what the chart put on the panel is not
+    filed as the run's own."""
+    win, copy = world
+    project, meta, _chart, how = _before_the_open(qapp, win, copy, route)
+    before = _bytes(meta)
+    _open(qapp, win, project, how)
+    assert win._tab_chart._chart_imposed, "the §2.2 shield is not armed"
+    # One tab change, as after a run change. (A SECOND one files the Guided
+    # paper row from the chart after a plain run change too; that is the run
+    # change's own, older behaviour and not what this is about.)
+    _one_tab_change(qapp, win)
+    assert _bytes(meta) == before, (
+        f"the open's chart was filed as the run's own: {_stored(meta)}")
+
+
+@pytest.mark.parametrize("route", ("cold", "other_run", "verification",
+                                   "other_project"))
+def test_an_edit_after_an_open_is_saved_as_the_users(qapp, world, route):
+    win, copy = world
+    project, meta, _chart, how = _before_the_open(qapp, win, copy, route)
+    before = _everything_stored(meta)
+    _open(qapp, win, project, how)
+    spin = win._tab_chart._manual_layout_panel.margins["b"]
+    spin.setValue(spin.value() + 7.0)
+    want = spin.value()
+    _pump(qapp, 200)
+    _leave_and_return(qapp, win)
+    after = _everything_stored(meta)
+    assert after["ui.engine_recipe.margin_bottom"] == want, after
+    moved = {k: (before.get(k), after.get(k))
+             for k in set(before) | set(after) if before.get(k) != after.get(k)}
+    assert set(moved) == {"ui.engine_recipe.margin_bottom"}, (
+        f"more than the one edited value was saved: {moved}")
+
+
+def _everything_stored(meta: Path) -> dict:
+    """Every Create Chart value the run stores, flattened."""
+    data = json.loads(meta.read_text(encoding="utf-8"))
+    out = {}
+
+    def walk(prefix, value):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                walk(f"{prefix}.{k}", v)
+        else:
+            out[prefix] = value
+
+    walk("params", data.get("create_chart_settings") or {})
+    walk("ui", data.get("create_chart_ui") or {})
+    return out

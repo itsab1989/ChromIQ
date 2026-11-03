@@ -10925,13 +10925,52 @@ class TabChart(QWidget):
         # (4.3.23). Until the open has moved the bar, nothing writes that
         # target again: see `_write_the_target_the_open_leaves`.
         self._write_the_target_the_open_leaves()
+        self._chart_the_bar_move_paints = None
         try:
             if self._open_project_at_manifest(manifest):
                 # #130: default the shared bar to this project's current run.
                 self._default_bar_to_current_run()
                 self._reset_run_type_for_loaded_project()
+                self._paint_what_the_bar_move_did_not()
         finally:
+            self._chart_the_bar_move_paints = None
             self._opening_project = False
+
+    def _open_moves_the_bar(self) -> bool:
+        """Whether the bar moves at the end of this Open Project: it names
+        another run than the opened project's current one, or Run type is
+        Verification (`_default_bar_to_current_run`,
+        `_reset_run_type_for_loaded_project`). Asked after the file manager
+        has switched. Either move runs `_on_target_changed`, which then
+        paints the chart as a run change does (§2.2). In doubt, False: the
+        open paints the chart itself, as before."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return False
+        try:
+            proj = ctl.project_or_none()
+            if proj is None:
+                return False
+            return (ctl.target.profile_run != proj.current_run().id
+                    or ctl.target.is_verification())
+        except Exception:      # noqa: BLE001 — in doubt, the old route
+            return False
+
+    def _paint_what_the_bar_move_did_not(self) -> None:
+        """The chart an open left to the bar move, if the move did not show
+        it (it always should; this keeps the screen right if it ever does
+        not). Painted the old way, without the shield."""
+        held = getattr(self, "_chart_the_bar_move_paints", None)
+        self._chart_the_bar_move_paints = None
+        if held is None:
+            return
+        ti2, tiffs, ti1 = held
+        stamp = self._chart_stamp(ti2)
+        if stamp is not None and stamp == self._shown_chart_stamp:
+            return
+        log.warning("Open Project: the bar move did not show %s; painting it "
+                    "without the run-change protection", ti2)
+        self._display_run_chart(ti2, tiffs, ti1)
 
     def _write_the_target_the_open_leaves(self) -> None:
         """§2.1 for Open Project: write the selected target now, then hold
@@ -11060,6 +11099,19 @@ class TabChart(QWidget):
             if self._open_leaves_the_bar_where_it_is(was_open):
                 self._reshow_the_selected_targets_chart(
                     lambda: self._display_run_chart(ti2, tiffs, ti1))
+            elif self._open_moves_the_bar():
+                # …AND AN OPEN THAT MOVES THE BAR LETS THE BAR MOVE PAINT IT.
+                #
+                # Painted here, the chart was shown first and then the bar
+                # move's `_on_target_changed` loaded the run's stored settings
+                # over it and stopped at "already showing this chart", so the
+                # panel showed the stored layout under the chart's preview and
+                # the shield was never armed (review r2B S1, 4.3.23). Left to
+                # that handler, it is the run change §2.2 describes: stored
+                # settings loaded, the chart painted over them, the values it
+                # moved noted. `_paint_what_the_bar_move_did_not` paints it the
+                # old way if no move came after all.
+                self._chart_the_bar_move_paints = (ti2, tiffs, ti1)
             else:
                 self._display_run_chart(ti2, tiffs, ti1)
         else:
@@ -24757,8 +24809,14 @@ class TabChart(QWidget):
             return
         try:
             if ctl.target.is_verification():
-                ctl.set_run_type("profiling")
+                # The dated verification is let go FIRST, while it is still a
+                # Verification target. The other way round, Profiling was
+                # selected and painted (with the §2.2 shield), and then the
+                # verification's own change selected the same Profiling target
+                # a second time: the stored settings were reloaded over the
+                # chart, and "already showing this chart" left them there.
                 ctl.set_verification_id("")
+                ctl.set_run_type("profiling")
         except Exception as exc:      # noqa: BLE001 — never block a load
             log.warning("Could not reset the run type on project load: %s", exc)
 

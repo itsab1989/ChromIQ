@@ -323,8 +323,9 @@ write files the run's own values and not the chart's.
 * A value the user changes by hand after the reopen is theirs and is written,
   and only that value.
 * A different project, a bar on another run, or Run type Verification each
-  moves the bar, and `_on_target_changed` protects the incoming target as
-  before. What those opens did to the target being LEFT is the next block.
+  moves the bar, and the bar move is the target change that protects the
+  incoming target: see "What the screen shows after an open" below. What
+  those opens did to the target being LEFT is the next block.
 
 Code: `TabChart._open_leaves_the_bar_where_it_is` and
 `_reshow_the_selected_targets_chart` (`ui/tabs/tab_chart.py`); tests:
@@ -361,15 +362,60 @@ for the incoming target is unchanged, and so is the reopen above.
 * A value the user changed on the outgoing target and had not yet saved
   (no tab change since) is in that target's store after the open, and in no
   other.
-* The screen after the open is unchanged by this. Seen while testing and not
-  touched now: after such an open the Create Chart panel can show the
-  incoming target's stored settings rather than its chart's.
+* What the screen shows after the open is the next block.
 
 Code: `TabChart._write_the_target_the_open_leaves`, `_the_open_ends_on` and
 the `_opening_project` guard in `save_target_settings` (`ui/tabs/tab_chart.py`)
 and in `MainWindow._save_settings_of_visible_tab`; tests:
 `tests/test_opening_a_project_never_writes_the_target_it_leaves.py` (both
 ways in: the masthead, and the open the Measure tab's import performs).
+
+**What the screen shows after an open (4.3.23).** §2.2 for a run change,
+applied to Open Project (ruled by Basti on 2026-11-03, delegated to him):
+an open that ends on a run with a chart ends as a run change does. The run's
+stored settings are loaded, the chart is painted over the Create Chart
+panel, and the values the chart moved are noted (the §2.2 shield), so the
+panel matches the preview, Generate Chart rebuilds the chart on screen, and
+the next write files the run's own stored values, not the chart's.
+
+| the open | the bar | what the panel shows after it, before 4.3.23 | after |
+|---|---|---|---|
+| the project and run already open | does not move | the chart's recipe (the next tab change filed it as the run's own) | the chart's recipe, shield armed (block above) |
+| nothing open before ("cold") | moves to the current run | the run's stored settings, no shield | the chart's recipe, shield armed |
+| the same project, the bar on another run | moves | the stored settings, no shield | the chart's recipe, shield armed |
+| the same project, Run type Verification | moves to Profiling | the stored settings, no shield | the chart's recipe, shield armed |
+| another project, the bar on a run that is not its current one | moves | 4.3.22: the chart's recipe, only because the bar's pre-change write had just filed it into the run; 4.3.23 before this: the stored settings | the chart's recipe, shield armed |
+| another project, the bar already on its current run's number | does not move | the chart's recipe, shield armed (the project change is a target change of its own) | unchanged |
+
+The same holds with the Measure tab on screen (the import's open): the
+panel behind it is painted the same way. The log says "Switched to this
+run's profiling chart." and then that the chart's own layout settings were
+restored, which is now what the panel shows. When the user then leaves
+Create Chart and comes back, the tab reloads the run's stored settings
+(§2 L1) and the §2.2 warning says they differ from the chart, exactly as
+after a run change.
+
+As built: an open that will move the bar (`_open_moves_the_bar`) does not
+paint the chart itself; the bar move's `_on_target_changed` paints it, the
+same handler a run change uses, and if no move came after all the open
+paints it the old way (`_paint_what_the_bar_move_did_not`). The open that
+leaves Verification lets go of the dated verification before it selects
+Profiling, so Profiling is selected once, not twice (the second selection
+reloaded the stored settings over the chart).
+
+Seen while testing and not changed (it is the run change's own and older):
+after a run change, a SECOND write of Create Chart (a second tab change, or
+entering Create Chart from Measure and leaving it) files the chart's paper
+into the Guided paper row (`printtarg -p`), while the Manual layout stays
+the run's own. Measured after a plain run change as well as after the
+opens; recorded as an expected failure in the open tests. Not fixed: a
+question for Basti.
+
+Code: `TabChart._open_moves_the_bar`, `_paint_what_the_bar_move_did_not`,
+`_reset_run_type_for_loaded_project`; tests: the `OPEN_ROUTES` tests in
+`tests/test_opening_a_project_never_writes_the_target_it_leaves.py` and
+`test_a_fresh_open_shows_the_chart_and_files_nothing_of_it` in
+`tests/test_reopening_the_open_project_keeps_the_runs_settings.py`.
 
 ## 3. When settings are written
 

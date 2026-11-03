@@ -179,26 +179,32 @@ def test_a_change_after_the_reopen_is_the_only_thing_saved(qapp, world):
         f"  after    {after}")
 
 
-def test_a_fresh_open_is_unchanged(qapp, world, monkeypatch):
-    """The other route, nothing open before: the bar moves, so the real
-    target change does the protecting, and the reopen path is never taken."""
+def test_a_fresh_open_shows_the_chart_and_files_nothing_of_it(qapp, world):
+    """The other route, nothing open before: the bar moves, so the open is a
+    real target change. It ends as one (§2.2): the run's chart on screen and
+    in the panel, the shield armed, so leaving the tab files nothing of the
+    chart. (Checks behaviour; it used to spy on the reopen method, which
+    does not exist on the code before it.)"""
     win, project = world
-    from ui.tabs.tab_chart import TabChart
-    calls = []
-    real = TabChart._reshow_the_selected_targets_chart
-    monkeypatch.setattr(
-        TabChart, "_reshow_the_selected_targets_chart",
-        lambda self, *a, **k: (calls.append(1), real(self, *a, **k))[1])
-    _open(qapp, win, project)
-    assert calls == [], "a fresh open went down the reopen path"
-    # As before: the run's chart is what Create Chart shows and hands on.
-    assert win._tab_chart._shown_chart_ti2 is not None
-    assert Path(win._tab_chart._shown_chart_ti2).name == f"{NAME}.ti2"
-    _leave_and_return(qapp, win)
-    first = _stored(project)
-    _leave_and_return(qapp, win)
-    assert _stored(project) == first
-    # …and the reopen does take it.
-    _open(qapp, win, project)
-    assert calls == [1]
+    before = _a_saved_layout_of_the_users_own(qapp, win, project)
+    chart = _chart_recipe(project)
+    raw = (project / "runs" / "run1" / "meta.json").read_bytes
+    stored_bytes = raw()
+    win._reset_after_project_gone(deleted=False)
+    _pump(qapp, 300)
+    assert win._target_ctl.project_or_none() is None
 
+    _open(qapp, win, project)
+    tab = win._tab_chart
+    # The run's chart is what Create Chart shows and hands on…
+    assert tab._shown_chart_ti2 is not None
+    assert Path(tab._shown_chart_ti2).name == f"{NAME}.ti2"
+    # …and what its panel shows, not the stored layout.
+    shown = tab._manual_layout_panel.get_recipe()
+    assert shown.layout_mode == chart["layout_mode"], shown.layout_mode
+    assert shown.margin_left == chart["margin_left"], shown.margin_left
+    assert shown.paper == chart["paper"], shown.paper
+    _leave_and_return(qapp, win)
+    assert raw() == stored_bytes, (
+        f"the fresh open filed the chart as the run's own: {_stored(project)}")
+    assert _stored(project) == before
