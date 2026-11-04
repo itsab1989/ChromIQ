@@ -9839,6 +9839,68 @@ class TabChart(QWidget):
         and the engine setting (B8-1295)."""
         return _panel_lays_out_on(self)
 
+    def _show_fd9_page_count(self, tiffs) -> None:
+        """A greyed Pages box shows the pages an FD-9 chart really has
+        (4.3.25, F11): the FD-9 lays out its own pages, so a count a preset
+        locked the box at says nothing about this chart. Only while the box
+        is greyed and the panel is on the FD-9; nothing is laid out again."""
+        panel = getattr(self, "_manual_layout_panel", None)
+        if (panel is None or not getattr(panel, "_fd9_support", False)
+                or panel.instr is None or panel.instr.currentData() != "FD9"
+                or panel.pages is None or panel.pages.isEnabled() or not tiffs):
+            return
+        panel.pages.blockSignals(True)
+        try:
+            panel.set_pages(len(tiffs))
+        finally:
+            panel.pages.blockSignals(False)
+
+    def _builtin_preset_instrument(self, key) -> "str | None":
+        """The instrument a built-in preset is laid out for, or None when it
+        keeps whichever is chosen (TC9.18)."""
+        kp = KNUT_PRESETS_BY_KEY.get(key)
+        if kp is not None:
+            if kp.layout_recipe is not None:
+                return (kp.layout_recipe.get("instrument") or kp.instrument
+                        or None)
+            return kp.instrument or None
+        if key in PREBUILT_PRESETS:
+            return self._prebuilt_instrument(key)
+        if key in MUNKI_TARGEN:
+            return "CM"
+        return None
+
+    def _leave_engine_only_for_builtin(self, key) -> None:
+        """Before a built-in preset made for another instrument is applied
+        while an engine-only instrument (the FD-9, the CR30) is chosen, put
+        printtarg's -i and the layout panel on the preset's instrument, the
+        way choosing that instrument does. Without it the panel, which
+        follows an engine-only -i (`_align_panel_to_engine_only_instrument`),
+        was put straight back and the preset was laid out as an FD-9 chart."""
+        from workflow.chart_creator import ENGINE_ONLY_INSTRUMENTS
+        want = self._builtin_preset_instrument(key)
+        if not want:
+            return
+        try:
+            have = str(self._manual_get("printtarg", "-i", "i1") or "")
+        except Exception:      # noqa: BLE001 — a half-built tab
+            return
+        panel = getattr(self, "_manual_layout_panel", None)
+        on_panel = (str(panel.instr.currentData() or "")
+                    if panel is not None and panel.instr is not None else "")
+        if want == have and want == (on_panel or want):
+            return
+        if have not in ENGINE_ONLY_INSTRUMENTS \
+                and on_panel not in ENGINE_ONLY_INSTRUMENTS:
+            return
+        log.info("built-in preset %s is for %s while %s is chosen: the "
+                 "instrument is switched first (F11)", key, want,
+                 on_panel or have)
+        self._set_manual_value("printtarg", "-i", want)
+        if panel is not None:
+            self._sync_engine_panel_selection(
+                want, str(self._manual_get("printtarg", "-p", "A4") or "A4"))
+
     def _align_panel_to_engine_only_instrument(self) -> bool:
         """Put the layout panel on printtarg's -i when -i is an instrument
         only the engine can lay out (the CR30) and the panel is on another
@@ -14955,6 +15017,12 @@ class TabChart(QWidget):
                             "use_chromiq_layout_engine", False)) \
                         != engine_builtin:
                     self._set_engine_checked(engine_builtin)
+                # ANOTHER INSTRUMENT'S PRESET SWITCHES THE INSTRUMENT, from
+                # the FD-9 and the CR30 as from the i1Pro (4.3.25, F11; Knut's
+                # sequence: Manual, FD-9, then a ColorMunki preset left the
+                # panel on the FD-9, because -i still said FD9 and the panel
+                # follows an engine-only -i, B8-1360).
+                self._leave_engine_only_for_builtin(data)
                 if (data in KNUT_PRESET_KEYS
                         and self._mode_name() == "gamut"):
                     # FROM PROFILE GAMUT: the preset's LAYOUT only, filled
@@ -25793,6 +25861,7 @@ class TabChart(QWidget):
             self._current_ti1_path = ti1 if ti1.is_file() else None
             # Baseline the auto-preview signature to what we just rendered, so the
             # refresh this generation triggers doesn't immediately re-render.
+            self._show_fd9_page_count(tiffs)
             self._last_auto_sig = self._layout_signature()
             self._set_margin_chart(tiffs, ti2)
             # #79: arm the one-shot Guided→Manual transfer when this chart was
@@ -29973,6 +30042,14 @@ class TabChart(QWidget):
         rec = LayoutRecipe.from_channels_json(ch)
         if rec is None:
             return None                      # printtarg chart — no engine layout
+        # AN FD-9 CHART NEVER CARRIES HELPER MARKERS (4.3.25, F11): a dash
+        # 2 to 4 mm from the edge would stop the FD-9 finding its marks, and
+        # its builder draws none, so the preview must not show any either.
+        if getattr(panel, "_fd9_support", False) and (
+                rec.instrument == "FD9"
+                or (getattr(panel, "instr", None) is not None
+                    and panel.instr.currentData() == "FD9")):
+            return None             # asked only while FD-9 support is on
 
         # GUIDED HAS NO MARKER CONTROLS, SO IT HAS NOTHING TO PROPOSE.
         #
