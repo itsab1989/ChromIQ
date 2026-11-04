@@ -354,10 +354,10 @@ def _spectral_to_xyz_array(spectral: np.ndarray,
     with no CIE columns, so a file read this way analyses as the same colours
     the profile is built from.
     """
-    integ = _Integrator(np.asarray(wavelengths, dtype=float))
-    return np.array([integ.reflect_xyz(np.asarray(row, dtype=float),
-                                       cie_data.IL_D50)
-                     for row in spectral], dtype=float)
+    from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
+    return spectra_to_xyz_like_argyll(
+        np.asarray(spectral, dtype=float), np.asarray(wavelengths, float),
+        illuminant=cie_data.IL_D50, observer="1931_2", percent=True)
 
 
 def _lab_to_xyz_array(lab: np.ndarray) -> np.ndarray:
@@ -376,34 +376,30 @@ def _lab_to_xyz_array(lab: np.ndarray) -> np.ndarray:
 # Spectral integration (1 nm grid over the measured range)
 # ---------------------------------------------------------------------------
 class _Integrator:
-    """Reflectance → XYZ under a chosen illuminant, on a 1 nm grid."""
+    """Reflectance → XYZ under a chosen illuminant, by ArgyllCMS's method.
+
+    Until 4.3.24 this summed at 1 nm over the MEASURED range only (380 to
+    730 nm for an i1Pro), with the colour-matching functions cut off at
+    both ends: 0.27 dE76 mean, 0.64 max away from ``spec2cie`` on jctay's
+    i1Pro 3 readings, though the docstring above promised colprof's own
+    numbers. ArgyllCMS integrates over the observer's whole range (360 to
+    830 nm) and holds a reading's first and last values beyond it
+    (:mod:`workflow.argyll_colorimetry`), and so does this now. Nothing is
+    written back: a file with XYZ columns keeps them, this only reads."""
 
     def __init__(self, wavelengths: np.ndarray):
-        lo, hi = float(wavelengths[0]), float(wavelengths[-1])
-        self.src = wavelengths
-        self.grid = np.arange(math.ceil(lo), math.floor(hi) + 1, 1.0)
-        self.xb = self._rs(cie_data.OBS_1931_2_X)
-        self.yb = self._rs(cie_data.OBS_1931_2_Y)
-        self.zb = self._rs(cie_data.OBS_1931_2_Z)
-
-    def _rs(self, table: tuple) -> np.ndarray:
-        lo, hi, vals = table
-        return np.interp(self.grid, np.linspace(lo, hi, len(vals)), vals,
-                         left=0.0, right=0.0)
+        self.src = np.asarray(wavelengths, dtype=float)
 
     def white_xyz(self, illum: tuple) -> np.ndarray:
-        I = self._rs(illum)
-        k = 100.0 / float(np.sum(I * self.yb))
-        return k * np.array([np.sum(I * self.xb), np.sum(I * self.yb),
-                             np.sum(I * self.zb)])
+        from workflow.argyll_colorimetry import white_xyz_like_argyll
+        return white_xyz_like_argyll(illum, "1931_2")
 
     def reflect_xyz(self, refl_pct: np.ndarray, illum: tuple) -> np.ndarray:
         """XYZ (0–100, Y=100 for a perfect diffuser) of a reflectance spectrum."""
-        R = np.interp(self.grid, self.src, refl_pct / 100.0, left=0.0, right=0.0)
-        I = self._rs(illum)
-        k = 100.0 / float(np.sum(I * self.yb))
-        return k * np.array([np.sum(R * I * self.xb), np.sum(R * I * self.yb),
-                             np.sum(R * I * self.zb)])
+        from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
+        return spectra_to_xyz_like_argyll(
+            np.asarray(refl_pct, dtype=float), self.src, illuminant=illum,
+            observer="1931_2", percent=True)[0]
 
 
 # ---------------------------------------------------------------------------

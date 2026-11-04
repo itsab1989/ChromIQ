@@ -1,7 +1,9 @@
 """Spectral colorimetry: colprof's ``-i`` / ``-o`` for the engine (#122).
 
 Recomputes the measurement's XYZ from its spectral bands under a chosen CIE
-illuminant and observer — plain CIE 15 integration:
+illuminant and observer, by ArgyllCMS's own method since 4.3.24
+(:mod:`workflow.argyll_colorimetry`: 1 nm steps over the observer's range,
+ArgyllCMS's interpolation, end values held), normalised so that
 
     XYZ = k · Σ R(λ)·S(λ)·CMF(λ),   k = 100 / Σ S(λ)·ȳ(λ)
 
@@ -76,14 +78,26 @@ def spectra_to_xyz(refl: np.ndarray, lam: np.ndarray, *,
                    illuminant: str = "D50", observer: str = ""
                    ) -> np.ndarray:
     """(N, bands) reflectance (0..1 or 0..100 auto-detected) → (N, 3) XYZ
-    on the Y=100 scale, CIE 15 integration."""
+    on the Y=100 scale, computed as ArgyllCMS computes it.
+
+    Until 4.3.24 this multiplied the illuminant and the observer sampled at
+    the spectrum's own bands (10 nm for an i1Pro): 0.05 dE76 mean, 0.15 max
+    away from ``spec2cie -i D50`` on the same spectra, and 6 to 7 mean,
+    14 max under F5, F8 and F10, whose spiky lamp spectra a 10 nm sample
+    misses (measured 2026-11-04). colprof ``-i``/``-o`` integrates at 1 nm
+    over the observer's range with its own interpolation, and so does this
+    now (:mod:`workflow.argyll_colorimetry`), so the engine builds from the
+    numbers colprof would."""
+    from workflow.argyll_colorimetry import (ColorimetryError,
+                                             spectra_to_xyz_like_argyll)
     r = np.asarray(refl, dtype=float)
-    if np.nanmax(r) > 2.0:          # percent-scaled reflectance
-        r = r / 100.0
-    spd = illuminant_spd(illuminant, lam)
-    cmf = observer_cmf(observer, lam)
-    k = 100.0 / float((spd * cmf[1]).sum())
-    return k * (r[:, None, :] * (spd[None, :] * cmf)[None, :, :]).sum(2)
+    percent = bool(np.nanmax(r) > 2.0)      # percent-scaled reflectance
+    try:
+        return spectra_to_xyz_like_argyll(
+            r, lam, illuminant=illuminant or "D50",
+            observer=observer or "1931_2", percent=percent)
+    except ColorimetryError as exc:
+        raise SpectralError(str(exc)) from exc
 
 
 def apply_spectral(meas: Ti3Measurement, *, illuminant: str = "",

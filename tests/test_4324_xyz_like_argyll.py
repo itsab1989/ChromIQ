@@ -70,8 +70,12 @@ def test_a_fraction_and_percent_give_the_same_xyz():
 def test_the_old_10nm_sums_were_measurably_different():
     """Why this module exists: the 4.3.23 import's sums are ~0.05 dE76 away
     on the same spectra (0.10 max on jctay's)."""
-    from workflow.profile_engine.spectral import spectra_to_xyz
-    old = spectra_to_xyz(_GOLDEN_SPECTRA, _LAM10, illuminant="D50")
+    from workflow.profile_engine.spectral import (illuminant_spd,
+                                                  observer_cmf)
+    spd = illuminant_spd("D50", _LAM10)       # the 4.3.23 sums, written out
+    cmf = observer_cmf("1931_2", _LAM10)
+    old = (100.0 / float((spd * cmf[1]).sum())) * (
+        (_GOLDEN_SPECTRA / 100.0) @ (spd * cmf).T)
     d = _de76(old, _GOLDEN_XYZ)
     assert d.max() > 0.01
 
@@ -181,3 +185,101 @@ def test_an_earlier_import_keeps_the_xyz_it_was_written_with(tmp_path):
     assert np.allclose(np.asarray(d.xyz)[0], [96.4, 99.9, 82.4])
     assert XYZ_METHOD_KEYWORD not in d.keywords
     assert src.read_bytes() == before
+
+
+# ---- every other place that computes XYZ from spectra (4.3.24) ---------------
+
+def _smooth(lam, n, seed):
+    rng = np.random.default_rng(seed)
+    out = []
+    for _ in range(n):
+        c, w, a = (rng.uniform(380, 720, 3), rng.uniform(15, 80, 3),
+                   rng.uniform(0, 0.9, 3))
+        out.append(100 * (0.02 + sum(
+            a[k] * np.exp(-((lam - c[k]) / w[k]) ** 2) for k in range(3))))
+    out = np.array(out)
+    out[0] = 100.0
+    return out
+
+
+def _de76_under(a, b, white) -> np.ndarray:
+    w = np.asarray(white, dtype=float)
+
+    def lab(xyz):
+        t = np.asarray(xyz, dtype=float) / w
+        f = np.where(t > 216 / 24389, np.cbrt(t), (24389 / 27 * t + 16) / 116)
+        return np.stack([116 * f[:, 1] - 16, 500 * (f[:, 0] - f[:, 1]),
+                         200 * (f[:, 1] - f[:, 2])], 1)
+    return np.linalg.norm(lab(a) - lab(b), axis=1)
+
+
+def _run_spec2cie_with(src: Path, dst: Path, *args) -> np.ndarray:
+    r = subprocess.run([_spec2cie(), *args, str(src), str(dst)],
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=120)
+    assert r.returncode == 0, "spec2cie did not finish: " + r.stdout + r.stderr
+    return _read_xyz(dst)
+
+
+@pytest.mark.skipif(not _spec2cie(), reason="ArgyllCMS not installed")
+@pytest.mark.parametrize("observer", ["1931_2", "1964_10"])
+@pytest.mark.parametrize("illuminant", ["A", "C", "D50", "D50M2", "D65",
+                                        "F5", "F8", "F10"])
+def test_the_engines_illuminant_and_observer_match_spec2cie(
+        tmp_path, illuminant, observer):
+    """Build Profile's -i / -o in ChromIQ's engine. Before 4.3.24: 0.05 mean
+    under D50, 6 to 7 mean and 14 max under F5, F8, F10."""
+    from workflow.argyll_colorimetry import white_xyz_like_argyll
+    from workflow.profile_engine.spectral import spectra_to_xyz
+    sp = _smooth(_LAM10, 30, 5)
+    src = _spectral_ti3(tmp_path / "in.ti3", _LAM10, sp)
+    want = _run_spec2cie_with(src, tmp_path / "out.ti3", "-i", illuminant,
+                              "-o", observer)
+    got = spectra_to_xyz(sp, _LAM10, illuminant=illuminant, observer=observer)
+    d = _de76_under(got, want, white_xyz_like_argyll(illuminant, observer))
+    assert d.max() < 0.001, (d.mean(), d.max())
+
+
+@pytest.mark.skipif(not _spec2cie(), reason="ArgyllCMS not installed")
+def test_the_analysis_of_a_spectral_only_ti3_matches_spec2cie(tmp_path):
+    """ti3_analysis summed over the measured range only: 0.27 mean, 0.64 max
+    on jctay's readings. The file is only read, never written."""
+    from workflow.ti3_analysis import _spectral_to_xyz_array
+    sp = _smooth(_LAM10, 30, 6)
+    src = _spectral_ti3(tmp_path / "in.ti3", _LAM10, sp)
+    want = _run_spec2cie_with(src, tmp_path / "out.ti3")
+    d = _de76(_spectral_to_xyz_array(sp, _LAM10), want)
+    assert d.max() < 0.001, (d.mean(), d.max())
+
+
+@pytest.mark.skipif(not _spec2cie(), reason="ArgyllCMS not installed")
+@pytest.mark.parametrize("illuminant, observer, cr30_obs",
+                         [("D50", "1931_2", "2"), ("D65", "1964_10", "10")])
+def test_a_cr30_reading_matches_spec2cie_on_its_400_to_700_nm(
+        tmp_path, illuminant, observer, cr30_obs):
+    from workflow.cr30 import colour as c
+    lam = np.arange(400, 701, 10.0)
+    sp = _smooth(lam, 30, 7)
+    src = _spectral_ti3(tmp_path / "in.ti3", lam, sp)
+    want = _run_spec2cie_with(src, tmp_path / "out.ti3", "-i", illuminant,
+                              "-o", observer)
+    illum = c.D50 if illuminant == "D50" else c.D65
+    got = np.array([c.spectrum_to_xyz(list(s), illum, cr30_obs) for s in sp])
+    d = _de76_under(got, want, c.white_point(illum, cr30_obs))
+    assert d.max() < 0.001, (d.mean(), d.max())
+
+
+def test_a_perfect_white_stays_neutral_everywhere():
+    from workflow.argyll_colorimetry import white_xyz_like_argyll
+    from workflow.cr30 import colour as c
+    from workflow.ti3_analysis import _Integrator
+    from workflow import cie_data
+    assert c.spectrum_to_lab([100.0] * 31) == pytest.approx((100, 0, 0),
+                                                            abs=1e-9)
+    integ = _Integrator(_LAM10)
+    for illum in (cie_data.IL_D50, cie_data.IL_F8):
+        assert np.allclose(integ.reflect_xyz(np.full(36, 100.0), illum),
+                           integ.white_xyz(illum), atol=1e-9)
+    assert np.allclose(white_xyz_like_argyll("D50"), _GOLDEN_XYZ[0],
+                       atol=1e-4)
+
