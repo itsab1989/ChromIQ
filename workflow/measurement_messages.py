@@ -6774,6 +6774,29 @@ M_EDGE_NOT_PRINTED = _m(
     "Preferences \u25b8 Printing \u25b8 \u201cEdge this printer does not "
     "print\u201d.",
     approved=False)
+#: 4.3.25 (F6, report point 8.1). M-EDGE-NOT-PRINTED for an FD-9 chart
+#: whose marks or arrow fall into the printer's unprinted edge. It called
+#: them "text" and advised moving the text in with a control the FD-9 greys;
+#: but the FD-9 finds the sheet by them, and they cannot be moved. {where} is
+#: the sides, in the _EDGE_AT_* words.
+M_FD9_EDGE_MARKS_NOT_PRINTED = _m(
+    "M-FD9-EDGE-MARKS-NOT-PRINTED",
+    "The FD-9 could not find this chart as your printer prints it",
+    "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} "
+    "({source}). On this FD-9 chart, the small black squares that the FD-9 "
+    "uses to find the sheet lie in that edge {where}, so they would be "
+    "missing or cut off on paper. The FD-9 finds a sheet only by those four "
+    "squares and the arrow: without them it cannot find the patches and "
+    "refuses to measure the sheet. So please do not print the chart like "
+    "this. The squares have to be where they are, so the chart cannot simply "
+    "be moved in. What you can do: print it on a printer that prints closer "
+    "to the edge of the paper; or switch on a borderless setting in this "
+    "printer's own settings, if it has one; or print it on a larger sheet of "
+    "paper and cut the sheet to the chart's size before you measure it. If "
+    "your printer leaves a different edge than this, set it under "
+    "Preferences \u25b8 Printing \u25b8 \u201cEdge this printer does not "
+    "print\u201d.",
+    approved=False)
 _EDGE_SRC_DRIVER = "as its Windows printer driver reports it"
 _EDGE_SRC_PPD = "as the printer's description file gives it for this paper size"
 _EDGE_SRC_OVERRIDE = "as you set it in Preferences"
@@ -9176,7 +9199,7 @@ CATALOGUE = {m.id: m for m in (
     M_AUTOSAVE_RETRYING,
     M_PATCHSET_MISSING,
     M_CHART_ENGINE_FAILED, M_CHART_ENGINE_REDRAW_FAILED,
-    M_FD9_CHART_UNDETECTABLE,
+    M_FD9_CHART_UNDETECTABLE, M_FD9_EDGE_MARKS_NOT_PRINTED,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,
@@ -9264,6 +9287,14 @@ def edge_note(printer: str, edges, loss) -> "str | None":
             bottom=f(edges.bottom))
     source = tr({"driver": _EDGE_SRC_DRIVER, "ppd": _EDGE_SRC_PPD}.get(
         edges.source, _EDGE_SRC_OVERRIDE))
+    fd9 = list(getattr(loss, "fd9_marks", []) or [])
+    if fd9:
+        # The FD-9's own words: its marks are what it measures by, and no
+        # control of the chart can move them (F6).
+        _t, body = M_FD9_EDGE_MARKS_NOT_PRINTED.render(
+            printer=printer, edges=edge_txt, source=source,
+            where=", ".join(where[s] for s in order if s in fd9))
+        return body
     lost: list = []
     patches = list(getattr(loss, "patches", []) or [])
     for side in order:

@@ -267,6 +267,7 @@ HOOKED_FILES = {
     "workflow/layout_engine/presets.py",
     "workflow/measure_settings.py",
     "workflow/measurement_messages.py",
+    "workflow/printer_edges.py",     # 4.3.25: the FD-9 marks in the edge note
     "workflow/ti2_relayout.py",
 }
 

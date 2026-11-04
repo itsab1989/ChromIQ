@@ -309,6 +309,34 @@ Resume box, all duplicates (review of pull request #214, questions 1 and 9).
       `workflow/layout_engine/instruments.py::build` and
       `workflow/layout_engine/geometry.py` do for the FD-9
       (`tests/test_fd9_off_changes_nothing.py::test_the_layout_engine_knows_no_fd9_while_off`).
+- [ ] **Greyed controls explain themselves** (`ui/dialogs/layout_options_panel.py::fd9_greyed_reason`,
+      `ui/dialogs/layout_options_panel.py::LayoutOptionsPanel._fd9_greyable_controls`):
+      no long note about your instrument inside a settings section. A control
+      your layout does not read is greyed, and its tooltip says why and where
+      the controls it does read are; the instrument itself is described in
+      the Instrument (i). Grey EVERY input type, line and text boxes too, not
+      only spin boxes, lists and buttons: the FD-9 left its strip and patch
+      patterns, its sheet text and its image path typeable, and none of them
+      did anything (`tests/test_fd9_4325_panel.py` finds every input in a
+      group the FD-9 does not read on its own, rather than trusting the
+      panel's list).
+- [ ] **Other instruments' presets switch the instrument**
+      (`ui/tabs/tab_chart.py::TabChart._leave_engine_only_for_builtin`): a
+      built-in preset made for another instrument, loaded while yours is
+      chosen, must move to that instrument as it does from the i1Pro, not be
+      laid out as one of your charts (Knut found it for the FD-9 and the
+      CR30; `tests/test_fd9_4325_presets.py`).
+- [ ] **A detector check at Generate** (`workflow/fd9/sheet_check.py`): when
+      your instrument finds the sheet with a camera or a scanner, as the FD-9
+      does with its pre-scan, everything ChromIQ prints on the sheet (labels,
+      a clip border) goes through the instrument's own detector on a
+      synthetic scan of every page before anything is written, and Generate
+      refuses a page it would not find.
+- [ ] **The printer edge note** (`workflow/printer_edges.py`, M-EDGE-NOT-PRINTED):
+      anything your instrument needs on the sheet to measure it (the FD-9's
+      marks and arrow) is never "text" there: say plainly that the
+      instrument then cannot read the sheet, and give advice that can be
+      followed, never a control your instrument greys.
 - [ ] **Papers**: `workflow/layout_engine/papers.py::list_papers`,
       `workflow/layout_engine/papers.py::ENGINE_EXCLUDED_PAPERS`,
       `data/patch_db.py::EXCLUDED_PAPERS`, `data/patch_db.py::PAPER_FALLBACK`.
@@ -903,6 +931,11 @@ avoid from the start.
 | Guided reading Manual | Guided took Manual's hidden panel, with its resolution, randomising and gaps. | Guided uses its own sources only. |
 | Greyed controls showing other values | Greyed Spacers said "Coloured" and Layout "Area first" for an instrument that uses neither. | A greyed control shows the value that applies. |
 | A silent generation failure | A layout that could not be drawn left one log line and an empty preview. | A window from the catalogue. |
+| A note box inside a settings section | The FD-9 put a long note at the top of Manual's layout settings that no other instrument has, repeating what the tooltips said. | Greyed controls explain themselves in their tooltip; describe the instrument in its Instrument (i). |
+| Greying only some input types | Spin boxes and lists were greyed, but the line and text boxes beside them stayed typeable and did nothing. | Grey every input type in a group your layout does not read, and test it by finding them independently. |
+| Another instrument's preset laid out as yours | Loading a ColorMunki preset while the FD-9 was chosen made an FD-9 chart with the preset's page count and helper-marker overlay. | The preset switches the instrument, as from the i1Pro. |
+| Printing what the reader cannot see past | Text or artwork on a sheet read by a camera or scanner type reader can look like the marks it searches for. | A detector check of every page at Generate, with the instrument's own detector. |
+| A mismatch with only an OK button | A sheet turned round or the wrong page was refused with one button, so the person had to start again. | Offer choices, as the strip check does (M-STRIP-READ-TWICE): measure again (the safe default), keep it as it is, or file it where it belongs. |
 | Shortened texts that lost their substance | The ⓘ lost its description of the instrument and the credit to its author; terms no longer matched the app's. | Keep the description and the credit when you shorten a text, and use the names the app already uses in every language. |
 
 And a positive one to copy: the FD-9 driver kept a strict read-only stance

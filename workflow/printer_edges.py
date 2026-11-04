@@ -313,9 +313,14 @@ class Loss:
     need_patches: float = 0.0
     #: how much further in, per side, everything would have to start
     needed_mm: "dict[str, float]" = field(default_factory=dict)
+    #: sides on which an FD-9 chart's marks or arrow fall into the edge
+    #: (4.3.25, F6). The FD-9 finds the sheet by them, so they are needed for
+    #: measuring, never "text". Only filled while FD-9 support is on.
+    fd9_marks: "list[str]" = field(default_factory=list)
 
     def any(self) -> bool:
-        return bool(self.markers or self.caption or self.text or self.patches)
+        return bool(self.markers or self.caption or self.text or self.patches
+                    or self.fd9_marks)
 
 
 def _limits_on_chart(edges: Edges, chart_mm, paper_mm, shift_mm=(0.0, 0.0)):
@@ -327,6 +332,35 @@ def _limits_on_chart(edges: Edges, chart_mm, paper_mm, shift_mm=(0.0, 0.0)):
     y0 = (ph - ch) / 2.0 + shift_mm[1]
     return (edges.left - x0, pw - x0 - edges.right,
             edges.top - y0, ph - y0 - edges.bottom)
+
+
+def _fd9_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]]":
+    """The FD-9's four marks and its arrow on this page, as (x0, y0, x1, y1)
+    in mm on the chart, from the chart's .fd9.json; [] for any other chart,
+    and always [] while FD-9 support is off (nothing is read then)."""
+    from workflow.fd9.support import fd9_enabled
+    if not fd9_enabled():
+        return []
+    import json
+    import re
+    path = Path(tiff_path)
+    m = re.fullmatch(r"(.+?)(?:_(\d{2,}))?", path.stem)
+    stem, number = m.group(1), m.group(2)
+    layout = path.with_name(stem + ".fd9.json")
+    if not layout.is_file():
+        return []
+    try:
+        doc = json.loads(layout.read_text(encoding="utf-8"))
+        pages = doc.get("pages") or [doc]
+        page = pages[int(number) - 1] if number else pages[0]
+        width = float(page["paper_mm"][0])
+        boxes = [(x - 1.5, y - 1.5, x + 1.5, y + 1.5)
+                 for x, y in page["fiducials_mm"]]
+    except Exception:      # noqa: BLE001 — not a readable FD-9 layout
+        return []
+    # The arrow (`workflow/fd9/chart.py`): 9 mm wide, 15 to 29 mm in.
+    boxes.append((width / 2 - 4.5, 15.0, width / 2 + 4.5, 29.0))
+    return boxes
 
 
 def losses(tiff_path, frame: int, edges: Edges, paper_mm,
@@ -367,6 +401,18 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
 
     # the helper markers and the caption, recognised as overhang does
     known = np.zeros_like(ink, dtype=bool)
+    # AN FD-9 CHART'S MARKS ARE NOT TEXT (4.3.25, F6): the FD-9 finds the
+    # sheet by them, so one cut off makes the sheet unmeasurable.
+    for x0m, y0m, x1m, y1m in _fd9_mark_boxes(tiff_path):
+        # Half a millimetre round each, for the pixel grid of the page.
+        x0, y0 = max(0, int((x0m - 0.5) / mm)), max(0, int((y0m - 0.5) / mm))
+        x1 = int(np.ceil((x1m + 0.5) / mm))
+        y1 = int(np.ceil((y1m + 0.5) / mm))
+        known[y0:y1, x0:x1] = True
+        for side, hit in (("left", x0m < lo_x), ("right", x1m > hi_x),
+                          ("top", y0m < lo_y), ("bottom", y1m > hi_y)):
+            if hit and side not in out.fd9_marks:
+                out.fd9_marks.append(side)
     marker_lost = np.zeros_like(ink, dtype=bool)
     try:
         marks = O.helper_markers(tiff_path, frame) or {}
@@ -468,6 +514,9 @@ def losses_for_chart(pages, edges: Edges, paper_mm, shift_mm=(0.0, 0.0)
         for s in one.patches:
             if s not in out.patches:
                 out.patches.append(s)
+        for s in one.fd9_marks:
+            if s not in out.fd9_marks:
+                out.fd9_marks.append(s)
         for k, v in one.text.items():
             out.text[k] = max(out.text.get(k, 0.0), v)
         for k, v in one.needed_mm.items():
