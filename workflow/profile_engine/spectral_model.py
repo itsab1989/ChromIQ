@@ -210,7 +210,11 @@ def fit_spectral_hybrid(meas: Ti3Measurement, base_model: ForwardModel, *,
     node *values* are resampled from the hybrid, so the written profile
     and the whole downstream pipeline are unchanged in shape.
     """
-    if meas.spectral is None or meas.is_additive or meas.n_channels < 3:
+    from workflow.argyll_colorimetry import MIN_BANDS
+    if meas.spectral is None or meas.is_additive or meas.n_channels < 3 \
+            or np.asarray(meas.spectral).shape[-1] < MIN_BANDS:
+        # Fewer than 4 bands cannot be integrated as ArgyllCMS does: the
+        # option stays silently inapplicable, as documented (review r3, R2).
         return None
     npts = len(meas.device)
     if npts < 200:
