@@ -427,11 +427,19 @@ class FD9MeasureMixin:
         self._fd9_sheet_in = False
         self._fd9_insert_box = None
         self._fd9_session = None
-        panel = QWidget(self)
+        # The FD-9's options, as a Measurement Options group of their own
+        # (4.3.25, F8): while an FD-9 chart is loaded, chartread's options do
+        # not apply and are hidden, and this group stands where they were,
+        # with its rows laid out the way theirs are.
+        from PyQt6.QtWidgets import QGroupBox
+        panel = QGroupBox(tr("Measurement Options"), self)
         panel.setObjectName("fd9_panel")
-        row = QHBoxLayout(panel)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(QLabel(tr("FD-9 condition:")))
+        rows = QVBoxLayout(panel)
+        rows.setContentsMargins(8, 14, 8, 8)
+        rows.setSpacing(8)
+        row = QHBoxLayout()
+        rows.addLayout(row)
+        row.addWidget(QLabel(tr("Measurement condition:")))
         self._fd9_condition = QComboBox()
         self._fd9_condition.setObjectName("fd9_condition")
         # ISO condition identifiers are language-independent profile values.
@@ -439,7 +447,10 @@ class FD9MeasureMixin:
             self._fd9_condition.addItem(condition, condition)
         self._fd9_condition.setCurrentText("M1")
         row.addWidget(self._fd9_condition)
+        row.addStretch()
         row.addWidget(TooltipButton(*condition_help(), self, min_width=620))
+        row = QHBoxLayout()
+        rows.addLayout(row)
         self._fd9_resume = QCheckBox(tr("Resume"))
         self._fd9_resume.setObjectName("fd9_resume")
         self._fd9_resume.setToolTip(tr(
@@ -448,6 +459,9 @@ class FD9MeasureMixin:
             "measured are kept. Offered when the chart is partly measured."))
         self._fd9_resume.toggled.connect(self._fd9_resume_changed)
         row.addWidget(self._fd9_resume)
+        row.addStretch()
+        row = QHBoxLayout()
+        rows.addLayout(row)
         self._fd9_setup_btn = QPushButton(tr("FD-9 setup…"))
         self._fd9_setup_btn.setObjectName("fd9_setup_button")
         self._fd9_setup_btn.setToolTip(tr(
@@ -657,6 +671,21 @@ class FD9MeasureMixin:
                 widget = getattr(self, name, None)
                 if widget is not None:
                     widget.setEnabled(unlocked and not active)
+            # HIDDEN, not only greyed (4.3.25, F8): none of chartread's
+            # options applies to an FD-9 chart, chartread's Resume included,
+            # so the FD-9's own group is the only one shown.
+            if active:
+                self._fd9_hidden_groups = [
+                    (g, not g.isHidden()) for g in self._fd9_chartread_groups()]
+                for g, _shown in self._fd9_hidden_groups:
+                    g.setVisible(False)
+            else:
+                for g, shown in getattr(self, "_fd9_hidden_groups", None) or []:
+                    try:
+                        g.setVisible(shown)
+                    except RuntimeError:      # rebuilt meanwhile
+                        pass
+                self._fd9_hidden_groups = None
             btn = getattr(self, "_save_defaults_btn", None)
             if btn is not None:
                 btn.setEnabled(unlocked and not active)
@@ -691,6 +720,22 @@ class FD9MeasureMixin:
         self._preview.set_no_swipe(True)
         if hasattr(self, "_calm_outer"):
             self._calm_outer.hide()
+
+    def _fd9_chartread_groups(self) -> list:
+        """The option groups of both modes that only chartread reads, and
+        the Manual presets row: hidden while an FD-9 chart is loaded."""
+        from PyQt6.QtWidgets import QGroupBox
+        out = []
+        for name in ("_g_options", "_m_options"):
+            box = getattr(self, name, None)
+            if box is None:
+                continue
+            out += [g for g in box.findChildren(QGroupBox)
+                    if g.parentWidget() is box]
+        grp = getattr(self, "_m_presets_grp", None)
+        if grp is not None:
+            out.append(grp)
+        return out
 
     @staticmethod
     def _fd9_notices() -> "tuple[str, str]":
@@ -811,7 +856,12 @@ class FD9MeasureMixin:
                     ],
                     fill="black",
                 )
-                path = cache / ("fd9-preview-" + sha(layout_path)[:12] + f"-{page_index+1}.png")
+                # Named after the chart, in a folder named after its layout
+                # (4.3.25, F8): the preview's title is the file's stem, and it
+                # read "fd9-preview-3f2a…" instead of the chart's name.
+                folder = cache / ("fd9-preview-" + sha(layout_path)[:12])
+                folder.mkdir(parents=True, exist_ok=True)
+                path = folder / f"{chart.stem}_{page_index+1:02d}.png"
                 image.save(path)
                 paths.append(path)
                 page_boxes.append(boxes)

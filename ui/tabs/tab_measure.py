@@ -2787,11 +2787,9 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         top_layout = QVBoxLayout(top_widget)
         top_layout.setContentsMargins(16, 12, 16, 6)
         top_layout.setSpacing(8)
-        # The FD-9 row (PR #213, a Beta): built only while FD-9 support is on
-        # (Preferences > Beta, restart to apply). Off, this tab is 4.3.21's.
+        # The FD-9's options (PR #213, a Beta) are built further down, under
+        # the Chart File frame, only while FD-9 support is on.
         from workflow.fd9.support import fd9_enabled
-        if fd9_enabled():
-            self._init_fd9_panel(top_layout)
         # Load-chart + reveal-folder icons in the header's upper-right, like the
         # Create Chart and Print Chart tabs (Knut/Basti). The selected file still
         # shows in the Chart File frame below.
@@ -2892,6 +2890,13 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         file_row.addWidget(self._ti1_lbl, stretch=1)
         fg.addLayout(file_row)
         fo_layout.addWidget(file_grp)
+        # The FD-9's own Measurement Options (PR #213, a Beta), under the
+        # STEP 03 heading and the Chart File frame like every other option
+        # group, not above the heading (4.3.25, F8). Built only while FD-9
+        # support is on (Preferences > Beta, restart to apply); off, this tab
+        # is 4.3.21's.
+        if fd9_enabled():
+            self._init_fd9_panel(fo_layout)
         lc_layout.addWidget(file_outer)
 
         # Stacked panels
