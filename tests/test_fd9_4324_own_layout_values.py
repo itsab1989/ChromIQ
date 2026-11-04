@@ -230,3 +230,31 @@ def test_l4_other_recipes_rebuilt_from_kwargs_keep_the_field_default(inst):
     from workflow.layout_engine.presets import LayoutRecipe
     r = LayoutRecipe(instrument=inst, inter_patch_mm=1.0, strip_gap_mm=2.0)
     assert LayoutRecipe.from_build_kwargs(r.build_kwargs()).fd9_gap_mm == 1.0
+
+
+def test_l5_manual_estimate_counts_the_pages_generate_makes(
+        qapp, qtbot, tmp_path):
+    """Manual, FD-9, A4, 2 mm gaps, Auto patch count off, 500 patches: one
+    sheet holds 396, so Generate makes two pages, and the Chart layout
+    information estimate says so (the 396 the review read was Guided's own
+    headline, which Manual does not show)."""
+    from workflow.layout_engine.chart import build_chart
+    tab, _ = _tab(tmp_path, qtbot)
+    tab._user_switch_mode("manual")
+    panel = tab._manual_layout_panel
+    panel.instr.setCurrentIndex(panel.instr.findData("FD9"))
+    panel.paper.setCurrentIndex(panel.paper.findData("A4"))
+    panel.inter_patch.setValue(2.0)
+    panel.strip_gap.setValue(2.0)
+    tab._manual_auto_patches_check.setChecked(False)
+    tab._manual_f_pw._control.setValue(500)
+    tab._refresh_layout_estimate()
+    est = tab._layout_info_panel.predicted()
+    source, _ = ti1(tmp_path, rep="RGB", tokens=("R", "G", "B"), count=500)
+    result = build_chart(source, tmp_path / "two",
+                         **tab._current_layout_recipe().build_kwargs())
+    layout = checked_chart(result.ti2_path)[1]
+    assert len(result.tiff_paths) == 2
+    assert est["pages"] == 2 and est["page_patches"] == 396
+    assert est["total"] == sum(len(p["rows"]) * len(p["rows"][0])
+                               for p in layout["pages"])

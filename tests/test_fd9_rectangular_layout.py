@@ -189,15 +189,49 @@ def test_native_editor_opens_shared_preferences_and_keeps_printtarg_off(
         tab._user_switch_mode("gamut")
     assert tab._active_instrument_flag() == "FD9"
 
-    seen=[]
+    monkeypatch.setenv("CHROMIQ_PRESETS_DIR", str(tmp_path / "presets"))
+    collect = (tab._collect_manual if mode in ("manual", "gamut")
+               else tab._collect_guided)
+
+    def sizes():
+        p = collect()
+        return (p.fd9_patch_mm, p.fd9_patch_h_mm, p.fd9_gap_mm,
+                p.fd9_strip_gap_mm)
+
+    before = sizes()
+    seen = []
+    answer = []
+
     class Preferences:
         def __init__(self, *args, **kwargs):
             seen.append(kwargs["layout_combo"])
+
         def exec(self):
-            return QDialog.DialogCode.Rejected
+            # What the Chart Layout tab does on OK: store the edited layout.
+            if answer[-1] == QDialog.DialogCode.Accepted:
+                from core.preset_store import save_presets
+                from workflow.layout_engine.presets import PresetStore
+                inst, paper, lmode = seen[-1]
+                store = tab._layout_store()
+                r = store.get(inst, paper, lmode)
+                r.patch_w_mm, r.patch_h_mm = 10.0, 7.0
+                r.fd9_gap_mm, r.inter_patch_mm, r.strip_gap_mm = None, 0.5, 1.5
+                store.set(r)
+                save_presets("chart_layout", store.as_named_dict())
+            return answer[-1]
+
     monkeypatch.setattr(settings_dialog, "SettingsDialog", Preferences)
+    answer.append(QDialog.DialogCode.Rejected)
     tab._edit_layout_defaults()
     assert seen and seen[0][0] == "FD9"
+    assert sizes() == before                    # Cancel changes nothing
+    # L2 (review of #214): an ACCEPTED edit reaches the chart.
+    answer.append(QDialog.DialogCode.Accepted)
+    tab._edit_layout_defaults()
+    assert sizes() == (10.0, 7.0, 0.5, 1.5)
+    kw = tab._creator._engine_kwargs(collect())
+    assert (kw["patch_w"], kw["patch_h"], kw.get("inter_patch"),
+            kw.get("strip_gap")) == (10.0, 7.0, 0.5, 1.5)
     assert _layout_panel_lays_out("FD9", False)
     assert settings.get("use_chromiq_layout_engine") is False
 
