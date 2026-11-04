@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v4.3.25
+
+**For everyone updating from 4.3.24: a preset made for another instrument now switches the instrument when the CR30 is chosen, the website describes what ChromIQ does today, and the scanner and camera window says when it has changed the usage scenario for you. Most of this release is for the Konica Minolta FD-9 beta: tidier layout settings that look like every other instrument's, a check that the FD-9 can read every page, choices when a sheet seems turned round or is another page, the patch set editor for FD-9 charts, an optional clip border, and charts that can be shown turned on screen. Your charts, measurements and profiles do not change.**
 
 **For everyone updating from 4.3.24: if you use the Konica Minolta FD-9 beta, Create Chart and the Measure tab now look and behave much more like they do for every other instrument, the FD-9 asks what to do when a sheet seems to be turned round or another page, and ChromIQ checks every FD-9 page before it saves a chart. A ColorMunki or other preset loaded while the CR30 (or the FD-9) is chosen now switches the instrument, whether FD-9 support is on or off. With FD-9 support off, nothing changes for the FD-9. Your charts, measurements and profiles do not change.**
 
