@@ -16,6 +16,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import pytest                                                  # noqa: E402
 from workflow import printer_edges as PE                      # noqa: E402
 
 
@@ -138,3 +139,57 @@ def test_both_dialog_routes_remember_the_printer():
     assert "_remember_printer_the_dialog_used(chosen)" in qt
     assert qt.index("_remember_printer_the_dialog_used(chosen)") > qt.index(
         "painter.end()")
+
+
+def test_r3_a_default_changed_while_open_is_seen_when_a_tab_is_shown(
+        monkeypatch):
+    answers = ["HP_Default", "HP_Default", "EPSON_Other"]
+    asked = []
+
+    def ask():
+        asked.append(1)
+        return answers[min(len(asked) - 1, len(answers) - 1)]
+    monkeypatch.setattr(PE, "_ask_system_default_printer", ask)
+    PE.forget_system_default_printer()
+    s = _Settings(use_native_print_dialog=True)
+    assert PE.note_printer(s, "") == "HP_Default"
+    for _ in range(4):                          # redraws ask nothing more
+        PE.note_printer(s, "")
+    assert len(asked) == 1
+    assert PE.recheck_system_default_printer() is False      # tab shown, same
+    assert PE.recheck_system_default_printer() is True       # changed
+    assert PE.note_printer(s, "") == "EPSON_Other" and len(asked) == 3
+
+
+def test_r3_both_tabs_recheck_once_when_shown_and_redraw_only_on_a_change(
+        qapp, monkeypatch):
+    import inspect
+    from ui.tabs.tab_chart import TabChart
+    from ui.tabs.tab_print import TabPrint
+    assert "_recheck_default_printer()" in inspect.getsource(TabPrint.showEvent)
+    assert "_recheck_default_printer()" in inspect.getsource(TabChart.showEvent)
+    redrawn = []
+
+    class Stand:
+        _settings = _Settings(use_native_print_dialog=True)
+
+        def _refresh_printer_edge_note(self):
+            redrawn.append(1)
+    monkeypatch.setattr(PE, "_ask_system_default_printer", lambda: "A")
+    PE.forget_system_default_printer()
+    TabChart._recheck_default_printer(Stand())     # first answer: no change
+    TabChart._recheck_default_printer(Stand())
+    assert redrawn == []
+    monkeypatch.setattr(PE, "_ask_system_default_printer", lambda: "B")
+    TabChart._recheck_default_printer(Stand())
+    assert redrawn == [1]
+    Stand._settings = _Settings(use_native_print_dialog=False)
+    monkeypatch.setattr(PE, "_ask_system_default_printer",
+                        lambda: pytest.fail("asked with ChromIQ's own route"))
+    TabChart._recheck_default_printer(Stand())
+
+
+def test_r3_the_suite_still_gets_no_host_printer():
+    PE.forget_system_default_printer()
+    assert PE.recheck_system_default_printer() is False
+    assert PE.system_default_printer() == ""

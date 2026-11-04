@@ -1098,6 +1098,7 @@ class TabPrint(QWidget):
         depends on files on disk (the chart's colorimetric-reference marker,
         the run's profile) which can change while this tab is hidden."""
         super().showEvent(event)
+        self._recheck_default_printer()
         if not getattr(self, "_printers_loaded", False):
             self._printers_loaded = True
             try:
@@ -1554,6 +1555,24 @@ class TabPrint(QWidget):
         except Exception:      # noqa: BLE001 - a note, never a blocker
             log.debug("could not keep the dialog's printer", exc_info=True)
         self._refresh_both_edge_notes()
+
+    def _recheck_default_printer(self) -> None:
+        """Once each time this tab is shown: if the system's default printer
+        has changed since it was last asked, redraw both edge notes (with
+        the system dialog the note may be about the default). Only with the
+        system dialog on, where the default is used at all."""
+        try:
+            if not self._settings.get("use_native_print_dialog", False):
+                return
+            from workflow.printer_edges import recheck_system_default_printer
+            if recheck_system_default_printer():
+                self._update_edge_note()
+                chart = getattr(self.window(), "_tab_chart", None)
+                refresh = getattr(chart, "_refresh_printer_edge_note", None)
+                if callable(refresh):
+                    refresh()
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("default printer not rechecked", exc_info=True)
 
     def _refresh_both_edge_notes(self) -> None:
         """Redraw the edge note here and in Create Chart, so both name the

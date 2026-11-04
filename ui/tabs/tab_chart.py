@@ -10092,6 +10092,7 @@ class TabChart(QWidget):
 
     def showEvent(self, event) -> None:      # noqa: N802 (Qt override)
         super().showEvent(event)
+        self._recheck_default_printer()
         self._refit_logs()
         self._sync_preset_verify_visibility()
         # Fill the preset-eligibility cache while the tab is idle, so the
@@ -27227,6 +27228,19 @@ class TabChart(QWidget):
             log.debug("could not read the chart's own layout recipe",
                       exc_info=True)
             return live
+
+    def _recheck_default_printer(self) -> None:
+        """Once each time this tab is shown (review r3): a system default
+        printer changed while ChromIQ is open must not leave the edge note on
+        the old one. Redraws only when it really changed."""
+        try:
+            if not self._settings.get("use_native_print_dialog", False):
+                return
+            from workflow.printer_edges import recheck_system_default_printer
+            if recheck_system_default_printer():
+                self._refresh_printer_edge_note()
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("default printer not rechecked", exc_info=True)
 
     def _refresh_printer_edge_note(self) -> None:
         """The printer the edge note is about has changed (the system print

@@ -230,6 +230,18 @@ def system_default_printer() -> str:
     return _default_printer
 
 
+def recheck_system_default_printer() -> bool:
+    """Ask the print system once more, now; True when the default printer
+    is another than the one remembered (review r3: a default changed while
+    ChromIQ is open). Called when the Create Chart or Print Chart tab is
+    shown, so once per such event and never while redrawing. A first answer
+    is not a change."""
+    global _default_printer
+    before = _default_printer
+    _default_printer = _ask_system_default_printer()
+    return before is not None and before != _default_printer
+
+
 def forget_system_default_printer() -> None:
     """Ask again next time (the print route changed, or the system dialog
     has just printed, which may have changed the default)."""
