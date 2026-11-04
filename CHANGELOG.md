@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v4.3.24
+
+**For everyone updating from 4.3.23: when you import an i1Profiler measurement, ChromIQ now preselects the measurement condition you chose in i1Profiler, and the colours it works out from spectra now match ArgyllCMS exactly, there and in a few other places (most noticeably in Build Profile with ChromIQ's own engine under fluorescent illuminants). The CR30 is listed simply as “CR30”, and the note about the edge a printer cannot print names the right printer with the system print dialog. If you use the Konica Minolta FD-9 beta, its charts can now span several sheets. Your charts, measurements and profiles do not change.**
 
 ### New
 - **Konica Minolta FD-9 (beta), written and contributed by lessbones. Thank you!** These changes are for people who have turned on FD-9 support in Preferences > Beta; with it off, nothing about the FD-9 changes. This release brings his multi-page charts and the new reading order. **A chart can now span several sheets.** When a chart has more patches than one sheet holds, it is printed on several numbered sheets, and the FD-9 measures them one after the other into one measurement. Between sheets, the Measure tab tells you which sheet to insert next: take the measured sheet out, and as soon as the FD-9's paper sensor is clear it shows its insertion screen by itself, so normally there is no button to press. If that takes longer than a minute, the Measure tab says what you can do. If you stop part way, the sheets already measured are kept, and Resume carries on where you stopped, also on a later sheet. Charts made with earlier versions open and measure as before.
