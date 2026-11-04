@@ -300,6 +300,11 @@ def build_chart(
     #: `calibration_ramps`). Rewrites the .ti1 in place when it is targen's
     #: pure ramp set; any other .ti1 is laid out exactly as it is.
     ramps_per_strip: bool = False,
+    #: FD-9 only (4.3.25): the run named on the sheet's label, and its clip
+    #: border On/Off (None: `workflow.fd9.furniture.FD9_CLIP_BORDER_DEFAULT`).
+    #: No other instrument reads them.
+    fd9_run: str = "",
+    fd9_clip_border: "bool | None" = None,
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -337,7 +342,21 @@ def build_chart(
                          patch_height_mm=patch_h,
                          gap_mm=(fd9_gap if fd9_gap is not None else inter_patch if inter_patch is not None else 1.0),
                          strip_gap_mm=(strip_gap if strip_gap is not None else fd9_gap),
-                         compression=compression)
+                         compression=compression, sheet_project=project,
+                         sheet_run=fd9_run, clip_border=fd9_clip_border,
+                         sheet_description=rundescription,
+                         clip_content=(clip_content_mode
+                                       if clip_content_mode not in (None, "", "off", "example")
+                                       else "notes"),
+                         clip_text=clip_text,
+                         clip_options=dict(
+                             font_family=clip_text_font,
+                             text_size_mm=clip_text_size_mm,
+                             image_path=clip_image_path,
+                             image_rotation=clip_image_rotation,
+                             image_scale=clip_image_scale,
+                             image_offset_x_mm=clip_image_offset_x,
+                             image_offset_y_mm=clip_image_offset_y))
     target = ti1_reader.read_ti1(ti1_path)
     # What goes on paper. Differs from `target` only under -K.
     printed = target

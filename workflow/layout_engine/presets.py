@@ -202,6 +202,11 @@ class LayoutRecipe:
     patch_w_mm: float = 0.0        # explicit patch width / height (mm); 0 = auto
     patch_h_mm: float = 0.0
     fd9_gap_mm: float | None = 1.0  # legacy equal-gap recipes; None uses shared controls
+    #: The FD-9 clip border On/Off (4.3.25, F12). None: the FD-9's default
+    #: (`workflow.fd9.furniture.FD9_CLIP_BORDER_DEFAULT`). Its own field, not
+    #: `clip_content_mode`, whose default "notes" would have switched it on
+    #: for every FD-9 recipe saved before it existed. Written only when set.
+    fd9_clip_border: "bool | None" = None
     # Layout strategy (#93, Knut). "patch_first" (default) = size the patches
     # (above) and fit as many as possible to the page. "area_first" = fit a
     # target grid into the usable area and SIZE the patches to fill it:
@@ -436,6 +441,8 @@ class LayoutRecipe:
         d = asdict(self)
         if self.instrument != "FD9":
             d.pop("fd9_gap_mm", None)
+        if self.instrument != "FD9" or self.fd9_clip_border is None:
+            d.pop("fd9_clip_border", None)
         d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
         # Left out at 0, so a recipe that does not move its labels sideways
         # writes exactly the dict it wrote before the field existed (see the
@@ -882,9 +889,13 @@ def fd9_fixed_fields(r: "LayoutRecipe") -> "LayoutRecipe":
     of #214, L3). Only called while FD-9 support is on."""
     from .instruments import fd9_fixed_margins
     t, rt, b, lt = fd9_fixed_margins(r.patch_h_mm or None)
+    # …and since 4.3.25 (F11) what it never prints: no ruler helper markers
+    # (a dash 2 to 4 mm from the edge would stop the FD-9 finding its marks),
+    # no strip or row labels. The FD-9's own clip border is `fd9_clip_border`.
     return replace(r, margin_top=t, margin_right=rt, margin_bottom=b,
                    margin_left=lt, spacer_mode="none",
-                   layout_mode="patch_first")
+                   layout_mode="patch_first", helper_markers=False,
+                   show_strip_indicators=False, show_row_indicators=False)
 
 
 class PresetStore:

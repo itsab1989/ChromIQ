@@ -37,7 +37,7 @@ def test_the_greyed_tooltip_explains_the_fixed_layout():
     from ui.dialogs.layout_options_panel import fd9_greyed_reason
     text = fd9_greyed_reason().lower()
     for words in ("15 mm", "42 mm", "33 mm", "four small black squares",
-                  "bottom right", "clip border", "“expert options”"):
+                  "top left", "clip border", "“expert options”"):
         assert words in text, words
 
 

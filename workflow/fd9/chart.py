@@ -185,7 +185,15 @@ def _build_single_chart(
     strip_gap_mm=None,
     _columns=None,
     _rows=None,
-    _page_label=None,
+    _page=None,
+    sheet_project="",
+    sheet_run="",
+    clip_border=None,
+    clip_content="notes",
+    clip_text="",
+    clip_options=None,
+    sheet_description="",
+    check_detection=True,
     **unused,
 ):
     """Create device-native TIFF + matching TI2 and FD9 physical definition.
@@ -349,8 +357,22 @@ def _build_single_chart(
             )
             rows.append((index + 1, f"{alpha_label(col+1)}{row+1}", dev, xyz))
         doc["rows"].append(cells)
+    # What else goes on the sheet (4.3.25, F5 and F12): the label at the
+    # bottom right, or the FD-9 clip border, which says the same and more.
+    from .furniture import (FD9_CLIP_BORDER_DEFAULT, artwork_ink,
+                            artwork_runs, clip_artwork, clip_band_mm,
+                            label_mask, page_label_text, runs_of)
+    page_no, page_count = _page or (1, 1)
+    clip_on = FD9_CLIP_BORDER_DEFAULT if clip_border is None else bool(clip_border)
+    band = clip_band_mm(doc, (width, height)) if clip_on else None
+    # The label is for a chart of several sheets, as in 4.3.24, and it is
+    # printed with the clip border on or off (the owner's final ruling).
+    _page_label = (page_label_text(sheet_project, sheet_run, page_no, page_count)
+                   if page_count > 1 else "")
     if _page_label:
         doc["page_label"] = _page_label
+    if band is not None:
+        doc["clip_border_mm"] = [round(v, 3) for v in band]
     # Check the exact same geometry that the measurement route accepts.
     from .independent import chart_grid
 
@@ -370,26 +392,28 @@ def _build_single_chart(
         [(round(x * dpi / 25.4), round(y * dpi / 25.4)) for x, y in arrow], fill=1
     )
     label_runs = []
+    art = extra = None
+    if band is not None:
+        from workflow.layout_engine.chart import text_placeholder_context
+        ctx = text_placeholder_context(
+            project=sheet_project or base.name, instrument="FD9", paper=paper,
+            dpi=dpi, patches=count, pages=page_count, seed=seed,
+            rundescription=sheet_description)
+        ctx["instrument"] = "FD-9"
+        # What the Notes box fills in on every other chart (`render_pages`).
+        ctx["page"] = f"page {page_no}/{page_count}"
+        ctx["count"] = str(count)
+        ctx["strips"] = str(nrows)
+        opts = dict(clip_options or {})
+        text = clip_text or ""
+        for key, value in ctx.items():
+            text = text.replace("{" + key + "}", str(value))
+        art, art_xy = clip_artwork(band, dpi, mode=clip_content or "notes",
+                                   ctx=ctx, text=text, **opts)
     if _page_label:
-        from PIL import ImageFont
-        label = Image.new("1", size, 0)
-        painter = ImageDraw.Draw(label)
-        font = ImageFont.load_default(size=max(6, round(2.4*dpi/25.4)))
-        xy = (round(8*dpi/25.4), round(10*dpi/25.4))
-        painter.text(xy, _page_label, font=font, fill=1)
-        bounds = label.getbbox()
-        if bounds:
-            for yy in range(bounds[1], bounds[3]):
-                xx = bounds[0]
-                while xx < bounds[2]:
-                    if not label.getpixel((xx,yy)):
-                        xx += 1
-                        continue
-                    x0 = xx
-                    while xx < bounds[2] and label.getpixel((xx,yy)):
-                        xx += 1
-                    draw.rectangle((x0, yy, xx-1, yy), fill=1)
-                    label_runs.append((x0, yy, xx, yy+1))
+        extra = label_mask(size, dpi, _page_label)
+        mask.paste(1, (0, 0), extra)
+        label_runs = runs_of(extra)
     ink = np.zeros(channels, dtype=dtype)
     if not additive:
         # Furniture in the actual black channel, never in every ink.
@@ -420,6 +444,52 @@ def _build_single_chart(
             values = dev if not additive or len(dev) == 3 else [dev[0]] * 3
             val = [(100 - v if gray_ink else v) / 100 * maxval for v in values]
             arr[y0:y1, x0:x1] = np.rint(val).astype(dtype)
+    art_runs = []
+    if art is not None:
+        # The clip border in its own colours on an RGB chart, and as black
+        # ink of its darkness on separated inks (the marks' channel).
+        ax, ay = art_xy
+        rgb = np.asarray(art, dtype=np.float32) / 255.0
+        on = np.asarray(artwork_ink(art), dtype=bool)
+        region = arr[ay:ay + rgb.shape[0], ax:ax + rgb.shape[1]]
+        lum = rgb @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+        if additive and not gray_ink:
+            region[on] = np.rint(rgb[on] * maxval).astype(dtype)
+        elif additive:
+            region[on] = np.rint(lum[on, None] * maxval).astype(dtype)
+        else:
+            region[on] = 0
+            region[on, black] = np.rint((1.0 - lum[on]) * maxval).astype(dtype)
+        for run, colour in artwork_runs(art, art_xy):
+            c = [v / 255.0 for v in colour]
+            l = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+            if additive and not gray_ink:
+                values = tuple(v * 100.0 for v in c)
+            elif additive:
+                values = (l * 100.0,)
+            else:
+                values = tuple((1.0 - l) * 100.0 if i == black else 0.0
+                               for i in range(channels))
+            art_runs.append((run, values))
+    if check_detection:
+        # THE FD-9 MUST BE ABLE TO FIND THIS SHEET (4.3.25, F4): its own
+        # detector on a synthetic pre-scan, at both scan scales, before a
+        # file is written (`workflow.fd9.sheet_check`).
+        from .sheet_check import check_page_furniture, gray_from_array
+        furniture = None
+        if extra is not None:
+            furniture = np.array(extra, dtype=bool)
+        if art is not None:
+            ax, ay = art_xy
+            art_on = np.asarray(artwork_ink(art), dtype=bool)
+            if furniture is None:
+                furniture = np.zeros((size[1], size[0]), dtype=bool)
+            furniture[ay:ay + art_on.shape[0], ax:ax + art_on.shape[1]] |= art_on
+        check_page_furniture(
+            gray_from_array(arr, additive=additive, gray_ink=gray_ink,
+                            tokens=[aliases.get(t, t) for t in tokens],
+                            maxval=maxval),
+            furniture, dpi, doc, page_no, page_count)
     base.parent.mkdir(parents=True, exist_ok=True)
     tiff_compression = None if compression in (None, "", "none") else compression
     if additive:
@@ -547,6 +617,7 @@ def _build_single_chart(
             for x, y in marks
         ]
         elements += [("rect", run, ink_values) for run in label_runs]
+        elements += [("rect", run, values) for run, values in art_runs]
         elements.append(
             ("hex", [(x * dpi / 25.4, y * dpi / 25.4) for x, y in arrow], ink_values)
         )
@@ -671,7 +742,7 @@ def build_chart(ti1_path, out_base, **kwargs):
                       for i,(dev,xyz) in enumerate(subset)]
             source.write_text("\n".join(lines+["END_DATA", ""]), encoding="utf-8")
             options = dict(kwargs, seed=seed+page_index, _columns=page_columns, _rows=rows,
-                           _page_label=f"{page_index+1}/{math.ceil(len(target.patches)/cap)}")
+                           _page=(page_index+1, math.ceil(len(target.patches)/cap)))
             # Keep pre-arranged ramp order when splitting a calibration chart.
             options["ramps_per_strip"] = False
             result = _build_single_chart(source, Path(temp)/"page", **options)

@@ -25854,6 +25854,9 @@ class TabChart(QWidget):
                         if (tool, _key) == ("engine", "engine_failed")
                         else _M.M_CHART_ENGINE_REDRAW_FAILED.render(reason="")[0]
                         if (tool, _key) == ("engine", "engine_redraw_failed")
+                        else _M.M_FD9_CHART_UNDETECTABLE.render(
+                            page=1, pages=1, reason="")[0]
+                        if (tool, _key) == ("engine", "fd9_undetectable")
                         else tr("The chart could not be built")
                         if tool == "engine"
                         else "Chart Layout Failed (printtarg)"

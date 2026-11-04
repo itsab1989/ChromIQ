@@ -132,6 +132,9 @@ def test_the_full_recipe_really_is_full():
         "instrument", "paper",  # the preset KEY — varying them changes the slot
         "clip_border",          # ditto: part of the mode in the key
         "spacer_overrides",     # per-chart click state, not a preset value
+        # FD-9 recipes only (the sample is an i1Pro's, and the instrument is
+        # the key); its own round trip: tests/test_fd9_4325_panel.py.
+        "fd9_clip_border",
     }
     missing = [f.name for f in fields(LayoutRecipe)
                if f.name not in skip and f"{f.name}=" not in src]

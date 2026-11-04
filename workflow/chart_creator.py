@@ -798,6 +798,18 @@ class ChartParams:
     # arrived via "Use as pre-conditioning profile" in a result dialog.
 
 
+def _fd9_run_label(file_mgr, params) -> str:
+    """The run an FD-9 sheet's label names: its number, or "calibration"
+    for a calibration chart. Empty when there is no project to ask (an
+    estimate before any project exists)."""
+    if getattr(params, "cal_target", False):
+        return "calibration"
+    try:
+        return str(file_mgr.project().current_run().run_number)
+    except Exception:      # noqa: BLE001 — no project yet: no run named
+        return ""
+
+
 class ChartCreator:
     def __init__(
         self,
@@ -1746,7 +1758,20 @@ class ChartCreator:
                 apply_cal=bool(params.engine_apply_cal),
                 export_pdf=bool(recipe_kw.get("export_pdf", False)),
                 # Honoured, like for every engine chart (Output > Compression).
-                compression=str(recipe_kw.get("compression", "lzw") or "lzw"))
+                compression=str(recipe_kw.get("compression", "lzw") or "lzw"),
+                # What the sheet's label and its clip border name (4.3.25,
+                # F5/F12): the project, the run, and the clip border On/Off
+                # with its text. None leaves the FD-9's own default.
+                project=str(getattr(params, "target_name", "") or ""),
+                rundescription=str(getattr(params, "run_description", "") or ""),
+                fd9_run=_fd9_run_label(getattr(self, "_file_mgr", None), params),
+                fd9_clip_border=getattr(recipe, "fd9_clip_border", None),
+                **({k: recipe_kw[k] for k in (
+                    "clip_content_mode", "clip_text", "clip_text_font",
+                    "clip_text_size_mm", "clip_image_path",
+                    "clip_image_rotation", "clip_image_scale",
+                    "clip_image_offset_x", "clip_image_offset_y")
+                    if k in recipe_kw}))
         _in_order = bool(getattr(params, "cal_target", False))
         if params.layout_recipe is not None and hasattr(params.layout_recipe, "build_kwargs"):
             kw = params.layout_recipe.build_kwargs()
@@ -1853,6 +1878,14 @@ class ChartCreator:
             if isinstance(exc, CalibrationMismatch):
                 self._matched_errors.append(
                     ("engine", "cal_colorspace_mismatch", exc.friendly()))
+            elif getattr(exc, "fd9_page", None) is not None:
+                # The FD-9 would not find a page (4.3.25, F4): its own words.
+                from workflow import measurement_messages as M
+                self._matched_errors.append(
+                    ("engine", "fd9_undetectable",
+                     M.M_FD9_CHART_UNDETECTABLE.render(
+                         page=exc.fd9_page, pages=exc.fd9_pages,
+                         reason=str(exc))[1]))
             else:
                 # ANY OTHER REFUSAL REACHES A WINDOW TOO (review of #214, Q4):
                 # it used to end here with one log line and an empty preview.

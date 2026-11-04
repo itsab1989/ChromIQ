@@ -240,9 +240,9 @@ def fd9_greyed_reason() -> str:
         "the end that goes in first, and at least 33 mm free at the other end. "
         "Four small black squares around the patch area let the FD-9 find the "
         "patches, and an arrow shows which end goes in first. Nothing else is "
-        "printed on the sheet, except a small label at the bottom right that "
-        "names the project, the run and the page, and the FD-9 clip border if "
-        "you switch it on. The greyed boxes show the values an FD-9 chart "
+        "printed on the sheet, except a small label at the top left that "
+        "names the project, the run and the page when the chart has several "
+        "sheets, and the FD-9 clip border if you switch it on. The greyed boxes show the values an FD-9 chart "
         "uses.\n\n"
         "What you can set for the FD-9 is under “Expert Options”, in “Patches "
         "& spacers”:\n"
@@ -605,18 +605,7 @@ class LayoutOptionsPanel(QWidget):
             self.clip_enable.addItem(tr("On"), "on")
             self.clip_enable.currentIndexChanged.connect(self._on_clip_enable_changed)
             self._clip_enable_tip = TooltipButton(
-                tr("Clip border"),
-                tr("Reserve a clip-border strip on this chart (the same option the "
-                   "i1Pro has). On reserves a band you can fill with a notes box, "
-                   "text or a logo in the Clip-border content section below; Off "
-                   "uses the whole page for patches. Choose which edge it sits on "
-                   "in that section.\n\n"
-                   "If you also print the ruler helper markers (the short dashes "
-                   "along the page edges, switched on under the preview), a dash "
-                   "can cross this band. That is allowed on purpose — the dashes "
-                   "keep step with the patches wherever they fall. If one lands "
-                   "awkwardly, move it with its own “Distance from page edge”, "
-                   "or make it shorter."), self)
+                *self._clip_enable_help("i1"), self)
             # Paper + Pages share a row, directly under Instrument (Knut #93);
             # paper gets the stretch (wider).
             self.paper = ElidingComboBox(self)
@@ -3169,10 +3158,12 @@ class LayoutOptionsPanel(QWidget):
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
         if hasattr(self, "clip_enable"):
-            is_band = inst in ("CM", "SS", "CR30")
+            is_band = inst in ("CM", "SS", "CR30") or (
+                inst == "FD9" and self._fd9_support)
             self.clip_enable.setVisible(is_band)
             self._clip_enable_lbl.setVisible(is_band)
             self._clip_enable_tip.setVisible(is_band)
+            self._clip_enable_tip.set_content(*self._clip_enable_help(inst))
             self._sync_clip_enable_display()
         # "Offset every second strip" is a ColorMunki-only option.
         if hasattr(self, "cm_stagger_cb"):
@@ -3189,7 +3180,10 @@ class LayoutOptionsPanel(QWidget):
     #: Every other control inside a group is greyed, because the FD-9 chart
     #: has a fixed geometry of its own. The groups are found at any depth:
     #: they sit inside "Basic" and "Expert Options".
-    _FD9_LIVE_GROUPS = ("Output", "Printer calibration", "Randomisation")
+    _FD9_LIVE_GROUPS = ("Output", "Printer calibration", "Randomisation",
+                        # 4.3.25 (F12): the FD-9 has a clip border of its own,
+                        # in the trailing band, with the content chosen here.
+                        "Clip-border content")
     #: The FD-9 renderer's highest resolution (`workflow.fd9.chart`).
     _FD9_MAX_DPI = 600
 
@@ -3258,6 +3252,12 @@ class LayoutOptionsPanel(QWidget):
             except RuntimeError:       # deleted with a rebuilt section
                 pass
         self._fd9_restore_shown(was.get("shown"))
+        if was.get("clip") is not None:
+            index, when_on = was["clip"]
+            if when_on:
+                self._clip_when_on = when_on
+            if index >= 0:
+                self.clip_content_mode.setCurrentIndex(index)
         for control, lo, hi, value, special in was.get("ranges", []):
             control.setSpecialValueText(special)
             control.setRange(lo, hi)
@@ -3294,11 +3294,10 @@ class LayoutOptionsPanel(QWidget):
                 "spacer_mode": "none", "layout_mode": "patch_first",
                 "texts": {"strip_pat": DEFAULT_STRIP_PATTERN,
                           "patch_pat": DEFAULT_PATCH_PATTERN,
-                          "chart_text": "", "clip_image_path": ""}}
+                          "chart_text": ""}}
 
     #: The line and text boxes whose shown value the FD-9 replaces.
-    _FD9_SHOWN_TEXTS = ("strip_pat", "patch_pat", "chart_text",
-                        "clip_image_path")
+    _FD9_SHOWN_TEXTS = ("strip_pat", "patch_pat", "chart_text")
 
     def _fd9_patch_height_changed(self, *_a) -> None:
         if getattr(self, "_fd9_saved", None) is not None:
@@ -3365,6 +3364,21 @@ class LayoutOptionsPanel(QWidget):
         finally:
             self._loading = was_loading
 
+    @staticmethod
+    def _fd9_clip_content_of(r) -> str:
+        """The Content an FD-9 recipe's clip border shows in the panel: its
+        own kind when its switch is On (the Notes box unless another was
+        chosen), "off" when it is Off, and the FD-9's default
+        (`FD9_CLIP_BORDER_DEFAULT`) for a recipe saved before the switch
+        existed, whose "notes" was never an answer."""
+        from workflow.fd9.furniture import FD9_CLIP_BORDER_DEFAULT
+        on = (FD9_CLIP_BORDER_DEFAULT if r.fd9_clip_border is None
+              else bool(r.fd9_clip_border))
+        if not on:
+            return "off"
+        mode = r.clip_content_mode
+        return mode if mode not in (None, "", "off", "example") else "notes"
+
     def set_fd9_layout_lookup(self, fn) -> None:
         """Wire a callable ``fn(paper, mode) -> LayoutRecipe`` that returns the
         FD-9's stored layout (Preferences > Chart Layout). Without it the
@@ -3396,6 +3410,18 @@ class LayoutOptionsPanel(QWidget):
         for box, value in ((self.patch_x, width), (self.patch_y, height),
                            (self.inter_patch, along), (self.strip_gap, across)):
             box.setValue(float(value))
+        # …and its clip border (F12): the stored FD-9 layout's, or the
+        # FD-9's default. The previous instrument's comes back on leaving.
+        saved = getattr(self, "_fd9_saved", None)
+        if saved is not None and hasattr(self, "clip_content_mode"):
+            saved["clip"] = (self.clip_content_mode.currentIndex(),
+                             getattr(self, "_clip_when_on", None))
+            kind = self._fd9_clip_content_of(r)
+            if kind == "off":
+                self.set_clip_enabled(False)
+            else:
+                self._clip_when_on = kind
+                self._select_clip_content(kind)
 
     def _fd9_live_controls(self) -> tuple:
         """The controls outside `_FD9_LIVE_GROUPS` that the FD-9 does read:
@@ -3405,6 +3431,15 @@ class LayoutOptionsPanel(QWidget):
             self.dpi, self.patch_x, self.patch_y, self.inter_patch,
             self.strip_gap, getattr(self, "clip_enable", None),
             getattr(self, "clip_text", None)) if c is not None)
+
+    def _fd9_dead_in_live_groups(self) -> tuple:
+        """Controls inside a live group that the FD-9 does not read: its clip
+        border always lies across the trailing band, the right way up for the
+        person feeding the sheet, so the side and the 180-degree flip of the
+        other instruments' clip border do not apply."""
+        return tuple(c for c in (getattr(self, "clip_side", None),
+                                 getattr(self, "clip_flip_180", None))
+                     if c is not None)
 
     def _fd9_greyable_controls(self):
         """The controls the FD-9 layout does not read: EVERY INPUT inside a
@@ -3434,7 +3469,8 @@ class LayoutOptionsPanel(QWidget):
                 if isinstance(p, QGroupBox):
                     groups.append(p.title())
                 p = p.parentWidget()
-            if not groups or any(t in live for t in groups):
+            if (not groups or any(t in live for t in groups)) \
+                    and control not in self._fd9_dead_in_live_groups():
                 continue          # the selectors, the FD-9's own, or live
             yield control
 
@@ -3636,7 +3672,8 @@ class LayoutOptionsPanel(QWidget):
         else:
             inst = self._inst
             clip_mode = self._clip and inst in ("i1", "p3")
-        is_band_inst = inst in ("CM", "SS", "CR30")
+        is_band_inst = inst in ("CM", "SS", "CR30") or (
+            inst == "FD9" and self._fd9_support)
         content_on = hasattr(self, "clip_content_mode") and self.clip_enabled()
         # For CM/SS the band (and its content group) appears only when the clip
         # border is turned on — i.e. content is set to something — matching the
@@ -3816,6 +3853,37 @@ class LayoutOptionsPanel(QWidget):
         self._sync_clip_enable_display()
         self._update_clip_visibility()
         self._emit()
+
+    def _clip_enable_help(self, inst: str) -> "tuple[str, str]":
+        """The (i) beside the Clip border switch: the FD-9's own words while
+        the FD-9 is selected (4.3.25, F12), the others' otherwise."""
+        if inst == "FD9" and self._fd9_support:
+            return (tr("FD-9 clip border"), tr(
+                "Prints ChromIQ's clip border on each FD-9 sheet: a band about "
+                "14 mm deep in the free space after the last row of patches, at "
+                "the end of the sheet that goes into the FD-9 last. It shows the "
+                "content you choose under “Clip-border content”; the Notes box "
+                "is the default, with the patch count, the paper, the date, the "
+                "page and lines to write on. It is turned round so that it reads "
+                "the right way up for you when you hold the sheet by that end to "
+                "feed it, so on screen it is upside down.\n\n"
+                "It takes no room from the patches.\n\n"
+                "Before a chart is saved, ChromIQ checks every page the way the "
+                "FD-9 will scan it, and refuses a page the FD-9 would not find. "
+                "The FD-9 clip border is new and is off by default until it has "
+                "been tested on real sheets: switch it on if you want it."))
+        return (tr("Clip border"),
+                tr("Reserve a clip-border strip on this chart (the same option the "
+                   "i1Pro has). On reserves a band you can fill with a notes box, "
+                   "text or a logo in the Clip-border content section below; Off "
+                   "uses the whole page for patches. Choose which edge it sits on "
+                   "in that section.\n\n"
+                   "If you also print the ruler helper markers (the short dashes "
+                   "along the page edges, switched on under the preview), a dash "
+                   "can cross this band. That is allowed on purpose — the dashes "
+                   "keep step with the patches wherever they fall. If one lands "
+                   "awkwardly, move it with its own “Distance from page edge”, "
+                   "or make it shorter."))
 
     def _sync_clip_enable_display(self) -> None:
         """Keep the CM/SS clip-border On/Off selector in step with the content
@@ -5912,6 +5980,18 @@ class LayoutOptionsPanel(QWidget):
         if r.instrument == "FD9" and self._fd9_support:
             r.fd9_gap_mm = None  # shared inter-patch and strip-gap controls
             r.layout_mode = "patch_first"
+            # 4.3.25 (F11, F12): what an FD-9 chart never prints is stored
+            # off (helper markers, strip and row labels), and its clip
+            # border is the switch's answer, in a field of its own.
+            from workflow.layout_engine.presets import fd9_fixed_fields
+            from workflow.fd9.furniture import FD9_CLIP_BORDER_DEFAULT
+            r = fd9_fixed_fields(r)
+            # Written only when it differs from the FD-9's default: a recipe
+            # that leaves it at the default follows the default, and opening
+            # the project with the Beta off then rewrites nothing
+            # (tests/test_fd9_off_stale_project.py).
+            on = r.clip_content_mode not in (None, "off", "example")
+            r.fd9_clip_border = None if on == FD9_CLIP_BORDER_DEFAULT else on
         return r
 
     def _emit(self, *_a) -> None:
@@ -6148,7 +6228,8 @@ class LayoutOptionsPanel(QWidget):
                                 layout_mode="patch_first",
                                 inter_patch_mm=(r.fd9_gap_mm if r.fd9_gap_mm is not None else r.inter_patch_mm),
                                 strip_gap_mm=(r.fd9_gap_mm if r.fd9_gap_mm is not None else r.strip_gap_mm),
-                                fd9_gap_mm=None)
+                                fd9_gap_mm=None,
+                                clip_content_mode=self._fd9_clip_content_of(r))
                 self._set_recipe_impl(r)
                 self._hold_fd9_greying()          # review r1 F5
             finally:

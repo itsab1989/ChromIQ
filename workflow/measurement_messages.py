@@ -1008,6 +1008,46 @@ M_CHART_ENGINE_FAILED = _m(
     approved=False)
 
 
+#: 4.3.25 (F4). Before an FD-9 chart is saved, every page goes through the
+#: FD-9's own mark detector on a synthetic pre-scan at two scan scales
+#: (`workflow.fd9.sheet_check`). Shown when something ChromIQ added to the
+#: sheet (the page label, the FD-9 clip border) would stop the FD-9 finding
+#: it. {reason} is ChromIQ's own English sentence, kept for diagnosis.
+M_FD9_CHART_UNDETECTABLE = _m(
+    "M-FD9-CHART-UNDETECTABLE",
+    "The FD-9 would not find this chart",
+    "Before a new FD-9 chart is saved, ChromIQ checks every page the way the "
+    "FD-9 will see it: the FD-9 first looks for the four small black squares "
+    "around the patches, and only measures once it has found exactly those "
+    "four. On page {page} of {pages}, something ChromIQ prints on the sheet "
+    "got in the way, so ChromIQ has not made the chart. Nothing has been "
+    "printed, and the chart you had before is unchanged.\n\n"
+    "This usually comes from the FD-9 clip border, when its content has "
+    "large dark areas (an imported image, for example) that look like one of "
+    "the squares to the FD-9. Switch the clip border off, or choose the "
+    "Notes box as its content, and press “Generate Chart” again.\n\n"
+    "If it still happens, please tell us and include the technical reason "
+    "below.\n\n"
+    "The technical reason was: {reason}",
+    count_key="pages",
+    body_one=(
+        "Before a new FD-9 chart is saved, ChromIQ checks the sheet the way "
+        "the FD-9 will see it: the FD-9 first looks for the four small black "
+        "squares around the patches, and only measures once it has found "
+        "exactly those four. On this sheet, something ChromIQ prints got in "
+        "the way, so ChromIQ has not made the chart. Nothing has been "
+        "printed, and the chart you had before is unchanged.\n\n"
+        "This usually comes from the FD-9 clip border, when its content has "
+        "large dark areas (an imported image, for example) that look like "
+        "one of the squares to the FD-9. Switch the clip border off, or "
+        "choose the Notes box as its content, and press “Generate Chart” "
+        "again.\n\n"
+        "If it still happens, please tell us and include the technical "
+        "reason below.\n\n"
+        "The technical reason was: {reason}"),
+    approved=False)
+
+
 #: The same failure while ChromIQ draws the pages of a chart that already
 #: exists again (a restored or stored chart: `ChartParams.chart_date` set),
 #: where "change that setting and press Generate Chart" does not fit. Keeps
@@ -9136,6 +9176,7 @@ CATALOGUE = {m.id: m for m in (
     M_AUTOSAVE_RETRYING,
     M_PATCHSET_MISSING,
     M_CHART_ENGINE_FAILED, M_CHART_ENGINE_REDRAW_FAILED,
+    M_FD9_CHART_UNDETECTABLE,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,

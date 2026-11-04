@@ -608,6 +608,9 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # engine failure reached only the log.
                                  "M-CHART-ENGINE-FAILED",
                                  "M-CHART-ENGINE-REDRAW-FAILED",
+                                 # 4.3.25 (F4): an FD-9 page the FD-9 would
+                                 # not find, refused at Generate.
+                                 "M-FD9-CHART-UNDETECTABLE",
                                  # 2026-09-03, review 3. Tools ▸ Read single
                                  # patches could bin a whole session in silence
                                  # by two routes: Clear had no question and no

@@ -3,7 +3,7 @@
 * F1: no long FD-9 note box over the panel; "FD-9 on" is a plain flag, not
   the existence of a label;
 * F2: EVERY input the FD-9 does not read is greyed, line and text boxes too
-  (strip and patch patterns, sheet text, image path), the greyed pattern
+  (strip and patch patterns, sheet text), the greyed pattern
   boxes show the FD-9's real patterns, and leaving the FD-9 gives back
   exactly what was there;
 * F3: a pattern typed for another instrument does not hold Generate off for
@@ -85,7 +85,8 @@ def test_every_input_in_a_group_the_fd9_does_not_read_is_greyed(panel):
     assert still == []
     for w in dead:
         assert w.toolTip() == fd9_greyed_reason()
-    for name in ("strip_pat", "patch_pat", "chart_text", "clip_image_path"):
+    for name in ("strip_pat", "patch_pat", "chart_text", "clip_side",
+                 "clip_flip_180"):
         box = getattr(panel, name)
         assert not box.isEnabled(), name
     # What the FD-9 reads stays live: patch size, the gaps, the resolution,
@@ -110,7 +111,9 @@ def test_the_greyed_boxes_show_the_fd9s_patterns_and_come_back(panel):
     _choose(panel, "FD9")
     assert panel.strip_pat.text() == DEFAULT_STRIP_PATTERN
     assert panel.patch_pat.text() == DEFAULT_PATCH_PATTERN
-    assert panel.chart_text.text() == "" and panel.clip_image_path.text() == ""
+    assert panel.chart_text.text() == ""
+    # The image path is the FD-9 clip border's own (F12), so it is kept.
+    assert panel.clip_image_path.text() == "/tmp/logo.png"
     r = panel.get_recipe()
     assert (r.strip_pattern, r.patch_pattern, r.chart_text) == (
         DEFAULT_STRIP_PATTERN, DEFAULT_PATCH_PATTERN, "")
@@ -166,3 +169,49 @@ def test_the_pattern_gate_ignores_the_fd9(qapp, qtbot, tmp_path, monkeypatch):
     _choose(p, "i1")
     tab._refresh_manual_command_preview()
     assert tab._pattern_problem_now() is not None
+
+
+def test_the_fd9_clip_border_switch_is_offered_off_and_given_back(panel):
+    """F12: the FD-9 has a clip border On/Off like the ColorMunki and the
+    CR30, it starts on the FD-9's one default (off), On picks the Notes box
+    like the other instruments, the recipe records the answer only when it
+    differs from the default, and leaving gives the i1Pro its own back."""
+    from workflow.fd9.furniture import FD9_CLIP_BORDER_DEFAULT
+    _choose(panel, "i1")
+    before = panel.clip_content_mode.currentData()
+    _choose(panel, "FD9")
+    assert panel.clip_enable.isVisibleTo(panel) and panel.clip_enable.isEnabled()
+    assert panel.clip_enabled() is FD9_CLIP_BORDER_DEFAULT is False
+    r = panel.get_recipe()
+    assert r.fd9_clip_border is None
+    assert (r.helper_markers, r.show_strip_indicators) == (False, False)
+    panel.clip_enable.setCurrentIndex(panel.clip_enable.findData("on"))
+    assert panel.clip_content_mode.currentData() == "notes"
+    assert panel.clip_text.isEnabled() is False      # the Notes box fills itself
+    assert not panel.clip_side.isEnabled() and not panel.clip_flip_180.isEnabled()
+    assert panel.clip_content_mode.isEnabled()
+    r = panel.get_recipe()
+    assert r.fd9_clip_border is True and r.clip_content_mode == "notes"
+    _choose(panel, "i1")
+    assert panel.clip_content_mode.currentData() == before
+    panel.set_recipe(r)
+    assert panel.instr.currentData() == "FD9" and panel.clip_enabled()
+
+
+def test_a_recipe_from_before_the_switch_loads_with_the_default(panel):
+    from workflow.layout_engine.presets import LayoutRecipe
+    old = LayoutRecipe(instrument="FD9", paper="A4", clip_content_mode="notes")
+    assert old.fd9_clip_border is None
+    panel.set_recipe(old)
+    assert panel.clip_enabled() is False
+
+
+def test_the_fd9_clip_border_field_round_trips_and_stays_out_of_others():
+    from workflow.layout_engine.presets import LayoutRecipe
+    for value in (True, False):
+        r = LayoutRecipe(instrument="FD9", paper="A4", fd9_clip_border=value)
+        assert LayoutRecipe.from_dict(r.to_dict()).fd9_clip_border is value
+    assert "fd9_clip_border" not in LayoutRecipe(
+        instrument="FD9", paper="A4").to_dict()
+    assert "fd9_clip_border" not in LayoutRecipe(
+        instrument="i1", paper="A4", fd9_clip_border=True).to_dict()
