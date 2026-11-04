@@ -79,8 +79,31 @@ def test_a_value_that_is_not_a_number_is_refused_and_named(tmp_path, bad):
     with pytest.raises(ReferenceConvertError) as e:
         cxf_measurement_to_ti3(src, out)
     assert e.value.message_id == "M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER"
-    assert "patch 3" in str(e.value) and f"“{bad}”" in str(e.value)
+    text = str(e.value)
+    # what the file calls it (the reading's Name), and its place (review r2, N3)
+    assert "“M1_Measurement3”" in text and "3 of 12" in text
+    assert f"“{bad}”" in text
     assert not out.exists(), "nothing may be written"
+
+
+def test_a_patch_with_a_sample_name_is_named_by_it(tmp_path):
+    """SampleName first, then the reading's Name, then its place (N3)."""
+    src = _native(tmp_path / "a.mxf", ("M1",), "1")
+    text = src.read_text(encoding="utf-8")
+    # give the second reading a SampleName, as some writers do
+    parts = text.split("</cc:ColorValues>")
+    parts[2] = ('<cc:TagCollection Name="Location"><cc:Tag Name="SampleName" '
+                'Value="A12"/></cc:TagCollection>') + parts[2]
+    src.write_text("</cc:ColorValues>".join(parts), encoding="utf-8")
+    vals = ["0.5"] * 36
+    vals[0] = "nan"
+    _with_spectrum(src, 2, vals)
+    with pytest.raises(ReferenceConvertError) as e:
+        cxf_measurement_to_ti3(src, tmp_path / "a.ti3")
+    assert "“A12”" in str(e.value)
+    assert M.M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER.render(
+        name="a.mxf", patch="A12", index=2, count=12, value="nan")[1] \
+        == str(e.value)
 
 
 # ---- L5 -----------------------------------------------------------------------
@@ -97,6 +120,66 @@ def test_fewer_than_four_wavelengths_are_refused(tmp_path):
         cxf_measurement_to_ti3(src, tmp_path / "a.ti3")
     assert e.value.message_id == "M-CONVERT-CXF-TOO-FEW-BANDS"
     assert "3" in str(e.value)
+
+
+def _three_band_ti3(path: Path, *, with_xyz: bool) -> Path:
+    """A .ti3 with 3-band spectra (450/550/650 nm); no instrument writes
+    one, 4.3.23 read it (review r2, N1)."""
+    fields = "SAMPLE_ID RGB_R RGB_G RGB_B " + (
+        "XYZ_X XYZ_Y XYZ_Z " if with_xyz else "") + "SPEC_450 SPEC_550 SPEC_650"
+    rows = []
+    for i, (r, y) in enumerate([(100, 90.0), (0, 3.0), (50, 40.0), (75, 60.0)],
+                               1):
+        xyz = f"{y * 0.96:.3f} {y:.3f} {y * 0.82:.3f} " if with_xyz else ""
+        rows.append(f"{i} {r} {r} {r} {xyz}{y:.2f} {y:.2f} {y:.2f}")
+    n = len(fields.split())
+    path.write_text("\n".join([
+        "CTI3", "", 'DESCRIPTOR "three bands"', 'ORIGINATOR "test"',
+        'DEVICE_CLASS "OUTPUT"', 'COLOR_REP "RGB_XYZ"',
+        'SPECTRAL_BANDS "3"', 'SPECTRAL_START_NM "450.000000"',
+        'SPECTRAL_END_NM "650.000000"', "", f"NUMBER_OF_FIELDS {n}",
+        "BEGIN_DATA_FORMAT", fields, "END_DATA_FORMAT", "",
+        f"NUMBER_OF_SETS {len(rows)}", "BEGIN_DATA", *rows, "END_DATA", ""]),
+        encoding="utf-8")
+    return path
+
+
+def test_three_bands_with_xyz_are_analysed_as_before(tmp_path):
+    from workflow.ti3_analysis import analyse_ti3, parse_ti3
+    data = parse_ti3(_three_band_ti3(tmp_path / "a.ti3", with_xyz=True))
+    assert data.spectral is None           # the spectral part is left out
+    res = analyse_ti3(data)
+    assert res.illuminant_points == []
+    assert np.allclose(np.asarray(data.xyz)[0], [86.4, 90.0, 73.8])
+
+
+def test_three_bands_without_xyz_say_why_they_cannot_be_read(tmp_path):
+    from workflow.ti3_analysis import Ti3ParseError, parse_ti3
+    with pytest.raises(Ti3ParseError, match="fewer than 4 wavelengths"):
+        parse_ti3(_three_band_ti3(tmp_path / "a.ti3", with_xyz=False))
+
+
+def test_the_info_window_shows_a_three_band_file(qapp, tmp_path):
+    from PyQt6.QtCore import QSettings
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.dialogs.ti3_info_dialog import Ti3InfoDialog
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    dlg = Ti3InfoDialog(ArgyllRunner(s), s)
+    dlg.load_measurement(_three_band_ti3(tmp_path / "a.ti3", with_xyz=True))
+    assert dlg._report, "the window shows nothing"
+    # a spectral-only one is refused by the window's own parse-error path
+    dlg.load_measurement(_three_band_ti3(tmp_path / "b.ti3", with_xyz=False))
+    dlg.deleteLater()
+
+
+def test_the_engine_refuses_three_bands_with_its_own_error():
+    from workflow.argyll_colorimetry import ColorimetryError
+    from workflow.profile_engine.spectral import SpectralError, spectra_to_xyz
+    with pytest.raises(SpectralError):
+        spectra_to_xyz(np.full((1, 3), 50.0), np.array([450.0, 550.0, 650.0]))
+    assert issubclass(ColorimetryError, ValueError)
 
 
 def test_four_wavelengths_still_work():

@@ -7460,14 +7460,17 @@ M_CONVERT_CXF_CONDITION_ABSENT = _m(
 #: A value in a reflectance spectrum that is not a number ("NaN", "INF", a
 #: word): the import wrote "nan" into the .ti3 before (review r1, L6). {name}
 #: the file, {patch} the patch's number in the file (1 for the first), {value}
-#: the value as written.
+#: the value as written. {patch} is what the file calls the patch (its
+#: SampleName, else the reading's Name, else its place), {index} and {count}
+#: its place among the readings (review r2, N3).
 M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER = _m(
     "M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER",
     _CONVERT_HEADLINE,
-    "The reflectance spectrum of patch {patch} in {name} holds a value that "
-    "is not a number (\u201c{value}\u201d). ChromIQ needs a number for "
-    "every wavelength to work out the colour of a patch, and it never "
-    "guesses a missing one.\n\n"
+    "The reflectance spectrum of the patch \u201c{patch}\u201d in {name} "
+    "(reading {index} of {count} in the file) holds a value that is not a "
+    "number (\u201c{value}\u201d). ChromIQ needs a number for every "
+    "wavelength to work out the colour of a patch, and it never guesses a "
+    "missing one.\n\n"
     "Open the file in i1Profiler and look at that patch. If its reading is "
     "missing or broken, measure the patch or the chart again and save the "
     "measurement once more.\n\n"
@@ -7483,8 +7486,9 @@ M_CONVERT_CXF_TOO_FEW_BANDS = _m(
     "like ArgyllCMS, needs at least 4). An i1Profiler measurement normally "
     "holds 36, from 380 to 730 nm, so this file was probably written by "
     "another program or cut short.\n\n"
-    "Export the measurement from i1Profiler again, or ask the program that "
-    "wrote it for the complete spectra.\n\n"
+    "If the file was saved by i1Profiler, open the measurement there and "
+    "save it once more. If another program wrote it, have that program save "
+    "the complete spectra, and import the new file.\n\n"
     "Your file has not been changed.",
     approved=False)
 

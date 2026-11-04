@@ -569,6 +569,18 @@ def _cxf_wavelengths(root, spectrum_el, bands: int):
     return start + step * np.arange(bands)
 
 
+def _cxf_patch_label(obj, index: int) -> str:
+    """What the file calls the reading *obj* (review r2, N3): its
+    ``SampleName`` tag when it has one, else its ``Name`` attribute
+    (i1Profiler writes "M1_Measurement137"), else its place in the file."""
+    for tag in obj.iter():
+        if (tag.get("Name") or "") == "SampleName" \
+                and (tag.get("Value") or "").strip():
+            return tag.get("Value").strip()
+    name = (obj.get("Name") or "").strip()
+    return name or str(index)
+
+
 def _nm(v: float) -> str:
     return f"{int(round(v))}" if abs(v - round(v)) < 1e-6 else f"{v:g}"
 
@@ -663,7 +675,9 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
                 # "nan" in a .ti3 is no measurement (review r1, L6): refuse
                 # the import and name the patch, never write it.
                 raise _failure(M.M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
-                               name=cxf_path.name, patch=len(refl) + 1,
+                               name=cxf_path.name,
+                               patch=_cxf_patch_label(o, len(refl) + 1),
+                               index=len(refl) + 1, count=len(meas),
                                value=v)
             values.append(f)
         refl.append(values)

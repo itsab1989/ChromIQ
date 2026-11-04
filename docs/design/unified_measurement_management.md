@@ -8375,11 +8375,11 @@ alone.
 
 ### M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER · PROPOSED · a value in an i1Profiler .mxf / .cxf spectrum that is not a number, every door that converts one, 4.3.24
 
-*New 2026-11-04, 4.3.24 (review round 1, L6). A reflectance spectrum value that is not a finite number ("NaN", "INF", a word). Before 4.3.24 the import wrote "nan" into the .ti3. Nothing is imported. {name} the file, {patch} the patch's number in the file (1 for the first), {value} the value as written.*
+*New 2026-11-04, 4.3.24 (review round 1, L6). A reflectance spectrum value that is not a finite number ("NaN", "INF", a word). Before 4.3.24 the import wrote "nan" into the .ti3. Nothing is imported. {name} the file; {patch} what the file calls the patch (its `SampleName` tag when it has one, else the reading's `Name`, such as "M1_Measurement137", else its place; review round 2, N3); {index} and {count} its place among the readings (1 for the first); {value} the value as written.*
 
 > **The file could not be converted**
 >
-> The reflectance spectrum of patch {patch} in {name} holds a value that is not a number (“{value}”). ChromIQ needs a number for every wavelength to work out the colour of a patch, and it never guesses a missing one.
+> The reflectance spectrum of the patch “{patch}” in {name} (reading {index} of {count} in the file) holds a value that is not a number (“{value}”). ChromIQ needs a number for every wavelength to work out the colour of a patch, and it never guesses a missing one.
 >
 > Open the file in i1Profiler and look at that patch. If its reading is missing or broken, measure the patch or the chart again and save the measurement once more.
 >
@@ -8393,7 +8393,7 @@ alone.
 >
 > The readings in {name} cover too few wavelengths to work out the colours of the patches (wavelengths in the file: {bands}; ChromIQ, like ArgyllCMS, needs at least 4). An i1Profiler measurement normally holds 36, from 380 to 730 nm, so this file was probably written by another program or cut short.
 >
-> Export the measurement from i1Profiler again, or ask the program that wrote it for the complete spectra.
+> If the file was saved by i1Profiler, open the measurement there and save it once more. If another program wrote it, have that program save the complete spectra, and import the new file.
 >
 > Your file has not been changed.
 
