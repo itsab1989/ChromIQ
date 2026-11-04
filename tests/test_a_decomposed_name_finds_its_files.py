@@ -41,6 +41,7 @@ WHAT THESE TESTS PROVE
 from __future__ import annotations
 
 import os
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -304,6 +305,25 @@ def test_the_project_rename_walk_carries_the_accented_files(tmp_path):
 # The route the bug actually travels, with a real HFS+ volume
 # ---------------------------------------------------------------------------
 
+def _detach(device: str) -> None:
+    """Detach a disk image, forcing it if a plain detach is refused."""
+    for extra in ([], ["-force"]):
+        done = subprocess.run(["hdiutil", "detach", device, "-quiet", *extra],
+                              timeout=180, capture_output=True)
+        if done.returncode == 0:
+            return
+
+
+def _still_attached(dmg: Path) -> bool:
+    info = subprocess.run(["hdiutil", "info", "-plist"], timeout=180,
+                          capture_output=True)
+    if info.returncode != 0:
+        return False
+    real = os.path.realpath(dmg)
+    return any(os.path.realpath(im.get("image-path", "")) == real
+               for im in plistlib.loads(info.stdout).get("images", []))
+
+
 @pytest.mark.skipif(not IS_MACOS, reason="hdiutil is macOS")
 def test_a_real_hfs_plus_round_trip_produces_the_decomposed_spelling(tmp_path):
     """The measurement behind the whole fix, done for real once.
@@ -322,10 +342,18 @@ def test_a_real_hfs_plus_round_trip_produces_the_decomposed_spelling(tmp_path):
     if made.returncode != 0:                 # no disk-image support on this host
         pytest.skip(f"hdiutil create failed: {made.stderr.strip()[:120]}")
     att = subprocess.run(
-        ["hdiutil", "attach", str(dmg), "-mountpoint", str(mnt), "-quiet",
-         "-nobrowse"], timeout=180, capture_output=True, text=True, encoding="utf-8")
+        ["hdiutil", "attach", str(dmg), "-mountpoint", str(mnt), "-plist",
+         "-nobrowse"], timeout=180, capture_output=True)
     if att.returncode != 0:
-        pytest.skip(f"hdiutil attach failed: {att.stderr.strip()[:120]}")
+        pytest.skip(f"hdiutil attach failed: "
+                    f"{att.stderr.decode('utf-8', 'replace').strip()[:120]}")
+    # Detach the whole DEVICE, not the mount point: `hdiutil detach <mnt>`
+    # unmounted the volume and left the image attached, once per run, and an
+    # attached image holds its run folder open, so the session cleanup kept
+    # every gate's ~5 GB `chromiq-run-*` folder (13 of them on 2026-11-04).
+    device = min((e["dev-entry"] for e in
+                  plistlib.loads(att.stdout).get("system-entities", [])
+                  if "dev-entry" in e), key=len, default=str(mnt))
     try:
         src = tmp_path / "src" / NAME
         _decomposed_run(src, stem=NAME)      # written COMPOSED, as ChromIQ does
@@ -335,8 +363,8 @@ def test_a_real_hfs_plus_round_trip_produces_the_decomposed_spelling(tmp_path):
         back = tmp_path / "back" / NAME
         shutil.copytree(str(mnt / NAME), str(back))
     finally:
-        subprocess.run(["hdiutil", "detach", str(mnt), "-quiet"], timeout=180,
-                       capture_output=True)
+        _detach(device)
+    assert not _still_attached(dmg), f"{dmg} is still attached after detach"
     assert any(ud.normalize("NFD", n) == n != ud.normalize("NFC", n)
                for n in os.listdir(back)), (
         "copytree back onto APFS keeps the decomposed spelling")
