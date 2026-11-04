@@ -175,12 +175,15 @@ MIN_BANDS = 4
 def _grid(wavelengths) -> tuple:
     lam = np.asarray(wavelengths, dtype=float).ravel()
     if len(lam) < MIN_BANDS:
-        raise ValueError(
+        # ColorimetryError is a ValueError, so ``except ValueError`` callers
+        # keep working; the engine turns it into its SpectralError.
+        raise ColorimetryError(
             f"a spectrum needs at least {MIN_BANDS} wavelengths to be turned "
             f"into XYZ as ArgyllCMS does; this one has {len(lam)}")
     if not np.allclose(np.diff(lam), lam[1] - lam[0], atol=1e-6) \
             or lam[1] <= lam[0]:
-        raise ValueError("the wavelengths must be evenly spaced and rising")
+        raise ColorimetryError(
+            "the wavelengths must be evenly spaced and rising")
     return tuple(round(float(v), 6) for v in lam)
 
 

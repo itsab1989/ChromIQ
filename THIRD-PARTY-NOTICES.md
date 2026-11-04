@@ -273,13 +273,14 @@ C, D50, D65, F5, F8 and F10, used wherever ChromIQ turns a spectrum into XYZ
 engine, the CR30's `workflow/cr30/colour.py`).
 
 **What they are: CIE standard data** (CIE 15, ISO/CIE 11664), published by the
-CIE for everyone to use. The numbers were taken, by the generator
+CIE as its standard colorimetric data. The numbers were taken, by the generator
 `scripts/gen_cie_data.py`, from the tabulation in ArgyllCMS's `xicc/xspect.c`
 (Graeme W. Gill, <https://www.argyllcms.com/>), so that ChromIQ integrates with
 exactly the values ArgyllCMS uses. They are data, not program code: no
 ArgyllCMS code was copied.
 
-**Terms.** The values themselves are the CIE's standard data. The file they
+**Terms.** The values are measured standard data, not a creative work of
+ArgyllCMS, and ChromIQ uses them as the CIE publishes them. The file they
 were read from, `xspect.c`, states *"licenced under the GNU GENERAL PUBLIC
 LICENSE Version 2 or later"*; even read as covered by that licence, "version 2
 or later" allows their use under ChromIQ's GPLv3. Either way nothing conflicts

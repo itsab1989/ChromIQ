@@ -307,6 +307,15 @@ def parse_ti3(path: str | Path) -> Ti3Data:
                 wavelengths = np.linspace(lo, hi, bands)
         except (ValueError, KeyError):
             spectral = wavelengths = None
+    from workflow.argyll_colorimetry import MIN_BANDS
+    few_bands = spectral is not None and len(wavelengths) < MIN_BANDS
+    if few_bands:
+        # FEWER THAN 4 BANDS cannot be integrated as ArgyllCMS does (its
+        # cubic; ``workflow.argyll_colorimetry.MIN_BANDS``). No instrument
+        # writes so few. A file with CIE columns is read as before, without
+        # the spectral part (review r2, N1: 4.3.23 read it, and the minimum
+        # must not take that away); a spectral-only one is refused below.
+        spectral = wavelengths = None
 
     if all(i is not None for i in xyz_i):
         xyz = grab(xyz_i)
@@ -328,6 +337,11 @@ def parse_ti3(path: str | Path) -> Ti3Data:
         # exactly what colprof falls back to, so the numbers ChromIQ shows and
         # the numbers it builds from are the same numbers.
         xyz = _spectral_to_xyz_array(spectral, wavelengths)
+    elif few_bands:
+        raise Ti3ParseError(
+            "The measurement holds only spectra, and they cover fewer than "
+            f"{MIN_BANDS} wavelengths, too few to work out the colours of "
+            "the patches from.")
     else:
         raise Ti3ParseError("No XYZ, Lab or spectral columns in the measurement.")
 
