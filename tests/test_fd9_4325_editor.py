@@ -35,7 +35,7 @@ def _fd9_chart(tmp_path, count, rep="RGB", tokens=("R", "G", "B"),
     run = tmp_path / "run"
     run.mkdir(exist_ok=True)
     src, _ = ti1(run, rep=rep, tokens=tokens, count=count)
-    (run / f"{name}.ti1").write_text(src.read_text())
+    (run / f"{name}.ti1").write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
     r = build_chart(run / f"{name}.ti1", run / name, paper="A4", dpi=100,
                     randomize=False)
     from workflow.layout_engine.presets import LayoutRecipe
@@ -50,11 +50,11 @@ def _fd9_chart(tmp_path, count, rep="RGB", tokens=("R", "G", "B"),
             instrument="FD9", paper="A4", patch_w=8.0, patch_h=8.0,
             fd9_gap=1.0, dpi=100))
     if True:
-        side = json.loads((run / f"{name}.strips.json").read_text())
+        side = json.loads((run / f"{name}.strips.json").read_text(encoding="utf-8"))
         side.update(engine="chromiq", engine_version=1, seed=r.seed,
                     color_rep=r.color_rep, recipe=rec.to_dict())
         (run / f"{name}.channels.json").write_text(json.dumps(
-            {"layout": side}))
+            {"layout": side}), encoding="utf-8")
     return r.ti2_path
 
 
@@ -138,7 +138,7 @@ def test_cmyk_plus_n_inks_survive_the_editor(qapp, qtbot, settings, tmp_path):
     assert dlg._grid.count() == 40
     stage = tmp_path / "stage"
     dlg._write_chart_into(stage, "edited")
-    text = (stage / "edited.ti1").read_text()
+    text = (stage / "edited.ti1").read_text(encoding="utf-8")
     assert "CMYKcmk1kRGB" in text
     r, pages = _relaid(tmp_path, stage, "edited")
     assert pages[0]["channel_tokens"] == list(tokens)

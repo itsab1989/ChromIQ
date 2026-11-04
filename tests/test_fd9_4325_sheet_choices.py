@@ -80,7 +80,7 @@ def test_measure_again_asks_for_the_same_page_and_files_nothing_of_it(
     assert asked[0]["complete"] is True and asked[0]["page"] == 2
     assert [c[0] for c in calls] == [1, 2, 2]       # page 2 read twice
     assert result["complete"] and len(_rows(result)) == 18
-    kw = _keywords(open(result["staged"]).read())
+    kw = _keywords(open(result["staged"], encoding="utf-8").read())
     assert kw["FD9_SHEET_CHECK_PAGE_1"] == pc.MATCHED
     assert kw["FD9_SHEET_CHECK_PAGE_2"] == pc.MATCHED
 
@@ -99,7 +99,7 @@ def test_save_it_turned_round_refiles_every_reading(setup, monkeypatch):
         assert r["SAMPLE_LOC"] == locations[int(r["SAMPLE_ID"])]
         assert all(abs(float(r[f]) - float(d[f])) < 1e-6
                    for f in ("RGB_R", "RGB_G", "RGB_B"))
-    kw = _keywords(open(result["staged"]).read())
+    kw = _keywords(open(result["staged"], encoding="utf-8").read())
     assert kw["FD9_SHEET_CHECK_PAGE_2"] == pc.TURNED_SAVED_TURNED
 
 
@@ -109,7 +109,7 @@ def test_keep_it_as_read_files_it_and_says_so(setup, monkeypatch):
     _judge(monkeypatch, {(1, 0): ("turned", 2, True)})
     result, _asked, calls = _run(s, ["keep"])
     assert result["complete"] and [c[0] for c in calls] == [1, 2]
-    kw = _keywords(open(result["staged"]).read())
+    kw = _keywords(open(result["staged"], encoding="utf-8").read())
     assert kw["FD9_SHEET_CHECK_PAGE_2"] == pc.TURNED_KEPT
 
 
@@ -127,7 +127,7 @@ def test_it_was_page_two_saves_it_there_and_asks_for_page_one_again(
     assert result["complete"] and len(rows) == 18
     order = [p["id"] for page in pages for row in page["rows"] for p in row]
     assert [int(r["SAMPLE_ID"]) for r in rows] == order   # the chart's order
-    kw = _keywords(open(result["staged"]).read())
+    kw = _keywords(open(result["staged"], encoding="utf-8").read())
     assert kw["FD9_SHEET_CHECK_PAGE_2"] == pc.FROM_SHEET_ASKED_AS.format(page=1)
     assert kw["FD9_SHEET_CHECK_PAGE_1"] == pc.MATCHED
 
@@ -164,7 +164,7 @@ def test_a_later_page_filed_first_can_be_resumed(setup, monkeypatch):
                           s.tmp / "m2", capture=capture2,
                           on_mismatch=lambda q: "again")
     assert final["complete"] and [c[0] for c in calls2] == [1]
-    kw = _keywords(open(final["staged"]).read())
+    kw = _keywords(open(final["staged"], encoding="utf-8").read())
     assert kw["FD9_SHEET_CHECK_PAGE_2"] == pc.FROM_SHEET_ASKED_AS.format(page=1)
 
 
@@ -202,7 +202,7 @@ def test_one_sheet_again_and_turned_round(setup, monkeypatch):
     _judge(monkeypatch, {(0, 0): ("turned", 1, True)})
     result, asked, calls = _run(s, ["refile"], session="page-001/b")
     assert len(calls) == 1 and result["complete"]
-    kw = _keywords(open(result["staged"]).read())
+    kw = _keywords(open(result["staged"], encoding="utf-8").read())
     assert kw["FD9_SHEET_CHECK_PAGE_1"] == pc.TURNED_SAVED_TURNED
 
 

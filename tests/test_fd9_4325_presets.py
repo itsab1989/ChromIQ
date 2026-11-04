@@ -147,10 +147,10 @@ def test_the_preview_draws_no_helper_markers_over_an_fd9_chart(tab, tmp_path):
     import json
     from workflow.layout_engine.presets import LayoutRecipe
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     rec = LayoutRecipe(instrument="FD9", paper="A4", helper_markers=True)
     ti2.with_suffix(".channels.json").write_text(json.dumps(
-        {"layout": {"engine": "chromiq", "recipe": rec.to_dict()}}))
+        {"layout": {"engine": "chromiq", "recipe": rec.to_dict()}}), encoding="utf-8")
     tab._margin_tiffs = [tmp_path / "c.tif"]
     tab._margin_ti2 = ti2
     _choose(tab, "FD9")

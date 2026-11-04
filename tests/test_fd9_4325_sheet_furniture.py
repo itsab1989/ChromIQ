@@ -196,10 +196,10 @@ def test_a_failure_not_caused_by_chromiq_is_made_as_before(tmp_path, caplog):
     (report point 8.5): that is a question for the device, not something
     ChromIQ added, so the chart is made as in 4.3.24 and the log says so."""
     src, _ = ti1(tmp_path, rep="RGB", tokens=("R", "G", "B"), count=30)
-    text = src.read_text().splitlines()
+    text = src.read_text(encoding="utf-8").splitlines()
     i = text.index("BEGIN_DATA")
     text[i + 1:i + 31] = [f"{n + 1} 0 0 0" for n in range(30)]
-    src.write_text("\n".join(text) + "\n")
+    src.write_text("\n".join(text) + "\n", encoding="utf-8")
     import logging
     with caplog.at_level(logging.WARNING, logger="workflow.fd9.sheet_check"):
         r = build_chart(src, tmp_path / "dark", paper="A4", dpi=300,
