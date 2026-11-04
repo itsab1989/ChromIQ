@@ -192,7 +192,7 @@ def note_printer(settings, direct_printer: str) -> str:
         native = False
     if native:
         try:
-            return str(settings.get("native_dialog_printer", "") or "")
+            return str(settings.get("printer_last_used_by_dialog", "") or "")
         except Exception:      # noqa: BLE001
             return ""
     return str(direct_printer or "")

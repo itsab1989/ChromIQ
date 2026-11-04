@@ -119,7 +119,7 @@ DEFAULTS: dict[str, Any] = {
     # system dialog on, the edge note (M-EDGE-NOT-PRINTED) is about THIS
     # printer, never the hidden direct-print list, which can name a queue
     # that is not in use (lessbones, #214). "" = none yet: no note.
-    "native_dialog_printer":     "",
+    "printer_last_used_by_dialog":     "",
     # How many times "Use default macOS printer dialog" has been switched
     # (Knut, #182, 2026-10-13: when that setting changes, the project must
     # ask again how a PostScript printer gets the chart). A project keeps the

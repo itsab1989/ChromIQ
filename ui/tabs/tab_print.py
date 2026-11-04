@@ -1542,15 +1542,15 @@ class TabPrint(QWidget):
         except Exception:  # noqa: BLE001 - a question must never stop a print
             return False
 
-    def _remember_dialog_printer(self, printer: str) -> None:
+    def _remember_printer_the_dialog_used(self, printer: str) -> None:
         """Keep the printer the system print dialog printed to, so the edge
         note is about that printer from now on (`printer_edges.note_printer`),
         and redraw the note here and in Create Chart."""
         if not printer:
             return
         try:
-            if self._settings.get("native_dialog_printer", "") != printer:
-                self._settings.set("native_dialog_printer", str(printer))
+            if self._settings.get("printer_last_used_by_dialog", "") != printer:
+                self._settings.set("printer_last_used_by_dialog", str(printer))
             self._update_edge_note()
             chart = getattr(self.window(), "_tab_chart", None)
             refresh = getattr(chart, "_refresh_printer_edge_note", None)
@@ -4603,7 +4603,7 @@ class TabPrint(QWidget):
                         self._note_print_path(
                             _vp.PATH_DIALOG, _used,
                             (getattr(sub, "postscript_form", None) or "") if sub is not None else "")
-                        self._remember_dialog_printer(_used)
+                        self._remember_printer_the_dialog_used(_used)
                         if sub is not None:
                             # R3-1 (Basti, 2026-10-20): after the P18 window's
                             # "Use the print dialog" the user chose to let the
@@ -4763,7 +4763,7 @@ class TabPrint(QWidget):
         paper = qprinter.pageLayout().fullRectPoints()
         pw, ph = float(paper.width()), float(paper.height())
         self._log_printer_margins(qprinter, pw, ph)
-        self._remember_dialog_printer(chosen)
+        self._remember_printer_the_dialog_used(chosen)
         # A CHART A LITTLE LARGER THAN THE PAPER (jctay 149803: 102 x 152 mm
         # on the 100 x 148 mm a 4 x 6 in printer takes): printed at exactly
         # 100 %, no question, when only empty margin is off the paper

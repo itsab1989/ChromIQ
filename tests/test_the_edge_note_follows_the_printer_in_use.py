@@ -32,7 +32,7 @@ def test_own_route_uses_the_list_and_the_dialog_uses_its_own_printer():
     assert PE.note_printer(s, "Canon_IPF9400B") == "Canon_IPF9400B"
     s["use_native_print_dialog"] = True
     assert PE.note_printer(s, "Canon_IPF9400B") == ""        # none printed yet
-    s["native_dialog_printer"] = "EPSON_P900"
+    s["printer_last_used_by_dialog"] = "EPSON_P900"
     assert PE.note_printer(s, "Canon_IPF9400B") == "EPSON_P900"
 
 
@@ -59,11 +59,11 @@ def test_a_dialog_print_remembers_its_printer(qapp, monkeypatch):
 
         def window(self):
             return None
-    TabPrint._remember_dialog_printer(Stand(), "EPSON_P900")
-    assert s["native_dialog_printer"] == "EPSON_P900"
+    TabPrint._remember_printer_the_dialog_used(Stand(), "EPSON_P900")
+    assert s["printer_last_used_by_dialog"] == "EPSON_P900"
     assert seen == ["EPSON_P900"]
-    TabPrint._remember_dialog_printer(Stand(), "")
-    assert s["native_dialog_printer"] == "EPSON_P900"
+    TabPrint._remember_printer_the_dialog_used(Stand(), "")
+    assert s["printer_last_used_by_dialog"] == "EPSON_P900"
 
 
 def test_both_dialog_routes_remember_the_printer():
@@ -78,5 +78,5 @@ def test_both_dialog_routes_remember_the_printer():
         start = src.index(f"    def {name}(")
         nxt = re.search(r"^    def ", src[start + 10:], re.M)
         return src[start:start + 10 + (nxt.start() if nxt else len(src))]
-    assert "_remember_dialog_printer(_used)" in body("_print_native")
-    assert "_remember_dialog_printer(chosen)" in body("_print_native_qt")
+    assert "_remember_printer_the_dialog_used(_used)" in body("_print_native")
+    assert "_remember_printer_the_dialog_used(chosen)" in body("_print_native_qt")

@@ -515,7 +515,7 @@ def test_the_beta_row_credits_lessbones_and_says_restart(qapp, tmp_path):
         assert len(tips) == 1
         body = tips[0]._body
         for needed in ("written and contributed by lessbones", "Ethernet",
-                       "Konica Minolta software", "Pages setting",
+                       "Konica Minolta software", "several numbered sheets",
                        "6 to 30 mm", "137 to 330 mm", "170 to 660 mm",
                        "1.0.0.2", "one FD-9, on macOS", "arrow first",
                        "printed side", "turned", "nothing changes",
