@@ -32,13 +32,13 @@ ArgyllCMS does all the colour science; ChromIQ gives it a calm, guided interface
 so you never have to memorise a single flag.
 
 > [!TIP]
-> **What is new in 4.3**: the
-> [Measurement Report](#measurement-report-new-in-43) with six report types,
-> limit sets that include the published values of ISO 12647-7 and ISO 12647-8,
-> evenness across the sheet, trend graphs and PDF reports; 190 built-in chart
-> presets (154 in 4.2) with a gear button to choose which are listed; and
-> ChromIQ complete in 14 languages, Ukrainian among them. The full list is in
-> the [release notes](https://github.com/itsab1989/ChromIQ/releases/latest).
+> **At a glance**: 191 ready-made chart presets, with a gear button to choose
+> which are listed; the [Measurement Report](#measurement-report) with six
+> report types, limit sets that include the published values of ISO 12647-7
+> and ISO 12647-8, evenness across the sheet, trend graphs and PDF reports;
+> and ChromIQ complete in 14 languages. What changed in each version is in the
+> [changelog](CHANGELOG.md) and the
+> [release notes](https://github.com/itsab1989/ChromIQ/releases).
 
 > [!NOTE]
 > **New to printer profiling?** That's exactly who ChromIQ is for. Every screen
@@ -277,7 +277,7 @@ finished, installed profile.
 
 | | Step | What happens | ArgyllCMS tool |
 |---|------|--------------|----------------|
-| **1** | **Create Chart** | Generate a test chart with the ideal number of colour patches for your instrument, paper, and page count. | `targen` + `printtarg` |
+| **1** | **Create Chart** | Generate a test chart with the ideal number of colour patches for your instrument, paper, and page count. | `targen` + ChromIQ's own layout engine (the default), or `printtarg` |
 | **2** | **Print Chart** | Send the chart to your printer with colour management switched **off** (so you measure the printer's raw behaviour). | CUPS / native dialog |
 | **3** | **Measure** | Scan the printed patches with your spectrophotometer. | `chartread` |
 | **4** | **Build Profile** | Turn the measurements into a finished `.icc` profile and install it. | `colprof` |
@@ -295,35 +295,37 @@ Choose Guided or Manual, name your target, and click **Generate Chart**. The
 patch grid appears in the preview on the right. Optionally tick **Refinement
 profile** to base a second, improved pass on an existing `.icc`/`.icm`.
 
-Or start from one of **190 ready-made chart presets** (154 in 4.2), grouped by
+Or start from one of **191 ready-made chart presets**, grouped by
 instrument: ColorMunki / i1Studio / ColorChecker Studio, i1Pro / i1Pro 2 /
 i1Pro 3, i1Pro 3 Plus, CR30, scanner, and Red River Paper.
 
-**New in 4.3:** the **gear button** beside the presets folder opens
+The **gear button** beside the presets folder opens
 **Settings for built-in presets**, which lists every built-in preset with a tick box. The ticked ones are listed directly; the rest
 wait under an arrow at the end of their group, so nothing is removed. ChromIQ
 starts you on a few per instrument and paper size, and only the changes you
-make are kept, so a later release can still improve that starting list. On a
+make are kept, so an update can still improve that starting list. On a
 verification run, **Which presets can be used for verification?** lists every
 preset against the metrics the report you plan asks of a chart, and says which
 of them each chart can answer, and why not.
 
 ### Step 2 — Print Chart
-Pick your printer and print the chart. **On macOS the native print dialog is now
-the default** — ChromIQ opens the OS print sheet and *locks the driver's colour
+Pick your printer and print the chart. **On macOS the native print dialog is
+the default**: ChromIQ opens the OS print sheet and *locks the driver's colour
 controls off for you* (via PyObjC), so colour management can't sneak back in.
 The per-brand steps for confirming colour is disabled are shown right in the tab.
 On Windows the Windows print dialog opens the same way by default, with
 per-brand instructions for switching the driver's colour adjustment off; the
-chart is placed at exactly 100 % size, centred on the paper.
+chart is placed at exactly 100 % size, centred on the paper. On Linux there is
+no print dialog: ChromIQ always sends the chart to CUPS itself, as PostScript in
+raw mode, so the driver's colour corrections do not touch it.
 
 > [!TIP]
-> Prefer the old behaviour on macOS? Turn **Use default macOS printer dialog**
-> *off* in Preferences and ChromIQ falls back to its direct **PostScript
+> Rather print without a dialog on macOS? Turn **Use default macOS printer
+> dialog** *off* in Preferences and ChromIQ uses its direct **PostScript
 > pipeline**, which bypasses colour management automatically with no dialog at
-> all — handy for batch printing.
+> all, handy for batch printing.
 >
-> **New in 4.3.8, the same on Windows:** turn **Use default Windows printer
+> **The same on Windows:** turn **Use default Windows printer
 > dialog** *off* and ChromIQ sends a PostScript printer the chart directly,
 > bypassing its driver, with its own RGB, CMYK or ink values and at 100 %. You
 > pick the paper, media type and quality on the Print Chart tab. A printer that
@@ -335,7 +337,7 @@ chart is placed at exactly 100 % size, centred on the paper.
 The chart from Step 1 loads automatically. Follow the on-screen prompts:
 **Enter/Space** confirms a strip, and **F** / **B** step **forward** and **back**
 between strips (the on-screen strip highlight follows along). Misread a strip?
-The dialog offers **Retry**, **Skip Stripe**, or **Save Partial & Quit** (which
+The dialog offers **Retry**, **Skip Strip**, or **Save Partial & Quit** (which
 lets you resume later with one click).
 
 With a **ChnSpec CR30** the chart is read patch by patch: ChromIQ finds the
@@ -346,7 +348,7 @@ button. A magnet near the measuring opening (a laptop lid under the paper is
 enough) makes a CR30 return its white-tile value instead of your patch;
 ChromIQ learns that value and refuses such a reading rather than writing it
 into your profile. Twenty-six ready-made CR30 charts are in the Presets
-dropdown (twenty in 4.2; six more in 4.3).
+dropdown.
 On Windows, **Preferences ▸ Instrument drivers…** installs the drivers for
 ArgyllCMS's instruments and for the CR30 from one place, and **Tools ▸
 Instruments** writes a Bluetooth report for when the instrument will not
@@ -453,13 +455,15 @@ a System/Auto mode that follows your OS live). Click any step to expand it.
   command preview, plus per-tab **Save as Defaults** and named **presets**.
 
 ### Printing that just works
-- **PostScript Level 2/3 pipeline** (macOS) that disables colour management
-  automatically — no driver fiddling, no ColorSync in the way.
+- **PostScript Level 2/3 pipeline** (macOS, and always on Linux) that disables
+  colour management automatically: no driver fiddling, no ColorSync in the way.
+  On Windows, ChromIQ's own route sends a PostScript printer the chart directly.
 - **Automatic TIFF fallback** for AirPrint / driverless printers that reject
   PostScript, plus **16-bit TIFF** output for true 16-bit printers and RIPs.
-- **Native OS print dialog** option — on macOS it even locks the driver's colour
-  controls via PyObjC so they can't be re-enabled by accident; on Windows/Linux
-  it shows per-brand instructions for turning ICM off.
+- **The native print dialog is the default on macOS and Windows.** On macOS
+  ChromIQ locks the driver's colour controls via PyObjC so they can't be
+  re-enabled by accident; on Windows it shows per-brand instructions for
+  switching the driver's colour adjustment off.
 - **Preflight confirmation** with paper-size and orientation checks, **offline
   printer detection**, and a **Clear Print Queue** button for stuck jobs.
 
@@ -488,15 +492,15 @@ a System/Auto mode that follows your OS live). Click any step to expand it.
 > try the engine, always print a test image before trusting a profile for
 > real work.
 
-ChromIQ now contains its **own profile builder** next to Argyll `colprof`.
-Enable it under **Settings → Beta → ChromIQ profile engine** and the Build
+ChromIQ contains its **own profile builder** next to Argyll `colprof`.
+Enable it under **Preferences → Beta → ChromIQ profile engine (beta)** and the Build
 Profile tab lets you build with either — same measurements, same options, so
 you can build both and compare. Why it exists: `colprof` cannot build profiles
 for printers with more than four inks; the engine can — CMYK plus orange,
 green, violet, light inks — closing the whole multi-ink loop inside ChromIQ
 (design the chart, print, measure, build, refine).
 
-- **Three accuracy modes** (Settings → Beta): **Fast** (ChromIQ's own
+- **Three accuracy modes** (Preferences → Beta): **Fast** (ChromIQ's own
   implementation of colprof's method, validated against Argyll), **Bit-exact**
   (real colprof for standard printers; a bundled helper runs Argyll's genuine
   gamut-mapping code for multi-ink ones), and **Maximum accuracy** (averages
@@ -528,7 +532,7 @@ green, violet, light inks — closing the whole multi-ink loop inside ChromIQ
 ### Design your own chart — layout editor & colour-set generator
 Most people never need this — Guided mode already picks a great chart. But when
 you want full control over *which colours* you measure and *how the sheet is laid
-out*, the **chart layout editor** (Tools → **Edit / create chart layout**) is a
+out*, the **chart layout editor** (Tools → **Edit / create chart patch set**) is a
 complete design surface:
 
 - **Start from anything** — load an existing `.ti2`, pull in the chart you just
@@ -619,7 +623,7 @@ on their own, outside the five-step flow:
   checks are never overwritten, so you can watch how a profile changes over
   months.
 
-### Measurement Report (new in 4.3)
+### Measurement Report
 Any measurement becomes a **Measurement Report**, from the Measure tab or from
 **Tools ▸ Measurement report (accuracy & trends)**. Choose what kind of document
 you need and which set of limits it is judged against. ChromIQ measures every
@@ -681,12 +685,14 @@ the ones this chart cannot answer.
 - **Fourteen languages, complete**: English plus German, Spanish, French,
   Italian, Dutch, Portuguese, Swedish, Norwegian, Polish, Russian, Ukrainian,
   Japanese and Chinese. Every button, message, tooltip and help text, not just
-  the menus. Ukrainian is new in 4.3.
+  the menus.
 - **Per-tab onboarding tooltips**, **live command preview**, and a **zoomable
   multi-channel TIFF preview** (RGB, CMYK, extended-gamut).
 - **Session restore**, **rotating log file**, and a built-in **update checker**.
-- **Self-documenting chart TIFFs** — the exact commands and ChromIQ version are
-  stamped into each generated TIFF's margin.
+- **Self-documenting charts, if you want them**: switch on **Stamp settings
+  down the right edge** in Create Chart, and the commands that made the chart
+  (`targen`, and `printtarg` or ChromIQ's layout engine) and the ChromIQ
+  version are printed down the right edge of the sheet. It is off by default.
 
 ---
 
@@ -728,10 +734,19 @@ the ArgyllCMS `bin` folder, and click **Test binaries**. See
 <details>
 <summary><strong>Windows/Linux: colour looks wrong in the printed chart</strong></summary>
 
-The CUPS/PostScript auto-bypass is macOS-only. On Windows and Linux you must
-disable ICM/colour management **in the printer driver** before printing a
-profiling target — ChromIQ shows per-brand instructions in the Print tab and
-can't do this for you without CUPS.
+- **Windows, with the Windows print dialog** (the default): switch the colour
+  adjustment (ICM) off **in the printer driver** before printing a profiling
+  chart. The Print Chart tab shows the steps for your printer's brand.
+- **Windows, with "Use default Windows printer dialog" off**: a PostScript
+  printer gets the chart directly, without its driver's colour correction. A
+  printer that does not understand PostScript (most home and photo inkjets)
+  still gets an RGB chart through the Windows dialog, so switch its colour
+  adjustment off there; CMYK and multi-ink charts are refused on such a
+  printer, because its driver would change their colours.
+- **Linux**: ChromIQ always sends the chart to CUPS as PostScript in raw mode,
+  past the driver's colour corrections. If the colours still look wrong,
+  check the paper and quality on the Print Chart tab, and please tell us:
+  Linux support is beta.
 </details>
 
 ---
@@ -739,19 +754,20 @@ can't do this for you without CUPS.
 ## Configuration & logs
 
 Settings are stored with `QSettings` (on macOS,
-`~/Library/Preferences/ChromIQ.ChromIQ.plist`). The **Preferences** dialog (`⌘,`)
+`~/Library/Preferences/com.chromiq.ChromIQ.plist`). The **Preferences** dialog (`⌘,`)
 exposes:
 
 | Setting | Default | What it does |
 |---------|---------|--------------|
 | ArgyllCMS bin path | auto-detected | Folder containing the ArgyllCMS executables |
 | Output folder | `~/ChromIQ/` | Where chart/profile projects are saved |
-| Restore last active tab on launch | On | Reopen on the last-used tab |
+| Restore last active tab on launch | Off | Reopen on the last-used tab |
 | Restore last session on launch | Off | Reload the last project's files at startup |
 | Enable calibration options | Off | Unlock the `printcal → applycal` workflow |
-| Use default macOS printer dialog | Off | Use the native print sheet instead of the PostScript pipeline (macOS) |
-| Confirm print settings before sending | On | Show a preflight summary before each job |
-| Use app theme colours for 3D gamut viewer | On | Tint the gamut mesh with ChromIQ's palette |
+| Use default macOS printer dialog | On | Use the native print sheet instead of the PostScript pipeline (macOS) |
+| Use default Windows printer dialog | On | Use the Windows print dialog instead of sending a PostScript printer the chart directly (Windows) |
+| Confirm print settings before printing | On | Show a preflight summary before each job |
+| Use app theme colors for 3D gamut viewer | On | Tint the gamut mesh with ChromIQ's palette |
 
 Each project lives in its own folder under `~/ChromIQ/<project-name>/`, holding
 every generated file for that run (chart, measurements, profile, quality
@@ -791,7 +807,7 @@ and pyobjc. See [`requirements.txt`](requirements.txt).
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest    # ~1–2s, 284 tests
+QT_QPA_PLATFORM=offscreen pytest -n auto    # about 30,700 tests, a few minutes on a multi-core machine
 ```
 
 ### Build a standalone app
