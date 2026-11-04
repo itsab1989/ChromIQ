@@ -115,6 +115,11 @@ DEFAULTS: dict[str, Any] = {
     # default there too. Until then get() forced it on, because Windows had no
     # route of ChromIQ's own.
     "use_native_print_dialog":   is_windows() or is_macos(),
+    # The printer the system print dialog last printed to (4.3.24). With the
+    # system dialog on, the edge note (M-EDGE-NOT-PRINTED) is about THIS
+    # printer, never the hidden direct-print list, which can name a queue
+    # that is not in use (lessbones, #214). "" = none yet: no note.
+    "native_dialog_printer":     "",
     # How many times "Use default macOS printer dialog" has been switched
     # (Knut, #182, 2026-10-13: when that setting changes, the project must
     # ask again how a PostScript printer gets the chart). A project keeps the

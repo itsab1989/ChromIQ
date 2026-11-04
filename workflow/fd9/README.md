@@ -24,6 +24,12 @@ is regular rectangular grids with four marks,
 including CMYK+N device values. Arbitrary chart recognition is not implemented.
 The four marks are symmetric: they validate geometry, not chart identity or
 180-degree orientation. Supply the matching sheet arrow first, printed face up.
+After each sheet, `workflow/fd9/page_check.py` compares the measured lightness
+pattern with the .ti2 aims for the expected page, the page turned round and
+every other page with the same grid, and refuses to file the sheet when
+another hypothesis fits clearly better (M-FD9-SHEET-TURNED,
+M-FD9-WRONG-SHEET). It is conservative and stays quiet when it cannot decide
+(few patches, little contrast, a pattern that looks the same turned round).
 
 In Measure, open FD-9 setup and supply the instrument's Ethernet address.
 Select M0, M1 or M2. Selecting an FD-9 chart automatically uses the independent
@@ -172,7 +178,13 @@ auto feeding and certified ISO measurement are not supported.
 Patch width and height use the standard layout panel, independently from
 6 to 30 mm. Its inter-patch gap controls separation along the feed and its strip
 gap controls separation across the feed, each 0..5 mm. Zero means touching.
-Guided uses the normal layout defaults; Manual exposes the existing controls.
+Choosing the FD-9 loads its own stored layout (Preferences > Chart Layout;
+default 8 x 8 mm with 1 mm gaps) into Manual's controls, never the previous
+instrument's values, and leaving it gives those back. Guided never reads
+Manual's panel: it uses a loaded FD-9 layout, Save as Defaults, or the FD-9's
+Chart Layout preset, with Guided's own resolution and options. The greyed
+controls show what an FD-9 chart uses: its fixed margins (38/15/33/15 mm),
+no spacers, patch first.
 Edit layout defaults opens Chart Layout preferences, never printtarg for FD-9.
 The extra FD-9 dialog and Guided Custom sheet button have been removed.
 Legacy equal-gap recipes and schema-1 physical charts are still read.
@@ -181,12 +193,16 @@ Multi-page charts use schema 2 with a per-page physical grid and globally unique
 patch IDs/locations. Each sheet is pre-scanned and measured on the retained
 sheet using the existing single-sheet acquisition; the shared page-pause panel
 announces the automatically queued next sheet after ejection/disconnection.
-The worker waits read-only for mechanism 2 and paper 0 before loading again;
+The worker waits read-only for mechanism 2 and paper 0 before loading again,
+but only after a sheet this same Start has ejected: a Resume that begins at
+page 2 or later starts like a first page, because the wait returns only on a
+sensor notification an empty sensor may never send (review of #214, M3);
 the notice closes when the insertion prompt appears, without Continue. Stop
 still preserves completed pages while waiting for the exit sensor. Earlier pages stay
 in the same measurement, including on partial Save/Resume. Session evidence is
 nested by page below the normal per-Start fd9-sessions directory. Page numbers
-are printed for the operator: four symmetric marks cannot prove page identity.
+are printed for the operator: four symmetric marks cannot prove page identity,
+so the readings are checked against the chart after each sheet (see Setup).
 Synthetic tests cover generation, second-page failure, cross-page resume,
 previews and the automatic handoff. A two-page, 2,040-patch M0 run and page-2
 resume passed on one unit; its first 1,020 readings were unchanged. That run
@@ -236,7 +252,8 @@ including staged unsaved readings; reopening restores colours from the saved
 measurement for RGB, gray, CMYK and CMYK+N charts. Preview errors cannot change
 or discard spectral measurements.
 
-In the native system-print-dialog route, the Print tab does not show edge
-warnings for the hidden direct-print queue. That queue may name an unrelated
-printer; the system dialog is where the actual printer is chosen. Direct-print
-edge checks remain active for their selected printer.
+With the system print dialog, the edge note (M-EDGE-NOT-PRINTED) on the
+Print and Create Chart tabs is about the printer that dialog last printed to,
+never the hidden direct-print queue, which may name an unrelated printer
+(`workflow/printer_edges.py::note_printer`). Until something has been printed
+through the dialog there is no note. ChromIQ's own route is unchanged.

@@ -8281,6 +8281,11 @@ alone.
 >
 > ⚠ {printer} leaves an edge of the paper unprinted: {edges} ({source}). These parts of this chart fall into that edge, so they will be missing or cut off on paper: {lost}. {safe} To keep them on the paper: {fix} If your printer leaves a different edge than this, set it under Preferences ▸ Printing ▸ “Edge this printer does not print”.
 
+**⏳ Awaiting confirmation (4.3.24): which printer the note is about when the system print dialog is used.**
+**Confirmed by:** *nobody yet.*
+
+*The text above is unchanged; only the printer {printer} names changes, and only with “Use default macOS printer dialog” (the Windows print dialog likewise) switched on. That route hides the Print Chart tab's printer list, and the list can still hold a queue the person no longer prints to (lessbones, #214: Canon_IPF9400B), so the note was about a printer not in use. lessbones' own fix hid the note on the Print Chart tab whenever the dialog route is on, which is the default on macOS and Windows, removed the warning for most people, and left Create Chart naming the hidden queue (review of #214, M2); it was not taken. Instead, with the dialog route on, both tabs name the printer the system dialog last printed to (`workflow/printer_edges.py::note_printer`, kept in `native_dialog_printer`), and show no note until something has been printed that way. The note stays where this section puts it, under “Measured from Preview” and under the Print Chart tab's buttons. With ChromIQ's own route nothing changes.*
+
 ### M-EDGE-NOT-PRINTED-PARTS · PROPOSED · the parts of M-EDGE-NOT-PRINTED, Create Chart and Print Chart
 
 *New 2026-10-25, see M-EDGE-NOT-PRINTED. One line each: the three sources, the two ways of naming the edge, the four kinds of lost part, the two {safe} sentences, the four sides, the four fixes. {n} a count, {mm} and the four sides in mm, {where} one of the four side phrases.*

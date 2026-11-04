@@ -221,6 +221,24 @@ every row applies to every kind of instrument; for each one you skip, say why
 in the pull request. The FD-9 short code is `FD9` and the CR30's is `CR30`;
 yours will be a similar short code.
 
+### Before you add anything: map every existing option
+
+List every Create Chart option (Guided, Manual's layout panel with its
+"Basic" and "Expert Options" groups, Pages, Custom paper), every Preferences
+option (Chart Layout, instrument limits, Printing) and every Measure option
+(chartread options, Resume, Bidirectional / strip recognition, the port).
+For each one, write down in the pull request whether your instrument needs
+it, and then either **map it** (reuse the control with your instrument's
+meaning) or **grey it** with a tooltip that says why, while the greyed control
+**shows the value that applies** to your instrument (the FD-9: Spacers
+"None", Layout "Patch first", its own margins). Add a new control only for
+what nothing maps to. These already exist and must be reused, not copied:
+the engine's patch size, inter-patch gap (between the patches of a strip, the
+rows for the FD-9) and strip gap (between strips, the columns for the FD-9),
+Pages, Custom paper, Resume and the Bidirectional choice. The FD-9's first
+version had its own size window, a second Custom sheet button and a second
+Resume box, all duplicates (review of pull request #214, questions 1 and 9).
+
 ### Create Chart: the lists
 
 - [ ] **Guided's instrument list**: `data/patch_db.py::INSTRUMENT_LABELS`
@@ -250,8 +268,15 @@ yours will be a similar short code.
       `core/settings.py::THRESHOLD_INSTR_LABEL` and
       `ui/dialogs/settings_dialog.py::SettingsDialog._MARGIN_INSTRUMENTS` (the
       CR30 is in all of them), with seed thresholds in
-      `core/settings.py::default_margin_thresholds`. The FD-9 is deliberately
-      absent: its geometry is fixed, so there is no margin to choose.
+      `core/settings.py::default_margin_thresholds`. **Fixed geometry is
+      margins, not "no margins".** An instrument that needs a clear area
+      (marks, a leading run-in, trailing transport space) has minimum margins,
+      and those belong in its `Geom` margins and, where the user may enlarge
+      them, in the instrument limits. The FD-9 holds them in
+      `workflow/layout_engine/instruments.py::_build_base`, and the greyed
+      margin boxes show them (`workflow/layout_engine/instruments.py::fd9_fixed_margins`);
+      it is not in the instrument limits yet, because its true minimums still
+      need answers from the device.
 
 ### Create Chart: the layout
 
@@ -447,13 +472,35 @@ yours will be a similar short code.
   marks or a feed arrow, draw them in your generator and update every text that
   describes them (the ⓘ, the measuring windows, greyed-control tooltips, the
   CHANGELOG, the specification). Think about orientation: the FD-9's four
-  marks look the same after a 180° turn, so a reversed sheet cannot be
-  detected, and the texts have to say so.
+  marks look the same after a 180° turn, so the instrument cannot detect a
+  reversed sheet. ChromIQ checks the readings against the chart afterwards
+  instead (`workflow/fd9/page_check.py`), and the texts say both.
 - **Help the user tell sheets apart.** Print the chart's name on the sheet,
   outside the area the instrument reads, and, if the instrument allows it,
   make a reversed or wrong sheet detectable rather than measuring it.
 - **Synthetic patches use D50.** Any padding or synthetic patch your
   generator adds aims at D50, like every other ChromIQ chart, not D65.
+- **A newly selected instrument loads its OWN values.** When a person
+  chooses your instrument, every field it uses gets your instrument's stored
+  or default value (`ui/dialogs/layout_options_panel.py::LayoutOptionsPanel._load_fd9_layout_values`),
+  never whatever the previous instrument left in the box: the FD-9 once
+  inherited the i1Pro's 0 mm gaps, and its charts came out with touching
+  patches. A recipe being loaded keeps its own values. Test it: a fresh
+  window, choose the instrument, Generate, check the defaults
+  (`tests/test_fd9_4324_own_layout_values.py`).
+- **Guided never reads Manual's widgets.** Guided takes its values the way it
+  does for every instrument (its own controls, Save as Defaults, the
+  Preferences > Chart Layout preset), never from Manual's panel, hidden or not
+  (`ui/tabs/tab_chart.py::TabChart._fd9_guided_values`).
+- **Generation errors reach a window.** A layout that cannot be drawn must
+  end in a window the user can act on, not only a log line and an empty
+  preview (`workflow/chart_creator.py::ChartCreator._run_engine`,
+  M-CHART-ENGINE-FAILED).
+- **Anything new printed on the sheet needs a detection test.** If you add a
+  label, a mark or a code to the sheet, prove with a synthetic scan that the
+  instrument still finds its marks and grid on every page
+  (`tests/test_fd9_chart_creation.py::test_generated_square_marks_are_recognised_at_scanner_scale`
+  is the model).
 - **Create Chart options your layout does not use** are greyed with a tooltip
   that says why (`ui/dialogs/layout_options_panel.py::fd9_greyed_reason`), and
   stay greyed after a recipe load and after the panel's own rules run
@@ -847,6 +894,12 @@ avoid from the start.
 | A test rewritten to pass | An existing guard test was changed to fit the new code without saying so. | Leave existing tests alone, or name the change and the reason in the pull request. |
 | Tests only the author can run | A test needed private captures or a reachable instrument, so it skipped for everybody else. | Invented data only; every test runs anywhere. |
 | Stacked specification blocks | A second "Awaiting confirmation" block was added beside an older one that said something else. | One current block per topic; replace your earlier one. |
+| Duplicated controls | The FD-9 had its own patch size, gap, sheet and Resume controls beside the shared ones. | Map every existing option first ([section 5](#5-the-registration-checklist)). |
+| Values inherited from the previous instrument | Choosing the FD-9 kept the i1Pro's 0 mm gaps, so new charts had touching patches. | Load your instrument's own stored or default values on selection, and test it from a fresh window. |
+| Guided reading Manual | Guided took Manual's hidden panel, with its resolution, randomising and gaps. | Guided uses its own sources only. |
+| Greyed controls showing other values | Greyed Spacers said "Coloured" and Layout "Area first" for an instrument that uses neither. | A greyed control shows the value that applies. |
+| A silent generation failure | A layout that could not be drawn left one log line and an empty preview. | A window from the catalogue. |
+| Shortened texts that lost their substance | The ⓘ lost its description of the instrument and the credit to its author; terms no longer matched the app's. | Keep the description and the credit when you shorten a text, and use the names the app already uses in every language. |
 
 And a positive one to copy: the FD-9 driver kept a strict read-only stance
 towards the device, refused unknown sensor versions before anything moved, and

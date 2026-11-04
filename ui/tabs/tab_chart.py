@@ -4008,8 +4008,16 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
 def fd9_instrument_bullet() -> str:
     """The FD-9's bullet in the Instrument (i) of Guided and Manual. Only
     shown while FD-9 support (Beta) is on."""
-    from ui.dialogs.fd9_sheet import fd9_layout_note
-    return fd9_layout_note()
+    return tr(
+        "  •  FD-9 (Konica Minolta): an automatic chart reader. You feed it "
+        "the printed sheet and it finds and measures the patches by itself, "
+        "row by row. ChromIQ talks to it over the network with its own "
+        "driver. An FD-9 chart has patches from 6 to 30 mm wide and high, "
+        "four small black squares around the patch area and an arrow that "
+        "shows which end goes in first. When a chart has more patches than "
+        "one sheet holds, it is printed on several numbered sheets, and the "
+        "FD-9 measures them one after the other. FD-9 support is a beta, "
+        "written and contributed by lessbones (Preferences → Beta).")
 
 
 
@@ -19310,6 +19318,19 @@ class TabChart(QWidget):
         Used by Guided mode, where the engine runs on fixed settings derived
         from the instrument/paper (not from an editable recipe). Manual mode
         has a live recipe panel — see :meth:`_engine_info_line_from_recipe`."""
+        if instr == "FD9":
+            from workflow.fd9.support import fd9_enabled
+            if fd9_enabled():
+                # Its own patches and gaps, not a margin it does not use
+                # (review of #214, L3/M6).
+                w, h, along, across = self._fd9_guided_values(paper)
+                return tr(
+                    "ChromIQ layout engine, FD-9, {paper}, {dpi} dpi: "
+                    "patches {w:g} × {h:g} mm, a {along:g} mm gap between the "
+                    "rows and {across:g} mm between the columns. Feed each "
+                    "sheet into the FD-9 arrow first, printed side up."
+                ).format(paper=paper, dpi=dpi, w=w, h=h, along=along,
+                         across=across)
         bits = [tr("ChromIQ layout engine"), instr, paper, f"{dpi} dpi",
                 tr("margin {mm:g} mm").format(mm=margin)]
         if abs(pscale - 1.0) > 0.01:
@@ -27204,6 +27225,15 @@ class TabChart(QWidget):
                       exc_info=True)
             return live
 
+    def _refresh_printer_edge_note(self) -> None:
+        """The printer the edge note is about has changed (the system print
+        dialog printed to another one): work "Measured from Preview" out
+        again, so this tab and the Print Chart tab name the same printer."""
+        try:
+            self._update_margin_inspector()
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("edge note not refreshed", exc_info=True)
+
     def _printer_edge_notice(self) -> "str | None":
         """M-EDGE-NOT-PRINTED for the chart in the preview on the printer the
         Print Chart tab is on (`workflow.printer_edges`), or None."""
@@ -27220,6 +27250,11 @@ class TabChart(QWidget):
                 printer = str(combo.currentData() or "")
             if not printer:
                 printer = str(self._settings.get("last_printer", "") or "")
+            # The printer the Print Chart tab's note is about, so the two
+            # tabs agree: the system dialog's own when that route is on
+            # (lessbones, #214), never the hidden list's.
+            from workflow.printer_edges import note_printer
+            printer = note_printer(self._settings, printer)
             if not printer:
                 log.debug("printer edge note: no printer known")
                 return None

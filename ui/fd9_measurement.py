@@ -531,6 +531,35 @@ class FD9MeasureMixin:
         lock and this one never overwrite each other (review H3)."""
         return bool(self._fd9_shown)
 
+    def _fd9_explain_reading_direction(self, active: bool) -> None:
+        """The greyed "Strip recognition" choice says what the FD-9 does
+        (review of #214, L3): it reads the rows of each sheet in both
+        directions by itself. Only the TOOLTIP changes, and it comes back on
+        leaving: the choice itself is a per-target setting, and an FD-9
+        chart must not write another value into its record."""
+        saved = getattr(self, "_fd9_bidir_tips", None)
+        combos = [c for c in (getattr(self, "_bidir_combo", None),
+                              getattr(self, "_m_bidir_combo", None))
+                  if c is not None]
+        if active and saved is None:
+            self._fd9_bidir_tips = [(c, c.toolTip()) for c in combos]
+            why = tr(
+                "Not used for the FD-9. The FD-9 moves its measuring head "
+                "along each row of patches by itself, one row one way and "
+                "the next row back, so it always reads in both directions. "
+                "This choice is for instruments you slide along a strip by "
+                "hand, and it comes back when you load a chart for one of "
+                "them.")
+            for c in combos:
+                c.setToolTip(why)
+        elif not active and saved is not None:
+            self._fd9_bidir_tips = None
+            for c, tip in saved:
+                try:
+                    c.setToolTip(tip)
+                except RuntimeError:      # deleted with a rebuilt section
+                    pass
+
     def _refresh_fd9_panel(self):
         """Follow the loaded chart. The option areas change ONLY when the tab
         enters or leaves an FD-9 chart, and then through the same rule
@@ -550,6 +579,7 @@ class FD9MeasureMixin:
             btn = getattr(self, "_save_defaults_btn", None)
             if btn is not None:
                 btn.setEnabled(unlocked and not active)
+            self._fd9_explain_reading_direction(active)
             if not active:
                 self._fd9_close_insert_window()
                 # Give the preview back what the FD-9 changed on it: the

@@ -230,7 +230,19 @@ def pt_to_mm(pt: float) -> float:
 
 def fd9_greyed_reason() -> str:
     """The tooltip of a Create Chart control the FD-9 layout does not use."""
-    return tr('Not used for the FD-9. Its four marks and feed margins are fixed. Patch size, gaps, paper size and pages use the standard layout controls.')
+    return tr(
+        "Not used for the FD-9. An FD-9 chart has a fixed layout of its own, "
+        "made for the way the FD-9 finds and reads the sheet: at least 15 mm "
+        "free on each side, the middle of the first row of patches 42 mm from "
+        "the end that goes in first, and at least 33 mm free at the other end. "
+        "Four small black squares around the patch area let the FD-9 find the "
+        "patches, and an arrow shows which end goes in first. Nothing else is "
+        "printed on the sheet, except a small page number when the chart has "
+        "several sheets. The greyed boxes show the values an FD-9 chart "
+        "uses.\n\n"
+        "What you can change for the FD-9: the patch width and height and the "
+        "two gaps (under “Expert Options”, in “Patches & spacers”), the paper "
+        "and the number of pages.")
 
 
 class LayoutOptionsPanel(QWidget):

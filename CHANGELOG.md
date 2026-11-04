@@ -2,21 +2,17 @@
 
 ## Unreleased
 
-- FD-9 automatic rows alternate head travel direction, while live colours and
-  progress follow the actual patch being read. Saved measurements keep logical
-  chart order, including partial saves and resumed or multi-page jobs. Older
-  forward-only sessions remain readable. A two-page, 2,040-patch M0 run passed
-  with alternating rows on one FD-9.
-- FD-9 uses the existing patch-size, gap, paper and Pages controls. Multi-page
-  targets generate numbered TIFFs and one PDF/TI2, and measurement uses the
-  shared page-pause panel with whole-chart progress and resume. Later sheets
-  queue automatically: remove the ejected sheet, then wait for the next insertion
-  prompt without clicking Continue. A two-sheet 2,040-patch run and page-2 resume
-  passed on one FD-9; the automatic exit-sensor handoff then passed on the same
-  two sheets.
-  Existing single-page charts remain readable.
+### Konica Minolta FD-9 (beta), written and contributed by lessbones
+These changes are for people who have turned on FD-9 support in Preferences > Beta. With it off, nothing changes. Thank you, lessbones, for the multi-page charts and the new reading order.
 
+- **A chart can now span several sheets.** When a chart has more patches than one sheet holds, it is printed on several numbered sheets, and the FD-9 measures them one after the other into one measurement. Between sheets, the Measure tab tells you which sheet to insert next: take the measured sheet out, and as soon as the FD-9's paper sensor is clear it shows its insertion screen by itself, so there is no button to press. If you stop part way, the sheets already measured are kept, and Resume carries on where you stopped, also on a later sheet. Charts made with earlier versions open and measure as before.
+- **ChromIQ checks that each sheet is the one it asked for.** The FD-9 finds a chart by four small squares that look the same from either end, so it cannot tell a sheet turned round, or another sheet of the same chart, from the right one. After each sheet ChromIQ now compares the readings with the colours the chart should have. When they clearly belong to another sheet, or to the sheet turned round, it says so, saves nothing from that sheet and tells you what to do. It stays quiet when it cannot tell, for example on a chart that is nearly all dark or all light, so please still check the page number printed on each sheet.
+- **The FD-9 now reads each row in alternating directions**, one row one way and the next row back, which saves travel. The live colours and the progress follow the patch actually being read, and the saved measurement keeps the chart's own order.
+- **The FD-9's layout settings are now the ordinary ones.** The FD-9's own size window and the “Custom sheet…” button of 4.3.22 and 4.3.23 are gone. In Manual, the patch size and the two gaps are under “Expert Options”, in “Patches & spacers”: “Inter-patch gap” is the gap between the rows and “Strip gap” the gap between the columns, and each can now be set on its own. Any sheet the FD-9 can feed is Manual's “Custom…” paper. Guided uses the FD-9's layout defaults from Preferences > Chart Layout. Choosing the FD-9 always starts from the FD-9's own values (8 × 8 mm patches with 1 mm gaps unless you changed them), never from the previous instrument's, and the controls that do not apply to the FD-9 are greyed and show the values an FD-9 chart really uses.
+- **When a chart's pages cannot be drawn, a window now says why**, for every instrument, instead of one line in the log and an empty preview.
 
+### Fixed
+- **With the system print dialog, the warning about the edge a printer does not print now names the right printer.** With “Use default macOS printer dialog” on (and on Windows with its print dialog), the Print Chart and Create Chart tabs could name a printer from ChromIQ's own printer list, which is hidden then and may be one you no longer print to. The warning is now about the printer you last printed to through the system dialog, and it appears once you have printed that way. Thanks to lessbones for the report.
 
 ## v4.3.23
 

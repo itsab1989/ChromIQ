@@ -175,6 +175,29 @@ def _query_driver(printer: str, chart_mm) -> "tuple[Edges, tuple] | None":
     return ppd_edges_mm(text, chart_mm)
 
 
+def note_printer(settings, direct_printer: str) -> str:
+    """The printer the edge note (M-EDGE-NOT-PRINTED) is about, for Create
+    Chart and Print Chart alike.
+
+    With ChromIQ's own route, the printer chosen in the Print Chart tab's
+    list (*direct_printer*). With the system print dialog, that list is
+    hidden and may still name a queue that is not in use (lessbones, #214:
+    a Canon iPF9400 the person no longer prints to), so the note is about
+    the printer the system dialog last printed to, and there is none until
+    something has been printed that way. The dialog may still offer another
+    printer; the note then follows the next print."""
+    try:
+        native = bool(settings.get("use_native_print_dialog", False))
+    except Exception:      # noqa: BLE001 - no settings: ChromIQ's own route
+        native = False
+    if native:
+        try:
+            return str(settings.get("native_dialog_printer", "") or "")
+        except Exception:      # noqa: BLE001
+            return ""
+    return str(direct_printer or "")
+
+
 def edges_for(printer: str, chart_mm: "tuple[float, float]", settings=None
               ) -> "tuple[Edges, tuple[float, float]]":
     """(edges, paper mm) for *printer* and a chart of *chart_mm*. The paper

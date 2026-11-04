@@ -1542,6 +1542,23 @@ class TabPrint(QWidget):
         except Exception:  # noqa: BLE001 - a question must never stop a print
             return False
 
+    def _remember_dialog_printer(self, printer: str) -> None:
+        """Keep the printer the system print dialog printed to, so the edge
+        note is about that printer from now on (`printer_edges.note_printer`),
+        and redraw the note here and in Create Chart."""
+        if not printer:
+            return
+        try:
+            if self._settings.get("native_dialog_printer", "") != printer:
+                self._settings.set("native_dialog_printer", str(printer))
+            self._update_edge_note()
+            chart = getattr(self.window(), "_tab_chart", None)
+            refresh = getattr(chart, "_refresh_printer_edge_note", None)
+            if callable(refresh):
+                refresh()
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("could not keep the dialog's printer", exc_info=True)
+
     def _note_print_path(self, path: str, printer: str, postscript: str = "") -> None:
         """Add which way the sheet goes to the held print record (4.3.8)."""
         pending = getattr(self, "_pending_print_record", None)
@@ -2459,7 +2476,11 @@ class TabPrint(QWidget):
         note = None
         try:
             pages = list(getattr(self._preview, "_pages", None) or [])
-            printer = self._printer_combo.currentData() or ""
+            from workflow.printer_edges import note_printer
+            # The system dialog's own printer when that route is on, never
+            # the hidden list's (lessbones, #214); Create Chart asks the same.
+            printer = note_printer(self._settings,
+                                   self._printer_combo.currentData() or "")
             if pages and printer:
                 from workflow import measurement_messages as MM
                 from workflow import overhang as O
@@ -4461,6 +4482,7 @@ class TabPrint(QWidget):
 
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
+        self._update_edge_note()
         self._update_verify_route_note(native=enabled)
         self._update_ps_form_row()
         self._printer_grp.setVisible(not enabled)
@@ -4574,12 +4596,14 @@ class TabPrint(QWidget):
                         # P16: the record names the QUEUE; the dialog knows
                         # only the name macOS shows (review of fix/4.3.8, D5)
                         _shown = getattr(sub, "printer_display", None) if sub is not None else None
+                        _used = ((getattr(sub, "queue", None)
+                                  or (_npm._queue_name(_shown) if _shown else None)
+                                  or printer or "") if sub is not None
+                                 else (printer or ""))
                         self._note_print_path(
-                            _vp.PATH_DIALOG,
-                            (getattr(sub, "queue", None)
-                             or (_npm._queue_name(_shown) if _shown else None)
-                             or printer or "") if sub is not None else (printer or ""),
+                            _vp.PATH_DIALOG, _used,
                             (getattr(sub, "postscript_form", None) or "") if sub is not None else "")
+                        self._remember_dialog_printer(_used)
                         if sub is not None:
                             # R3-1 (Basti, 2026-10-20): after the P18 window's
                             # "Use the print dialog" the user chose to let the
@@ -4739,6 +4763,7 @@ class TabPrint(QWidget):
         paper = qprinter.pageLayout().fullRectPoints()
         pw, ph = float(paper.width()), float(paper.height())
         self._log_printer_margins(qprinter, pw, ph)
+        self._remember_dialog_printer(chosen)
         # A CHART A LITTLE LARGER THAN THE PAPER (jctay 149803: 102 x 152 mm
         # on the 100 x 148 mm a 4 x 6 in printer takes): printed at exactly
         # 100 %, no question, when only empty margin is off the paper
