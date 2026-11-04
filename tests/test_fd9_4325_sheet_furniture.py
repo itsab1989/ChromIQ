@@ -252,7 +252,7 @@ def test_the_chart_creator_gives_the_fd9_its_project_run_and_clip():
     from types import SimpleNamespace
     from workflow.chart_creator import ChartCreator
     from workflow.layout_engine.presets import LayoutRecipe
-    run = SimpleNamespace(run_number="4")
+    run = SimpleNamespace(id="run4")
     fm = SimpleNamespace(project=lambda: SimpleNamespace(
         current_run=lambda: run))
     rec = LayoutRecipe(instrument="FD9", paper="A4", fd9_clip_border=True,
@@ -271,3 +271,18 @@ def test_the_chart_creator_gives_the_fd9_its_project_run_and_clip():
     params.cal_target = True
     kw = ChartCreator._engine_kwargs(SimpleNamespace(_file_mgr=fm), params)
     assert kw["fd9_run"] == "calibration" and kw["randomize"] is False
+
+
+def test_the_run_named_on_the_label_comes_from_a_real_project(tmp_path):
+    from PyQt6.QtCore import QSettings
+    from types import SimpleNamespace
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from workflow.chart_creator import _fd9_run_label
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "projects"))
+    fm = FileManager(s)
+    fm.set_target_name("Label-Test")
+    assert _fd9_run_label(fm, SimpleNamespace(cal_target=False)) == "1"
+    assert _fd9_run_label(fm, SimpleNamespace(cal_target=True)) == "calibration"

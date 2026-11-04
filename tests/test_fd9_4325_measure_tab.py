@@ -36,6 +36,7 @@ def test_chartread_options_are_hidden_and_given_back(tab, fd9_chart,
     assert tab._fd9_panel.isHidden()
     tab.set_ti1_path(fd9_chart.with_suffix(".ti1"))
     assert all(g.isHidden() for g in groups)
+    assert tab._guided_fixed_lbl in groups      # chartread's flags, named
     assert not tab._fd9_panel.isHidden()
     assert tab._resume_cb.isHidden() or tab._resume_cb.parentWidget().isHidden() \
         or any(g.isAncestorOf(tab._resume_cb) for g in groups)

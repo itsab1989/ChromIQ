@@ -805,9 +805,11 @@ def _fd9_run_label(file_mgr, params) -> str:
     if getattr(params, "cal_target", False):
         return "calibration"
     try:
-        return str(file_mgr.project().current_run().run_number)
+        rid = str(file_mgr.project().current_run().id or "")
     except Exception:      # noqa: BLE001 — no project yet: no run named
         return ""
+    # "run2" -> "2"; any other id as it is
+    return rid[3:] if rid.startswith("run") and rid[3:].isdigit() else rid
 
 
 class ChartCreator:

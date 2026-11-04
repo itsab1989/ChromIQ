@@ -732,9 +732,11 @@ class FD9MeasureMixin:
                 continue
             out += [g for g in box.findChildren(QGroupBox)
                     if g.parentWidget() is box]
-        grp = getattr(self, "_m_presets_grp", None)
-        if grp is not None:
-            out.append(grp)
+        # …and Guided's note naming the chartread flags it leaves standard.
+        for name in ("_m_presets_grp", "_guided_fixed_lbl"):
+            widget = getattr(self, name, None)
+            if widget is not None:
+                out.append(widget)
         return out
 
     @staticmethod
