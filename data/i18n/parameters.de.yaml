@@ -488,7 +488,7 @@ parameters:
         - "i1Pro 3 Plus"
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (Flachbett)"
-        - "CR30 (ChnSpec, patch by patch)"
+        - "CR30 (Feld für Feld)"
         - "FD-9"
         - "i1iSis (über i1Profiler)"
       tooltip_title: "Messgerät (-i)"

@@ -502,7 +502,7 @@ parameters:
         - "i1Pro 3 Plus"
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (vlakbed)"
-        - "CR30 (ChnSpec, patch by patch)"
+        - "CR30 (meetveld voor meetveld)"
         - "FD-9"
         - "i1iSis (via i1Profiler)"
     "-h":

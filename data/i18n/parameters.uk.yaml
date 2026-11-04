@@ -514,7 +514,7 @@ parameters:
       - i1Pro 3 Plus
       - ColorMunki / i1Studio / ColorChecker Studio
       - SpectroScan (планшетний)
-      - CR30 (ChnSpec, по одному патчу)
+      - "CR30 (патч за патчем)"
       - "FD-9"
       - i1iSis (через i1Profiler)
       name: Вимірювальний прилад
