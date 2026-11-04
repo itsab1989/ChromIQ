@@ -267,3 +267,76 @@ class Fd9OffSnapshot:
     def written(self, users: set) -> None:
         """The write that carried went to disk: its user keys are theirs."""
         self.own |= set(users or ())
+
+
+# ---- how an FD-9 chart is turned ON SCREEN (display only) -----------------
+
+#: The AppSettings key (``core.settings.DEFAULTS``: 0). Preferences > Beta,
+#: the row under FD-9 support. Display only: no chart file, no PDF and no
+#: print ever changes with it (the owner, 2026-11-04).
+ROTATION_SETTING = "fd9_display_rotation"
+
+#: The choices, in degrees clockwise. 0 is "Off": the view of 4.3.24.
+ROTATIONS = (0, 90, 180, 270)
+
+
+def stored_rotation(settings: Any) -> int:
+    """The angle Preferences holds, 0 for anything that is not a choice."""
+    try:
+        value = int(settings.get(ROTATION_SETTING, 0) or 0)
+    except Exception:  # noqa: BLE001 — a broken store means "off"
+        return 0
+    return value if value in ROTATIONS else 0
+
+
+def display_rotation(settings: Any = None) -> int:
+    """How far FD-9 charts are turned on screen in THIS run: 0 whenever FD-9
+    support is off, whatever Preferences holds (the row is greyed then).
+    Applies live: read each time it is asked, which is once per chart load
+    and once when Preferences closes."""
+    if not fd9_enabled():
+        return 0
+    if settings is None:
+        try:
+            from core.settings import AppSettings
+            settings = AppSettings()
+        except Exception:  # noqa: BLE001
+            return 0
+    return stored_rotation(settings)
+
+
+def pages_are_fd9_chart(paths: Any) -> bool:
+    """True when *paths* are the page images of an FD-9 chart: each one sits
+    beside the chart's ``<stem>.fd9.json`` and a ``<stem>.ti2`` that names
+    the FD-9 (``<stem>.tif`` or ``<stem>_NN.tif``). Never raises; asked only
+    while FD-9 support is on (see :func:`display_rotation_for`)."""
+    import re
+    from pathlib import Path
+    try:
+        pages = [Path(p) for p in paths]
+    except TypeError:
+        return False
+    if not pages:
+        return False
+    for page in pages:
+        stems = [page.stem]
+        m = re.fullmatch(r"(.+)_\d+", page.stem)
+        if m:
+            stems.append(m.group(1))
+        if not any((page.with_name(s + ".fd9.json")).is_file()
+                   and chart_names_fd9(page.with_name(s + ".ti2")) is True
+                   for s in stems):
+            return False
+    return True
+
+
+def display_rotation_for(paths: Any, settings: Any = None) -> int:
+    """The angle to turn *paths* by on screen: :func:`display_rotation` for
+    an FD-9 chart's pages, 0 for every other chart. With FD-9 support off
+    nothing is read at all, not even whether a file exists."""
+    if not fd9_enabled():
+        return 0
+    angle = display_rotation(settings)
+    if not angle or not pages_are_fd9_chart(paths):
+        return 0
+    return angle

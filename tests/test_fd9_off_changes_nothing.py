@@ -416,3 +416,24 @@ def test_the_chart_is_asked_by_its_target_instrument(tmp_path, line, answer):
                      'TARGET_INSTRUMENT "FD-9"\n').encode("cp1252"))
     assert chart_names_fd9(ti2) is answer
     assert chart_names_fd9(tmp_path / "missing.ti2") is None
+
+
+def test_the_screen_rotation_turns_nothing_and_reads_nothing_while_off(
+        tmp_path, monkeypatch):
+    """4.3.25 (the owner, 2026-11-04): Preferences > Beta's "Turn FD-9 charts
+    on screen" is display only and belongs to FD-9 support. Off, an FD-9
+    chart's pages are not turned whatever Preferences holds, and not even
+    the existence of a file beside them is asked."""
+    import pathlib
+    from workflow.fd9.support import display_rotation, display_rotation_for
+
+    def asked(*_a, **_k):
+        raise AssertionError("a file was asked about with FD-9 support off")
+
+    class _S(dict):
+        def get(self, k, d=None):
+            return dict.get(self, k, d)
+    monkeypatch.setattr(pathlib.Path, "is_file", asked)
+    held = _S(fd9_display_rotation=180)
+    assert display_rotation(held) == 0
+    assert display_rotation_for([tmp_path / "c_01.tif"], held) == 0

@@ -6898,6 +6898,12 @@ class TabChart(QWidget):
         from ui.styles import SPEC_MAGENTA as _chip_accent
         self._preview.set_chip_accent(_chip_accent)
         self._preview.set_caption(tr("CHART PREVIEW"))
+        # FD-9 (Beta): an FD-9 chart may be shown turned (Preferences > Beta,
+        # display only). No rule at all while FD-9 support is off, so every
+        # chart is shown exactly as before.
+        from workflow.fd9.support import fd9_enabled as _fd9_on
+        if _fd9_on():
+            self._preview.set_rotation_rule(self._fd9_display_rotation_for)
         right_layout.addWidget(self._preview, stretch=1)
         # ONE SENTENCE UNDER THE PREVIEW when the strip or patch pattern would
         # make a chart the readers cannot measure (forum report, 2026-10-03).
@@ -30290,6 +30296,16 @@ class TabChart(QWidget):
             }
         except Exception:      # noqa: BLE001 — the inspector must never crash
             return None
+
+    def _fd9_display_rotation_for(self, paths) -> int:
+        """The preview's rotation rule (FD-9 Beta only): how far these pages
+        are turned on screen. 0 for every chart that is not an FD-9 chart."""
+        from workflow.fd9.support import display_rotation_for
+        return display_rotation_for(paths, self._settings)
+
+    def refresh_view_rotation(self) -> None:
+        """Preferences closed: the preview asks its rule again (display only)."""
+        self._preview.refresh_view_rotation()
 
     def _chart_instrument_flag(self) -> str:
         """The instrument recorded in the chart's own layout recipe, or "".

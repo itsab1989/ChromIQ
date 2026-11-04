@@ -3692,6 +3692,28 @@ class SettingsDialog(QDialog):
         _fd9row.addWidget(fd9_support_tip)
         _beta.addLayout(_fd9row)
         _beta.addWidget(self._fd9_support_restart_hint)
+        # ...and how an FD-9 chart is turned ON SCREEN (the owner,
+        # 2026-11-04): a dependent option, indented under FD-9 support and
+        # greyed (keeping its value) while that box is off. Display only, and
+        # live: the previews follow it when Preferences closes.
+        from workflow.fd9.support import ROTATIONS as _fd9_angles
+        self._fd9_rotation_label = QLabel(tr("Turn FD-9 charts on screen:"), self)
+        self._fd9_rotation_combo = QComboBox(self)
+        for _angle in _fd9_angles:
+            self._fd9_rotation_combo.addItem(
+                tr("Off") if _angle == 0 else f"{_angle}°", _angle)
+        self._fd9_rotation_label.setBuddy(self._fd9_rotation_combo)
+        self._fd9_rotation_tip = TooltipButton(
+            tr("Turn FD-9 Charts on Screen"), fd9_rotation_help(), self,
+            min_width=680)
+        _fd9rot = QHBoxLayout()
+        _fd9rot.setContentsMargins(28, 0, 0, 0)
+        _fd9rot.addWidget(self._fd9_rotation_label)
+        _fd9rot.addWidget(self._fd9_rotation_combo)
+        _fd9rot.addStretch()
+        _fd9rot.addWidget(self._fd9_rotation_tip)
+        _beta.addLayout(_fd9rot)
+        self._fd9_support_check.toggled.connect(self._fd9_rotation_follow)
 
         # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
         #
@@ -6297,6 +6319,10 @@ class SettingsDialog(QDialog):
         self._fd9_support_check.setChecked(
             bool(s.get("fd9_support_beta", False)))
         self._fd9_support_toggled()
+        from workflow.fd9.support import stored_rotation as _fd9_rot
+        _i = self._fd9_rotation_combo.findData(_fd9_rot(s))
+        self._fd9_rotation_combo.setCurrentIndex(max(0, _i))
+        self._fd9_rotation_follow()
         self._splash_classic_check.setChecked(bool(s.get("splash_classic", False)))
         self._engine_all_modes_check.setChecked(
             bool(s.get("engine_all_modes", False)))
@@ -6488,6 +6514,14 @@ class SettingsDialog(QDialog):
         setting = self._appearance_combo.currentData()
         mode = apply_appearance(app, main_window, str(setting))
         self._apply_indicator_theme(mode)
+
+    def _fd9_rotation_follow(self, *_a) -> None:
+        """The FD-9 screen rotation is greyed while FD-9 support is off."""
+        on = self._fd9_support_check.isChecked()
+        for w in (self._fd9_rotation_label, self._fd9_rotation_combo):
+            w.setEnabled(on)
+        self._fd9_rotation_combo.setToolTip("" if on else tr(
+            "Turn on Konica Minolta FD-9 support above to use this."))
 
     def _fd9_support_toggled(self, *_a) -> None:
         """FD-9 support is restart-to-apply (`workflow.fd9.support`): say so
@@ -7738,6 +7772,8 @@ class SettingsDialog(QDialog):
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("i1profiler_turned_export", self._i1p_turned_check.isChecked())
         s.set("fd9_support_beta", self._fd9_support_check.isChecked())
+        s.set("fd9_display_rotation",
+              int(self._fd9_rotation_combo.currentData() or 0))
         s.set("splash_classic", self._splash_classic_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
         from core.settings import store_compliance_overrides
@@ -8855,6 +8891,53 @@ def preview_legend_help() -> str:
         "it. Move the mouse onto it and it fades away until the mouse leaves "
         "again.\n\n"
         "**Default:** on.")
+
+
+def fd9_rotation_help() -> str:
+    """The ⓘ of Preferences ▸ Beta ▸ "Turn FD-9 charts on screen" (the
+    owner, 2026-11-04). Display only."""
+    return tr(
+        "An FD-9 chart is printed with its arrow at the top, at the end that "
+        "goes into the FD-9 first. Its page number and its clip border text "
+        "are printed turned round, so that they read the right way up from "
+        "the other end, where you hold the sheet while you feed it. On "
+        "screen, with the arrow at the top, those words are therefore upside "
+        "down. This option turns FD-9 charts on screen, so you can look at "
+        "them the way that suits you best.\n\n"
+        "WHAT IT CHANGES\n"
+        "Only the picture on your screen: the chart preview in Create Chart "
+        "and on the Measure tab. Everything drawn over the chart turns with "
+        "it and stays on its own patch: the margin guide lines, the live "
+        "colours while the FD-9 measures, the outlines of the rows on the "
+        "FD-9's scan, and the patch values when you point at a patch.\n\n"
+        "WHAT IT DOES NOT CHANGE\n"
+        "The chart itself. The chart files (the TIFF pages, the PDF, the "
+        ".ti2 and the .fd9.json), what is printed and what the FD-9 measures "
+        "stay exactly as they are, so you can try every choice and change it "
+        "at any time. The numbers keep describing the paper as it is "
+        "printed: “Left”, “Right”, “Top” and “Bottom” in “Measured from "
+        "Preview”, and the X and Y next to the pointer, are measured from the "
+        "printed top-left corner, the arrow's end, however the chart is "
+        "shown. The expected and measured halves of each patch stay where "
+        "the label says, expected at the top left (◤) and measured at the "
+        "bottom right (◢) on your screen, and the label stays the right way "
+        "up.\n\n"
+        "THE CHOICES\n"
+        "  •  Off: the chart as it is printed, with the arrow at the top. "
+        "This is how ChromIQ has always shown it.\n"
+        "  •  90°: a quarter turn clockwise. The arrow points to the right. "
+        "A tall sheet then uses a wide preview better.\n"
+        "  •  180°: half a turn. The arrow points down, and the page number "
+        "and the clip border text read the right way up, just as you see "
+        "the sheet when you hold it by its end to feed it.\n"
+        "  •  270°: a quarter turn anticlockwise. The arrow points to the "
+        "left. A tall sheet then uses a wide preview better.\n\n"
+        "Only FD-9 charts are turned: every other chart is shown exactly as "
+        "before. While FD-9 support is off, this option is greyed and does "
+        "nothing. A change shows as soon as you press OK, without a restart. "
+        "If you have only just turned FD-9 support on, it shows after the "
+        "restart that FD-9 support needs.\n\n"
+        "**Default:** off.")
 
 
 def page_pause_note_help() -> str:

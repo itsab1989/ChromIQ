@@ -2318,6 +2318,10 @@ class TiffPreview(QWidget):
                         len(paths), [str(p) for p in paths])
 
         self._page_dpi = {}         # a new chart may render at another dpi
+        # Every load asks the host's rule afresh, so pages that are not the
+        # rule's (every other chart) are always shown unturned.
+        self._rotation_paths = list(paths)
+        self._view_rotation = self._rule_rotation(paths)
         self._current = 0
         self._active_stripe = -1
         self._stripe_rects = []
@@ -2379,7 +2383,11 @@ class TiffPreview(QWidget):
                     painter.fillPath(path, expected if self._overlay_mode == "expected" else measured)
                     if self._overlay_mode == "both":
                         triangle = QPainterPath()
-                        triangle.addPolygon(QPolygonF([points[0], points[1], points[3]]))
+                        # The cell's corners run top-left, top-right,
+                        # bottom-right, bottom-left on paper; the expected
+                        # triangle is the one at the top left ON SCREEN.
+                        triangle.addPolygon(QPolygonF(list(self._corner_triangle(
+                            points, self._split_corner()))))
                         triangle.closeSubpath()
                         painter.fillPath(triangle.intersected(path), expected)
                 elif self._show_only_measured:
@@ -2647,6 +2655,7 @@ class TiffPreview(QWidget):
         scale, ox, oy = self._paint_geom
         if scale <= 0:
             return None
+        label_pos = self._label_to_virtual(label_pos)   # a turned view
         ix = (label_pos.x() - ox) / scale      # image pixels (may be off-sheet)
         iy = (label_pos.y() - oy) / (self._paint_scale_y or scale)
         k = 25.4 / dpi
@@ -2667,6 +2676,137 @@ class TiffPreview(QWidget):
         if on:
             self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             self._img_label.setMouseTracking(True)
+
+    # ---- view rotation (display only) ---------------------------------
+    ROTATIONS = (0, 90, 180, 270)
+
+    def set_rotation_rule(self, rule) -> None:
+        """Install the host's rule for turning the view: ``rule(paths)`` gives
+        the clockwise angle (0, 90, 180 or 270) for the pages being loaded.
+
+        Asked at every :meth:`load_tiff` and again by
+        :meth:`refresh_view_rotation`. Without a rule (the default, and every
+        preview but Create Chart's and the Measure tab's) the view is never
+        turned. A rule that fails or answers anything else means 0."""
+        self._rotation_rule = rule
+        self.refresh_view_rotation()
+
+    def _rule_rotation(self, paths) -> int:
+        rule = self._rotation_rule
+        if rule is None:
+            return 0
+        try:
+            angle = int(rule(list(paths)))
+        except Exception:  # noqa: BLE001 — a display aid never breaks a load
+            log.debug("TiffPreview: rotation rule failed", exc_info=True)
+            return 0
+        return angle if angle in self.ROTATIONS else 0
+
+    def refresh_view_rotation(self) -> None:
+        """Ask the rule again for the pages on screen (Preferences changed)."""
+        self.set_view_rotation(self._rule_rotation(self._rotation_paths))
+
+    def set_view_rotation(self, degrees: int) -> None:
+        """Turn the view by *degrees* clockwise (0, 90, 180, 270). Display only:
+        the page, its files and every value measured from it stay as they
+        are. Anything else is taken as 0."""
+        degrees = int(degrees) if degrees in self.ROTATIONS else 0
+        if degrees == self._view_rotation:
+            return
+        self._view_rotation = degrees
+        self._zoom = 1.0
+        self._pan = QPointF(0.0, 0.0)
+        if self._pixmap is not None:
+            self._repaint_label()
+
+    def view_rotation(self) -> int:
+        return self._view_rotation
+
+    def _virtual_label_size(self) -> QSize:
+        """The size of the label the UNTURNED canvas is laid out for."""
+        size = self._img_label.size()
+        if self._view_rotation in (90, 270):
+            return QSize(size.height(), size.width())
+        return QSize(size)
+
+    @staticmethod
+    def _turn(x: float, y: float, w: float, h: float, rot: int):
+        """A point of a *w* x *h* box, after the box is turned *rot* clockwise."""
+        if rot == 90:
+            return h - y, x
+        if rot == 180:
+            return w - x, h - y
+        if rot == 270:
+            return y, w - x
+        return x, y
+
+    @staticmethod
+    def _unturn(x: float, y: float, w: float, h: float, rot: int):
+        """The inverse of :meth:`_turn` (*w* x *h* is the UNTURNED box)."""
+        if rot == 90:
+            return y, h - x
+        if rot == 180:
+            return w - x, h - y
+        if rot == 270:
+            return w - y, x
+        return x, y
+
+    @staticmethod
+    def _unturn_vector(dx: float, dy: float, rot: int):
+        """A movement on screen, as a movement on the unturned canvas."""
+        if rot == 90:
+            return dy, -dx
+        if rot == 180:
+            return -dx, -dy
+        if rot == 270:
+            return -dy, dx
+        return dx, dy
+
+    def _label_to_virtual(self, pos) -> QPointF:
+        """THE ONE POINTER MAPPING: a label position on screen, as the label
+        position it would be in the unturned view. Every pointer → page
+        conversion passes through here, so a turned view reads the same
+        paper coordinates as the unturned one."""
+        f = self._rot_frame
+        if f is None:
+            return QPointF(pos)
+        rot, cw, ch, rox, roy, vox, voy = f
+        u, v = self._unturn(pos.x() - rox, pos.y() - roy, cw, ch, rot)
+        return QPointF(u + vox, v + voy)
+
+    def _virtual_to_label(self, pos) -> QPointF:
+        f = self._rot_frame
+        if f is None:
+            return QPointF(pos)
+        rot, cw, ch, rox, roy, vox, voy = f
+        x, y = self._turn(pos.x() - vox, pos.y() - voy, cw, ch, rot)
+        return QPointF(x + rox, y + roy)
+
+    def _split_corner(self) -> int:
+        """Which corner of a patch ON PAPER (0 top-left, 1 top-right,
+        2 bottom-right, 3 bottom-left) the expected triangle takes, so that on
+        SCREEN it is always the top-left one, as the legend says ("expected ◤
+        · measured ◢"), however the view is turned. Positions follow the
+        turn; the meaning of the split does not."""
+        return {0: 0, 90: 3, 180: 2, 270: 1}.get(self._view_rotation, 0)
+
+    @staticmethod
+    def _corner_triangle(corners, k: int):
+        """The right triangle at corner *k* of four corners in the order
+        top-left, top-right, bottom-right, bottom-left."""
+        return corners[k], corners[(k + 1) % 4], corners[(k + 3) % 4]
+
+    #: The two patch edges that belong to the expected triangle, per corner.
+    _CORNER_EDGES = {0: ("l", "t"), 1: ("t", "r"), 2: ("r", "b"), 3: ("b", "l")}
+
+    def _turn_canvas(self, canvas: QPixmap, dpr: float) -> QPixmap:
+        """The finished canvas, turned by the view rotation (lossless)."""
+        from PyQt6.QtGui import QTransform
+        turned = canvas.transformed(
+            QTransform().rotate(self._view_rotation),
+            Qt.TransformationMode.FastTransformation)
+        turned.setDevicePixelRatio(dpr)
+        return turned
 
     def reset_view(self) -> None:
         """Back to fit-to-window, centred."""
@@ -2758,10 +2898,13 @@ class TiffPreview(QWidget):
             return
         if focus is not None:
             # Keep the point under the cursor stationary while scaling — with
-            # the SAME border the paint used, or the anchor drifts.
+            # the SAME border the paint used, or the anchor drifts. A turned
+            # view works on the unturned canvas the pan belongs to.
+            focus = self._label_to_virtual(focus)
             B = self._paint_border
-            cx = (self._img_label.width() - 2 * B) / 2
-            cy = (self._img_label.height() - 2 * B) / 2
+            _vs = self._virtual_label_size()
+            cx = (_vs.width() - 2 * B) / 2
+            cy = (_vs.height() - 2 * B) / 2
             rel = QPointF(focus.x() - B - cx, focus.y() - B - cy)
             ratio = new_zoom / self._zoom
             self._pan = QPointF(rel.x() - (rel.x() - self._pan.x()) * ratio,
@@ -3616,9 +3759,11 @@ class TiffPreview(QWidget):
         if scale <= 0:
             return []
         out = []
+        sy = self._paint_scale_y or scale
         for r in self._stripe_rects:
-            label_x = int(r.center().x() * scale + ox)
-            out.append(self._img_label.mapTo(self, QPoint(label_x, 0)).x())
+            at = self._virtual_to_label(QPointF(r.center().x() * scale + ox,
+                                                r.center().y() * sy + oy))
+            out.append(self._img_label.mapTo(self, QPoint(int(at.x()), 0)).x())
         return out
 
     #: The lower scan arrow's gap under the last patch, in logical pixels.
@@ -3758,6 +3903,10 @@ class TiffPreview(QWidget):
         self._hide_patch_tile()
         self._pixmap = None
         self._ink_channels = None
+        self._rotation_paths = []
+        self._view_rotation = 0
+        self._rot_frame = None
+        self._legend_label_off = None
         self._img_label.setText(tr("No preview"))
         self._update_nav()
         self._update_filename_label([])
@@ -3866,6 +4015,23 @@ class TiffPreview(QWidget):
         #: round: 66 of 924 probes aimed at the pixel the overlay paints landed
         #: on a different patch, or none).
         self._paint_scale_y = None
+        #: THE VIEW ROTATION (display only): 0, 90, 180 or 270 degrees
+        #: clockwise. Everything is painted exactly as at 0 into an UNTURNED
+        #: canvas laid out for the turned label (width and height swapped at
+        #: 90/270), and only the finished canvas is turned, by a whole quarter
+        #: turn, which moves pixels without resampling. `_paint_geom` and every
+        #: overlay therefore keep describing the page as it is on paper, and
+        #: the one mapping `_label_to_virtual` turns a pointer back before any
+        #: of them reads it. The page itself (`_pixmap`), and with it every
+        #: margin measured from it, is never turned. See `set_rotation_rule`.
+        self._view_rotation = 0
+        self._rotation_rule = None
+        self._rotation_paths: list = []
+        #: (rot, canvas w, canvas h, real off x, real off y, virtual off x,
+        #: virtual off y) of the last turned paint, or None when unturned.
+        self._rot_frame = None
+        #: Where the turned canvas sits in the label, for the legend hover test.
+        self._legend_label_off = None
         #: Cache for `_exposed_for_page`, keyed by page and patch count.
         self._exposed_cache: dict = {}
         #: The page as a QImage, built on demand so a split sliver can read the
@@ -4100,6 +4266,7 @@ class TiffPreview(QWidget):
         scale, ox, oy = self._paint_geom
         if scale <= 0:
             return None
+        label_pos = self._label_to_virtual(label_pos)   # a turned view
         ix = int((label_pos.x() - ox) / scale)
         iy = int((label_pos.y() - oy) / (self._paint_scale_y or scale))
         if 0 <= ix < self._pixmap.width() and 0 <= iy < self._pixmap.height():
@@ -4723,7 +4890,10 @@ class TiffPreview(QWidget):
             self._repaint_interactive()
             return
         dpr = self._img_label.devicePixelRatioF()
-        label_size = self._img_label.size()  # logical pixels
+        # The label the UNTURNED canvas is laid out for: the real one, or with
+        # width and height swapped while the view is turned a quarter turn.
+        rot = self._view_rotation
+        label_size = self._virtual_label_size()  # logical pixels
 
         # ONLY THE WHITE THE IMAGE DOES NOT ALREADY HAVE.
         #
@@ -4745,6 +4915,11 @@ class TiffPreview(QWidget):
         # page can legitimately be 0 px wide (`_border_px` gives back nothing
         # when the sheet already carries its own white margin).
         cap_h = self._pending_caption_band() if self._helper_markers_pending else 0
+        if rot:
+            # A turned view has no caption band: the caption would be drawn
+            # sideways or upside down. The only charts a host turns are ones
+            # that never show helper markers (4.3.25, F11).
+            cap_h = 0
         # Scale to device pixels so the preview is sharp on HiDPI/Retina displays
         avail = QSize(
             max(1, int((label_size.width()  - 2 * B) * dpr)),
@@ -4777,6 +4952,18 @@ class TiffPreview(QWidget):
         self._paint_geom = (_s,
                             (label_size.width() - _cw) / 2 + B,
                             (label_size.height() - _ch) / 2 + B)
+        if rot:
+            # The canvas (cw x ch, unturned) sits centred in the virtual label
+            # and, once turned, centred in the real one.
+            _rw, _rh = (_ch, _cw) if rot in (90, 270) else (_cw, _ch)
+            real = self._img_label.size()
+            self._rot_frame = (rot, _cw, _ch,
+                               (real.width() - _rw) / 2,
+                               (real.height() - _rh) / 2,
+                               (label_size.width() - _cw) / 2,
+                               (label_size.height() - _ch) / 2)
+        else:
+            self._rot_frame = None
 
         if self._margin_guides or self._measured_guides:
             self._draw_margin_guides(
@@ -4853,9 +5040,13 @@ class TiffPreview(QWidget):
                     self._fill_scan_arrow(painter, bot)
 
         # The chip last of all: over the arrows, but see-through (K1).
-        self._paint_legend_chip(painter)
+        if not rot:
+            self._paint_legend_chip(painter)
 
         painter.end()
+        if rot:
+            canvas = self._turn_canvas(canvas, dpr)
+            self._paint_turned_legend(canvas)
         self._img_label.setPixmap(canvas)
         # The coordinate cross-hair lives in its own overlay (drawn on mouse
         # move, not baked into the canvas) — keep it covering the label (#29).
@@ -5819,9 +6010,15 @@ class TiffPreview(QWidget):
                     painter.fillPath(hexp, c_meas)        # whole patch = measured ◢
                     br = hexp.boundingRect()
                     tri = _QP()
-                    tri.moveTo(br.left(), br.top())
-                    tri.lineTo(br.right(), br.top())
-                    tri.lineTo(br.left(), br.bottom())
+                    # The corner that is the top-left one ON SCREEN
+                    # (`_split_corner`): the top-left one unless turned.
+                    _t = self._corner_triangle(
+                        ((br.left(), br.top()), (br.right(), br.top()),
+                         (br.right(), br.bottom()), (br.left(), br.bottom())),
+                        self._split_corner())
+                    tri.moveTo(*_t[0])
+                    tri.lineTo(*_t[1])
+                    tri.lineTo(*_t[2])
                     tri.closeSubpath()
                     # THE EXPECTED HALF IS CLIPPED, NOT INTERSECTED, AND
                     # THAT IS NOT A STYLE CHOICE.
@@ -5982,17 +6179,27 @@ class TiffPreview(QWidget):
                 # Expected: upper-left triangle; measured: lower-right — the
                 # i1Profiler split, corner to corner, hard edge, no gap.
                 tri = _QP()
-                tri.moveTo(x0, y0)
-                tri.lineTo(x0 + w, y0)
-                tri.lineTo(x0, y0 + h)
+                # A TURNED VIEW KEEPS THE SPLIT'S MEANING (the owner,
+                # 2026-11-04): the patch moves with the turn, but the expected
+                # triangle is the top-left one ON SCREEN, as the legend says.
+                # So on paper it takes the corner that the turn brings to the
+                # top left (`_split_corner`); unturned that is (x0, y0).
+                _k = self._split_corner()
+                _t = self._corner_triangle(
+                    ((x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)), _k)
+                tri.moveTo(*_t[0])
+                tri.lineTo(*_t[1])
+                tri.lineTo(*_t[2])
                 tri.closeSubpath()
                 painter.fillRect(QRectF(x0, y0, w, h), c_meas)
                 painter.fillPath(tri, c_exp)
                 # The split's own colour along each edge, which is not a
-                # choice: the triangle runs (x0,y0) -> (x0+w,y0) -> (x0,y0+h),
-                # so the LEFT and TOP edges are expected and the RIGHT and
-                # BOTTOM edges are measured.
-                _ec = {"l": c_exp, "t": c_exp, "r": c_meas, "b": c_meas}
+                # choice: unturned the triangle runs (x0,y0) -> (x0+w,y0) ->
+                # (x0,y0+h), so the LEFT and TOP edges are expected and the
+                # RIGHT and BOTTOM edges are measured; turned, the two edges
+                # beside its corner are (`_CORNER_EDGES`).
+                _ec = {e: (c_exp if e in self._CORNER_EDGES[_k] else c_meas)
+                       for e in ("l", "t", "r", "b")}
             # THE SLIVERS, AND THEY DO NOT COST THE SPACER A PIXEL.
             #
             # An opaque sliver was tried first and Basti saw it immediately:
@@ -6398,6 +6605,7 @@ class TiffPreview(QWidget):
             self._legend_rect = None
             self._legend_geom = None
             self._legend_paint = None
+            self._legend_label_off = None
         if items and self._pixmap is not None and chip:
             # Legend chip — text reflects the current view (Knut). No split
             # wording unless the split is actually shown; in Measured view the
@@ -6414,13 +6622,36 @@ class TiffPreview(QWidget):
             th = fm.height() + 8
             img_l = ox
             img_r = ox + self._pixmap.width() * s
+            img_t = oy
             img_b = oy + self._pixmap.height() * sy
+            # A TURNED VIEW PLACES THE CHIP ON THE SCREEN, NOT ON THE PAPER.
+            # The patches follow the turn; the chip's words must stay upright
+            # and readable, so it is placed by the same rules as below, but
+            # under the lowest patch AS SHOWN, in the turned canvas, and it is
+            # painted after the canvas is turned (`_paint_turned_legend`).
+            _turned = self._rot_frame
+            if _turned is not None:
+                _rot, _cw, _ch = _turned[0], _turned[1], _turned[2]
+
+                def _tbox(x0, y0, x1, y1):
+                    a = self._turn(x0, y0, _cw, _ch, _rot)
+                    b = self._turn(x1, y1, _cw, _ch, _rot)
+                    return (min(a[0], b[0]), min(a[1], b[1]),
+                            max(a[0], b[0]), max(a[1], b[1]))
+                img_l, img_t, img_r, img_b = _tbox(img_l, img_t, img_r, img_b)
+                patch_bottom = img_t
+                for r in list(self._stripe_rects) + [it[0] for it in items]:
+                    patch_bottom = max(patch_bottom, _tbox(
+                        ox + r.x() * s, oy + r.y() * sy,
+                        ox + (r.x() + r.width()) * s,
+                        oy + (r.y() + r.height()) * sy)[3])
             # Sit in the bottom paper margin, below the lowest patch, so it
             # never covers patches even on charts that reach near the edge
             # (Knut). Fall back to just above the paper edge if the margin is
             # tight.
-            patch_bottom = oy
-            for r in self._stripe_rects:
+            if _turned is None:
+                patch_bottom = oy
+            for r in (self._stripe_rects if _turned is None else ()):
                 patch_bottom = max(patch_bottom, oy + (r.y() + r.height()) * sy)
             # THE OVERLAY ITEMS COUNT TOO. `_stripe_rects` is the strip
             # geometry, and it can be empty while patches are plainly on screen
@@ -6431,7 +6662,7 @@ class TiffPreview(QWidget):
             # clamped there, over the column letters and the first row of
             # patches: the very complaint this placement exists to prevent,
             # in its worst form, every time rather than sometimes.
-            for rect, _e, _m, _w in items:
+            for rect, _e, _m, _w in (items if _turned is None else ()):
                 patch_bottom = max(
                     patch_bottom, oy + (rect.y() + rect.height()) * sy)
             # THE STRIP DOES NOT END AT ITS LAST PATCH. A chart with edge
@@ -6443,7 +6674,8 @@ class TiffPreview(QWidget):
             # legend looked as if it were touching (2026-08-13). The strip
             # HOVER frame already grows over these; this makes the legend
             # agree with it instead of holding a second opinion.
-            patch_bottom += self._edge_spacer_px * sy
+            if _turned is None:
+                patch_bottom += self._edge_spacer_px * sy
             cx = int((img_l + img_r) / 2 - tw / 2)
             # Keep the whole chip within the paper width so it never clips.
             cx = max(int(img_l), min(cx, int(img_r - tw)))
@@ -6463,7 +6695,7 @@ class TiffPreview(QWidget):
             # bottom margin cannot hold it, resting on the last row is the
             # lesser evil: the chip is semi-transparent and readable, whereas
             # a clipped one says nothing at all.
-            cy = max(int(oy), min(cy, int(floor)))
+            cy = max(int(img_t), min(cy, int(floor)))
             # …AND KEEP IT ON THE PAPER AT BOTH ENDS. The clamp above is
             # left-only, so the widest of the three wordings ("measured", 70 %
             # wider than the split one) ran past the right edge on a narrow
@@ -6482,10 +6714,14 @@ class TiffPreview(QWidget):
             # bring the chip back, and flicker at the boundary.
             self._legend_rect = QRect(cx, cy, tw, th)
             self._legend_geom = (ox, oy)
+            # Turned: the rectangle is in the TURNED canvas, which sits here
+            # in the label (`_legend_is_hidden`).
+            self._legend_label_off = (None if _turned is None
+                                      else (_turned[3], _turned[4]))
             # Drawn at the CURRENT opacity, not switched. Both the panel and
             # its text fade together, so it dims away rather than blinking.
             self._legend_paint = (cx, cy, tw, th, txt)
-            if legend:
+            if legend and _turned is None:
                 self._paint_legend_chip(painter)
 
     #: The chip's panel alpha at full opacity (of 255). It was 190, a nearly
@@ -6496,6 +6732,17 @@ class TiffPreview(QWidget):
     _LEGEND_PANEL_ALPHA = 80          # == ui.see_through.PANEL_ALPHA
     #: Width of that outline, logical px (half of it falls outside the glyph).
     _LEGEND_TEXT_OUTLINE = 2.2        # == ui.see_through.TEXT_OUTLINE
+
+    def _paint_turned_legend(self, canvas: QPixmap) -> None:
+        """The legend chip of a turned view, upright on the turned canvas
+        (its place was worked out there, in `_draw_cq_overlay`)."""
+        if getattr(self, "_legend_paint", None) is None:
+            return
+        painter = QPainter(canvas)
+        try:
+            self._paint_legend_chip(painter)
+        finally:
+            painter.end()
 
     def _paint_legend_chip(self, painter: QPainter) -> None:
         """Paint the legend chip `_draw_cq_overlay` placed, if any.
@@ -6741,7 +6988,8 @@ class TiffPreview(QWidget):
         image), painting the image scaled and offset, clamped so it can't be
         dragged fully out of view."""
         dpr = self._img_label.devicePixelRatioF()
-        ls = self._img_label.size()
+        rot = self._view_rotation
+        ls = self._virtual_label_size()     # unturned (swapped at 90/270)
         W, H = max(1, ls.width()), max(1, ls.height())
         pw, ph = self._pixmap.width(), self._pixmap.height()
         _fit0 = min(max(1, W - 2 * _BORDER) / pw, max(1, H - 2 * _BORDER) / ph)
@@ -6786,7 +7034,15 @@ class TiffPreview(QWidget):
                               (scaled.height() / dpr) / max(1, ph))
         self._paint_geom = (scale, x, y)   # for the cursor→image mapping (#72)
         self._paint_scale_y = (scaled.height() / dpr) / max(1, ph)
+        if rot:
+            # The canvas IS the (virtual) viewport, so nothing is centred.
+            self._rot_frame = (rot, W, H, 0.0, 0.0, 0.0, 0.0)
+        else:
+            self._rot_frame = None
         painter.end()
+        if rot:
+            canvas = self._turn_canvas(canvas, dpr)
+            self._paint_turned_legend(canvas)
         self._img_label.setPixmap(canvas)
         if self._cursor_overlay is not None and self._coord_readout:
             self._sync_cursor_overlay_geometry()
@@ -6833,6 +7089,11 @@ class TiffPreview(QWidget):
             return False
         if self._paint_geom is None or self._legend_geom is None:
             return False
+        if self._legend_label_off is not None:
+            # A turned view: the rectangle is in the turned canvas.
+            dx, dy = self._legend_label_off
+            return self._legend_rect.translated(int(dx), int(dy)).contains(
+                self._legend_pointer)
         _s, ox, oy = self._paint_geom
         lox, loy = self._legend_geom
         r = self._legend_rect.translated(int(ox - lox), int(oy - loy))
@@ -6987,7 +7248,8 @@ class TiffPreview(QWidget):
             d = now - self._pan_anchor
             self._pan_dist += abs(d.x()) + abs(d.y())
             self._pan_anchor = now
-            self._pan = QPointF(self._pan.x() + d.x(), self._pan.y() + d.y())
+            dx, dy = self._unturn_vector(d.x(), d.y(), self._view_rotation)
+            self._pan = QPointF(self._pan.x() + dx, self._pan.y() + dy)
             self._repaint_label()
             event.accept()
             return
@@ -7110,7 +7372,7 @@ class TiffPreview(QWidget):
             pans = {Qt.Key.Key_Left: (step, 0), Qt.Key.Key_Right: (-step, 0),
                     Qt.Key.Key_Up: (0, step), Qt.Key.Key_Down: (0, -step)}
             if k in pans:
-                dx, dy = pans[k]
+                dx, dy = self._unturn_vector(*pans[k], self._view_rotation)
                 self._pan = QPointF(self._pan.x() + dx, self._pan.y() + dy)
                 self._repaint_label(); event.accept(); return
         super().keyPressEvent(event)

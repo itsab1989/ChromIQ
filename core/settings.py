@@ -282,6 +282,11 @@ DEFAULTS: dict[str, Any] = {
     #: any list, no FD-9 panel, no chart read for it. Restart to apply
     #: (`workflow.fd9.support`).
     "fd9_support_beta":          False,
+    #: Beta, the row under FD-9 support: how far an FD-9 chart is turned ON
+    #: SCREEN, in degrees clockwise (0 = off, 90, 180, 270). Display only:
+    #: chart files and printing never change. No effect while FD-9 support
+    #: is off (`workflow.fd9.support.display_rotation`).
+    "fd9_display_rotation":      0,
     #: The FD-9's Ethernet address (moved here from a separate QSettings
     #: domain, so CHROMIQ_SETTINGS_FILE sandboxes it too). Only read or
     #: written while FD-9 support is on.

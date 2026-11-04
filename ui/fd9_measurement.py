@@ -447,6 +447,9 @@ class FD9MeasureMixin:
     _fd9_scan_preview = None
     _fd9_readings = 0
     _fd9_choice = None
+    #: The preview images this mixin itself put on screen (the layout preview
+    #: and the scan), which the rotation rule turns like the chart's pages.
+    _fd9_display_paths = frozenset()
 
     def _fd9_on(self) -> bool:
         """True when this tab has FD-9 support (the Beta was on at start-up)."""
@@ -804,6 +807,27 @@ class FD9MeasureMixin:
             not self._fd9_resume.isHidden() and self._fd9_resume.isChecked()))
 
     # ---- preview ----------------------------------------------------------
+    def _fd9_install_rotation_rule(self):
+        """Preferences > Beta, under FD-9 support: FD-9 charts may be shown
+        turned. Display only; installed only while FD-9 support is on."""
+        self._preview.set_rotation_rule(self._fd9_rotation_for)
+
+    def _fd9_rotation_for(self, paths):
+        """The preview's rotation rule: the FD-9 angle for the images this
+        mixin shows (its layout preview and the scan) and for an FD-9 chart's
+        own pages, 0 for everything else."""
+        from workflow.fd9.support import display_rotation, display_rotation_for
+
+        keys = {str(Path(p)) for p in paths}
+        if keys and keys <= self._fd9_display_paths:
+            return display_rotation(self._settings)
+        return display_rotation_for(paths, self._settings)
+
+    def _fd9_show_images(self, paths):
+        """Put the FD-9's own preview images on screen."""
+        self._fd9_display_paths = frozenset(str(Path(p)) for p in paths)
+        self._preview.load_tiff(paths)
+
     def _fd9_load_preview(self, base_path):
         """Display-only geometry diagram, never a printable chart TIFF."""
         from PIL import Image, ImageDraw
@@ -921,7 +945,7 @@ class FD9MeasureMixin:
                 self._fd9_use_rows_as_strips(page["rows"], list(boxes.values()))
                 stripe_rects.append(self._page_stripe_rects[0])
             self._tiff_pages = paths
-            self._preview.load_tiff(paths)
+            self._fd9_show_images(paths)
             self._patch_boxes = page_boxes
             self._page_stripe_rects = stripe_rects
             self._strips_per_page = [len(r) for r in stripe_rects]
@@ -1374,7 +1398,7 @@ class FD9MeasureMixin:
         paths = list(self._tiff_pages) if len(self._tiff_pages) == count else [image]*count
         paths[page] = image
         self._tiff_pages = paths
-        self._preview.load_tiff(paths)
+        self._fd9_show_images(paths)
         # Remap a resumed prefix to the new scan rather than retaining boxes
         # from the nominal TIFF or a previous insertion.
         self._preview.clear_patch_overlay()

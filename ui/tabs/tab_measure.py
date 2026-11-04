@@ -3155,6 +3155,10 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
         rl.setContentsMargins(0, 0, 0, 15)
         rl.setSpacing(0)
         self._preview = TiffPreview(right)
+        # FD-9 (Beta): an FD-9 chart may be shown turned (Preferences > Beta,
+        # display only); no rule while FD-9 support is off.
+        if fd9_enabled():
+            self._fd9_install_rotation_rule()
         # Preferences ▸ Measurement: the expected · measured label (Basti,
         # 2026-10-23; on by default). Applied again when Preferences closes.
         self._preview.set_legend_enabled(
@@ -17836,6 +17840,11 @@ class TabMeasure(FD9MeasureMixin, Cr30CalibrationMixin, QWidget):
                 refresh()
             except Exception:      # noqa: BLE001 — never break a measurement
                 log.debug("keep-alive refresh failed", exc_info=True)
+
+    def refresh_view_rotation(self) -> None:
+        """Preferences closed: the preview asks its rotation rule again
+        (display only; without a rule, the view is never turned)."""
+        self._preview.refresh_view_rotation()
 
     def refresh_preview_legend(self) -> None:
         """Preferences closed with OK: the expected · measured label on the

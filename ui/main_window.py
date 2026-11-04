@@ -2707,6 +2707,11 @@ class MainWindow(QMainWindow):
         # 2026-10-23): on or off at once.
         if hasattr(self._tab_measure, "refresh_preview_legend"):
             self._tab_measure.refresh_preview_legend()
+        # A chart preview that may be shown turned (display only) asks its
+        # rule again, so a changed angle shows at once.
+        for _tab in (self._tab_chart, self._tab_measure):
+            if hasattr(_tab, "refresh_view_rotation"):
+                _tab.refresh_view_rotation()
         # Engine-only Manual rows (#123) follow the engine beta + accuracy
         # mode — the Build Profile tab stays visible while Settings is
         # open, so its showEvent alone would miss the change.
