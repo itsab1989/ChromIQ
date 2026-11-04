@@ -322,14 +322,19 @@ def test_the_refusal_names_what_is_in_the_way(tmp_path, monkeypatch, where):
     _with_square(monkeypatch, where)
     with pytest.raises(sheet_check.SheetNotDetectable) as caught:
         _build(tmp_path, clip_border=(where != "label"), dpi=300)
-    assert caught.value.cause == where
+    # A fifth mark in EACH of the two: either one alone already breaks the
+    # page, so the case is "each" (review round 2, N1), not "both".
+    want = "each" if where == "both" else where
+    assert caught.value.cause == want
     msg = {"label": M.M_FD9_CHART_UNDETECTABLE_LABEL,
-           "both": M.M_FD9_CHART_UNDETECTABLE_BOTH}.get(
-        where, M.M_FD9_CHART_UNDETECTABLE)
+           "each": M.M_FD9_CHART_UNDETECTABLE_EACH}.get(
+        want, M.M_FD9_CHART_UNDETECTABLE)
     body = msg.render(page=1, pages=2, reason="r")[1]
-    if where == "label":
+    if want == "label":
         assert "page number" in body and "tell us" in body
         assert "clip border" not in body
+    elif want == "each":
+        assert "not enough" in body
     else:
         assert "Notes box" in body and "switch the clip border off" in body
 
@@ -348,3 +353,54 @@ def test_a_one_sheet_chart_named_with_an_underscore_number_keeps_its_marks(
                                PE.Edges(6.4, 6.4, 6.4, 6.4, "ppd"),
                                (210.0, 297.0))
     assert set(loss.fd9_marks) == {"left", "right"}
+
+
+# ---- review round 2, N1: the truth table, with a stub detector -------------
+@pytest.mark.parametrize("fails_with,cause", [
+    # the set of printed items with which the stub detector fails
+    ({"label+clip"}, "both"),                      # a and b
+    ({"label+clip", "label"}, "label"),            # a only
+    ({"label+clip", "clip"}, "clip"),              # b only
+    ({"label+clip", "label", "clip"}, "each"),     # neither, but without both
+    ({"label+clip", "label", "clip", "none"}, None),  # not ChromIQ's
+])
+def test_every_case_of_the_truth_table(monkeypatch, fails_with, cause):
+    """The page is checked without the page number, without the clip border
+    and without both; which of them helps decides the window. The stub
+    detector fails for exactly the combinations of printed items given."""
+    LABEL, CLIP = 10, 20                        # grey values that mark each
+    gray = np.full((40, 40), 255, dtype=np.uint8)
+    gray[2:6, 2:6] = LABEL
+    gray[30:34, 30:34] = CLIP
+    label = gray == LABEL
+    clip = gray == CLIP
+
+    def stub(g, dpi, page_doc, page=1, pages=1):
+        here = (("label" if (g == LABEL).any() else "")
+                + ("+" if (g == LABEL).any() and (g == CLIP).any() else "")
+                + ("clip" if (g == CLIP).any() else "")) or "none"
+        if here in fails_with:
+            raise sheet_check.SheetNotDetectable(page, pages, dpi, here)
+    monkeypatch.setattr(sheet_check, "check_page", stub)
+    if cause is None:
+        sheet_check.check_page_furniture(gray, label, clip, 300, {}, 1, 2)
+        return
+    with pytest.raises(sheet_check.SheetNotDetectable) as caught:
+        sheet_check.check_page_furniture(gray, label, clip, 300, {}, 1, 2)
+    assert caught.value.cause == cause
+
+
+def test_each_window_says_what_is_true_of_its_case():
+    from workflow import measurement_messages as M
+    kw = dict(page=2, pages=3, reason="r")
+    each = M.M_FD9_CHART_UNDETECTABLE_EACH.render(**kw)[1]
+    assert "each got in the way on their own" in each
+    assert "Switching the clip border off is not enough" in each
+    assert "different patch size or paper" in each and "tell us" in each
+    both = M.M_FD9_CHART_UNDETECTABLE_BOTH.render(**kw)[1]
+    assert "although it does with either one alone" in both
+    assert "switch the clip border off" in both
+    label = M.M_FD9_CHART_UNDETECTABLE_LABEL.render(**kw)[1]
+    assert "clip border" not in label
+    for text in (each, both, label):
+        assert "—" not in text

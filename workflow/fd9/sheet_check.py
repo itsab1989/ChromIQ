@@ -47,8 +47,8 @@ class SheetNotDetectable(ValueError):
 
     def __init__(self, page, pages, dpi, why):
         self.fd9_page, self.fd9_pages, self.dpi, self.why = page, pages, dpi, why
-        #: What ChromIQ printed that is in the way: "label", "clip" or
-        #: "both" (`check_page_furniture`), or None.
+        #: What ChromIQ printed that is in the way: "label", "clip", "both"
+        #: or "each" (`check_page_furniture`), or None.
         self.cause = None
         super().__init__(
             f"FD-9 sheet check at Generate: page {page} of {pages}, simulated "
@@ -125,7 +125,8 @@ def check_page_furniture(gray, label, clip, render_dpi, page_doc, page=1,
     boolean arrays of the page number's and the clip border's ink (or None).
     A page that fails is checked again without the label, without the clip
     border and without both, so the refusal can name WHICH of them is in the
-    way (4.3.25 review, M3); its `cause` is "label", "clip" or "both"."""
+    way (4.3.25 review, M3); its `cause` is "label", "clip", "both" or
+    "each" (see the truth table below)."""
     import logging
     try:
         check_page(gray, render_dpi, page_doc, page, pages)
@@ -146,9 +147,19 @@ def check_page_furniture(gray, label, clip, render_dpi, page_doc, page=1,
             return False
         return True
 
-    cause = ("label" if passes_without(label) else
-             "clip" if passes_without(clip) else
-             "both" if passes_without(label, clip) else None)
+    # THE TRUTH TABLE (review round 2, N1). a: passes without the page
+    # number (the clip border still there); b: passes without the clip
+    # border (the page number still there).
+    #   a and b       either one taken away helps: only the two TOGETHER
+    #                 are in the way                              -> "both"
+    #   a only        the page number is in the way               -> "label"
+    #   b only        the clip border is in the way               -> "clip"
+    #   neither, but passes without both: EACH ONE ON ITS OWN is in the
+    #                 way, so taking one away is not enough       -> "each"
+    #   none          not something ChromIQ added: made, logged   -> None
+    a, b = passes_without(label), passes_without(clip)
+    cause = ("both" if a and b else "label" if a else "clip" if b else
+             "each" if passes_without(label, clip) else None)
     if cause is not None:
         failure.cause = cause
         raise failure

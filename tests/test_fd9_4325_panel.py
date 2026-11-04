@@ -236,3 +236,19 @@ def test_a_deliberate_off_survives_a_later_default_of_on(panel, monkeypatch):
     never = LayoutRecipe(instrument="FD9", paper="A4")
     panel.set_recipe(never)
     assert panel.clip_enabled() is True                    # follows default
+
+
+def test_off_chosen_in_the_content_list_is_stored_explicitly(panel):
+    """Review round 2, N2: switching the FD-9 clip border off through
+    "Clip-border content" is a person's answer as well."""
+    _choose(panel, "FD9")
+    panel.clip_enable.setCurrentIndex(panel.clip_enable.findData("on"))
+    panel._fd9_clip_chosen = False             # as if loaded switched on
+    i = panel.clip_content_mode.findData("off")
+    panel.clip_content_mode.setCurrentIndex(i)
+    assert panel._fd9_clip_chosen is True
+    assert panel.get_recipe().fd9_clip_border is False
+    # Not while a recipe is being loaded: that is not a person's answer.
+    from workflow.layout_engine.presets import LayoutRecipe
+    panel.set_recipe(LayoutRecipe(instrument="FD9", paper="A4"))
+    assert panel._fd9_clip_chosen is False

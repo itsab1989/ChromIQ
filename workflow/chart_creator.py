@@ -1885,7 +1885,8 @@ class ChartCreator:
                 # Which of the two ChromIQ prints is in the way (review M3).
                 from workflow import measurement_messages as M
                 msg = {"label": M.M_FD9_CHART_UNDETECTABLE_LABEL,
-                       "both": M.M_FD9_CHART_UNDETECTABLE_BOTH}.get(
+                       "both": M.M_FD9_CHART_UNDETECTABLE_BOTH,
+                       "each": M.M_FD9_CHART_UNDETECTABLE_EACH}.get(
                     getattr(exc, "cause", None), M.M_FD9_CHART_UNDETECTABLE)
                 self._matched_errors.append(
                     ("engine", "fd9_undetectable",

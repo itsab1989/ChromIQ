@@ -1072,6 +1072,16 @@ M_FD9_CHART_UNDETECTABLE_BOTH = _m(
     approved=False)
 
 
+#: Review round 2 (N1): EACH of the two is in the way on its own (the page
+#: fails with only the page number and with only the clip border, and
+#: passes without both), so switching the clip border off is not enough.
+M_FD9_CHART_UNDETECTABLE_EACH = _m(
+    "M-FD9-CHART-UNDETECTABLE-EACH",
+    "The FD-9 would not find this chart",
+    'Before a new FD-9 chart is saved, ChromIQ checks every page the way the FD-9 will see it: the FD-9 first looks for the four small black squares around the patches, and only measures once it has found exactly those four. On page {page} of {pages}, the FD-9 clip border and the small page number each got in the way on their own: with either one of them on the sheet, the check no longer found the four squares as it should, and only without both did it find them. So ChromIQ has not made the chart. Nothing has been printed, and the chart you had before is unchanged.\n\nSwitching the clip border off is not enough here, because the page number alone is already in the way. The page number is always printed on a chart of several sheets, so this is not caused by anything you set. What you can do: choose a different patch size or paper, which moves the squares and the patches, and press “Generate Chart” again; if the clip border is still in the way then, choose the Notes box as its content or switch it off. Please also tell us about it, with the technical reason below, so that we can fix it.\n\nThe technical reason was: {reason}',
+    approved=False)
+
+
 #: The same failure while ChromIQ draws the pages of a chart that already
 #: exists again (a restored or stored chart: `ChartParams.chart_date` set),
 #: where "change that setting and press Generate Chart" does not fit. Keeps
@@ -9227,7 +9237,8 @@ CATALOGUE = {m.id: m for m in (
     M_PATCHSET_MISSING,
     M_CHART_ENGINE_FAILED, M_CHART_ENGINE_REDRAW_FAILED,
     M_FD9_CHART_UNDETECTABLE, M_FD9_CHART_UNDETECTABLE_LABEL,
-    M_FD9_CHART_UNDETECTABLE_BOTH, M_FD9_EDGE_MARKS_NOT_PRINTED,
+    M_FD9_CHART_UNDETECTABLE_BOTH, M_FD9_CHART_UNDETECTABLE_EACH,
+    M_FD9_EDGE_MARKS_NOT_PRINTED,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,

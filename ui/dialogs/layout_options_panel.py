@@ -3790,6 +3790,12 @@ class LayoutOptionsPanel(QWidget):
             self.clip_image_rotation.setEnabled(mode == "image")
 
     def _on_clip_content_changed(self, *_a) -> None:
+        if (not self._loading and self._fd9_support and self.instr is not None
+                and self.instr.currentData() == "FD9"):
+            # Off (or any content) chosen in the Content list is a person's
+            # answer too (review round 2, N2), stored explicitly like one
+            # given with the Clip border switch.
+            self._fd9_clip_chosen = True
         # "Example custom table" isn't a persistent mode — it loads a ready-made
         # record into the editable Text box and switches to Custom text (Knut).
         if self.clip_content_mode.currentData() == "example":
