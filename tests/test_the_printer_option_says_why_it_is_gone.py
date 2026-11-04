@@ -166,3 +166,111 @@ def test_the_source_help_explains_the_standard_target_side_too(dlg):
     assert "manufacturer" in tail, (
         "the standard-target bullet does not say who printed the target")
     assert "Profile my printer from this scan" in tail
+
+
+# ------------------------------------- the switch is said (Knut, 4.3.25)
+# *"Knut didn't notice that the usage scenario had been switched."* Choosing
+# a bought target while the printer scenario is lit takes the user off it, and
+# the note used to explain only why the option is greyed. It now says, first,
+# that ChromIQ changed the scenario, to which one, and how to get a printer
+# profile instead; and it says that ONLY when a switch really happened.
+_CHANGED = "ChromIQ has changed the usage scenario for you"
+
+
+def _labels(d):
+    return {k: label for k, label, _g, _f in d._scenarios()}
+
+
+def test_the_note_says_the_scenario_was_switched_and_to_which(dlg):
+    from ui.dialogs import scanner_colprof as sc
+    dlg._mode_chromiq.setChecked(True)
+    dlg._scenario_radios[sc.SCENARIO_PRINTER].setChecked(True)
+    assert dlg._printer_mode()
+    dlg._mode_standard.setChecked(True)
+    txt = dlg._mode_note.text()
+    labels = _labels(dlg)
+    assert txt.startswith(_CHANGED), txt
+    head = txt.split("\n\n")[0]
+    now = dlg._scenario_for(dlg._active_ctx)
+    assert now != sc.SCENARIO_PRINTER
+    # from which, to which, and the way back, all by the names on screen
+    assert f"from “{labels[sc.SCENARIO_PRINTER]}” to “{labels[now]}”" in head
+    assert dlg._scenario_radios[now].isChecked()
+    assert "“A chart I made in ChromIQ”" in head
+    assert head.count(labels[sc.SCENARIO_PRINTER]) == 2
+    # …and the reason it always gave is still there, word for word.
+    assert txt.endswith(dlg._mode_note_reason)
+
+
+def test_without_a_switch_the_note_is_the_reason_alone(dlg):
+    dlg._mode_chromiq.setChecked(True)
+    dlg._printer_cb.setChecked(False)
+    dlg._mode_standard.setChecked(True)
+    assert dlg._mode_note.text() == dlg._mode_note_reason
+    assert _CHANGED not in dlg._mode_note.text()
+
+
+def test_the_switch_sentence_does_not_outlive_the_switch(dlg):
+    """Back to a chart and to a bought target again, with the printer
+    scenario no longer lit: nothing was switched this time."""
+    dlg._mode_chromiq.setChecked(True)
+    dlg._printer_cb.setChecked(True)
+    dlg._mode_standard.setChecked(True)
+    assert dlg._mode_note.text().startswith(_CHANGED)
+    dlg._mode_chromiq.setChecked(True)
+    dlg._mode_standard.setChecked(True)
+    assert dlg._mode_note.text() == dlg._mode_note_reason
+
+
+def test_choosing_a_scenario_yourself_ends_the_switch_sentence(dlg):
+    """After the user's own choice, "ChromIQ changed it for you" is old news
+    and could name a scenario that is no longer lit."""
+    from ui.dialogs import scanner_colprof as sc
+    dlg._mode_chromiq.setChecked(True)
+    dlg._printer_cb.setChecked(True)
+    dlg._mode_standard.setChecked(True)
+    assert dlg._mode_note.text().startswith(_CHANGED)
+    dlg._scenario_radios[sc.SCENARIO_INSTRUMENT].setChecked(True)
+    assert dlg._mode_note.text() == dlg._mode_note_reason
+
+
+def test_with_own_saved_settings_the_note_says_no_scenario_is_selected(_app, _out_dir):
+    """A bought-target bucket saved before scenarios existed is on no
+    scenario, so there is no "to which" to name: the note says why none is."""
+    from ui.dialogs.scanin_dialog import ScannerProfileDialog
+    from ui.dialogs import scanner_colprof as sc
+    d = ScannerProfileDialog(object(), _FakeSettings(
+        custom_output_path=str(_out_dir),
+        scanner_colprof_configs={"standard": {"quality": "m"}}))
+    try:
+        d._mode_chromiq.setChecked(True)
+        d._printer_cb.setChecked(True)
+        d._mode_standard.setChecked(True)
+        assert d._scenario_for(d._active_ctx) is None
+        txt = d._mode_note.text()
+        head = txt.split("\n\n")[0]
+        assert head.startswith(_CHANGED)
+        assert f"“{_labels(d)[sc.SCENARIO_PRINTER]}” is no longer selected" in head
+        assert "your own settings for bought targets are in force" in head
+        assert "“A chart I made in ChromIQ”" in head
+        assert not any(rb.isChecked() for rb in d._scenario_radios.values())
+    finally:
+        d.deleteLater()
+
+
+def test_the_switch_sentence_is_translated_with_the_labels_on_screen():
+    """Both variants are catalogue keys, and in every language the quoted
+    names come in as placeholders, so they always match the radios."""
+    import inspect
+    import json
+    from pathlib import Path
+    from ui.dialogs import scanin_dialog
+    src = inspect.getsource(scanin_dialog.ScannerProfileDialog._refresh_mode_note)
+    assert src.count("{printer}") >= 4 and "{scenario}" in src
+    root = Path(scanin_dialog.__file__).resolve().parents[2] / "data" / "i18n"
+    for cat in sorted(root.glob("*.json")):
+        data = json.loads(cat.read_text(encoding="utf-8"))
+        keys = [k for k in data if k.startswith(_CHANGED)]
+        assert len(keys) == 2, (cat.name, keys)
+        for k in keys:
+            assert data[k] and data[k] != k, (cat.name, k)

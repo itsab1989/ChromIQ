@@ -1188,7 +1188,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         # device values that were sent to the printer, and a bought target has
         # none. What was wrong was that the control vanished in silence. This
         # is the same widget that fix created, with the same words.
-        self._mode_note = self._tall_hint_label(tr(
+        #: The reason, unchanged and still carrying its translations. When
+        #: the switch to a bought target has just taken the user OFF the
+        #: printer scenario, `_refresh_mode_note` puts a sentence saying so in
+        #: front of it (Knut, 4.3.25: he never noticed the scenario had moved).
+        self._mode_note_reason = tr(
             "Not available for a bought target: an IT8 or a ColorChecker was "
             "printed and measured by its manufacturer, not by your printer, "
             "so there is no record of the colour values that went in and "
@@ -1196,7 +1200,11 @@ class ScannerProfileDialog(_ToolDialogBase):
             "scan” is not offered below for the same reason. Choose “A chart "
             "I made in ChromIQ” instead, which also accepts a chart made in "
             "another program, as long as you have its .ti2 and its .cht page "
-            "files."))
+            "files.")
+        #: True only between a switch that really moved the user off the
+        #: printer scenario and their next own choice of scenario.
+        self._switched_off_printer = False
+        self._mode_note = self._tall_hint_label(self._mode_note_reason)
         self._mode_note.setVisible(False)
         # Air above it, and aligned with the options it is about rather than
         # flush left. The margin costs nothing while the note is hidden,
@@ -1462,6 +1470,12 @@ class ScannerProfileDialog(_ToolDialogBase):
                 break
         if key is None:
             return
+        if self._switched_off_printer:
+            # The user has chosen a scenario themselves, so "ChromIQ has
+            # changed it for you" is no longer the news, and it might no longer
+            # name the scenario that is lit.
+            self._switched_off_printer = False
+            self._refresh_mode_note()
         if key == scanner_colprof.SCENARIO_PRINTER:
             if not self._printer_mode():
                 self._printer_cb.setChecked(True)     # switches the context too
@@ -4702,6 +4716,12 @@ class ScannerProfileDialog(_ToolDialogBase):
         # and measured by its manufacturer. The gate stays; what changed (Knut,
         # beta 9) is that hiding the tick in silence read as a missing feature,
         # so `_mode_note` now says why and where to go instead.
+        # WAS THE USER ON THE PRINTER SCENARIO? Read before the tick is taken
+        # off below: that is the one case in which this click changes the
+        # usage scenario behind the user's back, and Knut (4.3.25) did not
+        # notice it had. Any other switch keeps the note as it always was.
+        self._switched_off_printer = bool(
+            std and self._printer_cb.isChecked())
         self._printer_cb.setVisible(not std)
         self._mode_note.setVisible(std)
         if std:
@@ -4710,9 +4730,46 @@ class ScannerProfileDialog(_ToolDialogBase):
         # keep separate settings, so switching target kind loads the right bucket
         # (Knut, #121).
         self._sync_colprof_context()
+        # After the bucket has loaded, because the sentence names the scenario
+        # the standard-target bucket is now on.
+        self._refresh_mode_note()
         self._apply_mode_title()
         self._refresh_shot_bar()
         self._refresh()
+
+    def _refresh_mode_note(self) -> None:
+        """The bought-target note: its reason, and in front of it, only right
+        after a switch that took the user off the printer scenario, what
+        ChromIQ changed, to what, and how to get a printer profile instead."""
+        text = self._mode_note_reason
+        if self._switched_off_printer and self._standard_mode():
+            labels = {k: label for k, label, _g, _f in self._scenarios()}
+            printer = labels[scanner_colprof.SCENARIO_PRINTER]
+            source = tr("A chart I made in ChromIQ")
+            now = self._scenario_for(self._active_ctx)
+            if now in labels:
+                head = tr(
+                    "ChromIQ has changed the usage scenario for you, from "
+                    "“{printer}” to “{scenario}”. A profile for your printer "
+                    "cannot be made from a bought target (the reason is just "
+                    "below), so what you build here now is a profile for your "
+                    "scanner or camera. To make a printer profile instead, "
+                    "choose “{source}” just above, then pick “{printer}” "
+                    "again.").format(printer=printer, scenario=labels[now],
+                                     source=source)
+            else:
+                head = tr(
+                    "ChromIQ has changed the usage scenario for you: "
+                    "“{printer}” is no longer selected. A profile for your "
+                    "printer cannot be made from a bought target (the reason "
+                    "is just below), so what you build here now is a profile "
+                    "for your scanner or camera. No other scenario is selected "
+                    "because your own settings for bought targets are in "
+                    "force. To make a printer profile instead, choose "
+                    "“{source}” just above, then pick “{printer}” again."
+                ).format(printer=printer, source=source)
+            text = head + "\n\n" + text
+        self._mode_note.setText(text)
 
     def _printer_mode(self) -> bool:
         """True when building a PRINTER profile from this scan (scanner as the
