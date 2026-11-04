@@ -7027,6 +7027,11 @@ class TiffPreview(QWidget):
         # through those numbers or it sits beside the picture it annotates.
         ix, iy = int(x), int(y)
         painter.drawPixmap(ix, iy, scaled)
+        # The canvas IS the (virtual) viewport, so nothing is centred. Set
+        # BEFORE the overlay, as the fit path does: the overlay places the
+        # legend chip through it, and a frame left from the last paint (an
+        # older size) put the chip, and its hover test, in the wrong place.
+        self._rot_frame = (rot, W, H, 0.0, 0.0, 0.0, 0.0) if rot else None
         # #126 engine overlays (split patches, hover outline, legend)
         self._draw_cq_overlay(painter,
                               (scaled.width() / dpr) / max(1, pw),
@@ -7034,11 +7039,6 @@ class TiffPreview(QWidget):
                               (scaled.height() / dpr) / max(1, ph))
         self._paint_geom = (scale, x, y)   # for the cursor→image mapping (#72)
         self._paint_scale_y = (scaled.height() / dpr) / max(1, ph)
-        if rot:
-            # The canvas IS the (virtual) viewport, so nothing is centred.
-            self._rot_frame = (rot, W, H, 0.0, 0.0, 0.0, 0.0)
-        else:
-            self._rot_frame = None
         painter.end()
         if rot:
             canvas = self._turn_canvas(canvas, dpr)

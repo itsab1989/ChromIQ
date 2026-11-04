@@ -586,3 +586,44 @@ def test_measured_from_preview_and_the_guides_describe_the_paper_at_every_angle(
                      list(chart_tab._preview._measured_guides)))
     assert seen[0][0] is not None
     assert all(s == seen[0] for s in seen)
+
+
+@pytest.mark.parametrize("angle", ANGLES)
+@pytest.mark.parametrize("interactive", [False, True], ids=["fit", "zoom"])
+def test_the_first_paint_after_a_resize_is_already_right(
+        qapp, chart, angle, interactive):
+    """Review r1, R1: the zoom path recorded the turned frame AFTER drawing
+    the overlays, so the first paint after a resize placed the legend chip
+    (and the hover-to-hide test) by the previous size. The first paint after
+    a resize must equal the second."""
+    r, pages, _ = chart
+    boxes = list(_boxes(pages[0]).values())
+    pv = _preview(qapp, 640, 520, angle, r.tiff_paths)
+    try:
+        pv.set_legend_enabled(True)
+        if interactive:
+            pv.set_interactive(True)
+        _settle(qapp, pv)
+        pv.set_patch_overlay(0, [(b, QColor(255, 0, 0), QColor(0, 0, 255), False)
+                                 for b in boxes], replace_page=True)
+        pv.set_overlay_mode("both")
+        _settle(qapp, pv)
+        if interactive:
+            pv._apply_zoom(1.5, QPoint(300, 260))
+        # No event loop in between: the paint right after the label's new
+        # size is the one under test (an event would repaint first).
+        pv._img_label.setFixedSize(560, 700)
+        assert pv._img_label.size().width() == 560
+
+        def paint():
+            pv._repaint_label()
+            return (pv._legend_paint, pv._legend_label_off, pv._rot_frame,
+                    QRect(pv._legend_rect), _shown(pv))
+        first = paint()
+        second = paint()
+        assert first[:4] == second[:4]
+        assert first[4] == second[4]
+        if angle == 0:
+            assert first[1] is None and first[2] is None
+    finally:
+        pv.deleteLater()
