@@ -1558,8 +1558,11 @@ class TabPrint(QWidget):
     def _refresh_both_edge_notes(self) -> None:
         """Redraw the edge note here and in Create Chart, so both name the
         same printer (after a dialog print, or when the print route is
-        switched in Preferences, review r1 M1)."""
+        switched in Preferences, review r1 M1). Those are also the moments
+        the remembered default printer is asked again (review r2 L2)."""
         try:
+            from workflow.printer_edges import forget_system_default_printer
+            forget_system_default_printer()
             self._update_edge_note()
             chart = getattr(self.window(), "_tab_chart", None)
             refresh = getattr(chart, "_refresh_printer_edge_note", None)

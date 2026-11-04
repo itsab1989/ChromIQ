@@ -201,15 +201,40 @@ def note_printer(settings, direct_printer: str) -> str:
     return str(direct_printer or "")
 
 
-def system_default_printer() -> str:
-    """The system's default printer (the one its print dialog opens on), or
-    "" when there is none or it cannot be asked. Read only: Qt asks the
-    print system for the name, nothing is sent to a printer."""
+#: The answer of `_ask_system_default_printer`, kept for the session
+#: (review r2 L2): the note is redrawn often, and on a machine whose print
+#: system is slow to answer (a remote CUPS server that cannot be reached)
+#: every redraw would block the window. Forgotten when the print route
+#: changes and after a print through the system dialog
+#: (`forget_system_default_printer`). None = not asked yet.
+_default_printer: "str | None" = None
+
+
+def _ask_system_default_printer() -> str:
+    """Ask the print system for its default printer. Read only: Qt asks for
+    the name, nothing is sent to a printer."""
     try:
         from PyQt6.QtPrintSupport import QPrinterInfo
         return str(QPrinterInfo.defaultPrinterName() or "")
     except Exception:      # noqa: BLE001 - no print support: no note
         return ""
+
+
+def system_default_printer() -> str:
+    """The system's default printer (the one its print dialog opens on), or
+    "" when there is none or it cannot be asked; asked once and remembered
+    until `forget_system_default_printer`."""
+    global _default_printer
+    if _default_printer is None:
+        _default_printer = _ask_system_default_printer()
+    return _default_printer
+
+
+def forget_system_default_printer() -> None:
+    """Ask again next time (the print route changed, or the system dialog
+    has just printed, which may have changed the default)."""
+    global _default_printer
+    _default_printer = None
 
 
 def edges_for(printer: str, chart_mm: "tuple[float, float]", settings=None

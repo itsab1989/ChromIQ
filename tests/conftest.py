@@ -191,6 +191,21 @@ def _no_modal_may_hang_the_suite(request):
 
 
 
+@pytest.fixture(autouse=True)
+def _no_host_default_printer(monkeypatch):
+    """The suite never asks the host for its default printer (review r2 L1):
+    with the system print dialog on, the edge note falls back to it, and a
+    test must not depend on which printer this machine happens to have, nor
+    wait for a print server that does not answer. A test that wants one sets
+    `printer_edges._ask_system_default_printer` (or `system_default_printer`)
+    itself. The remembered answer is forgotten before and after each test."""
+    from workflow import printer_edges as _pe
+    monkeypatch.setattr(_pe, "_ask_system_default_printer", lambda: "")
+    _pe.forget_system_default_printer()
+    yield
+    _pe.forget_system_default_printer()
+
+
 #: The application-wide appearance as the worker starts, kept so
 #: `_no_test_repaints_the_whole_application` can put it back.
 _CLEAN_APPEARANCE: "tuple | None" = None
