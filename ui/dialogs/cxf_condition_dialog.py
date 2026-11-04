@@ -178,5 +178,6 @@ def choose_cxf_condition(parent: "QWidget | None", path: "str | Path",
                 log(M.cxf_condition_cancelled_line())
             return None
     if log is not None:
-        log(M.cxf_condition_log_line(chosen, conds.available))
+        log(M.cxf_condition_log_line(chosen, conds.available,
+                                     conds.selected))
     return chosen

@@ -19,6 +19,7 @@ the user's original download is left untouched. ``scanin`` happily reads a
 from __future__ import annotations
 
 import logging
+import math
 import re
 import subprocess
 from dataclasses import dataclass
@@ -361,6 +362,9 @@ _CXF_NS = {"cc": "http://colorexchangeformat.com/CxF3-core"}
 #: spectra (4.3.24). Imports made before carry none: their XYZ came from the
 #: 10 nm sums and is left exactly as it was written.
 XYZ_METHOD_KEYWORD = "CHROMIQ_XYZ_METHOD"
+#: Fewer bands than this cannot be integrated as ArgyllCMS does
+#: (``workflow.argyll_colorimetry.MIN_BANDS``).
+MIN_SPECTRAL_BANDS = 4
 XYZ_METHOD_ARGYLL = "ArgyllCMS xspect, D50, 1931 2 degree, 1 nm"
 #: The measurement conditions (ISO 13655) an i1Profiler CxF can hold, in the
 #: order the condition window lists them. Until 4.3.23 the import took the
@@ -439,7 +443,9 @@ def condition_from_label(raw: "str | None") -> "str | None":
     if not text:
         return None
     if re.fullmatch(r"[-+]?\d+", text):
-        return _CXF_CONDITION_NUMBERS.get(int(text))
+        # Only i1Profiler's own spellings: "0", "1", "2". "-0", "00" or "+1"
+        # are no value it writes, so they name nothing (review r1, L6).
+        return {str(k): v for k, v in _CXF_CONDITION_NUMBERS.items()}.get(text)
     found = {f"M{d}" for d in _CONDITION_LABEL_RE.findall(text)}
     return found.pop() if len(found) == 1 else None
 
@@ -647,10 +653,26 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
         if sp is None or not sp.text:
             raise _failure(M.M_CONVERT_CXF_NO_SPECTRUM, name=cxf_path.name)
         first_sp = first_sp if first_sp is not None else sp
-        refl.append([float(v) for v in sp.text.split()])
+        values = []
+        for v in sp.text.split():
+            try:
+                f = float(v)
+            except ValueError:
+                f = float("nan")
+            if not math.isfinite(f):
+                # "nan" in a .ti3 is no measurement (review r1, L6): refuse
+                # the import and name the patch, never write it.
+                raise _failure(M.M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
+                               name=cxf_path.name, patch=len(refl) + 1,
+                               value=v)
+            values.append(f)
+        refl.append(values)
     bands = len(refl[0])
     if any(len(r) != bands for r in refl):
         raise _failure(M.M_CONVERT_CXF_UNEQUAL_SPECTRA, name=cxf_path.name)
+    if bands < MIN_SPECTRAL_BANDS:
+        raise _failure(M.M_CONVERT_CXF_TOO_FEW_BANDS, name=cxf_path.name,
+                       bands=bands)
 
     lam = _cxf_wavelengths(root, first_sp, bands)
     refl = np.asarray(refl, dtype=float)

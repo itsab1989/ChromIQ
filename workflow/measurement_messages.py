@@ -7415,6 +7415,10 @@ _COND_IMPORT = "Import"
 _COND_AND = "{first} and {last}"
 _COND_LOG_ONLY = ("Measurement condition: {condition}, the only one in the "
                   "file.")
+_COND_LOG_ONLY_OTHER_SAVED = ("Measurement condition: {condition}, the only "
+                              "one in the file. In i1Profiler {selected} was "
+                              "chosen, but the file holds no {selected} "
+                              "readings, so ChromIQ imported {condition}.")
 _COND_LOG_CHOSEN = ("Measurement condition: {condition}, as chosen (the file "
                     "also holds {others}).")
 _COND_LOG_CANCELLED = ("Nothing was imported: no measurement condition was "
@@ -7427,7 +7431,8 @@ M_IMPORT_CXF_CONDITION_PARTS = _m(
                _COND_SETTING_ABSENT, _COND_SETTING_UNKNOWN,
                _COND_SETTING_NONE, _COND_FWA_NOTE,
                _COND_KEPT, _COND_IMPORT, _COND_AND, _COND_LOG_ONLY,
-               _COND_LOG_CHOSEN, _COND_LOG_CANCELLED)),
+               _COND_LOG_ONLY_OTHER_SAVED, _COND_LOG_CHOSEN,
+               _COND_LOG_CANCELLED)),
     approved=False)
 
 # --- PROPOSED (4.3.24): a condition the i1Profiler file holds no readings for --
@@ -7448,6 +7453,38 @@ M_CONVERT_CXF_CONDITION_ABSENT = _m(
     "Import the file again and choose one of the conditions it holds. If you "
     "need {condition} readings, measure the chart again in i1Profiler with "
     "{condition} switched on and save the measurement.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+
+# --- PROPOSED (4.3.24): an i1Profiler spectrum ChromIQ cannot integrate ------
+#: A value in a reflectance spectrum that is not a number ("NaN", "INF", a
+#: word): the import wrote "nan" into the .ti3 before (review r1, L6). {name}
+#: the file, {patch} the patch's number in the file (1 for the first), {value}
+#: the value as written.
+M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER = _m(
+    "M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER",
+    _CONVERT_HEADLINE,
+    "The reflectance spectrum of patch {patch} in {name} holds a value that "
+    "is not a number (\u201c{value}\u201d). ChromIQ needs a number for "
+    "every wavelength to work out the colour of a patch, and it never "
+    "guesses a missing one.\n\n"
+    "Open the file in i1Profiler and look at that patch. If its reading is "
+    "missing or broken, measure the patch or the chart again and save the "
+    "measurement once more.\n\n"
+    "Your file has not been changed.",
+    approved=False)
+#: Readings with fewer than 4 wavelengths: ArgyllCMS's method needs four
+#: (review r1, L5). i1Profiler writes 36. {bands} is how many the file has.
+M_CONVERT_CXF_TOO_FEW_BANDS = _m(
+    "M-CONVERT-CXF-TOO-FEW-BANDS",
+    _CONVERT_HEADLINE,
+    "The readings in {name} cover too few wavelengths to work out the "
+    "colours of the patches (wavelengths in the file: {bands}; ChromIQ, "
+    "like ArgyllCMS, needs at least 4). An i1Profiler measurement normally "
+    "holds 36, from 380 to 730 nm, so this file was probably written by "
+    "another program or cut short.\n\n"
+    "Export the measurement from i1Profiler again, or ask the program that "
+    "wrote it for the complete spectra.\n\n"
     "Your file has not been changed.",
     approved=False)
 
@@ -7756,10 +7793,17 @@ def cxf_condition_import_button() -> str:
     return tr(_COND_IMPORT)
 
 
-def cxf_condition_log_line(condition: str, available) -> str:
-    """The log line every door writes after the condition is settled."""
+def cxf_condition_log_line(condition: str, available,
+                           selected: "str | None" = None) -> str:
+    """The log line every door writes after the condition is settled.
+    *selected* is the condition i1Profiler's saved choice names, when it
+    does: a file with one condition whose saved choice is another says so
+    (review r1, L6)."""
     others = [c for c in available if c != condition]
     if not others:
+        if selected and selected != condition:
+            return tr(_COND_LOG_ONLY_OTHER_SAVED).format(
+                condition=condition, selected=selected)
         return tr(_COND_LOG_ONLY).format(condition=condition)
     return tr(_COND_LOG_CHOSEN).format(condition=condition,
                                        others=cxf_condition_list(others))
@@ -8806,7 +8850,8 @@ M_GESTURE_STATUS = _m(
 
 CATALOGUE = {m.id: m for m in (
     M_IMPORT_CXF_CONDITION, M_IMPORT_CXF_CONDITION_PARTS,
-    M_CONVERT_CXF_CONDITION_ABSENT,
+    M_CONVERT_CXF_CONDITION_ABSENT, M_CONVERT_CXF_SPECTRUM_NOT_A_NUMBER,
+    M_CONVERT_CXF_TOO_FEW_BANDS,
     M_MERGE_CONDITION, M_MERGE_CONDITION_TOOLS, M_AVERAGE_CONDITION,
     M_MERGE_CONDITION_ASK, M_AVERAGE_CONDITION_ASK, M_CONDITION_ASK_PARTS,
     M_CONDITION_NOT_ASKED, M_RESUME_CONDITION, M_RESUME_CONDITION_PARTS,

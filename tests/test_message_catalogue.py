@@ -147,6 +147,7 @@ AWAITING_APPROVAL: "set[str]" = {
     "M-IMPORT-CXF-CONDITION", "M-IMPORT-CXF-CONDITION-PARTS",
     # A condition the i1Profiler file holds no readings for (4.3.24).
     "M-CONVERT-CXF-CONDITION-ABSENT",
+    "M-CONVERT-CXF-SPECTRUM-NOT-A-NUMBER", "M-CONVERT-CXF-TOO-FEW-BANDS",
     # Merges of measurements of different conditions are refused (Basti,
     # 2026-11-03, 4.3.23 review round 1, S3).
     "M-MERGE-CONDITION", "M-MERGE-CONDITION-TOOLS",
