@@ -229,10 +229,23 @@ verified by tests and on screen without an FD-9.*
   one or more sheets, patches 6-30 mm wide and high, gaps of 0-5 mm (default 8 x 8 mm,
   1 mm), at least 15 mm free on each side, the middle of the first row 42 mm
   from the leading edge and at least 33 mm free at the trailing edge, four 3 mm
-  marks around the patch area, an arrow showing which end goes in first, and
-  nothing else printed on a single-page chart. Multi-page sheets add a small
-  numeric page label in the leading clear area; this is for the operator, not
-  an automatic page-identity check.
+  marks around the patch area and an arrow showing which end goes in first.
+  On a chart of several sheets every sheet also carries its page number,
+  "N/M" (for example "2/3"), small, at the top left in the leading clear
+  area, turned 180 degrees so it reads the same way as the clip border text
+  (upside down on screen with the arrow pointing up); a chart of one sheet
+  has none, and there is no option for it. The page number is for the
+  person feeding the sheets, not an automatic page-identity check (that is
+  the sheet check after each sheet). The FD-9 clip border may be printed
+  as well (below).
+* **The FD-9 clip border** (4.3.25), off by default
+  (`workflow/fd9/furniture.py::FD9_CLIP_BORDER_DEFAULT`) until lessbones
+  has tested it on real sheets: switched on with “Clip border: On”
+  in the layout settings, it is a band at most 14 mm deep in the free space
+  after the last row of patches (at least 10 mm from each side and 6 mm
+  before the trailing edge), turned 180 degrees like the page number. It
+  takes no room from the patches, and every page that carries it, or the
+  page number, goes through the detector check before the chart is saved.
 * **Sheets:** 137x300, A4, A4 landscape, Letter, Letter landscape, A3,
   329x483 and 330x660 in Guided. Manual uses the ordinary Custom paper entry
   for any 137-330 mm across the feed and 170-660 mm along it. Landscape A4 (297 x 210) and Letter (279.4 x
@@ -244,7 +257,8 @@ verified by tests and on screen without an FD-9.*
   dialog or Guided Custom sheet button. Edit layout defaults opens the normal
   Chart Layout preferences and does not enable printtarg for the FD-9.
   Other unsupported controls stay greyed, with their state restored on leaving
-  FD-9. Output, printer calibration and randomisation remain available.
+  FD-9. Output, printer calibration, randomisation and Clip-border content
+  (what the FD-9 clip border shows) remain available.
 * **Multiple pages:** the existing Pages selector controls Guided capacity.
   A patch set exceeding one sheet is split into ordinary numbered TIFFs and
   one PDF/TI2, with unique sample IDs/locations across the chart. Only complete
@@ -256,11 +270,17 @@ verified by tests and on screen without an FD-9.*
   grid and marks the measurement uses) and the usual `.strips.json`.
   `.fd9.json` is a chart companion: it is copied, stashed, archived and
   imported with the chart. Padding cells are paper white with the engine's
-  media white aim. The run description is not printed (nothing but marks,
-  arrow and patches may be on the sheet) and the TIFF is not stamped.
+  media white aim. With the clip border off nothing but marks, arrow,
+  patches and the page number is on the sheet, so the run description is
+  not printed. With it on, the band shows the content chosen under
+  Clip-border content: the Notes box by default (patch count, FD-9, paper,
+  date, page N/M, strips on the page, the profile name and lines to write
+  on), or text, which may carry the run description through
+  `{rundescription}`. The TIFF is not stamped.
 * **Calibration charts** put one ink's ramp per column, paper white first.
-* **The patch set editor** (Tools) does not open an FD-9 chart; it says so
-  and points to Create Chart (`tool_availability.md`).
+* **The patch set editor** (Tools) opens an FD-9 chart like any other
+  (4.3.25), and its edited patch set goes back to Create Chart, which lays
+  it out with the FD-9's own builder (`tool_availability.md`).
 
 ## FD-9 (Beta): an FD-9 chart shown turned on screen
 

@@ -1211,6 +1211,14 @@ class FD9MeasureMixin:
             colours.update(moved)
             self._progress_file_locs = set(self._progress_file_locs) | set(target)
         else:
+            # "Again" drops only what THIS sheet read (4.3.25 final review,
+            # L6). On a resumed page the rows read before keep their live
+            # colours and their place in the progress, because the worker
+            # keeps those readings; only the set-aside sheet's are re-asked.
+            # A question from before `read_locations` existed drops them all.
+            fresh = question.get("read_locations")
+            if fresh is not None:
+                asked = list(fresh)
             for a in asked:
                 colours.pop(a, None)
         self._progress_locs = set(self._progress_locs) - set(asked)

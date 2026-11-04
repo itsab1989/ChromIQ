@@ -317,10 +317,16 @@ class Loss:
     #: (4.3.25, F6). The FD-9 finds the sheet by them, so they are needed for
     #: measuring, never "text". Only filled while FD-9 support is on.
     fd9_marks: "list[str]" = field(default_factory=list)
+    #: sides on which an FD-9 sheet's page number ("N/M") and its clip border
+    #: fall into the edge (4.3.25 review, L1). Neither is measured, and
+    #: neither can be moved by a control the FD-9 leaves live, so they are
+    #: FD-9 elements with their own advice, never "printed text".
+    fd9_page_label: "list[str]" = field(default_factory=list)
+    fd9_clip: "list[str]" = field(default_factory=list)
 
     def any(self) -> bool:
         return bool(self.markers or self.caption or self.text or self.patches
-                    or self.fd9_marks)
+                    or self.fd9_marks or self.fd9_page_label or self.fd9_clip)
 
 
 def _limits_on_chart(edges: Edges, chart_mm, paper_mm, shift_mm=(0.0, 0.0)):
@@ -334,13 +340,13 @@ def _limits_on_chart(edges: Edges, chart_mm, paper_mm, shift_mm=(0.0, 0.0)):
             edges.top - y0, ph - y0 - edges.bottom)
 
 
-def _fd9_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]]":
-    """The FD-9's four marks and its arrow on this page, as (x0, y0, x1, y1)
-    in mm on the chart, from the chart's .fd9.json; [] for any other chart,
-    and always [] while FD-9 support is off (nothing is read then)."""
+def _fd9_page(tiff_path) -> "dict | None":
+    """This page's entry of the chart's .fd9.json, or None for any other
+    chart, and always None while FD-9 support is off (nothing is read
+    then)."""
     from workflow.fd9.support import fd9_enabled
     if not fd9_enabled():
-        return []
+        return None
     import json
     import re
     path = Path(tiff_path)
@@ -353,15 +359,28 @@ def _fd9_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]]":
     if not layout.is_file():
         m = re.fullmatch(r"(.+?)_(\d{2,})", path.stem)
         if m is None:
-            return []
+            return None
         stem, number = m.group(1), m.group(2)
         layout = path.with_name(stem + ".fd9.json")
         if not layout.is_file():
-            return []
+            return None
     try:
         doc = json.loads(layout.read_text(encoding="utf-8"))
         pages = doc.get("pages") or [doc]
         page = pages[int(number) - 1] if number else pages[0]
+        return page if isinstance(page, dict) else None
+    except Exception:      # noqa: BLE001 — not a readable FD-9 layout
+        return None
+
+
+def _fd9_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]]":
+    """The FD-9's four marks and its arrow on this page, as (x0, y0, x1, y1)
+    in mm on the chart, from the chart's .fd9.json; [] for any other chart,
+    and always [] while FD-9 support is off (nothing is read then)."""
+    page = _fd9_page(tiff_path)
+    if page is None:
+        return []
+    try:
         width = float(page["paper_mm"][0])
         boxes = [(x - 1.5, y - 1.5, x + 1.5, y + 1.5)
                  for x, y in page["fiducials_mm"]]
@@ -370,6 +389,33 @@ def _fd9_mark_boxes(tiff_path) -> "list[tuple[float, float, float, float]]":
     # The arrow (`workflow/fd9/chart.py`): 9 mm wide, 15 to 29 mm in.
     boxes.append((width / 2 - 4.5, 15.0, width / 2 + 4.5, 29.0))
     return boxes
+
+
+def _fd9_furniture_boxes(tiff_path) -> "dict[str, tuple]":
+    """Where this FD-9 page carries its page number and its clip border, as
+    {"page_label" | "clip": (x0, y0, x1, y1) in mm}; {} for any other chart
+    and while FD-9 support is off. The page number's box is the whole room
+    `workflow.fd9.furniture.label_mask` may print it in (from its left and
+    top offsets to just short of the arrow), with room below for the text's
+    descent; nothing else is printed there."""
+    page = _fd9_page(tiff_path)
+    if page is None:
+        return {}
+    from workflow.fd9 import furniture as F
+    out: dict = {}
+    try:
+        width = float(page["paper_mm"][0])
+        if page.get("page_label"):
+            out["page_label"] = (
+                F.LABEL_LEFT_MM, F.LABEL_TOP_MM,
+                width / 2 - F.LABEL_ARROW_CLEAR_MM,
+                F.LABEL_TOP_MM + 2.0 * F.LABEL_HEIGHT_MM)
+        band = page.get("clip_border_mm")
+        if band:
+            out["clip"] = tuple(float(v) for v in band)
+    except Exception:      # noqa: BLE001 — not a readable FD-9 layout
+        return {}
+    return out
 
 
 def losses(tiff_path, frame: int, edges: Edges, paper_mm,
@@ -422,6 +468,27 @@ def losses(tiff_path, frame: int, edges: Edges, paper_mm,
                           ("top", y0m < lo_y), ("bottom", y1m > hi_y)):
             if hit and side not in out.fd9_marks:
                 out.fd9_marks.append(side)
+    # …AND ITS PAGE NUMBER AND CLIP BORDER ARE NOT TEXT EITHER (4.3.25
+    # review, L1). The "text" advice names controls the FD-9 greys; these two
+    # get their own (`measurement_messages.edge_note`). The side is read from
+    # the ink actually lost inside the box, not from the box.
+    for kind, (x0m, y0m, x1m, y1m) in _fd9_furniture_boxes(tiff_path).items():
+        x0, y0 = max(0, int((x0m - 0.5) / mm)), max(0, int((y0m - 0.5) / mm))
+        x1 = int(np.ceil((x1m + 0.5) / mm))
+        y1 = int(np.ceil((y1m + 0.5) / mm))
+        known[y0:y1, x0:x1] = True
+        sub = lost[y0:y1, x0:x1]
+        if not sub.any():
+            continue
+        cols = np.where(sub.any(axis=0))[0] + x0
+        rows = np.where(sub.any(axis=1))[0] + y0
+        sides = out.fd9_page_label if kind == "page_label" else out.fd9_clip
+        for side, hit in (("top", rows[0] * mm < lo_y),
+                          ("bottom", (rows[-1] + 1) * mm > hi_y),
+                          ("left", cols[0] * mm < lo_x),
+                          ("right", (cols[-1] + 1) * mm > hi_x)):
+            if hit and side not in sides:
+                sides.append(side)
     marker_lost = np.zeros_like(ink, dtype=bool)
     try:
         marks = O.helper_markers(tiff_path, frame) or {}
@@ -526,6 +593,12 @@ def losses_for_chart(pages, edges: Edges, paper_mm, shift_mm=(0.0, 0.0)
         for s in one.fd9_marks:
             if s not in out.fd9_marks:
                 out.fd9_marks.append(s)
+        for s in one.fd9_page_label:
+            if s not in out.fd9_page_label:
+                out.fd9_page_label.append(s)
+        for s in one.fd9_clip:
+            if s not in out.fd9_clip:
+                out.fd9_clip.append(s)
         for k, v in one.text.items():
             out.text[k] = max(out.text.get(k, 0.0), v)
         for k, v in one.needed_mm.items():

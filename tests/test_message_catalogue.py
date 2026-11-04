@@ -617,6 +617,10 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 4.3.25 (F6): an FD-9 chart's marks in the
                                  # printer's unprinted edge.
                                  "M-FD9-EDGE-MARKS-NOT-PRINTED",
+                                 # 4.3.25 (final review, L1): its page
+                                 # number or clip border in that edge.
+                                 "M-FD9-EDGE-SHEET-TEXT-NOT-PRINTED",
+                                 "M-FD9-EDGE-SHEET-TEXT-PARTS",
                                  # 4.3.25 (F7): the sheet check asks.
                                  "M-FD9-SHEET-TURNED-ASK",
                                  "M-FD9-SHEET-TURNED-ASK-PARTIAL",

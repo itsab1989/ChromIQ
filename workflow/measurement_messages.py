@@ -6875,6 +6875,40 @@ M_EDGE_NOT_PRINTED_PARTS = _m(
                _EDGE_FIX_MARKERS, _EDGE_FIX_TEXT, _EDGE_FIX_PATCHES,
                _EDGE_FIX_CAPTION)),
     approved=False)
+#: An FD-9 sheet's page number or clip border in the edge the printer does
+#: not print (4.3.25 review, L1). Neither is measured and neither is moved by
+#: a control the FD-9 leaves live, so they are never "printed text" with the
+#: text advice (which names controls the FD-9 greys). {lost}: the lost parts,
+#: from _FD9_EDGE_LOST_*, joined by "; "; {fix}: the matching _FD9_EDGE_FIX_*.
+_FD9_EDGE_LOST_LABEL = "the small page number {where}"
+_FD9_EDGE_LOST_CLIP = "part of the FD-9 clip border {where}"
+_FD9_EDGE_FIX_LABEL = ("The page number helps you feed the sheets in the right "
+                       "order. It always sits in the same place and has no "
+                       "setting, so to have it printed in full, print the "
+                       "chart on a printer that prints closer to the edge of "
+                       "the paper.")
+_FD9_EDGE_FIX_CLIP = ("To keep the clip border whole, print the chart on a "
+                      "printer that prints closer to the edge of the paper. "
+                      "If you do not need the clip border, you can switch it "
+                      "off instead: set “Clip border” to Off in the layout "
+                      "settings on the Create Chart tab.")
+M_FD9_EDGE_SHEET_TEXT_NOT_PRINTED = _m(
+    "M-FD9-EDGE-SHEET-TEXT-NOT-PRINTED",
+    "Part of the FD-9 sheet's page number or clip border will not be printed",
+    "\u26a0 {printer} leaves an edge of the paper unprinted: {edges} "
+    "({source}). On this FD-9 chart, this lies in that edge and would be "
+    "missing or cut off on paper: {lost}. The FD-9 does not use any of it to "
+    "find or measure the sheet, so your measurement is not affected, and you "
+    "can print the chart like this. {fix} If your printer leaves a different "
+    "edge than this, set it under Preferences \u25b8 Printing \u25b8 "
+    "\u201cEdge this printer does not print\u201d.",
+    approved=False)
+M_FD9_EDGE_SHEET_TEXT_PARTS = _m(
+    "M-FD9-EDGE-SHEET-TEXT-PARTS",
+    "The FD-9 sheet's page number and clip border in the edge: the parts of the note",
+    "\n".join((_FD9_EDGE_LOST_LABEL, _FD9_EDGE_LOST_CLIP,
+               _FD9_EDGE_FIX_LABEL, _FD9_EDGE_FIX_CLIP)),
+    approved=False)
 #: The spooler refused the raw job (``win_spooler.SpoolerError``); {reason}
 #: is Windows' own sentence. Replaces, on Windows, "CUPS rejected the print
 #: job (exit code ...)", which names a system Windows does not have.
@@ -9239,6 +9273,7 @@ CATALOGUE = {m.id: m for m in (
     M_FD9_CHART_UNDETECTABLE, M_FD9_CHART_UNDETECTABLE_LABEL,
     M_FD9_CHART_UNDETECTABLE_BOTH, M_FD9_CHART_UNDETECTABLE_EACH,
     M_FD9_EDGE_MARKS_NOT_PRINTED,
+    M_FD9_EDGE_SHEET_TEXT_NOT_PRINTED, M_FD9_EDGE_SHEET_TEXT_PARTS,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,
@@ -9336,6 +9371,25 @@ def edge_note(printer: str, edges, loss) -> "str | None":
             printer=printer, edges=edge_txt, source=source,
             where=", ".join(where[s] for s in order if s in fd9))
         return body
+    # THE FD-9 SHEET'S PAGE NUMBER AND CLIP BORDER (4.3.25 review, L1): their
+    # own words and their own advice, never "printed text".
+    label = list(getattr(loss, "fd9_page_label", []) or [])
+    clip = list(getattr(loss, "fd9_clip", []) or [])
+    fd9_lost, fd9_fixes = [], []
+    if label:
+        fd9_lost.append(tr(_FD9_EDGE_LOST_LABEL).format(
+            where=", ".join(where[s] for s in order if s in label)))
+        fd9_fixes.append(tr(_FD9_EDGE_FIX_LABEL))
+    if clip:
+        fd9_lost.append(tr(_FD9_EDGE_LOST_CLIP).format(
+            where=", ".join(where[s] for s in order if s in clip)))
+        fd9_fixes.append(tr(_FD9_EDGE_FIX_CLIP))
+    if fd9_lost and not (loss.patches or loss.markers or loss.caption
+                         or loss.text):
+        _t, body = M_FD9_EDGE_SHEET_TEXT_NOT_PRINTED.render(
+            printer=printer, edges=edge_txt, source=source,
+            lost="; ".join(fd9_lost), fix=" ".join(fd9_fixes))
+        return body
     lost: list = []
     patches = list(getattr(loss, "patches", []) or [])
     for side in order:
@@ -9373,6 +9427,9 @@ def edge_note(printer: str, edges, loss) -> "str | None":
             mm=f(need(getattr(loss, "need_text", 0.0)))))
     if loss.caption:
         fixes.append(tr(_EDGE_FIX_CAPTION))
+    # …and, beside other losses, the FD-9 sheet's own parts with their fixes.
+    lost.extend(fd9_lost)
+    fixes.extend(fd9_fixes)
     _t, body = M_EDGE_NOT_PRINTED.render(
         printer=printer, edges=edge_txt, source=source, lost="; ".join(lost),
         safe=tr(_EDGE_SAFE_NOT if patches else _EDGE_SAFE),

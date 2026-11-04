@@ -235,7 +235,12 @@ def test_the_check_costs_little(tmp_path):
     t0 = time.perf_counter()
     for _ in range(3):
         sheet_check.check_page(gray, 300, pages[0])
-    assert (time.perf_counter() - t0) / 3 < 1.0
+    # 5 s, not 1 (4.3.25 final review, L5). Measured alone the check takes a
+    # fraction of a second; inside a full gate every core is busy and a slow
+    # VM is slower still, so 1 s was a phantom red waiting to happen. Five
+    # still fails at once for what this guards against: a check that has
+    # become many times slower, or one that hangs.
+    assert (time.perf_counter() - t0) / 3 < 5.0
 
 
 def test_the_window_counts_pages_and_names_them():

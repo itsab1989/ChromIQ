@@ -275,19 +275,33 @@ def test_a_partial_sheet_window_has_no_refile_button(tab, monkeypatch):
 
 def test_the_worker_waits_for_the_answer_and_stop_means_again(qapp):
     import threading
+    from PyQt6.QtCore import Qt
     from ui.fd9_measurement import FD9Job
     job = FD9Job("c", None, "s")
     got = []
-    job.sheet_question.connect(lambda q: None)
+    # WAIT FOR THE QUESTION BEFORE ANSWERING (4.3.25 final review, L4).
+    # `ask_sheet` clears the answer before it emits, so an answer given
+    # before the worker has asked was wiped and the thread waited the full
+    # join time: a race the test lost on a loaded machine. A direct
+    # connection runs on the worker thread at the emit, after the clear.
+    asked = threading.Event()
+
+    def _on_question(_q):
+        asked.set()
+    job.sheet_question.connect(_on_question,
+                               Qt.ConnectionType.DirectConnection)
     t = threading.Thread(target=lambda: got.append(job.ask_sheet({"k": 1})))
     t.start()
+    assert asked.wait(10), "the worker never asked"
     job.answer_sheet("keep")
-    t.join(5)
+    t.join(10)
     assert got == ["keep"]
+    asked.clear()
     t = threading.Thread(target=lambda: got.append(job.ask_sheet({"k": 1})))
     t.start()
+    assert asked.wait(10), "the worker never asked"
     job.request_stop()
-    t.join(5)
+    t.join(10)
     assert got[-1] == "again"
 
 
@@ -355,3 +369,30 @@ def test_the_live_preview_follows_the_answer(tab):
     tab._fd9_live_colours = dict(keep)
     tab._fd9_follow_sheet_answer(dict(kind="turned", locations=asked), "keep")
     assert tab._fd9_live_colours == keep
+
+
+def test_again_on_a_resumed_page_keeps_the_earlier_rows(tab):
+    """4.3.25 final review, L6: on a resumed page the rows read before stay
+    (the worker keeps them), so "again" drops only the set-aside sheet's
+    new readings from the live preview and from the progress."""
+    tab._on_chart_measured = lambda ev, live=True: None
+    tab._fd9_restore_scan_colours = lambda chart: None
+    tab._chart_file_for = lambda p: p
+    tab._ti1_path = "x"
+    asked = ["A1", "B1", "A2", "B2"]
+    tab._fd9_live_colours = {loc: {"loc": loc, "v": i}
+                             for i, loc in enumerate(asked)}
+    tab._progress_locs = set(asked)
+    tab._fd9_follow_sheet_answer(dict(kind="turned", turned=True,
+                                      locations=asked,
+                                      read_locations=["A2", "B2"]), "again")
+    assert sorted(tab._fd9_live_colours) == ["A1", "B1"]
+    assert tab._progress_locs == {"A1", "B1"}
+
+
+def test_the_worker_names_the_locations_this_sheet_read():
+    """The question carries `read_locations` for the GUI to use."""
+    import inspect
+    from workflow.fd9 import pages
+    src = inspect.getsource(pages)
+    assert "'read_locations'" in src and "in read_now]" in src

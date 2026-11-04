@@ -191,6 +191,11 @@ def measure_pages(chart, settings, session, *, progress, cancelled, on_readings,
                         # In grid order, so the live preview can move or
                         # drop this sheet's colours with the answer (L6).
                         'locations': [locations[p['id']] for p in patches],
+                        # …and only the ones read on THIS sheet (4.3.25
+                        # final review, L6): on a resumed page the earlier
+                        # rows' readings stay, so "again" must not drop them.
+                        'read_locations': [locations[p['id']] for p in patches
+                                           if int(p['id']) in read_now],
                         'found_locations': [
                             locations[p['id']]
                             for row in pages[mismatch.found - 1]['rows']
