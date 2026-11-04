@@ -278,3 +278,23 @@ def test_r1_l5_a_manual_preset_does_not_change_guideds_fd9_sizes(
     p = tab._collect_guided()
     assert (p.fd9_patch_mm, p.fd9_patch_h_mm, p.fd9_gap_mm,
             p.fd9_strip_gap_mm) == (20.0, 12.0, 3.0, 4.0)
+
+
+def test_r1_l4_the_greyed_top_margin_follows_the_patch_height(qapp, qtbot,
+                                                              tmp_path):
+    """The middle of the first row is 42 mm in, so the paper before it is
+    42 - height/2: what the greyed box shows, and what the chart has."""
+    from workflow.fd9.chart import build_chart
+    tab, _ = _tab(tmp_path, qtbot)
+    tab._user_switch_mode("manual")
+    panel = tab._manual_layout_panel
+    panel.instr.setCurrentIndex(panel.instr.findData("FD9"))
+    for height, top in ((8.0, 38.0), (30.0, 27.0), (6.0, 39.0)):
+        panel.patch_y.setValue(height)
+        assert panel.margins["t"].value() == pytest.approx(top)
+        assert panel.get_recipe().margin_top == pytest.approx(top)
+    source, _ = ti1(tmp_path, rep="RGB", tokens=("R", "G", "B"), count=12)
+    res = build_chart(source, tmp_path / "tall", patch_mm=8,
+                      patch_height_mm=30, dpi=72, randomize=False)
+    row0 = checked_chart(res.ti2_path)[1]["rows"][0][0]
+    assert row0["centre_mm"][1] - 30 / 2 == pytest.approx(27.0, abs=0.5)

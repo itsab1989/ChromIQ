@@ -670,14 +670,22 @@ LABELS_CLEAR_WHOLE_CLIP_BORDER = "_row_labels_clear_whole_clip_border"
 CLIP_BORDER_FREE_SPACE = "clip_border_free_space"
 
 
-def fd9_fixed_margins() -> tuple[float, float, float, float]:
+def fd9_fixed_margins(patch_h: "float | None" = None
+                      ) -> tuple[float, float, float, float]:
     """The FD-9's own fixed margins, ``(top, right, bottom, left)`` in mm, as
     its base geometry holds them (`_build_base`): the leading clear area, the
-    trailing transport space and the free strip at each side. Only for what
-    the greyed margin boxes SHOW; the FD-9 layout (`workflow/fd9/chart.py`)
-    keeps its own numbers. Raises like `build` while FD-9 support is off."""
+    trailing transport space and the free strip at each side. With *patch_h*
+    the top is the one that really applies for that patch height: the middle
+    of the first row is 42 mm in, so the paper before it is 42 - height/2
+    (review r1 L4; 38 mm for 8 mm patches). Only for what the greyed margin
+    boxes SHOW; the FD-9 layout (`workflow/fd9/chart.py`) keeps its own
+    numbers. Raises like `build` while FD-9 support is off."""
     g = _build_base("FD9")
-    return g.margin_t, g.margin_r, g.margin_b, g.margin_l
+    top = g.margin_t
+    if patch_h:
+        from workflow.fd9.chart import top_margin_mm
+        top = top_margin_mm(patch_h)
+    return top, g.margin_r, g.margin_b, g.margin_l
 
 
 def old_clip_border_rule(kw: dict) -> bool:

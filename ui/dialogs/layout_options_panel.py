@@ -3223,6 +3223,10 @@ class LayoutOptionsPanel(QWidget):
             saved["shown"] = self._fd9_capture_shown()
             self._fd9_saved = saved
             self._fd9_show_what_applies()
+            if not getattr(self, "_fd9_height_wired", False):
+                # The greyed top margin follows the patch height (r1 L4).
+                self.patch_y.valueChanged.connect(self._fd9_patch_height_changed)
+                self._fd9_height_wired = True
             return
         self._fd9_saved = None
         self._fd9_restore_shown(was.get("shown"))
@@ -3257,9 +3261,13 @@ class LayoutOptionsPanel(QWidget):
         SHOWN: the FD-9 layout reads none of these, so its geometry does not
         change (`workflow/fd9/chart.py`)."""
         from workflow.layout_engine.instruments import fd9_fixed_margins
-        t, r, b, lt = fd9_fixed_margins()
+        t, r, b, lt = fd9_fixed_margins(self.patch_y.value() or None)
         return {"margins": {"t": t, "r": r, "b": b, "l": lt},
                 "spacer_mode": "none", "layout_mode": "patch_first"}
+
+    def _fd9_patch_height_changed(self, *_a) -> None:
+        if getattr(self, "_fd9_saved", None) is not None:
+            self._fd9_show_what_applies()
 
     def _fd9_capture_shown(self) -> dict:
         """The values `_fd9_show_what_applies` is about to replace, so that

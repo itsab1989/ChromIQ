@@ -881,7 +881,7 @@ def fd9_fixed_fields(r: "LayoutRecipe") -> "LayoutRecipe":
     the "modified" comparison of a layout preset agree with the chart (review
     of #214, L3). Only called while FD-9 support is on."""
     from .instruments import fd9_fixed_margins
-    t, rt, b, lt = fd9_fixed_margins()
+    t, rt, b, lt = fd9_fixed_margins(r.patch_h_mm or None)
     return replace(r, margin_top=t, margin_right=rt, margin_bottom=b,
                    margin_left=lt, spacer_mode="none",
                    layout_mode="patch_first")

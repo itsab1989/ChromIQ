@@ -23,6 +23,15 @@ PAPERS = ("137x300", "A4", "A4R", "Letter", "LetterR", "A3", "329x483",
           "330x660")
 PATCH = 8.0
 PITCH = 9.0
+#: The middle of the first row of patches sits this far from the leading
+#: edge (the layout below uses the number itself).
+FIRST_ROW_CENTRE_MM = 42.0
+
+
+def top_margin_mm(patch_height_mm=8.0):
+    """Free paper before the first row of patches, for this patch height:
+    what the greyed top-margin box shows (review r1 L4)."""
+    return FIRST_ROW_CENTRE_MM - float(patch_height_mm or PATCH) / 2.0
 
 
 def dimensions(paper):
