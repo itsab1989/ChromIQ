@@ -252,7 +252,6 @@ HOOKED_FILES = {
     "main.py",                       # latches the switch
     "ui/dialogs/layout_options_panel.py",
     "ui/dialogs/settings_dialog.py",  # the Beta row
-    "ui/main_window.py",             # the patch set editor refusal
     "ui/tabs/tab_chart.py",
     "ui/tabs/tab_measure.py",
     "ui/licences.py",                # the licence notice section

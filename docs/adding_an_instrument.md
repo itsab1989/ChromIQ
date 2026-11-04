@@ -317,9 +317,12 @@ Resume box, all duplicates (review of pull request #214, questions 1 and 9).
       own.
 - [ ] **Patch set editor** (Tools > Edit / create chart patch set):
       `workflow/ti2_relayout.py::instrument_to_flag` and the label map in
-      `ui/dialogs/ti2_relayout_dialog.py`, or, if the editor cannot lay your
-      chart out, a refusal like `ui/main_window.py::_refuse_editor_for_fd9`
-      plus a row in `docs/design/tool_availability.md`.
+      `ui/dialogs/ti2_relayout_dialog.py`. The editor hands its edited patch
+      set back to Create Chart, which lays it out with your instrument's own
+      builder, so a refusal is rarely needed: the FD-9 had one until 4.3.25,
+      and it was wrong (Knut found that the editor laid FD-9 charts out
+      correctly). If yours really cannot be edited, say so in a row of
+      `docs/design/tool_availability.md`.
 
 ### Loading a chart and its files
 

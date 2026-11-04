@@ -2294,12 +2294,6 @@ class MainWindow(QMainWindow):
         preset_recipe = None
         if key == "ti2_relayout":
             initial_chart = self._current_chart_ti2()
-            # An FD-9 chart (Beta) is not laid out by the patch set editor:
-            # say so rather than open it on a layout it cannot draw
-            # (tool_availability.md, review M9).
-            if initial_chart is not None and self._refuse_editor_for_fd9(
-                    initial_chart):
-                return
             # "New Patch Set…" opens with the SELECTED preset's design, not the
             # run's last build (Knut, #182 5872273862).
             try:
@@ -2332,27 +2326,6 @@ class MainWindow(QMainWindow):
         open_tool_dialog(key, self._runner, self._settings, self,
                          on_apply=on_apply, initial_chart=initial_chart,
                          project=project, preset_recipe=preset_recipe)
-
-    def _refuse_editor_for_fd9(self, chart) -> bool:
-        """True, after saying why, when *chart* is an FD-9 chart and FD-9
-        support is on. With it off nothing is read and nothing changes."""
-        from workflow.fd9.support import fd9_enabled
-        if not fd9_enabled():
-            return False
-        from workflow.fd9.measurement import is_fd9_chart
-        if not is_fd9_chart(chart):
-            return False
-        from ui.warning_sign import inform
-        inform(self, tr("The patch set editor cannot change an FD-9 chart"),
-               tr("An FD-9 chart has a layout of its own, made for the way the "
-                  "FD-9 finds and reads the sheet, and the patch set editor "
-                  "cannot lay it out yet.\n\n"
-                  "To change the patches of this chart, use Create Chart: "
-                  "choose the number of patches in Guided, or load or make a "
-                  "patch set in Manual, and press Generate Chart. The FD-9 stays "
-                  "selected as the instrument, and the new chart replaces "
-                  "this one in the run."))
-        return True
 
     def _current_chart_ti2(self) -> "Path | None":
         """The SELECTED target's generated chart .ti2, or None when there isn't

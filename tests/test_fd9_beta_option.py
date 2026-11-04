@@ -482,20 +482,8 @@ def test_the_start_runs_the_preflight_every_instrument_gets(
 
 
 # ---- M9 ----------------------------------------------------------------------
-def test_the_patch_set_editor_refuses_an_fd9_chart(fd9_chart, tmp_path,
-                                                   monkeypatch):
-    from types import SimpleNamespace
-    from ui import main_window as mw
-    said = []
-    monkeypatch.setattr(mw, "inform", lambda *a, **k: said.append(a[1]),
-                        raising=False)
-    monkeypatch.setattr("ui.warning_sign.inform",
-                        lambda *a, **k: said.append(a[1]))
-    owner = SimpleNamespace()
-    assert mw.MainWindow._refuse_editor_for_fd9(owner, fd9_chart) is True
-    assert said
-    assert mw.MainWindow._refuse_editor_for_fd9(
-        owner, _plain_chart(tmp_path)) is False
+# 4.3.25 (F10): the patch set editor opens FD-9 charts; its refusal is gone
+# (tests/test_fd9_4325_editor.py).
 
 
 # ---- Preferences > Beta ------------------------------------------------------
