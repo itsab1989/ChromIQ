@@ -156,8 +156,10 @@ def test_r3_a_default_changed_while_open_is_seen_when_a_tab_is_shown(
     for _ in range(4):                          # redraws ask nothing more
         PE.note_printer(s, "")
     assert len(asked) == 1
-    assert PE.recheck_system_default_printer() is False      # tab shown, same
-    assert PE.recheck_system_default_printer() is True       # changed
+    import sys
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert PE.recheck_system_default_printer(now=100.0) is False  # same
+    assert PE.recheck_system_default_printer(now=200.0) is True   # changed
     assert PE.note_printer(s, "") == "EPSON_Other" and len(asked) == 3
 
 
@@ -168,6 +170,9 @@ def test_r3_both_tabs_recheck_once_when_shown_and_redraw_only_on_a_change(
     from ui.tabs.tab_print import TabPrint
     assert "_recheck_default_printer()" in inspect.getsource(TabPrint.showEvent)
     assert "_recheck_default_printer()" in inspect.getsource(TabChart.showEvent)
+    import sys
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(PE, "RECHECK_INTERVAL_S", 0.0)   # throttle tested apart
     redrawn = []
 
     class Stand:
@@ -193,3 +198,24 @@ def test_r3_the_suite_still_gets_no_host_printer():
     PE.forget_system_default_printer()
     assert PE.recheck_system_default_printer() is False
     assert PE.system_default_printer() == ""
+
+
+def test_final_3_at_most_once_a_minute_and_never_on_linux(monkeypatch):
+    import sys
+    asked = []
+    monkeypatch.setattr(PE, "_ask_system_default_printer",
+                        lambda: asked.append(1) or "A")
+    monkeypatch.setattr(sys, "platform", "darwin")
+    PE.forget_system_default_printer()
+    assert PE.recheck_system_default_printer(now=1000.0) is False
+    for t in (1001.0, 1030.0, 1059.9):            # tab switches in a minute
+        PE.recheck_system_default_printer(now=t)
+    assert len(asked) == 1
+    PE.recheck_system_default_printer(now=1060.0)
+    assert len(asked) == 2
+    monkeypatch.setattr(sys, "platform", "linux")
+    PE.forget_system_default_printer()
+    assert PE.recheck_system_default_printer(now=5000.0) is False
+    assert len(asked) == 2                         # Linux: tab show asks nothing
+    PE.forget_system_default_printer()             # route change / dialog print
+    assert PE.system_default_printer() == "A" and len(asked) == 3

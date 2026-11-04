@@ -298,3 +298,32 @@ def test_r1_l4_the_greyed_top_margin_follows_the_patch_height(qapp, qtbot,
                       patch_height_mm=30, dpi=72, randomize=False)
     row0 = checked_chart(res.ti2_path)[1]["rows"][0][0]
     assert row0["centre_mm"][1] - 30 / 2 == pytest.approx(27.0, abs=0.5)
+
+
+def test_final_5_what_save_as_defaults_stored_wins_and_the_text_says_so(
+        qapp, qtbot, tmp_path):
+    """A 4.3.22/4.3.23 user who pressed Save as Defaults keeps those FD-9
+    sizes in Guided even when the Chart Layout preset changes later, and the
+    Beta (i) says exactly that."""
+    from pathlib import Path
+    from core.preset_store import save_presets
+    from workflow.layout_engine.presets import PresetStore, default_recipe
+    tab, settings = _tab(tmp_path, qtbot, chart_instrument="FD9",
+                         chart_paper="A4", chart_fd9_patch_mm=9.0,
+                         chart_fd9_patch_h_mm=9.0, chart_fd9_gap_mm=0.5)
+    preset = default_recipe("FD9", "A4")
+    preset.inter_patch_mm = preset.strip_gap_mm = 3.0
+    store = PresetStore()
+    store.set(preset)
+    save_presets("chart_layout", store.as_named_dict())
+    p = tab._collect_guided()
+    assert (p.fd9_patch_mm, p.fd9_gap_mm, p.fd9_strip_gap_mm) == (9.0, 0.5, 0.5)
+    src = (Path(__file__).resolve().parent.parent / "ui" / "dialogs"
+           / "settings_dialog.py").read_text(encoding="utf-8")
+    assert "Once you have pressed “Save as Defaults” in " in src
+    # With nothing saved, the preset is what Guided uses.
+    tab2, _ = _tab(tmp_path / "fresh", qtbot)
+    tab2._instr_combo.setCurrentIndex(tab2._instr_combo.findData("FD9"))
+    tab2._paper_combo.setCurrentIndex(tab2._paper_combo.findData("A4"))
+    p2 = tab2._collect_guided()
+    assert (p2.fd9_gap_mm, p2.fd9_strip_gap_mm) == (3.0, 3.0)

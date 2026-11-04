@@ -70,3 +70,28 @@ def test_the_window_takes_the_catalogue_headline(qapp, qtbot, tmp_path,
     monkeypatch.setattr(tab_chart, "InfoDialog", Window)
     tab._on_generate_finished([])
     assert shown == [(M.M_CHART_ENGINE_FAILED.render(reason="")[0], body)]
+
+
+def test_a_stored_chart_that_cannot_be_drawn_again_gets_the_redraw_words(
+        tmp_path, monkeypatch):
+    """Final review item 4: a restored or stored chart (it keeps its own
+    date) is not asked to "press Generate Chart"; the Restore Used Chart
+    hint is back."""
+    from workflow.chart_creator import ChartParams
+    from workflow.layout_engine import chart as le_chart
+    from workflow import measurement_messages as M
+    creator, fm = _creator(tmp_path)
+    work = fm.cwd_for_chart(cal_target=False)
+    monkeypatch.setattr(creator, "_engine_kwargs",
+                        lambda p: {"instrument": "i1", "paper": "A4"})
+
+    def refuse(*_a, **_k):
+        raise ValueError("refused")
+    monkeypatch.setattr(le_chart, "build_chart", refuse)
+    creator._run_engine(ChartParams(instrument="i1", paper="A4",
+                                    chart_date="2026-10-01 10:00"), work,
+                        lambda _l: None)
+    tool, key, text = creator.primary_failure()
+    assert (tool, key) == ("engine", "engine_redraw_failed")
+    assert text == M.M_CHART_ENGINE_REDRAW_FAILED.render(reason="refused")[1]
+    assert "Restore Used Chart" in text and "Generate Chart" not in text

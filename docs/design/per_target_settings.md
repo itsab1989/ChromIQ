@@ -140,9 +140,14 @@ Defaults puts the condition back to M1 and unticks Resume.
 
 Global, not per target (AppSettings): the FD-9 network address (`fd9_host`,
 "FD-9 setup…"). Width, height and the two gaps now use the ordinary layout
-recipe and Chart Layout presets. Earlier equal-gap recipes and legacy
-`chart_fd9_patch_mm`, `chart_fd9_patch_h_mm`, `chart_fd9_gap_mm` defaults remain
-readable; a shared-control recipe records explicit zeros and distinct gaps.
+recipe and Chart Layout presets. Earlier equal-gap recipes are still read; a
+shared-control recipe records explicit zeros and distinct gaps. Save as
+Defaults with the FD-9 chosen still writes `chart_fd9_patch_mm`,
+`chart_fd9_patch_h_mm` and `chart_fd9_gap_mm`, and since 4.3.24 also
+`chart_fd9_strip_gap_mm`. When they are stored (also from 4.3.22 or 4.3.23),
+they are Guided's FD-9 sizes, ahead of the FD-9's Chart Layout preset,
+because what a person saved comes first; the Beta (i) says so. With none
+stored, Guided uses the preset.
 Pages uses the existing per-target page setting, without an FD-9 override.
 
 ---

@@ -230,13 +230,33 @@ def system_default_printer() -> str:
     return _default_printer
 
 
-def recheck_system_default_printer() -> bool:
+#: How often a tab being shown may ask the print system again.
+RECHECK_INTERVAL_S = 60.0
+#: When it last did (`time.monotonic`), or None.
+_last_recheck: "float | None" = None
+
+
+def recheck_system_default_printer(now: "float | None" = None) -> bool:
     """Ask the print system once more, now; True when the default printer
     is another than the one remembered (review r3: a default changed while
     ChromIQ is open). Called when the Create Chart or Print Chart tab is
     shown, so once per such event and never while redrawing. A first answer
-    is not a change."""
-    global _default_printer
+    is not a change.
+
+    AT MOST ONCE PER `RECHECK_INTERVAL_S` (final review 3), and NEVER ON
+    LINUX: there the question can wait for a print server that does not
+    answer, so it is asked again only when the print route changes or after
+    a print through the system dialog (`forget_system_default_printer`).
+    *now* is for tests."""
+    import sys
+    import time
+    global _default_printer, _last_recheck
+    if sys.platform.startswith("linux"):
+        return False
+    now = time.monotonic() if now is None else now
+    if _last_recheck is not None and now - _last_recheck < RECHECK_INTERVAL_S:
+        return False
+    _last_recheck = now
     before = _default_printer
     _default_printer = _ask_system_default_printer()
     return before is not None and before != _default_printer
@@ -245,8 +265,9 @@ def recheck_system_default_printer() -> bool:
 def forget_system_default_printer() -> None:
     """Ask again next time (the print route changed, or the system dialog
     has just printed, which may have changed the default)."""
-    global _default_printer
+    global _default_printer, _last_recheck
     _default_printer = None
+    _last_recheck = None
 
 
 def edges_for(printer: str, chart_mm: "tuple[float, float]", settings=None

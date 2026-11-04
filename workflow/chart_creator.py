@@ -1857,9 +1857,15 @@ class ChartCreator:
                 # ANY OTHER REFUSAL REACHES A WINDOW TOO (review of #214, Q4):
                 # it used to end here with one log line and an empty preview.
                 from workflow import measurement_messages as M
+                # A chart that already exists being drawn again (restored or
+                # stored: it keeps its own date) gets the words for that.
+                redraw = bool(str(getattr(params, "chart_date", "") or ""))
+                msg = (M.M_CHART_ENGINE_REDRAW_FAILED if redraw
+                       else M.M_CHART_ENGINE_FAILED)
                 self._matched_errors.append(
-                    ("engine", "engine_failed",
-                     M.M_CHART_ENGINE_FAILED.render(reason=str(exc))[1]))
+                    ("engine", "engine_redraw_failed" if redraw
+                     else "engine_failed",
+                     msg.render(reason=str(exc))[1]))
             self._finish([])
             return
 

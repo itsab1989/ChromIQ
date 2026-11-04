@@ -607,6 +607,7 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 4.3.24, review of #214 (Q4): a layout
                                  # engine failure reached only the log.
                                  "M-CHART-ENGINE-FAILED",
+                                 "M-CHART-ENGINE-REDRAW-FAILED",
                                  # 2026-09-03, review 3. Tools ▸ Read single
                                  # patches could bin a whole session in silence
                                  # by two routes: Clear had no question and no

@@ -683,8 +683,8 @@ M_FD9_NEXT_PAGE = _m(
     "If a sheet is still in the FD-9 or lying in its exit, take it out "
     "completely. As soon as the FD-9's paper sensor is clear, the FD-9 shows "
     "its insertion screen by itself, so normally you do not need to press "
-    "anything here. If that takes longer than a minute, this window tells "
-    "you what you can do.\n\n"
+    "anything here. If that takes longer than a minute, this note changes "
+    "and tells you what you can do.\n\n"
     "Then insert page {page}: the end with the arrow goes in first, and the "
     "printed side faces up.\n\n"
     "The pages you have already measured are kept. After each sheet, ChromIQ "
@@ -1004,6 +1004,26 @@ M_CHART_ENGINE_FAILED = _m(
     "reason below names what was refused.\n\n"
     "Change that setting and press “Generate Chart” again. Nothing has been "
     "printed.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+
+#: The same failure while ChromIQ draws the pages of a chart that already
+#: exists again (a restored or stored chart: `ChartParams.chart_date` set),
+#: where "change that setting and press Generate Chart" does not fit. Keeps
+#: the "Restore Used Chart" hint the unmatched-failure window carried for it
+#: before (final review of 4.3.24, item 4).
+M_CHART_ENGINE_REDRAW_FAILED = _m(
+    "M-CHART-ENGINE-REDRAW-FAILED",
+    "The chart's pages could not be drawn again",
+    "ChromIQ could not draw the printable pages of this chart again, so the "
+    "preview stays empty. The chart itself is not changed: its patches, its "
+    "layout and any measurement in this run are untouched. Only its "
+    "printable pages are missing.\n\n"
+    "If this happened just after “Restore Used Chart”, the chart itself is "
+    "safely back. You can still measure a sheet you have already printed, "
+    "and when you need to print the chart again, you can create it again in "
+    "this tab.\n\n"
     "The technical reason was: {reason}",
     approved=False)
 
@@ -9115,7 +9135,7 @@ CATALOGUE = {m.id: m for m in (
     M_AUTOSAVE_NOT_SAVED,
     M_AUTOSAVE_RETRYING,
     M_PATCHSET_MISSING,
-    M_CHART_ENGINE_FAILED,
+    M_CHART_ENGINE_FAILED, M_CHART_ENGINE_REDRAW_FAILED,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,
