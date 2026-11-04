@@ -605,19 +605,81 @@ M_FD9_INSERT_SHEET = _m(
     "window closes "
     "by itself as soon as the FD-9 has the sheet. ChromIQ waits for up to an "
     "hour; press Stop if you want to give up.\n\n"
-    "The FD-9 cannot tell a sheet that is turned round, or a different chart "
-    "with the same grid, from the right one. Please make sure it is the right "
-    "sheet, the right way round.",
+    "The FD-9 itself cannot tell a sheet that is turned round, or a "
+    "different sheet with the same grid, from the right one. ChromIQ "
+    "compares the readings with the chart afterwards and stops before saving "
+    "them if they clearly belong to another sheet, but it cannot always "
+    "tell. Please make sure it is the right sheet, the right way round.",
+    approved=False)
+
+
+#: 4.3.24, review of #214 (M4). After a sheet is read, its lightness pattern
+#: fits the expected page turned round clearly better than the page the
+#: right way round (`workflow.fd9.page_check`). Nothing of that sheet is
+#: filed; pages measured before it are kept for the shared ending question.
+M_FD9_SHEET_TURNED = _m(
+    "M-FD9-SHEET-TURNED",
+    "The sheet seems to be the wrong way round",
+    "After each sheet, ChromIQ compares the readings with the colours this "
+    "chart should have. The readings from the sheet just measured match page "
+    "{page} of {pages} turned round, and not page {page} the right way round. "
+    "So the sheet probably went into the FD-9 with the arrow at the back.\n\n"
+    "ChromIQ has not saved these readings, so nothing wrong has been filed. "
+    "Any pages you measured before this one are kept.\n\n"
+    "Take the sheet out of the FD-9 (with the FD-9's own controls if it does "
+    "not come out by itself). Then measure page {page} again, with the end "
+    "with the arrow going in first and the printed side facing up. If you "
+    "keep the pages measured before it, tick “Resume” and ChromIQ carries on "
+    "from this page.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+#: 4.3.24, review of #214 (M4). The readings fit ANOTHER page of the chart
+#: (either way round) clearly better than the page that was asked for.
+M_FD9_WRONG_SHEET = _m(
+    "M-FD9-WRONG-SHEET",
+    "This looks like a different page of the chart",
+    "After each sheet, ChromIQ compares the readings with the colours this "
+    "chart should have. ChromIQ asked for page {page} of {pages}, but the "
+    "readings from the sheet just measured match page {found} much better. "
+    "So a different page probably went into the FD-9.\n\n"
+    "ChromIQ has not saved these readings, so nothing wrong has been filed. "
+    "Any pages you measured before this one are kept.\n\n"
+    "Take the sheet out of the FD-9 (with the FD-9's own controls if it does "
+    "not come out by itself). Then put page {page} in, with the end with the "
+    "arrow going in first and the printed side facing up, and measure it. If "
+    "you keep the pages measured before it, tick “Resume” and ChromIQ "
+    "carries on from page {page}.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+#: Between the sheets of a multi-page FD-9 chart (lessbones, #214). Shown in
+#: the Measure tab's page-pause panel without a Continue button: the FD-9
+#: shows its own insertion screen once its paper sensor is clear, and the
+#: panel closes when it does. Stop ends the run with the shared ending
+#: question. 4.3.24: rewritten to say what happens and what to do, and the
+#: sheet check (`workflow/fd9/page_check.py`) instead of "the four marks
+#: check geometry only".
+M_FD9_NEXT_PAGE = _m(
+    "M-FD9-NEXT-PAGE",
+    "Prepare page {page} of {pages}",
+    "ChromIQ is ready for the next sheet of this chart: page {page} of "
+    "{pages}.\n\n"
+    "If a sheet is still in the FD-9 or lying in its exit, take it out "
+    "completely. As soon as the FD-9's paper sensor is clear, the FD-9 shows "
+    "its insertion screen by itself. You do not need to press anything "
+    "here.\n\n"
+    "Then insert page {page}: the end with the arrow goes in first, and the "
+    "printed side faces up.\n\n"
+    "The pages you have already measured are kept. After each sheet, ChromIQ "
+    "compares the readings with the colours the chart should have, and stops "
+    "before saving them if they clearly belong to another page or to a sheet "
+    "that is turned round. It cannot always tell, so please check the page "
+    "number printed on the sheet. Press Stop if you want to end here; "
+    "ChromIQ then asks what to do with the pages already measured.",
     approved=False)
 
 #: The connection to the FD-9 could not be made or was lost.
-M_FD9_NEXT_PAGE = _m(
-    "M-FD9-NEXT-PAGE",
-    'Prepare page {page} of {pages}',
-    'The next page is queued. Remove the ejected sheet completely from the FD-9. When the paper sensor is clear, the instrument will show the insertion screen automatically. Then feed page {page} of {pages}, arrow first and printed side up. Earlier readings are kept. The four marks check geometry only; make sure this is the correct page.',
-    approved=False)
-
-
 M_FD9_NO_CONNECTION = _m(
     "M-FD9-NO-CONNECTION",
     "ChromIQ could not reach the FD-9",
@@ -887,6 +949,29 @@ M_REPLACE_UNCOUNTABLE = _m(
 # ---------------------------------------------------------------------------
 # §4 — chart integrity
 # ---------------------------------------------------------------------------
+# --- PROPOSED: the layout engine could not draw the chart's pages ---------
+#: 4.3.24, review of #214 (Q4). Any exception out of the ChromIQ layout
+#: engine's build (`ChartCreator._run_engine`) other than a printer
+#: calibration for other inks (which has its own words) used to end in one
+#: log line and an empty preview, with no window at all: an FD-9 chart whose
+#: gap made the fixed patch count need a second sheet in 4.3.23 was the case
+#: found. {reason} is the engine's own English sentence, kept for diagnosis.
+M_CHART_ENGINE_FAILED = _m(
+    "M-CHART-ENGINE-FAILED",
+    "The chart's pages could not be drawn",
+    "ChromIQ has the colour patches for this chart, but its layout engine "
+    "could not place them on the pages. So no printable pages were made, and "
+    "the preview stays empty.\n\n"
+    "This usually comes from a layout setting that the paper or the "
+    "instrument cannot take: patches, gaps or margins too large for the "
+    "chosen paper, or a size the instrument cannot read. The technical "
+    "reason below names what was refused.\n\n"
+    "Change that setting and press “Generate Chart” again. Nothing has been "
+    "printed.\n\n"
+    "The technical reason was: {reason}",
+    approved=False)
+
+
 M_CHART_PROFILING = _m(
     "M-CHART-PROFILING",
     "This run already holds work made with the chart you are about to replace",
@@ -8882,6 +8967,7 @@ CATALOGUE = {m.id: m for m in (
     M_AUTOSAVE_NOT_SAVED,
     M_AUTOSAVE_RETRYING,
     M_PATCHSET_MISSING,
+    M_CHART_ENGINE_FAILED,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,
@@ -8900,6 +8986,7 @@ CATALOGUE = {m.id: m for m in (
     M_FD9_SUPPORT_OFF, M_FD9_NO_ADDRESS, M_FD9_INSERT_SHEET, M_FD9_NEXT_PAGE,
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,
+    M_FD9_SHEET_TURNED, M_FD9_WRONG_SHEET,
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
     M_CAL_DONE_UNDERLAY,
     M_REPORT_NOT_SAVED,

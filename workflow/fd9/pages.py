@@ -99,7 +99,8 @@ def measure_pages(chart, settings, session, *, progress, cancelled, on_readings,
                 progress=progress, cancelled=cancelled,
                 on_readings=lambda n: on_readings(offset+n), on_scan=scan_ready,
                 on_patch=patch_ready if on_patch else None, capture=capture,
-                _expected_identity=identity, _wait_for_sheet_clear=ejected_here)
+                _expected_identity=identity, _wait_for_sheet_clear=ejected_here,
+                _sheet_check=False)
             ejected_here = True
             last = result
             template = Path(result['staged'])
@@ -107,6 +108,11 @@ def measure_pages(chart, settings, session, *, progress, cancelled, on_readings,
             if identity is None:
                 identity = metadata
             _, _, measured = first_table(template)
+            # Is it the sheet that was asked for (review of #214, M4)? A sheet
+            # whose readings clearly fit another page, or this page turned
+            # round, stops here, before any of it is filed.
+            from .page_check import check_sheet
+            check_sheet(pages, page_index, design, measured)
             new = [r for r in measured if int(r['SAMPLE_ID']) not in completed_ids]
             all_rows += new
             completed_ids.update(int(r['SAMPLE_ID']) for r in new)

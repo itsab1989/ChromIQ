@@ -1853,6 +1853,13 @@ class ChartCreator:
             if isinstance(exc, CalibrationMismatch):
                 self._matched_errors.append(
                     ("engine", "cal_colorspace_mismatch", exc.friendly()))
+            else:
+                # ANY OTHER REFUSAL REACHES A WINDOW TOO (review of #214, Q4):
+                # it used to end here with one log line and an empty preview.
+                from workflow import measurement_messages as M
+                self._matched_errors.append(
+                    ("engine", "engine_failed",
+                     M.M_CHART_ENGINE_FAILED.render(reason=str(exc))[1]))
             self._finish([])
             return
 

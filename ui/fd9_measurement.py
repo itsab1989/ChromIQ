@@ -278,6 +278,11 @@ def fd9_exception_kind(error: BaseException) -> str:
     # A capture that failed is wrapped ("Capture failed; evidence preserved:
     # ...") with the exception that ended it kept as its cause: that
     # exception's TYPE decides, not the wrapper's (review r2 M2).
+    from workflow.fd9.page_check import SheetMismatch
+    if isinstance(error, SheetMismatch):
+        # "turned:2:2:3" / "wrong_sheet:2:1:3" (kind, page, found, pages),
+        # so the window can name the pages (review of #214, M4).
+        return error.window_kind()
     cause = getattr(error, "cause", None)
     if isinstance(cause, BaseException) and cause is not error:
         return fd9_exception_kind(cause)
@@ -439,7 +444,16 @@ class FD9MeasureMixin:
             return
         reason = str(message or "").replace(
             "Capture failed; evidence preserved: ", "")
-        if kind == "firmware":
+        sheet = kind.split(":")
+        if sheet[0] in ("turned", "wrong_sheet") and len(sheet) == 4:
+            page, found, pages = (int(v) for v in sheet[1:])
+            if sheet[0] == "turned":
+                self._fd9_window(M.M_FD9_SHEET_TURNED, reason=reason,
+                                 page=page, pages=pages)
+            else:
+                self._fd9_window(M.M_FD9_WRONG_SHEET, reason=reason,
+                                 page=page, found=found, pages=pages)
+        elif kind == "firmware":
             self._fd9_window(M.M_FD9_WRONG_FIRMWARE, reason=reason)
         elif kind == "marks":
             self._fd9_window(M.M_FD9_MARKS_NOT_FOUND, reason=reason)

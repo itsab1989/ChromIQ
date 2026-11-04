@@ -25814,9 +25814,12 @@ class TabChart(QWidget):
                 failure = self._creator.primary_failure()
                 if failure is not None:
                     tool, _key, friendly = failure
+                    from workflow import measurement_messages as _M
                     title = (
                         "Chart Generation Failed (targen)"
                         if tool == "targen"
+                        else _M.M_CHART_ENGINE_FAILED.render(reason="")[0]
+                        if (tool, _key) == ("engine", "engine_failed")
                         else tr("The chart could not be built")
                         if tool == "engine"
                         else "Chart Layout Failed (printtarg)"

@@ -594,6 +594,12 @@ AWAITING_APPROVAL: "set[str]" = {
                                  "M-FD9-MARKS-NOT-FOUND",
                                  "M-FD9-SHEET-STILL-INSIDE",
                                  "M-FD9-RESUME-REFUSED", "M-FD9-FAILED",
+                                 # 4.3.24, review of #214 (M4): the sheet
+                                 # check after each FD-9 sheet.
+                                 "M-FD9-SHEET-TURNED", "M-FD9-WRONG-SHEET",
+                                 # 4.3.24, review of #214 (Q4): a layout
+                                 # engine failure reached only the log.
+                                 "M-CHART-ENGINE-FAILED",
                                  # 2026-09-03, review 3. Tools ▸ Read single
                                  # patches could bin a whole session in silence
                                  # by two routes: Clear had no question and no

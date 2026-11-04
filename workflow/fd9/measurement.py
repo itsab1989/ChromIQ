@@ -499,6 +499,7 @@ def measure_chart(
     on_page=lambda page, pages: None,
     _expected_identity=None,
     _wait_for_sheet_clear=False,
+    _sheet_check=True,
 ):
     chart = Path(chart)
     layout_path, layout, locations = checked_chart(chart)
@@ -693,6 +694,14 @@ def measure_chart(
     stamp_locations(raw_export, located, subset, session, chart=chart)
     _, _, new_rows = first_table(located)
     rows = base_rows + new_rows
+    # Is it the sheet that was asked for, the right way round (review of
+    # #214, M4)? Checked before anything is staged or filed.
+    # A page of a multi-page chart is checked by `pages.measure_pages`,
+    # against every page of the chart, so not here as well.
+    if _sheet_check:
+        from .page_check import check_sheet
+        check_sheet([layout], 0,
+                    {int(r["SAMPLE_ID"]): r for r in first_table(chart)[2]}, rows)
     sessions = []
     if base_path:
         old = _keywords(base_path.read_text(encoding="utf-8"))
