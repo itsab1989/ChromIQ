@@ -670,6 +670,16 @@ LABELS_CLEAR_WHOLE_CLIP_BORDER = "_row_labels_clear_whole_clip_border"
 CLIP_BORDER_FREE_SPACE = "clip_border_free_space"
 
 
+def fd9_fixed_margins() -> tuple[float, float, float, float]:
+    """The FD-9's own fixed margins, ``(top, right, bottom, left)`` in mm, as
+    its base geometry holds them (`_build_base`): the leading clear area, the
+    trailing transport space and the free strip at each side. Only for what
+    the greyed margin boxes SHOW; the FD-9 layout (`workflow/fd9/chart.py`)
+    keeps its own numbers. Raises like `build` while FD-9 support is off."""
+    g = _build_base("FD9")
+    return g.margin_t, g.margin_r, g.margin_b, g.margin_l
+
+
 def old_clip_border_rule(kw: dict) -> bool:
     """True when *kw* lays out by 4.3.13's clip-border rules: the row labels
     and strip letters clear the WHOLE clip border, and a width at the base

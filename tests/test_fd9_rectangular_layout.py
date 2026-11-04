@@ -236,9 +236,17 @@ def test_native_dimensions_survive_startup_and_mode_switches(
         tab._user_switch_mode(destination)
         params = tab._collect_params()
         assert params.instrument == "FD9"
-        r = params.layout_recipe
-        assert (r.patch_w_mm, r.patch_h_mm,
-                r.fd9_gap_mm if r.fd9_gap_mm is not None else r.inter_patch_mm) == expected
+        if destination == "guided":
+            # Guided carries its own FD-9 values and no layout recipe: it
+            # never reads Manual's panel (review of #214, M1).
+            assert params.layout_recipe is None
+            got = (params.fd9_patch_mm, params.fd9_patch_h_mm,
+                   params.fd9_gap_mm)
+        else:
+            r = params.layout_recipe
+            got = (r.patch_w_mm, r.patch_h_mm,
+                   r.fd9_gap_mm if r.fd9_gap_mm is not None else r.inter_patch_mm)
+        assert got == expected
         assert settings.get("use_chromiq_layout_engine") is False
 
 

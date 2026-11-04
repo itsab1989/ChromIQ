@@ -3208,9 +3208,12 @@ class LayoutOptionsPanel(QWidget):
                     c.setValue(8)
             for c in (self.inter_patch, self.strip_gap):
                 c.setRange(0, 5)
+            saved["shown"] = self._fd9_capture_shown()
             self._fd9_saved = saved
+            self._fd9_show_what_applies()
             return
         self._fd9_saved = None
+        self._fd9_restore_shown(was.get("shown"))
         for control, lo, hi, value, special in was.get("ranges", []):
             control.setSpecialValueText(special)
             control.setRange(lo, hi)
@@ -3232,6 +3235,101 @@ class LayoutOptionsPanel(QWidget):
             self.custom_h.setRange(hmin, hmax)
             self.custom_w.setValue(wval)
             self.custom_h.setValue(hval)
+
+    def _fd9_fixed_shown(self) -> dict:
+        """What the greyed controls show while the FD-9 is selected: the
+        values that really apply to an FD-9 chart (L3). The margins are the
+        FD-9's own fixed ones as the layout engine knows them
+        (`workflow.layout_engine.instruments.fd9_fixed_margins`), the FD-9 never draws
+        spacers and always lays the patches out patch-first. Only what is
+        SHOWN: the FD-9 layout reads none of these, so its geometry does not
+        change (`workflow/fd9/chart.py`)."""
+        from workflow.layout_engine.instruments import fd9_fixed_margins
+        t, r, b, lt = fd9_fixed_margins()
+        return {"margins": {"t": t, "r": r, "b": b, "l": lt},
+                "spacer_mode": "none", "layout_mode": "patch_first"}
+
+    def _fd9_capture_shown(self) -> dict:
+        """The values `_fd9_show_what_applies` is about to replace, so that
+        leaving the FD-9 gives the previous instrument exactly what it had."""
+        out = {"margins": {k: self.margins[k].value() for k in self.margins}}
+        for name in ("spacer_mode", "layout_mode"):
+            combo = getattr(self, name, None)
+            if combo is not None:
+                out[name] = combo.currentIndex()
+        return out
+
+    def _fd9_show_what_applies(self) -> None:
+        """Put the values that apply to an FD-9 chart into the greyed
+        controls. Written as the app, not as a person (`_loading`), so none of
+        it counts as an answer (`_mark_layout_answered`)."""
+        want = self._fd9_fixed_shown()
+        was_loading = self._loading
+        self._loading = True
+        try:
+            for k, v in want["margins"].items():
+                box = self.margins.get(k)
+                if box is not None and abs(box.value() - v) > 1e-9:
+                    box.setValue(v)
+            for name in ("spacer_mode", "layout_mode"):
+                combo = getattr(self, name, None)
+                if combo is None:
+                    continue
+                i = combo.findData(want[name])
+                if i >= 0 and combo.currentIndex() != i:
+                    combo.setCurrentIndex(i)
+        finally:
+            self._loading = was_loading
+
+    def _fd9_restore_shown(self, shown) -> None:
+        """Give back what `_fd9_capture_shown` kept, on leaving the FD-9."""
+        if not shown:
+            return
+        was_loading = self._loading
+        self._loading = True
+        try:
+            for k, v in shown.get("margins", {}).items():
+                box = self.margins.get(k)
+                if box is not None:
+                    box.setValue(v)
+            for name in ("spacer_mode", "layout_mode"):
+                combo = getattr(self, name, None)
+                if combo is not None and name in shown:
+                    combo.setCurrentIndex(shown[name])
+        finally:
+            self._loading = was_loading
+
+    def set_fd9_layout_lookup(self, fn) -> None:
+        """Wire a callable ``fn(paper, mode) -> LayoutRecipe`` that returns the
+        FD-9's stored layout (Preferences > Chart Layout). Without it the
+        FD-9's built-in default is used (`presets.default_recipe`)."""
+        self._fd9_layout_lookup = fn
+
+    def _load_fd9_layout_values(self) -> None:
+        """A person has just chosen the FD-9: give the four controls the FD-9
+        reads (patch width and height, the gap along the feed and the gap
+        across it) the FD-9's OWN stored or default values, never what the
+        previous instrument left there (review of #214, H1: the gaps stayed
+        on the i1Pro's 0 mm, so a new FD-9 chart had touching patches). The
+        previous instrument's values come back on leaving (`_fd9_saved`)."""
+        from workflow.layout_engine.presets import default_recipe
+        _inst, paper, mode = self.selection()
+        lookup = getattr(self, "_fd9_layout_lookup", None)
+        r = None
+        if lookup is not None:
+            try:
+                r = lookup(paper, mode)
+            except Exception:      # noqa: BLE001 — fall back to the default
+                log.warning("FD-9 layout lookup failed", exc_info=True)
+        if r is None:
+            r = default_recipe("FD9", paper, mode=mode)
+        width = r.patch_w_mm or 8.0
+        height = r.patch_h_mm or width
+        along = r.fd9_gap_mm if r.fd9_gap_mm is not None else r.inter_patch_mm
+        across = r.fd9_gap_mm if r.fd9_gap_mm is not None else r.strip_gap_mm
+        for box, value in ((self.patch_x, width), (self.patch_y, height),
+                           (self.inter_patch, along), (self.strip_gap, across)):
+            box.setValue(float(value))
 
     def _fd9_greyable_controls(self):
         """The controls the FD-9 layout does not read: every spin box, button
@@ -3267,6 +3365,7 @@ class LayoutOptionsPanel(QWidget):
         saved = getattr(self, "_fd9_saved", None)
         if saved is None:
             return
+        self._fd9_show_what_applies()
         why = fd9_greyed_reason()
         index = {id(c): i for i, (c, _e, _t) in enumerate(saved["controls"])}
         for control in self._fd9_greyable_controls():
@@ -3332,7 +3431,13 @@ class LayoutOptionsPanel(QWidget):
         # Mode tooltip describes only the option this instrument actually has.
         if getattr(self, "_mode_tip", None) is not None:
             self._mode_tip.set_content(*self.mode_tooltip_for(inst))
+        entering_fd9 = (inst == "FD9" and hasattr(self, "fd9_notice")
+                        and getattr(self, "_fd9_saved", None) is None)
         self._sync_instrument_widgets(inst)
+        if entering_fd9 and not was_loading:
+            # A recipe being loaded brings its own sizes; a person choosing
+            # the FD-9 gets the FD-9's (H1).
+            self._load_fd9_layout_values()
         # Picking the SpectroScan defaults the layout to patch-first (a flatbed
         # reads a fixed grid; area-first + By-minimum-width collapses it to
         # useless full-width bands). Its area method also defaults to
@@ -5949,7 +6054,10 @@ class LayoutOptionsPanel(QWidget):
         """
         with self._clip_preview_batched():
             try:
-                if r.instrument == "FD9":
+                if r.instrument == "FD9" and hasattr(self, "fd9_notice"):
+                    # Only while FD-9 support is on (`fd9_notice` exists only
+                    # then): with it off an FD-9 recipe is loaded as 4.3.21
+                    # loaded any recipe for an unknown instrument (L4).
                     from dataclasses import replace
                     r = replace(r, patch_w_mm=r.patch_w_mm or 8.0,
                                 patch_h_mm=r.patch_h_mm or r.patch_w_mm or 8.0,

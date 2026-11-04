@@ -8621,6 +8621,9 @@ class TabChart(QWidget):
         # Let the panel's "Use instrument margins" checkbox read the user's
         # Instrument-Margins thresholds for the current combo (#93, Knut).
         self._manual_layout_panel.set_threshold_lookup(self._combo_thresholds)
+        # A newly chosen FD-9 takes its own stored layout (H1). A bound method,
+        # never a lambda that captures self (CLAUDE.md).
+        self._manual_layout_panel.set_fd9_layout_lookup(self._fd9_layout_preset)
         # Preferences → Chart Layout is the SEED for a chart with no label style
         # of its own; the panel shows those values so the controls never lie.
         # `getattr` because a test double may be a settings stand-in without it;
@@ -9689,11 +9692,10 @@ class TabChart(QWidget):
             # The native shape is also saved from Guided. Initialising the
             # hidden Manual panel must not replace it with the square preset.
             from dataclasses import replace
-            width = getattr(self, "_fd9_patch_mm", None) or float(self._settings.get("chart_fd9_patch_mm", 8.0))
-            height = getattr(self, "_fd9_patch_h_mm", None) or float(self._settings.get("chart_fd9_patch_h_mm", 0.0) or width)
-            gap = getattr(self, "_fd9_gap_mm", float(self._settings.get("chart_fd9_gap_mm", 1.0)))
+            width, height, along, across = self._fd9_guided_values(paper)
             recipe = replace(recipe, patch_w_mm=width, patch_h_mm=height,
-                             fd9_gap_mm=gap, layout_mode="patch_first")
+                             fd9_gap_mm=None, inter_patch_mm=along,
+                             strip_gap_mm=across, layout_mode="patch_first")
         self._set_engine_recipe(recipe)
 
     def _stored_defaults_recipe(self) -> "dict | None":
@@ -9971,6 +9973,19 @@ class TabChart(QWidget):
         the flag itself is dropped, so "same style, differently recorded" is
         not reported as a change.
         """
+        if getattr(r, "instrument", None) == "FD9":
+            from workflow.fd9.support import fd9_enabled
+            if fd9_enabled():
+                # An FD-9 layout is compared on what it lays out: the fields
+                # it has fixed are what it uses, and an equal-gap recipe from
+                # 4.3.22/4.3.23 is the same layout as the two shared gaps
+                # holding that value (review of #214, L3).
+                from dataclasses import replace
+                from workflow.layout_engine.presets import fd9_fixed_fields
+                r = fd9_fixed_fields(r)
+                if r.fd9_gap_mm is not None:
+                    r = replace(r, inter_patch_mm=r.fd9_gap_mm,
+                                strip_gap_mm=r.fd9_gap_mm, fd9_gap_mm=None)
         overlay = getattr(self._settings, "apply_indicator_style", None)
         d = (overlay(r) if overlay is not None else r).to_dict()
         d.pop("label_style_explicit", None)
@@ -11962,13 +11977,6 @@ class TabChart(QWidget):
 
     def _switch_mode(self, mode: str) -> None:
         prev = self._mode_name()        # capture BEFORE the stack changes
-        fd9_format = None
-        if self._editing_fd9_layout():
-            r = self._fd9_guided_recipe(self._paper_combo.currentData())
-            gap = r.fd9_gap_mm
-            fd9_format = (r.patch_w_mm or 8.0, r.patch_h_mm or r.patch_w_mm or 8.0,
-                          gap if gap is not None else r.inter_patch_mm,
-                          gap if gap is not None else r.strip_gap_mm)
         # #133: the gamut module IS the Manual page with the targen section
         # swapped for the module's own colour chooser — the layout half below
         # (printtarg / the ChromIQ layout engine) is Manual's live widgets.
@@ -12055,14 +12063,6 @@ class TabChart(QWidget):
                     self._carry_shared_settings(prev, mode)
             finally:
                 self._mode_transfer_active = False
-        if fd9_format is not None and self._editing_fd9_layout():
-            self._fd9_patch_mm, self._fd9_patch_h_mm, self._fd9_gap_mm = fd9_format[:3]
-            if mode in ("manual", "gamut"):
-                from dataclasses import replace
-                r = self._manual_layout_panel.get_recipe()
-                self._set_engine_recipe(replace(r, instrument="FD9", patch_w_mm=fd9_format[0],
-                    patch_h_mm=fd9_format[1], fd9_gap_mm=None, inter_patch_mm=fd9_format[2],
-                    strip_gap_mm=fd9_format[3], layout_mode="patch_first"))
         # Snapshot the now-active tab's shared settings so the next switch can tell
         # what the user changed while it was open.
         if mode in ("guided", "manual"):
@@ -19279,8 +19279,12 @@ class TabChart(QWidget):
         # asked for are the margins laid out (#93). Mirrors chart_creator's
         # Guided generation path so the estimate matches the real render.
         if instr == "FD9":
-            kw.update(self._fd9_guided_recipe(paper).build_kwargs())
-            if not guided and getattr(self, "_manual_layout_panel", None) is not None:
+            if guided:
+                _w, _h, _along, _across = self._fd9_guided_values(paper)
+                kw.update(patch_w=_w, patch_h=_h, inter_patch=_along,
+                          strip_gap=_across,
+                          dpi=int(self._settings.get("printtarg_dpi", 300) or 300))
+            elif getattr(self, "_manual_layout_panel", None) is not None:
                 kw.update(self._manual_layout_panel.get_recipe().build_kwargs())
         return instruments.geom_from_build_kwargs(kw)
 
@@ -19615,12 +19619,42 @@ class TabChart(QWidget):
         # textChanged → _update_patch_count).
         self._refresh_name_prefix()
 
-    def _fd9_guided_recipe(self, paper):
-        from dataclasses import replace
-        panel = getattr(self, "_manual_layout_panel", None)
-        if panel is not None and panel.instr.currentData() == "FD9":
-            return replace(panel.get_recipe(), paper=paper)
-        return self._layout_store().get("FD9", paper, "default")
+    def _fd9_layout_preset(self, paper, mode="default"):
+        """The FD-9's stored layout for *paper* (Preferences > Chart Layout),
+        or its built-in default (8 x 8 mm patches, 1 mm gaps)."""
+        return self._layout_store().get("FD9", paper, mode or "default")
+
+    def _fd9_guided_values(self, paper) -> "tuple[float, float, float, float]":
+        """Guided's FD-9 patch width, patch height, gap along the feed and
+        gap across it, in mm.
+
+        THE SAME SOURCES GUIDED USES FOR EVERY OTHER INSTRUMENT, AND NEVER
+        MANUAL'S PANEL (review of #214, M1: Guided took Manual's hidden panel
+        whole, its dpi, randomising and output with it, and its 0 mm gaps).
+        In order: a layout that was loaded (a chart, a preset or a target,
+        through `_set_engine_recipe`), what Save as Defaults stored, and
+        otherwise the FD-9's layout in Preferences > Chart Layout, whose
+        built-in default is 8 x 8 mm with 1 mm gaps."""
+        own = getattr(self, "_fd9_guided", None)
+        if own is not None:
+            return own
+        r = self._fd9_layout_preset(paper)
+        width = float(r.patch_w_mm or 8.0)
+        height = float(r.patch_h_mm or width)
+        if r.fd9_gap_mm is not None:
+            return width, height, float(r.fd9_gap_mm), float(r.fd9_gap_mm)
+        return width, height, float(r.inter_patch_mm), float(r.strip_gap_mm)
+
+    def _fd9_remember_guided(self, recipe) -> None:
+        """Take an FD-9 layout that was loaded as Guided's own."""
+        width = float(recipe.patch_w_mm or 8.0)
+        height = float(recipe.patch_h_mm or width)
+        if recipe.fd9_gap_mm is not None:
+            along = across = float(recipe.fd9_gap_mm)
+        else:
+            along = float(recipe.inter_patch_mm)
+            across = float(recipe.strip_gap_mm)
+        self._fd9_guided = (width, height, along, across)
 
     def _editing_fd9_layout(self):
         if self._current_mode() == "guided":
@@ -29712,9 +29746,7 @@ class TabChart(QWidget):
         fd9_recipe = (getattr(recipe, "instrument", None) == "FD9"
                       and fd9_enabled())
         if fd9_recipe:
-            self._fd9_patch_mm = recipe.patch_w_mm or 8.0
-            self._fd9_patch_h_mm = recipe.patch_h_mm or self._fd9_patch_mm
-            self._fd9_gap_mm = recipe.fd9_gap_mm if recipe.fd9_gap_mm is not None else recipe.inter_patch_mm
+            self._fd9_remember_guided(recipe)
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is None:
             return
@@ -31179,6 +31211,9 @@ class TabChart(QWidget):
             s.set("chart_fd9_patch_mm", params.fd9_patch_mm)
             s.set("chart_fd9_patch_h_mm", params.fd9_patch_h_mm or 0.0)
             s.set("chart_fd9_gap_mm", params.fd9_gap_mm)
+            s.set("chart_fd9_strip_gap_mm",
+                  params.fd9_gap_mm if params.fd9_strip_gap_mm is None
+                  else params.fd9_strip_gap_mm)
         s.set("chart_pages",               params.pages)
         s.set("chart_double_density",      params.double_density)
         s.set("chart_triple_density",      params.triple_density)
@@ -31369,12 +31404,18 @@ class TabChart(QWidget):
         precond_path = self._guided_precond_path.text().strip()
         precond_active = self._guided_precond_check.isChecked() and bool(precond_path)
         extra_targen = shlex.join(["-c", precond_path]) if precond_active else ""
+        _fd9_w, _fd9_h, _fd9_along, _fd9_across = (
+            self._fd9_guided_values(paper) if instr == "FD9"
+            else (8.0, None, 1.0, None))
 
         return ChartParams(
-            layout_recipe=(self._fd9_guided_recipe(paper) if instr == "FD9" else None),
-            fd9_patch_mm = getattr(self, "_fd9_patch_mm", 8.0),
-            fd9_patch_h_mm = getattr(self, "_fd9_patch_h_mm", None),
-            fd9_gap_mm = getattr(self, "_fd9_gap_mm", 1.0),
+            # Guided's FD-9 takes its own values, never Manual's panel (review
+            # of #214, M1): resolution, randomising and output are Guided's
+            # own, as for every other instrument.
+            fd9_patch_mm = _fd9_w,
+            fd9_patch_h_mm = _fd9_h,
+            fd9_gap_mm = _fd9_along,
+            fd9_strip_gap_mm = _fd9_across,
             instrument           = instr,
             paper                = paper,
             pages                = pages,
@@ -31526,6 +31567,7 @@ class TabChart(QWidget):
                 p.fd9_patch_mm = recipe.patch_w_mm or 8.0
                 p.fd9_patch_h_mm = recipe.patch_h_mm or p.fd9_patch_mm
                 p.fd9_gap_mm = recipe.fd9_gap_mm if recipe.fd9_gap_mm is not None else recipe.inter_patch_mm
+                p.fd9_strip_gap_mm = recipe.fd9_gap_mm if recipe.fd9_gap_mm is not None else recipe.strip_gap_mm
             cal_path, apply_cal = self._manual_layout_panel.cal_settings()
             p.engine_cal_path = cal_path
             p.engine_apply_cal = apply_cal
@@ -31718,9 +31760,17 @@ class TabChart(QWidget):
             self._instr_combo.setCurrentIndex(idx)
         self._rebuild_paper_combo()  # populate/filter even if instrument index didn't change
 
-        self._fd9_patch_mm = float(s.get("chart_fd9_patch_mm", 8.0))
-        self._fd9_patch_h_mm = float(s.get("chart_fd9_patch_h_mm", None) or self._fd9_patch_mm)
-        self._fd9_gap_mm = float(s.get("chart_fd9_gap_mm", 1.0))
+        # Guided's FD-9 sizes: what Save as Defaults stored, if it ever did;
+        # otherwise none of its own, so the FD-9's Chart Layout preset applies
+        # (`_fd9_guided_values`).
+        self._fd9_guided = None
+        if s.is_stored("chart_fd9_patch_mm"):
+            _w = float(s.get("chart_fd9_patch_mm", 8.0) or 8.0)
+            _h = float(s.get("chart_fd9_patch_h_mm", None) or _w)
+            _along = float(s.get("chart_fd9_gap_mm", 1.0))
+            _across = (float(s.get("chart_fd9_strip_gap_mm", _along))
+                       if s.is_stored("chart_fd9_strip_gap_mm") else _along)
+            self._fd9_guided = (_w, _h, _along, _across)
         paper = s.get("chart_paper", "A4")
         # The COMBO's instrument, not the saved one: with FD-9 support (Beta)
         # off, a saved "FD9" is not in the list, and its sheet must not be

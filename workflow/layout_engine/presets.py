@@ -491,8 +491,14 @@ class LayoutRecipe:
             margin_top=m[0], margin_right=m[1], margin_bottom=m[2], margin_left=m[3],
             patch_w_mm=float(d.get("patch_w") or 0.0),
             patch_h_mm=float(d.get("patch_h") or 0.0),
+            # Only an FD-9 recipe reads its gaps from the shared controls; every
+            # other recipe keeps the field's own default, so a non-FD-9 recipe
+            # rebuilt from its kwargs is the one 4.3.23 rebuilt (review of
+            # #214, L4).
             fd9_gap_mm=(float(d["fd9_gap"]) if d.get("fd9_gap") is not None else
-                        None if "inter_patch" in d or "strip_gap" in d else 1.0),
+                        None if (inst == "FD9" and ("inter_patch" in d
+                                                    or "strip_gap" in d))
+                        else 1.0),
             layout_mode=d.get("layout_mode") or "patch_first",
             area_method=d.get("area_method") or "by_width",
             area_cols=int(d.get("area_cols") or 0),
@@ -808,10 +814,15 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
     """A sensible default recipe for *instrument*/*paper* (and optional *mode*)."""
     r = LayoutRecipe(instrument=instrument, paper=paper)
     if instrument == "FD9":
-        r.layout_mode = "patch_first"
-        r.patch_w_mm = r.patch_h_mm = 8.0
-        r.inter_patch_mm = r.strip_gap_mm = 1.0
-        r.fd9_gap_mm = None
+        from workflow.fd9.support import fd9_enabled
+        if fd9_enabled():
+            # 8 x 8 mm patches with 1 mm gaps both ways, and what an FD-9
+            # chart really has in the controls it does not read: its fixed
+            # margins, no spacers, patch-first (`fd9_fixed_fields`).
+            r.patch_w_mm = r.patch_h_mm = 8.0
+            r.inter_patch_mm = r.strip_gap_mm = 1.0
+            r.fd9_gap_mm = None
+            r = fd9_fixed_fields(r)
     # The SpectroScan is a flatbed XY-table: it reads a FIXED 2-D grid, so
     # "prioritise patch size, then fit to page" (patch_first) is its natural
     # layout — it gives the proper grid of hexagons/squares. The generic
@@ -860,6 +871,20 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
         elif instrument in ("SS", "CR30"):
             r.hflag = (mode == "hex")
     return r
+
+
+def fd9_fixed_fields(r: "LayoutRecipe") -> "LayoutRecipe":
+    """*r* with the fields an FD-9 chart has fixed set to what it really
+    uses: the FD-9's own margins (`instruments.fd9_fixed_margins`), no spacers and the
+    patch-first layout. The FD-9 layout (`workflow/fd9/chart.py`) reads none
+    of them, so this changes no chart; it only makes the greyed controls and
+    the "modified" comparison of a layout preset agree with the chart (review
+    of #214, L3). Only called while FD-9 support is on."""
+    from .instruments import fd9_fixed_margins
+    t, rt, b, lt = fd9_fixed_margins()
+    return replace(r, margin_top=t, margin_right=rt, margin_bottom=b,
+                   margin_left=lt, spacer_mode="none",
+                   layout_mode="patch_first")
 
 
 class PresetStore:

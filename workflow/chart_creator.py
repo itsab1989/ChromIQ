@@ -789,6 +789,9 @@ class ChartParams:
     fd9_patch_mm: float = 8.0
     fd9_patch_h_mm: float | None = None
     fd9_gap_mm: float = 1.0
+    #: The FD-9's gap across the feed when it differs from ``fd9_gap_mm``
+    #: (the gap along it); None = the same (4.3.22/4.3.23 charts).
+    fd9_strip_gap_mm: float | None = None
     # When True, the .icc/.ti3 from a prior session in the same working folder
     # are renamed to pre_*.icc/pre_*.ti3 instead of being overwritten on the
     # following measure / colprof runs. Set by the guided tab when the user
@@ -1728,7 +1731,11 @@ class ChartCreator:
                 instrument="FD9", paper=params.paper,
                 patch_w=float(getattr(recipe, "patch_w_mm", 0) or getattr(params, "fd9_patch_mm", 8.0)),
                 patch_h=float(getattr(recipe, "patch_h_mm", 0) or getattr(params, "fd9_patch_h_mm", None) or getattr(recipe, "patch_w_mm", 0) or params.fd9_patch_mm),
-                **({"fd9_gap": params.fd9_gap_mm} if recipe is None else
+                **(({"fd9_gap": params.fd9_gap_mm}
+                    if getattr(params, "fd9_strip_gap_mm", None) is None else
+                    {"inter_patch": params.fd9_gap_mm,
+                     "strip_gap": params.fd9_strip_gap_mm})
+                   if recipe is None else
                    {k: recipe_kw[k] for k in ("fd9_gap", "inter_patch", "strip_gap") if k in recipe_kw}),
                 dpi=int(recipe_kw.get("dpi", params.tiff_dpi) or 300),
                 bit16=bool(recipe_kw.get("bit16", params.tiff_16bit)),
