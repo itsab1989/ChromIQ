@@ -385,10 +385,15 @@ class CxfConditions:
     :data:`_CXF_CONDITIONS` order. *selected_raw* is i1Profiler's own
     ``SelectedMeasurementCondition`` as the file writes it (None when absent),
     and *selected* the condition that value names WITH CERTAINTY, else None.
-    Only a text label is certain: X-Rite's i1iSis sample writes
-    ``"UV excluded [M2]"``. i1Profiler 3.x writes a number ("0" in jctay's
-    files), and which number is which condition has not been proved, so a
-    number is reported but never mapped (Basti, 2026-11-03).
+    A text label is certain: X-Rite's i1iSis sample writes
+    ``"UV excluded [M2]"``. i1Profiler writes a number, and since 4.3.24 the
+    numbers 0, 1 and 2 are mapped to M0, M1 and M2: jctay saved one
+    measurement three times in i1Profiler 3.8.5 with M0, M1 and M2 chosen,
+    and the files differ only in ``SelectedMeasurementCondition="0"``,
+    ``"1"`` and ``"2"`` (printerknowledge, 2026-11-04); his files that hold
+    only some conditions agree (an M2-only file says "2", an M1+M2 file
+    "1"), so the number names the condition itself, not its place among the
+    ones the file holds. Any other number names nothing.
     *preselect* is what the window offers first: *selected* when the file
     holds it, else M1 when it holds M1, else the first it holds."""
     available: tuple
@@ -412,16 +417,24 @@ _CONDITION_LABEL_RE = re.compile(r"(?<![A-Za-z0-9])M([0-3])(?![0-9])",
                                  re.IGNORECASE)
 
 
+#: i1Profiler's numbers for its measurement conditions (4.3.24, proved on
+#: jctay's files, see :class:`CxfConditions`).
+_CXF_CONDITION_NUMBERS = {0: "M0", 1: "M1", 2: "M2"}
+
+
 def condition_from_label(raw: "str | None") -> "str | None":
     """The condition a ``SelectedMeasurementCondition`` value names with
     certainty, or None. A label that carries one condition token ("UV
-    excluded [M2]", "M1", "M0 - No Filter") names it; a bare number does
-    not (see :class:`CxfConditions`), and neither does a label naming two."""
+    excluded [M2]", "M1", "M0 - No Filter") names it; so does i1Profiler's
+    number 0, 1 or 2 (M0, M1, M2; see :class:`CxfConditions`). Any other
+    number names nothing, and neither does a label naming two conditions."""
     if raw is None:
         return None
     text = str(raw).strip()
-    if not text or re.fullmatch(r"[-+]?\d+", text):
+    if not text:
         return None
+    if re.fullmatch(r"[-+]?\d+", text):
+        return _CXF_CONDITION_NUMBERS.get(int(text))
     found = {f"M{d}" for d in _CONDITION_LABEL_RE.findall(text)}
     return found.pop() if len(found) == 1 else None
 

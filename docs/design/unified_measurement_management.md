@@ -8326,7 +8326,7 @@ alone.
 
 ### M-IMPORT-CXF-CONDITION · PROPOSED · which measurement condition of an i1Profiler .mxf / .cxf to import, every door that converts one, 4.3.23
 
-*New 2026-11-03, 4.3.23 (jctay, printerknowledge, 2026-11-03: he compared ChromIQ's import of his .mxf with his own conversion and found 4.4 dE76 between them; ChromIQ had taken the M2 readings in silence and he compared with M1. Basti, 2026-11-03: "ChromIQ offers a choice of condition."). A window, `ui.dialogs.cxf_condition_dialog`, shown before the conversion when the file holds readings under more than one of M0, M1 and M2, on every door that converts such a file: the Measure tab's IMPORT, Build Profile's import (asked once for both of its conversions) and its calibration measurement, Tools ▸ Convert i1Profiler ▸ TI3, the Measurement Report's "add" and the scanner target's i1Profiler measurement. A file with one condition is not asked about; the log names it. Under the text, one choice per condition the file holds (the labels and explanations in M-IMPORT-CXF-CONDITION-PARTS), the line about i1Profiler's own setting, the FWA note and the note that the file is not changed; buttons Cancel and Import. Preselected: the condition the file's `SelectedMeasurementCondition` names WITH CERTAINTY (a text label such as "UV excluded [M2]"), else M1, else the first condition held; a number ("0" in jctay's files) is reported, never mapped, until it is proved. Nothing is remembered between imports. Cancel imports nothing. {name} is the file's name, {conditions} the conditions it holds ("M0, M1 and M2"). See §I, "the measurement condition of an i1Profiler CxF". Shown in the beta while awaiting approval (Knut, #182 6166519230).*
+*New 2026-11-03, 4.3.23 (jctay, printerknowledge, 2026-11-03: he compared ChromIQ's import of his .mxf with his own conversion and found 4.4 dE76 between them; ChromIQ had taken the M2 readings in silence and he compared with M1. Basti, 2026-11-03: "ChromIQ offers a choice of condition."). A window, `ui.dialogs.cxf_condition_dialog`, shown before the conversion when the file holds readings under more than one of M0, M1 and M2, on every door that converts such a file: the Measure tab's IMPORT, Build Profile's import (asked once for both of its conversions) and its calibration measurement, Tools ▸ Convert i1Profiler ▸ TI3, the Measurement Report's "add" and the scanner target's i1Profiler measurement. A file with one condition is not asked about; the log names it. Under the text, one choice per condition the file holds (the labels and explanations in M-IMPORT-CXF-CONDITION-PARTS), the line about i1Profiler's own setting, the FWA note and the note that the file is not changed; buttons Cancel and Import. Preselected: the condition the file's `SelectedMeasurementCondition` names WITH CERTAINTY (a text label such as "UV excluded [M2]"), else M1, else the first condition held; a number ("0" in jctay's files) is reported, never mapped, until it is proved. *4.3.24 (proposed, awaiting confirmation):* i1Profiler's numbers 0, 1 and 2 are mapped to M0, M1 and M2, proved on jctay's files (see §I.15's 4.3.24 block); any other number is reported and not mapped. Nothing is remembered between imports. Cancel imports nothing. {name} is the file's name, {conditions} the conditions it holds ("M0, M1 and M2"). See §I, "the measurement condition of an i1Profiler CxF". Shown in the beta while awaiting approval (Knut, #182 6166519230).*
 
 > **Choose the measurement condition**
 >
@@ -8338,7 +8338,7 @@ alone.
 
 ### M-IMPORT-CXF-CONDITION-PARTS · PROPOSED · the options, the notes, the button and the log lines of M-IMPORT-CXF-CONDITION, 4.3.23
 
-*New 2026-11-03, see M-IMPORT-CXF-CONDITION. One line each: the three choices (label, then explanation); the line about i1Profiler's own setting when the file names a condition with certainty, when it names something ChromIQ cannot map ({value} as written), and when it names nothing ({condition} the preselection); the FWA note; the note that the file is not changed; the Import button; how two or more conditions are joined; and the three log lines (the only condition, the chosen one with {others} the conditions not taken, and Cancel). The log lines are written on every door that has a log.*
+*New 2026-11-03, see M-IMPORT-CXF-CONDITION. One line each: the three choices (label, then explanation); the line about i1Profiler's own setting when the file names a condition with certainty, when it names one the file holds no readings for (4.3.24: {selected} the condition chosen in i1Profiler, {condition} the preselection), when it names something ChromIQ cannot map ({value} as written), and when it names nothing ({condition} the preselection); 4.3.24 reworded the first of these so it says plainly that the preselection is the condition chosen in i1Profiler and that another can still be chosen; the FWA note; the note that the file is not changed; the Import button; how two or more conditions are joined; and the three log lines (the only condition, the chosen one with {others} the conditions not taken, and Cancel). The log lines are written on every door that has a log.*
 
 > **Choosing the measurement condition: the options, notes and log lines**
 >
@@ -8348,7 +8348,8 @@ alone.
 > Light with a defined amount of ultraviolet, like D50 daylight. This is the standard condition (ISO 13655) for papers with optical brighteners that are viewed in daylight: the readings include the glow of the brighteners as daylight shows it. If you are not sure, M1 is a good choice.
 > M2: ultraviolet cut
 > The ultraviolet is filtered out, so the readings look as if the paper had no brighteners. Good for prints that will be seen under light with little ultraviolet, such as many LED and halogen lamps, or behind glass that blocks ultraviolet.
-> In i1Profiler, this measurement was set to {condition}, so that condition is selected below.
+> This measurement was saved in i1Profiler with {condition} chosen as its measurement condition, so ChromIQ has selected {condition} for you below. You can still choose another condition if your prints will be seen in different light.
+> In i1Profiler, {selected} was chosen as the measurement condition, but this file holds no {selected} readings. So ChromIQ has selected {condition} below instead.
 > The file records i1Profiler's own setting as “{value}”, but ChromIQ cannot tell for certain which condition that stands for, so {condition} is selected below.
 > The file does not say which condition i1Profiler was set to, so {condition} is selected below.
 > Brightener compensation (FWA) in Build Profile and Check & Refine only works with M0 readings, because it works out the glow from the lamp inside the instrument. With M1 or M2 readings it is switched off.
@@ -9520,6 +9521,33 @@ ChromIQ took the M2 readings and he compared M1.
 * **Measured on.** The Measurement info window shows "Measured on" from
   `CHROMIQ_MEASURED` when the file has no `CREATED` (every i1Profiler
   import).
+
+### ⏳ Awaiting confirmation — §I.15 continued: i1Profiler's own choice of condition, and files that hold only some conditions (4.3.24)
+
+**Confirmed by:** *nobody yet.* Measured on jctay's files (printerknowledge,
+2026-11-04): one i1Pro 3 measurement saved three times in i1Profiler 3.8.5
+with M0, M1 and M2 chosen, and five files holding only some conditions.
+
+* **i1Profiler's number is read.** `SelectedMeasurementCondition` "0", "1"
+  and "2" name M0, M1 and M2. The three saves of one measurement differ only
+  in that value, and the files holding only some conditions agree with it
+  (M0 only "0", M1 only "1", M2 only "2", M0+M1 "0", M1+M2 "1"), so the
+  number is the condition itself, not its place among the conditions the
+  file holds. Text labels ("UV excluded [M2]") work as before. Any other
+  value names nothing: M1 is preselected (else the first condition held) and
+  the window quotes the value.
+* **The window says where the preselection comes from.** When the file names
+  a condition it holds, that one is preselected and the line under the
+  choices says it was chosen in i1Profiler and that another can still be
+  chosen (M-IMPORT-CXF-CONDITION-PARTS). When it names one the file holds no
+  readings for, the line says so and the rule above picks the preselection.
+* **Files that hold only some conditions.** One condition: no question, the
+  file is imported under it, `MEASUREMENT_CONDITION` records it and the log
+  says it was the only one. Two: the window offers only those two. A
+  condition the file does not hold is never imported in its place. The FWA
+  gate, the merge and the averaging rules then judge the recorded condition
+  exactly as for a file with all three (FWA only for M0; two imports of
+  different conditions are not merged).
 
 ## S. Sequences — what happens, in what order, for every entry condition
 

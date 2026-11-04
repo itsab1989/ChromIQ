@@ -96,12 +96,14 @@ def _cxf(path: Path, *, conditions=("M0", "M1", "M2"), selected=None,
 
 # ---- which conditions, and which is offered first ------------------------
 
-def test_a_number_is_never_taken_for_a_condition_so_m1_is_offered(tmp_path):
-    """jctay's file says SelectedMeasurementCondition="0": probably M0, not
-    proved, so it is reported and M1 is preselected (Basti, 2026-11-03)."""
-    c = cxf_conditions(_cxf(tmp_path / "a.mxf", selected="0"))
+def test_an_unknown_number_is_never_taken_for_a_condition_so_m1_is_offered(
+        tmp_path):
+    """4.3.23 mapped no number at all. Since 4.3.24 i1Profiler's 0, 1 and 2
+    are M0, M1 and M2 (tests/test_4324_cxf_selected_condition.py); any other
+    number is still reported and M1 preselected."""
+    c = cxf_conditions(_cxf(tmp_path / "a.mxf", selected="7"))
     assert c.available == ("M0", "M1", "M2")
-    assert c.selected_raw == "0" and c.selected is None
+    assert c.selected_raw == "7" and c.selected is None
     assert c.preselect == "M1" and c.needs_choice
 
 
@@ -111,7 +113,7 @@ def test_a_text_label_names_its_condition_with_certainty(tmp_path):
     assert c.selected == "M2" and c.preselect == "M2"
     assert condition_from_label("M0") == "M0"
     assert condition_from_label("Daylight [M1]") == "M1"
-    for unsure in ("0", "1", "2", "", None, "M0 or M2", "D50"):
+    for unsure in ("3", "-1", "12", "", None, "M0 or M2", "D50"):
         assert condition_from_label(unsure) is None, unsure
 
 
@@ -158,7 +160,7 @@ def test_the_conditions_give_different_numbers(tmp_path):
 
 def test_no_condition_named_takes_the_preselection_never_m2_in_silence(
         tmp_path):
-    out = cxf_measurement_to_ti3(_cxf(tmp_path / "a.mxf", selected="0"),
+    out = cxf_measurement_to_ti3(_cxf(tmp_path / "a.mxf", selected="7"),
                                  tmp_path / "o.ti3")
     assert read_condition(out) == "M1"
 
@@ -452,7 +454,7 @@ def test_check_and_refine_greys_fwa_for_m2(qapp, tmp_path):
 
 def test_the_window_offers_the_files_conditions_preselected(qapp, tmp_path):
     from ui.dialogs.cxf_condition_dialog import CxfConditionDialog
-    conds = cxf_conditions(_cxf(tmp_path / "a.mxf", selected="0"))
+    conds = cxf_conditions(_cxf(tmp_path / "a.mxf", selected="7"))
     dlg = CxfConditionDialog(None, "a.mxf", conds)
     from PyQt6.QtWidgets import QLabel, QRadioButton
     radios = {r.objectName(): r for r in dlg.findChildren(QRadioButton)}
@@ -461,7 +463,7 @@ def test_the_window_offers_the_files_conditions_preselected(qapp, tmp_path):
     assert radios["cxf_condition_M1"].isChecked() and dlg.condition() == "M1"
     text = "\n".join(lb.text() for lb in dlg.findChildren(QLabel))
     assert "a.mxf" in text and "M0, M1 and M2" in text
-    assert "“0”" in text            # i1Profiler's setting, named
+    assert "“7”" in text            # i1Profiler's setting, named
     assert "only works with M0 readings" in text
     assert "ISO 13655" in text
     dlg.select("M0")

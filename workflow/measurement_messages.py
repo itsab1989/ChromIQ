@@ -7389,8 +7389,15 @@ _COND_M2_TEXT = ("The ultraviolet is filtered out, so the readings look as if "
                  "the paper had no brighteners. Good for prints that will be "
                  "seen under light with little ultraviolet, such as many LED "
                  "and halogen lamps, or behind glass that blocks ultraviolet.")
-_COND_SETTING_KNOWN = ("In i1Profiler, this measurement was set to "
-                       "{condition}, so that condition is selected below.")
+_COND_SETTING_KNOWN = ("This measurement was saved in i1Profiler with "
+                       "{condition} chosen as its measurement condition, so "
+                       "ChromIQ has selected {condition} for you below. You "
+                       "can still choose another condition if your prints "
+                       "will be seen in different light.")
+_COND_SETTING_ABSENT = ("In i1Profiler, {selected} was chosen as the "
+                        "measurement condition, but this file holds no "
+                        "{selected} readings. So ChromIQ has selected "
+                        "{condition} below instead.")
 _COND_SETTING_UNKNOWN = ("The file records i1Profiler's own setting as "
                          "\u201c{value}\u201d, but ChromIQ cannot tell for "
                          "certain which condition that stands for, so "
@@ -7417,7 +7424,8 @@ M_IMPORT_CXF_CONDITION_PARTS = _m(
     "Choosing the measurement condition: the options, notes and log lines",
     "\n".join((_COND_M0_LABEL, _COND_M0_TEXT, _COND_M1_LABEL, _COND_M1_TEXT,
                _COND_M2_LABEL, _COND_M2_TEXT, _COND_SETTING_KNOWN,
-               _COND_SETTING_UNKNOWN, _COND_SETTING_NONE, _COND_FWA_NOTE,
+               _COND_SETTING_ABSENT, _COND_SETTING_UNKNOWN,
+               _COND_SETTING_NONE, _COND_FWA_NOTE,
                _COND_KEPT, _COND_IMPORT, _COND_AND, _COND_LOG_ONLY,
                _COND_LOG_CHOSEN, _COND_LOG_CANCELLED)),
     approved=False)
@@ -7692,9 +7700,15 @@ def resume_condition_unrecorded_line(setting: str) -> str:
 
 
 def cxf_condition_setting_line(selected_raw, selected, preselect) -> str:
-    """The line about i1Profiler's own setting under the window's text."""
+    """The line about i1Profiler's own setting under the window's text:
+    the condition chosen in i1Profiler, preselected (4.3.24: i1Profiler's
+    numbers 0, 1, 2 count as M0, M1, M2); the one chosen there but missing
+    from the file; a value ChromIQ cannot read as a condition; nothing."""
     if selected and selected == preselect:
         return tr(_COND_SETTING_KNOWN).format(condition=selected)
+    if selected:
+        return tr(_COND_SETTING_ABSENT).format(selected=selected,
+                                               condition=preselect)
     if selected_raw:
         return tr(_COND_SETTING_UNKNOWN).format(value=selected_raw,
                                                 condition=preselect)
