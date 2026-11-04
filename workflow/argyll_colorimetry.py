@@ -36,8 +36,13 @@ Every step but the clamp is linear in the reflectance, so the method is one
 (3, bands) weight matrix per wavelength grid, illuminant and observer
 (:func:`xyz_weights`, cached): XYZ = R . W^T.
 
-The tables are ArgyllCMS's own (:mod:`workflow.profile_engine.spectral_data`,
-extracted from ``xspect.c``). The method is checked against ``spec2cie``
+The tables are the CIE's standard colorimetric data (the 1931 2 degree and
+1964 10 degree observers, illuminants A, C, D50, D65, F5, F8, F10), in
+ArgyllCMS's tabulation (:mod:`workflow.profile_engine.spectral_data`,
+extracted from ``xicc/xspect.c``; data, not program code, see
+THIRD-PARTY-NOTICES.md). The procedure is the standard numeric one
+(interpolation, a 1 nm sum, a normalisation) written here in numpy; no
+ArgyllCMS code is copied. The method is checked against ``spec2cie``
 3.5.0 by ``tests/test_4324_xyz_like_argyll.py``: 0.00002 dE76 mean on
 jctay's 600 patches, which is the rounding of spec2cie's printed decimals,
 for every illuminant and observer ``spec2cie -i``/``-o`` offers that ChromIQ
@@ -159,10 +164,20 @@ def _weights(lam: tuple, ill: tuple, observer: str) -> np.ndarray:
     return w.T                             # (3, bands)
 
 
+#: The fewest bands a spectrum may have. ArgyllCMS's cubic needs four points;
+#: on two or three, ``spec2cie`` 3.5.0 gives numbers that look like an edge
+#: case of its own (a flat 100 % white on 500/600 nm reads Y = 113.9), so
+#: such a spectrum is refused rather than computed differently (review r1,
+#: L5). No instrument writes fewer than 31.
+MIN_BANDS = 4
+
+
 def _grid(wavelengths) -> tuple:
     lam = np.asarray(wavelengths, dtype=float).ravel()
-    if len(lam) < 2:
-        raise ValueError("at least two wavelengths are needed")
+    if len(lam) < MIN_BANDS:
+        raise ValueError(
+            f"a spectrum needs at least {MIN_BANDS} wavelengths to be turned "
+            f"into XYZ as ArgyllCMS does; this one has {len(lam)}")
     if not np.allclose(np.diff(lam), lam[1] - lam[0], atol=1e-6) \
             or lam[1] <= lam[0]:
         raise ValueError("the wavelengths must be evenly spaced and rising")
