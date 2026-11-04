@@ -20,20 +20,24 @@ def test_the_instrument_bullet_describes_the_fd9_and_credits_lessbones():
         assert words in text, words
 
 
-def test_the_panel_note_says_where_the_controls_are():
-    from ui.dialogs.fd9_sheet import fd9_layout_note
-    text = fd9_layout_note()
-    for words in ("“Expert Options”", "“Patches & spacers”", "“Patch size”",
-                  "“Inter-patch gap”", "“Strip gap”", "between the rows",
-                  "between the columns", "Preferences > Chart Layout"):
-        assert words in text, words
+def test_the_greyed_tooltip_and_the_instrument_info_say_where_the_controls_are():
+    """4.3.25: the note box over the panel is gone; its one useful sentence,
+    where the controls the FD-9 reads are, lives in the greyed controls'
+    tooltip and in the Instrument (i)."""
+    from ui.dialogs.layout_options_panel import fd9_greyed_reason
+    from ui.tabs.tab_chart import fd9_instrument_bullet
+    for text in (fd9_greyed_reason(), fd9_instrument_bullet()):
+        for words in ("“Expert Options”", "“Patches & spacers”",
+                      "“Patch size”", "“Inter-patch gap”", "“Strip gap”",
+                      "between the rows", "between the columns"):
+            assert words in text, words
 
 
 def test_the_greyed_tooltip_explains_the_fixed_layout():
     from ui.dialogs.layout_options_panel import fd9_greyed_reason
     text = fd9_greyed_reason().lower()
     for words in ("15 mm", "42 mm", "33 mm", "four small black squares",
-                  "page number", "“expert options”"):
+                  "bottom right", "clip border", "“expert options”"):
         assert words in text, words
 
 

@@ -4007,7 +4007,9 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
 
 def fd9_instrument_bullet() -> str:
     """The FD-9's bullet in the Instrument (i) of Guided and Manual. Only
-    shown while FD-9 support (Beta) is on."""
+    shown while FD-9 support (Beta) is on. Since 4.3.25 it also says where
+    the controls the FD-9 reads are, which a note box over Manual's layout
+    panel used to say."""
     return tr(
         "  •  FD-9 (Konica Minolta): an automatic chart reader. You feed it "
         "the printed sheet and it finds and measures the patches by itself, "
@@ -4016,8 +4018,13 @@ def fd9_instrument_bullet() -> str:
         "four small black squares around the patch area and an arrow that "
         "shows which end goes in first. When a chart has more patches than "
         "one sheet holds, it is printed on several numbered sheets, and the "
-        "FD-9 measures them one after the other. FD-9 support is a beta, "
-        "written and contributed by lessbones (Preferences → Beta).")
+        "FD-9 measures them one after the other. The layout is fixed, so most "
+        "layout controls are greyed for the FD-9; in Manual, what you can set "
+        "is under “Expert Options”, in “Patches & spacers”: “Patch size”, "
+        "“Inter-patch gap” (the white gap between the rows, along the way the "
+        "sheet goes in) and “Strip gap” (the white gap between the columns, "
+        "across the sheet). FD-9 support is a beta, written and contributed "
+        "by lessbones (Preferences → Beta).")
 
 
 
@@ -30572,6 +30579,15 @@ class TabChart(QWidget):
                                  and manual_btn.isChecked()):
             return None
         if not _panel_lays_out_on(self):
+            return None
+        # THE FD-9 TAKES NO PATTERN FROM THE PANEL (4.3.25, F3): its chart
+        # always labels strips and patches the default way
+        # (`workflow/fd9/chart.py`), so a pattern typed for another instrument
+        # must not hold its Generate Chart off. Asked only while FD-9 support
+        # is on (`_fd9_support`); off, the FD-9 cannot be chosen.
+        if (getattr(panel, "_fd9_support", False)
+                and getattr(panel, "instr", None) is not None
+                and panel.instr.currentData() == "FD9"):
             return None
         from workflow.layout_engine import alphix
         problem = panel.pattern_parse_problem()

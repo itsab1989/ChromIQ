@@ -188,7 +188,7 @@ else:
     visit_every_tab()
     loaded = sorted(m for m in sys.modules
                     if m.startswith(("workflow.fd9", "fd9_independent",
-                                     "ui.dialogs.fd9_sheet")))
+                                     "ui.dialogs.fd9_")))
 print("PROBE" + json.dumps({"windows": windows, "loaded": loaded,
                             "instrument": str(tab._instr_combo.currentData())}))
 sys.stdout.flush()

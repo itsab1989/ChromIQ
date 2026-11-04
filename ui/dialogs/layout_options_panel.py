@@ -229,7 +229,10 @@ def pt_to_mm(pt: float) -> float:
 
 
 def fd9_greyed_reason() -> str:
-    """The tooltip of a Create Chart control the FD-9 layout does not use."""
+    """The tooltip of a Create Chart control the FD-9 layout does not use.
+    It also says WHERE the controls the FD-9 does read are: the note box that
+    said so over the panel is gone (4.3.25), and a greyed control is where a
+    person looks for the reason."""
     return tr(
         "Not used for the FD-9. An FD-9 chart has a fixed layout of its own, "
         "made for the way the FD-9 finds and reads the sheet: at least 15 mm "
@@ -237,18 +240,29 @@ def fd9_greyed_reason() -> str:
         "the end that goes in first, and at least 33 mm free at the other end. "
         "Four small black squares around the patch area let the FD-9 find the "
         "patches, and an arrow shows which end goes in first. Nothing else is "
-        "printed on the sheet, except a small page number when the chart has "
-        "several sheets. The greyed boxes show the values an FD-9 chart "
+        "printed on the sheet, except a small label at the bottom right that "
+        "names the project, the run and the page, and the FD-9 clip border if "
+        "you switch it on. The greyed boxes show the values an FD-9 chart "
         "uses.\n\n"
-        "What you can change for the FD-9: the patch width and height and the "
-        "two gaps (under “Expert Options”, in “Patches & spacers”), the paper "
-        "and the number of pages.")
+        "What you can set for the FD-9 is under “Expert Options”, in “Patches "
+        "& spacers”:\n"
+        "  •  “Patch size”: the width × height of each patch, 6 to 30 mm "
+        "each;\n"
+        "  •  “Inter-patch gap”: the white gap between the rows of patches, "
+        "along the way the sheet goes into the FD-9;\n"
+        "  •  “Strip gap”: the white gap between the columns, across the "
+        "sheet.\n"
+        "Each gap can be 0 to 5 mm; 1 mm is the default and the one tested "
+        "most. You can also choose the paper, the number of pages, the clip "
+        "border and the output settings.")
 
 
 class LayoutOptionsPanel(QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
     changed = pyqtSignal()
+    #: Whether the FD-9 is offered (Preferences > Beta); set in __init__.
+    _fd9_support = False
 
     def set_appearance(self, mode: str) -> None:
         """Re-resolve this panel's own text colours for ``mode``.
@@ -556,13 +570,12 @@ class LayoutOptionsPanel(QWidget):
         self.instr = self.paper = self.mode = self.pages = None
         # FD-9 (Beta): built only while FD-9 support is on, so with it off
         # the panel is 4.3.21's widget for widget.
+        # No note box over the panel (4.3.25, owner's feedback): the greyed
+        # controls explain themselves in their tooltip (`fd9_greyed_reason`)
+        # and the FD-9 is described in the Instrument (i). A plain flag says
+        # whether the FD-9 is offered at all.
         from workflow.fd9.support import fd9_enabled
-        if fd9_enabled():
-            from ui.dialogs.fd9_sheet import fd9_layout_note
-            self.fd9_notice = QLabel(fd9_layout_note(), self)
-            self.fd9_notice.setWordWrap(True)
-            self.fd9_notice.hide()
-            v.addWidget(self.fd9_notice)
+        self._fd9_support = bool(fd9_enabled())
         if with_selectors:
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
@@ -3150,8 +3163,8 @@ class LayoutOptionsPanel(QWidget):
         for every instrument — e.g. "Offset every second strip" (a ColorMunki-
         only option) showed for SpectroScan / i1Pro / DTP41 / DTP51 until the
         user manually changed the instrument (Knut)."""
-        if hasattr(self, "fd9_notice"):
-            # Only while FD-9 support is on (the controls exist only then).
+        if self._fd9_support:
+            # Only while FD-9 support is on.
             self._sync_fd9_widgets(inst == "FD9")
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
@@ -3186,7 +3199,6 @@ class LayoutOptionsPanel(QWidget):
         tooltip saying why; leaving puts back exactly what was there
         (enabled state, tooltip, page count and custom sheet size), never a
         blanket "enabled"."""
-        self.fd9_notice.setVisible(fd9)
         was = getattr(self, "_fd9_saved", None)
         if fd9 == (was is not None):
             return
@@ -3195,9 +3207,12 @@ class LayoutOptionsPanel(QWidget):
         if fd9:
             why = fd9_greyed_reason()
             saved = {"controls": [], "pages": None, "custom": None, "dpi": None}
+            flagged = getattr(self, "_field_conflict_orig", {})
             for control in self._fd9_greyable_controls():
-                saved["controls"].append(
-                    (control, control.isEnabled(), control.toolTip()))
+                # A box outlined red keeps its own tooltip under the reason
+                # (`_set_field_conflict`): that one is the one to give back.
+                tip = flagged.get(id(control), (control.toolTip(),))[0]
+                saved["controls"].append((control, control.isEnabled(), tip))
                 control.setEnabled(False)
                 control.setToolTip(why)
             saved["dpi"] = self.dpi.maximum()
@@ -3223,23 +3238,30 @@ class LayoutOptionsPanel(QWidget):
             saved["shown"] = self._fd9_capture_shown()
             self._fd9_saved = saved
             self._fd9_show_what_applies()
+            # Showing the FD-9's patterns clears a red outline, and clearing
+            # one gives the box its own tooltip back: the reason goes on again.
+            for control, _enabled, _tip in saved["controls"]:
+                control.setToolTip(why)
             if not getattr(self, "_fd9_height_wired", False):
                 # The greyed top margin follows the patch height (r1 L4).
                 self.patch_y.valueChanged.connect(self._fd9_patch_height_changed)
                 self._fd9_height_wired = True
             return
         self._fd9_saved = None
-        self._fd9_restore_shown(was.get("shown"))
-        for control, lo, hi, value, special in was.get("ranges", []):
-            control.setSpecialValueText(special)
-            control.setRange(lo, hi)
-            control.setValue(value)
+        # Enabled state and tooltips FIRST, then the values: a pattern given
+        # back that cannot be read outlines its box again, and that outline
+        # must keep the box's own tooltip under it, not the FD-9's.
         for control, enabled, tip in was["controls"]:
             try:
                 control.setEnabled(enabled)
                 control.setToolTip(tip)
             except RuntimeError:       # deleted with a rebuilt section
                 pass
+        self._fd9_restore_shown(was.get("shown"))
+        for control, lo, hi, value, special in was.get("ranges", []):
+            control.setSpecialValueText(special)
+            control.setRange(lo, hi)
+            control.setValue(value)
         if was.get("dpi") is not None:
             self.dpi.setMaximum(was["dpi"])
         if was["pages"] is not None:
@@ -3261,9 +3283,22 @@ class LayoutOptionsPanel(QWidget):
         SHOWN: the FD-9 layout reads none of these, so its geometry does not
         change (`workflow/fd9/chart.py`)."""
         from workflow.layout_engine.instruments import fd9_fixed_margins
+        from workflow.layout_engine.permutation import (DEFAULT_PATCH_PATTERN,
+                                                        DEFAULT_STRIP_PATTERN)
         t, r, b, lt = fd9_fixed_margins(self.patch_y.value() or None)
+        # THE TEXT BOXES TOO (4.3.25, F2): an FD-9 chart labels its strips and
+        # patches the default way (`workflow/fd9/chart.py` writes these two
+        # patterns into every .ti2), prints no sheet text and no imported
+        # image, so the greyed boxes say exactly that.
         return {"margins": {"t": t, "r": r, "b": b, "l": lt},
-                "spacer_mode": "none", "layout_mode": "patch_first"}
+                "spacer_mode": "none", "layout_mode": "patch_first",
+                "texts": {"strip_pat": DEFAULT_STRIP_PATTERN,
+                          "patch_pat": DEFAULT_PATCH_PATTERN,
+                          "chart_text": "", "clip_image_path": ""}}
+
+    #: The line and text boxes whose shown value the FD-9 replaces.
+    _FD9_SHOWN_TEXTS = ("strip_pat", "patch_pat", "chart_text",
+                        "clip_image_path")
 
     def _fd9_patch_height_changed(self, *_a) -> None:
         if getattr(self, "_fd9_saved", None) is not None:
@@ -3277,6 +3312,9 @@ class LayoutOptionsPanel(QWidget):
             combo = getattr(self, name, None)
             if combo is not None:
                 out[name] = combo.currentIndex()
+        out["texts"] = {name: getattr(self, name).text()
+                        for name in self._FD9_SHOWN_TEXTS
+                        if getattr(self, name, None) is not None}
         return out
 
     def _fd9_show_what_applies(self) -> None:
@@ -3298,6 +3336,10 @@ class LayoutOptionsPanel(QWidget):
                 i = combo.findData(want[name])
                 if i >= 0 and combo.currentIndex() != i:
                     combo.setCurrentIndex(i)
+            for name, text in want["texts"].items():
+                box = getattr(self, name, None)
+                if box is not None and box.text() != text:
+                    box.setText(text)
         finally:
             self._loading = was_loading
 
@@ -3316,6 +3358,10 @@ class LayoutOptionsPanel(QWidget):
                 combo = getattr(self, name, None)
                 if combo is not None and name in shown:
                     combo.setCurrentIndex(shown[name])
+            for name, text in shown.get("texts", {}).items():
+                box = getattr(self, name, None)
+                if box is not None:
+                    box.setText(text)
         finally:
             self._loading = was_loading
 
@@ -3351,18 +3397,36 @@ class LayoutOptionsPanel(QWidget):
                            (self.inter_patch, along), (self.strip_gap, across)):
             box.setValue(float(value))
 
+    def _fd9_live_controls(self) -> tuple:
+        """The controls outside `_FD9_LIVE_GROUPS` that the FD-9 does read:
+        the resolution, the patch size and the two gaps, and (4.3.25, F12)
+        its clip border's On/Off switch and its text."""
+        return tuple(c for c in (
+            self.dpi, self.patch_x, self.patch_y, self.inter_patch,
+            self.strip_gap, getattr(self, "clip_enable", None),
+            getattr(self, "clip_text", None)) if c is not None)
+
     def _fd9_greyable_controls(self):
-        """The controls the FD-9 layout does not read: every spin box, button
-        and list inside a group that is not one of `_FD9_LIVE_GROUPS`, except
-        the (i) buttons (disabling a whole group would grey them too, so each
-        control is greyed instead) and the resolution."""
+        """The controls the FD-9 layout does not read: EVERY INPUT inside a
+        group that is not one of `_FD9_LIVE_GROUPS` (spin boxes, buttons,
+        lists, and since 4.3.25 line and text boxes too: the strip and patch
+        patterns, the sheet text and the image path were left typeable and
+        did nothing, F2), except the (i) buttons (disabling a whole group
+        would grey them too, so each control is greyed instead) and
+        `_fd9_live_controls`. A spin box's or a list's own line edit goes with
+        its owner, never on its own."""
         from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,
-                                     QComboBox, QGroupBox)
+                                     QComboBox, QGroupBox, QLineEdit,
+                                     QPlainTextEdit, QTextEdit)
         live = {tr(t) for t in self._FD9_LIVE_GROUPS}
+        keep = self._fd9_live_controls()
         for control in self.findChildren(
-                (QAbstractSpinBox, QAbstractButton, QComboBox)):
-            if isinstance(control, TooltipButton) or control in (
-                    self.dpi, self.patch_x, self.patch_y, self.inter_patch, self.strip_gap):
+                (QAbstractSpinBox, QAbstractButton, QComboBox, QLineEdit,
+                 QPlainTextEdit, QTextEdit)):
+            if isinstance(control, TooltipButton) or control in keep:
+                continue
+            if isinstance(control, QLineEdit) and isinstance(
+                    control.parentWidget(), (QAbstractSpinBox, QComboBox)):
                 continue
             groups = []
             p = control.parentWidget()
@@ -3451,7 +3515,7 @@ class LayoutOptionsPanel(QWidget):
         # Mode tooltip describes only the option this instrument actually has.
         if getattr(self, "_mode_tip", None) is not None:
             self._mode_tip.set_content(*self.mode_tooltip_for(inst))
-        entering_fd9 = (inst == "FD9" and hasattr(self, "fd9_notice")
+        entering_fd9 = (inst == "FD9" and self._fd9_support
                         and getattr(self, "_fd9_saved", None) is None)
         self._sync_instrument_widgets(inst)
         if entering_fd9 and not was_loading:
@@ -5845,7 +5909,7 @@ class LayoutOptionsPanel(QWidget):
         else:
             r = base if base is not None else LayoutRecipe()
         r = self.apply_to_recipe(r)
-        if r.instrument == "FD9" and hasattr(self, "fd9_notice"):
+        if r.instrument == "FD9" and self._fd9_support:
             r.fd9_gap_mm = None  # shared inter-patch and strip-gap controls
             r.layout_mode = "patch_first"
         return r
@@ -6074,8 +6138,8 @@ class LayoutOptionsPanel(QWidget):
         """
         with self._clip_preview_batched():
             try:
-                if r.instrument == "FD9" and hasattr(self, "fd9_notice"):
-                    # Only while FD-9 support is on (`fd9_notice` exists only
+                if r.instrument == "FD9" and self._fd9_support:
+                    # Only while FD-9 support is on (`_fd9_support`, set only
                     # then): with it off an FD-9 recipe is loaded as 4.3.21
                     # loaded any recipe for an unknown instrument (L4).
                     from dataclasses import replace

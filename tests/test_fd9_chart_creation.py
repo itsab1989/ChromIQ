@@ -208,7 +208,8 @@ def test_manual_fd9_limits_papers_pages_and_explains_fixed_grid(qapp, qtbot):
     panel.instr.setCurrentIndex(panel.instr.findData("FD9"))
     assert panel.paper.findData("A2") < 0
     assert panel.pages.maximum() == 20
-    assert not panel.fd9_notice.isHidden()
+    # 4.3.25: no note box; the greyed controls' tooltip explains instead.
+    assert not hasattr(panel, "fd9_notice") and panel._fd9_support
     assert panel.custom_w.maximum() == 330 and panel.custom_h.maximum() == 660
 
 

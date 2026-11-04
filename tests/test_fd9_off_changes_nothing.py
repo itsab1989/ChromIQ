@@ -89,7 +89,7 @@ for top in (win, dlg):
             names.append(w.objectName())
 loaded = sorted(m for m in sys.modules
                 if m.startswith(("workflow.fd9", "fd9_independent",
-                                 "ui.fd9_measurement", "ui.dialogs.fd9_sheet")))
+                                 "ui.fd9_measurement", "ui.dialogs.fd9_")))
 print("PROBE" + json.dumps({"entries": entries, "names": names,
                             "loaded": loaded, "papers": papers,
                             "instrument": instrument}))
@@ -244,8 +244,7 @@ def test_the_lists_and_the_instrument_flag_are_4321s():
 #: Files outside the FD-9's own modules that name the FD-9, each of which
 #: asks the switch (`workflow.fd9.support`) before acting. A new file here is
 #: a new hook: make it ask the switch, then add it, in the same commit.
-FD9_OWN = ("workflow/fd9/", "ui/fd9_measurement.py", "ui/dialogs/fd9_sheet.py",
-           "vendor/")
+FD9_OWN = ("workflow/fd9/", "ui/fd9_measurement.py", "vendor/")
 HOOKED_FILES = {
     "core/file_manager.py",          # .fd9.json companion; Run.fd9_sessions_dir
     "core/settings.py",              # the switch and the FD-9 keys' defaults
