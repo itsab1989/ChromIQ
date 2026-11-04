@@ -205,3 +205,20 @@ def test_imports_of_two_conditions_are_not_merged_one_condition_is(tmp_path):
     assert condition_check([m0, m1]).clash is not None
     ok = condition_check([m1, m1b])
     assert ok.clash is None and ok.common == "M1" and not ok.asks
+
+
+def test_the_line_about_i1profilers_choice_stands_above_the_choices(
+        qapp, tmp_path):
+    """It says the condition "is selected below", so it comes first (on
+    screen, 4.3.24: under the choices it pointed at nothing)."""
+    from PyQt6.QtWidgets import QLabel, QRadioButton
+    from ui.dialogs.cxf_condition_dialog import CxfConditionDialog
+    conds = cxf_conditions(_native(tmp_path / "a.mxf", ("M1", "M2"), "1"))
+    dlg = CxfConditionDialog(None, "a.mxf", conds)
+    lay = dlg.layout()
+    order = [lay.itemAt(i).widget() for i in range(lay.count())]
+    line = dlg.findChild(QLabel, "cxf_condition_setting")
+    first_radio = min(order.index(r) for r in dlg.findChildren(QRadioButton))
+    assert order.index(line) < first_radio
+    assert "below" in line.text()
+    dlg.deleteLater()
