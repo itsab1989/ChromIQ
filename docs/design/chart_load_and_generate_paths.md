@@ -261,3 +261,40 @@ verified by tests and on screen without an FD-9.*
 * **Calibration charts** put one ink's ramp per column, paper white first.
 * **The patch set editor** (Tools) does not open an FD-9 chart; it says so
   and points to Create Chart (`tool_availability.md`).
+
+## FD-9 (Beta): an FD-9 chart shown turned on screen
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+*Written 2026-11-04 from the owner's request (4.3.25): "a display-only
+rotation of FD-9 charts, a sub-option under the FD-9 support, Off / 90 /
+180 / 270". What the app does now, verified by tests
+(`tests/test_fd9_4325_display_rotation.py`) and on screen with simulated
+FD-9 data.*
+
+* **Preferences > Beta, "Turn FD-9 charts on screen"**, indented under FD-9
+  support: Off (default), 90°, 180°, 270°, clockwise. Greyed, keeping its
+  value, while the FD-9 support box is unticked; with FD-9 support off for
+  this run it has no effect at all. Applies when Preferences closes with OK,
+  without a restart (`fd9_display_rotation`, `workflow/fd9/support.py`).
+* **Where:** the chart preview of Create Chart and of the Measure tab (the
+  FD-9's layout preview and its scan). Only pages that are an FD-9 chart's
+  (beside a `.fd9.json` and a `.ti2` naming the FD-9), and the Measure tab's
+  own FD-9 images, are turned; every other chart, and the Print tab, the
+  soft-proof window and every other preview, are shown as before.
+* **Display only:** the TIFF pages, PDF, `.ti2`, `.fd9.json`, the print and
+  the measurement never change.
+* **What follows the turn:** the page, its frame, the margin guide lines and
+  the measured-margin lines, the live and saved colours, the row outlines of
+  the scan, the hover outline and the patch under the pointer. **What does
+  not:** every number about the chart describes the paper as printed
+  ("Measured from Preview" Left/Right/Top/Bottom, the pointer's X and Y from
+  the printed top-left corner, Chart layout information); and anything whose
+  meaning is a direction on screen: the expected half of a split patch is
+  the top-left triangle on screen at every angle, as the legend says, and
+  the legend chip stays upright, placed under the lowest patch as shown.
+* **90° and 270°** lay the sheet out sideways and fit it to the preview as
+  a landscape page.
+

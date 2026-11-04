@@ -359,6 +359,19 @@ Resume box, all duplicates (review of pull request #214, questions 1 and 9).
       and it was wrong (Knut found that the editor laid FD-9 charts out
       correctly). If yours really cannot be edited, say so in a row of
       `docs/design/tool_availability.md`.
+- [ ] **A sheet that reads better turned on screen** (the FD-9's text is
+      printed for the trailing end): never turn the page image, a file or an
+      overlay. Give the preview a rule instead,
+      `ui/tiff_preview.py::TiffPreview.set_rotation_rule`, which answers an
+      angle for the pages being loaded (the FD-9's is
+      `workflow/fd9/support.py::display_rotation_for`). The preview paints
+      everything as unturned and turns only the finished canvas; one mapping,
+      `ui/tiff_preview.py::TiffPreview._label_to_virtual`, turns the pointer
+      back, so every number stays the paper's. Anything whose meaning is a
+      direction on screen (the split patch's expected corner, the legend)
+      keeps its screen meaning, and every other chart has no rule and is
+      never turned. `tests/test_fd9_4325_display_rotation.py` proves it
+      pixel for pixel.
 
 ### Loading a chart and its files
 
