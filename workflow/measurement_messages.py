@@ -668,6 +668,43 @@ M_FD9_WRONG_SHEET = _m(
     "The technical reason was: {reason}",
     approved=False)
 
+#: 4.3.25 (F7). The sheet check ASKS, as the strip check does
+#: (M-STRIP-READ-TWICE), instead of ending the measurement with one OK: the
+#: FD-9 worker pauses until one of the buttons below is pressed. Closing the
+#: window is "measure again". The PARTIAL variants are for a sheet not
+#: measured completely in one go, which is never refiled.
+_FD9_ASK_AGAIN = "Measure page {page} again"
+_FD9_ASK_AGAIN_ONE = "Measure the sheet again"
+_FD9_ASK_SAVE_TURNED = "Save it turned round"
+_FD9_ASK_KEEP_READ = "Keep it as read"
+_FD9_ASK_WAS_PAGE = "It was page {found}: save it as page {found}"
+_FD9_ASK_KEEP_PAGE = "Keep it as page {page}"
+M_FD9_SHEET_TURNED_ASK = _m(
+    "M-FD9-SHEET-TURNED-ASK",
+    "The sheet seems to be the wrong way round",
+    "After each sheet, ChromIQ compares the readings with the colours this chart should have. The readings from the sheet just measured match page {page} of {pages} turned round, and not page {page} the right way round. So the sheet probably went into the FD-9 with the arrow at the back.\n\nNothing of this sheet has been saved yet, and the pages measured before it are kept. What would you like to do?\n\n•  Measure page {page} again: these readings are set aside. Take the sheet out of the FD-9 (with its own controls if it does not come out by itself), turn it so that the end with the arrow goes in first, printed side up, and insert it when the FD-9 is ready. This is the safe choice, and closing this window does the same.\n\n•  Save it turned round: each reading is saved under the patch that was really under the FD-9's head, just as if the sheet had gone in the right way, and measuring goes on with the next page. Choose this when you are sure the sheet was only turned round. The measurement notes that this page was saved turned round.\n\n•  Keep it as read: the readings are saved exactly as the FD-9 read them, as page {page} the right way round. Choose this only when you are sure the sheet did go in the right way, for example when the chart's colours look almost the same both ways round.\n\nThe technical reason was: {reason}",
+    count_key="pages",
+    body_one="After the sheet was read, ChromIQ compared the readings with the colours this chart should have. They match the chart turned round, and not the chart the right way round. So the sheet probably went into the FD-9 with the arrow at the back.\n\nNothing of this sheet has been saved yet. What would you like to do?\n\n•  Measure the sheet again: these readings are set aside. Take the sheet out of the FD-9 (with its own controls if it does not come out by itself), turn it so that the end with the arrow goes in first, printed side up, and insert it when the FD-9 is ready. This is the safe choice, and closing this window does the same.\n\n•  Save it turned round: each reading is saved under the patch that was really under the FD-9's head, just as if the sheet had gone in the right way. Choose this when you are sure the sheet was only turned round. The measurement notes that the sheet was saved turned round.\n\n•  Keep it as read: the readings are saved exactly as the FD-9 read them, as the chart the right way round. Choose this only when you are sure the sheet did go in the right way, for example when the chart's colours look almost the same both ways round.\n\nThe technical reason was: {reason}",
+    approved=False)
+M_FD9_SHEET_TURNED_ASK_PARTIAL = _m(
+    "M-FD9-SHEET-TURNED-ASK-PARTIAL",
+    "The sheet seems to be the wrong way round",
+    "After each sheet, ChromIQ compares the readings with the colours this chart should have. The readings from the sheet just measured match page {page} of {pages} turned round, and not page {page} the right way round. So the sheet probably went into the FD-9 with the arrow at the back.\n\nThe FD-9 measured {measured} of the {total} patches of this sheet. A sheet is saved turned round only when all of its patches were measured in one go, so that no reading can end up on the wrong patch; that is why this choice is not offered here.\n\nNothing of this sheet has been saved yet, and the pages measured before it are kept. What would you like to do?\n\n•  Measure page {page} again: these readings are set aside. Take the sheet out of the FD-9 (with its own controls if it does not come out by itself), turn it so that the end with the arrow goes in first, printed side up, and insert it when the FD-9 is ready. This is the safe choice, and closing this window does the same.\n\n•  Keep it as read: the readings are saved exactly as the FD-9 read them, as page {page} the right way round. Choose this only when you are sure the sheet did go in the right way, for example when the chart's colours look almost the same both ways round.\n\nThe technical reason was: {reason}",
+    count_key="pages",
+    body_one="After the sheet was read, ChromIQ compared the readings with the colours this chart should have. They match the chart turned round, and not the chart the right way round. So the sheet probably went into the FD-9 with the arrow at the back.\n\nThe FD-9 measured {measured} of the {total} patches of this sheet. A sheet is saved turned round only when all of its patches were measured in one go, so that no reading can end up on the wrong patch; that is why this choice is not offered here.\n\nNothing of this sheet has been saved yet. What would you like to do?\n\n•  Measure the sheet again: these readings are set aside. Take the sheet out of the FD-9 (with its own controls if it does not come out by itself), turn it so that the end with the arrow goes in first, printed side up, and insert it when the FD-9 is ready. This is the safe choice, and closing this window does the same.\n\n•  Keep it as read: the readings are saved exactly as the FD-9 read them, as the chart the right way round. Choose this only when you are sure the sheet did go in the right way, for example when the chart's colours look almost the same both ways round.\n\nThe technical reason was: {reason}",
+    approved=False)
+M_FD9_WRONG_SHEET_ASK = _m(
+    "M-FD9-WRONG-SHEET-ASK",
+    "This looks like a different page of the chart",
+    'After each sheet, ChromIQ compares the readings with the colours this chart should have. ChromIQ asked for page {page} of {pages}, but the readings from the sheet just measured match page {found} much better. So page {found} probably went into the FD-9 instead of page {page}.\n\nNothing of this sheet has been saved yet, and the pages measured before it are kept. What would you like to do?\n\n•  Measure page {page} again: these readings are set aside. Take the sheet out of the FD-9 (with its own controls if it does not come out by itself), then insert page {page}, arrow first and printed side up, when the FD-9 is ready. This is the safe choice, and closing this window does the same.\n\n•  It was page {found}: save it as page {found}: the readings are saved as page {found}, each under the patch of page {found} it belongs to, even if the sheet went in turned round. If page {found} was measured before, these readings replace its earlier ones. Then ChromIQ asks for page {page} again, because it still has to be measured.\n\n•  Keep it as page {page}: the readings are saved as page {page}, exactly as read. Choose this only when you are sure this sheet was page {page}.\n\nThe technical reason was: {reason}',
+    approved=False)
+M_FD9_WRONG_SHEET_ASK_PARTIAL = _m(
+    "M-FD9-WRONG-SHEET-ASK-PARTIAL",
+    "This looks like a different page of the chart",
+    'After each sheet, ChromIQ compares the readings with the colours this chart should have. ChromIQ asked for page {page} of {pages}, but the readings from the sheet just measured match page {found} much better. So page {found} probably went into the FD-9 instead of page {page}.\n\nThe FD-9 measured {measured} of the {total} patches of this sheet. A sheet is saved as another page only when all of its patches were measured in one go, so that no reading can end up on the wrong patch; that is why that choice is not offered here.\n\nNothing of this sheet has been saved yet, and the pages measured before it are kept. What would you like to do?\n\n•  Measure page {page} again: these readings are set aside. Take the sheet out of the FD-9 (with its own controls if it does not come out by itself), then insert page {page}, arrow first and printed side up, when the FD-9 is ready. This is the safe choice, and closing this window does the same.\n\n•  Keep it as page {page}: the readings are saved as page {page}, exactly as read. Choose this only when you are sure this sheet was page {page}.\n\nThe technical reason was: {reason}',
+    approved=False)
+
+
 #: Between the sheets of a multi-page FD-9 chart (lessbones, #214). Shown in
 #: the Measure tab's page-pause panel without a Continue button: the FD-9
 #: shows its own insertion screen once its paper sensor is clear, and the
@@ -9219,6 +9256,8 @@ CATALOGUE = {m.id: m for m in (
     M_FD9_NO_CONNECTION, M_FD9_WRONG_FIRMWARE, M_FD9_MARKS_NOT_FOUND,
     M_FD9_SHEET_STILL_INSIDE, M_FD9_RESUME_REFUSED, M_FD9_FAILED,
     M_FD9_SHEET_TURNED, M_FD9_WRONG_SHEET, M_FD9_STILL_WAITING,
+    M_FD9_SHEET_TURNED_ASK, M_FD9_SHEET_TURNED_ASK_PARTIAL,
+    M_FD9_WRONG_SHEET_ASK, M_FD9_WRONG_SHEET_ASK_PARTIAL,
     M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
     M_CAL_DONE_UNDERLAY,
     M_REPORT_NOT_SAVED,

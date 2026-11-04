@@ -66,6 +66,9 @@ class FD9Job(QThread):
     scan_ready = pyqtSignal(object)
     patch_ready = pyqtSignal(object)
     page_requested = pyqtSignal(int, int)
+    #: The sheet check asks (4.3.25, F7): the question as a dict; the worker
+    #: waits until `answer_sheet` is called (or Stop is pressed).
+    sheet_question = pyqtSignal(object)
     result = pyqtSignal(object)
     #: (message, stopped by the user, which M-FD9-* window: `fd9_exception_kind`)
     failed = pyqtSignal(str, bool, str)
@@ -79,8 +82,19 @@ class FD9Job(QThread):
         self.action = action or _measure_chart
         self.stop_event = threading.Event()
         self.new_readings = 0
+        self._answered = threading.Event()
+        self._answer = None
 
     def run(self):
+        import inspect
+        extra = {}
+        try:
+            params = inspect.signature(self.action).parameters
+            if "on_mismatch" in params or any(
+                    p.kind is p.VAR_KEYWORD for p in params.values()):
+                extra["on_mismatch"] = self.ask_sheet
+        except (TypeError, ValueError):
+            pass
         try:
             self.result.emit(
                 self.action(
@@ -93,6 +107,7 @@ class FD9Job(QThread):
                     on_scan=self.scan_ready.emit,
                     on_patch=self.patch_ready.emit,
                     on_page=self.queue_page,
+                    **extra,
                 )
             )
         except Exception as e:
@@ -109,8 +124,25 @@ class FD9Job(QThread):
         if page > 1:
             self.page_requested.emit(page, pages)
 
+    def ask_sheet(self, question):
+        """On the worker thread: ask the GUI what the sheet was, and wait.
+        Stop answers "again", which files nothing (4.3.25, F7)."""
+        self._answer = None
+        self._answered.clear()
+        self.sheet_question.emit(question)
+        while not self._answered.wait(0.2):
+            if self.stop_event.is_set():
+                return "again"
+        return self._answer or "again"
+
+    def answer_sheet(self, answer):
+        """On the GUI thread: the person's answer to `sheet_question`."""
+        self._answer = answer
+        self._answered.set()
+
     def request_stop(self):
         self.stop_event.set()
+        self._answered.set()
 
 
 def condition_help() -> "tuple[str, str]":
@@ -243,6 +275,25 @@ def _progress_line(text: str) -> "tuple[str | None, str]":
                 "give the same readings. Please make sure yourself that it is "
                 "the right sheet, the right way round."),
         }.get(why, text)
+    # The sheet check's answers, as the worker reports them (4.3.25, F7).
+    m = re.match(r"Sheet check: page (\d+) set aside to be measured again", text)
+    if m:
+        return None, tr(
+            "The readings of that sheet are set aside. Page {page} is "
+            "measured again: insert it when the FD-9 is ready, arrow first "
+            "and printed side up.").format(page=int(m.group(1)))
+    if text.startswith("Sheet check: the sheet is set aside to be measured again"):
+        return None, tr(
+            "The readings of that sheet are set aside. Insert the sheet again "
+            "when the FD-9 is ready, arrow first and printed side up.")
+    m = re.match(r"Sheet check: the sheet was saved as page (\d+); page (\d+) "
+                 r"is asked for again", text)
+    if m:
+        return None, tr(
+            "The sheet was saved as page {found}. Page {page} still has to be "
+            "measured: insert it when the FD-9 is ready, arrow first and "
+            "printed side up.").format(found=int(m.group(1)),
+                                      page=int(m.group(2)))
     if text.startswith("Measurement complete."):
         return "done", tr(
             "The FD-9 has finished measuring. Take the sheet completely out of "
@@ -940,6 +991,7 @@ class FD9MeasureMixin:
             job.scan_ready.connect(self._fd9_scan_ready)
             job.patch_ready.connect(self._fd9_patch_ready)
             job.page_requested.connect(self._fd9_page_requested)
+            job.sheet_question.connect(self._fd9_sheet_question)
             job.result.connect(self._fd9_result)
             job.failed.connect(self._fd9_failed)
             keep_awake.hold()
@@ -987,6 +1039,107 @@ class FD9MeasureMixin:
         self._fd9_log(f"[{title}]\n{body}")
         self._fd9_wait_timer().start(FD9_STILL_WAITING_MS)
 
+    def _fd9_sheet_question(self, question):
+        """The sheet check found the sheet turned round or another page
+        (4.3.25, F7): ask, as the strip check does, and hand the answer to
+        the waiting worker. Closing the window is "measure again"."""
+        job = self.sender() if isinstance(self.sender(), FD9Job) else self._fd9_job
+        answer = "again"
+        try:
+            answer = self._fd9_ask_sheet(question) or "again"
+        except Exception:  # noqa: BLE001 — never strand the worker
+            log.exception("FD-9 sheet question failed; measuring again")
+        self._fd9_log(tr("Sheet check: your answer was “{answer}”.").format(
+            answer=self._fd9_answer_label(question, answer)))
+        if job is not None:
+            job.answer_sheet(answer)
+
+    @staticmethod
+    def _fd9_answer_label(question, answer) -> str:
+        from workflow import measurement_messages as M
+        page, found = question.get("page", 1), question.get("found", 1)
+        one = question.get("pages", 1) == 1
+        if answer == "refile":
+            return (tr(M._FD9_ASK_SAVE_TURNED) if question.get("kind") == "turned"
+                    else tr(M._FD9_ASK_WAS_PAGE).format(found=found))
+        if answer == "keep":
+            return (tr(M._FD9_ASK_KEEP_READ) if question.get("kind") == "turned"
+                    else tr(M._FD9_ASK_KEEP_PAGE).format(page=page))
+        return (tr(M._FD9_ASK_AGAIN_ONE) if one
+                else tr(M._FD9_ASK_AGAIN).format(page=page))
+
+    def _fd9_ask_sheet(self, question):
+        """The window itself: "again", "refile", "keep", or None when it was
+        closed without an answer. Tests replace this method."""
+        import html
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QDialog
+        from workflow import measurement_messages as M
+        kind = question.get("kind")
+        whole = bool(question.get("complete"))
+        if kind == "turned":
+            msg = (M.M_FD9_SHEET_TURNED_ASK if whole
+                   else M.M_FD9_SHEET_TURNED_ASK_PARTIAL)
+        else:
+            msg = (M.M_FD9_WRONG_SHEET_ASK if whole
+                   else M.M_FD9_WRONG_SHEET_ASK_PARTIAL)
+        title, body = msg.render(
+            page=question.get("page", 1), pages=question.get("pages", 1),
+            found=question.get("found", 1),
+            measured=question.get("measured", 0),
+            total=question.get("total", 0),
+            reason=str(question.get("reason", "")))
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        dlg = QDialog(self)
+        dlg.setObjectName("fd9_sheet_question")
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(560)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        head = QLabel(f"<b>{html.escape(title)}</b>", dlg)
+        head.setWordWrap(True)
+        lay.addWidget(head)
+        text = QLabel(body, dlg)
+        text.setTextFormat(Qt.TextFormat.PlainText)
+        text.setWordWrap(True)
+        lay.addWidget(text)
+        chosen = [None]
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        buttons = []
+        for answer in ("again", "refile", "keep"):
+            if answer == "refile" and not whole:
+                continue
+            btn = QPushButton(self._fd9_answer_label(question, answer), dlg)
+            btn.setObjectName("primary" if answer == "again"
+                              else f"fd9_sheet_{answer}")
+            btn.setFixedHeight(32)
+            if answer == "again":
+                btn.setDefault(True)
+
+            def pick(_c=False, a=answer):
+                chosen[0] = a
+                dlg.accept()
+            btn.clicked.connect(pick)
+            row.addWidget(btn)
+            buttons.append(btn)
+        row.addStretch()
+        lay.addLayout(row)
+        try:
+            from ui.widgets import tint_dialog_primary
+            from ui.tabs.tab_measure import _TAB_COLOR
+            tint_dialog_primary(dlg, _TAB_COLOR)
+        except Exception:  # noqa: BLE001 — a plain window then
+            pass
+        runner = getattr(self, "_exec_measurement_window", None)
+        if runner is not None:
+            runner(dlg)
+        else:
+            dlg.exec()
+        return chosen[0]
+
     def _fd9_wait_timer(self):
         """One single-shot timer per tab, connected to a bound method."""
         timer = getattr(self, "_fd9_wait_timer_obj", None)
@@ -1027,6 +1180,10 @@ class FD9MeasureMixin:
         self._page_pause_help_btn.show()
 
     def _fd9_restore_controls(self):
+        # A sheet question still open belongs to the read that just ended.
+        close = getattr(self, "_close_measurement_windows", None)
+        if close is not None and getattr(self, "_live_measure_windows", None):
+            close()
         self._fd9_close_page_notice()
         self._fd9_close_insert_window()
         if self._fd9_awake:

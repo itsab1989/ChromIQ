@@ -465,12 +465,39 @@ def resume_plan(chart, settings):
     row_ends = []
     for row in layout["rows"]:
         row_ends.append((row_ends[-1] if row_ends else 0) + len(row))
-    if not count or count not in row_ends or count >= len(patches):
-        raise ValueError("Resume requires an incomplete measurement of complete rows")
-    if [int(r["SAMPLE_ID"]) for r in records] != [p["id"] for p in patches[:count]]:
-        raise ValueError("Resume measurement must be a complete leading-row prefix")
+    if layout.get("schema") == 2:
+        # A CHART OF SEVERAL SHEETS RESUMES PAGE BY PAGE (4.3.25, F7): a
+        # sheet the sheet check saved as a later page can be in the
+        # measurement while a page before it is not. Each page must still be
+        # a complete leading-row prefix of itself, and nothing else.
+        from .chart import chart_pages
+        by_id = {p["id"]: p for p in patches}
+        ids = [int(r["SAMPLE_ID"]) for r in records]
+        if not count or count >= len(patches) or len(set(ids)) != count \
+                or any(i not in by_id for i in ids):
+            raise ValueError("Resume requires an incomplete measurement of complete rows")
+        have = set(ids)
+        remaining, row_at = [], 0
+        for page in chart_pages(layout):
+            page_ids = [p["id"] for row in page["rows"] for p in row]
+            got = [i for i in page_ids if i in have]
+            width = len(page["rows"][0])
+            if got != page_ids[:len(got)] or len(got) % width:
+                raise ValueError("Resume measurement must be a complete leading-row prefix")
+            done_rows = len(got) // width
+            remaining += list(range(row_at + done_rows,
+                                    row_at + len(page["rows"])))
+            row_at += len(page["rows"])
+        pairs = [(r, by_id[int(r["SAMPLE_ID"])]) for r in records]
+    else:
+        if not count or count not in row_ends or count >= len(patches):
+            raise ValueError("Resume requires an incomplete measurement of complete rows")
+        if [int(r["SAMPLE_ID"]) for r in records] != [p["id"] for p in patches[:count]]:
+            raise ValueError("Resume measurement must be a complete leading-row prefix")
+        pairs = list(zip(records, patches))
+        remaining = None
     rep = layout["color_rep"]
-    for record, patch in zip(records, patches):
+    for record, patch in pairs:
         if record.get("SAMPLE_LOC") != locations[patch["id"]]:
             raise ValueError("Resume sample locations disagree with the chart")
         for token, value in zip(layout["channel_tokens"], patch["device_values"]):
@@ -486,7 +513,14 @@ def resume_plan(chart, settings):
             raise ValueError(
                 "Resume measurement has missing or nonfinite spectral data"
             )
-    return Path(base), records, list(range(row_ends.index(count) + 1, len(layout["rows"])))
+    if remaining is None:
+        remaining = list(range(row_ends.index(count) + 1, len(layout["rows"])))
+    return Path(base), records, remaining
+
+
+class _MeasureAgain(Exception):
+    """The person answered the sheet check of a one-sheet chart with
+    "Measure the sheet again" (4.3.25, F7)."""
 
 
 def measure_chart(
@@ -501,11 +535,16 @@ def measure_chart(
     on_patch=None,
     capture=capture_layout,
     on_page=lambda page, pages: None,
+    on_mismatch=None,
     _expected_identity=None,
     _wait_for_sheet_clear=False,
     _sheet_check=True,
     _xyz_method=None,
 ):
+    """Measure *chart* with the FD-9. *on_mismatch(question) -> answer* is
+    asked when the sheet check finds the sheet turned round or another page
+    (`workflow.fd9.page_check`: AGAIN, REFILE or KEEP); without it a
+    mismatch ends the measurement as before 4.3.25."""
     chart = Path(chart)
     layout_path, layout, locations = checked_chart(chart)
     if layout.get("schema") == 2:
@@ -514,7 +553,45 @@ def measure_chart(
         return measure_pages(chart, settings, session, progress=progress,
                              cancelled=cancelled, on_readings=on_readings,
                              on_scan=on_scan, on_patch=on_patch, on_page=on_page,
-                             capture=capture)
+                             capture=capture, on_mismatch=on_mismatch)
+    attempt = 0
+    while True:
+        here = Path(session)
+        if attempt:
+            # The sheet measured again gets a session folder of its own.
+            here = here.with_name(f"{here.name}-again{attempt}")
+        try:
+            return _measure_one_sheet(
+                chart, settings, here, progress=progress,
+                cancelled=cancelled, on_readings=on_readings, on_scan=on_scan,
+                on_patch=on_patch, capture=capture, on_mismatch=on_mismatch,
+                _expected_identity=_expected_identity,
+                _wait_for_sheet_clear=_wait_for_sheet_clear or attempt > 0,
+                _sheet_check=_sheet_check, _xyz_method=_xyz_method)
+        except _MeasureAgain:
+            attempt += 1
+            progress("Sheet check: the sheet is set aside to be measured again")
+            on_page(1, 1)
+
+
+def _measure_one_sheet(
+    chart,
+    settings,
+    session,
+    *,
+    progress,
+    cancelled,
+    on_readings,
+    on_scan,
+    on_patch,
+    capture,
+    on_mismatch,
+    _expected_identity,
+    _wait_for_sheet_clear,
+    _sheet_check,
+    _xyz_method,
+):
+    layout_path, layout, locations = checked_chart(chart)
     profile = settings.validate()
     base_path, base_rows, remaining = resume_plan(chart, settings)
     native = settings.conversion_source == "instrument_firmware"
@@ -713,13 +790,40 @@ def measure_chart(
     # #214, M4)? Checked before anything is staged or filed.
     # A page of a multi-page chart is checked by `pages.measure_pages`,
     # against every page of the chart, so not here as well.
+    sheet_note = {}
     if _sheet_check:
-        from .page_check import SKIPPED_LINE, check_sheet
-        skipped = check_sheet(
-            [layout], 0,
-            {int(r["SAMPLE_ID"]): r for r in first_table(chart)[2]}, rows)
-        if skipped:
-            progress(SKIPPED_LINE + skipped)
+        from . import page_check as pc
+        design = {int(r["SAMPLE_ID"]): r for r in first_table(chart)[2]}
+        note = pc.MATCHED
+        try:
+            skipped = pc.check_sheet([layout], 0, design, rows)
+            if skipped:
+                progress(pc.SKIPPED_LINE + skipped)
+                note = pc.NOT_CHECKED
+        except pc.SheetMismatch as mismatch:
+            if on_mismatch is None or cancelled():
+                raise
+            ids = {p["id"] for row in layout["rows"] for p in row}
+            whole = (not base_rows and acquisition_error is None
+                     and {int(r["SAMPLE_ID"]) for r in new_rows} == ids)
+            answer = on_mismatch({
+                "kind": mismatch.kind, "page": 1, "found": 1, "pages": 1,
+                "turned": True, "complete": whole,
+                "measured": len(new_rows), "total": len(ids),
+                "reason": str(mismatch)})
+            if answer not in (pc.REFILE, pc.KEEP) or (
+                    answer == pc.REFILE and not whole):
+                raise _MeasureAgain()
+            if answer == pc.REFILE:
+                rows = pc.refile(rows, [layout], 0, 0, True, design, locations)
+                from .chart import chart_pages  # noqa: F401  (same layout)
+                note = pc.TURNED_SAVED_TURNED
+            else:
+                note = pc.TURNED_KEPT
+            order = {p["id"]: i for i, p in enumerate(
+                p for row in layout["rows"] for p in row)}
+            rows.sort(key=lambda r: order[int(r["SAMPLE_ID"])])
+        sheet_note = {pc.PROVENANCE_KEY.format(page=1): note}
     sessions = []
     if base_path:
         old = _keywords(base_path.read_text(encoding="utf-8"))
@@ -738,6 +842,7 @@ def measure_chart(
             "FD9_SOURCE_SESSIONS": ",".join(sessions),
             "FD9_LAYOUT_SHA256": hashes[layout_path],
             "FD9_PARENT_MEASUREMENT_SHA256": hashes[base_path] if base_path else "",
+            **sheet_note,
         },
     )
     result = {

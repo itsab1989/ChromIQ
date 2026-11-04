@@ -614,6 +614,11 @@ AWAITING_APPROVAL: "set[str]" = {
                                  # 4.3.25 (F6): an FD-9 chart's marks in the
                                  # printer's unprinted edge.
                                  "M-FD9-EDGE-MARKS-NOT-PRINTED",
+                                 # 4.3.25 (F7): the sheet check asks.
+                                 "M-FD9-SHEET-TURNED-ASK",
+                                 "M-FD9-SHEET-TURNED-ASK-PARTIAL",
+                                 "M-FD9-WRONG-SHEET-ASK",
+                                 "M-FD9-WRONG-SHEET-ASK-PARTIAL",
                                  # 2026-09-03, review 3. Tools ▸ Read single
                                  # patches could bin a whole session in silence
                                  # by two routes: Clear had no question and no

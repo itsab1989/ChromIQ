@@ -61,9 +61,14 @@ class SheetMismatch(ValueError):
     clearly better than the expected sheet. ``kind`` is ``"turned"`` or
     ``"wrong_sheet"``; pages are numbered from 1."""
 
-    def __init__(self, kind, page, found, pages, expected_fit, found_fit):
+    def __init__(self, kind, page, found, pages, expected_fit, found_fit,
+                 turned=None):
         self.kind, self.page, self.found, self.pages = kind, page, found, pages
         self.expected_fit, self.found_fit = expected_fit, found_fit
+        #: whether the best fit is the found page TURNED ROUND (always for
+        #: "turned"; either way for "wrong_sheet"), so that a sheet can be
+        #: filed where it belongs (4.3.25, F7)
+        self.turned = (kind == "turned") if turned is None else bool(turned)
         what = (f"page {page} turned round" if kind == "turned"
                 else f"page {found}")
         super().__init__(
@@ -186,5 +191,59 @@ def check_sheet(pages, page_index, design, measured):
             and fit - expected_fit >= MARGIN):
         kind = "turned" if (q == page_index and turned) else "wrong_sheet"
         raise SheetMismatch(kind, page_index + 1, q + 1, len(pages),
-                            round(expected_fit, 3), round(fit, 3))
+                            round(expected_fit, 3), round(fit, 3),
+                            turned=turned)
     return None
+
+
+#: What a person can answer to a sheet check (4.3.25, F7), the way the strip
+#: check asks (M-STRIP-READ-TWICE): measure the page again (the safe answer,
+#: and what closing the window does), file the readings where they belong,
+#: or keep them as read.
+AGAIN = "again"
+REFILE = "refile"
+KEEP = "keep"
+
+#: The provenance written per page into the .ti3 (`FD9_SHEET_CHECK_PAGE_<n>`):
+#: how the check went and what the person chose. Values, not prose.
+PROVENANCE_KEY = "FD9_SHEET_CHECK_PAGE_{page}"
+MATCHED = "MATCHED"
+NOT_CHECKED = "NOT_CHECKED"
+TURNED_SAVED_TURNED = "TURNED_SAVED_TURNED_ROUND"
+TURNED_KEPT = "TURNED_KEPT_AS_READ"
+FROM_SHEET_ASKED_AS = "SAVED_FROM_SHEET_ASKED_AS_PAGE_{page}"
+OTHER_PAGE_KEPT = "LOOKED_LIKE_PAGE_{found}_KEPT_AS_READ"
+
+
+def refile(measured, pages, page_index, target_index, turned, design,
+           locations):
+    """The readings *measured* from the sheet asked for as page
+    *page_index*, filed under the patches of page *target_index* (the same
+    page for a sheet turned round), turned round when *turned*: the reading
+    at grid position (r, c) belongs to the patch printed at (R-1-r, C-1-c).
+    Every field that comes from the chart (the device values) is taken from
+    the patch it now belongs to, so the .ti3 stays consistent with its
+    chart. Only for a COMPLETE sheet (the caller checks)."""
+    source = pages[page_index]["rows"]
+    target = pages[target_index]["rows"]
+    rows, cols = len(source), len(source[0])
+    if (len(target), len(target[0])) != (rows, cols):
+        raise ValueError("Pages of different shape cannot be refiled")
+    where = {p["id"]: (r, c) for r, row in enumerate(source)
+             for c, p in enumerate(row)}
+    out = []
+    for record in measured:
+        r, c = where[int(record["SAMPLE_ID"])]
+        if turned:
+            r, c = rows - 1 - r, cols - 1 - c
+        pid = target[r][c]["id"]
+        new = dict(record)
+        chart_row = design[pid]
+        for field, value in chart_row.items():
+            if field in new and not field.startswith(
+                    ("XYZ_", "SPEC_", "LAB_", "SAMPLE_")):
+                new[field] = value
+        new["SAMPLE_ID"] = str(pid)
+        new["SAMPLE_LOC"] = locations[pid]
+        out.append(new)
+    return out
