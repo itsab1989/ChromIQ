@@ -52,7 +52,11 @@ The TI3 retains sample IDs, locations and original CMYK+N values, and declares
 and `FD9_EXPERIMENTAL "YES"`. This describes where factory calibration is
 applied; it does not assert independent ISO certification or cross-unit validation.
 Spectra use 36 bands, 380–730 nm. Reflectance is exported on a percent scale
-without clipping fluorescence; XYZ/Lab uses D50/2-degree integration over that range.
+without clipping fluorescence. Since 4.3.24, XYZ/Lab are worked out by
+ArgyllCMS's own method (`workflow/argyll_colorimetry.py`, D50, 1931 2-degree,
+1 nm, as `spec2cie`), recorded as `CHROMIQ_XYZ_METHOD`; a .ti3 without that
+keyword used the earlier 10 nm sums, and a Resume of it continues with them,
+so one measurement never mixes the two.
 
 Stop and Quit use ChromIQ's shared Save/Discard/Keep ending question. Save keeps
 only verified, acknowledged complete rows, writes a partial TI3 and archives the

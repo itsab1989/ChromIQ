@@ -38,6 +38,11 @@ def measure_pages(chart, settings, session, *, progress, cancelled, on_readings,
         identity = _keywords(base.read_text(encoding='utf-8'))
     completed_ids = {int(r['SAMPLE_ID']) for r in prior}
     page_records = []
+    # One colour calculation for the whole chart (4.3.24): the saved rows'
+    # when this is a Resume, ArgyllCMS's method for a new measurement.
+    from .native_export import XYZ_METHOD_ARGYLL, xyz_method_of
+    xyz_method = (xyz_method_of(_keywords(base.read_text(encoding='utf-8')))
+                  if base else XYZ_METHOD_ARGYLL)
     # The exit-sensor wait is only for a sheet THIS Start has just ejected
     # (review of #214, M3). A Resume that begins at page 2 or later starts
     # like any first page: the earlier sheet was taken out long ago, and the
@@ -100,7 +105,7 @@ def measure_pages(chart, settings, session, *, progress, cancelled, on_readings,
                 on_readings=lambda n: on_readings(offset+n), on_scan=scan_ready,
                 on_patch=patch_ready if on_patch else None, capture=capture,
                 _expected_identity=identity, _wait_for_sheet_clear=ejected_here,
-                _sheet_check=False)
+                _sheet_check=False, _xyz_method=xyz_method)
             ejected_here = True
             last = result
             template = Path(result['staged'])

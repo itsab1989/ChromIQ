@@ -8,45 +8,98 @@ from pathlib import Path
 import numpy as np
 
 
-def colour_data():
+#: How a measurement's XYZ is worked out from its 36 bands (4.3.24).
+#:
+#: * ``XYZ_METHOD_ARGYLL``: ArgyllCMS's own method
+#:   (`workflow.argyll_colorimetry`, the same as ``spec2cie`` to < 0.0001
+#:   dE), D50, 1931 2 degree, 1 nm. Every new FD-9 measurement. The .ti3
+#:   says so in ``CHROMIQ_XYZ_METHOD``, as the i1Profiler import does.
+#: * ``XYZ_METHOD_SUMS``: the 10 nm sums of 4.3.22 and 4.3.23 (about 0.05 dE76
+#:   mean and 0.35 max away from ArgyllCMS). A .ti3 without the keyword was
+#:   made this way, and a Resume of it goes on this way, so one measurement
+#:   never mixes the two.
+#:
+#: Both use D50 for every condition: the sensor has already produced M0, M1
+#: or M2, and applying D50M2 here would be a second UV-cut transformation.
+XYZ_METHOD_SUMS = "10 nm sums"
+from workflow.reference_convert import (  # noqa: E402 - beside the methods
+    XYZ_METHOD_ARGYLL, XYZ_METHOD_KEYWORD)
+
+_WAVELENGTHS = np.arange(380, 731, 10, dtype=float)
+
+
+def xyz_method_of(keywords: dict) -> str:
+    """The method a saved FD-9 .ti3 was converted with, from its header
+    keywords: no keyword is the earlier 10 nm sums."""
+    value = keywords.get(XYZ_METHOD_KEYWORD)
+    if value is None:
+        return XYZ_METHOD_SUMS
+    if value != XYZ_METHOD_ARGYLL:
+        raise ValueError(
+            "Resume measurement uses an unknown colour calculation: " + value)
+    return XYZ_METHOD_ARGYLL
+
+
+def colour_data(method=XYZ_METHOD_ARGYLL):
+    """(D50, 1931 2 degree, digest) at the FD-9's 36 bands. The digest names
+    the method too; for the 10 nm sums it is exactly the digest 4.3.22 and
+    4.3.23 recorded, so their sessions still resume."""
     from workflow.profile_engine.spectral import illuminant_spd, observer_cmf
 
-    lam = np.arange(380, 731, 10, dtype=float)
-    # The sensor has already produced the requested measurement condition.
-    # Applying D50M2 here would introduce a second UV-cut transformation.
+    lam = _WAVELENGTHS
     spd = illuminant_spd("D50", lam)
     cmf = observer_cmf("1931_2", lam)
+    if method == XYZ_METHOD_SUMS:
+        record = {
+            "wavelengths_nm": lam.tolist(),
+            "D50": spd.tolist(),
+            "1931_2": cmf.tolist(),
+            "integration": "CIE15-discrete-Y100-v1",
+        }
+    elif method == XYZ_METHOD_ARGYLL:
+        from workflow.argyll_colorimetry import xyz_weights
+        record = {
+            "wavelengths_nm": lam.tolist(),
+            "method": XYZ_METHOD_ARGYLL,
+            "weights": np.round(xyz_weights(lam, illuminant="D50",
+                                            observer="1931_2"), 12).tolist(),
+            "integration": "ArgyllCMS-xspect-1nm-v1",
+        }
+    else:
+        raise ValueError("Unknown FD-9 colour calculation")
     digest = hashlib.sha256(
-        json.dumps(
-            {
-                "wavelengths_nm": lam.tolist(),
-                "D50": spd.tolist(),
-                "1931_2": cmf.tolist(),
-                "integration": "CIE15-discrete-Y100-v1",
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode()
+        json.dumps(record, sort_keys=True, separators=(",", ":"),
+                   allow_nan=False).encode()
     ).hexdigest()
     return spd, cmf, digest
 
 
-def native_colour(values):
+def native_colour(values, method=XYZ_METHOD_ARGYLL):
     from workflow.profile_engine.ti3_data import xyz_to_lab
 
     refl = np.asarray(values, dtype=float)
     if refl.shape != (36,) or not np.isfinite(refl).all():
         raise ValueError("Require 36 finite factory-native reflectance values")
-    spd, cmf, _ = colour_data()
     # Explicit fraction units: fluorescence can legitimately exceed 1 or 2.
     # Never use an automatic fraction/percent heuristic or clip this spectrum.
-    xyz = (100.0 / float((spd * cmf[1]).sum())) * (cmf * spd * refl).sum(axis=1)
-    return xyz.tolist(), xyz_to_lab(xyz.reshape(1, 3))[0].tolist()
+    if method == XYZ_METHOD_ARGYLL:
+        from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
+        xyz = spectra_to_xyz_like_argyll(
+            refl, _WAVELENGTHS, illuminant="D50", observer="1931_2",
+            percent=False, clamp=False)[0]
+    elif method == XYZ_METHOD_SUMS:
+        spd, cmf, _ = colour_data(XYZ_METHOD_SUMS)
+        xyz = (100.0 / float((spd * cmf[1]).sum())) * (
+            cmf * spd * refl).sum(axis=1)
+    else:
+        raise ValueError("Unknown FD-9 colour calculation")
+    return list(map(float, xyz)), xyz_to_lab(
+        np.asarray(xyz, dtype=float).reshape(1, 3))[0].tolist()
 
 
 def export_native(
-    source, session, layout_path, output, condition, *, allow_partial=False
+    source, session, layout_path, output, condition, *, allow_partial=False,
+    method=XYZ_METHOD_ARGYLL,
 ):
     from .native_evidence import verified_native_rows
 
@@ -95,7 +148,7 @@ def export_native(
             raise ValueError("Invalid native sample ID or device values")
         ids.add(patch["id"])
         spectrum = sample.for_condition(condition).values
-        xyz, lab = native_colour(spectrum)
+        xyz, lab = native_colour(spectrum, method)
         rows.append(
             str(patch["id"])
             + " "
@@ -104,7 +157,7 @@ def export_native(
                 for v in list(device) + xyz + lab + [100 * v for v in spectrum]
             )
         )
-    _, _, cie_digest = colour_data()
+    _, _, cie_digest = colour_data(method)
     fields = (
         ["SAMPLE_ID"]
         + layout.get("device_fields", [rep + "_" + t for t in tokens])
@@ -142,6 +195,8 @@ def export_native(
         "SPECTRAL_NORM": "100",
         "COLORIMETRY_COVERAGE_NM": "380 730",
     }
+    if method == XYZ_METHOD_ARGYLL:
+        metadata[XYZ_METHOD_KEYWORD] = XYZ_METHOD_ARGYLL
     if model_source:
         metadata["FD9_MODEL_SHA256"] = evidence["model_sha256"]
     if any(
@@ -173,5 +228,6 @@ def export_native(
         "row_indices": evidence["row_indices"],
         "factory_sections_sha256": evidence["factory_sections_sha256"],
         "colour_data_sha256": cie_digest,
+        "xyz_method": method,
         "acquisition_complete": evidence["acquisition_complete"],
     }

@@ -411,7 +411,7 @@ def resume_plan(chart, settings):
         "SPECTRAL_END_NM": "730",
     }
     if settings.conversion_source == "instrument_firmware":
-        from .native_export import colour_data
+        from .native_export import colour_data, xyz_method_of
 
         required.update(
             {
@@ -420,7 +420,11 @@ def resume_plan(chart, settings):
                 # Not FD9_HOST: the factory and model fingerprints below
                 # identify the FD-9, and an address handed out again by a
                 # router must not make a partial run unresumable (review M11).
-                "FD9_COLOUR_DATA_SHA256": colour_data()[2],
+                # The colour calculation the saved rows were made with
+                # (4.3.24): a measurement started before goes on with the
+                # earlier 10 nm sums, never a mix.
+                "FD9_COLOUR_DATA_SHA256": colour_data(
+                    xyz_method_of(metadata))[2],
             }
         )
         if metadata.get("FD9_CONVERSION_SOURCE") not in (
@@ -500,6 +504,7 @@ def measure_chart(
     _expected_identity=None,
     _wait_for_sheet_clear=False,
     _sheet_check=True,
+    _xyz_method=None,
 ):
     chart = Path(chart)
     layout_path, layout, locations = checked_chart(chart)
@@ -516,9 +521,17 @@ def measure_chart(
     watched = [chart, layout_path]
     if not native:
         watched.extend([settings.profile, settings.illuminant, settings.observer])
-    from .native_export import colour_data, export_native
+    from .native_export import (XYZ_METHOD_ARGYLL, colour_data, export_native,
+                                xyz_method_of)
 
-    cie_digest = colour_data()[2] if native else None
+    # ONE COLOUR CALCULATION PER MEASUREMENT (4.3.24). A new measurement is
+    # worked out by ArgyllCMS's method; a Resume goes on with the method its
+    # saved rows were made with (no keyword = the earlier 10 nm sums), and a
+    # multi-page Start hands every page the chart's one method.
+    xyz_method = _xyz_method or (
+        xyz_method_of(_keywords(base_path.read_text(encoding="utf-8")))
+        if (native and base_path is not None) else XYZ_METHOD_ARGYLL)
+    cie_digest = colour_data(xyz_method)[2] if native else None
     if base_path is not None:
         watched.append(base_path)
     hashes = {p: sha(p) for p in watched}
@@ -554,7 +567,8 @@ def measure_chart(
             patch = selected_patches[count - 1]
             reference = design[patch["id"]]
             expected = [float(reference[k]) for k in ("XYZ_X", "XYZ_Y", "XYZ_Z")]
-            xyz, _ = native_colour(sample.for_condition(settings.condition).values)
+            xyz, _ = native_colour(
+                sample.for_condition(settings.condition).values, xyz_method)
             on_patch(
                 {
                     "session": str(Path(root).resolve()),
@@ -640,10 +654,11 @@ def measure_chart(
             raw_export,
             settings.condition,
             allow_partial=acquisition_error is not None,
+            method=xyz_method,
         )
         if (
             converted["colour_data_sha256"] != cie_digest
-            or colour_data()[2] != cie_digest
+            or colour_data(xyz_method)[2] != cie_digest
         ):
             raise ValueError("Colour data changed during native measurement")
         if (
