@@ -106,7 +106,11 @@ def test_a_hung_exec_is_still_ended_and_named(app, _no_modal_may_hang_the_suite)
     took = time.monotonic() - t0
     assert got == QDialog.DialogCode.Rejected.value
     assert sweep.stuck == ["A dialog nobody answers"]
-    assert 0.25 <= took < 3.5, f"ended after {took:.2f} s"
+    # The floor proves the grace period is honoured; the ceiling only has to
+    # tell "ended" from "hung". 3.5 s was an idle-machine budget: under a
+    # loaded -n auto run the 50 ms timer starves and this took 4.1 s and
+    # 5.7 s on 2026-11-04, a phantom red. A hung exec never ends at all.
+    assert 0.25 <= took < 30, f"the hung dialog did not end in time ({took:.2f} s)"
     dlg.deleteLater()
 
 
