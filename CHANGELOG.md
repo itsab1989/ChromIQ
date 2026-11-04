@@ -12,7 +12,7 @@ These changes are for people who have turned on FD-9 support in Preferences > Be
 - **When a chart's pages cannot be drawn, a window now says why**, for every instrument, instead of one line in the log and an empty preview.
 
 ### Fixed
-- **With the system print dialog, the warning about the edge a printer does not print now names the right printer.** With “Use default macOS printer dialog” on (and on Windows with its print dialog), the Print Chart and Create Chart tabs could name a printer from ChromIQ's own printer list, which is hidden then and may be one you no longer print to. The warning is now about the printer you last printed to through the system dialog, and it appears once you have printed that way. Thanks to lessbones for the report.
+- **With the system print dialog, the warning about the edge a printer does not print now names the right printer.** With “Use default macOS printer dialog” on (and on Windows with its print dialog), the Print Chart and Create Chart tabs could name a printer from ChromIQ's own printer list, which is hidden then and may be one you no longer print to. The warning is now about the printer you last printed to through the system dialog, and before your first print that way it is about your computer's default printer, which is the one the dialog opens on. Thanks to lessbones for the report.
 
 ## v4.3.23
 

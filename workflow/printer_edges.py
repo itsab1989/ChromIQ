@@ -183,19 +183,33 @@ def note_printer(settings, direct_printer: str) -> str:
     list (*direct_printer*). With the system print dialog, that list is
     hidden and may still name a queue that is not in use (lessbones, #214:
     a Canon iPF9400 the person no longer prints to), so the note is about
-    the printer the system dialog last printed to, and there is none until
-    something has been printed that way. The dialog may still offer another
-    printer; the note then follows the next print."""
+    the printer the system dialog last printed to. Before anything has been
+    printed that way, it is about the system's default printer, which is
+    the one the dialog opens on (review r1 M1: the note must not vanish for
+    everybody after the update). No default printer: no note. The dialog may
+    still offer another printer; the note then follows the next print."""
     try:
         native = bool(settings.get("use_native_print_dialog", False))
     except Exception:      # noqa: BLE001 - no settings: ChromIQ's own route
         native = False
     if native:
         try:
-            return str(settings.get("printer_last_used_by_dialog", "") or "")
+            used = str(settings.get("printer_last_used_by_dialog", "") or "")
         except Exception:      # noqa: BLE001
-            return ""
+            used = ""
+        return used or system_default_printer()
     return str(direct_printer or "")
+
+
+def system_default_printer() -> str:
+    """The system's default printer (the one its print dialog opens on), or
+    "" when there is none or it cannot be asked. Read only: Qt asks the
+    print system for the name, nothing is sent to a printer."""
+    try:
+        from PyQt6.QtPrintSupport import QPrinterInfo
+        return str(QPrinterInfo.defaultPrinterName() or "")
+    except Exception:      # noqa: BLE001 - no print support: no note
+        return ""
 
 
 def edges_for(printer: str, chart_mm: "tuple[float, float]", settings=None

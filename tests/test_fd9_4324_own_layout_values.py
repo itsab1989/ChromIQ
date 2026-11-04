@@ -258,3 +258,23 @@ def test_l5_manual_estimate_counts_the_pages_generate_makes(
     assert est["pages"] == 2 and est["page_patches"] == 396
     assert est["total"] == sum(len(p["rows"]) * len(p["rows"][0])
                                for p in layout["pages"])
+
+
+def test_r1_l5_a_manual_preset_does_not_change_guideds_fd9_sizes(
+        qapp, qtbot, tmp_path):
+    """Guided takes an FD-9 layout from a target or chart being loaded, Save
+    as Defaults or the Chart Layout preset, never from a Manual preset."""
+    from workflow.layout_engine.presets import LayoutRecipe
+    tab, _ = _tab(tmp_path, qtbot)
+    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("FD9"))
+    tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("A4"))
+    manual_preset = LayoutRecipe(instrument="FD9", paper="A4", patch_w_mm=20,
+                                 patch_h_mm=12, fd9_gap_mm=None,
+                                 inter_patch_mm=3.0, strip_gap_mm=4.0)
+    tab._set_engine_recipe(manual_preset)
+    p = tab._collect_guided()
+    assert (p.fd9_patch_mm, p.fd9_gap_mm, p.fd9_strip_gap_mm) == (8.0, 1.0, 1.0)
+    tab._set_engine_recipe(manual_preset, for_guided=True)   # a target load
+    p = tab._collect_guided()
+    assert (p.fd9_patch_mm, p.fd9_patch_h_mm, p.fd9_gap_mm,
+            p.fd9_strip_gap_mm) == (20.0, 12.0, 3.0, 4.0)

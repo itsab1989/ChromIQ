@@ -674,8 +674,10 @@ def test_guided_small_patch_size_reaches_creator_and_restore(qapp, qtbot, tmp_pa
     qtbot.addWidget(tab)
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("FD9"))
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("A4"))
+    # A target or chart being loaded (review r1 L5: a Manual preset is not).
     tab._set_engine_recipe(
-        LayoutRecipe(instrument="FD9", paper="A4", patch_w_mm=6, patch_h_mm=6)
+        LayoutRecipe(instrument="FD9", paper="A4", patch_w_mm=6, patch_h_mm=6),
+        for_guided=True,
     )
     params = tab._collect_guided()
     assert params.fd9_patch_mm == 6

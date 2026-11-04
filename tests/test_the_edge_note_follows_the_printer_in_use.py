@@ -27,13 +27,31 @@ class _Settings(dict):
         self[k] = v
 
 
-def test_own_route_uses_the_list_and_the_dialog_uses_its_own_printer():
+def test_own_route_uses_the_list_and_the_dialog_uses_its_own_printer(
+        monkeypatch):
+    monkeypatch.setattr(PE, "system_default_printer", lambda: "HP_Default")
     s = _Settings(use_native_print_dialog=False)
     assert PE.note_printer(s, "Canon_IPF9400B") == "Canon_IPF9400B"
     s["use_native_print_dialog"] = True
-    assert PE.note_printer(s, "Canon_IPF9400B") == ""        # none printed yet
+    # nothing printed through the dialog yet: the printer it opens on
+    # (review r1 M1), never the hidden list's
+    assert PE.note_printer(s, "Canon_IPF9400B") == "HP_Default"
     s["printer_last_used_by_dialog"] = "EPSON_P900"
     assert PE.note_printer(s, "Canon_IPF9400B") == "EPSON_P900"
+
+
+def test_no_default_printer_and_nothing_printed_means_no_note(monkeypatch):
+    monkeypatch.setattr(PE, "system_default_printer", lambda: "")
+    s = _Settings(use_native_print_dialog=True)
+    assert PE.note_printer(s, "Canon_IPF9400B") == ""
+
+
+def test_the_system_default_is_asked_read_only(monkeypatch):
+    """It is Qt's printer-name query, nothing is sent to a printer."""
+    import inspect
+    src = inspect.getsource(PE.system_default_printer)
+    assert "QPrinterInfo.defaultPrinterName()" in src
+    assert "QPrinter(" not in src
 
 
 def test_both_tabs_ask_the_same_function():
@@ -43,7 +61,11 @@ def test_both_tabs_ask_the_same_function():
     assert "note_printer(" in inspect.getsource(TabPrint._update_edge_note)
     assert "note_printer(" in inspect.getsource(TabChart._printer_edge_notice)
     # switching the route redraws the note at once
-    assert "_update_edge_note()" in inspect.getsource(TabPrint._set_native_mode)
+    # switching the route redraws both tabs' notes at once
+    assert "_refresh_both_edge_notes()" in inspect.getsource(
+        TabPrint._set_native_mode)
+    assert "_refresh_printer_edge_note" in inspect.getsource(
+        TabPrint._refresh_both_edge_notes)
 
 
 def test_a_dialog_print_remembers_its_printer(qapp, monkeypatch):
@@ -54,11 +76,8 @@ def test_a_dialog_print_remembers_its_printer(qapp, monkeypatch):
     class Stand:
         _settings = s
 
-        def _update_edge_note(self):
+        def _refresh_both_edge_notes(self):
             seen.append(PE.note_printer(s, "Canon_IPF9400B"))
-
-        def window(self):
-            return None
     TabPrint._remember_printer_the_dialog_used(Stand(), "EPSON_P900")
     assert s["printer_last_used_by_dialog"] == "EPSON_P900"
     assert seen == ["EPSON_P900"]
@@ -79,4 +98,8 @@ def test_both_dialog_routes_remember_the_printer():
         nxt = re.search(r"^    def ", src[start + 10:], re.M)
         return src[start:start + 10 + (nxt.start() if nxt else len(src))]
     assert "_remember_printer_the_dialog_used(_used)" in body("_print_native")
-    assert "_remember_printer_the_dialog_used(chosen)" in body("_print_native_qt")
+    qt = body("_print_native_qt")
+    # Windows: only once the print really went out, after every refusal
+    assert "_remember_printer_the_dialog_used(chosen)" in qt
+    assert qt.index("_remember_printer_the_dialog_used(chosen)") > qt.index(
+        "painter.end()")

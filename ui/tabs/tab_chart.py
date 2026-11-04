@@ -10077,7 +10077,8 @@ class TabChart(QWidget):
         accepted = dlg.exec() == QDialog.DialogCode.Accepted
         if accepted and self._editing_fd9_layout():
             inst, paper, mode = self.current_layout_combo()
-            self._set_engine_recipe(self._layout_store().get(inst, paper, mode))
+            self._set_engine_recipe(self._layout_store().get(inst, paper, mode),
+                                    for_guided=self._current_mode() == "guided")
             self._update_patch_count()
         # The same Preferences, so the same rule (B8-1284, B8-1285): this door
         # used to apply a changed i1Pro preset nowhere at all.
@@ -17776,7 +17777,8 @@ class TabChart(QWidget):
                     # chart (§10: a restored chart's sidecar overrules), so the
                     # instrument defaults must not write over it either.
                     self._set_engine_recipe(
-                        _replace_rec(recipe, layout_explicit=True))
+                        _replace_rec(recipe, layout_explicit=True),
+                        for_guided=True)
                 n_pages = 1 + max((int(p.get("page", 0))
                                    for p in layout.get("patches") or []),
                                   default=0)
@@ -19652,8 +19654,9 @@ class TabChart(QWidget):
         THE SAME SOURCES GUIDED USES FOR EVERY OTHER INSTRUMENT, AND NEVER
         MANUAL'S PANEL (review of #214, M1: Guided took Manual's hidden panel
         whole, its dpi, randomising and output with it, and its 0 mm gaps).
-        In order: a layout that was loaded (a chart, a preset or a target,
-        through `_set_engine_recipe`), what Save as Defaults stored, and
+        In order: the layout of a target or chart being loaded
+        (`_set_engine_recipe(..., for_guided=True)`, never a Manual preset),
+        what Save as Defaults stored, and
         otherwise the FD-9's layout in Preferences > Chart Layout, whose
         built-in default is 8 x 8 mm with 1 mm gaps."""
         own = getattr(self, "_fd9_guided", None)
@@ -22672,7 +22675,7 @@ class TabChart(QWidget):
             try:
                 from workflow.layout_engine.presets import LayoutRecipe
                 rec = LayoutRecipe.from_dict(rec_d)   # B8-1542: one reading
-                self._set_engine_recipe(rec)
+                self._set_engine_recipe(rec, for_guided=True)
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine recipe not applied", exc_info=True)
         # THE GUIDED ROW IS APPLIED LAST, AND THE ORDER IS THE FIX.
@@ -29761,7 +29764,7 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — never break a preset selection
             log.debug("could not clear the fixed-seed tick", exc_info=True)
 
-    def _set_engine_recipe(self, recipe) -> None:
+    def _set_engine_recipe(self, recipe, *, for_guided: bool = False) -> None:
         """Apply *recipe* to the Manual layout panel **and to the controls that
         show part of it elsewhere on screen**.
 
@@ -29783,7 +29786,11 @@ class TabChart(QWidget):
         from workflow.fd9.support import fd9_enabled
         fd9_recipe = (getattr(recipe, "instrument", None) == "FD9"
                       and fd9_enabled())
-        if fd9_recipe:
+        # GUIDED TAKES AN FD-9 LAYOUT ONLY FROM A TARGET OR A CHART BEING
+        # LOADED (*for_guided*), as Guided takes every other instrument's
+        # settings: never from a Manual preset or a Manual edit (review r1
+        # L5, after M1).
+        if fd9_recipe and for_guided:
             self._fd9_remember_guided(recipe)
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is None:

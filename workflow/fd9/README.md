@@ -256,4 +256,5 @@ With the system print dialog, the edge note (M-EDGE-NOT-PRINTED) on the
 Print and Create Chart tabs is about the printer that dialog last printed to,
 never the hidden direct-print queue, which may name an unrelated printer
 (`workflow/printer_edges.py::note_printer`). Until something has been printed
-through the dialog there is no note. ChromIQ's own route is unchanged.
+through the dialog it is about the system's default printer, the one the
+dialog opens on. ChromIQ's own route is unchanged.

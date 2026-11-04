@@ -1551,13 +1551,22 @@ class TabPrint(QWidget):
         try:
             if self._settings.get("printer_last_used_by_dialog", "") != printer:
                 self._settings.set("printer_last_used_by_dialog", str(printer))
+        except Exception:      # noqa: BLE001 - a note, never a blocker
+            log.debug("could not keep the dialog's printer", exc_info=True)
+        self._refresh_both_edge_notes()
+
+    def _refresh_both_edge_notes(self) -> None:
+        """Redraw the edge note here and in Create Chart, so both name the
+        same printer (after a dialog print, or when the print route is
+        switched in Preferences, review r1 M1)."""
+        try:
             self._update_edge_note()
             chart = getattr(self.window(), "_tab_chart", None)
             refresh = getattr(chart, "_refresh_printer_edge_note", None)
             if callable(refresh):
                 refresh()
         except Exception:      # noqa: BLE001 - a note, never a blocker
-            log.debug("could not keep the dialog's printer", exc_info=True)
+            log.debug("edge notes not redrawn", exc_info=True)
 
     def _note_print_path(self, path: str, printer: str, postscript: str = "") -> None:
         """Add which way the sheet goes to the held print record (4.3.8)."""
@@ -4482,7 +4491,7 @@ class TabPrint(QWidget):
 
     def _set_native_mode(self, enabled: bool) -> None:
         import sys as _sys
-        self._update_edge_note()
+        self._refresh_both_edge_notes()
         self._update_verify_route_note(native=enabled)
         self._update_ps_form_row()
         self._printer_grp.setVisible(not enabled)
@@ -4763,7 +4772,6 @@ class TabPrint(QWidget):
         paper = qprinter.pageLayout().fullRectPoints()
         pw, ph = float(paper.width()), float(paper.height())
         self._log_printer_margins(qprinter, pw, ph)
-        self._remember_printer_the_dialog_used(chosen)
         # A CHART A LITTLE LARGER THAN THE PAPER (jctay 149803: 102 x 152 mm
         # on the 100 x 148 mm a 4 x 6 in printer takes): printed at exactly
         # 100 %, no question, when only empty margin is off the paper
@@ -4865,3 +4873,7 @@ class TabPrint(QWidget):
         # A record only if a page really went onto the QPrinter: every page
         # failing to render leaves an empty job and nothing to describe.
         self._commit_print_record(drawn > 0)
+        # Only now, when the print really went out (review r1 M1): a print
+        # refused above must not move the edge note to that printer.
+        if drawn > 0:
+            self._remember_printer_the_dialog_used(chosen)
