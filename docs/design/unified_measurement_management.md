@@ -9400,6 +9400,8 @@ ChromIQ took the M2 readings and he compared M1.
   files, probably M0) is NOT mapped until the mapping is proved; the window
   names the value and preselects M1 (M1 when the file holds it, else the
   first condition it holds). Nothing is remembered between imports.
+  (4.3.24: the numbers 0, 1, 2 are now read as M0, M1, M2; see the 4.3.24
+  block below, also awaiting confirmation.)
 * **The condition is recorded.** The converted `.ti3` carries
   `KEYWORD "MEASUREMENT_CONDITION"` and `MEASUREMENT_CONDITION "M1"` (the
   keyword the FD-9 Beta's writer uses), and the Measurement info window shows
@@ -9410,7 +9412,8 @@ ChromIQ took the M2 readings and he compared M1.
   file (each spectrum's `StartWL` and its ColorSpecification's
   `WavelengthRange Increment`), not assumed. XYZ is still computed by ChromIQ
   (D50, 2°, as before; 0.045 dE76 mean from ArgyllCMS's own integration on
-  jctay's file). So an import now offers the illuminant and observer options,
+  jctay's file; 4.3.24 computes it by ArgyllCMS's method, see the 4.3.24
+  block below). So an import now offers the illuminant and observer options,
   has the same columns as a chartread measurement of the same instrument (the
   pre-conditioning merge can combine them), and keeps its spectra through the
   turned chart's reorder.
@@ -9548,6 +9551,19 @@ with M0, M1 and M2 chosen, and five files holding only some conditions.
   gate, the merge and the averaging rules then judge the recorded condition
   exactly as for a file with all three (FWA only for M0; two imports of
   different conditions are not merged).
+* **XYZ by ArgyllCMS's method.** A new import computes each patch's XYZ (D50,
+  CIE 1931 2°, Y = 100) as ArgyllCMS's `spec2cie` and `colprof` do
+  (`xicc/xspect.c`, `xsp2cie_sconvert`; `workflow.argyll_colorimetry`):
+  1 nm steps over the observer's range, 360 to 830 nm; the illuminant and
+  the observer read linearly, a spectrum spaced 5.01 nm or more with
+  ArgyllCMS's 4-point Lagrange cubic; the first and last measured values held
+  beyond the measured range; normalised so a perfect white has Y = 100; a
+  negative X, Y or Z clamped to 0. XYZ is written with six decimals, as
+  chartread writes it, and the header says how it was computed
+  (`CHROMIQ_XYZ_METHOD`). Against `spec2cie` 3.5.0 on jctay's 600 patches:
+  0.00002 dE76 mean, 0.00008 max (the 10 nm sums of 4.3.23: 0.05 mean,
+  0.10 max). Measurements imported before keep the XYZ they were written
+  with; nothing recomputes or rewrites them.
 
 ## S. Sequences — what happens, in what order, for every entry condition
 

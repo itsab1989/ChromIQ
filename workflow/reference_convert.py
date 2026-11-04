@@ -357,6 +357,11 @@ def stamp_instrument_from_source(ti3_path: str | Path, source_txt: str | Path,
 
 
 _CXF_NS = {"cc": "http://colorexchangeformat.com/CxF3-core"}
+#: The header keyword that says how an import's XYZ was computed from its
+#: spectra (4.3.24). Imports made before carry none: their XYZ came from the
+#: 10 nm sums and is left exactly as it was written.
+XYZ_METHOD_KEYWORD = "CHROMIQ_XYZ_METHOD"
+XYZ_METHOD_ARGYLL = "ArgyllCMS xspect, D50, 1931 2 degree, 1 nm"
 #: The measurement conditions (ISO 13655) an i1Profiler CxF can hold, in the
 #: order the condition window lists them. Until 4.3.23 the import took the
 #: first of M2, M1, M0 the file held, without asking and without saying so
@@ -570,7 +575,9 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     The CxF3 file holds device patches (``Target`` objects, ``ColorRGB``) and the
     readings (``M0/M1/M2_Measurement`` objects, a ``ReflectanceSpectrum`` each) as
     two PARALLEL, index-aligned object lists; we pair them by order, convert the
-    reflectance to XYZ under D50 / CIE 1931 2° (matching the report's colorimetry),
+    reflectance to XYZ under D50 / CIE 1931 2° by ArgyllCMS's own method
+    (:mod:`workflow.argyll_colorimetry`, since 4.3.24; the same numbers
+    ``spec2cie`` gives, where the 10 nm sums before were 0.05 dE76 away),
     rescale device RGB to Argyll's 0..100, and stamp the instrument + measurement
     date. RGB or CMYK (beta 7); extended inks raise.
 
@@ -584,7 +591,7 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     ``CHROMIQ_I1P_INSTRUMENT``.
     """
     import numpy as np
-    from workflow.profile_engine.spectral import spectra_to_xyz
+    from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
 
     cxf_path = Path(cxf_path)
     root = _cxf_root(cxf_path)
@@ -643,12 +650,16 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
 
     lam = _cxf_wavelengths(root, first_sp, bands)
     refl = np.asarray(refl, dtype=float)
-    xyz = spectra_to_xyz(refl, lam, illuminant="D50")   # Y=100, D50
     # CxF ColorRGB is 0..255; ColorCMYK is already percent.
     rgb100 = np.asarray(rgb) * ((100.0 / 255.0) if space == "RGB" else 1.0)
     # CxF reflectance is 0..1; an ArgyllCMS .ti3 carries it in percent
     # (chartread's SPEC_ columns), so a value above 2 is already percent.
     spec100 = refl * (1.0 if float(np.nanmax(refl)) > 2.0 else 100.0)
+    # D50, 2 degree, Y = 100, computed as ArgyllCMS computes it (1 nm steps
+    # over 360-830 nm, its interpolation, end values held): what spec2cie
+    # and colprof would make of these spectra (4.3.24, jctay's files).
+    xyz = spectra_to_xyz_like_argyll(spec100, lam, illuminant="D50",
+                                     observer="1931_2", percent=True)
 
     i1p_name = _cxf_instrument(root)
     instrument = argyll_instrument_name(i1p_name)
@@ -660,7 +671,9 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
         lines += [f'KEYWORD "{I1P_INSTRUMENT_KEYWORD}"',
                   f'{I1P_INSTRUMENT_KEYWORD} "{i1p_name}"']
     lines += ['KEYWORD "MEASUREMENT_CONDITION"',
-              f'MEASUREMENT_CONDITION "{chosen}"']
+              f'MEASUREMENT_CONDITION "{chosen}"',
+              f'KEYWORD "{XYZ_METHOD_KEYWORD}"',
+              f'{XYZ_METHOD_KEYWORD} "{XYZ_METHOD_ARGYLL}"']
     if date:
         lines += ['KEYWORD "CHROMIQ_MEASURED"', f'CHROMIQ_MEASURED "{date}"']
     grid = _cxf_i1p_grid(root, targets)
@@ -683,7 +696,7 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path,
     for i, (dev, (x, y, z), sp) in enumerate(zip(rgb100, xyz, spec100), 1):
         d = " ".join(f"{v:.4f}" for v in dev)
         s = " ".join(f"{v:.5f}" for v in sp)
-        lines.append(f'{i} "{i}" {d} {x:.4f} {y:.4f} {z:.4f} {s}')
+        lines.append(f'{i} "{i}" {d} {x:.6f} {y:.6f} {z:.6f} {s}')
     lines += ["END_DATA", ""]
     out_ti3 = Path(out_ti3)
     if not out_ti3.name.lower().endswith(".ti3"):

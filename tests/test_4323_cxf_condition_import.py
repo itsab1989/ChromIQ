@@ -135,7 +135,7 @@ def test_each_condition_converts_its_own_readings_and_says_which(tmp_path,
                                                                  cond):
     """Before 4.3.23 every one of these was the M2 readings, with no
     condition in the file and no spectra."""
-    from workflow.profile_engine.spectral import spectra_to_xyz
+    from workflow.argyll_colorimetry import spectra_to_xyz_like_argyll
     src = _cxf(tmp_path / "a.mxf")
     out = cxf_measurement_to_ti3(src, tmp_path / f"{cond}.ti3", condition=cond)
     d = parse_ti3(out)
@@ -146,8 +146,8 @@ def test_each_condition_converts_its_own_readings_and_says_which(tmp_path,
     want = np.array([s.copy() for s in spectra])
     want[:, :12] *= _GLOW[cond]
     assert np.allclose(np.asarray(d.spectral), want * 100, atol=1e-4)
-    xyz = spectra_to_xyz(want, 380 + 10 * np.arange(36), illuminant="D50")
-    assert np.allclose(np.asarray(d.xyz), xyz, atol=1e-3)
+    xyz = spectra_to_xyz_like_argyll(want, 380 + 10 * np.arange(36))
+    assert np.allclose(np.asarray(d.xyz), xyz, atol=1e-5)
 
 
 def test_the_conditions_give_different_numbers(tmp_path):
