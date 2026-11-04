@@ -817,7 +817,13 @@ def _measure_one_sheet(
                 "measured": len(new_rows), "total": len(ids),
                 "reason": str(mismatch),
                 "locations": [locations[p["id"]] for row in layout["rows"]
-                              for p in row]})
+                              for p in row],
+                # Only the patches read on THIS attempt (4.3.25 final review
+                # round 2, L6 for one sheet): on a resumed sheet "again" must
+                # keep the earlier rows' live colours, as pages.py does.
+                "read_locations": [
+                    locations[p["id"]] for row in layout["rows"] for p in row
+                    if int(p["id"]) in {int(r["SAMPLE_ID"]) for r in new_rows}]})
             if answer not in (pc.REFILE, pc.KEEP) or (
                     answer == pc.REFILE and not whole):
                 raise _MeasureAgain()

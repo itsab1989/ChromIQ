@@ -396,3 +396,14 @@ def test_the_worker_names_the_locations_this_sheet_read():
     from workflow.fd9 import pages
     src = inspect.getsource(pages)
     assert "'read_locations'" in src and "in read_now]" in src
+
+
+def test_a_one_sheet_question_also_names_the_locations_it_read():
+    """The one-sheet path (measurement._measure_one_sheet) carries
+    `read_locations` too, limited to this attempt's rows (final review round
+    2, L6): "again" on a resumed one-sheet chart keeps the earlier rows."""
+    import inspect
+    from workflow.fd9 import measurement
+    src = inspect.getsource(measurement._measure_one_sheet)
+    assert '"read_locations"' in src
+    assert 'for r in new_rows}' in src.split('"read_locations"', 1)[1][:400]
