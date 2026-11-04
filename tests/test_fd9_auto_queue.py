@@ -80,3 +80,34 @@ def test_stop_during_next_sheet_clearance_keeps_the_completed_page(setup):
     assert len(first_table(result['staged'])[2])==9
     publish_measurement(result['staged'],result['destination'],s.chart,allow_partial=True)
     assert len(resume_plan(s.chart,replace(settings,resume=True))[1])==9
+
+
+def test_a_resume_that_starts_at_a_later_page_does_not_wait_for_the_sensor(setup):
+    """M3 (review of #214): the exit-sensor wait is for a sheet this Start has
+    ejected. A Resume beginning at page 2 starts like a first page, so it
+    cannot sit under "Prepare page 2" for an hour waiting for a notification
+    an empty sensor may never send."""
+    from dataclasses import replace
+    from tests.test_fd9_multipage import capture_pages, make_chart
+    from tests.test_fd9_factory_workflow import native_settings
+    from workflow.fd9.measurement import measure_chart, publish_measurement
+    s = setup
+    s.chart = make_chart(s.tmp, count=21).ti2_path        # three pages
+    settings = native_settings(s)
+    capture, _ = capture_pages(s, stop_page=2)
+    waits = []
+
+    def watched(*a, **kw):
+        waits.append(kw.get('wait_for_sheet_clear', False))
+        return capture(*a, **kw)
+    partial = measure_chart(s.chart, settings, s.tmp / 'first', capture=watched)
+    assert not partial['complete'] and waits == [False, True]
+    publish_measurement(partial['staged'], partial['destination'], s.chart,
+                        allow_partial=True)
+    capture, calls = capture_pages(s)
+    waits.clear()
+    final = measure_chart(s.chart, replace(settings, resume=True),
+                          s.tmp / 'resumed', capture=watched)
+    assert final['complete']
+    assert [c[0] for c in calls] == [2, 3]
+    assert waits == [False, True]      # page 2 starts fresh, page 3 waits
